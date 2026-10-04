@@ -780,6 +780,41 @@
     min-width: 0;
 }
 
+/* Motivo del bloqueo de un Trabajador en el Centro (ficha 12): bajo la fila, una línea por documento con su «Pedir». */
+.motivo-bloqueo {
+    margin: 0.25rem 0 0.5rem 2.25rem;
+    padding-left: 0.75rem;
+    border-left: 2px solid var(--color-danger-700);
+}
+
+.motivo-bloqueo-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.motivo-bloqueo-linea {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.125rem 0;
+}
+
+.motivo-bloqueo-texto {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.motivo-bloqueo-sin-pedir,
+.motivo-bloqueo-subtitulo {
+    color: var(--color-text-muted);
+}
+
+.motivo-bloqueo-subtitulo {
+    margin: 0.5rem 0 0.125rem;
+}
+
 /*
   Fila de Trabajador (contrato de fidelidad 2026-08-09 § 1.4, lámina L3
   ".wrow"): mismo grid de 5 columnas fijas que la fila de Centro, sin anillo

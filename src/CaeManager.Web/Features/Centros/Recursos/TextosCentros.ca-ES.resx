@@ -219,4 +219,25 @@
   <data name="BloqueoTipoDeEmpresa" xml:space="preserve">
     <value>{0} (de l'Empresa)</value>
   </data>
+  <data name="MotivoBloqueoEncabezado" xml:space="preserve">
+    <value>Per què està bloquejat en aquest Centre</value>
+  </data>
+  <data name="MotivoBloqueoPedir" xml:space="preserve">
+    <value>Demanar</value>
+  </data>
+  <data name="MotivoBloqueoPedirDe" xml:space="preserve">
+    <value>Demanar {0}</value>
+  </data>
+  <data name="MotivoBloqueoNoSePuedePedir" xml:space="preserve">
+    <value>encara no hi ha cap document que reclamar</value>
+  </data>
+  <data name="MotivoBloqueoTambien" xml:space="preserve">
+    <value>A més, per atendre en aquest Centre</value>
+  </data>
+  <data name="MotivoBloqueoSinConfirmar" xml:space="preserve">
+    <value>{0} — sense confirmar</value>
+  </data>
+  <data name="MotivoBloqueoCaduca" xml:space="preserve">
+    <value>{0} — caduca {1}</value>
+  </data>
 </root>
