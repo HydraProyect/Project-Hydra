@@ -220,6 +220,11 @@
     background-color: var(--color-warning-700);
 }
 
+/* Misma regla que .badge-tolerancia: el punto de una opción con TonoBadge.Tolerancia no cae al gris. */
+.csa-punto-tolerancia {
+    background-color: var(--color-tolerancia-500);
+}
+
 .csa-punto-peligro {
     background-color: var(--color-danger-500);
 }
