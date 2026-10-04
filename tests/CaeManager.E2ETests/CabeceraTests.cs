@@ -76,7 +76,7 @@ public class CabeceraTests(WebAppFixture fixture)
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
-        
+
         // El login espera el menú lateral, que en móvil no existe: se entra en escritorio y se estrecha.
         await page.SetViewportSizeAsync(375, 812);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
