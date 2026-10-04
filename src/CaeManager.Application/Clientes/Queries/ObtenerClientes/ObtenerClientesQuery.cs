@@ -12,8 +12,9 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientes;
 
 /// <param name="OrdenarPor">
 /// Nombre de una propiedad de <see cref="ClienteListaDto"/>. <c>EstadoDocumentalPeor</c> ordena por
-/// el peor estado documental (ascendente: el peor primero) y, como el filtro de estado, se resuelve
-/// en memoria sobre un máximo de 2000 candidatos; sin valor, por razón social.
+/// el peor estado documental (ascendente: el peor primero; empates por razón social), exacto para
+/// toda la cartera; solo combinado con <paramref name="EstadoDocumental"/> hereda el tope de 2000
+/// candidatos de ese filtro. Sin valor, por razón social.
 /// </param>
 public record ObtenerClientesQuery(
     string? Busqueda, bool? SoloCriticos, Guid? EjecutivoUsuarioId = null, EstadoDocumento? EstadoDocumental = null,
@@ -104,69 +105,44 @@ public class ObtenerClientesQueryHandler(
         // el orden que haya elegido el usuario.
         ordenada = ordenada.ThenBy(c => c.Id);
 
-        // Sin filtro ni orden por Estado documental: paginación normal en SQL.
-        // Con cualquiera de los dos: el estado es un agregado calculado (no
-        // una columna), así que hace falta materializar candidatos de sobra,
-        // calcular su agregado y paginar en memoria — acotado a un límite
-        // razonable (mismo principio que otros filtros calculados de este
-        // código base) en vez de traer toda la cartera. Con el orden por
-        // estado, la base sale ordenada por razón social (rama por defecto
-        // del switch de arriba) y ese orden queda como desempate: OrderBy de
-        // LINQ es estable.
-        const int limiteCandidatosConFiltroCalculado = 2000;
+        // El estado documental es un agregado calculado (no una columna): sale de las alertas
+        // de vigencia, que se resuelven una vez por petición.
+        var estadoPorCliente = await ObtenerEstadoDocumentalPorClienteAsync(cancellationToken);
         var ordenarPorEstado = request.OrdenarPor == nameof(ClienteListaDto.EstadoDocumentalPeor);
-        var enMemoria = request.EstadoDocumental is not null || ordenarPorEstado;
 
-        List<Empresa> candidatos;
+        List<ClienteListaDto> elementos;
         int total;
-        if (!enMemoria)
+        if (request.EstadoDocumental is null && !ordenarPorEstado)
         {
-            candidatos = await ordenada
+            // Sin filtro ni orden por Estado documental: paginación normal en SQL.
+            elementos = ConEstado(await Proyectar(ordenada
                 .Skip((request.Pagina - 1) * request.TamanoPagina)
-                .Take(request.TamanoPagina)
-                .ToListAsync(cancellationToken);
+                .Take(request.TamanoPagina))
+                .ToListAsync(cancellationToken), estadoPorCliente);
+            total = totalSinEstado;
+        }
+        else if (request.EstadoDocumental is null)
+        {
+            // Solo orden por estado (el de por defecto de la lista, rediseño de listados fase 1):
+            // exacto y sin tope de candidatos, porque todo Cliente empresarial sin alertas es
+            // «Al corriente» y va detrás de los que tienen alguna (o delante, en descendente).
+            // Así solo los que tienen alertas se ordenan en memoria; el resto se pagina en SQL.
+            elementos = await PaginaOrdenadaPorEstadoAsync(consulta, estadoPorCliente, request, totalSinEstado, cancellationToken);
             total = totalSinEstado;
         }
         else
         {
-            candidatos = await ordenada.Take(limiteCandidatosConFiltroCalculado).ToListAsync(cancellationToken);
-            total = -1; // se recalcula abajo, tras aplicar el filtro de estado.
-        }
+            // Filtro por Estado documental: sigue acotado a un límite razonable de candidatos
+            // (mismo principio que otros filtros calculados de este código base) en vez de traer
+            // toda la cartera; el total es el de los que coinciden entre esos candidatos. Con
+            // orden por estado, OrderBy de LINQ es estable y la razón social (rama por defecto
+            // del switch de arriba) queda como desempate.
+            const int limiteCandidatosConFiltroCalculado = 2000;
+            var candidatos = ConEstado(await Proyectar(ordenada.Take(limiteCandidatosConFiltroCalculado))
+                .ToListAsync(cancellationToken), estadoPorCliente);
+            if (ordenarPorEstado)
+                candidatos = OrdenarPorEstado(candidatos, request.Descendente);
 
-        var estadoPorCliente = await ObtenerEstadoDocumentalPorClienteAsync(cancellationToken);
-
-        var todosLosCandidatos = candidatos
-            .Select(c => new ClienteListaDto(c.Id, c.RazonSocial, c.Cif ?? string.Empty, c.EsCritico == true, c.CreadoEnUtc,
-                EjecutivoUsuarioId: c.EjecutivoUsuarioId))
-            .Select(c => estadoPorCliente.TryGetValue(c.Id, out var estado)
-                ? c with { EstadoDocumentalPeor = estado.Peor, EstadoDocumentalCantidad = estado.Cantidad }
-                : c)
-            .ToList();
-
-        if (ordenarPorEstado)
-        {
-            // «Peor estado primero» (rediseño de listados, fase 1): ascendente
-            // es Faltante → Vencido → Urgente → Próximo → Al corriente, la
-            // misma prioridad que fija el peor estado de cada fila.
-            todosLosCandidatos = request.Descendente
-                ? todosLosCandidatos.OrderByDescending(PrioridadDeLaFila).ToList()
-                : todosLosCandidatos.OrderBy(PrioridadDeLaFila).ToList();
-        }
-
-        List<ClienteListaDto> elementos;
-        if (!enMemoria)
-        {
-            elementos = todosLosCandidatos;
-        }
-        else if (request.EstadoDocumental is null)
-        {
-            // Solo orden por estado: el total es lo que se ha podido ordenar
-            // (la cartera entera salvo que supere el límite de candidatos).
-            total = todosLosCandidatos.Count;
-            elementos = todosLosCandidatos.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList();
-        }
-        else
-        {
             // "Con vencidos" pregunta si HAY algún Vencido, no si el PEOR
             // estado es exactamente Vencido — un Cliente con Faltantes Y
             // Vencidos a la vez (Faltante pesa más, ver PrioridadEstado) no
@@ -177,8 +153,8 @@ public class ObtenerClientesQueryHandler(
             // Vigente), así que sirve para pedir "sin ninguna alerta
             // abierta" sin un cuarto parámetro de tipo bool aparte.
             var filtrados = request.EstadoDocumental == EstadoDocumento.Vigente
-                ? todosLosCandidatos.Where(c => c.EstadoDocumentalPeor is null).ToList()
-                : todosLosCandidatos
+                ? candidatos.Where(c => c.EstadoDocumentalPeor is null).ToList()
+                : candidatos
                     .Where(c => estadoPorCliente.TryGetValue(c.Id, out var estado)
                         && estado.EstadosPresentes.Contains(request.EstadoDocumental.Value))
                     .ToList();
@@ -210,6 +186,79 @@ public class ObtenerClientesQueryHandler(
             .ToList();
 
         return new ResultadoPaginado<ClienteListaDto>(enriquecidos, total, request.Pagina, request.TamanoPagina);
+    }
+
+    /// <summary>
+    /// Solo las columnas que pinta la fila, no la <see cref="Empresa"/> entera. Los argumentos van
+    /// todos por posición: un árbol de expresión no admite los opcionales del record.
+    /// </summary>
+    private static IQueryable<ClienteListaDto> Proyectar(IQueryable<Empresa> empresas) =>
+        empresas.Select(c => new ClienteListaDto(
+            c.Id, c.RazonSocial, c.Cif ?? string.Empty, c.EsCritico == true, c.CreadoEnUtc,
+            false, c.EjecutivoUsuarioId, 0, null, 0));
+
+    private static List<ClienteListaDto> ConEstado(
+        List<ClienteListaDto> filas,
+        Dictionary<Guid, (EstadoDocumento Peor, int Cantidad, HashSet<EstadoDocumento> EstadosPresentes)> estadoPorCliente) =>
+        filas
+            .Select(c => estadoPorCliente.TryGetValue(c.Id, out var estado)
+                ? c with { EstadoDocumentalPeor = estado.Peor, EstadoDocumentalCantidad = estado.Cantidad }
+                : c)
+            .ToList();
+
+    /// <summary>
+    /// «Peor estado primero» (rediseño de listados, fase 1): ascendente es Faltante → Vencido →
+    /// Urgente → Próximo → Al corriente. OrderBy de LINQ es estable: dentro de un mismo estado se
+    /// conserva el orden de entrada (razón social, Id).
+    /// </summary>
+    private static List<ClienteListaDto> OrdenarPorEstado(List<ClienteListaDto> filas, bool descendente) =>
+        descendente
+            ? filas.OrderByDescending(PrioridadDeLaFila).ToList()
+            : filas.OrderBy(PrioridadDeLaFila).ToList();
+
+    /// <summary>
+    /// Página del orden por Estado documental sin filtro de estado, exacta para cualquier tamaño de
+    /// cartera. La lista se parte en dos tramos contiguos: los Clientes empresariales con alguna
+    /// alerta abierta (pocos: se traen proyectados y se ordenan en memoria por prioridad) y los
+    /// que no tienen ninguna («Al corriente», todos con la misma prioridad: se paginan en SQL por
+    /// razón social). En ascendente va primero el tramo con alertas; en descendente, el otro.
+    /// </summary>
+    private static async Task<List<ClienteListaDto>> PaginaOrdenadaPorEstadoAsync(
+        IQueryable<Empresa> consulta,
+        Dictionary<Guid, (EstadoDocumento Peor, int Cantidad, HashSet<EstadoDocumento> EstadosPresentes)> estadoPorCliente,
+        ObtenerClientesQuery request, int total, CancellationToken cancellationToken)
+    {
+        var idsConAlertas = estadoPorCliente.Keys.ToList();
+        var conAlertas = OrdenarPorEstado(ConEstado(await Proyectar(consulta
+                .Where(c => idsConAlertas.Contains(c.Id))
+                .OrderBy(c => c.RazonSocial).ThenBy(c => c.Id))
+            .ToListAsync(cancellationToken), estadoPorCliente), request.Descendente);
+        var sinAlertas = consulta
+            .Where(c => !idsConAlertas.Contains(c.Id))
+            .OrderBy(c => c.RazonSocial).ThenBy(c => c.Id);
+        var cuantosSinAlertas = Math.Max(0, total - conAlertas.Count);
+
+        var desde = (request.Pagina - 1) * request.TamanoPagina;
+        var pagina = new List<ClienteListaDto>(request.TamanoPagina);
+        if (!request.Descendente)
+        {
+            pagina.AddRange(conAlertas.Skip(desde).Take(request.TamanoPagina));
+            var faltan = request.TamanoPagina - pagina.Count;
+            if (faltan > 0 && cuantosSinAlertas > 0)
+                pagina.AddRange(await Proyectar(sinAlertas.Skip(Math.Max(0, desde - conAlertas.Count)).Take(faltan))
+                    .ToListAsync(cancellationToken));
+        }
+        else
+        {
+            if (desde < cuantosSinAlertas)
+                pagina.AddRange(await Proyectar(sinAlertas.Skip(desde).Take(Math.Min(request.TamanoPagina, cuantosSinAlertas - desde)))
+                    .ToListAsync(cancellationToken));
+            var faltan = request.TamanoPagina - pagina.Count;
+            if (faltan > 0)
+                pagina.AddRange(conAlertas.Skip(Math.Max(0, desde - cuantosSinAlertas)).Take(faltan));
+        }
+
+        return pagina;
     }
 
     /// <summary>

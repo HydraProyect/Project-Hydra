@@ -122,6 +122,105 @@ public class ObtenerClientesOrdenPorEstadoDocumentalTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Dentro de un filtro, el orden por estado contradice a la razón social: «Con vencidos» deja
+    /// pasar a los dos, pero el que además tiene un Faltante («Z…») va antes que el que solo tiene
+    /// Vencidos («A…»). Sin el orden por estado saldrían por nombre, al revés.
+    /// </summary>
+    [Fact]
+    public async Task Con_filtro_de_vencidos_el_que_ademas_tiene_un_faltante_va_primero_aunque_su_nombre_vaya_detras()
+    {
+        var soloVencido = Empresa.CrearComoCliente("Aaa Solo Vencido S.L.", "", false, null, null);
+        var faltanteYVencido = Empresa.CrearComoCliente("Zzz Faltante y Vencido S.L.", "", false, null, null);
+        _dbContext.Empresas.AddRange(soloVencido, faltanteYVencido);
+        await _dbContext.SaveChangesAsync();
+        _alertas.Add(Alerta(soloVencido.Id, EstadoDocumento.Vencido));
+        _alertas.Add(Alerta(faltanteYVencido.Id, EstadoDocumento.Vencido));
+        _alertas.Add(Alerta(faltanteYVencido.Id, EstadoDocumento.Faltante));
+
+        var resultado = await _servicios.GetRequiredService<IMediator>().Send(new ObtenerClientesQuery(
+            Busqueda: null, SoloCriticos: null, EstadoDocumental: EstadoDocumento.Vencido,
+            OrdenarPor: nameof(ClienteListaDto.EstadoDocumentalPeor)));
+
+        resultado.TotalElementos.Should().Be(2);
+        resultado.Elementos.Select(c => c.Id).Should().Equal([faltanteYVencido.Id, soloVencido.Id],
+            "Faltante pesa más que Vencido, aunque por razón social «Z…» vaya detrás de «A…»");
+        resultado.Elementos[0].EstadoDocumentalPeor.Should().Be(EstadoDocumento.Faltante);
+    }
+
+    /// <summary>
+    /// Los cinco estados, sembrados con nombres en orden alfabético inverso a su prioridad:
+    /// la lista sale Faltante → Vencido → Urgente → Próximo → Al corriente.
+    /// </summary>
+    [Fact]
+    public async Task El_orden_por_estado_es_Faltante_Vencido_Urgente_Proximo_y_Al_corriente()
+    {
+        var alCorriente = Empresa.CrearComoCliente("A Al Corriente S.L.", "", false, null, null);
+        var proximo = Empresa.CrearComoCliente("B Próximo S.L.", "", false, null, null);
+        var urgente = Empresa.CrearComoCliente("C Urgente S.L.", "", false, null, null);
+        var vencido = Empresa.CrearComoCliente("D Vencido S.L.", "", false, null, null);
+        var faltante = Empresa.CrearComoCliente("E Faltante S.L.", "", false, null, null);
+        _dbContext.Empresas.AddRange(alCorriente, proximo, urgente, vencido, faltante);
+        await _dbContext.SaveChangesAsync();
+        _alertas.Add(Alerta(proximo.Id, EstadoDocumento.Proximo));
+        _alertas.Add(Alerta(urgente.Id, EstadoDocumento.Urgente));
+        _alertas.Add(Alerta(vencido.Id, EstadoDocumento.Vencido));
+        _alertas.Add(Alerta(faltante.Id, EstadoDocumento.Faltante));
+
+        var resultado = await EjecutarAsync(pagina: 1, tamano: 20);
+
+        resultado.Elementos.Select(c => c.Id).Should().Equal(faltante.Id, vencido.Id, urgente.Id, proximo.Id, alCorriente.Id);
+    }
+
+    /// <summary>
+    /// Los que tienen alertas se ordenan en memoria y los «Al corriente» se paginan en SQL: una
+    /// página que cae a caballo entre los dos tramos tiene que coserlos sin repetir ni saltar
+    /// filas, en los dos sentidos.
+    /// </summary>
+    [Fact]
+    public async Task Una_pagina_a_caballo_entre_los_que_tienen_alertas_y_los_al_corriente_no_repite_ni_salta_filas()
+    {
+        var (alCorrienteA, alCorrienteB, urgente, vencido) = await SembrarCuatroAsync();
+
+        var ascendente = new List<Guid>();
+        var descendente = new List<Guid>();
+        for (var pagina = 1; pagina <= 2; pagina++)
+        {
+            ascendente.AddRange((await EjecutarAsync(pagina, tamano: 3)).Elementos.Select(c => c.Id));
+            descendente.AddRange((await EjecutarAsync(pagina, tamano: 3, descendente: true)).Elementos.Select(c => c.Id));
+        }
+
+        ascendente.Should().Equal(vencido, urgente, alCorrienteA, alCorrienteB);
+        descendente.Should().Equal(alCorrienteA, alCorrienteB, urgente, vencido);
+        (await EjecutarAsync(pagina: 3, tamano: 3)).Elementos.Should().BeEmpty("no hay tercera página");
+    }
+
+    /// <summary>
+    /// El orden por estado es el de por defecto de la lista, así que no puede tener tope: con más
+    /// de 2000 Clientes empresariales el total es el real, y uno con un Faltante cuyo nombre va
+    /// el último por razón social (el candidato 2002) sale el primero. Antes se ordenaban solo los
+    /// 2000 primeros por nombre: este no aparecía en ninguna página y el total decía 2000.
+    /// </summary>
+    [Fact]
+    public async Task Con_mas_de_2000_Clientes_el_orden_por_estado_cubre_la_cartera_entera_y_el_total_es_el_real()
+    {
+        for (var i = 1; i <= 2001; i++)
+            _dbContext.Empresas.Add(Empresa.CrearComoCliente($"Cliente {i:0000} S.L.", "", false, null, null));
+        var ultimoPorNombre = Empresa.CrearComoCliente("Zzz Faltante S.L.", "", false, null, null);
+        _dbContext.Empresas.Add(ultimoPorNombre);
+        await _dbContext.SaveChangesAsync();
+        _alertas.Add(Alerta(ultimoPorNombre.Id, EstadoDocumento.Faltante));
+
+        var primera = await EjecutarAsync(pagina: 1, tamano: 20);
+        var ultima = await EjecutarAsync(pagina: 101, tamano: 20);
+
+        primera.TotalElementos.Should().Be(2002);
+        primera.Elementos[0].Id.Should().Be(ultimoPorNombre.Id);
+        primera.Elementos.Skip(1).Select(c => c.RazonSocial).Should().StartWith(["Cliente 0001 S.L.", "Cliente 0002 S.L."]);
+        ultima.Elementos.Select(c => c.RazonSocial).Should().Equal(["Cliente 2000 S.L.", "Cliente 2001 S.L."],
+            "la página 101 de 20 son las filas 2001 y 2002: las dos últimas por nombre");
+    }
+
+    /// <summary>
     /// Razón social al revés que el estado: por nombre, el vencido iría el último. Devuelve los
     /// Ids en el orden en que la razón social los pondría.
     /// </summary>

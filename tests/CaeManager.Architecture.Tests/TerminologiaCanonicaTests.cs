@@ -426,7 +426,11 @@ public class TerminologiaCanonicaTests
     private static readonly Dictionary<string, int> Congelado = new()
     {
         ["Hydra"] = 3,
-        ["EjecutivoUsuarioId"] = 32,
+        // 32 → 31 (2026-10-05, listados fase 1): ObtenerClientesQuery proyecta la fila con
+        // argumentos por posición (un árbol de expresión no admite los opcionales del record), y
+        // el «EjecutivoUsuarioId: c.EjecutivoUsuarioId» nombrado pasó a ser un solo uso. Baja
+        // mecánica: la deuda (Gestor CAE de referencia del Cliente empresarial) sigue entera.
+        ["EjecutivoUsuarioId"] = 31,
         // 337 → 340 (2026-09-28, «Asignar empresas» a un Gestor CAE existente): tres usos de
         // identificadores legacy que ya existen y no se renombran aquí —DelegacionesTenant,
         // DelegacionTenantId y PropositoDelegacion— en la retirada de la fila heredada de
