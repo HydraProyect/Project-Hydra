@@ -1,0 +1,113 @@
+/* Contador: letra casi negra (la misma #1a1206 de los avisos ámbar) sobre danger-500, que no cambia de
+   tema: el blanco sobre ese rojo da 3,76:1 y a 10 px no llega. */
+.campana-contador {
+    position: absolute;
+    top: 0;
+    right: 0;
+    display: grid;
+    place-items: center;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-full);
+    background-color: var(--color-danger-500);
+    color: #1a1206;
+    font: var(--font-body-sm);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.campana-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: var(--border-default);
+    margin-bottom: var(--space-1);
+    color: var(--color-text);
+    font: var(--font-body-md);
+}
+
+.campana-marcar {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-primary-700);
+    font: var(--font-body-sm);
+    cursor: pointer;
+}
+
+.campana-marcar:hover {
+    text-decoration: underline;
+}
+
+.campana-marcar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.campana-vacio {
+    margin: 0;
+    padding: var(--space-4) var(--space-3);
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+}
+
+.campana-lista {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.campana-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text);
+    font: var(--font-body-md);
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.campana-item:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.campana-item:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+.campana-item-texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.campana-item-texto small {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.campana-nuevo {
+    flex-shrink: 0;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-full);
+    background-color: var(--color-avatar-fondo);
+    color: var(--color-avatar-texto);
+    font: var(--font-body-sm);
+    font-weight: 600;
+}
+

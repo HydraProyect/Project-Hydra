@@ -1,0 +1,121 @@
+@using System.Security.Claims
+@using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona
+@using CaeManager.Web.Recursos
+@using MediatR
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@implements IDisposable
+@inject NavigationManager Navigation
+@inject IMediator Mediator
+@inject ILogger<ExcepcionDeCircuitoDesconectado> Logger
+@inject IStringLocalizer<TextosComunes> Textos
+@inherits CaeManager.Web.Components.IsloteInteractivo
+
+@*
+    Rediseño de la cabecera, propuesta 03: dice dónde estás y deja subir un nivel con un clic.
+    Las migas salen del catálogo del menú lateral (CatalogoMenuLateral), la misma fuente de
+    rótulos y rutas que NavMenu, y no de la propia página: el grupo del menú («Negocio»), la
+    sección («Empresas») y, en una ficha, la ficha.
+
+    Solo pinta lo que el catálogo sabe. Una ruta que no es del menú (Mi firma, las pantallas de
+    cuenta) no lleva migas, y el nombre de la entidad concreta no se inventa: viene de datos de la
+    página, que la cabecera no tiene. Las migas no autorizan ni ocultan nada, solo señalan: el
+    acceso a cada pantalla lo sigue decidiendo la pantalla. Es un islote porque tiene que
+    seguir la navegación interna del circuito (LocationChanged).
+*@
+<LimiteDeErrores Islote="this">
+@if (_miga is { } miga)
+{
+    <nav class="migas" aria-label="@Textos["CabeceraRuta"]" data-testid="migas-pagina">
+        <ol class="migas-lista">
+            <li class="miga miga-grupo">@miga.Grupo</li>
+            @if (miga.EsFicha)
+            {
+                <li class="miga"><a href="@miga.RutaSeccion">@miga.Seccion</a></li>
+                <li class="miga miga-actual" aria-current="page">@Textos["CabeceraMigaFicha"]</li>
+            }
+            else
+            {
+                <li class="miga miga-actual" aria-current="page">@miga.Seccion</li>
+            }
+        </ol>
+    </nav>
+}
+</LimiteDeErrores>
+
+@code {
+    /// <param name="RutaSeccion">Ruta absoluta de la sección, a la que sube la miga intermedia de una ficha.</param>
+    private sealed record Miga(string Grupo, string Seccion, string RutaSeccion, bool EsFicha);
+
+    private Miga? _miga;
+    private bool _rotulosPrimeraPersona;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += AlCambiarDeRuta;
+
+        // Mismo dato que NavMenu usa para «Mi empresa» / «Mis trabajadores», para que la miga
+        // diga lo mismo que el menú. Si no se puede leer, los rótulos genéricos.
+        try
+        {
+            _rotulosPrimeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
+        }
+        catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
+        {
+            Logger.LogWarning(ex, "MigasPagina descartó una excepción de desconexión de circuito: {TipoExcepcion} — {Mensaje}",
+                ex.GetType().Name, ex.Message);
+        }
+
+        _miga = Resolver(Navigation.Uri);
+    }
+
+    private void AlCambiarDeRuta(object? sender, LocationChangedEventArgs e) =>
+        _ = InvokeAsync(() =>
+        {
+            _miga = Resolver(e.Location);
+            StateHasChanged();
+        });
+
+    /// <summary>
+    /// La sección del catálogo cuya ruta es la actual o su prefijo (la más larga gana, para que
+    /// «cartera/solicitudes» no caiga en otra más corta). Una ruta con un segmento más que es un
+    /// identificador es la ficha de esa sección.
+    /// </summary>
+    private Miga? Resolver(string uri)
+    {
+        var ruta = Navigation.ToBaseRelativePath(uri).Split('?', '#')[0].Trim('/');
+        Miga? mejor = null;
+        var longitudMejor = -1;
+
+        foreach (var variante in new[] { false, true })
+        {
+            var contexto = new ContextoMenuLateral(new ClaimsPrincipal(), null, false, false, default,
+                VariosTenants: variante, RotulosPrimeraPersona: _rotulosPrimeraPersona);
+
+            foreach (var enlace in CatalogoMenuLateral.Enlaces)
+            {
+                var rutaEnlace = enlace.RutaPara(contexto).Trim('/');
+                var coincide = enlace.CoincidenciaExacta || rutaEnlace.Length == 0
+                    ? ruta.Equals(rutaEnlace, StringComparison.OrdinalIgnoreCase)
+                    : ruta.Equals(rutaEnlace, StringComparison.OrdinalIgnoreCase)
+                      || ruta.StartsWith(rutaEnlace + "/", StringComparison.OrdinalIgnoreCase);
+                if (!coincide || rutaEnlace.Length <= longitudMejor) continue;
+
+                var grupo = CatalogoMenuLateral.Grupos.FirstOrDefault(g => g.Id == enlace.GrupoId);
+                if (grupo is null) continue;
+
+                var resto = ruta.Length > rutaEnlace.Length ? ruta[rutaEnlace.Length..].Trim('/') : string.Empty;
+                // Solo un identificador (Guid) cuenta como ficha; «importar», «revision-ia»… son
+                // pantallas de la sección y no se les inventa un rótulo.
+                var esFicha = Guid.TryParse(resto, out _);
+                mejor = new Miga(grupo.Titulo, enlace.RotuloPara(contexto), "/" + rutaEnlace, esFicha);
+                longitudMejor = rutaEnlace.Length;
+            }
+        }
+
+        return mejor;
+    }
+
+    public void Dispose() => Navigation.LocationChanged -= AlCambiarDeRuta;
+}

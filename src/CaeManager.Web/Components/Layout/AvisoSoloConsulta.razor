@@ -12,7 +12,7 @@
     Consulta lo ve dentro de ese Tenant y no en el suyo.
 *@
 <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Consulta" Context="autorizacionConsulta">
-    <div class="aviso-solo-consulta" role="status">
+    <div class="aviso-solo-consulta" role="status" data-aviso-sistema data-tono="info">
         Modo solo consulta — tu rol en este espacio de trabajo permite ver la información, pero no crear, editar ni eliminar.
     </div>
 </AuthorizeView>

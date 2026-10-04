@@ -1,0 +1,238 @@
+@using CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida
+@using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes
+@using CaeManager.Application.Operaciones.IncorporacionCartera
+@using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
+@using CaeManager.Application.VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa
+@using CaeManager.Web.Components.Layout
+@using CaeManager.Web.Features.IncorporacionCartera.Recursos
+@using CaeManager.Web.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@using Microsoft.Extensions.Logging
+@implements IDisposable
+@inject IMediator Mediator
+@inject NavigationManager Navigation
+@inject ILogger<ExcepcionDeCircuitoDesconectado> Logger
+@inject IStringLocalizer<TextosComunes> Textos
+@inject IStringLocalizer<TextosIncorporacionCartera> TextosCartera
+@inherits CaeManager.Web.Components.IsloteInteractivo
+
+@*
+    Rediseño de la cabecera, propuesta 04: la campana reúne en un panel los avisos pendientes de
+    quien mira, visibles desde cualquier pantalla y con contador. No es una fuente nueva: lee las
+    tres que ya existen, cada una con su propia Query y su propio alcance —ninguna se amplía ni se
+    cruza aquí, así que el Tenant y la autorización los sigue decidiendo cada Query:
+
+      1. Notificaciones del usuario (ObtenerNotificacionesPendientesQuery, por usuario). Las
+         sigue anunciando además NotificacionesPopup; al descartarlas allí dejan de estar
+         pendientes, y la campana las recoge de nuevo al abrirse.
+      2. Avisos de revisión normativa sin revisar (ObtenerAvisosRevisionNormativaQuery, los
+         mismos que PanelAvisosNormativos). Solo informa y enlaza a la norma; marcar «revisado»
+         sigue siendo del Actor de Plataforma TALVEG en su panel.
+      3. Solicitudes de incorporación a cartera que el Coordinador CAE puede resolver
+         (ObtenerSolicitudesIncorporacionCarteraQuery). Enlaza a la bandeja: resolverlas sigue
+         siendo allí o en AvisoSolicitudesCartera.
+
+    El contador es el número de elementos de las tres. Se recarga al montarse, al abrir el panel
+    y cada IntervaloRefresco; no mantiene estado propio de «leído», salvo el de las
+    notificaciones, que se marca con su Command.
+*@
+<LimiteDeErrores Islote="this">
+    <PanelDesplegableCabecera IdPanel="panel-campana-avisos"
+                              ClaseBoton="campana-boton"
+                              EtiquetaAccesible="@EtiquetaBoton"
+                              Tooltip="@Textos["CabeceraAvisos"]"
+                              Titulo="@Textos["CabeceraAvisos"]"
+                              Abierto="_abierto"
+                              AbiertoChanged="AlCambiarAbiertoAsync">
+        <ContenidoBoton>
+            <Icono Nombre="alertas" Tamano="TamanoIcono.Medio" />
+            @if (_items.Count > 0)
+            {
+                <span class="campana-contador" data-testid="campana-contador">@_items.Count</span>
+            }
+        </ContenidoBoton>
+        <ChildContent>
+            <div class="campana-cabecera">
+                <strong>@Textos["CabeceraAvisos"]</strong>
+                @if (_items.Any(i => i.NotificacionId is not null))
+                {
+                    <button type="button" class="campana-marcar" @onclick="MarcarNotificacionesLeidasAsync">@Textos["CabeceraAvisosMarcarLeidas"]</button>
+                }
+            </div>
+
+            @if (_items.Count == 0)
+            {
+                <p class="campana-vacio" role="status">@Textos["CabeceraAvisosVacio"]</p>
+            }
+            else
+            {
+                <ul class="campana-lista">
+                    @foreach (var item in _items)
+                    {
+                        <li>
+                            @if (item.Url is not null && item.NotificacionId is null)
+                            {
+                                <a class="campana-item" href="@item.Url" target="@(item.Externo ? "_blank" : null)" rel="@(item.Externo ? "noopener noreferrer" : null)">
+                                    <span class="campana-item-texto">
+                                        <strong>@item.Titulo</strong>
+                                        @if (!string.IsNullOrWhiteSpace(item.Detalle))
+                                        {
+                                            <small>@item.Detalle</small>
+                                        }
+                                    </span>
+                                    <span class="campana-nuevo">@Textos["CabeceraAvisosNuevo"]</span>
+                                </a>
+                            }
+                            else
+                            {
+                                <button type="button" class="campana-item" @onclick="() => AbrirNotificacionAsync(item)">
+                                    <span class="campana-item-texto">
+                                        <strong>@item.Titulo</strong>
+                                        @if (!string.IsNullOrWhiteSpace(item.Detalle))
+                                        {
+                                            <small>@item.Detalle</small>
+                                        }
+                                    </span>
+                                    <span class="campana-nuevo">@Textos["CabeceraAvisosNuevo"]</span>
+                                </button>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+        </ChildContent>
+    </PanelDesplegableCabecera>
+</LimiteDeErrores>
+
+@code {
+    private static readonly TimeSpan IntervaloRefresco = TimeSpan.FromMinutes(2);
+
+    /// <param name="Clave">Identifica el elemento entre las tres fuentes; no se muestra.</param>
+    /// <param name="NotificacionId">Solo las notificaciones del usuario se pueden marcar leídas desde aquí.</param>
+    private sealed record ItemAviso(string Clave, string Titulo, string? Detalle, string? Url, bool Externo, Guid? NotificacionId);
+
+    private IReadOnlyList<ItemAviso> _items = [];
+    private bool _abierto;
+    private CancellationTokenSource? _cancelacion;
+
+    private string EtiquetaBoton => _items.Count == 0
+        ? Textos["CabeceraAvisos"].Value
+        : Textos["CabeceraAvisosConContador", _items.Count].Value;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarAsync();
+        IniciarRefresco();
+    }
+
+    private async Task AlCambiarAbiertoAsync(bool abierto)
+    {
+        _abierto = abierto;
+        if (abierto) await CargarAsync();
+    }
+
+    /// <summary>
+    /// Lee las tres fuentes. Cada una por su Query, con el alcance y la autorización que esa Query
+    /// ya aplica; una que no puede decir nada (sin permiso, sin Operador CAE) aporta una lista vacía.
+    /// </summary>
+    private async Task CargarAsync()
+    {
+        // Mismo mecanismo que NotificacionesPopup y PanelAvisosNormativos: el circuito puede
+        // desconectarse con la carga en vuelo (ExcepcionDeCircuitoDesconectado, REC-166). No queda
+        // nadie esperando el panel; solo se registra.
+        try
+        {
+            var items = new List<ItemAviso>();
+
+            foreach (var notificacion in await Mediator.Send(new ObtenerNotificacionesPendientesQuery()))
+            {
+                items.Add(new ItemAviso($"notificacion:{notificacion.Id}", notificacion.Titulo, notificacion.Mensaje,
+                    notificacion.UrlAccion, Externo: false, notificacion.Id));
+            }
+
+            foreach (var aviso in (await Mediator.Send(new ObtenerAvisosRevisionNormativaQuery())).Where(a => !a.Revisado))
+            {
+                items.Add(new ItemAviso($"normativa:{aviso.Id}", aviso.Titulo, aviso.NormaVigilada,
+                    aviso.UrlHtml, Externo: true, NotificacionId: null));
+            }
+
+            var solicitudes = await Mediator.Send(new ObtenerSolicitudesIncorporacionCarteraQuery(SoloPendientes: true));
+            if (solicitudes.EsExitoso && solicitudes.Valor.EsCoordinadorCae)
+            {
+                var resolubles = solicitudes.Valor.Pendientes.Count(s => s.PuedeResolver);
+                if (resolubles > 0)
+                {
+                    items.Add(new ItemAviso("cartera", TextosCartera["AvisoTitulo"],
+                        resolubles == 1 ? TextosCartera["AvisoResumenUna", 1] : TextosCartera["AvisoResumenVarias", resolubles],
+                        RutasIncorporacionCartera.Bandeja, Externo: false, NotificacionId: null));
+                }
+            }
+
+            _items = items;
+        }
+        catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
+        {
+            Logger.LogWarning(ex, "CampanaAvisos descartó una excepción de desconexión de circuito: {TipoExcepcion} — {Mensaje}",
+                ex.GetType().Name, ex.Message);
+        }
+    }
+
+    private void IniciarRefresco()
+    {
+        _cancelacion = new CancellationTokenSource();
+        var token = _cancelacion.Token;
+
+        _ = Task.Run(async () =>
+        {
+            using var reloj = new PeriodicTimer(IntervaloRefresco);
+            try
+            {
+                while (await reloj.WaitForNextTickAsync(token))
+                {
+                    await InvokeAsync(async () =>
+                    {
+                        await CargarAsync();
+                        StateHasChanged();
+                    });
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Componente desechado.
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "CampanaAvisos detuvo su refresco periódico: {TipoExcepcion} — {Mensaje}",
+                    ex.GetType().Name, ex.Message);
+            }
+        }, token);
+    }
+
+    /// <summary>Una notificación se marca leída al abrirla y, si trae acción, se navega a ella (como NotificacionesPopup).</summary>
+    private async Task AbrirNotificacionAsync(ItemAviso item)
+    {
+        if (item.NotificacionId is not { } id) return;
+
+        await Mediator.Send(new MarcarNotificacionLeidaCommand(id));
+        _items = _items.Where(i => i.NotificacionId != id).ToList();
+
+        if (!string.IsNullOrWhiteSpace(item.Url))
+            Navigation.NavigateTo(item.Url, forceLoad: true);
+    }
+
+    private async Task MarcarNotificacionesLeidasAsync()
+    {
+        foreach (var item in _items.Where(i => i.NotificacionId is not null).ToList())
+            await Mediator.Send(new MarcarNotificacionLeidaCommand(item.NotificacionId!.Value));
+
+        _items = _items.Where(i => i.NotificacionId is null).ToList();
+    }
+
+    public void Dispose()
+    {
+        _cancelacion?.Cancel();
+        _cancelacion?.Dispose();
+        _cancelacion = null;
+    }
+}

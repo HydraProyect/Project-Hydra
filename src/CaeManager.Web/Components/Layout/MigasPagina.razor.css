@@ -1,0 +1,63 @@
+.migas {
+    min-width: 0;
+}
+
+.migas-lista {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    white-space: nowrap;
+}
+
+.miga {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* El separador es decoración: la sintaxis «content: x / ""» le da texto alternativo vacío, y el
+   segundo valor sin ella es el de los navegadores que no la entienden. */
+.miga + .miga::before {
+    content: '›';
+    content: '›' / '';
+    margin-inline-end: var(--space-2);
+    color: var(--color-text-muted);
+}
+
+.miga a {
+    color: var(--color-text-muted);
+    text-decoration: none;
+}
+
+.miga a:hover {
+    color: var(--color-text);
+    text-decoration: underline;
+}
+
+.miga a:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+.miga-actual {
+    color: var(--color-text);
+    font: var(--font-label-md);
+    font-size: 0.9375rem;
+}
+
+/* Móvil: solo el título de la pantalla (la última miga), que es lo que cabe junto a los iconos. */
+@media (max-width: 1023px) {
+    .miga:not(.miga-actual) {
+        display: none;
+    }
+
+    .miga + .miga::before {
+        content: none;
+    }
+}

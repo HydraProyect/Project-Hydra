@@ -31,37 +31,46 @@
     </aside>
 
     <div class="area-principal">
-        <header class="barra-superior">
-            <NavegacionMovil />
-            <CaeManager.Web.Features.BusquedaGlobal.BotonBuscadorGlobal />
-            <AuthorizeView>
-                <Authorized>
-                    <div class="menu-usuario">
-                        <SelectorVistaVocabulario @rendermode="InteractiveServer" />
-                        <SelectorVistaDemo @rendermode="InteractiveServer" />
-                        <SelectorTema @rendermode="InteractiveServer" />
-                        <SelectorIdioma />
-                        <a href="/mi-firma" class="menu-usuario-nombre" title="Mi firma: abre tu firma y tus datos de usuario">@context.User.Identity?.Name</a>
-                        <form method="post" action="/cuenta/cerrar-sesion">
-                            <AntiforgeryToken />
-                            <button type="submit" class="boton-cerrar-sesion" aria-label="Cerrar sesión">
-                                <Icono Nombre="cerrar-sesion" Tamano="TamanoIcono.Pequeno" /> <span class="boton-cerrar-sesion-texto">Cerrar sesión</span>
-                            </button>
-                        </form>
-                    </div>
-                </Authorized>
-            </AuthorizeView>
-        </header>
+        @* Cabecera y banda de avisos del sistema forman un solo bloque fijo (rediseño de la
+           cabecera): se quedan arriba al desplazar la página, con sombra y velo (cabecera.js
+           marca data-desplazada). La sesión de soporte tiene que anunciarse en todas las
+           pantallas y verse siempre, por eso los avisos viajan con la cabecera y no con @Body. *@
+        <div class="cabecera-fija">
+            <header class="barra-superior">
+                <div class="barra-superior-izquierda">
+                    <NavegacionMovil />
+                    <MigasPagina @rendermode="InteractiveServer" />
+                </div>
+                <div class="barra-superior-derecha">
+                    <CaeManager.Web.Features.BusquedaGlobal.BotonBuscadorGlobal />
+                    <AuthorizeView>
+                        <Authorized>
+                            <div class="menu-usuario">
+                                <VistasTecnicas @rendermode="InteractiveServer" />
+                                <CaeManager.Web.Features.Notificaciones.CampanaAvisos @rendermode="InteractiveServer" />
+                                <SelectorTema @rendermode="InteractiveServer" />
+                                <MenuUsuario Nombre="@context.User.Identity?.Name" />
+                            </div>
+                        </Authorized>
+                    </AuthorizeView>
+                </div>
+            </header>
 
-        @* Dentro del layout y no junto a @Body: la sesión de soporte tiene
-           que anunciarse en todas las pantallas, no solo en la primera.
-           Necesita su propio @rendermode por lo que explica el comentario de
-           más abajo. *@
-        <TrazaSoporte @rendermode="InteractiveServer" />
-        <AvisoVentanaSoporte @rendermode="InteractiveServer" />
-        <AvisoFinDeAccesoEstatico />
+            @* Banda única de avisos del sistema, por prioridad (de arriba abajo): sesión de soporte,
+               fin de la ventana de soporte, fin de un acceso, solo consulta. Cada aviso conserva su
+               componente y su fuente; aquí solo se agrupan. Necesitan su propio @rendermode por lo
+               que explica el comentario de más abajo. *@
+            <div class="cabecera-bandas" data-bandas-sistema>
+                <div class="cabecera-bandas-interior">
+                    <TrazaSoporte @rendermode="InteractiveServer" />
+                    <AvisoVentanaSoporte @rendermode="InteractiveServer" />
+                    <AvisoFinDeAccesoEstatico />
+                    <AvisoSoloConsulta />
+                </div>
+            </div>
+        </div>
+
         <SesionDelCircuito @rendermode="InteractiveServer" />
-        <AvisoSoloConsulta />
         <EnlaceVolverAMiTrabajo />
 
         <main class="contenido" id="contenido-principal" tabindex="-1">

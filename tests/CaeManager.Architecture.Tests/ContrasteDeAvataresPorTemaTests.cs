@@ -75,6 +75,10 @@ public class ContrasteDeAvataresPorTemaTests
         new("Avatar de la fila de la Bandeja",
             "Features/Comunicaciones/Pages/Bandeja.razor.css",
             [".bandeja-lista ::deep .bandeja-fila-avatar"]),
+        new("Avatar del menú de usuario de la cabecera",
+            "Components/Layout/MenuUsuario.razor.css", [".menu-cuenta-boton"]),
+        new("Etiqueta «Nuevo» de la campana de avisos",
+            "Features/Notificaciones/CampanaAvisos.razor.css", [".campana-nuevo"]),
         new("Avatar de la columna de contexto de la Bandeja",
             "Features/Comunicaciones/Pages/Bandeja.razor.css", [".bandeja-cliente-avatar"]),
     ];

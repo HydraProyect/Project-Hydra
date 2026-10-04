@@ -72,7 +72,7 @@ public class TextosSinLocalizarCongeladosTests
         // de una sola palabra («Dashboard», «Empresas»…). Siguen sin localizar; su migración a
         // .resx es un incremento pendiente, no algo que esta cifra certifique.
         // 76 → 77 el 2026-10-02 (D-07/D-27) SIN migrar: el rótulo del menú «Clientes» pasó a «Clientes empresariales» (CONTRATO_TERMINOLOGIA § 3.2); una palabra era invisible a la heurística, dos no.
-        ["Components/Layout"] = 75, // 74 → 75 el 2026-10-04 (barra lateral) SIN migrar: «Mi equipo», rótulo nuevo del enlace de equipo del Coordinador CAE en CatalogoMenuLateral (los rótulos del catálogo siguen literales); los textos nuevos de la barra (filtro, compactar, fijados) van a TextosComunes.resx y .ca-ES.resx.
+        ["Components/Layout"] = 68, // 74 → 68 el 2026-10-04 (rediseño -7, barra lateral +1 «Mi equipo» sin migrar; rediseño de la cabecera): «Cerrar sesión», «Mi firma: abre tu firma y tus datos de usuario» y los rótulos de VistasTecnicas dejan de ser literales de MainLayout/SelectorVistaDemo y salen de TextosComunes.resx (con su ca-ES).
         ["Components/Legal"] = 163,
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,

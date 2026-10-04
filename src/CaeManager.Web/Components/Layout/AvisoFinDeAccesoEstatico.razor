@@ -1,5 +1,8 @@
+@using CaeManager.Web.Recursos
 @using CaeManager.Web.Services
+@using Microsoft.Extensions.Localization
 @inject IHttpContextAccessor HttpContextAccessor
+@inject IStringLocalizer<TextosComunes> Textos
 
 @*
     Cuenta, en la respuesta que lo provoca, que el Workspace operativo derivado
@@ -16,8 +19,11 @@
 *@
 @if (_motivo is { } motivo)
 {
-    <div class="aviso-fin-de-acceso" role="status">
-        @AvisoFinDeAcceso.Texto(motivo)
+    <div class="aviso-fin-de-acceso" role="status" data-aviso-sistema data-tono="soporte">
+        <span>@AvisoFinDeAcceso.Texto(motivo)</span>
+        @* Único aviso de la banda que se puede descartar: es de un solo uso (vive en esta petición) y
+           no oculta nada que siga siendo cierto después. Lo retira cabecera.js, sin circuito. *@
+        <button type="button" class="aviso-fin-de-acceso-descartar" data-descartar-aviso>@Textos["CabeceraDescartar"]</button>
     </div>
 }
 

@@ -13,7 +13,6 @@ public partial class SelectorVistaDemo
     private bool _disponible;
     private IReadOnlyList<GestorDeVistaDemo> _gestores = [];
     private string _opcionActual = "direccion";
-    private string _etiquetaActual = "Dirección";
     private string _returnUrl = "/";
     private AntiforgeryRequestToken? _token;
 
@@ -31,12 +30,11 @@ public partial class SelectorVistaDemo
         // si la cookie no vale (o el Tenant activo no es de demo), el selector dice «Dirección»,
         // que es lo que de verdad se está viendo.
         var efectiva = await vistaDemoActual.ObtenerEfectivaAsync();
-        (_opcionActual, _etiquetaActual) = efectiva switch
+        _opcionActual = efectiva switch
         {
-            { Vista: Application.VistaDemo.VistaDemo.CoordinadorCae } => ("coordinador", "Coordinador CAE"),
-            { Vista: Application.VistaDemo.VistaDemo.GestorCae, GestorUsuarioId: { } id } =>
-                ($"gestor:{id:N}", _gestores.FirstOrDefault(g => g.UsuarioId == id)?.Nombre is { } nombre ? $"Gestor CAE: {nombre}" : "Gestor CAE"),
-            _ => ("direccion", "Dirección"),
+            { Vista: Application.VistaDemo.VistaDemo.CoordinadorCae } => "coordinador",
+            { Vista: Application.VistaDemo.VistaDemo.GestorCae, GestorUsuarioId: { } id } => $"gestor:{id:N}",
+            _ => "direccion",
         };
 
         _returnUrl = new Uri(NavigationManager.Uri).PathAndQuery;

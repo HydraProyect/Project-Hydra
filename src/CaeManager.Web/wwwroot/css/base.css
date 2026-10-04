@@ -20,6 +20,12 @@ body {
   height: 100%;
 }
 
+/* La cabecera es fija (MainLayout): sin esto, el foco por Tab y las anclas dejan el elemento
+   enfocado debajo de ella (WCAG 2.4.11). */
+html {
+  scroll-padding-top: calc(var(--navbar-height) + var(--space-4));
+}
+
 body {
   font: var(--font-body-md);
   color: var(--color-text);

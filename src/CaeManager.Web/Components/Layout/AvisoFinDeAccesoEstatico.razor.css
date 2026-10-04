@@ -1,10 +1,18 @@
-/* Franja de un solo uso tras perder el Workspace operativo derivado. Tono de
-   advertencia, no de error: no ha fallado nada, ha terminado un acceso. */
-.aviso-fin-de-acceso {
-    padding: var(--space-2) var(--space-4);
-    background: var(--color-warning-500);
-    color: #1a1206;
-    font: var(--font-body-sm);
-    font-weight: 600;
-    text-align: center;
+/* Aviso de un solo uso tras perder el Workspace operativo derivado. Tono de advertencia, no de
+   error: no ha fallado nada, ha terminado un acceso. Su aspecto base lo pone la banda única de la
+   cabecera (MainLayout.razor.css); aquí solo el botón de descartar. */
+.aviso-fin-de-acceso-descartar {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.aviso-fin-de-acceso-descartar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
 }

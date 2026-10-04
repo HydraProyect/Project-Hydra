@@ -43,14 +43,13 @@ public class SelectorVistaDemoTests : BunitContext
     }
 
     [Fact]
-    public void Disponible_sin_lente_muestra_Direccion_y_ofrece_las_tres_vistas_plegado_por_defecto()
+    public void Disponible_sin_lente_muestra_Direccion_y_ofrece_las_tres_vistas()
     {
         Registrar(disponible: true, efectiva: null);
 
         var cut = Render<SelectorVistaDemo>();
 
-        cut.Find("details.selector-vista-demo").HasAttribute("open").Should().BeFalse("cerrado es una etiqueta compacta");
-        cut.Find("summary").TextContent.Trim().Should().Be("Vista: Dirección");
+        cut.FindAll("option").Where(o => o.HasAttribute("selected")).Select(o => o.GetAttribute("value")).Should().Equal("direccion");
         cut.FindAll("option").Select(o => o.GetAttribute("value")).Should().Equal(
             "direccion", "coordinador", $"gestor:{Marta:N}", $"gestor:{Pablo:N}");
         cut.Find("form").GetAttribute("action").Should().Be("/cuenta/vista-demo");
@@ -58,17 +57,16 @@ public class SelectorVistaDemoTests : BunitContext
     }
 
     [Theory]
-    [InlineData(VistaDemo.Direccion, null, "Vista: Dirección", "direccion")]
-    [InlineData(VistaDemo.CoordinadorCae, null, "Vista: Coordinador CAE", "coordinador")]
-    [InlineData(VistaDemo.GestorCae, "marta", "Vista: Gestor CAE: Marta", "gestor:11111111111111111111111111111111")]
-    public void En_cada_vista_el_selector_sigue_ahi_refleja_la_vista_efectiva_y_conserva_la_salida(
-        VistaDemo vista, string? gestor, string etiqueta, string opcionSeleccionada)
+    [InlineData(VistaDemo.Direccion, null, "direccion")]
+    [InlineData(VistaDemo.CoordinadorCae, null, "coordinador")]
+    [InlineData(VistaDemo.GestorCae, "marta", "gestor:11111111111111111111111111111111")]
+    public void En_cada_vista_el_selector_sigue_ahi_marca_la_vista_efectiva_y_conserva_la_salida(
+        VistaDemo vista, string? gestor, string opcionSeleccionada)
     {
         Registrar(disponible: true, new VistaDemoEfectiva(vista, gestor is null ? null : Marta));
 
         var cut = Render<SelectorVistaDemo>();
 
-        cut.Find("summary").TextContent.Trim().Should().Be(etiqueta);
         cut.FindAll("option").Where(o => o.HasAttribute("selected")).Select(o => o.GetAttribute("value"))
             .Should().Equal(opcionSeleccionada);
         cut.FindAll("option").Select(o => o.GetAttribute("value")).Should().Contain("direccion", "«Dirección» es siempre la salida");
@@ -79,7 +77,7 @@ public class SelectorVistaDemoTests : BunitContext
     {
         Registrar(disponible: true, new VistaDemoEfectiva(VistaDemo.GestorCae, Guid.NewGuid()));
 
-        Render<SelectorVistaDemo>().Find("summary").TextContent.Trim().Should().Be("Vista: Gestor CAE");
+        Render<SelectorVistaDemo>().FindAll("option").Where(o => o.HasAttribute("selected")).Should().BeEmpty("el gestor ya no es elegible: no hay opción que marcar ni nombre que inventar");
     }
 
     private sealed class VistaDemoFalsa(bool disponible, VistaDemoEfectiva? efectiva, IReadOnlyList<GestorDeVistaDemo> gestores) : IVistaDemoActual

@@ -7,17 +7,14 @@
     no @onchange de Blazor — la vista se guarda en una cookie y necesita recarga completa para que el
     alcance, memoizado por circuito, se recalcule.
 
-    Vive en la cabecera (MainLayout), fuera de @Body, y su disponibilidad depende solo de la identidad
-    real de la cuenta: ninguna vista puede esconderlo. Plegable: cerrado es una etiqueta compacta;
-    "Dirección" es siempre la salida (borra la cookie: autorización real, sin acotar).
-
-    Aprovecha <details> nativo (como los grupos de NavMenu): plegar no necesita circuito ni JS.
+    Vive en la cabecera (MainLayout), en el panel del chip de VistasTecnicas, y su disponibilidad depende solo de la identidad
+    real de la cuenta: ninguna vista puede esconderlo.
+    «Dirección» es siempre la salida (borra la cookie: autorización real, sin acotar).
 *@
 <LimiteDeErrores Islote="this">
 @if (_disponible)
 {
-    <details class="selector-vista-demo" data-testid="selector-vista-demo">
-        <summary class="selector-vista-demo-resumen" title="Vista de demo">Vista: @_etiquetaActual</summary>
+    <div class="selector-vista-demo" data-testid="selector-vista-demo">
         <form method="post" action="/cuenta/vista-demo" class="selector-vista-demo-panel">
             @if (_token is not null)
             {
@@ -38,6 +35,6 @@
 
             <noscript><button type="submit">Cambiar</button></noscript>
         </form>
-    </details>
+    </div>
 }
 </LimiteDeErrores>
