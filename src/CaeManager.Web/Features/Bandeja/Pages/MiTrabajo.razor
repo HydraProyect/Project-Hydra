@@ -271,7 +271,7 @@
                                                     {
                                                         <span class="mi-trabajo-fila-fecha">@fecha.ToString(Textos["FormatoDiaMes"], Cultura)</span>
                                                     }
-                                                    <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token"
+                                                    <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token" UrlRetorno="@UrlMiTrabajo"
                                                                        Titulo="@Textos["AbreEnLaPantalla", fila.TenantNombre]" />
                                                 </span>
                                             </div>
@@ -326,7 +326,7 @@
                             <dd>@plataforma</dd>
                         }
                     </dl>
-                    <AccionCrossTenant TenantId="abierta.TenantId" Item="abierta.Item" Token="_token"
+                    <AccionCrossTenant TenantId="abierta.TenantId" Item="abierta.Item" Token="_token" UrlRetorno="@UrlMiTrabajo"
                                        Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Medio"
                                        Titulo="@Textos["AbreEnLaPantalla", abierta.TenantNombre]" />
                 </aside>
