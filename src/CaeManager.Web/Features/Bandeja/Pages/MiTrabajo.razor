@@ -57,12 +57,22 @@
             </Accion>
         </EstadoVacio>
     }
-    else if (_cargando || _vista is null)
+    else if (_vista is null)
     {
-        <EstadoCargando Filas="7" />
+        <Esqueleto Forma="FormaEsqueleto.Lista" Cantidad="7" />
     }
     else
     {
+        @if (ConsultandoCartera)
+        {
+            <div class="mi-trabajo-progreso" role="status" aria-live="polite">
+                <span>@Textos["CargandoEmpresas", _completados, _totalPorCargar]</span>
+                <div class="mi-trabajo-progreso-barra" role="progressbar" aria-valuemin="0" aria-valuemax="@_totalPorCargar" aria-valuenow="@_completados">
+                    <i style="width: @PorcentajeCargado%"></i>
+                </div>
+            </div>
+        }
+
         @if (_vista.NoConsultados.Count > 0)
         {
             <div class="alerta-formulario mi-trabajo-cartera-incompleta" role="alert">
@@ -71,7 +81,7 @@
             </div>
         }
 
-        <div class="mi-trabajo-chips" role="group" aria-label="@Textos["FiltrarPorSeveridad"]" data-lista-con-filtros>
+        <div class="mi-trabajo-chips contenido-entra" role="group" aria-label="@Textos["FiltrarPorSeveridad"]" data-lista-con-filtros>
             @foreach (var chip in Chips)
             {
                 <button type="button" class="@("mi-trabajo-chip" + (chip.Severidad == _severidad ? " mi-trabajo-chip-activo" : ""))"
@@ -87,7 +97,7 @@
         @* El detalle solo existe con una tarea abierta: sin ella no reserva
            columna y la cola gana ese ancho. La pista de teclado ya está en la
            barra de la cola («j k mover · ↵ abrir»). *@
-        <div class="@("mi-trabajo-paneles" + (FilaAbierta is null ? " mi-trabajo-paneles-sin-detalle" : ""))">
+        <div class="@("mi-trabajo-paneles contenido-entra" + (FilaAbierta is null ? " mi-trabajo-paneles-sin-detalle" : ""))">
             <aside class="mi-trabajo-cartera" aria-label="@Textos["MiCartera"]">
                 <div class="mi-trabajo-cartera-cabecera">
                     <h2 class="mi-trabajo-cartera-titulo">@Textos["MiCartera"]</h2>
@@ -143,7 +153,12 @@
                     </div>
                 </div>
 
-                @if (Grupos.Count == 0 && AlDia && _vista.SinAlcance(Filtro))
+                @if (Grupos.Count == 0 && ConsultandoCartera)
+                {
+                    @* Con la carga en marcha, una cola vacía solo dice que esa Empresa aún no ha terminado: ni «al día» ni «sin cartera». *@
+                    <EstadoCargando Filas="4" />
+                }
+                else if (Grupos.Count == 0 && AlDia && _vista.SinAlcance(Filtro))
                 {
                     @* P2.3: sin alcance no hay nada que vigilar, y «al día» afirmaría un
                        cumplimiento que nadie ha mirado. La Asignación de Cartera la da
@@ -271,7 +286,7 @@
                                                     {
                                                         <span class="mi-trabajo-fila-fecha">@fecha.ToString(Textos["FormatoDiaMes"], Cultura)</span>
                                                     }
-                                                    <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token"
+                                                    <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token" UrlRetorno="@UrlMiTrabajo"
                                                                        Titulo="@Textos["AbreEnLaPantalla", fila.TenantNombre]" />
                                                 </span>
                                             </div>
@@ -326,7 +341,7 @@
                             <dd>@plataforma</dd>
                         }
                     </dl>
-                    <AccionCrossTenant TenantId="abierta.TenantId" Item="abierta.Item" Token="_token"
+                    <AccionCrossTenant TenantId="abierta.TenantId" Item="abierta.Item" Token="_token" UrlRetorno="@UrlMiTrabajo"
                                        Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Medio"
                                        Titulo="@Textos["AbreEnLaPantalla", abierta.TenantNombre]" />
                 </aside>

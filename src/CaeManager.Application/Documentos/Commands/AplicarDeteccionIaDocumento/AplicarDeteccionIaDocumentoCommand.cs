@@ -31,7 +31,18 @@ namespace CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento
 /// todavía, queda registrada como <see cref="DecisionHumanaIa.ConfirmadaManual"/>
 /// (MACRO_PLAN § 6.6, "¿qué hizo la IA y quién lo confirmó?").
 /// </summary>
-public record AplicarDeteccionIaDocumentoCommand(Guid RevisionId) : ICommand;
+/// <param name="SoloSiLaVigenciaLaFijaElTipo">
+/// La usa la aceptación en bloque (<c>AceptarDeteccionesIaEnBloqueCommand</c>): solo se acepta si el tipo
+/// calcula la vigencia desde la emisión (<see cref="TipoDocumento.FijaVigenciaDesdeLaEmision"/>). Si no, aceptar
+/// tomaría el vencimiento que leyó la IA o dejaría «sin confirmar» una vigencia que el Gestor CAE pudo haber
+/// anotado a mano; eso se decide mirando el documento, una revisión cada vez.
+/// </param>
+public record AplicarDeteccionIaDocumentoCommand(Guid RevisionId, bool SoloSiLaVigenciaLaFijaElTipo = false) : ICommand;
+
+public static class CodigosRevisionIa
+{
+    public const string CodigoVigenciaARevisarIndividualmente = "RevisionIa.VigenciaARevisarIndividualmente";
+}
 
 public class AplicarDeteccionIaDocumentoCommandHandler(
     IRevisionIaDocumentoRepository revisionRepositorio,
@@ -70,6 +81,11 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
             .FirstOrDefaultAsync(t => t.Id == documento.TipoDocumentoId, cancellationToken);
         if (tipoDocumento is null)
             return Result.Fallo(Error.Crear("Documento.TipoDocumentoNoEncontrado", "No encontramos el tipo de documento asociado."));
+
+        if (request.SoloSiLaVigenciaLaFijaElTipo && !tipoDocumento.FijaVigenciaDesdeLaEmision)
+            return Result.Fallo(Error.Crear(
+                CodigosRevisionIa.CodigoVigenciaARevisarIndividualmente,
+                "La vigencia de este tipo de documento la confirma el Gestor CAE: acepta esta lectura de una en una."));
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)

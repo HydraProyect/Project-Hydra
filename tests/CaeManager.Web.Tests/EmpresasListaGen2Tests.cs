@@ -703,8 +703,8 @@ public class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         await cut.Find("header.cabecera-pagina .acciones-cabecera button").ClickAsync(new MouseEventArgs());
-        var primero = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
-        var segundo = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        var primero = cut.FindAll(".drawer-pie button.boton-espera-boton").Single() /* mientras guarda, su texto es «Guardando…» */.ClickAsync(new MouseEventArgs());
+        var segundo = cut.FindAll(".drawer-pie button.boton-espera-boton").Single() /* mientras guarda, su texto es «Guardando…» */.ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<CrearEmpresaCommand>().Should().HaveCount(1, "el segundo clic llega con el alta en vuelo");
 

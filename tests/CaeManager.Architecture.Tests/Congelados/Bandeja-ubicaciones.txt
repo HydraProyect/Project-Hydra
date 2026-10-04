@@ -40,6 +40,7 @@ src/CaeManager.Infrastructure/Visitas/VigilanciaVisitasUrgentesHostedService.cs 
 src/CaeManager.Infrastructure/Visitas/VigilanciaVisitasUrgentesHostedService.cs :: TipoItemBandeja = 2
 src/CaeManager.Infrastructure/Visitas/VigilanciaVisitasUrgentesHostedService.cs :: bandeja = 1
 src/CaeManager.Web/Components/Layout/CatalogoMenuLateral.cs :: bandeja = 2
+src/CaeManager.Web/Components/Layout/SelectorClienteActivo.razor.cs :: Bandeja = 1
 src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor :: Bandeja = 1
 src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor :: bandeja = 1
 src/CaeManager.Web/Features/AtajosGlobales/CatalogoAtajos.cs :: IrABandeja = 1
@@ -81,7 +82,6 @@ src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: (nombre de fichero) =
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: Bandeja = 3
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: ObtenerBandejaAgrupada = 1
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: ObtenerBandejaGestor = 1
-src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: OrdenBandeja = 2
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: _bandeja = 1
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor :: bandeja = 14
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: (nombre de fichero) = 1
@@ -94,7 +94,7 @@ src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: ObtenerBandejaAgru
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: ObtenerBandejaAgrupadaQuery = 1
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: ObtenerBandejaAgrupadaQueryHandler = 1
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: ObtenerBandejaGestor = 1
-src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: OrdenBandeja = 6
+src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: OrdenBandeja = 8
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: TipoItemBandeja = 24
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: _bandeja = 5
 src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor.cs :: bandeja = 2
@@ -115,6 +115,7 @@ src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: ObtenerBandejaGestor
 src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: TipoItemBandeja = 43
 src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: TipoItemBandejaUi = 1
 src/CaeManager.Web/Features/BusquedaGlobal/CoberturaDePaleta.cs :: bandeja = 1
+src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor :: Bandeja = 1
 src/CaeManager.Web/Features/Comunicaciones/Components/FilaConversacion.razor :: bandeja = 14
 src/CaeManager.Web/Features/Comunicaciones/Components/FilaMensajeBuzonPersonal.razor :: bandeja = 11
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: (nombre de fichero) = 1
@@ -153,3 +154,4 @@ src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor 
 src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor.cs :: BandejaIncorporacionCarteraDto = 1
 src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor.cs :: _bandeja = 3
 src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor :: bandeja = 1
+src/CaeManager.Web/Services/ContadorPendientesSelectorTenant.cs :: Bandeja = 1

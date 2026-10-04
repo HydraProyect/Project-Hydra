@@ -32,10 +32,11 @@ public static class ClienteActivoEndpoints
             ITenantsQueryContext dbContext, ICurrentUserService currentUserService,
             IOperacionesQueryContext operacionesContext,
             IDataProtectionProvider dataProtectionProvider,
+            IContadorPendientesSelectorTenant contadorPendientes,
             CancellationToken cancellationToken) =>
             CambiarAsync(
                 tenantId, returnUrl, httpContext, dbContext, currentUserService,
-                operacionesContext, dataProtectionProvider, cancellationToken));
+                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes));
 
         return endpoints;
     }
@@ -50,7 +51,8 @@ public static class ClienteActivoEndpoints
         ITenantsQueryContext dbContext, ICurrentUserService currentUserService,
         IOperacionesQueryContext operacionesContext,
         IDataProtectionProvider dataProtectionProvider,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IContadorPendientesSelectorTenant? contadorPendientes = null)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
@@ -87,8 +89,15 @@ public static class ClienteActivoEndpoints
         if (tenantId == tenantOrigenId.Value)
             CookieDeContextoTenant.VolverAlOrigen(httpContext, usuarioId.Value);
         else
+        {
             CookieDeContextoTenant.EmitirSeleccion(
                 httpContext, dataProtectionProvider, usuarioId.Value, tenantId, asignacionOperacionId);
+            // Preferencia de interfaz («Recientes» del selector), solo tras la autorización de arriba.
+            RecientesSelectorTenant.Registrar(httpContext, usuarioId.Value, tenantId);
+        }
+
+        // Cambiar de empresa descarta los pendientes calculados para este usuario.
+        contadorPendientes?.Invalidar(usuarioId.Value);
 
         // Saneado explícito (no solo LocalRedirect) por la misma razón que
         // IdentityEndpointsExtensions: un returnUrl malicioso hace que

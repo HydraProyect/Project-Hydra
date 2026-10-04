@@ -4,6 +4,7 @@ using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
+using CaeManager.Web.Components.DesignSystem;
 using Microsoft.AspNetCore.Components;
 
 namespace CaeManager.Web.Features.Bandeja.Pages;
@@ -181,9 +182,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDis
     /// <summary>Vuelve a «Todos» desde el estado vacío por filtro — el mismo camino que pulsar el chip, para que la URL quede igual de limpia.</summary>
     private Task QuitarFiltrosAsync() => CambiarFiltroAsync(string.Empty);
 
-    private Task CambiarOrdenAsync(ChangeEventArgs e)
+    private static readonly IReadOnlyList<OpcionSelect> _opcionesOrden =
+    [
+        new(nameof(OrdenBandeja.Impacto), "Impacto"),
+        new(nameof(OrdenBandeja.Fecha), "Fecha límite"),
+    ];
+
+    private Task CambiarOrdenAsync(string valor)
     {
-        _orden = Enum.TryParse<OrdenBandeja>(e.Value?.ToString(), out var orden) ? orden : OrdenBandeja.Impacto;
+        _orden = Enum.TryParse<OrdenBandeja>(valor, out var orden) ? orden : OrdenBandeja.Impacto;
         return Task.CompletedTask;
     }
 

@@ -1,0 +1,30 @@
+@*
+    «Volver a Mi trabajo» tras la acción de una fila (RetornoMiTrabajo): el destino de la acción
+    trae ?volver=<URL de Mi trabajo con sus filtros>. Solo se pinta si el valor pasa
+    RetornoMiTrabajo.Validar; cualquier otra cosa se ignora en silencio.
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@using Microsoft.AspNetCore.WebUtilities
+@inject NavigationManager Navegacion
+@inject IStringLocalizer<TextosComunes> Textos
+
+@if (Vuelta is { } vuelta)
+{
+    <div class="enlace-volver-mi-trabajo">
+        <a href="@vuelta" data-enlace="volver-mi-trabajo">← @Textos["VolverAMiTrabajo"]</a>
+    </div>
+}
+
+@code {
+    private string? Vuelta
+    {
+        get
+        {
+            var consulta = new Uri(Navegacion.Uri).Query;
+            return QueryHelpers.ParseQuery(consulta).TryGetValue(RetornoMiTrabajo.Parametro, out var valores)
+                ? RetornoMiTrabajo.Validar(valores.FirstOrDefault())
+                : null;
+        }
+    }
+}

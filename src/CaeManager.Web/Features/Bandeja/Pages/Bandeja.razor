@@ -50,10 +50,8 @@
         <Acciones>
             <div class="bandeja-orden">
                 <label class="bandeja-orden-etiqueta" for="bandeja-orden">Ordenar por</label>
-                <select id="bandeja-orden" class="bandeja-orden-select" value="@_orden" @onchange="CambiarOrdenAsync">
-                    <option value="@nameof(OrdenBandeja.Impacto)">Impacto</option>
-                    <option value="@nameof(OrdenBandeja.Fecha)">Fecha límite</option>
-                </select>
+                <CampoSelectAvanzado Id="bandeja-orden" Compacto="true" Clase="bandeja-orden-select" Buscable="false"
+                                     Opciones="_opcionesOrden" Valor="@_orden.ToString()" ValorChanged="CambiarOrdenAsync" />
             </div>
             <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirReclamacionLoteAsync">Reclamar en lote</Boton>
         </Acciones>
@@ -82,7 +80,7 @@
     }
     else if (_cargando)
     {
-        <EstadoCargando Filas="6" />
+        <Esqueleto Forma="FormaEsqueleto.Lista" Cantidad="6" />
     }
     else if (ItemsFiltrados.Count == 0 && HayFiltrosActivos)
     {
@@ -111,7 +109,7 @@
             </span>
         </div>
 
-        <div class="lista-bandeja">
+        <div class="lista-bandeja contenido-entra">
             @foreach (var grupo in GruposOrdenados)
             {
                 <GrupoCola @key="grupo.GrupoId" Grupo="grupo" ExpandidaPorDefecto="true" AgruparPorEmpresa="_agruparPorEmpresa" IdEnfocado="@_idEnfocado" OnReclamar="AbrirReclamacionDeItemAsync" PaginarPorGrupo="true" MarcarBloqueo="true" />

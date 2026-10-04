@@ -168,6 +168,7 @@ public class ClavesUnicasEnListasTests : BunitContext
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
+        Services.AddLocalization();
         Services.GetRequiredService<NavigationManager>().NavigateTo("bandeja");
         return (Render<Bandeja>(), mediator);
     }

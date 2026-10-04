@@ -129,8 +129,8 @@ public class BandejaGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A."));
 
-        var opciones = cut.FindAll("#bandeja-orden option").Select(o => o.TextContent.Trim()).ToList();
-        opciones.Should().Equal(["Impacto", "Fecha límite"]);
+        cut.Find("#bandeja-orden").Click();
+        cut.TextosDeLasOpciones("bandeja-orden").Should().Equal(["Impacto", "Fecha límite"]);
         cut.Find("label[for='bandeja-orden']").TextContent.Trim().Should().Be("Ordenar por");
     }
 
@@ -141,7 +141,7 @@ public class BandejaGen2Tests : BunitContext
     /// pasaría igual comprobando solo que existe.
     /// </summary>
     [Fact]
-    public void Ordenar_por_fecha_limite_pone_delante_el_grupo_que_vence_antes()
+    public async Task Ordenar_por_fecha_limite_pone_delante_el_grupo_que_vence_antes()
     {
         var (cut, _) = Renderizar(
             Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A.", new DateOnly(2026, 12, 1)),
@@ -151,7 +151,7 @@ public class BandejaGen2Tests : BunitContext
         TitulosDeGrupo(cut).Should().Equal(["Refrielectric S.A.", "Montajes Ebro"],
             "por impacto manda el grupo con más pendientes");
 
-        cut.Find("#bandeja-orden").Change("Fecha");
+        await cut.ElegirPorValorAsync("bandeja-orden", "Fecha");
 
         TitulosDeGrupo(cut).Should().Equal(["Montajes Ebro", "Refrielectric S.A."],
             "por fecha límite manda el que vence antes, aunque tenga menos pendientes");

@@ -950,8 +950,8 @@ public class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         await cut.FindAll("header.cabecera-pagina .acciones-cabecera button").Single(b => b.TextContent.Trim() == "+ Nuevo Cliente empresarial").ClickAsync(new MouseEventArgs());
-        var primero = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
-        var segundo = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        var primero = cut.FindAll(".drawer-pie button.boton-espera-boton").Single() /* mientras guarda, su texto es «Guardando…» */.ClickAsync(new MouseEventArgs());
+        var segundo = cut.FindAll(".drawer-pie button.boton-espera-boton").Single() /* mientras guarda, su texto es «Guardando…» */.ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<CrearClienteCommand>().Should().HaveCount(1, "el segundo clic llega con el alta en vuelo");
 

@@ -823,7 +823,7 @@ public class InicioGen2Tests : BunitContext
         mediador.Retenidas[2] = recarga;
 
         var cut = Renderizar(mediador);
-        cut.FindAll(".esqueleto-lista").Should().NotBeEmpty("la carga inicial sigue retenida");
+        cut.FindAll(".esqueleto").Should().NotBeEmpty("la carga inicial sigue retenida");
 
         var segunda = cut.InvokeAsync(() => Recargar(cut));
         cut.WaitForState(() => mediador.Bandejas == 2);
@@ -861,7 +861,7 @@ public class InicioGen2Tests : BunitContext
         mediador.Retenidas[1] = inicial;
 
         var cut = Renderizar(mediador);
-        cut.FindAll(".esqueleto-lista").Should().NotBeEmpty("la carga inicial sigue retenida");
+        cut.FindAll(".esqueleto").Should().NotBeEmpty("la carga inicial sigue retenida");
 
         mediador.TokensDeCarga.Should().NotBeEmpty("las consultas de la carga inicial ya salieron");
         var token = mediador.TokensDeCarga[^1];

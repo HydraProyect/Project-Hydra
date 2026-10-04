@@ -1,0 +1,262 @@
+.campo-select-avanzado {
+    position: relative;
+}
+
+.csa-disparador {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 48px;
+    padding: 0 var(--space-3) 0 var(--space-4);
+    border-radius: var(--radius-md);
+    border: var(--border-control);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    text-align: left;
+    cursor: pointer;
+    transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.csa-compacto .csa-disparador {
+    min-height: 40px;
+}
+
+.csa-disparador:hover:not(:disabled) {
+    border-color: var(--color-primary-500);
+}
+
+.csa-disparador:focus-visible,
+.csa-abierto .csa-disparador {
+    outline: var(--border-focus);
+    outline-offset: -1px;
+    box-shadow: 0 0 0 4px var(--color-primary-100);
+}
+
+.csa-disparador:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.csa-valor {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.csa-marcador {
+    color: var(--color-text-muted);
+}
+
+.csa-disparador ::deep .icono {
+    flex: none;
+    transition: transform var(--motion-base) var(--ease-fluid);
+}
+
+.csa-abierto .csa-disparador ::deep .icono {
+    transform: rotate(180deg);
+}
+
+/* Cierra al pulsar fuera, como MenuAcciones: capa transparente a pantalla completa tras el panel. */
+.csa-superposicion {
+    position: fixed;
+    inset: 0;
+    z-index: 1030;
+}
+
+/* Sin JS (o sin Popover API) cae aquí: absoluto bajo el disparador. Con JS pasa a la capa superior
+   del navegador y el script fija left/top/width/max-height en línea. Los restos de [popover]
+   (borde, relleno, margen automático) se pisan a propósito. */
+.csa-panel {
+    position: absolute;
+    z-index: 1031;
+    left: 0;
+    right: 0;
+    top: calc(100% + var(--space-1));
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background-color: var(--color-overlay);
+    color: var(--color-text);
+    box-shadow: var(--shadow-overlay);
+    transform-origin: top;
+}
+
+.csa-panel[data-lado="arriba"] {
+    transform-origin: bottom;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .csa-panel {
+        transition: opacity var(--motion-base) var(--ease-standard), transform var(--motion-base) var(--ease-fluid);
+
+        @starting-style {
+            opacity: 0;
+            transform: translateY(-6px) scale(0.98);
+        }
+    }
+}
+
+.csa-buscador-caja {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-bottom: var(--border-default);
+    color: var(--color-text-muted);
+}
+
+.csa-buscador {
+    flex: 1;
+    min-width: 0;
+    min-height: 32px;
+    border: 0;
+    background: none;
+    color: var(--color-text);
+    font: var(--font-body-md);
+}
+
+.csa-buscador:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+.csa-buscador-caja:focus-within {
+    box-shadow: inset 0 -2px 0 var(--color-primary-500);
+}
+
+.csa-lista {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 16rem;
+    margin: 0;
+    padding: var(--space-1);
+    list-style: none;
+    overflow-y: auto;
+}
+
+.csa-opcion {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 40px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    font: var(--font-body-md);
+    cursor: pointer;
+}
+
+.csa-opcion:hover,
+.csa-activa {
+    background-color: var(--color-surface-hover);
+}
+
+.csa-elegida {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+}
+
+/* Mismos colores que la regla de arriba (la que mide el trinquete de contraste): hover y activa tienen
+   más especificidad que .csa-elegida y, sin esto, le quitarían el color a la opción actual. */
+.csa-elegida:hover,
+.csa-elegida.csa-activa {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+}
+
+.csa-deshabilitada {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.csa-texto {
+    flex: 1;
+    min-width: 0;
+}
+
+.csa-descripcion {
+    display: block;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.csa-elegida .csa-descripcion {
+    color: inherit;
+}
+
+.csa-marca {
+    display: inline-flex;
+    flex: none;
+    width: 16px;
+    height: 16px;
+    color: var(--color-primary-500);
+}
+
+.csa-elegida .csa-marca {
+    color: inherit;
+}
+
+/* Punto de color: mismos tonos que Badge, nunca decorativo. */
+.csa-punto {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-text-muted);
+}
+
+.csa-punto-exito {
+    background-color: var(--color-success-700);
+}
+
+.csa-punto-advertencia {
+    background-color: var(--color-warning-700);
+}
+
+.csa-punto-peligro {
+    background-color: var(--color-danger-500);
+}
+
+.csa-punto-info {
+    background-color: var(--color-primary-500);
+}
+
+.csa-vacio {
+    margin: 0;
+    padding: var(--space-4);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    text-align: center;
+}
+
+/* Anuncio de «N resultados» para lectores de pantalla; no se ve. */
+.csa-anuncio {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+/* Mismo motivo que .campo-input: con letra < 16px iOS hace zoom al enfocar. */
+@media (max-width: 767px) {
+    .csa-disparador,
+    .csa-buscador,
+    .csa-opcion {
+        font-size: 1rem;
+    }
+
+    .csa-opcion {
+        min-height: 44px;
+    }
+}

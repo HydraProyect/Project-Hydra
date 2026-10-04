@@ -55,14 +55,8 @@
         <div class="franja-cliente">
             <div class="bloque-selector-cliente">
                 <label for="sel-cliente" class="etiqueta-facturacion">Cliente empresarial</label>
-                <select id="sel-cliente" class="control-facturacion"
-                        @bind:get="_clienteSeleccionadoId" @bind:set="CambiarClienteAsync">
-                    <option value="@Guid.Empty">— Selecciona un Cliente empresarial —</option>
-                    @foreach (var c in _clientes)
-                    {
-                        <option value="@c.Id">@c.RazonSocial</option>
-                    }
-                </select>
+                <CampoSelectAvanzado Id="sel-cliente" Compacto="true" Opciones="OpcionesClientes"
+                                     Valor="@_clienteSeleccionadoId.ToString()" ValorChanged="CambiarClienteDesdeSelectorAsync" />
             </div>
 
             @if (_clienteSeleccionadoId != Guid.Empty)

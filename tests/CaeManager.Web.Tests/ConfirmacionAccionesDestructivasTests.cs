@@ -249,9 +249,10 @@ public class ConfirmacionAccionesDestructivasTests : BunitContext
 
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
+        Services.AddLocalization();
 
         var cut = Render<Features.Facturacion.Pages.Facturacion>();
-        await cut.Find("#sel-cliente").ChangeAsync(new ChangeEventArgs { Value = ClienteId.ToString() });
+        await cut.ElegirPorValorAsync("sel-cliente", ClienteId.ToString());
 
         return (cut, mediator);
     }

@@ -1,0 +1,251 @@
+@*
+    Botón de una acción que espera (ficha 11, «Una sola espera»): guardando, lenta, colgada y hecha son la misma espera vista en
+    distintos momentos, y el propio botón la cuenta. Es un <Boton> (mismo aspecto, mismas variantes y trinquetes) con el progreso
+    como relleno por dentro:
+      - Guardando: relleno con porcentaje cuando el llamador conoce el total (Progreso: subida de ficheros, importaciones,
+        generación de paquetes); franja en movimiento cuando no (un guardado corto no tiene total, y fingir uno engaña);
+      - Lenta (pasado UmbralLenta): «Tarda más de lo habitual. No cierres la página.» y, si hay OnCancelarEspera, «Cancelar»;
+      - Colgada (UmbralColgada sin progreso): aviso «Sin respuesta desde hace N s. Lo que has escrito se conserva.» y, si hay
+        OnReintentar, el botón pasa a «Reintentar» en estado de aviso;
+      - Hecha: un check que se dibuja un instante (solo si la operación acabó sin error: Fallido).
+    Deshabilitado mientras corre, y un clic mientras corre no llega al llamador (sin doble envío). La región de estado es aria-live.
+
+    NUNCA toca lo escrito: el botón no es dueño de ningún campo. Cancelar y Reintentar solo avisan al llamador; el formulario sigue
+    donde estaba. Cancelar y Reintentar NO se ofrecen si el llamador no los cablea: prometer reintentar una operación que no se
+    puede interrumpir (y que podría acabar duplicando el alta) sería peor que no ofrecerlo.
+*@
+@implements IDisposable
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+@inject IServiceProvider Servicios
+
+<div class="boton-espera" data-estado="@_estado.ToString().ToLowerInvariant()" data-indeterminado="@(EnCurso && Progreso is null ? "true" : null)">
+    <div class="boton-espera-fila">
+        <Boton Variante="Variante" Tamano="Tamano" Type="@Type" Deshabilitado="BotonDeshabilitado" OnClick="AlPulsarAsync"
+               @attributes="AtributosBoton">
+            @if (EnCurso && Progreso is not null)
+            {
+                <span class="boton-espera-relleno" style="width:@(PorcentajeTexto)%" aria-hidden="true"></span>
+            }
+            else if (EnCurso)
+            {
+                <span class="boton-espera-relleno boton-espera-franja" aria-hidden="true"></span>
+            }
+            <span class="boton-espera-etiqueta">
+                @if (_estado == EstadoEspera.Hecha)
+                {
+                    <svg class="boton-espera-check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                    @Comunes["EsperaHecho"]
+                }
+                else if (_estado == EstadoEspera.Colgada && OnReintentar.HasDelegate)
+                {
+                    @Comunes["EsperaReintentar"]
+                }
+                else if (EnCurso)
+                {
+                    @(Progreso is null ? Comunes["EsperaGuardando"].Value : string.Format(Comunes["EsperaGuardandoPorcentaje"].Value, PorcentajeTexto))
+                }
+                else
+                {
+                    @ChildContent
+                }
+            </span>
+        </Boton>
+        @if (MostrarCancelar)
+        {
+            <button type="button" class="boton-espera-cancelar" @onclick="AlCancelarAsync">@Comunes["EsperaCancelar"]</button>
+        }
+    </div>
+    <span class="boton-espera-mensaje" role="status" aria-live="polite">@Mensaje</span>
+</div>
+
+@code {
+    /// <summary>Lentitud: a partir de aquí se avisa de que tarda. Un guardado típico de formulario termina en menos de 2 s.</summary>
+    public static readonly TimeSpan UmbralLentaPorDefecto = TimeSpan.FromSeconds(4);
+
+    /// <summary>Colgado: tiempo sin ninguna señal de progreso tras el cual se deja de prometer que va a terminar.</summary>
+    public static readonly TimeSpan UmbralColgadaPorDefecto = TimeSpan.FromSeconds(12);
+
+    /// <summary>Cuánto se ve el check de «Hecho» antes de volver a la etiqueta.</summary>
+    public static readonly TimeSpan DuracionHechaPorDefecto = TimeSpan.FromMilliseconds(1600);
+
+    /// <summary>Cada cuánto se reevalúa la espera: el estado depende del tiempo, y Blazor no avisa de que pasó.</summary>
+    public static readonly TimeSpan IntervaloPorDefecto = TimeSpan.FromMilliseconds(250);
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Jerarquía del botón; obligatoria, como en <see cref="Boton"/> (un solo Primario por vista).</summary>
+    [Parameter, EditorRequired] public VarianteBoton Variante { get; set; }
+    [Parameter] public TamanoBoton Tamano { get; set; } = TamanoBoton.Medio;
+    [Parameter] public string Type { get; set; } = "button";
+
+    /// <summary>Deshabilitado por la pantalla (con su motivo en title). Aparte de la espera, que lo deshabilita sola.</summary>
+    [Parameter] public bool Deshabilitado { get; set; }
+
+    /// <summary>La operación está en curso. Pasa de true a false cuando termina, con éxito o sin él (<see cref="Fallido"/>).</summary>
+    [Parameter] public bool Guardando { get; set; }
+
+    /// <summary>
+    /// Porcentaje real (0-100), solo donde exista un total: subida de ficheros, importaciones, generación de paquetes. Nulo en un
+    /// guardado corto, que no tiene total y muestra la franja en movimiento. Cada cambio cuenta como señal de vida para el colgado.
+    /// </summary>
+    [Parameter] public int? Progreso { get; set; }
+
+    /// <summary>La operación que acaba de terminar falló: no se enseña el check de «Hecho».</summary>
+    [Parameter] public bool Fallido { get; set; }
+
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    /// <summary>Si viene, «Cancelar» aparece cuando la espera es lenta o está colgada. Sin él no se ofrece: lo decide quien puede interrumpir.</summary>
+    [Parameter] public EventCallback OnCancelarEspera { get; set; }
+
+    /// <summary>Si viene, el botón colgado pasa a «Reintentar» y lo invoca. Sin él, el botón sigue deshabilitado: reintentar a ciegas puede duplicar.</summary>
+    [Parameter] public EventCallback OnReintentar { get; set; }
+
+    [Parameter] public TimeSpan UmbralLenta { get; set; } = UmbralLentaPorDefecto;
+    [Parameter] public TimeSpan UmbralColgada { get; set; } = UmbralColgadaPorDefecto;
+    [Parameter] public TimeSpan DuracionHecha { get; set; } = DuracionHechaPorDefecto;
+    [Parameter] public TimeSpan Intervalo { get; set; } = IntervaloPorDefecto;
+
+    /// <summary>Atributos del botón (title, data-testid, class…). «class» se combina a mano, como en <see cref="Boton"/>.</summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AtributosAdicionales { get; set; }
+
+    /// <summary>
+    /// El reloj de la espera: el <see cref="TimeProvider"/> registrado (el del sistema en producción) para poder avanzar el tiempo de
+    /// forma explícita en los tests. Sin registro, el del sistema: los kits se usan en pantallas y tests que no lo registran.
+    /// </summary>
+    private TimeProvider Reloj => _reloj ??= Servicios.GetService(typeof(TimeProvider)) as TimeProvider ?? TimeProvider.System;
+    private TimeProvider? _reloj;
+
+    private EstadoEspera _estado = EstadoEspera.Reposo;
+    private bool _guardandoPrevio;
+    private int? _progresoPrevio;
+    private long _inicio;
+    private long _ultimaSenal;
+    private long _inicioHecha;
+    private ITimer? _temporizador;
+    private bool _eliminado;
+
+    private bool EnCurso => _estado is EstadoEspera.Guardando or EstadoEspera.Lenta or EstadoEspera.Colgada;
+    private int PorcentajeTexto => Math.Clamp(Progreso ?? 0, 0, 100);
+    private bool ReintentoDisponible => _estado == EstadoEspera.Colgada && OnReintentar.HasDelegate;
+
+    // Corriendo = ni se puede pulsar ni llega el clic. Colgada con reintento disponible es lo único pulsable mientras dura la espera.
+    private bool BotonDeshabilitado => Deshabilitado || (EnCurso && !ReintentoDisponible);
+
+    private bool MostrarCancelar => OnCancelarEspera.HasDelegate && _estado is EstadoEspera.Lenta or EstadoEspera.Colgada;
+
+    private Dictionary<string, object> AtributosBoton
+    {
+        get
+        {
+            var atributos = AtributosAdicionales is null ? new Dictionary<string, object>() : new Dictionary<string, object>(AtributosAdicionales);
+            var propia = $"boton-espera-boton boton-espera-{_estado.ToString().ToLowerInvariant()}";
+            atributos["class"] = atributos.TryGetValue("class", out var llamador) && llamador is string texto && !string.IsNullOrWhiteSpace(texto)
+                ? $"{propia} {texto}"
+                : propia;
+            if (EnCurso) atributos["aria-busy"] = "true";
+            return atributos;
+        }
+    }
+
+    private string? Mensaje => _estado switch
+    {
+        EstadoEspera.Lenta => Comunes["EsperaLenta"].Value,
+        EstadoEspera.Colgada => string.Format(Comunes["EsperaColgada"].Value, (int)Math.Floor(Reloj.GetElapsedTime(_ultimaSenal).TotalSeconds)),
+        _ => null
+    };
+
+    protected override void OnParametersSet()
+    {
+        if (Guardando && !_guardandoPrevio)
+        {
+            _inicio = _ultimaSenal = Reloj.GetTimestamp();
+            _progresoPrevio = Progreso;
+            _estado = EstadoEspera.Guardando;
+            ArrancarTemporizador();
+        }
+        else if (!Guardando && _guardandoPrevio)
+        {
+            if (Fallido)
+            {
+                _estado = EstadoEspera.Reposo;
+                DetenerTemporizador();
+            }
+            else
+            {
+                _estado = EstadoEspera.Hecha;
+                _inicioHecha = Reloj.GetTimestamp();
+                ArrancarTemporizador();
+            }
+        }
+        else if (Guardando && Progreso != _progresoPrevio)
+        {
+            _progresoPrevio = Progreso;
+            _ultimaSenal = Reloj.GetTimestamp();
+            _estado = Reevaluar();
+        }
+
+        _guardandoPrevio = Guardando;
+    }
+
+    private EstadoEspera Reevaluar() =>
+        ClasificadorEspera.Clasificar(true, Reloj.GetElapsedTime(_inicio), Reloj.GetElapsedTime(_ultimaSenal), UmbralLenta, UmbralColgada);
+
+    private void ArrancarTemporizador()
+    {
+        DetenerTemporizador();
+        var intervalo = Intervalo > TimeSpan.Zero ? Intervalo : TimeSpan.FromMilliseconds(1);
+        _temporizador = Reloj.CreateTimer(_ => _ = InvokeAsync(AlLatir), null, intervalo, intervalo);
+    }
+
+    private void DetenerTemporizador()
+    {
+        _temporizador?.Dispose();
+        _temporizador = null;
+    }
+
+    private void AlLatir()
+    {
+        if (_eliminado) return;
+
+        if (_estado == EstadoEspera.Hecha)
+        {
+            if (Reloj.GetElapsedTime(_inicioHecha) < DuracionHecha) return;
+            _estado = EstadoEspera.Reposo;
+            DetenerTemporizador();
+        }
+        else if (EnCurso)
+        {
+            var nuevo = Reevaluar();
+            // Colgada repinta en cada latido: el mensaje cuenta los segundos sin respuesta.
+            if (nuevo == _estado && nuevo != EstadoEspera.Colgada) return;
+            _estado = nuevo;
+        }
+        else
+        {
+            DetenerTemporizador();
+            return;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task AlPulsarAsync()
+    {
+        // Sin doble envío: el clic que llegara antes del render deshabilitado no sale de aquí.
+        if (EnCurso && !ReintentoDisponible) return;
+        if (ReintentoDisponible) await OnReintentar.InvokeAsync();
+        else await OnClick.InvokeAsync();
+    }
+
+    private Task AlCancelarAsync() => OnCancelarEspera.InvokeAsync();
+
+    public void Dispose()
+    {
+        _eliminado = true;
+        DetenerTemporizador();
+    }
+}

@@ -43,7 +43,7 @@ public class BotonAsistenteIaTests : BunitContext
 
         var cut = Render<BotonAsistenteIa>();
 
-        cut.Find("button.boton-asistente-ia").GetAttribute("title").Should().Be($"Pregúntale a {Marca.Nombre}",
-            "el título sale de TextosAsistenteIa (clave «Titulo»)");
+        cut.Find("button.boton-asistente-ia").GetAttribute("data-tooltip").Should().Be($"Pregúntale a {Marca.Nombre}",
+            "el texto del tooltip sale de TextosAsistenteIa (clave «Titulo»)");
     }
 }

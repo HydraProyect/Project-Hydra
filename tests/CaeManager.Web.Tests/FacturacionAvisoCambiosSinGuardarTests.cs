@@ -92,7 +92,7 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
         var navegacion = Services.GetRequiredService<NavigationManager>();
         navegacion.NavigateTo("facturacion");
         var cut = Render<FacturacionPagina>();
-        await cut.Find("#sel-cliente").ChangeAsync(new ChangeEventArgs { Value = ClienteId.ToString() });
+        await cut.ElegirPorValorAsync("sel-cliente", ClienteId.ToString());
         cut.WaitForAssertion(() => cut.FindAll("table.tabla-facturacion tbody tr").Should().HaveCount(_mediator.DosTarifas ? 2 : 1));
         return (cut, navegacion);
     }
@@ -162,7 +162,7 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
         cut.FindAll(".modal-pie button").Any(b => b.TextContent.Trim() == "Salir y descartar");
 
     private static Task ElegirCliente(IRenderedComponent<FacturacionPagina> cut, Guid clienteId) =>
-        cut.Find("#sel-cliente").ChangeAsync(new ChangeEventArgs { Value = clienteId.ToString() });
+        cut.ElegirPorValorAsync("sel-cliente", clienteId.ToString());
 
     private int ConsultasDeTarifasDe(Guid clienteId) =>
         _mediator.Enviados.OfType<ObtenerTarifasClienteQuery>().Count(q => q.ClienteId == clienteId);

@@ -34,6 +34,7 @@
 
 .tarjeta-metrica-valor {
     font: var(--font-heading-xl);
+    font-variant-numeric: tabular-nums;
 }
 
 /* Tercera línea opcional: contexto del valor principal, mismo tono que la

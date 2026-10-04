@@ -185,6 +185,19 @@ public static class Ayudas
             await interruptor.ClickAsync();
     }
 
+    /// <summary>
+    /// Elige una opción de un <c>CampoSelectAvanzado</c> como lo hace una persona: abre el combobox y pulsa la
+    /// opción por su valor (<c>data-valor</c>). Sustituye a <c>SelectOptionAsync</c>, que solo entiende el
+    /// <c>&lt;select&gt;</c> nativo. <paramref name="combobox"/> es el disparador (<c>GetByRole(Combobox)</c> o <c>#id</c>);
+    /// la lista sale del <c>aria-controls</c> del propio disparador, no de un selector de la pantalla.
+    /// </summary>
+    public static async Task ElegirOpcionEnSelectorAvanzadoAsync(IPage page, ILocator combobox, string valor)
+    {
+        var idLista = await combobox.GetAttributeAsync("aria-controls");
+        await combobox.ClickAsync();
+        await page.Locator($"[id='{idLista}'] [role=option][data-valor='{valor}']").ClickAsync();
+    }
+
     public static ILocator DisparadorSelectorTenant(IPage page) => page.Locator(".selector-tenant-disparador");
 
     public static async Task<string> TenantActivoIdAsync(IPage page) =>

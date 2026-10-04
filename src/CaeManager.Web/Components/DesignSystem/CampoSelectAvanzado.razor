@@ -1,0 +1,420 @@
+@*
+    Lista desplegable del kit con popover propio (patrón combobox/listbox de WAI-ARIA): sustituye al
+    <select> nativo cuando la lista es larga, necesita búsqueda o cada opción lleva una descripción.
+    Hermano de CampoSelect, no su evolución: CampoSelect recibe <option> como contenido y se queda
+    donde el envío nativo del formulario manda (data-enviar-al-cambiar, optgroup); este recibe datos
+    (OpcionSelect), porque la búsqueda, la descripción y el punto de color necesitan leerlos.
+
+    Teclado y estado viven en C# (se prueban con bUnit); el JS (campo-select-avanzado.js) solo hace lo
+    que Blazor no puede: preventDefault condicional de las teclas de navegación, anclar el panel a la
+    capa superior del navegador (así un Drawer o Modal con overflow no lo recorta) y voltearlo si no
+    cabe debajo. Sin JS el panel cae a posición absoluta bajo el disparador y sigue siendo usable.
+
+    Formularios: con Name pinta un <input type="hidden"> con el valor, así que un POST nativo lo envía
+    como un select. Lo que NO replica es el envío al cambiar de data-enviar-al-cambiar (SelectorIdioma y
+    compañía): esos se quedan con select nativo.
+*@
+@using System.Globalization
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<div class="@ClaseRaiz" @ref="_raiz" data-abierto="@(_abierto ? "true" : "false")" @onkeydown:stopPropagation="_abierto">
+    @if (!string.IsNullOrWhiteSpace(Etiqueta))
+    {
+        <label id="@_idEtiqueta" for="@IdCampo">@Etiqueta</label>
+    }
+    <button type="button" id="@IdCampo" class="csa-disparador" @ref="_disparador"
+            role="combobox" aria-haspopup="listbox" aria-expanded="@(_abierto ? "true" : "false")"
+            aria-controls="@_idLista" aria-activedescendant="@(_abierto && !EsBuscable ? IdActivo : null)"
+            aria-label="@(string.IsNullOrWhiteSpace(Etiqueta) ? EtiquetaAccesible : null)"
+            disabled="@Deshabilitado" @onclick="Alternar" @onkeydown="e => ManejarTeclaAsync(e, false)">
+        @if (Actual?.Tono is { } tonoActual)
+        {
+            <span class="@ClasePunto(tonoActual)" aria-hidden="true"></span>
+        }
+        <span class="@(Actual is null ? "csa-valor csa-marcador" : "csa-valor")">@(Actual?.Texto ?? TextoMarcador)</span>
+        <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+    </button>
+    @if (!string.IsNullOrEmpty(Name))
+    {
+        <input type="hidden" name="@Name" value="@Valor" />
+    }
+    @if (_abierto)
+    {
+        <div class="csa-superposicion" @onclick="CerrarSinFoco"></div>
+        <div class="csa-panel" @ref="_panel" @onclick:stopPropagation="true">
+            @if (EsBuscable)
+            {
+                <div class="csa-buscador-caja">
+                    <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
+                    <input type="text" class="csa-buscador" @ref="_buscador"
+                           role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="@_idLista"
+                           aria-activedescendant="@IdActivo" aria-label="@Comunes["SelectorBuscarEtiqueta"]"
+                           placeholder="@Comunes["SelectorBuscarMarcador"]" autocomplete="off"
+                           @oninput="AlEscribir" @onkeydown="e => ManejarTeclaAsync(e, true)" />
+                </div>
+            }
+            <ul id="@_idLista" class="csa-lista" role="listbox" tabindex="-1"
+                aria-labelledby="@(string.IsNullOrWhiteSpace(Etiqueta) ? null : _idEtiqueta)"
+                aria-label="@(string.IsNullOrWhiteSpace(Etiqueta) ? EtiquetaAccesible : null)">
+                @foreach (var (posicion, indice) in _visibles.Index())
+                {
+                    var opcion = Opciones[indice];
+                    var elegida = opcion.Valor == Valor;
+                    <li id="@IdOpcion(indice)" role="option" data-valor="@opcion.Valor" aria-selected="@(elegida ? "true" : "false")"
+                        aria-disabled="@(opcion.Deshabilitada ? "true" : null)"
+                        class="@ClaseOpcion(posicion, elegida, opcion.Deshabilitada)"
+                        @onclick="() => ElegirAsync(posicion)">
+                        @if (opcion.Tono is { } tono)
+                        {
+                            <span class="@ClasePunto(tono)" aria-hidden="true"></span>
+                        }
+                        <span class="csa-texto">
+                            @opcion.Texto
+                            @if (!string.IsNullOrWhiteSpace(opcion.Descripcion))
+                            {
+                                <small class="csa-descripcion">@opcion.Descripcion</small>
+                            }
+                        </span>
+                        <span class="csa-marca" aria-hidden="true">
+                            @if (elegida)
+                            {
+                                <Icono Nombre="check" Tamano="TamanoIcono.Pequeno" />
+                            }
+                        </span>
+                    </li>
+                }
+            </ul>
+            @if (_visibles.Count == 0)
+            {
+                <p class="csa-vacio">@Comunes["SelectorSinResultados"]</p>
+            }
+            @if (EsBuscable)
+            {
+                <span class="csa-anuncio" role="status">@AnuncioResultados</span>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Con pocas opciones el buscador sobra: se enseña a partir de este número si <see cref="Buscable"/> no lo fija.</summary>
+    internal const int UmbralBuscador = 8;
+
+    /// <summary>Pausa tras la que la escritura rápida (typeahead) vuelve a empezar de cero.</summary>
+    private const long MsReinicioEscritura = 700;
+
+    private static readonly CompareOptions SinMayusculasNiTildes = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace;
+
+    private readonly string _idAuto = $"campo-select-avanzado-{Guid.NewGuid():N}";
+    private readonly List<int> _visibles = [];
+    private ElementReference _raiz;
+    private ElementReference _disparador;
+    private ElementReference _panel;
+    private ElementReference _buscador;
+    private IJSObjectReference? _modulo;
+    private IJSObjectReference? _control;
+    private bool _abierto;
+    private bool _anclarPendiente;
+    private bool _enfocarBuscadorPendiente;
+    private bool _devolverFocoPendiente;
+    private bool _desplazarPendiente;
+    private bool _anclado;
+    private bool _desechado;
+    private string _consulta = string.Empty;
+    private int _activo = -1;
+    private string _escrito = string.Empty;
+    private long _escritoEn;
+
+    [Parameter] public string? Etiqueta { get; set; }
+
+    /// <summary>Nombre accesible cuando la etiqueta visible la pone la pantalla por fuera (o no hay).</summary>
+    [Parameter] public string? EtiquetaAccesible { get; set; }
+
+    /// <summary>Id del disparador; el <c>for</c> de una etiqueta externa apunta aquí. Sin valor, uno único por instancia.</summary>
+    [Parameter] public string? Id { get; set; }
+
+    /// <summary>Con valor, un <c>&lt;input type="hidden"&gt;</c> lleva la elección a un POST nativo.</summary>
+    [Parameter] public string? Name { get; set; }
+
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+    [Parameter] public bool Deshabilitado { get; set; }
+
+    /// <summary>Texto del disparador mientras ningún valor coincide con una opción.</summary>
+    [Parameter] public string? Marcador { get; set; }
+
+    /// <summary>Disparador de 40 px (franjas y cabeceras de pantalla) en vez de los 48 px de un campo de formulario.</summary>
+    [Parameter] public bool Compacto { get; set; }
+
+    /// <summary>Clase extra del contenedor, para que la pantalla fije su ancho.</summary>
+    [Parameter] public string? Clase { get; set; }
+
+    /// <summary>Fuerza el buscador (<c>true</c>) o lo quita (<c>false</c>); sin valor aparece con más de <see cref="UmbralBuscador"/> opciones.</summary>
+    [Parameter] public bool? Buscable { get; set; }
+
+    [Parameter, EditorRequired] public IReadOnlyList<OpcionSelect> Opciones { get; set; } = [];
+
+    private string AnuncioResultados => _consulta.Length == 0 ? string.Empty : Comunes["SelectorResultados", _visibles.Count].Value;
+
+    private string IdCampo => string.IsNullOrWhiteSpace(Id) ? _idAuto : Id;
+    private string _idEtiqueta => $"{IdCampo}-etiqueta";
+    private string _idLista => $"{IdCampo}-lista";
+    private bool EsBuscable => Buscable ?? Opciones.Count > UmbralBuscador;
+    private OpcionSelect? Actual => Opciones.FirstOrDefault(o => o.Valor == Valor);
+    private string TextoMarcador => Marcador ?? Comunes["SelectorMarcador"].Value;
+    private string? IdActivo => _activo >= 0 && _activo < _visibles.Count ? IdOpcion(_visibles[_activo]) : null;
+
+    private string ClaseRaiz => string.Join(' ', new[]
+    {
+        string.IsNullOrWhiteSpace(Etiqueta) ? null : "campo",
+        "campo-select-avanzado",
+        Compacto ? "csa-compacto" : null,
+        _abierto ? "csa-abierto" : null,
+        Clase,
+    }.Where(c => !string.IsNullOrWhiteSpace(c)));
+
+    private string IdOpcion(int indice) => $"{IdCampo}-op-{indice}";
+
+    private static string ClasePunto(TonoBadge tono) => $"csa-punto csa-punto-{tono.ToString().ToLowerInvariant()}";
+
+    private string ClaseOpcion(int posicion, bool elegida, bool deshabilitada) =>
+        "csa-opcion" + (posicion == _activo ? " csa-activa" : "") + (elegida ? " csa-elegida" : "") + (deshabilitada ? " csa-deshabilitada" : "");
+
+    private void Alternar()
+    {
+        if (_abierto) CerrarSinFoco();
+        else Abrir();
+    }
+
+    private void CerrarSinFoco() => _abierto = false;
+
+    private void Cerrar(bool devolverFoco)
+    {
+        _abierto = false;
+        _devolverFocoPendiente = devolverFoco;
+    }
+
+    private void Abrir()
+    {
+        if (Deshabilitado) return;
+
+        _abierto = true;
+        _consulta = string.Empty;
+        _escrito = string.Empty;
+        Recalcular();
+        _activo = _visibles.FindIndex(i => Opciones[i].Valor == Valor && !Opciones[i].Deshabilitada);
+        if (_activo < 0) _activo = _visibles.FindIndex(i => !Opciones[i].Deshabilitada);
+        _anclarPendiente = true;
+        _enfocarBuscadorPendiente = EsBuscable;
+        _desplazarPendiente = true;
+    }
+
+    private void Recalcular()
+    {
+        var buscado = _consulta.Trim();
+        _visibles.Clear();
+        for (var i = 0; i < Opciones.Count; i++)
+        {
+            if (buscado.Length == 0 || Coincide(Opciones[i], buscado)) _visibles.Add(i);
+        }
+    }
+
+    private static bool Coincide(OpcionSelect opcion, string buscado)
+    {
+        var comparador = CultureInfo.CurrentCulture.CompareInfo;
+        return comparador.IndexOf(opcion.Texto, buscado, SinMayusculasNiTildes) >= 0
+            || (opcion.Descripcion is not null && comparador.IndexOf(opcion.Descripcion, buscado, SinMayusculasNiTildes) >= 0);
+    }
+
+    private void AlEscribir(ChangeEventArgs e)
+    {
+        _consulta = e.Value?.ToString() ?? string.Empty;
+        Recalcular();
+        _activo = _visibles.FindIndex(i => !Opciones[i].Deshabilitada);
+        _desplazarPendiente = true;
+    }
+
+    private async Task ManejarTeclaAsync(KeyboardEventArgs e, bool enBuscador)
+    {
+        if (e.CtrlKey || e.MetaKey || e.AltKey) return;
+
+        if (!_abierto)
+        {
+            if (e.Key is "ArrowDown" or "ArrowUp") Abrir();
+            else if (!enBuscador && EsCaracter(e))
+            {
+                Abrir();
+                EscribirRapido(e.Key);
+            }
+
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case "ArrowDown": Mover(1); break;
+            case "ArrowUp": Mover(-1); break;
+            case "Home" when !enBuscador || _consulta.Length == 0: IrAlExtremo(primero: true); break;
+            case "End" when !enBuscador || _consulta.Length == 0: IrAlExtremo(primero: false); break;
+            case "Enter": await ElegirAsync(_activo); break;
+            case " " when !enBuscador: await ElegirAsync(_activo); break;
+            case "Escape": Cerrar(devolverFoco: true); break;
+            // Tab cierra y deja que el navegador siga su camino: el foco no se devuelve.
+            case "Tab": Cerrar(devolverFoco: false); break;
+            default:
+                if (!enBuscador && EsCaracter(e)) EscribirRapido(e.Key);
+                break;
+        }
+    }
+
+    private static bool EsCaracter(KeyboardEventArgs e) => e.Key.Length == 1 && e.Key != " ";
+
+    private void Mover(int paso)
+    {
+        var destino = _activo < 0 ? (paso > 0 ? -1 : _visibles.Count) : _activo;
+        do
+        {
+            destino += paso;
+        }
+        while (destino >= 0 && destino < _visibles.Count && Opciones[_visibles[destino]].Deshabilitada);
+
+        if (destino < 0 || destino >= _visibles.Count) return;
+
+        _activo = destino;
+        _desplazarPendiente = true;
+    }
+
+    private void IrAlExtremo(bool primero)
+    {
+        var posicion = primero
+            ? _visibles.FindIndex(i => !Opciones[i].Deshabilitada)
+            : _visibles.FindLastIndex(i => !Opciones[i].Deshabilitada);
+        if (posicion < 0) return;
+
+        _activo = posicion;
+        _desplazarPendiente = true;
+    }
+
+    /// <summary>
+    /// Escritura rápida sobre el disparador: las letras seguidas dentro de una pausa corta buscan una
+    /// opción que EMPIECE por ellas; la misma letra repetida recorre las que empiezan por ella.
+    /// </summary>
+    private void EscribirRapido(string tecla)
+    {
+        var ahora = Environment.TickCount64;
+        _escrito = ahora - _escritoEn > MsReinicioEscritura ? tecla : _escrito + tecla;
+        _escritoEn = ahora;
+
+        var repetida = _escrito.Length > 1 && _escrito.All(c => c == _escrito[0]);
+        var buscado = repetida ? _escrito[..1] : _escrito;
+        var desde = repetida || _escrito.Length == 1 ? _activo + 1 : Math.Max(_activo, 0);
+
+        var comparador = CultureInfo.CurrentCulture.CompareInfo;
+        for (var paso = 0; paso < _visibles.Count; paso++)
+        {
+            var posicion = (desde + paso) % _visibles.Count;
+            var opcion = Opciones[_visibles[posicion]];
+            if (opcion.Deshabilitada || !comparador.IsPrefix(opcion.Texto, buscado, SinMayusculasNiTildes)) continue;
+
+            _activo = posicion;
+            _desplazarPendiente = true;
+            return;
+        }
+    }
+
+    private async Task ElegirAsync(int posicion)
+    {
+        if (posicion < 0 || posicion >= _visibles.Count) return;
+
+        var opcion = Opciones[_visibles[posicion]];
+        if (opcion.Deshabilitada) return;
+
+        Cerrar(devolverFoco: true);
+        if (opcion.Valor != Valor) await ValorChanged.InvokeAsync(opcion.Valor);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_desechado) return;
+
+        try
+        {
+            if (_control is null && (firstRender || _abierto)) await CrearControlAsync();
+
+            if (_anclarPendiente && _abierto)
+            {
+                _anclarPendiente = false;
+                if (_control is not null)
+                {
+                    await _control.InvokeVoidAsync("anclar", _panel, _disparador);
+                    _anclado = true;
+                }
+            }
+
+            if (_enfocarBuscadorPendiente && _abierto)
+            {
+                _enfocarBuscadorPendiente = false;
+                await _buscador.FocusAsync();
+            }
+
+            if (_desplazarPendiente && _abierto)
+            {
+                _desplazarPendiente = false;
+                if (_control is not null && IdActivo is { } id) await _control.InvokeVoidAsync("desplazarA", id);
+            }
+
+            if (!_abierto && _anclado)
+            {
+                _anclado = false;
+                if (_control is not null) await _control.InvokeVoidAsync("soltar");
+            }
+
+            if (_devolverFocoPendiente)
+            {
+                _devolverFocoPendiente = false;
+                await _disparador.FocusAsync();
+            }
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
+        {
+            // Mejor esfuerzo (mismo criterio que Drawer/Modal): sin el módulo JS (tests de componente,
+            // circuito cerrándose) la lista sigue usable, solo sin el anclaje a la capa superior.
+        }
+    }
+
+    private async Task CrearControlAsync()
+    {
+        try
+        {
+            _modulo = await JS.InvokeAsync<IJSObjectReference>("import", "./js/campo-select-avanzado.js");
+            if (_modulo is null) return;
+            _control = await _modulo.InvokeAsync<IJSObjectReference>("crear", _raiz);
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            _control = null;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _desechado = true;
+        try
+        {
+            if (_control is not null)
+            {
+                await _control.InvokeVoidAsync("dispose");
+                await _control.DisposeAsync();
+            }
+
+            if (_modulo is not null) await _modulo.DisposeAsync();
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or TaskCanceledException)
+        {
+        }
+    }
+}

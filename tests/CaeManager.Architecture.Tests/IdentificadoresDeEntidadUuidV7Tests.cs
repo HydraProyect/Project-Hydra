@@ -85,6 +85,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         // Atributos id de HTML únicos por instancia de componente.
         ["src/CaeManager.Web/Components/DesignSystem/CampoBuscarSelect.razor"] = 2,
         ["src/CaeManager.Web/Components/DesignSystem/CampoSelect.razor"] = 1,
+        ["src/CaeManager.Web/Components/DesignSystem/CampoSelectAvanzado.razor"] = 1,
         ["src/CaeManager.Web/Components/DesignSystem/CampoTextarea.razor"] = 1,
         ["src/CaeManager.Web/Components/DesignSystem/CampoTexto.razor"] = 1,
         ["src/CaeManager.Web/Components/DesignSystem/Drawer.razor"] = 1,

@@ -188,8 +188,11 @@ public partial class FirmaEnCampoTab : ComponentBase, IAsyncDisposable
             await _modulo.InvokeVoidAsync("limpiar", _idCanvas);
     }
 
-    private void AlCambiarEmpresaSeleccionadaParaSello(ChangeEventArgs args) =>
-        _empresaSeleccionadaEnSelector = Guid.TryParse(args.Value as string, out var id) ? id : null;
+    private IReadOnlyList<OpcionSelect> OpcionesSello =>
+        [new(string.Empty, "Ninguno"), .. _empresasConSello.Select(e => new OpcionSelect(e.EmpresaId.ToString(), e.RazonSocial))];
+
+    private void AlCambiarEmpresaSeleccionadaParaSello(string valor) =>
+        _empresaSeleccionadaEnSelector = Guid.TryParse(valor, out var id) ? id : null;
 
     private Guid? ResolverSelloEmpresaId() =>
         _seloDirectoDisponible ? (_incluirSello ? _documento!.EmpresaId : null) : _empresaSeleccionadaEnSelector;
