@@ -3,7 +3,7 @@
     position: absolute;
     top: var(--space-2);
     left: var(--space-2);
-    z-index: 1000;
+    z-index: 1030; /* por encima de la cabecera fija (1020), por debajo de Drawer (1040) */
     padding: var(--space-2) var(--space-4);
     border-radius: var(--radius-md);
     background-color: var(--color-primario-fondo);

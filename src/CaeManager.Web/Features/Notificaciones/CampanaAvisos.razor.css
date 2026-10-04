@@ -1,30 +1,3 @@
-::deep .campana-boton {
-    position: relative;
-    display: grid;
-    place-items: center;
-    width: 36px;
-    height: 36px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--radius-full);
-    background: none;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: background-color var(--motion-fast) var(--ease-standard),
-        color var(--motion-fast) var(--ease-standard);
-}
-
-::deep .campana-boton:hover,
-::deep .campana-boton[aria-expanded='true'] {
-    background-color: var(--color-surface-hover);
-    color: var(--color-text);
-}
-
-::deep .campana-boton:focus-visible {
-    outline: var(--border-focus);
-    outline-offset: 2px;
-}
-
 /* Contador: letra casi negra (la misma #1a1206 de los avisos ámbar) sobre danger-500, que no cambia de
    tema: el blanco sobre ese rojo da 3,76:1 y a 10 px no llega. */
 .campana-contador {
@@ -138,8 +111,3 @@
     font-weight: 600;
 }
 
-@media (prefers-reduced-motion: reduce) {
-    ::deep .campana-boton {
-        transition: none;
-    }
-}

@@ -148,7 +148,7 @@ public class ContrasteDeComponentesPorTemaTests
             [".indicador-pasos-completado .indicador-pasos-circulo"]),
         new("Saltar al contenido", "Components/Layout/MainLayout.razor.css", [".saltar-al-contenido"]),
         new("Contador de la campana de avisos", "Features/Notificaciones/CampanaAvisos.razor.css", [".campana-contador"]),
-        new("Chip de vistas de demostración y vocabulario", "Components/Layout/VistasTecnicas.razor.css", ["::deep .vistas-chip"]),
+        new("Chip de vistas de demostración y vocabulario", "Components/Layout/PanelDesplegableCabecera.razor.css", [".vistas-chip"]),
         new("Aviso de la banda: sesión de soporte y fin de acceso", "Components/Layout/MainLayout.razor.css",
             [".cabecera-bandas ::deep [data-aviso-sistema][data-tono='soporte']"]),
         new("Aviso de la banda: solo consulta", "Components/Layout/MainLayout.razor.css",

@@ -74,6 +74,9 @@
         const items = Array.prototype.slice.call(panel.querySelectorAll(ITEMS));
         if (items.length === 0) return;
         const actual = items.indexOf(document.activeElement);
+        // Solo se secuestran las flechas con el foco en el botón o en un elemento del menú: un
+        // <select> (el idioma) las necesita para sí.
+        if (actual === -1 && document.activeElement !== abierto) return;
         let siguiente = -1;
         if (e.key === 'ArrowDown') siguiente = (actual + 1) % items.length;
         else if (e.key === 'ArrowUp') siguiente = actual <= 0 ? items.length - 1 : actual - 1;
@@ -104,10 +107,23 @@
     window.addEventListener('load', marcarDesplazamiento);
 
     // Banda de avisos: descartar un aviso y plegar la banda cuando se queda vacía.
+
+    // Un aviso que llega con la banda plegada (los de los islotes interactivos pintan después de
+    // la carga: ventana de soporte a punto de terminar) la reabre: la banda nunca esconde un aviso.
+    let observador = null;
+    const vigilarBanda = function (banda) {
+        if (observador) observador.disconnect();
+        observador = new MutationObserver(function () {
+            if (banda.classList.contains('cerrada') && banda.querySelector('[data-aviso-sistema]:not([data-saliendo])'))
+                banda.classList.remove('cerrada');
+        });
+        observador.observe(banda, { childList: true, subtree: true });
+    };
     const plegarSiVacia = function () {
         const banda = document.querySelector('.cabecera-bandas');
         if (!banda) return;
         const quedan = banda.querySelector('[data-aviso-sistema]:not([data-saliendo])');
+        vigilarBanda(banda);
         banda.classList.toggle('cerrada', !quedan);
     };
 

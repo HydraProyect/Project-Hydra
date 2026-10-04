@@ -85,5 +85,11 @@ public class CabeceraTests(WebAppFixture fixture)
 
         await Ayudas.AbrirMenuDeUsuarioAsync(page);
         await Assertions.Expect(page.Locator(".boton-cerrar-sesion")).ToBeVisibleAsync();
+
+        // El panel de la campana se ancla al ancho de la pantalla: no puede salirse por la izquierda.
+        await page.Locator("button.campana-boton").ClickAsync();
+        var caja = await page.Locator("#panel-campana-avisos.abierto").BoundingBoxAsync();
+        Assert.NotNull(caja);
+        Assert.True(caja!.X >= 0 && caja.X + caja.Width <= 375, $"el panel de avisos se sale de la pantalla: x={caja.X}, ancho={caja.Width}");
     }
 }

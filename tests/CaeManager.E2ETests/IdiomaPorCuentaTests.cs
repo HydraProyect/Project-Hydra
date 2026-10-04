@@ -226,7 +226,6 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
         await page.GotoAsync($"{fixture.BaseUrl}/cuenta/iniciar-sesion");
         await page.FillAsync("#email", email);
         await page.FillAsync("#password", password);
-        await Ayudas.AbrirMenuDeUsuarioAsync(page);
         var respuesta = await page.RunAndWaitForResponseAsync(
             () => page.ClickAsync("button[type=\"submit\"]"), EsPostA("/cuenta/iniciar-sesion"));
 
