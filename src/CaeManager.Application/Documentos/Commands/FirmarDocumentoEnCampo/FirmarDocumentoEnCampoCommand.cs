@@ -72,6 +72,10 @@ public class FirmarDocumentoEnCampoCommandHandler(
         if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             return Result.Fallo(Error.Crear("Documento.NoEncontrado", "No encontramos este documento."));
 
+        // El historial es inmutable: no se firma ni se reescribe el archivo de un documento que otro ya sustituyó.
+        if (!DocumentoOperativo.Es(documento))
+            return Result.Fallo(DocumentoEnHistorial.NuevoError());
+
         if (documento.ArchivoUrl is null)
             return Result.Fallo(Error.Crear("Documento.SinArchivo", "Este documento no tiene ningún archivo que firmar."));
 

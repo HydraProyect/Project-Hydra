@@ -67,7 +67,8 @@ public class DeteccionTrabajadoresService(
         if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
             return;
 
-        var documento = await documentosContext.Documentos.FirstOrDefaultAsync(d => d.Id == documentoId, cancellationToken);
+        // Solo se analiza lo que está en uso: el análisis tardío de un documento que ya pasó al historial no lo toca.
+        var documento = await documentosContext.Documentos.Operativos().FirstOrDefaultAsync(d => d.Id == documentoId, cancellationToken);
 
         if (documento is null || documento.EmpresaId is null || string.IsNullOrWhiteSpace(documento.ArchivoUrl))
             return;

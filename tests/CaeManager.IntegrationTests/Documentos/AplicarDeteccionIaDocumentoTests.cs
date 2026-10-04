@@ -100,6 +100,55 @@ public class AplicarDeteccionIaDocumentoTests : IAsyncLifetime
         aprobacion.UsuarioId.Should().Be(_usuarioId);
     }
 
+    /// <summary>Un documento ya sustituido (historial) con una revisión de IA pendiente, y su sustituto en uso.</summary>
+    private async Task<(Documento Historial, RevisionIaDocumento Revision)> SembrarHistorialConRevisionPendienteAsync()
+    {
+        var fechaOriginal = DiaDeNegocio.Hoy().AddYears(-1);
+        var historial = Documento.DeTrabajador(_trabajador.Id, _tipoConVencimientoAutomatico.Id, fechaOriginal, VigenciaDocumento.NoCaduca);
+        var vigente = historial.NuevoDelMismoTitular(DiaDeNegocio.Hoy().AddDays(-3), VigenciaDocumento.NoCaduca, null, null);
+        _dbContext.Documentos.AddRange(historial, vigente);
+        historial.SustituirPor(vigente, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+
+        var fechaDetectada = DiaDeNegocio.Hoy();
+        var revision = RevisionIaDocumento.Crear(
+            historial.Id, 92, "Apto médico", fechaDetectada, fechaDetectada.AddMonths(6), true, "Confianza baja");
+        _dbContext.RevisionesIaDocumento.Add(revision);
+        await _dbContext.SaveChangesAsync();
+        return (historial, revision);
+    }
+
+    [Fact]
+    public async Task Aplicar_la_deteccion_sobre_un_documento_del_historial_se_rechaza_y_no_lo_toca()
+    {
+        var (historial, revision) = await SembrarHistorialConRevisionPendienteAsync();
+        var emisionOriginal = historial.FechaEmision;
+
+        var resultado = await CrearHandler().Handle(new AplicarDeteccionIaDocumentoCommand(revision.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Documento.EnHistorial");
+        _dbContext.ChangeTracker.Clear();
+        (await _dbContext.Documentos.SingleAsync(d => d.Id == historial.Id)).FechaEmision.Should().Be(emisionOriginal);
+        (await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.Id == revision.Id)).Resuelta.Should().BeFalse();
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == historial.Id)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Corregir_la_lectura_sobre_un_documento_del_historial_se_rechaza_y_no_lo_toca()
+    {
+        var (historial, revision) = await SembrarHistorialConRevisionPendienteAsync();
+        var emisionOriginal = historial.FechaEmision;
+
+        var resultado = await CrearHandlerCorreccion().Handle(
+            new CorregirRevisionIaDocumentoCommand(revision.Id, DiaDeNegocio.Hoy().AddDays(-10)), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Documento.EnHistorial");
+        _dbContext.ChangeTracker.Clear();
+        (await _dbContext.Documentos.SingleAsync(d => d.Id == historial.Id)).FechaEmision.Should().Be(emisionOriginal);
+        (await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.Id == revision.Id)).Resuelta.Should().BeFalse();
+    }
+
     [Fact]
     public async Task Marca_como_confirmada_manual_la_auditoria_de_ia_ligada_al_documento()
     {

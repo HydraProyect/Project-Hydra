@@ -9,7 +9,8 @@ namespace CaeManager.E2ETests;
 /// pendiente de subir. Lo que bUnit no ve: que «Corregir en {plataforma}» navega
 /// de verdad con el deep-link, que la pestaña Plataforma resuelve la fila con los
 /// datos reales, y que guardar el drawer de renovación (RenovarDocumentoCommand)
-/// devuelve esa misma acreditación a PendienteDeSubir.
+/// da de alta, para el Documento nuevo que sustituye al anterior (D8), una acreditación PendienteDeSubir
+/// y saca de la cola la Rechazada del anterior, que pasa al historial.
 ///
 /// Usa la Rechazada que siembra CicloDocumentalDatosPruebaSeeder en el Tenant
 /// Refrielectric (la única de ese Tenant). La renueva, así que la consume: la base
@@ -54,6 +55,9 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
         await Expect(fila.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Marcar subido", Exact = true }))
             .ToHaveCountAsync(0);
 
+        var propietario = (await fila.Locator(".plataforma-documento-propietario").InnerTextAsync()).Trim();
+        var tipoDocumento = (await fila.Locator(".plataforma-documento-tipo").InnerTextAsync()).Trim();
+
         // --- Subir versión corregida: abre el drawer de renovación del Documento ---
         await fila.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Subir versión corregida", Exact = true }).ClickAsync();
         var drawer = page.Locator(".drawer-panel");
@@ -87,10 +91,16 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
             File.Delete(rutaPdf);
         }
 
-        // --- La misma acreditación vuelve a pendiente de subir y ya se puede marcar subida ---
-        await Expect(fila.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Marcar subido", Exact = true }))
+        // --- Renovar con archivo crea un Documento nuevo (D8): la acreditación Rechazada es del anterior, que pasa al
+        //     historial y sale de la cola; el nuevo nace con su acreditación en pendiente de subir y ya se puede marcar subida ---
+        await Expect(page.Locator($".plataforma-fila-documento[data-acreditacion-id='{acreditacionId}']"))
+            .ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+        var filaNueva = page.Locator(".plataforma-fila-documento")
+            .Filter(new LocatorFilterOptions { Has = page.Locator(".plataforma-documento-propietario", new PageLocatorOptions { HasTextString = propietario }) })
+            .Filter(new LocatorFilterOptions { Has = page.Locator(".plataforma-documento-tipo", new PageLocatorOptions { HasTextString = tipoDocumento }) });
+        await Expect(filaNueva.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Marcar subido", Exact = true }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await Expect(fila.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Subir versión corregida", Exact = true }))
+        await Expect(filaNueva.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Subir versión corregida", Exact = true }))
             .ToHaveCountAsync(0);
     }
 }

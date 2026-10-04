@@ -122,7 +122,9 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
                 return Result.Fallo<Guid>(renovado.Error);
             }
 
-            documentoId = idExistente;
+            // Renovar con archivo crea un Documento nuevo (D8): el Id que queda en uso es el que devuelve, no el del
+            // operativo que se renovó, que pasa al historial.
+            documentoId = renovado.Valor;
         }
         else
         {
