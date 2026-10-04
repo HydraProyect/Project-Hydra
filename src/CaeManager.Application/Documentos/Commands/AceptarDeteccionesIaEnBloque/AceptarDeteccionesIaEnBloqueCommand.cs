@@ -34,6 +34,7 @@ public class AceptarDeteccionesIaEnBloqueCommandHandler(
     ILogger<AceptarDeteccionesIaEnBloqueCommandHandler> logger)
     : IRequestHandler<AceptarDeteccionesIaEnBloqueCommand, Result<ResultadoAceptacionEnBloque>>
 {
+    /// <summary>La interfaz no preselecciona ni deja marcar más de las que este comando acepta de una vez.</summary>
     public const int MaximoRevisionesPorBloque = 200;
 
     public async Task<Result<ResultadoAceptacionEnBloque>> Handle(
@@ -55,14 +56,21 @@ public class AceptarDeteccionesIaEnBloqueCommandHandler(
             {
                 var resultado = await mediator.Send(
                     new AplicarDeteccionIaDocumentoCommand(id, SoloSiLaVigenciaLaFijaElTipo: true), cancellationToken);
-                resultados.Add(resultado.EsExitoso
-                    ? new ResultadoAceptacionRevisionIa(id, true, null, null)
-                    : new ResultadoAceptacionRevisionIa(id, false, resultado.Error.Codigo, resultado.Error.Mensaje));
+                if (resultado.EsExitoso)
+                {
+                    resultados.Add(new ResultadoAceptacionRevisionIa(id, true, null, null));
+                    continue;
+                }
+
+                // Un fallo puede venir con entidades ya modificadas y sin guardar (p. ej. un conflicto de
+                // concurrencia que ConcurrenciaBehavior traduce a Result tras un SaveChanges fallido): se sueltan
+                // para que el siguiente elemento no las arrastre y falle también. Lo anterior ya está guardado.
+                descarteCambios.DescartarCambiosPendientes();
+                resultados.Add(new ResultadoAceptacionRevisionIa(id, false, resultado.Error.Codigo, resultado.Error.Mensaje));
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                // Un guardado fallido deja entidades rastreadas sin guardar: se sueltan para que no contaminen el
-                // siguiente elemento del bloque (mismo motivo que IDescarteCambiosPendientes).
+                // Mismo motivo que arriba, para una excepción que escapa del pipeline (IDescarteCambiosPendientes).
                 descarteCambios.DescartarCambiosPendientes();
                 logger.LogError(ex, "Fallo inesperado al aceptar en bloque la revisión IA {RevisionId}", id);
                 resultados.Add(new ResultadoAceptacionRevisionIa(

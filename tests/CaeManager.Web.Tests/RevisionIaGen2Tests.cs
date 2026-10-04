@@ -236,7 +236,7 @@ public class RevisionIaGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task El_filtro_no_reduce_la_seleccion_cargada_y_el_recuento_visible_es_observable()
+    public async Task La_seleccion_solo_cuenta_lo_visible_y_vuelve_al_cambiar_de_filtro()
     {
         var confirmable = Revision("Confirmable", 95, new DateOnly(2026, 9, 1));
         var manual = Revision("Manual", 80, new DateOnly(2026, 9, 2), vigenciaLaFijaElTipo: false);
@@ -244,15 +244,17 @@ public class RevisionIaGen2Tests : BunitContext
         var mediador = new MediadorFalso { Revisiones = [confirmable, manual, sinFecha] };
         var cut = Renderizar(mediador);
 
-        await Boton(cut, "Confirmables").ClickAsync(new MouseEventArgs());
+        await Boton(cut, "Aceptables").ClickAsync(new MouseEventArgs());
         var filas = cut.FindAll(".revision-ia-fila").ToList();
         filas.Should().ContainSingle("control positivo: hay una revisión aceptable en bloque en los datos");
         filas.Select(f => f.TextContent).Should().OnlyContain(t => t.Contains("Confirmable"), "el filtro no deja visibles filas de otra categoría");
         cut.Find(".revision-ia-acciones").TextContent.Should().Contain("1 extracción pendiente");
         Boton(cut, "Aceptar seleccionadas (1)").Should().NotBeNull();
-        await Boton(cut, "Todas").ClickAsync(new MouseEventArgs());
         await Boton(cut, "Sin fecha").ClickAsync(new MouseEventArgs());
-        Boton(cut, "Aceptar seleccionadas (1)").Should().NotBeNull("la selección se calcula sobre todas las revisiones cargadas, no sobre el filtro activo");
+        Boton(cut, "Aceptar seleccionadas (0)").HasAttribute("disabled").Should().BeTrue(
+            "lo que el filtro oculta no se acepta: el Gestor CAE solo confirma lo que tiene delante");
+        await Boton(cut, "Todas").ClickAsync(new MouseEventArgs());
+        Boton(cut, "Aceptar seleccionadas (1)").Should().NotBeNull("la marca sigue ahí al volver a verla");
     }
 
     /// <summary>La confianza solo preselecciona: por debajo del mínimo elegido no se marca.</summary>
@@ -535,6 +537,17 @@ public class RevisionIaGen2Tests : BunitContext
         espera.SetResult();
         await operacion.WaitAsync(TimeSpan.FromSeconds(10));
         toast.Mensajes.Should().BeEmpty("un componente dispuesto no publica el desenlace del bloque");
+    }
+
+    [Fact]
+    public void La_preseleccion_no_supera_el_maximo_que_acepta_el_comando()
+    {
+        var revisiones = Enumerable.Range(0, AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque + 5)
+            .Select(i => Revision($"Propietario {i}", 99, new DateOnly(2026, 9, 1))).ToList();
+        var cut = Renderizar(new MediadorFalso { Revisiones = revisiones });
+
+        Boton(cut, $"Aceptar seleccionadas ({AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque})")
+            .Should().NotBeNull("control positivo: hay más aceptables que el tope y solo se preseleccionan las que caben en un bloque");
     }
 
     private static Task EsperarComandoAsync(TaskCompletionSource inicio, TaskCompletionSource espera)

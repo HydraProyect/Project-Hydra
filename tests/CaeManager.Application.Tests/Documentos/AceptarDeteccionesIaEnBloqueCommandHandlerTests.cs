@@ -68,6 +68,22 @@ public class AceptarDeteccionesIaEnBloqueCommandHandlerTests
     }
 
     [Fact]
+    public async Task Un_resultado_fallido_tambien_descarta_lo_pendiente_para_no_contaminar_al_siguiente()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var descarte = new DescarteFalso();
+        var mediador = new MediadorFalso(cmd => cmd.RevisionId == a
+            ? Result.Fallo(Error.Crear("Concurrencia.Conflicto", "Otra persona modificó este registro."))
+            : Result.Exito());
+
+        var resultado = await Crear(mediador, descarte).Handle(new AceptarDeteccionesIaEnBloqueCommand([a, b]), CancellationToken.None);
+
+        descarte.Descartes.Should().Be(1, "solo el elemento fallido descarta; un éxito ya está guardado y no se toca");
+        resultado.Valor.Resultados.Single(r => r.RevisionId == b).Aceptada.Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Un_Id_repetido_o_vacio_no_se_acepta_dos_veces()
     {
         var a = Guid.NewGuid();

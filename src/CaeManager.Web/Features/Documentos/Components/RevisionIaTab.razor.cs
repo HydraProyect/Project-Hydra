@@ -44,7 +44,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private enum FiltroRevision
     {
         Todas,
-        Confirmables,
+        Aceptables,
         Manuales,
         SinFecha
     }
@@ -52,13 +52,14 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private static IReadOnlyList<FiltroRevision> Filtros { get; } =
     [
         FiltroRevision.Todas,
-        FiltroRevision.Confirmables,
+        FiltroRevision.Aceptables,
         FiltroRevision.Manuales,
         FiltroRevision.SinFecha
     ];
 
     private IReadOnlyList<RevisionIaDocumentoDto> RevisionesVisibles => _revisiones.Where(CumpleFiltro).ToList();
-    private IReadOnlyList<RevisionIaDocumentoDto> RevisionesSeleccionadas => _revisiones.Where(r => _seleccion.Contains(r.Id) && EsAceptableEnBloque(r)).ToList();
+    // Solo lo que se ve: lo que el filtro oculta no se acepta sin que el Gestor CAE lo tenga delante.
+    private IReadOnlyList<RevisionIaDocumentoDto> RevisionesSeleccionadas => RevisionesVisibles.Where(r => _seleccion.Contains(r.Id) && EsAceptableEnBloque(r)).ToList();
     private RevisionIaDocumentoDto? RevisionSeleccionada => _revisiones.FirstOrDefault(r => r.Id == _revisionIdSeleccionada);
 
     protected override Task OnInitializedAsync() => CargarAsync();
@@ -312,7 +313,9 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private void Preseleccionar()
     {
         _seleccion.Clear();
-        foreach (var revision in _revisiones.Where(r => EsAceptableEnBloque(r) && r.ConfianzaGeneral >= _confianzaMinima))
+        foreach (var revision in _revisiones
+            .Where(r => EsAceptableEnBloque(r) && r.ConfianzaGeneral >= _confianzaMinima)
+            .Take(AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque))
         {
             _seleccion.Add(revision.Id);
         }
@@ -340,6 +343,11 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         _confirmacionLoteVisible = false;
         if (marcada)
         {
+            if (_seleccion.Count >= AceptarDeteccionesIaEnBloqueCommandHandler.MaximoRevisionesPorBloque)
+            {
+                return;
+            }
+
             _seleccion.Add(revision.Id);
         }
         else
@@ -422,7 +430,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
 
     private bool CumpleFiltro(RevisionIaDocumentoDto revision) => _filtro switch
     {
-        FiltroRevision.Confirmables => EsAceptableEnBloque(revision),
+        FiltroRevision.Aceptables => EsAceptableEnBloque(revision),
         FiltroRevision.Manuales => revision.FechaEmisionDetectada is not null && !EsAceptableEnBloque(revision),
         FiltroRevision.SinFecha => revision.FechaEmisionDetectada is null,
         _ => true
@@ -434,7 +442,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
 
     private static string TextoFiltro(FiltroRevision f) => f switch
     {
-        FiltroRevision.Confirmables => "Confirmables",
+        FiltroRevision.Aceptables => "Aceptables",
         FiltroRevision.Manuales => "Manual",
         FiltroRevision.SinFecha => "Sin fecha",
         _ => "Todas"
