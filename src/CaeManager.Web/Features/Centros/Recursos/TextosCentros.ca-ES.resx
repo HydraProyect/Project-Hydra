@@ -240,6 +240,9 @@
   <data name="MotivoBloqueoNoSePuedePedir" xml:space="preserve">
     <value>encara no hi ha cap document que reclamar</value>
   </data>
+  <data name="MotivoBloqueoLoDecideLaPlataforma" xml:space="preserve">
+    <value>ho decideix la plataforma del Client empresarial</value>
+  </data>
   <data name="MotivoBloqueoTambien" xml:space="preserve">
     <value>A més, per atendre en aquest Centre</value>
   </data>

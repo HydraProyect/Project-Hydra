@@ -76,6 +76,24 @@ public class MotivoBloqueoTrabajadorTests : BunitContext
         cut.Markup.Should().Contain("todavía no hay documento que reclamar");
     }
 
+    /// <summary>
+    /// D-7 plataforma (2026-10-04): un bloqueo de la plataforma del Cliente empresarial no se reclama (el documento existe y puede
+    /// estar vigente en TALVEG) y no dice «todavía no hay documento que reclamar», que sería falso: dice que lo decide la plataforma.
+    /// </summary>
+    [Theory]
+    [InlineData(SituacionDeRequisitoBloqueante.RechazadoPorPlataforma, "Formación PRL: rechazado por la plataforma")]
+    [InlineData(SituacionDeRequisitoBloqueante.VencidoEnPlataforma, "Formación PRL: venció en la plataforma el 30/09/2026")]
+    public void Un_bloqueo_de_la_plataforma_no_ofrece_Pedir_y_dice_que_lo_decide_la_plataforma(
+        SituacionDeRequisitoBloqueante situacion, string texto)
+    {
+        var cut = Pintar([Bloqueo(Ana, "Formación PRL", situacion, vencimiento: new DateOnly(2026, 9, 30))], null, []);
+
+        cut.Markup.Should().Contain(texto);
+        cut.FindAll("button.motivo-bloqueo-pedir").Should().BeEmpty();
+        cut.Markup.Should().Contain("lo decide la plataforma del Cliente empresarial")
+            .And.NotContain("todavía no hay documento que reclamar");
+    }
+
     [Fact]
     public async Task Un_documento_de_Empresa_vencido_se_pide_a_la_Empresa_y_no_al_Trabajador()
     {

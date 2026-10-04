@@ -30,7 +30,7 @@
                     }
                     else
                     {
-                        <span class="motivo-bloqueo-sin-pedir">@Textos["MotivoBloqueoNoSePuedePedir"]</span>
+                        <span class="motivo-bloqueo-sin-pedir">@Textos[LoDecideLaPlataforma(bloqueo) ? "MotivoBloqueoLoDecideLaPlataforma" : "MotivoBloqueoNoSePuedePedir"]</span>
                     }
                 </li>
             }

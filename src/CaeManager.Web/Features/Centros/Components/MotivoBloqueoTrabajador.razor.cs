@@ -38,6 +38,13 @@ public partial class MotivoBloqueoTrabajador
     private static bool EsReclamable(DocumentoRequeridoDto documento) =>
         documento.DocumentoId is not null && VentanaReclamacion.EsReclamable(documento.FechaVencimiento, DiaDeNegocio.Hoy());
 
+    /// <summary>
+    /// El bloqueo lo causa el veredicto de la plataforma del Cliente empresarial (D-7): el documento existe en TALVEG, así que no
+    /// es «todavía no hay documento que reclamar»; lo que hay que resolver es la acreditación.
+    /// </summary>
+    private static bool LoDecideLaPlataforma(DocumentacionBloqueantePendienteDto bloqueo) =>
+        bloqueo.Situacion is SituacionDeRequisitoBloqueante.RechazadoPorPlataforma or SituacionDeRequisitoBloqueante.VencidoEnPlataforma;
+
     private EntidadAPedir? EntidadAReclamar(DocumentacionBloqueantePendienteDto bloqueo)
     {
         if (bloqueo.Situacion != SituacionDeRequisitoBloqueante.Vencido)

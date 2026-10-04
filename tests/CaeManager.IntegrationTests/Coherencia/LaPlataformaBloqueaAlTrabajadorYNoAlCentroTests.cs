@@ -1,4 +1,7 @@
+using CaeManager.Application.Centros;
+using CaeManager.Domain.Centros;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Coherencia;
@@ -118,6 +121,46 @@ public class LaPlataformaBloqueaAlTrabajadorYNoAlCentroTests : IAsyncLifetime
         Seccion("Cliente empresarial: ficha").Should().Equal(
             "Cliente W | trabajadoresBloqueados=2 | centrosBloqueados=0 | centrosConVencidos=2",
             "Cliente Z | trabajadoresBloqueados=7 | centrosBloqueados=0 | centrosConVencidos=3");
+    }
+
+    private static bool Bloquea(CaeManager.Application.Centros.RequisitoEvaluado r) =>
+        CaeManager.Domain.Documentos.ReglaBloqueoDeAcceso.Bloquea(r.Resultado.Situacion);
+
+    /// <summary>
+    /// Alcance (sin tocar autorización): un usuario con cartera solo ve los bloqueos de plataforma de SUS Centros. Con alcance a P6,
+    /// ni P1 (acreditaciones de Empresa y de Trabajador) ni P4 ni P5 aparecen aunque tengan veredictos.
+    /// </summary>
+    [Fact]
+    public async Task El_alcance_de_cartera_limita_los_bloqueos_de_plataforma_a_los_Centros_visibles()
+    {
+        await using var c = _escenario.CrearContexto();
+        var p6 = await c.Centros.SingleAsync(x => x.Nombre == EscenarioDeFotoDePlataforma.CentroP6);
+        var servicio = new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, new AlcanceDatosServiceFalso(centroIds: [p6.Id]));
+
+        var evaluacion = await servicio.EvaluarAsync(null, CancellationToken.None);
+
+        var bloqueos = evaluacion.Requisitos.Where(Bloquea).ToList();
+        bloqueos.Should().ContainSingle("solo el Trabajador rechazado de P6").Which.CentroId.Should().Be(p6.Id);
+    }
+
+    /// <summary>
+    /// Un Centro sin gestión CAE no exige documentación a nadie, tampoco por la plataforma que conserve de antes (P1-X2): P6 deja de
+    /// bloquear y el resto del escenario no cambia.
+    /// </summary>
+    [Fact]
+    public async Task Un_Centro_sin_gestion_CAE_no_bloquea_a_nadie_por_la_plataforma()
+    {
+        await using var c = _escenario.CrearContexto();
+        var p6 = await c.Centros.SingleAsync(x => x.Nombre == EscenarioDeFotoDePlataforma.CentroP6);
+        p6.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        await c.SaveChangesAsync();
+        var servicio = new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, new AlcanceDatosServiceFalso());
+
+        var evaluacion = await servicio.EvaluarAsync(null, CancellationToken.None);
+
+        var bloqueos = evaluacion.Requisitos.Where(Bloquea).ToList();
+        bloqueos.Should().NotContain(r => r.CentroId == p6.Id);
+        bloqueos.Should().Contain(r => r.CentroId != p6.Id, "el resto de Centros sigue bloqueando a sus Trabajadores");
     }
 
     /// <summary>

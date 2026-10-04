@@ -565,39 +565,33 @@ public class InicioGen2Tests : BunitContext
 
     /// <summary>
     /// «Bloqueado» es un estado del Trabajador, no del Centro (corrección del propietario, 2026-10-03): la pista del KPI
-    /// cuenta Trabajadores bloqueados, no Centros. Un mismo Trabajador bloqueado en dos Centros (o por dos requisitos) es UN
-    /// Trabajador; dos Trabajadores bloqueados en el mismo Centro son dos. Un recién dado de alta sin documentación cuenta
-    /// igual que cualquier otro.
+    /// cuenta Trabajadores bloqueados, no Centros, y es el MISMO número que el aviso bajo el anillo: el de la consulta de KPI (regla
+    /// de acceso por Centro, por un documento o por la plataforma del Cliente empresarial, D-7 plataforma 2026-10-04). Ya no se
+    /// recuenta sobre la cola, que no ve una vigencia vencida en la plataforma ni una Rechazada de Empresa.
     /// </summary>
     [Fact]
-    public void La_pista_del_kpi_cuenta_trabajadores_bloqueados_no_centros()
+    public void La_pista_del_kpi_cuenta_los_mismos_trabajadores_bloqueados_que_el_aviso_del_anillo()
     {
-        var ana = Guid.NewGuid();
-        var beto = Guid.NewGuid();
-        var cut = Renderizar(new MediadorDeInicio(
-            Item("b1", TipoItemBandeja.RequisitoPendiente, Refrielectric, "Refrielectric S.A.")
-                with
-            { CentroId = CentroNorte, TrabajadorId = ana },
-            Item("b2", TipoItemBandeja.RequisitoPendiente, Refrielectric, "Refrielectric S.A.")
-                with
-            { CentroId = CentroSur, TrabajadorId = ana },
-            Item("b3", TipoItemBandeja.RequisitoPendiente, Refrielectric, "Refrielectric S.A.")
-                with
-            { CentroId = CentroNorte, TrabajadorId = beto }));
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { TrabajadoresBloqueados = 2 } });
 
-        MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
-        cut.Markup.Should().Contain("Bloquea acceso");
         PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 trabajadores bloqueados");
+        cut.Markup.Should().Contain("2 Trabajadores bloqueados: el porcentaje cuenta documentos, no acceso.");
+    }
+
+    [Fact]
+    public void La_pista_del_kpi_va_en_singular_con_un_trabajador_bloqueado()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { TrabajadoresBloqueados = 1 } });
+
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 trabajador bloqueado");
     }
 
     /// <summary>
-    /// P2.7: una acreditación Rechazada que bloquea su Centro (D-7) es la única
-    /// causa del bloqueo — sin ningún RequisitoPendiente en la cola. Antes el
-    /// grupo salía sin badge, la cabecera no lo contaba y la pista del KPI no
-    /// veía el Centro cerrado, mientras Centro 360 decía «Acceso bloqueado».
+    /// P2.7: una acreditación Rechazada que bloquea a un Trabajador (D-7) es la única causa del bloqueo — sin ningún
+    /// RequisitoPendiente en la cola — y su grupo sale con la banda «Bloquea acceso».
     /// </summary>
     [Fact]
-    public void Una_rechazada_que_bloquea_su_Centro_cuenta_como_bloqueo_arriba_en_la_tarjeta_y_en_el_kpi()
+    public void Una_rechazada_que_bloquea_a_un_Trabajador_marca_su_grupo_en_la_tarjeta()
     {
         var cut = Renderizar(new MediadorDeInicio(
             Item("r1", TipoItemBandeja.PlataformaRechazada, CervezasDuff, "Cervezas Duff Ibérica")
@@ -606,16 +600,14 @@ public class InicioGen2Tests : BunitContext
 
         MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
         cut.Markup.Should().Contain("Bloquea acceso");
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 trabajador bloqueado");
     }
 
     /// <summary>
-    /// Control negativo del anterior: una Rechazada que el cálculo del Centro no
-    /// cuenta como bloqueante (no aplicable a ese Centro) sigue en la cola como
-    /// trabajo, pero no dice que el Centro esté cerrado.
+    /// Control negativo del anterior: una Rechazada que el evaluador de acceso no cuenta como bloqueante (no aplicable a ese
+    /// Centro, Trabajador de baja) sigue en la cola como trabajo, sin banda de bloqueo ni pista.
     /// </summary>
     [Fact]
-    public void Una_rechazada_que_no_bloquea_su_Centro_no_cuenta_como_bloqueo()
+    public void Una_rechazada_que_no_bloquea_a_nadie_no_marca_su_grupo()
     {
         var cut = Renderizar(new MediadorDeInicio(
             Item("r1", TipoItemBandeja.PlataformaRechazada, CervezasDuff, "Cervezas Duff Ibérica")
