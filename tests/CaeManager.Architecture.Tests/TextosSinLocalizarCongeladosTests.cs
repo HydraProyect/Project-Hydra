@@ -72,7 +72,7 @@ public class TextosSinLocalizarCongeladosTests
         // de una sola palabra («Dashboard», «Empresas»…). Siguen sin localizar; su migración a
         // .resx es un incremento pendiente, no algo que esta cifra certifique.
         // 76 → 77 el 2026-10-02 (D-07/D-27) SIN migrar: el rótulo del menú «Clientes» pasó a «Clientes empresariales» (CONTRATO_TERMINOLOGIA § 3.2); una palabra era invisible a la heurística, dos no.
-        ["Components/Layout"] = 76,
+        ["Components/Layout"] = 74,
         ["Components/Legal"] = 163,
         ["Components/Pages"] = 18,
         ["Components/Workspace"] = 58,
