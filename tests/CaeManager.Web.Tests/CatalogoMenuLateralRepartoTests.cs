@@ -47,12 +47,12 @@ public class CatalogoMenuLateralRepartoTests
     }
 
     [Fact]
-    public void Mi_trabajo_conserva_su_ruta_contextual_y_su_icono_al_pasar_a_Operacion()
+    public void Mi_trabajo_conserva_su_ruta_contextual_al_pasar_a_Operacion_y_tiene_icono_propio()
     {
         var miTrabajo = CatalogoMenuLateral.Enlaces.Single(e => e.Id == "mi-trabajo");
 
         miTrabajo.GrupoId.Should().Be("operacion");
-        miTrabajo.Icono.Should().Be("alertas");
+        miTrabajo.Icono.Should().Be("mi-trabajo", "ya no comparte la campana con Alertas");
         miTrabajo.RutaPara(Contexto(Roles.GestorCae, variosTenants: false)).Should().Be("bandeja");
         miTrabajo.RutaPara(Contexto(Roles.GestorCae, variosTenants: true)).Should().Be("mi-trabajo");
     }

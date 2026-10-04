@@ -53,6 +53,7 @@ public class NavMenuCaracterizacionTests
         "dashboard", "clientes", "empresas", "centros", "subcontratas", "trabajadores", "vehiculos", "documentos",
         "asignaciones", "proyectos", "visitas", "alertas", "calendario", "reportes", "configuracion", "usuarios",
         "seguridad", "chat", "cartera", "evaluaciones", "incidencias", "chevron", "plataforma",
+        "inicio", "ejecutivo", "solicitud", "mi-trabajo", "facturacion", "conectar", "delegacion", "etiqueta", "equipo",
     ];
 
     public sealed record Combinacion(
@@ -117,7 +118,7 @@ public class NavMenuCaracterizacionTests
 
         var administrador = Describir(
             new Combinacion(Roles.Administrador, null, true, true, PerfilVocabularioTenant.Consultora, 1), iconos);
-        administrador.Should().Contain("dashboards(open)<nav-grupo-detalle|Dashboards>[\"\"@dashboard/icono icono-medio'Inicio'<nav-item>")
+        administrador.Should().Contain("dashboards(open)<nav-grupo-detalle|Dashboards>[\"\"@inicio/icono icono-medio'Inicio'<nav-item>")
             .And.Contain("plataforma(open)<nav-grupo-detalle|Plataforma>[")
             .And.Contain("\"configuracion\"@configuracion/icono icono-medio'Configuración'")
             .And.NotContain("@?");
@@ -158,6 +159,7 @@ public class NavMenuCaracterizacionTests
     {
         using var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddLocalization();
         var auth = ctx.AddAuthorization();
         auth.SetAuthorized("usuario@prueba").SetRoles(Roles.Administrador);
         ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(
@@ -217,10 +219,86 @@ public class NavMenuCaracterizacionTests
             .Should().Equal("c", "a", "b");
     }
 
+    /// <summary>
+    /// Mejora de la barra lateral (2026-10-04): la navegación se anuncia con nombre, cada cabecera
+    /// declara si está expandida, y un grupo con un solo enlace visible va plano, sin cabecera.
+    /// </summary>
+    [Fact]
+    public void La_barra_se_anuncia_y_los_grupos_con_cabecera_declaran_su_estado()
+    {
+        var cut = Pintar(new Combinacion(Roles.Administrador, null, true, true, PerfilVocabularioTenant.Consultora, 1), null);
+
+        cut.Find("nav.nav-principal").GetAttribute("aria-label").Should().NotBeNullOrWhiteSpace();
+        var cabeceras = cut.FindAll("details[data-grupo] > summary");
+        cabeceras.Should().NotBeEmpty();
+        foreach (var summary in cabeceras)
+        {
+            var detalle = summary.ParentElement!;
+            summary.GetAttribute("aria-expanded").Should().Be(detalle.HasAttribute("open") ? "true" : "false");
+            detalle.GetAttribute("data-abierto-defecto").Should().Be(detalle.HasAttribute("open") ? "true" : "false");
+        }
+    }
+
+    [Fact]
+    public void Un_grupo_con_un_solo_enlace_visible_se_pinta_plano_sin_cabecera()
+    {
+        // Dirección CAE ve en Administración solo «Usuarios» (Configuración y 2FA son del Administrador).
+        var direccion = Pintar(new Combinacion(Roles.DireccionCae, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
+        var plano = direccion.Find("[data-grupo='administracion']");
+
+        plano.LocalName.Should().Be("div");
+        plano.ClassList.Should().Contain("nav-grupo-plano");
+        plano.QuerySelector("summary").Should().BeNull();
+        plano.QuerySelectorAll("a").Select(a => a.GetAttribute("href")).Should().Equal("usuarios");
+
+        // Con tres enlaces (Administrador) sí lleva cabecera.
+        var administrador = Pintar(new Combinacion(Roles.Administrador, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
+        administrador.Find("[data-grupo='administracion']").LocalName.Should().Be("details");
+    }
+
+    /// <summary>
+    /// Los fijados son una preferencia del navegador, nunca un permiso: cada estrella lleva el
+    /// identificador de un enlace que YA se pinta en este menú, así que lo que se puede fijar nunca
+    /// supera lo que el rol ya ve. Un Gestor CAE no tiene estrella para «configuracion».
+    /// </summary>
+    [Fact]
+    public void Solo_se_puede_fijar_lo_que_el_rol_ya_ve_en_su_menu()
+    {
+        var gestor = Pintar(new Combinacion(Roles.GestorCae, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
+        var fijables = gestor.FindAll("[data-fijar]").Select(b => b.GetAttribute("data-fijar")).ToList();
+        var filas = gestor.FindAll(".nav-fila").Select(f => f.GetAttribute("data-enlace")).ToList();
+
+        fijables.Should().NotBeEmpty().And.Equal(filas);
+        fijables.Should().NotContain(["configuracion", "delegaciones", "usuarios"]);
+        fijables.Should().OnlyContain(id => CatalogoMenuLateral.Enlaces.Any(e => e.Id == id));
+        gestor.FindAll(".nav-contador, .nav-insignia").Should().BeEmpty(
+            "no hay contadores: ninguna de sus fuentes existe como Query de recuento (ver NavMenu.razor)");
+    }
+
+    [Fact]
+    public void La_ruta_activa_se_anuncia_con_aria_current_y_ninguna_otra()
+    {
+        using var ctx = new BunitContext();
+        ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddLocalization();
+        ctx.AddAuthorization().SetAuthorized("usuario@prueba").SetRoles(Roles.Administrador);
+        ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(
+            Options.Create(new ComunicacionesOptions { Activo = true }));
+        ctx.Services.AddSingleton<IMediator>(new MediatorDeMenu(
+            new Combinacion(Roles.Administrador, null, true, false, PerfilVocabularioTenant.Consultora, 1)));
+        ctx.Services.GetRequiredService<NavigationManager>().NavigateTo("empresas");
+
+        var cut = ctx.Render<NavMenu>();
+
+        cut.FindAll("a[aria-current='page']").Select(a => a.GetAttribute("href")).Should().Equal("empresas");
+        cut.FindAll("a.active").Should().HaveCount(1);
+    }
+
     private static IRenderedComponent<NavMenu> Pintar(Combinacion c, OrdenMenuLateralDto? orden)
     {
         var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddLocalization();
         ctx.AddAuthorization().SetAuthorized("usuario@prueba").SetRoles(c.Rol);
         ctx.Services.AddSingleton<IOptions<ComunicacionesOptions>>(
             Options.Create(new ComunicacionesOptions { Activo = c.Comunicaciones }));
@@ -242,6 +320,7 @@ public class NavMenuCaracterizacionTests
     {
         using var ctx = new BunitContext();
         ctx.JSInterop.Mode = JSRuntimeMode.Loose;
+        ctx.Services.AddLocalization();
         var auth = ctx.AddAuthorization();
         if (c.Rol != "(sin rol)")
             auth.SetAuthorized("usuario@prueba").SetRoles(c.Rol);
@@ -262,9 +341,12 @@ public class NavMenuCaracterizacionTests
         var enSuelto = false;
         foreach (var el in nav.Descendants<IElement>())
         {
-            if (el.LocalName == "details")
+            var esGrupo = el.LocalName == "details"
+                          || (el.LocalName == "div" && el.ClassList.Contains("nav-grupo-detalle"));
+            if (esGrupo)
             {
                 if (enSuelto) { sb.Append("] "); enSuelto = false; }
+                // Un grupo con un solo enlace se pinta plano: sin cabecera y sin «open».
                 var titulo = el.QuerySelector("summary > span")?.TextContent.Trim();
                 sb.Append($"{el.GetAttribute("data-grupo")}{(el.HasAttribute("open") ? "(open)" : "")}" +
                           $"<{el.GetAttribute("class")}|{titulo}>[");
@@ -272,7 +354,7 @@ public class NavMenuCaracterizacionTests
                     sb.Append(Enlace(a, iconos)).Append("; ");
                 sb.Append("] ");
             }
-            else if (el.LocalName == "a" && el.Closest("details") is null)
+            else if (el.LocalName == "a" && el.Closest(".nav-grupo-detalle") is null && el.Closest("[data-menu-fijados]") is null)
             {
                 if (!enSuelto) { sb.Append("suelto["); enSuelto = true; }
                 sb.Append(Enlace(el, iconos)).Append("; ");

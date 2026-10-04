@@ -3,6 +3,11 @@
     flex-direction: column;
     gap: var(--space-2);
     padding: var(--space-4) var(--space-3);
+    /* Scroll propio: la marca de MainLayout queda fija arriba y la barra no se estira con la página. */
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 /*
@@ -37,7 +42,6 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--color-text-muted);
-    opacity: 0.7;
     cursor: pointer;
     list-style: none;
     user-select: none;
@@ -48,16 +52,16 @@
 }
 
 .nav-grupo-titulo:hover {
-    opacity: 1;
+    color: var(--color-text);
 }
 
-.nav-grupo-titulo .icono {
+.nav-grupo-titulo ::deep .icono {
     flex-shrink: 0;
     transition: transform var(--motion-transition) var(--ease-fluid);
 }
 
 /* Cerrado: el chevron (que apunta hacia abajo por defecto) gira a "derecha". */
-.nav-grupo-detalle:not([open]) .nav-grupo-titulo .icono {
+.nav-grupo-detalle:not([open]) .nav-grupo-titulo ::deep .icono {
     transform: rotate(-90deg);
 }
 
@@ -92,9 +96,9 @@
     animation: nav-grupo-item-entra var(--motion-transition) var(--ease-fluid) backwards;
 }
 
-.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item:nth-child(1) { animation-delay: 70ms; }
-.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item:nth-child(2) { animation-delay: 120ms; }
-.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item:nth-child(n + 3) { animation-delay: 170ms; }
+.nav-grupo-detalle[open] .nav-grupo-items .nav-fila:nth-child(1) ::deep .nav-item { animation-delay: 70ms; }
+.nav-grupo-detalle[open] .nav-grupo-items .nav-fila:nth-child(2) ::deep .nav-item { animation-delay: 120ms; }
+.nav-grupo-detalle[open] .nav-grupo-items .nav-fila:nth-child(n + 3) ::deep .nav-item { animation-delay: 170ms; }
 
 @keyframes nav-grupo-item-entra {
     from {
@@ -108,7 +112,7 @@
         transition: none;
     }
 
-    .nav-grupo-titulo .icono {
+    .nav-grupo-titulo ::deep .icono {
         transition: none;
     }
 
@@ -186,4 +190,269 @@
 .nav-principal ::deep .nav-item.active:hover {
     background-color: var(--color-nav-activo-hover-fondo);
     border-color: var(--color-primary-100);
+}
+
+/* ---- Cabecera de herramientas: filtro rápido («/») y modo compacto ---- */
+.nav-herramientas {
+    position: sticky;
+    top: calc(-1 * var(--space-4));
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: calc(-1 * var(--space-4));
+    padding: var(--space-4) 0 var(--space-2);
+    background-color: var(--color-surface);
+}
+
+.nav-filtro {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.nav-filtro:focus-within {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+.nav-filtro-campo {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    color: var(--color-text);
+    font: var(--font-body-sm);
+}
+
+.nav-filtro-tecla {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-1);
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}
+
+.nav-compactar {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    margin-left: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.nav-compactar:hover {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+/* El chevron apunta hacia abajo: a la izquierda para compactar, a la derecha para ampliar. */
+.nav-compactar ::deep .icono {
+    transform: rotate(90deg);
+    transition: transform var(--motion-transition) var(--ease-fluid);
+}
+
+/* ---- Fila de enlace: enlace + estrella de fijado ---- */
+.nav-fila {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.nav-fila ::deep .nav-item {
+    flex: 1;
+    min-width: 0;
+}
+
+.nav-item-texto {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nav-fijar {
+    position: absolute;
+    right: var(--space-1);
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    opacity: 0;
+}
+
+.nav-fila:hover .nav-fijar,
+.nav-fila:focus-within .nav-fijar,
+.nav-fijar[aria-pressed="true"] {
+    opacity: 1;
+}
+
+.nav-fijar[aria-pressed="true"] {
+    color: var(--color-warning-700);
+}
+
+.nav-fijar[aria-pressed="true"] ::deep .icono path {
+    fill: currentColor;
+}
+
+/* ---- Fijados (preferencia personal del navegador; lo pinta menu-lateral.js) ---- */
+.nav-fijados {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.nav-fijados[hidden] {
+    display: none;
+}
+
+.nav-fijados-titulo {
+    cursor: default;
+}
+
+/* ---- Cabecera de grupo: marca de «aquí está la página actual» con el grupo cerrado ---- */
+.nav-grupo-rotulo {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nav-grupo-extremo {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.nav-grupo-punto {
+    display: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-primary-500);
+}
+
+.nav-grupo-detalle:not([open]):has(.nav-item.active) .nav-grupo-punto {
+    display: inline-block;
+}
+
+.nav-solo-lector {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+.nav-grupo-detalle[open] .nav-solo-lector,
+.nav-grupo-detalle:not(:has(.nav-item.active)) .nav-solo-lector {
+    display: none;
+}
+
+/* ---- Foco visible propio (teclado) ---- */
+.nav-principal ::deep .nav-item:focus-visible,
+.nav-grupo-titulo:focus-visible,
+.nav-compactar:focus-visible,
+.nav-fijar:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: -2px;
+}
+
+/* ---- Filtro activo: lo que no coincide desaparece (menu-lateral.js pone [hidden]) ---- */
+.nav-fila[hidden],
+.nav-grupo-detalle[hidden] {
+    display: none;
+}
+
+/*
+    ---- Modo compacto: solo iconos ----
+    El estado vive en <html data-menu-compacto> (menu-lateral.js). Los grupos
+    pierden la cabecera y se separan con una línea fina; todos los iconos siguen
+    visibles aunque el grupo esté cerrado (menu-lateral.js los abre mientras
+    dura el modo y devuelve el estado guardado al ensanchar).
+*/
+html[data-menu-compacto] .barra-lateral .nav-principal {
+    padding-inline: var(--space-2);
+}
+
+html[data-menu-compacto] .barra-lateral .nav-filtro,
+html[data-menu-compacto] .barra-lateral .nav-fijar,
+html[data-menu-compacto] .barra-lateral .nav-fijados-titulo,
+html[data-menu-compacto] .barra-lateral .nav-grupo-titulo {
+    display: none;
+}
+
+html[data-menu-compacto] .barra-lateral .nav-herramientas {
+    justify-content: center;
+}
+
+html[data-menu-compacto] .barra-lateral .nav-compactar {
+    margin-left: 0;
+}
+
+html[data-menu-compacto] .barra-lateral .nav-compactar ::deep .icono {
+    transform: rotate(-90deg);
+}
+
+html[data-menu-compacto] .barra-lateral .nav-principal ::deep .nav-item {
+    justify-content: center;
+    padding: 0;
+}
+
+html[data-menu-compacto] .barra-lateral .nav-item-texto {
+    display: none;
+}
+
+html[data-menu-compacto] .barra-lateral .nav-grupo-detalle + .nav-grupo-detalle {
+    margin-top: var(--space-1);
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--color-border);
+}
+
+html[data-menu-compacto] .barra-lateral .nav-fijados {
+    padding-bottom: var(--space-2);
+}
+
+@supports selector(::details-content) {
+    html[data-menu-compacto] .barra-lateral .nav-grupo-detalle:not([open])::details-content {
+        block-size: auto;
+        content-visibility: visible;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-compactar ::deep .icono {
+        transition: none;
+    }
+}
+
+/* El cajón móvil (bajo 1024px) no tiene modo compacto: sin barra lateral el botón no hace nada. */
+@media (max-width: 1023px) {
+    .nav-compactar {
+        display: none;
+    }
 }

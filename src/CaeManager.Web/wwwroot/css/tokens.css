@@ -287,6 +287,7 @@
 
   /* Layout */
   --sidebar-width: 260px;
+  --sidebar-width-compacto: 64px; /* menú lateral en modo compacto, solo iconos */
   --navbar-height: 64px;
 }
 
