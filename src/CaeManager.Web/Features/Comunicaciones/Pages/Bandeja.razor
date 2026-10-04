@@ -98,7 +98,7 @@
                                     @if (companero.Correo is { } correo)
                                     {
                                         <span class="companero-valor">@correo</span>
-                                        <BotonCopiar Valor="@correo" Texto="@TextosCompaneros["CopiarCorreo"].Value"
+                                        <BotonCopiar Valor="@correo" Texto="@TextosCompaneros["CopiarCorreo"].Value" NombreAccesible="@TextosCompaneros["AccesibleCorreo", companero.Nombre].Value"
                                                      Etiqueta="@TextosCompaneros["EtiquetaCorreo", companero.Nombre].Value" />
                                     }
                                     else
@@ -111,7 +111,7 @@
                                     @if (companero.Telefono is { } telefono)
                                     {
                                         <span class="companero-valor">@telefono</span>
-                                        <BotonCopiar Valor="@telefono" Texto="@TextosCompaneros["CopiarTelefono"].Value"
+                                        <BotonCopiar Valor="@telefono" Texto="@TextosCompaneros["CopiarTelefono"].Value" NombreAccesible="@TextosCompaneros["AccesibleTelefono", companero.Nombre].Value"
                                                      Etiqueta="@TextosCompaneros["EtiquetaTelefono", companero.Nombre].Value" />
                                     }
                                     else

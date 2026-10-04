@@ -42,4 +42,10 @@
   <data name="SinTelefono" xml:space="preserve">
     <value>Sin teléfono registrado</value>
   </data>
+  <data name="AccesibleCorreo" xml:space="preserve">
+    <value>Copiar el correo de {0}</value>
+  </data>
+  <data name="AccesibleTelefono" xml:space="preserve">
+    <value>Copiar el teléfono de {0}</value>
+  </data>
 </root>

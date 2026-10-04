@@ -173,7 +173,9 @@ public class CompanerosGestorCaeBajoRuntimeTests : IAsyncLifetime
         });
         bien.Should().NotBeEmpty();
 
-        // Sin abrir el ámbito: el Tenant activo es otro (el del Workspace), y el puerto no lee.
+        // Sin abrir el ámbito: el Tenant activo es otro (el del Workspace), y el puerto no lee. Medido con la guarda
+        // retirada: este caso se pone en rojo, porque la RLS (rama D, Tenant de origen) deja leer las cuentas de A también
+        // desde el Workspace; es la guarda del puerto la que lo impide, no la política.
         var sinAmbito = await EnArnes(_gestorA1, _operadorA.Id, _propietario.Id,
             (_, _, directorio) => directorio.ObtenerGestoresCaeDelOperadorAsync(_operadorA.Id, _gestorA1));
         sinAmbito.Should().BeEmpty();

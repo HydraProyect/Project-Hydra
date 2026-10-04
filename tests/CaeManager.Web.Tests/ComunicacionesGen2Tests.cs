@@ -1268,6 +1268,12 @@ public class ComunicacionesGen2Tests : BunitContext
         filas[0].QuerySelectorAll("button.boton-copiar").Select(b => b.TextContent.Trim())
             .Should().Equal("Copiar correo", "Copiar teléfono");
 
+        // Dos «Copiar correo» iguales en la lista no se distinguen por el rótulo: el nombre accesible lleva a quién pertenece.
+        filas[0].QuerySelectorAll("button.boton-copiar").Select(b => b.GetAttribute("aria-label"))
+            .Should().Equal("Copiar el correo de Marta Solà", "Copiar el teléfono de Marta Solà");
+        filas[1].QuerySelectorAll("button.boton-copiar").Select(b => b.GetAttribute("aria-label"))
+            .Should().Equal("Copiar el correo de Pere Vidal");
+
         filas[1].TextContent.Should().Contain("Pere Vidal").And.Contain("pere@operador.test")
             .And.Contain("Sin teléfono registrado");
         filas[1].QuerySelectorAll("button.boton-copiar").Select(b => b.TextContent.Trim())

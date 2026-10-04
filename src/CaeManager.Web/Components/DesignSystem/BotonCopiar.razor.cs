@@ -24,6 +24,12 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     /// <summary>Rótulo del botón. Por defecto «Copiar»; se cambia cuando hay varios en una misma fila y hay que distinguirlos.</summary>
     [Parameter] public string Texto { get; set; } = "Copiar";
 
+    /// <summary>
+    /// Nombre accesible del botón cuando <see cref="Texto"/> solo no basta, p. ej. varios «Copiar correo» en una lista
+    /// que un lector de pantalla no distinguiría. Sin él, el rótulo visible es el nombre.
+    /// </summary>
+    [Parameter] public string? NombreAccesible { get; set; }
+
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
 
