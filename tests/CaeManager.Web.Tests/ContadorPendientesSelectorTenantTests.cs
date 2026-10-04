@@ -147,6 +147,39 @@ public class ContadorPendientesSelectorTenantTests
     }
 
     [Fact]
+    public async Task Un_resultado_parcial_sirve_pero_no_se_cachea()
+    {
+        var llamadas = 0;
+        Task<MiTrabajoAgregadoDto> Parcial(CancellationToken _)
+        {
+            llamadas++;
+            return Task.FromResult(new MiTrabajoAgregadoDto([Cola(Norte, 3)], [new TenantNoConsultadoDto(Sur, "Sur", false)]));
+        }
+
+        var servicio = new ContadorPendientesSelectorTenant(new RelojManual(T0));
+        var primera = await servicio.ObtenerAsync(Usuario, Norte, Alcance, Parcial, CancellationToken.None);
+        await servicio.ObtenerAsync(Usuario, Norte, Alcance, Parcial, CancellationToken.None);
+
+        primera.Should().Equal(new Dictionary<Guid, int> { [Norte] = 3 });
+        llamadas.Should().Be(2, "Sur no se pudo consultar: no es «al día», y no se recuerda como tal");
+    }
+
+    [Fact]
+    public async Task El_tope_cancela_el_calculo_en_vez_de_dejarlo_ocupando_la_puerta()
+    {
+        CancellationToken recibido = default;
+        var servicio = new ContadorPendientesSelectorTenant(new RelojManual(T0));
+
+        await servicio.ObtenerAsync(Usuario, Norte, Alcance, ct =>
+        {
+            recibido = ct;
+            return Task.FromResult(new MiTrabajoAgregadoDto([]));
+        }, CancellationToken.None);
+
+        recibido.CanBeCanceled.Should().BeTrue("el cálculo recibe un token con tope; sin él nada lo corta");
+    }
+
+    [Fact]
     public async Task Los_calculos_simultaneos_de_una_misma_clave_se_comparten()
     {
         var calculo = new Calculo();
@@ -172,6 +205,11 @@ public class ContadorPendientesSelectorTenantTests
             .Should().Equal(new Dictionary<Guid, int> { [Norte] = 2 });
     }
 
+    private sealed class SinContextoHttp : Microsoft.AspNetCore.Http.IHttpContextAccessor
+    {
+        public Microsoft.AspNetCore.Http.HttpContext? HttpContext { get; set; }
+    }
+
     // --- Recientes (cookie) ---------------------------------------------------------------------
 
     private static string Valor(Guid usuario, params Guid[] ids) => $"{usuario:N}|{string.Join(',', ids.Select(i => i.ToString("N")))}";
@@ -182,6 +220,19 @@ public class ContadorPendientesSelectorTenantTests
         var cuatro = new[] { Norte, Sur, Origen, Guid.Parse("bbbbbbbb-0000-0000-0000-000000000004") };
 
         RecientesSelectorTenant.Interpretar(Valor(Usuario, cuatro), Usuario).Should().Equal(Norte, Sur, Origen);
+    }
+
+    [Fact]
+    public void El_lector_real_lee_la_cookie_de_la_peticion_y_sin_contexto_HTTP_no_da_recientes()
+    {
+        var contexto = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        contexto.Request.Headers.Cookie = $"{RecientesSelectorTenant.NombreCookie}={Uri.EscapeDataString(Valor(Usuario, Sur, Norte))}";
+
+        new LectorRecientesSelectorTenant(new Microsoft.AspNetCore.Http.HttpContextAccessor { HttpContext = contexto })
+            .Leer(Usuario).Should().Equal(Sur, Norte);
+        new LectorRecientesSelectorTenant(new Microsoft.AspNetCore.Http.HttpContextAccessor { HttpContext = contexto })
+            .Leer(OtroUsuario).Should().BeEmpty();
+        new LectorRecientesSelectorTenant(new SinContextoHttp()).Leer(Usuario).Should().BeEmpty();
     }
 
     [Fact]

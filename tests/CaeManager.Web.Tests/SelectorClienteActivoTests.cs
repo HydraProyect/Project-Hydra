@@ -426,8 +426,9 @@ public class SelectorClienteActivoTests : BunitContext
             ColaDe(Sur, "Empresa Sur", 0), ColaDe(FueraDelAlcance, "Empresa ajena", 9)]));
 
         var cut = Renderizar(seleccionado: Norte);
-        cut.WaitForAssertion(() => _cuantasVecesSeCalculoMiTrabajo.Should().Be(1));
+        _cuantasVecesSeCalculoMiTrabajo.Should().Be(0, "control: antes de abrir la lista no se calcula nada");
         await Abrir(cut);
+        cut.WaitForAssertion(() => _cuantasVecesSeCalculoMiTrabajo.Should().Be(1));
 
         // Solo Norte tiene pendientes: Sur trae 0, el origen no es empresa gestionada y la ajena no está autorizada.
         cut.WaitForAssertion(() => cut.FindAll(".selector-tenant-contador").Select(c => c.TextContent.Trim()).Should().Equal("4"));
@@ -442,8 +443,9 @@ public class SelectorClienteActivoTests : BunitContext
         _miTrabajo = () => throw new InvalidOperationException("fallo simulado");
 
         var cut = Renderizar(seleccionado: Norte);
-        cut.WaitForAssertion(() => _cuantasVecesSeCalculoMiTrabajo.Should().Be(1));
+        _cuantasVecesSeCalculoMiTrabajo.Should().Be(0, "antes de abrir la lista no se calcula nada");
         await Abrir(cut);
+        cut.WaitForAssertion(() => _cuantasVecesSeCalculoMiTrabajo.Should().Be(1));
 
         NombresDeLaLista(cut).Should().Equal("Empresa Norte", "Empresa Sur");
         cut.FindAll(".selector-tenant-contador").Should().BeEmpty();
@@ -472,6 +474,46 @@ public class SelectorClienteActivoTests : BunitContext
         Renderizar();
 
         _cuantasVecesSeCalculoMiTrabajo.Should().Be(0, "un usuario mono-Tenant no ve selector y no debe pagar el cálculo");
+    }
+
+    [Fact]
+    public async Task Abrir_y_cerrar_la_lista_varias_veces_pide_los_pendientes_una_sola_vez_por_componente()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        var peticiones = 0;
+        Services.AddSingleton<IContadorPendientesSelectorTenant>(new ContadorContado(() => peticiones++));
+
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+        await Abrir(cut);
+        await Abrir(cut);
+
+        cut.WaitForAssertion(() => peticiones.Should().Be(1, "sin el guard cada apertura volvería a pedirlos"));
+    }
+
+    [Fact]
+    public async Task Un_solo_pendiente_se_dice_en_singular_para_quien_usa_lector_de_pantalla()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        _miTrabajo = () => Task.FromResult(new MiTrabajoAgregadoDto([ColaDe(Sur, "Empresa Sur", 1)]));
+
+        var cut = Renderizar(seleccionado: Norte);
+        await Abrir(cut);
+
+        cut.WaitForAssertion(() => cut.Find("[aria-label^='Empresa Sur']").GetAttribute("aria-label").Should().Be("Empresa Sur, 1 pendiente"));
+    }
+
+    private sealed class ContadorContado(Action alPedir) : IContadorPendientesSelectorTenant
+    {
+        public Task<IReadOnlyDictionary<Guid, int>?> ObtenerAsync(
+            Guid usuarioId, Guid tenantActivoId, IReadOnlyList<ClienteAutorizadoDto> autorizados,
+            Func<CancellationToken, Task<MiTrabajoAgregadoDto>> calcular, CancellationToken cancellationToken)
+        {
+            alPedir();
+            return Task.FromResult<IReadOnlyDictionary<Guid, int>?>(null);
+        }
+
+        public void Invalidar(Guid usuarioId) { }
     }
 
     [Fact]

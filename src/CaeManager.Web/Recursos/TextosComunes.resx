@@ -102,6 +102,9 @@
   <data name="SelectorTenantPendientes" xml:space="preserve">
     <value>{0} pendientes</value>
   </data>
+  <data name="SelectorTenantPendientesUno" xml:space="preserve">
+    <value>1 pendiente</value>
+  </data>
   <data name="SelectorTenantEmpresasUna" xml:space="preserve">
     <value>1 empresa</value>
   </data>

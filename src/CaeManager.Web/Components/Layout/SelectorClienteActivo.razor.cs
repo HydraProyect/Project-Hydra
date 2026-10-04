@@ -62,7 +62,7 @@ public partial class SelectorClienteActivo
     private bool _desechado;
 
     /// <summary>Tope de espera del contador: pasado, el selector sigue sin contador (nunca bloquea).</summary>
-    public static readonly TimeSpan EsperaMaximaPendientes = TimeSpan.FromSeconds(15);
+    public static readonly TimeSpan EsperaMaximaPendientes = TimeSpan.FromSeconds(10);
 
     private string Busqueda
     {
@@ -143,19 +143,20 @@ public partial class SelectorClienteActivo
         _abierto = !_abierto;
         _busqueda = string.Empty;
         _enfocarBuscador = _abierto && _totalCartera >= UmbralBusqueda;
-    }
 
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        // Tras el primer pintado y fuera del camino de render: el selector ya está en pantalla y un
-        // contador lento o fallido no lo toca.
-        if (!_pendientesIniciados && _activo is not null && _usuarioId is not null && _clientes is not null
-            && ClientesAutorizados.SelectorVisible(_clientes, _activo))
+        // Los pendientes se piden al abrir la lista por primera vez, no al cargar la página: el circuito
+        // tiene una sola puerta de acceso a datos y el cálculo (el de Mi trabajo, Tenant a Tenant) la
+        // ocupa entera; pedirlo con cada carga competiría con las consultas de la propia página. Abrir es
+        // un gesto del usuario, y cambiar de empresa es un POST del navegador que no pasa por el circuito.
+        if (_abierto && !_pendientesIniciados && _activo is not null && _usuarioId is not null && _clientes is not null)
         {
             _pendientesIniciados = true;
             _ = CargarPendientesAsync(_usuarioId.Value, _activo.TenantId, _clientes);
         }
+    }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
         if (!_enfocarBuscador) return;
 
         _enfocarBuscador = false;

@@ -37,10 +37,12 @@ public interface IContadorPendientesSelectorTenant
 public sealed class ContadorPendientesSelectorTenant(TimeProvider reloj) : IContadorPendientesSelectorTenant
 {
     public static readonly TimeSpan Vida = TimeSpan.FromSeconds(60);
-    private static readonly TimeSpan TopeDelCalculo = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan TopeDelCalculo = TimeSpan.FromSeconds(10);
     private const int TopeDeEntradas = 256;
 
-    private sealed record Entrada(Guid UsuarioId, DateTimeOffset Caduca, Lazy<Task<IReadOnlyDictionary<Guid, int>>> Calculo);
+    private sealed record Resultado(IReadOnlyDictionary<Guid, int> Pendientes, bool Completo);
+
+    private sealed record Entrada(Guid UsuarioId, DateTimeOffset Caduca, Lazy<Task<Resultado>> Calculo);
 
     private readonly ConcurrentDictionary<string, Entrada> _entradas = new();
 
@@ -54,13 +56,16 @@ public sealed class ContadorPendientesSelectorTenant(TimeProvider reloj) : ICont
         var clave = Clave(usuarioId, tenantActivoId, autorizados, ahora);
         var entrada = _entradas.GetOrAdd(clave, _ => new Entrada(
             usuarioId, ahora + Vida,
-            new Lazy<Task<IReadOnlyDictionary<Guid, int>>>(() => CalcularAsync(calcular), LazyThreadSafetyMode.ExecutionAndPublication)));
+            new Lazy<Task<Resultado>>(() => CalcularAsync(calcular), LazyThreadSafetyMode.ExecutionAndPublication)));
 
         try
         {
             var calculado = await entrada.Calculo.Value.WaitAsync(cancellationToken);
+            // Un resultado parcial (un Tenant cuya cola no se pudo construir) sirve a quien lo pidió, pero no
+            // se guarda: un Tenant no consultado no es un Tenant al día.
+            if (!calculado.Completo) Descartar(clave, entrada);
             var permitidos = autorizados.Where(a => !a.EsOrigen).Select(a => a.TenantId).ToHashSet();
-            return calculado.Where(p => permitidos.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
+            return calculado.Pendientes.Where(p => permitidos.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -69,10 +74,14 @@ public sealed class ContadorPendientesSelectorTenant(TimeProvider reloj) : ICont
         }
         catch (Exception)
         {
-            _entradas.TryRemove(clave, out _);
+            Descartar(clave, entrada);
             return null;
         }
     }
+
+    /// <summary>Quita esa entrada y no otra con la misma clave que ya la sustituyó.</summary>
+    private void Descartar(string clave, Entrada entrada) =>
+        ((ICollection<KeyValuePair<string, Entrada>>)_entradas).Remove(new KeyValuePair<string, Entrada>(clave, entrada));
 
     public void Invalidar(Guid usuarioId)
     {
@@ -80,13 +89,16 @@ public sealed class ContadorPendientesSelectorTenant(TimeProvider reloj) : ICont
             _entradas.TryRemove(par.Key, out _);
     }
 
-    private static async Task<IReadOnlyDictionary<Guid, int>> CalcularAsync(
-        Func<CancellationToken, Task<MiTrabajoAgregadoDto>> calcular)
+    private static async Task<Resultado> CalcularAsync(Func<CancellationToken, Task<MiTrabajoAgregadoDto>> calcular)
     {
+        // El tope cancela de verdad las consultas: el cálculo ocupa la puerta de acceso a datos del circuito
+        // que lo pidió, y no puede retenerla más de lo que el selector está dispuesto a esperar.
         using var tope = new CancellationTokenSource(TopeDelCalculo);
         var datos = await calcular(tope.Token);
         // Misma regla que la cartera de Mi trabajo: el Tenant de origen no es una empresa gestionada.
-        return datos.Tenants.Where(t => !t.EsOrigen).ToDictionary(t => t.TenantId, t => t.Resumen.TotalAcciones);
+        return new Resultado(
+            datos.Tenants.Where(t => !t.EsOrigen).ToDictionary(t => t.TenantId, t => t.Resumen.TotalAcciones),
+            Completo: datos.NoConsultados.Count == 0);
     }
 
     private void Podar(DateTimeOffset ahora)

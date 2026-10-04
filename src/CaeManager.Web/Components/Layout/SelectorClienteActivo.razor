@@ -102,7 +102,7 @@
     {
         var esActivo = cliente.TenantId == _activo!.TenantId;
         var pendientes = Pendientes(cliente);
-        var etiqueta = pendientes is { } n ? $"{cliente.Nombre}, {Textos["SelectorTenantPendientes", n].Value}" : cliente.Nombre;
+        var etiqueta = pendientes is { } n ? $"{cliente.Nombre}, {(n == 1 ? Textos["SelectorTenantPendientesUno"].Value : Textos["SelectorTenantPendientes", n].Value)}" : cliente.Nombre;
         <button type="submit" name="tenantId" value="@cliente.TenantId" role="option" aria-selected="@(esActivo ? "true" : "false")"
                 class="selector-tenant-fila @(esActivo ? "selector-tenant-fila-activa" : null)"
                 title="@cliente.Nombre" aria-label="@etiqueta">
