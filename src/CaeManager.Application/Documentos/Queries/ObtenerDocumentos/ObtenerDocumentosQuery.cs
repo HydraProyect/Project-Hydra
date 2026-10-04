@@ -217,6 +217,9 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 EstadoDocumento.Urgente => consulta.Where(x => x.FechaVencimiento >= hoy && x.FechaVencimiento <= limiteRojo),
                 EstadoDocumento.Proximo => consulta.Where(x => x.FechaVencimiento > limiteRojo && x.FechaVencimiento <= limiteAmbar),
                 EstadoDocumento.Vigente => consulta.Where(x => x.FechaVencimiento > limiteAmbar),
+                // «En tolerancia» es un estado de contexto de Centro (VigenciaEnCentro): esta lista, sin contexto, nunca lo
+                // produce, así que filtrar por él no devuelve nada (y no «todo», que sacaría los vencidos con otro rótulo).
+                EstadoDocumento.EnTolerancia => consulta.Where(_ => false),
                 _ => consulta
             };
         }

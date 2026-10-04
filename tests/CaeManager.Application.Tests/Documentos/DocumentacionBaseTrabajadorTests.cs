@@ -160,6 +160,12 @@ public class DocumentacionBaseTrabajadorTests
         DocumentacionBaseTrabajador.Traducir((EstadoDocumento)99).Should().Be(EstadoIndicadorBase.Falta);
     }
 
+    [Fact]
+    public void Un_vencido_en_tolerancia_sigue_siendo_un_vencido_y_no_se_degrada_a_falta()
+    {
+        DocumentacionBaseTrabajador.Traducir(EstadoDocumento.EnTolerancia).Should().Be(EstadoIndicadorBase.Vencido);
+    }
+
     /// <summary>D-22: Trabajador 360 cuenta las incidencias con la misma regla que el panel (sin confirmar = al día con aviso).</summary>
     [Theory]
     [InlineData(EstadoDocumento.Vigente, false)]
@@ -168,6 +174,7 @@ public class DocumentacionBaseTrabajadorTests
     [InlineData(EstadoDocumento.Proximo, true)]
     [InlineData(EstadoDocumento.Urgente, true)]
     [InlineData(EstadoDocumento.Vencido, true)]
+    [InlineData(EstadoDocumento.EnTolerancia, true)]
     [InlineData(EstadoDocumento.Faltante, true)]
     public void Solo_lo_que_el_panel_no_da_por_al_dia_con_aviso_cuenta_como_incidencia_en_la_ficha(EstadoDocumento estado, bool esperado)
     {

@@ -3,7 +3,8 @@ namespace CaeManager.Domain.Documentos;
 /// <summary>
 /// Orden de gravedad de un <see cref="EstadoDocumento"/> cuando hay que quedarse con el peor de varios o
 /// listar primero lo que más urge. Es el ÚNICO sitio donde vive ese orden: lo que falta, antes que lo vencido,
-/// antes que lo urgente, lo próximo, lo que no se sabe (<see cref="EstadoDocumento.SinConfirmar"/>, detrás de lo
+/// antes que lo vencido pero en tolerancia (<see cref="EstadoDocumento.EnTolerancia"/>: sigue valiendo para acceder, pero ya
+/// venció), antes que lo urgente, lo próximo, lo que no se sabe (<see cref="EstadoDocumento.SinConfirmar"/>, detrás de lo
 /// malo conocido y delante de lo vigente), lo vigente y, al final, lo que no caduca.
 ///
 /// <para>
@@ -26,11 +27,12 @@ public static class SeveridadEstadoDocumento
     {
         EstadoDocumento.Faltante => 0,
         EstadoDocumento.Vencido => 1,
-        EstadoDocumento.Urgente => 2,
-        EstadoDocumento.Proximo => 3,
-        EstadoDocumento.SinConfirmar => 4,
-        EstadoDocumento.Vigente => 5,
-        EstadoDocumento.SinCaducidad => 6,
-        _ => 7
+        EstadoDocumento.EnTolerancia => 2,
+        EstadoDocumento.Urgente => 3,
+        EstadoDocumento.Proximo => 4,
+        EstadoDocumento.SinConfirmar => 5,
+        EstadoDocumento.Vigente => 6,
+        EstadoDocumento.SinCaducidad => 7,
+        _ => 8
     };
 }

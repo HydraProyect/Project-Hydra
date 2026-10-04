@@ -42,6 +42,7 @@ public class OrdinalesDeEnumsPublicadosTests
                 [nameof(EstadoDocumento.Vencido)] = 4,
                 [nameof(EstadoDocumento.Faltante)] = 5,
                 [nameof(EstadoDocumento.SinConfirmar)] = 6,
+                [nameof(EstadoDocumento.EnTolerancia)] = 7,
             }
         },
         {

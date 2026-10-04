@@ -1,3 +1,4 @@
+using System.Globalization;
 using CaeManager.Application.Documentos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -32,6 +33,8 @@ public static class EstadoDocumentoUi
         // Vigencia sin anotar: pide acción del Gestor CAE, pero no es un
         // vencimiento conocido — ámbar, no rojo ni neutro.
         EstadoDocumento.SinConfirmar => TonoBadge.Advertencia,
+        // Vencido pero todavía válido para acceder a este Centro: ya no es lo urgente del rojo, y tampoco está al día.
+        EstadoDocumento.EnTolerancia => TonoBadge.Advertencia,
         _ => TonoBadge.Peligro
     };
 
@@ -44,8 +47,26 @@ public static class EstadoDocumentoUi
         EstadoDocumento.Faltante => "Falta",
         EstadoDocumento.SinCaducidad => "Sin caducidad",
         EstadoDocumento.SinConfirmar => TextosVigenciaDocumento.Texto("SinConfirmar"),
+        EstadoDocumento.EnTolerancia => TextosVigenciaDocumento.Texto("EnTolerancia"),
         _ => "Estado desconocido"
     };
+
+    /// <summary>
+    /// El rótulo de un estado cuando se conoce hasta cuándo aguanta la tolerancia: «Vencido · en tolerancia hasta dd/MM».
+    /// Sin fecha, o con cualquier otro estado, es el de <see cref="Texto(EstadoDocumento)"/>.
+    /// </summary>
+    public static string Texto(EstadoDocumento estado, DateOnly? enToleranciaHasta) =>
+        estado == EstadoDocumento.EnTolerancia && enToleranciaHasta is { } hasta
+            ? string.Format(CultureInfo.CurrentCulture, TextosVigenciaDocumento.Texto("VencidoEnToleranciaHasta"), hasta.ToString("dd/MM", CultureInfo.InvariantCulture))
+            : Texto(estado);
+
+    /// <summary>
+    /// ¿Ya venció el Documento? Es verdad para <see cref="EstadoDocumento.Vencido"/> y también para
+    /// <see cref="EstadoDocumento.EnTolerancia"/>, que es un vencido que en ese Centro todavía vale para acceder: dejarlo fuera de
+    /// un recuento o de un filtro de «vencidos» lo escondería.
+    /// </summary>
+    public static bool HaVencido(EstadoDocumento estado) =>
+        estado is EstadoDocumento.Vencido or EstadoDocumento.EnTolerancia;
 
     /// <summary>
     /// Texto de una celda de vigencia cuando el documento NO tiene fecha de vencimiento. Una fecha ausente son

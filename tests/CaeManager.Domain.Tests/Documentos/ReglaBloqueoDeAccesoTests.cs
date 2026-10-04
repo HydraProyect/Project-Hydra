@@ -178,6 +178,57 @@ public class ReglaBloqueoDeAccesoTests
         ReglaBloqueoDeAcceso.Bloquea(resultado.Situacion).Should().BeFalse();
     }
 
+    /// <summary>
+    /// «En tolerancia» (vista con contexto de Centro): vencido, pero con la tolerancia aún sin agotar. Es la misma comparación que
+    /// la decisión de acceso, así que cada fila se contrasta con <see cref="ReglaBloqueoDeAcceso.Evaluar"/>.
+    /// </summary>
+    [Theory]
+    [InlineData("Venció ayer, tolerancia 0", 1, 0, false)]
+    [InlineData("Venció ayer, tolerancia 1: hoy es el último día", 1, 1, true)]
+    [InlineData("Venció hace 5, tolerancia 10", 5, 10, true)]
+    [InlineData("Venció hace 5, tolerancia 5: hoy es el último día", 5, 5, true)]
+    [InlineData("Venció hace 5, tolerancia 4: ayer fue el último", 5, 4, false)]
+    [InlineData("Venció hace un año, tolerancia 15", 365, 15, false)]
+    public void Un_vencido_esta_en_tolerancia_hasta_el_ultimo_dia_en_que_vale_para_acceder(string caso, int diasDesdeQueVencio, int toleranciaDias, bool enTolerancia)
+    {
+        var documento = VenceHaceDias(diasDesdeQueVencio);
+        var condiciones = Cond(toleranciaDias: toleranciaDias);
+
+        var hasta = ReglaBloqueoDeAcceso.EnToleranciaHasta(documento, condiciones, Hoy);
+
+        hasta.Should().Be(enTolerancia ? Hoy.AddDays(-diasDesdeQueVencio + toleranciaDias) : null, caso);
+        (hasta is not null).Should().Be(ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, condiciones, Hoy), "es la misma decisión que el acceso (documento ya vencido)");
+        ReglaBloqueoDeAcceso.Evaluar([documento], condiciones, Hoy).EnToleranciaHasta.Should().Be(hasta, "una sola comparación para la vista y el acceso");
+    }
+
+    [Fact]
+    public void Lo_que_no_ha_vencido_o_no_vence_nunca_esta_en_tolerancia()
+    {
+        var condiciones = Cond(toleranciaDias: 30);
+
+        ReglaBloqueoDeAcceso.EnToleranciaHasta(new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy), Hoy.AddYears(-1)), condiciones, Hoy)
+            .Should().BeNull("vence hoy: aún no ha vencido, vale por sí mismo");
+        ReglaBloqueoDeAcceso.EnToleranciaHasta(new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy.AddDays(40)), Hoy.AddYears(-1)), condiciones, Hoy)
+            .Should().BeNull();
+        ReglaBloqueoDeAcceso.EnToleranciaHasta(new DocumentoParaAcceso(VigenciaDocumento.NoCaduca, Hoy.AddYears(-1)), condiciones, Hoy)
+            .Should().BeNull("«No caduca» nunca vence");
+        ReglaBloqueoDeAcceso.EnToleranciaHasta(new DocumentoParaAcceso(VigenciaDocumento.SinConfirmar, Hoy.AddYears(-1)), condiciones, Hoy)
+            .Should().BeNull("sin vigencia anotada no hay vencimiento del que contar la tolerancia");
+    }
+
+    [Fact]
+    public void La_tolerancia_se_cuenta_desde_el_vencimiento_efectivo_del_Centro_no_desde_el_del_documento()
+    {
+        // Emitido hace 14 meses; el documento dice que vence dentro de un año, pero el Centro impone 12 meses: venció hace ~2 meses.
+        var documento = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy.AddYears(1)), Hoy.AddMonths(-14));
+        var vencioEn = Hoy.AddMonths(-2);
+
+        ReglaBloqueoDeAcceso.EnToleranciaHasta(documento, Cond(periodicidadMeses: 12, toleranciaDias: 90), Hoy)
+            .Should().Be(vencioEn.AddDays(90));
+        ReglaBloqueoDeAcceso.EnToleranciaHasta(documento, Cond(periodicidadMeses: 12, toleranciaDias: 10), Hoy)
+            .Should().BeNull("la tolerancia de 10 días ya se agotó");
+    }
+
     [Fact]
     public void Un_vencido_con_su_renovacion_valida_cumple_el_requisito_sin_estar_en_tolerancia()
     {

@@ -63,8 +63,10 @@ public sealed record FraccionCumplimiento(int AlDia, int Requeridos)
 /// <b>Numerador.</b> Un par está al día si el estado de su documento es <see cref="EstadoDocumento.Vigente"/>,
 /// <see cref="EstadoDocumento.Proximo"/>, <see cref="EstadoDocumento.Urgente"/> (siguen siendo válidos hoy) o
 /// <see cref="EstadoDocumento.SinCaducidad"/> (confirmado que no caduca). Están fuera:
-/// <see cref="EstadoDocumento.Vencido"/>, <see cref="EstadoDocumento.Faltante"/> y
-/// <see cref="EstadoDocumento.SinConfirmar"/>. Esto último NO es la regla de los paneles ni de las incidencias, donde
+/// <see cref="EstadoDocumento.Vencido"/>, <see cref="EstadoDocumento.Faltante"/>,
+/// <see cref="EstadoDocumento.SinConfirmar"/> y <see cref="EstadoDocumento.EnTolerancia"/> (un estado de contexto que ningún
+/// porcentaje recibe hoy: se calculan con el estado de vigencia real, Vencido; que un vencido dentro de la tolerancia cuente
+/// como al día es el incremento 2 del porcentaje, en <see cref="EsConforme(ParDocumentalExigido)"/>). Lo de «Sin confirmar» NO es la regla de los paneles ni de las incidencias, donde
 /// «Sin confirmar» cuenta como al día con aviso (decisión 2026-10-01): en un porcentaje es no conforme (decisión
 /// 2026-10-03), porque nadie ha comprobado que el documento valga.
 /// </para>

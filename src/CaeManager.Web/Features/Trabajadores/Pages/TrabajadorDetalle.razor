@@ -76,7 +76,7 @@
                             <Detalle>
                                 @foreach (var documento in centroUrgente.Documentos.Where(EsIncidencia))
                                 {
-                                    <span class="ventana-linea">@documento.TipoDocumentoNombre — @EstadoDocumentoUi.Texto(documento.Estado)</span>
+                                    <span class="ventana-linea">@documento.TipoDocumentoNombre — @EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)</span>
                                 }
                             </Detalle>
                         </VentanaContexto>
@@ -224,7 +224,7 @@
                                                             </span>
                                                             <span role="cell">
                                                                 <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
-                                                                    @EstadoDocumentoUi.Texto(documento.Estado)
+                                                                    @EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)
                                                                 </Badge>
                                                             </span>
                                                             <span role="cell">
@@ -411,7 +411,7 @@
                                             <span class="trabajador360-exigencia-cliente">@Textos["DelClienteEmpresarial", exigencia.ClienteRazonSocial]</span>
                                         </span>
                                         <span role="cell">
-                                            <Badge Tono="EstadoDocumentoUi.Tono(exigencia.Documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(exigencia.Documento.Estado)</Badge>
+                                            <Badge Tono="EstadoDocumentoUi.Tono(exigencia.Documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(exigencia.Documento.Estado, exigencia.Documento.EnToleranciaHasta)</Badge>
                                         </span>
                                         <span role="cell">@(exigencia.FechaEmision is { } emision ? emision.ToString("dd/MM/yyyy") : "—")</span>
                                         <span role="cell" class="@EstadoDocumentoUi.ClaseAvisoVigenciaSinConfirmar(exigencia.Documento.Estado)">@TextoVence(exigencia.Documento.FechaVencimiento, exigencia.Documento.Estado)</span>

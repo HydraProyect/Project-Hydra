@@ -79,10 +79,10 @@ public readonly record struct ResultadoDeRequisito(
 /// <c>vencimiento efectivo + tolerancia</c> inclusive (con 15 días, vale el día 15 tras vencer y deja de valer el 16;
 /// con 0, vale el día en que vence y no el siguiente). Esta regla solo decide el acceso y expone «en tolerancia
 /// hasta X» como dato aparte (<see cref="ResultadoDeRequisito.EnToleranciaHasta"/>); el estado de vigencia del Documento
-/// sigue siendo Vencido. Decisión del propietario (2026-10-03) todavía NO implementada aquí: un vencido dentro de la
-/// tolerancia cuenta como al día en el porcentaje (incremento 2 del porcentaje, <c>EsConforme(ParDocumentalExigido)</c>), y
-/// el estado «En tolerancia» se mostrará solo en las vistas con contexto de Centro o de Cliente empresarial (las generales
-/// siguen mostrando «Vencido»).
+/// sigue siendo Vencido. Las vistas con contexto de Centro lo rotulan
+/// <see cref="EstadoDocumento.EnTolerancia"/> con <see cref="EnToleranciaHasta"/> (las generales siguen mostrando «Vencido»).
+/// Decisión del propietario (2026-10-03) todavía NO implementada aquí: un vencido dentro de la tolerancia cuenta como al día
+/// en el porcentaje (incremento 2 del porcentaje, <c>EsConforme(ParDocumentalExigido)</c>).
 /// </para>
 ///
 /// <para>
@@ -140,6 +140,21 @@ public static class ReglaBloqueoDeAcceso
     /// <summary>Suma días saturando en <see cref="DateOnly.MaxValue"/> (un vencimiento centinela «9999-12-31» no puede lanzar).</summary>
     private static DateOnly SumarDias(DateOnly fecha, int dias) =>
         dias > DateOnly.MaxValue.DayNumber - fecha.DayNumber ? DateOnly.MaxValue : fecha.AddDays(dias);
+
+    /// <summary>
+    /// Si el documento está <b>vencido pero dentro de la tolerancia</b> en este Centro, el último día en que aún vale para
+    /// acceder; <c>null</c> en cualquier otro caso (no vence, no ha vencido, o la tolerancia ya se agotó). Es lo que rotula
+    /// «Vencido · en tolerancia hasta dd/MM» y la misma comparación que <see cref="Evaluar"/>, para que una vista de un
+    /// documento y la decisión de acceso no puedan discrepar.
+    /// </summary>
+    public static DateOnly? EnToleranciaHasta(DocumentoParaAcceso documento, CondicionesDeAccesoDelCentro condiciones, DateOnly hoy)
+    {
+        if (VencimientoEfectivo(documento, condiciones.PeriodicidadEspecialMeses) is not { } vencimiento || vencimiento >= hoy)
+            return null;
+
+        var valeHasta = SumarDias(vencimiento, condiciones.ToleranciaDias);
+        return ValeParaAcceder(valeHasta, hoy) ? valeHasta : null;
+    }
 
     /// <summary>¿Vale este documento hoy para acceder a este Centro? Vencimiento efectivo + tolerancia &gt;= hoy.</summary>
     public static bool ValidoParaAcceder(DocumentoParaAcceso documento, CondicionesDeAccesoDelCentro condiciones, DateOnly hoy) =>

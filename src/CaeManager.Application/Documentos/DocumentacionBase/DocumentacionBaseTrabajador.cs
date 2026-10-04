@@ -113,7 +113,8 @@ public static class DocumentacionBaseTrabajador
     {
         EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad => EstadoIndicadorBase.Vigente,
         EstadoDocumento.Proximo or EstadoDocumento.Urgente => EstadoIndicadorBase.ProximoAVencer,
-        EstadoDocumento.Vencido => EstadoIndicadorBase.Vencido,
+        // «En tolerancia» es un vencido que en ese Centro aún vale: sigue siendo una incidencia (no se promete vigencia).
+        EstadoDocumento.Vencido or EstadoDocumento.EnTolerancia => EstadoIndicadorBase.Vencido,
         EstadoDocumento.SinConfirmar => EstadoIndicadorBase.SinConfirmar,
         // Faltante no sale de la calculadora; ante un valor nuevo no se promete vigencia.
         _ => EstadoIndicadorBase.Falta

@@ -44,9 +44,13 @@ public record ObtenerAsignacionesDocumentacionPorCentroQuery(Guid CentroId, Date
 /// la visita en vez de hoy) — modificador visual "vigente con riesgo en
 /// ventana", no un estado nuevo (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.3).
 /// </param>
+/// <param name="EnToleranciaHasta">
+/// Solo con <see cref="EstadoDocumento.EnTolerancia"/> (vista con contexto de Centro, <see cref="VigenciaEnCentro"/>): el
+/// último día en que el Documento vencido aún vale para acceder a ese Centro. <c>null</c> en cualquier otro estado.
+/// </param>
 public record DocumentoRequeridoDto(
     Guid? DocumentoId, Guid TipoDocumentoId, string TipoDocumentoNombre, EstadoDocumento Estado,
-    DateOnly? FechaVencimiento, bool CaducaEnVentanaVisita = false);
+    DateOnly? FechaVencimiento, bool CaducaEnVentanaVisita = false, DateOnly? EnToleranciaHasta = null);
 
 /// <param name="Documentos">
 /// Lo que se enseña al expandir al Trabajador: no lista «Sin caducidad» y, si hay un documento vencido y su
@@ -141,6 +145,15 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
 
+        // «En tolerancia» es un estado de contexto: la tolerancia que rige en ESTE Centro (la suya, o la de su Cliente
+        // empresarial titular) decide si un vencido todavía vale para acceder. El estado de vigencia del Documento no cambia.
+        var clienteEmpresarialId = await centrosContext.Centros
+            .Where(c => c.Id == request.CentroId)
+            .Select(c => c.ClienteId)
+            .SingleAsync(cancellationToken);
+        var toleranciasDelCliente = await VigenciaEnCentro.CargarToleranciasDeClientesAsync(
+            tiposDocumentoContext, [clienteEmpresarialId], tipoIdsRequeridos, cancellationToken);
+
         // El documento que representa a cada par Trabajador×Tipo: el mismo que usa el % del Centro.
         var preferidosPorPar = DocumentoEfectivo.UnoPorClave(
             documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
@@ -175,8 +188,16 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
                     && CalculadoraEstadoDocumento.Calcular(documento.EstadoVigencia, documento.FechaVencimiento, finVisita, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
                         is not (EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
 
+                filasDelCentro.TryGetValue((documento.TipoDocumentoId, request.CentroId), out var filaDelCentro);
+                var condiciones = VigenciaEnCentro.Condiciones(
+                    filaDelCentro,
+                    toleranciasDelCliente.TryGetValue((clienteEmpresarialId, documento.TipoDocumentoId), out var delCliente) ? delCliente : null);
+                var (estadoEnCentro, enToleranciaHasta) = VigenciaEnCentro.Aplicar(
+                    estado, documento.EstadoVigencia, documento.FechaVencimiento, documento.FechaEmision, condiciones, hoy);
+
                 var nombreTipo = tiposRequeridosPorCentro.First(t => t.Id == documento.TipoDocumentoId).Nombre;
-                items.Add(new DocumentoRequeridoDto(documento.Id, documento.TipoDocumentoId, nombreTipo, estado, documento.FechaVencimiento, caducaEnVentana));
+                items.Add(new DocumentoRequeridoDto(
+                    documento.Id, documento.TipoDocumentoId, nombreTipo, estadoEnCentro, documento.FechaVencimiento, caducaEnVentana, enToleranciaHasta));
             }
 
             foreach (var tipo in tiposRequeridosPorCentro)

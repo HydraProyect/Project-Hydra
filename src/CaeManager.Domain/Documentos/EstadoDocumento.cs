@@ -54,5 +54,17 @@ public enum EstadoDocumento
     /// emisión como cualquier otra copia (2026-10-01).</item>
     /// </list>
     /// </summary>
-    SinConfirmar = 6
+    SinConfirmar = 6,
+
+    /// <summary>
+    /// Estado <b>de contexto</b> (aprobado 2026-10-03): el Documento está Vencido, pero en ESTE Centro sigue valiendo para
+    /// acceder porque el Centro (o su Cliente empresarial) concede tolerancia y todavía no se ha agotado. Nunca lo produce
+    /// <see cref="CalculadoraEstadoDocumento"/> —el estado de vigencia del Documento sigue siendo
+    /// <see cref="Vencido"/>—: solo lo asignan las vistas con contexto de Centro (Centro 360 y Trabajador 360 por Centro),
+    /// con <see cref="ReglaBloqueoDeAcceso.EnToleranciaHasta"/>. Las vistas generales, sin contexto, siguen diciendo
+    /// «Vencido». Se rotula «Vencido · en tolerancia hasta dd/MM», con severidad entre Urgente y Vencido
+    /// (<see cref="SeveridadEstadoDocumento"/>). No entra en el porcentaje de cumplimiento en este incremento: que un vencido
+    /// dentro de la tolerancia cuente como al día es el incremento 2 del porcentaje (<c>EsConforme(ParDocumentalExigido)</c>).
+    /// </summary>
+    EnTolerancia = 7
 }

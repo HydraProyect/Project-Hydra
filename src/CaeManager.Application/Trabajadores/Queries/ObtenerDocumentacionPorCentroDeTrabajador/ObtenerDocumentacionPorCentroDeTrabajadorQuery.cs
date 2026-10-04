@@ -102,6 +102,14 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
 
+        // «En tolerancia» es un estado de contexto: la tolerancia que rige en cada Centro (la suya, o la de su Cliente
+        // empresarial titular) decide si un vencido todavía vale para acceder. El estado de vigencia del Documento no cambia.
+        var toleranciasDeClientes = await VigenciaEnCentro.CargarToleranciasDeClientesAsync(
+            tiposDocumentoContext,
+            asignaciones.Select(a => a.ClienteId).Distinct().ToList(),
+            tipoIdsCandidatos,
+            cancellationToken);
+
         // Un documento operativo por tipo en el caso normal; con duplicados sin resolver manda el efectivo.
         var documentosPorTipo = DocumentoEfectivo.UnoPorClave(
             documentosDelTrabajador, d => d.TipoDocumentoId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
@@ -129,11 +137,20 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
                 var estado = CalculadoraEstadoDocumento.Calcular(
                     documento.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+                // El cumplimiento mide el estado de vigencia REAL del Documento: la tolerancia no entra en el porcentaje.
                 estadosDeLosPares.Add(estado);
                 // Solo se omite lo confirmado como que no caduca; lo sin confirmar se lista.
                 if (estado == EstadoDocumento.SinCaducidad) continue;
 
-                items.Add(new DocumentoRequeridoDto(documento.Id, tipo.Id, tipo.Nombre, estado, documento.FechaVencimiento));
+                filasDeLosCentros.TryGetValue((tipo.Id, asignacion.CentroId), out var filaDelCentro);
+                var condiciones = VigenciaEnCentro.Condiciones(
+                    filaDelCentro,
+                    toleranciasDeClientes.TryGetValue((asignacion.ClienteId, tipo.Id), out var delCliente) ? delCliente : null);
+                var (estadoEnCentro, enToleranciaHasta) = VigenciaEnCentro.Aplicar(
+                    estado, documento.EstadoVigencia, documento.FechaVencimiento, documento.FechaEmision, condiciones, hoy);
+
+                items.Add(new DocumentoRequeridoDto(
+                    documento.Id, tipo.Id, tipo.Nombre, estadoEnCentro, documento.FechaVencimiento, EnToleranciaHasta: enToleranciaHasta));
             }
 
             var ordenados = items.OrderBy(i => SeveridadEstadoDocumento.Rango(i.Estado)).ThenBy(i => i.TipoDocumentoNombre).ToList();
