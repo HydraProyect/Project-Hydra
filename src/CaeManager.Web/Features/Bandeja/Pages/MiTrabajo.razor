@@ -57,12 +57,22 @@
             </Accion>
         </EstadoVacio>
     }
-    else if (_cargando || _vista is null)
+    else if (_vista is null)
     {
         <EstadoCargando Filas="7" />
     }
     else
     {
+        @if (ConsultandoCartera)
+        {
+            <div class="mi-trabajo-progreso" role="status" aria-live="polite">
+                <span>@Textos["CargandoEmpresas", _completados, _totalPorCargar]</span>
+                <div class="mi-trabajo-progreso-barra" role="progressbar" aria-valuemin="0" aria-valuemax="@_totalPorCargar" aria-valuenow="@_completados">
+                    <i style="width: @PorcentajeCargado%"></i>
+                </div>
+            </div>
+        }
+
         @if (_vista.NoConsultados.Count > 0)
         {
             <div class="alerta-formulario mi-trabajo-cartera-incompleta" role="alert">
@@ -143,7 +153,12 @@
                     </div>
                 </div>
 
-                @if (Grupos.Count == 0 && AlDia && _vista.SinAlcance(Filtro))
+                @if (Grupos.Count == 0 && ConsultandoCartera)
+                {
+                    @* Con la carga en marcha, una cola vacía solo dice que esa Empresa aún no ha terminado: ni «al día» ni «sin cartera». *@
+                    <EstadoCargando Filas="4" />
+                }
+                else if (Grupos.Count == 0 && AlDia && _vista.SinAlcance(Filtro))
                 {
                     @* P2.3: sin alcance no hay nada que vigilar, y «al día» afirmaría un
                        cumplimiento que nadie ha mirado. La Asignación de Cartera la da

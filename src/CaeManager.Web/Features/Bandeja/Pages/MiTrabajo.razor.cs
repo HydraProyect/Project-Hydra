@@ -38,6 +38,13 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private AntiforgeryRequestToken? _token;
     private bool _cargando = true;
     private bool _errorCarga;
+    private int _completados;
+    private int _totalPorCargar;
+
+    /// <summary>Con la carga en marcha, la vista es parcial: lo que falte de la cartera no está «al día», está sin consultar.</summary>
+    private bool ConsultandoCartera => _cargando && _vista is not null;
+
+    private int PorcentajeCargado => _totalPorCargar == 0 ? 0 : _completados * 100 / _totalPorCargar;
 
     /// <summary>
     /// «Añadir a mi cartera» (contrato Gen2 § 13): solo si la Query de candidatos
@@ -155,13 +162,30 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         var carga = ++_cargaVigente;
         _cargando = true;
         _errorCarga = false;
+        _vista = null;
+        _completados = 0;
+        _totalPorCargar = 0;
         StateHasChanged();
 
         try
         {
-            var datos = await Mediator.Send(new ObtenerMiTrabajoAgregadoQuery(), _ciclo.Token);
-            if (!EsVigente(carga)) return;
-            _vista = new MiTrabajoVista(datos);
+            // Cada Empresa (Tenant propietario) se pinta en cuanto termina; el recorrido sigue siendo secuencial y cada
+            // parte ya llega autorizada. La vista se rehace con lo acumulado, que es siempre un subconjunto coherente.
+            var tenants = new List<MiTrabajoTenantDto>();
+            var noConsultados = new List<TenantNoConsultadoDto>();
+            await foreach (var parte in Mediator.CreateStream(new ObtenerMiTrabajoPorPartesQuery(), _ciclo.Token))
+            {
+                if (!EsVigente(carga)) return;
+                _completados = parte.Completados;
+                _totalPorCargar = parte.Total;
+                if (parte.Tenant is not null) tenants.Add(parte.Tenant);
+                if (parte.NoConsultado is not null) noConsultados.Add(parte.NoConsultado);
+                _vista = new MiTrabajoVista(new MiTrabajoAgregadoDto(tenants.ToList(), noConsultados.ToList()));
+                StateHasChanged();
+            }
+
+            // Un recorrido sin Tenants no emite nada más que la apertura: la vista vacía es la de siempre.
+            _vista ??= new MiTrabajoVista(new MiTrabajoAgregadoDto([], []));
         }
         catch (Exception) when (!EsVigente(carga))
         {
