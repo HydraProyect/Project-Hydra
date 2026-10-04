@@ -1,7 +1,9 @@
 using System.Globalization;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.Bandeja.Recursos;
 using MediatR;
 using CaeManager.Infrastructure.Identity;
@@ -24,6 +26,18 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private AntiforgeryStateProvider AntiforgeryStateProvider { get; set; } = default!;
     [Inject] private ILogger<MiTrabajo> Logger { get; set; } = default!;
+    [Inject] private NavigationManager Navegacion { get; set; } = default!;
+
+    /// <summary>
+    /// Los filtros de la cola viven también en la URL (UX_PATTERNS: compartir, recargar y volver
+    /// desde la pantalla de una acción sin perderlos). Lo que no se reconoce (un valor que no es una
+    /// severidad, un Tenant que no es un Guid) se ignora: la URL es entrada del usuario.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "severidad")] public string? SeveridadUrl { get; set; }
+    [SupplyParameterFromQuery(Name = "empresa")] public string? EmpresaUrl { get; set; }
+    [SupplyParameterFromQuery(Name = "q")] public string? BusquedaUrl { get; set; }
+    [SupplyParameterFromQuery(Name = "agrupar")] public string? AgruparUrl { get; set; }
+    [SupplyParameterFromQuery(Name = "orden")] public string? OrdenUrl { get; set; }
 
     /// <summary>
     /// D-15: «Pídesela a tu Coordinador CAE» se lo decía al propio Coordinador CAE. Ahora le dice que su alcance
@@ -117,6 +131,60 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         }
     }
 
+    /// <summary>
+    /// Valores de búsqueda que esta página ha escrito en la URL y cuyo eco puede llegar tarde: con la
+    /// tecla siguiente ya en el campo, el eco de «ab» no debe pisar «abc». Un valor que no esté aquí
+    /// viene de fuera (atrás, adelante, un enlace) y se adopta.
+    /// </summary>
+    private readonly HashSet<string> _busquedasEscritas = [];
+
+    /// <summary>La URL de Mi trabajo con los filtros vigentes: lo que el destino de una acción ofrece como vuelta.</summary>
+    private string UrlMiTrabajo
+    {
+        get
+        {
+            var consulta = new List<string>();
+            if (_severidad is { } s) consulta.Add($"severidad={Uri.EscapeDataString(s.ToString().ToLowerInvariant())}");
+            if (_tenantFiltro is { } t) consulta.Add($"empresa={t}");
+            if (!string.IsNullOrWhiteSpace(_busqueda)) consulta.Add($"q={Uri.EscapeDataString(_busqueda)}");
+            if (_agrupar != AgruparMiTrabajo.Tenant) consulta.Add($"agrupar={Uri.EscapeDataString(_agrupar.ToString().ToLowerInvariant())}");
+            if (_orden != OrdenMiTrabajo.Prioridad) consulta.Add($"orden={Uri.EscapeDataString(_orden.ToString().ToLowerInvariant())}");
+            return RetornoMiTrabajo.Ruta + (consulta.Count > 0 ? "?" + string.Join('&', consulta) : "");
+        }
+    }
+
+    private static TEnum? ParsearEnum<TEnum>(string? valor) where TEnum : struct, Enum =>
+        Enum.TryParse<TEnum>(valor, ignoreCase: true, out var resultado) && Enum.IsDefined(resultado) ? resultado : null;
+
+    private void AplicarFiltrosDeLaUrl()
+    {
+        _severidad = ParsearEnum<SeveridadMiTrabajo>(SeveridadUrl);
+        _tenantFiltro = Guid.TryParse(EmpresaUrl, out var tenantId) ? tenantId : null;
+        _agrupar = ParsearEnum<AgruparMiTrabajo>(AgruparUrl) ?? AgruparMiTrabajo.Tenant;
+        _orden = ParsearEnum<OrdenMiTrabajo>(OrdenUrl) ?? OrdenMiTrabajo.Prioridad;
+
+        var busqueda = BusquedaUrl ?? string.Empty;
+        if (busqueda == _busqueda) _busquedasEscritas.Clear();
+        else if (!_busquedasEscritas.Contains(busqueda))
+        {
+            _busqueda = busqueda;
+            _busquedasEscritas.Clear();
+        }
+    }
+
+    private void EscribirFiltrosEnUrl() => Navegacion.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+    {
+        ["severidad"] = _severidad?.ToString().ToLowerInvariant(),
+        ["empresa"] = _tenantFiltro?.ToString(),
+        ["q"] = _busqueda,
+        ["agrupar"] = _agrupar == AgruparMiTrabajo.Tenant ? null : _agrupar.ToString().ToLowerInvariant(),
+        ["orden"] = _orden == OrdenMiTrabajo.Prioridad ? null : _orden.ToString().ToLowerInvariant(),
+    });
+
+    protected override void OnInitialized() => AplicarFiltrosDeLaUrl();
+
+    protected override void OnParametersSet() => AplicarFiltrosDeLaUrl();
+
     protected override async Task OnInitializedAsync()
     {
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
@@ -184,22 +252,34 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         _severidad = severidad;
         _idEnfocado = null;
+        EscribirFiltrosEnUrl();
     }
 
     private void CambiarTenant(Guid? tenantId)
     {
         _tenantFiltro = tenantId;
         _idEnfocado = null;
+        EscribirFiltrosEnUrl();
     }
 
-    private void CambiarAgrupar(AgruparMiTrabajo agrupar) => _agrupar = agrupar;
+    private void CambiarAgrupar(AgruparMiTrabajo agrupar)
+    {
+        _agrupar = agrupar;
+        EscribirFiltrosEnUrl();
+    }
 
-    private void CambiarOrden(OrdenMiTrabajo orden) => _orden = orden;
+    private void CambiarOrden(OrdenMiTrabajo orden)
+    {
+        _orden = orden;
+        EscribirFiltrosEnUrl();
+    }
 
     private void CambiarBusqueda(ChangeEventArgs e)
     {
         _busqueda = e.Value?.ToString() ?? string.Empty;
         _idEnfocado = null;
+        _busquedasEscritas.Add(_busqueda);
+        EscribirFiltrosEnUrl();
     }
 
     private void QuitarFiltros()
@@ -208,6 +288,9 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         _tenantFiltro = null;
         _busqueda = string.Empty;
         _idEnfocado = null;
+        // La URL se limpia en la misma navegación: si no, OnParametersSet repondría los filtros desde ella.
+        _busquedasEscritas.Add(string.Empty);
+        EscribirFiltrosEnUrl();
     }
 
     private void AlternarTenant(Guid tenantId)
