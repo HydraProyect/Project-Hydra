@@ -49,7 +49,7 @@ public class TextosSinLocalizarCongeladosTests
         ["ApiKeys"] = 45,
         ["Auditoria"] = 73,
         ["AuditoriaIa"] = 50,
-        ["Bandeja"] = 106, // 108 → 106 el 2026-10-03 (bloqueo por Centro): desaparecen «Alta pendiente» y «Adjuntar» de TipoItemBandejaUi. Antes: 107 → 108 el 2026-10-02 (resto D-07/D-27) SIN migrar: «Clientes empresariales» (SelectorLoteDocumental) pasa a mayúscula inicial como manda CONTRATO_TERMINOLOGIA § 3.2 y la heurística lo empieza a ver.
+        ["Bandeja"] = 105, // 106 → 105 el 2026-10-04 (CampoSelectAvanzado): el selector de orden deja de llevar «Impacto» y «Fecha límite» como marcado; ahora son datos de la lista de opciones, que el detector no cuenta (SIN migrar a .resx). Antes: 108 → 106 el 2026-10-03 (bloqueo por Centro): desaparecen «Alta pendiente» y «Adjuntar» de TipoItemBandejaUi. Antes: 107 → 108 el 2026-10-02 (resto D-07/D-27) SIN migrar: «Clientes empresariales» (SelectorLoteDocumental) pasa a mayúscula inicial como manda CONTRATO_TERMINOLOGIA § 3.2 y la heurística lo empieza a ver.
         ["Blindaje42"] = 46,
         ["BusquedaGlobal"] = 70,
         // 312 → 313 el 2026-09-25 (P1-X2): la rama «No requiere gestión CAE» de
@@ -92,7 +92,7 @@ public class TextosSinLocalizarCongeladosTests
         // esta entrada se retira.
         ["DashboardEjecutivo"] = 1,
         ["Delegaciones"] = 97,
-        ["Documentos"] = 454, // 455 → 454 el 2026-10-02: «Enviadas» y «+ Nueva reclamación» pasan de marcado a la lista de pestañas de ReclamacionesTab (D-30; sigue sin localizar, solo cambia de lugar). 459 → 458 el 2026-09-26: borrado en lote de Documentos.razor a TextosDocumentos.resx (FS-09). 458 → 455 el 2026-09-29: lote 3, chips, «Más» y textos del 4a a TextosDocumentos.resx.
+        ["Documentos"] = 453, // 454 → 453 el 2026-10-04 (CampoSelectAvanzado): el selector de sello de FirmaEnCampoTab deja de llevar «Ninguno» como <option> y pasa a la lista de opciones (SIN migrar a .resx). Antes: 455 → 454 el 2026-10-02: «Enviadas» y «+ Nueva reclamación» pasan de marcado a la lista de pestañas de ReclamacionesTab (D-30; sigue sin localizar, solo cambia de lugar). 459 → 458 el 2026-09-26: borrado en lote de Documentos.razor a TextosDocumentos.resx (FS-09). 458 → 455 el 2026-09-29: lote 3, chips, «Más» y textos del 4a a TextosDocumentos.resx.
         ["Empresas"] = 198,
         ["Extension"] = 29,
         ["Facturacion"] = 96,

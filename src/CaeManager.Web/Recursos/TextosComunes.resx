@@ -138,4 +138,19 @@
   <data name="SaltarAlContenido" xml:space="preserve">
     <value>Saltar al contenido</value>
   </data>
+  <data name="SelectorMarcador" xml:space="preserve">
+    <value>Selecciona una opción</value>
+  </data>
+  <data name="SelectorBuscarEtiqueta" xml:space="preserve">
+    <value>Buscar en la lista</value>
+  </data>
+  <data name="SelectorBuscarMarcador" xml:space="preserve">
+    <value>Buscar…</value>
+  </data>
+  <data name="SelectorSinResultados" xml:space="preserve">
+    <value>Ninguna opción coincide con la búsqueda.</value>
+  </data>
+  <data name="SelectorResultados" xml:space="preserve">
+    <value>{0} resultados</value>
+  </data>
 </root>

@@ -128,6 +128,12 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
     /// con algo escrito se pregunta antes. Si se sigue editando, la selección no cambia y el
     /// <c>@bind:get</c> devuelve el selector al Cliente de antes.
     /// </summary>
+    private IReadOnlyList<OpcionSelect> OpcionesClientes =>
+        [new(Guid.Empty.ToString(), "— Selecciona un Cliente empresarial —"), .. _clientes.Select(c => new OpcionSelect(c.Id.ToString(), c.RazonSocial))];
+
+    private Task CambiarClienteDesdeSelectorAsync(string valor) =>
+        CambiarClienteAsync(Guid.TryParse(valor, out var id) ? id : Guid.Empty);
+
     private async Task CambiarClienteAsync(Guid nuevo)
     {
         if (nuevo == _clienteSeleccionadoId) return;

@@ -137,16 +137,9 @@ else
     }
     else if (_documento.EmpresaId is null && _empresasConSello.Count > 0)
     {
-        <div class="campo">
-            <label for="selector-sello-firma-en-campo">Sello a incluir (opcional)</label>
-            <select id="selector-sello-firma-en-campo" @onchange="AlCambiarEmpresaSeleccionadaParaSello">
-                <option value="">Ninguno</option>
-                @foreach (var empresa in _empresasConSello)
-                {
-                    <option value="@empresa.EmpresaId">@empresa.RazonSocial</option>
-                }
-            </select>
-        </div>
+        <CampoSelectAvanzado Id="selector-sello-firma-en-campo" Etiqueta="Sello a incluir (opcional)" Opciones="OpcionesSello"
+                             Valor="@(_empresaSeleccionadaEnSelector?.ToString() ?? string.Empty)"
+                             ValorChanged="AlCambiarEmpresaSeleccionadaParaSello" />
     }
 
     <label class="campo-checkbox">

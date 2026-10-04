@@ -53,7 +53,7 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
     private const string Contenedores = "Drawer|Modal|DialogoConfirmacion";
 
     private const string Campos =
-        "CampoTexto|CampoSelect|CampoTextarea|CampoBuscarSelect|SelectorEntidad|SelectorMultiple|ZonaSoltarArchivo|" +
+        "CampoTexto|CampoSelectAvanzado|CampoSelect|CampoTextarea|CampoBuscarSelect|SelectorEntidad|SelectorMultiple|ZonaSoltarArchivo|" +
         "InputText|InputTextArea|InputNumber|InputSelect|InputDate|InputCheckbox|InputFile|textarea|select|input";
 
     private static readonly Regex AtributoHayCambios = new(@"(?:^|\s)HayCambios\s*=\s*""", RegexOptions.Compiled);
