@@ -18,8 +18,21 @@ public readonly record struct RequisitoBloqueanteDelCentro(
     Guid CentroId, Guid TipoDocumentoId, AmbitoAplicacion Ambito, CondicionesDeAccesoDelCentro Condiciones);
 
 /// <summary>Un Documento de un Trabajador (<paramref name="TrabajadorId"/>) o de una Empresa (<paramref name="EmpresaId"/>).</summary>
+/// <param name="UltimaPresentacionPorCentro">
+/// Fecha de la última presentación del Documento en cada Centro donde se presentó (<c>PresentacionDocumentoEnCentro</c>), por
+/// Centro. <see cref="Evaluar"/> toma la del Centro de cada requisito: la periodicidad especial de un Centro cuenta desde
+/// la presentación EN ESE Centro. <c>null</c> o sin entrada = nunca se presentó allí (el ancla es la emisión).
+/// </param>
 public readonly record struct DocumentoParaBloqueo(
-    Guid? TrabajadorId, Guid? EmpresaId, Guid TipoDocumentoId, DocumentoParaAcceso Documento);
+    Guid? TrabajadorId, Guid? EmpresaId, Guid TipoDocumentoId, DocumentoParaAcceso Documento,
+    IReadOnlyDictionary<Guid, DateOnly>? UltimaPresentacionPorCentro = null)
+{
+    /// <summary>El Documento tal como lo ve la regla en el Centro dado: con la fecha de su última presentación allí, si la hay.</summary>
+    public DocumentoParaAcceso EnElCentro(Guid centroId) =>
+        UltimaPresentacionPorCentro is { } porCentro && porCentro.TryGetValue(centroId, out var fecha)
+            ? Documento with { UltimaPresentacionEnElCentro = fecha }
+            : Documento;
+}
 
 /// <summary>
 /// Un requisito bloqueante evaluado para un Trabajador en un Centro, bloquee o no. Lleva la tolerancia con la que se
@@ -78,10 +91,10 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
     {
         var documentosDeTrabajador = documentos
             .Where(d => d.TrabajadorId is not null)
-            .ToLookup(d => (d.TrabajadorId!.Value, d.TipoDocumentoId), d => d.Documento);
+            .ToLookup(d => (d.TrabajadorId!.Value, d.TipoDocumentoId));
         var documentosDeEmpresa = documentos
             .Where(d => d.EmpresaId is not null)
-            .ToLookup(d => (d.EmpresaId!.Value, d.TipoDocumentoId), d => d.Documento);
+            .ToLookup(d => (d.EmpresaId!.Value, d.TipoDocumentoId));
         var requisitosPorCentro = requisitos
             .Where(r => ReglaBloqueoDeAcceso.AmbitoPuedeBloquear(r.Ambito))
             .ToLookup(r => r.CentroId);
@@ -101,7 +114,8 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
                     resultado.Add(new RequisitoEvaluado(
                         asignacion.CentroId, asignacion.TrabajadorId, requisito.TipoDocumentoId, AmbitoAplicacion.Trabajador, EmpresaId: null,
                         ReglaBloqueoDeAcceso.Evaluar(
-                            documentosDeTrabajador[(asignacion.TrabajadorId, requisito.TipoDocumentoId)], requisito.Condiciones, hoy),
+                            documentosDeTrabajador[(asignacion.TrabajadorId, requisito.TipoDocumentoId)].Select(d => d.EnElCentro(asignacion.CentroId)),
+                            requisito.Condiciones, hoy),
                         requisito.Condiciones.ToleranciaDias));
                 }
                 else if (asignacion.EmpresaDelTrabajadorId is { } empresaId)
@@ -109,7 +123,8 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
                     resultado.Add(new RequisitoEvaluado(
                         asignacion.CentroId, asignacion.TrabajadorId, requisito.TipoDocumentoId, AmbitoAplicacion.Empresa, empresaId,
                         ReglaBloqueoDeAcceso.Evaluar(
-                            documentosDeEmpresa[(empresaId, requisito.TipoDocumentoId)], requisito.Condiciones, hoy),
+                            documentosDeEmpresa[(empresaId, requisito.TipoDocumentoId)].Select(d => d.EnElCentro(asignacion.CentroId)),
+                            requisito.Condiciones, hoy),
                         requisito.Condiciones.ToleranciaDias));
                 }
             }

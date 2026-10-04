@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Presentaciones;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -22,7 +23,8 @@ public record MarcarAcreditacionAceptadaCommand(Guid AcreditacionId, VigenciaEnP
 
 public class MarcarAcreditacionAceptadaCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
-    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext,
+    IRegistroDePresentaciones presentaciones, IUnitOfWork unitOfWork)
     : IRequestHandler<MarcarAcreditacionAceptadaCommand, Result>
 {
     public async Task<Result> Handle(MarcarAcreditacionAceptadaCommand request, CancellationToken cancellationToken)
@@ -36,6 +38,10 @@ public class MarcarAcreditacionAceptadaCommandHandler(
             return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
 
         acreditacion.MarcarAceptada(request.Vigencia);
+
+        // Que la plataforma del Centro acepte el Documento confirma que se presentó a ese Centro: ancla de su periodicidad especial.
+        await presentaciones.RegistrarEnElCentroDelAccesoAsync(
+            acreditacion.DocumentoId, acreditacion.CanalGestionDocumentalId, OrigenPresentacionDocumentoEnCentro.AceptadaEnPlataforma, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

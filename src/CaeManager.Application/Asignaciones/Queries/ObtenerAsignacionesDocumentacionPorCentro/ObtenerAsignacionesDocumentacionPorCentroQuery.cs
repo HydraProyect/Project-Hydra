@@ -48,9 +48,20 @@ public record ObtenerAsignacionesDocumentacionPorCentroQuery(Guid CentroId, Date
 /// Solo con <see cref="EstadoDocumento.EnTolerancia"/> (vista con contexto de Centro, <see cref="VigenciaEnCentro"/>): el
 /// último día en que el Documento vencido aún vale para acceder a ese Centro. <c>null</c> en cualquier otro estado.
 /// </param>
+/// <param name="FechaVencimiento">La vigencia PROPIA del Documento (la que vale en los demás Centros).</param>
+/// <param name="VenceEnElCentro">
+/// Solo con valor cuando el Centro define una periodicidad especial para el Tipo y el Documento vence: cuándo vence EN ESTE Centro
+/// (<c>min(última presentación en el Centro + meses, vigencia propia)</c>, <see cref="ReglaBloqueoDeAcceso.EstadoEnElCentro"/>),
+/// que puede ser antes que <paramref name="FechaVencimiento"/>. La pantalla muestra las dos fechas.
+/// </param>
+/// <param name="PuedeVolverAPresentar">
+/// Si el Gestor CAE puede «volver a presentar» este mismo Documento a este Centro (<see cref="ReglaBloqueoDeAcceso.PuedeVolverAPresentar"/>):
+/// el Centro exige periodicidad para el Tipo y el Documento sigue vigente por su fecha propia.
+/// </param>
 public record DocumentoRequeridoDto(
     Guid? DocumentoId, Guid TipoDocumentoId, string TipoDocumentoNombre, EstadoDocumento Estado,
-    DateOnly? FechaVencimiento, bool CaducaEnVentanaVisita = false, DateOnly? EnToleranciaHasta = null);
+    DateOnly? FechaVencimiento, bool CaducaEnVentanaVisita = false, DateOnly? EnToleranciaHasta = null,
+    DateOnly? VenceEnElCentro = null, bool PuedeVolverAPresentar = false);
 
 /// <param name="Documentos">
 /// Lo que se enseña al expandir al Trabajador: no lista «Sin caducidad» y, si hay un documento vencido y su
@@ -154,6 +165,10 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
         var toleranciasDelCliente = await VigenciaEnCentro.CargarToleranciasDeClientesAsync(
             tiposDocumentoContext, [clienteEmpresarialId], tipoIdsRequeridos, cancellationToken);
 
+        // La periodicidad especial del Centro cuenta desde la última presentación de cada Documento EN ESTE Centro.
+        var presentaciones = await VigenciaEnCentro.CargarUltimasPresentacionesAsync(
+            documentosContext, documentosExistentes.Select(d => d.Id).ToList(), [request.CentroId], cancellationToken);
+
         // El documento que representa a cada par Trabajador×Tipo: el mismo que usa el % del Centro.
         var preferidosPorPar = DocumentoEfectivo.UnoPorClave(
             documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
@@ -173,31 +188,36 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
 
             foreach (var documento in documentosDelTrabajador)
             {
-                var estado = CalculadoraEstadoDocumento.Calcular(
-                    documento.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+                // El estado EN ESTE CENTRO: la regla única sobre el vencimiento efectivo en él (periodicidad especial y
+                // tolerancia del Centro); el porcentaje (Cumplimiento, abajo) sigue midiendo el estado real del Documento.
+                filasDelCentro.TryGetValue((documento.TipoDocumentoId, request.CentroId), out var filaDelCentro);
+                var condiciones = VigenciaEnCentro.Condiciones(
+                    filaDelCentro,
+                    toleranciasDelCliente.TryGetValue((clienteEmpresarialId, documento.TipoDocumentoId), out var delCliente) ? delCliente : null);
+                var documentoEnElCentro = VigenciaEnCentro.DocumentoEnElCentro(
+                    documento.Id, request.CentroId, documento.EstadoVigencia, documento.FechaVencimiento, documento.FechaEmision, presentaciones);
+                var enElCentro = ReglaBloqueoDeAcceso.EstadoEnElCentro(
+                    documentoEnElCentro, condiciones, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
+
                 // Solo se omite lo confirmado como que no caduca; un documento
                 // sin vigencia confirmada sí se lista, porque no está en regla.
-                if (estado == EstadoDocumento.SinCaducidad) continue;
+                if (enElCentro.Estado == EstadoDocumento.SinCaducidad) continue;
 
                 // Solo tiene sentido avisar de un documento que hoy está bien
                 // pero no aguantará hasta el final de la visita — uno que ya
                 // está en Próximo/Urgente/Vencido no necesita un modificador
                 // aparte, ya se ve en su propio badge.
-                var caducaEnVentana = estado == EstadoDocumento.Vigente
+                var caducaEnVentana = enElCentro.Estado == EstadoDocumento.Vigente
                     && request.VentanaVisitaFechaFin is { } finVisita
-                    && CalculadoraEstadoDocumento.Calcular(documento.EstadoVigencia, documento.FechaVencimiento, finVisita, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
+                    && ReglaBloqueoDeAcceso.EstadoEnElCentro(
+                            documentoEnElCentro, condiciones, finVisita, parametros.UmbralAmbarDias, parametros.UmbralRojoDias).Estado
                         is not (EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad);
-
-                filasDelCentro.TryGetValue((documento.TipoDocumentoId, request.CentroId), out var filaDelCentro);
-                var condiciones = VigenciaEnCentro.Condiciones(
-                    filaDelCentro,
-                    toleranciasDelCliente.TryGetValue((clienteEmpresarialId, documento.TipoDocumentoId), out var delCliente) ? delCliente : null);
-                var (estadoEnCentro, enToleranciaHasta) = VigenciaEnCentro.Aplicar(
-                    estado, documento.EstadoVigencia, documento.FechaVencimiento, documento.FechaEmision, condiciones, hoy);
 
                 var nombreTipo = tiposRequeridosPorCentro.First(t => t.Id == documento.TipoDocumentoId).Nombre;
                 items.Add(new DocumentoRequeridoDto(
-                    documento.Id, documento.TipoDocumentoId, nombreTipo, estadoEnCentro, documento.FechaVencimiento, caducaEnVentana, enToleranciaHasta));
+                    documento.Id, documento.TipoDocumentoId, nombreTipo, enElCentro.Estado, documento.FechaVencimiento, caducaEnVentana,
+                    enElCentro.EnToleranciaHasta, enElCentro.VenceEnElCentro,
+                    ReglaBloqueoDeAcceso.PuedeVolverAPresentar(documentoEnElCentro, condiciones, hoy, esOperativo: true)));
             }
 
             foreach (var tipo in tiposRequeridosPorCentro)

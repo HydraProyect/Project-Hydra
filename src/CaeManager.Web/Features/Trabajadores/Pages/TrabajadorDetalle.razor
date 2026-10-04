@@ -228,9 +228,19 @@
                                                                 </Badge>
                                                             </span>
                                                             <span role="cell">
-                                                                <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)">
-                                                                    @TextoVence(documento.FechaVencimiento, documento.Estado)
-                                                                </TextoFechaCopiable>
+                                                                @if (documento.VenceEnElCentro is { } venceEnElCentro)
+                                                                {
+                                                                    @* El Centro impone periodicidad propia: dos fechas rotuladas, la de este Centro y la del documento. *@
+                                                                    <VigenciaDocumentoPorCentro VenceEnElCentro="venceEnElCentro"
+                                                                                                FechaVencimientoPropia="documento.FechaVencimiento"
+                                                                                                Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)">
+                                                                        @TextoVence(documento.FechaVencimiento, documento.Estado)
+                                                                    </TextoFechaCopiable>
+                                                                }
                                                             </span>
                                                             <span class="columna-accion" role="cell">
                                                                 @* Abre DrawerGestionDocumento, que solo crea o renueva (ICommand denegados a
@@ -241,6 +251,12 @@
                                                                         @(documento.DocumentoId is null ? Textos["AccionSubir"] : documento.Estado == EstadoDocumento.Vigente ? Textos["AccionVer"] : Textos["AccionRenovar"])
                                                                     </Boton>
                                                                 </SoloConEscritura>
+                                                                @if (documento.PuedeVolverAPresentar && documento.DocumentoId is { } documentoIdPresentable)
+                                                                {
+                                                                    <AccionVolverAPresentar DocumentoId="documentoIdPresentable" CentroId="centro.CentroId"
+                                                                                            DocumentoNombre="@documento.TipoDocumentoNombre" CentroNombre="@centro.CentroNombre"
+                                                                                            OnPresentado="ManejarDocumentoGuardadoAsync" />
+                                                                }
                                                             </span>
                                                         </div>
                                                     }

@@ -36,7 +36,11 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 /// </summary>
 public record ObtenerPaqueteDocumentalVisitaQuery(Guid VisitaId) : IRequest<Result<PaqueteDocumentalDescargaDto>>;
 
-public record PaqueteDocumentalDescargaDto(string NombreArchivo, byte[] Contenido);
+/// <param name="DocumentoIds">
+/// Los Documentos que entraron de verdad en el zip. Los usa «Enviar por correo» para registrar la presentación de cada uno al Centro
+/// de la Visita al confirmarse el envío (<c>RegistrarEnvioPaqueteDocumentalPorCorreoCommand</c>, que los valida en el servidor).
+/// </param>
+public record PaqueteDocumentalDescargaDto(string NombreArchivo, byte[] Contenido, IReadOnlyList<Guid>? DocumentoIds = null);
 
 public class ObtenerPaqueteDocumentalVisitaQueryHandler(
     IVisitasQueryContext visitasContext,
@@ -78,6 +82,7 @@ public class ObtenerPaqueteDocumentalVisitaQueryHandler(
         foreach (var documento in paquete.Documentos)
             await registroAcceso.RegistrarSiSensibleAsync(documento.DocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
 
-        return Result.Exito(new PaqueteDocumentalDescargaDto(paquete.NombreArchivo, paquete.Contenido));
+        return Result.Exito(new PaqueteDocumentalDescargaDto(
+            paquete.NombreArchivo, paquete.Contenido, paquete.Documentos.Select(d => d.DocumentoId).ToList()));
     }
 }

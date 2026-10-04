@@ -47,7 +47,7 @@ public class ReferenciasACentroInventariadasTests
 
     /// <summary>
     /// Entidades de dominio con una propiedad <c>CentroId</c> <b>y</b> clave
-    /// foránea declarada. Once, todas con <c>DeleteBehavior.Restrict</c> salvo
+    /// foránea declarada. Doce, todas con <c>DeleteBehavior.Restrict</c> salvo
     /// <c>VerificacionExternaSubcontrata</c>, que es <c>Cascade</c> — matiz que
     /// F5 tendrá que resolver al decidir a cuál de las dos entidades nuevas se
     /// hereda ese comportamiento.
@@ -65,6 +65,8 @@ public class ReferenciasACentroInventariadasTests
         "Proyecto",
         "VerificacionExternaSubcontrata",
         "Visita",
+        // Vencimiento por Centro (2026-10-04): FK compuesta (TenantId, CentroId) hacia Centros, Restrict.
+        "PresentacionDocumentoEnCentro",
     ];
 
     [Fact]

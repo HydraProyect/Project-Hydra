@@ -10,9 +10,14 @@ public class TipoDocumentoCentroConfiguration : IEntityTypeConfiguration<TipoDoc
     public void Configure(EntityTypeBuilder<TipoDocumentoCentro> builder)
     {
         builder.ToTable("TiposDocumentoCentros", t =>
+        {
             t.HasCheckConstraint(
                 "CK_TiposDocumentoCentros_ToleranciaDias",
-                $"\"ToleranciaDias\" IS NULL OR (\"ToleranciaDias\" >= 0 AND \"ToleranciaDias\" <= {TipoDocumentoCentro.ToleranciaMaximaDias})"));
+                $"\"ToleranciaDias\" IS NULL OR (\"ToleranciaDias\" >= 0 AND \"ToleranciaDias\" <= {TipoDocumentoCentro.ToleranciaMaximaDias})");
+            t.HasCheckConstraint(
+                "CK_TiposDocumentoCentros_PeriodicidadEspecialMeses",
+                $"\"PeriodicidadEspecialMeses\" IS NULL OR (\"PeriodicidadEspecialMeses\" >= {TipoDocumentoCentro.PeriodicidadEspecialMinimaMeses} AND \"PeriodicidadEspecialMeses\" <= {TipoDocumentoCentro.PeriodicidadEspecialMaximaMeses})");
+        });
         builder.HasKey(tc => tc.Id);
 
         builder.Property(tc => tc.ArchivoUrl).HasMaxLength(TipoDocumentoCentro.LongitudMaximaArchivoUrl);

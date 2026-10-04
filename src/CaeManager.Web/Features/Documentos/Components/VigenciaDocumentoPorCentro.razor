@@ -1,0 +1,38 @@
+@*
+    Celda de vigencia de un documento en un Centro que le impone una periodicidad propia (decisión del propietario del producto,
+    2026-10-04): dos fechas distintas, cada una con su rótulo, para que nadie confunda la que decide el Centro con la del propio
+    documento.
+
+        Vence en este Centro: dd/MM/aaaa   <- ReglaBloqueoDeAcceso.EstadoEnElCentro (última presentación en el Centro + meses,
+                                              acotada por la vigencia propia)
+        Vigencia del documento: dd/MM/aaaa <- la fecha del propio documento, que no cambia por presentarlo en un Centro
+
+    Solo se usa cuando el Centro impone periodicidad (la consulta rellena VenceEnElCentro solo entonces); sin ella la celda sigue
+    siendo la fecha única de siempre. Lo comparten Centro 360 (acordeón de asignaciones) y Trabajador 360 (documentación por Centro).
+*@
+@using System.Globalization
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDocumentos> Textos
+
+<span class="vigencia-por-centro" data-vigencia-por-centro>
+    <TextoFechaCopiable Fecha="VenceEnElCentro" Class="@Class">
+        @Textos["VenceEnEsteCentro", VenceEnElCentro.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)]
+    </TextoFechaCopiable>
+    <TextoFechaCopiable Fecha="FechaVencimientoPropia" Class="@($"{Class} vigencia-propia-del-documento")">
+        @Textos["VigenciaDelDocumento", FechaVencimientoPropia is { } propia
+            ? propia.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
+            : Textos["VigenciaDelDocumentoSinFecha"].Value]
+    </TextoFechaCopiable>
+</span>
+
+@code {
+    /// <summary>Cuándo vence el documento EN este Centro (siempre presente: solo se pinta con periodicidad propia).</summary>
+    [Parameter, EditorRequired] public DateOnly VenceEnElCentro { get; set; }
+
+    /// <summary>La vigencia propia del documento; <c>null</c> si no tiene fecha («No caduca» o «Sin confirmar»).</summary>
+    [Parameter] public DateOnly? FechaVencimientoPropia { get; set; }
+
+    /// <summary>Clase de la celda (<c>EstadoDocumentoUi.ClaseCeldaVigencia</c>).</summary>
+    [Parameter] public string? Class { get; set; }
+}

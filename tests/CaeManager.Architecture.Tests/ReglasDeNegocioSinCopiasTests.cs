@@ -47,6 +47,10 @@ namespace CaeManager.Architecture.Tests;
 /// → emisión más reciente → vigencia confirmada → <c>CreadoEnUtc</c> → <c>Id</c>. Un orden de elección escrito a mano
 /// (por «sin confirmar», por <c>FechaEmision</c> descendente o por quien vence más tarde) es rojo salvo en las
 /// excepciones declaradas.</item>
+/// <item><b>Vencimiento de un Documento en un Centro con periodicidad propia</b> — punto único
+/// <c>ReglaBloqueoDeAcceso.VencimientoEfectivo</c> (Domain): <c>min(última presentación en el Centro + meses, vigencia
+/// propia)</c>, con la emisión como ancla. Sumar a mano la periodicidad especial a una fecha es rojo, y una presentación
+/// solo se escribe en <c>RegistroDePresentaciones</c>.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -487,6 +491,103 @@ public class ReglasDeNegocioSinCopiasTests
             EsCodigoQueCasa(linea, PatronEleccionDeDocumentoEfectivoCopiada).Should().BeFalse(linea);
     }
 
+    // ---------- 9. Vencimiento en el Centro con periodicidad propia ----------
+
+    /// <summary>
+    /// Sumar la periodicidad especial de un Centro a una fecha en una línea que la nombra (<c>AddMonths(...Periodicidad...)</c>, o
+    /// <c>Periodicidad... .AddMonths(</c>) o llamar a un <c>SumarMeses</c> propio: es la regla «vence en el Centro» copiada. El único
+    /// sitio que la calcula es <c>ReglaBloqueoDeAcceso.VencimientoEfectivo</c> (que suma por un método privado sin nombrar la
+    /// periodicidad en la línea del cálculo, y por eso no aparece aquí). Lo vigila la tabla de
+    /// <c>CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests</c>. Limitación: no ve la suma si la periodicidad viaja en una variable
+    /// con otro nombre; el mecanismo es por texto, como los demás.
+    /// </summary>
+    private static readonly Regex PatronPeriodicidadSumadaAMano = new(
+        @"\bAddMonths\s*\([^;]*[Pp]eriodicidad|[Pp]eriodicidad[^;]*\.\s*AddMonths\s*\(|\bSumarMeses\s*\(", RegexOptions.Compiled);
+
+    /// <summary>Quién construye una presentación de un Documento a un Centro: solo el registro, que es idempotente y fija el día de negocio.</summary>
+    private static readonly Regex PatronPresentacionEscrita = new(
+        @"\bnew\s+PresentacionDocumentoEnCentro\s*\(|\bPresentacionesDocumentoEnCentro\s*\.\s*Add(?:Range)?\s*\(", RegexOptions.Compiled);
+
+    private const string RegistroDeLasPresentaciones = "src/CaeManager.Application/Documentos/Presentaciones/RegistroDePresentaciones.cs";
+    private const string RepositorioDeLasPresentaciones = "src/CaeManager.Infrastructure/Persistence/Repositories/PresentacionDocumentoEnCentroRepository.cs";
+
+    private static readonly Dictionary<string, int> SumasDeLaPeriodicidadDeclaradas = new()
+    {
+        // El único sitio que suma meses para decidir el vencimiento en un Centro es la regla única, por su método privado.
+        [PuntoUnicoDelBloqueoDeAcceso] = 2,
+    };
+
+    [Fact]
+    public void El_vencimiento_en_el_Centro_no_se_calcula_fuera_de_su_punto_unico()
+    {
+        Divergencias(SumasDeLaPeriodicidadDeclaradas, ContarPorFichero(PatronPeriodicidadSumadaAMano)).Should().BeEmpty(
+            "«última presentación en el Centro + periodicidad, acotado por la vigencia propia» es " +
+            "ReglaBloqueoDeAcceso.VencimientoEfectivo/EstadoEnElCentro: una pantalla o consulta que suma los meses a mano da otra fecha");
+    }
+
+    [Fact]
+    public void Una_presentacion_de_un_Documento_a_un_Centro_solo_se_escribe_en_el_registro()
+    {
+        // El registro construye la fila; el repositorio (adaptador de persistencia) la añade al contexto. Nadie más.
+        Divergencias(
+            new Dictionary<string, int> { [RegistroDeLasPresentaciones] = 1, [RepositorioDeLasPresentaciones] = 1 },
+            ContarPorFichero(PatronPresentacionEscrita)).Should().BeEmpty(
+            "el registro de presentaciones fija el día de negocio, es idempotente y no autoriza: quien necesite registrar una " +
+            "presentación inyecta IRegistroDePresentaciones, no construye la fila");
+    }
+
+    [Fact]
+    public void Los_patrones_del_vencimiento_en_el_Centro_reconocen_sus_formas_e_ignoran_las_ajenas()
+    {
+        string[] sumas =
+        [
+            "        var vence = ultima.AddMonths(fila.PeriodicidadEspecialMeses ?? 0);",
+            "        var vence = desde.AddMonths( condiciones.PeriodicidadEspecialMeses.Value );",
+            "        var vence = periodicidadMeses.HasValue ? documento.FechaEmision.AddMonths(periodicidadMeses.Value) : null;",
+            "        var delCentro = SumarMeses(ancla, meses);",
+        ];
+        foreach (var linea in sumas)
+            EsCodigoQueCasa(linea, PatronPeriodicidadSumadaAMano).Should().BeTrue(linea);
+
+        string[] noSumas =
+        [
+            "        var siguiente = primerDia.AddMonths(1);",
+            "        var limite = hoy.AddMonths(VentanaReclamacion.Meses);",
+            "        var emision = vencimiento.AddMonths(-(tipo.VigenciaMeses ?? 12));",
+            "        // ancla.AddMonths(periodicidad)",
+            "        /// <c>SumarMeses(ancla, periodicidad)</c> era la copia",
+            "        var aviso = $\"cada {fila.PeriodicidadEspecialMeses} meses\";",
+        ];
+        foreach (var linea in noSumas)
+            EsCodigoQueCasa(linea, PatronPeriodicidadSumadaAMano).Should().BeFalse(linea);
+
+        string[] escrituras =
+        [
+            "        repositorio.Agregar(new PresentacionDocumentoEnCentro(documentoId, centroId, hoy, origen, ahora));",
+            "        c.PresentacionesDocumentoEnCentro.Add(presentacion);",
+            "        contexto.PresentacionesDocumentoEnCentro.AddRange(filas);",
+        ];
+        foreach (var linea in escrituras)
+            EsCodigoQueCasa(linea, PatronPresentacionEscrita).Should().BeTrue(linea);
+
+        string[] noEscrituras =
+        [
+            "        var filas = await context.PresentacionesDocumentoEnCentro.Where(p => ids.Contains(p.DocumentoId)).ToListAsync();",
+            "        // new PresentacionDocumentoEnCentro(...)",
+            "        public IQueryable<PresentacionDocumentoEnCentro> PresentacionesDocumentoEnCentro { get; }",
+        ];
+        foreach (var linea in noEscrituras)
+            EsCodigoQueCasa(linea, PatronPresentacionEscrita).Should().BeFalse(linea);
+
+        // El instrumento ve el punto único de verdad: la regla existe y suma por su método privado, así que el patrón de la
+        // lista declarada mide lo que dice (si la regla dejara de usarlo, la lista tendría que cambiar a la vez).
+        var raiz = RaizDelRepositorio();
+        ContarPorFichero(PatronPresentacionEscrita).Should().ContainKey(RegistroDeLasPresentaciones,
+            "el patrón tiene que ver la escritura legítima del registro; si no la ve, tampoco vería una escritura ajena");
+        ContarPorFichero(PatronPeriodicidadSumadaAMano).Should().ContainKey(PuntoUnicoDelBloqueoDeAcceso,
+            "el patrón tiene que ver la suma legítima de la regla única; si no la ve, tampoco vería una copia");
+    }
+
     // ---------- Instrumento ----------
 
     [Fact]
@@ -733,6 +834,8 @@ public class ReglasDeNegocioSinCopiasTests
                 .Should().BeTrue($"{fuera} queda fuera del inventario de lectores: si se movió, deja de excluir lo que decía");
 
         foreach (var ruta in LecturasDeLaFilaBloqueante.Keys
+                     .Concat(SumasDeLaPeriodicidadDeclaradas.Keys)
+                     .Concat([RegistroDeLasPresentaciones, RepositorioDeLasPresentaciones])
                      .Concat(ComparacionesDeSustitucionDeclaradas.Keys)
                      .Concat(LectoresDeDocumentosSinFiltroOperativo.Keys)
                      .Concat(VentanaNoEsLaDeReclamacion.Keys)

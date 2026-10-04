@@ -197,6 +197,8 @@ public class CaeManagerDbContext(
     IQueryable<AcreditacionDocumentoPlataforma> IDocumentosQueryContext.AcreditacionesDocumentoPlataforma => AcreditacionesDocumentoPlataforma;
     public DbSet<RechazoAcreditacionDocumentoPlataforma> RechazosAcreditacionDocumentoPlataforma => Set<RechazoAcreditacionDocumentoPlataforma>();
     IQueryable<RechazoAcreditacionDocumentoPlataforma> IDocumentosQueryContext.RechazosAcreditacionDocumentoPlataforma => RechazosAcreditacionDocumentoPlataforma;
+    public DbSet<PresentacionDocumentoEnCentro> PresentacionesDocumentoEnCentro => Set<PresentacionDocumentoEnCentro>();
+    IQueryable<PresentacionDocumentoEnCentro> IDocumentosQueryContext.PresentacionesDocumentoEnCentro => PresentacionesDocumentoEnCentro;
     public DbSet<NotificacionUsuario> NotificacionesUsuario => Set<NotificacionUsuario>();
     IQueryable<NotificacionUsuario> INotificacionesQueryContext.NotificacionesUsuario => NotificacionesUsuario;
     public DbSet<Documento> Documentos => Set<Documento>();

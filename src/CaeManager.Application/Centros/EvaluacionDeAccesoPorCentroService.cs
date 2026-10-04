@@ -49,6 +49,10 @@ public class EvaluacionDeAccesoPorCentroService(
     IAlcanceDatosService alcanceDatos)
     : IEvaluacionDeAccesoPorCentroService
 {
+    private sealed record DocumentoCargado(
+        Guid Id, Guid? TrabajadorId, Guid? EmpresaId, Guid TipoDocumentoId,
+        EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento, DateOnly FechaEmision);
+
     public async Task<EvaluacionDeAccesoPorCentro> EvaluarAsync(
         IReadOnlyCollection<Guid>? centroIds, CancellationToken cancellationToken)
     {
@@ -136,33 +140,46 @@ public class EvaluacionDeAccesoPorCentroService(
         var tiposDeEmpresaIds = requisitos.Where(r => r.Ambito == AmbitoAplicacion.Empresa).Select(r => r.TipoDocumentoId).Distinct().ToList();
 
         // La vigencia no se decide en SQL: se traen estado, fechas y emisión y la regla única los evalúa en memoria.
-        var documentos = new List<DocumentoParaBloqueo>();
-
+        var delTrabajador = new List<DocumentoCargado>();
         if (tiposDeTrabajadorIds.Count > 0)
         {
-            var delTrabajador = await documentosContext.Documentos.Operativos()
+            delTrabajador = await documentosContext.Documentos.Operativos()
                 .Where(d => d.TrabajadorId != null
                     && trabajadorIds.Contains(d.TrabajadorId!.Value)
                     && tiposDeTrabajadorIds.Contains(d.TipoDocumentoId))
-                .Select(d => new { d.TrabajadorId, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
+                .Select(d => new DocumentoCargado(d.Id, d.TrabajadorId, null, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision))
                 .ToListAsync(cancellationToken);
-            documentos.AddRange(delTrabajador.Select(d => new DocumentoParaBloqueo(
-                d.TrabajadorId, null, d.TipoDocumentoId,
-                new DocumentoParaAcceso(VigenciaDocumento.Rehidratar(d.EstadoVigencia, d.FechaVencimiento), d.FechaEmision))));
         }
 
+        var delaEmpresa = new List<DocumentoCargado>();
         if (tiposDeEmpresaIds.Count > 0 && empresaIds.Count > 0)
         {
-            var delaEmpresa = await documentosContext.Documentos.Operativos()
+            delaEmpresa = await documentosContext.Documentos.Operativos()
                 .Where(d => d.EmpresaId != null
                     && empresaIds.Contains(d.EmpresaId!.Value)
                     && tiposDeEmpresaIds.Contains(d.TipoDocumentoId))
-                .Select(d => new { d.EmpresaId, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision })
+                .Select(d => new DocumentoCargado(d.Id, null, d.EmpresaId, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision))
                 .ToListAsync(cancellationToken);
-            documentos.AddRange(delaEmpresa.Select(d => new DocumentoParaBloqueo(
-                null, d.EmpresaId, d.TipoDocumentoId,
-                new DocumentoParaAcceso(VigenciaDocumento.Rehidratar(d.EstadoVigencia, d.FechaVencimiento), d.FechaEmision))));
         }
+
+        // La periodicidad especial de un Centro cuenta desde la última presentación del Documento EN ESE Centro (sin
+        // presentación, desde la emisión): se carga una vez y la regla única la recibe por Centro.
+        var presentaciones = await VigenciaEnCentro.CargarUltimasPresentacionesAsync(
+            documentosContext,
+            delTrabajador.Select(d => d.Id).Concat(delaEmpresa.Select(d => d.Id)).ToList(),
+            centrosConRequisitos,
+            cancellationToken);
+        var presentacionesPorDocumento = presentaciones
+            .GroupBy(p => p.Key.DocumentoId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyDictionary<Guid, DateOnly>)g.ToDictionary(p => p.Key.CentroId, p => p.Value));
+        IReadOnlyDictionary<Guid, DateOnly>? PresentacionesDe(Guid documentoId) =>
+            presentacionesPorDocumento.GetValueOrDefault(documentoId);
+
+        var documentos = new List<DocumentoParaBloqueo>();
+        documentos.AddRange(delTrabajador.Concat(delaEmpresa).Select(d => new DocumentoParaBloqueo(
+            d.TrabajadorId, d.EmpresaId, d.TipoDocumentoId,
+            new DocumentoParaAcceso(VigenciaDocumento.Rehidratar(d.EstadoVigencia, d.FechaVencimiento), d.FechaEmision),
+            PresentacionesDe(d.Id))));
 
         var evaluados = CalculoBloqueoDeAccesoDeTrabajadores.Evaluar(
             asignacionesEvaluadas

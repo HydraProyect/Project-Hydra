@@ -110,6 +110,10 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
             tipoIdsCandidatos,
             cancellationToken);
 
+        // La periodicidad especial de cada Centro cuenta desde la última presentación del Documento EN ESE Centro.
+        var presentaciones = await VigenciaEnCentro.CargarUltimasPresentacionesAsync(
+            documentosContext, documentosDelTrabajador.Select(d => d.Id).ToList(), centroIds, cancellationToken);
+
         // Un documento operativo por tipo en el caso normal; con duplicados sin resolver manda el efectivo.
         var documentosPorTipo = DocumentoEfectivo.UnoPorClave(
             documentosDelTrabajador, d => d.TipoDocumentoId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
@@ -137,20 +141,26 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
                 var estado = CalculadoraEstadoDocumento.Calcular(
                     documento.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
-                // El cumplimiento mide el estado de vigencia REAL del Documento: la tolerancia no entra en el porcentaje.
+                // El cumplimiento mide el estado de vigencia REAL del Documento: ni la tolerancia ni la periodicidad especial
+                // del Centro entran en el porcentaje.
                 estadosDeLosPares.Add(estado);
                 // Solo se omite lo confirmado como que no caduca; lo sin confirmar se lista.
                 if (estado == EstadoDocumento.SinCaducidad) continue;
 
+                // El estado EN ESTE CENTRO: la regla única sobre el vencimiento efectivo en él (periodicidad especial y tolerancia).
                 filasDeLosCentros.TryGetValue((tipo.Id, asignacion.CentroId), out var filaDelCentro);
                 var condiciones = VigenciaEnCentro.Condiciones(
                     filaDelCentro,
                     toleranciasDeClientes.TryGetValue((asignacion.ClienteId, tipo.Id), out var delCliente) ? delCliente : null);
-                var (estadoEnCentro, enToleranciaHasta) = VigenciaEnCentro.Aplicar(
-                    estado, documento.EstadoVigencia, documento.FechaVencimiento, documento.FechaEmision, condiciones, hoy);
+                var documentoEnElCentro = VigenciaEnCentro.DocumentoEnElCentro(
+                    documento.Id, asignacion.CentroId, documento.EstadoVigencia, documento.FechaVencimiento, documento.FechaEmision, presentaciones);
+                var enElCentro = ReglaBloqueoDeAcceso.EstadoEnElCentro(
+                    documentoEnElCentro, condiciones, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
 
                 items.Add(new DocumentoRequeridoDto(
-                    documento.Id, tipo.Id, tipo.Nombre, estadoEnCentro, documento.FechaVencimiento, EnToleranciaHasta: enToleranciaHasta));
+                    documento.Id, tipo.Id, tipo.Nombre, enElCentro.Estado, documento.FechaVencimiento,
+                    EnToleranciaHasta: enElCentro.EnToleranciaHasta, VenceEnElCentro: enElCentro.VenceEnElCentro,
+                    PuedeVolverAPresentar: ReglaBloqueoDeAcceso.PuedeVolverAPresentar(documentoEnElCentro, condiciones, hoy, esOperativo: true)));
             }
 
             var ordenados = items.OrderBy(i => SeveridadEstadoDocumento.Rango(i.Estado)).ThenBy(i => i.TipoDocumentoNombre).ToList();

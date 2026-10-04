@@ -416,9 +416,19 @@ else
                                                 }
                                             </span>
                                             <span role="cell">
-                                                <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)">
-                                                    @TextoVigencia(documento)
-                                                </TextoFechaCopiable>
+                                                @if (documento.VenceEnElCentro is { } venceEnElCentro)
+                                                {
+                                                    @* El Centro impone periodicidad propia: dos fechas rotuladas, la de este Centro y la del documento. *@
+                                                    <VigenciaDocumentoPorCentro VenceEnElCentro="venceEnElCentro"
+                                                                                FechaVencimientoPropia="documento.FechaVencimiento"
+                                                                                Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)" />
+                                                }
+                                                else
+                                                {
+                                                    <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)">
+                                                        @TextoVigencia(documento)
+                                                    </TextoFechaCopiable>
+                                                }
                                             </span>
                                             <span class="columna-accion" role="cell">
                                                 @*
@@ -434,6 +444,12 @@ else
                                                         Gestionar
                                                     </Boton>
                                                 </SoloConEscritura>
+                                                @if (documento.PuedeVolverAPresentar && documento.DocumentoId is { } documentoIdPresentable)
+                                                {
+                                                    <AccionVolverAPresentar DocumentoId="documentoIdPresentable" CentroId="CentroId"
+                                                                            DocumentoNombre="@documento.TipoDocumentoNombre" CentroNombre="@CentroNombre"
+                                                                            OnPresentado="ManejarDocumentoGuardadoAsync" />
+                                                }
                                             </span>
                                         </div>
                                     }

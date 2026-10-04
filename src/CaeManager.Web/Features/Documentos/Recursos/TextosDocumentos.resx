@@ -190,4 +190,34 @@
   <data name="RevIaResumenParcial" xml:space="preserve">
     <value>Se aceptaron {0} de {1} lecturas; {2} no se pudieron aceptar.</value>
   </data>
+  <data name="VenceEnEsteCentro" xml:space="preserve">
+    <value>Vence en este Centro: {0}</value>
+  </data>
+  <data name="VigenciaDelDocumento" xml:space="preserve">
+    <value>Vigencia del documento: {0}</value>
+  </data>
+  <data name="VigenciaDelDocumentoSinFecha" xml:space="preserve">
+    <value>sin fecha de vencimiento</value>
+  </data>
+  <data name="VolverAPresentar" xml:space="preserve">
+    <value>Volver a presentar</value>
+  </data>
+  <data name="VolverAPresentarTitulo" xml:space="preserve">
+    <value>Volver a presentar «{0}»</value>
+  </data>
+  <data name="VolverAPresentarExplicacion" xml:space="preserve">
+    <value>Se registrará hoy una nueva presentación de este documento en {0} y el plazo de este Centro volverá a contar desde hoy. El documento, su archivo y su vigencia propia no cambian, y en los demás Centros no pasa nada.</value>
+  </data>
+  <data name="VolverAPresentarCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="VolverAPresentarConfirmar" xml:space="preserve">
+    <value>Volver a presentar</value>
+  </data>
+  <data name="VolverAPresentarHecho" xml:space="preserve">
+    <value>Presentación registrada: «{0}» vuelve a contar desde hoy en {1}.</value>
+  </data>
+  <data name="VolverAPresentarError" xml:space="preserve">
+    <value>No pudimos registrar la presentación. Inténtalo de nuevo en unos segundos.</value>
+  </data>
 </root>

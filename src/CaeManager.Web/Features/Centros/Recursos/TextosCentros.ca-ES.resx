@@ -240,4 +240,7 @@
   <data name="MotivoBloqueoCaduca" xml:space="preserve">
     <value>{0} — caduca {1}</value>
   </data>
+  <data name="PeriodicidadErrorPersonalizada" xml:space="preserve">
+    <value>Indica un nombre enter de mesos entre 1 i {0}, o tria l'opció sense període propi.</value>
+  </data>
 </root>

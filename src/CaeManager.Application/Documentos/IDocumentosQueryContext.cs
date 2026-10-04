@@ -14,4 +14,7 @@ public interface IDocumentosQueryContext
     IQueryable<SelloEmpresa> SellosEmpresa { get; }
     IQueryable<AcreditacionDocumentoPlataforma> AcreditacionesDocumentoPlataforma { get; }
     IQueryable<RechazoAcreditacionDocumentoPlataforma> RechazosAcreditacionDocumentoPlataforma { get; }
+
+    /// <summary>Historial de presentaciones de un Documento a un Centro: el ancla de la periodicidad especial (<see cref="VigenciaEnCentro.CargarUltimasPresentacionesAsync"/>).</summary>
+    IQueryable<PresentacionDocumentoEnCentro> PresentacionesDocumentoEnCentro { get; }
 }

@@ -65,6 +65,7 @@ internal sealed class DocumentosQueryContextFalso : IDocumentosQueryContext
     public IQueryable<SelloEmpresa> SellosEmpresa => new TestAsyncQueryable<SelloEmpresa>(Enumerable.Empty<SelloEmpresa>().AsQueryable());
     public IQueryable<AcreditacionDocumentoPlataforma> AcreditacionesDocumentoPlataforma => new TestAsyncQueryable<AcreditacionDocumentoPlataforma>(Enumerable.Empty<AcreditacionDocumentoPlataforma>().AsQueryable());
     public IQueryable<RechazoAcreditacionDocumentoPlataforma> RechazosAcreditacionDocumentoPlataforma => new TestAsyncQueryable<RechazoAcreditacionDocumentoPlataforma>(Enumerable.Empty<RechazoAcreditacionDocumentoPlataforma>().AsQueryable());
+    public IQueryable<PresentacionDocumentoEnCentro> PresentacionesDocumentoEnCentro => new TestAsyncQueryable<PresentacionDocumentoEnCentro>(Enumerable.Empty<PresentacionDocumentoEnCentro>().AsQueryable());
 }
 
 internal sealed class TiposDocumentoQueryContextFalso : ITiposDocumentoQueryContext

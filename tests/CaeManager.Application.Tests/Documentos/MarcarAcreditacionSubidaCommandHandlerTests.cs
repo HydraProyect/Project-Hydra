@@ -1,4 +1,5 @@
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
+using CaeManager.Application.Documentos.Presentaciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.Proyectos;
@@ -32,7 +33,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
             acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), unitOfWork);
+            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), RegistroSinCentros(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
 
@@ -74,6 +75,9 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         unitOfWork.VecesGuardado.Should().Be(1);
     }
 
+    private static IRegistroDePresentaciones RegistroSinCentros() =>
+        new RegistroDePresentaciones(new PresentacionDocumentoEnCentroRepositorioFalso(), new CentrosQueryContextFalso());
+
     private static (MarcarAcreditacionSubidaCommandHandler, UnitOfWorkFalso) HandlerCon(
         Documento documento, AcreditacionDocumentoPlataforma acreditacion)
     {
@@ -84,7 +88,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
             acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), unitOfWork);
+            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), RegistroSinCentros(), unitOfWork);
         return (handler, unitOfWork);
     }
 
@@ -95,7 +99,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
             acreditacionRepositorio, new DocumentoRepositorioFalso(), new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), unitOfWork);
+            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), RegistroSinCentros(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -122,7 +126,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
         var handler = new MarcarAcreditacionSubidaCommandHandler(
             acreditacionRepositorio, documentoRepositorio, alcance, new ProyectosQueryContextFalso(),
-            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), unitOfWork);
+            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), RegistroSinCentros(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
 
@@ -153,7 +157,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
             acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            centrosContext, proveedoresContext, unitOfWork);
+            centrosContext, proveedoresContext, new RegistroDePresentaciones(new PresentacionDocumentoEnCentroRepositorioFalso(), centrosContext), unitOfWork);
 
         var resultado = await handler.Handle(
             new MarcarAcreditacionSubidaCommand(acreditacion.Id, ExigirProveedorActivo: true), CancellationToken.None);
@@ -187,11 +191,70 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
             acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            centrosContext, proveedoresContext, unitOfWork);
+            centrosContext, proveedoresContext, new RegistroDePresentaciones(new PresentacionDocumentoEnCentroRepositorioFalso(), centrosContext), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
+    }
+
+    [Fact]
+    public async Task Marcar_subida_registra_la_presentacion_del_documento_al_Centro_del_acceso_y_una_segunda_vez_el_mismo_dia_no_duplica()
+    {
+        var centroId = Guid.NewGuid();
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
+        var proveedor = new ProveedorPlataformaCae("dokify", "Dokify", activo: true);
+        var canal = CanalGestionDocumental.DePlataforma(centroId, "Portal principal", proveedor.Id, null, null, null);
+        var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+        var documentoRepositorio = new DocumentoRepositorioFalso();
+        documentoRepositorio.Agregar(documento);
+        var acreditacionRepositorio = new AcreditacionDocumentoPlataformaRepositorioFalso();
+        acreditacionRepositorio.Agregar(acreditacion);
+        var centrosContext = new CentrosQueryContextFalso();
+        centrosContext.ListaCanalesGestionDocumental.Add(canal);
+        var proveedoresContext = new ProveedoresPlataformaCaeQueryContextFalso();
+        proveedoresContext.ListaProveedores.Add(proveedor);
+        var presentaciones = new PresentacionDocumentoEnCentroRepositorioFalso();
+        var handler = new MarcarAcreditacionSubidaCommandHandler(
+            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
+            centrosContext, proveedoresContext, new RegistroDePresentaciones(presentaciones, centrosContext), new UnitOfWorkFalso());
+
+        (await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        var registrada = presentaciones.Agregadas.Should().ContainSingle().Subject;
+        registrada.DocumentoId.Should().Be(documento.Id);
+        registrada.CentroId.Should().Be(centroId, "la presentacion es al Centro del acceso de gestion documental, no a otro");
+        registrada.Origen.Should().Be(OrigenPresentacionDocumentoEnCentro.SubidaAPlataforma);
+        registrada.FechaPresentacion.Should().Be(CaeManager.Domain.Common.DiaDeNegocio.Hoy());
+
+        // Idempotente por Documento + Centro + dia + origen.
+        var segunda = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+        acreditacionRepositorio.Agregar(segunda);
+        (await handler.Handle(new MarcarAcreditacionSubidaCommand(segunda.Id), CancellationToken.None)).EsExitoso.Should().BeTrue();
+        presentaciones.Agregadas.Should().ContainSingle("el mismo dia y origen no escribe una segunda fila");
+    }
+
+    [Fact]
+    public async Task Una_subida_rechazada_por_el_handler_no_registra_ninguna_presentacion()
+    {
+        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
+        var canal = CanalGestionDocumental.DePlataforma(Guid.NewGuid(), "Portal principal", Guid.NewGuid(), null, null, null);
+        var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+        acreditacion.Rechazar(CausaRechazoAcreditacion.Ilegible, "Firma ilegible", DateTime.UtcNow);
+        var documentoRepositorio = new DocumentoRepositorioFalso();
+        documentoRepositorio.Agregar(documento);
+        var acreditacionRepositorio = new AcreditacionDocumentoPlataformaRepositorioFalso();
+        acreditacionRepositorio.Agregar(acreditacion);
+        var centrosContext = new CentrosQueryContextFalso();
+        centrosContext.ListaCanalesGestionDocumental.Add(canal);
+        var presentaciones = new PresentacionDocumentoEnCentroRepositorioFalso();
+        var handler = new MarcarAcreditacionSubidaCommandHandler(
+            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
+            centrosContext, new ProveedoresPlataformaCaeQueryContextFalso(), new RegistroDePresentaciones(presentaciones, centrosContext), new UnitOfWorkFalso());
+
+        (await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None)).EsFallido.Should().BeTrue();
+
+        presentaciones.Agregadas.Should().BeEmpty();
     }
 }

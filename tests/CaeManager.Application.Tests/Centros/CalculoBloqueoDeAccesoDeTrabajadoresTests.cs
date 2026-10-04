@@ -162,9 +162,10 @@ public class CalculoBloqueoDeAccesoDeTrabajadoresTests
     }
 
     [Fact]
-    public void R1_la_periodicidad_especial_del_Centro_manda_sobre_el_vencimiento_del_documento()
+    public void R1_la_periodicidad_especial_del_Centro_nunca_alarga_la_vigencia_propia_del_documento()
     {
-        // Formacion con vencimiento propio pasado, emitida hace 2 anos: un Centro la acepta 36 meses, otro 12.
+        // Contrato nuevo (2026-10-04): un Centro puede ser MAS estricto que la vigencia propia, nunca menos. Un documento ya vencido
+        // por su cuenta lo esta en todos los Centros, tengan la periodicidad que tengan.
         var emision = Hoy.AddYears(-2);
         var vencidoPorSuCuenta = VigenciaDocumento.VenceEl(Hoy.AddDays(-30));
 
@@ -173,7 +174,46 @@ public class CalculoBloqueoDeAccesoDeTrabajadoresTests
             [DeTrabajadorEn(CentroA, TipoPss, periodicidadMeses: 36), DeTrabajadorEn(CentroB, TipoPss, periodicidadMeses: 12)],
             DeTrabajador(Ana, TipoPss, vencidoPorSuCuenta, emision));
 
-        bloqueos.Should().ContainSingle().Which.CentroId.Should().Be(CentroB);
+        bloqueos.Select(b => b.CentroId).Should().BeEquivalentTo([CentroA, CentroB]);
+    }
+
+    [Fact]
+    public void R1_la_periodicidad_del_Centro_solo_bloquea_en_el_Centro_que_la_exige_y_la_presentacion_en_ese_Centro_lo_desbloquea()
+    {
+        // Emitido hace 13 meses, vigente 3 anos mas. CentroA exige presentarlo cada 12 meses; CentroB no impone nada.
+        var emision = Hoy.AddMonths(-13);
+        var vigencia = VigenciaDocumento.VenceEl(Hoy.AddYears(3));
+        var requisitos = new[] { DeTrabajadorEn(CentroA, TipoPss, periodicidadMeses: 12), DeTrabajadorEn(CentroB, TipoPss) };
+        var asignaciones = new AsignacionParaBloqueo[] { new(CentroA, Ana, EmpresaX), new(CentroB, Ana, EmpresaX) };
+
+        var sinPresentar = Calcular(asignaciones, requisitos, DeTrabajador(Ana, TipoPss, vigencia, emision));
+        sinPresentar.Should().ContainSingle().Which.CentroId.Should().Be(CentroA, "solo el Centro con periodicidad la da por vencida");
+
+        // Presentado hoy en CentroA: lo que cuenta es la presentacion EN ESE Centro. Una presentacion en CentroB no lo desbloquea.
+        var enA = DeTrabajador(Ana, TipoPss, vigencia, emision) with
+        {
+            UltimaPresentacionPorCentro = new Dictionary<Guid, DateOnly> { [CentroA] = Hoy },
+        };
+        Calcular(asignaciones, requisitos, enA).Should().BeEmpty();
+
+        var soloEnB = DeTrabajador(Ana, TipoPss, vigencia, emision) with
+        {
+            UltimaPresentacionPorCentro = new Dictionary<Guid, DateOnly> { [CentroB] = Hoy },
+        };
+        Calcular(asignaciones, requisitos, soloEnB).Should().ContainSingle().Which.CentroId.Should().Be(CentroA);
+    }
+
+    [Fact]
+    public void R1_una_presentacion_sin_periodicidad_en_el_Centro_no_cambia_nada()
+    {
+        var vigencia = VigenciaDocumento.VenceEl(Hoy.AddDays(-1));
+        var presentado = DeTrabajador(Ana, TipoPss, vigencia) with
+        {
+            UltimaPresentacionPorCentro = new Dictionary<Guid, DateOnly> { [CentroA] = Hoy },
+        };
+
+        Calcular([new(CentroA, Ana, EmpresaX)], [DeTrabajadorEn(CentroA, TipoPss)], presentado)
+            .Should().ContainSingle("presentar un documento vencido por su cuenta no lo devuelve a la vida");
     }
 
     // ---------- R2: documento bloqueante de Empresa, por Centro ----------

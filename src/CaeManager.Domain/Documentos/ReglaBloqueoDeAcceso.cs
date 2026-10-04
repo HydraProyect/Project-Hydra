@@ -19,14 +19,20 @@ public enum SituacionDeRequisitoBloqueante
     Vencido = 2
 }
 
-/// <summary>Un Documento visto desde la regla de acceso: su vigencia y la fecha de emisión (base de la periodicidad especial de un Centro).</summary>
-public readonly record struct DocumentoParaAcceso(VigenciaDocumento Vigencia, DateOnly FechaEmision);
+/// <summary>
+/// Un Documento visto desde la regla de acceso: su vigencia propia, la fecha de emisión (ancla de la periodicidad especial de
+/// un Centro cuando el Documento nunca se presentó en él) y, si se presentó, la fecha de su última presentación EN EL CENTRO
+/// evaluado (<see cref="PresentacionDocumentoEnCentro"/>; es un dato de la pareja Documento × Centro, no del Documento).
+/// </summary>
+public readonly record struct DocumentoParaAcceso(
+    VigenciaDocumento Vigencia, DateOnly FechaEmision, DateOnly? UltimaPresentacionEnElCentro = null);
 
 /// <summary>
-/// Las condiciones de UN Centro para un Tipo de documento: la vigencia propia que impone
+/// Las condiciones de UN Centro para un Tipo de documento: cada cuántos meses exige volver a presentarlo
 /// (<see cref="TipoDocumentoCentro.PeriodicidadEspecialMeses"/>) y los días de tolerancia ya resueltos
 /// (<see cref="ReglaBloqueoDeAcceso.ResolverToleranciaDias"/>).
 /// </summary>
+
 public readonly record struct CondicionesDeAccesoDelCentro(int? PeriodicidadEspecialMeses, int ToleranciaDias);
 
 /// <summary>
@@ -44,6 +50,18 @@ public readonly record struct CondicionesDeAccesoDelCentro(int? PeriodicidadEspe
 /// </param>
 public readonly record struct ResultadoDeRequisito(
     SituacionDeRequisitoBloqueante Situacion, DateOnly? VencimientoEfectivo, DateOnly? EnToleranciaHasta);
+
+/// <summary>
+/// El estado de un Documento <b>visto desde un Centro</b> (<see cref="ReglaBloqueoDeAcceso.EstadoEnElCentro"/>): lo que se
+/// enseña en Centro 360 y en Trabajador 360 por Centro.
+/// </summary>
+/// <param name="Estado">Estado de contexto: el de <see cref="CalculadoraEstadoDocumento"/> sobre el vencimiento efectivo en el Centro, o <see cref="EstadoDocumento.EnTolerancia"/>.</param>
+/// <param name="VenceEnElCentro">
+/// Solo con valor cuando el Centro define periodicidad especial para el Tipo y el documento vence: cuándo vence EN ESTE
+/// Centro, que puede ser antes que su vigencia propia. <c>null</c> en cualquier otro caso (sin periodicidad, «No caduca»).
+/// </param>
+/// <param name="EnToleranciaHasta">Solo con <see cref="EstadoDocumento.EnTolerancia"/>: el último día en que aún vale para acceder a este Centro.</param>
+public readonly record struct EstadoDeDocumentoEnElCentro(EstadoDocumento Estado, DateOnly? VenceEnElCentro, DateOnly? EnToleranciaHasta);
 
 /// <summary>
 /// <b>Punto único</b> de la regla «un documento bloqueante ausente o que ya no vale bloquea el acceso»
@@ -67,11 +85,20 @@ public readonly record struct ResultadoDeRequisito(
 ///
 /// <para>
 /// <b>Vencimiento efectivo en un Centro</b> (<see cref="VencimientoEfectivo"/>): si el Centro define una periodicidad
-/// especial para el Tipo, el documento vence en la <b>fecha de emisión + esos meses</b> (sustituye al vencimiento que
-/// trae el documento); si no, es el vencimiento del propio documento. «No caduca» nunca vence, tenga el Centro la
-/// periodicidad que tenga. Un documento «Sin confirmar» no tiene vencimiento propio y no bloquea, salvo que el Centro
-/// imponga periodicidad (entonces vence por emisión + meses, porque la vigencia la define el Centro y no hace falta
-/// confirmar la del documento).
+/// especial para el Tipo, el documento vence en el Centro en
+/// <c>min(última presentación en el Centro + esos meses, vigencia propia del documento)</c>; si nunca se presentó en ese
+/// Centro, el ancla es la fecha de emisión (<see cref="PresentacionDocumentoEnCentro"/>). El documento sigue valiendo en
+/// los demás Centros por su vigencia propia. Sin periodicidad es el vencimiento del propio documento. «No caduca» nunca
+/// vence, tenga el Centro la periodicidad que tenga (contrato vigente, decisión del propietario: no se ha cambiado). Un
+/// documento «Sin confirmar» no tiene vencimiento propio y no bloquea, salvo que el Centro imponga periodicidad (entonces
+/// vence en el ancla + meses, porque no hay vigencia propia que acote).
+/// </para>
+///
+/// <para>
+/// <b>Estado en un Centro</b> (<see cref="EstadoEnElCentro"/>): el estado de contexto que ven Centro 360 y Trabajador 360
+/// por Centro. Es el estado de <see cref="CalculadoraEstadoDocumento"/> sobre el vencimiento efectivo en ese Centro (Vigente,
+/// Próximo, Urgente, Vencido) y «En tolerancia» si ya venció allí y la tolerancia se aplica sobre ESE vencimiento. El porcentaje
+/// de cumplimiento NO lo usa: sigue midiendo el estado real del documento.
 /// </para>
 ///
 /// <para>
@@ -103,17 +130,66 @@ public static class ReglaBloqueoDeAcceso
         delCentro ?? delClienteEmpresarial ?? 0;
 
     /// <summary>
-    /// Cuándo vence el documento PARA ESTE CENTRO, o <c>null</c> si no vence (o no se sabe cuándo).
+    /// Cuándo vence el documento PARA ESTE CENTRO, o <c>null</c> si no vence (o no se sabe cuándo): sin periodicidad especial
+    /// del Centro, su vigencia propia; con ella, <c>min(ancla + meses, vigencia propia)</c> donde el ancla es la última
+    /// presentación en el Centro y, si no hay ninguna, la fecha de emisión.
     /// </summary>
     public static DateOnly? VencimientoEfectivo(DocumentoParaAcceso documento, int? periodicidadEspecialMeses)
     {
         if (documento.Vigencia.Estado == EstadoVigenciaDocumento.NoCaduca)
             return null;
 
-        if (periodicidadEspecialMeses is { } meses)
-            return SumarMeses(documento.FechaEmision, meses);
+        var propio = documento.Vigencia.FechaVencimiento;
+        if (periodicidadEspecialMeses is not { } meses)
+            return propio;
 
-        return documento.Vigencia.FechaVencimiento;
+        var ancla = documento.UltimaPresentacionEnElCentro ?? documento.FechaEmision;
+        var delCentro = SumarMeses(ancla, meses);
+        return propio is { } vigenciaPropia && vigenciaPropia < delCentro ? vigenciaPropia : delCentro;
+    }
+
+    /// <summary>
+    /// El estado de contexto de un Documento en un Centro. <b>Una sola función</b> para el bloqueo, Centro 360, Trabajador 360
+    /// por Centro y Mi trabajo: calcula el estado con <see cref="CalculadoraEstadoDocumento"/> sobre la vigencia efectiva en el
+    /// Centro (<see cref="VencimientoEfectivo"/>) y, si ya venció allí y su tolerancia (resuelta por
+    /// <see cref="ResolverToleranciaDias"/>) todavía no se agotó, lo rotula <see cref="EstadoDocumento.EnTolerancia"/>. La tolerancia
+    /// nunca entra en el porcentaje de cumplimiento: ese mide el estado real del documento y no usa esta función.
+    /// </summary>
+    public static EstadoDeDocumentoEnElCentro EstadoEnElCentro(
+        DocumentoParaAcceso documento, CondicionesDeAccesoDelCentro condiciones, DateOnly hoy, int umbralAmbarDias, int umbralRojoDias)
+    {
+        var vencimiento = VencimientoEfectivo(documento, condiciones.PeriodicidadEspecialMeses);
+        var vigenciaEnElCentro = documento.Vigencia.Estado == EstadoVigenciaDocumento.NoCaduca
+            ? VigenciaDocumento.NoCaduca
+            : VigenciaDocumento.DesdeFechaOpcional(vencimiento);
+
+        var estado = CalculadoraEstadoDocumento.Calcular(vigenciaEnElCentro, hoy, umbralAmbarDias, umbralRojoDias);
+        var venceEnElCentro = condiciones.PeriodicidadEspecialMeses is null ? null : vencimiento;
+
+        if (estado == EstadoDocumento.Vencido && EnToleranciaHasta(documento, condiciones, hoy) is { } hasta)
+            return new EstadoDeDocumentoEnElCentro(EstadoDocumento.EnTolerancia, venceEnElCentro, hasta);
+
+        return new EstadoDeDocumentoEnElCentro(estado, venceEnElCentro, null);
+    }
+
+    /// <summary>
+    /// ¿Puede el Gestor CAE «volver a presentar» este Documento a este Centro? Comparten la función el comando y la pantalla
+    /// (el DTO), para que no discrepen. Solo si el Centro exige periodicidad para el Tipo (<paramref name="condiciones"/> la trae
+    /// solo de una fila Incluida), el Documento es operativo y sigue vigente por su fecha propia: un Documento vencido se
+    /// renueva (otro Documento), no se vuelve a presentar; uno que «No caduca» no vence y no tiene qué reiniciar. Sin vigencia
+    /// confirmada sí puede: no está vencido y la periodicidad es la del Centro.
+    /// </summary>
+    public static bool PuedeVolverAPresentar(
+        DocumentoParaAcceso documento, CondicionesDeAccesoDelCentro condiciones, DateOnly hoy, bool esOperativo)
+    {
+        if (!esOperativo || condiciones.PeriodicidadEspecialMeses is null)
+            return false;
+
+        if (documento.Vigencia.Estado == EstadoVigenciaDocumento.NoCaduca)
+            return false;
+
+        // Vigente por su fecha propia (sin tolerancia): la misma comparación única que el resto de la regla.
+        return ValeParaAcceder(documento.Vigencia.FechaVencimiento, hoy);
     }
 
     /// <summary>Último día en que el documento vale para acceder a este Centro; <c>null</c> si no vence.</summary>

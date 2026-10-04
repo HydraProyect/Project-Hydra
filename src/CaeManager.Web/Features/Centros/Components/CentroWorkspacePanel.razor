@@ -1252,9 +1252,12 @@ else
                 var seleccion => int.Parse(seleccion)
             };
 
-            if (_periodicidadSeleccionEdicion == "personalizado" && periodicidadMeses is null)
+            // Mismo tope que el validador, el dominio y el CHECK de la base (1..120): se corta aquí con un mensaje claro
+            // antes de enviar, en vez de devolver el error genérico del validador.
+            if (_periodicidadSeleccionEdicion == "personalizado"
+                && periodicidadMeses is not (> 0 and <= TipoDocumentoCentro.PeriodicidadEspecialMaximaMeses))
             {
-                _mensajeErrorDocumentacion = "Indica un número entero de meses, o deja el campo vacío si no vence.";
+                _mensajeErrorDocumentacion = Textos["PeriodicidadErrorPersonalizada", TipoDocumentoCentro.PeriodicidadEspecialMaximaMeses];
                 return;
             }
 

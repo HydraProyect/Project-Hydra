@@ -68,15 +68,17 @@ public class ReglaBloqueoDeAccesoTests
     }
 
     [Fact]
-    public void Una_periodicidad_especial_del_centro_cuenta_desde_la_fecha_de_emision_y_sustituye_al_vencimiento_del_documento()
+    public void Una_periodicidad_especial_del_centro_nunca_alarga_la_vigencia_propia_del_documento()
     {
-        // El documento trae un vencimiento propio ya pasado (12 meses), pero este Centro admite 36 meses desde la emision.
+        // Contrato nuevo (2026-10-04): la periodicidad ya no SUSTITUYE al vencimiento propio, lo acota: min(ancla + meses, propio).
+        // El documento trae un vencimiento propio ya pasado (vencio ayer); aunque este Centro admita 36 meses desde la
+        // emision, un documento vencido no vale en ningun Centro.
         var emision = new DateOnly(2025, 10, 3).AddYears(-1).AddDays(1);
         var documento = new DocumentoParaAcceso(VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), emision);
 
-        ReglaBloqueoDeAcceso.VencimientoEfectivo(documento, 36).Should().Be(emision.AddMonths(36));
-        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(), Hoy).Should().BeFalse("con el vencimiento propio estaria vencido");
-        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(periodicidadMeses: 36), Hoy).Should().BeTrue("este Centro acepta 36 meses");
+        ReglaBloqueoDeAcceso.VencimientoEfectivo(documento, 36).Should().Be(Hoy.AddDays(-1), "la vigencia propia es anterior a emision + 36 meses");
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(), Hoy).Should().BeFalse("con el vencimiento propio esta vencido");
+        ReglaBloqueoDeAcceso.ValidoParaAcceder(documento, Cond(periodicidadMeses: 36), Hoy).Should().BeFalse("la periodicidad del Centro no resucita un documento vencido");
     }
 
     [Fact]
@@ -250,7 +252,7 @@ public class ReglaBloqueoDeAccesoTests
         ReglaBloqueoDeAcceso.ValidoParaAcceder(centinela, Cond(toleranciaDias: 15), Hoy).Should().BeTrue();
         ReglaBloqueoDeAcceso.ValidoParaAccederHasta(centinela, Cond(toleranciaDias: 365)).Should().Be(DateOnly.MaxValue);
         ReglaBloqueoDeAcceso.ValidoParaAcceder(normal, Cond(periodicidadMeses: int.MaxValue), Hoy).Should().BeTrue();
-        ReglaBloqueoDeAcceso.VencimientoEfectivo(normal, int.MaxValue).Should().Be(DateOnly.MaxValue);
+        ReglaBloqueoDeAcceso.VencimientoEfectivo(normal, int.MaxValue).Should().Be(Hoy, "la periodicidad desmesurada satura en MaxValue y el minimo con la vigencia propia es el propio vencimiento");
         ReglaBloqueoDeAcceso.ValidoParaAcceder(emisionTardia, Cond(periodicidadMeses: 12, toleranciaDias: 15), Hoy).Should().BeTrue();
         ReglaBloqueoDeAcceso.Evaluar([centinela, emisionTardia], Cond(periodicidadMeses: 12, toleranciaDias: 365), Hoy).Situacion
             .Should().Be(SituacionDeRequisitoBloqueante.Cumplido);

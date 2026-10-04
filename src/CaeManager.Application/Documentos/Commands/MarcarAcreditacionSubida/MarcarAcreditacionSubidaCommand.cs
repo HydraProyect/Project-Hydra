@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Presentaciones;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
@@ -47,7 +48,7 @@ public class MarcarAcreditacionSubidaCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
     IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext,
     ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext,
-    IUnitOfWork unitOfWork)
+    IRegistroDePresentaciones presentaciones, IUnitOfWork unitOfWork)
     : IRequestHandler<MarcarAcreditacionSubidaCommand, Result>
 {
     public const string CodigoRechazadaSinVersionNueva = "Acreditacion.RechazadaSinVersionNueva";
@@ -72,6 +73,10 @@ public class MarcarAcreditacionSubidaCommandHandler(
                 "Acreditacion.ConectorInactivo", "Este conector está desactivado temporalmente."));
 
         acreditacion.MarcarSubida();
+
+        // Subir el Documento a la plataforma del Centro es presentarlo a ese Centro: ancla de su periodicidad especial.
+        await presentaciones.RegistrarEnElCentroDelAccesoAsync(
+            acreditacion.DocumentoId, acreditacion.CanalGestionDocumentalId, OrigenPresentacionDocumentoEnCentro.SubidaAPlataforma, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();

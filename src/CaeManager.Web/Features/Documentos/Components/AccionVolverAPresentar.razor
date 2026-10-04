@@ -1,0 +1,85 @@
+@*
+    «Volver a presentar» (decisión del propietario del producto, 2026-10-04): registra que el MISMO documento se presenta otra vez
+    a ESTE Centro y con ello reinicia el plazo de la periodicidad propia de este Centro. No crea ni renueva el documento, no cambia
+    su archivo ni su vigencia propia, y en los demás Centros no pasa nada.
+
+    Quien la pinta decide si se ofrece con DocumentoRequeridoDto.PuedeVolverAPresentar (la misma función que valida el comando:
+    ReglaBloqueoDeAcceso.PuedeVolverAPresentar); aquí además se esconde a los roles sin escritura. Pide confirmación porque no se
+    puede deshacer desde la pantalla: una presentación de más aplaza el vencimiento en este Centro.
+*@
+@using CaeManager.Application.Documentos.Commands.VolverAPresentarDocumentoEnCentro
+@using CaeManager.Web.Features.Documentos.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosDocumentos> Textos
+
+<SoloConEscritura>
+    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace" data-volver-a-presentar
+           OnClick="() => _confirmando = true">
+        @Textos["VolverAPresentar"]
+    </Boton>
+</SoloConEscritura>
+
+<Modal @ref="_modal" Visible="_confirmando" VisibleChanged="v => _confirmando = v" CerrarAlHacerClicFuera="!_enCurso"
+       Titulo="@Textos["VolverAPresentarTitulo", DocumentoNombre]">
+    <ChildContent>
+        <p>@Textos["VolverAPresentarExplicacion", CentroNombre]</p>
+    </ChildContent>
+    <Pie>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enCurso" OnClick="() => _modal?.SolicitarCierreAsync() ?? Task.CompletedTask">
+            @Textos["VolverAPresentarCancelar"]
+        </Boton>
+        <Boton Variante="VarianteBoton.Primario" Cargando="_enCurso" OnClick="ConfirmarAsync">
+            @Textos["VolverAPresentarConfirmar"]
+        </Boton>
+    </Pie>
+</Modal>
+
+@code {
+    private Modal? _modal;
+    private bool _confirmando;
+    private bool _enCurso;
+
+    [Parameter, EditorRequired] public Guid DocumentoId { get; set; }
+    [Parameter, EditorRequired] public Guid CentroId { get; set; }
+
+    /// <summary>Nombre del Tipo de documento: titula la confirmación.</summary>
+    [Parameter, EditorRequired] public string DocumentoNombre { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public string CentroNombre { get; set; } = string.Empty;
+
+    /// <summary>Tras registrar la presentación: quien la pinta recarga su lista (el estado y la fecha del Centro cambian).</summary>
+    [Parameter] public EventCallback OnPresentado { get; set; }
+
+    private async Task ConfirmarAsync()
+    {
+        if (_enCurso)
+            return;
+
+        _enCurso = true;
+        try
+        {
+            var resultado = await Mediator.Send(new VolverAPresentarDocumentoEnCentroCommand(DocumentoId, CentroId));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            _confirmando = false;
+            ToastService.Mostrar(Textos["VolverAPresentarHecho", DocumentoNombre, CentroNombre], TonoToast.Exito);
+            if (OnPresentado.HasDelegate)
+                await OnPresentado.InvokeAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["VolverAPresentarError"], TonoToast.Error);
+        }
+        finally
+        {
+            _enCurso = false;
+        }
+    }
+}

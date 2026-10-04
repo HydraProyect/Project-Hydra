@@ -17,6 +17,7 @@ public class DocumentosQueryContextFalso : IDocumentosQueryContext
     public List<SelloEmpresa> ListaSellosEmpresa { get; } = [];
     public List<AcreditacionDocumentoPlataforma> ListaAcreditacionesDocumentoPlataforma { get; } = [];
     public List<RechazoAcreditacionDocumentoPlataforma> ListaRechazosAcreditacionDocumentoPlataforma { get; } = [];
+    public List<PresentacionDocumentoEnCentro> ListaPresentacionesDocumentoEnCentro { get; } = [];
 
     public IQueryable<Documento> Documentos => new TestAsyncQueryable<Documento>(ListaDocumentos.AsQueryable());
     public IQueryable<RevisionIaDocumento> RevisionesIaDocumento => new TestAsyncQueryable<RevisionIaDocumento>(ListaRevisionesIaDocumento.AsQueryable());
@@ -28,4 +29,5 @@ public class DocumentosQueryContextFalso : IDocumentosQueryContext
     public IQueryable<SelloEmpresa> SellosEmpresa => new TestAsyncQueryable<SelloEmpresa>(ListaSellosEmpresa.AsQueryable());
     public IQueryable<AcreditacionDocumentoPlataforma> AcreditacionesDocumentoPlataforma => new TestAsyncQueryable<AcreditacionDocumentoPlataforma>(ListaAcreditacionesDocumentoPlataforma.AsQueryable());
     public IQueryable<RechazoAcreditacionDocumentoPlataforma> RechazosAcreditacionDocumentoPlataforma => new TestAsyncQueryable<RechazoAcreditacionDocumentoPlataforma>(ListaRechazosAcreditacionDocumentoPlataforma.AsQueryable());
+    public IQueryable<PresentacionDocumentoEnCentro> PresentacionesDocumentoEnCentro => new TestAsyncQueryable<PresentacionDocumentoEnCentro>(ListaPresentacionesDocumentoEnCentro.AsQueryable());
 }

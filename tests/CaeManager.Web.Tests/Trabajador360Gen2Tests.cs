@@ -8,6 +8,7 @@ using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
+using CaeManager.Application.Documentos.Commands.VolverAPresentarDocumentoEnCentro;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
@@ -124,6 +125,7 @@ public class Trabajador360Gen2Tests : BunitContext
             ObtenerAgendaContactosQuery => (IReadOnlyList<ContactoAgendaDto>)[],
             ObtenerDocumentosQuery when FallarDocumentos => throw new InvalidOperationException("Fallo simulado de la consulta de documentos."),
             ObtenerDocumentosQuery q => PaginarDocumentos(q),
+            VolverAPresentarDocumentoEnCentroCommand => Result.Exito(),
             DarDeBajaAsignacionesCommand => ResultadoDarDeBajaAsignacion,
             ReactivarAsignacionCommand => ResultadoReactivar,
             EnviarReclamacionCommand when FallaEnviarReclamacionCon is { } motivo && ++EnviosReclamacion >= FallaEnviarReclamacionDesdeElEnvio => Result.Fallo<EnvioReclamacionResultado>(Error.Crear("reclamacion.rechazada", motivo)),
@@ -324,6 +326,48 @@ public class Trabajador360Gen2Tests : BunitContext
             .And.Contain($"Formación PRL — 20 h — Vencido · en tolerancia hasta {hasta:dd/MM}");
         cabecera.QuerySelector(".cabecera-pagina-inicio .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("50",
             "el vencido en tolerancia aún no cuenta como al día: 1 de 2");
+    }
+
+    /// <summary>
+    /// Vencimiento por Centro (decisión del propietario del producto, 2026-10-04): en el Centro que impone periodicidad propia, la
+    /// documentación del Trabajador enseña las dos fechas rotuladas y ofrece «Volver a presentar» con ESE Centro; en el que no la
+    /// impone, la celda es la de siempre y no hay acción.
+    /// </summary>
+    [Fact]
+    public async Task Un_Centro_con_periodicidad_propia_enseña_las_dos_fechas_y_ofrece_volver_a_presentar_con_ese_Centro()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        var documentoId = Guid.NewGuid();
+        var conPeriodicidad = Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Vigente,
+            new DocumentoRequeridoDto(documentoId, Guid.NewGuid(), "Formación art. 19", EstadoDocumento.Vigente, new DateOnly(2030, 10, 1),
+                VenceEnElCentro: new DateOnly(2027, 10, 1), PuedeVolverAPresentar: true));
+        var sinPeriodicidad = Centro("Nave Berriz", "Talleres Berriz Coop.", EstadoDocumento.Vigente,
+            new DocumentoRequeridoDto(documentoId, Guid.NewGuid(), "Formación art. 19", EstadoDocumento.Vigente, new DateOnly(2030, 10, 1)));
+        mediador.Centros[id] = [conPeriodicidad, sinPeriodicidad];
+
+        var cut = Renderizar(id);
+        // Cada clic re-renderiza: se vuelve a buscar el siguiente disparador cerrado en vez de reutilizar los encontrados antes.
+        while (cut.FindAll(".trabajador360-centro-disparador[aria-expanded=false]") is [var cerrado, ..])
+            await cerrado.ClickAsync(new MouseEventArgs());
+
+        var tarjetas = cut.FindAll(".trabajador360-centro");
+        var norte = tarjetas.Single(t => t.TextContent.Contains("Centro Norte"));
+        norte.QuerySelector("[data-vigencia-por-centro]")!.TextContent.Should()
+            .Contain("Vence en este Centro: 01/10/2027").And.Contain("Vigencia del documento: 01/10/2030");
+        norte.QuerySelectorAll("[data-volver-a-presentar]").Should().HaveCount(1);
+
+        var berriz = tarjetas.Single(t => t.TextContent.Contains("Nave Berriz"));
+        berriz.QuerySelector("[data-vigencia-por-centro]").Should().BeNull();
+        berriz.QuerySelector("[data-volver-a-presentar]").Should().BeNull("este Centro no impone periodicidad propia");
+
+        await norte.QuerySelector("[data-volver-a-presentar]")!.ClickAsync(new MouseEventArgs());
+        var confirmar = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Volver a presentar" && b.GetAttribute("data-volver-a-presentar") is null);
+        await confirmar.ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<VolverAPresentarDocumentoEnCentroCommand>().Should().ContainSingle()
+            .Which.Should().Be(new VolverAPresentarDocumentoEnCentroCommand(documentoId, conPeriodicidad.CentroId));
     }
 
     /// <summary>

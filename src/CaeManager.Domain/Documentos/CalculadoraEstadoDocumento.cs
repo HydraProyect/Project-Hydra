@@ -97,8 +97,8 @@ public static class CalculadoraEstadoDocumento
 
     /// <summary>
     /// Calcula la fecha de vencimiento de un documento a partir de su fecha de
-    /// emisión y la vigencia en meses del TipoDocumento (o de la periodicidad
-    /// especial de un RequisitoDocumental, si el llamador la pasa en su lugar).
+    /// emisión y la vigencia en meses del TipoDocumento. La periodicidad propia de un Centro NO entra aquí: no cambia la vigencia del
+    /// Documento, solo cuándo vence en ese Centro (<see cref="ReglaBloqueoDeAcceso.VencimientoEfectivo"/>).
     /// </summary>
     public static DateOnly? CalcularFechaVencimiento(DateOnly fechaEmision, int? vigenciaMeses) =>
         vigenciaMeses.HasValue ? fechaEmision.AddMonths(vigenciaMeses.Value) : null;

@@ -334,6 +334,15 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.EliminarDocumentoCommandHandler", "IProyectosQueryContext"),
         ("Documentos.EliminarDocumentosCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "IProyectosQueryContext"),
+        // Vencimiento por Centro (2026-10-04): «Volver a presentar» comprueba que el Documento (alcance: Proyectos), el Centro y su
+        // exclusión, la fila de exigencia del Tipo en ese Centro (periodicidad propia) y la pertenencia del titular al Centro
+        // (Asignación activa del Trabajador, o Empresa propia del Centro / de un Trabajador asignado) existen y son visibles ANTES de
+        // registrar nada; es la misma frontera que el resto de operaciones sobre un Documento en un Centro, no un acoplamiento nuevo.
+        ("Documentos.VolverAPresentarDocumentoEnCentroCommandHandler", "IAsignacionesQueryContext"),
+        ("Documentos.VolverAPresentarDocumentoEnCentroCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.VolverAPresentarDocumentoEnCentroCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.VolverAPresentarDocumentoEnCentroCommandHandler", "ITiposDocumentoQueryContext"),
+        ("Documentos.VolverAPresentarDocumentoEnCentroCommandHandler", "ITrabajadoresQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "IProyectosQueryContext"),
         // MVP2 § 14.5 (kill switch remoto, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md en
         // el repositorio de negocio): ExigirProveedorActivo necesita resolver
@@ -607,6 +616,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.CrearVisitaCommandHandler", "ISugerenciaVisitaCorreoRepository"),
         ("Visitas.CrearVisitaCommandHandler", "ITrabajadoresQueryContext"),
         ("Visitas.EditarVisitaCommandHandler", "ITrabajadoresQueryContext"),
+        // Vencimiento por Centro (2026-10-04): el envío por correo del paquete registra una presentación en el Centro de la Visita
+        // por cada documento que viajó. Reutiliza la misma comprobación de alcance y de pertenencia al Centro que «Volver a presentar»
+        // (ICentrosQueryContext, IProyectosQueryContext, IDocumentosQueryContext); el alcance lo da IAlcanceDatosService.
+        ("Visitas.RegistrarEnvioPaqueteDocumentalPorCorreoCommandHandler", "ICentrosQueryContext"),
+        ("Visitas.RegistrarEnvioPaqueteDocumentalPorCorreoCommandHandler", "IDocumentosQueryContext"),
+        ("Visitas.RegistrarEnvioPaqueteDocumentalPorCorreoCommandHandler", "IProyectosQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IClientesQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IEmpresasQueryContext"),

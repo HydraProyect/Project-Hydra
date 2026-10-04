@@ -14,8 +14,10 @@ namespace CaeManager.Domain.Documentos;
 /// EmpresaCliente): desvincular es una baja física.
 ///
 /// Absorbe también lo que antes vivía en RequisitoDocumental (retirado en el mismo
-/// lote): <see cref="PeriodicidadEspecialMeses"/> (vigencia de ESTE Centro para el Tipo,
-/// contada desde la fecha de emisión del Documento; null = el Centro no impone una propia),
+/// lote): <see cref="PeriodicidadEspecialMeses"/> (cada cuántos meses ESTE Centro exige que el Documento se
+/// vuelva a presentar; el Documento vence en el Centro en <c>min(última presentación en el Centro + meses,
+/// vigencia propia del Documento)</c> y, si nunca se presentó en él, cuenta desde la emisión —
+/// <see cref="ReglaBloqueoDeAcceso.VencimientoEfectivo"/>—; null = el Centro no impone una periodicidad propia),
 /// <see cref="BloqueaAcceso"/> (el Tipo es un requisito bloqueante de ESTE Centro: su falta,
 /// o que ya no valga con las condiciones de este Centro, impide el acceso a este Centro) y
 /// <see cref="ToleranciaDias"/> (personalización de ESTE Centro de los días que el documento sigue
@@ -36,6 +38,15 @@ public class TipoDocumentoCentro : EntidadConTenant
     /// regla de negocio. El propietario habla de 0, 5, 10, 15, 20 días.
     /// </summary>
     public const int ToleranciaMaximaDias = 365;
+
+    /// <summary>Periodicidad especial mínima: un mes.</summary>
+    public const int PeriodicidadEspecialMinimaMeses = 1;
+
+    /// <summary>
+    /// Cota técnica de la periodicidad especial (diez años): evita desbordar el calendario al sumarla a una fecha, no es
+    /// una regla de negocio. También es una restricción de base de datos (<c>CK_TiposDocumentoCentros_PeriodicidadEspecialMeses</c>).
+    /// </summary>
+    public const int PeriodicidadEspecialMaximaMeses = 120;
 
     public Guid TipoDocumentoId { get; private set; }
     public Guid CentroId { get; private set; }
@@ -104,8 +115,10 @@ public class TipoDocumentoCentro : EntidadConTenant
 
     private void EstablecerPeriodicidadEspecial(int? meses)
     {
-        if (meses is <= 0)
-            throw new ArgumentException("La periodicidad especial debe ser un número entero de meses mayor que cero, o vacío si no vence.", nameof(meses));
+        if (meses is < PeriodicidadEspecialMinimaMeses or > PeriodicidadEspecialMaximaMeses)
+            throw new ArgumentException(
+                $"La periodicidad especial debe ser un número entero de meses entre {PeriodicidadEspecialMinimaMeses} y {PeriodicidadEspecialMaximaMeses}, o vacío si el Centro no impone una.",
+                nameof(meses));
 
         PeriodicidadEspecialMeses = meses;
     }

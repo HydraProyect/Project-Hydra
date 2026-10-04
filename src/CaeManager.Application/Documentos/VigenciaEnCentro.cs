@@ -5,16 +5,15 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Documentos;
 
 /// <summary>
-/// El estado de un Documento <b>visto desde un Centro</b>: el estado de vigencia propio del Documento
-/// (<see cref="CalculadoraEstadoDocumento"/>) más, si el Centro (o su Cliente empresarial titular) concede tolerancia, la
-/// distinción «Vencido · en tolerancia hasta dd/MM» (<see cref="EstadoDocumento.EnTolerancia"/>). Solo lo usan las vistas con
+/// Los datos con que se evalúa un Documento <b>visto desde un Centro</b>: la tolerancia y la periodicidad especial de ese Centro
+/// y la última presentación del Documento en él. El estado de contexto (Vigente, Próximo, Urgente, «Vencido · en tolerancia hasta
+/// dd/MM» o Vencido en ese Centro) lo decide <see cref="ReglaBloqueoDeAcceso.EstadoEnElCentro"/>; solo lo usan las vistas con
 /// contexto de Centro (Centro 360 y Trabajador 360 por Centro); las vistas generales, sin contexto, no lo aplican y dicen «Vencido».
 ///
 /// <para>
-/// No decide nada que no decida ya la regla de acceso: la comparación es <see cref="ReglaBloqueoDeAcceso.EnToleranciaHasta"/>
-/// y las condiciones salen de la misma resolución (tolerancia del Centro, si no la del Cliente empresarial, si no 0;
-/// <see cref="ReglaBloqueoDeAcceso.ResolverToleranciaDias"/>). Tampoco toca el porcentaje de cumplimiento: ese sigue midiendo el
-/// estado de vigencia real del Documento.
+/// No decide nada que no decida ya la regla de acceso: las condiciones salen de la misma resolución (periodicidad y tolerancia
+/// del Centro, si no la tolerancia del Cliente empresarial, si no 0; <see cref="ReglaBloqueoDeAcceso.ResolverToleranciaDias"/>).
+/// Tampoco toca el porcentaje de cumplimiento: ese sigue midiendo el estado de vigencia real del Documento.
 /// </para>
 /// </summary>
 public static class VigenciaEnCentro
@@ -40,7 +39,7 @@ public static class VigenciaEnCentro
     }
 
     /// <summary>
-    /// Las condiciones de un Centro para un Tipo: la vigencia propia y la tolerancia de la fila del Centro (solo si el Tipo
+    /// Las condiciones de un Centro para un Tipo: la periodicidad especial y la tolerancia de la fila del Centro (solo si el Tipo
     /// está incluido en él) y, sin personalización, la del Cliente empresarial titular.
     /// </summary>
     public static CondicionesDeAccesoDelCentro Condiciones(TipoDocumentoCentro? filaDelCentro, int? toleranciaDelClienteEmpresarial)
@@ -52,23 +51,36 @@ public static class VigenciaEnCentro
     }
 
     /// <summary>
-    /// El estado de un Documento en un Centro. Solo un Documento <see cref="EstadoDocumento.Vencido"/> puede pasar a
-    /// <see cref="EstadoDocumento.EnTolerancia"/> (con el último día en que aún vale); cualquier otro estado se queda como está.
+    /// La fecha de la última presentación de cada Documento en cada Centro (<see cref="PresentacionDocumentoEnCentro"/>): el
+    /// ancla de la periodicidad especial de un Centro. Sin entrada para un par, nunca se presentó allí y el ancla es la emisión.
+    /// El único cargador: el bloqueo, Centro 360 y Trabajador 360 por Centro lo usan para pasar
+    /// <see cref="DocumentoParaAcceso.UltimaPresentacionEnElCentro"/> a <see cref="ReglaBloqueoDeAcceso"/>. El aislamiento entre
+    /// Tenants lo da RLS.
     /// </summary>
-    public static (EstadoDocumento Estado, DateOnly? EnToleranciaHasta) Aplicar(
-        EstadoDocumento estado,
-        EstadoVigenciaDocumento estadoVigencia,
-        DateOnly? fechaVencimiento,
-        DateOnly fechaEmision,
-        CondicionesDeAccesoDelCentro condiciones,
-        DateOnly hoy)
+    public static async Task<IReadOnlyDictionary<(Guid DocumentoId, Guid CentroId), DateOnly>> CargarUltimasPresentacionesAsync(
+        IDocumentosQueryContext documentosContext,
+        IReadOnlyCollection<Guid> documentoIds,
+        IReadOnlyCollection<Guid> centroIds,
+        CancellationToken cancellationToken)
     {
-        if (estado != EstadoDocumento.Vencido)
-            return (estado, null);
+        if (documentoIds.Count == 0 || centroIds.Count == 0)
+            return new Dictionary<(Guid, Guid), DateOnly>();
 
-        var documento = new DocumentoParaAcceso(VigenciaDocumento.Rehidratar(estadoVigencia, fechaVencimiento), fechaEmision);
-        return ReglaBloqueoDeAcceso.EnToleranciaHasta(documento, condiciones, hoy) is { } hasta
-            ? (EstadoDocumento.EnTolerancia, hasta)
-            : (estado, null);
+        return (await documentosContext.PresentacionesDocumentoEnCentro
+            .Where(p => documentoIds.Contains(p.DocumentoId) && centroIds.Contains(p.CentroId))
+            .GroupBy(p => new { p.DocumentoId, p.CentroId })
+            .Select(g => new { g.Key.DocumentoId, g.Key.CentroId, Ultima = g.Max(p => p.FechaPresentacion) })
+            .ToListAsync(cancellationToken))
+            .ToDictionary(p => (p.DocumentoId, p.CentroId), p => p.Ultima);
     }
+
+    /// <summary>
+    /// El Documento tal como lo evalúa la regla en un Centro: su vigencia, su emisión y la última presentación allí. Sin
+    /// presentación registrada en ese Centro, <paramref name="presentaciones"/> no tiene el par y el ancla es la emisión.
+    /// </summary>
+    public static DocumentoParaAcceso DocumentoEnElCentro(
+        Guid documentoId, Guid centroId, EstadoVigenciaDocumento estadoVigencia, DateOnly? fechaVencimiento, DateOnly fechaEmision,
+        IReadOnlyDictionary<(Guid DocumentoId, Guid CentroId), DateOnly> presentaciones) =>
+        new(VigenciaDocumento.Rehidratar(estadoVigencia, fechaVencimiento), fechaEmision,
+            presentaciones.TryGetValue((documentoId, centroId), out var ultima) ? ultima : null);
 }

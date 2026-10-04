@@ -190,4 +190,34 @@
   <data name="RevIaResumenParcial" xml:space="preserve">
     <value>S'han acceptat {0} de {1} lectures; {2} no s'han pogut acceptar.</value>
   </data>
+  <data name="VenceEnEsteCentro" xml:space="preserve">
+    <value>Venç en aquest Centre: {0}</value>
+  </data>
+  <data name="VigenciaDelDocumento" xml:space="preserve">
+    <value>Vigència del document: {0}</value>
+  </data>
+  <data name="VigenciaDelDocumentoSinFecha" xml:space="preserve">
+    <value>sense data de venciment</value>
+  </data>
+  <data name="VolverAPresentar" xml:space="preserve">
+    <value>Tornar a presentar</value>
+  </data>
+  <data name="VolverAPresentarTitulo" xml:space="preserve">
+    <value>Tornar a presentar «{0}»</value>
+  </data>
+  <data name="VolverAPresentarExplicacion" xml:space="preserve">
+    <value>Es registrarà avui una nova presentació d'aquest document a {0} i el termini d'aquest Centre tornarà a comptar des d'avui. El document, el seu arxiu i la seva vigència pròpia no canvien, i als altres Centres no passa res.</value>
+  </data>
+  <data name="VolverAPresentarCancelar" xml:space="preserve">
+    <value>Cancel·lar</value>
+  </data>
+  <data name="VolverAPresentarConfirmar" xml:space="preserve">
+    <value>Tornar a presentar</value>
+  </data>
+  <data name="VolverAPresentarHecho" xml:space="preserve">
+    <value>Presentació registrada: «{0}» torna a comptar des d'avui a {1}.</value>
+  </data>
+  <data name="VolverAPresentarError" xml:space="preserve">
+    <value>No hem pogut registrar la presentació. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
 </root>

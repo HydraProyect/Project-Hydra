@@ -32,9 +32,10 @@ namespace CaeManager.IntegrationTests.Coherencia;
 /// bloqueante; nunca cruza de un Tenant a otro.</item>
 /// <item><b>R3</b> — el sujeto es el Trabajador o la Empresa; «Bloqueado» es un estado del Trabajador, nunca del Centro.</item>
 /// <item><b>Vigencia y tolerancia por Centro</b> — «ya no vale» se decide con las condiciones de cada Centro: su periodicidad
-/// especial (sustituye al vencimiento del documento) y su tolerancia en días (la del Centro si la personaliza; si no, la
-/// del Cliente empresarial titular; si no, 0). La Empresa con el mismo certificado vencido puede estar bloqueada en un
-/// Centro y no en otro.</item>
+/// especial (el documento vence en el Centro en el mínimo entre la última presentación EN ESE Centro más los meses, con la
+/// emisión como ancla si no hay presentación, y su vigencia propia: nunca la alarga) y su tolerancia en días (la del Centro si
+/// la personaliza; si no, la del Cliente empresarial titular; si no, 0). La Empresa con el mismo certificado vencido puede
+/// estar bloqueada en un Centro y no en otro.</item>
 /// </list>
 ///
 /// <para>
@@ -242,8 +243,25 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         // vencimiento del propio documento.
         await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Vigencia · PSS emitido hace 400 dias que vence en 200: vale en A1, vencido en A5 (12 meses)",
             emision, [VigenciaDocumento.VenceEl(_hoy.AddDays(200))], (_centroA1, null), (_centroA5, vencido));
-        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Vigencia · PSS emitido hace 100 dias vencido hace 5: vencido en A1, vale en A5 (la periodicidad sustituye al vencimiento)",
-            _hoy.AddDays(-100), [VigenciaDocumento.VenceEl(_hoy.AddDays(-5))], (_centroA1, vencido), (_centroA5, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Vigencia · PSS emitido hace 100 dias vencido hace 5: vencido en A1 y tambien en A5 (la periodicidad nunca alarga la vigencia propia)",
+            _hoy.AddDays(-100), [VigenciaDocumento.VenceEl(_hoy.AddDays(-5))], (_centroA1, vencido), (_centroA5, vencido));
+
+        // Vencimiento por Centro con presentaciones (2026-10-04): vence en el Centro = min(ultima presentacion EN ESE Centro + 12
+        // meses, vigencia propia), con la emision como ancla si no hay presentacion. El A1 no tiene periodicidad: sus presentaciones
+        // no cambian nada.
+        var vencePasadoEn200 = VigenciaDocumento.VenceEl(_hoy.AddDays(200));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Presentacion · emitido hace 400 dias que vence en 200, presentado HOY en A5: vale en A1 y en A5",
+            emision, [vencePasadoEn200], [(_centroA5, 0)], (_centroA1, null), (_centroA5, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Presentacion · presentado hoy solo en A1 (sin periodicidad): vale en A1, sigue vencido en A5",
+            emision, [vencePasadoEn200], [(_centroA1, 0)], (_centroA1, null), (_centroA5, vencido));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Presentacion · presentado hace 100 dias en A5: vale en A5 (vence en el Centro en 265 dias y su vigencia propia en 200)",
+            emision, [vencePasadoEn200], [(_centroA5, 100)], (_centroA1, null), (_centroA5, null));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Presentacion · presentado hace 13 meses en A5: vencido en A5 hace 1 mes aunque su vigencia propia dure 200 dias",
+            emision, [vencePasadoEn200], [(_centroA5, (int)(_hoy.DayNumber - _hoy.AddMonths(-13).DayNumber))], (_centroA1, null), (_centroA5, vencido));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Presentacion · vencido hace 5 por su fecha y presentado HOY en A5: presentar no lo devuelve a la vida",
+            _hoy.AddDays(-100), [VigenciaDocumento.VenceEl(_hoy.AddDays(-5))], [(_centroA5, 0)], (_centroA1, vencido), (_centroA5, vencido));
+        await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Presentacion · No caduca presentado en A5: sigue sin vencer (hueco declarado)",
+            emision, [VigenciaDocumento.NoCaduca], [(_centroA5, 0)], (_centroA1, null), (_centroA5, null));
         await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Vigencia · PSS No caduca no vence en ningun Centro, tampoco con periodicidad",
             emision, [VigenciaDocumento.NoCaduca], (_centroA1, null), (_centroA5, null));
         await AnadirTrabajadorConPssAsync(c, empresaBase.Id, "Vigencia · sin PSS: ausente en A1 y en A5",
@@ -309,17 +327,32 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         _casos.Add(casoBaja);
     }
 
+    private Task AnadirTrabajadorConPssAsync(
+        CaeManagerDbContext c, Guid empresaId, string nombre, DateOnly emision, VigenciaDocumento[] vigencias,
+        params (Guid Centro, Esperado? Esperado)[] porCentro) =>
+        AnadirTrabajadorConPssAsync(c, empresaId, nombre, emision, vigencias, [], porCentro);
+
+    /// <param name="presentaciones">Centro y días atrás de cada presentación del documento operativo (el último de la lista de vigencias).</param>
     private async Task AnadirTrabajadorConPssAsync(
         CaeManagerDbContext c, Guid empresaId, string nombre, DateOnly emision, VigenciaDocumento[] vigencias,
-        params (Guid Centro, Esperado? Esperado)[] porCentro)
+        (Guid Centro, int DiasAtras)[] presentaciones, params (Guid Centro, Esperado? Esperado)[] porCentro)
     {
         var trabajador = Trabajador.DeEmpresa(empresaId, "Caso", nombre, Dni());
         c.Trabajadores.Add(trabajador);
         await c.SaveChangesAsync();
         foreach (var (centro, _) in porCentro)
             c.Asignaciones.Add(new Asignacion(trabajador.Id, centro, _hoy.AddDays(-400)));
+        var documentos = new List<Documento>();
         foreach (var vigencia in vigencias)
-            c.Documentos.Add(Documento.DeTrabajador(trabajador.Id, _tipoPss, emision, vigencia));
+        {
+            var documento = Documento.DeTrabajador(trabajador.Id, _tipoPss, emision, vigencia);
+            documentos.Add(documento);
+            c.Documentos.Add(documento);
+        }
+        await c.SaveChangesAsync();
+        foreach (var (centro, diasAtras) in presentaciones)
+            c.PresentacionesDocumentoEnCentro.Add(new PresentacionDocumentoEnCentro(
+                documentos[^1].Id, centro, _hoy.AddDays(-diasAtras), OrigenPresentacionDocumentoEnCentro.VolverAPresentar, DateTime.UtcNow));
         await c.SaveChangesAsync();
 
         var caso = new Caso(nombre, "Trabajador") { TrabajadorId = trabajador.Id };

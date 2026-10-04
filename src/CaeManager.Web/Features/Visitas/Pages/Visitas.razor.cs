@@ -8,6 +8,7 @@ using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisitas;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
+using CaeManager.Application.Visitas.Commands.RegistrarEnvioPaqueteDocumentalPorCorreo;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
@@ -174,6 +175,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _composerPaqueteVisible;
     private AdjuntoParaEnviarDto? _adjuntoPaquete;
     private string? _avisoEnvioPaquete;
+    private IReadOnlyList<Guid> _documentosDelPaqueteAdjunto = [];
 
     private bool _visorVisible;
     private Guid _visorDocumentoId;
@@ -548,6 +550,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _avisoEnvioPaquete = null;
         _composerPaqueteVisible = false;
         _adjuntoPaquete = null;
+        _documentosDelPaqueteAdjunto = [];
 
         try
         {
@@ -679,6 +682,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             }
 
             _adjuntoPaquete = new AdjuntoParaEnviarDto(paquete.NombreArchivo, "application/zip", paquete.Contenido);
+            _documentosDelPaqueteAdjunto = paquete.DocumentoIds ?? [];
             _composerPaqueteVisible = true;
         }
         catch (Exception)
@@ -689,6 +693,28 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         finally
         {
             _preparandoEnvioPaquete = false;
+        }
+    }
+
+    /// <summary>
+    /// Tras «Enviar» en el compositor: el paquete SALIÓ por correo, así que cada documento que contenía cuenta como presentado en
+    /// este Centro (reinicia el plazo de su periodicidad propia, decisión del propietario del producto 2026-10-04). Si el registro
+    /// falla no se avisa de error: el correo ya salió y el Gestor CAE puede usar «Volver a presentar» en el Centro.
+    /// </summary>
+    private async Task RegistrarEnvioPaqueteAsync()
+    {
+        if (_detalle is not { } detalle || _documentosDelPaqueteAdjunto.Count == 0)
+            return;
+
+        var documentoIds = _documentosDelPaqueteAdjunto;
+        _documentosDelPaqueteAdjunto = [];
+        try
+        {
+            await Mediator.Send(new RegistrarEnvioPaqueteDocumentalPorCorreoCommand(detalle.Id, documentoIds));
+        }
+        catch (Exception)
+        {
+            // Ver el resumen: el envío ya ocurrió; no se convierte en error para el usuario.
         }
     }
 
