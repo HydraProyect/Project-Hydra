@@ -370,9 +370,9 @@ public class ReglasDeNegocioSinCopiasTests
 
     private static readonly Dictionary<string, int> LectoresDeDocumentosSinFiltroOperativo = new()
     {
-        // --- El historial se ve a propósito (PR 9 del diseño: «Incluir historial»). Hasta entonces los listados no
-        //     filtran; hoy ninguna ruta de la aplicación sustituye (PR 4/5), así que no hay historial que mostrar. ---
-        ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs"] = 5,
+        // --- El historial se ve a propósito (PR 9 del diseño: «Incluir historial»). La lista de Documentos
+        //     (ObtenerDocumentosQuery) ya muestra solo los operativos desde la PR 4 (Renovar sustituye y el anterior
+        //     pasaría a salir duplicado); la búsqueda global sigue sin filtrar hasta la PR 9. ---
         ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs"] = 2,
         ["src/CaeManager.Application/BusquedaGlobal/Queries/BuscarGlobal/BuscarGlobalQuery.cs"] = 5,
 
@@ -390,10 +390,8 @@ public class ReglasDeNegocioSinCopiasTests
 
         // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
         ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,
-        ["src/CaeManager.Application/Documentos/ValidacionOficial/ValidacionDocumentoOficialService.cs"] = 1,
         ["src/CaeManager.Application/Documentos/Commands/ResolverRevisionIaDocumento/ResolverRevisionIaDocumentoCommand.cs"] = 1,
         ["src/CaeManager.Application/Documentos/Queries/ObtenerRevisionesIaPendientes/ObtenerRevisionesIaPendientesQuery.cs"] = 1,
-        ["src/CaeManager.Application/Trabajadores/Deteccion/DeteccionTrabajadoresService.cs"] = 1,
 
         // --- Retención y purga: el RGPD alcanza al historial tanto como a lo operativo. ---
         ["src/CaeManager.Application/Retencion/DeteccionPurgaService.cs"] = 1,

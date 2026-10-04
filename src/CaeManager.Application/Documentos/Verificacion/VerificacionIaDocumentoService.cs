@@ -249,6 +249,16 @@ public class VerificacionIaDocumentoService(
         if (versionActual is not { } version)
             return "El Documento ya no existe o fue eliminado antes de aplicar la verificación.";
 
+        // Historial inmutable (D5/D8): si otro Documento sustituyó a este mientras la verificación estaba en cola o en
+        // vuelo, el resultado llega tarde a un documento que ya no está en uso. Se descarta y el trabajo queda como
+        // descartado con este motivo (MarcarDescartado); ni la aprobación ni la revisión tocan el documento del
+        // historial. Va antes que la comparación de versión: sustituir cambia la versión, y la causa que se registra
+        // tiene que ser la sustitución, no un «cambió» genérico (ni depender de que el encargo lleve versión).
+        var sigueOperativo = await documentosContext.Documentos.Where(DocumentoOperativo.Expresion)
+            .AnyAsync(d => d.Id == encargo.DocumentoId, cancellationToken);
+        if (!sigueOperativo)
+            return "El Documento ya está en el historial (otro lo sustituyó) o dejó de estar en uso antes de aplicar la verificación: el resultado no se aplica.";
+
         if (encargo.VersionDocumentoEncolada is { } versionEncolada && versionEncolada != version)
             return "El Documento cambió después de encolar la verificación (renovación, corrección, archivo nuevo o anonimización): el resultado corresponde a una versión anterior.";
 

@@ -16,3 +16,5 @@
 .firma-documento-360:first-child { border-top:0; }
 .firma-documento-360 strong { color:var(--color-text); }
 @media (max-width:480px) { .rejilla-info-documento-360 { grid-template-columns:1fr; } }
+.aviso-historial-documento-360 { margin-bottom:var(--space-3); padding:var(--space-3) var(--space-4); border:var(--border-default); border-radius:var(--radius-md); background:var(--color-surface-subtle); font:var(--font-body-md); }
+.aviso-historial-documento-360 a { margin-left:var(--space-1); font-weight:600; }

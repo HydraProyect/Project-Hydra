@@ -134,6 +134,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
         // Corregir la Rechazada: versión corregida, que la devuelve a pendiente de envío.
         var filaAcreditacion = page.Locator($".plataforma-fila-documento[data-acreditacion-id='{rechazadaB}']");
+        var propietarioDocumento = (await filaAcreditacion.Locator(".plataforma-documento-propietario").InnerTextAsync()).Trim();
+        var tipoDocumento = (await filaAcreditacion.Locator(".plataforma-documento-tipo").InnerTextAsync()).Trim();
         await filaAcreditacion.GetByRole(AriaRole.Button, new() { Name = "Subir versión corregida", Exact = true }).ClickAsync();
         var drawer = page.Locator(".drawer-panel");
         await Expect(drawer.GetByText("Renovar documento")).ToBeVisibleAsync();
@@ -142,8 +144,14 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync();
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new() { State = WaitForSelectorState.Hidden });
-        await Expect(filaAcreditacion.GetByRole(AriaRole.Button, new() { Name = "Marcar subido", Exact = true })).ToBeVisibleAsync();
-        await Expect(filaAcreditacion.GetByRole(AriaRole.Button, new() { Name = "Subir versión corregida", Exact = true })).ToHaveCountAsync(0);
+        // Renovar con archivo crea un Documento nuevo (D8): la acreditación Rechazada es del anterior, que pasa al
+        // historial y sale de la cola; el nuevo nace con su acreditación pendiente de subir.
+        await Expect(filaAcreditacion).ToHaveCountAsync(0);
+        var filaNueva = page.Locator(".plataforma-fila-documento")
+            .Filter(new() { Has = page.Locator(".plataforma-documento-propietario", new() { HasTextString = propietarioDocumento }) })
+            .Filter(new() { Has = page.Locator(".plataforma-documento-tipo", new() { HasTextString = tipoDocumento }) });
+        await Expect(filaNueva.GetByRole(AriaRole.Button, new() { Name = "Marcar subido", Exact = true })).ToBeVisibleAsync();
+        await Expect(filaNueva.GetByRole(AriaRole.Button, new() { Name = "Subir versión corregida", Exact = true })).ToHaveCountAsync(0);
 
         // Visita: crearla en el Centro de B y cancelarla.
         var fechaVisita = hoy.AddDays(10);

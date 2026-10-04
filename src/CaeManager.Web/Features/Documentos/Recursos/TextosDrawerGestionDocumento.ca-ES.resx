@@ -18,4 +18,10 @@
   <data name="GuardarEsperaSubida" xml:space="preserve">
     <value>Espera que acabi la pujada de l'arxiu.</value>
   </data>
+  <data name="HistorialAbreVigente" xml:space="preserve">
+    <value>Aquest document és a l'historial: un altre el va substituir. Obrim el vigent.</value>
+  </data>
+  <data name="HistorialNoEditable" xml:space="preserve">
+    <value>Aquest document és a l'historial i no es pot editar.</value>
+  </data>
 </root>

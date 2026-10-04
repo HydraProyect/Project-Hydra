@@ -234,7 +234,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         StateHasChanged();
     }
 
-    public async Task AbrirEditarAsync(Guid id)
+    public async Task AbrirEditarAsync(Guid id, int saltosAlVigente = 0)
     {
         // Mismo motivo que en AbrirCrearAsync — y aquí importa más, porque a
         // continuación _archivoUrl pasa a ser el archivo que el Documento ya
@@ -245,6 +245,22 @@ public partial class DrawerGestionDocumento : ComponentBase
         if (documento is null)
         {
             ToastService.Mostrar("No encontramos este documento. Puede que ya se haya eliminado.", TonoToast.Error);
+            return;
+        }
+
+        // Historial (D8 del diseño del documento efectivo): un enlace a un Id que otro documento sustituyó (porque se
+        // renovó) no abre el formulario sobre el historial —es inmutable—, avisa y abre el vigente. El tope evita un
+        // bucle si los datos fueran incoherentes.
+        if (documento.SustitutoId is { } vigenteId && saltosAlVigente < 5)
+        {
+            ToastService.Mostrar(TextosDrawerGestionDocumento.Texto("HistorialAbreVigente"), TonoToast.Info);
+            await AbrirEditarAsync(vigenteId, saltosAlVigente + 1);
+            return;
+        }
+
+        if (documento.SustitutoId is not null)
+        {
+            ToastService.Mostrar(TextosDrawerGestionDocumento.Texto("HistorialNoEditable"), TonoToast.Error);
             return;
         }
 

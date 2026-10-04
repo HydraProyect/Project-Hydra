@@ -133,4 +133,10 @@
   <data name="GuardarFiltroSinNombre" xml:space="preserve">
     <value>Escriu un nom per al filtre</value>
   </data>
+  <data name="Documento360AvisoHistorial" xml:space="preserve">
+    <value>Aquest document és a l'historial: un altre el va substituir el {0}.</value>
+  </data>
+  <data name="Documento360VerVigente" xml:space="preserve">
+    <value>Veure el document vigent</value>
+  </data>
 </root>

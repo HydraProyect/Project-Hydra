@@ -206,16 +206,17 @@ public class Documento : EntidadBase
     /// Corrige la fecha de emisión y la vigencia <b>de este mismo registro</b>: la corrección de un dato mal
     /// leído (revisión de la IA, edición del Gestor CAE), no una renovación. Renovar un documento es subir
     /// uno nuevo que lo sustituye (<see cref="SustituirPor"/>): el anterior pasa al historial, y este método no
-    /// puede hacerlo porque pisa las fechas del propio registro. Hasta que el comando de renovar cree un
-    /// registro nuevo (PR 4 del diseño del documento efectivo), <c>RenovarDocumentoCommand</c> sigue usando este
-    /// método. Este método no rechaza un documento ya sustituido: si el historial es además inmutable frente a
-    /// correcciones es una decisión pendiente del PR 4, no una garantía de hoy. La vigencia la
+    /// puede hacerlo porque pisa las fechas del propio registro: <c>RenovarDocumentoCommand</c> con archivo nuevo
+    /// crea el registro nuevo (<see cref="NuevoDelMismoTitular"/>) y sustituye al anterior. <b>El historial es
+    /// inmutable</b>: un documento ya sustituido rechaza la corrección (lanza), porque dejaría de ser la evidencia
+    /// de lo que estuvo en uso. La vigencia la
     /// decide el llamador (Application): la calcula con CalculadoraEstadoDocumento cuando el TipoDocumento
     /// tiene vencimiento automático, o la confirma el Gestor CAE a mano. Una vigencia sin confirmar queda
     /// <see cref="VigenciaDocumento.SinConfirmar"/>, nunca «no caduca».
     /// </summary>
     public void CorregirVigencia(DateOnly fechaEmision, VigenciaDocumento vigencia)
     {
+        ExigirNoSustituido(nameof(CorregirVigencia));
         if (fechaEmision > DiaDeNegocio.Hoy())
             throw new ArgumentException("La fecha de emisión no puede ser futura.", nameof(fechaEmision));
         if (vigencia.FechaVencimiento is { } fecha && fecha < fechaEmision)
@@ -303,8 +304,31 @@ public class Documento : EntidadBase
         MotivoSustitucion = motivo;
     }
 
+    /// <summary>
+    /// Un documento nuevo del mismo titular y el mismo Tipo que este, para ocupar su lugar al renovarlo. No lo
+    /// sustituye (eso lo hace <see cref="SustituirPor"/>, con el nuevo ya persistible) y no copia el archivo, la
+    /// vigencia ni los comentarios: son los del documento que llega. Un sustituido no genera sustituto: la unidad
+    /// viva ya tiene el suyo.
+    /// </summary>
+    public Documento NuevoDelMismoTitular(
+        DateOnly fechaEmision, VigenciaDocumento vigencia, string? archivoUrl, string? comentarios)
+    {
+        ExigirNoSustituido(nameof(NuevoDelMismoTitular));
+        var p = Propietarios;
+        return new Documento(p[0], p[1], p[2], p[3], p[4], TipoDocumentoId, fechaEmision, vigencia, archivoUrl, comentarios);
+    }
+
+    private void ExigirNoSustituido(string operacion)
+    {
+        if (EstaSustituido)
+            throw new InvalidOperationException(
+                $"El documento está en el historial (lo sustituyó {SustituidoPorDocumentoId}): {operacion} no lo modifica. " +
+                "El historial es inmutable; se actúa sobre el documento que lo sustituyó.");
+    }
+
     public void AdjuntarArchivo(string archivoUrl)
     {
+        ExigirNoSustituido(nameof(AdjuntarArchivo));
         if (string.IsNullOrWhiteSpace(archivoUrl))
             throw new ArgumentException("La URL del archivo no puede estar vacía.", nameof(archivoUrl));
         ArchivoUrl = archivoUrl;
