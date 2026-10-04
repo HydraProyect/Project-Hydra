@@ -169,7 +169,7 @@
             <div class="campo-con-boton">
                 <CampoTexto Etiqueta="Fecha de vencimiento" Type="date" Valor="@_fechaVencimientoManual" ValorChanged="v => _fechaVencimientoManual = v" />
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CopiarFechaEmisionAVencimiento"
-                       title="Copiar fecha de emisión a vencimiento" aria-label="Copiar fecha de emisión a vencimiento">
+                       data-tooltip="Copiar fecha de emisión a vencimiento" aria-label="Copiar fecha de emisión a vencimiento">
                     <Icono Nombre="copiar" Tamano="TamanoIcono.Pequeno" />
                 </Boton>
             </div>
