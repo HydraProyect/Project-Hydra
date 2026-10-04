@@ -10,12 +10,11 @@
 {
     @* Interruptor de dos estados (claro/oscuro). El estado claro es la AUSENCIA
        de preferencia —sin data-theme ni cookie—, no una elección explícita:
-       ver AlternarTemaAsync. El icono de la izquierda es decorativo (<Icono>
-       pone aria-hidden); el nombre accesible y el estado van en el propio
+       ver AlternarTemaAsync. Sin icono ni rótulo al lado (diseño limpio, decisión
+       de Chris): el nombre accesible y el estado van en el propio
        interruptor: role="switch" + aria-checked. Las nubes, estrellas y
        cráteres son decoración pura (aria-hidden), pintada con CSS. *@
     <span class="selector-tema-envoltura">
-        <Icono Nombre="tema" Tamano="TamanoIcono.Pequeno" />
         <button type="button" class="selector-tema" role="switch"
                 aria-checked="@(EsOscuro ? "true" : "false")" aria-label="Tema oscuro"
                 @onclick="AlternarTemaAsync">
@@ -28,7 +27,6 @@
                 <span class="crater crater-1"></span><span class="crater crater-2"></span><span class="crater crater-3"></span>
             </span>
         </button>
-        <span class="selector-tema-etiqueta" aria-hidden="true">@(EsOscuro ? "Oscuro" : "Claro")</span>
     </span>
 }
 </LimiteDeErrores>
