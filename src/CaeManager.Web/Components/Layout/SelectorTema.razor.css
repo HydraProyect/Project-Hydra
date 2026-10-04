@@ -1,14 +1,7 @@
 .selector-tema-envoltura {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
     color: var(--color-text-muted);
-}
-
-.selector-tema-etiqueta {
-    font: var(--font-body-md);
-    color: var(--color-text-muted);
-    min-width: 3.5ch;
 }
 
 /* El cielo y la noche son una ilustración: no cambian con el tema de la app
