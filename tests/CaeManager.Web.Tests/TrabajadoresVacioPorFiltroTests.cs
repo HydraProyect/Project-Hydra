@@ -191,7 +191,8 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
 
         // MenuAcciones no pinta sus ítems hasta abrirse: sin el clic, la
         // comprobación siguiente sería verde vacío.
-        cut.Find(".menu-acciones-disparador").Click();
+        // El de la fila: la cabecera y la barra de filtros también llevan disparadores de menú.
+        cut.Find("tbody .menu-acciones-disparador").Click();
 
         cut.Markup.Should().Contain("Abrir ficha 360");
         cut.Markup.Should().Contain("Vista rápida", "el destino nuevo se suma, no sustituye a la vista previa");
@@ -214,12 +215,13 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Aún no hay trabajadores");
         cut.Markup.Should().NotContain("+ Nuevo trabajador", "invitar a crear con alcance cero termina en un duplicado");
         // D-15: sin alcance no hay lista que filtrar, guardar ni exportar.
-        cut.FindAll(".barra-trabajo-trabajadores").Should().BeEmpty("filtros y «Guardar filtro» sobre una lista que no puede existir");
-        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría un fichero vacío");
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty("filtros y «Guardar filtro» sobre una lista que no puede existir");
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("el «⋯» solo lleva «Exportar a Excel», que exportaría un fichero vacío");
+        cut.FindAll("header.cabecera-pagina button.cabecera-listado-icono").Should().BeEmpty("sin lista no hay nada que seleccionar");
     }
 
     [Fact]
-    public void Con_alcance_y_sin_registros_el_vacio_no_cambia()
+    public async Task Con_alcance_y_sin_registros_el_vacio_no_cambia()
     {
         _alcanceCero = false;
 
@@ -228,7 +230,9 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         cut.Markup.Should().Contain("Aún no hay trabajadores");
         cut.Markup.Should().Contain("+ Nuevo trabajador");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
-        cut.FindAll(".barra-trabajo-trabajadores").Should().NotBeEmpty();
-        cut.FindAll("a.enlace-exportar").Should().ContainSingle();
+        cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty();
+        await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Should().ContainSingle()
+            .Which.GetAttribute("href").Should().Be("/trabajadores/exportar.xlsx");
     }
 }

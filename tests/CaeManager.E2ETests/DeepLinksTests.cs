@@ -131,7 +131,9 @@ public class DeepLinksTests(WebAppFixture fixture)
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
 
-        var nombre = (await page.Locator(".enlace-nombre-fila").First.TextContentAsync())!.Trim().Split(' ')[0];
+        // La celda «Trabajador» dice «Apellidos, Nombre»: se busca por la primera palabra de los
+        // apellidos, sin la coma que la separa del nombre cuando el apellido es uno solo.
+        var nombre = (await page.Locator(".enlace-nombre-fila").First.TextContentAsync())!.Trim().Split([' ', ','], StringSplitOptions.RemoveEmptyEntries)[0];
         await page.EvaluateAsync("() => { window.__sinRecarga = true; }");
         var pedidasPorFetch = new ConcurrentQueue<string>();
         page.Request += (_, peticion) =>

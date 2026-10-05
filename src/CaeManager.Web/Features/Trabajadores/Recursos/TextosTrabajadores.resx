@@ -66,29 +66,8 @@
   <data name="BotonNuevoTrabajador" xml:space="preserve">
     <value>+ Nuevo trabajador</value>
   </data>
-  <data name="PlaceholderBusqueda" xml:space="preserve">
-    <value>Buscar por nombre, apellidos, alias o DNI…</value>
-  </data>
   <data name="OpcionTodas" xml:space="preserve">
     <value>Todas</value>
-  </data>
-  <data name="OpcionTodasEmpresas" xml:space="preserve">
-    <value>Todas las empresas</value>
-  </data>
-  <data name="OpcionTodasSubcontratas" xml:space="preserve">
-    <value>Todas las subcontratas</value>
-  </data>
-  <data name="EtiquetaFiltrosGuardados" xml:space="preserve">
-    <value>Filtros guardados</value>
-  </data>
-  <data name="OpcionAplicarFiltro" xml:space="preserve">
-    <value>Aplicar uno…</value>
-  </data>
-  <data name="BotonSeleccionMultiple" xml:space="preserve">
-    <value>Selección múltiple</value>
-  </data>
-  <data name="BotonGuardarFiltro" xml:space="preserve">
-    <value>Guardar filtro</value>
   </data>
   <data name="AriaQuitarFiltroBusqueda" xml:space="preserve">
     <value>Quitar filtro de búsqueda</value>
@@ -107,9 +86,6 @@
   </data>
   <data name="AriaSeleccionarPagina" xml:space="preserve">
     <value>Seleccionar los trabajadores de esta página</value>
-  </data>
-  <data name="ColumnaEmpleador" xml:space="preserve">
-    <value>Empresa / Subcontrata</value>
   </data>
   <data name="ColumnaAcciones" xml:space="preserve">
     <value>Acciones</value>
@@ -728,5 +704,14 @@
   </data>
   <data name="AvisoVigenciaSinConfirmar" xml:space="preserve">
     <value>Vigencia sin confirmar: {0}</value>
+  </data>
+  <data name="ListaFiltrarPlaceholder" xml:space="preserve">
+    <value>Filtrar esta pantalla: nombre, DNI o alias</value>
+  </data>
+  <data name="ListaColumnaTrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="ListaOpcionSubcontrata" xml:space="preserve">
+    <value>{0} (subcontrata)</value>
   </data>
 </root>

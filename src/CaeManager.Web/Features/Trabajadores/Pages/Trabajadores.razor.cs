@@ -7,8 +7,6 @@ using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
-using CaeManager.Application.Documentos.DocumentacionBase;
-using CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrabajadores;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
@@ -16,11 +14,12 @@ using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
-using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -28,6 +27,7 @@ using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.QuickGrid;
 using CaeManager.Web.Features.Trabajadores.Recursos;
 using CaeManager.Web.Recursos;
@@ -59,7 +59,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
 
-    private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
+    /// <summary>Tamaño de página por defecto y mínimo del selector: por debajo de él no hay paginador.</summary>
+    private const int TamanoPaginaMinimo = 20;
+
+    private readonly PaginationState _paginacion = new() { ItemsPerPage = TamanoPaginaMinimo };
 
     // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
@@ -176,9 +179,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             _seleccionados.Clear();
     }
     private List<TrabajadorListaDto> _elementosPagina = [];
-    private IReadOnlyDictionary<Guid, DocumentacionBaseTrabajadorDto> _documentacionBase = new Dictionary<Guid, DocumentacionBaseTrabajadorDto>();
-
-    private DocumentacionBaseTrabajadorDto? DocumentacionBaseDe(Guid trabajadorId) => _documentacionBase.GetValueOrDefault(trabajadorId);
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
     private bool _confirmarEliminarLoteVisible;
@@ -203,13 +203,11 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         .Select(c => new OpcionBuscable(c.Id.ToString(), $"{c.Nombre} ({c.ClienteRazonSocial})"))
         .ToList();
 
-    private record FiltrosTrabajadoresJson(string? Busqueda, string? EmpresaId, string? SubcontrataId);
-
     /// <summary>
-    /// La empresa gestionada activa, solo para quien alcanza varias (mismo criterio
-    /// que el selector de la barra lateral): la cabecera dice de cuál es la lista.
+    /// Lo que guarda un filtro de esta pantalla. <c>Estado</c> (la pastilla «Documentación») llegó después:
+    /// es opcional para que los filtros ya guardados sin él se sigan leyendo, y entonces se aplican sin estado.
     /// </summary>
-    private ClienteAutorizadoDto? _empresaActiva;
+    private record FiltrosTrabajadoresJson(string? Busqueda, string? EmpresaId, string? SubcontrataId, string? Estado = null);
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -219,17 +217,31 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
 
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// El rol efectivo puede escribir (mismos roles que <c>SoloConEscritura</c>). Sin él no se ofrece
+    /// la selección múltiple: solo alimenta la barra de lote (eliminar, asignar a centro), toda ella
+    /// escritura, y las casillas no servirían para nada.
+    /// </summary>
+    private bool _puedeEscribir;
+
     protected override async Task OnInitializedAsync()
     {
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
+
+        if (EstadoAutenticacion is not null)
+        {
+            var usuario = (await EstadoAutenticacion).User;
+            _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
+        }
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
         try
         {
             var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
-            _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
@@ -341,19 +353,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// </summary>
     private int _cargaVigente;
 
-    private async Task<IReadOnlyDictionary<Guid, DocumentacionBaseTrabajadorDto>> CargarDocumentacionBaseAsync(
-        List<TrabajadorListaDto> elementos, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await Mediator.Send(new ObtenerDocumentacionBaseTrabajadoresQuery(elementos.Select(e => e.Id).ToList()), cancellationToken);
-        }
-        catch (Exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            return new Dictionary<Guid, DocumentacionBaseTrabajadorDto>();
-        }
-    }
-
     private async ValueTask<GridItemsProviderResult<TrabajadorListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<TrabajadorListaDto> request)
     {
@@ -386,13 +385,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             if (_totalElementos > 0) _alcanceCero = false;
 
             var elementos = resultado.Elementos.ToList();
-
-            // Ayuda de lectura de la página ya pedida: si falla, la columna queda vacía y la lista sigue.
-            var documentacionBase = await CargarDocumentacionBaseAsync(elementos, request.CancellationToken);
-            if (carga != _cargaVigente)
-                return GridItemsProviderResult.From(new List<TrabajadorListaDto>(), 0);
-            _documentacionBase = documentacionBase;
-
             _elementosPagina = elementos;
             _seleccionados.Clear();
             _idEnfocado = null;
@@ -471,6 +463,42 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private string EtiquetaFiltroSubcontrata =>
         _subcontratasDisponibles.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.RazonSocial ?? Textos["EtiquetaSubcontrata"].Value;
+
+    /// <summary>Prefijos del valor de la pastilla «Empresa», que lleva dentro también las subcontratas.</summary>
+    private const string PrefijoEmpresa = "empresa:";
+    private const string PrefijoSubcontrata = "subcontrata:";
+
+    /// <summary>
+    /// Valor de la pastilla «Empresa»: el filtro de empresa o el de subcontrata (se excluyen), con su
+    /// prefijo para que un mismo Id no pueda confundir los dos parámetros de la consulta.
+    /// </summary>
+    private string ValorFiltroEmpleador =>
+        !string.IsNullOrWhiteSpace(_filtroSubcontrataId) ? PrefijoSubcontrata + _filtroSubcontrataId
+        : !string.IsNullOrWhiteSpace(_filtroEmpresaId) ? PrefijoEmpresa + _filtroEmpresaId
+        : string.Empty;
+
+    /// <summary>Opciones de la pastilla «Empresa»: las empresas y, detrás, las subcontratas marcadas como tales.</summary>
+    private IReadOnlyList<OpcionEstado> OpcionesFiltroEmpleador =>
+        _empresasDisponibles.Select(e => new OpcionEstado(PrefijoEmpresa + e.Id, e.RazonSocial))
+            .Concat(_subcontratasDisponibles.Select(sc => new OpcionEstado(PrefijoSubcontrata + sc.Id, Textos["ListaOpcionSubcontrata", sc.RazonSocial].Value)))
+            .ToList();
+
+    private Task CambiarFiltroEmpleadorAsync(string valor) =>
+        valor.StartsWith(PrefijoSubcontrata, StringComparison.Ordinal) ? FiltrarPorSubcontrataAsync(valor[PrefijoSubcontrata.Length..])
+        : valor.StartsWith(PrefijoEmpresa, StringComparison.Ordinal) ? FiltrarPorEmpresaAsync(valor[PrefijoEmpresa.Length..])
+        // «Todas»: FiltrarPorEmpresaAsync suelta también la subcontrata, en una sola recarga.
+        : FiltrarPorEmpresaAsync(string.Empty);
+
+    /// <summary>Los filtros guardados de esta pantalla, dentro de «Más filtros».</summary>
+    private IReadOnlyList<OpcionEstado> OpcionesFiltrosGuardados =>
+        _filtrosGuardados.Select(f => new OpcionEstado(f.Id.ToString(), f.Nombre)).ToList();
+
+    /// <summary>«Guardar filtro» de «Más filtros»: abre el modal sin el error de un intento anterior.</summary>
+    private void AbrirGuardarFiltro()
+    {
+        _mensajeErrorFiltro = null;
+        _mostrarGuardarFiltro = true;
+    }
 
     private Task QuitarFiltroBusquedaAsync() => BuscarAsync(string.Empty);
 
@@ -788,6 +816,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private static string NombreCompleto(TrabajadorListaDto trabajador) => $"{trabajador.Nombre} {trabajador.Apellidos}";
 
+    /// <summary>Lo que dice la celda «Trabajador» de la fila: «Apellidos, Nombre», como la maqueta (fase 1).</summary>
+    private static string NombreDeFila(TrabajadorListaDto trabajador) => $"{trabajador.Apellidos}, {trabajador.Nombre}";
+
     private void AbrirEliminar(Guid id, string nombre)
     {
         _idAEliminar = id;
@@ -1060,7 +1091,22 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     // --- P3-31: atajos de teclado j/k/x/Enter ---
 
-    private string ObtenerClaseFila(TrabajadorListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
+    /// <summary>
+    /// La fila se tinta por su estado documental: Vencido en rojo, Urgente en ámbar (rediseño de
+    /// listados, fase 1, mismos tokens que Clientes empresariales, Empresas y Centros). El foco de
+    /// teclado (j/k) se suma al tinte, no lo sustituye (list-page.css combina las dos clases).
+    /// </summary>
+    private string ObtenerClaseFila(TrabajadorListaDto item)
+    {
+        var tinte = item.EstadoDocumental switch
+        {
+            EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
+            EstadoDocumento.Urgente => "fila-tintada-aviso",
+            _ => null
+        };
+        var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
+        return string.Join(' ', new[] { foco, tinte }.Where(c => c is not null));
+    }
 
     private async Task ManejarAtajoAsync(string tecla)
     {
@@ -1081,8 +1127,14 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                     break;
                 }
             case "x":
-                if (_idEnfocado is { } idAlternar)
+                // Como en la maqueta, «x» enciende la selección múltiple: la casilla marcada queda a
+                // la vista, y la barra de lote nunca apunta a una fila sin casilla. Sin escritura
+                // (o sin alcance) no hay selección que ofrecer.
+                if (_idEnfocado is { } idAlternar && _puedeEscribir && !_alcanceCero)
+                {
+                    _seleccionMultiple = true;
                     AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                }
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
@@ -1108,12 +1160,18 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = valores.Busqueda ?? string.Empty;
         _filtroEmpresaId = valores.EmpresaId ?? string.Empty;
         _filtroSubcontrataId = valores.SubcontrataId ?? string.Empty;
+        // Un filtro guardado define el conjunto entero: sin estado guardado, el estado se quita. Un valor que
+        // ya no es una opción (catálogo cambiado) se ignora, como uno de la URL.
+        _estadoFiltro = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == valores.Estado) ? valores.Estado! : string.Empty;
 
-        // La búsqueda del filtro guardado se escribe también en ?q=. Si solo
-        // se aplicara en memoria, la siguiente navegación dentro de la página
-        // (p. ej. cambiar el filtro de documentación, que sí escribe la URL)
-        // haría que OnParametersSetAsync la borrase leyendo un ?q= vacío.
-        NavigationManager.ActualizarFiltroEnUrl("q", _busqueda);
+        // La búsqueda y el estado del filtro guardado se escriben también en la URL (?q=, ?estado=), en una
+        // sola navegación. Si solo se aplicaran en memoria, la siguiente navegación dentro de la página
+        // haría que OnParametersSetAsync los borrase leyendo una URL sin ellos.
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = string.IsNullOrEmpty(_busqueda) ? null : _busqueda,
+            ["estado"] = string.IsNullOrEmpty(_estadoFiltro) ? null : _estadoFiltro,
+        });
         await RecargarAsync();
     }
 
@@ -1129,7 +1187,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             var valoresJson = JsonSerializer.Serialize(new FiltrosTrabajadoresJson(
                 string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 string.IsNullOrWhiteSpace(_filtroEmpresaId) ? null : _filtroEmpresaId,
-                string.IsNullOrWhiteSpace(_filtroSubcontrataId) ? null : _filtroSubcontrataId));
+                string.IsNullOrWhiteSpace(_filtroSubcontrataId) ? null : _filtroSubcontrataId,
+                string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
             var resultado = await Mediator.Send(
                 new GuardarFiltroCommand(PantallasConFiltrosGuardados.Trabajadores, _nombreFiltroNuevo, valoresJson));

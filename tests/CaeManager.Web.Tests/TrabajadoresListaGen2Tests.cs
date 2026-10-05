@@ -36,9 +36,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Lista de Trabajadores (/trabajadores) contra su mockup Gen 2 («Lista
-/// Trabajadores TALVEG.dc.html»). El vacío por filtro y el menú con «Abrir
-/// Trabajador 360», que ya existían y se conservan, los sigue probando
+/// Lista de Trabajadores (/trabajadores) tras la fase 1 del rediseño de listados (maqueta
+/// aprobada de listados interactivos; antes, el mockup Gen 2). El vacío por filtro y el menú
+/// con «Abrir Trabajador 360», que ya existían y se conservan, los sigue probando
 /// <see cref="TrabajadoresVacioPorFiltroTests"/>.
 ///
 /// <para>
@@ -321,16 +321,22 @@ public class TrabajadoresListaGen2Tests : BunitContext
         return mediador;
     }
 
+    /// <summary>
+    /// Rediseño de listados, fase 1: la lista ya no repite qué empresa gestionada está activa —lo
+    /// dice el selector de la barra lateral—, pero sí es la de la elegida: se monta y pide sus datos.
+    /// </summary>
     [Fact]
-    public void Con_varias_empresas_gestionadas_la_cabecera_de_la_lista_dice_cual_esta_activa()
+    public void Con_varias_empresas_gestionadas_la_lista_no_repite_el_rotulo_de_la_empresa_activa()
     {
         Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
+        var mediador = ConCartera(origenGestionado: false);
 
-        var cut = Renderizar(ConCartera(origenGestionado: false));
+        var cut = Renderizar(mediador);
 
-        var cabecera = cut.Find(".cabecera-empresa-activa");
-        cabecera.TextContent.Should().Contain("Empresa gestionada").And.Contain("Empresa Sur");
-        cabecera.QuerySelector(".avatar-tenant")!.TextContent.Trim().Should().Be("ES", "sin logo se pintan las iniciales");
+        ConsultasDeLista(mediador).Should().BeGreaterThan(0, "control positivo: con la empresa elegida la lista se pide");
+        cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty();
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Empresa gestionada").And.NotContain("Empresa Sur");
     }
 
     [Fact]
@@ -350,8 +356,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
-        cut.FindAll(".barra-trabajo-trabajadores").Should().BeEmpty();
-        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("su «Exportar a Excel» exportaría los datos del origen");
         ConsultasDeLista(mediador).Should().Be(0, "no se piden los trabajadores de la organización de origen");
         mediador.Enviadas.OfType<ObtenerEmpresasParaSelectorQuery>().Should().BeEmpty("tampoco los catálogos del origen");
     }
@@ -364,7 +370,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
-        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Operador de prueba");
+        cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty("la lista del origen se monta");
     }
 
     [Fact]
@@ -377,14 +383,14 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         var cut = Render<Trabajadores>();
 
-        cut.FindAll(".barra-trabajo-trabajadores").Should().BeEmpty();
-        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("su «Exportar a Excel» exportaría los datos del origen");
         ConsultasDeLista(mediador).Should().Be(0);
 
         puerta.SetResult();
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Selecciona una empresa de tu cartera"));
-        cut.FindAll("a.enlace-exportar").Should().BeEmpty();
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "ni antes ni después de resolverse se pide la lista del origen");
     }
 
@@ -529,11 +535,11 @@ public class TrabajadoresListaGen2Tests : BunitContext
         Registrar(mediador, "trabajadores");
 
         var cut = Render<Trabajadores>();
-        cut.FindAll(".barra-trabajo-trabajadores").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
 
         puerta.SetResult();
 
-        cut.WaitForAssertion(() => cut.FindAll(".barra-trabajo-trabajadores").Should().NotBeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty());
     }
 
     private void Registrar(MediatorFalso mediador, string url)
@@ -561,17 +567,57 @@ public class TrabajadoresListaGen2Tests : BunitContext
     private static List<IElement> FilasDeDatos(IRenderedComponent<Trabajadores> cut) =>
         cut.FindAll("tbody tr").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null).ToList();
 
-    /// <summary>Texto del botón de nombre en la posición <paramref name="columna"/> (0 Apellidos, 1 Nombre) de cada fila.</summary>
+    /// <summary>
+    /// La parte <paramref name="columna"/> (0 Apellidos, 1 Nombre) de la celda «Trabajador» de cada
+    /// fila, que dice «Apellidos, Nombre» en un solo botón (rediseño de listados, fase 1).
+    /// </summary>
     private static List<string> Columna(IRenderedComponent<Trabajadores> cut, int columna) =>
-        FilasDeDatos(cut).Select(tr => tr.QuerySelectorAll(".enlace-nombre-fila")[columna].TextContent.Trim()).ToList();
+        FilasDeDatos(cut).Select(tr => tr.QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Split(", ")[columna]).ToList();
 
-    private static IElement SelectDeLaBarra(IRenderedComponent<Trabajadores> cut, string etiqueta) =>
-        cut.FindAll(".barra-trabajo-trabajadores .campo")
-            .Single(c => c.QuerySelector("label")?.TextContent.Trim() == etiqueta)
-            .QuerySelector("select")!;
+    /// <summary>
+    /// El disparador de la pastilla de filtro de ese nombre: su nombre accesible es la etiqueta sin
+    /// valor aplicado, o «etiqueta: opción» con valor.
+    /// </summary>
+    private static IElement Pastilla(IRenderedComponent<Trabajadores> cut, string etiqueta) =>
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
+            .Single(b => b.GetAttribute("aria-label") is { } nombre && (nombre == etiqueta || nombre.StartsWith(etiqueta + ": ", StringComparison.Ordinal)));
 
-    private static IElement BotonDeLaBarra(IRenderedComponent<Trabajadores> cut, string texto) =>
-        cut.FindAll(".barra-trabajo-trabajadores button").Single(b => b.TextContent.Trim() == texto);
+    /// <summary>Abre la pastilla y pulsa la opción (menuitemradio) con ese texto.</summary>
+    private static async Task ElegirEnLaPastilla(IRenderedComponent<Trabajadores> cut, string etiqueta, string opcion)
+    {
+        await Pastilla(cut, etiqueta).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]")
+            .Single(i => i.TextContent.Trim() == opcion).ClickAsync(new MouseEventArgs());
+    }
+
+    /// <summary>Textos de las opciones de la pastilla, abierta para leerlos.</summary>
+    private static async Task<List<string>> OpcionesDeLaPastilla(IRenderedComponent<Trabajadores> cut, string etiqueta)
+    {
+        await Pastilla(cut, etiqueta).ClickAsync(new MouseEventArgs());
+        return cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Select(i => i.TextContent.Trim()).ToList();
+    }
+
+    /// <summary>Abre «Más filtros» y pulsa el ítem con ese texto (un filtro guardado o «Guardar filtro»).</summary>
+    private static async Task PulsarEnMasFiltros(IRenderedComponent<Trabajadores> cut, string item)
+    {
+        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-filtros-pastillas [role=menuitem]")
+            .Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
+    }
+
+    /// <summary>El conmutador ☑ «Selección múltiple» de la cabecera.</summary>
+    private static IElement ConmutadorSeleccion(IRenderedComponent<Trabajadores> cut) =>
+        cut.Find("header.cabecera-pagina button.cabecera-listado-icono");
+
+    private static Task AlternarSeleccionMultiple(IRenderedComponent<Trabajadores> cut) =>
+        ConmutadorSeleccion(cut).ClickAsync(new MouseEventArgs());
+
+    private static List<string> TextosDeLosChips(IRenderedComponent<Trabajadores> cut) =>
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
+
+    /// <summary>Clases de las filas con datos (QuickGrid rellena la página con filas vacías).</summary>
+    private static List<string> ClasesDeLasFilas(IRenderedComponent<Trabajadores> cut) =>
+        FilasDeDatos(cut).Select(tr => tr.ClassName ?? string.Empty).ToList();
 
     private static ObtenerTrabajadoresQuery UltimaConsulta(MediatorFalso mediador) =>
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Last();
@@ -580,7 +626,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Count();
 
     private static IRenderedComponent<CampoTexto> CajaDeBusqueda(IRenderedComponent<Trabajadores> cut) =>
-        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Buscar", StringComparison.Ordinal) == true);
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Placeholder?.StartsWith("Filtrar esta pantalla", StringComparison.Ordinal) == true);
 
     /// <summary>Cuenta las navegaciones desde ahora: cada una es una pasada de parámetros más.</summary>
     private Func<int> ContarNavegaciones()
@@ -590,45 +636,170 @@ public class TrabajadoresListaGen2Tests : BunitContext
         return () => navegaciones;
     }
 
-    // --- Cabecera y barra de trabajo -----------------------------------------------------------
+    // --- Cabecera y barra de filtros (rediseño de listados, fase 1) ----------------------------
 
+    /// <summary>
+    /// Cabecera de una línea: título del perfil con el contador, ☑ «Selección múltiple», el «⋯» y
+    /// UNA primaria; sin antetítulo y sin el rótulo de la empresa gestionada.
+    /// </summary>
     [Theory]
     [InlineData(PerfilVocabularioTenant.Consultora, true, "Trabajadores")]
     [InlineData(PerfilVocabularioTenant.ClienteDirecto, true, "Mis trabajadores")]
     // Decisión del propietario 2026-09-28: usuario de otro Tenant en un Tenant Cliente Directo.
     [InlineData(PerfilVocabularioTenant.ClienteDirecto, false, "Trabajadores")]
-    public void La_cabecera_es_la_Gen_2_con_el_titulo_del_perfil_y_las_acciones_de_la_pagina(
+    public void La_cabecera_es_de_una_linea_con_el_titulo_del_perfil_contador_seleccion_menu_y_una_primaria(
         PerfilVocabularioTenant perfil, bool esDelPropioTenant, string titulo)
     {
         var mediador = new MediatorFalso
         {
             Perfil = perfil,
             EsDelPropioTenant = esDelPropioTenant,
-            Almacen = { Trabajador("Javier", "Salas Moreno") }
+            Almacen = { Trabajador("Javier", "Salas Moreno"), Trabajador("Ana", "Vega Ortiz") }
         };
         var cut = Renderizar(mediador);
 
         var cabecera = cut.Find("header.cabecera-pagina");
         cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be(titulo);
-        cabecera.QuerySelector(".cabecera-pagina-kicker").Should().BeNull("el mockup no lleva kicker");
+        cabecera.QuerySelector(".cabecera-pagina-kicker").Should().BeNull("el grupo del menú ya está en las migas");
+        cabecera.QuerySelector(".cabecera-listado-contador")!.TextContent.Trim().Should().Be("2");
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
+
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelector("a.enlace-exportar")!.GetAttribute("href").Should().Be("/trabajadores/exportar.xlsx");
-        acciones.QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("+ Nuevo trabajador");
+        acciones.QuerySelectorAll("a").Should().BeEmpty("«Exportar a Excel» vive ahora dentro del «⋯»");
+        acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
+            .Should().Equal("Selección múltiple", "Más acciones", "+ Nuevo trabajador");
     }
 
-    /// <summary>
-    /// El mockup pinta «Todos los centros», pero ObtenerTrabajadoresQuery no
-    /// acepta un filtro por Centro: un desplegable que no filtra nada no se
-    /// pinta. Barrera: los otros tres sí están.
-    /// </summary>
     [Fact]
-    public void La_barra_no_pinta_un_filtro_de_centro_que_la_consulta_no_sabe_aplicar()
+    public async Task El_menu_de_la_cabecera_exporta_a_Excel_con_un_enlace_de_descarga()
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno") } });
 
-        cut.FindAll(".barra-trabajo-trabajadores .campo label").Select(l => l.TextContent.Trim())
-            .Should().Equal("Documentación", "Empresa", "Subcontrata");
+        await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+
+        var items = cut.FindAll("header.cabecera-pagina .menu-acciones-item");
+        items.Select(i => i.TextContent.Trim()).Should().Equal("Exportar a Excel");
+        items.Single().TagName.Should().Be("A", "la exportación es una descarga del servidor: un enlace, no una navegación interna");
+        items.Single().GetAttribute("href").Should().Be("/trabajadores/exportar.xlsx");
+    }
+
+    [Fact]
+    public async Task Nuevo_trabajador_de_la_cabecera_abre_el_drawer_de_alta()
+    {
+        var cut = Renderizar(new MediatorFalso());
+        cut.FindAll(".drawer-panel").Should().BeEmpty("punto de partida: el drawer está cerrado");
+
+        await AbrirAltaAsync(cut);
+
+        cut.Find(".drawer-panel h2").TextContent.Trim().Should().Be("Nuevo trabajador");
+    }
+
+    /// <summary>
+    /// El buscador es el compartido «Filtrar esta pantalla» (la tecla f lo enfoca por
+    /// data-filtro-pantalla) y promete lo que ObtenerTrabajadoresQuery busca: nombre (y apellidos),
+    /// DNI y alias. Los E2E lo localizan por este marcador.
+    /// </summary>
+    [Fact]
+    public void El_buscador_es_Filtrar_esta_pantalla_por_nombre_DNI_o_alias()
+    {
+        var cut = Renderizar(new MediatorFalso());
+
+        var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
+        buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: nombre, DNI o alias");
+        buscador.GetAttribute("aria-label").Should().Be("Filtrar esta pantalla");
+        buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
+        cut.Find(".barra-filtros-pastillas kbd.barra-filtros-tecla").TextContent.Trim().Should().Be("F");
+    }
+
+    /// <summary>
+    /// Pastillas «Documentación» y «Empresa», y «Más filtros». La maqueta dibuja también «Centro» y
+    /// «Cliente empresarial» como fase 2: ObtenerTrabajadoresQuery no sabe filtrar por ellos, y una
+    /// pastilla que no filtra nada no se pinta. Subcontrata no tiene pastilla propia: va dentro de
+    /// «Empresa».
+    /// </summary>
+    [Fact]
+    public void Las_pastillas_son_Documentacion_y_Empresa_seguidas_de_Mas_filtros()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno") } });
+
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
+            .Should().Equal("Documentación", "Empresa", "Más filtros");
         cut.Markup.Should().NotContain("Todos los centros");
+    }
+
+    [Fact]
+    public async Task La_pastilla_Empresa_ofrece_las_empresas_y_detras_las_subcontratas_marcadas()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno") } });
+
+        (await OpcionesDeLaPastilla(cut, "Empresa")).Should().Equal(
+            "Todas", "Montajes Ebro S.L.", "Dexter Industrial S.A.", "Aislamientos Nervión S.L. (subcontrata)");
+    }
+
+    /// <summary>
+    /// Elegir «Todas» en la pastilla «Empresa» suelta el filtro que hubiera, sea de empresa o de
+    /// subcontrata, en una sola consulta.
+    /// </summary>
+    [Fact]
+    public async Task Todas_en_la_pastilla_Empresa_suelta_la_subcontrata_en_una_sola_consulta()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Javier", "Salas Moreno"), Trabajador("Marta", "Duarte Gil", subcontrataId: SubcontrataNervion) }
+        };
+        var cut = Renderizar(mediador);
+        await ElegirEnLaPastilla(cut, "Empresa", "Aislamientos Nervión S.L. (subcontrata)");
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Duarte Gil"));
+        Pastilla(cut, "Empresa").GetAttribute("aria-label").Should().Be("Empresa: Aislamientos Nervión S.L. (subcontrata)");
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        await ElegirEnLaPastilla(cut, "Empresa", "Todas");
+
+        UltimaConsulta(mediador).SubcontrataId.Should().BeNull();
+        UltimaConsulta(mediador).EmpresaId.Should().BeNull();
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().HaveCount(2));
+        mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Skip(consultasAntes).Distinct().Should().ContainSingle();
+    }
+
+    /// <summary>Cada filtro aplicado se ve como chip con su ✕, y «Limpiar todo» los quita todos de la URL.</summary>
+    [Fact]
+    public async Task Los_filtros_se_ven_como_chips_y_Limpiar_todo_los_quita_tambien_de_la_URL()
+    {
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido) } };
+        var cut = Renderizar(mediador, "trabajadores?q=Salas&estado=Vencido");
+        await ElegirEnLaPastilla(cut, "Empresa", "Montajes Ebro S.L.");
+
+        cut.WaitForAssertion(() => TextosDeLosChips(cut).Should().Equal("Búsqueda: \"Salas\"", "Vencido", "Montajes Ebro S.L."));
+
+        await cut.Find(".barra-filtros-pastillas .limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
+
+        var uri = Services.GetRequiredService<NavigationManager>().Uri;
+        uri.Should().NotContain("q=").And.NotContain("estado=");
+        UltimaConsulta(mediador).Busqueda.Should().BeNull();
+        UltimaConsulta(mediador).EstadoDocumental.Should().BeNull();
+        UltimaConsulta(mediador).EmpresaId.Should().BeNull();
+        cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().BeEmpty());
+    }
+
+    /// <summary>
+    /// Los filtros guardados viven dentro de «Más filtros», con «Guardar filtro» al final: se ve
+    /// pero está deshabilitado mientras no haya ningún filtro aplicado (no hay nada que guardar).
+    /// </summary>
+    [Fact]
+    public async Task Mas_filtros_lleva_los_filtros_guardados_y_Guardar_filtro_deshabilitado_sin_filtros()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Javier", "Salas Moreno") },
+            FiltrosGuardados = { new FiltroGuardadoDto(Guid.NewGuid(), "Solo Vega", "{\"Busqueda\":\"Vega\"}", DateTime.UtcNow) }
+        };
+        var cut = Renderizar(mediador);
+
+        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+
+        var items = cut.FindAll(".barra-filtros-pastillas [role=menuitem]");
+        items.Select(i => i.TextContent.Trim()).Should().Equal("Solo Vega", "Guardar filtro");
+        items.Single(i => i.TextContent.Trim() == "Guardar filtro").HasAttribute("disabled").Should().BeTrue();
     }
 
     [Fact]
@@ -641,31 +812,163 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso") } });
 
         cut.Markup.Should().Contain("Alonso", "la lista es lectura: la fila se ve");
-        var enLaBarra = cut.FindAll(".barra-trabajo-trabajadores button").Select(b => b.TextContent.Trim()).ToList();
-        enLaBarra.Should().NotContain("Selección múltiple")
-            .And.Contain("Guardar filtro", "la barra sigue ahí: solo falta el modo de selección");
+        cut.Find("header.cabecera-pagina .acciones-cabecera").QuerySelectorAll("button")
+            .Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
+            .Should().Equal(["Más acciones"], "sin ☑ ni alta: solo el «⋯» con la exportación, que es lectura");
+        Pastilla(cut, "Más filtros").Should().NotBeNull("la barra sigue ahí: solo falta el modo de selección");
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
         cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();
     }
 
+    /// <summary>Con Consulta, «x» tampoco enciende una selección que no lleva a ninguna acción.</summary>
     [Fact]
-    public async Task Seleccion_multiple_en_la_barra_pinta_las_casillas_y_al_apagarse_suelta_la_seleccion()
+    public async Task Consulta_no_enciende_la_seleccion_con_la_tecla_x()
+    {
+        this.ConRolDeEscritura(Roles.Consulta);
+        var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso") } });
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("x"));
+
+        ClasesDeLasFilas(cut).Should().Equal(["fila-enfocada"], "control positivo: la j sí enfocó la fila");
+        cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Seleccion_multiple_de_la_cabecera_pinta_las_casillas_y_al_apagarse_suelta_la_seleccion()
     {
         var bea = Trabajador("Bea", "Alonso");
         var cut = Renderizar(new MediatorFalso { Almacen = { bea, Trabajador("Ana", "Moreno") } });
-        BotonDeLaBarra(cut, "Selección múltiple").GetAttribute("aria-pressed").Should().Be("false");
+        ConmutadorSeleccion(cut).GetAttribute("aria-label").Should().Be("Selección múltiple");
+        ConmutadorSeleccion(cut).GetAttribute("aria-pressed").Should().Be("false");
         cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty("sin el modo no hay casillas de fila");
 
-        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await AlternarSeleccionMultiple(cut);
 
-        BotonDeLaBarra(cut, "Selección múltiple").GetAttribute("aria-pressed").Should().Be("true");
+        ConmutadorSeleccion(cut).GetAttribute("aria-pressed").Should().Be("true");
         await cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
+        cut.FindAll(".barra-acciones-lote button").Select(b => b.TextContent.Trim()).Should().Contain("Asignar a centro…");
 
-        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await AlternarSeleccionMultiple(cut);
 
         cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty("apagar el modo suelta la selección que ya no se ve");
+    }
+
+    /// <summary>
+    /// «x» sobre la fila enfocada enciende la selección múltiple (como la maqueta): la casilla
+    /// marcada queda a la vista y la barra de lote nunca apunta a una fila sin casilla.
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_x_enciende_la_seleccion_multiple_y_marca_la_fila_enfocada()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso"), Trabajador("Ana", "Moreno") } });
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty("punto de partida: sin el modo");
+
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("x"));
+
+        ConmutadorSeleccion(cut).GetAttribute("aria-pressed").Should().Be("true");
+        cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").HasAttribute("checked").Should().BeTrue();
+        cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
+    }
+
+    // --- Filas (rediseño de listados, fase 1) ------------------------------------------------
+
+    /// <summary>
+    /// Una sola celda «Trabajador» con «Apellidos, Nombre» (abre la vista previa) y el DNI debajo;
+    /// la columna Empresa; y Documentación solo con la pastilla de estado. Sin la documentación
+    /// base del listado («Al día en lo básico» y sus cuatro puntos), que ni siquiera se pide.
+    /// </summary>
+    [Fact]
+    public void La_fila_lleva_la_celda_Trabajador_con_el_DNI_debajo_la_empresa_y_solo_el_estado()
+    {
+        var javier = Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Urgente);
+        var mediador = new MediatorFalso { Almacen = { javier } };
+        var cut = Renderizar(mediador);
+
+        cut.FindAll("thead th").Select(th => th.TextContent.Trim()).Should().Equal("Trabajador", "Empresa", "Documentación", "Acciones");
+        var fila = FilasDeDatos(cut).Single();
+        var celdas = fila.QuerySelectorAll("td");
+        celdas[0].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Salas Moreno, Javier");
+        celdas[0].QuerySelector(".celda-trabajador-dni")!.TextContent.Trim().Should().Be($"DNI {javier.Dto.Dni}");
+        celdas[1].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
+        celdas[2].TextContent.Trim().Should().Be("Urgente", "solo la pastilla: el documento causante y «vigentes/total» son fase 2");
+        cut.Markup.Should().NotContain("Al día en lo básico").And.NotContain("Documentación base");
+        cut.FindAll(".panel-doc-base").Should().BeEmpty();
+        mediador.Enviadas.Should().NotContain(e => e.GetType().Name == "ObtenerDocumentacionBaseTrabajadoresQuery",
+            "la documentación base deja de resumirse en el listado: vive en la vista previa");
+    }
+
+    [Fact]
+    public void Sin_documento_de_identidad_la_celda_no_pinta_una_linea_DNI_vacia()
+    {
+        var sinDni = Trabajador("Javier", "Salas Moreno");
+        var mediador = new MediatorFalso { Almacen = { sinDni with { Dto = sinDni.Dto with { Dni = null } } } };
+        var cut = Renderizar(mediador);
+
+        Columna(cut, 0).Should().Equal(["Salas Moreno"], "control positivo: la fila se pinta");
+        cut.FindAll(".celda-trabajador-dni").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Por defecto, el peor estado primero (la consulta ordena por EstadoDocumental ascendente), y
+    /// la fila se tinta: Vencido en peligro, Urgente en aviso, el resto sin tinte.
+    /// </summary>
+    [Fact]
+    public void Por_defecto_el_peor_estado_va_primero_y_las_filas_se_tintan_por_estado()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen =
+            {
+                Trabajador("Ana", "Alonso"),
+                Trabajador("Bea", "Benito", estado: EstadoDocumento.Urgente),
+                Trabajador("Carla", "Campos", estado: EstadoDocumento.Vencido),
+                Trabajador("Dani", "Díaz", estado: EstadoDocumento.Proximo),
+            }
+        };
+        var cut = Renderizar(mediador);
+
+        var consulta = UltimaConsulta(mediador);
+        consulta.OrdenarPor.Should().Be(nameof(TrabajadorListaDto.EstadoDocumental));
+        consulta.Descendente.Should().BeFalse();
+        Columna(cut, 0).Should().Equal("Campos", "Benito", "Díaz", "Alonso");
+        ClasesDeLasFilas(cut).Should().Equal("fila-tintada-peligro", "fila-tintada-aviso", string.Empty, string.Empty);
+    }
+
+    /// <summary>El foco de j/k se suma al tinte, no lo sustituye.</summary>
+    [Fact]
+    public async Task La_fila_enfocada_con_j_conserva_el_tinte_de_su_estado()
+    {
+        var cut = Renderizar(new MediatorFalso
+        {
+            Almacen = { Trabajador("Ana", "Alonso"), Trabajador("Carla", "Campos", estado: EstadoDocumento.Vencido) }
+        });
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
+        ClasesDeLasFilas(cut).Should().Equal("fila-enfocada fila-tintada-peligro", string.Empty);
+
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
+        ClasesDeLasFilas(cut).Should().Equal("fila-tintada-peligro", "fila-enfocada");
+    }
+
+    /// <summary>Con 20 o menos al tamaño mínimo no hay nada que paginar: sin paginador.</summary>
+    [Fact]
+    public void Con_veinte_o_menos_no_se_pinta_el_paginador()
+    {
+        var mediador = new MediatorFalso();
+        for (var i = 1; i <= 20; i++)
+            mediador.Almacen.Add(Trabajador("Nombre", $"Apellido {i:00}"));
+        var cut = Renderizar(mediador);
+
+        Columna(cut, 0).Should().HaveCount(20, "control positivo: la página está llena");
+        cut.FindAll(".paginador-simple").Should().BeEmpty();
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("20");
     }
 
     // --- Estados ------------------------------------------------------------------------------
@@ -725,7 +1028,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var cut = Render<Trabajadores>();
         cut.WaitForAssertion(() => retenida.Should().BeTrue());
 
-        await SelectDeLaBarra(cut, "Documentación").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vencido) });
+        await ElegirEnLaPastilla(cut, "Documentación", "Vencido");
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ningún trabajador con estos filtros"));
 
         await cut.InvokeAsync(() => respuestaVieja.SetResult(
@@ -737,37 +1040,51 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         cut.Markup.Should().Contain("Ningún trabajador con estos filtros",
             "la respuesta vieja era de la lista sin filtro, no de la pregunta vigente");
-        cut.Find(".paginador-texto").TextContent.Should().Contain("0 trabajador(es)");
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("0");
     }
 
     // --- Orden y página -----------------------------------------------------------------------
 
     /// <summary>
-    /// El doble ordena según lo que recibe. El orden por defecto (apellidos)
-    /// deja los nombres como Bea, Ana, Carlos: ni el ascendente ni el
-    /// descendente por nombre.
+    /// El doble ordena según lo que recibe. El orden por defecto (el peor estado primero) deja a
+    /// Zubiri, que tiene algo vencido, delante: ni el ascendente ni el descendente por apellidos.
     /// </summary>
     [Fact]
-    public async Task Pulsar_la_cabecera_Nombre_ordena_la_consulta_por_nombre_y_la_segunda_vez_al_reves()
+    public async Task Pulsar_la_cabecera_Trabajador_ordena_por_apellidos_y_la_segunda_vez_al_reves()
     {
         var mediador = new MediatorFalso
         {
-            Almacen = { Trabajador("Bea", "Alonso"), Trabajador("Ana", "Moreno"), Trabajador("Carlos", "Zubiri") }
+            Almacen = { Trabajador("Bea", "Alonso"), Trabajador("Ana", "Moreno"), Trabajador("Carlos", "Zubiri", estado: EstadoDocumento.Vencido) }
         };
         var cut = Renderizar(mediador);
-        Columna(cut, 1).Should().Equal(["Bea", "Ana", "Carlos"], "punto de partida: el orden por apellidos");
+        Columna(cut, 0).Should().Equal(["Zubiri", "Alonso", "Moreno"], "punto de partida: el peor estado primero");
 
-        await CabeceraOrdenable(cut, "Nombre").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Trabajador").ClickAsync(new MouseEventArgs());
 
-        UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.Nombre));
+        UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.Apellidos));
         UltimaConsulta(mediador).Descendente.Should().BeFalse();
-        cut.WaitForAssertion(() => Columna(cut, 1).Should().Equal(["Ana", "Bea", "Carlos"]));
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal(["Alonso", "Moreno", "Zubiri"]));
 
-        await CabeceraOrdenable(cut, "Nombre").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Trabajador").ClickAsync(new MouseEventArgs());
 
-        UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.Nombre));
+        UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.Apellidos));
         UltimaConsulta(mediador).Descendente.Should().BeTrue("la segunda pulsación invierte el orden");
-        cut.WaitForAssertion(() => Columna(cut, 1).Should().Equal(["Carlos", "Bea", "Ana"]));
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal(["Zubiri", "Moreno", "Alonso"]));
+    }
+
+    [Fact]
+    public async Task Pulsar_la_cabecera_Empresa_ordena_por_el_empleador()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Bea", "Alonso"), Trabajador("Ana", "Moreno", empresaId: EmpresaDexter) }
+        };
+        var cut = Renderizar(mediador);
+
+        await CabeceraOrdenable(cut, "Empresa").ClickAsync(new MouseEventArgs());
+
+        UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.EmpleadorNombre));
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal(["Moreno", "Alonso"], "Dexter va antes que Montajes"));
     }
 
     private static IElement CabeceraOrdenable(IRenderedComponent<Trabajadores> cut, string titulo) =>
@@ -844,13 +1161,13 @@ public class TrabajadoresListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        await SelectDeLaBarra(cut, "Empresa").ChangeAsync(new ChangeEventArgs { Value = EmpresaDexter.ToString() });
+        await ElegirEnLaPastilla(cut, "Empresa", "Dexter Industrial S.A.");
 
         UltimaConsulta(mediador).EmpresaId.Should().Be(EmpresaDexter);
         UltimaConsulta(mediador).SubcontrataId.Should().BeNull();
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Roldán Cano"));
 
-        await SelectDeLaBarra(cut, "Subcontrata").ChangeAsync(new ChangeEventArgs { Value = SubcontrataNervion.ToString() });
+        await ElegirEnLaPastilla(cut, "Empresa", "Aislamientos Nervión S.L. (subcontrata)");
 
         UltimaConsulta(mediador).SubcontrataId.Should().Be(SubcontrataNervion);
         UltimaConsulta(mediador).EmpresaId.Should().BeNull("los dos filtros de empleador se excluyen");
@@ -943,12 +1260,12 @@ public class TrabajadoresListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        await SelectDeLaBarra(cut, "Filtros guardados").ChangeAsync(new ChangeEventArgs { Value = filtroId.ToString() });
+        await PulsarEnMasFiltros(cut, "Solo Vega");
 
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Vega");
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Vega Ortiz"));
 
-        await SelectDeLaBarra(cut, "Documentación").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vigente) });
+        await ElegirEnLaPastilla(cut, "Documentación", "Vigente");
 
         UltimaConsulta(mediador).Busqueda.Should().Be("Vega", "cambiar un filtro no puede soltar otro que sigue puesto");
         UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vigente));
@@ -1003,7 +1320,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var navegaciones = ContarNavegaciones();
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await SelectDeLaBarra(cut, "Documentación").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoDocumento.Vigente) });
+        await ElegirEnLaPastilla(cut, "Documentación", "Vigente");
 
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Salas Moreno"));
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("estado=Vigente");
@@ -1034,10 +1351,15 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
     // --- Acciones de fila ---------------------------------------------------------------------
 
+    /// <summary>
+    /// El menú se busca DENTRO de las filas: la cabecera («⋯») y la barra de filtros (pastillas,
+    /// «Más filtros») también llevan disparadores de menú.
+    /// </summary>
     private static async Task PulsarEnElMenuDeLaFila(IRenderedComponent<Trabajadores> cut, int fila, string item)
     {
-        await cut.FindAll(".menu-acciones-disparador")[fila].ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("tbody .menu-acciones")[fila].QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
+        await cut.FindAll("tbody .menu-acciones")[fila].QuerySelectorAll(".menu-acciones-item")
+            .Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
     }
 
     [Fact]
@@ -1103,7 +1425,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     public async Task Los_atajos_j_x_y_Enter_recorren_marcan_y_abren_la_vista_previa_de_la_fila()
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso"), Trabajador("Ana", "Moreno") } });
-        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await AlternarSeleccionMultiple(cut);
         var atajos = cut.FindComponent<AtajosListaTeclado>();
 
         await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
@@ -1139,8 +1461,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         // Sin await: el drawer espera a la consulta retenida.
-        var clicA = cut.FindAll("td .enlace-nombre-fila").First(e => e.TextContent.Trim() == "Alonso").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("td .enlace-nombre-fila").First(e => e.TextContent.Trim() == "Moreno").ClickAsync(new MouseEventArgs());
+        var clicA = cut.FindAll("td .enlace-nombre-fila").First(e => e.TextContent.Trim() == "Alonso, Bea").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("td .enlace-nombre-fila").First(e => e.TextContent.Trim() == "Moreno, Ana").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.Find(".nombre-cabecera-preview-trabajador").TextContent.Trim().Should().Be("Ana Moreno"));
 
         await cut.InvokeAsync(() => respuestaDeA.SetResult(mediador.Detalle(a.Dto.Id)!));
@@ -1166,7 +1488,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         mediador.Retener = p => p is CrearTrabajadorCommand ? respuesta.Task : null;
         var cut = Renderizar(mediador);
 
-        await cut.Find("header.cabecera-pagina button").ClickAsync(new MouseEventArgs());
+        await AbrirAltaAsync(cut);
         var guardar = cut.FindComponents<Boton>().Single(b => b.Find("button").TextContent.Trim() == "Guardar");
 
         var primero = cut.InvokeAsync(() => guardar.Instance.OnClick.InvokeAsync());
@@ -1200,7 +1522,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await AlternarSeleccionMultiple(cut);
         await cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Asignar a centro…").ClickAsync(new MouseEventArgs());
         var campo = cut.FindComponent<CampoBuscarSelect>();
@@ -1224,7 +1546,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
     private static async Task AbrirAsignarACentro(IRenderedComponent<Trabajadores> cut, Fila trabajador)
     {
-        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await AlternarSeleccionMultiple(cut);
         await cut.Find($"tbody input[aria-label='Seleccionar a {trabajador.Dto.Nombre} {trabajador.Dto.Apellidos}']")
             .ChangeAsync(new ChangeEventArgs { Value = true });
         await BotonAsignarACentro(cut).ClickAsync(new MouseEventArgs());
@@ -1322,7 +1644,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Trabajador, abierta.Dto.Id, "Ficha abierta", "operacion"));
         workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
 
-        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await AlternarSeleccionMultiple(cut);
         await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
             .ClickAsync(new MouseEventArgs());
@@ -1343,7 +1665,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Trabajador, ana.Dto.Id, "Ana Moreno", "operacion"));
 
-        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await AlternarSeleccionMultiple(cut);
         await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
@@ -1367,7 +1689,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         mediador.NoEliminables.Add(bea.Dto.Id);
         var cut = Renderizar(mediador);
 
-        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await AlternarSeleccionMultiple(cut);
         await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
@@ -1396,7 +1718,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Trabajador, bea.Dto.Id, "Bea Alonso", "operacion"));
 
-        await BotonDeLaBarra(cut, "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await AlternarSeleccionMultiple(cut);
         await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
@@ -1511,7 +1833,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     public async Task Aviso_el_alta_sin_tocar_con_la_Empresa_del_filtro_preseleccionada_no_pregunta()
     {
         var cut = Renderizar(new MediatorFalso());
-        await SelectDeLaBarra(cut, "Empresa").ChangeAsync(new ChangeEventArgs { Value = EmpresaEbro.ToString() });
+        await ElegirEnLaPastilla(cut, "Empresa", "Montajes Ebro S.L.");
         await AbrirAltaAsync(cut);
         cut.Find(".drawer-panel select").GetAttribute("value").Should().Be(EmpresaEbro.ToString(),
             "el test necesita que la Empresa llegue preseleccionada desde el filtro");
@@ -1573,8 +1895,9 @@ public class TrabajadoresListaGen2Tests : BunitContext
     [Fact]
     public async Task Aviso_guardar_filtro_con_nombre_escrito_pregunta_y_cancelado_no()
     {
-        var cut = Renderizar(new MediatorFalso());
-        await BotonDeLaBarra(cut, "Guardar filtro").ClickAsync(new MouseEventArgs());
+        // Con un filtro aplicado: sin ninguno, «Guardar filtro» está deshabilitado (no hay nada que guardar).
+        var cut = Renderizar(new MediatorFalso(), "trabajadores?q=Salas");
+        await PulsarEnMasFiltros(cut, "Guardar filtro");
         await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre" && c.Instance.Placeholder != null)
             .Find("input").InputAsync(new ChangeEventArgs { Value = "Mis urgentes" });
 
@@ -1595,8 +1918,9 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
     private async Task<IRenderedComponent<Trabajadores>> AbrirGuardarFiltroAsync(MediatorFalso mediador)
     {
-        var cut = Renderizar(mediador);
-        await BotonDeLaBarra(cut, "Guardar filtro").ClickAsync(new MouseEventArgs());
+        // Con un filtro aplicado: sin ninguno, «Guardar filtro» está deshabilitado (no hay nada que guardar).
+        var cut = Renderizar(mediador, "trabajadores?q=Salas");
+        await PulsarEnMasFiltros(cut, "Guardar filtro");
         return cut;
     }
 
@@ -1629,6 +1953,63 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<GuardarFiltroCommand>().Should().ContainSingle().Which.Nombre.Should().Be("Mis urgentes");
         cut.FindAll("[role=dialog]").Should().BeEmpty("guardado el filtro, el modal se cierra");
+    }
+
+    /// <summary>
+    /// Un filtro guardado con solo «Documentación» no se guarda vacío: el estado viaja en el JSON (antes «Guardar
+    /// filtro» se activaba con el estado pero no lo guardaba, y salía un filtro sin nada).
+    /// </summary>
+    [Fact]
+    public async Task Guardar_filtro_con_solo_Documentacion_guarda_el_estado()
+    {
+        var mediador = new MediatorFalso();
+        var cut = Renderizar(mediador, "trabajadores?estado=Vencido");
+        await PulsarEnMasFiltros(cut, "Guardar filtro");
+        await EscribirNombreDelFiltroAsync(cut, "Vencidos");
+
+        await GuardarDelFiltro(cut).ClickAsync(new MouseEventArgs());
+
+        var valores = System.Text.Json.JsonDocument.Parse(mediador.Enviadas.OfType<GuardarFiltroCommand>().Single().ValoresJson).RootElement;
+        valores.GetProperty("Estado").GetString().Should().Be(nameof(EstadoDocumento.Vencido));
+    }
+
+    /// <summary>Aplicar un filtro guardado con estado lo pone en la consulta y en la URL (?estado=), con su búsqueda.</summary>
+    [Fact]
+    public async Task Aplicar_un_filtro_guardado_con_estado_lo_aplica_y_lo_escribe_en_la_url()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Javier", "Salas Moreno"), Trabajador("Ana", "Vega Ortiz") },
+            FiltrosGuardados = { new FiltroGuardadoDto(Guid.NewGuid(), "Vencidos de Vega", "{\"Busqueda\":\"Vega\",\"Estado\":\"Vencido\"}", DateTime.UtcNow) }
+        };
+        var cut = Renderizar(mediador);
+
+        await PulsarEnMasFiltros(cut, "Vencidos de Vega");
+
+        cut.WaitForAssertion(() => UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vencido)));
+        UltimaConsulta(mediador).Busqueda.Should().Be("Vega");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Vega").And.Contain("estado=Vencido");
+    }
+
+    /// <summary>
+    /// Un filtro guardado antes de que se guardara el estado (sin «Estado» en el JSON) se sigue leyendo, y como
+    /// define el conjunto entero quita el estado que hubiera puesto.
+    /// </summary>
+    [Fact]
+    public async Task Aplicar_un_filtro_guardado_sin_estado_quita_el_estado_puesto()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Javier", "Salas Moreno"), Trabajador("Ana", "Vega Ortiz") },
+            FiltrosGuardados = { new FiltroGuardadoDto(Guid.NewGuid(), "Solo Vega", "{\"Busqueda\":\"Vega\"}", DateTime.UtcNow) }
+        };
+        var cut = Renderizar(mediador, "trabajadores?estado=Vigente");
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vigente), "control: el estado venía puesto");
+
+        await PulsarEnMasFiltros(cut, "Solo Vega");
+
+        cut.WaitForAssertion(() => UltimaConsulta(mediador).EstadoDocumental.Should().BeNull());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Vega").And.NotContain("estado=");
     }
 
     [Fact]

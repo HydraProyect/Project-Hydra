@@ -108,11 +108,12 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Paso 3: Asignar el Trabajador al Centro (queda Faltante) ---
-        await page.GetByPlaceholder("Buscar por nombre, apellidos, alias o DNI…").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(apellidosTrabajador);
         var filaTrabajador = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        await page.GetByText("Selección múltiple").ClickAsync();
+        // El ☑ de la cabecera de la lista (rediseño de listados, fase 1): un icono con nombre accesible, sin texto visible.
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
         await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
 
         await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…").ClickAsync();

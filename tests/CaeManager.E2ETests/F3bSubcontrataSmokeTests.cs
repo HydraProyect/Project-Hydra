@@ -129,9 +129,9 @@ public class F3bSubcontrataSmokeTests(WebAppFixture fixture)
 
         // Confirma que el alta se guardó de verdad (no solo que el drawer se
         // cerró) y que el Trabajador queda vinculado a la Subcontrata nueva
-        // — la columna "Empresa / Subcontrata" del listado muestra su razón
+        // — la columna "Empresa" del listado muestra su razón
         // social exactamente porque el FK se resolvió contra Empresas.
-        await page.GetByPlaceholder("Buscar por nombre, apellidos, alias o DNI…").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(apellidosTrabajador);
         var filaTrabajador = page.Locator(".tabla-datos tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(filaTrabajador).ToContainTextAsync(razonSocialSubcontrata);

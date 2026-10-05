@@ -10,8 +10,8 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrabajadores;
 
 /// <summary>
-/// Documentación base de varios Trabajadores a la vez (una página de lista, o uno solo para
-/// el cajón y la ficha). Solo salen los Trabajadores visibles en el alcance del actor: uno
+/// Documentación base de varios Trabajadores a la vez (hoy uno solo, para el cajón y la ficha:
+/// la lista de /trabajadores dejó de pintarla en la fase 1 del rediseño de listados). Solo salen los Trabajadores visibles en el alcance del actor: uno
 /// fuera de cartera no aparece en el resultado, igual que su Documento no es legible por Id.
 /// </summary>
 public record ObtenerDocumentacionBaseTrabajadoresQuery(IReadOnlyCollection<Guid> TrabajadorIds)
