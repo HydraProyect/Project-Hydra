@@ -194,13 +194,13 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await paginaPortal.Locator(".tarjeta-fila-acordeon").First
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
 
-        await paginaPortal.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialEmpresaPropia);
+        await paginaPortal.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresaPropia);
         await paginaPortal.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialEmpresaPropia })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // Control negativo: la Empresa que sirve al OTRO cliente no aparece,
         // ni siquiera filtrando por su propio nombre exacto.
-        await paginaPortal.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialEmpresaAjena);
+        await paginaPortal.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresaAjena);
         await Expect(paginaPortal.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialEmpresaAjena }))
             .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 5_000 });
 
@@ -210,7 +210,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await paginaPortal.Locator(".tarjeta-fila-acordeon").First
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
 
-        await paginaPortal.GetByPlaceholder("Buscar por razón social o CIF…").FillAsync(razonSocialSubcontrata);
+        await paginaPortal.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialSubcontrata);
         await paginaPortal.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialSubcontrata })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
     }

@@ -836,6 +836,28 @@ public static class Ayudas
     }
 
     /// <summary>
+    /// /centros agrupa por Cliente empresarial y los grupos arrancan contraídos (rediseño de
+    /// listados, fase 1): sin buscar, las filas de Centro no se ven. Para los recorridos que
+    /// necesitan una fila cualquiera, «Sin agrupar» las pinta todas.
+    ///
+    /// El botón llega con el prerender antes que el circuito y un clic en esa ventana se pierde:
+    /// se repite hasta que el propio botón dice que está pulsado (aria-pressed), y luego se
+    /// espera a que no quede ninguna cabecera de grupo.
+    /// </summary>
+    public static async Task MostrarCentrosSinAgruparAsync(IPage page)
+    {
+        var sinAgrupar = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Sin agrupar", Exact = true });
+        await sinAgrupar.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+        for (var intento = 1; await sinAgrupar.GetAttributeAsync("aria-pressed") != "true"; intento++)
+        {
+            Assert.True(intento <= 10, "«Sin agrupar» no se aplicó tras 10 clics.");
+            await sinAgrupar.ClickAsync();
+            await page.WaitForTimeoutAsync(1_000);
+        }
+        await Assertions.Expect(page.Locator(".grupo-lista")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
     /// Resuelve el campo "Empresa" del drawer de alta de Trabajador
     /// (Trabajadores.razor), que renderiza de dos formas mutuamente
     /// excluyentes según el estado del tenant en ese instante: un

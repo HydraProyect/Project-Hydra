@@ -70,6 +70,7 @@ internal static class RecorridoFichas360
     {
         await Ayudas.NavegarYEsperarAsync(page, $"{baseUrl}/centros");
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "la lista de Centros");
+        await Ayudas.MostrarCentrosSinAgruparAsync(page);
 
         var expandir = page.Locator("button.boton-expandir-fila").First;
         await Expect(expandir).ToBeVisibleAsync(EsperaEnFrio);

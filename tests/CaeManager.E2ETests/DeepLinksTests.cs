@@ -182,6 +182,7 @@ public class DeepLinksTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
+        await Ayudas.MostrarCentrosSinAgruparAsync(page);
 
         var disparador = page.Locator(".enlace-nombre-fila").First;
         await disparador.ClickAsync();

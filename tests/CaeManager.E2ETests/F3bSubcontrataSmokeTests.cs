@@ -50,13 +50,13 @@ public class F3bSubcontrataSmokeTests(WebAppFixture fixture)
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Paso 2: aparece en /subcontratas (ObtenerSubcontratasQuery, adelantada) ---
-        await page.GetByPlaceholder("Buscar por razón social o CIF…").FillAsync(razonSocialSubcontrata);
+        await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialSubcontrata);
         await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialSubcontrata })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // --- Paso 3: aparece también en /empresas (misma fila física, EsCritico/NivelServicio aparte) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialSubcontrata);
+        await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialSubcontrata);
         await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialSubcontrata })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 

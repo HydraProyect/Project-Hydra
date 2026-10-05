@@ -140,21 +140,22 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
             // que su ausencia ahí sigue siendo una comprobación real, no
             // degenerada.
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-            await page.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialCliente);
+            await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialCliente);
             await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialCliente })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-            await page.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialClienteInvalido);
+            await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialClienteInvalido);
             await page.WaitForTimeoutAsync(500);
             await Expect(page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialClienteInvalido })).ToHaveCountAsync(0);
 
-            await page.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialEmpresa);
+            await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresa);
             await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialEmpresa })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-            await page.GetByPlaceholder("Buscar centro, Cliente empresarial o empresa…").FillAsync(nombreCentro);
-            await page.GetByText(nombreCentro).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            await page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente empresarial o empresa").FillAsync(nombreCentro);
+            // Acotado a la lista: el nombre buscado también sale en el chip «Búsqueda: …».
+            await page.Locator(".lista-filas-acordeon").GetByText(nombreCentro).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
             await page.GetByPlaceholder("Buscar por nombre, apellidos, alias o DNI…").FillAsync(apellidosTrabajador);
