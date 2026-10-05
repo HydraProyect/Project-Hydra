@@ -141,15 +141,17 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
             // degenerada.
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
             await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialCliente);
-            await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialCliente })
+            // Por el enlace del nombre, no por la fila entera: desde «Presta servicio a» la fila de una Empresa
+            // también nombra a sus Clientes empresariales, y hasta que llega el filtro la lista las enseña todas.
+            await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialCliente })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
             await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialClienteInvalido);
             await page.WaitForTimeoutAsync(500);
-            await Expect(page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialClienteInvalido })).ToHaveCountAsync(0);
+            await Expect(page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialClienteInvalido })).ToHaveCountAsync(0);
 
             await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresa);
-            await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialEmpresa })
+            await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialEmpresa })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");

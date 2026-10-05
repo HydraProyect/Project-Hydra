@@ -38,13 +38,43 @@ public class ObtenerClientesDeEmpresaQueryHandler(IEmpresasQueryContext empresas
         if (!await alcanceDatos.EmpresaParaGestionVisibleAsync(request.EmpresaId, cancellationToken))
             return [];
 
-        return await (
-            from r in empresasContext.RelacionesEmpresariales
-            where r.ProveedoraId == request.EmpresaId && r.VigenciaHasta == null
-            join cliente in empresasContext.Empresas.Where(e => e.EsCritico != null)
-                on r.ClienteId equals cliente.Id
-            orderby cliente.RazonSocial
-            select new ClienteDeEmpresaDto(cliente.Id, cliente.RazonSocial, cliente.Cif))
+        return await ClientesVigentesDeEmpresas.De(empresasContext, [request.EmpresaId])
+            .OrderBy(f => f.RazonSocial)
+            .Select(f => new ClienteDeEmpresaDto(f.ClienteEmpresarialId, f.RazonSocial, f.Cif))
             .ToListAsync(cancellationToken);
     }
+}
+
+/// <summary>Un Cliente empresarial al que una Empresa presta servicio en una Relación Empresarial vigente.</summary>
+internal sealed class ClienteVigenteDeEmpresa
+{
+    public Guid EmpresaId { get; init; }
+    public Guid ClienteEmpresarialId { get; init; }
+    public string RazonSocial { get; init; } = string.Empty;
+    public string? Cif { get; init; }
+}
+
+/// <summary>
+/// Predicado ÚNICO de «a quién presta servicio esta Empresa»: Relación Empresarial vigente en la que la
+/// Empresa es la proveedora y la contraparte es un Cliente empresarial real (<c>EsCritico != null</c>; ver
+/// el comentario del handler de arriba). Lo comparten la consulta de una Empresa y la de una página
+/// (<c>ObtenerResumenClientesDeEmpresasQuery</c>), para que la columna «Presta servicio a» de /empresas y su
+/// desplegable no puedan contar cosas distintas. NO aplica alcance: cada llamador acota antes los Ids con
+/// el alcance de GESTIÓN (REC-153). Proyecta a una clase con inicializador, no a un record con constructor,
+/// para que EF pueda ordenar después de la proyección.
+/// </summary>
+internal static class ClientesVigentesDeEmpresas
+{
+    public static IQueryable<ClienteVigenteDeEmpresa> De(IEmpresasQueryContext empresasContext, IReadOnlyCollection<Guid> empresaIds) =>
+        from r in empresasContext.RelacionesEmpresariales
+        where empresaIds.Contains(r.ProveedoraId) && r.VigenciaHasta == null
+        join cliente in empresasContext.Empresas.Where(e => e.EsCritico != null)
+            on r.ClienteId equals cliente.Id
+        select new ClienteVigenteDeEmpresa
+        {
+            EmpresaId = r.ProveedoraId,
+            ClienteEmpresarialId = cliente.Id,
+            RazonSocial = cliente.RazonSocial,
+            Cif = cliente.Cif,
+        };
 }

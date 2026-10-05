@@ -20,16 +20,39 @@
 }
 
 .rejilla-empresas {
-    /* chevron · empresa (razón social y CIF) · cumplimiento · documentación · detecciones · acciones */
+    /* chevron · empresa (razón social y CIF) · presta servicio a · cumplimiento · documentación · detecciones · acciones */
     display: grid;
-    grid-template-columns: 28px minmax(0, 3fr) 104px 132px 116px auto;
+    grid-template-columns: 28px minmax(0, 2fr) minmax(0, 1.8fr) 104px 132px 116px auto;
     gap: var(--space-2);
     align-items: center;
 }
 
 /* Con selección múltiple entra una casilla delante y las columnas se corren. */
 .rejilla-empresas-seleccion {
-    grid-template-columns: 24px 28px minmax(0, 3fr) 104px 132px 116px auto;
+    grid-template-columns: 24px 28px minmax(0, 2fr) minmax(0, 1.8fr) 104px 132px 116px auto;
+}
+
+/*
+  «Presta servicio a» (maqueta: 2fr / 1.8fr). En pantallas estrechas no cabe junto a los anchos fijos: se
+  oculta en cabecera y fila (el chevron sigue abriendo el desplegable con la misma información) y la
+  rejilla pierde su pista.
+*/
+.columna-presta-servicio {
+    min-width: 0;
+}
+
+@media (max-width: 767px) {
+    .columna-presta-servicio {
+        display: none;
+    }
+
+    .rejilla-empresas {
+        grid-template-columns: 28px minmax(0, 2fr) 104px 132px 116px auto;
+    }
+
+    .rejilla-empresas-seleccion {
+        grid-template-columns: 24px 28px minmax(0, 2fr) 104px 132px 116px auto;
+    }
 }
 
 /*
@@ -99,6 +122,61 @@
     flex-direction: column;
     gap: 2px;
     min-width: 0;
+}
+
+/*
+  Pastilla «Presta servicio a»: abre el desplegable de la fila. Recorta el nombre con elipsis para que
+  la columna no estire la rejilla; el chevron indica que despliega.
+*/
+.pastilla-presta-servicio {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    max-width: 100%;
+    padding: 2px var(--space-2);
+    border: var(--border-control);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-body-sm);
+    cursor: pointer;
+}
+
+/* Sin Clientes empresariales que enseñar: la raya atenuada, como la de detecciones. */
+.celda-sin-presta-servicio {
+    color: var(--color-text-muted);
+}
+
+.pastilla-presta-servicio-texto {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* El chevron (lo pinta Icono, de ahí ::deep) gira con aria-expanded, como el de la fila. */
+.pastilla-presta-servicio ::deep svg {
+    flex-shrink: 0;
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.pastilla-presta-servicio-abierta ::deep svg {
+    transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pastilla-presta-servicio ::deep svg {
+        transition: none;
+    }
+}
+
+.pastilla-presta-servicio:hover {
+    background: var(--color-surface-hover);
+}
+
+.pastilla-presta-servicio:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
 }
 
 /* La columna de detecciones se reserva aunque no haya ninguna — es lo que

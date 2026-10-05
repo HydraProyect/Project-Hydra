@@ -288,4 +288,16 @@
   <data name="ColEmpresa" xml:space="preserve">
     <value>Empresa</value>
   </data>
+  <data name="ColPrestaServicioA" xml:space="preserve">
+    <value>Presta servei a</value>
+  </data>
+  <data name="PrestaServicioEtiqueta" xml:space="preserve">
+    <value>{0}: Clients empresarials als quals presta servei {1}</value>
+  </data>
+  <data name="PrestaServicioNinguno" xml:space="preserve">
+    <value>No presta servei a Clients empresarials, o no els gestiones tu.</value>
+  </data>
+  <data name="PrestaServicioError" xml:space="preserve">
+    <value>No hem pogut carregar a qui presta servei aquesta empresa.</value>
+  </data>
 </root>

@@ -11,6 +11,7 @@ using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Empresas.Queries.ObtenerResumenClientesDeEmpresas;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
@@ -66,6 +67,15 @@ public class EmpresasListaGen2Tests : BunitContext
         public HashSet<Guid> NoEliminables { get; } = [];
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> ClientesDe { get; } = [];
         public HashSet<Guid> ClientesQueFallan { get; } = [];
+
+        /// <summary>La consulta del resumen de «Presta servicio a» falla.</summary>
+        public bool ResumenFalla { get; set; }
+
+        /// <summary>
+        /// Empresas fuera del alcance de gestión: el resumen no las devuelve aunque tengan Clientes
+        /// empresariales (lo prueba ResumenClientesDeEmpresasTests contra Postgres).
+        /// </summary>
+        public HashSet<Guid> FueraDeGestion { get; } = [];
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
         /// <summary>false = Operador CAE externo trabajando en un Tenant beneficiario ajeno.</summary>
         public bool EsDelPropioTenant { get; set; } = true;
@@ -108,6 +118,15 @@ public class EmpresasListaGen2Tests : BunitContext
             ObtenerClientesDeEmpresaQuery c => ClientesQueFallan.Contains(c.EmpresaId)
                 ? throw new InvalidOperationException("Fallo simulado de la consulta de clientes de la empresa.")
                 : (IReadOnlyList<ClienteDeEmpresaDto>)(ClientesDe.GetValueOrDefault(c.EmpresaId) ?? []).ToList(),
+            ObtenerResumenClientesDeEmpresasQuery r => ResumenFalla
+                ? throw new InvalidOperationException("Fallo simulado del resumen de Clientes empresariales.")
+                : (IReadOnlyDictionary<Guid, ResumenClientesDeEmpresaDto>)r.EmpresaIds
+                    .Where(id => !FueraDeGestion.Contains(id) && ClientesDe.GetValueOrDefault(id) is { Count: > 0 })
+                    .ToDictionary(id => id, id =>
+                    {
+                        var clientes = ClientesDe[id].OrderBy(c => c.RazonSocial, StringComparer.Ordinal).ToList();
+                        return new ResumenClientesDeEmpresaDto(clientes.Count, clientes[0].RazonSocial);
+                    }),
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Array.Empty<ClienteSelectorDto>(),
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
             EliminarEmpresaCommand => Result.Exito(),
@@ -222,6 +241,84 @@ public class EmpresasListaGen2Tests : BunitContext
     /// <summary>El conmutador ☑ de la cabecera (nombre accesible «Selección múltiple»).</summary>
     private static Task AlternarSeleccionMultiple(IRenderedComponent<Empresas> cut) =>
         cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+
+    // ------------------------------------------------- columna «Presta servicio a» (maqueta aprobada)
+
+    /// <summary>
+    /// La columna dice el primer Cliente empresarial por razón social y «+N», con una sola consulta para toda la
+    /// página (no una por fila), y la pastilla abre el mismo desplegable que el chevron.
+    /// </summary>
+    [Fact]
+    public async Task Presta_servicio_a_dice_el_primero_y_cuantos_mas_y_abre_el_desplegable()
+    {
+        var mediador = new MediatorFalso();
+        var norte = Empresa("Montajes Norte S.L.");
+        var sur = Empresa("Limpiezas Sur S.L.");
+        mediador.Almacen.AddRange([norte, sur]);
+        mediador.ClientesDe[norte.Id] = [ClienteEmpresarial("Pegaso Cliente S.L.", "B10000024"), ClienteEmpresarial("Orion Cliente S.L.", "B10000016")];
+        mediador.ClientesDe[sur.Id] = [ClienteEmpresarial("Pegaso Cliente S.L.", "B10000024")];
+        var cut = Renderizar(mediador);
+
+        cut.WaitForAssertion(() => cut.FindAll(".pastilla-presta-servicio").Should().HaveCount(2));
+        var textos = cut.FindAll(".tarjeta-fila-acordeon").ToDictionary(
+            f => f.QuerySelector(".enlace-nombre-fila")!.TextContent.Trim(),
+            f => f.QuerySelector(".pastilla-presta-servicio")!.TextContent.Trim());
+        textos.Should().Equal(new Dictionary<string, string>
+        {
+            ["Montajes Norte S.L."] = "Orion Cliente S.L. +1",
+            ["Limpiezas Sur S.L."] = "Pegaso Cliente S.L.",
+        });
+        var consulta = mediador.Enviadas.OfType<ObtenerResumenClientesDeEmpresasQuery>().Should().ContainSingle("una consulta por página, no una por fila").Subject;
+        consulta.EmpresaIds.Should().BeEquivalentTo([norte.Id, sur.Id]);
+        cut.FindAll(".pastilla-presta-servicio").Select(p => p.GetAttribute("aria-label")).Should().Contain(
+            "Orion Cliente S.L. +1: Clientes empresariales a los que presta servicio Montajes Norte S.L.",
+            "el nombre accesible empieza por el texto visible (WCAG 2.5.3)");
+
+        var filaNorte = cut.FindAll(".tarjeta-fila-acordeon").Single(f => f.TextContent.Contains("Montajes Norte S.L."));
+        await filaNorte.QuerySelector(".pastilla-presta-servicio")!.ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".tarjeta-fila-acordeon").Single(f => f.TextContent.Contains("Montajes Norte S.L."))
+            .QuerySelector(".pastilla-presta-servicio")!.GetAttribute("aria-expanded").Should().Be("true"));
+        mediador.Enviadas.OfType<ObtenerClientesDeEmpresaQuery>().Should().ContainSingle(q => q.EmpresaId == norte.Id);
+    }
+
+    /// <summary>
+    /// Sin Clientes empresariales o fuera del alcance de gestión, la celda dice «—» con el mismo título en los dos
+    /// casos: la pantalla no revela cuál es (#810).
+    /// </summary>
+    [Fact]
+    public void Sin_Clientes_empresariales_o_fuera_de_alcance_la_celda_es_una_raya_que_no_distingue_los_casos()
+    {
+        var mediador = new MediatorFalso();
+        var sinClientes = Empresa("Obras Este S.L.");
+        var fueraDeAlcance = Empresa("Montajes Norte S.L.");
+        mediador.Almacen.AddRange([sinClientes, fueraDeAlcance]);
+        mediador.ClientesDe[fueraDeAlcance.Id] = [ClienteEmpresarial("Orion Cliente S.L.", "B10000016")];
+        mediador.FueraDeGestion.Add(fueraDeAlcance.Id);
+        var cut = Renderizar(mediador);
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerResumenClientesDeEmpresasQuery>().Should().ContainSingle());
+        cut.FindAll(".pastilla-presta-servicio").Should().BeEmpty();
+        var titulos = cut.FindAll(".tarjeta-fila-acordeon-cabecera").Select(f => f.Children[2].QuerySelector("[title]")!.GetAttribute("title")).ToList();
+        titulos.Should().HaveCount(2).And.OnlyContain(t => t == "No presta servicio a Clientes empresariales, o no los gestionas tú.");
+    }
+
+    [Fact]
+    public void Si_falla_el_resumen_la_lista_se_ve_igual_y_la_columna_dice_raya()
+    {
+        var mediador = new MediatorFalso { ResumenFalla = true };
+        var norte = Empresa("Montajes Norte S.L.");
+        mediador.Almacen.Add(norte);
+        mediador.ClientesDe[norte.Id] = [ClienteEmpresarial("Orion Cliente S.L.", "B10000016")];
+        var cut = Renderizar(mediador);
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerResumenClientesDeEmpresasQuery>().Should().ContainSingle());
+        cut.FindAll(".tarjeta-fila-acordeon").Should().ContainSingle();
+        cut.FindAll(".pastilla-presta-servicio").Should().BeEmpty();
+        cut.Markup.Should().NotContain("No pudimos cargar las empresas");
+        cut.Find(".celda-sin-presta-servicio").GetAttribute("title").Should().Be("No pudimos cargar a quién presta servicio esta empresa.",
+            "un fallo no se pinta como «no presta servicio»: no sabemos nada");
+    }
 
     // ------------------------------------------------------------------ Cabecera
 
