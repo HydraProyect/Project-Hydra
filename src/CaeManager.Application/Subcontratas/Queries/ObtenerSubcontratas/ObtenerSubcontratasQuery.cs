@@ -7,9 +7,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 
+/// <param name="NivelServicio">Filtro exacto por nivel de servicio (Gestionada / Supervisada).</param>
 public record ObtenerSubcontratasQuery(
     string? Busqueda, int Pagina = 1, int TamanoPagina = 20,
-    string? OrdenarPor = null, bool Descendente = false, Guid? SubcontrataId = null)
+    string? OrdenarPor = null, bool Descendente = false, Guid? SubcontrataId = null,
+    NivelServicioSubcontrata? NivelServicio = null)
     : IRequest<ResultadoPaginado<SubcontrataListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -56,6 +58,12 @@ public class ObtenerSubcontratasQueryHandler(
         // recargar una sola fila tras una acción en el acordeón sin colapsar el resto.
         if (request.SubcontrataId is not null)
             consulta = consulta.Where(s => s.Id == request.SubcontrataId);
+
+        // La columna guarda el nombre del enum como texto (deuda de F3, ver Empresa.NivelServicio).
+        // Es un filtro por VALOR: no decide el rol de la Empresa por la nulidad de la columna.
+        var nivelTexto = request.NivelServicio?.ToString();
+        if (nivelTexto is not null)
+            consulta = consulta.Where(s => s.NivelServicio == nivelTexto);
 
         var total = await consulta.CountAsync(cancellationToken);
 

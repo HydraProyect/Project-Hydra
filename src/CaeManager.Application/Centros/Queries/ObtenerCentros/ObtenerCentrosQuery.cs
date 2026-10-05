@@ -16,10 +16,15 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCentros;
 /// nombre parecido. Se combina con el resto de filtros, aunque en la
 /// práctica ya identifica una única fila.
 /// </param>
+/// <param name="Busqueda">
+/// Texto libre: casa con el nombre del Centro, su código, la razón social del Cliente
+/// empresarial o la de la Empresa (es lo que promete el buscador de /centros).
+/// </param>
+/// <param name="EmpresaId">Filtro exacto por la Empresa que trabaja en el Centro.</param>
 public record ObtenerCentrosQuery(
     string? Busqueda, Guid? ClienteId, EstadoCentro? Estado = null,
     string? OrdenarPor = null, bool Descendente = false, int Pagina = 1, int TamanoPagina = 20,
-    Guid? CentroId = null)
+    Guid? CentroId = null, Guid? EmpresaId = null)
     : IRequest<ResultadoPaginado<CentroListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -103,11 +108,17 @@ public class ObtenerCentrosQueryHandler(
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
             var busqueda = request.Busqueda.ToUpper();
-            consulta = consulta.Where(x => x.centro.Nombre.ToUpper().Contains(busqueda));
+            consulta = consulta.Where(x => x.centro.Nombre.ToUpper().Contains(busqueda)
+                || (x.centro.CodigoCentro != null && x.centro.CodigoCentro.ToUpper().Contains(busqueda))
+                || x.cliente.RazonSocial.ToUpper().Contains(busqueda)
+                || x.empresa.RazonSocial.ToUpper().Contains(busqueda));
         }
 
         if (request.ClienteId is not null)
             consulta = consulta.Where(x => x.centro.ClienteId == request.ClienteId);
+
+        if (request.EmpresaId is not null)
+            consulta = consulta.Where(x => x.centro.EmpresaId == request.EmpresaId);
 
         if (request.CentroId is not null)
             consulta = consulta.Where(x => x.centro.Id == request.CentroId);
