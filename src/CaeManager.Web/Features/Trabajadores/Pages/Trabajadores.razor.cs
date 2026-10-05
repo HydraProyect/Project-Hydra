@@ -579,12 +579,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
         _resolverEmpresaEnSilencio = perfil == PerfilVocabularioTenant.ClienteDirecto && _empresasDisponibles.Count == 1;
 
-        // Si la lista ya está filtrada por Empresa o Subcontrata, se presupone
-        // que el trabajador que se va a dar de alta es de ese mismo empleador.
+        // El filtro representa visibilidad de lectura; solo se prellena con un empleador
+        // que siga disponible en el selector del alta recién cargado.
         if (!string.IsNullOrWhiteSpace(_filtroSubcontrataId))
         {
             _tipoEmpleador = "subcontrata";
-            _subcontrataId = _filtroSubcontrataId;
+            _subcontrataId = _subcontratasDisponibles.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.Id.ToString() ?? string.Empty;
             _empresaId = string.Empty;
         }
         else if (_resolverEmpresaEnSilencio)
@@ -596,7 +596,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         else
         {
             _tipoEmpleador = "empresa";
-            _empresaId = _filtroEmpresaId;
+            _empresaId = _empresasDisponibles.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.Id.ToString() ?? string.Empty;
             _subcontrataId = string.Empty;
         }
         _dni = string.Empty;

@@ -8,14 +8,15 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerEmpleadoresDeTrabaj
 /// <summary>
 /// Opciones de la pastilla «Empresa» de /trabajadores: las Empresas y Subcontratas que emplean a algún
 /// Trabajador que quien mira ve. Mismo alcance que la lista (<see cref="IAlcanceDatosService.ObtenerTrabajadorIdsVisiblesAsync"/>,
-/// el de <c>ObtenerTrabajadoresQuery</c>): cada opción devuelve al menos un Trabajador y ninguna nombra un
-/// empleador que la lista no muestre ya en su columna «Empresa».
+/// el de <c>ObtenerTrabajadoresQuery</c>), antes de aplicar búsqueda y filtros documentales: cada opción
+/// emplea al menos un Trabajador legible por la identidad efectiva.
 ///
 /// No sirven los selectores del alta: <c>ObtenerEmpresasParaSelectorQuery</c> acota por alcance de
-/// <b>gestión</b> (vacío para un usuario de portal, rol Cliente, que sí ve Trabajadores por Asignación) y
-/// <c>ObtenerSubcontratasParaSelectorQuery</c> devuelve el catálogo global del Tenant a propósito (para reutilizar
+/// <b>gestión</b> (vacío para un Usuario de Cliente empresarial, <c>Roles.Cliente</c>, que sí ve Trabajadores por Asignación) y
+/// <c>ObtenerSubcontratasParaSelectorQuery</c> devuelve el catálogo global del Tenant propietario a propósito (para reutilizar
 /// un registro al dar de alta): en un filtro le enseñaba al portal subcontratas que no tienen nada que ver con él.
-/// Solo lectura para filtrar: no alimenta ningún comando.
+/// Estas opciones no autorizan altas. El filtro puede prellenar el drawer de alta únicamente tras comprobar
+/// pertenencia a sus selectores; el comando mantiene su validación independiente de autorización.
 /// </summary>
 public record ObtenerEmpleadoresDeTrabajadoresVisiblesQuery : IRequest<EmpleadoresDeTrabajadoresDto>;
 
@@ -37,7 +38,7 @@ public class ObtenerEmpleadoresDeTrabajadoresVisiblesQueryHandler(
         if (trabajadorIdsVisibles is not null)
             trabajadores = trabajadores.Where(t => trabajadorIdsVisibles.Contains(t.Id));
 
-        // El join con Empresas (filtro global de Tenant y de bajas lógicas) deja fuera a un empleador dado de baja,
+        // El join con Empresas (filtro global de Tenant propietario y de bajas lógicas) deja fuera a un empleador dado de baja,
         // igual que la lista, que lo une para pintar su nombre.
         var empresaIds = trabajadores.Where(t => t.EmpresaId != null).Select(t => t.EmpresaId!.Value).Distinct();
         var subcontrataIds = trabajadores.Where(t => t.SubcontrataId != null).Select(t => t.SubcontrataId!.Value).Distinct();

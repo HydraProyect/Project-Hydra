@@ -105,6 +105,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
         public List<EmpresaSelectorDto> Empresas { get; } =
             [new(EmpresaEbro, "Montajes Ebro S.L."), new(EmpresaDexter, "Dexter Industrial S.A.")];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
+        public List<SubcontrataSelectorDto> Subcontratas { get; } =
+            [new(SubcontrataNervion, "Aislamientos Nervión S.L.")];
 
         /// <summary>
         /// Opciones de la pastilla «Empresa»: los empleadores de los Trabajadores visibles. De serie, los mismos
@@ -161,7 +163,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
                 case ObtenerEmpresasParaSelectorQuery:
                     return (IReadOnlyList<EmpresaSelectorDto>)Empresas.ToList();
                 case ObtenerSubcontratasParaSelectorQuery:
-                    return (IReadOnlyList<SubcontrataSelectorDto>)[new SubcontrataSelectorDto(SubcontrataNervion, "Aislamientos Nervión S.L.")];
+                    return (IReadOnlyList<SubcontrataSelectorDto>)Subcontratas.ToList();
                 case ObtenerFiltrosGuardadosQuery:
                     return (IReadOnlyList<FiltroGuardadoDto>)FiltrosGuardados.ToList();
                 case ObtenerEmpleadoresDeTrabajadoresVisiblesQuery:
@@ -169,7 +171,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
                         throw new InvalidOperationException("Fallo simulado de las opciones de la pastilla Empresa.");
                     return EmpleadoresFiltro ?? new EmpleadoresDeTrabajadoresDto(
                         Empresas.Select(e => new EmpleadorDeTrabajadorDto(e.Id, e.RazonSocial)).ToList(),
-                        [new EmpleadorDeTrabajadorDto(SubcontrataNervion, "Aislamientos Nervión S.L.")]);
+                        Subcontratas.Select(s => new EmpleadorDeTrabajadorDto(s.Id, s.RazonSocial)).ToList());
                 case ObtenerTrabajadoresQuery q:
                     return Filtrar(q);
                 case ObtenerTrabajadorPorIdQuery q:
@@ -753,10 +755,140 @@ public class TrabajadoresListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Las opciones de la pastilla salen de los empleadores de los Trabajadores visibles, no de los selectores del
-    /// alta: un usuario de portal (rol Cliente) no gestiona ninguna Empresa —su selector de gestión va vacío— y el de
-    /// Subcontratas es el catálogo global del Tenant. Antes veía «Empresa» sin empresas y con subcontratas ajenas.
+    /// La visibilidad del empleador en el filtro no autoriza prellenar el alta: el Id debe pertenecer
+    /// al selector recién cargado, también cuando procede de un filtro guardado obsoleto.
     /// </summary>
+    [Theory]
+    [InlineData(false, false)] // Empresa, pastilla
+    [InlineData(true, false)]  // Subcontrata legacy, pastilla
+    [InlineData(false, true)]  // Empresa, filtro guardado obsoleto para el alta
+    [InlineData(true, true)]   // Subcontrata legacy, filtro guardado obsoleto para el alta
+    public async Task Alta_no_prellena_el_empleador_del_filtro_ausente_del_selector_y_no_envia_hasta_elegir_uno_disponible(
+        bool esSubcontrata, bool filtroGuardado)
+    {
+        var (mediador, idFiltro, idDisponible, opcionFiltro) = PrepararCatalogosDeAlta(esSubcontrata, autorizado: false);
+        var cut = await AbrirConFiltroDeEmpleadorAsync(mediador, esSubcontrata, filtroGuardado, idFiltro, opcionFiltro);
+        var consulta = UltimaConsulta(mediador);
+        (esSubcontrata ? consulta.SubcontrataId : consulta.EmpresaId).Should().Be(idFiltro,
+            "control positivo: la lista conserva su filtro de visibilidad");
+
+        await AbrirAltaAsync(cut);
+
+        SelectorDeEmpleadorDelAlta(cut).Instance.Valor.Should().BeEmpty(
+            "el ID visible para la lista está ausente del selector de alta y no puede prellenarse");
+        SelectorDeEmpleadorDelAlta(cut).FindAll("option")
+            .Should().NotContain(o => o.GetAttribute("value") == idFiltro.ToString(),
+                "control positivo: el selector de alta realmente excluye el ID del filtro");
+        await EscribirDatosCompletosDelAltaAsync(cut);
+        await GuardarAlta(cut).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().BeEmpty(
+            "la barrera del drawer debe impedir enviar el ID excluido al productor Application");
+        cut.FindAll(".drawer-panel").Should().ContainSingle("el alta incompleta sigue abierta");
+        cut.Find(".drawer-panel").TextContent.Should().Contain("Selecciona una",
+            "el impedimento observado es la falta de empleador, no otro campo");
+
+        // La barrera puede abrir por defecto en Empresa o conservar el tipo del filtro sin ID.
+        // Elegir explícitamente el tipo requerido hace el caso independiente de esa presentación.
+        await cut.FindAll(".drawer-panel input[name='tipo-empleador']")[esSubcontrata ? 1 : 0]
+            .ChangeAsync(new ChangeEventArgs { Value = true });
+        await SelectorDeEmpleadorDelAlta(cut).Find("select")
+            .ChangeAsync(new ChangeEventArgs { Value = idDisponible.ToString() });
+        await GuardarAlta(cut).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().ContainSingle();
+        var enviada = mediador.Enviadas.OfType<CrearTrabajadorCommand>().Single();
+        enviada.EmpresaId.Should().Be(esSubcontrata ? null : idDisponible);
+        enviada.SubcontrataId.Should().Be(esSubcontrata ? idDisponible : null);
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().BeEmpty());
+    }
+
+    /// <summary>Control positivo: un ID del filtro que sigue disponible para el alta conserva el prellenado.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Alta_conserva_el_empleador_del_filtro_si_pertenece_al_selector_de_alta(
+        bool esSubcontrata, bool filtroGuardado)
+    {
+        var (mediador, idFiltro, _, opcionFiltro) = PrepararCatalogosDeAlta(esSubcontrata, autorizado: true);
+        var cut = await AbrirConFiltroDeEmpleadorAsync(mediador, esSubcontrata, filtroGuardado, idFiltro, opcionFiltro);
+        await AbrirAltaAsync(cut);
+
+        var selector = SelectorDeEmpleadorDelAlta(cut);
+        selector.Instance.Etiqueta.Should().Be(esSubcontrata ? "Subcontrata" : "Empresa");
+        selector.Instance.Valor.Should().Be(idFiltro.ToString());
+        selector.FindAll("option").Should().Contain(o => o.GetAttribute("value") == idFiltro.ToString());
+        await EscribirDatosCompletosDelAltaAsync(cut);
+        await GuardarAlta(cut).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().ContainSingle();
+        var enviada = mediador.Enviadas.OfType<CrearTrabajadorCommand>().Single();
+        enviada.EmpresaId.Should().Be(esSubcontrata ? null : idFiltro);
+        enviada.SubcontrataId.Should().Be(esSubcontrata ? idFiltro : null);
+    }
+
+    private static (MediatorFalso Mediador, Guid IdFiltro, Guid IdDisponible, string OpcionFiltro)
+        PrepararCatalogosDeAlta(bool esSubcontrata, bool autorizado)
+    {
+        var idFiltro = esSubcontrata ? SubcontrataNervion : EmpresaEbro;
+        var idDisponible = autorizado ? idFiltro
+            : esSubcontrata ? Guid.Parse("8b7b85e7-8265-494c-9d50-7bb11312f302") : EmpresaDexter;
+        var mediador = new MediatorFalso
+        {
+            // Consultora evita que una Empresa única se resuelva en silencio: aquí se mide el prellenado por filtro.
+            Perfil = PerfilVocabularioTenant.Consultora,
+            EmpleadoresFiltro = new EmpleadoresDeTrabajadoresDto(
+                esSubcontrata ? [] : [new EmpleadorDeTrabajadorDto(idFiltro, "Montajes Ebro S.L.")],
+                esSubcontrata ? [new EmpleadorDeTrabajadorDto(idFiltro, "Aislamientos Nervión S.L.")] : []),
+        };
+        mediador.Almacen.Add(esSubcontrata
+            ? Trabajador("Javier", "Salas Moreno", subcontrataId: idFiltro)
+            : Trabajador("Javier", "Salas Moreno", empresaId: idFiltro));
+        mediador.Empresas.Clear();
+        mediador.Empresas.Add(new EmpresaSelectorDto(esSubcontrata ? EmpresaDexter : idDisponible, "Empresa disponible para el alta"));
+        mediador.Subcontratas.Clear();
+        mediador.Subcontratas.Add(new SubcontrataSelectorDto(esSubcontrata ? idDisponible : SubcontrataNervion, "Empleador disponible para el alta"));
+        return (mediador, idFiltro, idDisponible,
+            esSubcontrata ? "Aislamientos Nervión S.L. (subcontrata)" : "Montajes Ebro S.L.");
+    }
+
+    private async Task<IRenderedComponent<Trabajadores>> AbrirConFiltroDeEmpleadorAsync(
+        MediatorFalso mediador, bool esSubcontrata, bool filtroGuardado, Guid idFiltro, string opcionFiltro)
+    {
+        if (filtroGuardado)
+        {
+            var valoresJson = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                EmpresaId = esSubcontrata ? null : idFiltro.ToString(),
+                SubcontrataId = esSubcontrata ? idFiltro.ToString() : null,
+            });
+            mediador.FiltrosGuardados.Add(new FiltroGuardadoDto(Guid.NewGuid(), "Empleador guardado", valoresJson, DateTime.UtcNow));
+        }
+        var cut = Renderizar(mediador);
+        if (filtroGuardado)
+            await PulsarEnMasFiltros(cut, "Empleador guardado");
+        else
+            await ElegirEnLaPastilla(cut, "Empresa", opcionFiltro);
+        return cut;
+    }
+
+    private static IRenderedComponent<CampoSelect> SelectorDeEmpleadorDelAlta(IRenderedComponent<Trabajadores> cut) =>
+        cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta is "Empresa" or "Subcontrata");
+
+    private static IElement GuardarAlta(IRenderedComponent<Trabajadores> cut) =>
+        cut.Find(".drawer-panel").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar");
+
+    private static async Task EscribirDatosCompletosDelAltaAsync(IRenderedComponent<Trabajadores> cut)
+    {
+        await EscribirDocumentoAsync(cut, "60005002A");
+        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre")
+            .Find("input").InputAsync(new ChangeEventArgs { Value = "Carla" });
+        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Apellidos")
+            .Find("input").InputAsync(new ChangeEventArgs { Value = "Molina Ríos" });
+    }
+
     [Fact]
     public async Task La_pastilla_Empresa_ofrece_los_empleadores_de_los_trabajadores_visibles_y_no_los_selectores_del_alta()
     {
