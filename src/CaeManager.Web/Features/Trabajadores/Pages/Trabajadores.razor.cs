@@ -203,7 +203,11 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         .Select(c => new OpcionBuscable(c.Id.ToString(), $"{c.Nombre} ({c.ClienteRazonSocial})"))
         .ToList();
 
-    private record FiltrosTrabajadoresJson(string? Busqueda, string? EmpresaId, string? SubcontrataId);
+    /// <summary>
+    /// Lo que guarda un filtro de esta pantalla. <c>Estado</c> (la pastilla «Documentación») llegó después:
+    /// es opcional para que los filtros ya guardados sin él se sigan leyendo, y entonces se aplican sin estado.
+    /// </summary>
+    private record FiltrosTrabajadoresJson(string? Busqueda, string? EmpresaId, string? SubcontrataId, string? Estado = null);
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -1156,12 +1160,18 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = valores.Busqueda ?? string.Empty;
         _filtroEmpresaId = valores.EmpresaId ?? string.Empty;
         _filtroSubcontrataId = valores.SubcontrataId ?? string.Empty;
+        // Un filtro guardado define el conjunto entero: sin estado guardado, el estado se quita. Un valor que
+        // ya no es una opción (catálogo cambiado) se ignora, como uno de la URL.
+        _estadoFiltro = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == valores.Estado) ? valores.Estado! : string.Empty;
 
-        // La búsqueda del filtro guardado se escribe también en ?q=. Si solo
-        // se aplicara en memoria, la siguiente navegación dentro de la página
-        // (p. ej. cambiar el filtro de documentación, que sí escribe la URL)
-        // haría que OnParametersSetAsync la borrase leyendo un ?q= vacío.
-        NavigationManager.ActualizarFiltroEnUrl("q", _busqueda);
+        // La búsqueda y el estado del filtro guardado se escriben también en la URL (?q=, ?estado=), en una
+        // sola navegación. Si solo se aplicaran en memoria, la siguiente navegación dentro de la página
+        // haría que OnParametersSetAsync los borrase leyendo una URL sin ellos.
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = string.IsNullOrEmpty(_busqueda) ? null : _busqueda,
+            ["estado"] = string.IsNullOrEmpty(_estadoFiltro) ? null : _estadoFiltro,
+        });
         await RecargarAsync();
     }
 
@@ -1177,7 +1187,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             var valoresJson = JsonSerializer.Serialize(new FiltrosTrabajadoresJson(
                 string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 string.IsNullOrWhiteSpace(_filtroEmpresaId) ? null : _filtroEmpresaId,
-                string.IsNullOrWhiteSpace(_filtroSubcontrataId) ? null : _filtroSubcontrataId));
+                string.IsNullOrWhiteSpace(_filtroSubcontrataId) ? null : _filtroSubcontrataId,
+                string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
 
             var resultado = await Mediator.Send(
                 new GuardarFiltroCommand(PantallasConFiltrosGuardados.Trabajadores, _nombreFiltroNuevo, valoresJson));

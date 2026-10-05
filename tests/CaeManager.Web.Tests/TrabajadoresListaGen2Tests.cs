@@ -1955,6 +1955,63 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.FindAll("[role=dialog]").Should().BeEmpty("guardado el filtro, el modal se cierra");
     }
 
+    /// <summary>
+    /// Un filtro guardado con solo «Documentación» no se guarda vacío: el estado viaja en el JSON (antes «Guardar
+    /// filtro» se activaba con el estado pero no lo guardaba, y salía un filtro sin nada).
+    /// </summary>
+    [Fact]
+    public async Task Guardar_filtro_con_solo_Documentacion_guarda_el_estado()
+    {
+        var mediador = new MediatorFalso();
+        var cut = Renderizar(mediador, "trabajadores?estado=Vencido");
+        await PulsarEnMasFiltros(cut, "Guardar filtro");
+        await EscribirNombreDelFiltroAsync(cut, "Vencidos");
+
+        await GuardarDelFiltro(cut).ClickAsync(new MouseEventArgs());
+
+        var valores = System.Text.Json.JsonDocument.Parse(mediador.Enviadas.OfType<GuardarFiltroCommand>().Single().ValoresJson).RootElement;
+        valores.GetProperty("Estado").GetString().Should().Be(nameof(EstadoDocumento.Vencido));
+    }
+
+    /// <summary>Aplicar un filtro guardado con estado lo pone en la consulta y en la URL (?estado=), con su búsqueda.</summary>
+    [Fact]
+    public async Task Aplicar_un_filtro_guardado_con_estado_lo_aplica_y_lo_escribe_en_la_url()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Javier", "Salas Moreno"), Trabajador("Ana", "Vega Ortiz") },
+            FiltrosGuardados = { new FiltroGuardadoDto(Guid.NewGuid(), "Vencidos de Vega", "{\"Busqueda\":\"Vega\",\"Estado\":\"Vencido\"}", DateTime.UtcNow) }
+        };
+        var cut = Renderizar(mediador);
+
+        await PulsarEnMasFiltros(cut, "Vencidos de Vega");
+
+        cut.WaitForAssertion(() => UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vencido)));
+        UltimaConsulta(mediador).Busqueda.Should().Be("Vega");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Vega").And.Contain("estado=Vencido");
+    }
+
+    /// <summary>
+    /// Un filtro guardado antes de que se guardara el estado (sin «Estado» en el JSON) se sigue leyendo, y como
+    /// define el conjunto entero quita el estado que hubiera puesto.
+    /// </summary>
+    [Fact]
+    public async Task Aplicar_un_filtro_guardado_sin_estado_quita_el_estado_puesto()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Javier", "Salas Moreno"), Trabajador("Ana", "Vega Ortiz") },
+            FiltrosGuardados = { new FiltroGuardadoDto(Guid.NewGuid(), "Solo Vega", "{\"Busqueda\":\"Vega\"}", DateTime.UtcNow) }
+        };
+        var cut = Renderizar(mediador, "trabajadores?estado=Vigente");
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vigente), "control: el estado venía puesto");
+
+        await PulsarEnMasFiltros(cut, "Solo Vega");
+
+        cut.WaitForAssertion(() => UltimaConsulta(mediador).EstadoDocumental.Should().BeNull());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Vega").And.NotContain("estado=");
+    }
+
     [Fact]
     public async Task Un_rechazo_al_guardar_el_filtro_se_ve_en_el_aviso_fijo_del_modal_y_lo_escrito_no_se_pierde()
     {
