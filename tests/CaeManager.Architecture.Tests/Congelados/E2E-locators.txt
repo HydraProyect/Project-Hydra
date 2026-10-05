@@ -20,7 +20,6 @@ tests/CaeManager.E2ETests/CuentaAMedioActivarTests.cs :: GetByText = 1
 tests/CaeManager.E2ETests/DeepLinksTests.cs :: GetByText = 4
 tests/CaeManager.E2ETests/DeepLinksTests.cs :: Posicional = 9
 tests/CaeManager.E2ETests/DesactivarCortaLaSesionTests.cs :: FiltroPorTexto = 2
-tests/CaeManager.E2ETests/DesactivarCortaLaSesionTests.cs :: Posicional = 1
 tests/CaeManager.E2ETests/DobleEnvioAccesoTests.cs :: GetByText = 5
 tests/CaeManager.E2ETests/F3bSubcontrataSmokeTests.cs :: FiltroPorTexto = 4
 tests/CaeManager.E2ETests/F3bSubcontrataSmokeTests.cs :: GetByText = 5
