@@ -53,10 +53,12 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
     private static readonly LocatorAssertionsToBeVisibleOptions EsperaEnFrio = new() { Timeout = 30_000 };
 
     /// <summary>
-    /// Lote 2 del selector de empresa gestionada: seleccionar → Trabajadores. La cabecera de la
-    /// lista dice de qué empresa es, el cambio vuelve a la misma ruta SIN query (los filtros del
-    /// Tenant anterior se descartan, I14) y la selección persiste al navegar (cookie, no estado de
-    /// pantalla).
+    /// Lote 2 del selector de empresa gestionada: seleccionar → Trabajadores. La lista es la de la
+    /// empresa elegida —desde el rediseño de listados (fase 1) la cabecera de la lista ya no repite
+    /// cuál es: lo dice el selector de la barra lateral, que es lo que se comprueba—, el cambio
+    /// vuelve a la misma ruta SIN query (los filtros del Tenant anterior se descartan, I14) y la
+    /// selección persiste al navegar (cookie, no estado de pantalla). El nombre del test conserva
+    /// «cabecera» por su historia.
     /// </summary>
     [Fact]
     public async Task El_Gestor_CAE_cambia_de_empresa_gestionada_y_Trabajadores_lleva_la_cabecera_de_la_elegida_sin_filtros_del_anterior()
@@ -70,20 +72,30 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores?q={TrabajadorA}");
-        await Expect(page.Locator(".cabecera-empresa-activa")).ToContainTextAsync(TenantBeneficiarioA, new() { Timeout = 30_000 });
+        await Expect(ListaDeTrabajadoresMontada(page)).ToBeVisibleAsync(EsperaEnFrio);
+        await Expect(Ayudas.DisparadorSelectorTenant(page).Locator(".selector-tenant-nombre")).ToContainTextAsync(TenantBeneficiarioA);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantA);
 
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioB);
         await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == "/trabajadores");
-        await Expect(page.Locator(".cabecera-empresa-activa")).ToContainTextAsync(TenantBeneficiarioB, new() { Timeout = 30_000 });
+        await Expect(ListaDeTrabajadoresMontada(page)).ToBeVisibleAsync(EsperaEnFrio);
+        await Expect(Ayudas.DisparadorSelectorTenant(page).Locator(".selector-tenant-nombre")).ToContainTextAsync(TenantBeneficiarioB);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
 
         // La selección sobrevive a navegar a otra pantalla y volver a Trabajadores.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await Expect(page.Locator(".cabecera-empresa-activa")).ToContainTextAsync(TenantBeneficiarioB, new() { Timeout = 30_000 });
+        await Expect(ListaDeTrabajadoresMontada(page)).ToBeVisibleAsync(EsperaEnFrio);
+        await Expect(Ayudas.DisparadorSelectorTenant(page).Locator(".selector-tenant-nombre")).ToContainTextAsync(TenantBeneficiarioB);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
     }
+
+    /// <summary>
+    /// El buscador de la lista de Trabajadores: solo se pinta con la lista montada, no en el estado
+    /// «elige una empresa de tu cartera» (4a) ni mientras se resuelve la empresa activa.
+    /// </summary>
+    private static ILocator ListaDeTrabajadoresMontada(IPage page) =>
+        page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias");
 
     [Fact]
     public async Task El_Gestor_CAE_recorre_su_cartera_en_dos_Tenants_beneficiarios_y_resuelve_la_cola()

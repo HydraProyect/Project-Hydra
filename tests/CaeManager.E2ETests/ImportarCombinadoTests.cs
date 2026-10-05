@@ -158,7 +158,7 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
             await page.Locator(".lista-filas-acordeon").GetByText(nombreCentro).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-            await page.GetByPlaceholder("Buscar por nombre, apellidos, alias o DNI…").FillAsync(apellidosTrabajador);
+            await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(apellidosTrabajador);
             await page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         }
