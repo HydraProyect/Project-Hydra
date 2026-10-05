@@ -712,6 +712,6 @@
     <value>Treballador</value>
   </data>
   <data name="ListaOpcionSubcontrata" xml:space="preserve">
-    <value>{0} (subcontractista)</value>
+    <value>{0} (subcontracta)</value>
   </data>
 </root>

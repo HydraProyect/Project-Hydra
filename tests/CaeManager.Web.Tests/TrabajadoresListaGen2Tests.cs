@@ -36,9 +36,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Lista de Trabajadores (/trabajadores) contra su mockup Gen 2 («Lista
-/// Trabajadores TALVEG.dc.html»). El vacío por filtro y el menú con «Abrir
-/// Trabajador 360», que ya existían y se conservan, los sigue probando
+/// Lista de Trabajadores (/trabajadores) tras la fase 1 del rediseño de listados (maqueta
+/// aprobada de listados interactivos; antes, el mockup Gen 2). El vacío por filtro y el menú
+/// con «Abrir Trabajador 360», que ya existían y se conservan, los sigue probando
 /// <see cref="TrabajadoresVacioPorFiltroTests"/>.
 ///
 /// <para>

@@ -75,6 +75,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(ListaDeTrabajadoresMontada(page)).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(Ayudas.DisparadorSelectorTenant(page).Locator(".selector-tenant-nombre")).ToContainTextAsync(TenantBeneficiarioA);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantA);
+        // La lista es la de la empresa elegida, no solo el selector: el Trabajador de A está en sus filas.
+        await Expect(FilaDeTrabajador(page, TrabajadorA)).ToHaveCountAsync(1, new() { Timeout = 30_000 });
 
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioB);
         await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == "/trabajadores");
@@ -88,7 +90,18 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(ListaDeTrabajadoresMontada(page)).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(Ayudas.DisparadorSelectorTenant(page).Locator(".selector-tenant-nombre")).ToContainTextAsync(TenantBeneficiarioB);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
+
+        // Y las filas son las de B: su Trabajador aparece (control positivo) y el de A no.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores?q={TrabajadorB}");
+        await Expect(FilaDeTrabajador(page, TrabajadorB)).ToHaveCountAsync(1, new() { Timeout = 30_000 });
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores?q={TrabajadorA}");
+        await Expect(page.Locator(".estado-vacio")).ToBeVisibleAsync(EsperaEnFrio);
+        await Expect(FilaDeTrabajador(page, TrabajadorA)).ToHaveCountAsync(0);
     }
+
+    /// <summary>La fila de la lista de Trabajadores que nombra a ese Trabajador (por rol, no por texto libre).</summary>
+    private static ILocator FilaDeTrabajador(IPage page, string apellidos) =>
+        page.Locator(".tabla-datos").GetByRole(AriaRole.Row, new() { Name = apellidos });
 
     /// <summary>
     /// El buscador de la lista de Trabajadores: solo se pinta con la lista montada, no en el estado
