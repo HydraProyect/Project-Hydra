@@ -27,6 +27,9 @@ public class ObtenerEmpresasDeCentrosVisiblesQueryHandler(
     public async Task<IReadOnlyList<EmpresaDeCentroDto>> Handle(
         ObtenerEmpresasDeCentrosVisiblesQuery request, CancellationToken cancellationToken)
     {
+        // La lista además une cada Centro con su Cliente empresarial; aquí no hace falta: un Centro activo
+        // no puede tener su Cliente empresarial dado de baja (EliminarCliente/EliminarClientes lo rechazan,
+        // «Cliente.TieneCentrosActivos»), y no se añade un uso nuevo de ClienteId (ClienteIdNoSeExtiendeTests).
         var centros = centrosContext.Centros.AsQueryable();
 
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);

@@ -105,14 +105,14 @@
             {
                 <span class="segmentado-lista" role="group" aria-label="@Textos["AgruparEtiqueta"]">
                     <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "false" : "true")"
-                            @onclick="() => CambiarAgrupacionAsync(false)">@Textos["AgruparNo"]</button>
+                            @onclick="() => CambiarAgrupacion(false)">@Textos["AgruparNo"]</button>
                     <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "true" : "false")"
-                            @onclick="() => CambiarAgrupacionAsync(true)">@Textos["AgruparPorCliente"]</button>
+                            @onclick="() => CambiarAgrupacion(true)">@Textos["AgruparPorCliente"]</button>
                 </span>
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                        OnClick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))"
                        aria-pressed="@(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? "true" : "false")">
-                    @Textos["OrdenCumplimiento"] @(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? (_ordenDescendente ? "↓" : "↑") : "")
+                    @Textos["OrdenCumplimiento"] <span aria-hidden="true">@(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? (_ordenDescendente ? "↓" : "↑") : "")</span>
                 </Boton>
                 <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
             }
@@ -232,10 +232,11 @@
            contador y el resumen de la página («N con problema», «N por vencer»), tintada con el peor
            estado del grupo. Los grupos arrancan contraídos y se abren de uno en uno o con «Expandir
            todo»; con búsqueda, con un Centro concreto en la URL o con selección múltiple se ven
-           abiertos, y entonces la cabecera no es un botón (no podría contraerlos). Es visual y de la
-           página: solo convive con el orden de serie (Cliente empresarial y nombre), en el que cada
-           grupo ya sale seguido; pedir otro orden deja de agrupar. Con más de una página, una nota
-           dice que los recuentos son de esta página y no del Cliente empresarial entero. *@
+           abiertos (también mientras haya filas marcadas), y entonces la cabecera no es un botón (no
+           podría contraerlos). Es visual y de la página: con el orden de serie los grupos salen del
+           peor estado al mejor; con un orden pedido, en el de su primera fila, y dentro de cada grupo
+           se respeta ese orden (Grupos). Con más de una página, una nota dice que los recuentos son de
+           esta página y no del Cliente empresarial entero. *@
         var grupos = Grupos;
         @if (_agruparPorCliente && TotalPaginas > 1)
         {

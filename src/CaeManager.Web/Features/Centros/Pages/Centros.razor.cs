@@ -576,12 +576,23 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private static Guid ClienteEmpresarialDe(CentroListaDto centro) => centro.ClienteId;
 
-    /// <summary>Grupos de la página en el orden en que aparece su primer Centro (GroupBy lo conserva).</summary>
-    private IReadOnlyList<GrupoCentros> Grupos =>
-        _elementosPagina
-            .GroupBy(ClienteEmpresarialDe)
-            .Select(g => new GrupoCentros(g.Key, g.First().ClienteRazonSocial, g.ToList()))
-            .ToList();
+    /// <summary>
+    /// Grupos de la página. Con el orden de serie, primero el de peor estado (como la maqueta aprobada) y,
+    /// a igual estado, en el orden en que aparece su primer Centro. Con un orden pedido (cumplimiento), en
+    /// el orden en que aparece su primer Centro: el grupo de la primera fila pedida va primero y dentro de
+    /// cada grupo se respeta ese orden, así que la agrupación no lo contradice (GroupBy conserva la primera
+    /// aparición y OrderByDescending es estable).
+    /// </summary>
+    private IReadOnlyList<GrupoCentros> Grupos
+    {
+        get
+        {
+            var grupos = _elementosPagina
+                .GroupBy(ClienteEmpresarialDe)
+                .Select(g => new GrupoCentros(g.Key, g.First().ClienteRazonSocial, g.ToList()));
+            return (_ordenarPor is null ? grupos.OrderByDescending(g => g.Peor) : grupos).ToList();
+        }
+    }
 
     /// <summary>Filas en el orden en que se pintan: agrupadas, las de cada grupo seguidas.</summary>
     private IEnumerable<CentroListaDto> FilasEnOrden(IReadOnlyList<GrupoCentros> grupos) =>
@@ -607,7 +618,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         !_agruparPorCliente
         || !string.IsNullOrWhiteSpace(_busqueda)
         || _centroIdFiltro is not null
-        || _seleccionMultiple;
+        || _seleccionMultiple
+        || _seleccionados.Count > 0;
 
     private void AlternarGrupo(Guid clienteEmpresarialId)
     {
@@ -627,13 +639,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _idEnfocado = null;
     }
 
-    /// <summary>
-    /// Agrupar por Cliente empresarial solo es coherente con el orden de serie (Cliente empresarial y
-    /// nombre): con otro orden pedido, la agrupación —que es de la página— lo reordenaría y lo escondería.
-    /// Por eso agrupar devuelve el orden de serie, y pedir un orden (<see cref="CambiarOrdenAsync"/>) deja
-    /// de agrupar.
-    /// </summary>
-    private async Task CambiarAgrupacionAsync(bool agrupar)
+    private void CambiarAgrupacion(bool agrupar)
     {
         if (_agruparPorCliente == agrupar)
             return;
@@ -641,13 +647,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         _agruparPorCliente = agrupar;
         _gruposAbiertos.Clear();
         _idEnfocado = null;
-
-        if (agrupar && _ordenarPor is not null)
-        {
-            _ordenarPor = null;
-            _ordenDescendente = false;
-            await CargarAsync(resetPagina: true);
-        }
     }
 
     private string ClaseTarjeta(CentroListaDto centro) =>
@@ -878,6 +877,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
             ToastService.Mostrar("Centro creado correctamente.", TonoToast.Exito);
 
+            // Un Centro nuevo puede traer una Empresa o un Cliente empresarial que las pastillas aún no ofrecen.
+            await CargarOpcionesDeFiltroAsync();
+
             if (crearOtro)
             {
                 _nombre = string.Empty;
@@ -1032,6 +1034,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _centroAEliminarId = null;
             _confirmarEliminarLoteVisible = false;
             await CargarAsync();
+            await CargarOpcionesDeFiltroAsync();
         }
         catch (Exception)
         {
@@ -1067,7 +1070,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
                 r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             if (r.Restaurados > 0)
+            {
                 await CargarAsync();
+                await CargarOpcionesDeFiltroAsync();
+            }
         }
         finally
         {
@@ -1096,9 +1102,14 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
                     break;
                 }
             // x y Enter solo sobre una fila que se ve: un foco que quedó en un grupo contraído no cuenta.
+            // x activa la selección múltiple (como en la maqueta): con ella los grupos se ven abiertos y la
+            // casilla de la fila marcada está a la vista, así que el lote nunca lleva un Centro oculto.
             case "x":
                 if (_idEnfocado is { } idAlternar && filas.Any(e => e.Id == idAlternar))
+                {
+                    _seleccionMultiple = true;
                     AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                }
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir && filas.Any(e => e.Id == idAbrir))
@@ -1132,13 +1143,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         {
             _ordenarPor = ordenarPor;
             _ordenDescendente = false;
-        }
-
-        // Un orden pedido no se agrupa: la agrupación lo reordenaría dentro de la página (ver CambiarAgrupacionAsync).
-        if (_ordenarPor is not null && _agruparPorCliente)
-        {
-            _agruparPorCliente = false;
-            _gruposAbiertos.Clear();
         }
 
         _pagina = 1;

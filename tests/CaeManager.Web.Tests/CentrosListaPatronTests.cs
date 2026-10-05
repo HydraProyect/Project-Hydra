@@ -625,26 +625,75 @@ public class CentrosListaPatronTests : BunitContext
     }
 
     /// <summary>
-    /// Agrupar solo convive con el orden de serie: pedir el orden por cumplimiento deja de agrupar (si no,
-    /// la agrupación de la página lo reordenaría), y volver a agrupar devuelve el orden de serie.
+    /// Pegaso (al día) aparece antes que Orion (con un vencido) en lo que devuelve la consulta: así se
+    /// distingue el orden de grupos por peor estado del orden de primera aparición.
+    /// </summary>
+    private static Mediador ConPegasoPrimero()
+    {
+        var mediador = ConCentros(
+            CentroDe("Planta Bilbao", ClientePegaso, EmpresaLimpiezas),
+            CentroDe("Almacén Vigo", ClienteOrion, EmpresaMontajes, EstadoCentro.Vencido));
+        mediador.ClientesSelector.AddRange([new(ClienteOrion, "Orion Cliente S.L."), new(ClientePegaso, "Pegaso Cliente S.L.")]);
+        return mediador;
+    }
+
+    private static IEnumerable<string> NombresDeGrupo(IRenderedComponent<Centros> cut) =>
+        cut.FindAll(".grupo-lista-nombre").Select(n => n.TextContent.Trim());
+
+    /// <summary>Con el orden de serie los grupos salen del peor estado al mejor, como en la maqueta.</summary>
+    [Fact]
+    public void Con_el_orden_de_serie_los_grupos_van_del_peor_estado_al_mejor()
+    {
+        var cut = RenderizarConGruposContraidos(ConPegasoPrimero());
+
+        NombresDeGrupo(cut).Should().Equal("Orion Cliente S.L.", "Pegaso Cliente S.L.");
+    }
+
+    /// <summary>
+    /// Ordenar por cumplimiento sigue agrupando (orden y agrupación conviven, como en la maqueta), pero los
+    /// grupos salen en el orden de su primera fila: el orden pedido no se contradice.
     /// </summary>
     [Fact]
-    public void Ordenar_por_cumplimiento_deja_de_agrupar_y_agrupar_vuelve_al_orden_de_serie()
+    public void Ordenar_por_cumplimiento_sigue_agrupando_y_los_grupos_siguen_el_orden_pedido()
     {
-        var mediador = ConDosClientes();
+        var mediador = ConPegasoPrimero();
         var cut = RenderizarConGruposContraidos(mediador);
 
         cut.FindAll(".barra-filtros-pastillas button").Single(b => b.TextContent.Trim().StartsWith("Cumplimiento", StringComparison.Ordinal)).Click();
 
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().OrdenarPor.Should().Be(nameof(CentroListaDto.CumplimientoPorcentaje));
-        cut.FindAll(".grupo-lista").Should().BeEmpty("con un orden pedido no se agrupa");
-        cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(3);
-        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Sin agrupar");
+        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Por Cliente empresarial");
+        NombresDeGrupo(cut).Should().Equal("Pegaso Cliente S.L.", "Orion Cliente S.L.");
+    }
 
-        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Por Cliente empresarial").Click();
+    [Fact]
+    public void La_flecha_del_orden_no_entra_en_el_nombre_accesible()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+        cut.FindAll(".barra-filtros-pastillas button").Single(b => b.TextContent.Trim().StartsWith("Cumplimiento", StringComparison.Ordinal)).Click();
 
-        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().OrdenarPor.Should().BeNull("agrupar devuelve el orden de serie");
-        cut.FindAll(".grupo-lista").Should().HaveCount(2);
+        var boton = cut.FindAll(".barra-filtros-pastillas button").Single(b => b.TextContent.Trim().StartsWith("Cumplimiento", StringComparison.Ordinal));
+        boton.QuerySelector("span[aria-hidden=true]")!.TextContent.Should().Be("↑");
+    }
+
+    /// <summary>
+    /// x activa la selección múltiple (como en la maqueta): la fila marcada queda a la vista con su casilla y
+    /// los grupos no se pueden contraer mientras haya algo marcado, así que el lote no lleva Centros ocultos.
+    /// </summary>
+    [Fact]
+    public async Task X_activa_la_seleccion_multiple_y_lo_marcado_no_se_puede_esconder()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        cut.FindAll(".grupo-lista-cabecera")[1].Click();
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
+
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("x"));
+
+        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").GetAttribute("aria-pressed").Should().Be("true");
+        cut.FindAll("button.grupo-lista-cabecera").Should().BeEmpty("con algo marcado los grupos no se contraen");
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Should().HaveCount(3);
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().ContainSingle();
     }
 
     /// <summary>Con más de una página, los recuentos de grupo se rotulan como de esta página.</summary>
