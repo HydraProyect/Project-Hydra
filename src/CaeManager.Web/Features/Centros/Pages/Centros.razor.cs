@@ -1131,6 +1131,22 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private string? _ordenarPor;
     private bool _ordenDescendente;
 
+    private bool OrdenPorCumplimiento => _ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje);
+
+    /// <summary>
+    /// Segunda línea de la identidad: el código, y además el Cliente empresarial cuando no se agrupa (agrupado,
+    /// ya lo dice la cabecera del grupo). Vacía si no hay nada que decir.
+    /// </summary>
+    private string MetaCentro(CentroListaDto centro)
+    {
+        var partes = new List<string>(2);
+        if (!_agruparPorCliente)
+            partes.Add(centro.ClienteRazonSocial);
+        if (!string.IsNullOrEmpty(centro.CodigoCentro))
+            partes.Add(centro.CodigoCentro);
+        return string.Join(" · ", partes);
+    }
+
     private async Task CambiarOrdenAsync(string? ordenarPor)
     {
         // Volver a pedir el mismo orden invierte el sentido: es el gesto que

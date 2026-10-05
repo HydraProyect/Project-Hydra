@@ -129,6 +129,9 @@
   <data name="ColCentro" xml:space="preserve">
     <value>Centre</value>
   </data>
+  <data name="ColEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
   <data name="ColVencidos" xml:space="preserve">
     <value>Venc.</value>
   </data>

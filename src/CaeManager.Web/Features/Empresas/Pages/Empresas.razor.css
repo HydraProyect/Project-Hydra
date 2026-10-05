@@ -20,16 +20,16 @@
 }
 
 .rejilla-empresas {
-    /* chevron · razón social · CIF · cumplimiento · documentación · detecciones · acciones */
+    /* chevron · empresa (razón social y CIF) · cumplimiento · documentación · detecciones · acciones */
     display: grid;
-    grid-template-columns: 28px minmax(0, 2fr) minmax(0, 1fr) 104px 132px 116px auto;
+    grid-template-columns: 28px minmax(0, 3fr) 104px 132px 116px auto;
     gap: var(--space-2);
     align-items: center;
 }
 
 /* Con selección múltiple entra una casilla delante y las columnas se corren. */
 .rejilla-empresas-seleccion {
-    grid-template-columns: 24px 28px minmax(0, 2fr) minmax(0, 1fr) 104px 132px 116px auto;
+    grid-template-columns: 24px 28px minmax(0, 3fr) 104px 132px 116px auto;
 }
 
 /*
@@ -91,6 +91,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Celda «Empresa»: razón social encima y CIF debajo (maqueta aprobada). */
+.celda-identidad-empresa {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
 }
 
 /* La columna de detecciones se reserva aunque no haya ninguna — es lo que

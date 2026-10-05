@@ -37,15 +37,76 @@
     flex-shrink: 0;
 }
 
-/* chevron (24 px) + hueco + aro pequeño (24 px) */
+/* chevron (24 px); el aro de cumplimiento tiene ahora su propia columna */
 .cabecera-columnas-centros-inicio {
-    width: calc(24px + var(--space-2) + 24px);
+    width: 24px;
     flex-shrink: 0;
 }
 
 .cabecera-columnas-centros-centro {
+    flex: 1.4;
+    min-width: 0;
+}
+
+/*
+  Columnas Empresa y Cumplimiento (maqueta aprobada de la fase 1). Empresa es elástica, como la
+  identidad, pero con menos peso; Cumplimiento es fija, con el ancho de su rótulo en versalitas.
+  Las mismas clases en la cabecera y en la fila: cada valor cae bajo su rótulo.
+*/
+.columna-empresa-centro {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.columna-cumplimiento-centro {
+    display: flex;
+    align-items: center;
+    width: 112px;
+    flex-shrink: 0;
+}
+
+/* «Cumplimiento» ordena: un botón con el aspecto del rótulo (versalitas heredadas de la cabecera). */
+.cabecera-columna-orden {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.cabecera-columna-orden[aria-pressed="true"] {
+    color: var(--color-text);
+}
+
+.cabecera-columna-orden:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+/* La identidad pesa lo mismo que su rótulo «Centro». */
+.tarjeta-fila-acordeon-identidad {
+    flex: 1.4;
+}
+
+/* La Empresa solo va en la segunda línea cuando su columna no cabe. */
+.meta-empresa-movil {
+    display: none;
+}
+
+@media (max-width: 767px) {
+    .columna-empresa-centro {
+        display: none;
+    }
+
+    .meta-empresa-movil {
+        display: inline;
+    }
 }
 
 .cabecera-columnas-centros-indicadores {

@@ -285,4 +285,7 @@
   <data name="ListaFiltroTodas" xml:space="preserve">
     <value>Totes</value>
   </data>
+  <data name="ColEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
 </root>

@@ -191,7 +191,8 @@ public class EmpresasVacioPorFiltroTests : BunitContext
         var cut = Renderizar(empresas: new EmpresaListaDto(Guid.NewGuid(), "Montajes Ebro S.L.", "B-48.220.917", DateTime.UtcNow));
 
         var cabecera = cut.Find(".cabecera-columnas-empresas");
-        cabecera.TextContent.Should().Contain("Razón social").And.Contain("CIF")
+        // «Empresa» lleva razón social y CIF en una celda de dos líneas (maqueta aprobada): no hay columna CIF.
+        cabecera.TextContent.Should().Contain("Empresa").And.NotContain("CIF").And.NotContain("Razón social")
             .And.Contain("Cumplimiento").And.Contain("Documentación").And.Contain("Detecciones");
 
         var fila = cut.Find(".tarjeta-fila-acordeon-cabecera");
