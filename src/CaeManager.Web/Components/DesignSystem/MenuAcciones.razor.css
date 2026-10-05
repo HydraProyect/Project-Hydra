@@ -126,8 +126,12 @@
     font-weight: 600;
 }
 
+/* La marca es decorativa: aria-checked ya dice cuál es la vigente. Con el texto alternativo
+   vacío («/ ""») no entra en el nombre accesible, que si no sería «✓ Todos» en vez de «Todos».
+   La primera declaración es la reserva para un navegador sin esa sintaxis. */
 .menu-acciones-panel ::deep .menu-acciones-item-marcado::before {
     content: "✓ ";
+    content: "✓ " / "";
 }
 
 .menu-acciones-panel ::deep .menu-acciones-item-destructivo {
