@@ -140,9 +140,13 @@ public class DesactivarCortaLaSesionTests(WebAppFixtureConRevalidacionRapida fix
 
         try
         {
-            // Pide la lista otra vez por el circuito (mismo camino que un cambio de filtro o de página).
-            await paginaVictima.Locator("select").Filter(new LocatorFilterOptions { Has = paginaVictima.Locator("option[value='50']") })
-                .First.SelectOptionAsync("50");
+            // Pide la lista otra vez por el circuito: ordenar por una columna vuelve a llamar al
+            // proveedor de filas de QuickGrid (mismo camino que un cambio de filtro o de página)
+            // sin quitar a Acme de la lista si el circuito siguiera sirviendo datos. Antes se
+            // cambiaba el tamaño de página, pero desde el rediseño de listados (fase 1) el
+            // paginador no aparece con 20 Clientes empresariales o menos, y la siembra tiene 9.
+            await paginaVictima.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Razón social", Exact = true })
+                .ClickAsync();
 
             await Assertions.Expect(principal).Not.ToContainTextAsync("Acme",
                 new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });

@@ -103,7 +103,7 @@ public class ImportarClientesTests(WebAppFixture fixture)
 
             // --- Verificación real: nunca se creó ningún Cliente con este nombre ---
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-            await page.GetByPlaceholder("Buscar por nombre…").FillAsync(nombreClienteCentro);
+            await page.GetByPlaceholder("Filtrar esta pantalla: nombre").FillAsync(nombreClienteCentro);
             await page.WaitForTimeoutAsync(500); // debounce de CampoTexto
             await Expect(page.Locator("tr", new PageLocatorOptions { HasText = nombreClienteCentro })).ToHaveCountAsync(0);
         }

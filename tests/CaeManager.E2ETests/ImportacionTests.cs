@@ -170,7 +170,7 @@ public class ImportacionTests(WebAppFixture fixture)
 
         // --- Verificación real de lo que NO ocurrió: ni Cliente ni Centro existen con este nombre ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByPlaceholder("Buscar por nombre…").FillAsync(nombreCentro);
+        await page.GetByPlaceholder("Filtrar esta pantalla: nombre").FillAsync(nombreCentro);
         await page.WaitForTimeoutAsync(500);
         await Expect(page.Locator("tr", new PageLocatorOptions { HasText = nombreCentro })).ToHaveCountAsync(0);
 

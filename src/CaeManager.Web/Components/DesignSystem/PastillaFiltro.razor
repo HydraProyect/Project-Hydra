@@ -1,0 +1,63 @@
+@*
+    Pastilla de filtro de un listado (rediseño de listados, fase 1): un botón con forma de
+    pastilla que abre un menú con «Todos» y las opciones del filtro. Va dentro de
+    <BarraFiltros> como parte de «Pastillas».
+
+    Es un MenuAcciones con disparador de pastilla, así que hereda su teclado y su cierre
+    (role="menu", aria-expanded, flechas, Inicio/Fin, Esc devuelve el foco a la pastilla,
+    clic fuera cierra). Cada opción es menuitemradio con aria-checked; al abrir, el foco va
+    a la vigente. Con un valor aplicado la pastilla se marca y dice cuál: «Estado: Con vencidos».
+
+    Uso:
+
+        <PastillaFiltro Etiqueta="Estado" Valor="@_estado" ValorChanged="CambiarEstadoAsync"
+                        Opciones="_opcionesEstado" />
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<MenuAcciones Etiqueta="@TextoDisparador" Pastilla="true" Activa="@Activa">
+    @if (OfrecerTodos)
+    {
+        <ItemMenuAccion Marcado="@(!Activa)" OnClick="() => ElegirAsync(string.Empty)">@(TextoTodos ?? Comunes["OpcionTodos"].Value)</ItemMenuAccion>
+    }
+    @foreach (var opcion in Opciones)
+    {
+        <ItemMenuAccion Marcado="@(opcion.Valor == Valor)" OnClick="() => ElegirAsync(opcion.Valor)">@opcion.Texto</ItemMenuAccion>
+    }
+</MenuAcciones>
+
+@code {
+    /// <summary>Nombre del filtro («Gestor CAE», «Estado»). Es el texto de la pastilla sin valor aplicado.</summary>
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+
+    /// <summary>Opciones del filtro, sin «Todos» (lo añade la pastilla).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<OpcionEstado> Opciones { get; set; } = [];
+
+    /// <summary>Valor aplicado; vacío es «Todos».</summary>
+    [Parameter] public string Valor { get; set; } = string.Empty;
+
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+
+    /// <summary>Texto de la opción que quita el filtro. Sin valor, «Todos».</summary>
+    [Parameter] public string? TextoTodos { get; set; }
+
+    /// <summary>Ofrecer la opción que quita el filtro. Por defecto sí.</summary>
+    [Parameter] public bool OfrecerTodos { get; set; } = true;
+
+    private bool Activa => !string.IsNullOrEmpty(Valor);
+
+    private string TextoDisparador
+    {
+        get
+        {
+            if (!Activa) return Etiqueta;
+            var opcion = Opciones.FirstOrDefault(o => o.Valor == Valor);
+            return opcion is null ? Etiqueta : $"{Etiqueta}: {opcion.Texto}";
+        }
+    }
+
+    private Task ElegirAsync(string valor) =>
+        valor == Valor ? Task.CompletedTask : ValorChanged.InvokeAsync(valor);
+}

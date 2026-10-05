@@ -87,4 +87,7 @@
   <data name="ListaAbrirFila" xml:space="preserve">
     <value>Abrir la fila enfocada</value>
   </data>
+  <data name="ListaFiltrarPantalla" xml:space="preserve">
+    <value>Anar al filtre d'aquesta pantalla</value>
+  </data>
 </root>

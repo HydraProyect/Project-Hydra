@@ -5,7 +5,13 @@
 // interceptar "j"/"k" mientras el usuario escribe en un filtro.
 import { hayDialogoModalAbierto } from './atajos-contexto.js';
 
-const TECLAS_ADMITIDAS = ['j', 'k', 'x', 'Enter'];
+// Debe coincidir con CatalogoAtajos.Lista (CatalogoAtajosSincronizadoConJsTests).
+const TECLAS_ADMITIDAS = ['j', 'k', 'x', 'Enter', 'f'];
+
+// Buscador «Filtrar esta pantalla» del listado (BarraFiltros con pastillas). "f" lo
+// enfoca aquí mismo, sin pasar por C#: no hay estado de la página que cambiar. Si la
+// página no lo tiene, la tecla sigue su curso normal.
+const SELECTOR_FILTRO_PANTALLA = '[data-filtro-pantalla]';
 
 // <input> cuyo type NO consume texto libre (checkbox, radio, los distintos
 // botones...) — un Tab que aterriza en "Solo críticos" o en un checkbox de
@@ -57,6 +63,21 @@ function enfocarFilaActiva(intentosRestantes = 10) {
     }
 }
 
+// Un menú (MenuAcciones) abierto: el foco está dentro de su panel role="menu", o su
+// disparador anuncia aria-expanded="true" (abierto sin ítems habilitados, el foco se
+// queda en el disparador).
+function hayMenuAbierto(activo) {
+    if (activo?.closest?.('[role="menu"]')) return true;
+    return document.querySelector('[aria-haspopup="menu"][aria-expanded="true"]') !== null;
+}
+
+// Un buscador oculto (pestaña inactiva, display:none, visibility:hidden) o deshabilitado
+// no puede recibir la «f»: el foco se iría a un sitio que el usuario no ve.
+function esVisibleYUsable(campo) {
+    if (campo.disabled || campo.getClientRects().length === 0) return false;
+    return getComputedStyle(campo).visibility !== 'hidden';
+}
+
 export function registrarAtajosLista(dotNetRef) {
     const manejador = async (evento) => {
         if (!TECLAS_ADMITIDAS.includes(evento.key)) return;
@@ -72,6 +93,19 @@ export function registrarAtajosLista(dotNetRef) {
 
         const enElementoInteractivo = activo && activo !== document.body && activo.matches?.(SELECTOR_INTERACTIVO);
         if (evento.key === 'Enter' && enElementoInteractivo) return;
+
+        if (evento.key === 'f') {
+            // Con un menú abierto (una pastilla de filtro, el «⋯» de la cabecera o de una fila)
+            // el teclado es del menú: «f» no le roba el foco.
+            if (hayMenuAbierto(activo)) return;
+            const filtro = document.querySelector(SELECTOR_FILTRO_PANTALLA);
+            if (!filtro || !esVisibleYUsable(filtro)) return;
+            // preventDefault: la «f» no debe acabar escrita dentro del campo recién enfocado.
+            evento.preventDefault();
+            filtro.focus();
+            filtro.select?.();
+            return;
+        }
 
         evento.preventDefault();
         await dotNetRef.invokeMethodAsync('RecibirAtajo', evento.key);

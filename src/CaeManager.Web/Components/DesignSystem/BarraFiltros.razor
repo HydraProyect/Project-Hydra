@@ -31,11 +31,85 @@
     también los filtros que viajan en la URL, o OnParametersSet los devuelve.
     Estilos solo en wwwroot/css/list-page.css (sin CSS aislado: una regla
     aislada gana a la global y reabriría la deriva que este componente cierra).
+
+    MODO PASTILLAS (rediseño de listados, fase 1; se activa pasando «Pastillas»):
+    una sola fila sin tarjeta con el buscador «Filtrar esta pantalla» (pista F: la
+    tecla f lo enfoca, atajos-lista.js), una PastillaFiltro por filtro, «Más
+    filtros» (los filtros secundarios, los filtros guardados con su ✕ y «Guardar
+    filtro») y, a la derecha, un resumen. Debajo, los chips y «Limpiar todo» como
+    en el modo de siempre. Las pantallas que no pasan «Pastillas» no cambian.
+
+        <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
+                      PlaceholderBuscador="Filtrar esta pantalla: nombre"
+                      HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                      OnGuardarFiltro="AbrirGuardar" FiltrosGuardados="_opcionesGuardadas"
+                      OnAplicarFiltroGuardado="Aplicar" OnBorrarFiltroGuardado="PedirBorrar">
+            <Pastillas>
+                <PastillaFiltro Etiqueta="Estado" Valor="@_estado" ValorChanged="..." Opciones="..." />
+            </Pastillas>
+            <Chips>…</Chips>
+            <Resumen>3 Clientes empresariales con estos filtros</Resumen>
+        </BarraFiltros>
 *@
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
+@if (Pastillas is not null)
+{
+<section class="barra-filtros-pastillas" aria-label="@EtiquetaRegion">
+    <div class="barra-filtros-pastillas-fila">
+        <div class="barra-filtros-buscador-pantalla">
+            <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
+            <CampoTexto Placeholder="@(PlaceholderBuscador ?? Comunes["FiltrarEstaPantalla"].Value)" Valor="@Busqueda" ValorChanged="BusquedaChanged"
+                        aria-label="@Comunes["FiltrarEstaPantalla"]" aria-keyshortcuts="f" data-filtro-pantalla="" />
+            <kbd class="barra-filtros-tecla" aria-hidden="true">F</kbd>
+        </div>
+        @Pastillas
+        @if (HayMasFiltros)
+        {
+            <MenuAcciones Etiqueta="@Comunes["MasFiltros"]" Pastilla="true" Activa="MasFiltrosActivos">
+                @MasFiltros
+                @if (FiltrosGuardados.Count > 0)
+                {
+                    <span class="menu-filtros-titulo" role="presentation">@Comunes["FiltrosGuardados"]</span>
+                    @foreach (var filtro in FiltrosGuardados)
+                    {
+                        <div class="menu-filtro-guardado" role="none">
+                            <ItemMenuAccion OnClick="() => OnAplicarFiltroGuardado.InvokeAsync(filtro.Valor)">@filtro.Texto</ItemMenuAccion>
+                            @if (OnBorrarFiltroGuardado.HasDelegate)
+                            {
+                                <ItemMenuAccion Clase="menu-filtro-guardado-borrar" EtiquetaAccesible="@string.Format(Comunes["BorrarFiltroGuardado"].Value, filtro.Texto)"
+                                                OnClick="() => OnBorrarFiltroGuardado.InvokeAsync(filtro.Valor)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></ItemMenuAccion>
+                            }
+                        </div>
+                    }
+                }
+                @if (OnGuardarFiltro.HasDelegate)
+                {
+                    @* Sin filtros aplicados no hay nada que guardar: el ítem se ve, deshabilitado. *@
+                    <ItemMenuAccion OnClick="@(HayFiltrosActivos ? OnGuardarFiltro : default)">@Comunes["GuardarFiltro"]</ItemMenuAccion>
+                }
+            </MenuAcciones>
+        }
+        @if (Resumen is not null)
+        {
+            <span class="barra-filtros-resumen">@Resumen</span>
+        }
+    </div>
+
+    @if (HayFiltrosActivos)
+    {
+        <div class="chips-filtros barra-filtros-lista-chips">
+            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+            @Chips
+            <button type="button" class="limpiar-filtros-barra" @onclick="OnLimpiarTodo">@Comunes["LimpiarTodo"]</button>
+        </div>
+    }
+</section>
+}
+else
+{
 <section class="barra-filtros-lista" aria-label="@EtiquetaRegion">
     <div class="barra-filtros-lista-fila">
         <div class="barra-filtros-lista-buscador">
@@ -69,6 +143,7 @@
         </div>
     }
 </section>
+}
 
 @code {
     /// <summary>Etiqueta visible del buscador.</summary>
@@ -101,4 +176,21 @@
 
     /// <summary>«Guardar filtro». Sin delegado no se pinta el botón.</summary>
     [Parameter] public EventCallback OnGuardarFiltro { get; set; }
+
+    /// <summary>Modo pastillas: una <see cref="PastillaFiltro"/> por filtro principal. Con valor, la barra pasa a ese modo.</summary>
+    [Parameter] public RenderFragment? Pastillas { get; set; }
+
+    /// <summary>Modo pastillas: ítems de los filtros secundarios, dentro de «Más filtros».</summary>
+    [Parameter] public RenderFragment? MasFiltros { get; set; }
+
+    /// <summary>Modo pastillas: algún filtro de «Más filtros» está aplicado y la pastilla se marca.</summary>
+    [Parameter] public bool MasFiltrosActivos { get; set; }
+
+    /// <summary>Modo pastillas: el ✕ de un filtro guardado, con su <c>Valor</c>. Sin delegado no se ofrece borrar.</summary>
+    [Parameter] public EventCallback<string> OnBorrarFiltroGuardado { get; set; }
+
+    /// <summary>Modo pastillas: texto a la derecha de la fila («3 Clientes empresariales con estos filtros»).</summary>
+    [Parameter] public RenderFragment? Resumen { get; set; }
+
+    private bool HayMasFiltros => MasFiltros is not null || FiltrosGuardados.Count > 0 || OnGuardarFiltro.HasDelegate;
 }

@@ -67,27 +67,20 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // Administrador arranca sin datos propios (ADR-004 § 5.1), pero
         // acotar por el sufijo compartido hace el test robusto aunque se
         // reintente sin limpiar el estado anterior.
-        await page.GetByPlaceholder("Buscar por nombre…").FillAsync("P331 ");
+        await page.GetByPlaceholder("Filtrar esta pantalla: nombre").FillAsync("P331 ");
         var filaA = page.Locator("tr", new PageLocatorOptions { HasText = razonSocialA });
         var filaB = page.Locator("tr", new PageLocatorOptions { HasText = razonSocialB });
         await filaA.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await filaB.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // --- Atajos de teclado: j/k mueven el foco, x alterna selección ---
-        // El primer Tab llega al selector de Gestor CAE (el primero de la
-        // BarraFiltros), que conserva sus teclas nativas. Comprobamos el
-        // destino antes de situar el foco en un control que no consume j/k:
-        // allí j/k sí deben recorrer la lista. «Solo críticos» ya no es una
-        // casilla sino el select «Criticidad» (patrón de lista), que sí
-        // consume teclas, así que el control neutro pasa a ser el botón
-        // «Selección múltiple» (los botones no bloquean j/k/x). No suponemos
-        // que sea el siguiente control tras el buscador.
+        // El primer Tab desde el buscador llega a la primera pastilla de filtro
+        // («Gestor CAE»): es un botón, y los botones no consumen j/k/x, así que
+        // desde ahí j/k sí deben recorrer la lista. No suponemos más que eso.
         await page.Keyboard.PressAsync("Tab");
-        await Expect(page.Locator(".barra-filtros-lista select").First).ToBeFocusedAsync();
-        await Expect(page.GetByLabel("Criticidad", new PageGetByLabelOptions { Exact = true })).ToBeVisibleAsync();
-        var botonSeleccionMultiple = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple" });
-        await botonSeleccionMultiple.FocusAsync();
-        await Expect(botonSeleccionMultiple).ToBeFocusedAsync();
+        var pastillaGestor = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Gestor CAE", Exact = true });
+        await Expect(pastillaGestor).ToBeFocusedAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Criticidad", Exact = true })).ToBeVisibleAsync();
 
         // Salir del buscador dispara ManejarBlurAsync (CampoTexto.razor),
         // que reinvoca ValorChanged aunque el valor no haya cambiado — eso
@@ -146,7 +139,8 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await vistaPrevia.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Selección múltiple visible + segunda fila por checkbox, y borrado en lote ---
-        await page.GetByText("Selección múltiple").ClickAsync();
+        // El conmutador es el icono ☑ de la cabecera: sin texto visible, con el nombre accesible de siempre.
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
         await filaB.Locator("input[type=\"checkbox\"]").CheckAsync();
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("2 seleccionados en esta página");
 
@@ -156,36 +150,98 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await filaA.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
         await filaB.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        // --- Filtros guardados: guardar, ver el chip, aplicarlo y borrarlo ---
+        // --- Filtros guardados (dentro de «Más filtros»): guardar, verlo, aplicarlo y borrarlo ---
         var nombreFiltro = $"P331 filtro {sufijo}";
-        await page.GetByPlaceholder("Buscar por nombre…").FillAsync(razonSocialA);
-        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Guardar filtro", Exact = true }).ClickAsync();
+        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: nombre");
+        var masFiltros = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Más filtros", Exact = true });
+        var filtroGuardado = page.GetByRole(AriaRole.Menuitem, new PageGetByRoleOptions { Name = nombreFiltro, Exact = true });
+
+        await buscador.FillAsync(razonSocialA);
+        await page.WaitForTimeoutAsync(400); // debounce de CampoTexto (300ms): «Guardar filtro» se habilita con un filtro aplicado
+        await masFiltros.ClickAsync();
+        await page.GetByRole(AriaRole.Menuitem, new PageGetByRoleOptions { Name = "Guardar filtro", Exact = true }).ClickAsync();
 
         var modalGuardarFiltro = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions { HasText = "Guardar filtro actual" });
         await modalGuardarFiltro.GetByLabel("Nombre").FillAsync(nombreFiltro);
         await modalGuardarFiltro.GetByText("Guardar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
         await modalGuardarFiltro.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
-        // El chip del filtro guardado aparece de inmediato, sin recargar.
-        var chipFiltro = page.Locator(".chip-filtro", new PageLocatorOptions { HasText = nombreFiltro });
-        await chipFiltro.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-
         // Limpiar la búsqueda a mano y volver a aplicarla desde el filtro
-        // guardado demuestra que el <select> reconstruye el estado, no solo
-        // que el chip existe.
-        await page.GetByPlaceholder("Buscar por nombre…").FillAsync(string.Empty);
+        // guardado demuestra que reconstruye el estado, no solo que existe.
+        // El filtro está en «Más filtros» de inmediato, sin recargar.
+        await buscador.FillAsync(string.Empty);
         await page.WaitForTimeoutAsync(400); // debounce de CampoTexto (300ms)
 
-        await page.GetByLabel("Filtros guardados", new PageGetByLabelOptions { Exact = true })
-            .SelectOptionAsync(new SelectOptionValue { Label = nombreFiltro });
-        await Expect(page.GetByPlaceholder("Buscar por nombre…")).ToHaveValueAsync(razonSocialA);
+        await masFiltros.ClickAsync();
+        await filtroGuardado.ClickAsync();
+        await Expect(buscador).ToHaveValueAsync(razonSocialA);
 
-        // Borrar el filtro guardado desde su propio chip. Desde la lista Gen 2
-        // el borrado pide confirmación (no tiene deshacer): el chip sigue ahí
-        // hasta que se confirma en el diálogo.
-        await chipFiltro.Locator(".chip-filtro-quitar").ClickAsync();
+        // Borrar el filtro guardado desde su ✕ en «Más filtros». El borrado pide
+        // confirmación (no tiene deshacer): sigue ahí hasta que se confirma.
+        await masFiltros.ClickAsync();
+        await page.GetByRole(AriaRole.Menuitem, new PageGetByRoleOptions { Name = $"Borrar filtro guardado {nombreFiltro}", Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Dialog).GetByText("Borrar filtro", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
-        await chipFiltro.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
+        await page.GetByRole(AriaRole.Dialog).WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
+        await masFiltros.ClickAsync();
+        await Expect(filtroGuardado).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
+    /// Rediseño de listados, fase 1: la tecla «f» (sin modificadores y con el foco fuera de un
+    /// campo) enfoca el buscador «Filtrar esta pantalla», y la «f» no queda escrita en él. La
+    /// chuleta («?») la anuncia. Ctrl/Cmd+K sigue siendo el buscador universal de la cabecera.
+    /// </summary>
+    [Fact]
+    public async Task F_enfoca_el_buscador_de_la_pantalla_sin_escribir_la_tecla()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
+
+        var buscador = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Filtrar esta pantalla", Exact = true });
+        await Expect(buscador).Not.ToBeFocusedAsync();
+
+        // Un botón con el foco no consume la «f» (mismo criterio que j/k).
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).FocusAsync();
+        await page.Keyboard.PressAsync("f");
+
+        await Expect(buscador).ToBeFocusedAsync();
+        await Expect(buscador).ToHaveValueAsync(string.Empty);
+    }
+
+    /// <summary>
+    /// Casos negativos de la «f»: escribiendo en un campo, la «f» es una letra más; con un menú
+    /// abierto (una pastilla de filtro), el teclado es del menú y el foco no salta al buscador.
+    /// </summary>
+    [Fact]
+    public async Task F_no_actua_escribiendo_en_un_campo_ni_con_un_menu_abierto()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
+
+        var buscador = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Filtrar esta pantalla", Exact = true });
+
+        // Menú abierto: la pastilla «Estado» enfoca su opción vigente («Todos»).
+        var pastillaEstado = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Estado", Exact = true });
+        await pastillaEstado.ClickAsync();
+        var todos = page.GetByRole(AriaRole.Menuitemradio, new PageGetByRoleOptions { Name = "Todos", Exact = true });
+        await Expect(todos).ToBeFocusedAsync();
+        await page.Keyboard.PressAsync("f");
+        await Expect(todos).ToBeFocusedAsync();
+        await Expect(buscador).Not.ToBeFocusedAsync();
+        await page.Keyboard.PressAsync("Escape");
+        await Expect(pastillaEstado).ToHaveAttributeAsync("aria-expanded", "false");
+
+        // Campo editable: la «f» se escribe (se usa el propio buscador, sin debounce que esperar
+        // para leer su valor).
+        await buscador.FocusAsync();
+        await page.Keyboard.PressAsync("f");
+        await Expect(buscador).ToHaveValueAsync("f");
     }
 
     /// <summary>

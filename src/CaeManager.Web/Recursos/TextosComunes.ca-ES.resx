@@ -139,6 +139,24 @@
   <data name="LimpiarTodo" xml:space="preserve">
     <value>Neteja-ho tot</value>
   </data>
+  <data name="FiltrarEstaPantalla" xml:space="preserve">
+    <value>Filtra aquesta pantalla</value>
+  </data>
+  <data name="MasFiltros" xml:space="preserve">
+    <value>Més filtres</value>
+  </data>
+  <data name="OpcionTodos" xml:space="preserve">
+    <value>Tots</value>
+  </data>
+  <data name="SeleccionMultiple" xml:space="preserve">
+    <value>Selecció múltiple</value>
+  </data>
+  <data name="MasAcciones" xml:space="preserve">
+    <value>Més accions</value>
+  </data>
+  <data name="BorrarFiltroGuardado" xml:space="preserve">
+    <value>Esborra el filtre desat {0}</value>
+  </data>
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
     <value>Logo de la organización</value>
   </data>

@@ -10,6 +10,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
+using CaeManager.Application.Documentos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Application.Common;
@@ -52,9 +53,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
 
-    /// <summary>La empresa gestionada activa, solo para quien ve el selector de la barra lateral.</summary>
-    private ClienteAutorizadoDto? _empresaActiva;
-
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
 
@@ -69,7 +67,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private static readonly string[] RolesQuePuedenReasignar =
         [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae];
 
-    private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
+    private const int TamanoPaginaMinimo = 20;
+    private readonly PaginationState _paginacion = new() { ItemsPerPage = TamanoPaginaMinimo };
     private QuickGrid<ClienteListaDto>? _grid;
 
     // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): el `Paginator` de QuickGrid no está
@@ -268,7 +267,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         try
         {
             var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
-            _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
@@ -483,11 +481,33 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private string EtiquetaFiltroEjecutivo =>
         "Gestor CAE: " + (_ejecutivosParaFiltro.FirstOrDefault(g => g.Id.ToString() == _ejecutivoFiltro)?.NombreCompleto ?? "—");
 
-    /// <summary>Nombre a mostrar en la columna "Ejecutivo" de cada fila — mismo directorio que ya resuelve el filtro, sin consulta nueva por fila.</summary>
-    private string ObtenerNombreEjecutivo(Guid? ejecutivoUsuarioId) =>
+    /// <summary>
+    /// Nombre del Gestor CAE de referencia de la fila (columna «Gestor CAE», con sus iniciales
+    /// delante) — mismo directorio que ya resuelve el filtro, sin consulta nueva por fila. Null
+    /// sin Gestor CAE asignado o si no está en el directorio visible: la celda pinta «—».
+    /// </summary>
+    private string? NombreGestorCae(Guid? ejecutivoUsuarioId) =>
         ejecutivoUsuarioId is null
-            ? "—"
-            : _ejecutivosParaFiltro.FirstOrDefault(g => g.Id == ejecutivoUsuarioId)?.NombreCompleto ?? "—";
+            ? null
+            : _ejecutivosParaFiltro.FirstOrDefault(g => g.Id == ejecutivoUsuarioId)?.NombreCompleto;
+
+    /// <summary>Opciones de la pastilla «Gestor CAE»: el mismo directorio que la columna.</summary>
+    private IReadOnlyList<OpcionEstado> OpcionesGestorCae =>
+        _ejecutivosParaFiltro.Select(g => new OpcionEstado(g.Id.ToString(), g.NombreCompleto)).ToList();
+
+    /// <summary>
+    /// Opciones de la pastilla «Estado». Viajan como nombre de <see cref="EstadoDocumento"/>;
+    /// «Al corriente» es el centinela <see cref="EstadoDocumentalFiltro.AlCorriente"/>.
+    /// </summary>
+    private IReadOnlyList<OpcionEstado> OpcionesEstadoDocumental =>
+    [
+        new(nameof(EstadoDocumento.Vencido), Textos["ListaFiltroConVencidos"]),
+        new(nameof(EstadoDocumento.Urgente), Textos["ListaFiltroConUrgentes"]),
+        new(EstadoDocumentalFiltro.AlCorriente, Textos["ListaFiltroAlCorriente"]),
+    ];
+
+    /// <summary>Opciones de la pastilla «Criticidad» (sigue viajando en la URL como <c>critico</c>).</summary>
+    private IReadOnlyList<OpcionEstado> OpcionesCriticidad => [new(ValorSoloCriticos, Textos["ListaFiltroSoloCriticos"])];
 
     private string EtiquetaFiltroEstadoDocumental =>
         "Estado: " + (Enum.TryParse<EstadoDocumento>(_estadoDocumentalFiltro, out var estado)
@@ -951,7 +971,23 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     // --- P3-31: atajos de teclado j/k/x/Enter ---
 
-    private string ObtenerClaseFila(ClienteListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
+    /// <summary>
+    /// La fila se tinta por su peor estado documental: Faltante o Vencido en rojo, Urgente en
+    /// ámbar (rediseño de listados, fase 1). El foco de teclado (j/k) se suma al tinte, no lo
+    /// sustituye: la fila enfocada sigue diciendo en qué estado está (list-page.css combina las
+    /// dos clases).
+    /// </summary>
+    private string ObtenerClaseFila(ClienteListaDto item)
+    {
+        var tinte = item.EstadoDocumentalPeor switch
+        {
+            EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
+            EstadoDocumento.Urgente => "fila-tintada-aviso",
+            _ => null
+        };
+        var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
+        return string.Join(' ', new[] { foco, tinte }.Where(c => c is not null));
+    }
 
     private async Task ManejarAtajoAsync(string tecla)
     {
@@ -1180,7 +1216,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         }
     }
 
-    private void PedirEliminarFiltroGuardado(FiltroGuardadoDto filtro) => _filtroGuardadoAEliminar = filtro;
+    /// <summary>El ✕ de un filtro guardado dentro de «Más filtros» (con su Id): pide confirmación.</summary>
+    private void PedirEliminarFiltroGuardado(string idTexto) =>
+        _filtroGuardadoAEliminar = _filtrosGuardados.FirstOrDefault(f => f.Id.ToString() == idTexto);
 
     private async Task ConfirmarEliminarFiltroGuardadoAsync()
     {
