@@ -59,6 +59,15 @@ public class ResumenClientesDeEmpresasTests : IAsyncLifetime
             // Shape Subcontrata→Empresa propia: la contraparte NO es un Cliente empresarial.
             RelacionEmpresarial.Crear(subcontrata.Id, norte.Id, ahora));
         await contexto.SaveChangesAsync();
+
+        // Un tercer Cliente empresarial de Norte, dado de baja (con la relación aún abierta): no cuenta.
+        var lyra = Empresa.CrearComoCliente("Aries Cliente S.L.", "B10000032", false, null, null);
+        contexto.Empresas.Add(lyra);
+        await contexto.SaveChangesAsync();
+        contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(norte.Id, lyra.Id, ahora));
+        await contexto.SaveChangesAsync();
+        lyra.MarcarComoEliminado(Guid.NewGuid());
+        await contexto.SaveChangesAsync();
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
@@ -68,6 +77,7 @@ public class ResumenClientesDeEmpresasTests : IAsyncLifetime
     {
         var resumen = await ResumirAsync(new AlcanceDatosServiceFalso(), _norteId, _surId, _esteId, _subcontrataId);
 
+        // «Aries», dado de baja, iría primero por razón social: si contara, el resumen sería (3, «Aries…»).
         resumen.Should().ContainKey(_norteId).WhoseValue.Should().Be(new ResumenClientesDeEmpresaDto(2, "Orion Cliente S.L."));
         resumen.Keys.Should().Equal([_norteId],
             "Sur solo tiene una relación cerrada, Este ninguna, y la Subcontrata presta servicio a una Empresa propia, no a un Cliente empresarial");

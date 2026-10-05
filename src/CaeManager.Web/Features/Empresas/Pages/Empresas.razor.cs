@@ -369,6 +369,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private async Task CargarResumenClientesAsync(int carga)
     {
         _resumenClientes = new Dictionary<Guid, ResumenClientesDeEmpresaDto>();
+        _resumenClientesConError = false;
         if (_elementosPagina.Count == 0)
             return;
 
@@ -387,15 +388,18 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         }
         catch (Exception)
         {
+            // Un fallo no se pinta como «no presta servicio»: no sabemos nada (mismo criterio que el desplegable).
             _resumenClientes = new Dictionary<Guid, ResumenClientesDeEmpresaDto>();
+            _resumenClientesConError = true;
         }
 
         StateHasChanged();
     }
 
     private IReadOnlyDictionary<Guid, ResumenClientesDeEmpresaDto> _resumenClientes = new Dictionary<Guid, ResumenClientesDeEmpresaDto>();
+    private bool _resumenClientesConError;
 
-    /// <summary>«Orion Cliente S.L. +1»: el primero por razón social y cuántos más.</summary>
+    /// <summary>«Orion Cliente S.L. +1»: el primero por razón social y cuántos más. Es también el comienzo del nombre accesible.</summary>
     private static string TextoPrestaServicio(ResumenClientesDeEmpresaDto resumen) =>
         resumen.Total > 1 ? $"{resumen.Primero} +{resumen.Total - 1}" : resumen.Primero;
 

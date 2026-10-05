@@ -292,9 +292,12 @@
     <value>Presta servei a</value>
   </data>
   <data name="PrestaServicioEtiqueta" xml:space="preserve">
-    <value>Clients empresarials als quals presta servei {1}: {0}</value>
+    <value>{0}: Clients empresarials als quals presta servei {1}</value>
   </data>
   <data name="PrestaServicioNinguno" xml:space="preserve">
-    <value>No presta servei a Clients empresarials, o no són a la teva cartera.</value>
+    <value>No presta servei a Clients empresarials, o no els gestiones tu.</value>
+  </data>
+  <data name="PrestaServicioError" xml:space="preserve">
+    <value>No hem pogut carregar a qui presta servei aquesta empresa.</value>
   </data>
 </root>

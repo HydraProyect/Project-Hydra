@@ -22,14 +22,37 @@
 .rejilla-empresas {
     /* chevron · empresa (razón social y CIF) · presta servicio a · cumplimiento · documentación · detecciones · acciones */
     display: grid;
-    grid-template-columns: 28px minmax(0, 2fr) minmax(0, 1.4fr) 104px 132px 116px auto;
+    grid-template-columns: 28px minmax(0, 2fr) minmax(0, 1.8fr) 104px 132px 116px auto;
     gap: var(--space-2);
     align-items: center;
 }
 
 /* Con selección múltiple entra una casilla delante y las columnas se corren. */
 .rejilla-empresas-seleccion {
-    grid-template-columns: 24px 28px minmax(0, 2fr) minmax(0, 1.4fr) 104px 132px 116px auto;
+    grid-template-columns: 24px 28px minmax(0, 2fr) minmax(0, 1.8fr) 104px 132px 116px auto;
+}
+
+/*
+  «Presta servicio a» (maqueta: 2fr / 1.8fr). En pantallas estrechas no cabe junto a los anchos fijos: se
+  oculta en cabecera y fila (el chevron sigue abriendo el desplegable con la misma información) y la
+  rejilla pierde su pista.
+*/
+.columna-presta-servicio {
+    min-width: 0;
+}
+
+@media (max-width: 767px) {
+    .columna-presta-servicio {
+        display: none;
+    }
+
+    .rejilla-empresas {
+        grid-template-columns: 28px minmax(0, 2fr) 104px 132px 116px auto;
+    }
+
+    .rejilla-empresas-seleccion {
+        grid-template-columns: 24px 28px minmax(0, 2fr) 104px 132px 116px auto;
+    }
 }
 
 /*
@@ -129,6 +152,22 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* El chevron (lo pinta Icono, de ahí ::deep) gira con aria-expanded, como el de la fila. */
+.pastilla-presta-servicio ::deep svg {
+    flex-shrink: 0;
+    transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.pastilla-presta-servicio-abierta ::deep svg {
+    transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pastilla-presta-servicio ::deep svg {
+        transition: none;
+    }
 }
 
 .pastilla-presta-servicio:hover {

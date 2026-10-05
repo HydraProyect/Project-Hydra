@@ -204,7 +204,7 @@
             }
             <span></span>
             <span>@Textos["ColEmpresa"]</span>
-            <span>@Textos["ColPrestaServicioA"]</span>
+            <span class="columna-presta-servicio">@Textos["ColPrestaServicioA"]</span>
             <span>Cumplimiento</span>
             <span>Documentación</span>
             <span>Detecciones</span>
@@ -243,15 +243,17 @@
                             <span class="tarjeta-fila-acordeon-meta celda-empresa">@(empresa.Cif ?? "—")</span>
                         </span>
                         @* «Presta servicio a» (maqueta aprobada): el primer Cliente empresarial por razón social y
-                           «+N», como pastilla que abre el mismo desplegable que el chevron. Sin resumen —sin Clientes
-                           empresariales, fuera del alcance de gestión o con la consulta caída— un «—» cuyo título
-                           dice lo mismo que el desplegable vacío, sin revelar cuál de los casos es (#810). *@
-                        <span class="celda-empresa">
+                           «+N», como pastilla que abre el mismo desplegable que el chevron. Sin resumen, un «—»: si
+                           la consulta falló, su título lo dice (un fallo no es «no presta servicio»); si no, un
+                           título que no distingue «sin Clientes empresariales» de «no los gestionas tú» (#810). El
+                           envoltorio no recorta (solo min-width: 0): el texto de la pastilla recorta por su cuenta y
+                           el anillo de foco tiene que verse entero. *@
+                        <span class="columna-presta-servicio">
                             @if (_resumenClientes.TryGetValue(empresa.Id, out var resumen))
                             {
-                                <button type="button" class="pastilla-presta-servicio"
+                                <button type="button" class="@("pastilla-presta-servicio" + (expandido ? " pastilla-presta-servicio-abierta" : ""))"
                                         aria-expanded="@(expandido ? "true" : "false")"
-                                        aria-label="@Textos["PrestaServicioEtiqueta", resumen.Total, empresa.RazonSocial]"
+                                        aria-label="@Textos["PrestaServicioEtiqueta", TextoPrestaServicio(resumen), empresa.RazonSocial]"
                                         @onclick="() => AlternarExpansionAsync(empresa.Id)">
                                     <span class="pastilla-presta-servicio-texto">@TextoPrestaServicio(resumen)</span>
                                     <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
@@ -259,7 +261,8 @@
                             }
                             else
                             {
-                                <span class="celda-sin-presta-servicio" title="@Textos["PrestaServicioNinguno"]">—</span>
+                                <span class="celda-sin-presta-servicio"
+                                      title="@(_resumenClientesConError ? Textos["PrestaServicioError"] : Textos["PrestaServicioNinguno"])">—</span>
                             }
                         </span>
                         @* Cumplimiento antes que Documentación, en el orden del mockup. Cada

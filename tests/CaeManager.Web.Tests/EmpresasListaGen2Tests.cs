@@ -242,12 +242,6 @@ public class EmpresasListaGen2Tests : BunitContext
     private static Task AlternarSeleccionMultiple(IRenderedComponent<Empresas> cut) =>
         cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
 
-    // ------------------------------------------------------------------ Cabecera
-
-    /// <summary>
-    /// Rediseño de listados, fase 1: cabecera de una línea con el contador, el ☑, el «⋯» con
-    /// «Exportar a Excel» y la primaria. Sin antetítulo ni rótulo de la empresa gestionada.
-    /// </summary>
     // ------------------------------------------------- columna «Presta servicio a» (maqueta aprobada)
 
     /// <summary>
@@ -276,6 +270,9 @@ public class EmpresasListaGen2Tests : BunitContext
         });
         var consulta = mediador.Enviadas.OfType<ObtenerResumenClientesDeEmpresasQuery>().Should().ContainSingle("una consulta por página, no una por fila").Subject;
         consulta.EmpresaIds.Should().BeEquivalentTo([norte.Id, sur.Id]);
+        cut.FindAll(".pastilla-presta-servicio").Select(p => p.GetAttribute("aria-label")).Should().Contain(
+            "Orion Cliente S.L. +1: Clientes empresariales a los que presta servicio Montajes Norte S.L.",
+            "el nombre accesible empieza por el texto visible (WCAG 2.5.3)");
 
         var filaNorte = cut.FindAll(".tarjeta-fila-acordeon").Single(f => f.TextContent.Contains("Montajes Norte S.L."));
         await filaNorte.QuerySelector(".pastilla-presta-servicio")!.ClickAsync(new MouseEventArgs());
@@ -303,7 +300,7 @@ public class EmpresasListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerResumenClientesDeEmpresasQuery>().Should().ContainSingle());
         cut.FindAll(".pastilla-presta-servicio").Should().BeEmpty();
         var titulos = cut.FindAll(".tarjeta-fila-acordeon-cabecera").Select(f => f.Children[2].QuerySelector("[title]")!.GetAttribute("title")).ToList();
-        titulos.Should().HaveCount(2).And.OnlyContain(t => t == "No presta servicio a Clientes empresariales, o no están en tu cartera.");
+        titulos.Should().HaveCount(2).And.OnlyContain(t => t == "No presta servicio a Clientes empresariales, o no los gestionas tú.");
     }
 
     [Fact]
@@ -319,8 +316,16 @@ public class EmpresasListaGen2Tests : BunitContext
         cut.FindAll(".tarjeta-fila-acordeon").Should().ContainSingle();
         cut.FindAll(".pastilla-presta-servicio").Should().BeEmpty();
         cut.Markup.Should().NotContain("No pudimos cargar las empresas");
+        cut.Find(".celda-sin-presta-servicio").GetAttribute("title").Should().Be("No pudimos cargar a quién presta servicio esta empresa.",
+            "un fallo no se pinta como «no presta servicio»: no sabemos nada");
     }
 
+    // ------------------------------------------------------------------ Cabecera
+
+    /// <summary>
+    /// Rediseño de listados, fase 1: cabecera de una línea con el contador, el ☑, el «⋯» con
+    /// «Exportar a Excel» y la primaria. Sin antetítulo ni rótulo de la empresa gestionada.
+    /// </summary>
     [Fact]
     public async Task La_cabecera_es_de_una_linea_con_contador_seleccion_menu_y_primaria()
     {
