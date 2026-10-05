@@ -73,7 +73,7 @@
     <value>+ Nueva subcontrata</value>
   </data>
   <data name="PlaceholderBusqueda" xml:space="preserve">
-    <value>Buscar por razón social o CIF…</value>
+    <value>Filtrar esta pantalla: razón social o CIF</value>
   </data>
   <data name="ChipBusqueda" xml:space="preserve">
     <value>Búsqueda: "{0}"</value>
@@ -88,10 +88,10 @@
     <value>Intenta nuevamente en unos segundos.</value>
   </data>
   <data name="VacioBusquedaTitulo" xml:space="preserve">
-    <value>Ninguna subcontrata con esta búsqueda</value>
+    <value>Ninguna subcontrata con estos filtros</value>
   </data>
   <data name="VacioBusquedaDescripcion" xml:space="preserve">
-    <value>Ninguna coincide con el texto buscado.</value>
+    <value>Ninguna coincide con la búsqueda ni con el nivel de servicio seleccionado.</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
     <value>Aún no hay subcontratas</value>
@@ -226,10 +226,10 @@
     <value>{0} de {1} subcontratas</value>
   </data>
   <data name="ConteoUnoConBusqueda" xml:space="preserve">
-    <value>{0} de {1} subcontrata con esta búsqueda</value>
+    <value>{0} de {1} subcontrata con estos filtros</value>
   </data>
   <data name="ConteoVariosConBusqueda" xml:space="preserve">
-    <value>{0} de {1} subcontratas con esta búsqueda</value>
+    <value>{0} de {1} subcontratas con estos filtros</value>
   </data>
   <data name="ToastCreada" xml:space="preserve">
     <value>Subcontrata creada correctamente.</value>
@@ -707,5 +707,14 @@
   </data>
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Las subcontratas se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
+  </data>
+  <data name="ChipNivelServicio" xml:space="preserve">
+    <value>Nivel de servicio: {0}</value>
+  </data>
+  <data name="BotonQuitarNivelServicio" xml:space="preserve">
+    <value>Quitar filtro de nivel de servicio</value>
+  </data>
+  <data name="BotonQuitarFiltros" xml:space="preserve">
+    <value>Quitar los filtros</value>
   </data>
 </root>

@@ -223,7 +223,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
         // MenuAcciones no pinta sus ítems hasta que se abre: sin este clic el
         // test comprobaría una ausencia contra un menú cerrado, que es verde
         // vacío — daría lo mismo que el ítem existiera o no.
-        cut.Find(".menu-acciones-disparador").Click();
+        cut.Find(".lista-filas-acordeon .menu-acciones-disparador").Click();
 
         cut.Markup.Should().Contain("Vista rápida",
             "el menú abierto es la barrera que hace válida la comprobación siguiente");
@@ -238,7 +238,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
 
         cut.Markup.Should().Contain("3 detecciones", "el badge de la celda sigue estando");
 
-        cut.Find(".menu-acciones-disparador").Click();
+        cut.Find(".lista-filas-acordeon .menu-acciones-disparador").Click();
         cut.Markup.Should().Contain("Detección de trabajadores");
     }
 

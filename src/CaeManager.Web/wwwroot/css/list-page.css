@@ -280,6 +280,125 @@
     box-shadow: inset 3px 0 0 var(--color-warning-700), inset 0 2px 0 var(--color-primary-400), inset 0 -2px 0 var(--color-primary-400);
 }
 
+/* Las mismas filas tintadas en los listados de acordeón (Empresas, Subcontratas, Centros): el
+   tinte va en la cabecera de la fila, no en el desplegable. Más específicas que el resalte al
+   pasar el puntero (.tarjeta-fila-acordeon-cabecera:hover), para que la fila no pierda el tono. */
+.tarjeta-fila-acordeon.fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera {
+    background-color: var(--color-danger-50);
+    color: var(--color-text);
+    box-shadow: inset 3px 0 0 var(--color-danger-700);
+}
+
+.tarjeta-fila-acordeon.fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera {
+    background-color: var(--color-warning-50);
+    color: var(--color-text);
+    box-shadow: inset 3px 0 0 var(--color-warning-700);
+}
+
+/* En la fila del modo pastillas, «Expandir todo» y compañía van en línea con los filtros. */
+.barra-filtros-pastillas-fila .barra-herramientas-lista {
+    margin-bottom: 0;
+}
+
+/* Control segmentado de la fila de filtros («Sin agrupar / Por Cliente empresarial»): la opción
+   vigente lleva aria-pressed="true". */
+.segmentado-lista {
+    display: inline-flex;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.segmentado-lista-opcion {
+    padding: var(--space-1) var(--space-3);
+    border: 0;
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    cursor: pointer;
+}
+
+.segmentado-lista-opcion + .segmentado-lista-opcion {
+    border-left: 1px solid var(--color-border);
+}
+
+.segmentado-lista-opcion[aria-pressed="true"] {
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+    font-weight: 600;
+}
+
+.segmentado-lista-opcion:focus-visible {
+    outline: 2px solid var(--color-primary-400);
+    outline-offset: -2px;
+}
+
+/* Cabecera de grupo de un listado de acordeón agrupado (Centros por Cliente empresarial): fila
+   entera pulsable con chevron, nombre, contador y resumen. Tintada con el peor estado del grupo
+   con las mismas reglas planas que las filas. */
+.grupo-lista {
+    border-top: 1px solid var(--color-border);
+}
+
+.grupo-lista-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    min-height: 40px;
+    padding: var(--space-2) var(--space-3);
+    border: 0;
+    background-color: var(--color-surface-subtle);
+    color: var(--color-text);
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.grupo-lista-cabecera:focus-visible {
+    outline: 2px solid var(--color-primary-400);
+    outline-offset: -2px;
+}
+
+.grupo-lista-chevron {
+    display: inline-flex;
+    transform: rotate(-90deg);
+    transition: transform 0.15s ease;
+}
+
+.grupo-lista-cabecera-abierta .grupo-lista-chevron {
+    transform: none;
+}
+
+.grupo-lista-contador {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.grupo-lista-resumen {
+    display: inline-flex;
+    gap: var(--space-2);
+    margin-left: auto;
+    font-weight: 500;
+}
+
+.grupo-lista.fila-tintada-peligro > .grupo-lista-cabecera {
+    background-color: var(--color-danger-50);
+    color: var(--color-text);
+    box-shadow: inset 3px 0 0 var(--color-danger-700);
+}
+
+.grupo-lista.fila-tintada-aviso > .grupo-lista-cabecera {
+    background-color: var(--color-warning-50);
+    color: var(--color-text);
+    box-shadow: inset 3px 0 0 var(--color-warning-700);
+}
+
+.grupo-lista.fila-tintada-peligro .grupo-lista-contador,
+.grupo-lista.fila-tintada-aviso .grupo-lista-contador {
+    color: var(--color-text);
+}
+
 /* Persona con sus iniciales delante (Gestor CAE de la fila). */
 .persona-iniciales {
     display: inline-grid;

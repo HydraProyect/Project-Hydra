@@ -24,26 +24,30 @@
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
-       cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query. *@
-    <CabeceraEmpresaActiva Empresa="_empresaActiva" />
-
-    @* Cabecera Gen 2 (Subcontratas TALVEG.dc.html): el kicker es el grupo del
-       menú al que pertenece la pantalla, y el alta sube a la cabecera junto a
-       Exportar — antes vivía en la barra de trabajo, mezclada con los
-       controles que actúan sobre la lista. *@
-    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["KickerNegocio"]">
-        <Acciones>
-            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
-            {
-                <a class="enlace-exportar" href="/subcontratas/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> @Textos["EnlaceExportarExcel"]</a>
-            }
-            @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
-            {
-                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
-            }
-        </Acciones>
-    </CabeceraPagina>
+    @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
+       conmutador ☑ de selección múltiple, el menú «⋯» con «Exportar a Excel» (lectura: cualquier
+       rol) y UNA acción primaria. Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo
+       de la empresa gestionada: el selector de la barra lateral ya dice cuál es. El estado vacío
+       sin empresa elegida (4a) sigue más abajo. *@
+    @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
+    {
+        <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+                         SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+            <Menu>
+                <ItemMenuAccion Href="/subcontratas/exportar.xlsx">@Textos["EnlaceExportarExcel"]</ItemMenuAccion>
+            </Menu>
+            <Primaria>
+                @if (!_alcanceCero)
+                {
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">@Textos["BotonNuevaSubcontrata"]</Boton></SoloConEscritura>
+                }
+            </Primaria>
+        </CabeceraListado>
+    }
+    else
+    {
+        <CabeceraListado Titulo="@Textos["TituloPagina"]" />
+    }
 
     @if (_resolviendoEmpresa)
     {
@@ -58,16 +62,38 @@
     }
     else
     {
-    @* Pieza 2 del patrón de lista (BarraFiltros), la misma que Clientes. El mockup dibuja además un
-       desplegable «Nivel de servicio» y lo marca él mismo como PROPUESTA: ObtenerSubcontratasQuery
-       no acepta ese filtro (ni uno de estado documental), así que no se dibuja un control que no
-       filtra nada hasta que exista en la consulta. Sin «Filtros guardados» hasta que haya filtro
-       guardable (el patrón lo pinta solo si se le pasa alguno). *@
+    @* Barra de filtros en modo pastillas: el buscador «Filtrar esta pantalla» (tecla f; razón
+       social o CIF, ObtenerSubcontratasQuery), la pastilla «Nivel de servicio» (viaja en la URL
+       como «nivel») y, en la misma fila, «Expandir todo / Contraer todo» y el recuento. Sin
+       «Más filtros»: no hay filtros guardados. El filtro de estado documental (con vencidos /
+       al corriente) es de la fase 2: la consulta aún no lo admite. *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+        <Pastillas>
+            <PastillaFiltro Etiqueta="@Textos["RotuloNivelServicio"]" Valor="@_nivelFiltro" ValorChanged="CambiarNivelAsync" Opciones="OpcionesNivel" />
+        </Pastillas>
         <Chips>
-            <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["BotonQuitarBusqueda"]" OnQuitar="LimpiarFiltrosAsync" />
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["BotonQuitarBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_nivelFiltro))
+            {
+                <ChipFiltro Etiqueta="@Textos["ChipNivelServicio", TextoNivelFiltro]" EtiquetaAccesible="@Textos["BotonQuitarNivelServicio"]" OnQuitar="() => CambiarNivelAsync(string.Empty)" />
+            }
         </Chips>
+        <Herramientas>
+            @if (_elementosPagina.Count > 0)
+            {
+                <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
+            }
+        </Herramientas>
+        <Resumen>
+            @if (!_errorCarga && _totalElementos > 0)
+            {
+                <span class="conteo-subcontratas">@TextoConteo</span>
+            }
+        </Resumen>
     </BarraFiltros>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -98,7 +124,7 @@
         <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioBusquedaTitulo"]"
                      Descripcion="@Textos["VacioBusquedaDescripcion"]">
             <Accion>
-                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarBusqueda"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["BotonQuitarFiltros"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -115,13 +141,6 @@
     }
     else
     {
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
-                                TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos">
-            <Extra>
-                <span class="conteo-subcontratas">@TextoConteo</span>
-            </Extra>
-        </BarraHerramientasLista>
-
         @if (_seleccionMultiple)
         {
             @* "Seleccionar todos" era falso y se contradecía con la propia barra
@@ -167,7 +186,7 @@
             @foreach (var subcontrata in _elementosPagina)
             {
                 var expandido = _expandidos.Contains(subcontrata.Id);
-                <div class="@ClaseTarjeta(subcontrata.Id)" @key="subcontrata.Id">
+                <div class="@ClaseTarjeta(subcontrata)" @key="subcontrata.Id">
                     @* Cada celda va envuelta para que la rejilla tenga SIEMPRE el
                        mismo número de columnas que la cabecera: un componente que
                        no se pinta desalinearía la fila. *@
@@ -278,9 +297,14 @@
             }
         </div>
 
-        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                          Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+        @* Solo con más de una página al tamaño mínimo (20), o si ya se eligió un tamaño mayor:
+           sin él no habría forma de volver al tamaño de antes. Mismo criterio que Clientes. *@
+        @if (MostrarPaginador)
+        {
+            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                              Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
+                              TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+        }
     }
     }
 </div>
@@ -323,9 +347,9 @@
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 
-@* EliminarSubcontratasCommand es ICommand, denegado a Consulta. «Selección múltiple» sigue
-   visible: vive en BarraHerramientasLista junto a «Expandir todos» y el conteo, que sí son
-   lectura, y ocultarlo solo a él exigiría tocar el componente compartido. *@
+@* EliminarSubcontratasCommand es ICommand, denegado a Consulta. El ☑ de «Selección múltiple»
+   de la cabecera sigue visible para Consulta: seleccionar es lectura, y solo la barra de lote
+   (que borra) va bajo SoloConEscritura. *@
 <SoloConEscritura>
     <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
                         OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />

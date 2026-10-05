@@ -189,7 +189,7 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         var centro = Centro("Centro Logístico Norte");
         RegistrarServicios(new MediatorPorTipo { Centros = [centro], Trabajadores = Trabajadores(escenario) });
         Services.GetRequiredService<NavigationManager>().NavigateTo("centros");
-        var cut = Render<Centros>();
+        var cut = Render<Centros>().AbrirGruposDeCentros();
 
         await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
@@ -244,7 +244,7 @@ public class CentrosEnlaceUnicoCentro360Tests : BunitContext
         var centro = Centro("Centro Logístico Norte");
         RegistrarServicios(new MediatorPorTipo { Centros = [centro], Trabajadores = Trabajadores(Escenario.TodosAlDia) });
         Services.GetRequiredService<NavigationManager>().NavigateTo("centros");
-        var lista = Render<Centros>();
+        var lista = Render<Centros>().AbrirGruposDeCentros();
         await lista.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
         lista.WaitForAssertion(() => lista.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().Contain("Todos al día"));
 

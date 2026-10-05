@@ -6,7 +6,6 @@ using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
-using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
@@ -32,10 +31,29 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     // que la paginación se gestiona a mano en vez de con QuickGrid+Paginator
     // — la Query sigue paginando en servidor, solo cambia el control visual
     // (mismo PaginadorSimple que Usuarios.razor).
-    private int _tamanoPagina = 20;
+    private const int TamanoPaginaMinimo = 20;
+    private int _tamanoPagina = TamanoPaginaMinimo;
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
+
+    /// <summary>Pastilla «Cliente empresarial»: Id del Cliente empresarial o vacío. Viaja en la URL como <c>cliente</c>.</summary>
+    private string _clienteFiltro = string.Empty;
+
+    /// <summary>«Empresa» de «Más filtros»: Id de la Empresa o vacío. Viaja en la URL como <c>empresa</c>.</summary>
+    private string _empresaFiltro = string.Empty;
+
+    private IReadOnlyList<OpcionEstado> _opcionesCliente = [];
+    private IReadOnlyList<OpcionEstado> _opcionesEmpresa = [];
+
+    /// <summary>Agrupación visual por Cliente empresarial: de serie, sí.</summary>
+    private bool _agruparPorCliente = true;
+
+    /// <summary>
+    /// Grupos abiertos, por Id del Cliente empresarial. Sobrevive a las recargas (el Id es estable
+    /// entre páginas y filtros) y se vacía al cambiar la agrupación.
+    /// </summary>
+    private readonly HashSet<Guid> _gruposAbiertos = [];
     private Guid? _centroIdFiltro;
     private bool _cargando = true;
     private bool _errorCarga;
@@ -172,14 +190,14 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    [SupplyParameterFromQuery(Name = "cliente")]
+    public string? ClienteFiltroInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "empresa")]
+    public string? EmpresaFiltroInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
-
-    /// <summary>
-    /// La empresa gestionada activa, solo para quien alcanza varias (mismo criterio que el selector
-    /// de la barra lateral): la cabecera dice de cuál es la lista. Mismo patrón que Trabajadores.
-    /// </summary>
-    private ClienteAutorizadoDto? _empresaActiva;
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -243,7 +261,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             if (_desechado)
                 return;
 
-            _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
         finally
@@ -263,6 +280,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
+        _clienteFiltro = IdDesdeUrl(ClienteFiltroInicial);
+        _empresaFiltro = IdDesdeUrl(EmpresaFiltroInicial);
         _centroIdFiltro = CentroId;
         await CargarAsync();
 
@@ -296,6 +315,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
             _instantanea.Fijar(alAbrir);
         }
+
+        // Las opciones de las pastillas «Cliente empresarial» y «Empresa», al final: la lista y el
+        // alta encadenada no esperan por ellas.
+        await CargarOpcionesDeFiltroAsync();
     }
 
     /// <summary>
@@ -314,15 +337,53 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var estadoDeLaUrl = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
+        var clienteDeLaUrl = IdDesdeUrl(ClienteFiltroInicial);
+        var empresaDeLaUrl = IdDesdeUrl(EmpresaFiltroInicial);
 
-        if (deLaUrl == _busqueda && estadoDeLaUrl == _estadoFiltro && CentroId == _centroIdFiltro)
+        if (deLaUrl == _busqueda && estadoDeLaUrl == _estadoFiltro && clienteDeLaUrl == _clienteFiltro
+            && empresaDeLaUrl == _empresaFiltro && CentroId == _centroIdFiltro)
             return;
 
         _busqueda = deLaUrl;
         _estadoFiltro = estadoDeLaUrl;
+        _clienteFiltro = clienteDeLaUrl;
+        _empresaFiltro = empresaDeLaUrl;
         _centroIdFiltro = CentroId;
         await CargarAsync(resetPagina: true);
     }
+
+    /// <summary>
+    /// Un Id de la URL solo filtra si es un Guid: la coordenada viene de fuera. No se exige que esté
+    /// entre las opciones —la consulta ya acota al alcance de quien mira, así que uno ajeno devuelve
+    /// una lista vacía, no datos de otro—; se normaliza para compararlo con el valor de la opción.
+    /// </summary>
+    private static string IdDesdeUrl(string? valor) =>
+        Guid.TryParse(valor, out var id) ? id.ToString() : string.Empty;
+
+    private static Guid? IdDeFiltro(string valor) => Guid.TryParse(valor, out var id) ? id : null;
+
+    /// <summary>
+    /// Opciones de las pastillas «Cliente empresarial» y «Empresa»: los mismos selectores que el alta
+    /// (ya acotados al alcance). Si fallan, la lista se pinta igual, sin opciones que elegir.
+    /// </summary>
+    private async Task CargarOpcionesDeFiltroAsync()
+    {
+        try
+        {
+            var clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
+            var empresas = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(null));
+            _opcionesCliente = clientes.Select(c => new OpcionEstado(c.Id.ToString(), c.RazonSocial)).ToList();
+            _opcionesEmpresa = empresas.Select(e => new OpcionEstado(e.Id.ToString(), e.RazonSocial)).ToList();
+        }
+        catch (Exception)
+        {
+            _opcionesCliente = [];
+            _opcionesEmpresa = [];
+        }
+    }
+
+    private static string TextoOpcion(IReadOnlyList<OpcionEstado> opciones, string valor) =>
+        opciones.FirstOrDefault(o => o.Valor == valor)?.Texto ?? "—";
 
     private async Task CargarAsync(bool resetPagina = false)
     {
@@ -337,13 +398,14 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         {
             var resultado = await Mediator.Send(new ObtenerCentrosQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                ClienteId: null,
+                ClienteId: IdDeFiltro(_clienteFiltro),
                 Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
                 OrdenarPor: _ordenarPor,
                 Descendente: _ordenDescendente,
                 Pagina: _pagina,
                 TamanoPagina: _tamanoPagina,
-                CentroId: _centroIdFiltro));
+                CentroId: _centroIdFiltro,
+                EmpresaId: IdDeFiltro(_empresaFiltro)));
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
@@ -432,11 +494,26 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         await CargarAsync(resetPagina: true);
     }
 
+    private async Task CambiarClienteFiltroAsync(string valor)
+    {
+        _clienteFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("cliente", valor);
+        await CargarAsync(resetPagina: true);
+    }
+
+    private async Task CambiarEmpresaFiltroAsync(string valor)
+    {
+        _empresaFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("empresa", valor);
+        await CargarAsync(resetPagina: true);
+    }
+
     private bool HayFiltrosActivos =>
-        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro);
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
+        || !string.IsNullOrWhiteSpace(_clienteFiltro) || !string.IsNullOrWhiteSpace(_empresaFiltro);
 
     /// <summary>
-    /// «Limpiar todo»: quita los dos filtros <b>también de la URL</b>, en una sola llamada (cada
+    /// «Limpiar todo»: quita los cuatro filtros <b>también de la URL</b>, en una sola llamada (cada
     /// <c>NavigateTo</c> lee la URL vigente y varias seguidas se pisan; ver el helper). Si la URL
     /// conservara alguno, <c>OnParametersSetAsync</c> —que re-sincroniza desde ella— lo devolvería.
     /// </summary>
@@ -444,13 +521,105 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         _busqueda = string.Empty;
         _estadoFiltro = string.Empty;
+        _clienteFiltro = string.Empty;
+        _empresaFiltro = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,
             ["estado"] = null,
+            ["cliente"] = null,
+            ["empresa"] = null,
         });
         await CargarAsync(resetPagina: true);
     }
+
+    private bool MostrarPaginador =>
+        _totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _tamanoPagina > TamanoPaginaMinimo);
+
+    // --- Agrupación visual por Cliente empresarial y filas tintadas (rediseño de listados, fase 1) ---
+
+    /// <summary>Un grupo de la página: los Centros de un Cliente empresarial y su resumen.</summary>
+    private sealed record GrupoCentros(Guid ClienteEmpresarialId, string Nombre, IReadOnlyList<CentroListaDto> Centros)
+    {
+        public int ConProblema => Centros.Count(c => NivelProblema(c) == 2);
+        public int PorVencer => Centros.Count(c => NivelProblema(c) == 1);
+        public int Peor => Centros.Max(NivelProblema);
+    }
+
+    /// <summary>
+    /// El Cliente empresarial de la fila: único punto de la agrupación que lee el campo heredado del
+    /// DTO (deuda terminológica: es el Id de la Empresa en posición Cliente empresarial).
+    /// </summary>
+    private static Guid ClienteEmpresarialDe(CentroListaDto centro) => centro.ClienteId;
+
+    /// <summary>Grupos de la página en el orden en que aparece su primer Centro (GroupBy lo conserva).</summary>
+    private IReadOnlyList<GrupoCentros> Grupos =>
+        _elementosPagina
+            .GroupBy(ClienteEmpresarialDe)
+            .Select(g => new GrupoCentros(g.Key, g.First().ClienteRazonSocial, g.ToList()))
+            .ToList();
+
+    /// <summary>Filas en el orden en que se pintan: agrupadas, las de cada grupo seguidas.</summary>
+    private IEnumerable<CentroListaDto> FilasEnOrden(IReadOnlyList<GrupoCentros> grupos) =>
+        _agruparPorCliente ? grupos.SelectMany(g => g.Centros) : _elementosPagina;
+
+    /// <summary>Filas que se ven (fuera de los grupos contraídos): las que recorren j/k.</summary>
+    private List<CentroListaDto> FilasVisibles() =>
+        FilasEnOrden(Grupos).Where(c => GrupoAbierto(ClienteEmpresarialDe(c))).ToList();
+
+    /// <summary>
+    /// Un grupo se ve abierto si se abrió, y además siempre que haya búsqueda (lo buscado no se
+    /// esconde), un Centro concreto en la URL (el enlace profundo lleva a él) o la selección múltiple
+    /// esté activa: «Seleccionar los de esta página» y la barra de lote actúan sobre filas que se ven.
+    /// </summary>
+    private bool GrupoAbierto(Guid clienteEmpresarialId) =>
+        !_agruparPorCliente
+        || !string.IsNullOrWhiteSpace(_busqueda)
+        || _centroIdFiltro is not null
+        || _seleccionMultiple
+        || _gruposAbiertos.Contains(clienteEmpresarialId);
+
+    private void AlternarGrupo(Guid clienteEmpresarialId)
+    {
+        if (!_gruposAbiertos.Add(clienteEmpresarialId))
+            _gruposAbiertos.Remove(clienteEmpresarialId);
+    }
+
+    private void CambiarAgrupacion(bool agrupar)
+    {
+        if (_agruparPorCliente == agrupar)
+            return;
+
+        _agruparPorCliente = agrupar;
+        _gruposAbiertos.Clear();
+        _idEnfocado = null;
+    }
+
+    private string ClaseTarjeta(CentroListaDto centro) =>
+        "tarjeta-fila-acordeon"
+        + (centro.Id == _idEnfocado ? " fila-enfocada" : string.Empty)
+        + ClaseTinte(NivelProblema(centro));
+
+    private static string ClaseTinteGrupo(GrupoCentros grupo) => ClaseTinte(grupo.Peor);
+
+    private static string ClaseTinte(int nivel) => nivel switch
+    {
+        2 => " fila-tintada-peligro",
+        1 => " fila-tintada-aviso",
+        _ => string.Empty,
+    };
+
+    /// <summary>
+    /// Fila con problema: 2 = bloqueo de la plataforma CAE, vencido o falta documentación
+    /// (tinte de peligro, «con problema»); 1 = urgente (tinte de aviso, «por vencer»); 0 = el resto.
+    /// Se lee del estado del Centro, el mismo que pinta su badge.
+    /// </summary>
+    private static int NivelProblema(CentroListaDto centro) => centro.Estado switch
+    {
+        EstadoCentro.Bloqueado or EstadoCentro.Vencido or EstadoCentro.Faltante => 2,
+        EstadoCentro.Urgente => 1,
+        _ => 0,
+    };
 
     // --- Patrón único de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md) ---
 
@@ -726,8 +895,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _seleccionados.Clear();
     }
 
+    /// <summary>Todo abierto: los grupos (si se agrupa) y el desplegable de cada fila.</summary>
     private bool TodosExpandidos =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _expandidos.Contains(e.Id));
+        _elementosPagina.Count > 0
+        && _elementosPagina.All(e => _expandidos.Contains(e.Id) && GrupoAbierto(ClienteEmpresarialDe(e)));
 
     private void AlternarExpansion(Guid id)
     {
@@ -738,9 +909,18 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private void AlternarTodosExpandidos(bool expandir)
     {
         if (expandir)
-            foreach (var elemento in _elementosPagina) _expandidos.Add(elemento.Id);
+        {
+            foreach (var elemento in _elementosPagina)
+            {
+                _expandidos.Add(elemento.Id);
+                _gruposAbiertos.Add(ClienteEmpresarialDe(elemento));
+            }
+        }
         else
+        {
             _expandidos.Clear();
+            _gruposAbiertos.Clear();
+        }
     }
 
     private void AlternarSeleccionTodos(bool marcar)
@@ -837,20 +1017,22 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     private async Task ManejarAtajoAsync(string tecla)
     {
-        if (_elementosPagina.Count == 0) return;
+        // j/k recorren las filas que se ven, en el orden en que se pintan (los grupos contraídos no cuentan).
+        var filas = FilasVisibles();
+        if (filas.Count == 0) return;
 
         switch (tecla)
         {
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    var indiceActual = _idEnfocado is null ? -1 : filas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = filas[Math.Min(indiceActual + 1, filas.Count - 1)].Id;
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    var indiceActual = _idEnfocado is null ? 0 : filas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = filas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
             case "x":

@@ -115,7 +115,11 @@ public class CentrosListaGen2Tests : BunitContext
 
     private MediatorPorTipo _mediador = null!;
 
-    private IRenderedComponent<Centros> Renderizar(params CentroListaDto[] centros)
+    private IRenderedComponent<Centros> Renderizar(params CentroListaDto[] centros) =>
+        RenderizarConGruposContraidos(centros).AbrirGruposDeCentros();
+
+    /// <summary>Como la ve el usuario al llegar: agrupada por Cliente empresarial y con los grupos contraídos.</summary>
+    private IRenderedComponent<Centros> RenderizarConGruposContraidos(params CentroListaDto[] centros)
     {
         _mediador = new MediatorPorTipo { Centros = centros };
         Services.AddScoped<IMediator>(_ => _mediador);
@@ -170,7 +174,7 @@ public class CentrosListaGen2Tests : BunitContext
         var vigente = Centro("Almacén Sur", EstadoCentro.Vigente);
         var cut = Renderizar(bloqueado, vigente);
 
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Expandir todos").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Expandir todo").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("a.acordeon-centro-enlace-360")
             .Select(a => a.GetAttribute("href"))
@@ -199,7 +203,7 @@ public class CentrosListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Centro, abierto.Id, abierto.Nombre, "informacion"));
         workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
 
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
             .ClickAsync(new MouseEventArgs());
@@ -222,7 +226,7 @@ public class CentrosListaGen2Tests : BunitContext
         var cut = Renderizar(elegido, superviviente);
         _mediador.NoEliminables.Add(superviviente.Id);
 
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Sur']").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")

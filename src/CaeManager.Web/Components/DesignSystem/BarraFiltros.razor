@@ -92,6 +92,7 @@
                 }
             </MenuAcciones>
         }
+        @Herramientas
         @if (Resumen is not null)
         {
             <span class="barra-filtros-resumen">@Resumen</span>
@@ -188,6 +189,12 @@ else
 
     /// <summary>Modo pastillas: el ✕ de un filtro guardado, con su <c>Valor</c>. Sin delegado no se ofrece borrar.</summary>
     [Parameter] public EventCallback<string> OnBorrarFiltroGuardado { get; set; }
+
+    /// <summary>
+    /// Modo pastillas: controles que actúan sobre la lista entera (agrupar, «Expandir todo»,
+    /// orden), en la misma fila tras «Más filtros». No son filtros ni acciones de la página.
+    /// </summary>
+    [Parameter] public RenderFragment? Herramientas { get; set; }
 
     /// <summary>Modo pastillas: texto a la derecha de la fila («3 Clientes empresariales con estos filtros»).</summary>
     [Parameter] public RenderFragment? Resumen { get; set; }
