@@ -96,7 +96,8 @@ public class SeleccionarTodosDiceQueEsLaPaginaTests : BunitContext
         var cut = Render<Empresas>();
 
         // La casilla solo existe con la selección múltiple encendida.
-        cut.FindAll("button").First(b => b.TextContent.Contains("Selección múltiple")).Click();
+        // Rediseño de listados, fase 1: el conmutador es el icono ☑ de la cabecera, con el mismo nombre accesible.
+        cut.FindAll("button").First(b => b.GetAttribute("aria-label") == "Selección múltiple").Click();
         return cut;
     }
 

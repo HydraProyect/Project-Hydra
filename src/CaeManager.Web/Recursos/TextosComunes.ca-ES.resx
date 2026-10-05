@@ -271,4 +271,10 @@
   <data name="MenuGrupoContieneActual" xml:space="preserve">
     <value>Conté la pàgina actual</value>
   </data>
+  <data name="ExpandirTodo" xml:space="preserve">
+    <value>Desplegar-ho tot</value>
+  </data>
+  <data name="ContraerTodo" xml:space="preserve">
+    <value>Plegar-ho tot</value>
+  </data>
 </root>

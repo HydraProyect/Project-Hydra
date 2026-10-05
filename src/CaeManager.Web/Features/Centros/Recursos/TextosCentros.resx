@@ -240,4 +240,70 @@
   <data name="MotivoBloqueoCaduca" xml:space="preserve">
     <value>{0} — caduca {1}</value>
   </data>
+  <data name="ListaExportarExcel" xml:space="preserve">
+    <value>Exportar a Excel</value>
+  </data>
+  <data name="ListaFiltrarPlaceholder" xml:space="preserve">
+    <value>Filtrar esta pantalla: centro, código, Cliente empresarial o empresa</value>
+  </data>
+  <data name="FiltroClienteEmpresarial" xml:space="preserve">
+    <value>Cliente empresarial</value>
+  </data>
+  <data name="FiltroEstado" xml:space="preserve">
+    <value>Estado</value>
+  </data>
+  <data name="FiltroEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="FiltroTodos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="FiltroTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="ChipClienteEmpresarial" xml:space="preserve">
+    <value>Cliente empresarial: {0}</value>
+  </data>
+  <data name="ChipEmpresa" xml:space="preserve">
+    <value>Empresa: {0}</value>
+  </data>
+  <data name="QuitarFiltroClienteEmpresarial" xml:space="preserve">
+    <value>Quitar filtro de Cliente empresarial</value>
+  </data>
+  <data name="QuitarFiltroEmpresa" xml:space="preserve">
+    <value>Quitar filtro de empresa</value>
+  </data>
+  <data name="AgruparEtiqueta" xml:space="preserve">
+    <value>Agrupar</value>
+  </data>
+  <data name="AgruparNo" xml:space="preserve">
+    <value>Sin agrupar</value>
+  </data>
+  <data name="AgruparPorCliente" xml:space="preserve">
+    <value>Por Cliente empresarial</value>
+  </data>
+  <data name="OrdenCumplimiento" xml:space="preserve">
+    <value>Cumplimiento</value>
+  </data>
+  <data name="GrupoConProblema" xml:space="preserve">
+    <value>{0} con problema</value>
+  </data>
+  <data name="GrupoPorVencer" xml:space="preserve">
+    <value>{0} por vencer</value>
+  </data>
+  <data name="GrupoNotaEstaPagina" xml:space="preserve">
+    <value>Grupos de esta página: los recuentos de cada grupo solo cuentan los centros que se ven aquí.</value>
+  </data>
+  <data name="GrupoContadorTitulo" xml:space="preserve">
+    <value>{0} centro(s) en esta página</value>
+  </data>
+  <data name="VacioFiltrosTitulo" xml:space="preserve">
+    <value>Ningún centro con estos filtros</value>
+  </data>
+  <data name="VacioFiltrosDescripcion" xml:space="preserve">
+    <value>Ninguno coincide con la búsqueda ni con los filtros seleccionados.</value>
+  </data>
+  <data name="VacioFiltrosQuitar" xml:space="preserve">
+    <value>Quitar los filtros</value>
+  </data>
 </root>

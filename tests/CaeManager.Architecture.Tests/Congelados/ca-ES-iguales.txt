@@ -741,9 +741,7 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Con
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ConfirmarEliminarVerificacionMensaje = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ConfirmarEliminarVerificacionTitulo = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ConteoUno = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ConteoUnoConBusqueda = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ConteoVarios = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ConteoVariosConBusqueda = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: CopiarLaContrasena = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: CopiarLaIdentificacionFiscal = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: CredencialesNoVisibles = 1
@@ -806,7 +804,6 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Pes
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: PestanaInformacion = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: PestanaSupervision = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: PestanaTrabajadores = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: PlaceholderBusqueda = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: PlaceholderContrasenaConservar = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RecuentoDocumentosProximosUno = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RecuentoDocumentosProximosVarios = 1
@@ -869,8 +866,6 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Tra
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: TrabajadoresVacioDescripcion = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: TrabajadoresVacioTitulo = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: UltimaVerificacionRegistrada = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: VacioBusquedaDescripcion = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: VacioBusquedaTitulo = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: VacioClientesEmpresarialesSelector = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: VacioClientesSelector = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: VacioDescripcion = 1

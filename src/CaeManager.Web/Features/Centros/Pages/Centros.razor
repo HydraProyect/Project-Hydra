@@ -31,39 +31,32 @@
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
-       cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query
-       (I14: ningún Id de enlace profundo ni filtro sobrevive). *@
-    @if (!_sinEmpresaSeleccionada)
+    @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
+       conmutador ☑ de selección múltiple, el menú «⋯» con las dos descargas (lectura: cualquier
+       rol) y UNA acción primaria. Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo
+       de la empresa gestionada: el selector de la barra lateral ya dice cuál es, y al cambiarla
+       recarga esta ruta sin query (I14). El estado vacío sin empresa elegida (4a) sigue más abajo. *@
+    @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        @* En el estado 4a no hay empresa activa que nombrar: la cabecera de empresa no se pinta. *@
-        <CabeceraEmpresaActiva Empresa="_empresaActiva" />
-    }
-
-    @*
-        Pieza 1 del patrón de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md § 3):
-        antetítulo del grupo del menú, «Exportar» como enlaces secundarios y UNA sola primaria. Las
-        acciones que antes vivían dentro de la barra de trabajo (exportar, nuevo) suben aquí: nunca hay
-        acciones de la página dentro de la barra de filtros. Frente al mockup «Lista Centros TALVEG.dc.html»
-        (una sola fila con todo), manda el contrato: «Exportar a Excel» queda como enlace secundario y
-        «Exportar asignaciones», acción extra, va dentro de «Más».
-    *@
-    <CabeceraPagina Titulo="Centros" Kicker="Negocio">
-        <Acciones>
-            @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
-            {
-                <a class="enlace-exportar" href="/centros/exportar.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Exportar a Excel</a>
-                @* Acción extra: va en «Más» (contrato § 3, pieza 1); es una descarga, no una ruta de Blazor. *@
-                <MenuAcciones Etiqueta="@Textos["CabeceraMas"]">
-                    <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/asignaciones/exportar.xlsx", forceLoad: true)'>@Textos["ExportarAsignaciones"]</ItemMenuAccion>
-                </MenuAcciones>
+        <CabeceraListado Titulo="Centros" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+                         SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+            <Menu>
+                @* Descargas por GET: enlaces, no rutas de Blazor. *@
+                <ItemMenuAccion Href="/centros/exportar.xlsx">@Textos["ListaExportarExcel"]</ItemMenuAccion>
+                <ItemMenuAccion Href="/asignaciones/exportar.xlsx">@Textos["ExportarAsignaciones"]</ItemMenuAccion>
+            </Menu>
+            <Primaria>
                 @if (!_alcanceCero)
                 {
                     <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
                 }
-            }
-        </Acciones>
-    </CabeceraPagina>
+            </Primaria>
+        </CabeceraListado>
+    }
+    else
+    {
+        <CabeceraListado Titulo="Centros" />
+    }
 
     @if (_resolviendoEmpresa)
     {
@@ -79,49 +72,77 @@
     else
     {
     @*
-        Pieza 2 (BarraFiltros): buscador y estado con su etiqueta visible encima y, debajo, los chips
-        activos con «Limpiar todo». Centros no tiene filtros guardados: no se pasa OnGuardarFiltro y
-        «Guardar filtro» no se pinta.
+        Barra de filtros en modo pastillas (rediseño de listados, fase 1):
+        - El buscador «Filtrar esta pantalla» (tecla f) busca en el nombre y el código del Centro,
+          el Cliente empresarial y la Empresa (ObtenerCentrosQuery): la pista dice los cuatro.
+        - Pastillas primarias: «Cliente empresarial» y «Estado». «Empresa» va dentro de «Más filtros».
+          Las tres viajan en la URL (cliente, estado, empresa). «cliente» y «empresa» no son los
+          parámetros del alta encadenada, que prefijan el formulario y no filtran.
+        - En la misma fila: agrupar por Cliente empresarial (agrupación visual de la página, de serie),
+          el orden por cumplimiento (blueprint § 3.1, DDL-036: atacar los peores centros sin depender
+          de que haya visita), «Expandir todo» y el recuento.
+        Centros no tiene filtros guardados: no se pasa OnGuardarFiltro y «Guardar filtro» no se pinta.
     *@
-    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="Buscar centro, Cliente empresarial o empresa…"
-                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
-        <Filtros>
-            <FiltroEstado Etiqueta="Estado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                          Opciones="EstadoCentroUi.Opciones" />
-        </Filtros>
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  MasFiltrosActivos="@(!string.IsNullOrEmpty(_empresaFiltro))">
+        <Pastillas>
+            <PastillaFiltro Etiqueta="@Textos["FiltroClienteEmpresarial"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_clienteFiltro"
+                            ValorChanged="CambiarClienteFiltroAsync" Opciones="_opcionesCliente" />
+            <PastillaFiltro Etiqueta="@Textos["FiltroEstado"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_estadoFiltro"
+                            ValorChanged="CambiarEstadoAsync" Opciones="EstadoCentroUi.Opciones" />
+        </Pastillas>
+        <MasFiltros>
+            <span class="menu-filtros-titulo" role="presentation">@Textos["FiltroEmpresa"]</span>
+            <ItemMenuAccion Marcado="@string.IsNullOrEmpty(_empresaFiltro)" OnClick="() => CambiarEmpresaFiltroAsync(string.Empty)">@Textos["FiltroTodas"]</ItemMenuAccion>
+            @foreach (var opcion in _opcionesEmpresa)
+            {
+                <ItemMenuAccion Marcado="@(opcion.Valor == _empresaFiltro)" OnClick="() => CambiarEmpresaFiltroAsync(opcion.Valor)">@opcion.Texto</ItemMenuAccion>
+            }
+        </MasFiltros>
+        <Herramientas>
+            @if (_elementosPagina.Count > 0)
+            {
+                <span class="segmentado-lista" role="group" aria-label="@Textos["AgruparEtiqueta"]">
+                    <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "false" : "true")"
+                            @onclick="() => CambiarAgrupacion(false)">@Textos["AgruparNo"]</button>
+                    <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "true" : "false")"
+                            @onclick="() => CambiarAgrupacion(true)">@Textos["AgruparPorCliente"]</button>
+                </span>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                       OnClick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))"
+                       aria-pressed="@(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? "true" : "false")">
+                    @Textos["OrdenCumplimiento"] <span aria-hidden="true">@(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? (_ordenDescendente ? "↓" : "↑") : "")</span>
+                </Boton>
+                <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
+            }
+        </Herramientas>
+        <Resumen>
+            @if (!_errorCarga && _totalElementos > 0)
+            {
+                @* El total lo da la consulta ya filtrada: es el de las coincidencias, no el de la cartera. *@
+                <span class="conteo-centros">@TextoConteo</span>
+            }
+        </Resumen>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
                 <ChipFiltro Etiqueta="@EtiquetaFiltroBusqueda" EtiquetaAccesible="@Textos["QuitarFiltroBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
             }
+            @if (!string.IsNullOrWhiteSpace(_clienteFiltro))
+            {
+                <ChipFiltro Etiqueta="@Textos["ChipClienteEmpresarial", TextoOpcion(_opcionesCliente, _clienteFiltro)]" EtiquetaAccesible="@Textos["QuitarFiltroClienteEmpresarial"]" OnQuitar="() => CambiarClienteFiltroAsync(string.Empty)" />
+            }
             @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
             {
                 <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="@Textos["QuitarFiltroEstado"]" OnQuitar="() => CambiarEstadoAsync(string.Empty)" />
             }
+            @if (!string.IsNullOrWhiteSpace(_empresaFiltro))
+            {
+                <ChipFiltro Etiqueta="@Textos["ChipEmpresa", TextoOpcion(_opcionesEmpresa, _empresaFiltro)]" EtiquetaAccesible="@Textos["QuitarFiltroEmpresa"]" OnQuitar="() => CambiarEmpresaFiltroAsync(string.Empty)" />
+            }
         </Chips>
     </BarraFiltros>
-
-    @*
-        Pieza 3 (BarraHerramientasLista): «Selección múltiple», «Expandir todos» y el recuento, en esta
-        fila y en este orden. El orden por cumplimiento (blueprint § 3.1, DDL-036) existe para atacar los
-        peores centros SIN depender de que haya una visita próxima; es un control de la lista entera, así
-        que vive aquí.
-    *@
-    <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
-                            TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos">
-        <Extra>
-            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                   OnClick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))"
-                   aria-pressed="@(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? "true" : "false")">
-                Cumplimiento @(_ordenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) ? (_ordenDescendente ? "↓" : "↑") : "")
-            </Boton>
-            @if (_totalElementos > 0)
-            {
-                @* El total lo da la consulta ya filtrada: es el de las coincidencias, no el de la cartera. *@
-                <span class="conteo-centros">@TextoConteo</span>
-            }
-        </Extra>
-    </BarraHerramientasLista>
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -146,10 +167,10 @@
            La copia no afirma que HAYA registros dados de alta: el filtrado
            es de servidor y la consulta solo devuelve el total ya filtrado,
            así que la pantalla no sabe cuántos hay sin filtro. *@
-        <EstadoVacio NombreIcono="vacio" Titulo="Ningún centro con estos filtros"
-                     Descripcion="Ninguno coincide con la búsqueda ni con el estado de documentación seleccionado.">
+        <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltrosTitulo"]"
+                     Descripcion="@Textos["VacioFiltrosDescripcion"]">
             <Accion>
-                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["VacioFiltrosQuitar"]</Boton>
             </Accion>
         </EstadoVacio>
     }
@@ -207,10 +228,63 @@
             <span class="cabecera-columnas-centros-acciones"></span>
         </div>
 
+        @* Agrupación visual por Cliente empresarial (de serie): una cabecera por grupo con su
+           contador y el resumen de la página («N con problema», «N por vencer»), tintada con el peor
+           estado del grupo. Los grupos arrancan contraídos y se abren de uno en uno o con «Expandir
+           todo»; con búsqueda, con un Centro concreto en la URL o con selección múltiple se ven
+           abiertos (también mientras haya filas marcadas), y entonces la cabecera no es un botón (no
+           podría contraerlos). Es visual y de la página: con el orden de serie los grupos salen del
+           peor estado al mejor; con un orden pedido, en el de su primera fila, y dentro de cada grupo
+           se respeta ese orden (Grupos). Con más de una página, una nota dice que los recuentos son de
+           esta página y no del Cliente empresarial entero. *@
+        var grupos = Grupos;
+        @if (_agruparPorCliente && TotalPaginas > 1)
+        {
+            <p class="nota-grupos-pagina texto-vacio-seccion">@Textos["GrupoNotaEstaPagina"]</p>
+        }
+        var cabecerasDeGrupo = grupos.ToDictionary(g => g.Centros[0].Id);
+        var clavesDeGrupo = new ClavesDeHermanos();
         <div class="lista-filas-acordeon">
-            @foreach (var centro in _elementosPagina)
+            @foreach (var centro in FilasEnOrden(grupos))
             {
-                <div class="@("tarjeta-fila-acordeon" + (centro.Id == _idEnfocado ? " fila-enfocada" : ""))" @key="centro.Id">
+                @if (_agruparPorCliente && cabecerasDeGrupo.TryGetValue(centro.Id, out var grupo))
+                {
+                    var abierto = GrupoAbierto(grupo.ClienteEmpresarialId);
+                    RenderFragment contenidoCabecera =
+                        @<text>
+                            <span class="grupo-lista-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+                            <span class="grupo-lista-nombre">@grupo.Nombre</span>
+                            <span class="grupo-lista-contador" title="@Textos["GrupoContadorTitulo", grupo.Centros.Count]">@grupo.Centros.Count</span>
+                            <span class="grupo-lista-resumen">
+                                @if (grupo.ConProblema > 0)
+                                {
+                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@Textos["GrupoConProblema", grupo.ConProblema]</Badge>
+                                }
+                                @if (grupo.PorVencer > 0)
+                                {
+                                    <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["GrupoPorVencer", grupo.PorVencer]</Badge>
+                                }
+                            </span>
+                        </text>;
+                    <div class="@("grupo-lista" + ClaseTinteGrupo(grupo))" @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)">
+                        @if (GruposForzadosAbiertos)
+                        {
+                            <div class="grupo-lista-cabecera grupo-lista-cabecera-abierta grupo-lista-cabecera-fija">@contenidoCabecera</div>
+                        }
+                        else
+                        {
+                            <button type="button" class="@("grupo-lista-cabecera" + (abierto ? " grupo-lista-cabecera-abierta" : ""))"
+                                    aria-expanded="@(abierto ? "true" : "false")" @onclick="() => AlternarGrupo(grupo.ClienteEmpresarialId)">
+                                @contenidoCabecera
+                            </button>
+                        }
+                    </div>
+                }
+                @if (!GrupoAbierto(ClienteEmpresarialDe(centro)))
+                {
+                    continue;
+                }
+                <div class="@ClaseTarjeta(centro)" @key="centro.Id">
                     @{ var visitas = _visitasPorCentro.GetValueOrDefault(centro.Id) ?? []; }
                     @{ var visita = visitas.FirstOrDefault(); }
                     @{ var expandido = _expandidos.Contains(centro.Id); }
@@ -392,9 +466,13 @@
             }
         </div>
 
-        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                          Etiqueta="centro(s)" PaginaActualChanged="CambiarPaginaAsync"
-                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+        @* Con 20 o menos y el tamaño mínimo, una sola página: el paginador no aporta nada. *@
+        @if (MostrarPaginador)
+        {
+            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                              Etiqueta="centro(s)" PaginaActualChanged="CambiarPaginaAsync"
+                              TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+        }
     }
     }
 </div>

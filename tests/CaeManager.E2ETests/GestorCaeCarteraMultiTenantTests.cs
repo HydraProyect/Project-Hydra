@@ -306,12 +306,16 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
+        // Los grupos por Cliente empresarial arrancan contraídos: sin esto, la ausencia de CentroA
+        // daría verde aunque estuviera en la lista.
+        await Ayudas.MostrarCentrosSinAgruparAsync(page);
         await Expect(page.GetByText(CentroB, new() { Exact = true })).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(page.GetByText(CentroA, new() { Exact = true })).ToHaveCountAsync(0);
 
         await page.ReloadAsync();
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
+        await Ayudas.MostrarCentrosSinAgruparAsync(page);
         await Expect(page.GetByText(CentroB, new() { Exact = true })).ToBeVisibleAsync();
         await Expect(page.GetByText(CentroA, new() { Exact = true })).ToHaveCountAsync(0);
     }

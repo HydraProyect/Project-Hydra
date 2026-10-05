@@ -87,7 +87,7 @@ public class CentrosListaSoloLecturaTests : BunitContext
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
         Services.AddScoped<IValidator<CrearCentroCommand>>(_ => new InlineValidator<CrearCentroCommand>());
         Services.GetRequiredService<NavigationManager>().NavigateTo("centros");
-        return Render<Centros>();
+        return Render<Centros>().AbrirGruposDeCentros();
     }
 
     [Theory]
@@ -109,12 +109,12 @@ public class CentrosListaSoloLecturaTests : BunitContext
     public async Task La_barra_de_lote_con_baja_y_asignacion_masiva_solo_la_ve_un_rol_con_escritura(string rol, bool debeVerse)
     {
         var cut = Renderizar(rol);
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
 
         var textos = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
         // Barrera: la selección se hizo (Find de la casilla no lanza), y la lista sigue pintada.
-        textos.Should().Contain("Selección múltiple");
+        textos.Should().Contain("Centro Logístico Norte");
         textos.Contains("Eliminar seleccionados").Should().Be(debeVerse);
         textos.Any(t => t.StartsWith("Asignar a centros seleccionados", StringComparison.Ordinal)).Should().Be(debeVerse);
     }

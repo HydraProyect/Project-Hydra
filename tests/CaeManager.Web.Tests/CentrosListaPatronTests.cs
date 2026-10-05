@@ -1,8 +1,10 @@
 using Bunit;
 using CaeManager.Application.Centros.Commands.CrearCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerEmpresasDeCentrosVisibles;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
@@ -20,9 +22,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Lote 3 del selector de Tenant y patrón único de lista en <c>/centros</c>: la cabecera con la
-/// empresa gestionada activa, el estado 4a, la carga asíncrona de la empresa, y las piezas del patrón
-/// (cabecera, BarraFiltros con chips, herramientas, cabecera de columnas, «⋯», vista previa y pie).
+/// Lote 3 del selector de Tenant y patrón de lista en <c>/centros</c> tras el rediseño de listados
+/// (fase 1): el estado 4a, la carga asíncrona de la empresa, la cabecera de una línea, la barra de
+/// filtros en pastillas con chips, la agrupación por Cliente empresarial, las filas tintadas, la
+/// cabecera de columnas, el «⋯», la vista previa y el paginador.
 /// El acordeón de asignaciones se sustituye por un stub: aquí se mide lo que pinta la PÁGINA.
 /// </summary>
 public class CentrosListaPatronTests : BunitContext
@@ -45,6 +48,17 @@ public class CentrosListaPatronTests : BunitContext
         public List<object> Enviadas { get; } = [];
         public List<CentroListaDto> Centros { get; } = [];
         public Dictionary<Guid, IReadOnlyList<VisitaResumenDto>> Visitas { get; } = [];
+        public List<ClienteSelectorDto> ClientesSelector { get; } = [];
+        public List<EmpresaSelectorDto> EmpresasSelector { get; } = [];
+
+        /// <summary>Opciones del filtro «Empresa»: las Empresas de los Centros visibles (no el selector del alta).</summary>
+        public List<EmpresaDeCentroDto> EmpresasDeCentros { get; } = [];
+
+        /// <summary>Si se fija, las opciones del filtro «Empresa» esperan a esta tarea.</summary>
+        public Task? RetenerEmpresasDeCentros { get; set; }
+
+        /// <summary>Las opciones del filtro «Empresa» fallan (la consulta lanza).</summary>
+        public bool FallarEmpresasDeCentros { get; set; }
 
         /// <summary>Por defecto, un usuario mono-Tenant: sin selector ni cabecera de empresa gestionada.</summary>
         public List<ClienteAutorizadoDto> Autorizados { get; } = [new(Guid.NewGuid(), "Propia", EsOrigen: true)];
@@ -62,15 +76,35 @@ public class CentrosListaPatronTests : BunitContext
                 TokenDeAutorizados = cancellationToken;
             if (request is ObtenerClientesAutorizadosQuery && RetenerAutorizados is { } espera)
                 await espera;
+            if (request is ObtenerEmpresasDeCentrosVisiblesQuery && RetenerEmpresasDeCentros is { } esperaEmpresas)
+                await esperaEmpresas;
+            if (request is ObtenerEmpresasDeCentrosVisiblesQuery && FallarEmpresasDeCentros)
+                throw new InvalidOperationException("Fallo simulado de las opciones de Empresa.");
 
             return (TResponse)(request switch
             {
                 ObtenerClientesAutorizadosQuery => (object)(IReadOnlyList<ClienteAutorizadoDto>)Autorizados.ToList(),
-                ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(Centros, Centros.Count, q.Pagina, q.TamanoPagina),
+                ObtenerCentrosQuery q => Filtrar(q),
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)Visitas,
-                ObtenerClientesParaSelectorQuery => Array.Empty<ClienteSelectorDto>(),
+                ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)ClientesSelector.ToList(),
+                ObtenerEmpresasParaSelectorQuery => (IReadOnlyList<EmpresaSelectorDto>)EmpresasSelector.ToList(),
+                ObtenerEmpresasDeCentrosVisiblesQuery => (IReadOnlyList<EmpresaDeCentroDto>)EmpresasDeCentros.ToList(),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             });
+        }
+
+        /// <summary>
+        /// Filtra por Cliente empresarial y por Empresa como la consulta real (que lo prueba
+        /// BusquedaYFiltrosDeListadosTests contra Postgres): si la página no enviara el filtro,
+        /// se verían todos.
+        /// </summary>
+        private ResultadoPaginado<CentroListaDto> Filtrar(ObtenerCentrosQuery q)
+        {
+            var filas = Centros
+                .Where(c => q.ClienteId is null || c.ClienteId == q.ClienteId)
+                .Where(c => q.EmpresaId is null || c.EmpresaId == q.EmpresaId)
+                .ToList();
+            return new ResultadoPaginado<CentroListaDto>(filas, filas.Count, q.Pagina, q.TamanoPagina);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -105,6 +139,32 @@ public class CentrosListaPatronTests : BunitContext
         Guid.NewGuid(), "Montajes Ebro S.L.", estado,
         CumplimientoPorcentaje: 87, RecuentosCentroDto.Vacio);
 
+    private static readonly Guid ClienteOrion = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000001");
+    private static readonly Guid ClientePegaso = Guid.Parse("bbbbbbbb-0000-0000-0000-000000000002");
+    private static readonly Guid EmpresaMontajes = Guid.Parse("cccccccc-0000-0000-0000-000000000001");
+    private static readonly Guid EmpresaLimpiezas = Guid.Parse("cccccccc-0000-0000-0000-000000000002");
+
+    /// <summary>Un Centro de un Cliente empresarial y una Empresa concretos (para agrupar y filtrar).</summary>
+    private static CentroListaDto CentroDe(string nombre, Guid clienteId, Guid empresaId, EstadoCentro estado = EstadoCentro.Vigente) => new(
+        Guid.NewGuid(), nombre, "C-001",
+        clienteId, clienteId == ClienteOrion ? "Orion Cliente S.L." : "Pegaso Cliente S.L.",
+        empresaId, empresaId == EmpresaMontajes ? "Montajes Norte S.L." : "Limpiezas Sur S.L.", estado,
+        CumplimientoPorcentaje: 87, RecuentosCentroDto.Vacio);
+
+    /// <summary>Dos Clientes empresariales: Orion con dos Centros (uno vencido, otro urgente) y Pegaso con uno al día.</summary>
+    private static Mediador ConDosClientes()
+    {
+        var mediador = ConCentros(
+            CentroDe("Almacén Vigo", ClienteOrion, EmpresaMontajes, EstadoCentro.Vencido),
+            CentroDe("Planta Murcia", ClienteOrion, EmpresaMontajes, EstadoCentro.Urgente),
+            CentroDe("Planta Bilbao", ClientePegaso, EmpresaLimpiezas));
+        mediador.ClientesSelector.AddRange([new(ClienteOrion, "Orion Cliente S.L."), new(ClientePegaso, "Pegaso Cliente S.L.")]);
+        // El filtro «Empresa» lee las Empresas de los Centros visibles; el selector del alta (alcance de
+        // gestión) queda vacío, como para un usuario de portal: si la página lo usara, no habría opciones.
+        mediador.EmpresasDeCentros.AddRange([new(EmpresaMontajes, "Montajes Norte S.L."), new(EmpresaLimpiezas, "Limpiezas Sur S.L.")]);
+        return mediador;
+    }
+
     /// <summary>Un Operador CAE externo con dos Tenants beneficiarios; el origen no está gestionado por Operación.</summary>
     private static Mediador ConCartera(bool origenGestionado, params CentroListaDto[] centros)
     {
@@ -127,7 +187,11 @@ public class CentrosListaPatronTests : BunitContext
         return mediador;
     }
 
-    private IRenderedComponent<Centros> Renderizar(Mediador mediador, string url = "centros", Guid? tenantSeleccionado = null)
+    private IRenderedComponent<Centros> Renderizar(Mediador mediador, string url = "centros", Guid? tenantSeleccionado = null) =>
+        RenderizarConGruposContraidos(mediador, url, tenantSeleccionado).AbrirGruposDeCentros();
+
+    /// <summary>Como la ve el usuario al llegar: agrupada por Cliente empresarial y con los grupos contraídos.</summary>
+    private IRenderedComponent<Centros> RenderizarConGruposContraidos(Mediador mediador, string url = "centros", Guid? tenantSeleccionado = null)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba(tenantSeleccionado));
@@ -142,14 +206,18 @@ public class CentrosListaPatronTests : BunitContext
 
     // ------------------------------------------------- lote 3 del selector: empresa gestionada activa
 
+    /// <summary>
+    /// Rediseño de listados, fase 1: la cabecera de una línea ya no repite qué empresa gestionada
+    /// está activa —lo dice el selector de la barra lateral—, pero la lista sí es la de esa empresa.
+    /// </summary>
     [Fact]
-    public void Con_varias_empresas_gestionadas_la_cabecera_de_la_lista_dice_cual_esta_activa()
+    public void Con_varias_empresas_gestionadas_la_lista_es_la_de_la_activa_sin_rotulo_en_la_cabecera()
     {
         var cut = Renderizar(ConCartera(origenGestionado: false, Centro("Centro Norte")), tenantSeleccionado: EmpresaSur);
 
-        var cabecera = cut.Find(".cabecera-empresa-activa");
-        cabecera.TextContent.Should().Contain("Empresa gestionada").And.Contain("Empresa Sur");
-        cabecera.QuerySelector(".avatar-tenant")!.TextContent.Trim().Should().Be("ES", "sin logo se pintan las iniciales");
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
+        cut.Find("header.cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+        cut.Markup.Should().Contain("Centro Norte");
     }
 
     [Fact]
@@ -170,8 +238,8 @@ public class CentrosListaPatronTests : BunitContext
 
         cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("en el estado 4a no hay empresa activa que nombrar");
-        cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
-        cut.FindAll("a.enlace-exportar").Should().BeEmpty("exportaría los datos del origen");
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("sus descargas exportarían los datos del origen");
         cut.Markup.Should().NotContain("+ Nuevo centro").And.NotContain("Centro del origen");
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty("no se piden los centros de la organización de origen");
     }
@@ -237,7 +305,7 @@ public class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConCartera(origenGestionado: true, Centro("Centro del origen")));
 
         cut.Markup.Should().NotContain("Selecciona una empresa de tu cartera");
-        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Operador de prueba");
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
         cut.Markup.Should().Contain("Centro del origen");
     }
 
@@ -250,16 +318,15 @@ public class CentrosListaPatronTests : BunitContext
 
         var cut = Renderizar(mediador, tenantSeleccionado: EmpresaSur);
 
-        cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
-        cut.FindAll("a.enlace-exportar").Should().BeEmpty();
-        cut.FindAll(".cabecera-pagina .menu-acciones-disparador").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
+        cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Should().BeEmpty("el «⋯» lleva las descargas");
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty();
 
         puerta.SetResult();
 
-        cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-lista").Should().NotBeEmpty());
-        cut.FindAll("a.enlace-exportar").Should().ContainSingle();
-        cut.FindAll(".cabecera-pagina .menu-acciones-disparador").Should().ContainSingle("«Más» con la exportación de asignaciones");
+        cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty());
+        cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Should().ContainSingle("el «⋯» con las dos descargas");
+        cut.AbrirGruposDeCentros();
         cut.Markup.Should().Contain("Centro Sur");
     }
 
@@ -305,27 +372,28 @@ public class CentrosListaPatronTests : BunitContext
 
     // ------------------------------------------------- patrón único de lista
 
+    /// <summary>
+    /// Rediseño de listados, fase 1: cabecera de una línea con el contador, el ☑, el «⋯» con las dos
+    /// descargas y UNA primaria. Sin antetítulo: «Negocio» ya está en las migas.
+    /// </summary>
     [Fact]
-    public void La_cabecera_lleva_el_antetitulo_las_exportaciones_y_una_sola_primaria()
+    public async Task La_cabecera_es_de_una_linea_con_contador_seleccion_menu_y_una_sola_primaria()
     {
-        var cut = Renderizar(ConCentros(Centro("Centro Norte")));
+        var cut = Renderizar(ConCentros(Centro("Centro Norte"), Centro("Centro Sur")));
 
-        cut.Find("header.cabecera-pagina").TextContent.Should().Contain("Negocio");
-        var acciones = cut.Find(".cabecera-pagina .acciones-cabecera");
-        acciones.TextContent.Should().Contain("Exportar a Excel").And.Contain("Más").And.Contain("+ Nuevo centro");
-        acciones.TextContent.Should().NotContain("Exportar asignaciones", "es una acción extra: vive dentro de «Más»");
-        acciones.QuerySelectorAll("button.boton-primario").Should().ContainSingle("una sola acción primaria");
-    }
+        var cabecera = cut.Find("header.cabecera-pagina");
+        cabecera.QuerySelector(".cabecera-pagina-kicker").Should().BeNull();
+        cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Centros");
+        cabecera.QuerySelector(".cabecera-listado-contador")!.TextContent.Trim().Should().Be("2");
+        var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
+        acciones.QuerySelectorAll("a").Should().BeEmpty("las descargas viven dentro del «⋯»");
+        acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
+            .Should().Equal("Selección múltiple", "Más acciones", "+ Nuevo centro");
 
-    [Fact]
-    public async Task El_menu_Mas_de_la_cabecera_ofrece_Exportar_asignaciones()
-    {
-        var cut = Renderizar(ConCentros(Centro("Centro Norte")));
+        await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
-        await cut.Find(".cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-
-        cut.FindAll(".cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar asignaciones");
+        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => (i.TextContent.Trim(), i.GetAttribute("href")))
+            .Should().Equal(("Exportar a Excel", "/centros/exportar.xlsx"), ("Exportar asignaciones", "/asignaciones/exportar.xlsx"));
     }
 
     [Fact]
@@ -333,17 +401,30 @@ public class CentrosListaPatronTests : BunitContext
     {
         var cut = Renderizar(ConCentros(Centro("Centro Norte")));
 
-        cut.FindAll(".barra-filtros-lista a").Should().BeEmpty();
-        cut.FindAll(".barra-filtros-lista button").Should().BeEmpty("sin filtros activos solo hay buscador y selects");
+        var barra = cut.Find(".barra-filtros-pastillas");
+        barra.QuerySelectorAll("a").Should().BeEmpty();
+        barra.TextContent.Should().NotContain("Exportar").And.NotContain("+ Nuevo centro");
         cut.FindAll(".barra-trabajo-centros").Should().BeEmpty("la fila única de acciones ya no existe");
     }
 
     [Fact]
-    public void Los_filtros_llevan_su_etiqueta_visible_encima()
+    public void El_buscador_es_Filtrar_esta_pantalla_y_promete_lo_que_busca_la_consulta()
     {
         var cut = Renderizar(ConCentros(Centro("Centro Norte")));
 
-        cut.FindAll(".barra-filtros-lista label").Select(l => l.TextContent.Trim()).Should().Contain("Estado");
+        var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
+        buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: centro, código, Cliente empresarial o empresa",
+            "ObtenerCentrosQuery busca en los cuatro; los E2E usan este texto");
+        buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
+    }
+
+    [Fact]
+    public void Las_pastillas_primarias_son_Cliente_empresarial_y_Estado_y_Empresa_va_en_Mas_filtros()
+    {
+        var cut = Renderizar(ConDosClientes());
+
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
+            .Should().Equal("Cliente empresarial", "Estado", "Más filtros");
     }
 
     [Fact]
@@ -351,42 +432,411 @@ public class CentrosListaPatronTests : BunitContext
     {
         var cut = Renderizar(ConCentros(Centro("Centro Norte")), url: "centros?q=norte&estado=Vencido");
 
-        var chips = cut.FindAll(".barra-filtros-lista .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
+        var chips = cut.FindAll(".barra-filtros-pastillas .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
         chips.Should().HaveCount(2);
         chips.Should().Contain(c => c.Contains("norte")).And.Contain(c => c.Contains("Vencido"));
 
-        cut.FindAll(".barra-filtros-lista .chip-filtro")
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro")
             .Single(c => c.TextContent.Contains("Vencido")).QuerySelector(".chip-filtro-quitar")!.Click();
 
         var url = Services.GetRequiredService<NavigationManager>().Uri;
         url.Should().NotContain("estado=").And.Contain("q=norte");
-        cut.FindAll(".barra-filtros-lista .chip-filtro").Should().ContainSingle();
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().ContainSingle();
     }
 
     [Fact]
-    public void Limpiar_todo_quita_los_dos_filtros_de_la_url_en_una_sola_navegacion()
+    public void Limpiar_todo_quita_los_cuatro_filtros_de_la_url_en_una_sola_navegacion()
     {
-        var cut = Renderizar(ConCentros(Centro("Centro Norte")), url: "centros?q=norte&estado=Vencido");
+        var url = $"centros?q=norte&estado=Vencido&cliente={ClienteOrion}&empresa={EmpresaMontajes}";
+        var cut = Renderizar(ConDosClientes(), url: url);
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().HaveCount(4, "control positivo: los cuatro filtros llegaron de la URL");
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var navegaciones = 0;
+        navegacion.LocationChanged += (_, _) => navegaciones++;
 
         cut.Find(".limpiar-filtros-barra").Click();
 
-        var url = Services.GetRequiredService<NavigationManager>().Uri;
-        url.Should().NotContain("q=").And.NotContain("estado=");
-        cut.FindAll(".barra-filtros-lista .chip-filtro").Should().BeEmpty();
+        navegacion.Uri.Should().NotContain("q=").And.NotContain("estado=").And.NotContain("cliente=").And.NotContain("empresa=");
+        navegaciones.Should().Be(1);
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// La pastilla «Cliente empresarial» viaja en la consulta y en la URL como «cliente» —no como el
+    /// «clienteId» del alta encadenada—, y su chip dice cuál.
+    /// </summary>
+    [Fact]
+    public void La_pastilla_Cliente_empresarial_filtra_la_consulta_y_la_url()
+    {
+        var mediador = ConDosClientes();
+        var cut = Renderizar(mediador);
+
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(p => p.GetAttribute("aria-label") == "Cliente empresarial").Click();
+        cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Single(i => i.TextContent.Trim() == "Pegaso Cliente S.L.").Click();
+
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().ClienteId.Should().Be(ClientePegaso);
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain($"cliente={ClientePegaso}").And.NotContain("clienteId=");
+        cut.AbrirGruposDeCentros();
+        cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim()).Should().Equal("Planta Bilbao");
+        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Cliente empresarial: Pegaso Cliente S.L.");
+    }
+
+    /// <summary>«Empresa» vive en «Más filtros»; con ella aplicada, «Más filtros» se marca activo.</summary>
+    [Fact]
+    public void El_filtro_Empresa_de_Mas_filtros_filtra_la_consulta_y_la_url()
+    {
+        var mediador = ConDosClientes();
+        var cut = Renderizar(mediador);
+        Disparador(cut, "Más filtros").ClassList.Should().NotContain("menu-acciones-disparador-activa");
+
+        Disparador(cut, "Más filtros").Click();
+        cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Single(i => i.TextContent.Trim() == "Montajes Norte S.L.").Click();
+
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().EmpresaId.Should().Be(EmpresaMontajes);
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain($"empresa={EmpresaMontajes}");
+        cut.AbrirGruposDeCentros();
+        cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim()).Should().Equal("Almacén Vigo", "Planta Murcia");
+        Disparador(cut, "Más filtros").ClassList.Should().Contain("menu-acciones-disparador-activa");
+        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Empresa: Montajes Norte S.L.");
+    }
+
+    [Theory]
+    [InlineData("centros?empresa=no-es-un-guid", false)]
+    [InlineData("centros?empresa=cccccccc-0000-0000-0000-000000000002", true)]
+    public void Un_Id_de_empresa_de_la_url_solo_filtra_si_es_un_Id(string url, bool filtra)
+    {
+        var mediador = ConDosClientes();
+
+        Renderizar(mediador, url: url);
+
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().EmpresaId.Should().Be(filtra ? EmpresaLimpiezas : null);
+    }
+
+    private static AngleSharp.Dom.IElement Disparador(IRenderedComponent<Centros> cut, string etiqueta) =>
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(p => p.GetAttribute("aria-label") == etiqueta);
+
+    // ------------------------------------------------- revisión puente de la PR B
+
+    /// <summary>
+    /// Contraer el grupo de la fila enfocada suelta el foco: x no la marca para la baja en lote ni
+    /// Enter abre su panel, porque ya no se ve.
+    /// </summary>
+    [Fact]
+    public async Task Contraer_el_grupo_de_la_fila_enfocada_suelta_el_foco_y_x_no_la_marca()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        cut.FindAll(".grupo-lista-cabecera")[1].Click();
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
+        cut.Find(".tarjeta-fila-acordeon.fila-enfocada").TextContent.Should().Contain("Planta Bilbao", "control: la fila quedó enfocada");
+
+        cut.FindAll(".grupo-lista-cabecera")[1].Click();
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("x"));
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("Enter"));
+
+        workspace.EstaAbierto.Should().BeFalse("Enter no abre el panel de un Centro oculto");
+        cut.FindAll(".grupo-lista-cabecera")[1].Click();
+        cut.FindAll(".fila-enfocada").Should().BeEmpty("el foco se soltó al contraer");
+        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Should().OnlyContain(c => !c.HasAttribute("checked"),
+            "x sobre una fila oculta no la marca para el lote");
+    }
+
+    /// <summary>
+    /// Apagar la selección múltiple devuelve los grupos a su estado (contraídos): una fila enfocada
+    /// mientras se veían abiertos deja de verse y suelta el foco.
+    /// </summary>
+    [Fact]
+    public async Task Apagar_la_seleccion_multiple_suelta_el_foco_de_una_fila_que_deja_de_verse()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        var conmutador = "header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']";
+        cut.Find(conmutador).Click();
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
+        cut.FindAll(".fila-enfocada").Should().ContainSingle("control: hay fila enfocada con los grupos abiertos");
+
+        cut.Find(conmutador).Click();
+        cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty("control: los grupos vuelven contraídos");
+        cut.AbrirGruposDeCentros();
+
+        cut.FindAll(".fila-enfocada").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Las opciones de «Empresa» salen de las Empresas de los Centros visibles, no del selector del alta
+    /// (alcance de gestión), que para un usuario de portal va vacío aunque vea Centros con su Empresa.
+    /// </summary>
+    [Fact]
+    public void Las_opciones_de_Empresa_salen_de_los_Centros_visibles_y_no_del_selector_de_gestion()
+    {
+        var mediador = ConDosClientes();
+        mediador.EmpresasSelector.Should().BeEmpty("control: el selector de gestión no ofrece nada");
+        var cut = Renderizar(mediador);
+
+        Disparador(cut, "Más filtros").Click();
+
+        cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Select(i => i.TextContent.Trim())
+            .Should().Equal("Todas", "Montajes Norte S.L.", "Limpiezas Sur S.L.");
+        mediador.Enviadas.OfType<ObtenerEmpresasParaSelectorQuery>().Should().BeEmpty("el filtro no usa el alcance de gestión");
+    }
+
+    /// <summary>Si las opciones de «Empresa» fallan, la pastilla «Cliente empresarial» sigue ofreciendo las suyas.</summary>
+    [Fact]
+    public void Un_fallo_en_las_opciones_de_Empresa_no_vacia_las_de_Cliente_empresarial()
+    {
+        var mediador = ConDosClientes();
+        mediador.FallarEmpresasDeCentros = true;
+        var cut = Renderizar(mediador);
+
+        Disparador(cut, "Cliente empresarial").Click();
+
+        cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Select(i => i.TextContent.Trim())
+            .Should().Contain("Orion Cliente S.L.").And.Contain("Pegaso Cliente S.L.");
+        cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(3, "la lista se pinta igual");
+    }
+
+    /// <summary>
+    /// Con un filtro llegado por la URL, su chip no dice «—» (que no existe) mientras las opciones aún
+    /// no han llegado: dice «…», y el nombre en cuanto llegan.
+    /// </summary>
+    [Fact]
+    public void El_chip_de_un_filtro_de_la_url_no_dice_que_no_existe_mientras_cargan_las_opciones()
+    {
+        var mediador = ConDosClientes();
+        var retener = new TaskCompletionSource();
+        mediador.RetenerEmpresasDeCentros = retener.Task;
+        var cut = RenderizarConGruposContraidos(mediador, url: $"centros?empresa={EmpresaMontajes}");
+
+        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Empresa: …");
+
+        cut.InvokeAsync(() => retener.SetResult());
+
+        cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Empresa: Montajes Norte S.L."));
     }
 
     [Fact]
-    public void La_barra_de_herramientas_lleva_seleccion_multiple_expandir_todos_y_el_recuento_en_ese_orden()
+    public void Un_Id_de_la_url_que_no_esta_entre_las_opciones_cargadas_sale_como_raya()
     {
-        var cut = Renderizar(ConCentros(Centro("Centro Norte"), Centro("Centro Sur")), url: "centros?estado=Vencido");
+        var cut = Renderizar(ConDosClientes(), url: $"centros?empresa={Guid.NewGuid()}");
 
-        var texto = cut.Find(".barra-herramientas-lista").TextContent;
-        var seleccion = texto.IndexOf("Selección múltiple", StringComparison.Ordinal);
-        var expandir = texto.IndexOf("Expandir todos", StringComparison.Ordinal);
-        var recuento = texto.IndexOf("2 centros con estos filtros", StringComparison.Ordinal);
-        seleccion.Should().BeGreaterThanOrEqualTo(0);
-        expandir.Should().BeGreaterThan(seleccion);
-        recuento.Should().BeGreaterThan(expandir);
+        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Empresa: —");
+    }
+
+    /// <summary>
+    /// Pegaso (al día) aparece antes que Orion (con un vencido) en lo que devuelve la consulta: así se
+    /// distingue el orden de grupos por peor estado del orden de primera aparición.
+    /// </summary>
+    private static Mediador ConPegasoPrimero()
+    {
+        var mediador = ConCentros(
+            CentroDe("Planta Bilbao", ClientePegaso, EmpresaLimpiezas),
+            CentroDe("Almacén Vigo", ClienteOrion, EmpresaMontajes, EstadoCentro.Vencido));
+        mediador.ClientesSelector.AddRange([new(ClienteOrion, "Orion Cliente S.L."), new(ClientePegaso, "Pegaso Cliente S.L.")]);
+        return mediador;
+    }
+
+    private static IEnumerable<string> NombresDeGrupo(IRenderedComponent<Centros> cut) =>
+        cut.FindAll(".grupo-lista-nombre").Select(n => n.TextContent.Trim());
+
+    /// <summary>Con el orden de serie los grupos salen del peor estado al mejor, como en la maqueta.</summary>
+    [Fact]
+    public void Con_el_orden_de_serie_los_grupos_van_del_peor_estado_al_mejor()
+    {
+        var cut = RenderizarConGruposContraidos(ConPegasoPrimero());
+
+        NombresDeGrupo(cut).Should().Equal("Orion Cliente S.L.", "Pegaso Cliente S.L.");
+    }
+
+    /// <summary>
+    /// Ordenar por cumplimiento sigue agrupando (orden y agrupación conviven, como en la maqueta), pero los
+    /// grupos salen en el orden de su primera fila: el orden pedido no se contradice.
+    /// </summary>
+    [Fact]
+    public void Ordenar_por_cumplimiento_sigue_agrupando_y_los_grupos_siguen_el_orden_pedido()
+    {
+        var mediador = ConPegasoPrimero();
+        var cut = RenderizarConGruposContraidos(mediador);
+
+        cut.FindAll(".barra-filtros-pastillas button").Single(b => b.TextContent.Trim().StartsWith("Cumplimiento", StringComparison.Ordinal)).Click();
+
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().OrdenarPor.Should().Be(nameof(CentroListaDto.CumplimientoPorcentaje));
+        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Por Cliente empresarial");
+        NombresDeGrupo(cut).Should().Equal("Pegaso Cliente S.L.", "Orion Cliente S.L.");
+    }
+
+    [Fact]
+    public void La_flecha_del_orden_no_entra_en_el_nombre_accesible()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+        cut.FindAll(".barra-filtros-pastillas button").Single(b => b.TextContent.Trim().StartsWith("Cumplimiento", StringComparison.Ordinal)).Click();
+
+        var boton = cut.FindAll(".barra-filtros-pastillas button").Single(b => b.TextContent.Trim().StartsWith("Cumplimiento", StringComparison.Ordinal));
+        boton.QuerySelector("span[aria-hidden=true]")!.TextContent.Should().Be("↑");
+    }
+
+    /// <summary>
+    /// x activa la selección múltiple (como en la maqueta): la fila marcada queda a la vista con su casilla y
+    /// los grupos no se pueden contraer mientras haya algo marcado, así que el lote no lleva Centros ocultos.
+    /// </summary>
+    [Fact]
+    public async Task X_activa_la_seleccion_multiple_y_lo_marcado_no_se_puede_esconder()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        cut.FindAll(".grupo-lista-cabecera")[1].Click();
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
+
+        await cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("x"));
+
+        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").GetAttribute("aria-pressed").Should().Be("true");
+        cut.FindAll("button.grupo-lista-cabecera").Should().BeEmpty("con algo marcado los grupos no se contraen");
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Should().HaveCount(3);
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().ContainSingle();
+    }
+
+    /// <summary>Con más de una página, los recuentos de grupo se rotulan como de esta página.</summary>
+    [Theory]
+    [InlineData(20, false)]
+    [InlineData(21, true)]
+    public void Con_mas_de_una_pagina_avisa_de_que_los_grupos_son_de_esta_pagina(int centros, bool conNota)
+    {
+        var cut = RenderizarConGruposContraidos(ConCentros(Enumerable.Range(1, centros).Select(i => Centro($"Centro {i:00}")).ToArray()));
+
+        cut.FindAll(".nota-grupos-pagina").Any().Should().Be(conNota);
+        cut.Find(".grupo-lista-contador").GetAttribute("title").Should().EndWith("en esta página");
+    }
+
+    // ------------------------------------------------- agrupación por Cliente empresarial
+
+    /// <summary>
+    /// De serie, agrupada por Cliente empresarial y con los grupos contraídos: una cabecera por grupo
+    /// con su contador y el resumen de la página, tintada con el peor estado del grupo.
+    /// </summary>
+    [Fact]
+    public void De_serie_agrupa_por_Cliente_empresarial_con_los_grupos_contraidos_y_su_resumen()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+
+        var grupos = cut.FindAll(".grupo-lista");
+        grupos.Select(g => g.QuerySelector(".grupo-lista-nombre")!.TextContent.Trim()).Should().Equal("Orion Cliente S.L.", "Pegaso Cliente S.L.");
+        grupos.Select(g => g.QuerySelector(".grupo-lista-contador")!.TextContent.Trim()).Should().Equal("2", "1");
+        grupos.Select(g => g.QuerySelector(".grupo-lista-cabecera")!.GetAttribute("aria-expanded")).Should().Equal("false", "false");
+        grupos[0].QuerySelector(".grupo-lista-resumen")!.TextContent.Should().Contain("1 con problema").And.Contain("1 por vencer");
+        grupos[0].ClassList.Should().Contain("fila-tintada-peligro", "el peor de Orion está vencido");
+        grupos[1].ClassList.Should().NotContain("fila-tintada-peligro").And.NotContain("fila-tintada-aviso");
+        cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty("los grupos contraídos no enseñan sus Centros");
+        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Por Cliente empresarial");
+    }
+
+    [Fact]
+    public void Abrir_un_grupo_muestra_solo_sus_Centros()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+
+        cut.FindAll(".grupo-lista-cabecera")[1].Click();
+
+        cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim()).Should().Equal("Planta Bilbao");
+        cut.FindAll(".grupo-lista-cabecera")[1].GetAttribute("aria-expanded").Should().Be("true");
+    }
+
+    /// <summary>
+    /// Con búsqueda los grupos se ven abiertos y su cabecera no puede contraerlos: no se pinta como
+    /// botón (antes era un botón con aria-expanded que, pulsado, no hacía nada).
+    /// </summary>
+    [Fact]
+    public void Con_busqueda_los_grupos_se_ven_abiertos_y_su_cabecera_no_es_un_boton()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes(), url: "centros?q=planta");
+
+        cut.FindAll(".grupo-lista-cabecera").Should().HaveCount(2);
+        cut.FindAll("button.grupo-lista-cabecera").Should().BeEmpty();
+        cut.FindAll(".grupo-lista-cabecera[aria-expanded]").Should().BeEmpty();
+        cut.FindAll(".grupo-lista-cabecera-fija").Should().HaveCount(2);
+        cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(3);
+    }
+
+    [Fact]
+    public void Sin_nada_que_los_fuerce_la_cabecera_de_grupo_es_un_boton()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+
+        cut.FindAll("button.grupo-lista-cabecera[aria-expanded]").Should().HaveCount(2, "control positivo del caso forzado");
+        cut.FindAll(".grupo-lista-cabecera-fija").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Sin_agrupar_pinta_todas_las_filas_sin_cabeceras_de_grupo()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+
+        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Sin agrupar").Click();
+
+        cut.FindAll(".grupo-lista").Should().BeEmpty();
+        cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim())
+            .Should().Equal("Almacén Vigo", "Planta Murcia", "Planta Bilbao");
+    }
+
+    /// <summary>«Expandir todo» abre los grupos y el desplegable de cada fila; «Contraer todo» lo cierra todo.</summary>
+    [Fact]
+    public void Expandir_todo_abre_grupos_y_filas_y_Contraer_todo_lo_cierra()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+
+        cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button").Click();
+
+        cut.FindAll(".grupo-lista-cabecera").Select(c => c.GetAttribute("aria-expanded")).Should().AllBe("true");
+        cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("true", "true", "true");
+        cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button").TextContent.Trim().Should().Be("Contraer todo");
+
+        cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button").Click();
+
+        cut.FindAll(".grupo-lista-cabecera").Select(c => c.GetAttribute("aria-expanded")).Should().AllBe("false");
+        cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Con la selección múltiple activa los grupos se ven abiertos: «Seleccionar los de esta página»
+    /// y la barra de lote actúan sobre filas que el usuario ve, nunca sobre filas escondidas.
+    /// </summary>
+    [Fact]
+    public void Con_seleccion_multiple_los_grupos_se_ven_abiertos()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+
+        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+
+        cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Should().HaveCount(3);
+    }
+
+    /// <summary>Filas con problema: vencido, falta documentación o bloqueo → peligro; urgente → aviso; el resto, sin tinte.</summary>
+    [Theory]
+    [InlineData(EstadoCentro.Vencido, "fila-tintada-peligro")]
+    [InlineData(EstadoCentro.Faltante, "fila-tintada-peligro")]
+    [InlineData(EstadoCentro.Bloqueado, "fila-tintada-peligro")]
+    [InlineData(EstadoCentro.Urgente, "fila-tintada-aviso")]
+    [InlineData(EstadoCentro.Proximo, null)]
+    [InlineData(EstadoCentro.Vigente, null)]
+    public void Las_filas_con_problema_van_tintadas_por_su_estado(EstadoCentro estado, string? tinte)
+    {
+        var cut = Renderizar(ConCentros(Centro("Centro Norte", estado)));
+
+        var clases = cut.Find(".tarjeta-fila-acordeon").ClassList;
+        clases.Where(c => c.StartsWith("fila-tintada-", StringComparison.Ordinal)).Should().Equal(tinte is null ? [] : [tinte]);
+    }
+
+    /// <summary>j/k recorren las filas que se ven, en el orden en que se pintan: un grupo contraído no cuenta.</summary>
+    [Fact]
+    public void J_recorre_solo_las_filas_visibles()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+        cut.FindAll(".grupo-lista-cabecera")[1].Click();
+
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        cut.InvokeAsync(() => atajos.Instance.RecibirAtajo("j"));
+
+        cut.Find(".tarjeta-fila-acordeon.fila-enfocada").TextContent.Should().Contain("Planta Bilbao");
     }
 
     [Fact]
@@ -454,10 +904,20 @@ public class CentrosListaPatronTests : BunitContext
         workspace.EstaAbierto.Should().BeTrue();
     }
 
+    [Theory]
+    [InlineData(20, false)]
+    [InlineData(21, true)]
+    public void El_paginador_solo_aparece_con_mas_de_una_pagina(int centros, bool conPaginador)
+    {
+        var cut = Renderizar(ConCentros(Enumerable.Range(1, centros).Select(i => Centro($"Centro {i:00}")).ToArray()));
+
+        cut.FindAll(".paginador").Any().Should().Be(conPaginador);
+    }
+
     [Fact]
     public void El_paginador_ofrece_Mostrar_N_y_cambiarlo_vuelve_a_pedir_con_ese_tamano()
     {
-        var mediador = ConCentros(Centro("Centro Norte"));
+        var mediador = ConCentros(Enumerable.Range(1, 21).Select(i => Centro($"Centro {i:00}")).ToArray());
         var cut = Renderizar(mediador);
 
         cut.Find(".paginador-tamano-select").Change("50");

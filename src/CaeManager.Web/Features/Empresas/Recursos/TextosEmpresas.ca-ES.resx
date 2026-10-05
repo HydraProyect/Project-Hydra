@@ -273,4 +273,16 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Les empreses es mostren d'una en una. Tria'n una a la barra lateral.</value>
   </data>
+  <data name="ListaExportarExcel" xml:space="preserve">
+    <value>Exporta a Excel</value>
+  </data>
+  <data name="ListaFiltrarPlaceholder" xml:space="preserve">
+    <value>Filtra aquesta pantalla: raó social o CIF</value>
+  </data>
+  <data name="ListaFiltroDocumentacion" xml:space="preserve">
+    <value>Documentació</value>
+  </data>
+  <data name="ListaFiltroTodas" xml:space="preserve">
+    <value>Totes</value>
+  </data>
 </root>

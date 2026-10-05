@@ -55,10 +55,12 @@ public class ObtenerEmpresasQueryHandler(
         if (empresaIdsVisibles is not null)
             consulta = consulta.Where(e => empresaIdsVisibles.Contains(e.Id));
 
+        // Razón social o CIF, como ObtenerSubcontratasQuery: el buscador de la lista promete los dos.
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
             var busqueda = request.Busqueda.ToUpper();
-            consulta = consulta.Where(e => e.RazonSocial.ToUpper().Contains(busqueda));
+            consulta = consulta.Where(e => e.RazonSocial.ToUpper().Contains(busqueda)
+                || (e.Cif != null && e.Cif.ToUpper().Contains(busqueda)));
         }
 
         // Filtrar u ordenar por el estado documental obliga a conocer, de cada

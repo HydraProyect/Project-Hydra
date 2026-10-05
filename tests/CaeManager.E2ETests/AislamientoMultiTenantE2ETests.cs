@@ -62,7 +62,7 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
 
             // Confirmación en el propio tenant A: la Empresa recién creada es visible.
             // Acotado a la lista — ver nota de más abajo sobre el chip de búsqueda.
-            await paginaA.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialEmpresa);
+            await paginaA.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresa);
             await paginaA.Locator(".lista-filas-acordeon").GetByText(razonSocialEmpresa).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         }
 
@@ -72,7 +72,7 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
         await Ayudas.IniciarSesionAsync(paginaB, fixture.BaseUrl, EmailAdministradorSegundoTenant, ContrasenaAdministradorSegundoTenant);
 
         await Ayudas.NavegarYEsperarAsync(paginaB, $"{fixture.BaseUrl}/empresas");
-        await paginaB.GetByPlaceholder("Buscar por razón social…").FillAsync(razonSocialEmpresa);
+        await paginaB.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresa);
 
         // Se espera explícitamente a que la búsqueda termine de aplicarse (debounce de
         // CampoTexto) y se comprueba que la fila de la Empresa del tenant A no aparece —

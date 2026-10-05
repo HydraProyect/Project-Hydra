@@ -240,4 +240,70 @@
   <data name="MotivoBloqueoCaduca" xml:space="preserve">
     <value>{0} — caduca {1}</value>
   </data>
+  <data name="ListaExportarExcel" xml:space="preserve">
+    <value>Exporta a Excel</value>
+  </data>
+  <data name="ListaFiltrarPlaceholder" xml:space="preserve">
+    <value>Filtra aquesta pantalla: centre, codi, Client empresarial o empresa</value>
+  </data>
+  <data name="FiltroClienteEmpresarial" xml:space="preserve">
+    <value>Client empresarial</value>
+  </data>
+  <data name="FiltroEstado" xml:space="preserve">
+    <value>Estat</value>
+  </data>
+  <data name="FiltroEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
+  <data name="FiltroTodos" xml:space="preserve">
+    <value>Tots</value>
+  </data>
+  <data name="FiltroTodas" xml:space="preserve">
+    <value>Totes</value>
+  </data>
+  <data name="ChipClienteEmpresarial" xml:space="preserve">
+    <value>Client empresarial: {0}</value>
+  </data>
+  <data name="ChipEmpresa" xml:space="preserve">
+    <value>Empresa: {0}</value>
+  </data>
+  <data name="QuitarFiltroClienteEmpresarial" xml:space="preserve">
+    <value>Treu el filtre de Client empresarial</value>
+  </data>
+  <data name="QuitarFiltroEmpresa" xml:space="preserve">
+    <value>Treu el filtre d'empresa</value>
+  </data>
+  <data name="AgruparEtiqueta" xml:space="preserve">
+    <value>Agrupa</value>
+  </data>
+  <data name="AgruparNo" xml:space="preserve">
+    <value>Sense agrupar</value>
+  </data>
+  <data name="AgruparPorCliente" xml:space="preserve">
+    <value>Per Client empresarial</value>
+  </data>
+  <data name="OrdenCumplimiento" xml:space="preserve">
+    <value>Compliment</value>
+  </data>
+  <data name="GrupoConProblema" xml:space="preserve">
+    <value>{0} amb problema</value>
+  </data>
+  <data name="GrupoPorVencer" xml:space="preserve">
+    <value>{0} per vèncer</value>
+  </data>
+  <data name="GrupoNotaEstaPagina" xml:space="preserve">
+    <value>Grups d'aquesta pàgina: els recomptes de cada grup només compten els centres que es veuen aquí.</value>
+  </data>
+  <data name="GrupoContadorTitulo" xml:space="preserve">
+    <value>{0} centre(s) en aquesta pàgina</value>
+  </data>
+  <data name="VacioFiltrosTitulo" xml:space="preserve">
+    <value>Cap centre amb aquests filtres</value>
+  </data>
+  <data name="VacioFiltrosDescripcion" xml:space="preserve">
+    <value>Cap no coincideix amb la cerca ni amb els filtres seleccionats.</value>
+  </data>
+  <data name="VacioFiltrosQuitar" xml:space="preserve">
+    <value>Treu els filtres</value>
+  </data>
 </root>

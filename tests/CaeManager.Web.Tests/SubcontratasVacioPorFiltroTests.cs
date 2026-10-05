@@ -33,10 +33,9 @@ namespace CaeManager.Web.Tests;
 /// Un trinquete de texto da la alarma, no la garantía.
 ///
 /// <para>
-/// Subcontratas es la más simple de las cuatro: un único filtro, el buscador.
-/// Por eso su copia dice «con esta búsqueda» y no «con estos filtros», y el
-/// botón «Quitar la búsqueda» y no «Quitar los filtros» — comprobarlo importa,
-/// porque el patrón se copió de una pantalla con cuatro.
+/// Subcontratas tiene dos filtros: el buscador y, desde el rediseño de listados
+/// (fase 1), la pastilla «Nivel de servicio». Por eso su copia dice «con estos
+/// filtros» y el botón «Quitar los filtros», que limpia los dos a la vez.
 /// </para>
 /// </summary>
 public class SubcontratasVacioPorFiltroTests : BunitContext
@@ -125,25 +124,25 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Aislamientos Nervión");
 
-        cut.Markup.Should().Contain("Ninguna subcontrata con esta búsqueda");
-        cut.Markup.Should().Contain("Quitar la búsqueda");
+        cut.Markup.Should().Contain("Ninguna subcontrata con estos filtros");
+        cut.Find(".estado-vacio button").TextContent.Trim().Should().Be("Quitar los filtros");
         cut.Markup.Should().NotContain("Aún no hay subcontratas",
             "mandar a crear a quien acaba de buscar termina en una subcontrata duplicada");
     }
 
     /// <summary>
-    /// Un único filtro, así que la copia habla en singular. El patrón vino de
-    /// pantallas con cuatro, y decir «filtros» donde solo hay un buscador manda
-    /// a buscar filtros que no existen.
+    /// Dos filtros (buscador y nivel de servicio), así que la copia habla en plural
+    /// y nombra los dos: decir «búsqueda» a quien filtró por nivel le manda a
+    /// buscar un texto que no escribió.
     /// </summary>
     [Fact]
-    public void La_copia_habla_de_la_busqueda_porque_es_el_unico_filtro_que_hay()
+    public void La_copia_habla_de_filtros_porque_hay_buscador_y_nivel_de_servicio()
     {
         var cut = Renderizar(busqueda: "Aislamientos Nervión");
 
-        cut.Markup.Should().Contain("Ninguna subcontrata con esta búsqueda", "es la barrera de este caso");
-        cut.Markup.Should().NotContain("con estos filtros");
-        cut.Markup.Should().NotContain("Quitar los filtros");
+        cut.Markup.Should().Contain("Ninguna subcontrata con estos filtros", "es la barrera de este caso");
+        cut.Find(".estado-vacio").TextContent.Should().Contain("nivel de servicio");
+        cut.Markup.Should().NotContain("con esta búsqueda");
     }
 
     [Fact]
@@ -153,7 +152,7 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
 
         cut.Markup.Should().Contain("Aún no hay subcontratas");
         cut.Markup.Should().Contain("Crea la primera para poder dar de alta a sus trabajadores.");
-        cut.Markup.Should().NotContain("Ninguna subcontrata con esta búsqueda");
+        cut.Markup.Should().NotContain("Ninguna subcontrata con estos filtros");
     }
 
     /// <summary>
@@ -166,7 +165,7 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Aislamientos Nervión");
 
-        cut.Markup.Should().Contain("Ninguna subcontrata con esta búsqueda");
+        cut.Markup.Should().Contain("Ninguna subcontrata con estos filtros");
         cut.Markup.Should().NotContain("Hay subcontratas dadas de alta");
     }
 
@@ -174,11 +173,11 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
     public void Quitar_la_busqueda_devuelve_al_estado_sin_filtrar()
     {
         var cut = Renderizar(busqueda: "Aislamientos Nervión");
-        cut.Markup.Should().Contain("Ninguna subcontrata con esta búsqueda", "es el punto de partida de este caso");
+        cut.Markup.Should().Contain("Ninguna subcontrata con estos filtros", "es el punto de partida de este caso");
 
         cut.Find(".estado-vacio button").Click();
 
-        cut.Markup.Should().NotContain("Ninguna subcontrata con esta búsqueda");
+        cut.Markup.Should().NotContain("Ninguna subcontrata con estos filtros");
         cut.Markup.Should().Contain("Aún no hay subcontratas");
     }
 
@@ -187,7 +186,7 @@ public class SubcontratasVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Nervión", Subcontrata("Aislamientos Nervión S.L."));
 
-        cut.Markup.Should().NotContain("Ninguna subcontrata con esta búsqueda");
+        cut.Markup.Should().NotContain("Ninguna subcontrata con estos filtros");
         cut.Markup.Should().NotContain("Aún no hay subcontratas");
         cut.Markup.Should().Contain("Aislamientos Nervión S.L.");
     }

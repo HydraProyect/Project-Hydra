@@ -93,7 +93,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
 
         // --- Documento vigente con archivo, subido desde /centros ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        var buscadorCentros = page.GetByPlaceholder("Buscar centro, Cliente empresarial o empresa…");
+        var buscadorCentros = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente empresarial o empresa");
         await buscadorCentros.FillAsync(nombreCentro);
         var botonExpandir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}" });
         await botonExpandir.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });

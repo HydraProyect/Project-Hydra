@@ -142,6 +142,15 @@ public class ContrasteDeComponentesPorTemaTests
         new("Pastilla de filtro aplicada", "Components/DesignSystem/MenuAcciones.razor.css", [".menu-acciones-disparador-activa"]),
         new("Conmutador de selección múltiple activo", ListPage, [".cabecera-listado-icono-activo"]),
         new("Contador junto al título del listado", ListPage, [".cabecera-listado-contador"]),
+        new("Fila de acordeón tintada de peligro", ListPage, [".tarjeta-fila-acordeon.fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera"]),
+        new("Fila de acordeón tintada de aviso", ListPage, [".tarjeta-fila-acordeon.fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera"]),
+        new("Cabecera de grupo del listado", ListPage, [".grupo-lista-cabecera"]),
+        new("Contador de la cabecera de grupo", ListPage, [".grupo-lista-contador"], FondoSiFalta: "var(--color-surface-subtle)"),
+        new("Cabecera de grupo tintada de peligro", ListPage, [".grupo-lista.fila-tintada-peligro > .grupo-lista-cabecera"]),
+        new("Cabecera de grupo tintada de aviso", ListPage, [".grupo-lista.fila-tintada-aviso > .grupo-lista-cabecera"]),
+        new("Opción del control segmentado", ListPage, [".segmentado-lista-opcion"]),
+        new("Opción vigente del control segmentado", ListPage,
+            [".segmentado-lista-opcion", ".segmentado-lista-opcion[aria-pressed=\"true\"]"]),
 
         // ---- Enlaces ----
         new("Enlace sobre superficie", "wwwroot/css/base.css", ["a"], FondoSiFalta: "var(--color-surface)"),

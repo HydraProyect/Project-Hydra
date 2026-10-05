@@ -6,7 +6,6 @@ using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Application.Common;
-using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Domain.Documentos;
@@ -32,9 +31,13 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     // Igual que Centros.razor.cs (Centro 360): QuickGrid no soporta filas
     // expandibles, así que la paginación se gestiona a mano — la Query sigue
     // paginando en servidor, solo cambia el control visual.
-    private int _tamanoPagina = 20;
+    private const int TamanoPaginaMinimo = 20;
+    private int _tamanoPagina = TamanoPaginaMinimo;
 
     private string _busqueda = string.Empty;
+
+    /// <summary>Filtro «Nivel de servicio»: nombre del enum (Gestionada / Supervisada) o vacío. Viaja en la URL como <c>nivel</c>.</summary>
+    private string _nivelFiltro = string.Empty;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -107,11 +110,11 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    [SupplyParameterFromQuery(Name = "nivel")]
+    public string? NivelInicial { get; set; }
+
     /// <summary>Comando del palette "Crear subcontrata": /subcontratas?accion=crear abre el modal directamente — mismo patrón que Clientes/Empresas/Centros/Trabajadores/Documentos.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
-
-    /// <summary>La empresa gestionada activa, solo para quien ve el selector de la barra lateral.</summary>
-    private ClienteAutorizadoDto? _empresaActiva;
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -137,13 +140,13 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     protected override async Task OnInitializedAsync()
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
+        _nivelFiltro = NivelDesdeUrl();
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
         try
         {
             var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
-            _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
         finally
@@ -172,12 +175,25 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             return;
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        if (deLaUrl == _busqueda)
+        var nivelDeLaUrl = NivelDesdeUrl();
+        if (deLaUrl == _busqueda && nivelDeLaUrl == _nivelFiltro)
             return;
 
         _busqueda = deLaUrl;
+        _nivelFiltro = nivelDeLaUrl;
         await CargarAsync(resetPagina: true);
     }
+
+    /// <summary>
+    /// El nivel de la URL solo se acepta si es uno del enum: la coordenada viene de fuera y no
+    /// es autoridad sobre lo que existe. Uno desconocido se ignora (sin filtro), en vez de
+    /// filtrar por algo que ninguna subcontrata puede tener.
+    /// </summary>
+    private string NivelDesdeUrl() =>
+        Enum.GetNames<NivelServicioSubcontrata>().Contains(NivelInicial) ? NivelInicial! : string.Empty;
+
+    private NivelServicioSubcontrata? NivelSeleccionado =>
+        Enum.TryParse<NivelServicioSubcontrata>(_nivelFiltro, out var nivel) ? nivel : null;
 
     private async Task CargarAsync(bool resetPagina = false)
     {
@@ -193,7 +209,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             var resultado = await Mediator.Send(new ObtenerSubcontratasQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 Pagina: _pagina,
-                TamanoPagina: _tamanoPagina));
+                TamanoPagina: _tamanoPagina,
+                NivelServicio: NivelSeleccionado));
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
@@ -256,15 +273,40 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         await CargarAsync(resetPagina: true);
     }
 
-    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_busqueda);
+    private async Task CambiarNivelAsync(string valor)
+    {
+        _nivelFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("nivel", valor);
+        await CargarAsync(resetPagina: true);
+    }
+
+    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_nivelFiltro);
+
+    private IReadOnlyList<OpcionEstado> OpcionesNivel =>
+    [
+        new(nameof(NivelServicioSubcontrata.Gestionada), EstadoSupervisionUi.TextoNivel(Textos, NivelServicioSubcontrata.Gestionada)),
+        new(nameof(NivelServicioSubcontrata.Supervisada), EstadoSupervisionUi.TextoNivel(Textos, NivelServicioSubcontrata.Supervisada)),
+    ];
+
+    private string TextoNivelFiltro => OpcionesNivel.FirstOrDefault(o => o.Valor == _nivelFiltro)?.Texto ?? _nivelFiltro;
+
+    private bool MostrarPaginador =>
+        _totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _tamanoPagina > TamanoPaginaMinimo);
 
     /// <summary>
-    /// Limpia la búsqueda en memoria Y en la URL: el filtro vuelve por
-    /// <see cref="OnParametersSetAsync"/> desde <c>?q=</c>, así que limpiar
-    /// solo el campo dejaría que la siguiente pasada de parámetros lo
-    /// repusiera. <see cref="BuscarAsync"/> ya hace las dos cosas.
+    /// Limpia la búsqueda y el nivel en memoria Y en la URL, con UNA navegación y UNA consulta:
+    /// los filtros vuelven por <see cref="OnParametersSetAsync"/> desde <c>?q=</c> y
+    /// <c>?nivel=</c>, así que limpiar solo los campos dejaría que la siguiente pasada de
+    /// parámetros los repusiera, y escribir la URL en dos pasos dejaría entre ellos una URL con
+    /// uno de los dos todavía puesto.
     /// </summary>
-    private Task LimpiarFiltrosAsync() => BuscarAsync(string.Empty);
+    private async Task LimpiarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _nivelFiltro = string.Empty;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["nivel"] = null });
+        await CargarAsync(resetPagina: true);
+    }
 
     /// <summary>
     /// «N de M» de la barra de herramientas. M es el total que devuelve la
@@ -283,10 +325,20 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private string ClaseRejilla(string claseBase) =>
         $"{claseBase} rejilla-subcontratas" + (_seleccionMultiple ? " rejilla-subcontratas-seleccion" : string.Empty);
 
-    private string ClaseTarjeta(Guid id) =>
+    private string ClaseTarjeta(SubcontrataListaDto subcontrata) =>
         "tarjeta-fila-acordeon"
-        + (id == _idEnfocado ? " fila-enfocada" : string.Empty)
-        + (_previewVisible && id == _previewSubcontrataId ? " fila-en-vista-previa" : string.Empty);
+        + (subcontrata.Id == _idEnfocado ? " fila-enfocada" : string.Empty)
+        + (_previewVisible && subcontrata.Id == _previewSubcontrataId ? " fila-en-vista-previa" : string.Empty)
+        + ClaseTinte(subcontrata.Recuentos);
+
+    /// <summary>
+    /// Fila con problema (rediseño de listados, fase 1): algún documento vencido → tinte de
+    /// peligro; si no, alguno urgente → de aviso; el resto, sin tinte.
+    /// </summary>
+    private static string ClaseTinte(RecuentosSubcontrataDto recuentos) =>
+        recuentos.TotalVencidas > 0 ? " fila-tintada-peligro"
+        : recuentos.Proximas.Any(p => p.Estado == EstadoDocumento.Urgente) ? " fila-tintada-aviso"
+        : string.Empty;
 
     private void AbrirPreview(Guid id)
     {

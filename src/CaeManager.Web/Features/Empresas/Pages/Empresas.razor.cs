@@ -6,7 +6,6 @@ using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Common;
-using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Documentos;
@@ -29,7 +28,8 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     // § 0.11 — migra /empresas al mismo patrón de Centros.razor § 0.1): cada
     // Empresa es una tarjeta con acordeón de Centros con actividad, así que
     // la paginación se gestiona a mano en vez de con QuickGrid+Paginator.
-    private int _tamanoPagina = 20;
+    private const int TamanoPaginaMinimo = 20;
+    private int _tamanoPagina = TamanoPaginaMinimo;
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
@@ -149,9 +149,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
-    /// <summary>La empresa gestionada activa, solo para quien ve el selector de la barra lateral.</summary>
-    private ClienteAutorizadoDto? _empresaActiva;
-
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
 
@@ -199,7 +196,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         try
         {
             var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
-            _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
         finally
@@ -436,10 +432,25 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// se marca, para no perder de vista a qué fila corresponde el panel de la
     /// derecha.
     /// </summary>
-    private string ClaseTarjeta(Guid id) =>
+    private string ClaseTarjeta(EmpresaListaDto empresa) =>
         "tarjeta-fila-acordeon"
-        + (id == _idEnfocado ? " fila-enfocada" : string.Empty)
-        + (id == EmpresaEnVistaPrevia ? " fila-empresa-en-vista-previa" : string.Empty);
+        + (empresa.Id == _idEnfocado ? " fila-enfocada" : string.Empty)
+        + (empresa.Id == EmpresaEnVistaPrevia ? " fila-empresa-en-vista-previa" : string.Empty)
+        + ClaseTinte(empresa.EstadoDocumental);
+
+    /// <summary>
+    /// Fila con problema (rediseño de listados, fase 1): falta o vence un documento → tinte de
+    /// peligro; urgente → de aviso. Mismo criterio que la lista de Clientes empresariales.
+    /// </summary>
+    private static string ClaseTinte(EstadoDocumento? estado) => estado switch
+    {
+        EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
+        EstadoDocumento.Urgente => " fila-tintada-aviso",
+        _ => string.Empty
+    };
+
+    private bool MostrarPaginador =>
+        _totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _tamanoPagina > TamanoPaginaMinimo);
 
     /// <summary>
     /// Nombre accesible del anillo. Antes se interpolaba el porcentaje sin

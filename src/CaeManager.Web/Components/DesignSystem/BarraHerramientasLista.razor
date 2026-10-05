@@ -1,7 +1,7 @@
 @*
     Barra de herramientas de lista (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.9) —
-    va bajo la barra de filtros y aloja los controles que actúan sobre la
-    lista entera, no sobre el dato que se busca.
+    aloja los controles que actúan sobre la lista entera, no sobre el dato que
+    se busca.
 
     Hoy solo dos, y por eso es un componente compartido y no markup repetido
     en cada página: son 9 listas y la regla del propio plan es que los
@@ -11,23 +11,32 @@
       visibles (ruido permanente para una acción ocasional) y aparecen solo
       al activarlo. Apagarlo limpia la selección — dejar filas marcadas que
       ya no se ven sería una trampa: la barra de acciones en lote seguiría
-      apuntando a ellas.
-    - Expandir/Colapsar todos: solo para las listas con acordeón (hoy
-      Centros; Empresas tras el Lote 0-I). Se omite si no se pasa
+      apuntando a ellas. Se omite si no se pasa SeleccionMultipleChanged: las
+      listas del rediseño de listados (fase 1) lo llevan como icono ☑ en
+      CabeceraListado.
+    - «Expandir todo / Contraer todo»: solo para las listas con acordeón o
+      grupos (Empresas, Subcontratas, Centros). Se omite si no se pasa
       OnAlternarTodos.
 *@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
 <div class="barra-herramientas-lista">
-    <Boton Variante="@(SeleccionMultiple ? VarianteBoton.Secundario : VarianteBoton.Fantasma)"
-           Tamano="TamanoBoton.Pequeno"
-           OnClick="AlternarSeleccionMultipleAsync"
-           aria-pressed="@(SeleccionMultiple ? "true" : "false")">
-        Selección múltiple
-    </Boton>
+    @if (SeleccionMultipleChanged.HasDelegate)
+    {
+        <Boton Variante="@(SeleccionMultiple ? VarianteBoton.Secundario : VarianteBoton.Fantasma)"
+               Tamano="TamanoBoton.Pequeno"
+               OnClick="AlternarSeleccionMultipleAsync"
+               aria-pressed="@(SeleccionMultiple ? "true" : "false")">
+            Selección múltiple
+        </Boton>
+    }
 
     @if (OnAlternarTodos.HasDelegate)
     {
-        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => OnAlternarTodos.InvokeAsync(!TodosExpandidos)">
-            @(TodosExpandidos ? "Colapsar todos" : "Expandir todos")
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => OnAlternarTodos.InvokeAsync(!TodosExpandidos)">
+            @(TodosExpandidos ? Comunes["ContraerTodo"] : Comunes["ExpandirTodo"])
         </Boton>
     }
 
@@ -39,9 +48,11 @@
 
 @code {
     [Parameter] public bool SeleccionMultiple { get; set; }
+
+    /// <summary>Sin delegado no se pinta el botón «Selección múltiple».</summary>
     [Parameter] public EventCallback<bool> SeleccionMultipleChanged { get; set; }
 
-    /// <summary>Solo para listas con acordeón — si no se pasa, el botón no se pinta.</summary>
+    /// <summary>Solo para listas con acordeón o grupos — si no se pasa, el botón no se pinta.</summary>
     [Parameter] public bool TodosExpandidos { get; set; }
     [Parameter] public EventCallback<bool> OnAlternarTodos { get; set; }
 
