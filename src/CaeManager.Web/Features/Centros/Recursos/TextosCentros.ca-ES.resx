@@ -291,6 +291,12 @@
   <data name="GrupoPorVencer" xml:space="preserve">
     <value>{0} per vèncer</value>
   </data>
+  <data name="GrupoNotaEstaPagina" xml:space="preserve">
+    <value>Grups d'aquesta pàgina: els recomptes de cada grup només compten els centres que es veuen aquí.</value>
+  </data>
+  <data name="GrupoContadorTitulo" xml:space="preserve">
+    <value>{0} centre(s) en aquesta pàgina</value>
+  </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
     <value>Cap centre amb aquests filtres</value>
   </data>

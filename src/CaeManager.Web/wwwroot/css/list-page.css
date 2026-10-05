@@ -355,6 +355,20 @@
     cursor: pointer;
 }
 
+/* Grupos abiertos por algo ajeno a ellos (búsqueda, selección múltiple, Centro en la URL): la
+   cabecera no contrae nada, así que no es un botón ni lo parece. */
+.grupo-lista-cabecera-fija {
+    cursor: default;
+}
+
+.grupo-lista-cabecera-fija .grupo-lista-chevron {
+    visibility: hidden;
+}
+
+.nota-grupos-pagina {
+    margin: 0 0 var(--space-2);
+}
+
 .grupo-lista-cabecera:focus-visible {
     outline: 2px solid var(--color-primary-400);
     outline-offset: -2px;

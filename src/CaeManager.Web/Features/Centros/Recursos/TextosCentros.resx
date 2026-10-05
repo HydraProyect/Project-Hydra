@@ -291,6 +291,12 @@
   <data name="GrupoPorVencer" xml:space="preserve">
     <value>{0} por vencer</value>
   </data>
+  <data name="GrupoNotaEstaPagina" xml:space="preserve">
+    <value>Grupos de esta página: los recuentos de cada grupo solo cuentan los centros que se ven aquí.</value>
+  </data>
+  <data name="GrupoContadorTitulo" xml:space="preserve">
+    <value>{0} centro(s) en esta página</value>
+  </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
     <value>Ningún centro con estos filtros</value>
   </data>

@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerEmpresasDeCentrosVisibles;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Subcontratas;
@@ -40,6 +41,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
 
     private Guid _empresaNorteId;
     private Guid _empresaSurId;
+    private Guid _centroVigoId;
 
     public async Task InitializeAsync()
     {
@@ -60,9 +62,18 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         _empresaNorteId = empresaNorte.Id;
         _empresaSurId = empresaSur.Id;
 
-        contexto.Centros.AddRange(
-            new Centro(clienteOrion.Id, empresaNorte.Id, "Almacén Vigo", "DIR-513"),
-            new Centro(clientePegaso.Id, empresaSur.Id, "Planta Bilbao", "DIR-211"));
+        // Una Empresa cuyo único Centro está dado de baja: no debe salir entre las opciones del filtro.
+        var empresaEste = new Empresa("Obras Este S.L.", "B10380210");
+        contexto.Empresas.Add(empresaEste);
+        await contexto.SaveChangesAsync();
+
+        var vigo = new Centro(clienteOrion.Id, empresaNorte.Id, "Almacén Vigo", "DIR-513");
+        var deBaja = new Centro(clientePegaso.Id, empresaEste.Id, "Nave Teruel", "DIR-999");
+        contexto.Centros.AddRange(vigo, new Centro(clientePegaso.Id, empresaSur.Id, "Planta Bilbao", "DIR-211"), deBaja);
+        await contexto.SaveChangesAsync();
+        _centroVigoId = vigo.Id;
+
+        deBaja.MarcarComoEliminado(Guid.NewGuid());
         await contexto.SaveChangesAsync();
     }
 
@@ -114,6 +125,33 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         deNorte.Should().Equal("Almacén Vigo");
     }
 
+    /// <summary>
+    /// Opciones del filtro «Empresa» de /centros: las Empresas de los Centros visibles. Ni Clientes
+    /// empresariales ni Subcontratas (no trabajan como Empresa en ningún Centro), ni la Empresa de un
+    /// Centro dado de baja.
+    /// </summary>
+    [Fact]
+    public async Task Empresas_de_Centros_visibles_son_las_de_los_Centros_activos()
+    {
+        var opciones = await ObtenerEmpresasDeCentrosAsync(new AlcanceDatosServiceFalso());
+
+        opciones.Should().Equal("Limpiezas Sur S.L.", "Montajes Norte S.L.");
+    }
+
+    /// <summary>
+    /// Un usuario de portal (rol Cliente): alcance de gestión vacío, pero ve el Centro de Vigo. Las
+    /// opciones salen de lo que ve —la Empresa de Vigo—, ni vacías (alcance de gestión) ni todas.
+    /// </summary>
+    [Fact]
+    public async Task Empresas_de_Centros_visibles_siguen_el_alcance_de_visibilidad_y_no_el_de_gestion()
+    {
+        var portal = new AlcanceDatosServiceFalso(centroIds: [_centroVigoId], empresaIdsParaGestion: []);
+
+        var opciones = await ObtenerEmpresasDeCentrosAsync(portal);
+
+        opciones.Should().Equal("Montajes Norte S.L.");
+    }
+
     [Theory]
     [InlineData(NivelServicioSubcontrata.Gestionada, "Subcontrata Gestionada S.L.")]
     [InlineData(NivelServicioSubcontrata.Supervisada, "Subcontrata Supervisada S.L.")]
@@ -148,6 +186,15 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
 
         var resultado = await handler.Handle(consulta, CancellationToken.None);
         return resultado.Elementos.Select(c => c.Nombre).ToList();
+    }
+
+    private async Task<IReadOnlyList<string>> ObtenerEmpresasDeCentrosAsync(AlcanceDatosServiceFalso alcance)
+    {
+        await using var contexto = CrearContexto();
+        var handler = new ObtenerEmpresasDeCentrosVisiblesQueryHandler(contexto, contexto, alcance);
+
+        var resultado = await handler.Handle(new ObtenerEmpresasDeCentrosVisiblesQuery(), CancellationToken.None);
+        return resultado.Select(e => e.RazonSocial).ToList();
     }
 
     private async Task<IReadOnlyList<string>> ObtenerSubcontratasAsync(NivelServicioSubcontrata? nivel)

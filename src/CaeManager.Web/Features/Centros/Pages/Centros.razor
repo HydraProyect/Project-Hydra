@@ -105,9 +105,9 @@
             {
                 <span class="segmentado-lista" role="group" aria-label="@Textos["AgruparEtiqueta"]">
                     <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "false" : "true")"
-                            @onclick="() => CambiarAgrupacion(false)">@Textos["AgruparNo"]</button>
+                            @onclick="() => CambiarAgrupacionAsync(false)">@Textos["AgruparNo"]</button>
                     <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "true" : "false")"
-                            @onclick="() => CambiarAgrupacion(true)">@Textos["AgruparPorCliente"]</button>
+                            @onclick="() => CambiarAgrupacionAsync(true)">@Textos["AgruparPorCliente"]</button>
                 </span>
                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                        OnClick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))"
@@ -231,10 +231,16 @@
         @* Agrupación visual por Cliente empresarial (de serie): una cabecera por grupo con su
            contador y el resumen de la página («N con problema», «N por vencer»), tintada con el peor
            estado del grupo. Los grupos arrancan contraídos y se abren de uno en uno o con «Expandir
-           todo»; con búsqueda o con un Centro concreto en la URL se ven abiertos. Es visual: el orden
-           de la consulta se respeta dentro de cada grupo y los grupos salen en el orden en que aparece
-           su primer Centro. *@
+           todo»; con búsqueda, con un Centro concreto en la URL o con selección múltiple se ven
+           abiertos, y entonces la cabecera no es un botón (no podría contraerlos). Es visual y de la
+           página: solo convive con el orden de serie (Cliente empresarial y nombre), en el que cada
+           grupo ya sale seguido; pedir otro orden deja de agrupar. Con más de una página, una nota
+           dice que los recuentos son de esta página y no del Cliente empresarial entero. *@
         var grupos = Grupos;
+        @if (_agruparPorCliente && TotalPaginas > 1)
+        {
+            <p class="nota-grupos-pagina texto-vacio-seccion">@Textos["GrupoNotaEstaPagina"]</p>
+        }
         var cabecerasDeGrupo = grupos.ToDictionary(g => g.Centros[0].Id);
         var clavesDeGrupo = new ClavesDeHermanos();
         <div class="lista-filas-acordeon">
@@ -243,12 +249,11 @@
                 @if (_agruparPorCliente && cabecerasDeGrupo.TryGetValue(centro.Id, out var grupo))
                 {
                     var abierto = GrupoAbierto(grupo.ClienteEmpresarialId);
-                    <div class="@("grupo-lista" + ClaseTinteGrupo(grupo))" @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)">
-                        <button type="button" class="@("grupo-lista-cabecera" + (abierto ? " grupo-lista-cabecera-abierta" : ""))"
-                                aria-expanded="@(abierto ? "true" : "false")" @onclick="() => AlternarGrupo(grupo.ClienteEmpresarialId)">
+                    RenderFragment contenidoCabecera =
+                        @<text>
                             <span class="grupo-lista-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
                             <span class="grupo-lista-nombre">@grupo.Nombre</span>
-                            <span class="grupo-lista-contador">@grupo.Centros.Count</span>
+                            <span class="grupo-lista-contador" title="@Textos["GrupoContadorTitulo", grupo.Centros.Count]">@grupo.Centros.Count</span>
                             <span class="grupo-lista-resumen">
                                 @if (grupo.ConProblema > 0)
                                 {
@@ -259,7 +264,19 @@
                                     <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["GrupoPorVencer", grupo.PorVencer]</Badge>
                                 }
                             </span>
-                        </button>
+                        </text>;
+                    <div class="@("grupo-lista" + ClaseTinteGrupo(grupo))" @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)">
+                        @if (GruposForzadosAbiertos)
+                        {
+                            <div class="grupo-lista-cabecera grupo-lista-cabecera-abierta grupo-lista-cabecera-fija">@contenidoCabecera</div>
+                        }
+                        else
+                        {
+                            <button type="button" class="@("grupo-lista-cabecera" + (abierto ? " grupo-lista-cabecera-abierta" : ""))"
+                                    aria-expanded="@(abierto ? "true" : "false")" @onclick="() => AlternarGrupo(grupo.ClienteEmpresarialId)">
+                                @contenidoCabecera
+                            </button>
+                        }
                     </div>
                 }
                 @if (!GrupoAbierto(ClienteEmpresarialDe(centro)))
