@@ -1,3 +1,4 @@
+using CaeManager.Application.Trabajadores.Queries.ObtenerEmpleadoresDeTrabajadoresVisibles;
 using System.Text.Json;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Common;
@@ -91,6 +92,13 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
     private IReadOnlyList<SubcontrataSelectorDto> _subcontratasDisponibles = [];
+
+    /// <summary>
+    /// Opciones de la pastilla «Empresa»: los empleadores de los Trabajadores visibles, por el mismo alcance que la
+    /// lista. Distintas de <see cref="_empresasDisponibles"/>/<see cref="_subcontratasDisponibles"/>, que son las del
+    /// alta (alcance de gestión y catálogo de Subcontratas) y no deben enseñarse como filtro a quien no gestiona.
+    /// </summary>
+    private EmpleadoresDeTrabajadoresDto _empleadoresFiltro = new([], []);
 
     // DDL-072 (misma fuente que el enlace «trabajadores» de CatalogoMenuLateral y _tituloPagina de
     // Empresas.razor.cs: UsaRotulosPrimeraPersonaQuery): "Mis trabajadores" solo si perfil Cliente
@@ -263,8 +271,15 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         if (_sinEmpresaSeleccionada)
             return;
 
-        _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
-        _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
+        // Opciones de la pastilla «Empresa». Si fallan, la lista se pinta igual y la pastilla solo ofrece «Todas».
+        try
+        {
+            _empleadoresFiltro = await Mediator.Send(new ObtenerEmpleadoresDeTrabajadoresVisiblesQuery());
+        }
+        catch (Exception)
+        {
+            _empleadoresFiltro = new EmpleadoresDeTrabajadoresDto([], []);
+        }
 
         var primeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
         _tituloPagina = primeraPersona
@@ -459,10 +474,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// pueda quitar el filtro, y para eso no hace falta saber su nombre.
     /// </summary>
     private string EtiquetaFiltroEmpresa =>
-        _empresasDisponibles.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.RazonSocial ?? Textos["EtiquetaEmpresa"].Value;
+        _empleadoresFiltro.Empresas.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.RazonSocial ?? Textos["EtiquetaEmpresa"].Value;
 
     private string EtiquetaFiltroSubcontrata =>
-        _subcontratasDisponibles.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.RazonSocial ?? Textos["EtiquetaSubcontrata"].Value;
+        _empleadoresFiltro.Subcontratas.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.RazonSocial ?? Textos["EtiquetaSubcontrata"].Value;
 
     /// <summary>Prefijos del valor de la pastilla «Empresa», que lleva dentro también las subcontratas.</summary>
     private const string PrefijoEmpresa = "empresa:";
@@ -477,10 +492,13 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         : !string.IsNullOrWhiteSpace(_filtroEmpresaId) ? PrefijoEmpresa + _filtroEmpresaId
         : string.Empty;
 
-    /// <summary>Opciones de la pastilla «Empresa»: las empresas y, detrás, las subcontratas marcadas como tales.</summary>
+    /// <summary>
+    /// Opciones de la pastilla «Empresa»: las empresas y, detrás, las subcontratas marcadas como tales; solo las que
+    /// emplean a algún Trabajador visible (<see cref="_empleadoresFiltro"/>).
+    /// </summary>
     private IReadOnlyList<OpcionEstado> OpcionesFiltroEmpleador =>
-        _empresasDisponibles.Select(e => new OpcionEstado(PrefijoEmpresa + e.Id, e.RazonSocial))
-            .Concat(_subcontratasDisponibles.Select(sc => new OpcionEstado(PrefijoSubcontrata + sc.Id, Textos["ListaOpcionSubcontrata", sc.RazonSocial].Value)))
+        _empleadoresFiltro.Empresas.Select(e => new OpcionEstado(PrefijoEmpresa + e.Id, e.RazonSocial))
+            .Concat(_empleadoresFiltro.Subcontratas.Select(sc => new OpcionEstado(PrefijoSubcontrata + sc.Id, Textos["ListaOpcionSubcontrata", sc.RazonSocial].Value)))
             .ToList();
 
     private Task CambiarFiltroEmpleadorAsync(string valor) =>

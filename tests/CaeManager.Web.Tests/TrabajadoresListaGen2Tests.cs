@@ -19,6 +19,7 @@ using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
+using CaeManager.Application.Trabajadores.Queries.ObtenerEmpleadoresDeTrabajadoresVisibles;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -105,6 +106,15 @@ public class TrabajadoresListaGen2Tests : BunitContext
             [new(EmpresaEbro, "Montajes Ebro S.L."), new(EmpresaDexter, "Dexter Industrial S.A.")];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
 
+        /// <summary>
+        /// Opciones de la pastilla «Empresa»: los empleadores de los Trabajadores visibles. De serie, los mismos
+        /// que ofrece el alta, para que los tests del filtro no dependan de la diferencia; los de alcance la fijan.
+        /// </summary>
+        public EmpleadoresDeTrabajadoresDto? EmpleadoresFiltro { get; set; }
+
+        /// <summary>La consulta de las opciones de la pastilla «Empresa» falla.</summary>
+        public bool FallarEmpleadoresFiltro { get; set; }
+
         /// <summary>Lo que responde «Guardar filtro»; sin valor, éxito.</summary>
         public Result<Guid>? ResultadoGuardarFiltro { get; set; }
 
@@ -154,6 +164,12 @@ public class TrabajadoresListaGen2Tests : BunitContext
                     return (IReadOnlyList<SubcontrataSelectorDto>)[new SubcontrataSelectorDto(SubcontrataNervion, "Aislamientos Nervión S.L.")];
                 case ObtenerFiltrosGuardadosQuery:
                     return (IReadOnlyList<FiltroGuardadoDto>)FiltrosGuardados.ToList();
+                case ObtenerEmpleadoresDeTrabajadoresVisiblesQuery:
+                    if (FallarEmpleadoresFiltro)
+                        throw new InvalidOperationException("Fallo simulado de las opciones de la pastilla Empresa.");
+                    return EmpleadoresFiltro ?? new EmpleadoresDeTrabajadoresDto(
+                        Empresas.Select(e => new EmpleadorDeTrabajadorDto(e.Id, e.RazonSocial)).ToList(),
+                        [new EmpleadorDeTrabajadorDto(SubcontrataNervion, "Aislamientos Nervión S.L.")]);
                 case ObtenerTrabajadoresQuery q:
                     return Filtrar(q);
                 case ObtenerTrabajadorPorIdQuery q:
@@ -734,6 +750,37 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         (await OpcionesDeLaPastilla(cut, "Empresa")).Should().Equal(
             "Todas", "Montajes Ebro S.L.", "Dexter Industrial S.A.", "Aislamientos Nervión S.L. (subcontrata)");
+    }
+
+    /// <summary>
+    /// Las opciones de la pastilla salen de los empleadores de los Trabajadores visibles, no de los selectores del
+    /// alta: un usuario de portal (rol Cliente) no gestiona ninguna Empresa —su selector de gestión va vacío— y el de
+    /// Subcontratas es el catálogo global del Tenant. Antes veía «Empresa» sin empresas y con subcontratas ajenas.
+    /// </summary>
+    [Fact]
+    public async Task La_pastilla_Empresa_ofrece_los_empleadores_de_los_trabajadores_visibles_y_no_los_selectores_del_alta()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Javier", "Salas Moreno") },
+            EmpleadoresFiltro = new EmpleadoresDeTrabajadoresDto([new EmpleadorDeTrabajadorDto(EmpresaEbro, "Montajes Ebro S.L.")], []),
+        };
+        mediador.Empresas.Clear();
+
+        var cut = Renderizar(mediador);
+
+        (await OpcionesDeLaPastilla(cut, "Empresa")).Should().Equal("Todas", "Montajes Ebro S.L.");
+        mediador.Enviadas.OfType<ObtenerSubcontratasParaSelectorQuery>().Should().BeEmpty("el catálogo de Subcontratas no se pide para filtrar");
+    }
+
+    /// <summary>Si fallan las opciones de la pastilla «Empresa», la lista se pinta igual y la pastilla solo ofrece «Todas».</summary>
+    [Fact]
+    public async Task Si_fallan_las_opciones_de_Empresa_la_lista_se_ve_igual()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno") }, FallarEmpleadoresFiltro = true });
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Salas Moreno"));
+        (await OpcionesDeLaPastilla(cut, "Empresa")).Should().Equal("Todas");
     }
 
     /// <summary>
