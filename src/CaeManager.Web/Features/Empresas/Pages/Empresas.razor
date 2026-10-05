@@ -203,8 +203,7 @@
                 <span></span>
             }
             <span></span>
-            <span>Razón social</span>
-            <span>CIF</span>
+            <span>@Textos["ColEmpresa"]</span>
             <span>Cumplimiento</span>
             <span>Documentación</span>
             <span>Detecciones</span>
@@ -234,10 +233,14 @@
                         @* El nombre es un enlace real a Empresa 360 (decisión del propietario
                            2026-09-22: cada 360 tiene página propia); el panel de 520 px queda en
                            «Vista rápida» del menú de la fila, como en la lista Clientes. *@
-                        <a class="enlace-nombre-fila celda-empresa" href="@($"/empresas/{empresa.Id}")">
-                            @empresa.RazonSocial
-                        </a>
-                        <span class="tarjeta-fila-acordeon-meta celda-empresa">@(empresa.Cif ?? "—")</span>
+                        @* Razón social y CIF en una sola celda de dos líneas, como la columna «Empresa» de la
+                           maqueta aprobada (fase 1). *@
+                        <span class="celda-identidad-empresa">
+                            <a class="enlace-nombre-fila celda-empresa" href="@($"/empresas/{empresa.Id}")">
+                                @empresa.RazonSocial
+                            </a>
+                            <span class="tarjeta-fila-acordeon-meta celda-empresa">@(empresa.Cif ?? "—")</span>
+                        </span>
                         @* Cumplimiento antes que Documentación, en el orden del mockup. Cada
                            celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
                            de columnas: un componente que no se pinta desalinearía la fila

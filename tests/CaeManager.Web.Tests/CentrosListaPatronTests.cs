@@ -659,7 +659,7 @@ public class CentrosListaPatronTests : BunitContext
         var mediador = ConPegasoPrimero();
         var cut = RenderizarConGruposContraidos(mediador);
 
-        cut.FindAll(".barra-filtros-pastillas button").Single(b => b.TextContent.Trim().StartsWith("Cumplimiento", StringComparison.Ordinal)).Click();
+        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
 
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().OrdenarPor.Should().Be(nameof(CentroListaDto.CumplimientoPorcentaje));
         cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Por Cliente empresarial");
@@ -670,9 +670,9 @@ public class CentrosListaPatronTests : BunitContext
     public void La_flecha_del_orden_no_entra_en_el_nombre_accesible()
     {
         var cut = RenderizarConGruposContraidos(ConDosClientes());
-        cut.FindAll(".barra-filtros-pastillas button").Single(b => b.TextContent.Trim().StartsWith("Cumplimiento", StringComparison.Ordinal)).Click();
+        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
 
-        var boton = cut.FindAll(".barra-filtros-pastillas button").Single(b => b.TextContent.Trim().StartsWith("Cumplimiento", StringComparison.Ordinal));
+        var boton = cut.Find(".cabecera-columnas-centros .cabecera-columna-orden");
         boton.QuerySelector("span[aria-hidden=true]")!.TextContent.Should().Be("↑");
     }
 
@@ -694,6 +694,82 @@ public class CentrosListaPatronTests : BunitContext
         cut.FindAll("button.grupo-lista-cabecera").Should().BeEmpty("con algo marcado los grupos no se contraen");
         cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox]").Should().HaveCount(3);
         cut.FindAll(".tarjeta-fila-acordeon input[type=checkbox][checked]").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Columnas de la maqueta aprobada: la Empresa tiene su columna y el anillo de cumplimiento la suya, bajo
+    /// sus rótulos; la segunda línea de la identidad es el código (agrupado, el Cliente empresarial ya lo dice
+    /// la cabecera del grupo).
+    /// </summary>
+    [Fact]
+    public void La_fila_lleva_las_columnas_Empresa_y_Cumplimiento_y_el_codigo_debajo_del_nombre()
+    {
+        var cut = Renderizar(ConDosClientes());
+
+        var fila = cut.FindAll(".tarjeta-fila-acordeon").First(f => f.TextContent.Contains("Planta Bilbao"));
+        fila.QuerySelector(".columna-empresa-centro")!.TextContent.Trim().Should().Be("Limpiezas Sur S.L.");
+        fila.QuerySelector(".columna-cumplimiento-centro [role=img]")
+            .Should().NotBeNull("el anillo vive en su columna");
+        var meta = fila.QuerySelector(".tarjeta-fila-acordeon-meta")!;
+        meta.ChildNodes.First().TextContent.Should().Be("C-001", "agrupado, la segunda línea es solo el código");
+        meta.QuerySelector(".meta-empresa-movil")!.TextContent.Should().Be(" · Limpiezas Sur S.L.");
+    }
+
+    /// <summary>
+    /// Cabecera y fila comparten las columnas de ancho propio en el mismo orden (con y sin selección
+    /// múltiple): si no, cada valor deja de caer bajo su rótulo.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Cabecera_y_fila_llevan_las_mismas_columnas_en_el_mismo_orden(bool seleccionMultiple)
+    {
+        var cut = Renderizar(ConDosClientes());
+        if (seleccionMultiple)
+            cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        string[] columnas = ["columna-empresa-centro", "columna-cumplimiento-centro"];
+        static IEnumerable<string> Orden(AngleSharp.Dom.IElement contenedor, string[] clases) =>
+            contenedor.Children.SelectMany(c => c.ClassList).Where(clases.Contains);
+
+        var cabecera = cut.Find(".cabecera-columnas-centros");
+        var fila = cut.Find(".tarjeta-fila-acordeon-cabecera");
+
+        Orden(fila, columnas).Should().Equal(columnas);
+        Orden(cabecera, columnas).Should().Equal(Orden(fila, columnas));
+        cabecera.Children.Length.Should().Be(fila.Children.Length, "una celda de cabecera por cada celda de la fila");
+    }
+
+    [Fact]
+    public void Sin_agrupar_la_segunda_linea_dice_tambien_el_Cliente_empresarial()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+
+        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Sin agrupar").Click();
+
+        var fila = cut.FindAll(".tarjeta-fila-acordeon").First(f => f.TextContent.Contains("Planta Bilbao"));
+        fila.QuerySelector(".tarjeta-fila-acordeon-meta")!.ChildNodes.First().TextContent.Should().Be("Pegaso Cliente S.L. · C-001");
+    }
+
+    /// <summary>
+    /// El orden por cumplimiento se pide desde el rótulo de su columna (maqueta aprobada), no desde la barra de
+    /// filtros; pulsarlo otra vez invierte el sentido.
+    /// </summary>
+    [Fact]
+    public void El_rotulo_Cumplimiento_ordena_y_volver_a_pulsarlo_invierte_el_sentido()
+    {
+        var mediador = ConDosClientes();
+        var cut = RenderizarConGruposContraidos(mediador);
+        cut.FindAll(".barra-filtros-pastillas button").Should().NotContain(b => b.TextContent.Contains("Cumplimiento"),
+            "el orden ya no vive en la barra de filtros");
+
+        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
+        var primera = mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last();
+        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
+        var segunda = mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last();
+
+        (primera.OrdenarPor, primera.Descendente).Should().Be((nameof(CentroListaDto.CumplimientoPorcentaje), false));
+        (segunda.OrdenarPor, segunda.Descendente).Should().Be((nameof(CentroListaDto.CumplimientoPorcentaje), true));
+        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").GetAttribute("aria-pressed").Should().Be("true");
     }
 
     /// <summary>Con más de una página, los recuentos de grupo se rotulan como de esta página.</summary>
@@ -845,7 +921,8 @@ public class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConCentros(Centro("Centro Norte")));
 
         var cabecera = cut.Find(".cabecera-columnas-centros");
-        cabecera.TextContent.Should().Contain("Centro").And.Contain("Venc.").And.Contain("Próx.").And.Contain("Estado / visita");
+        cabecera.TextContent.Should().Contain("Centro").And.Contain("Empresa").And.Contain("Cumplimiento")
+            .And.Contain("Venc.").And.Contain("Próx.").And.Contain("Estado / visita");
         cabecera.GetAttribute("role").Should().BeNull("no es una tabla: la fila se despliega");
         cut.Markup.IndexOf("cabecera-columnas-centros", StringComparison.Ordinal)
             .Should().BeLessThan(cut.Markup.IndexOf("lista-filas-acordeon", StringComparison.Ordinal));
