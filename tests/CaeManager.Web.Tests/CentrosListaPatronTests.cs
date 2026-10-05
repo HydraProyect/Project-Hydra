@@ -715,6 +715,30 @@ public class CentrosListaPatronTests : BunitContext
         meta.QuerySelector(".meta-empresa-movil")!.TextContent.Should().Be(" · Limpiezas Sur S.L.");
     }
 
+    /// <summary>
+    /// Cabecera y fila comparten las columnas de ancho propio en el mismo orden (con y sin selección
+    /// múltiple): si no, cada valor deja de caer bajo su rótulo.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Cabecera_y_fila_llevan_las_mismas_columnas_en_el_mismo_orden(bool seleccionMultiple)
+    {
+        var cut = Renderizar(ConDosClientes());
+        if (seleccionMultiple)
+            cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        string[] columnas = ["columna-empresa-centro", "columna-cumplimiento-centro"];
+        static IEnumerable<string> Orden(AngleSharp.Dom.IElement contenedor, string[] clases) =>
+            contenedor.Children.SelectMany(c => c.ClassList).Where(clases.Contains);
+
+        var cabecera = cut.Find(".cabecera-columnas-centros");
+        var fila = cut.Find(".tarjeta-fila-acordeon-cabecera");
+
+        Orden(fila, columnas).Should().Equal(columnas);
+        Orden(cabecera, columnas).Should().Equal(Orden(fila, columnas));
+        cabecera.Children.Length.Should().Be(fila.Children.Length, "una celda de cabecera por cada celda de la fila");
+    }
+
     [Fact]
     public void Sin_agrupar_la_segunda_linea_dice_tambien_el_Cliente_empresarial()
     {

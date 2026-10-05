@@ -196,6 +196,8 @@ public class EmpresasVacioPorFiltroTests : BunitContext
             .And.Contain("Cumplimiento").And.Contain("Documentación").And.Contain("Detecciones");
 
         var fila = cut.Find(".tarjeta-fila-acordeon-cabecera");
+        fila.QuerySelector(".celda-identidad-empresa")!.TextContent.Should().Contain("Montajes Ebro S.L.").And.Contain("B-48.220.917",
+            "el CIF sigue en la fila, debajo de la razón social");
         fila.Children.Length.Should().Be(cabecera.Children.Length,
             "cabecera y fila comparten la misma definición de rejilla: si no coinciden las celdas, las columnas no cuadran");
     }

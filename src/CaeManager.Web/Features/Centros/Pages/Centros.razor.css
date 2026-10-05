@@ -10,9 +10,10 @@
 /*
   Cabecera de columnas (pieza 4). Mismo esqueleto que la cabecera de la fila
   (.tarjeta-fila-acordeon-cabecera, list-page.css): huecos fijos para lo de
-  tamaño fijo (casilla, chevron + aro de cumplimiento, indicadores de 200 px,
-  menú «⋯») y una columna elástica para la identidad. Versalitas, como el resto
-  de listas del patrón. Los anchos de casilla, chevron y aro son los de sus
+  tamaño fijo (casilla, chevron, cumplimiento, indicadores de 200 px, menú «⋯»)
+  y dos columnas elásticas, la identidad y la Empresa (en Centros la identidad
+  deja de ser la única zona elástica de la fila). Versalitas, como el resto de
+  listas del patrón. Los anchos de casilla y chevron son los de sus
   componentes; si cambian, cambia aquí.
 */
 .cabecera-columnas-centros {
@@ -77,6 +78,7 @@
     letter-spacing: inherit;
     text-transform: inherit;
     color: inherit;
+    white-space: nowrap;
     cursor: pointer;
 }
 
@@ -99,9 +101,25 @@
     display: none;
 }
 
+/*
+  En pantallas estrechas solo caben los anchos fijos imprescindibles: la columna Empresa se oculta
+  y la de Cumplimiento se queda en el ancho del aro, con su rótulo recortado (el nombre accesible
+  del botón no cambia). Sin esto la fila desbordaba ~100 px en un móvil de 375 px y la identidad
+  quedaba sin sitio.
+*/
 @media (max-width: 767px) {
     .columna-empresa-centro {
         display: none;
+    }
+
+    .columna-cumplimiento-centro {
+        width: 28px;
+    }
+
+    .cabecera-columna-orden {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .meta-empresa-movil {
