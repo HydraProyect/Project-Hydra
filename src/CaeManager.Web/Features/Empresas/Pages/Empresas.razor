@@ -204,6 +204,7 @@
             }
             <span></span>
             <span>@Textos["ColEmpresa"]</span>
+            <span>@Textos["ColPrestaServicioA"]</span>
             <span>Cumplimiento</span>
             <span>Documentación</span>
             <span>Detecciones</span>
@@ -240,6 +241,26 @@
                                 @empresa.RazonSocial
                             </a>
                             <span class="tarjeta-fila-acordeon-meta celda-empresa">@(empresa.Cif ?? "—")</span>
+                        </span>
+                        @* «Presta servicio a» (maqueta aprobada): el primer Cliente empresarial por razón social y
+                           «+N», como pastilla que abre el mismo desplegable que el chevron. Sin resumen —sin Clientes
+                           empresariales, fuera del alcance de gestión o con la consulta caída— un «—» cuyo título
+                           dice lo mismo que el desplegable vacío, sin revelar cuál de los casos es (#810). *@
+                        <span class="celda-empresa">
+                            @if (_resumenClientes.TryGetValue(empresa.Id, out var resumen))
+                            {
+                                <button type="button" class="pastilla-presta-servicio"
+                                        aria-expanded="@(expandido ? "true" : "false")"
+                                        aria-label="@Textos["PrestaServicioEtiqueta", resumen.Total, empresa.RazonSocial]"
+                                        @onclick="() => AlternarExpansionAsync(empresa.Id)">
+                                    <span class="pastilla-presta-servicio-texto">@TextoPrestaServicio(resumen)</span>
+                                    <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                                </button>
+                            }
+                            else
+                            {
+                                <span class="celda-sin-presta-servicio" title="@Textos["PrestaServicioNinguno"]">—</span>
+                            }
                         </span>
                         @* Cumplimiento antes que Documentación, en el orden del mockup. Cada
                            celda va envuelta para que la rejilla tenga SIEMPRE el mismo número

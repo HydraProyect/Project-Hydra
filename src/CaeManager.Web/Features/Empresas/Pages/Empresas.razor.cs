@@ -4,6 +4,7 @@ using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
+using CaeManager.Application.Empresas.Queries.ObtenerResumenClientesDeEmpresas;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Common;
 using CaeManager.Web.Components.Layout;
@@ -355,7 +356,48 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
                 StateHasChanged();
             }
         }
+
+        if (EsVigente(carga) && !_errorCarga)
+            await CargarResumenClientesAsync(carga);
     }
+
+    /// <summary>
+    /// Columna «Presta servicio a»: el resumen de Clientes empresariales de las Empresas de la página, en una
+    /// sola consulta (alcance de gestión, REC-153). Va después de la lista y por su cuenta: si falla, la lista
+    /// se ve igual y la columna dice «—», como para una Empresa sin Clientes empresariales a tu alcance.
+    /// </summary>
+    private async Task CargarResumenClientesAsync(int carga)
+    {
+        _resumenClientes = new Dictionary<Guid, ResumenClientesDeEmpresaDto>();
+        if (_elementosPagina.Count == 0)
+            return;
+
+        try
+        {
+            var resumen = await Mediator.Send(
+                new ObtenerResumenClientesDeEmpresasQuery(_elementosPagina.Select(e => e.Id).ToList()), _ciclo.Token);
+            if (!EsVigente(carga))
+                return;
+
+            _resumenClientes = resumen;
+        }
+        catch (Exception) when (!EsVigente(carga))
+        {
+            return;
+        }
+        catch (Exception)
+        {
+            _resumenClientes = new Dictionary<Guid, ResumenClientesDeEmpresaDto>();
+        }
+
+        StateHasChanged();
+    }
+
+    private IReadOnlyDictionary<Guid, ResumenClientesDeEmpresaDto> _resumenClientes = new Dictionary<Guid, ResumenClientesDeEmpresaDto>();
+
+    /// <summary>«Orion Cliente S.L. +1»: el primero por razón social y cuántos más.</summary>
+    private static string TextoPrestaServicio(ResumenClientesDeEmpresaDto resumen) =>
+        resumen.Total > 1 ? $"{resumen.Primero} +{resumen.Total - 1}" : resumen.Primero;
 
     // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     private Task CambiarTamanoPaginaAsync(int tamano)

@@ -369,4 +369,13 @@
   <data name="ColEmpresa" xml:space="preserve">
     <value>Empresa</value>
   </data>
+  <data name="ColPrestaServicioA" xml:space="preserve">
+    <value>Presta servicio a</value>
+  </data>
+  <data name="PrestaServicioEtiqueta" xml:space="preserve">
+    <value>Clientes empresariales a los que presta servicio {1}: {0}</value>
+  </data>
+  <data name="PrestaServicioNinguno" xml:space="preserve">
+    <value>No presta servicio a Clientes empresariales, o no están en tu cartera.</value>
+  </data>
 </root>
