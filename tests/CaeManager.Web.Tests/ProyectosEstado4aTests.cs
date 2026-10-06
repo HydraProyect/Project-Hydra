@@ -164,7 +164,7 @@ public class ProyectosEstado4aTests : BunitContext
 
         cut.Markup.Should().Contain(TextoEstado4a, "control positivo: es el estado 4a");
         ConsultasDeDatos(mediador).Should().Be(0, "ni el selector de clientes ni los datos del origen");
-        cut.FindAll(".barra-filtros-proyectos").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("el origen no es la empresa elegida");
     }
 
@@ -178,7 +178,7 @@ public class ProyectosEstado4aTests : BunitContext
 
         var cut = Render<Proyectos>();
 
-        cut.FindAll(".barra-filtros-proyectos").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
         ConsultasDeDatos(mediador).Should().Be(0);
 
         puerta.SetResult();
@@ -195,19 +195,23 @@ public class ProyectosEstado4aTests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.Markup.Should().NotContain(TextoEstado4a);
-        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Operador de prueba");
+        cut.Find("h1").TextContent.Trim().Should().Be("Proyectos");
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador")
+            .Should().Contain(b => b.TextContent.Trim() == "Cliente empresarial");
         mediador.Enviadas.OfType<ObtenerClientesParaSelectorQuery>().Should().NotBeEmpty();
     }
 
     [Fact]
-    public void Con_empresa_elegida_la_cabecera_la_nombra_y_la_lista_se_monta()
+    public void Con_empresa_gestionada_elegida_se_monta_la_lista()
     {
         Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
         var mediador = ConCartera(origenGestionado: false);
 
         var cut = Renderizar(mediador);
 
-        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Empresa Sur");
+        cut.Find("h1").TextContent.Trim().Should().Be("Proyectos");
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador")
+            .Should().Contain(b => b.TextContent.Trim() == "Cliente empresarial");
         cut.Markup.Should().NotContain(TextoEstado4a);
         mediador.Enviadas.OfType<ObtenerClientesParaSelectorQuery>().Should().NotBeEmpty();
     }

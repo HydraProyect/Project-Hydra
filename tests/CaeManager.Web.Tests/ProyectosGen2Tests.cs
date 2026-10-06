@@ -219,16 +219,35 @@ public class ProyectosGen2Tests : BunitContext
     private async Task<IRenderedComponent<Proyectos>> RenderizarConClienteAsync(string ruta = "proyectos")
     {
         var cut = Renderizar(ruta);
-        await SelectorDeCliente(cut).ChangeAsync(new ChangeEventArgs { Value = ClienteId.ToString() });
+        await ElegirCliente(cut, ClienteId);
         return cut;
     }
 
     private static IElement SelectorDeCliente(IRenderedComponent<Proyectos> cut) =>
-        cut.FindAll("select").Single(s => s.TextContent.Contains("Selecciona un Cliente empresarial"));
+        DisparadorPastilla(cut, "Cliente empresarial");
 
-    /// <summary>Sin <c>await</c> a propósito: la tarea termina cuando termina el manejador, respuestas retenidas incluidas.</summary>
+    // Devuelve la tarea del clic: las pruebas de respuestas retenidas y confirmaciones
+    // siguen observando todo el manejador, sin invocarlo por reflexión ni saltarse el menú.
     private static Task ElegirCliente(IRenderedComponent<Proyectos> cut, Guid clienteId) =>
-        SelectorDeCliente(cut).ChangeAsync(new ChangeEventArgs { Value = clienteId.ToString() });
+        ElegirPastillaAsync(cut, "Cliente empresarial", clienteId == Guid.Empty
+            ? "Selecciona un Cliente empresarial"
+            : clienteId == ClienteId ? "Refrielectric S.L." : "Frigoríficos Arcos S.A.");
+
+    private static IElement DisparadorPastilla(IRenderedComponent<Proyectos> cut, string etiqueta) =>
+        cut.FindAll(".barra-filtros-pastillas [aria-haspopup=menu]")
+            .Single(b => (b.GetAttribute("aria-label") ?? "").StartsWith(etiqueta, StringComparison.Ordinal));
+
+    private static async Task ElegirPastillaAsync(IRenderedComponent<Proyectos> cut, string etiqueta, string opcion)
+    {
+        var disparador = DisparadorPastilla(cut, etiqueta);
+        if (disparador.GetAttribute("aria-expanded") != "true")
+            await disparador.ClickAsync(new MouseEventArgs());
+
+        var panelId = DisparadorPastilla(cut, etiqueta).GetAttribute("aria-controls")!;
+        var panel = cut.Find("#" + panelId);
+        var item = panel.QuerySelectorAll("[role=menuitemradio]").Single(i => i.TextContent.Trim() == opcion);
+        await item.ClickAsync(new MouseEventArgs());
+    }
 
     private static IElement BotonConTexto(IRenderedComponent<Proyectos> cut, string selector, string texto) =>
         cut.FindAll(selector).Single(b => b.TextContent.Trim() == texto);
@@ -339,6 +358,54 @@ public class ProyectosGen2Tests : BunitContext
 
     private string Uri => Services.GetRequiredService<NavigationManager>().Uri;
 
+    // Fase 1: adaptación del contexto obligatorio y de las celdas combinadas.
+    [Fact]
+    public async Task Volver_a_elegir_Cliente_empresarial_no_consulta_todos_y_reabre_un_contexto_concreto()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        _mediator.ProyectosClienteB = [ProyectoDeB];
+        var cut = await RenderizarConClienteAsync();
+        var consultasAntes = _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count();
+        consultasAntes.Should().BeGreaterThan(0, "control positivo: había un Cliente empresarial elegido y datos cargados");
+
+        await SelectorDeCliente(cut).ClickAsync(new MouseEventArgs());
+        var panelId = SelectorDeCliente(cut).GetAttribute("aria-controls")!;
+        var opciones = cut.Find("#" + panelId).QuerySelectorAll("[role=menuitemradio]").Select(i => i.TextContent.Trim()).ToList();
+        opciones.Should().Equal("Selecciona un Cliente empresarial", "Refrielectric S.L.", "Frigoríficos Arcos S.A.");
+        await ElegirCliente(cut, Guid.Empty);
+
+        cut.Markup.Should().Contain("Elige un Cliente empresarial para ver sus proyectos");
+        cut.FindAll("tbody .nombre-proyecto").Should().BeEmpty();
+        cut.Markup.Should().NotContain("+ Nuevo proyecto");
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasAntes,
+            "Guid.Empty pide elegir, nunca consulta todos los Clientes empresariales");
+
+        await ElegirCliente(cut, ClienteBId);
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Last().ClienteId.Should().Be(ClienteBId);
+        NombresEnLaTabla(cut).Should().Equal(ProyectoDeB.Nombre);
+    }
+
+    [Fact]
+    public async Task Las_celdas_combinadas_conservan_fechas_orden_recibido_y_detalles_por_Id()
+    {
+        // Fixture existente en orden FechaInicio descendente; orden por Nombre lo alteraría.
+        _mediator.Proyectos = [ProyectoAbierto2, ProyectoAbierto, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Last().ClienteId.Should().Be(ClienteId);
+        NombresEnLaTabla(cut).Should().Equal(ProyectoAbierto2.Nombre, ProyectoAbierto.Nombre, ProyectoCerrado.Nombre);
+        var filas = cut.FindAll("tbody tr");
+        filas[1].QuerySelector(".proyecto-centro")!.TextContent.Trim().Should().Be(ProyectoAbierto.CentroNombre);
+        var plazoConFin = filas[1].QuerySelector(".proyecto-plazo")!.TextContent;
+        plazoConFin.Should().Contain(ProyectoAbierto.FechaInicio.ToString("dd/MM/yyyy"))
+            .And.Contain(ProyectoAbierto.FechaFinPrevista!.Value.ToString("dd/MM/yyyy"));
+        var plazoSinFin = filas[0].QuerySelector(".proyecto-plazo")!.TextContent;
+        plazoSinFin.Should().Contain(ProyectoAbierto2.FechaInicio.ToString("dd/MM/yyyy"))
+            .And.Contain("Sin fecha de fin prevista");
+
+        await AbrirDetalle(cut, ProyectoAbierto);
+        _mediator.Enviados.OfType<ObtenerProyectoPorIdQuery>().Last().Id.Should().Be(ProyectoAbierto.Id);
+        cut.Find(".nombre-cabecera-panel-proyecto").TextContent.Trim().Should().Be(ProyectoAbierto.Nombre);
+    }
     // ------------------------------------------------------------------ estados de la lista
 
     [Fact]
@@ -400,7 +467,7 @@ public class ProyectosGen2Tests : BunitContext
 
         var nombres = cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim()).ToList();
         nombres.Should().Equal(ProyectoCerrado.Nombre);
-        cut.Find(".conteo-proyectos").TextContent.Trim().Should().Be("1 de 2 proyecto(s) de este Cliente empresarial");
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("1");
     }
 
     [Fact]
@@ -427,7 +494,7 @@ public class ProyectosGen2Tests : BunitContext
             "OnParametersSet re-sincroniza desde la URL: dejar ahí los filtros los devolvería en la siguiente navegación");
         cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim())
             .Should().BeEquivalentTo([ProyectoAbierto.Nombre, ProyectoCerrado.Nombre]);
-        SelectorDeCliente(cut).GetAttribute("value").Should().Be(ClienteId.ToString(),
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.",
             "el cliente es el maestro de la lista, no un filtro: quitar los filtros no lo toca");
     }
 
@@ -979,7 +1046,7 @@ public class ProyectosGen2Tests : BunitContext
 
         // "a" mantiene visibles las dos filas: si el término las escondiera, un
         // foco perdido y un foco movido serían indistinguibles.
-        await cut.Find("input[aria-label='Buscar proyecto']")
+        await cut.Find("input[data-filtro-pantalla]")
             .InputAsync(new ChangeEventArgs { Value = "a" });
 
         NombresEnLaTabla(cut).Should().HaveCount(2);
@@ -1002,11 +1069,11 @@ public class ProyectosGen2Tests : BunitContext
         await Atajo(cut, "j");
         FilasEnfocadas(cut).Should().Equal([ProyectoCerrado.Nombre]);
 
-        await SelectorDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = "abiertos" });
+        await ElegirPastillaAsync(cut, "Estado", "Abiertos");
 
         FilasEnfocadas(cut).Should().BeEmpty();
 
-        await SelectorDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = "" });
+        await ElegirPastillaAsync(cut, "Estado", "Todos");
 
         NombresEnLaTabla(cut).Should().HaveCount(2, "el filtro ya no esconde nada");
         FilasEnfocadas(cut).Should().BeEmpty("el foco se descartó al esconderse su fila, no se guardó");
@@ -1015,8 +1082,7 @@ public class ProyectosGen2Tests : BunitContext
         FilasEnfocadas(cut).Should().Equal([ProyectoAbierto.Nombre]);
     }
 
-    private static IElement SelectorDeEstado(IRenderedComponent<Proyectos> cut) =>
-        cut.FindAll("select").Single(s => s.TextContent.Contains("Abiertos"));
+
 
     // ------------------------------------------------------------------ P1-E2b: aviso de cambios sin guardar
 
@@ -1243,6 +1309,8 @@ public class ProyectosGen2Tests : BunitContext
         await cierre.WaitAsync(Paciencia);
 
         PanelDeDetalleAbierto(cut).Should().BeTrue("«Seguir editando» conserva el panel");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.",
+            "cancelar conserva también la selección visible de la pastilla");
         ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "y conserva lo escrito");
 
         var segundoCierre = CerrarElPanelAsync(cut);
@@ -1292,6 +1360,8 @@ public class ProyectosGen2Tests : BunitContext
         await cambio.WaitAsync(Paciencia);
 
         PanelDeDetalleAbierto(cut).Should().BeTrue("«Seguir editando» conserva el panel");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.",
+            "cancelar conserva también la selección visible de la pastilla");
         ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre");
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasDeProyectosAntes,
             "seguir editando no recarga la lista del otro Cliente empresarial");
@@ -1354,6 +1424,8 @@ public class ProyectosGen2Tests : BunitContext
         await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
         await cierre.WaitAsync(Paciencia);
         PanelDeDetalleAbierto(cut).Should().BeTrue("«Seguir editando» conserva el panel");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.",
+            "cancelar conserva también la selección visible de la pastilla");
         ValorDelCampo(cut, "Fecha de alta").Should().Be("2020-01-01");
 
         var segundo = CerrarElPanelAsync(cut);
@@ -1537,6 +1609,8 @@ public class ProyectosGen2Tests : BunitContext
         await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
         await cambio.WaitAsync(Paciencia);
         PanelDeDetalleAbierto(cut).Should().BeTrue("«Seguir editando» conserva el panel");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.",
+            "cancelar conserva también la selección visible de la pastilla");
         ValorDelCampo(cut, "Fecha de alta").Should().Be("2020-01-01");
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasDeProyectosAntes);
 
