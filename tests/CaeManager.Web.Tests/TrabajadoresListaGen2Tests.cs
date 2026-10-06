@@ -2,6 +2,7 @@ using CaeManager.Infrastructure.Identity;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Alertas;
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
@@ -639,6 +640,291 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
     private static ObtenerTrabajadoresQuery UltimaConsulta(MediatorFalso mediador) =>
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Last();
+
+    [Fact]
+    public async Task Alta_correcta_actualiza_el_catalogo_visible_y_la_pastilla_sin_recargar_la_pagina()
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var nueva = Trabajador("Carla", "Molina Ríos", empresaId: EmpresaDexter);
+        var mediador = new MediatorFalso { Almacen = { bea }, EmpleadoresFiltro = CatalogoSoloEbroParaRefresh() };
+        var cut = Renderizar(mediador);
+        Columna(cut, 0).Should().Equal(["Alonso"], "control positivo: la lista inicial existe");
+        await ComprobarOpcionesEmpresaYCerrarAsync(cut, "Todas", "Montajes Ebro S.L.");
+        await AbrirAltaAsync(cut);
+        await SelectorDeEmpleadorDelAlta(cut).Find("select").ChangeAsync(new ChangeEventArgs { Value = EmpresaDexter.ToString() });
+        await EscribirDatosCompletosDelAltaAsync(cut);
+        var consultasCatalogoAntes = ConsultasCatalogoVisibleParaRefresh(mediador);
+        mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().BeEmpty();
+
+        // El fake cambia su estado al aceptar la escritura, igual que el consumidor; la respuesta
+        // del catálogo ya está preparada antes del clic, para detectar si la página conserva su cache.
+        mediador.EmpleadoresFiltro = CatalogoEbroDexterParaRefresh();
+        mediador.Retener = p =>
+        {
+            if (p is not CrearTrabajadorCommand) return null;
+            mediador.Almacen.Add(nueva);
+            return Task.FromResult<object>(Result.Exito(nueva.Dto.Id));
+        };
+        await GuardarAlta(cut).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().ContainSingle();
+        mediador.Enviadas.OfType<CrearTrabajadorCommand>().Single().EmpresaId.Should().Be(EmpresaDexter);
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Molina Ríos"));
+        await ComprobarCatalogoRefrescadoAsync(cut, mediador, consultasCatalogoAntes,
+            "Todas", "Montajes Ebro S.L.", "Dexter Industrial S.A.");
+    }
+
+    [Fact]
+    public async Task Baja_individual_y_Deshacer_actualizan_el_catalogo_visible_en_cada_exito()
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var ana = Trabajador("Ana", "Moreno", empresaId: EmpresaDexter);
+        var mediador = new MediatorFalso { Almacen = { bea, ana }, EmpleadoresFiltro = CatalogoEbroDexterParaRefresh() };
+        var cut = Renderizar(mediador);
+        Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Moreno");
+        await ComprobarOpcionesEmpresaYCerrarAsync(cut, "Todas", "Montajes Ebro S.L.", "Dexter Industrial S.A.");
+        await PulsarEnElMenuDeLaFila(cut, 1, "Eliminar");
+        mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Should().BeEmpty("abrir el diálogo todavía no escribe");
+        var consultasAntesDeBaja = ConsultasCatalogoVisibleParaRefresh(mediador);
+        mediador.EmpleadoresFiltro = CatalogoSoloEbroParaRefresh();
+
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Should().Equal([new EliminarTrabajadorCommand(ana.Dto.Id)]);
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Alonso"));
+        await ComprobarCatalogoRefrescadoAsync(cut, mediador, consultasAntesDeBaja, "Todas", "Montajes Ebro S.L.");
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        aviso.OnAccion.Should().NotBeNull("control positivo: el deshacer es el callback real del aviso");
+        var consultasAntesDeRestaurar = ConsultasCatalogoVisibleParaRefresh(mediador);
+        mediador.EmpleadoresFiltro = CatalogoEbroDexterParaRefresh();
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediador.Enviadas.OfType<RestaurarTrabajadorCommand>().Should().Equal([new RestaurarTrabajadorCommand(ana.Dto.Id)]);
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Moreno"));
+        await ComprobarCatalogoRefrescadoAsync(cut, mediador, consultasAntesDeRestaurar,
+            "Todas", "Montajes Ebro S.L.", "Dexter Industrial S.A.");
+    }
+
+    [Fact]
+    public async Task Baja_en_lote_y_Deshacer_del_lote_actualizan_empresas_y_subcontratas_visibles()
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var ana = Trabajador("Ana", "Moreno", empresaId: EmpresaDexter);
+        var carla = Trabajador("Carla", "Molina Ríos", subcontrataId: SubcontrataNervion);
+        var catalogoCompleto = new EmpleadoresDeTrabajadoresDto(
+            CatalogoEbroDexterParaRefresh().Empresas,
+            [new EmpleadorDeTrabajadorDto(SubcontrataNervion, "Aislamientos Nervión S.L.")]);
+        var mediador = new MediatorFalso { Almacen = { bea, ana, carla }, EmpleadoresFiltro = catalogoCompleto };
+        var cut = Renderizar(mediador);
+        Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Moreno", "Molina Ríos");
+        await ComprobarOpcionesEmpresaYCerrarAsync(cut, "Todas", "Montajes Ebro S.L.", "Dexter Industrial S.A.", "Aislamientos Nervión S.L. (subcontrata)");
+        await AlternarSeleccionMultiple(cut);
+        foreach (var fila in new[] { ana, carla })
+            await cut.Find($"tbody input[aria-label='Seleccionar a {fila.Dto.Nombre} {fila.Dto.Apellidos}']")
+                .ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<EliminarTrabajadoresCommand>().Should().BeEmpty();
+        var consultasAntesDeBaja = ConsultasCatalogoVisibleParaRefresh(mediador);
+        mediador.EmpleadoresFiltro = CatalogoSoloEbroParaRefresh();
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarTrabajadoresCommand>().Should().ContainSingle();
+        mediador.Enviadas.OfType<EliminarTrabajadoresCommand>().Single().Ids.Should().BeEquivalentTo([ana.Dto.Id, carla.Dto.Id]);
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Alonso"));
+        await ComprobarCatalogoRefrescadoAsync(cut, mediador, consultasAntesDeBaja, "Todas", "Montajes Ebro S.L.");
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        var consultasAntesDeRestaurar = ConsultasCatalogoVisibleParaRefresh(mediador);
+        mediador.EmpleadoresFiltro = catalogoCompleto;
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediador.Enviadas.OfType<RestaurarTrabajadorCommand>().Select(c => c.Id).Should().BeEquivalentTo([ana.Dto.Id, carla.Dto.Id]);
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Moreno", "Molina Ríos"));
+        await ComprobarCatalogoRefrescadoAsync(cut, mediador, consultasAntesDeRestaurar,
+            "Todas", "Montajes Ebro S.L.", "Dexter Industrial S.A.", "Aislamientos Nervión S.L. (subcontrata)");
+    }
+
+    [Fact]
+    public async Task Asignar_a_centro_actualiza_el_catalogo_visible_despues_del_comando_correcto()
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var centro = new CentroSelectorDto(Guid.NewGuid(), "Planta Zaragoza", "Cliente empresarial de prueba", "Montajes Ebro S.L.");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { bea },
+            Centros = { centro },
+            EmpleadoresFiltro = CatalogoSoloEbroParaRefresh(),
+            // La fixture no responde esta orden de serie; Retener registra primero y responde éxito.
+            Retener = p => p is CrearAsignacionesCommand
+                ? Task.FromResult<object>(Result.Exito(new ResultadoAsignacionLoteDto(1, 0, 0, []))) : null,
+        };
+        var cut = Renderizar(mediador);
+        Columna(cut, 0).Should().Equal("Alonso");
+        await ComprobarOpcionesEmpresaYCerrarAsync(cut, "Todas", "Montajes Ebro S.L.");
+        await AbrirAsignarACentro(cut, bea);
+        await cut.InvokeAsync(() => cut.FindComponent<CampoBuscarSelect>().Instance.ValorChanged.InvokeAsync(centro.Id.ToString()));
+        mediador.Enviadas.OfType<ObtenerDocumentosFaltantesParaAsignacionQuery>().Should().ContainSingle();
+        mediador.Enviadas.OfType<CrearAsignacionesCommand>().Should().BeEmpty();
+        var consultasCatalogoAntes = ConsultasCatalogoVisibleParaRefresh(mediador);
+        var consultasListaAntes = ConsultasDeLista(mediador);
+        // Respuesta distinta con el mismo ID: instrumenta una nueva lectura sin fingir que asignar
+        // modifica el empleador del Trabajador. La derivación real de visibilidad se prueba en Integration.
+        mediador.EmpleadoresFiltro = new EmpleadoresDeTrabajadoresDto(
+            [new EmpleadorDeTrabajadorDto(EmpresaEbro, "Montajes Ebro S.L. actualizado")], []);
+
+        await cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Asignar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CrearAsignacionesCommand>().Should().ContainSingle();
+        var enviada = mediador.Enviadas.OfType<CrearAsignacionesCommand>().Single();
+        enviada.TrabajadorIds.Should().Equal(bea.Dto.Id);
+        enviada.CentroIds.Should().Equal(centro.Id);
+        cut.WaitForAssertion(() => ConsultasDeLista(mediador).Should().BeGreaterThan(consultasListaAntes));
+        await ComprobarCatalogoRefrescadoAsync(cut, mediador, consultasCatalogoAntes,
+            "Todas", "Montajes Ebro S.L. actualizado");
+    }
+
+    [Fact]
+    public async Task Una_busqueda_de_lectura_no_vuelve_a_pedir_el_catalogo_visible()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Bea", "Alonso"), Trabajador("Ana", "Moreno") },
+            EmpleadoresFiltro = CatalogoSoloEbroParaRefresh(),
+        };
+        var cut = Renderizar(mediador);
+        Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Moreno");
+        var consultasCatalogoAntes = ConsultasCatalogoVisibleParaRefresh(mediador);
+        consultasCatalogoAntes.Should().BeGreaterThan(0, "control positivo: el catálogo se pidió al inicializar");
+        var consultasListaAntes = ConsultasDeLista(mediador);
+
+        await CajaDeBusqueda(cut).Find("input").InputAsync(new ChangeEventArgs { Value = "Moreno" });
+
+        cut.WaitForAssertion(() => UltimaConsulta(mediador).Busqueda.Should().Be("Moreno"));
+        ConsultasDeLista(mediador).Should().BeGreaterThan(consultasListaAntes);
+        ConsultasCatalogoVisibleParaRefresh(mediador).Should().Be(consultasCatalogoAntes,
+            "el refresco del catálogo pertenece al éxito de escritura, no a RecargarAsync de lectura");
+        mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_falla_el_catalogo_tras_una_baja_la_lista_y_los_filtros_se_conservan_y_la_pastilla_solo_ofrece_Todas()
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var ana = Trabajador("Ana", "Moreno");
+        var mediador = new MediatorFalso { Almacen = { bea, ana }, EmpleadoresFiltro = CatalogoSoloEbroParaRefresh() };
+        var cut = Renderizar(mediador);
+        await ElegirEnLaPastilla(cut, "Empresa", "Montajes Ebro S.L.");
+        UltimaConsulta(mediador).EmpresaId.Should().Be(EmpresaEbro, "control positivo: la lista tiene filtro de empleador");
+        Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Moreno");
+        await ComprobarOpcionesEmpresaYCerrarAsync(cut, "Todas", "Montajes Ebro S.L.");
+        await PulsarEnElMenuDeLaFila(cut, 0, "Eliminar");
+        var consultasCatalogoAntes = ConsultasCatalogoVisibleParaRefresh(mediador);
+        mediador.FallarEmpleadoresFiltro = true;
+
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Should().Equal([new EliminarTrabajadorCommand(bea.Dto.Id)]);
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Moreno"));
+        UltimaConsulta(mediador).EmpresaId.Should().Be(EmpresaEbro,
+            "el fallo del catálogo auxiliar no puede soltar el filtro de la lista");
+        cut.Markup.Should().NotContain("No pudimos cargar los trabajadores");
+        await ComprobarCatalogoRefrescadoAsync(cut, mediador, consultasCatalogoAntes, "Todas");
+    }
+
+    /// <summary>
+    /// Dos avisos distintos permiten dos restauraciones concurrentes. La respuesta o fallo del
+    /// primer refresco llega después de la segunda respuesta: no puede reemplazar el catálogo vigente.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Dos_Deshacer_individuales_no_dejan_que_la_respuesta_o_fallo_del_catalogo_anterior_pise_al_vigente(
+        bool fallaElPrimero)
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var ana = Trabajador("Ana", "Moreno", empresaId: EmpresaDexter);
+        var carla = Trabajador("Carla", "Molina Ríos", subcontrataId: SubcontrataNervion);
+        var completo = new EmpleadoresDeTrabajadoresDto(CatalogoEbroDexterParaRefresh().Empresas,
+            [new EmpleadorDeTrabajadorDto(SubcontrataNervion, "Aislamientos Nervión S.L.")]);
+        var mediador = new MediatorFalso { Almacen = { bea, ana, carla }, EmpleadoresFiltro = completo };
+        var cut = Renderizar(mediador);
+        Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Moreno", "Molina Ríos");
+        await ComprobarOpcionesEmpresaYCerrarAsync(cut, "Todas", "Montajes Ebro S.L.", "Dexter Industrial S.A.", "Aislamientos Nervión S.L. (subcontrata)");
+
+        // Localizar cada fila por su botón evita depender del orden de los dos apellidos.
+        var indiceAna = FilasDeDatos(cut).FindIndex(f => f.QuerySelector(".enlace-nombre-fila")!.TextContent.Trim() == "Moreno, Ana");
+        indiceAna.Should().BeGreaterThanOrEqualTo(0);
+        mediador.EmpleadoresFiltro = new EmpleadoresDeTrabajadoresDto(CatalogoSoloEbroParaRefresh().Empresas, completo.Subcontratas);
+        await PulsarEnElMenuDeLaFila(cut, indiceAna, "Eliminar");
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Molina Ríos"));
+        var indiceCarla = FilasDeDatos(cut).FindIndex(f => f.QuerySelector(".enlace-nombre-fila")!.TextContent.Trim() == "Molina Ríos, Carla");
+        indiceCarla.Should().BeGreaterThanOrEqualTo(0);
+        mediador.EmpleadoresFiltro = CatalogoSoloEbroParaRefresh();
+        await PulsarEnElMenuDeLaFila(cut, indiceCarla, "Eliminar");
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Alonso"));
+        var avisos = Services.GetRequiredService<ToastService>().Mensajes.Where(m => m.TextoAccion == "Deshacer").ToList();
+        avisos.Should().HaveCount(2, "hay dos callbacks reales de bajas diferentes");
+        mediador.Enviadas.OfType<EliminarTrabajadorCommand>().Select(c => c.Id).Should().BeEquivalentTo([ana.Dto.Id, carla.Dto.Id]);
+
+        var primera = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var segunda = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var consultasRetenidas = 0;
+        var consultasCatalogoAntes = ConsultasCatalogoVisibleParaRefresh(mediador);
+        mediador.Retener = p => p is ObtenerEmpleadoresDeTrabajadoresVisiblesQuery
+            ? (++consultasRetenidas == 1 ? primera.Task : segunda.Task) : null;
+
+        // Sin await: el callback queda esperando la Query del catálogo.
+        var deshacerPrimero = cut.InvokeAsync(avisos[0].OnAccion!);
+        cut.WaitForAssertion(() => consultasRetenidas.Should().Be(1));
+        var deshacerSegundo = cut.InvokeAsync(avisos[1].OnAccion!);
+        cut.WaitForAssertion(() => consultasRetenidas.Should().Be(2));
+        mediador.Enviadas.OfType<RestaurarTrabajadorCommand>().Select(c => c.Id).Should().BeEquivalentTo([ana.Dto.Id, carla.Dto.Id]);
+
+        await cut.InvokeAsync(() => segunda.SetResult(completo));
+        await deshacerSegundo;
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Moreno", "Molina Ríos"));
+        await ComprobarCatalogoRefrescadoAsync(cut, mediador, consultasCatalogoAntes,
+            "Todas", "Montajes Ebro S.L.", "Dexter Industrial S.A.", "Aislamientos Nervión S.L. (subcontrata)");
+
+        if (fallaElPrimero)
+            await cut.InvokeAsync(() => primera.SetException(new InvalidOperationException("Fallo antiguo del catálogo.")));
+        else
+            await cut.InvokeAsync(() => primera.SetResult(CatalogoEbroDexterParaRefresh()));
+        await deshacerPrimero;
+
+        await ComprobarOpcionesEmpresaYCerrarAsync(cut,
+            "Todas", "Montajes Ebro S.L.", "Dexter Industrial S.A.", "Aislamientos Nervión S.L. (subcontrata)");
+        Columna(cut, 0).Should().BeEquivalentTo("Alonso", "Moreno", "Molina Ríos");
+        consultasRetenidas.Should().Be(2, "control positivo: se resolvieron precisamente las dos preguntas retenidas");
+    }
+
+    private static EmpleadoresDeTrabajadoresDto CatalogoSoloEbroParaRefresh() =>
+        new([new EmpleadorDeTrabajadorDto(EmpresaEbro, "Montajes Ebro S.L.")], []);
+
+    private static EmpleadoresDeTrabajadoresDto CatalogoEbroDexterParaRefresh() =>
+        new([new EmpleadorDeTrabajadorDto(EmpresaEbro, "Montajes Ebro S.L."),
+             new EmpleadorDeTrabajadorDto(EmpresaDexter, "Dexter Industrial S.A.")], []);
+
+    private static int ConsultasCatalogoVisibleParaRefresh(MediatorFalso mediador) =>
+        mediador.Enviadas.OfType<ObtenerEmpleadoresDeTrabajadoresVisiblesQuery>().Count();
+
+    private static async Task ComprobarOpcionesEmpresaYCerrarAsync(IRenderedComponent<Trabajadores> cut, params string[] opciones)
+    {
+        (await OpcionesDeLaPastilla(cut, "Empresa")).Should().Equal(opciones);
+        // El helper existente deja la pastilla abierta; cerrarla conserva el punto de partida del siguiente gesto.
+        await Pastilla(cut, "Empresa").ClickAsync(new MouseEventArgs());
+    }
+
+    private static async Task ComprobarCatalogoRefrescadoAsync(IRenderedComponent<Trabajadores> cut, MediatorFalso mediador,
+        int consultasAntes, params string[] opciones)
+    {
+        cut.WaitForAssertion(() => ConsultasCatalogoVisibleParaRefresh(mediador).Should().BeGreaterThan(consultasAntes,
+            "una escritura correcta vuelve a pedir los empleadores visibles"));
+        await ComprobarOpcionesEmpresaYCerrarAsync(cut, opciones);
+    }
 
     private static int ConsultasDeLista(MediatorFalso mediador) =>
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Count();

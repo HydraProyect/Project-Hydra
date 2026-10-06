@@ -99,6 +99,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// alta (alcance de gestión y catálogo de Subcontratas) y no deben enseñarse como filtro a quien no gestiona.
     /// </summary>
     private EmpleadoresDeTrabajadoresDto _empleadoresFiltro = new([], []);
+    private long _versionEmpleadores;
 
     // DDL-072 (misma fuente que el enlace «trabajadores» de CatalogoMenuLateral y _tituloPagina de
     // Empresas.razor.cs: UsaRotulosPrimeraPersonaQuery): "Mis trabajadores" solo si perfil Cliente
@@ -272,14 +273,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             return;
 
         // Opciones de la pastilla «Empresa». Si fallan, la lista se pinta igual y la pastilla solo ofrece «Todas».
-        try
-        {
-            _empleadoresFiltro = await Mediator.Send(new ObtenerEmpleadoresDeTrabajadoresVisiblesQuery());
-        }
-        catch (Exception)
-        {
-            _empleadoresFiltro = new EmpleadoresDeTrabajadoresDto([], []);
-        }
+        await CargarEmpleadoresFiltroAsync();
+        if (_desechado)
+            return;
 
         var primeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
         _tituloPagina = primeraPersona
@@ -571,6 +567,34 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         StateHasChanged();
     }
 
+    private async Task CargarEmpleadoresFiltroAsync()
+    {
+        var version = Interlocked.Increment(ref _versionEmpleadores);
+        try
+        {
+            var empleadores = await Mediator.Send(new ObtenerEmpleadoresDeTrabajadoresVisiblesQuery(), _ciclo.Token);
+            if (!_desechado && version == Volatile.Read(ref _versionEmpleadores))
+                _empleadoresFiltro = empleadores;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+            // La página retirada no conserva una respuesta del contexto anterior.
+        }
+        catch (Exception)
+        {
+            if (!_desechado && version == Volatile.Read(ref _versionEmpleadores))
+                _empleadoresFiltro = new EmpleadoresDeTrabajadoresDto([], []);
+        }
+    }
+
+    private async Task RecargarTrasEscrituraAsync()
+    {
+        // Altas, bajas, restauraciones y Asignaciones pueden cambiar los empleadores legibles.
+        await CargarEmpleadoresFiltroAsync();
+        if (!_desechado)
+            await RecargarAsync();
+    }
+
     private async Task AbrirCrearAsync()
     {
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
@@ -744,7 +768,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
             ToastService.Mostrar(Textos["ToastCreado"], TonoToast.Exito);
             _drawerVisible = false;
-            await RecargarAsync();
+            await RecargarTrasEscrituraAsync();
         }
         catch (ValidationException ex)
         {
@@ -865,7 +889,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(idEliminado));
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Trabajador, [idEliminado]);
                 _confirmarEliminarVisible = false;
-                await RecargarAsync();
+                await RecargarTrasEscrituraAsync();
             }
         }
         catch (Exception)
@@ -894,7 +918,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
 
             if (resultado.EsExitoso)
-                await RecargarAsync();
+                await RecargarTrasEscrituraAsync();
         }
         finally
         {
@@ -953,7 +977,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
-            await RecargarAsync();
+            await RecargarTrasEscrituraAsync();
         }
         catch (Exception)
         {
@@ -987,7 +1011,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             if (r.Restaurados > 0)
-                await RecargarAsync();
+                await RecargarTrasEscrituraAsync();
         }
         finally
         {
@@ -1095,7 +1119,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
             _seleccionados.Clear();
             CerrarAsignarCentro();
-            await RecargarAsync();
+            await RecargarTrasEscrituraAsync();
         }
         catch (Exception)
         {
