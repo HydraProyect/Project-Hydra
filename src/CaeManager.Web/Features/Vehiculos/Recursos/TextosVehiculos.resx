@@ -198,4 +198,37 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Los vehículos se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
   </data>
+  <data name="ListaFiltrarPlaceholder" xml:space="preserve">
+    <value>Filtrar esta pantalla: nombre, modelo o matrícula</value>
+  </data>
+  <data name="ListaFiltroTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="ListaFiltroTodos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="ListaOpcionSubcontrata" xml:space="preserve">
+    <value>{0} (subcontrata)</value>
+  </data>
+  <data name="ListaChipBusqueda" xml:space="preserve">
+    <value>Búsqueda: {0}</value>
+  </data>
+  <data name="ListaQuitarBusqueda" xml:space="preserve">
+    <value>Quitar filtro de búsqueda</value>
+  </data>
+  <data name="ListaQuitarDocumentacion" xml:space="preserve">
+    <value>Quitar filtro de documentación</value>
+  </data>
+  <data name="ListaQuitarEmpresa" xml:space="preserve">
+    <value>Quitar filtro de empresa</value>
+  </data>
+  <data name="ListaQuitarSubcontrata" xml:space="preserve">
+    <value>Quitar filtro de subcontrata</value>
+  </data>
+  <data name="ListaOrdenarPor" xml:space="preserve">
+    <value>Ordenar por</value>
+  </data>
+  <data name="ListaColumnaVehiculoOrden" xml:space="preserve">
+    <value>Vehículo · {0}</value>
+  </data>
 </root>

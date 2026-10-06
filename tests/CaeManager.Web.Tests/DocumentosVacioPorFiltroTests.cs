@@ -272,24 +272,22 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Count();
 
     private static IRenderedComponent<CampoTexto> CajaDeBusqueda(IRenderedComponent<PaginaDocumentos> cut) =>
-        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Buscar por propietario") == true);
+        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Filtrar esta pantalla") == true);
 
     /// <summary>
     /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez.
     /// <c>SetCurrentPageIndexAsync</c> ya avisa a QuickGrid aunque la página no
     /// cambie, así que refrescar además la rejilla pedía lo mismo dos veces
-    /// (ver <c>RecargarAsync</c> en <c>Documentos.razor.cs</c>). Los mismos dos
+    /// (ver <c>RecargarAsync</c> en <c>Documentos.razor.cs</c>). Los veintiún
     /// documentos antes y después mantienen el total quieto, así que lo que se
     /// cuenta es lo que pide la página y no una repetición de QuickGrid.
     /// </summary>
     [Fact]
     public void Cambiar_el_tamano_de_pagina_hace_una_sola_consulta()
     {
-        var (cut, mediador) = RenderizarConMediador(documentos: [Documento("Reconocimiento médico"), Documento("Formación PRL")]);
+        var (cut, mediador) = RenderizarConMediador(documentos: Enumerable.Range(1, 21).Select(i => Documento("Contrato " + i)).ToArray());
         var consultasAntes = ConsultasDeLista(mediador);
-
         cut.Find(".paginador-tamano-select").Change("50");
-
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().TamanoPagina.Should().Be(50);
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
             "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
@@ -353,7 +351,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     private async Task<(IRenderedComponent<PaginaDocumentos> Cut, NavigationManager Navegacion)> AbrirGuardarFiltroAsync()
     {
         // Con un filtro activo: desde el patrón único de lista (BarraFiltros) «Guardar filtro» solo se
-        // pinta junto a los chips, así que reabrir el modal por su botón exige un filtro puesto.
+        // ofrece en Más filtros, así que reabrir el modal por su botón exige un filtro puesto.
         var cut = Renderizar(estado: nameof(EstadoDocumento.Vencido));
         var navegacion = Services.GetRequiredService<NavigationManager>();
         await cut.InvokeAsync(() => navegacion.NavigateTo("documentos?Estado=Vencido&accion=guardar-filtro"));
@@ -399,7 +397,9 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
 
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
+            .Single(b => b.GetAttribute("aria-label") == "Más filtros").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-filtros-pastillas [role=menuitem]").Single(b => b.TextContent.Trim() == "Guardar filtro").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Nombre"));
 
         await cut.SalirYComprobarQueNoPreguntaAsync(navegacion, "reabrir el modal sin escribir no deja nada que perder");

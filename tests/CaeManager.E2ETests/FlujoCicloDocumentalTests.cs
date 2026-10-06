@@ -173,7 +173,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // --- Paso 4 (Vencimiento, primera lectura): semáforo "Urgente" a 10 días ---
         // Mismo umbral que FlujoCriticoTests (rojo = 15 días) — se reutiliza
         // el patrón ya establecido en vez de reinventar el cálculo aquí.
-        await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
         var filaDocumento = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         var insigniaEstado = filaDocumento.Locator(".badge-peligro");
@@ -325,7 +325,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
         // --- Paso 7 (Renovación): nueva fecha de vencimiento, el semáforo pasa a "Vigente" ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // MenuAcciones.razor abre el desplegable con un @onclick server-side,
@@ -352,7 +352,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         var insigniaVigente = filaDocumento.Locator(".badge-exito");
         await insigniaVigente.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });

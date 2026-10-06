@@ -165,7 +165,7 @@ public class ImportacionTests(WebAppFixture fixture)
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
         var filaDocumento = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(filaDocumento).ToContainTextAsync("Certificado de aptitud médica");

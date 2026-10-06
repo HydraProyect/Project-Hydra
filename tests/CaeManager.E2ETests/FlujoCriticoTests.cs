@@ -141,7 +141,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // debounce de CampoTexto (300ms) a mano: el WaitForAsync de más abajo
         // reintenta hasta encontrar la fila, que solo aparece una vez que el
         // grid recibe la búsqueda ya filtrada.
-        await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
 
         var fila = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await fila.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });

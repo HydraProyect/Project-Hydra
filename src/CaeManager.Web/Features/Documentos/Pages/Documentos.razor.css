@@ -1,5 +1,37 @@
-/* Recuento «N documentos» de la barra de herramientas. */
-.conteo-documentos {
+.documentos-propietario {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.documentos-ambito {
     font: var(--font-caption);
     color: var(--color-text-muted);
+}
+
+.documentos-vigencia {
+    white-space: nowrap;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.documentos-opciones-orden {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.documentos-opciones-orden button {
+    border: 0;
+    border-radius: 0.25rem;
+    padding: 0.375rem 0.5rem;
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+
+.documentos-opciones-orden button:hover {
+    background: var(--color-surface-hover);
 }

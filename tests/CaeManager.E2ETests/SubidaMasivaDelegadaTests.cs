@@ -80,14 +80,15 @@ public class SubidaMasivaDelegadaTests(WebAppFixture fixture)
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
 
-        // Control positivo del instrumento: el enlace vecino, sin condición de rol de
-        // escritura, sí está; sin él, «no hay enlace» se cumpliría con la página vacía.
-        await Expect(page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Exportar a Excel" }))
+        // El menú también contiene exportaciones de lectura: abrirlo demuestra que
+        // la cabecera funciona antes de comprobar que no ofrece acciones de escritura.
+        var menu = await Ayudas.AbrirMenuAccionesAsync(page.Locator(".cabecera-pagina .menu-acciones-disparador"));
+        await Expect(menu.GetByRole(AriaRole.Menuitem, new LocatorGetByRoleOptions { Name = "Exportar a Excel", Exact = true }))
             .ToBeVisibleAsync();
-        await Expect(page.GetByRole(AriaRole.Link, new PageGetByRoleOptions { Name = "Subida múltiple" }))
+        await Expect(menu.GetByRole(AriaRole.Menuitem, new LocatorGetByRoleOptions { Name = "Subida múltiple", Exact = true }))
             .ToHaveCountAsync(0);
-        // Ya no es un enlace: el acceso es el menú «Más», que Consulta tampoco tiene (todo lo que contiene escribe).
-        await Expect(page.Locator(".cabecera-pagina .menu-acciones-disparador")).ToHaveCountAsync(0);
+        await Expect(menu.GetByRole(AriaRole.Menuitem, new LocatorGetByRoleOptions { Name = "Importar documentos", Exact = true }))
+            .ToHaveCountAsync(0);
     }
 
     private async Task EntrarEnWorkspaceDelegadoAsync(IPage page, string email)

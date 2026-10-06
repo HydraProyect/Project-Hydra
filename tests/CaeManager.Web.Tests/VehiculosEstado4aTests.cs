@@ -174,7 +174,7 @@ public class VehiculosEstado4aTests : BunitContext
         cut.Markup.Should().Contain(TextoEstado4a, "control positivo: es el estado 4a");
         ConsultasDeDatos(mediador).Should().Be(0, "ni la lista, ni los catálogos de empresas y subcontratas del origen");
         cut.Markup.Should().NotContain("+ Nuevo vehículo");
-        cut.FindAll(".barra-filtros").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("el origen no es la empresa elegida");
     }
 
@@ -188,7 +188,7 @@ public class VehiculosEstado4aTests : BunitContext
 
         var cut = Render<Vehiculos>();
 
-        cut.FindAll(".barra-filtros").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
         cut.Markup.Should().NotContain("+ Nuevo vehículo");
         ConsultasDeDatos(mediador).Should().Be(0);
 
@@ -206,19 +206,22 @@ public class VehiculosEstado4aTests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.Markup.Should().NotContain(TextoEstado4a);
-        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Operador de prueba");
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-pastillas").Should().ContainSingle();
         mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Should().NotBeEmpty();
     }
 
     [Fact]
-    public void Con_empresa_elegida_la_cabecera_la_nombra_y_la_lista_se_monta()
+    public void Con_Tenant_seleccionado_la_lista_se_monta_sin_cabecera_repetida()
     {
         Seleccion = new SeleccionEmpresaGestionadaDePrueba(EmpresaSur);
         var mediador = ConCartera(origenGestionado: false);
 
         var cut = Renderizar(mediador);
 
-        cut.Find(".cabecera-empresa-activa").TextContent.Should().Contain("Empresa Sur");
+        cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-pastillas").Should().ContainSingle();
+        Services.GetRequiredService<ITenantActual>().TenantId.Should().Be(EmpresaSur);
         cut.Markup.Should().NotContain(TextoEstado4a);
         cut.Markup.Should().Contain("+ Nuevo vehículo");
         mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Should().NotBeEmpty();

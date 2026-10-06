@@ -55,6 +55,7 @@ tests/CaeManager.E2ETests/ImportarCombinadoTests.cs :: GetByText = 8
 tests/CaeManager.E2ETests/ImportarDocumentosTests.cs :: FiltroPorTexto = 3
 tests/CaeManager.E2ETests/ImportarDocumentosTests.cs :: GetByText = 12
 tests/CaeManager.E2ETests/ImportarDocumentosTests.cs :: Posicional = 3
+tests/CaeManager.E2ETests/ListadosFase1VehiculosDocumentosTests.cs :: Posicional = 3
 tests/CaeManager.E2ETests/MiTrabajoGen2Tests.cs :: FiltroPorTexto = 1
 tests/CaeManager.E2ETests/P331TecladoLoteFiltrosGuardadosTests.cs :: FiltroPorTexto = 4
 tests/CaeManager.E2ETests/P331TecladoLoteFiltrosGuardadosTests.cs :: GetByText = 8

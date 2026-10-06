@@ -208,28 +208,23 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Count();
 
     private static IRenderedComponent<CampoTexto> CajaDeBusqueda(IRenderedComponent<Vehiculos> cut) =>
-        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Buscar por nombre") == true);
+        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Filtrar esta pantalla") == true);
 
     /// <summary>
     /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez.
     /// <c>SetCurrentPageIndexAsync</c> ya avisa a QuickGrid aunque la página no
     /// cambie, así que refrescar además la rejilla pedía lo mismo dos veces
-    /// (ver <c>RecargarAsync</c> en <c>Vehiculos.razor.cs</c>). Los mismos dos
+    /// (ver <c>RecargarAsync</c> en <c>Vehiculos.razor.cs</c>). Los veintiún
     /// vehículos antes y después mantienen el total quieto, así que lo que se
     /// cuenta es lo que pide la página y no una repetición de QuickGrid.
     /// </summary>
     [Fact]
     public void Cambiar_el_tamano_de_pagina_hace_una_sola_consulta()
     {
-        var (cut, mediador) = RenderizarConMediador(vehiculos:
-        [
-            new VehiculoListaDto(Guid.NewGuid(), "Furgoneta de obra", "Transit", "1234-ABC", "Montajes Ebro S.L."),
-            new VehiculoListaDto(Guid.NewGuid(), "Camión grúa", "Actros", "5678-DEF", "Montajes Ebro S.L.")
-        ]);
+        var (cut, mediador) = RenderizarConMediador(vehiculos: Enumerable.Range(1, 21)
+            .Select(i => new VehiculoListaDto(Guid.NewGuid(), "Vehículo " + i, "Transit", "Placa " + i, "Montajes Ebro S.L.")).ToArray());
         var consultasAntes = ConsultasDeLista(mediador);
-
         cut.Find(".paginador-tamano-select").Change("50");
-
         mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last().TamanoPagina.Should().Be(50);
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
             "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");

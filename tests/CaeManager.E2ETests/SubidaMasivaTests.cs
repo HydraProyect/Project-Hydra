@@ -124,7 +124,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
 
         // --- Verificación real: el Documento existe en /documentos ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByPlaceholder("Buscar por propietario o tipo de documento…").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
         var fila = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await fila.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(fila).ToContainTextAsync("Certificado de aptitud médica");
