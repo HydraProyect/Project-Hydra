@@ -1,3 +1,4 @@
+using CaeManager.Application.Trabajadores.Queries.ObtenerEmpleadoresDeTrabajadoresVisibles;
 using System.Text.Json;
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Common;
@@ -91,6 +92,14 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
     private IReadOnlyList<SubcontrataSelectorDto> _subcontratasDisponibles = [];
+
+    /// <summary>
+    /// Opciones de la pastilla «Empresa»: los empleadores de los Trabajadores visibles, por el mismo alcance que la
+    /// lista. Distintas de <see cref="_empresasDisponibles"/>/<see cref="_subcontratasDisponibles"/>, que son las del
+    /// alta (alcance de gestión y catálogo de Subcontratas) y no deben enseñarse como filtro a quien no gestiona.
+    /// </summary>
+    private EmpleadoresDeTrabajadoresDto _empleadoresFiltro = new([], []);
+    private long _versionEmpleadores;
 
     // DDL-072 (misma fuente que el enlace «trabajadores» de CatalogoMenuLateral y _tituloPagina de
     // Empresas.razor.cs: UsaRotulosPrimeraPersonaQuery): "Mis trabajadores" solo si perfil Cliente
@@ -263,8 +272,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         if (_sinEmpresaSeleccionada)
             return;
 
-        _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
-        _subcontratasDisponibles = await Mediator.Send(new ObtenerSubcontratasParaSelectorQuery());
+        // Opciones de la pastilla «Empresa». Si fallan, la lista se pinta igual y la pastilla solo ofrece «Todas».
+        await CargarEmpleadoresFiltroAsync();
+        if (_desechado)
+            return;
 
         var primeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
         _tituloPagina = primeraPersona
@@ -459,10 +470,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// pueda quitar el filtro, y para eso no hace falta saber su nombre.
     /// </summary>
     private string EtiquetaFiltroEmpresa =>
-        _empresasDisponibles.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.RazonSocial ?? Textos["EtiquetaEmpresa"].Value;
+        _empleadoresFiltro.Empresas.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.RazonSocial ?? Textos["EtiquetaEmpresa"].Value;
 
     private string EtiquetaFiltroSubcontrata =>
-        _subcontratasDisponibles.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.RazonSocial ?? Textos["EtiquetaSubcontrata"].Value;
+        _empleadoresFiltro.Subcontratas.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.RazonSocial ?? Textos["EtiquetaSubcontrata"].Value;
 
     /// <summary>Prefijos del valor de la pastilla «Empresa», que lleva dentro también las subcontratas.</summary>
     private const string PrefijoEmpresa = "empresa:";
@@ -477,10 +488,13 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         : !string.IsNullOrWhiteSpace(_filtroEmpresaId) ? PrefijoEmpresa + _filtroEmpresaId
         : string.Empty;
 
-    /// <summary>Opciones de la pastilla «Empresa»: las empresas y, detrás, las subcontratas marcadas como tales.</summary>
+    /// <summary>
+    /// Opciones de la pastilla «Empresa»: las empresas y, detrás, las subcontratas marcadas como tales; solo las que
+    /// emplean a algún Trabajador visible (<see cref="_empleadoresFiltro"/>).
+    /// </summary>
     private IReadOnlyList<OpcionEstado> OpcionesFiltroEmpleador =>
-        _empresasDisponibles.Select(e => new OpcionEstado(PrefijoEmpresa + e.Id, e.RazonSocial))
-            .Concat(_subcontratasDisponibles.Select(sc => new OpcionEstado(PrefijoSubcontrata + sc.Id, Textos["ListaOpcionSubcontrata", sc.RazonSocial].Value)))
+        _empleadoresFiltro.Empresas.Select(e => new OpcionEstado(PrefijoEmpresa + e.Id, e.RazonSocial))
+            .Concat(_empleadoresFiltro.Subcontratas.Select(sc => new OpcionEstado(PrefijoSubcontrata + sc.Id, Textos["ListaOpcionSubcontrata", sc.RazonSocial].Value)))
             .ToList();
 
     private Task CambiarFiltroEmpleadorAsync(string valor) =>
@@ -553,6 +567,34 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         StateHasChanged();
     }
 
+    private async Task CargarEmpleadoresFiltroAsync()
+    {
+        var version = Interlocked.Increment(ref _versionEmpleadores);
+        try
+        {
+            var empleadores = await Mediator.Send(new ObtenerEmpleadoresDeTrabajadoresVisiblesQuery(), _ciclo.Token);
+            if (!_desechado && version == Volatile.Read(ref _versionEmpleadores))
+                _empleadoresFiltro = empleadores;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+            // La página retirada no conserva una respuesta del contexto anterior.
+        }
+        catch (Exception)
+        {
+            if (!_desechado && version == Volatile.Read(ref _versionEmpleadores))
+                _empleadoresFiltro = new EmpleadoresDeTrabajadoresDto([], []);
+        }
+    }
+
+    private async Task RecargarTrasEscrituraAsync()
+    {
+        // Altas, bajas, restauraciones y Asignaciones pueden cambiar los empleadores legibles.
+        await CargarEmpleadoresFiltroAsync();
+        if (!_desechado)
+            await RecargarAsync();
+    }
+
     private async Task AbrirCrearAsync()
     {
         _empresasDisponibles = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
@@ -561,12 +603,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         var perfil = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery());
         _resolverEmpresaEnSilencio = perfil == PerfilVocabularioTenant.ClienteDirecto && _empresasDisponibles.Count == 1;
 
-        // Si la lista ya está filtrada por Empresa o Subcontrata, se presupone
-        // que el trabajador que se va a dar de alta es de ese mismo empleador.
+        // El filtro representa visibilidad de lectura; solo se prellena con un empleador
+        // que siga disponible en el selector del alta recién cargado.
         if (!string.IsNullOrWhiteSpace(_filtroSubcontrataId))
         {
             _tipoEmpleador = "subcontrata";
-            _subcontrataId = _filtroSubcontrataId;
+            _subcontrataId = _subcontratasDisponibles.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.Id.ToString() ?? string.Empty;
             _empresaId = string.Empty;
         }
         else if (_resolverEmpresaEnSilencio)
@@ -578,7 +620,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         else
         {
             _tipoEmpleador = "empresa";
-            _empresaId = _filtroEmpresaId;
+            _empresaId = _empresasDisponibles.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.Id.ToString() ?? string.Empty;
             _subcontrataId = string.Empty;
         }
         _dni = string.Empty;
@@ -726,7 +768,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
             ToastService.Mostrar(Textos["ToastCreado"], TonoToast.Exito);
             _drawerVisible = false;
-            await RecargarAsync();
+            await RecargarTrasEscrituraAsync();
         }
         catch (ValidationException ex)
         {
@@ -847,7 +889,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(idEliminado));
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Trabajador, [idEliminado]);
                 _confirmarEliminarVisible = false;
-                await RecargarAsync();
+                await RecargarTrasEscrituraAsync();
             }
         }
         catch (Exception)
@@ -876,7 +918,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
 
             if (resultado.EsExitoso)
-                await RecargarAsync();
+                await RecargarTrasEscrituraAsync();
         }
         finally
         {
@@ -935,7 +977,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
-            await RecargarAsync();
+            await RecargarTrasEscrituraAsync();
         }
         catch (Exception)
         {
@@ -969,7 +1011,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
 
             if (r.Restaurados > 0)
-                await RecargarAsync();
+                await RecargarTrasEscrituraAsync();
         }
         finally
         {
@@ -1077,7 +1119,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
             _seleccionados.Clear();
             CerrarAsignarCentro();
-            await RecargarAsync();
+            await RecargarTrasEscrituraAsync();
         }
         catch (Exception)
         {

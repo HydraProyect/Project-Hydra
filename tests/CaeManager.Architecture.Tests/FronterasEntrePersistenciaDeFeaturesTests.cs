@@ -588,6 +588,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "IDocumentosQueryContext"),
         ("Trabajadores.ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler", "ITiposDocumentoQueryContext"),
         // Módulo 8 § 4.1 (2026-09-17): mismo motivo que Empresas.ObtenerEmpresasQueryHandler arriba.
+        // Opciones de la pastilla «Empresa» de /trabajadores: los empleadores de los Trabajadores visibles.
+        ("Trabajadores.ObtenerEmpleadoresDeTrabajadoresVisiblesQueryHandler", "IEmpresasQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IConfiguracionQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IDocumentosQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IEmpresasQueryContext"),
