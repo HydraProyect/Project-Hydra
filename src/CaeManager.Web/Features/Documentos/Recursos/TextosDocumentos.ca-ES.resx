@@ -199,4 +199,22 @@
   <data name="RevIaResumenParcial" xml:space="preserve">
     <value>S'han acceptat {0} de {1} lectures; {2} no s'han pogut acceptar.</value>
   </data>
+  <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar aquesta pantalla: propietari o tipus de document</value></data>
+  <data name="ListaFiltroAmbito" xml:space="preserve"><value>Àmbit</value></data>
+  <data name="ListaFiltroEstado" xml:space="preserve"><value>Estat</value></data>
+  <data name="ListaTodos" xml:space="preserve"><value>Tots</value></data>
+  <data name="ListaAmbitoTrabajador" xml:space="preserve"><value>Treballador</value></data>
+  <data name="ListaAmbitoClienteEmpresarial" xml:space="preserve"><value>Client empresarial</value></data>
+  <data name="ListaAmbitoEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="ListaAmbitoVehiculo" xml:space="preserve"><value>Vehicle</value></data>
+  <data name="ListaAmbitoProyecto" xml:space="preserve"><value>Projecte</value></data>
+  <data name="ListaEntidadAsociadaPorAmbito" xml:space="preserve"><value>Entitat associada · Àmbit</value></data>
+  <data name="ListaVigenciaPorEmision" xml:space="preserve"><value>Vigència · Emissió</value></data>
+  <data name="ListaVigenciaPorVencimiento" xml:space="preserve"><value>Vigència · Venciment</value></data>
+  <data name="ListaOrdenarEntidadAsociada" xml:space="preserve"><value>Ordenar per entitat associada</value></data>
+  <data name="ListaOrdenarAmbito" xml:space="preserve"><value>Ordenar per àmbit</value></data>
+  <data name="ListaOrdenarEmision" xml:space="preserve"><value>Ordenar per emissió</value></data>
+  <data name="ListaOrdenarVencimiento" xml:space="preserve"><value>Ordenar per venciment</value></data>
+  <data name="ListaEmitido" xml:space="preserve"><value>Emès {0}</value></data>
+  <data name="ListaEntidadAsociada" xml:space="preserve"><value>Entitat associada</value></data>
 </root>

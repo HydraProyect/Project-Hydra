@@ -72,3 +72,16 @@ document.addEventListener('keydown', function (evento) {
     evento.preventDefault();
     controles[siguiente].focus();
 });
+
+// Las opciones de orden desaparecen tras elegir un campo. Devolver el foco
+// al botón nativo antes de retirar su control conserva el punto de teclado.
+function devolverFocoAlOrden(evento) {
+    const opciones = evento.target.closest('[data-opciones-orden]');
+    if (!opciones || !opciones.contains(document.activeElement)) return;
+    if (evento.type === 'change' && !evento.target.closest('select')) return;
+    if (evento.type === 'click' && !evento.target.closest('button')) return;
+    const cabecera = opciones.closest('th')?.querySelector('button.col-title');
+    cabecera?.focus({ preventScroll: true });
+}
+document.addEventListener('change', devolverFocoAlOrden);
+document.addEventListener('click', devolverFocoAlOrden);

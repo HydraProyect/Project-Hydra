@@ -8,6 +8,8 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Domain.Tenants;
+using CaeManager.Domain.Documentos;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -15,6 +17,7 @@ using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Vehiculos.Pages;
@@ -24,9 +27,6 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
-
-    /// <summary>La empresa gestionada activa, solo para quien ve el selector de la barra lateral.</summary>
-    private ClienteAutorizadoDto? _empresaActiva;
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -52,6 +52,23 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     }
 
     private QuickGrid<VehiculoListaDto>? _grid;
+    private TemplateColumn<VehiculoListaDto>? _columnaVehiculo;
+    private ColumnBase<VehiculoListaDto>? _ultimaColumnaOrden;
+    private bool _ultimoOrdenAscendente = true;
+    private string _campoOrdenVehiculo = nameof(VehiculoListaDto.Nombre);
+    private bool _ordenVehiculoPendiente;
+    private SortDirection _direccionOrdenPendiente;
+    private static readonly GridSort<VehiculoListaDto> OrdenPorNombre = GridSort<VehiculoListaDto>.ByAscending(v => v.Nombre);
+    private static readonly GridSort<VehiculoListaDto> OrdenPorModelo = GridSort<VehiculoListaDto>.ByAscending(v => v.Modelo);
+
+    private GridSort<VehiculoListaDto> OrdenColumnaVehiculo =>
+        _campoOrdenVehiculo == nameof(VehiculoListaDto.Modelo) ? OrdenPorModelo : OrdenPorNombre;
+
+    private string TituloColumnaVehiculo => Textos["ListaColumnaVehiculoOrden",
+        Textos[_campoOrdenVehiculo == nameof(VehiculoListaDto.Modelo) ? "EtiquetaModelo" : "EtiquetaNombre"].Value].Value;
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+    private bool _puedeEscribir;
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
@@ -175,12 +192,18 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     protected override async Task OnInitializedAsync()
     {
+        if (EstadoAutenticacion is not null)
+        {
+            var usuario = (await EstadoAutenticacion).User;
+            if (_desechado) return;
+            _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
+        }
+
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
         try
         {
             var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, _ciclo.Token);
-            _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
@@ -263,6 +286,8 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
             var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+            _ultimaColumnaOrden = request.SortByColumn;
+            _ultimoOrdenAscendente = request.SortByAscending;
 
             var resultado = await Mediator.Send(new ObtenerVehiculosQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
@@ -333,6 +358,63 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         await RecargarAsync();
     }
 
+    private const string PrefijoEmpresa = "empresa:";
+    private const string PrefijoSubcontrata = "subcontrata:";
+
+    private string ValorFiltroEmpleador =>
+        !string.IsNullOrWhiteSpace(_filtroSubcontrataId) ? PrefijoSubcontrata + _filtroSubcontrataId
+        : !string.IsNullOrWhiteSpace(_filtroEmpresaId) ? PrefijoEmpresa + _filtroEmpresaId
+        : string.Empty;
+
+    private IReadOnlyList<OpcionEstado> OpcionesFiltroEmpleador =>
+        _empresasDisponibles.Select(e => new OpcionEstado(PrefijoEmpresa + e.Id, e.RazonSocial))
+            .Concat(_subcontratasDisponibles.Select(s => new OpcionEstado(PrefijoSubcontrata + s.Id, Textos["ListaOpcionSubcontrata", s.RazonSocial].Value)))
+            .ToList();
+
+    private Task CambiarFiltroEmpleadorAsync(string valor) =>
+        valor.StartsWith(PrefijoSubcontrata, StringComparison.Ordinal) ? FiltrarPorSubcontrataAsync(valor[PrefijoSubcontrata.Length..])
+        : valor.StartsWith(PrefijoEmpresa, StringComparison.Ordinal) ? FiltrarPorEmpresaAsync(valor[PrefijoEmpresa.Length..])
+        : FiltrarPorEmpresaAsync(string.Empty);
+
+    private string EtiquetaFiltroEstado =>
+        EstadoDocumentoUi.OpcionesDocumentales.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto ?? _estadoFiltro;
+
+    private string EtiquetaFiltroEmpresa =>
+        _empresasDisponibles.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.RazonSocial ?? Textos["EtiquetaEmpresa"].Value;
+
+    private string EtiquetaFiltroSubcontrata =>
+        _subcontratasDisponibles.FirstOrDefault(s => s.Id.ToString() == _filtroSubcontrataId)?.RazonSocial ?? Textos["EtiquetaSubcontrata"].Value;
+
+    /// <summary>
+    /// Escoge el campo de la celda combinada sin modificar el botón de orden nativo. La ordenación
+    /// se ejecuta después del render, cuando QuickGrid ya recibió el nuevo SortBy de la columna.
+    /// </summary>
+    private Task CambiarCampoOrdenVehiculoAsync(string valor)
+    {
+        if (valor is not (nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.Modelo)) || valor == _campoOrdenVehiculo)
+            return Task.CompletedTask;
+
+        _campoOrdenVehiculo = valor;
+        _direccionOrdenPendiente = ReferenceEquals(_ultimaColumnaOrden, _columnaVehiculo) && !_ultimoOrdenAscendente
+            ? SortDirection.Descending : SortDirection.Ascending;
+        _ordenVehiculoPendiente = true;
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var grid = _grid;
+        var columna = _columnaVehiculo;
+        if (_desechado || !_ordenVehiculoPendiente || grid is null || columna is null)
+            return;
+
+        // Consumir antes del await evita repetir el orden en el render que provoca la carga.
+        _ordenVehiculoPendiente = false;
+        await grid.SortByColumnAsync(columna, _direccionOrdenPendiente);
+        if (!_desechado && ReferenceEquals(grid, _grid))
+            await grid.HideColumnOptionsAsync();
+    }
+
     /// <summary>
     /// Los cuatro filtros de la barra. Separa "aún no hay vehículos" de
     /// "ninguno con estos filtros": ofrecer "crea el primero" a quien acaba de
@@ -354,8 +436,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         _estadoFiltro = string.Empty;
         _filtroEmpresaId = string.Empty;
         _filtroSubcontrataId = string.Empty;
-        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
-        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
         await RecargarAsync();
     }
 
@@ -621,7 +702,17 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         }
     }
 
-    private string ObtenerClaseFila(VehiculoListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
+    private string ObtenerClaseFila(VehiculoListaDto item)
+    {
+        var tinte = item.EstadoDocumental switch
+        {
+            EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
+            EstadoDocumento.Urgente => "fila-tintada-aviso",
+            _ => null
+        };
+        var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
+        return string.Join(' ', new[] { foco, tinte }.Where(c => c is not null));
+    }
 
     private async Task ManejarAtajoAsync(string tecla)
     {

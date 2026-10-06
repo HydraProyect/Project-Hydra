@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
@@ -29,6 +29,8 @@ using CaeManager.Web.Features.Documentos.Components;
 using CaeManager.Web.Features.Documentos.Recursos;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using CaeManager.Infrastructure.Identity;
 using Microsoft.Extensions.Localization;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.QuickGrid;
@@ -41,6 +43,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+    private bool _puedeEscribir;
 
     /// <summary>
     /// Plataforma, Reclamaciones, Revisión IA y Plantillas son pestañas de
@@ -94,12 +98,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosDocumentos> Textos { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
-
-    /// <summary>
-    /// La empresa gestionada activa, solo para quien alcanza varias (mismo criterio que el selector
-    /// de la barra lateral): la cabecera dice de cuál es la lista. Mismo patrón que Trabajadores.
-    /// </summary>
-    private ClienteAutorizadoDto? _empresaActiva;
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -367,6 +365,13 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     protected override async Task OnInitializedAsync()
     {
+        if (EstadoAutenticacion is not null)
+        {
+            var usuario = (await EstadoAutenticacion).User;
+            if (_desechado) return;
+            _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
+        }
+
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
 
@@ -377,7 +382,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         try
         {
             var contexto = await ContextoEmpresaActiva.ResolverAsync(Mediator, TenantActual, token);
-            _empresaActiva = contexto.Activa;
             _sinEmpresaSeleccionada = contexto.SinSeleccion;
         }
         finally
@@ -404,6 +408,23 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_desechado) return;
+        var grid = _grid;
+
+        // La opción cambia SortBy; ordenar tras el render garantiza que QuickGrid lee la propiedad nueva.
+        // Esto precede a la guarda del enlace profundo, que se aplica una sola vez.
+        if (_columnaOrdenPendiente is { } pendiente && grid is not null && _pestanaActiva == "listado"
+            && !_resolviendoEmpresa && !_sinEmpresaSeleccionada)
+        {
+            var columna = pendiente == ColumnaOrdenListado.EntidadAsociada ? _columnaEntidadAsociada : _columnaVigencia;
+            if (columna is not null)
+            {
+                _columnaOrdenPendiente = null;
+                await grid.SortByColumnAsync(columna, _sentidoOrdenPendiente);
+                if (_desechado || !ReferenceEquals(grid, _grid) || _pestanaActiva != "listado") return;
+                await grid.HideColumnOptionsAsync();
+            }
+        }
         // El enlace profundo espera a que la empresa esté resuelta: con el 4a activo no se abre nada
         // (el drawer escribiría en el Tenant de origen), y mientras se resuelve tampoco.
         if (_enlaceProfundoAplicado || _resolviendoEmpresa) return;
@@ -536,6 +557,61 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     }
 
     private QuickGrid<DocumentoListaDto>? _grid;
+    private TemplateColumn<DocumentoListaDto>? _columnaEntidadAsociada;
+    private TemplateColumn<DocumentoListaDto>? _columnaVigencia;
+    private bool _ordenEntidadAsociadaPorAmbito;
+    private bool _ordenVigenciaPorEmision;
+    private ColumnBase<DocumentoListaDto>? _ultimaColumnaOrden;
+    private bool _ultimoOrdenAscendente = true;
+    private enum ColumnaOrdenListado { EntidadAsociada, Vigencia }
+    private ColumnaOrdenListado? _columnaOrdenPendiente;
+    private SortDirection _sentidoOrdenPendiente = SortDirection.Ascending;
+    private static readonly GridSort<DocumentoListaDto> OrdenEntidadAsociadaListado = GridSort<DocumentoListaDto>.ByAscending(d => d.PropietarioNombre);
+    private static readonly GridSort<DocumentoListaDto> OrdenAmbitoListado = GridSort<DocumentoListaDto>.ByAscending(d => d.Ambito);
+    private static readonly GridSort<DocumentoListaDto> OrdenEmisionListado = GridSort<DocumentoListaDto>.ByAscending(d => d.FechaEmision);
+    private static readonly GridSort<DocumentoListaDto> OrdenVencimientoListado = GridSort<DocumentoListaDto>.ByAscending(d => d.FechaVencimiento);
+
+    private void CambiarCampoOrdenEntidadAsociada(bool porAmbito)
+    {
+        _ordenEntidadAsociadaPorAmbito = porAmbito;
+        ProgramarOrdenListado(ColumnaOrdenListado.EntidadAsociada, _columnaEntidadAsociada);
+    }
+
+    private void CambiarCampoOrdenVigencia(bool porEmision)
+    {
+        _ordenVigenciaPorEmision = porEmision;
+        ProgramarOrdenListado(ColumnaOrdenListado.Vigencia, _columnaVigencia);
+    }
+
+    private void ProgramarOrdenListado(ColumnaOrdenListado columna, ColumnBase<DocumentoListaDto>? referencia)
+    {
+        // Conserva el sentido elegido cuando cambia el campo de la columna que ya ordena.
+        _sentidoOrdenPendiente = ReferenceEquals(_ultimaColumnaOrden, referencia) && !_ultimoOrdenAscendente
+            ? SortDirection.Descending : SortDirection.Ascending;
+        _columnaOrdenPendiente = columna;
+    }
+
+    private IReadOnlyList<OpcionEstado> OpcionesAmbitoListado =>
+    [
+        new(nameof(AmbitoAplicacion.Trabajador), Textos["ListaAmbitoTrabajador"].Value),
+        new(nameof(AmbitoAplicacion.Cliente), Textos["ListaAmbitoClienteEmpresarial"].Value),
+        new(nameof(AmbitoAplicacion.Empresa), Textos["ListaAmbitoEmpresa"].Value),
+        new(nameof(AmbitoAplicacion.Vehiculo), Textos["ListaAmbitoVehiculo"].Value),
+        new(nameof(AmbitoAplicacion.Proyecto), Textos["ListaAmbitoProyecto"].Value),
+    ];
+
+    private IReadOnlyList<OpcionEstado> OpcionesEstadoListado =>
+    [
+        new(nameof(EstadoDocumento.Vencido), EstadoDocumentoUi.Texto(EstadoDocumento.Vencido)),
+        new(nameof(EstadoDocumento.Urgente), EstadoDocumentoUi.Texto(EstadoDocumento.Urgente)),
+        new(nameof(EstadoDocumento.Proximo), EstadoDocumentoUi.Texto(EstadoDocumento.Proximo)),
+        new(nameof(EstadoDocumento.Vigente), EstadoDocumentoUi.Texto(EstadoDocumento.Vigente)),
+        new(nameof(EstadoDocumento.SinConfirmar), TextosVigenciaDocumento.Texto("SinConfirmar")),
+        new(nameof(EstadoDocumento.SinCaducidad), EstadoDocumentoUi.Texto(EstadoDocumento.SinCaducidad)),
+    ];
+
+    private string EtiquetaAmbitoListado(AmbitoAplicacion ambito) =>
+        OpcionesAmbitoListado.FirstOrDefault(o => o.Valor == ambito.ToString())?.Texto ?? ambito.ToString();
 
     private string _busqueda = string.Empty;
     private string _ambitoFiltro = string.Empty;
@@ -585,6 +661,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         try
         {
             var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            _ultimaColumnaOrden = request.SortByColumn;
+            _ultimoOrdenAscendente = request.SortByAscending;
             var (ordenarPor, descendente) = LecturaOrden.Leer(request);
 
             var ambitoFiltro = Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambito) ? ambito : (AmbitoAplicacion?)null;
@@ -959,7 +1037,17 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     // --- P3-31: atajos de teclado j/k/x/Enter ---
 
-    private string ObtenerClaseFila(DocumentoListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
+    private string ObtenerClaseFila(DocumentoListaDto item)
+    {
+        var tinte = item.Estado switch
+        {
+            EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
+            EstadoDocumento.Urgente => "fila-tintada-aviso",
+            _ => null,
+        };
+        var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
+        return string.Join(' ', new[] { foco, tinte }.Where(c => c is not null));
+    }
 
     private async Task ManejarAtajoAsync(string tecla)
     {

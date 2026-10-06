@@ -1,7 +1,19 @@
-.barra-filtros {
-    max-width: 640px;
+.celda-vehiculo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
 }
 
-.filtro-empresa {
-    flex: 0 0 240px;
+.celda-vehiculo-modelo {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.celda-vehiculo-matricula {
+    display: inline-block;
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    background: var(--color-surface);
 }

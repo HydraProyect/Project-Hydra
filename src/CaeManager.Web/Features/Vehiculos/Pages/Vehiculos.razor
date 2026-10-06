@@ -28,17 +28,25 @@
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
-       cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query. *@
-    <CabeceraEmpresaActiva Empresa="_empresaActiva" />
-
-    <div class="cabecera-pagina">
-        <h1 class="titulo-pagina">@Textos["TituloPagina"]</h1>
-        @if (!_alcanceCero && !_sinEmpresaSeleccionada && !_resolviendoEmpresa)
-        {
-            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevoVehiculo"]</Boton></SoloConEscritura>
-        }
-    </div>
+    @* La empresa gestionada activa sigue resolviendo qué lista se carga; el rediseño oculta
+       su rótulo en la cabecera y conserva el estado vacío cuando todavía no hay selección. *@
+    @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
+    {
+        <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+                         SeleccionMultiple="_seleccionMultiple"
+                         SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)">
+            <Primaria>
+                @if (!_alcanceCero)
+                {
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevoVehiculo"]</Boton></SoloConEscritura>
+                }
+            </Primaria>
+        </CabeceraListado>
+    }
+    else
+    {
+        <CabeceraListado Titulo="@Textos["TituloPagina"]" />
+    }
 
     @if (_resolviendoEmpresa)
     {
@@ -53,29 +61,36 @@
     }
     else
     {
-    <div class="barra-filtros">
-        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Etiqueta="@Textos["EtiquetaDocumentacion"]" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                      Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
-        <div class="filtro-empresa">
-            <CampoSelect Etiqueta="@Textos["EtiquetaEmpresa"]" Valor="@_filtroEmpresaId" ValorChanged="FiltrarPorEmpresaAsync">
-                <option value="">@Textos["OpcionTodasEmpresas"]</option>
-                @foreach (var empresa in _empresasDisponibles)
-                {
-                    <option value="@empresa.Id">@empresa.RazonSocial</option>
-                }
-            </CampoSelect>
-        </div>
-        <div class="filtro-empresa">
-            <CampoSelect Etiqueta="@Textos["EtiquetaSubcontrata"]" Valor="@_filtroSubcontrataId" ValorChanged="FiltrarPorSubcontrataAsync">
-                <option value="">@Textos["OpcionTodasSubcontratas"]</option>
-                @foreach (var subcontrata in _subcontratasDisponibles)
-                {
-                    <option value="@subcontrata.Id">@subcontrata.RazonSocial</option>
-                }
-            </CampoSelect>
-        </div>
-    </div>
+    @if (!_alcanceCero)
+    {
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+        <Pastillas>
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaDocumentacion"]" TextoTodos="@Textos["ListaFiltroTodas"]"
+                            Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpleador"]" TextoTodos="@Textos["ListaFiltroTodos"]"
+                            Valor="@ValorFiltroEmpleador" ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
+        </Pastillas>
+        <Chips>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <ChipFiltro Etiqueta="@Textos["ListaChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["ListaQuitarBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="@Textos["ListaQuitarDocumentacion"]" OnQuitar="() => CambiarEstadoAsync(string.Empty)" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_filtroEmpresaId))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroEmpresa" EtiquetaAccesible="@Textos["ListaQuitarEmpresa"]" OnQuitar="() => FiltrarPorEmpresaAsync(string.Empty)" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_filtroSubcontrataId))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroSubcontrata" EtiquetaAccesible="@Textos["ListaQuitarSubcontrata"]" OnQuitar="() => FiltrarPorSubcontrataAsync(string.Empty)" />
+            }
+        </Chips>
+    </BarraFiltros>
+    }
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -89,12 +104,6 @@
     }
     else
     {
-        @* Aquí la barra solo lleva «Selección múltiple», y la selección solo alimenta
-           «Eliminar seleccionados» (ICommand denegado a Consulta). *@
-        <SoloConEscritura>
-            <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" />
-        </SoloConEscritura>
-
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
@@ -108,13 +117,27 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn Title="@Textos["EtiquetaNombre"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.Nombre))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => AbrirPreview(context.Id)'>
-                        @context.Nombre
-                    </button>
+                <TemplateColumn @ref="_columnaVehiculo" Title="@TituloColumnaVehiculo" Sortable="true" SortBy="@OrdenColumnaVehiculo">
+                    <ColumnOptions>
+                        @* El botón de orden y su dirección accesible siguen siendo los nativos de QuickGrid.
+                           Solo se escoge cuál de los dos campos de esta celda se ordena. *@
+                        <div data-opciones-orden>
+                        <CampoSelect Etiqueta="@Textos["ListaOrdenarPor"]" Valor="@_campoOrdenVehiculo" ValorChanged="CambiarCampoOrdenVehiculoAsync">
+                            <option value="@nameof(VehiculoListaDto.Nombre)">@Textos["EtiquetaNombre"]</option>
+                            <option value="@nameof(VehiculoListaDto.Modelo)">@Textos["EtiquetaModelo"]</option>
+                        </CampoSelect>
+                        </div>
+                    </ColumnOptions>
+                    <ChildContent>
+                        <span class="celda-vehiculo">
+                            <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick='() => AbrirPreview(context.Id)'>@context.Nombre</button>
+                            <span class="celda-vehiculo-modelo">@context.Modelo</span>
+                        </span>
+                    </ChildContent>
                 </TemplateColumn>
-                <PropertyColumn Property="@(v => v.Modelo)" Title="@Textos["EtiquetaModelo"]" Sortable="true" />
-                <PropertyColumn Property="@(v => v.NumeroPlaca)" Title="@Textos["EtiquetaMatricula"]" Sortable="true" />
+                <TemplateColumn Title="@Textos["EtiquetaMatricula"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.NumeroPlaca))">
+                    <span class="celda-vehiculo-matricula">@context.NumeroPlaca</span>
+                </TemplateColumn>
                 <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true" />
                 <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
                     <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
