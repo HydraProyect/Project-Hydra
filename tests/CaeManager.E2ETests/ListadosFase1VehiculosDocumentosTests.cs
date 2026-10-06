@@ -188,7 +188,18 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixture fixture)
             "const claves = leer(campo); return claves.length >= 2 && " +
             "(mayorQue == null || claves[0] > mayorQue) && claves.every((x,i) => i === 0 || " +
             "(descendente ? claves[i-1] >= x : claves[i-1] <= x)); }";
-        await page.WaitForFunctionAsync(funcion, new { campo, descendente, mayorQue },
-            new PageWaitForFunctionOptions { Timeout = 15_000 });
+        try
+        {
+            await page.WaitForFunctionAsync(funcion, new { campo, descendente, mayorQue },
+                new PageWaitForFunctionOptions { Timeout = 15_000 });
+        }
+        catch (TimeoutException)
+        {
+            var claves = await LeerClavesDocumentoAsync(page, campo);
+            Assert.True(claves.Length >= 2, $"Sin datos suficientes para verificar {campo}; no demuestra un orden incorrecto.");
+            throw new Xunit.Sdk.XunitException(
+                $"No se observó el orden {campo} {(descendente ? "descendente" : "ascendente")} esperado. " +
+                $"Claves observadas: [{string.Join(", ", claves)}]; extremo anterior: {mayorQue}.");
+        }
     }
 }
