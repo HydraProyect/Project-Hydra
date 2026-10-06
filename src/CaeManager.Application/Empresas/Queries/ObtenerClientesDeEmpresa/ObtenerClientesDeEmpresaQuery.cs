@@ -58,8 +58,8 @@ internal sealed class ClienteVigenteDeEmpresa
 /// Predicado ÚNICO de «a quién presta servicio esta Empresa»: Relación Empresarial vigente en la que la
 /// Empresa es la proveedora y la contraparte es un Cliente empresarial real (<c>EsCritico != null</c>; ver
 /// el comentario del handler de arriba). Lo comparten la consulta de una Empresa y la de una página
-/// (<c>ObtenerResumenClientesDeEmpresasQuery</c>), para que la columna «Presta servicio a» de /empresas y su
-/// desplegable no puedan contar cosas distintas. NO aplica alcance: cada llamador acota antes los Ids con
+/// (<c>ObtenerResumenClientesDeEmpresasQuery</c>), para que el resumen y el detalle de las Relaciones
+/// Empresariales no puedan contar cosas distintas. NO aplica alcance: cada llamador acota antes los Ids con
 /// el alcance de GESTIÓN (REC-153). Proyecta a una clase con inicializador, no a un record con constructor,
 /// para que EF pueda ordenar después de la proyección.
 /// </summary>

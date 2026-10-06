@@ -192,7 +192,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
 
         var cabecera = cut.Find(".cabecera-columnas-empresas");
         // «Empresa» lleva razón social y CIF en una celda de dos líneas (maqueta aprobada): no hay columna CIF.
-        cabecera.TextContent.Should().Contain("Empresa").And.Contain("Presta servicio a").And.NotContain("CIF").And.NotContain("Razón social")
+        cabecera.TextContent.Should().Contain("Empresa").And.NotContain("Presta servicio a").And.NotContain("CIF").And.NotContain("Razón social")
             .And.Contain("Cumplimiento").And.Contain("Documentación").And.Contain("Detecciones");
 
         var fila = cut.Find(".tarjeta-fila-acordeon-cabecera");

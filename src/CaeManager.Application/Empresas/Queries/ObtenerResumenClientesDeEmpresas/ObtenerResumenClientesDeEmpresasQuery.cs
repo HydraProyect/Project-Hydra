@@ -6,9 +6,8 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Empresas.Queries.ObtenerResumenClientesDeEmpresas;
 
 /// <summary>
-/// Columna «Presta servicio a» de /empresas (maqueta aprobada de la fase 1): para las Empresas de una
-/// página, a cuántos Clientes empresariales presta servicio cada una y cuál es el primero por razón social.
-/// Una sola consulta por página, no una por fila.
+/// Resumen de las Relaciones Empresariales vigentes para varias Empresas: a cuántos Clientes
+/// empresariales presta servicio cada una y cuál es el primero por razón social, en una sola consulta.
 /// </summary>
 /// <param name="EmpresaIds">Las Empresas de la página.</param>
 public record ObtenerResumenClientesDeEmpresasQuery(IReadOnlyList<Guid> EmpresaIds)
