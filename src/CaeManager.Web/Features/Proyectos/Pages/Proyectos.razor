@@ -1,4 +1,4 @@
-﻿@page "/proyectos"
+@page "/proyectos"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
@@ -17,22 +17,15 @@
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    @* Mockup «Selector Empresa Gestionada» (lienzo 2): con varias empresas gestionadas, la lista dice de
-       cuál es. El selector de la barra lateral cambia de empresa y recarga esta misma ruta sin query. *@
-    <CabeceraEmpresaActiva Empresa="_empresaActiva" />
-
-    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["Kicker"]">
-        <Descripcion>
-            @Textos["DescripcionPagina"]
-        </Descripcion>
-        <Acciones>
+    <CabeceraListado Titulo="@Textos["TituloPagina"]"
+                     Contador="@(_resolviendoEmpresa || _sinEmpresaSeleccionada || _cargando || _errorCarga || _clienteSeleccionadoId == Guid.Empty || _cargandoProyectos || _errorProyectos ? null : (int?)ProyectosVisibles.Count)">
+        <Primaria>
             @if (_clienteSeleccionadoId != Guid.Empty && !_cargando && !_errorCarga)
             {
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirNuevoProyecto">@Textos["BotonNuevoProyecto"]</Boton></SoloConEscritura>
             }
-        </Acciones>
-    </CabeceraPagina>
-
+        </Primaria>
+    </CabeceraListado>
     @if (_resolviendoEmpresa)
     {
         <EstadoCargando Filas="3" />
@@ -56,52 +49,32 @@
     }
     else
     {
-        <div class="barra-filtros-proyectos">
-            <div class="filtro-cliente-proyectos">
-                <CampoSelect @key="_versionSelectorCliente" Etiqueta="@Textos["EtiquetaCliente"]" Valor="@_clienteSeleccionadoId.ToString()" ValorChanged="OnClienteSeleccionadoAsync">
-                    <option value="@Guid.Empty">@Textos["OpcionElegirCliente"]</option>
-                    @foreach (var c in _clientes)
-                    {
-                        <option value="@c.Id">@c.RazonSocial</option>
-                    }
-                </CampoSelect>
-            </div>
-            <div class="filtro-estado-proyectos">
-                <FiltroEstado Etiqueta="@Textos["EtiquetaEstado"]" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" />
-            </div>
-            <div class="filtro-busqueda-proyectos">
-                <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" aria-label="@Textos["AriaBusqueda"]" />
-            </div>
-        </div>
-
-        @if (HayFiltrosActivos)
-        {
-            <div class="chips-filtros">
-                <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+        <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
+                      PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+                      HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+            <Pastillas>
+                @* La opción vacía pide elegir un Cliente empresarial: nunca representa todos. *@
+                <PastillaFiltro @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
+                                Valor="@(_clienteSeleccionadoId == Guid.Empty ? string.Empty : _clienteSeleccionadoId.ToString())"
+                                ValorChanged="OnClienteSeleccionadoAsync" Opciones="OpcionesClienteListado" OfrecerTodos="false" />
+                <PastillaFiltro Etiqueta="@Textos["EtiquetaEstado"]" Valor="@_estadoFiltro"
+                                ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" />
+            </Pastillas>
+            <Chips>
                 @if (!string.IsNullOrWhiteSpace(_busqueda))
                 {
-                    <span class="chip-filtro">
-                        @Textos["ChipBusqueda", _busqueda]
-                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarBusquedaAsync" aria-label="@Textos["AriaQuitarBusqueda"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                    </span>
+                    <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["AriaQuitarBusqueda"]" OnQuitar="QuitarBusquedaAsync" />
                 }
                 @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
                 {
-                    <span class="chip-filtro">
-                        @Textos["ChipEstado", TextoEstadoFiltro]
-                        <button type="button" class="chip-filtro-quitar" @onclick="QuitarEstadoAsync" aria-label="@Textos["AriaQuitarEstado"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                    </span>
+                    <ChipFiltro Etiqueta="@Textos["ChipEstado", TextoEstadoFiltro]" EtiquetaAccesible="@Textos["AriaQuitarEstado"]" OnQuitar="QuitarEstadoAsync" />
                 }
-                <button type="button" class="limpiar-filtros-proyectos" @onclick="LimpiarFiltrosAsync">@Textos["BotonLimpiarTodo"]</button>
-            </div>
-        }
-
+            </Chips>
+        </BarraFiltros>
         @if (_clienteSeleccionadoId == Guid.Empty)
         {
-            @* Un Proyecto cuelga siempre de un Cliente y de un Centro suyo
-               (CrearProyectoCommand exige los dos): sin cliente elegido no hay
-               lista que pintar, y ofrecer "+ Nuevo proyecto" no tendría a quién
-               colgarlo. *@
+            @* CrearProyectoCommand exige un Cliente empresarial y un Centro vinculado
+               a él: sin esa elección no se muestra la lista ni se ofrece el alta. *@
             <EstadoVacio NombreIcono="clientes" Titulo="@Textos["SinClienteTitulo"]"
                          Descripcion="@Textos["SinClienteDescripcion"]" />
         }
@@ -141,7 +114,7 @@
         }
         else
         {
-            <p class="conteo-proyectos">@TextoConteo</p>
+
 
             <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -149,10 +122,8 @@
                 <table class="tabla-datos tabla-proyectos">
                     <thead>
                         <tr>
-                            <th>@Textos["EtiquetaNombre"]</th>
-                            <th>@Textos["EtiquetaCentro"]</th>
-                            <th>@Textos["EtiquetaInicio"]</th>
-                            <th>@Textos["EtiquetaFinPrevisto"]</th>
+                            <th>@Textos["ListaProyecto"]</th>
+                            <th>@Textos["ListaPlazo"]</th>
                             <th>@Textos["EtiquetaEstado"]</th>
                             <th class="col-acciones"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
                         </tr>
@@ -162,12 +133,24 @@
                         {
                             <tr class="@ClaseFila(proyecto)">
                                 <td>
-                                    <button type="button" class="enlace-nombre-fila nombre-proyecto" @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">@proyecto.Nombre</button>
+                                    <span class="proyecto-nombre-centro">
+                                        <button type="button" class="enlace-nombre-fila nombre-proyecto" @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">@proyecto.Nombre</button>
+                                        <span class="proyecto-centro">@proyecto.CentroNombre</span>
+                                    </span>
                                 </td>
-                                <td>@proyecto.CentroNombre</td>
-                                <td class="celda-fecha-proyecto">@proyecto.FechaInicio.ToString("dd/MM/yyyy")</td>
-                                <td class="@(proyecto.FechaFinPrevista is null ? "celda-fecha-proyecto fin-indefinido" : "celda-fecha-proyecto")">
-                                    @(proyecto.FechaFinPrevista?.ToString("dd/MM/yyyy") ?? Textos["FinIndefinido"].Value)
+                                <td class="celda-fecha-proyecto">
+                                    <span class="proyecto-plazo">
+                                        <span><span class="texto-solo-lectores">@Textos["EtiquetaInicio"]: </span>@proyecto.FechaInicio.ToString("dd/MM/yyyy")</span>
+                                        @if (proyecto.FechaFinPrevista is { } fin)
+                                        {
+                                            <span aria-hidden="true">→</span>
+                                            <span><span class="texto-solo-lectores">@Textos["EtiquetaFinPrevisto"]: </span>@fin.ToString("dd/MM/yyyy")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="fin-indefinido">@Textos["ListaSinFechaFinPrevista"]</span>
+                                        }
+                                    </span>
                                 </td>
                                 <td>
                                     @if (proyecto.EstaAbierto)

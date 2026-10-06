@@ -136,10 +136,11 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
         // Cambiar de Cliente empresarial cierra el panel de detalle (OnClienteChangedAsync): si
         // tenía algo escrito, se pregunta antes y, si se sigue editando, la selección vuelve
-        // al Cliente de antes (nueva versión del selector: su <select> ya muestra el elegido).
+        // al Cliente empresarial anterior y se renueva el selector.
         if (nuevo != _clienteSeleccionadoId && !await _ambitoDetalle.ConfirmarAbandonoAsync())
         {
             _versionSelectorCliente++;
+            _focoSelectorClienteEmpresarialPendiente = true;
             return;
         }
 
@@ -148,6 +149,26 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     }
 
     private int _versionSelectorCliente;
+    private PastillaFiltro? _selectorClienteEmpresarial;
+    private bool _focoSelectorClienteEmpresarialPendiente;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        if (_focoSelectorClienteEmpresarialPendiente && !_desechado
+            && !_resolviendoEmpresa && !_sinEmpresaSeleccionada && !_cargando && !_errorCarga
+            && _selectorClienteEmpresarial is { } selector)
+        {
+            _focoSelectorClienteEmpresarialPendiente = false;
+            await selector.EnfocarAsync();
+        }
+    }
+
+    private IReadOnlyList<OpcionEstado> OpcionesClienteListado =>
+    [
+        new(string.Empty, Textos["ListaElegirClienteEmpresarial"].Value),
+        .. _clientes.Select(c => new OpcionEstado(c.Id.ToString(), c.RazonSocial))
+    ];
 
     private async Task OnClienteChangedAsync()
     {

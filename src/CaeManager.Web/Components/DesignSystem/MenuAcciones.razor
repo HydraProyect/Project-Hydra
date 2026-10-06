@@ -36,6 +36,8 @@
     private readonly string _panelId = $"menu-acciones-{Guid.NewGuid():N}";
     private readonly List<ItemMenuAccion> _items = [];
     private ElementReference _disparador;
+
+    internal Task EnfocarDisparadorAsync() => _disparador.FocusAsync().AsTask();
     private bool _abierto;
     private ItemMenuAccion? _itemPendienteDeFoco;
     private bool _primerItemPendiente;

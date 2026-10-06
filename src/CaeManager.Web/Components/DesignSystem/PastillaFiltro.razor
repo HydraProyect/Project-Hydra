@@ -1,6 +1,6 @@
 @*
     Pastilla de filtro de un listado (rediseño de listados, fase 1): un botón con forma de
-    pastilla que abre un menú con «Todos» y las opciones del filtro. Va dentro de
+    pastilla que abre un menú con las opciones del filtro y, por defecto, «Todos». Va dentro de
     <BarraFiltros> como parte de «Pastillas».
 
     Es un MenuAcciones con disparador de pastilla, así que hereda su teclado y su cierre
@@ -17,7 +17,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<MenuAcciones Etiqueta="@TextoDisparador" Pastilla="true" Activa="@Activa">
+<MenuAcciones @ref="_menu" Etiqueta="@TextoDisparador" Pastilla="true" Activa="@Activa">
     @if (OfrecerTodos)
     {
         <ItemMenuAccion Marcado="@(!Activa)" OnClick="() => ElegirAsync(string.Empty)">@(TextoTodos ?? Comunes["OpcionTodos"].Value)</ItemMenuAccion>
@@ -29,13 +29,17 @@
 </MenuAcciones>
 
 @code {
+    private MenuAcciones? _menu;
+
+    internal Task EnfocarAsync() => _menu?.EnfocarDisparadorAsync() ?? Task.CompletedTask;
+
     /// <summary>Nombre del filtro («Gestor CAE», «Estado»). Es el texto de la pastilla sin valor aplicado.</summary>
     [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
 
-    /// <summary>Opciones del filtro, sin «Todos» (lo añade la pastilla).</summary>
+    /// <summary>Opciones del filtro, sin «Todos» (la pastilla lo añade si <see cref="OfrecerTodos"/>).</summary>
     [Parameter, EditorRequired] public IReadOnlyList<OpcionEstado> Opciones { get; set; } = [];
 
-    /// <summary>Valor aplicado; vacío es «Todos».</summary>
+    /// <summary>Valor aplicado. El vacío quita el filtro si <see cref="OfrecerTodos"/>; en otro caso, su significado lo definen las opciones.</summary>
     [Parameter] public string Valor { get; set; } = string.Empty;
 
     [Parameter] public EventCallback<string> ValorChanged { get; set; }
