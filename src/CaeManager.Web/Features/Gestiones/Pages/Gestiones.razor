@@ -21,47 +21,28 @@
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
-    @* Cabecera Gen 2 (Gestiones TALVEG.dc.html). Sin «+ Nueva gestión»: esta
-       pantalla no da de alta, igual que antes.
+    @* Sin alta: las gestiones se crean desde los caminos ya existentes. *@
+    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)" />
 
-       El mockup pinta a la derecha «Se crean solas al detectar un documento
-       nuevo», y eso NO es lo que hace el código: CrearGestionesParaTrabajador
-       solo se envía desde un botón —el de la sugerencia de la IA en la
-       Bandeja de Comunicaciones, o el de la ficha del Trabajador—, y el
-       propio Bandeja.razor.cs dice que «el clic en el botón ya es la
-       confirmación explícita exigida». Nada las crea solas, así que la frase
-       no se copia. *@
-    <CabeceraPagina Titulo="@Textos["TituloPagina"]" Kicker="@Textos["Kicker"]" />
-
-    <div class="barra-filtros">
-        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-        <FiltroEstado Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync" Opciones="OpcionesEstado" TextoTodos="@Textos["FiltroTodas"]" />
-    </div>
-
-    @* Lo que está filtrando se ve y se quita (mismo bloque que Empresas y
-       Subcontratas). El chip de estado quita también el ?estado= de la URL:
-       OnParametersSet lo repondría si solo se quitara en memoria. *@
-    @if (HayFiltrosActivos)
-    {
-        <div class="chips-filtros">
-            <span class="chips-filtros-indicador" aria-hidden="true"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></span>
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
+                  PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+        <Pastillas>
+            <PastillaFiltro Etiqueta="@Textos["ListaFiltroEstado"]" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync"
+                            Opciones="OpcionesEstado" TextoTodos="@Textos["FiltroTodas"]" />
+        </Pastillas>
+        <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
-                <span class="chip-filtro">
-                    @Textos["ChipBusqueda", _busqueda]
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarBusquedaAsync" aria-label="@Textos["AriaQuitarBusqueda"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                </span>
+                <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["AriaQuitarBusqueda"]" OnQuitar="QuitarBusquedaAsync" />
             }
             @if (!string.IsNullOrWhiteSpace(_filtroEstado))
             {
-                <span class="chip-filtro">
-                    @TextoChipEstado
-                    <button type="button" class="chip-filtro-quitar" @onclick="QuitarFiltroEstadoAsync" aria-label="@Textos["AriaQuitarFiltroEstado"]"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
-                </span>
+                <ChipFiltro Etiqueta="@TextoChipEstado" EtiquetaAccesible="@Textos["AriaQuitarFiltroEstado"]" OnQuitar="QuitarFiltroEstadoAsync" />
             }
-        </div>
-    }
-
+        </Chips>
+    </BarraFiltros>
+    <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
     @if (_errorCarga)
     {
         <EstadoVacio NombreIcono="error-circulo" AcentoIcono="var(--color-danger-700)" FondoIcono="var(--color-danger-50)"
@@ -73,13 +54,6 @@
     }
     else
     {
-        @if (_totalElementos > 0)
-        {
-            @* El total lo da la consulta ya filtrada: es el número de
-               coincidencias, no el de gestiones de la cartera. *@
-            <span class="conteo-gestiones">@TextoConteo</span>
-        }
-
         @if (_cargando && _totalElementos == 0)
         {
             <EstadoCargando Filas="6" />
@@ -90,22 +64,36 @@
            o el estado vacío que toque. *@
         <div style="display:@(_totalElementos == 0 ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                <TemplateColumn Title="@Textos["ColumnaTrabajador"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TrabajadorNombre))">
-                    <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirVistaRapida(context)">
-                        @context.TrabajadorNombre
-                    </button>
+                <TemplateColumn @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
+                                Sortable="true" SortBy="@(_ordenTrabajadorPorCentro ? OrdenCentroListado : OrdenTrabajadorListado)">
+                    <ColumnOptions>
+                        <div class="gestiones-opciones-orden" data-opciones-orden>
+                            <button type="button" @onclick="() => CambiarCampoOrdenTrabajador(false)">@Textos["ListaOrdenarTrabajador"]</button>
+                            <button type="button" @onclick="() => CambiarCampoOrdenTrabajador(true)">@Textos["ListaOrdenarCentro"]</button>
+                        </div>
+                    </ColumnOptions>
+                    <ChildContent Context="context">
+                        <span class="gestion-trabajador-centro">
+                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirVistaRapida(context)">@context.TrabajadorNombre</button>
+                            <button type="button" class="enlace-nombre-fila gestion-centro" @onclick="() => AbrirVistaRapida(context)">@context.CentroNombre</button>
+                        </span>
+                    </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaCentro"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.CentroNombre))">
-                    <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirVistaRapida(context)">
-                        @context.CentroNombre
-                    </button>
-                </TemplateColumn>
-                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="@Textos["ColumnaDocumento"]" Sortable="true" />
-                <TemplateColumn Title="@Textos["ColumnaEstado"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
+                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="@Textos["ListaTipoDocumento"]" Sortable="true" Class="gestion-tipo-documento" />
+                <TemplateColumn Title="@Textos["ColumnaEstado"]" Align="Align.Center" Sortable="true" IsDefaultSortColumn="true" InitialSortDirection="SortDirection.Ascending" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
                     <Badge Tono="@TonoEstado(context.Estado)">@TextoEstado(context.Estado)</Badge>
                 </TemplateColumn>
                 <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="@Textos["ColumnaCreada"]" Sortable="true" />
                 <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
+                    <SoloConEscritura>
+                        @if (context.Estado == EstadoGestion.Pendiente)
+                        {
+                            <button type="button" class="gestion-completar" disabled="@_cambiandoEstado.Contains(context.Id)"
+                                    @onclick="() => CambiarEstadoAsync(context.Id, true)">
+                                <span aria-hidden="true">✓</span> @Textos["ListaCompletar"]
+                            </button>
+                        }
+                    </SoloConEscritura>
                     <MenuAcciones>
                         <SoloConEscritura><ItemMenuAccion OnClick="() => CambiarEstadoAsync(context.Id, context.Estado != EstadoGestion.Completada)">
                             @(context.Estado == EstadoGestion.Completada ? Textos["AccionReabrir"] : Textos["AccionMarcarCompletada"])
@@ -188,8 +176,8 @@
 
         <div class="cuerpo-vista-rapida-gestion">
             <div class="rejilla-vista-rapida-gestion">
-                <div class="celda-vista-rapida-gestion"><span>@Textos["ColumnaCentro"]</span><strong>@vista.CentroNombre</strong></div>
-                <div class="celda-vista-rapida-gestion"><span>@Textos["ColumnaDocumento"]</span><strong>@vista.TipoDocumentoNombre</strong></div>
+                <div class="celda-vista-rapida-gestion vista-rapida-centro"><span>@Textos["ColumnaCentro"]</span><strong>@vista.CentroNombre</strong></div>
+                <div class="celda-vista-rapida-gestion vista-rapida-tipo-documento"><span>@Textos["ListaTipoDocumento"]</span><strong>@vista.TipoDocumentoNombre</strong></div>
                 <div class="celda-vista-rapida-gestion"><span>@Textos["ColumnaCreada"]</span><strong>@(vista.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy"))</strong></div>
             </div>
 

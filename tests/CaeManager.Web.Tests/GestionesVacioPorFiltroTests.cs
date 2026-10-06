@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Domain.Gestiones;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Gestiones.Pages;
@@ -23,14 +24,14 @@ namespace CaeManager.Web.Tests;
 public class GestionesVacioPorFiltroTests : BunitContext
 {
     /// <summary>
-    /// La rejilla importa <c>QuickGrid.razor.js</c> al montarse. Esta página no
-    /// tiene <c>AtajosListaTeclado</c>, así que sin esto el módulo de QuickGrid
-    /// es el que tumba los cinco casos — no un fallo del estado vacío.
+    /// QuickGrid y AtajosListaTeclado importan sus módulos JS al montarse.
+    /// El rol Consulta permite comprobar los estados de lectura sin acciones de escritura.
     /// </summary>
     public GestionesVacioPorFiltroTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        this.ConRolDeEscritura(Roles.Consulta);
     }
 
     private sealed class MediatorPorTipo : IMediator

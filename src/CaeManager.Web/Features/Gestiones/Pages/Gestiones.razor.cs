@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Gestiones.Pages;
 
-public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva
+public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
@@ -28,6 +28,42 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva
     }
 
     private QuickGrid<GestionListaDto>? _grid;
+    private TemplateColumn<GestionListaDto>? _columnaTrabajador;
+    private ColumnBase<GestionListaDto>? _ultimaColumnaOrden;
+    private bool _ultimoOrdenAscendente = true;
+    private bool _ordenTrabajadorPorCentro;
+    private bool _ordenTrabajadorPendiente;
+    private SortDirection _direccionOrdenPendiente;
+    private bool _desechado;
+    private Guid? _idEnfocado;
+    private List<GestionListaDto> _elementosPagina = [];
+    private static readonly GridSort<GestionListaDto> OrdenTrabajadorListado = GridSort<GestionListaDto>.ByAscending(g => g.TrabajadorNombre);
+    private static readonly GridSort<GestionListaDto> OrdenCentroListado = GridSort<GestionListaDto>.ByAscending(g => g.CentroNombre);
+
+    public void Dispose() => _desechado = true;
+
+    private void CambiarCampoOrdenTrabajador(bool porCentro)
+    {
+        _ordenTrabajadorPorCentro = porCentro;
+        // Misma columna conserva sentido; otra columna empieza ascendente.
+        _direccionOrdenPendiente = ReferenceEquals(_ultimaColumnaOrden, _columnaTrabajador) && !_ultimoOrdenAscendente
+            ? SortDirection.Descending : SortDirection.Ascending;
+        _ordenTrabajadorPendiente = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var grid = _grid;
+        var columna = _columnaTrabajador;
+        if (_desechado || !_ordenTrabajadorPendiente || grid is null || columna is null)
+            return;
+
+        // QuickGrid debe recibir primero el SortBy nuevo; consumir antes del await evita repetir.
+        _ordenTrabajadorPendiente = false;
+        await grid.SortByColumnAsync(columna, _direccionOrdenPendiente);
+        if (!_desechado && ReferenceEquals(grid, _grid))
+            await grid.HideColumnOptionsAsync();
+    }
 
     private string _busqueda = string.Empty;
     private string _filtroEstado = string.Empty;
@@ -93,9 +129,16 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva
     private async ValueTask<GridItemsProviderResult<GestionListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<GestionListaDto> request)
     {
+        if (_desechado)
+            return GridItemsProviderResult.From(new List<GestionListaDto>(), 0);
+
         // Todo lo que define la pregunta se lee ANTES del await.
         var carga = ++_cargaVigente;
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        _ultimaColumnaOrden = request.SortByColumn;
+        _ultimoOrdenAscendente = request.SortByAscending;
+        _elementosPagina = [];
+        _idEnfocado = null;
         var consulta = new ObtenerGestionesQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             Estado: Enum.TryParse<EstadoGestion>(_filtroEstado, out var estado) ? estado : null,
@@ -112,14 +155,15 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva
         {
             var resultado = await Mediator.Send(consulta, request.CancellationToken);
 
-            if (carga != _cargaVigente)
+            if (_desechado || carga != _cargaVigente)
                 return GridItemsProviderResult.From(new List<GestionListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
+            _elementosPagina = resultado.Elementos.ToList();
 
             return GridItemsProviderResult.From(resultado.Elementos.ToList(), resultado.TotalElementos);
         }
-        catch (Exception) when (carga != _cargaVigente)
+        catch (Exception) when (_desechado || carga != _cargaVigente)
         {
             // Una carga superada que falla (o que QuickGrid canceló) no es un
             // error de la vigente: no puede tapar su resultado.
@@ -132,7 +176,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva
         }
         finally
         {
-            if (carga == _cargaVigente)
+            if (!_desechado && carga == _cargaVigente)
             {
                 _cargando = false;
                 StateHasChanged();
@@ -246,10 +290,38 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva
     private string TextoEstado(EstadoGestion estado) =>
         estado == EstadoGestion.Completada ? Textos["EstadoCompletada"] : Textos["EstadoPendiente"];
 
-    private string ObtenerClaseFila(GestionListaDto fila) =>
-        fila.Id == _vistaRapida?.Id ? "fila-enfocada" : string.Empty;
+    private async Task ManejarAtajoAsync(string tecla)
+    {
+        if (_desechado || _elementosPagina.Count == 0) return;
 
-    private void AbrirVistaRapida(GestionListaDto fila) => _vistaRapida = fila;
+        switch (tecla)
+        {
+            case "j":
+                var siguiente = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(g => g.Id == _idEnfocado);
+                _idEnfocado = _elementosPagina[Math.Min(siguiente + 1, _elementosPagina.Count - 1)].Id;
+                break;
+            case "k":
+                var anterior = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(g => g.Id == _idEnfocado);
+                _idEnfocado = _elementosPagina[Math.Max(anterior - 1, 0)].Id;
+                break;
+            case "Enter":
+                if (_elementosPagina.FirstOrDefault(g => g.Id == _idEnfocado) is { } fila)
+                    AbrirVistaRapida(fila);
+                break;
+                // Sin selección múltiple: x no tiene ninguna acción en Gestiones.
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string ObtenerClaseFila(GestionListaDto fila) =>
+        fila.Id == (_idEnfocado ?? _vistaRapida?.Id) ? "fila-enfocada" : string.Empty;
+
+    private void AbrirVistaRapida(GestionListaDto fila)
+    {
+        _idEnfocado = fila.Id;
+        _vistaRapida = fila;
+    }
 
     private void CerrarVistaRapida() => _vistaRapida = null;
 
