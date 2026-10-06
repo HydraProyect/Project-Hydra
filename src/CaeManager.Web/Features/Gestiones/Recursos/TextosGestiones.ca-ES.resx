@@ -162,4 +162,11 @@
   <data name="ToastErrorEliminar" xml:space="preserve">
     <value>No pudimos eliminar la gestión. Intenta nuevamente en unos segundos.</value>
   </data>
+  <data name="ListaCompletar" xml:space="preserve"><value>Completar</value></data>
+  <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar aquesta pantalla: treballador, centre o tipus de document</value></data>
+  <data name="ListaFiltroEstado" xml:space="preserve"><value>Estat</value></data>
+  <data name="ListaOrdenarCentro" xml:space="preserve"><value>Ordenar per centre</value></data>
+  <data name="ListaOrdenarTrabajador" xml:space="preserve"><value>Ordenar per treballador</value></data>
+  <data name="ListaTrabajadorPorCentro" xml:space="preserve"><value>Treballador · Centre</value></data>
+  <data name="ListaTipoDocumento" xml:space="preserve"><value>Tipus de document</value></data>
 </root>

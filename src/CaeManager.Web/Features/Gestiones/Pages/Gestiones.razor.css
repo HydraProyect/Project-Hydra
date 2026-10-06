@@ -4,13 +4,6 @@
     list-page.css (global).
 */
 
-.conteo-gestiones {
-    display: block;
-    margin-bottom: var(--space-3);
-    font: var(--font-caption);
-    color: var(--color-text-muted);
-}
-
 /*
     Vista rápida. Mismo criterio de apilamiento que las vistas previas de
     Vehículos y Subcontratas: sin scrim (role="complementary"), se puede
@@ -186,3 +179,12 @@
         max-width: 100%;
     }
 }
+
+.gestion-trabajador-centro { display: flex; flex-direction: column; gap: var(--space-1); }
+.gestion-centro { font: var(--font-caption); color: var(--color-text-muted); }
+.gestion-completar { display: inline-flex; align-items: center; gap: var(--space-1); margin-right: var(--space-2); padding: var(--space-1) var(--space-2); border: var(--border-default); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: var(--font-label); cursor: pointer; }
+.gestion-completar:hover { border-color: var(--color-border-strong); }
+.gestion-completar:focus-visible, .gestiones-opciones-orden button:focus-visible { outline: var(--border-focus); }
+.gestion-completar:disabled { opacity: .5; cursor: default; }
+.gestiones-opciones-orden { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); }
+.gestiones-opciones-orden button { border: var(--border-default); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); padding: var(--space-2); font: var(--font-label); cursor: pointer; text-align: left; white-space: nowrap; }

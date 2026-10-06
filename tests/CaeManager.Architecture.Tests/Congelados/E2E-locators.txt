@@ -43,6 +43,7 @@ tests/CaeManager.E2ETests/FlujoRetencionTests.cs :: GetByText = 10
 tests/CaeManager.E2ETests/FlujoSoporteTests.cs :: FiltroPorTexto = 2
 tests/CaeManager.E2ETests/FlujoSoporteTests.cs :: GetByText = 2
 tests/CaeManager.E2ETests/FlujoSoporteTests.cs :: Posicional = 1
+tests/CaeManager.E2ETests/GestionesFase1TecladoTests.cs :: Posicional = 2
 tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs :: FiltroPorTexto = 13
 tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs :: GetByText = 10
 tests/CaeManager.E2ETests/ImportacionTests.cs :: FiltroPorTexto = 6

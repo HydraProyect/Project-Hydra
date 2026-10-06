@@ -15,6 +15,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Tests;
 
@@ -146,6 +147,11 @@ public class GestionesListaGen2Tests : BunitContext
                 _ => null
             };
 
+            if (ordenarPor == nameof(GestionListaDto.Estado))
+                return descendente
+                    ? filas.OrderByDescending(g => g.Estado).ThenByDescending(g => g.CreadoEnUtc)
+                    : filas.OrderBy(g => g.Estado).ThenByDescending(g => g.CreadoEnUtc);
+
             if (clave is null)
                 return filas.OrderByDescending(g => g.CreadoEnUtc);
 
@@ -204,14 +210,17 @@ public class GestionesListaGen2Tests : BunitContext
         cut.Find("aside.vista-rapida-gestion .meta-vista-rapida-gestion .badge").TextContent.Trim();
 
     [Fact]
-    public void La_cabecera_lleva_el_kicker_de_su_grupo_y_no_promete_que_las_gestiones_se_creen_solas()
+    public void La_cabecera_lleva_total_medido_sin_kicker_alta_ni_seleccion()
     {
-        var cut = Renderizar(new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") } });
-
-        cut.Find("header.cabecera-pagina .cabecera-pagina-kicker").TextContent.Trim().Should().Be("Operación");
+        var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") } };
+        var cut = Renderizar(m);
+        m.Enviadas.OfType<ObtenerGestionesQuery>().Should().NotBeEmpty();
+        cut.FindAll("tbody tr:has(.gestion-trabajador-centro)").Should().ContainSingle();
+        cut.FindAll("header.cabecera-pagina .cabecera-pagina-kicker").Should().BeEmpty();
         cut.Find("header.cabecera-pagina h1").TextContent.Trim().Should().Be("Gestiones");
-        cut.Markup.Should().NotContain("Se crean solas",
-            "CrearGestionesParaTrabajador solo se envía desde un botón: nada las crea solas");
+        cut.Find("header.cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+        cut.FindAll("header.cabecera-pagina button[aria-label='Selección múltiple']").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Se crean solas");
         cut.Markup.Should().NotContain("Nueva gestión", "esta pantalla no da de alta");
     }
 
@@ -344,8 +353,7 @@ public class GestionesListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Almacen = { completada } };
         var cut = Renderizar(mediador);
 
-        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Reabrir").ClickAsync(new MouseEventArgs());
+        await PulsarEnElMenuDeLaFila(cut, completada.TrabajadorNombre, "Reabrir");
 
         mediador.Enviadas.OfType<CompletarGestionCommand>().Should().Equal([new CompletarGestionCommand(completada.Id, false)]);
         cut.WaitForAssertion(() => cut.Find("tbody .badge").TextContent.Trim().Should().Be("Pendiente"));
@@ -431,31 +439,39 @@ public class GestionesListaGen2Tests : BunitContext
     {
         var a = Gestion("Juan Pérez Ibarra");
         var b = Gestion("Nuria Salas Ortiz");
-        var respuesta = new TaskCompletionSource<object>();
+        var respuesta = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
         var mediador = new MediatorFalso
         {
             Almacen = { a, b },
             Retener = p => p is CompletarGestionCommand ? respuesta.Task : null
         };
         var cut = Renderizar(mediador);
-
-        await NombreEnLaFila(cut, "Juan Pérez Ibarra").ClickAsync(new MouseEventArgs());
-        var desdeLaVistaRapida = BotonDeLaVistaRapida(cut, "Marcar completada").ClickAsync(new MouseEventArgs());
-
-        var desdeElMenuDeA = PulsarEnElMenuDeLaFila(cut, 0, "Marcar completada");
-        var desdeElMenuDeB = PulsarEnElMenuDeLaFila(cut, 1, "Marcar completada");
-
-        mediador.Enviadas.OfType<CompletarGestionCommand>().Select(c => c.Id).Should().Equal([a.Id, b.Id],
-            "uno por gestión: el segundo disparo sobre A se descarta, el de B no");
-
-        await cut.InvokeAsync(() => respuesta.SetResult(Result.Exito()));
-        await Task.WhenAll(desdeLaVistaRapida, desdeElMenuDeA, desdeElMenuDeB);
+        var tareas = new List<Task>();
+        var huboError = false;
+        try
+        {
+            tareas.Add(FilaGestionFase1(cut, a.TrabajadorNombre).QuerySelector("button.gestion-completar")!.ClickAsync(new MouseEventArgs()));
+            cut.WaitForAssertion(() => mediador.Enviadas.OfType<CompletarGestionCommand>().Should().ContainSingle());
+            await NombreEnLaFila(cut, a.TrabajadorNombre).ClickAsync(new MouseEventArgs());
+            tareas.Add(BotonDeLaVistaRapida(cut, "Marcar completada").ClickAsync(new MouseEventArgs()));
+            tareas.Add(PulsarEnElMenuDeLaFila(cut, a.TrabajadorNombre, "Marcar completada"));
+            tareas.Add(PulsarEnElMenuDeLaFila(cut, b.TrabajadorNombre, "Marcar completada"));
+            cut.WaitForAssertion(() => mediador.Enviadas.OfType<CompletarGestionCommand>().Select(c => c.Id).Should().Equal(a.Id, b.Id));
+            mediador.Enviadas.OfType<CompletarGestionCommand>().Should().OnlyContain(c => c.Completada);
+        }
+        catch { huboError = true; throw; }
+        finally
+        {
+            respuesta.TrySetResult(Result.Exito());
+            try { await Task.WhenAll(tareas); }
+            catch when (huboError) { /* Conserva el fallo de la comprobación original. */ }
+        }
     }
 
-    private static async Task PulsarEnElMenuDeLaFila(IRenderedComponent<Gestiones> cut, int fila, string item)
+    private static async Task PulsarEnElMenuDeLaFila(IRenderedComponent<Gestiones> cut, string trabajador, string item)
     {
-        await cut.FindAll(".menu-acciones-disparador")[fila].ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
+        await FilaGestionFase1(cut, trabajador).QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
+        await cut.FindAll("tbody .menu-acciones-item").Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
     }
 
     [Fact]
@@ -490,8 +506,7 @@ public class GestionesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         await NombreEnLaFila(cut, "Juan Pérez Ibarra").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-disparador")[1].ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+        await PulsarEnElMenuDeLaFila(cut, borrada.TrabajadorNombre, "Eliminar");
         await BotonDelDialogo(cut, "Eliminar").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarGestionCommand>().Should().Equal([new EliminarGestionCommand(borrada.Id)]);
@@ -525,7 +540,7 @@ public class GestionesListaGen2Tests : BunitContext
         Services.GetRequiredService<NavigationManager>().NavigateTo("gestiones?estado=Pendiente");
         var cut = Render<Gestiones>();
 
-        await cut.Find(".barra-filtros select").ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoGestion.Completada) });
+        await ElegirEstadoGestionFase1(cut, "Completadas");
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ninguna gestión con estos filtros"));
 
         await cut.InvokeAsync(() => respuestaVieja.SetResult(
@@ -537,7 +552,7 @@ public class GestionesListaGen2Tests : BunitContext
 
         cut.Markup.Should().Contain("Ninguna gestión con estos filtros",
             "la respuesta vieja era de «Pendientes», no de la pregunta vigente");
-        cut.FindAll(".conteo-gestiones").Should().BeEmpty("no hay coincidencias con el filtro vigente");
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("0", "no hay coincidencias con el filtro vigente");
     }
 
     [Fact]
@@ -555,7 +570,7 @@ public class GestionesListaGen2Tests : BunitContext
         navegacion.Uri.Should().NotContain("estado=");
         mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().Estado.Should().BeNull();
         cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().BeEmpty());
-        cut.WaitForAssertion(() => cut.Find(".conteo-gestiones").TextContent.Trim().Should().Be("2 gestiones"));
+        cut.WaitForAssertion(() => cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("2"));
     }
 
     /// <summary>
@@ -572,7 +587,7 @@ public class GestionesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador, estado: nameof(EstadoGestion.Completada));
 
         mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().Estado.Should().Be(EstadoGestion.Completada);
-        cut.Find(".conteo-gestiones").TextContent.Trim().Should().Be("1 gestión con estos filtros");
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("1");
     }
 
     [Fact]
@@ -580,7 +595,7 @@ public class GestionesListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra"), Gestion("Nuria Salas Ortiz") } });
 
-        cut.Find(".conteo-gestiones").TextContent.Trim().Should().Be("2 gestiones");
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("2");
         cut.FindAll(".chip-filtro").Should().BeEmpty();
     }
 
@@ -595,17 +610,17 @@ public class GestionesListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") } };
         var cut = Renderizar(mediador);
 
-        cut.Find(".conteo-gestiones").TextContent.Trim().Should().Be("1 gestión");
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("1");
 
         mediador.Almacen.Add(Gestion("Nuria Salas Ortiz"));
         await cut.InvokeAsync(() => cut.FindComponent<CampoTexto>().Instance.ValorChanged.InvokeAsync("a"));
 
-        cut.WaitForAssertion(() => cut.Find(".conteo-gestiones").TextContent.Trim().Should().Be("2 gestiones con estos filtros"));
+        cut.WaitForAssertion(() => cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("2"));
         cut.Find(".chip-filtro").TextContent.Trim().Should().Be("Búsqueda: \"a\"");
     }
 
     private static IElement CabeceraOrdenable(IRenderedComponent<Gestiones> cut, string titulo) =>
-        cut.FindAll("thead th").Single(th => th.TextContent.Trim() == titulo).QuerySelector("button")!;
+        cut.FindAll("thead th").Single(th => th.TextContent.Trim().StartsWith(titulo, StringComparison.Ordinal)).QuerySelector("button.col-title")!;
 
     /// <summary>Texto del botón de nombre en la posición <paramref name="columna"/> (0 Trabajador, 1 Centro) de cada fila.</summary>
     private static List<string> ColumnaDeLasFilas(IRenderedComponent<Gestiones> cut, int columna) =>
@@ -637,14 +652,14 @@ public class GestionesListaGen2Tests : BunitContext
         ColumnaDeLasFilas(cut, 1).Should().Equal(["Centro Norte", "Centro Este", "Centro Sur"],
             "punto de partida: el orden por defecto no coincide con ninguno de los dos que se piden");
 
-        await CabeceraOrdenable(cut, "Centro").ClickAsync(new MouseEventArgs());
+        await ElegirOrdenGestionFase1(cut, nameof(GestionListaDto.CentroNombre));
 
         var ascendente = mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last();
         ascendente.OrdenarPor.Should().Be(nameof(GestionListaDto.CentroNombre));
         ascendente.Descendente.Should().BeFalse();
         cut.WaitForAssertion(() => ColumnaDeLasFilas(cut, 1).Should().Equal(["Centro Este", "Centro Norte", "Centro Sur"]));
 
-        await CabeceraOrdenable(cut, "Centro").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Trabajador").ClickAsync(new MouseEventArgs());
 
         var descendente = mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last();
         descendente.OrdenarPor.Should().Be(nameof(GestionListaDto.CentroNombre));
@@ -711,6 +726,36 @@ public class GestionesListaGen2Tests : BunitContext
             .Should().Contain("Juan Pérez Ibarra"));
     }
 
+    [Fact]
+    public async Task El_error_de_recarga_conserva_la_suscripcion_de_teclado_y_no_abre_datos_anteriores()
+    {
+        var modulo = JSInterop.SetupModule("./js/atajos-lista.js");
+        modulo.Mode = JSRuntimeMode.Loose;
+        var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") } };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => modulo.Invocations["registrarAtajosLista"].Should().ContainSingle());
+        var referencia = modulo.Invocations["registrarAtajosLista"].Single().Arguments[0]
+            .Should().BeOfType<DotNetObjectReference<AtajosListaTeclado>>().Which;
+        await cut.InvokeAsync(() => referencia.Value.RecibirAtajo("j"));
+
+        mediador.FalloConsulta = new InvalidOperationException("caída de la base");
+        await cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("Juan"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No pudimos cargar las gestiones"));
+        await cut.InvokeAsync(() => referencia.Value.RecibirAtajo("Enter"));
+        cut.FindAll("aside.vista-rapida-gestion").Should().BeEmpty();
+        mediador.Enviadas.OfType<CompletarGestionCommand>().Should().BeEmpty();
+
+        mediador.FalloConsulta = null;
+        await cut.FindAll(".estado-vacio button").Single(b => b.TextContent.Trim() == "Reintentar")
+            .ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => TrabajadoresDeLasFilas(cut).Should().Equal("Juan Pérez Ibarra"));
+        modulo.Invocations["registrarAtajosLista"].Should().ContainSingle("la suscripción original permanece disponible");
+        await cut.InvokeAsync(() => referencia.Value.RecibirAtajo("j"));
+        await cut.InvokeAsync(() => referencia.Value.RecibirAtajo("Enter"));
+        cut.Find("aside.vista-rapida-gestion .nombre-vista-rapida-gestion").TextContent.Trim()
+            .Should().Be("Juan Pérez Ibarra");
+    }
+
     // --- Recuento de consultas ----------------------------------------------------------------
 
     private static int ConsultasDeLista(MediatorFalso mediador) =>
@@ -722,10 +767,10 @@ public class GestionesListaGen2Tests : BunitContext
     /// textos por fila y no distingue filtrar de no filtrar.
     /// </summary>
     private static IEnumerable<string> TrabajadoresDeLasFilas(IRenderedComponent<Gestiones> cut) =>
-        cut.FindAll("tbody tr td:first-child .enlace-nombre-fila").Select(e => e.TextContent.Trim());
+        cut.FindAll("tbody .gestion-trabajador-centro .enlace-nombre-fila:not(.gestion-centro)").Select(e => e.TextContent.Trim());
 
     private static IRenderedComponent<CampoTexto> CajaDeBusqueda(IRenderedComponent<Gestiones> cut) =>
-        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Buscar por trabajador") == true);
+        cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Filtrar esta pantalla") == true);
 
     /// <summary>
     /// Buscar recarga la lista UNA vez.
@@ -780,4 +825,228 @@ public class GestionesListaGen2Tests : BunitContext
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
             "el total sigue siendo 3: la única consulta que cabe contar es la del tamaño nuevo");
     }
+
+    // Integrar dentro de GestionesListaGen2Tests; fixture existente, sin reflexión ni orden sintético del proveedor.
+    public static IEnumerable<object[]> OrdenCombinadoGestionFase1()
+    {
+        foreach (var campo in new[] { "TrabajadorNombre", "CentroNombre" })
+            foreach (var misma in new[] { false, true })
+                foreach (var descendente in new[] { false, true })
+                    yield return [campo, misma, descendente];
+    }
+
+    [Theory]
+    [MemberData(nameof(OrdenCombinadoGestionFase1))]
+    public async Task Opciones_nativas_conservan_campo_y_sentido_de_gestiones(string campo, bool misma, bool descendente)
+    {
+        var m = new MediatorFalso { Almacen = { Gestion("Bea", centro: "Centro A"), Gestion("Ana", centro: "Centro Z") } };
+        var cut = Renderizar(m);
+        var previo = campo == "TrabajadorNombre" ? "CentroNombre" : "TrabajadorNombre";
+        await ElegirOrdenGestionFase1(cut, previo);
+        await FijarSentidoGestionFase1(cut, m, misma ? "Trabajador" : "Estado", descendente);
+        UltimaGestionFase1(m).OrdenarPor.Should().Be(misma ? previo : "Estado");
+        UltimaGestionFase1(m).Descendente.Should().Be(descendente);
+        var antes = ConsultasDeLista(m);
+        await ElegirOrdenGestionFase1(cut, campo);
+        cut.WaitForAssertion(() =>
+        {
+            ConsultasDeLista(m).Should().Be(antes + 1);
+            UltimaGestionFase1(m).OrdenarPor.Should().Be(campo);
+            UltimaGestionFase1(m).Descendente.Should().Be(misma && descendente);
+        });
+    }
+
+    [Theory]
+    [InlineData("Tipo de documento", "TipoDocumentoNombre", false)]
+    [InlineData("Tipo de documento", "TipoDocumentoNombre", true)]
+    [InlineData("Estado", "Estado", false)]
+    [InlineData("Estado", "Estado", true)]
+    [InlineData("Creada", "CreadoEnUtc", false)]
+    [InlineData("Creada", "CreadoEnUtc", true)]
+    public async Task Los_otros_tres_campos_envian_orden_real(string titulo, string campo, bool descendente)
+    {
+        var m = new MediatorFalso { Almacen = { Gestion("Ana"), Gestion("Bea", EstadoGestion.Completada) } };
+        var cut = Renderizar(m);
+        await FijarSentidoGestionFase1(cut, m, titulo, descendente);
+        UltimaGestionFase1(m).OrdenarPor.Should().Be(campo);
+        UltimaGestionFase1(m).Descendente.Should().Be(descendente);
+    }
+
+    [Fact]
+    public void Orden_inicial_pendientes_primero_conserva_datos_y_total_medido()
+    {
+        var antigua = Gestion("Ana antigua", centro: "Centro Norte", documento: "Formación") with { CreadoEnUtc = new DateTime(2026, 8, 1, 9, 0, 0, DateTimeKind.Utc) };
+        var nueva = Gestion("Bea nueva", centro: "Centro Sur", documento: "Reconocimiento") with { CreadoEnUtc = nuevaFechaGestionFase1 };
+        var completa = Gestion("Carla completada", EstadoGestion.Completada) with { CreadoEnUtc = nuevaFechaGestionFase1.AddDays(1) };
+        var m = new MediatorFalso { Almacen = { completa, antigua, nueva } };
+        var cut = Renderizar(m);
+        UltimaGestionFase1(m).OrdenarPor.Should().Be("Estado");
+        UltimaGestionFase1(m).Descendente.Should().BeFalse();
+        TrabajadoresDeLasFilas(cut).Should().Equal("Bea nueva", "Ana antigua", "Carla completada");
+        var fila = FilaGestionFase1(cut, nueva.TrabajadorNombre);
+        var celda = fila.QuerySelector(".gestion-trabajador-centro")!;
+        celda.TextContent.Should().Contain(nueva.TrabajadorNombre).And.Contain(nueva.CentroNombre);
+        fila.TextContent.Should().Contain(nueva.TipoDocumentoNombre).And.Contain(nueva.CreadoEnUtc.ToString("dd/MM/yyyy"));
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("3");
+    }
+
+    private static readonly DateTime nuevaFechaGestionFase1 = new(2026, 8, 14, 9, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public async Task Completar_de_fila_envia_ID_y_true_y_desaparece_del_filtro_pendientes()
+    {
+        var a = Gestion("Ana pendiente");
+        var b = Gestion("Bea pendiente");
+        var m = new MediatorFalso { Almacen = { a, b } };
+        var cut = Renderizar(m, nameof(EstadoGestion.Pendiente));
+        UltimaGestionFase1(m).Estado.Should().Be(EstadoGestion.Pendiente);
+        await FilaGestionFase1(cut, a.TrabajadorNombre).QuerySelector("button.gestion-completar")!.ClickAsync(new MouseEventArgs());
+        m.Enviadas.OfType<CompletarGestionCommand>().Should().Equal(new CompletarGestionCommand(a.Id, true));
+        m.Almacen.Single(g => g.Id == a.Id).Estado.Should().Be(EstadoGestion.Completada);
+        cut.WaitForAssertion(() => TrabajadoresDeLasFilas(cut).Should().Equal(b.TrabajadorNombre));
+        UltimaGestionFase1(m).Estado.Should().Be(EstadoGestion.Pendiente);
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+    }
+
+    [Theory]
+    [InlineData(EstadoGestion.Completada, false)]
+    [InlineData(EstadoGestion.Pendiente, true)]
+    public async Task Completar_no_se_ofrece_a_completada_ni_a_Consulta_con_lista_funcional(EstadoGestion estado, bool consulta)
+    {
+        if (consulta) this.ConRolDeEscritura(Roles.Consulta);
+        var a = Gestion("Ana visible", estado);
+        var m = new MediatorFalso { Almacen = { a } };
+        var cut = Renderizar(m, estado.ToString());
+        UltimaGestionFase1(m).Estado.Should().Be(estado);
+        TrabajadoresDeLasFilas(cut).Should().Equal(a.TrabajadorNombre);
+        cut.FindAll("tbody button.gestion-completar").Should().BeEmpty();
+        await NombreEnLaFila(cut, a.TrabajadorNombre).ClickAsync(new MouseEventArgs());
+        cut.Find("aside.vista-rapida-gestion .nombre-vista-rapida-gestion").TextContent.Trim().Should().Be(a.TrabajadorNombre);
+        m.Enviadas.OfType<CompletarGestionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task j_k_Enter_usan_la_fila_enfocada_y_x_no_activa_panel_ni_comandos()
+    {
+        var a = Gestion("Ana foco", centro: "Centro A");
+        var b = Gestion("Bea foco", centro: "Centro B");
+        var m = new MediatorFalso { Almacen = { a, b } };
+        var cut = Renderizar(m);
+        await AtajoGestionFase1(cut, "j");
+        FilaGestionFase1(cut, a.TrabajadorNombre).ClassList.Should().Contain("fila-enfocada");
+        var solicitudes = m.Enviadas.Count;
+        await AtajoGestionFase1(cut, "x");
+        FilaGestionFase1(cut, a.TrabajadorNombre).ClassList.Should().Contain("fila-enfocada");
+        cut.FindAll("aside.vista-rapida-gestion").Should().BeEmpty();
+        m.Enviadas.Should().HaveCount(solicitudes);
+        await AtajoGestionFase1(cut, "j");
+        FilaGestionFase1(cut, b.TrabajadorNombre).ClassList.Should().Contain("fila-enfocada");
+        FilaGestionFase1(cut, a.TrabajadorNombre).ClassList.Should().NotContain("fila-enfocada");
+        await AtajoGestionFase1(cut, "k");
+        FilaGestionFase1(cut, a.TrabajadorNombre).ClassList.Should().Contain("fila-enfocada");
+        await AtajoGestionFase1(cut, "j");
+        await AtajoGestionFase1(cut, "Enter");
+        cut.Find("aside.vista-rapida-gestion .nombre-vista-rapida-gestion").TextContent.Trim().Should().Be(b.TrabajadorNombre);
+        cut.Find("aside.vista-rapida-gestion").TextContent.Should().Contain(b.CentroNombre);
+        m.Enviadas.OfType<CompletarGestionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Buscar_invalida_snapshot_y_Enter_no_abre_la_fila_anterior_mientras_carga()
+    {
+        var m = new MediatorFalso { Almacen = { Gestion("Ana antigua"), Gestion("Bea nueva") } };
+        var cut = Renderizar(m);
+        await AtajoGestionFase1(cut, "j");
+        var respuesta = m.Filtrar(new ObtenerGestionesQuery("nueva", null, null));
+        var retenida = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+        m.Retener = q => q is ObtenerGestionesQuery { Busqueda: "nueva" } ? retenida.Task : null;
+        Task? buscar = null;
+        var huboError = false;
+        try
+        {
+            buscar = cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("nueva"));
+            cut.WaitForAssertion(() => UltimaGestionFase1(m).Busqueda.Should().Be("nueva"));
+            await AtajoGestionFase1(cut, "j");
+            await AtajoGestionFase1(cut, "Enter");
+            cut.FindAll("aside.vista-rapida-gestion").Should().BeEmpty();
+        }
+        catch { huboError = true; throw; }
+        finally
+        {
+            retenida.TrySetResult(respuesta);
+            if (buscar is not null)
+            {
+                try { await buscar; }
+                catch when (huboError) { /* Conserva la aserción original. */ }
+            }
+        }
+        await AtajoGestionFase1(cut, "j");
+        await AtajoGestionFase1(cut, "Enter");
+        cut.Find("aside.vista-rapida-gestion .nombre-vista-rapida-gestion").TextContent.Trim().Should().Be("Bea nueva");
+    }
+
+    [Fact]
+    public async Task Respuesta_superada_no_publica_snapshot_para_Enter()
+    {
+        var m = new MediatorFalso { Almacen = { Gestion("Ana antigua"), Gestion("Bea nueva") } };
+        var cut = Renderizar(m);
+        var respuesta = m.Filtrar(new ObtenerGestionesQuery("antigua", null, null));
+        var retenida = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
+        m.Retener = q => q is ObtenerGestionesQuery { Busqueda: "antigua" } ? retenida.Task : null;
+        Task? anterior = null;
+        var huboError = false;
+        try
+        {
+            anterior = cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("antigua"));
+            cut.WaitForAssertion(() => UltimaGestionFase1(m).Busqueda.Should().Be("antigua"));
+            await cut.InvokeAsync(() => CajaDeBusqueda(cut).Instance.ValorChanged.InvokeAsync("nueva"));
+            UltimaGestionFase1(m).Busqueda.Should().Be("nueva");
+            TrabajadoresDeLasFilas(cut).Should().Equal("Bea nueva");
+            await AtajoGestionFase1(cut, "j");
+            await AtajoGestionFase1(cut, "Enter");
+            cut.Find("aside.vista-rapida-gestion .nombre-vista-rapida-gestion").TextContent.Trim().Should().Be("Bea nueva");
+        }
+        catch { huboError = true; throw; }
+        finally
+        {
+            retenida.TrySetResult(respuesta);
+            if (anterior is not null)
+            {
+                try { await anterior; }
+                catch when (huboError) { /* Conserva la aserción original. */ }
+            }
+        }
+        await AtajoGestionFase1(cut, "k");
+        await AtajoGestionFase1(cut, "Enter");
+        cut.Find("aside.vista-rapida-gestion .nombre-vista-rapida-gestion").TextContent.Trim().Should().Be("Bea nueva");
+        TrabajadoresDeLasFilas(cut).Should().Equal("Bea nueva");
+    }
+
+    private static ObtenerGestionesQuery UltimaGestionFase1(MediatorFalso m) => m.Enviadas.OfType<ObtenerGestionesQuery>().Last();
+    private static IElement FilaGestionFase1(IRenderedComponent<Gestiones> cut, string nombre) =>
+        cut.FindAll("tbody tr").Single(tr => tr.QuerySelector(".gestion-trabajador-centro .enlace-nombre-fila")?.TextContent.Trim() == nombre);
+    private static IElement CabeceraGestionFase1(IRenderedComponent<Gestiones> cut, string titulo) =>
+        cut.FindAll("thead th").Single(th => th.TextContent.Trim().StartsWith(titulo, StringComparison.Ordinal));
+    private static async Task FijarSentidoGestionFase1(IRenderedComponent<Gestiones> cut, MediatorFalso m, string titulo, bool descendente)
+    {
+        await CabeceraGestionFase1(cut, titulo).QuerySelector("button.col-title")!.ClickAsync(new MouseEventArgs());
+        if (UltimaGestionFase1(m).Descendente != descendente)
+            await CabeceraGestionFase1(cut, titulo).QuerySelector("button.col-title")!.ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => UltimaGestionFase1(m).Descendente.Should().Be(descendente));
+    }
+    private static async Task ElegirOrdenGestionFase1(IRenderedComponent<Gestiones> cut, string campo)
+    {
+        await CabeceraGestionFase1(cut, "Trabajador").QuerySelector("button.col-options-button")!.ClickAsync(new MouseEventArgs());
+        var texto = campo == "CentroNombre" ? "Ordenar por centro" : "Ordenar por trabajador";
+        await cut.FindAll(".gestiones-opciones-orden button").Single(b => b.TextContent.Trim() == texto).ClickAsync(new MouseEventArgs());
+    }
+    private static Task AtajoGestionFase1(IRenderedComponent<Gestiones> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.OnAtajo.InvokeAsync(tecla));
+    private static async Task ElegirEstadoGestionFase1(IRenderedComponent<Gestiones> cut, string texto)
+    {
+        var pastilla = cut.Find(".barra-filtros-pastillas .menu-acciones-disparador-pastilla");
+        if (pastilla.GetAttribute("aria-expanded") != "true") await pastilla.ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Single(b => b.TextContent.Trim() == texto).ClickAsync(new MouseEventArgs());
+    }
+
 }
