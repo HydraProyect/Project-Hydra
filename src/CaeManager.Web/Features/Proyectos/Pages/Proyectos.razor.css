@@ -1,68 +1,3 @@
-
-/* Barra de filtros (Proyectos TALVEG.dc.html): cliente, estado y búsqueda en
-   una sola tira. No reutiliza .barra-filtros de list-page.css: aquella tiene
-   max-width 480px, pensada para un buscador y un filtro, y aquí van tres. */
-.barra-filtros-proyectos {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: var(--space-3);
-    background-color: var(--color-surface);
-    border: var(--border-default);
-    border-radius: var(--radius-lg);
-    padding: var(--space-3);
-    margin-bottom: var(--space-4);
-}
-
-.filtro-cliente-proyectos {
-    min-width: 260px;
-}
-
-.filtro-estado-proyectos {
-    min-width: 160px;
-}
-
-.filtro-busqueda-proyectos {
-    flex: 1;
-    min-width: 220px;
-}
-
-@media (max-width: 768px) {
-    .barra-filtros-proyectos {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .filtro-cliente-proyectos,
-    .filtro-estado-proyectos,
-    .filtro-busqueda-proyectos {
-        min-width: 0;
-    }
-}
-
-.limpiar-filtros-proyectos {
-    border: 0;
-    background: none;
-    padding: 0;
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
-    cursor: pointer;
-}
-
-.limpiar-filtros-proyectos:hover {
-    color: var(--color-text);
-}
-
-.limpiar-filtros-proyectos:focus-visible {
-    outline: var(--border-focus);
-}
-
-.conteo-proyectos {
-    margin: 0 0 var(--space-3);
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
-}
-
 .contenedor-tabla-proyectos {
     overflow-x: auto;
 }
@@ -348,3 +283,7 @@
     font: var(--font-body-md);
     margin-bottom: var(--space-4);
 }
+
+.proyecto-nombre-centro { display: flex; flex-direction: column; gap: var(--space-1); }
+.proyecto-centro { font: var(--font-caption); color: var(--color-text-muted); }
+.proyecto-plazo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
