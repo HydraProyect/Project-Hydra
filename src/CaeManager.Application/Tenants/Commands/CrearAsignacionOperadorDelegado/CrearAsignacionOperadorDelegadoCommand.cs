@@ -13,6 +13,17 @@ namespace CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegad
 /// un Delegated Workspace ya creado, con un rol concreto para ese cliente
 /// (ADR-004 § 5.3 — un mismo usuario puede tener roles distintos en
 /// delegaciones distintas).
+///
+/// <para>
+/// <b>Sin consumidor en la interfaz, y a propósito (FS-20, 2026-10-08).</b> Exige a la vez
+/// que quien actúa administre el Tenant propietario y que la persona elegida sea visible
+/// en el Tenant activo y pertenezca al Operador CAE externo: para la primera persona de
+/// una delegación eso no se cumple, porque el Tenant propietario no ve las cuentas del
+/// Operador CAE externo. La vía que usa el producto es la Asignación de Cartera que decide
+/// el Operador CAE externo (<c>ICatalogoIncorporacionCartera.IncorporarAsync</c>), que
+/// escribe esta misma fila. Conectarlo a una pantalla pediría antes decidir si el Tenant
+/// propietario puede buscar personal de otro Tenant.
+/// </para>
 /// </summary>
 public record CrearAsignacionOperadorDelegadoCommand(Guid DelegacionTenantId, Guid UsuarioId, string Rol) : ICommand<Guid>;
 
