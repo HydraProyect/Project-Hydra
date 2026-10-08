@@ -72,4 +72,16 @@
   <data name="RetirarConfirmar" xml:space="preserve">
     <value>Retirar</value>
   </data>
+  <data name="SinPersonasOperador" xml:space="preserve">
+    <value>Todavía no hay ningún Gestor CAE de tu equipo con «{0}» en su cartera: nadie de tu organización puede trabajar en ella.</value>
+  </data>
+  <data name="SinPersonasOperadorEnlace" xml:space="preserve">
+    <value>Asignar cartera en Usuarios</value>
+  </data>
+  <data name="SinPersonasOperadorQuien" xml:space="preserve">
+    <value>La cartera la asigna un Administrador, Dirección CAE o Coordinador CAE desde Usuarios, en tu propia organización.</value>
+  </data>
+  <data name="SinPersonasPropietario" xml:space="preserve">
+    <value>«{0}» todavía no ha puesto a nadie de su equipo. Las personas las decide «{0}» desde su organización; cuando lo haga aparecerán aquí y podrás retirarlas.</value>
+  </data>
 </root>
