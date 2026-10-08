@@ -120,6 +120,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private bool? _dobleFactorActivo;
     private CredencialAccesoSubcontrataDto? _credencial;
     private bool _credencialConsultada;
+    private bool _tieneContrasena;
     private bool _cargandoCredencial;
     private bool _errorCredencial;
     private bool _contrasenaVisible;
@@ -290,7 +291,17 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
                 return;
             }
 
-            var cumplimiento = await Mediator.Send(new ObtenerCumplimientoSubcontrataQuery(id), _cancelacion);
+            // El anillo es un dato secundario: si su consulta falla, la ficha se abre sin porcentaje en vez de
+            // decir «no encontramos esta subcontrata» de una que sí se encontró.
+            FraccionCumplimiento? cumplimiento = null;
+            try
+            {
+                cumplimiento = await Mediator.Send(new ObtenerCumplimientoSubcontrataQuery(id), _cancelacion);
+            }
+            catch (Exception) when (!_cancelacion.IsCancellationRequested)
+            {
+            }
+
             if (carga != _cargaDetalle) return;
             _detalle = detalle;
             _cumplimiento = cumplimiento;
@@ -927,10 +938,15 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     // ---------- Acceso al portal ----------
 
-    private Task MostrarCredencialAsync() => CargarCredencialAsync();
+    private Task MostrarCredencialAsync() => CargarCredencialAsync(conContrasena: false);
 
+    /// <summary>
+    /// Pide la credencial. La contraseña solo se guarda en el circuito cuando se pide para revelarla
+    /// (<paramref name="conContrasena"/>): «Ver credenciales» se queda con URL, usuario y notas, y con el dato de si
+    /// hay contraseña, que es lo único que la tarjeta necesita para ofrecer «Revelar» y «Copiar».
+    /// </summary>
     /// <returns>true si la credencial se cargó y sigue siendo la de esta carga.</returns>
-    private async Task<bool> CargarCredencialAsync()
+    private async Task<bool> CargarCredencialAsync(bool conContrasena)
     {
         if (_detalle is null || _cargandoCredencial) return false;
 
@@ -943,7 +959,8 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         {
             var credencial = await Mediator.Send(new ObtenerCredencialAccesoSubcontrataQuery(id), _cancelacion);
             if (carga != _cargaCredencial) return false;
-            _credencial = credencial;
+            _tieneContrasena = !string.IsNullOrEmpty(credencial?.Contrasena);
+            _credencial = conContrasena ? credencial : credencial is null ? null : credencial with { Contrasena = null };
             _credencialConsultada = true;
             _contrasenaVisible = false;
             return true;
@@ -980,12 +997,18 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     {
         if (_contrasenaVisible)
         {
+            // Ocultar la suelta del circuito, no solo de la vista.
             _contrasenaVisible = false;
+            _credencial = _credencial is null ? null : _credencial with { Contrasena = null };
             return;
         }
 
-        if (await CargarCredencialAsync())
+        var habiaCredencial = _credencial is not null;
+        if (await CargarCredencialAsync(conContrasena: true))
             _contrasenaVisible = true;
+        else if (_errorCredencial && habiaCredencial)
+            // Con la credencial a la vista la tarjeta no tiene dónde pintar el error: sin aviso, «Revelar» no haría nada.
+            ToastService.Mostrar(Textos["ErrorCredenciales"], TonoToast.Error);
     }
 
     /// <summary>Suelta la credencial de la memoria del circuito, no solo de la vista.</summary>
@@ -993,6 +1016,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     {
         _cargaCredencial++;
         _credencial = null;
+        _tieneContrasena = false;
         _credencialConsultada = false;
         _cargandoCredencial = false;
         _errorCredencial = false;

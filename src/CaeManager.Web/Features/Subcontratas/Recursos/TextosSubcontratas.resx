@@ -880,6 +880,6 @@
     <value>Se exige y no hay documento</value>
   </data>
   <data name="ExplicacionSupervisada360" xml:space="preserve">
-    <value>Supervisada: la subcontrata sube su documentación a la plataforma del titular del Centro y tu equipo comprueba allí que es válida. La comprobación caduca y hay que repetirla.</value>
+    <value>Supervisada: la subcontrata sube su documentación a la plataforma del Cliente empresarial titular del Centro y tu equipo comprueba allí que es válida. La comprobación caduca y hay que repetirla.</value>
   </data>
 </root>

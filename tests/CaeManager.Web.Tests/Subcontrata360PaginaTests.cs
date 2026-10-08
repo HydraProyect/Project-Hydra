@@ -21,6 +21,7 @@ using CaeManager.Domain.Subcontratas;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Documentos.Components;
 using CaeManager.Web.Features.Subcontratas.Components;
 using CaeManager.Web.Features.Subcontratas.Pages;
@@ -64,12 +65,15 @@ public class Subcontrata360PaginaTests : BunitContext
         public List<CentroConActividadDto> Centros { get; set; } = [];
         public CredencialAccesoSubcontrataDto? Credencial { get; set; }
         public bool DobleFactor { get; set; } = true;
+        public bool FallaElCumplimiento { get; set; }
 
         public List<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            if (FallaElCumplimiento && request is ObtenerCumplimientoSubcontrataQuery)
+                return Task.FromException<TResponse>(new InvalidOperationException("fallo transitorio"));
             return Task.FromResult((TResponse)Responder(request)!);
         }
 
@@ -128,8 +132,8 @@ public class Subcontrata360PaginaTests : BunitContext
     private static readonly Guid Version = Guid.NewGuid();
     private static readonly Guid CentroId = Guid.NewGuid();
 
-    private static SubcontrataDetalleDto Detalle(NivelServicioSubcontrata nivel = NivelServicioSubcontrata.Supervisada) =>
-        new(SubcontrataId, "Transportes Terminator S.L.", "B70005204", new DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc), [], [], Version, nivel);
+    private static SubcontrataDetalleDto Detalle(NivelServicioSubcontrata nivel = NivelServicioSubcontrata.Supervisada, Guid? id = null) =>
+        new(id ?? SubcontrataId, "Transportes Terminator S.L.", "B70005204", new DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc), [], [], Version, nivel);
 
     private static TrabajadorDocumentacionSubcontrataDto Trabajador(string nombre, EstadoDocumento peor, params DocumentoRequeridoDto[] documentos) =>
         new(Guid.NewGuid(), nombre, "12345678Z", peor, documentos,
@@ -246,7 +250,21 @@ public class Subcontrata360PaginaTests : BunitContext
         cut.Markup.Should().Contain("No encontramos esta subcontrata");
         cut.FindAll("[data-pieza=cabecera-identidad]").Should().BeEmpty();
         mediador.Enviadas.Should().NotContain(p => p is ObtenerTrabajadoresDocumentacionPorSubcontrataQuery
-            || p is ObtenerSupervisionSubcontrataQuery || p is ObtenerCredencialAccesoSubcontrataQuery);
+            || p is ObtenerSupervisionSubcontrataQuery || p is ObtenerCredencialAccesoSubcontrataQuery
+            || p is ObtenerCumplimientoSubcontrataQuery);
+    }
+
+    /// <summary>Revisión puente: un fallo del dato secundario no puede presentarse como «no encontrada».</summary>
+    [Fact]
+    public void Si_falla_la_consulta_del_anillo_la_ficha_se_abre_sin_porcentaje()
+    {
+        Montar(ajustar: m => m.FallaElCumplimiento = true);
+
+        var cut = Renderizar();
+
+        cut.Find("[data-pieza=cabecera-identidad] h1").TextContent.Should().Be("Transportes Terminator S.L.");
+        cut.Markup.Should().NotContain("No encontramos esta subcontrata");
+        cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().Be("Sin requisitos documentales todavía");
     }
 
     // ── Trabajadores ──────────────────────────────────────────────────────
@@ -302,6 +320,29 @@ public class Subcontrata360PaginaTests : BunitContext
         subfilas[1].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Renovar");
         subfilas[0].TextContent.Should().Contain("Pendiente").And.Contain("Se exige y no hay documento");
         subfilas[0].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Subir");
+    }
+
+    /// <summary>
+    /// Revisión puente: la consulta entrega una fila por documento operativo, y dos copias del mismo tipo pueden
+    /// coexistir. Con la clave por tipo eran dos hermanos con la misma @key, que mata el circuito.
+    /// </summary>
+    [Fact]
+    public void Dos_copias_operativas_del_mismo_tipo_son_dos_filas_y_no_rompen_el_desplegable()
+    {
+        var tipo = Guid.NewGuid();
+        Montar(ajustar: m => m.Trabajadores =
+        [
+            new(Guid.NewGuid(), "Sonia Cano Prieto", "12345678Z", EstadoDocumento.Vencido,
+            [
+                new DocumentoRequeridoDto(Guid.NewGuid(), tipo, "Aptitud médica", EstadoDocumento.Vencido, new DateOnly(2026, 3, 12)),
+                new DocumentoRequeridoDto(Guid.NewGuid(), tipo, "Aptitud médica", EstadoDocumento.Vigente, new DateOnly(2027, 3, 12)),
+            ], new FraccionCumplimiento(1, 1))
+        ]);
+        var cut = Renderizar();
+
+        cut.Find(".fila-relacion-desplegar").Click();
+
+        cut.FindAll(".subcontrata360-subfila").Should().HaveCount(2);
     }
 
     // ── Banda ─────────────────────────────────────────────────────────────
@@ -383,6 +424,43 @@ public class Subcontrata360PaginaTests : BunitContext
         mediador.Enviadas.Should().NotContain(p => p is ObtenerCredencialAccesoSubcontrataQuery);
     }
 
+    [Fact]
+    public void Revelar_vuelve_a_pedir_la_credencial_y_ocultar_la_suelta()
+    {
+        var mediador = Montar();
+        var cut = Renderizar();
+        Boton(cut, "Ver credenciales").Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("terminator"));
+
+        cut.Find("button[aria-pressed=false]").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("secreta"));
+        mediador.Enviadas.OfType<ObtenerCredencialAccesoSubcontrataQuery>().Should().HaveCount(2,
+            "revelar comprueba el doble factor en el momento, no enseña lo que ya tenía");
+
+        cut.Find("button[aria-pressed=true]").Click();
+
+        cut.Markup.Should().NotContain("secreta");
+    }
+
+    /// <summary>La página reutiliza el componente al navegar de una subcontrata a otra: la credencial de la anterior no viaja.</summary>
+    [Fact]
+    public void Al_pasar_a_otra_subcontrata_no_queda_la_credencial_de_la_anterior()
+    {
+        var mediador = Montar();
+        var cut = Renderizar();
+        Boton(cut, "Ver credenciales").Click();
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("terminator"));
+
+        var otra = Guid.NewGuid();
+        mediador.Detalle = Detalle(id: otra) with { RazonSocial = "Laboratorios Nemesis S.L." };
+        cut.Render(p => p.Add(x => x.SubcontrataId, otra));
+
+        cut.WaitForAssertion(() => cut.Find("[data-pieza=cabecera-identidad] h1").TextContent.Should().Be("Laboratorios Nemesis S.L."));
+        cut.Markup.Should().NotContain("terminator");
+        HayBoton(cut, "Ver credenciales").Should().BeTrue("la credencial de la nueva se pide de nuevo, no se hereda");
+    }
+
     // ── Menú de cabecera ──────────────────────────────────────────────────
 
     [Fact]
@@ -439,5 +517,56 @@ public class Subcontrata360PaginaTests : BunitContext
         var cut = Renderizar("?pestana=inventada");
 
         NombresDeFila(cut).Should().HaveCount(5);
+    }
+
+    [Fact]
+    public void Eliminar_una_verificacion_pregunta_antes_y_envia_la_orden_de_esa_verificacion()
+    {
+        var mediador = Montar();
+        var verificacion = mediador.Supervision.Centros[0].Tipos[1].UltimaVerificacion!.Id;
+        var cut = Renderizar("?pestana=supervision");
+
+        cut.Find(".fila-relacion .menu-acciones-disparador").Click();
+        cut.Find(".fila-relacion .menu-acciones-item").Click();
+
+        mediador.Enviadas.Should().NotContain(p => p is EliminarVerificacionExternaSubcontrataCommand, "eliminar pregunta antes");
+        cut.FindAll("button").Last(b => b.ClassList.Any(c => c.Contains("destructivo"))).Click();
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<EliminarVerificacionExternaSubcontrataCommand>().Should().ContainSingle()
+            .Which.Id.Should().Be(verificacion));
+    }
+
+    [Fact]
+    public void En_Consulta_la_supervision_no_ofrece_verificar_ni_eliminar()
+    {
+        Montar(Roles.Consulta);
+
+        var cut = Renderizar("?pestana=supervision");
+
+        NombresDeFila(cut).Should().Equal("Formación Art. 19", "Aptitud médica");
+        cut.FindAll(".fila-relacion button").Should().BeEmpty();
+        cut.FindAll("a.subcontrata360-enlace").Should().ContainSingle("ver la evidencia es lectura");
+    }
+
+    // ── Vocabulario de estado ─────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(EstadoDocumento.Faltante, "Pendiente", TonoBadge.Peligro, TonoFila.Peligro, AccionDocumentoFicha360.Subir)]
+    [InlineData(EstadoDocumento.Vencido, "Vencido", TonoBadge.Peligro, TonoFila.Peligro, AccionDocumentoFicha360.Renovar)]
+    [InlineData(EstadoDocumento.EnTolerancia, "En tolerancia", TonoBadge.Tolerancia, TonoFila.Advertencia, AccionDocumentoFicha360.Renovar)]
+    [InlineData(EstadoDocumento.Urgente, "Por vencer", TonoBadge.Advertencia, TonoFila.Advertencia, AccionDocumentoFicha360.Renovar)]
+    [InlineData(EstadoDocumento.Proximo, "Por vencer", TonoBadge.Advertencia, null, null)]
+    [InlineData(EstadoDocumento.SinConfirmar, "Sin confirmar", TonoBadge.Advertencia, null, AccionDocumentoFicha360.Confirmar)]
+    [InlineData(EstadoDocumento.Vigente, "Vigente", TonoBadge.Exito, null, null)]
+    [InlineData(EstadoDocumento.SinCaducidad, "Vigente", TonoBadge.Exito, null, null)]
+    // Un estado que nadie ha declarado no degrada a favorable.
+    [InlineData((EstadoDocumento)999, "Estado desconocido", TonoBadge.Peligro, null, null)]
+    public void El_vocabulario_de_estado_de_la_ficha_declara_cada_estado(
+        EstadoDocumento estado, string texto, TonoBadge tono, TonoFila? tonoFila, AccionDocumentoFicha360? accion)
+    {
+        EstadoDocumentoFicha360.Texto(estado).Should().Be(texto);
+        EstadoDocumentoFicha360.Tono(estado).Should().Be(tono);
+        EstadoDocumentoFicha360.TonoFila(estado).Should().Be(tonoFila);
+        EstadoDocumentoFicha360.Accion(estado).Should().Be(accion);
     }
 }

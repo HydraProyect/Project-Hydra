@@ -113,7 +113,7 @@
                 @switch (_pestana)
                 {
                     case PestanaSupervision:
-                        @* En el marcado, y no en @code como las otras dos: sus filas llevan una @key construida,
+                        @* En el marcado, y no en @code como la de Centros: sus filas llevan una @key construida,
                            y ClavesDeHermanos se declara junto a los hermanos. *@
                     <section class="subcontrata360-seccion" aria-label="@Textos["PestanaSupervision"]">
                             @if (_cargandoSupervision)
@@ -223,7 +223,113 @@
                         </Tarjeta>
                         break;
                     default:
-                        @PestanaDeTrabajadores
+                    <section class="subcontrata360-seccion" aria-label="@Textos["PestanaTrabajadores"]">
+                            @if (_cargandoTrabajadores)
+                            {
+                                <Tarjeta><EstadoCargando Filas="5" /></Tarjeta>
+                            }
+                            else if (_errorTrabajadores)
+                            {
+                                <Tarjeta>
+                                    <EstadoVacio Titulo="@Textos["ErrorCargaTrabajadoresTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
+                                        <Accion>
+                                            <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarTrabajadoresAsync">@Comunes["Reintentar"]</Boton>
+                                        </Accion>
+                                    </EstadoVacio>
+                                </Tarjeta>
+                            }
+                            else if (_trabajadores is { Count: 0 })
+                            {
+                                @* Sin registros: distinto de «ninguno en los estados marcados», que conserva los contadores. *@
+                                <Tarjeta>
+                                    <EstadoVacio Titulo="@Textos["TrabajadoresVacioTitulo"]" Descripcion="@Textos["TrabajadoresVacioDescripcion"]" NombreIcono="vacio">
+                                        <Accion>
+                                            @* No hay alta de trabajador desde la subcontrata: la acción solo lleva al listado. *@
+                                            <SoloConEscritura>
+                                                <Boton Variante="VarianteBoton.Secundario" OnClick="IrAListaDeTrabajadores">@Textos["IrATrabajadores"]</Boton>
+                                            </SoloConEscritura>
+                                        </Accion>
+                                    </EstadoVacio>
+                                </Tarjeta>
+                            }
+                            else if (_trabajadores is not null)
+                            {
+                                var visibles = TrabajadoresVisibles;
+                                <FiltroEstadosMultiple Opciones="OpcionesDeEstado" Seleccion="_estadosMarcados" SeleccionChanged="CambiarEstadosMarcados"
+                                                       Total="_trabajadores.Count" TextoTodos="@Textos["FiltroTodos"]" Etiqueta="@Textos["FiltroPorEstado"]" />
+                                <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaTrabajadores"]"
+                                                 Pie="@(visibles.Count == 0 ? PieSinCoincidencias : null)">
+                                    <Encabezado>@TextoResumenTrabajadores</Encabezado>
+                                    <ChildContent>
+                                        @foreach (var trabajador in visibles)
+                                        {
+                                            var motivo = MotivoDe(trabajador);
+                                            <FilaRelacion @key="trabajador.TrabajadorId" Nombre="@trabajador.TrabajadorNombre" Iniciales="@Iniciales(trabajador.TrabajadorNombre)"
+                                                          Tono="EstadoDocumentoFicha360.TonoFila(trabajador.PeorEstado)"
+                                                          OnNombre="() => AbrirPanelTrabajador(trabajador)"
+                                                          OnAbrir360="() => IrATrabajador360(trabajador.TrabajadorId)"
+                                                          Desplegada="EstaDesplegado(trabajador.TrabajadorId)"
+                                                          DesplegadaChanged="v => CambiarDespliegue(trabajador.TrabajadorId, v)"
+                                                          EtiquetaDesplegar="@Textos["AriaDocumentosExigidosA", trabajador.TrabajadorNombre]">
+                                                <Detalle>
+                                                    @if (!string.IsNullOrWhiteSpace(trabajador.TrabajadorDni))
+                                                    {
+                                                        @Textos["DetalleDni"] <span>@trabajador.TrabajadorDni</span>
+                                                        <BotonCopiar Valor="@trabajador.TrabajadorDni" Etiqueta="@Textos["CopiarElDni"]" />
+                                                    }
+                                                    @if (motivo.Length > 0)
+                                                    {
+                                                        <span> · @motivo</span>
+                                                    }
+                                                </Detalle>
+                                                <Cifra>@TextoFraccion(trabajador.Cumplimiento)</Cifra>
+                                                <Estado>
+                                                    <Badge Tono="EstadoDocumentoFicha360.Tono(trabajador.PeorEstado)">@EstadoDocumentoFicha360.Texto(trabajador.PeorEstado)</Badge>
+                                                </Estado>
+                                                <Desplegable>
+                                                    @if (trabajador.Documentos.Count == 0)
+                                                    {
+                                                        <p class="subcontrata360-nota">@Textos["TrabajadorSinDocumentacionExigida"]</p>
+                                                    }
+                                                    else
+                                                    {
+                                                        @* Dos copias operativas del mismo tipo son dos filas: la clave no puede ser solo el tipo. *@
+                                                        @{ var clavesDocumentos = new ClavesDeHermanos(); }
+                                                        <ul class="subcontrata360-subfilas" aria-label="@Textos["AriaDocumentacionExigidaA", trabajador.TrabajadorNombre]">
+                                                            @foreach (var documento in trabajador.Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)))
+                                                            {
+                                                                var rotuloAccion = RotuloAccion(documento);
+                                                                <li class="subcontrata360-subfila" data-pieza="fila" @key="clavesDocumentos.De(documento.DocumentoId ?? documento.TipoDocumentoId)">
+                                                                    <span class="subcontrata360-subfila-texto">
+                                                                        <strong>@documento.TipoDocumentoNombre</strong>
+                                                                        <span class="subcontrata360-subfila-detalle" data-pieza="fila-detalle">
+                                                                            <TextoFechaCopiable Fecha="documento.FechaVencimiento">@TextoVigencia(documento)</TextoFechaCopiable>
+                                                                        </span>
+                                                                    </span>
+                                                                    <span>
+                                                                        <Badge Tono="EstadoDocumentoFicha360.Tono(documento.Estado)">@EstadoDocumentoFicha360.Texto(documento.Estado)</Badge>
+                                                                    </span>
+                                                                    <span class="subcontrata360-subfila-accion">
+                                                                        @* DrawerGestionDocumento solo crea o renueva (órdenes denegadas a Consulta). *@
+                                                                        <SoloConEscritura>
+                                                                            <Boton Variante="@(rotuloAccion is null ? VarianteBoton.Fantasma : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno"
+                                                                                   aria-label="@Textos["AriaAccionDocumento", rotuloAccion ?? Textos["BotonGestionar"], documento.TipoDocumentoNombre, trabajador.TrabajadorNombre]"
+                                                                                   OnClick="() => GestionarDocumentoAsync(trabajador.TrabajadorId, documento)">
+                                                                                @(rotuloAccion ?? Textos["BotonGestionar"])
+                                                                            </Boton>
+                                                                        </SoloConEscritura>
+                                                                    </span>
+                                                                </li>
+                                                            }
+                                                        </ul>
+                                                    }
+                                                </Desplegable>
+                                            </FilaRelacion>
+                                        }
+                                    </ChildContent>
+                                </ListaRelaciones>
+                            }
+                        </section>
                         break;
                 }
             </ChildContent>
@@ -300,13 +406,13 @@
                                         }
                                     </DatoRejilla>
                                     <DatoRejilla Etiqueta="@Textos["RotuloContrasena"]" Ancho="true">
-                                        @if (string.IsNullOrEmpty(_credencial.Contrasena))
+                                        @if (!_tieneContrasena)
                                         {
                                             <text>—</text>
                                         }
                                         else
                                         {
-                                            <span>@(_contrasenaVisible ? _credencial.Contrasena : "••••••••••")</span>
+                                            <span>@(_contrasenaVisible && !string.IsNullOrEmpty(_credencial.Contrasena) ? _credencial.Contrasena : "••••••••••")</span>
                                         }
                                     </DatoRejilla>
                                     @if (!string.IsNullOrWhiteSpace(_credencial.Notas))
@@ -317,7 +423,7 @@
                                     }
                                 </RejillaDatos>
                                 <div class="subcontrata360-botones">
-                                    @if (!string.IsNullOrEmpty(_credencial.Contrasena))
+                                    @if (_tieneContrasena)
                                     {
                                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_cargandoCredencial"
                                                aria-pressed="@(_contrasenaVisible ? "true" : "false")" OnClick="AlternarContrasenaAsync">
@@ -406,112 +512,6 @@
                 }
         }
     </text>;
-
-    private RenderFragment PestanaDeTrabajadores => @<section class="subcontrata360-seccion" aria-label="@Textos["PestanaTrabajadores"]">
-        @if (_cargandoTrabajadores)
-        {
-            <Tarjeta><EstadoCargando Filas="5" /></Tarjeta>
-        }
-        else if (_errorTrabajadores)
-        {
-            <Tarjeta>
-                <EstadoVacio Titulo="@Textos["ErrorCargaTrabajadoresTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
-                    <Accion>
-                        <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarTrabajadoresAsync">@Comunes["Reintentar"]</Boton>
-                    </Accion>
-                </EstadoVacio>
-            </Tarjeta>
-        }
-        else if (_trabajadores is { Count: 0 })
-        {
-            @* Sin registros: distinto de «ninguno en los estados marcados», que conserva los contadores. *@
-            <Tarjeta>
-                <EstadoVacio Titulo="@Textos["TrabajadoresVacioTitulo"]" Descripcion="@Textos["TrabajadoresVacioDescripcion"]" NombreIcono="vacio">
-                    <Accion>
-                        @* No hay alta de trabajador desde la subcontrata: la acción solo lleva al listado. *@
-                        <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Secundario" OnClick="IrAListaDeTrabajadores">@Textos["IrATrabajadores"]</Boton>
-                        </SoloConEscritura>
-                    </Accion>
-                </EstadoVacio>
-            </Tarjeta>
-        }
-        else if (_trabajadores is not null)
-        {
-            var visibles = TrabajadoresVisibles;
-            <FiltroEstadosMultiple Opciones="OpcionesDeEstado" Seleccion="_estadosMarcados" SeleccionChanged="CambiarEstadosMarcados"
-                                   Total="_trabajadores.Count" TextoTodos="@Textos["FiltroTodos"]" Etiqueta="@Textos["FiltroPorEstado"]" />
-            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaTrabajadores"]"
-                             Pie="@(visibles.Count == 0 ? PieSinCoincidencias : null)">
-                <Encabezado>@TextoResumenTrabajadores</Encabezado>
-                <ChildContent>
-                    @foreach (var trabajador in visibles)
-                    {
-                        var motivo = MotivoDe(trabajador);
-                        <FilaRelacion @key="trabajador.TrabajadorId" Nombre="@trabajador.TrabajadorNombre" Iniciales="@Iniciales(trabajador.TrabajadorNombre)"
-                                      Tono="EstadoDocumentoFicha360.TonoFila(trabajador.PeorEstado)"
-                                      OnNombre="() => AbrirPanelTrabajador(trabajador)"
-                                      OnAbrir360="() => IrATrabajador360(trabajador.TrabajadorId)"
-                                      Desplegada="EstaDesplegado(trabajador.TrabajadorId)"
-                                      DesplegadaChanged="v => CambiarDespliegue(trabajador.TrabajadorId, v)"
-                                      EtiquetaDesplegar="@Textos["AriaDocumentosExigidosA", trabajador.TrabajadorNombre]">
-                            <Detalle>
-                                @if (!string.IsNullOrWhiteSpace(trabajador.TrabajadorDni))
-                                {
-                                    @Textos["DetalleDni"] <span>@trabajador.TrabajadorDni</span>
-                                    <BotonCopiar Valor="@trabajador.TrabajadorDni" Etiqueta="@Textos["CopiarElDni"]" />
-                                }
-                                @if (motivo.Length > 0)
-                                {
-                                    <span> · @motivo</span>
-                                }
-                            </Detalle>
-                            <Cifra>@TextoFraccion(trabajador.Cumplimiento)</Cifra>
-                            <Estado>
-                                <Badge Tono="EstadoDocumentoFicha360.Tono(trabajador.PeorEstado)">@EstadoDocumentoFicha360.Texto(trabajador.PeorEstado)</Badge>
-                            </Estado>
-                            <Desplegable>
-                                @if (trabajador.Documentos.Count == 0)
-                                {
-                                    <p class="subcontrata360-nota">@Textos["TrabajadorSinDocumentacionExigida"]</p>
-                                }
-                                else
-                                {
-                                    <ul class="subcontrata360-subfilas" aria-label="@Textos["AriaDocumentacionExigidaA", trabajador.TrabajadorNombre]">
-                                        @foreach (var documento in trabajador.Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)))
-                                        {
-                                            var rotuloAccion = RotuloAccion(documento);
-                                            <li class="subcontrata360-subfila" data-pieza="fila" @key="documento.TipoDocumentoId">
-                                                <span class="subcontrata360-subfila-texto">
-                                                    <strong>@documento.TipoDocumentoNombre</strong>
-                                                    <span class="subcontrata360-subfila-detalle" data-pieza="fila-detalle">
-                                                        <TextoFechaCopiable Fecha="documento.FechaVencimiento">@TextoVigencia(documento)</TextoFechaCopiable>
-                                                    </span>
-                                                </span>
-                                                <span>
-                                                    <Badge Tono="EstadoDocumentoFicha360.Tono(documento.Estado)">@EstadoDocumentoFicha360.Texto(documento.Estado)</Badge>
-                                                </span>
-                                                <span class="subcontrata360-subfila-accion">
-                                                    @* DrawerGestionDocumento solo crea o renueva (órdenes denegadas a Consulta). *@
-                                                    <SoloConEscritura>
-                                                        <Boton Variante="@(rotuloAccion is null ? VarianteBoton.Fantasma : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno"
-                                                               aria-label="@Textos["AriaAccionDocumento", rotuloAccion ?? Textos["BotonGestionar"], documento.TipoDocumentoNombre, trabajador.TrabajadorNombre]"
-                                                               OnClick="() => GestionarDocumentoAsync(trabajador.TrabajadorId, documento)">
-                                                            @(rotuloAccion ?? Textos["BotonGestionar"])
-                                                        </Boton>
-                                                    </SoloConEscritura>
-                                                </span>
-                                            </li>
-                                        }
-                                    </ul>
-                                }
-                            </Desplegable>
-                        </FilaRelacion>
-                    }
-                </ChildContent>
-            </ListaRelaciones>
-        }
-    </section>;
 
     // ListaRelaciones envuelve el pie en su propio párrafo: aquí solo va el texto.
     private RenderFragment PieSinCoincidencias => @<text>

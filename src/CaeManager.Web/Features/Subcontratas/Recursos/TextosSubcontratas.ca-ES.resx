@@ -880,6 +880,6 @@
     <value>S'exigeix i no hi ha document</value>
   </data>
   <data name="ExplicacionSupervisada360" xml:space="preserve">
-    <value>Supervisada: la subcontracta puja la seva documentació a la plataforma del titular del Centre i el teu equip hi comprova que és vàlida. La comprovació caduca i s'ha de repetir.</value>
+    <value>Supervisada: la subcontracta puja la seva documentació a la plataforma del Client empresarial titular del Centre i el teu equip hi comprova que és vàlida. La comprovació caduca i s'ha de repetir.</value>
   </data>
 </root>

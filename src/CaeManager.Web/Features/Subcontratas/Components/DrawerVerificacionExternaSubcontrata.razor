@@ -98,10 +98,7 @@
     private byte[]? _evidenciaContenido;
     private string? _evidenciaNombre;
 
-    /// <summary>Lo lee el aviso de salida de la página, además del propio Drawer.</summary>
-    public bool HayCambios => _visible && _instantanea.Difiere(Valores());
-
-    public bool Visible => _visible;
+    private bool HayCambios => _visible && _instantanea.Difiere(Valores());
 
     // La evidencia cuenta por su nombre: se lee a memoria y solo se sube al registrar, así que
     // descartar no deja ningún archivo en el almacenamiento.
@@ -156,9 +153,6 @@
             _abriendo = false;
         }
     }
-
-    /// <summary>Cierra sin preguntar: lo usa la página cuando el usuario ya aceptó descartar al salir.</summary>
-    public void Descartar() => _visible = false;
 
     private Task CambiarVisibilidad(bool visible)
     {
