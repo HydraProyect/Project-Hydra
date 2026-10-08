@@ -607,7 +607,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// decir "Administrador" en una columna y calcular el alcance con otra
     /// cosa sería peor que no decir nada.
     /// </summary>
-    private static AlcanceUsuarioDto CalcularAlcance(
+    private AlcanceUsuarioDto CalcularAlcance(
         ApplicationUser usuario,
         string rol,
         IReadOnlyDictionary<Guid, CarteraDeUsuario> carteras,
@@ -639,11 +639,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 return new("Sin gestores asignados", true,
                     "Un Coordinador CAE alcanza lo que alcanzan los Gestores CAE que tiene asignados y su propia Asignación de Cartera. Sin ninguna de las dos, no ve nada.");
 
+            var porSuEquipo = $"A través de {DescribirCantidad(gestores.Count, "Gestor CAE", "Gestores CAE")} que tiene asignados.";
+            var porSuCartera = TextosUsuarios["AlcanceCoordinadorCarteraPropia"].Value;
             return DesdeCarteras(
                 gestores.Prepend(usuario.Id).Where(carteras.ContainsKey).Select(id => carteras[id]).ToList(),
-                explicacion: tienePropia
-                    ? $"Por su propia Asignación de Cartera y a través de {DescribirCantidad(gestores.Count, "Gestor CAE", "Gestores CAE")} que tiene asignados."
-                    : $"A través de {DescribirCantidad(gestores.Count, "Gestor CAE", "Gestores CAE")} que tiene asignados.",
+                explicacion: !tienePropia ? porSuEquipo : gestores.Count == 0 ? porSuCartera : string.Join(' ', porSuCartera, porSuEquipo),
                 explicacionSinAlcance: "Sus Gestores CAE no tienen ninguna cartera vigente, así que tampoco él alcanza nada.");
         }
 
@@ -1443,13 +1443,13 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         var apoyo = operacion.Apoyos.First(a => a.UsuarioId == usuario.Id);
         var rotulo = apoyo.VigenciaHasta is { } hasta
-            ? TextosUsuarios["PrincipalApoyoHasta", hasta.ToLocalTime().ToString("d")].Value
+            ? TextosUsuarios["PrincipalApoyoHasta", hasta.EnHoraPeninsular()].Value
             : TextosUsuarios["PrincipalApoyo"].Value;
         var deOtra = operacion.Principal is { } otro
-            ? $"{RotuloPrincipal(otro)}: {otro.Nombre}"
+            ? TextosUsuarios["PrincipalDeOtraPersona", RotuloPrincipal(otro), otro.Nombre].Value
             : TextosUsuarios["PrincipalSin"].Value;
 
-        return new(rotulo, deOtra, SePuedeDesignar: usuario.Activo);
+        return new(rotulo, TextosUsuarios["PrincipalJuntoAlRotulo", deOtra].Value, SePuedeDesignar: usuario.Activo);
     }
 
     /// <summary>

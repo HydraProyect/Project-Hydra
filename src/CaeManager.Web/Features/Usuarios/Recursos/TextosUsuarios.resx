@@ -64,7 +64,16 @@
     <value>Apoyo</value>
   </data>
   <data name="PrincipalApoyoHasta" xml:space="preserve">
-    <value>Apoyo hasta {0}</value>
+    <value>Apoyo hasta {0:dd/MM/yyyy}</value>
+  </data>
+  <data name="PrincipalDeOtraPersona" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="AlcanceCoordinadorCarteraPropia" xml:space="preserve">
+    <value>Por su propia Asignación de Cartera.</value>
+  </data>
+  <data name="PrincipalJuntoAlRotulo" xml:space="preserve">
+    <value>· {0}</value>
   </data>
   <data name="PrincipalSin" xml:space="preserve">
     <value>Sin Gestor CAE principal</value>

@@ -64,7 +64,16 @@
     <value>Suport</value>
   </data>
   <data name="PrincipalApoyoHasta" xml:space="preserve">
-    <value>Suport fins al {0}</value>
+    <value>Suport fins al {0:dd/MM/yyyy}</value>
+  </data>
+  <data name="PrincipalDeOtraPersona" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="AlcanceCoordinadorCarteraPropia" xml:space="preserve">
+    <value>Per la seva pròpia Assignació de Cartera.</value>
+  </data>
+  <data name="PrincipalJuntoAlRotulo" xml:space="preserve">
+    <value>· {0}</value>
   </data>
   <data name="PrincipalSin" xml:space="preserve">
     <value>Sense Gestor CAE principal</value>

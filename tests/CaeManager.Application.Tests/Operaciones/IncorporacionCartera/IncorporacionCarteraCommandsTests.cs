@@ -66,9 +66,12 @@ public class IncorporacionCarteraCommandsTests
     private RechazarSolicitudIncorporacionCarteraCommandHandler Rechazar(CurrentUserServicePorAmbito usuario) =>
         new(usuario, _directorio, _catalogo, _repositorio, _notificaciones, _tenants);
 
-    private RevocarIncorporacionCarteraCommandHandler Revocar(CurrentUserServicePorAmbito usuario) =>
+    private RevocarIncorporacionCarteraCommandHandler Revocar(
+        CurrentUserServicePorAmbito usuario, CaeManager.Application.Clientes.DestinoCartera? cuentaDelGestor = null) =>
         new(usuario, _directorio, _catalogo, _repositorio, _notificaciones, _tenants, _unitOfWork,
-            NullLogger<RevocarIncorporacionCarteraCommandHandler>.Instance);
+            NullLogger<RevocarIncorporacionCarteraCommandHandler>.Instance,
+            new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(),
+            new CaeManager.Application.Tests.Clientes.DirectorioDestinosCarteraFalso(cuentaDelGestor));
 
     private SolicitudIncorporacionCartera Pendiente(Guid? solicitante = null)
     {
@@ -477,6 +480,33 @@ public class IncorporacionCarteraCommandsTests
     }
 
     // ── Revocar ──────────────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Revocar_la_incorporacion_del_principal_pasa_la_marca_a_su_Coordinador_CAE_o_la_deja_vacia(bool tieneCoordinador)
+    {
+        var solicitud = Aceptada();
+        var apoyo = Guid.NewGuid();
+        _catalogo.CarterasVivas.Add((_operador, new CaeManager.Application.Operaciones.CarteraVivaDeOperacion(
+            _operacion.Id, _empresa.Id, _empresa.Nombre, _gestor, "GestorCae", true, null)));
+        _catalogo.CarterasVivas.Add((_operador, new CaeManager.Application.Operaciones.CarteraVivaDeOperacion(
+            _operacion.Id, _empresa.Id, _empresa.Nombre, apoyo, "GestorCae", false, null)));
+        var cuenta = new CaeManager.Application.Clientes.DestinoCartera(
+            true, "GestorCae", tieneCoordinador ? _coordinador : null, EsOperadorDelegado: false);
+
+        var resultado = await Revocar(Como(_coordinador, "CoordinadorCae"), cuenta)
+            .Handle(new RevocarIncorporacionCarteraCommand(solicitud.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        var principal = _catalogo.CarterasVivas.Where(c => c.Cartera.EsPrincipal).Select(c => (Guid?)c.Cartera.UsuarioId).SingleOrDefault();
+        principal.Should().Be(tieneCoordinador ? _coordinador : null);
+        _catalogo.CarterasVivas.Select(c => c.Cartera.UsuarioId).Should().BeEquivalentTo(
+            tieneCoordinador ? new[] { apoyo, _coordinador } : [apoyo], "la cartera de apoyo no se toca");
+        if (tieneCoordinador)
+            _catalogo.CambiosDeMarca.Where(c => c.Paso == "relevar").Should().ContainSingle()
+                .Which.TenantActivo.Should().Be(_empresa.Id);
+    }
 
     [Fact]
     public async Task Un_Coordinador_CAE_revoca_la_incorporacion_de_un_Gestor_CAE_y_le_avisa()

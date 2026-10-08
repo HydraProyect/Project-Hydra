@@ -119,15 +119,8 @@ public class CatalogoIncorporacionCartera(
             return ResultadoIncorporacionCartera.Anulada(MotivoAnulacionSolicitudCartera.OperacionNoVigente);
 
         var ahora = DateTime.UtcNow;
-        var vinculo = await dbContext.DelegacionesTenant
-            .Where(d => d.TenantClienteId == propietarioTenantId
-                        && d.TenantConsultoraId == operadorTenantId
-                        && d.Proposito == PropositoDelegacion.OperadorExterno
-                        && d.Activa
-                        && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
-            .OrderBy(d => d.CreadoEnUtc)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (vinculo is null)
+        var vinculoId = await VinculoVivoConElOperadorAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
+        if (vinculoId is null)
             return ResultadoIncorporacionCartera.Anulada(MotivoAnulacionSolicitudCartera.OperacionNoVigente);
 
         var yaEnCartera = await PropietariosEnCarteraAsync(
@@ -155,7 +148,7 @@ public class CatalogoIncorporacionCartera(
         // trabajo y el rol dentro de un ámbito explícito enumeran todavía los
         // Tenants por la fila heredada, no por las carteras. Sin ella la
         // cartera existiría y el Gestor CAE no vería el Tenant en ningún sitio.
-        var filaHeredada = new AsignacionOperadorDelegado(vinculo.Id, usuarioId, RolIncorporado);
+        var filaHeredada = new AsignacionOperadorDelegado(vinculoId.Value, usuarioId, RolIncorporado);
         dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(filaHeredada);
 
         return new ResultadoIncorporacionCartera(cartera, filaHeredada.Id, null);
@@ -320,22 +313,15 @@ public class CatalogoIncorporacionCartera(
         if (await ObtenerOperacionVigenteAsync(asignacionOperacionId, cancellationToken) is null)
             return ResultadoRelevoPrincipal.SinRelevo;
 
-        var vinculo = await dbContext.DelegacionesTenant
-            .Where(d => d.TenantClienteId == propietarioTenantId
-                        && d.TenantConsultoraId == operadorTenantId
-                        && d.Proposito == PropositoDelegacion.OperadorExterno
-                        && d.Activa
-                        && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
-            .OrderBy(d => d.CreadoEnUtc)
-            .FirstOrDefaultAsync(cancellationToken);
-        if (vinculo is null)
+        var vinculoId = await VinculoVivoConElOperadorAsync(propietarioTenantId, operadorTenantId, ahora, cancellationToken);
+        if (vinculoId is null)
             return ResultadoRelevoPrincipal.SinRelevo;
 
         // La fila heredada es única por delegación y usuario y su rol no cambia: si el
         // Coordinador CAE ya tiene una de Coordinador CAE se reutiliza; si la tiene de otro rol,
         // alguien decidió ese acceso y el relevo no lo cambia.
         var filaHeredada = await dbContext.AsignacionesOperadorDelegado
-            .FirstOrDefaultAsync(a => a.DelegacionTenantId == vinculo.Id && a.UsuarioId == coordinadorUsuarioId, cancellationToken);
+            .FirstOrDefaultAsync(a => a.DelegacionTenantId == vinculoId.Value && a.UsuarioId == coordinadorUsuarioId, cancellationToken);
         if (filaHeredada is not null && filaHeredada.Rol != RolDeRelevo)
             return ResultadoRelevoPrincipal.SinRelevo;
 
@@ -350,10 +336,26 @@ public class CatalogoIncorporacionCartera(
         // CAE tendría la cartera y no vería el Tenant en el selector.
         if (filaHeredada is null)
             dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
-                new AsignacionOperadorDelegado(vinculo.Id, coordinadorUsuarioId, RolDeRelevo));
+                new AsignacionOperadorDelegado(vinculoId.Value, coordinadorUsuarioId, RolDeRelevo));
 
         return ResultadoRelevoPrincipal.CarteraEmitida;
     }
+
+    /// <summary>
+    /// La delegación viva de Operador CAE externo de ese Tenant propietario hacia ese Operador CAE
+    /// (la más antigua si hubiera varias), de la que cuelga la fila heredada de la doble escritura.
+    /// </summary>
+    private Task<Guid?> VinculoVivoConElOperadorAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, DateTime ahora, CancellationToken cancellationToken) =>
+        dbContext.DelegacionesTenant
+            .Where(d => d.TenantClienteId == propietarioTenantId
+                        && d.TenantConsultoraId == operadorTenantId
+                        && d.Proposito == PropositoDelegacion.OperadorExterno
+                        && d.Activa
+                        && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
+            .OrderBy(d => d.CreadoEnUtc)
+            .Select(d => (Guid?)d.Id)
+            .FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>La operación externa, no raíz, de este Operador CAE; <c>null</c> si el Id es de otra.</summary>
     private Task<AsignacionOperacion?> OperacionExternaDelOperadorAsync(
