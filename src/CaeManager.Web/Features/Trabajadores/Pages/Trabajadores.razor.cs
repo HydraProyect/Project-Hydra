@@ -370,6 +370,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         // Todo lo que define la pregunta se lee ANTES del await.
         var carga = ++_cargaVigente;
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         var consulta = new ObtenerTrabajadoresQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
@@ -1263,4 +1264,22 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
         _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Trabajadores));
     }
+
+    /// <summary>El orden de la última carga de la rejilla, para que «Exportar esta vista» salga en el mismo.</summary>
+    private string? _ordenExportar;
+    private bool _descendenteExportar;
+
+    /// <summary>
+    /// Los criterios de «Exportar esta vista»: los mismos que esta página pasa a la consulta del
+    /// listado, con los nombres de parámetro del endpoint de exportación, que los lee igual.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["estado"] = _estadoFiltro,
+        ["empresa"] = _filtroEmpresaId,
+        ["subcontrata"] = _filtroSubcontrataId,
+        ["orden"] = _ordenExportar,
+        ["desc"] = _descendenteExportar ? "true" : null,
+    };
 }

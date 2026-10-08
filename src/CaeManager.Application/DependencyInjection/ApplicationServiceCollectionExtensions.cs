@@ -143,6 +143,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IValidacionDocumentoOficialService, ValidacionDocumentoOficialService>();
         services.AddScoped<IRegistroAccesoDocumentoSensibleService, RegistroAccesoDocumentoSensibleService>();
         services.AddScoped<IRegistroAccesoDatoSensibleService, RegistroAccesoDatoSensibleService>();
+        services.AddScoped<IRegistroExportacionService, RegistroExportacionService>();
 
         // Parsers de documento oficial: lógica pura (regex sobre texto),
         // singletons sin estado; el registry los indexa por perfil.

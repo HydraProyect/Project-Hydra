@@ -42,7 +42,7 @@
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
             <Menu>
                 @* Descargas por GET: enlaces, no rutas de Blazor. *@
-                <ItemMenuAccion Href="/centros/exportar.xlsx">@Textos["ListaExportarExcel"]</ItemMenuAccion>
+                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/centros/exportar.xlsx" Total="_totalElementos" Criterios="CriteriosExportar" />
                 <ItemMenuAccion Href="/asignaciones/exportar.xlsx">@Textos["ExportarAsignaciones"]</ItemMenuAccion>
             </Menu>
             <Primaria>

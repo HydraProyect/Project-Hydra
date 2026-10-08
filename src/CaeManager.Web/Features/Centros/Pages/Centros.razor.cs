@@ -1251,4 +1251,19 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             }
         }
     };
+
+    /// <summary>
+    /// Los criterios de «Exportar esta vista»: los mismos que esta página pasa a la consulta del
+    /// listado, con los nombres de parámetro del endpoint de exportación, que los lee igual.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["estado"] = _estadoFiltro,
+        ["cliente"] = _clienteFiltro,
+        ["empresa"] = _empresaFiltro,
+        ["centro"] = _centroIdFiltro?.ToString(),
+        ["orden"] = _ordenarPor,
+        ["desc"] = _ordenDescendente ? "true" : null,
+    };
 }

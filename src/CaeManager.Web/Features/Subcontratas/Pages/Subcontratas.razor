@@ -34,7 +34,7 @@
         <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
             <Menu>
-                <ItemMenuAccion Href="/subcontratas/exportar.xlsx">@Textos["EnlaceExportarExcel"]</ItemMenuAccion>
+                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/subcontratas/exportar.xlsx" Total="_totalElementos" Criterios="CriteriosExportar" />
             </Menu>
             <Primaria>
                 @if (!_alcanceCero)

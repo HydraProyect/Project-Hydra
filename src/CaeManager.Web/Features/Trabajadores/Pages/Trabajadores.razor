@@ -396,9 +396,9 @@
 
 @code {
     /// <summary>
-    /// El «⋯» de la cabecera: «Exportar a Excel» es una descarga del servidor (un enlace, no una
-    /// navegación interna) y es lectura, así que la ve cualquier rol. Con alcance cero no se pasa
+    /// El «⋯» de la cabecera: las dos entradas de exportación son descargas del servidor (enlaces, no
+    /// navegación interna) y son lectura, así que las ve cualquier rol. Con alcance cero no se pasa
     /// (D-15: daría un fichero vacío) y la cabecera no pinta el menú.
     /// </summary>
-    private RenderFragment MenuCabecera => @<ItemMenuAccion Href="/trabajadores/exportar.xlsx">@Textos["EnlaceExportarExcel"]</ItemMenuAccion>;
+    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/trabajadores/exportar.xlsx" Total="_totalElementos" Criterios="CriteriosExportar" />;
 }

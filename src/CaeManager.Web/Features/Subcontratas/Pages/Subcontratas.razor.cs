@@ -667,4 +667,14 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         NivelServicioSubcontrata.Supervisada => Textos["DescripcionNivelSupervisadaLista"],
         _ => Textos["DescripcionNivelGestionadaLista"]
     };
+
+    /// <summary>
+    /// Los criterios de «Exportar esta vista»: los mismos que esta página pasa a la consulta del
+    /// listado, con los nombres de parámetro del endpoint de exportación, que los lee igual.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["nivel"] = NivelSeleccionado?.ToString(),
+    };
 }
