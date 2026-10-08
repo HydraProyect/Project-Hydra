@@ -40,7 +40,7 @@ public static class CentrosEndpoints
                 mediator.Send(
                     new ObtenerCentrosQuery(
                         Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
-                        ClienteId: Guid.TryParse(cliente, out var clienteId) ? clienteId : null,
+                        ClienteId: Guid.TryParse(cliente, out var idClienteEmpresarial) ? idClienteEmpresarial : null,
                         Estado: Enum.TryParse<EstadoCentro>(estado, out var estadoCentro) ? estadoCentro : null,
                         OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
                         Descendente: desc,

@@ -37,10 +37,12 @@ public static class ClientesEndpoints
             await foreach (var cliente in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
                 mediator.Send(
                     new ObtenerClientesQuery(
-                        Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
-                        SoloCriticos: critico ? true : null,
-                        EjecutivoUsuarioId: Guid.TryParse(ejecutivo, out var ejecutivoId) ? ejecutivoId : null,
-                        EstadoDocumental: Enum.TryParse<EstadoDocumento>(estado, out var estadoDocumental) ? estadoDocumental : null,
+                        // Posicionales, en el orden del record: búsqueda, solo críticos,
+                        // Gestor CAE de referencia y estado documental.
+                        string.IsNullOrWhiteSpace(q) ? null : q,
+                        critico ? true : null,
+                        Guid.TryParse(ejecutivo, out var ejecutivoId) ? ejecutivoId : null,
+                        Enum.TryParse<EstadoDocumento>(estado, out var estadoDocumental) ? estadoDocumental : null,
                         Pagina: pagina,
                         TamanoPagina: tamanoPagina,
                         OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,

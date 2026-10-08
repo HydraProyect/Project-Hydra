@@ -982,9 +982,10 @@ public class TrabajadoresListaGen2Tests : BunitContext
         await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
         var items = cut.FindAll("header.cabecera-pagina .menu-acciones-item");
-        items.Select(i => i.TextContent.Trim()).Should().Equal("Exportar a Excel");
-        items.Single().TagName.Should().Be("A", "la exportación es una descarga del servidor: un enlace, no una navegación interna");
-        items.Single().GetAttribute("href").Should().Be("/trabajadores/exportar.xlsx");
+        items.Select(i => i.TextContent.Trim()).Should().Equal("Exportar esta vista (filas: 1)", "Exportar todo");
+        items.Should().OnlyContain(i => i.TagName == "A", "la exportación es una descarga del servidor: un enlace, no una navegación interna");
+        items[0].GetAttribute("href").Should().StartWith("/trabajadores/exportar.xlsx");
+        items[1].GetAttribute("href").Should().Be("/trabajadores/exportar.xlsx", "«Exportar todo» va sin criterios");
     }
 
     [Fact]

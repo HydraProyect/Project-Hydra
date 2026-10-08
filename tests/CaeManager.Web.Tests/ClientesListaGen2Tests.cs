@@ -616,9 +616,10 @@ public class ClientesListaGen2Tests : BunitContext
         await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
 
         cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar a Excel", "Importar Clientes empresariales", "Importación combinada", "Alta guiada");
-        cut.Find("header.cabecera-pagina a.menu-acciones-item").GetAttribute("href").Should().Be("/clientes/exportar.xlsx",
-            "la exportación es una descarga del servidor: un enlace, no una navegación interna");
+            .Should().Equal("Exportar esta vista (filas: 0)", "Exportar todo", "Importar Clientes empresariales", "Importación combinada", "Alta guiada");
+        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
+            .Should().HaveCount(2, "la exportación es una descarga del servidor: enlaces, no navegación interna")
+            .And.OnlyContain(h => h!.StartsWith("/clientes/exportar.xlsx"));
         await cut.FindAll("header.cabecera-pagina .menu-acciones-item").Single(i => i.TextContent.Trim() == "Alta guiada")
             .ClickAsync(new MouseEventArgs());
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be("/clientes/alta-guiada");
@@ -632,7 +633,7 @@ public class ClientesListaGen2Tests : BunitContext
         await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
 
         cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar a Excel", "Alta guiada");
+            .Should().Equal("Exportar esta vista (filas: 0)", "Exportar todo", "Alta guiada");
     }
 
     [Fact]
@@ -643,7 +644,7 @@ public class ClientesListaGen2Tests : BunitContext
         await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
 
         cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar a Excel");
+            .Should().Equal("Exportar esta vista (filas: 0)", "Exportar todo");
         cut.Find("header.cabecera-pagina .acciones-cabecera").TextContent.Should().NotContain("Nuevo Cliente empresarial");
     }
 
