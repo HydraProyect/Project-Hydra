@@ -332,6 +332,9 @@ public class CentrosListaGen2Tests : BunitContext
 
         var ventanas = cut.FindAll(".ranura-recuento .ventana-contexto");
         ventanas.Should().HaveCount(2);
+        // En este listado el panel abre hacia abajo (list-page.css): el puente que deja cruzar el
+        // cursor del disparador al panel tiene que ir en ese mismo lado.
+        ventanas.Should().OnlyContain(v => v.ClassList.Contains("ventana-contexto-abajo"));
 
         ventanas[0].ClassList.Should().Contain("ventana-contexto-interactiva");
         ventanas[0].QuerySelectorAll("button.ventana-contexto-elemento").Select(b => b.TextContent.Trim())
@@ -367,5 +370,18 @@ public class CentrosListaGen2Tests : BunitContext
         // No navega ni recarga: la lista no se vuelve a pedir por pulsar, y el acordeón de la fila no se abre.
         _mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().HaveCount(consultasDeListaAntes);
         cut.FindAll(".tarjeta-fila-acordeon-cuerpo").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Tras_corregir_una_incidencia_la_lista_se_vuelve_a_pedir_sin_recargar_la_pagina()
+    {
+        var cut = Renderizar(Centro("Centro Logístico Norte"));
+        var consultasDeListaAntes = _mediador.Enviadas.OfType<ObtenerCentrosQuery>().Count();
+        var correccion = cut.FindComponent<CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental>();
+
+        await cut.InvokeAsync(() => correccion.Instance.OnCorregida.InvokeAsync());
+
+        _mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().HaveCount(consultasDeListaAntes + 1,
+            "el recuento y el estado de la fila cambian al corregir: la lista se relee en sitio");
     }
 }

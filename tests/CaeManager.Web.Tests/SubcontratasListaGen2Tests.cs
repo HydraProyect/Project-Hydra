@@ -929,6 +929,8 @@ public class SubcontratasListaGen2Tests : BunitContext
         var ventanas = cut.FindAll(".celda-recuento-subcontrata .ventana-contexto");
         ventanas.Should().HaveCount(2);
         ventanas.Should().OnlyContain(v => v.ClassList.Contains("ventana-contexto-interactiva"));
+        // El panel abre hacia abajo (Subcontratas.razor.css): el puente del cursor va en ese lado.
+        ventanas.Should().OnlyContain(v => v.ClassList.Contains("ventana-contexto-abajo"));
         // En «Próximos» el botón conserva el badge que distingue Urgente de Próximo.
         ventanas[1].QuerySelector("button.ventana-contexto-elemento")!.TextContent.Should().Contain("Entrega de EPI — Carla Molina");
         ventanas[1].QuerySelector("button.ventana-contexto-elemento .badge").Should().NotBeNull();
@@ -954,5 +956,19 @@ public class SubcontratasListaGen2Tests : BunitContext
         ventana.ClassList.Should().NotContain("ventana-contexto-interactiva");
         ventana.QuerySelectorAll("button").Should().BeEmpty();
         ventana.QuerySelector(".ventana-linea")!.TextContent.Should().Be("Aptitud médica — Sonia Cano");
+    }
+
+    [Fact]
+    public async Task Tras_corregir_una_incidencia_la_lista_se_vuelve_a_pedir_sin_recargar_la_pagina()
+    {
+        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 60)] };
+        var cut = Renderizar(mediador);
+        var consultasDeListaAntes = mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Count();
+        var correccion = cut.FindComponent<CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental>();
+
+        await cut.InvokeAsync(() => correccion.Instance.OnCorregida.InvokeAsync());
+
+        mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Should().HaveCount(consultasDeListaAntes + 1,
+            "el recuento y el cumplimiento de la fila cambian al corregir: la lista se relee en sitio");
     }
 }

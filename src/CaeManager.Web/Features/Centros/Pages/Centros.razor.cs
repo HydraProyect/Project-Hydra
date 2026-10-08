@@ -530,7 +530,19 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private async Task RefrescarTrasCorreccionAsync()
     {
-        var resultado = await Mediator.Send(ConsultaDePaginaActual());
+        ResultadoPaginado<CentroListaDto> resultado;
+        try
+        {
+            resultado = await Mediator.Send(ConsultaDePaginaActual());
+        }
+        catch (Exception)
+        {
+            // El documento ya se guardó: que falle la relectura no es un error del formulario.
+            // CargarAsync enseña el estado de error de la lista, con su reintento.
+            await CargarAsync();
+            return;
+        }
+
         _totalElementos = resultado.TotalElementos;
         _elementosPagina = resultado.Elementos.ToList();
         _seleccionados.IntersectWith(_elementosPagina.Select(c => c.Id));

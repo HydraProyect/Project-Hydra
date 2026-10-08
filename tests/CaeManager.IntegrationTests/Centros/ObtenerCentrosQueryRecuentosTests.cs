@@ -183,6 +183,19 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
         incidencia.TrabajadorId.Should().Be(_trabajadorId);
     }
 
+    [Fact]
+    public async Task El_documento_que_le_falta_a_un_Trabajador_identifica_su_tipo_y_su_trabajador()
+    {
+        // Sin sembrar nada: el Trabajador asignado no tiene el documento obligatorio.
+        var centro = await ObtenerCentroUnicoAsync();
+
+        var faltante = centro.Recuentos.Vencidas.Should().ContainSingle().Subject;
+        faltante.Estado.Should().Be(EstadoDocumento.Faltante);
+        faltante.DocumentoId.Should().BeNull("no hay Documento que renovar: se da de alta el que falta");
+        faltante.TipoDocumentoId.Should().Be(_tipoDocumentoObligatorioId);
+        faltante.TrabajadorId.Should().Be(_trabajadorId, "sin Trabajador el alta no sabría de quién es");
+    }
+
     private async Task<CentroListaDto> ObtenerCentroUnicoAsync()
     {
         await using var contexto = CrearContexto();

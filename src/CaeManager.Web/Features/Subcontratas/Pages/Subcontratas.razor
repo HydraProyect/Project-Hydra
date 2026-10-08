@@ -222,6 +222,7 @@
                             {
                                 <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Vencidas.Count, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")"
                                                  Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalVencidas, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")"
+                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
                                                  Interactiva="HayCorregibles(subcontrata.Recuentos.Vencidas)"
                                                  Pie="@PieDeIncidencias(subcontrata.Recuentos.Vencidas)">
                                     <Disparador>
@@ -256,6 +257,7 @@
                             {
                                 <VentanaContexto Etiqueta="@EtiquetaProximos(subcontrata.Recuentos.Proximas)"
                                                  Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalProximas, "RecuentoDocumentosProximosUno", "RecuentoDocumentosProximosVarios")"
+                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
                                                  Interactiva="HayCorregibles(subcontrata.Recuentos.Proximas)"
                                                  Pie="@PieDeIncidencias(subcontrata.Recuentos.Proximas)">
                                     <Disparador>
