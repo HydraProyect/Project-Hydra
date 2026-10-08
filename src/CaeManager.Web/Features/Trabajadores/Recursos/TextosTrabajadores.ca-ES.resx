@@ -673,13 +673,13 @@
     <value>Present</value>
   </data>
   <data name="DocBaseEstadoProximoAVencer" xml:space="preserve">
-    <value>A punt de vèncer</value>
+    <value>Per vèncer</value>
   </data>
   <data name="DocBaseEstadoVencido" xml:space="preserve">
     <value>Vençut</value>
   </data>
   <data name="DocBaseEstadoFalta" xml:space="preserve">
-    <value>Falta</value>
+    <value>Pendent</value>
   </data>
   <data name="DocBaseEstadoSinConfirmar" xml:space="preserve">
     <value>Vigència sense confirmar</value>

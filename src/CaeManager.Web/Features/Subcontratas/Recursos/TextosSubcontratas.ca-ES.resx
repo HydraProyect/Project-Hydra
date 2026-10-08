@@ -16,10 +16,10 @@
     <value>Vigente</value>
   </data>
   <data name="EstadoSupervisionProximo" xml:space="preserve">
-    <value>Próximo</value>
+    <value>Per vèncer</value>
   </data>
   <data name="EstadoSupervisionUrgente" xml:space="preserve">
-    <value>Urgente</value>
+    <value>Per vèncer</value>
   </data>
   <data name="EstadoSupervisionVencido" xml:space="preserve">
     <value>Vencido</value>
@@ -118,7 +118,7 @@
     <value>Vencidos</value>
   </data>
   <data name="ColumnaProximos" xml:space="preserve">
-    <value>Próximos</value>
+    <value>Per vèncer</value>
   </data>
   <data name="AriaSeleccionarSubcontrata" xml:space="preserve">
     <value>Seleccionar la empresa {0}</value>
@@ -157,13 +157,13 @@
     <value>{0} vencidos</value>
   </data>
   <data name="BadgeProximosUno" xml:space="preserve">
-    <value>1 próximo</value>
+    <value>1 per vèncer</value>
   </data>
   <data name="BadgeProximosVarios" xml:space="preserve">
-    <value>{0} próximos</value>
+    <value>{0} per vèncer</value>
   </data>
   <data name="BadgeAlCorriente" xml:space="preserve">
-    <value>Al corriente</value>
+    <value>Sense incidències</value>
   </data>
   <data name="MenuDetalles" xml:space="preserve">
     <value>Detalles</value>
@@ -394,7 +394,7 @@
     <value>Falta: la subcontrata no ha aportado este documento todavía</value>
   </data>
   <data name="BadgeFalta" xml:space="preserve">
-    <value>Falta</value>
+    <value>Pendent</value>
   </data>
   <data name="ExplicacionFaltaDocumento" xml:space="preserve">
     <value>Al menos uno de los centros donde trabaja se lo pide —porque ese centro lo tiene configurado o, si no dice nada, porque el tipo de documento se pide siempre— y todavía no hay ninguno subido.</value>

@@ -164,7 +164,7 @@
                 <TemplateColumn Title="@Textos["EtiquetaOrigen"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
                     <Badge Tono="TonoOrigen(context.Origen)">@TextoOrigen(context.Origen)</Badge>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaDocumentacion"]" Align="Align.Center">
+                <TemplateColumn Title="@Textos["ColumnaDocumentacion"]" Class="col-estado">
                     @if (context.EstaCancelada)
                     {
                         @* FS-11: una Visita cancelada no tiene documentación que gestionar; el motivo va en el title. *@
@@ -177,7 +177,7 @@
                     }
                     else if (context.DocumentacionCompleta)
                     {
-                        <Badge Tono="TonoBadge.Exito">@Textos["BadgeDocumentacionCompleta"]</Badge>
+                        <EstadoFila Correcto="true" Texto="@Textos["BadgeDocumentacionCompleta"]" />
                     }
                     else
                     {
