@@ -36,6 +36,18 @@ public class IconoCatalogoTests : BunitContext
     }
 
     [Fact]
+    public void El_icono_menos_dibuja_una_unica_linea_horizontal_centrada()
+    {
+        var cut = Render<Icono>(p => p.Add(x => x.Nombre, "menos"));
+
+        var lineas = cut.FindAll("svg line");
+        lineas.Should().HaveCount(1, "es solo el signo menos, sin cruz ni marco");
+        lineas[0].GetAttribute("y1").Should().Be("12");
+        lineas[0].GetAttribute("y2").Should().Be("12");
+        cut.FindAll("svg path, svg circle, svg rect, svg polyline").Should().BeEmpty();
+    }
+
+    [Fact]
     public void El_control_positivo_un_nombre_desconocido_da_svg_vacio()
     {
         // Sin esto, "todos los iconos dibujan algo" podría ser cierto solo porque
