@@ -72,6 +72,30 @@ public class AvatarDeCuentasBajoRuntimeTests
     }
 
     [Fact]
+    public async Task Una_cuenta_cargada_antes_de_elegir_avatar_no_lo_pisa_al_guardarse_entera()
+    {
+        // SelectorTema conserva la cuenta en memoria y la escribe entera con
+        // UserManager.UpdateAsync: sin renovar el sello, esa escritura devolvería el avatar anterior.
+        var usuarioId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(usuarioId);
+        await CrearUsuarioAsync(arnes, usuarioId, "avatar-obsoleta@caemanager.local", TenantA);
+
+        using var otraPestana = arnes.Servicios.CreateScope();
+        var um = otraPestana.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var obsoleta = await um.FindByIdAsync(usuarioId.ToString());
+        obsoleta.Should().NotBeNull();
+
+        (await ElegirAsync(arnes, "pulpo-azul")).EsExitoso.Should().BeTrue();
+
+        obsoleta!.Tema = TemaPreferido.Oscuro;
+        var guardado = await um.UpdateAsync(obsoleta);
+
+        guardado.Succeeded.Should().BeFalse("la cuenta cargada antes ya no tiene el sello vigente");
+        guardado.Errors.Select(e => e.Code).Should().Contain(nameof(IdentityErrorDescriber.ConcurrencyFailure));
+        (await LeerAvatarAsync(arnes.CadenaPropietario, usuarioId)).Should().Be("pulpo-azul");
+    }
+
+    [Fact]
     public async Task El_puerto_no_alcanza_la_cuenta_de_otro_Tenant_propietario()
     {
         var sesionId = Guid.NewGuid();

@@ -27,6 +27,12 @@ public partial class MiAvatar : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Clave guardada en la cuenta, ya normalizada: <c>null</c> si no es del catálogo.</summary>
     private string? _guardada;
 
+    /// <summary>
+    /// Enciende el rebote de la vista previa al guardar. Se apaga al empezar el guardado
+    /// siguiente y al cambiar la elección: la animación solo arranca cuando la clase entra.
+    /// </summary>
+    private bool _recienGuardado;
+
     private string? _motivo;
     private string _tono = CatalogoAvatares.Tonos[0];
 
@@ -65,10 +71,23 @@ public partial class MiAvatar : CaeManager.Web.Components.PaginaInteractiva
         if (elegido is not null) _tono = elegido.Tono;
     }
 
+    private void ElegirMotivo(string motivo)
+    {
+        _motivo = motivo;
+        _recienGuardado = false;
+    }
+
+    private void ElegirTono(string tono)
+    {
+        _tono = tono;
+        _recienGuardado = false;
+    }
+
     private async Task GuardarAsync(string? clave)
     {
         if (_guardando) return;
         _guardando = true;
+        _recienGuardado = false;
 
         try
         {
@@ -80,6 +99,7 @@ public partial class MiAvatar : CaeManager.Web.Components.PaginaInteractiva
             }
 
             Aplicar(CatalogoAvatares.Resolver(clave));
+            _recienGuardado = true;
             Toasts.Mostrar(Textos[clave is null ? "AvatarQuitado" : "AvatarGuardado"], TonoToast.Exito);
 
             // El menú de cuenta de la cabecera es SSR estático: solo vuelve a leer el

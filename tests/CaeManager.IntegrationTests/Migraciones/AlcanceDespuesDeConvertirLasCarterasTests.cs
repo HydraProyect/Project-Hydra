@@ -229,6 +229,7 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
         _clientes = clientes.Select(c => c.Id).ToArray();
         _centros = centros.Select(c => c.Id).ToArray();
 
+        var cuentas = new List<ApplicationUser>();
         foreach (var (id, coordinador, desactivado) in new (Guid, Guid?, bool)[]
                  {
                      (_gestorConUnCliente, _coordinadorConEquipo, false), (_gestorConOtroCliente, _coordinadorConEquipo, false),
@@ -248,8 +249,9 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
                 CoordinadorUsuarioId = coordinador,
             };
             if (desactivado) usuario.Desactivar();
-            contexto.Users.Add(usuario);
+            cuentas.Add(usuario);
         }
+        await SiembraDeCuentasEnEsquemaAnterior.InsertarAsync(contexto, [.. cuentas]);
 
         AsignacionCartera PorCliente(Guid usuario, int cliente, DateTime? hasta = null, DateTime? desde = null) =>
             CarteraLegadaPorCliente.Interna(raiz, usuario, _clientes[cliente], desde ?? ahora.AddDays(-30), hasta, ahora);
@@ -276,7 +278,7 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
         _clienteDelOtroTenant = cliente.Id;
 
-        contexto.Users.Add(new ApplicationUser
+        await SiembraDeCuentasEnEsquemaAnterior.InsertarAsync(contexto, new ApplicationUser
         {
             Id = _gestorDeOtroTenant,
             TenantId = _otro.Id,

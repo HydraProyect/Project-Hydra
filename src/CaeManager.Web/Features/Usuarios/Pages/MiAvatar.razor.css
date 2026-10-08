@@ -10,6 +10,28 @@
     gap: var(--space-4);
 }
 
+/* Rebote de confirmación al guardar: una sola vez, cuando entra la clase. */
+.mi-emblema-vista-figura {
+    display: inline-flex;
+}
+
+.mi-emblema-vista-figura-rebota {
+    animation: mi-emblema-rebote var(--motion-transition) var(--ease-standard);
+}
+
+@keyframes mi-emblema-rebote {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.22); }
+    65% { transform: scale(0.94); }
+    100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mi-emblema-vista-figura-rebota {
+        animation: none;
+    }
+}
+
 .mi-emblema-vista-texto {
     display: flex;
     flex-direction: column;

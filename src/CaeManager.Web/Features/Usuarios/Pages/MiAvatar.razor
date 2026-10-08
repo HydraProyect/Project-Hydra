@@ -44,7 +44,9 @@
         <Tarjeta>
             <div class="mi-emblema">
                 <div class="mi-emblema-vista" aria-live="polite">
-                    <AvatarUsuario Nombre="@_nombre" Avatar="@ClaveElegida" Tamano="TamanoAvatarUsuario.Grande" />
+                    <span class="mi-emblema-vista-figura @(_recienGuardado ? "mi-emblema-vista-figura-rebota" : null)">
+                        <AvatarUsuario Nombre="@_nombre" Avatar="@ClaveElegida" Tamano="TamanoAvatarUsuario.Grande" />
+                    </span>
                     <div class="mi-emblema-vista-texto">
                         <span class="mi-emblema-vista-rotulo">@Textos["AvatarVistaPrevia"]</span>
                         <span class="mi-emblema-vista-nombre">@_nombre</span>
@@ -61,7 +63,7 @@
                                 <input type="radio" name="mi-emblema-motivo" class="mi-emblema-radio"
                                        value="@motivo.Clave" aria-label="@nombreMotivo"
                                        checked="@(_motivo == motivo.Clave)"
-                                       @onchange="() => _motivo = motivo.Clave" />
+                                       @onchange="() => ElegirMotivo(motivo.Clave)" />
                                 <AvatarUsuario Avatar="@CatalogoAvatares.Clave(motivo.Clave, _tono)" Tamano="TamanoAvatarUsuario.Grande" />
                             </label>
                         }
@@ -77,7 +79,7 @@
                             <label class="mi-emblema-opcion mi-emblema-opcion-tono">
                                 <input type="radio" name="mi-emblema-tono" class="mi-emblema-radio"
                                        value="@tono" checked="@(_tono == tono)"
-                                       @onchange="() => _tono = tono" />
+                                       @onchange="() => ElegirTono(tono)" />
                                 <AvatarUsuario Avatar="@CatalogoAvatares.Clave(_motivo ?? MotivoDeMuestra, tono)" />
                                 <span>@nombreTono</span>
                             </label>
