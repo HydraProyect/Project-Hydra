@@ -127,7 +127,7 @@ public class ContrasteDeSeleccionHoverYLogoPorTemaTests
           --color-primary-300: #5ca2f4;
           --color-primary-500: #235bc2;
           --color-text: #161e27;
-          --color-bg: #f6f8fa;
+          --color-bg: #e9eef4;
           --color-surface: #ffffff;
           --color-logo-fondo: #ffffff;
         }
@@ -182,7 +182,7 @@ public class ContrasteDeSeleccionHoverYLogoPorTemaTests
               --color-primary-300: #5ca2f4;
               --color-primary-500: #235bc2;
               --color-text: #161e27;
-              --color-bg: #f6f8fa;
+              --color-bg: #e9eef4;
               --color-surface-hover: #f4f6f8;
               --color-seleccion-fondo: var(--color-primary-100);
               --color-seleccion-texto: var(--color-text);

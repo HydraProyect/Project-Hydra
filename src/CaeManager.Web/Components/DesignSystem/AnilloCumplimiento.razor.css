@@ -39,7 +39,7 @@
 
 .anillo-cumplimiento-pista {
     fill: none;
-    stroke: var(--color-neutral-300);
+    stroke: var(--color-anillo-pista);
     stroke-width: 3.5;
 }
 

@@ -9,7 +9,7 @@
     gap: var(--space-2);
     background-color: var(--color-surface-subtle);
     /* Borde que identifica un control: sujeto al 3:1 de 02 § 8
-       (DDL-062/063). --color-border no lo alcanza (1.18:1). */
+       (DDL-062/063). --color-border no lo alcanza (1,44:1). */
     border: var(--border-control);
     border-radius: var(--radius-sm);
     padding: var(--space-1) var(--space-3);
