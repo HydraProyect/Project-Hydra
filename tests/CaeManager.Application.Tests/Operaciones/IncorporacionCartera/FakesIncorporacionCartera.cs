@@ -191,13 +191,84 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
         CancellationToken cancellationToken = default)
     {
         Retiradas.Add((propietarioTenantId, operadorTenantId, usuarioId, actorUsuarioId, AmbitoTenantExplicito.TenantIdActual));
+        CarterasVivas.RemoveAll(c => c.OperadorTenantId == operadorTenantId && c.Cartera.UsuarioId == usuarioId
+                                     && c.Cartera.PropietarioTenantId == propietarioTenantId && c.Cartera.Rol == "GestorCae");
         return Task.FromResult(CarterasUniversales.RemoveAll(c =>
             c.OperadorTenantId == operadorTenantId && c.UsuarioId == usuarioId
             && c.Tenant.PropietarioTenantId == propietarioTenantId) > 0);
     }
 
+    /// <summary>Carteras vivas por operación (marca de principal), con su Operador CAE.</summary>
+    public List<(Guid OperadorTenantId, CarteraVivaDeOperacion Cartera)> CarterasVivas { get; } = [];
+
+    /// <summary>Cada paso que toca la marca de principal, en orden, con el Tenant activo con que se pidió.</summary>
+    public List<(string Paso, Guid AsignacionOperacionId, Guid UsuarioId, Guid? TenantActivo)> CambiosDeMarca { get; } = [];
+
+    public Task<IReadOnlyList<CarteraVivaDeOperacion>> ObtenerCarterasVivasAsync(
+        Guid operadorTenantId, Guid? propietarioTenantId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<CarteraVivaDeOperacion>>(CarterasVivas
+            .Where(c => c.OperadorTenantId == operadorTenantId
+                        && (propietarioTenantId is null || c.Cartera.PropietarioTenantId == propietarioTenantId))
+            .Select(c => c.Cartera)
+            .ToList());
+
+    public Task<IReadOnlyList<OperacionConPrincipal>> ObtenerOperacionesDondeEsPrincipalAsync(
+        Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<OperacionConPrincipal>>(CarterasVivas
+            .Where(c => c.OperadorTenantId == operadorTenantId && c.Cartera.UsuarioId == usuarioId && c.Cartera.EsPrincipal)
+            .Select(c => new OperacionConPrincipal(c.Cartera.PropietarioTenantId, c.Cartera.AsignacionOperacionId))
+            .ToList());
+
+    private void Marcar(int indice, bool esPrincipal) =>
+        CarterasVivas[indice] = (CarterasVivas[indice].OperadorTenantId, CarterasVivas[indice].Cartera with { EsPrincipal = esPrincipal });
+
+    public Task<bool> ApagarPrincipalAsync(
+        Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioEsperadoId, CancellationToken cancellationToken = default)
+    {
+        CambiosDeMarca.Add(("apagar", asignacionOperacionId, usuarioEsperadoId, AmbitoTenantExplicito.TenantIdActual));
+        var i = CarterasVivas.FindIndex(c => c.OperadorTenantId == operadorTenantId
+                                             && c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.EsPrincipal);
+        if (i < 0 || CarterasVivas[i].Cartera.UsuarioId != usuarioEsperadoId) return Task.FromResult(false);
+        Marcar(i, false);
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> EncenderPrincipalAsync(
+        Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId, CancellationToken cancellationToken = default)
+    {
+        CambiosDeMarca.Add(("encender", asignacionOperacionId, usuarioId, AmbitoTenantExplicito.TenantIdActual));
+        if (CarterasVivas.Any(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.EsPrincipal))
+            return Task.FromResult(false);
+        var i = CarterasVivas.FindIndex(c => c.OperadorTenantId == operadorTenantId
+                                             && c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.UsuarioId == usuarioId);
+        if (i < 0) return Task.FromResult(false);
+        Marcar(i, true);
+        return Task.FromResult(true);
+    }
+
+    public Task<ResultadoRelevoPrincipal> RelevarPrincipalAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, Guid asignacionOperacionId, Guid coordinadorUsuarioId,
+        CancellationToken cancellationToken = default)
+    {
+        CambiosDeMarca.Add(("relevar", asignacionOperacionId, coordinadorUsuarioId, AmbitoTenantExplicito.TenantIdActual));
+        if (CarterasVivas.Any(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.EsPrincipal))
+            return Task.FromResult(ResultadoRelevoPrincipal.SinRelevo);
+        var i = CarterasVivas.FindIndex(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.UsuarioId == coordinadorUsuarioId);
+        if (i >= 0)
+        {
+            Marcar(i, true);
+            return Task.FromResult(ResultadoRelevoPrincipal.CarteraExistenteMarcada);
+        }
+
+        CarterasVivas.Add((operadorTenantId, new CarteraVivaDeOperacion(
+            asignacionOperacionId, propietarioTenantId, "Empresa", coordinadorUsuarioId, "CoordinadorCae", true, null)));
+        return Task.FromResult(ResultadoRelevoPrincipal.CarteraEmitida);
+    }
+
     public Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default)
     {
+        CarterasVivas.RemoveAll(c => c.Cartera.AsignacionOperacionId == solicitud.AsignacionOperacionId
+                                     && c.Cartera.UsuarioId == solicitud.SolicitanteUsuarioId);
         TenantsAlRetirar.Add(AmbitoTenantExplicito.TenantIdActual);
         if (solicitud.AsignacionCarteraId is { } id) CarterasVigentes.Remove(id);
         return Task.CompletedTask;
@@ -207,6 +278,7 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
     {
         if (PierdeLaCarrera) return Task.FromResult(false);
         TenantsAlGuardar.Add(AmbitoTenantExplicito.TenantIdActual);
+        CambiosDeMarca.Add(("guardar", Guid.Empty, Guid.Empty, AmbitoTenantExplicito.TenantIdActual));
         return Task.FromResult(true);
     }
 
