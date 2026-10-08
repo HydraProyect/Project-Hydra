@@ -148,6 +148,21 @@ public static class EstadoDocumentoUi
     public static bool EsCorrecto(EstadoDocumento? estado) => estado is { } valor && EsCorrecto(valor);
 
     /// <summary>
+    /// Tono de un estado donde la superficie colorea por GRAVEDAD y no pinta la pastilla de estado: el día del
+    /// Calendario, la cabecera de un grupo de Alertas, una línea de un desglose. Ahí lo urgente sigue en rojo,
+    /// que es lo que lo separa de lo próximo ahora que los dos se rotulan «Por vencer».
+    /// </summary>
+    public static TonoBadge TonoDeSeveridad(EstadoDocumento estado) =>
+        estado == EstadoDocumento.Urgente ? TonoBadge.Peligro : Tono(estado);
+
+    /// <summary>
+    /// Nombre de un estado donde Urgente y Próximo aparecen como dos grupos distintos con su recuento (Alertas
+    /// agrupadas por severidad): con el rótulo de la pastilla habría dos grupos «Por vencer» seguidos.
+    /// </summary>
+    public static string TextoDeSeveridad(EstadoDocumento estado) =>
+        estado == EstadoDocumento.Urgente ? TextosVigenciaDocumento.Texto("PorVencerUrgente") : Texto(estado);
+
+    /// <summary>
     /// Motivo que acompaña a la pastilla de un Documento, sin repetir lo que la pastilla ya dice: cuánto hace que
     /// venció, cuánto le queda, o qué falta para saberlo. <c>null</c> si el estado no necesita explicación.
     /// </summary>

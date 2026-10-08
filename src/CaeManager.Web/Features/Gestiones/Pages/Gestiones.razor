@@ -27,6 +27,8 @@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                   PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+        @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
+        <Pastillas></Pastillas>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {

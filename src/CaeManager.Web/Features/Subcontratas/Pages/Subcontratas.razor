@@ -260,7 +260,7 @@
                                                desglose conserva el rojo para lo urgente, aunque la pastilla de
                                                estado general ya no lo use. *@
                                             <span class="ventana-linea">
-                                                <Badge Tono="@(incidencia.Estado == CaeManager.Domain.Documentos.EstadoDocumento.Urgente ? TonoBadge.Peligro : EstadoDocumentoUi.Tono(incidencia.Estado))" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
                                                 @incidencia.Descripcion
                                             </span>
                                         }

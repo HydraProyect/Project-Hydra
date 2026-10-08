@@ -69,4 +69,7 @@
   <data name="FranjaSinCaducidad" xml:space="preserve">
     <value>Sin caducidad</value>
   </data>
+  <data name="PorVencerUrgente" xml:space="preserve">
+    <value>Por vencer (urgente)</value>
+  </data>
 </root>

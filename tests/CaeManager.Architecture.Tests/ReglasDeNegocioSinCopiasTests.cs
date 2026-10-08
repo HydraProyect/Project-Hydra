@@ -223,6 +223,10 @@ public class ReglasDeNegocioSinCopiasTests
         // (sin incidencia), no calcula un porcentaje. Deuda: el rótulo «Al día» del filtro y el porcentaje de la misma
         // pantalla responden a preguntas distintas; unificarlos es una decisión de producto (no se decidió).
         ["src/CaeManager.Web/Features/Empresas/Pages/EmpresaDetalle.razor.cs"] = 1,
+        // «Lo correcto no lleva pastilla de color» (listados 2/7): EstadoDocumentoUi.EsCorrecto decide si la columna de
+        // estado pinta punto verde y texto gris en vez de pastilla. Es una pregunta de presentación sobre el rótulo de una
+        // fila (Vigente y Sin caducidad), no un porcentaje: Próximo y Urgente son conformes y aun así llevan pastilla.
+        ["src/CaeManager.Web/Features/Documentos/EstadoDocumentoUi.cs"] = 1,
     };
 
     [Fact]

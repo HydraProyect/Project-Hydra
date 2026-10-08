@@ -23,7 +23,8 @@
     width: 7px;
     height: 7px;
     border-radius: var(--radius-full);
-    background-color: var(--color-success-700);
+    color: var(--color-success-700);
+    background-color: currentColor;
 }
 
 .estado-fila-motivo {

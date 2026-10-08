@@ -73,9 +73,9 @@
     }
     else
     {
-    @* Barra de filtros en modo pastillas: el buscador «Filtrar esta pantalla» (tecla f), la
-       pastilla «Documentación» y, en la misma fila, «Expandir todo / Contraer todo» y el
-       recuento. Sin «Más filtros»: esta pantalla no tiene filtros guardados.
+    @* Barra de filtros en modo pastillas: el buscador «Filtrar esta pantalla» (tecla f) y, en la
+       misma fila, «Expandir todo / Contraer todo» y el recuento. El estado se filtra en la franja
+       de debajo. Sin «Más filtros»: esta pantalla no tiene filtros guardados.
 
        - El buscador busca en la razón social y en el CIF (ObtenerEmpresasQuery): la pista
          dice los dos.
@@ -83,6 +83,8 @@
          en la URL como «estado». *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+        @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
+        <Pastillas></Pastillas>
         <Herramientas>
             @if (_elementosPagina.Count > 0)
             {
