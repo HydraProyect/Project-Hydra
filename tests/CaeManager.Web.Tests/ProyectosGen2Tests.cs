@@ -481,6 +481,45 @@ public class ProyectosGen2Tests : BunitContext
         nombres.Should().Equal(ProyectoCerrado.Nombre);
     }
 
+    // ----------------------- El Cliente empresarial elegido viaja en la URL (T20)
+
+    [Fact]
+    public async Task Elegir_el_Cliente_empresarial_lo_escribe_en_la_url_y_volver_a_ninguno_lo_quita()
+    {
+        var cut = await RenderizarConClienteAsync();
+
+        Uri.Should().Contain($"cliente={ClienteId}");
+
+        await ElegirCliente(cut, Guid.Empty);
+
+        Uri.Should().NotContain("cliente=");
+    }
+
+    /// <summary>Recargar o compartir el enlace abre la lista de ese Cliente empresarial, sin volver a elegirlo.</summary>
+    [Fact]
+    public void Un_enlace_con_el_Cliente_empresarial_abre_su_lista()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+
+        var cut = Renderizar($"proyectos?cliente={ClienteId}");
+
+        cut.WaitForAssertion(() => cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim())
+            .Should().Equal(ProyectoAbierto.Nombre));
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.");
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().ContainSingle(q => q.ClienteId == ClienteId,
+            "la carga inicial y la primera pasada de parámetros no duplican la consulta");
+    }
+
+    /// <summary>La URL no puede abrir un Cliente empresarial que el selector no ofrece a este usuario.</summary>
+    [Fact]
+    public void Un_Cliente_empresarial_de_la_url_que_no_esta_en_el_selector_no_se_elige_ni_se_consulta()
+    {
+        var cut = Renderizar($"proyectos?cliente={Guid.NewGuid()}");
+
+        cut.WaitForAssertion(() => SelectorDeCliente(cut).GetAttribute("aria-label").Should().NotContain("Refrielectric"));
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Quitar_los_filtros_los_limpia_tambien_de_la_url_y_devuelve_la_lista()
     {
@@ -496,6 +535,7 @@ public class ProyectosGen2Tests : BunitContext
             .Should().BeEquivalentTo([ProyectoAbierto.Nombre, ProyectoCerrado.Nombre]);
         SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.",
             "el cliente es el maestro de la lista, no un filtro: quitar los filtros no lo toca");
+        Uri.Should().Contain($"cliente={ClienteId}", "y tampoco lo quita de la URL");
     }
 
     [Fact]

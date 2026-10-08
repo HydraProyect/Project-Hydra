@@ -593,7 +593,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// «Limpiar todo» de la tarjeta de filtros.
     ///
     /// <para>
-    /// <b>Los dos filtros que viajan por la URL se limpian TAMBIÉN allí.</b>
+    /// <b>Los cuatro filtros que viajan por la URL (<c>q</c>, <c>critico</c>, <c>gestor</c>, <c>estado</c>) se limpian TAMBIÉN allí.</b>
     /// Hasta ahora solo se borraba <c>q</c>: <c>critico</c> se quedaba puesto y
     /// <see cref="OnParametersSetAsync"/>, que re-sincroniza desde la URL, lo
     /// devolvía a true en la siguiente pasada de parámetros. El resultado era
