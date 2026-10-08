@@ -2,22 +2,37 @@
     display: inline-flex;
     align-items: center;
     gap: var(--space-1);
-    padding: 2px var(--space-2);
+    /* El borde de 1px va DENTRO de la caja de siempre: el padding cede ese
+       píxel por cada lado, así que la pastilla sigue midiendo 24px de alto
+       (20 de línea + 1 + 1 de padding + 1 + 1 de borde) y las filas que la
+       contienen no cambian de altura. */
+    padding: 1px calc(var(--space-2) - 1px);
+    /* Cada tono fija su border-color más abajo: su color de texto al 35 %.
+       Sin él la pastilla desaparece sobre una fila teñida con su mismo fondo
+       *-50 (medido 2026-10-08: Peligro sobre fila tintada de peligro, 1,00:1
+       entre el fondo de la pastilla y el de la fila). */
+    border: 1px solid transparent;
     border-radius: var(--radius-full);
+    /* 13px, peso 600 (decisión del 2026-10-08: «pastillas a 13 px» en
+       listados y fichas 360). El tamaño y el peso salen de --font-label-md;
+       solo se pisa su línea de 16px por la de 20px de la pastilla. */
     font: var(--font-label-md);
-    font-size: 0.75rem;
     line-height: 1.25rem;
     white-space: nowrap;
 }
 
-/* Densidad de fila (Centro 360 § 0.9) — solo métrica, el color no cambia. */
+/* Densidad de fila (Centro 360 § 0.9) — solo métrica, el color no cambia.
+   No sube a 13px (decisión del 2026-10-08: «la variante pequeña se queda
+   como está»): 11px y 18px de alto. Lleva el mismo borde que la normal
+   —es la que más cae sobre filas teñidas con su mismo fondo—, y para no
+   crecer la línea baja de 18px a 16px: 16 + 1 + 1 de borde = 18. */
 .badge-pequeno {
-    padding: 0 var(--space-2);
+    padding: 0 calc(var(--space-2) - 1px);
     font-size: 0.6875rem;
-    line-height: 1.125rem;
+    line-height: 1rem;
 }
 
-/* El badge mide 12px de texto sobre 20px de línea: el icono de 16 del
+/* El badge mide 13px de texto sobre 20px de línea: el icono de 16 del
    catálogo lo desequilibra, así que se pinta a 14 (12 en el badge pequeño,
    que es el de densidad de fila). ::deep porque el svg lo renderiza <Icono>,
    un componente hijo sin el scope de esta hoja. */
@@ -34,6 +49,7 @@
 .badge-neutro {
     background-color: var(--color-surface-subtle);
     color: var(--color-neutral-700);
+    border-color: color-mix(in srgb, var(--color-neutral-700) 35%, transparent);
 }
 
 /* *-700, no *-500: el semáforo de vigencia documental es el patrón visual
@@ -45,16 +61,19 @@
 .badge-exito {
     background-color: var(--color-success-50);
     color: var(--color-success-700);
+    border-color: color-mix(in srgb, var(--color-success-700) 35%, transparent);
 }
 
 .badge-advertencia {
     background-color: var(--color-warning-50);
     color: var(--color-warning-700);
+    border-color: color-mix(in srgb, var(--color-warning-700) 35%, transparent);
 }
 
 .badge-peligro {
     background-color: var(--color-danger-50);
     color: var(--color-danger-700);
+    border-color: color-mix(in srgb, var(--color-danger-700) 35%, transparent);
 }
 
 /* «En tolerancia»: entre el ámbar de advertencia y el rojo de peligro (su
@@ -63,9 +82,12 @@
 .badge-tolerancia {
     background-color: var(--color-tolerancia-50);
     color: var(--color-tolerancia-700);
+    border-color: color-mix(in srgb, var(--color-tolerancia-700) 35%, transparent);
 }
 
 .badge-info {
     background-color: var(--color-info-50);
     color: var(--color-info-500);
+    /* Info no tiene escalón *-700: su texto es *-500, y de él sale el borde. */
+    border-color: color-mix(in srgb, var(--color-info-500) 35%, transparent);
 }
