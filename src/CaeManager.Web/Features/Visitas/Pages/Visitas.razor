@@ -46,12 +46,12 @@
 <div class="contenedor-pagina">
     <CabeceraPagina Kicker="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]">
         <Acciones>
-            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
+            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync" data-keytip="N">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
         </Acciones>
     </CabeceraPagina>
 
     <div class="barra-filtros">
-        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" />
+        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" data-keytip="F" />
         <label class="filtro-critico">
             <input type="checkbox" @bind="_soloActivas" @bind:after="RecargarAsync" /> @Textos["FiltroSoloActivas"]
         </label>

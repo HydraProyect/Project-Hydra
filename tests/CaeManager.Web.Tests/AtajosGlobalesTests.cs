@@ -135,7 +135,7 @@ public class AtajosGlobalesTests : BunitContext
         // pintaría tal cual sin poner nada en rojo.
         cut.Find("h2").TextContent.Should().Be("Atajos de teclado");
         cut.FindAll("h3").Select(h => h.TextContent).Should().Equal(
-            "Navegación", "Acciones", "Dentro de una lista", "Sobre una fecha");
+            "Navegación", "Acciones", "Dentro de una lista", "Letras sobre los controles (KeyTips)", "Sobre una fecha");
         cut.FindAll("kbd").Select(k => k.TextContent).Should().Contain(["Clic", "Alt/Option + clic"]);
         cut.Markup.Should().Contain("Copiar vencimiento")
             .And.Contain("Copiar emisión, cuando esté disponible")

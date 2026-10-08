@@ -39,6 +39,9 @@
     filtro») y, a la derecha, un resumen. Debajo, los chips y «Limpiar todo» como
     en el modo de siempre. Las pantallas que no pasan «Pastillas» no cambian.
 
+    KeyTips (keytips.js): F el buscador (en los dos modos), L «Más filtros»; cada pastilla
+    deduce su letra del nombre del filtro (PastillaFiltro).
+
         <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                       PlaceholderBuscador="Filtrar esta pantalla: nombre"
                       HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
@@ -62,13 +65,13 @@
         <div class="barra-filtros-buscador-pantalla">
             <span class="barra-filtros-buscador-icono" aria-hidden="true"><Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" /></span>
             <CampoTexto Placeholder="@(PlaceholderBuscador ?? Comunes["FiltrarEstaPantalla"].Value)" Valor="@Busqueda" ValorChanged="BusquedaChanged"
-                        aria-label="@Comunes["FiltrarEstaPantalla"]" aria-keyshortcuts="f" data-filtro-pantalla="" />
+                        aria-label="@Comunes["FiltrarEstaPantalla"]" aria-keyshortcuts="f" data-filtro-pantalla="" data-keytip="F" />
             <kbd class="barra-filtros-tecla" aria-hidden="true">F</kbd>
         </div>
         @Pastillas
         @if (HayMasFiltros)
         {
-            <MenuAcciones Etiqueta="@Comunes["MasFiltros"]" Pastilla="true" Activa="MasFiltrosActivos">
+            <MenuAcciones Etiqueta="@Comunes["MasFiltros"]" Pastilla="true" Activa="MasFiltrosActivos" Keytip="L">
                 @MasFiltros
                 @if (FiltrosGuardados.Count > 0)
                 {
@@ -114,7 +117,7 @@ else
 <section class="barra-filtros-lista" aria-label="@EtiquetaRegion">
     <div class="barra-filtros-lista-fila">
         <div class="barra-filtros-lista-buscador">
-            <CampoTexto Etiqueta="@EtiquetaBuscador" Placeholder="@PlaceholderBuscador" Valor="@Busqueda" ValorChanged="BusquedaChanged" />
+            <CampoTexto Etiqueta="@EtiquetaBuscador" Placeholder="@PlaceholderBuscador" Valor="@Busqueda" ValorChanged="BusquedaChanged" data-keytip="F" />
         </div>
         @Filtros
         @if (FiltrosGuardados.Count > 0)
