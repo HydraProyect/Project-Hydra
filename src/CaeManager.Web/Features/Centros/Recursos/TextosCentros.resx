@@ -136,7 +136,7 @@
     <value>Venc.</value>
   </data>
   <data name="ColProximos" xml:space="preserve">
-    <value>Por vencer</value>
+    <value>Próx.</value>
   </data>
   <data name="ColEstadoVisita" xml:space="preserve">
     <value>Estado / visita</value>
