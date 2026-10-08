@@ -72,6 +72,18 @@ public class BarraLateralLupaSinFranjaTests
     }
 
     [Fact]
+    public void La_fila_activa_del_selector_de_Tenant_no_lleva_franja_lateral()
+    {
+        var activas = Reglas(Leer("Components", "Layout", "SelectorClienteActivo.razor.css"))
+            .Where(r => r.Selector.StartsWith(".selector-tenant-fila-activa")).ToList();
+
+        activas.Should().NotBeEmpty("control positivo: el instrumento encuentra la regla de la fila activa");
+        activas.Should().Contain(r => r.Cuerpo.Contains("background"));
+        activas.Should().OnlyContain(r => !r.Cuerpo.Contains("box-shadow") && !r.Cuerpo.Contains("inset")
+            && !r.Cuerpo.Contains("border-left"), "la selección no lleva franja");
+    }
+
+    [Fact]
     public void El_icono_se_anima_solo_con_hover_o_foco_y_sin_entrada_escalonada()
     {
         var css = Css;
