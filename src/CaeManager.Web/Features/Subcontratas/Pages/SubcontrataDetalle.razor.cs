@@ -572,9 +572,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     /// <summary>«Renovar», «Subir» o «Confirmar» según el estado; <c>null</c> si el documento no pide nada.</summary>
     private string? RotuloAccion(DocumentoRequeridoDto documento) => EstadoDocumentoFicha360.Accion(documento.Estado) switch
     {
-        AccionDocumentoFicha360.Renovar => Textos["AccionRenovar"],
-        AccionDocumentoFicha360.Subir => Textos["AccionSubir"],
-        AccionDocumentoFicha360.Confirmar => Textos["AccionConfirmar"],
+        AccionDocumentoFicha360.Renovar => Textos["AccionRenovar"].Value,
+        AccionDocumentoFicha360.Subir => Textos["AccionSubir"].Value,
+        AccionDocumentoFicha360.Confirmar => Textos["AccionConfirmar"].Value,
         _ => null
     };
 

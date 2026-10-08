@@ -47,29 +47,12 @@
     }
     else if (_detalle is not null)
     {
-        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["KickerSubcontrata360"]">
+        @* Meta va como atributo: una ranura <Meta> la toma Razor por la etiqueta HTML vacía <meta>. *@
+        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["KickerSubcontrata360"]" Meta="MetaDeCabecera">
             <Anillo>
                 <AnilloCumplimiento Porcentaje="_cumplimiento?.Porcentaje" Tamano="TamanoAnillo.Cabecera"
                                     Etiqueta="@TextoAnillo" Leyenda="@LeyendaAnillo" />
             </Anillo>
-            <Meta>
-                @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
-                {
-                    <span>@Textos["MetaCif360"] <strong>@_detalle.Cif</strong><BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" /></span>
-                    <span aria-hidden="true">·</span>
-                }
-                <Badge Tono="TonoBadge.Neutro">@EstadoSupervisionUi.TextoNivel(Textos, _detalle.NivelServicio)</Badge>
-                @if (_trabajadores is { } trabajadoresMeta)
-                {
-                    <span aria-hidden="true">·</span>
-                    <span>@Plural(trabajadoresMeta.Count, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")</span>
-                }
-                @if (_centros is { } centrosMeta)
-                {
-                    <span aria-hidden="true">·</span>
-                    <span>@Plural(centrosMeta.Count, "MetaCentrosUno", "MetaCentrosVarios")</span>
-                }
-            </Meta>
             <Acciones>
                 @* Registrar, cambiar de nivel y eliminar son órdenes denegadas a Consulta en Application:
                    sin escritura no hay acción principal ni menú. *@
@@ -309,6 +292,28 @@
 </LimiteDeErrores>
 
 @code {
+    private RenderFragment MetaDeCabecera => @<text>
+        @if (_detalle is { } detalle)
+        {
+                @if (!string.IsNullOrWhiteSpace(detalle.Cif))
+                {
+                    <span>@Textos["MetaCif360"] <strong>@detalle.Cif</strong><BotonCopiar Valor="@detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" /></span>
+                    <span aria-hidden="true">·</span>
+                }
+                <Badge Tono="TonoBadge.Neutro">@EstadoSupervisionUi.TextoNivel(Textos, detalle.NivelServicio)</Badge>
+                @if (_trabajadores is { } trabajadoresMeta)
+                {
+                    <span aria-hidden="true">·</span>
+                    <span>@Plural(trabajadoresMeta.Count, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")</span>
+                }
+                @if (_centros is { } centrosMeta)
+                {
+                    <span aria-hidden="true">·</span>
+                    <span>@Plural(centrosMeta.Count, "MetaCentrosUno", "MetaCentrosVarios")</span>
+                }
+        }
+    </text>;
+
     private RenderFragment PestanaDeTrabajadores => @<section class="subcontrata360-seccion" aria-label="@Textos["PestanaTrabajadores"]">
         @if (_cargandoTrabajadores)
         {
@@ -468,7 +473,7 @@
                         <li class="subcontrata360-grupo" @key="centro.CentroId">@centro.CentroNombre <span>· @centro.ClienteRazonSocial</span></li>
                         @foreach (var tipo in centro.Tipos)
                         {
-                            <FilaRelacion @key="ClavesDeHermanos.De(centro.CentroId, tipo.TipoDocumentoId)" Nombre="@tipo.TipoDocumentoNombre"
+                            <FilaRelacion @key="(centro.CentroId, tipo.TipoDocumentoId)" Nombre="@tipo.TipoDocumentoNombre"
                                           Tono="TonoFilaSupervision(tipo.Estado)">
                                 <Detalle>@DetalleVerificacion(tipo)</Detalle>
                                 <Estado>
