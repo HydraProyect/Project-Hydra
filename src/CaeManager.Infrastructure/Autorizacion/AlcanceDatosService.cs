@@ -377,9 +377,11 @@ public class AlcanceDatosService(
             .Select(u => u.Id)
             .ToListAsync(cancellationToken);
 
-        if (gestorIds.Count == 0) return AlcanceCartera.Ninguno;
-
-        return await ObtenerCarteraAsync(gestorIds, cancellationToken);
+        // Más su cartera propia (ADR-011 § 2.7, enmienda 2026-10-08, punto 2): un Coordinador CAE
+        // puede gestionar directamente un Tenant con una Asignación de Cartera suya —por decisión
+        // o por relevo automático del principal—, sin que nadie de su equipo la tenga. Sigue
+        // haciendo falta una cartera vigente: sin la suya ni la de su equipo, alcance cero.
+        return await ObtenerCarteraAsync([coordinadorUsuarioId, .. gestorIds], cancellationToken);
     }
 
     /// <summary>

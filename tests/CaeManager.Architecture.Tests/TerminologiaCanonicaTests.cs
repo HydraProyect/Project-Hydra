@@ -435,7 +435,10 @@ public class TerminologiaCanonicaTests
         // identificadores legacy que ya existen y no se renombran aquí —DelegacionesTenant,
         // DelegacionTenantId y PropositoDelegacion— en la retirada de la fila heredada de
         // Operador Delegado de CatalogoIncorporacionCartera (mismo join que PropietariosEnCarteraAsync).
-        ["Delegacion"] = 337,
+        // 338 (antes 337): el relevo del principal (ADR-011 § 2.7, enmienda 2026-10-08) busca la fila
+        // heredada del Coordinador CAE por AsignacionOperadorDelegado.DelegacionTenantId, la única
+        // clave de esa fila; la doble escritura de F1 sigue viva y no hay nombre canónico que usar.
+        ["Delegacion"] = 338,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

@@ -282,10 +282,13 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             sp.GetRequiredService<PuertaAccesoDatos>(),
             sp.GetRequiredService<DirectorioUsuariosTenant>(),
             sp.GetRequiredService<CaeManagerDbContext>());
+        var administrador = new AdministradorEnSuTenant(_actorAdministrador, sp.GetRequiredService<ITenantActual>());
         var resultado = await new CambiarActivacionUsuarioCommandHandler(
-                cuentas, new AdministradorEnSuTenant(_actorAdministrador, sp.GetRequiredService<ITenantActual>()),
+                cuentas, administrador,
                 new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()),
-                new CaeManager.Infrastructure.Persistence.BloqueoCarteraUsuario(sp.GetRequiredService<CaeManagerDbContext>()))
+                new CaeManager.Infrastructure.Persistence.BloqueoCarteraUsuario(sp.GetRequiredService<CaeManagerDbContext>()),
+                new CaeManager.Infrastructure.Operaciones.CatalogoIncorporacionCartera(sp.GetRequiredService<CaeManagerDbContext>(), administrador),
+                sp.GetRequiredService<DirectorioUsuariosTenant>(), sp.GetRequiredService<DirectorioUsuariosTenant>())
             .Handle(new CambiarActivacionUsuarioCommand(cuentaEnUso, Activar: false), default);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
@@ -352,8 +355,12 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             servicios.GetRequiredService<DirectorioUsuariosTenant>(),
             servicios.GetRequiredService<CaeManagerDbContext>());
         var tenantActual = servicios.GetRequiredService<ITenantActual>();
+        var administrador = new AdministradorEnSuTenant(actorId, tenantActual);
         EscribirPropiedadInyectada(pagina, "Mediator",
-            new MediatorDeCuentas(cuentas, new AdministradorEnSuTenant(actorId, tenantActual), tenantActual));
+            new MediatorDeCuentas(cuentas, administrador, tenantActual,
+                new CaeManager.Infrastructure.Operaciones.CatalogoIncorporacionCartera(
+                    servicios.GetRequiredService<CaeManagerDbContext>(), administrador),
+                servicios.GetRequiredService<DirectorioUsuariosTenant>()));
 
         return pagina;
     }
@@ -465,7 +472,8 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
     /// sobre la base real, no los behaviors.
     /// </summary>
     private sealed class MediatorDeCuentas(
-        IGestionCuentasUsuario cuentas, ICurrentUserService actor, ITenantActual tenantActual) : IMediator
+        IGestionCuentasUsuario cuentas, ICurrentUserService actor, ITenantActual tenantActual,
+        CaeManager.Application.Operaciones.ICatalogoIncorporacionCartera catalogo, DirectorioUsuariosTenant directorio) : IMediator
     {
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -474,7 +482,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
                 ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, actor).Handle(q, cancellationToken),
                 EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
                 CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
-                    cuentas, actor, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, cancellationToken),
+                    cuentas, actor, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio).Handle(c, cancellationToken),
                 EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, actor).Handle(c, cancellationToken),
                 GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor).Handle(c, cancellationToken),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),

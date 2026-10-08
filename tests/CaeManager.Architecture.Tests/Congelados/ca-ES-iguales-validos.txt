@@ -6,3 +6,8 @@
 #
 # Vacía el 2026-10-02: de los 41 candidatos a nombre propio revisados a mano ("Corriente AEAT",
 # "Descargar PDF", "Plataforma CAE"…) ninguno lo era; todos son castellano sin traducir.
+#
+# 2026-10-08 (Gestor CAE principal, ADR-011 § 2.7): «gestor», «coordinador» y «principal» se escriben
+# igual en catalán y CAE es la sigla del producto; no hay nada que traducir.
+Gestor CAE principal
+Coordinador CAE principal
