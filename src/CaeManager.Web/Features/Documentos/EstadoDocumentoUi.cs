@@ -176,20 +176,59 @@ public static class EstadoDocumentoUi
     };
 
     /// <summary>
-    /// Opciones del filtro de estado documental, de peor a mejor: al filtrar,
-    /// lo que el gestor busca es lo que le urge. Mismas opciones en las tres
-    /// pantallas — es la misma pregunta sobre tres tablas distintas. Se
-    /// construye en cada lectura: un texto localizado no se congela en la
-    /// cultura de quien la leyó primero.
+    /// Botones de la franja de estado de los listados de propietarios (Trabajadores, Empresas, Vehículos), de peor
+    /// a mejor. «Por vencer» marca Urgente y Próximo a la vez, y «Sin incidencias» Vigente y Sin caducidad: es el
+    /// mismo agrupado que hace <see cref="TextoDocumental"/> al rotular la fila, así que cada botón filtra
+    /// exactamente las filas que llevan su rótulo. Se construye en cada lectura (textos localizados).
+    /// «Sin documentos» no tiene botón: esos listados nunca producen ese estado (sin Documentos cae en
+    /// Sin caducidad), así que era una opción que no devolvía nada.
+    /// </summary>
+    public static IReadOnlyList<OpcionFranjaEstado> FranjaDocumental =>
+    [
+        new(TextosVigenciaDocumento.Texto("FranjaVencidos"), TonoBadge.Peligro, nameof(EstadoDocumento.Vencido)),
+        new(PorVencer, TonoBadge.Advertencia, nameof(EstadoDocumento.Urgente), nameof(EstadoDocumento.Proximo)),
+        new(TextosVigenciaDocumento.Texto("SinConfirmar"), TonoBadge.Advertencia, nameof(EstadoDocumento.SinConfirmar)),
+        new(SinIncidencias, TonoBadge.Exito, nameof(EstadoDocumento.Vigente), nameof(EstadoDocumento.SinCaducidad))
+    ];
+
+    /// <summary>
+    /// Botones de la franja de estado del listado de Documentos. Aquí cada fila es un Documento, no un agregado:
+    /// «Vigentes» y «Sin caducidad» son respuestas distintas y cada una tiene su botón.
+    /// </summary>
+    public static IReadOnlyList<OpcionFranjaEstado> FranjaDeDocumentos =>
+    [
+        new(TextosVigenciaDocumento.Texto("FranjaVencidos"), TonoBadge.Peligro, nameof(EstadoDocumento.Vencido)),
+        new(PorVencer, TonoBadge.Advertencia, nameof(EstadoDocumento.Urgente), nameof(EstadoDocumento.Proximo)),
+        new(TextosVigenciaDocumento.Texto("SinConfirmar"), TonoBadge.Advertencia, nameof(EstadoDocumento.SinConfirmar)),
+        new(TextosVigenciaDocumento.Texto("FranjaVigentes"), TonoBadge.Exito, nameof(EstadoDocumento.Vigente)),
+        new(TextosVigenciaDocumento.Texto("FranjaSinCaducidad"), TonoBadge.Neutro, nameof(EstadoDocumento.SinCaducidad))
+    ];
+
+    /// <summary>
+    /// La selección de estados que llega de fuera (la URL, un filtro guardado) reducida a los valores que el
+    /// filtro de estado documental conoce (<see cref="OpcionesDocumentales"/>); lo demás se descarta, como
+    /// siempre se hizo con un valor desconocido. Cadena vacía si no queda ninguno.
+    /// </summary>
+    public static string SeleccionDocumentalValida(string? seleccion)
+    {
+        var conocidos = OpcionesDocumentales.Select(o => o.Valor).ToHashSet(StringComparer.Ordinal);
+        return SeleccionEstados.Unir(SeleccionEstados.Separar(seleccion).Where(conocidos.Contains)) ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Valores que admite el filtro de estado documental en la URL y en los filtros guardados, de peor a mejor.
+    /// Hasta el 2026-10-08 eran las opciones de una pastilla de filtro de selección única; la sustituyó la franja
+    /// de estado (<see cref="FranjaDocumental"/>), pero los enlaces y filtros guardados con uno solo de estos
+    /// valores siguen siendo válidos, también <c>SinDocumentos</c>.
     /// </summary>
     public static IReadOnlyList<OpcionEstado> OpcionesDocumentales =>
     [
-        new(nameof(EstadoDocumento.Vencido), "Vencido"),
-        new(nameof(EstadoDocumento.Urgente), "Urgente"),
-        new(nameof(EstadoDocumento.Proximo), "Próximo"),
-        new(nameof(EstadoDocumento.SinConfirmar), TextosVigenciaDocumento.Texto("SinConfirmar")),
-        new(nameof(EstadoDocumento.Vigente), "Vigente"),
-        new(nameof(EstadoDocumento.SinCaducidad), "Sin caducidad"),
-        new(EstadoDocumentalFiltro.SinDocumentos, "Sin documentos")
+        new(nameof(EstadoDocumento.Vencido), Texto(EstadoDocumento.Vencido)),
+        new(nameof(EstadoDocumento.Urgente), Texto(EstadoDocumento.Urgente)),
+        new(nameof(EstadoDocumento.Proximo), Texto(EstadoDocumento.Proximo)),
+        new(nameof(EstadoDocumento.SinConfirmar), Texto(EstadoDocumento.SinConfirmar)),
+        new(nameof(EstadoDocumento.Vigente), Texto(EstadoDocumento.Vigente)),
+        new(nameof(EstadoDocumento.SinCaducidad), Texto(EstadoDocumento.SinCaducidad)),
+        new(EstadoDocumentalFiltro.SinDocumentos, TextoDocumental(null))
     ];
 }

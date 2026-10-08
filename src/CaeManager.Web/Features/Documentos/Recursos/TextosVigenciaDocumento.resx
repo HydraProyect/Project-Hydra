@@ -57,4 +57,16 @@
   <data name="MotivoCaducaEnDias" xml:space="preserve">
     <value>Caduca en {0} días</value>
   </data>
+  <data name="FranjaVencidos" xml:space="preserve">
+    <value>Vencidos</value>
+  </data>
+  <data name="FranjaVigentes" xml:space="preserve">
+    <value>Vigentes</value>
+  </data>
+  <data name="FranjaPendientes" xml:space="preserve">
+    <value>Pendientes</value>
+  </data>
+  <data name="FranjaSinCaducidad" xml:space="preserve">
+    <value>Sin caducidad</value>
+  </data>
 </root>

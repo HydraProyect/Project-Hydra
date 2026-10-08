@@ -1765,3 +1765,16 @@
 .sujeto-ambito-accion {
     flex-shrink: 0;
 }
+
+/*
+  Columna de estado de un listado (EstadoFila): ancho fijo y contenido alineado a la izquierda, para que las
+  pastillas formen una columna recta de fila en fila y de un listado a otro, lleven o no motivo debajo.
+  QuickGrid pone la clase de la columna tanto en el <th> como en el <td>.
+*/
+.tabla-datos th.col-estado,
+.tabla-datos td.col-estado {
+    width: 200px;
+    min-width: 200px;
+    max-width: 200px;
+    text-align: left;
+}

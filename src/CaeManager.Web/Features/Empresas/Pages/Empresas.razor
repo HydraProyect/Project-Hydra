@@ -83,10 +83,6 @@
          en la URL como «estado». *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
-        <Pastillas>
-            <PastillaFiltro Etiqueta="@Textos["ListaFiltroDocumentacion"]" TextoTodos="@Textos["ListaFiltroTodas"]" Valor="@_estadoFiltro"
-                            ValorChanged="CambiarEstadoAsync" Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
-        </Pastillas>
         <Herramientas>
             @if (_elementosPagina.Count > 0)
             {
@@ -110,12 +106,13 @@
             {
                 <ChipFiltro Etiqueta="@($"Búsqueda: \"{_busqueda}\"")" EtiquetaAccesible="Quitar filtro de búsqueda" OnQuitar="QuitarFiltroBusquedaAsync" />
             }
-            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
-            {
-                <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="Quitar filtro de documentación" OnQuitar="QuitarFiltroEstadoAsync" />
-            }
         </Chips>
     </BarraFiltros>
+    @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
+       URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
+       demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
+    <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -274,10 +271,10 @@
                                                  Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
                         </span>
                         <span>
-                            <Badge Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)" Tamano="TamanoBadge.Pequeno"
-                                   title="@TituloEstadoDocumental(empresa.EstadoDocumental)">
-                                @EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)
-                            </Badge>
+                            <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
+                                        Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
+                                        Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
+                                        Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)" />
                         </span>
                         <span>
                             @if (empresa.DeteccionesPendientes > 0)

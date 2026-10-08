@@ -91,8 +91,6 @@
                   OnGuardarFiltro="AbrirGuardarFiltro" FiltrosGuardados="OpcionesFiltrosGuardados"
                   OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync">
         <Pastillas>
-            <PastillaFiltro Etiqueta="@Textos["EtiquetaDocumentacion"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@_estadoFiltro"
-                            ValorChanged="CambiarEstadoAsync" Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
             <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpresa"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@ValorFiltroEmpleador"
                             ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
         </Pastillas>
@@ -104,10 +102,6 @@
             {
                 <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["AriaQuitarFiltroBusqueda"]" OnQuitar="QuitarFiltroBusquedaAsync" />
             }
-            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
-            {
-                <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="@Textos["AriaQuitarFiltroDocumentacion"]" OnQuitar="QuitarFiltroEstadoAsync" />
-            }
             @if (!string.IsNullOrWhiteSpace(_filtroEmpresaId))
             {
                 <ChipFiltro Etiqueta="@EtiquetaFiltroEmpresa" EtiquetaAccesible="@Textos["AriaQuitarFiltroEmpresa"]" OnQuitar="QuitarFiltroEmpresaAsync" />
@@ -118,6 +112,11 @@
             }
         </Chips>
     </BarraFiltros>
+    @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
+       URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
+       demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
+    <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
     }
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -173,15 +172,16 @@
                    TrabajadorListaDto no dice si el empleador es subcontrata ni de quién, así que no
                    se pinta (cambiaría la consulta: Application). *@
                 <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="@Textos["EtiquetaEmpresa"]" Sortable="true" />
-                @* Solo la pastilla de estado. Columna de orden por defecto: el peor estado primero
+                @* Columna de estado, de ancho fijo. Orden por defecto: el peor estado primero
                    (Vencido → Urgente → Próximo → Sin confirmar → Vigente → Sin caducidad), que
-                   ObtenerTrabajadoresQuery ya resuelve en SQL. El documento que lo causa y
-                   «vigentes/total» son fase 2. *@
-                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" IsDefaultSortColumn="true"
+                   ObtenerTrabajadoresQuery ya resuelve en SQL. Urgente y Próximo se rotulan los dos
+                   «Por vencer»; lo correcto va sin pastilla. El documento que causa el estado (el
+                   motivo bajo la pastilla) y «vigentes/total» no viajan en TrabajadorListaDto. *@
+                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" IsDefaultSortColumn="true" Class="col-estado"
                                 SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.EstadoDocumental))">
-                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
-                        @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
-                    </Badge>
+                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)"
+                                Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"
+                                Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" />
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>
