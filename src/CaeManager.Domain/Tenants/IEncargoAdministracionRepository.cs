@@ -25,4 +25,11 @@ public interface IEncargoAdministracionRepository
     Task<bool> ExisteSinRetirarAsync(Guid asignacionOperacionId, CancellationToken cancellationToken = default);
 
     void Agregar(EncargoAdministracion encargo);
+
+    /// <summary>
+    /// Guarda y devuelve <c>false</c> si otra escritura registró antes un encargo sin
+    /// retirar sobre la misma operación (el índice único parcial) o cambió la fila que
+    /// se estaba retirando. En ese caso descarta lo pendiente del contexto.
+    /// </summary>
+    Task<bool> GuardarDetectandoCarreraAsync(CancellationToken cancellationToken = default);
 }

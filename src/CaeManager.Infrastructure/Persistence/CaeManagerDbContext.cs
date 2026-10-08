@@ -84,7 +84,8 @@ public class CaeManagerDbContext(
         IGestionesQueryContext, IProveedoresPlataformaCaeQueryContext, IReclamacionesQueryContext,
         ITelemetriaQueryContext, CaeManager.Application.Contactos.IContactosAgendaQueryContext,
         CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext,
-        IOperacionesQueryContext, CaeManager.Application.Plataforma.IPlataformaQueryContext,
+        IOperacionesQueryContext, CaeManager.Application.Tenants.IEncargosAdministracionQueryContext,
+        CaeManager.Application.Plataforma.IPlataformaQueryContext,
         IBlindaje42QueryContext,
         IBusquedaGlobalQueryContext,
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
@@ -282,6 +283,8 @@ public class CaeManagerDbContext(
     public DbSet<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
     public DbSet<SolicitudIncorporacionCartera> SolicitudesIncorporacionCartera => Set<SolicitudIncorporacionCartera>();
+    public DbSet<EncargoAdministracion> EncargosAdministracion => Set<EncargoAdministracion>();
+    IQueryable<EncargoAdministracion> CaeManager.Application.Tenants.IEncargosAdministracionQueryContext.EncargosAdministracion => EncargosAdministracion;
     public DbSet<CaeManager.Domain.Plataforma.ConcesionPrivilegio> ConcesionesPrivilegio => Set<CaeManager.Domain.Plataforma.ConcesionPrivilegio>();
     IQueryable<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma> CaeManager.Application.Plataforma.IPlataformaQueryContext.EstadoBootstrapPlataforma => EstadoBootstrapPlataforma;
 

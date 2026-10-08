@@ -571,6 +571,99 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Categoría 6: <b>catálogo del Tenant propietario que el Operador CAE
+    /// externo solo lee</b>. El Encargo de administración (D-8, 2026-10-08) no
+    /// lleva <c>TenantId</c>: enlaza el Tenant propietario que encarga con el
+    /// Operador CAE externo que recibe. Se LEE desde las dos posiciones, como
+    /// las asignaciones; se ESCRIBE solo con el Tenant propietario como Tenant
+    /// activo y nunca desde una conexión cuyo Tenant de origen sea el Operador
+    /// CAE que lo recibe — «nadie del Operador CAE registra ni retira su propio
+    /// encargo», llevado a la base. Sin FORCE por el mismo motivo que los
+    /// catálogos de asignación.
+    /// </summary>
+    [Fact]
+    public async Task Los_encargos_de_administracion_se_leen_desde_las_dos_posiciones_y_no_los_escribe_el_Operador_CAE()
+    {
+        const string tabla = "EncargosAdministracion";
+        var estado = await LeerEstadoRlsAsync([tabla]);
+
+        estado.Should().ContainKey(tabla, "la migración del encargo tiene que haber creado la tabla");
+        var (habilitado, forzado, politicas) = estado[tabla];
+
+        using var _ = new AssertionScope();
+        habilitado.Should().BeTrue("sin RLS, cualquier Tenant leería qué organizaciones han encargado su administración a quién");
+        forzado.Should().BeFalse("con FORCE, la retirada de un Tenant de demo no vería los encargos que tiene que borrar");
+        politicas.Select(p => p.Nombre).Should().Equal(["posicion_en_el_encargo"],
+            "una política PERMISSIVE adicional se combina con OR y ensancharía el acceso");
+
+        var politica = politicas.Single();
+        politica.Permisiva.Should().BeTrue();
+
+        politica.Using.Should().NotBeNull("USING protege la lectura")
+            .And.Subject.As<string>().Should().Contain("PropietarioTenantId").And.Contain("app.tenant_id")
+            .And.Contain("OperadorTenantId").And.Contain("app.tenant_origen_id")
+            .And.Contain(" OR ", "las dos posiciones leen: el Operador CAE necesita el encargo para calcular su techo");
+
+        politica.WithCheck.Should().NotBeNull("sin WITH CHECK, cualquiera que lo lea podría escribirlo")
+            .And.Subject.As<string>().Should().Contain("PropietarioTenantId").And.Contain("app.tenant_id")
+            .And.Contain("OperadorTenantId").And.Contain("app.tenant_origen_id")
+            .And.Contain("IS DISTINCT FROM",
+                "la escritura exige que el Tenant de origen de la conexión NO sea el Operador CAE del encargo")
+            .And.Contain(" AND ", "las dos condiciones de escritura hacen falta a la vez")
+            .And.NotContain(" OR ", "una disyunción en la escritura dejaría escribir desde la posición del Operador CAE");
+    }
+
+    /// <summary>
+    /// El registro del encargo solo añade, también en los privilegios: runtime y
+    /// aprovisionamiento insertan y solo actualizan las columnas de la retirada;
+    /// ninguno borra ni reescribe la cláusula, la vigencia, la operación o los
+    /// dos Tenants.
+    /// </summary>
+    [Theory]
+    [InlineData("cae_app_runtime")]
+    [InlineData("cae_app_aprovisionamiento")]
+    public async Task El_encargo_de_administracion_no_se_borra_ni_se_reescribe_con_los_roles_de_la_aplicacion(string rol)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+
+        async Task<bool> TieneAsync(string privilegio)
+        {
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText = "SELECT has_table_privilege(@rol, 'public.\"EncargosAdministracion\"', @privilegio);";
+            comando.Parameters.AddWithValue("rol", rol);
+            comando.Parameters.AddWithValue("privilegio", privilegio);
+            return (bool)(await comando.ExecuteScalarAsync())!;
+        }
+
+        async Task<List<string>> ColumnasActualizablesAsync()
+        {
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText =
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'EncargosAdministracion'
+                  AND has_column_privilege(@rol, 'public."EncargosAdministracion"', column_name, 'UPDATE')
+                ORDER BY column_name;
+                """;
+            comando.Parameters.AddWithValue("rol", rol);
+            var columnas = new List<string>();
+            await using var lector = await comando.ExecuteReaderAsync();
+            while (await lector.ReadAsync()) columnas.Add(lector.GetString(0));
+            return columnas;
+        }
+
+        using var _ = new AssertionScope();
+        (await TieneAsync("SELECT")).Should().BeTrue();
+        (await TieneAsync("INSERT")).Should().BeTrue();
+        (await TieneAsync("DELETE")).Should().BeFalse("un encargo no se borra: se retira");
+        (await TieneAsync("TRUNCATE")).Should().BeFalse();
+        (await TieneAsync("UPDATE")).Should().BeFalse("UPDATE de tabla dejaría reescribir la cláusula o la vigencia");
+        (await ColumnasActualizablesAsync()).Should().Equal(["RetiradoEnUtc", "RetiradoPorUsuarioId", "Version"],
+            "la única transición es retirar");
+    }
+
     [Fact]
     public void No_existe_ninguna_variable_de_sesion_que_afirme_privilegio_de_plataforma()
     {
