@@ -256,8 +256,18 @@
                 <tbody>
                     @foreach (var visita in _proximamente)
                     {
-                        <tr class="fila-clicable" @onclick="@(() => NavigationManager.NavigateTo("/visitas"))">
-                            <td class="dashboard-visita-centro">@visita.CentroNombre</td>
+                        @* El nombre del Centro es un enlace real, como el nombre de fila de los
+                           listados (`enlace-nombre-fila`): da foco, Enter, clic central y
+                           «abrir en pestaña nueva» sin JavaScript. El clic en el resto de la fila
+                           se conserva para el ratón; el del enlace no se propaga a la fila, o el
+                           mismo clic navegaría dos veces (y Ctrl+clic movería también esta pestaña).
+                           Destino: el listado de Visitas. Hoy una Visita concreta no tiene
+                           dirección propia —solo se abre desde dentro del listado—, así que la
+                           fila no puede llevar a la suya hasta que exista. *@
+                        <tr class="fila-clicable" @onclick="@(() => NavigationManager.NavigateTo(RutaVisitas))">
+                            <td class="dashboard-visita-centro">
+                                <a class="enlace-nombre-fila nombre-fila-entidad" href="@RutaVisitas" @onclick:stopPropagation="true">@visita.CentroNombre</a>
+                            </td>
                             <td>@visita.ClienteRazonSocial</td>
                             <td>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy")</td>
                             <td>@visita.TotalTrabajadores</td>
