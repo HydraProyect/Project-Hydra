@@ -121,8 +121,6 @@
                 <Pastillas>
                     <PastillaFiltro Etiqueta="@Textos["ListaFiltroAmbito"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_ambitoFiltro"
                                     ValorChanged="CambiarAmbitoFiltroAsync" Opciones="OpcionesAmbitoListado" />
-                    <PastillaFiltro Etiqueta="@Textos["ListaFiltroEstado"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_estadoFiltro"
-                                    ValorChanged="CambiarEstadoFiltroAsync" Opciones="OpcionesEstadoListado" />
                 </Pastillas>
                 <Chips>
                     @if (!string.IsNullOrWhiteSpace(_busqueda))
@@ -133,12 +131,14 @@
                     {
                         <ChipFiltro Etiqueta="@EtiquetaFiltroAmbito" EtiquetaAccesible="@Textos["QuitarFiltroAmbito"]" OnQuitar="() => CambiarAmbitoFiltroAsync(string.Empty)" />
                     }
-                    @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
-                    {
-                        <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="@Textos["QuitarFiltroEstado"]" OnQuitar="() => CambiarEstadoFiltroAsync(string.Empty)" />
-                    }
                 </Chips>
             </BarraFiltros>
+
+            @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez, viaja en la URL
+               como «Estado» (estados de código separados por coma) y cada botón dice cuántos Documentos hay, con
+               los demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
+            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDeDocumentos" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync"
+                          Recuentos="_recuentosPorEstado" />
 
             <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -207,8 +207,12 @@
                                 </span>
                             </ChildContent>
                         </TemplateColumn>
-                        <TemplateColumn Title="Estado" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))">
-                            <Badge Tono="EstadoDocumentoUi.Tono(context.Estado)" ConIcono>@EstadoDocumentoUi.Texto(context.Estado)</Badge>
+                        @* Urgente y Próximo se rotulan los dos «Por vencer»; el motivo de debajo dice los días, que es
+                           lo que los distingue. Lo correcto (Vigente, Sin caducidad) va sin pastilla. *@
+                        <TemplateColumn Title="Estado" Sortable="true" Class="col-estado" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))">
+                            <EstadoFila Tono="EstadoDocumentoUi.Tono(context.Estado)" Texto="@EstadoDocumentoUi.Texto(context.Estado)"
+                                        Correcto="EstadoDocumentoUi.EsCorrecto(context.Estado)"
+                                        Motivo="@EstadoDocumentoUi.MotivoDeDocumento(context.Estado, context.FechaVencimiento, _hoy)" />
                         </TemplateColumn>
                         <TemplateColumn Title="Plataformas">
                             @if (context.Acreditaciones.Count == 0)

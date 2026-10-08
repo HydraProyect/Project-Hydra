@@ -90,8 +90,6 @@
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["FiltroClienteEmpresarial"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_clienteFiltro"
                             ValorChanged="CambiarClienteFiltroAsync" Opciones="_opcionesCliente" />
-            <PastillaFiltro Etiqueta="@Textos["FiltroEstado"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_estadoFiltro"
-                            ValorChanged="CambiarEstadoAsync" Opciones="EstadoCentroUi.Opciones" />
         </Pastillas>
         <MasFiltros>
             <span class="menu-filtros-titulo" role="presentation">@Textos["FiltroEmpresa"]</span>
@@ -129,16 +127,18 @@
             {
                 <ChipFiltro Etiqueta="@Textos["ChipClienteEmpresarial", TextoOpcion(_opcionesCliente, _clienteFiltro)]" EtiquetaAccesible="@Textos["QuitarFiltroClienteEmpresarial"]" OnQuitar="() => CambiarClienteFiltroAsync(string.Empty)" />
             }
-            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
-            {
-                <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="@Textos["QuitarFiltroEstado"]" OnQuitar="() => CambiarEstadoAsync(string.Empty)" />
-            }
             @if (!string.IsNullOrWhiteSpace(_empresaFiltro))
             {
                 <ChipFiltro Etiqueta="@Textos["ChipEmpresa", TextoOpcion(_opcionesEmpresa, _empresaFiltro)]" EtiquetaAccesible="@Textos["QuitarFiltroEmpresa"]" OnQuitar="() => CambiarEmpresaFiltroAsync(string.Empty)" />
             }
         </Chips>
     </BarraFiltros>
+
+    @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez, viaja en la URL como
+       «estado» (estados de código separados por coma) y cada botón dice cuántos Centros hay, con los demás
+       filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
+    <FranjaEstado Opciones="EstadoCentroUi.Franja" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -421,7 +421,9 @@
                                 }
                                 else if (MostrarEstadoEnIndicadores(centro))
                                 {
-                                    <Badge Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)</Badge>
+                                    <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)" />
                                 }
                             </span>
                         </span>
