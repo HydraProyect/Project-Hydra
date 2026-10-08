@@ -154,7 +154,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         await using var verificacion = CrearContexto(_propietario);
         var carteras = await verificacion.AsignacionesCartera.Where(c => c.UsuarioId == _gestorConsultora).ToListAsync();
         carteras.Should().ContainSingle().Which.Should().Match<AsignacionCartera>(
-            c => c.Estado == EstadoAsignacion.Vigente && c.Ambito.EsUniversal && c.Rol == Roles.GestorCae);
+            c => c.Estado == EstadoAsignacion.Vigente && c.Ambito.EsUniversal && c.Rol == Roles.GestorCae && c.EsPrincipal);
     }
 
     [Fact]
@@ -185,6 +185,96 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         cartera.AsignacionOperacionId.Should().Be(raiz.Id);
         cartera.Ambito.EsUniversal.Should().BeTrue();
         cartera.Rol.Should().BeNull("en su propio Tenant opera con el rol de Identity");
+        cartera.EsPrincipal.Should().BeTrue("es la primera cartera de Gestor CAE de la raíz: nace principal");
+    }
+
+    // ---------- Marca de principal (ADR-011 § 2.7, enmienda 2026-10-08) ----------
+
+    [Fact]
+    public async Task La_primera_cartera_que_asegura_el_writer_nace_principal_y_la_segunda_de_apoyo()
+    {
+        await EjecutarBackfillAsync();
+        var segundo = await AnadirSegundoGestorDelegadoAsync();
+
+        // En un solo guardado, como una siembra: la segunda tiene que ver la primera aún sin guardar.
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var writer = CrearWriter(contexto);
+            await writer.AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora);
+            await writer.AsegurarCarteraTenantEnteroAsync(_propietario, segundo);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var verificacion = CrearContexto(_propietario);
+        var carteras = await verificacion.AsignacionesCartera.Where(c => c.Rol == Roles.GestorCae).ToListAsync();
+        carteras.Single(c => c.UsuarioId == _gestorConsultora).EsPrincipal.Should().BeTrue();
+        carteras.Single(c => c.UsuarioId == segundo).EsPrincipal.Should().BeFalse("ya había principal vivo bajo esa operación");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Reactivar_marca_principal_solo_si_repone_una_unica_cartera_de_Gestor_CAE(bool conDosGestores)
+    {
+        await EjecutarBackfillAsync();
+        var segundo = conDosGestores ? await AnadirSegundoGestorDelegadoAsync() : (Guid?)null;
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var writer = CrearWriter(contexto);
+            await writer.AsegurarCarteraTenantEnteroAsync(_propietario, _gestorConsultora);
+            if (segundo is { } id) await writer.AsegurarCarteraTenantEnteroAsync(_propietario, id);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            var desactivar = new DesactivarDelegacionTenantCommandHandler(
+                new DelegacionTenantRepository(contexto),
+                new CurrentUserServiceFalso(tenantOrigenId: _consultora),
+                CrearWriter(contexto), contexto);
+            (await desactivar.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        await using (var contexto = CrearContexto(_propietario))
+        {
+            (await contexto.AsignacionesCartera.CountAsync(c => c.EsPrincipal)).Should().Be(
+                0, "control: la cascada cerró la principal y el cierre apaga la marca");
+
+            var reactivar = new ReactivarDelegacionTenantCommandHandler(
+                new DelegacionTenantRepository(contexto),
+                new AutorizacionAdministradorDe(_propietario),
+                new CurrentUserServiceFalso(Guid.NewGuid()),
+                CrearWriter(contexto), contexto, contexto);
+            (await reactivar.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
+                .EsExitoso.Should().BeTrue();
+        }
+
+        await using var verificacion = CrearContexto(_propietario);
+        var repuestas = await verificacion.AsignacionesCartera
+            .Where(c => c.Rol == Roles.GestorCae && c.Estado == EstadoAsignacion.Vigente).ToListAsync();
+        repuestas.Should().HaveCount(conDosGestores ? 2 : 1, "control: la reactivación repone las carteras que la cascada cerró");
+        repuestas.Count(c => c.EsPrincipal).Should().Be(
+            conDosGestores ? 0 : 1,
+            "con una sola cartera repuesta esa responde del Tenant; con varias no se inventa un responsable");
+    }
+
+    private async Task<Guid> AnadirSegundoGestorDelegadoAsync()
+    {
+        var segundo = Guid.NewGuid();
+        await using var contexto = CrearContexto(_propietario);
+        contexto.Users.Add(new ApplicationUser
+        {
+            Id = segundo,
+            TenantId = _consultora,
+            UserName = "g2@consultora",
+            Email = "g2@consultora"
+        });
+        contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
+            new AsignacionOperadorDelegado(_delegacionId, segundo, Roles.GestorCae));
+        await contexto.SaveChangesAsync();
+        return segundo;
     }
 
     [Fact]

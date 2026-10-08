@@ -45,7 +45,7 @@ public class RetiraRepartoPorClienteDeLasCarterasTests : IAsyncLifetime
     {
         get
         {
-            using var contexto = NuevoContexto(null);
+            using var contexto = ContextoParaMigrar();
             var migraciones = contexto.Database.GetMigrations().ToList();
             var indice = migraciones.IndexOf(MigracionDelCambio);
             indice.Should().BeGreaterThan(0, "la migración del cambio existe en el ensamblado y no es la línea base");
@@ -366,13 +366,13 @@ public class RetiraRepartoPorClienteDeLasCarterasTests : IAsyncLifetime
 
     private async Task DeshacerElCambioAsync()
     {
-        await using var contexto = NuevoContexto(null);
+        await using var contexto = ContextoParaMigrar();
         await contexto.GetService<IMigrator>().MigrateAsync(MigracionAnterior);
     }
 
     private async Task MigrarAsync()
     {
-        await using var contexto = NuevoContexto(null);
+        await using var contexto = ContextoParaMigrar();
         await contexto.GetService<IMigrator>().MigrateAsync();
     }
 
@@ -383,6 +383,16 @@ public class RetiraRepartoPorClienteDeLasCarterasTests : IAsyncLifetime
             .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
             .Options;
-        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+        // Esta clase retrocede a un esquema anterior a la columna EsPrincipal: ver ContextoAnteriorALaMarcaDePrincipal.
+        return new ContextoAnteriorALaMarcaDePrincipal(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>El contexto real: EF solo descubre las migraciones con el tipo exacto del contexto.</summary>
+    private CaeManagerDbContext ContextoParaMigrar()
+    {
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .Options;
+        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental { TenantId = null });
     }
 }

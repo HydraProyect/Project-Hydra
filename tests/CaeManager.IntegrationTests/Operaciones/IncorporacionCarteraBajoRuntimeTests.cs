@@ -40,6 +40,7 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
     private readonly Tenant _empresa = new("Empresa propietaria de prueba");
 
     private readonly Guid _gestor = Guid.NewGuid();
+    private readonly Guid _segundoGestor = Guid.NewGuid();
     private readonly Guid _gestorAjeno = Guid.NewGuid();
     private readonly Guid _coordinador = Guid.NewGuid();
     private readonly Guid _otroCoordinador = Guid.NewGuid();
@@ -341,6 +342,124 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         resultados.Single(r => r.EsFallido).Error.Codigo.Should().Be("SolicitudCartera.YaResuelta");
 
         await AfirmarUnaSolaIncorporacionAsync(solicitudId);
+    }
+
+    // ── Marca de principal (ADR-011 § 2.7, enmienda 2026-10-08) ───────────
+
+    [Fact]
+    public async Task La_primera_cartera_de_una_operacion_sin_principal_nace_principal_y_la_siguiente_nace_de_apoyo()
+    {
+        (await EmitirAsync(_gestor)).Should().BeTrue();
+        (await EmitirAsync(_segundoGestor)).Should().BeTrue(
+            "la segunda emisión, bajo la RLS de runtime, tiene que ver la principal de otro usuario y nacer sin marca");
+
+        var carteras = await CarterasDeLaOperacionAsync();
+        carteras.Should().HaveCount(2);
+        carteras.Single(c => c.UsuarioId == _gestor).EsPrincipal.Should().BeTrue("entró en una operación sin principal vivo");
+        carteras.Single(c => c.UsuarioId == _segundoGestor).EsPrincipal.Should().BeFalse("ya había principal: es una cartera de apoyo");
+    }
+
+    [Fact]
+    public async Task Retirada_la_cartera_principal_la_siguiente_que_entra_vuelve_a_nacer_principal()
+    {
+        (await EmitirAsync(_gestor)).Should().BeTrue();
+
+        await using (var contexto = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae"))
+        using (AmbitoTenantExplicito.Establecer(_empresa.Id))
+        {
+            var catalogo = Catalogo(contexto);
+            (await catalogo.RetirarCarteraUniversalAsync(_empresa.Id, _operador.Id, _gestor, _coordinador)).Should().BeTrue();
+            (await catalogo.GuardarDetectandoCarreraAsync()).Should().BeTrue();
+        }
+
+        (await EmitirAsync(_segundoGestor)).Should().BeTrue();
+
+        var carteras = await CarterasDeLaOperacionAsync();
+        carteras.Single(c => c.UsuarioId == _gestor).Should().Match<AsignacionCartera>(
+            c => c.Estado == EstadoAsignacion.Cerrada && !c.EsPrincipal, "el cierre apaga la marca");
+        carteras.Single(c => c.UsuarioId == _segundoGestor).EsPrincipal.Should().BeTrue("la operación se había quedado sin principal vivo");
+    }
+
+    [Fact]
+    public async Task Dos_emisiones_intercaladas_sobre_una_operacion_sin_principal_dejan_exactamente_un_principal()
+    {
+        await using var primero = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae");
+        await using var segundo = ContextoRuntime(_otroCoordinador, _operador.Id, "CoordinadorCae");
+        var catalogoA = Catalogo(primero);
+        var catalogoB = Catalogo(segundo);
+
+        using (AmbitoTenantExplicito.Establecer(_empresa.Id))
+        {
+            // El peor intercalado: los dos leen «no hay principal» antes de que ninguno guarde.
+            var a = await catalogoA.IncorporarAsync(_empresa.Id, _operador.Id, _operacionId, _gestor);
+            var b = await catalogoB.IncorporarAsync(_empresa.Id, _operador.Id, _operacionId, _segundoGestor);
+            // Control positivo del intercalado: sin él, el test no ejercitaría el índice.
+            a.Cartera!.EsPrincipal.Should().BeTrue();
+            b.Cartera!.EsPrincipal.Should().BeTrue();
+
+            (await catalogoA.GuardarDetectandoCarreraAsync()).Should().BeTrue();
+            (await catalogoB.GuardarDetectandoCarreraAsync()).Should().BeFalse(
+                "el índice único de principal deja pasar una sola, y la carrera se detecta en vez de reventar");
+            segundo.ChangeTracker.Entries().Should().BeEmpty();
+
+            // El reintento de quien perdió ya ve al principal y entra como apoyo.
+            var reintento = await catalogoB.IncorporarAsync(_empresa.Id, _operador.Id, _operacionId, _segundoGestor);
+            reintento.Cartera!.EsPrincipal.Should().BeFalse();
+            (await catalogoB.GuardarDetectandoCarreraAsync()).Should().BeTrue();
+        }
+
+        var carteras = await CarterasDeLaOperacionAsync();
+        carteras.Should().HaveCount(2);
+        carteras.Count(c => c.EsPrincipal).Should().Be(1);
+        carteras.Single(c => c.EsPrincipal).UsuarioId.Should().Be(_gestor);
+    }
+
+    [Fact]
+    public async Task Dos_emisiones_a_la_vez_sobre_una_operacion_sin_principal_dejan_exactamente_un_principal()
+    {
+        // Dos conexiones de runtime, cada una con su contexto, creadas antes de soltar las tareas
+        // (el andamiaje guarda el usuario de cada contexto en un diccionario que no es concurrente).
+        await using var primero = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae");
+        await using var segundo = ContextoRuntime(_otroCoordinador, _operador.Id, "CoordinadorCae");
+        var catalogoA = Catalogo(primero);
+        var catalogoB = Catalogo(segundo);
+
+        var guardadas = await Task.WhenAll(
+            Task.Run(() => EmitirConAsync(catalogoA, _gestor)),
+            Task.Run(() => EmitirConAsync(catalogoB, _segundoGestor)));
+
+        var carteras = await CarterasDeLaOperacionAsync();
+        guardadas.Count(g => g).Should().BeGreaterThanOrEqualTo(1);
+        carteras.Should().HaveCount(guardadas.Count(g => g), "la emisión que pierde la carrera no deja cartera a medias");
+        carteras.Count(c => c.EsPrincipal).Should().Be(1, "nunca dos principales, nunca ninguno");
+
+        await using var propietario = ContextoPropietario();
+        (await propietario.AsignacionesOperadorDelegado.CountAsync()).Should().Be(
+            carteras.Count, "ni fila heredada sin su cartera");
+    }
+
+    private async Task<bool> EmitirAsync(Guid gestorUsuarioId)
+    {
+        await using var contexto = ContextoRuntime(_coordinador, _operador.Id, "CoordinadorCae");
+        return await EmitirConAsync(Catalogo(contexto), gestorUsuarioId);
+    }
+
+    /// <summary>La asignación directa de cartera: incorporar y guardar con el Tenant propietario como Tenant activo.</summary>
+    private async Task<bool> EmitirConAsync(CatalogoIncorporacionCartera catalogo, Guid gestorUsuarioId)
+    {
+        using (AmbitoTenantExplicito.Establecer(_empresa.Id))
+        {
+            var incorporacion = await catalogo.IncorporarAsync(_empresa.Id, _operador.Id, _operacionId, gestorUsuarioId);
+            incorporacion.MotivoAnulacion.Should().BeNull();
+            return await catalogo.GuardarDetectandoCarreraAsync();
+        }
+    }
+
+    private async Task<List<AsignacionCartera>> CarterasDeLaOperacionAsync()
+    {
+        await using var propietario = ContextoPropietario();
+        return await propietario.AsignacionesCartera.AsNoTracking()
+            .Where(c => c.AsignacionOperacionId == _operacionId).ToListAsync();
     }
 
     // ── Andamiaje ──────────────────────────────────────────────────────────

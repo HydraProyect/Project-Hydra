@@ -39,6 +39,11 @@ public interface IAsignacionesOperativasWriter
     /// contexto) y nunca se cierra nada. Solo concede Operación: la cartera no da Administrador ni
     /// Dirección CAE.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Marca de principal</b> (ADR-011 § 2.7, enmienda 2026-10-08): la cartera nace principal si su
+    /// Asignación de Operación no tiene ninguna principal viva; si ya la tiene, nace sin marca.
+    /// </para>
     /// </summary>
     /// <exception cref="InvalidOperationException">
     /// Usuario inexistente, o sin operación vigente donde colgar la cartera: la raíz del Tenant
@@ -132,6 +137,10 @@ public interface IAsignacionesOperativasWriter
     /// en el mismo instante que la última operación externa cerrada del mismo par, es decir, por la cascada
     /// de esa desactivación y no por la revocación de un operador concreto): la fila de operador delegado por
     /// sí sola no es una cartera, y <c>Empresa.EjecutivoUsuarioId</c> ya no reconstruye alcance.
+    ///
+    /// <b>Marca de principal</b>: el cierre la apagó y no queda rastro de quién la llevaba. Si se repone
+    /// una sola cartera de Gestor CAE, nace principal; si se reponen varias, ninguna, y la operación queda
+    /// sin Gestor CAE principal hasta que alguien lo designe.
     /// </summary>
     Task ReabrirCarterasDeOperadoresAsync(
         AsignacionOperacion operacion, Guid delegacionTenantId, CancellationToken cancellationToken = default);

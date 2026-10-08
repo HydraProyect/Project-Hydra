@@ -10,6 +10,12 @@ namespace CaeManager.Infrastructure.Persistence.Configurations;
 
 public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<AsignacionCartera>
 {
+    /// <summary>Como máximo una cartera principal no cerrada por Asignación de Operación.</summary>
+    public const string IndicePrincipalPorOperacion = "IX_AsignacionesCartera_PrincipalPorOperacion";
+
+    /// <summary>Solo una cartera del Tenant entero, de Gestor CAE o Coordinador CAE, puede ser la principal.</summary>
+    public const string RestriccionPrincipal = "CK_AsignacionesCartera_PrincipalSoloGestorCaeTenantEntero";
+
     public void Configure(EntityTypeBuilder<AsignacionCartera> builder)
     {
         builder.HasKey(a => a.Id);
@@ -22,6 +28,7 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
         builder.Property(a => a.VigenciaDesde).IsRequired();
         builder.Property(a => a.Estado).IsRequired().HasConversion<string>().HasMaxLength(20);
         builder.Property(a => a.MotivoCierre).HasConversion<string>().HasMaxLength(30);
+        builder.Property(a => a.EsPrincipal).IsRequired().HasDefaultValue(false);
 
         // "¿Qué lleva este usuario?" — la pregunta que hace el servicio de
         // alcance de datos al principio de cada circuito.
@@ -34,10 +41,37 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
         // (AsignacionCartera) y sustituye al índice único transitorio ResponsableRelacionVigente, que existía
         // solo mientras el reparto era posible. Las carteras CERRADAS conservan su ámbito: es el histórico del
         // modo retirado (la migración ConvierteCarterasPorClienteATenantEntero las cerró con motivo Reorganizada).
-        builder.ToTable("AsignacionesCartera", t => t.HasCheckConstraint(
-            "CK_AsignacionesCartera_TenantEnteroSalvoCerrada",
-            $"\"{nameof(AsignacionCartera.AmbitoRelacionClienteId)}\" IS NULL " +
-            $"OR \"{nameof(AsignacionCartera.Estado)}\" = 'Cerrada'"));
+        //
+        // Segundo CHECK (ADR-011 § 2.7, enmienda 2026-10-08): la marca de principal solo cabe en una cartera
+        // del Tenant entero cuyo rol sea Gestor CAE o Coordinador CAE (sin rol en una operación interna, donde
+        // vale el de Identity). Una cartera de Consulta nunca es la principal. Backstop de
+        // AsignacionCartera.DesignarPrincipal.
+        builder.ToTable("AsignacionesCartera", t =>
+        {
+            t.HasCheckConstraint(
+                "CK_AsignacionesCartera_TenantEnteroSalvoCerrada",
+                $"\"{nameof(AsignacionCartera.AmbitoRelacionClienteId)}\" IS NULL " +
+                $"OR \"{nameof(AsignacionCartera.Estado)}\" = 'Cerrada'");
+            t.HasCheckConstraint(
+                RestriccionPrincipal,
+                $"NOT \"{nameof(AsignacionCartera.EsPrincipal)}\" OR (" +
+                $"\"{nameof(AsignacionCartera.AmbitoRelacionClienteId)}\" IS NULL " +
+                $"AND \"{nameof(AsignacionCartera.AmbitoCentroId)}\" IS NULL " +
+                $"AND \"{nameof(AsignacionCartera.AmbitoTrabajadorId)}\" IS NULL " +
+                $"AND \"{nameof(AsignacionCartera.AmbitoProyectoId)}\" IS NULL " +
+                $"AND (\"{nameof(AsignacionCartera.Rol)}\" IS NULL " +
+                $"OR \"{nameof(AsignacionCartera.Rol)}\" IN ('GestorCae', 'CoordinadorCae')))");
+        });
+
+        // Como máximo un principal vivo por Asignación de Operación. «Vivo» es no cerrado: incluye Suspendida
+        // y Programada, para que reactivar o activar una cartera no produzca dos. Es la garantía real del
+        // invariante: el dominio ve una cartera, no sus hermanas, y dos emisiones simultáneas solo las separa
+        // este índice. No es diferible: cambiar de principal son dos guardados (apagar, encender).
+        builder.HasIndex(a => a.AsignacionOperacionId, IndicePrincipalPorOperacion)
+            .IsUnique()
+            .HasFilter(
+                $"\"{nameof(AsignacionCartera.EsPrincipal)}\" " +
+                $"AND \"{nameof(AsignacionCartera.Estado)}\" <> 'Cerrada'");
 
         // Un usuario no puede tener dos carteras universales vigentes sobre la
         // misma operación — es el invariante que hoy impone el índice único

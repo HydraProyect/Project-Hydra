@@ -334,7 +334,7 @@ src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: Amb
 src/CaeManager.Infrastructure/Operaciones/AsignacionesOperativasWriter.cs :: TenantClienteId = 2
 src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: AmbitoRelacionClienteId = 2
 src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs :: TenantClienteId = 5
-src/CaeManager.Infrastructure/Persistence/Configurations/AsignacionCarteraConfiguration.cs :: AmbitoRelacionClienteId = 3
+src/CaeManager.Infrastructure/Persistence/Configurations/AsignacionCarteraConfiguration.cs :: AmbitoRelacionClienteId = 4
 src/CaeManager.Infrastructure/Persistence/Configurations/AsignacionOperacionConfiguration.cs :: AmbitoRelacionClienteId = 6
 src/CaeManager.Infrastructure/Persistence/Configurations/CentroConfiguration.cs :: ClienteId = 3
 src/CaeManager.Infrastructure/Persistence/Configurations/ConexionIntegracionConfiguration.cs :: ClienteId = 1

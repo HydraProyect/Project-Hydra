@@ -5,9 +5,10 @@ using Xunit;
 namespace CaeManager.Domain.Tests.Operaciones;
 
 /// <summary>
-/// Las invariantes del plano de operación (ADR-011 § 2.7): append-only, la
-/// raíz como fallback y no como competidora, y la vigencia semiabierta que hace
-/// respondible la pregunta "¿quién era responsable el día X?".
+/// Las invariantes del plano de operación (ADR-011 § 2.7): inmutabilidad de lo
+/// que define la responsabilidad, la raíz como fallback y no como competidora,
+/// la vigencia semiabierta que hace respondible la pregunta "¿quién era
+/// responsable el día X?" y la marca de principal de una cartera.
 /// </summary>
 public class AsignacionResponsabilidadTests
 {
@@ -262,5 +263,131 @@ public class AsignacionResponsabilidadTests
         new AmbitoAsignacion(CentroId: Guid.NewGuid()).UsaDimensionesDiferidas.Should().BeTrue();
         new AmbitoAsignacion(TrabajadorId: Guid.NewGuid()).UsaDimensionesDiferidas.Should().BeTrue();
         new AmbitoAsignacion(ProyectoId: Guid.NewGuid()).UsaDimensionesDiferidas.Should().BeTrue();
+    }
+
+    // ── Marca de principal (ADR-011 § 2.7, enmienda 2026-10-08) ───────────
+
+    private static AsignacionOperacion OperacionExterna() => AsignacionOperacion.Externa(
+        Propietario, Operador, ServicioCae.Outbound, AmbitoAsignacion.Universal, Ahora.AddDays(-1), null, Ahora);
+
+    private static AsignacionCartera CarteraExterna(string rol) => AsignacionCartera.Externa(
+        OperacionExterna(), Guid.NewGuid(), rol, AmbitoAsignacion.Universal, Ahora.AddDays(-1), null, Ahora);
+
+    [Fact]
+    public void Una_cartera_nace_sin_la_marca_de_principal()
+    {
+        CarteraExterna("GestorCae").EsPrincipal.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("GestorCae")]
+    [InlineData("CoordinadorCae")]
+    public void Una_cartera_del_Tenant_entero_de_Gestor_CAE_o_Coordinador_CAE_puede_ser_la_principal(string rol)
+    {
+        var cartera = CarteraExterna(rol);
+
+        cartera.DesignarPrincipal();
+        cartera.DesignarPrincipal();
+
+        cartera.EsPrincipal.Should().BeTrue();
+        cartera.Rol.Should().Be(rol, "la marca no cambia el rol");
+        cartera.Ambito.EsUniversal.Should().BeTrue("ni el ámbito");
+    }
+
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("gestorcae")]
+    public void Una_cartera_de_otro_rol_nunca_es_la_principal(string rol)
+    {
+        var cartera = CarteraExterna(rol);
+
+        cartera.Invoking(c => c.DesignarPrincipal()).Should().Throw<InvalidOperationException>();
+        cartera.EsPrincipal.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Una_cartera_interna_sin_rol_propio_puede_ser_la_principal()
+    {
+        var raiz = AsignacionOperacion.Raiz(Propietario, ServicioCae.Outbound, Ahora.AddYears(-1), Ahora);
+        var cartera = AsignacionCartera.Interna(
+            raiz, Guid.NewGuid(), AmbitoAsignacion.Universal, Ahora.AddDays(-1), null, Ahora);
+
+        cartera.DesignarPrincipal();
+
+        cartera.EsPrincipal.Should().BeTrue("en una operación interna vale el rol de Identity");
+    }
+
+    [Fact]
+    public void Una_cartera_interna_con_rol_propio_que_no_es_de_gestion_no_es_la_principal()
+    {
+        var raiz = AsignacionOperacion.Raiz(Propietario, ServicioCae.Outbound, Ahora.AddYears(-1), Ahora);
+        var cartera = AsignacionCartera.Interna(
+            raiz, Guid.NewGuid(), AmbitoAsignacion.Universal, Ahora.AddDays(-1), null, Ahora, rol: "Consulta");
+
+        cartera.Invoking(c => c.DesignarPrincipal()).Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Una_cartera_que_no_es_del_Tenant_entero_no_es_la_principal()
+    {
+        var cartera = AsignacionCartera.Externa(
+            OperacionExterna(), Guid.NewGuid(), "GestorCae",
+            new AmbitoAsignacion(null, Guid.NewGuid(), null, null), Ahora.AddDays(-1), null, Ahora);
+
+        cartera.Invoking(c => c.DesignarPrincipal()).Should().Throw<InvalidOperationException>();
+        cartera.EsPrincipal.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Una_cartera_cerrada_no_puede_ser_la_principal()
+    {
+        var cartera = CarteraExterna("GestorCae");
+        cartera.Cerrar(MotivoCierreAsignacion.RetiradaPorElOperador, Ahora);
+
+        cartera.Invoking(c => c.DesignarPrincipal()).Should().Throw<InvalidOperationException>();
+        cartera.EsPrincipal.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Cerrar_la_cartera_principal_apaga_la_marca()
+    {
+        var cartera = CarteraExterna("GestorCae");
+        cartera.DesignarPrincipal();
+
+        cartera.Cerrar(MotivoCierreAsignacion.RetiradaPorElOperador, Ahora);
+
+        cartera.Estado.Should().Be(EstadoAsignacion.Cerrada);
+        cartera.EsPrincipal.Should().BeFalse("una cartera cerrada no es la principal de nada");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Una_cartera_suspendida_conserva_la_marca_y_una_suspendida_puede_recibirla(bool marcarAntes)
+    {
+        var cartera = CarteraExterna("GestorCae");
+        if (marcarAntes) cartera.DesignarPrincipal();
+
+        cartera.Suspender();
+        if (!marcarAntes) cartera.DesignarPrincipal();
+
+        cartera.EsPrincipal.Should().BeTrue("solo el cierre apaga la marca; por eso el índice único cuenta las suspendidas");
+    }
+
+    [Fact]
+    public void Dejar_de_ser_principal_apaga_la_marca_y_no_toca_nada_mas()
+    {
+        var cartera = CarteraExterna("CoordinadorCae");
+        cartera.DesignarPrincipal();
+
+        cartera.DejarDeSerPrincipal();
+        cartera.DejarDeSerPrincipal();
+
+        cartera.EsPrincipal.Should().BeFalse();
+        cartera.Estado.Should().Be(EstadoAsignacion.Vigente, "la cartera sigue viva: pierde la marca, no el acceso");
+        cartera.Ambito.EsUniversal.Should().BeTrue();
+        cartera.Rol.Should().Be("CoordinadorCae");
     }
 }

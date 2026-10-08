@@ -18,10 +18,14 @@ namespace CaeManager.Domain.Operaciones;
 /// posición del llamante vive en Application y está cubierta por un test de
 /// arquitectura.
 ///
-/// <b>Append-only</b>: no hay ni un solo método que cambie el operador, el
-/// servicio o el ámbito. Cambiar cualquiera de esas tres cosas es cerrar esta
-/// fila y abrir otra — es lo que hace que "¿quién era responsable de este
-/// ámbito el 15 de marzo?" tenga respuesta sin reconstruir eventos.
+/// <b>Inmutable en lo que define la responsabilidad</b>: no hay ni un solo
+/// método que cambie el operador, el servicio o el ámbito (ni, en una cartera,
+/// el usuario o el rol). Cambiar cualquiera de esas cosas es cerrar esta fila y
+/// abrir otra — es lo que hace que "¿quién era responsable de este ámbito el
+/// 15 de marzo?" tenga respuesta sin reconstruir eventos. Lo único que cambia
+/// en una fila viva es su estado y, en una <see cref="AsignacionCartera"/>, la
+/// marca de principal (ADR-011 § 2.7, enmienda 2026-10-08), que no altera el
+/// ámbito efectivo.
 /// </summary>
 public abstract class AsignacionResponsabilidad : Entity, IVersionable
 {
@@ -125,7 +129,7 @@ public abstract class AsignacionResponsabilidad : Entity, IVersionable
     /// se abre una asignación nueva, y así el histórico conserva las dos etapas
     /// por separado.
     /// </summary>
-    public void Cerrar(MotivoCierreAsignacion motivo, DateTime ahora)
+    public virtual void Cerrar(MotivoCierreAsignacion motivo, DateTime ahora)
     {
         if (Estado == EstadoAsignacion.Cerrada)
             throw new InvalidOperationException("La asignación ya estaba cerrada.");

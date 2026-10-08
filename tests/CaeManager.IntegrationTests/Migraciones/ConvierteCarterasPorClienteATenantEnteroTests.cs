@@ -67,7 +67,7 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
     {
         get
         {
-            using var contexto = NuevoContexto(null);
+            using var contexto = ContextoParaMigrar();
             var migraciones = contexto.Database.GetMigrations().ToList();
             var indice = migraciones.IndexOf(MigracionDelCambio);
             indice.Should().BeGreaterThan(0, "la migración del cambio existe en el ensamblado y no es la línea base");
@@ -81,7 +81,7 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
 
         // Se deshace hasta la migración anterior a la del cambio: la base queda como estaba en staging y
         // producción antes de desplegarlo.
-        await using (var contexto = NuevoContexto(null))
+        await using (var contexto = ContextoParaMigrar())
             await contexto.GetService<IMigrator>().MigrateAsync(MigracionAnterior);
 
         await using (var contexto = NuevoContexto(null))
@@ -309,7 +309,7 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
         var primera = await TodasAsync();
 
         // Down no hace nada: deshacer y volver a aplicar ejecuta otra vez el SQL sobre los datos ya convertidos.
-        await using (var contexto = NuevoContexto(null))
+        await using (var contexto = ContextoParaMigrar())
         {
             var migrador = contexto.GetService<IMigrator>();
             await migrador.MigrateAsync(MigracionAnterior);
@@ -324,7 +324,7 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
     public async Task Down_no_repone_el_reparto_por_Cliente_empresarial()
     {
         await MigrarAsync();
-        await using (var contexto = NuevoContexto(null))
+        await using (var contexto = ContextoParaMigrar())
             await contexto.GetService<IMigrator>().MigrateAsync(MigracionAnterior);
 
         await using var verificacion = NuevoContexto(null);
@@ -432,7 +432,7 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
 
     private async Task MigrarAsync()
     {
-        await using var contexto = NuevoContexto(null);
+        await using var contexto = ContextoParaMigrar();
         await contexto.GetService<IMigrator>().MigrateAsync();
     }
 
@@ -460,6 +460,16 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
             .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
             .Options;
-        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+        // Esta clase retrocede a un esquema anterior a la columna EsPrincipal: ver ContextoAnteriorALaMarcaDePrincipal.
+        return new ContextoAnteriorALaMarcaDePrincipal(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>El contexto real: EF solo descubre las migraciones con el tipo exacto del contexto.</summary>
+    private CaeManagerDbContext ContextoParaMigrar()
+    {
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .Options;
+        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental { TenantId = null });
     }
 }

@@ -20,6 +20,13 @@ namespace CaeManager.Domain.Operaciones;
 /// está dentro de la relación con Iberojet?" depende de sus participaciones de
 /// hoy), y no hace falta que lo sea: intersecar da siempre el resultado
 /// correcto y no puede conceder de más.
+///
+/// <b>Qué es inmutable y qué no</b>: usuario, rol, ámbito y operador no cambian
+/// nunca en una cartera; cambiarlos es cerrarla y abrir otra. Lo único mutable,
+/// además del estado, es <see cref="EsPrincipal"/> (ADR-011 § 2.7, enmienda
+/// 2026-10-08): la marca del Gestor CAE principal —o Coordinador CAE principal—
+/// de la Asignación de Operación. La marca <b>no concede nada en datos</b>: una
+/// cartera principal y una de apoyo tienen el mismo ámbito efectivo.
 /// </summary>
 public class AsignacionCartera : AsignacionResponsabilidad
 {
@@ -54,6 +61,26 @@ public class AsignacionCartera : AsignacionResponsabilidad
     public string? Rol { get; private set; }
 
     public const int LongitudMaximaRol = 50;
+
+    /// <summary>
+    /// Roles de cartera que pueden llevar la marca de principal. Texto plano por el mismo
+    /// motivo que <see cref="Rol"/> (Domain no referencia los roles de Identity); los repite
+    /// el CHECK <c>CK_AsignacionesCartera_PrincipalSoloGestorCaeTenantEntero</c> y un test de
+    /// integración los ata a las constantes de Identity. Consulta nunca es principal.
+    /// </summary>
+    public static readonly IReadOnlyList<string> RolesQuePuedenSerPrincipal = ["GestorCae", "CoordinadorCae"];
+
+    /// <summary>
+    /// Marca del Gestor CAE principal (o Coordinador CAE principal) de la Asignación de
+    /// Operación: quién responde de ese Tenant ante el Operador CAE. <b>Como máximo una
+    /// cartera no cerrada por operación</b> la lleva; lo impone la base de datos con el
+    /// índice único parcial <c>IX_AsignacionesCartera_PrincipalPorOperacion</c>, porque el
+    /// dominio ve una cartera y no sus hermanas. No es un rol ni amplía el ámbito efectivo.
+    ///
+    /// Ese índice no es diferible: pasar la marca de una cartera a otra exige apagar la
+    /// primera y guardar, y encender la segunda y guardar, dentro de una transacción.
+    /// </summary>
+    public bool EsPrincipal { get; private set; }
 
     private AsignacionCartera()
     {
@@ -97,6 +124,36 @@ public class AsignacionCartera : AsignacionResponsabilidad
         CreadoPorUsuarioId = creadoPorUsuarioId;
         EstablecerAmbito(ambito);
         EstablecerVigencia(vigenciaDesde, vigenciaHasta, ahora);
+    }
+
+    /// <summary>
+    /// Enciende la marca de principal. Solo sobre una cartera no cerrada, del Tenant entero
+    /// y con rol Gestor CAE o Coordinador CAE; sin rol propio solo en una operación interna,
+    /// donde vale el de Identity y quien llama responde de que sea uno de esos dos. Que no
+    /// haya ya otra principal bajo la misma operación lo comprueba quien llama y lo impone
+    /// el índice único. Idempotente.
+    /// </summary>
+    public void DesignarPrincipal()
+    {
+        if (Estado == EstadoAsignacion.Cerrada)
+            throw new InvalidOperationException("Una cartera cerrada no puede ser la principal.");
+        if (!Ambito.EsUniversal)
+            throw new InvalidOperationException("Solo una cartera del Tenant entero puede ser la principal.");
+        if (Rol is null ? !EsOperacionInterna : !RolesQuePuedenSerPrincipal.Contains(Rol))
+            throw new InvalidOperationException(
+                $"Solo una cartera de Gestor CAE o de Coordinador CAE puede ser la principal (rol: {Rol ?? "sin rol"}).");
+
+        EsPrincipal = true;
+    }
+
+    /// <summary>Apaga la marca de principal. Idempotente; la cartera sigue viva y con el mismo ámbito efectivo.</summary>
+    public void DejarDeSerPrincipal() => EsPrincipal = false;
+
+    /// <summary>Una cartera cerrada no es la principal de nada: el cierre apaga la marca.</summary>
+    public override void Cerrar(MotivoCierreAsignacion motivo, DateTime ahora)
+    {
+        base.Cerrar(motivo, ahora);
+        EsPrincipal = false;
     }
 
     /// <summary>
