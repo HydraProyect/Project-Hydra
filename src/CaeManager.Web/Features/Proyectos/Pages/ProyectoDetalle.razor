@@ -26,7 +26,7 @@
         <EstadoVacio Titulo="@Textos["ErrorDetalleTitulo"]" Descripcion="@Textos["ErrorDetalleDescripcion"]"
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
-                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
                 <EnlaceProfundoOtraEmpresa />
             </Accion>
         </EstadoVacio>
@@ -57,11 +57,11 @@
                     <span>@Textos["MetaCliente"] <a class="proyecto360-enlace" href="@($"/clientes/{_detalle.ClienteId}")">@_detalle.ClienteRazonSocial</a></span>
                     <span aria-hidden="true">·</span>
                     <span>
-                        <span class="texto-solo-lectores">@Textos["EtiquetaInicio"]: </span>@_detalle.FechaInicio.ToString("dd/MM/yyyy")
+                        @Textos["EtiquetaInicio"]: @_detalle.FechaInicio.ToString("dd/MM/yyyy")
                         <span aria-hidden="true">→</span>
                         @if (_detalle.FechaFinPrevista is { } fin)
                         {
-                            <span class="texto-solo-lectores">@Textos["EtiquetaFinPrevisto"]: </span>@fin.ToString("dd/MM/yyyy")
+                            <span>@Textos["EtiquetaFinPrevisto"]: @fin.ToString("dd/MM/yyyy")</span>
                             <BotonCopiar Valor="@fin.ToString("dd/MM/yyyy")" Etiqueta="@Textos["CopiarLaFechaDeFin"]" />
                         }
                         else
@@ -76,14 +76,8 @@
                    AutorizacionEscrituraBehavior deniega a Consulta: sin escritura no se ofrecen. *@
                 <SoloConEscritura>
                     <span class="proyecto360-acciones">
-                        @if (_detalle.EstaAbierto)
-                        {
-                            <Boton Variante="VarianteBoton.Primario" OnClick="AbrirAsignarAsync">@Textos["AccionAsignarTecnico"]</Boton>
-                        }
-                        else
-                        {
-                            <Boton Variante="VarianteBoton.Primario" OnClick="() => _confirmarReabrirVisible = true">@Textos["AccionReabrir"]</Boton>
-                        }
+                        @* Un solo primario: «Asignar técnico» con el proyecto abierto, «Reabrir» con él cerrado. *@
+                        <Boton Variante="VarianteBoton.Primario" OnClick="AccionPrincipalAsync">@Textos[_detalle.EstaAbierto ? "AccionAsignarTecnico" : "AccionReabrir"]</Boton>
                         <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
                             <ItemMenuAccion OnClick="AbrirEditar">@Textos["MenuEditarProyecto"]</ItemMenuAccion>
                             @if (_detalle.EstaAbierto)
@@ -232,7 +226,7 @@
             <Tarjeta>
                 <EstadoVacio Titulo="@Textos["ErrorTecnicosTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
                     <Accion>
-                        <Boton Variante="VarianteBoton.Primario" OnClick="CargarTecnicosAsync">@Textos["BotonReintentar"]</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="CargarTecnicosAsync">@Textos["BotonReintentar"]</Boton>
                     </Accion>
                 </EstadoVacio>
             </Tarjeta>
@@ -245,7 +239,7 @@
                     <EstadoVacio Titulo="@Textos["VacioTecnicosTitulo"]" Descripcion="@Textos["VacioTecnicosDescripcion"]">
                         <Accion>
                             <SoloConEscritura>
-                                <Boton Variante="VarianteBoton.Primario" OnClick="AbrirAsignarAsync">@Textos["BotonAsignarTecnico"]</Boton>
+                                <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirAsignarAsync">@Textos["BotonAsignarTecnico"]</Boton>
                             </SoloConEscritura>
                         </Accion>
                     </EstadoVacio>

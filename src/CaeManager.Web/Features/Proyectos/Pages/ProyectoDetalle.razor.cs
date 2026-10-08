@@ -502,6 +502,16 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     private bool HayCambiosEnAsignar =>
         _asignarVisible && _instantaneaTecnico.Difiere(_nuevoTecnicoTrabajadorId, _nuevoTecnicoFechaAlta);
 
+    /// <summary>La acción primaria de la cabecera: asignar con el proyecto abierto, reabrir con él cerrado.</summary>
+    private Task AccionPrincipalAsync()
+    {
+        if (_detalle is { EstaAbierto: true })
+            return AbrirAsignarAsync();
+
+        _confirmarReabrirVisible = true;
+        return Task.CompletedTask;
+    }
+
     private async Task AbrirAsignarAsync()
     {
         _nuevoTecnicoTrabajadorId = string.Empty;

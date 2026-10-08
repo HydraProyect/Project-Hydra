@@ -459,6 +459,7 @@ src/CaeManager.Web/Features/Integraciones/Endpoints/ConectarMicrosoft365Endpoint
 src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor.cs :: clienteId = 2
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor :: _clienteId = 2
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor.cs :: _clienteId = 3
+src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor :: ClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: clienteId = 7
 src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor :: _clienteId = 1
