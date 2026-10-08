@@ -46,26 +46,12 @@
     {
         var cumplimiento = estado.Cumplimiento;
 
-        <CabeceraIdentidad Kicker="@Textos["Kicker"]" Titulo="@estado.Nombre">
+        <CabeceraIdentidad Kicker="@Textos["Kicker"]" Titulo="@estado.Nombre" Meta="@DatosDeCabecera(estado)">
             <Anillo>
                 <AnilloCumplimiento Porcentaje="cumplimiento.Porcentaje" Tamano="TamanoAnillo.Cabecera"
-                                    Leyenda="@Textos["AnilloFraccion", cumplimiento.AlDia, cumplimiento.Requeridos]"
+                                    Leyenda="@(Textos["AnilloFraccion", cumplimiento.AlDia, cumplimiento.Requeridos])"
                                     Etiqueta="@(cumplimiento.Requeridos > 0 ? Textos["AnilloEtiqueta", cumplimiento.AlDia, cumplimiento.Requeridos] : Textos["AnilloSinDato"])" />
             </Anillo>
-            <Meta>
-                <span>@Textos["MetaVigencia"] <b>@TextoVigencia(estado.VigenciaMeses)</b></span>
-                <span aria-hidden="true">·</span>
-                <Badge Tono="TonoExigencia(estado)">@TextoExigencia(estado)</Badge>
-                @if (cumplimiento.Requeridos > 0)
-                {
-                    <span aria-hidden="true">·</span>
-                    <span>
-                        @Textos["MetaExigidoEn"] <b>@estado.Centros</b> @Textos[estado.Centros == 1 ? "MetaCentrosUno" : "MetaCentrosVarios"]
-                        @Textos["MetaA"] <b>@estado.Trabajadores</b> @Textos[estado.Trabajadores == 1 ? "MetaTrabajadoresUno" : "MetaTrabajadoresVarios"]
-                    </span>
-                    <span class="tipo360-regla">@Textos["ReglaRecuento", cumplimiento.AlDia, cumplimiento.Requeridos]</span>
-                }
-            </Meta>
             <Acciones>
                 @* Los dos ítems del menú son de escritura: sin escritura no hay menú. *@
                 <SoloConEscritura>
@@ -167,7 +153,7 @@
                                         </Detalle>
                                         <Cifra>
                                             <b>@Textos["CifraFraccion", fila.CentrosAlDia, fila.Centros.Count]</b>
-                                            @Textos[fila.Centros.Count == 1 ? "CifraCentrosUno" : "CifraCentrosVarios"]
+                                            @(Textos[fila.Centros.Count == 1 ? "CifraCentrosUno" : "CifraCentrosVarios"])
                                         </Cifra>
                                         <Estado>
                                             <Badge Tono="TonoEstado(fila.PeorEstado)">@TextoEstado(fila.PeorEstado)</Badge>
@@ -226,6 +212,25 @@
 </LimiteDeErrores>
 
 @code {
+    // Línea de datos de la cabecera: vigencia, pastilla de exigencia, a cuántos Centros y Trabajadores alcanza y la
+    // frase que hace evidente la regla de recuento. Va como fragmento y no como elemento hijo porque el parámetro se
+    // llama Meta y Razor lee <Meta> como el elemento vacío <meta> de HTML.
+    private RenderFragment DatosDeCabecera(EstadoTipoDocumentoDto estado) => @<text>
+        @{ var cumplimiento = estado.Cumplimiento; }
+        <span>@(Textos["MetaVigencia"]) <b>@TextoVigencia(estado.VigenciaMeses)</b></span>
+        <span aria-hidden="true">·</span>
+        <Badge Tono="TonoExigencia(estado)">@TextoExigencia(estado)</Badge>
+        @if (cumplimiento.Requeridos > 0)
+        {
+            <span aria-hidden="true">·</span>
+            <span>
+                @(Textos["MetaExigidoEn"]) <b>@estado.Centros</b> @(Textos[estado.Centros == 1 ? "MetaCentrosUno" : "MetaCentrosVarios"])
+                @(Textos["MetaA"]) <b>@estado.Trabajadores</b> @(Textos[estado.Trabajadores == 1 ? "MetaTrabajadoresUno" : "MetaTrabajadoresVarios"])
+            </span>
+            <span class="tipo360-regla">@(Textos["ReglaRecuento", cumplimiento.AlDia, cumplimiento.Requeridos])</span>
+        }
+    </text>;
+
     // El estado en cada Centro que se lo exige, del peor al mejor: una línea por Centro con su frase, su pastilla y
     // su acción. Solo se despliega en las filas con más de un Centro; con uno solo, la frase va en la propia fila.
     private RenderFragment EstadoPorCentro(FilaTrabajadorTipoDocumentoDto fila) => @<text>

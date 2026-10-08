@@ -303,11 +303,13 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
     /// <summary>Rótulo de la acción de corrección según el estado; <c>null</c> si no hay nada que corregir.</summary>
     private string? TextoAccion(EstadoDocumento estado) => estado switch
     {
-        EstadoDocumento.Vencido or EstadoDocumento.EnTolerancia or EstadoDocumento.Urgente => Textos["AccionRenovar"],
-        EstadoDocumento.Faltante => Textos["AccionSubir"],
-        EstadoDocumento.SinConfirmar => Textos["AccionConfirmar"],
+        EstadoDocumento.Vencido or EstadoDocumento.EnTolerancia or EstadoDocumento.Urgente => Texto("AccionRenovar"),
+        EstadoDocumento.Faltante => Texto("AccionSubir"),
+        EstadoDocumento.SinConfirmar => Texto("AccionConfirmar"),
         _ => null
     };
+
+    private string Texto(string clave, params object[] argumentos) => Textos[clave, argumentos].Value;
 
     private static string Fecha(DateOnly fecha) => fecha.ToString("dd/MM/yyyy");
 
@@ -317,19 +319,19 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         var vence = fila.FechaVencimiento;
         return centro.Estado switch
         {
-            EstadoDocumento.Faltante => Textos["CentroNoHayDocumento"],
-            EstadoDocumento.SinConfirmar => Textos["CentroSinFecha"],
-            EstadoDocumento.SinCaducidad => Textos["CentroNoCaduca"],
+            EstadoDocumento.Faltante => Texto("CentroNoHayDocumento"),
+            EstadoDocumento.SinConfirmar => Texto("CentroSinFecha"),
+            EstadoDocumento.SinCaducidad => Texto("CentroNoCaduca"),
             EstadoDocumento.EnTolerancia when vence is { } v && centro.EnToleranciaHasta is { } hasta =>
-                Textos["CentroEnTolerancia", Fecha(v), hasta.ToString("dd/MM")],
-            EstadoDocumento.Vencido or EstadoDocumento.EnTolerancia when vence is { } v => Textos["CentroVencio", Fecha(v)],
+                Texto("CentroEnTolerancia", Fecha(v), hasta.ToString("dd/MM")),
+            EstadoDocumento.Vencido or EstadoDocumento.EnTolerancia when vence is { } v => Texto("CentroVencio", Fecha(v)),
             EstadoDocumento.Urgente or EstadoDocumento.Proximo when vence is { } v => (v.DayNumber - DiaDeNegocio.Hoy().DayNumber) switch
             {
-                <= 0 => Textos["CentroCaducaHoy"],
-                1 => Textos["CentroCaducaManana"],
-                var dias => Textos["CentroCaducaEnDias", dias]
+                <= 0 => Texto("CentroCaducaHoy"),
+                1 => Texto("CentroCaducaManana"),
+                var dias => Texto("CentroCaducaEnDias", dias)
             },
-            _ when vence is { } v => Textos["CentroVigenteHasta", Fecha(v)],
+            _ when vence is { } v => Texto("CentroVigenteHasta", Fecha(v)),
             _ => TextoEstado(centro.Estado)
         };
     }
