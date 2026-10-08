@@ -65,3 +65,20 @@
     display: flex;
     justify-content: flex-end;
 }
+
+/* El identificador es su propio botón de copia: se lee como dato de la línea, no como un botón aparte. */
+.tipo360-linea ::deep .boton-copiar {
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    cursor: copy;
+}
+
+.tipo360-linea ::deep .boton-copiar:hover:not(:disabled) {
+    background: none;
+    color: var(--color-primary-500);
+}

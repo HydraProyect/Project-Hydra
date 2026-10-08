@@ -68,9 +68,13 @@
         @if (BandaDeCabecera(estado) is { } banda)
         {
             <BandaAccion Tono="banda.Tono" TextoEnlace="@banda.TextoEnlace" OnEnlace="() => VerDesdeLaBandaAsync(banda.Grupos)">
-                @foreach (var parte in banda.Partes)
+                @foreach (var (parte, posicion) in banda.Partes.Select((parte, posicion) => (parte, posicion)))
                 {
                     <span class="tipo360-banda-parte">
+                        @if (posicion > 0)
+                        {
+                            <span aria-hidden="true">·</span>
+                        }
                         <span>@parte.Recuento</span>
                         @foreach (var incidencia in parte.Nombradas)
                         {
@@ -123,8 +127,8 @@
                                             <span class="tipo360-linea">
                                                 @if (!string.IsNullOrWhiteSpace(fila.Dni))
                                                 {
-                                                    <span>@Textos["FilaDni"] <b>@fila.Dni</b></span>
-                                                    <BotonCopiar Valor="@fila.Dni" Etiqueta="@Textos["CopiarElDni"]" />
+                                                    <span>@Textos["FilaDni"]</span>
+                                                    <BotonCopiar Valor="@fila.Dni" Texto="@fila.Dni" Etiqueta="@Textos["CopiarElDni"]" />
                                                 }
                                                 @if (!string.IsNullOrWhiteSpace(fila.EmpresaNombre))
                                                 {
