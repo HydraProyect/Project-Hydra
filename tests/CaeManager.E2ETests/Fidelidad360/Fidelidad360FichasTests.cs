@@ -22,6 +22,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     private const string TenantPizzaPlanet = "Pizza Planet S.L.";
     private const string EmpresaDeLaMaqueta = "Montajes Skynet S.L.";
     private const string ClienteEmpresarialDeLaMaqueta = "Cyberdyne Ibérica S.A.";
+    private const string SubcontrataDeLaMaqueta = "Transportes Terminator S.L.";
 
     /// <summary>Pareja ficha ↔ mockup. La ruta se resuelve por la razón social sembrada.</summary>
     private sealed record Pareja(string Clave, string Ruta, string RazonSocial, Mockup360 Mockup);
@@ -30,6 +31,9 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     [
         new("empresa-360", "/empresas/", EmpresaDeLaMaqueta, Mockup360.PaginaDc("Empresa 360 página TALVEG.dc.html")),
         new("cliente-empresarial-360", "/clientes/", ClienteEmpresarialDeLaMaqueta, Mockup360.PaginaDc("Cliente 360 página TALVEG.dc.html")),
+        new("subcontrata-360", "/subcontratas/", SubcontrataDeLaMaqueta, Mockup360.PorConvencion(
+            "Subcontrata 360 página TALVEG.dc.html", "[data-pieza=\"cabecera-identidad\"]",
+            tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : null)),
     ];
 
     public static TheoryData<string, string> ParejasPorTema()
