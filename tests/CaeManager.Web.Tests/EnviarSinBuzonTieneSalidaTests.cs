@@ -194,4 +194,22 @@ public class EnviarSinBuzonTieneSalidaTests : BunitContext
     [InlineData("Asunto", "Cuerpo", "Asunto\n\nCuerpo")]
     public void El_texto_que_se_copia_es_el_asunto_y_debajo_el_cuerpo(string? asunto, string? cuerpo, string? esperado) =>
         AvisoSinBuzonCorreo.TextoDeCorreo(asunto, cuerpo).Should().Be(esperado);
+
+    /// <summary>El borrador de «Pedir prioridad», con la forma que le da su consulta: párrafos, negrita y una lista por empleador.</summary>
+    [Fact]
+    public void El_borrador_en_html_se_copia_como_texto_legible_con_sus_parrafos_y_su_lista()
+    {
+        const string html = "<p>Buenos días,</p><p>Pendiente en <strong>Centro Norte</strong>:</p>"
+            + "<p><strong>Contratista Demo SL</strong></p><ul><li>Ana García: TC2, Formación &amp; aptitud</li><li>Luis Pérez: DNI</li></ul>"
+            + "<p>Un saludo.</p>";
+
+        AvisoSinBuzonCorreo.HtmlATexto(html).Should().Be(
+            "Buenos días,\n\nPendiente en Centro Norte:\n\nContratista Demo SL\n\n- Ana García: TC2, Formación & aptitud\n- Luis Pérez: DNI\n\nUn saludo.");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void Sin_borrador_no_hay_nada_que_convertir(string? html) =>
+        AvisoSinBuzonCorreo.HtmlATexto(html).Should().Be(html);
 }

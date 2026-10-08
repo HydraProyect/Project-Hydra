@@ -627,7 +627,7 @@ else
             {
                 @if (!_borradorPrioridad.HayConexionDisponible)
                 {
-                    <AvisoSinBuzonCorreo TextoParaCopiar="@AvisoSinBuzonCorreo.TextoDeCorreo(_asuntoPrioridad, _cuerpoPrioridad)" Destinatarios="@_destinatarioPrioridad" />
+                    <AvisoSinBuzonCorreo TextoParaCopiar="@AvisoSinBuzonCorreo.TextoDeCorreo(_asuntoPrioridad, AvisoSinBuzonCorreo.HtmlATexto(_cuerpoPrioridad))" Destinatarios="@_destinatarioPrioridad" />
                 }
                 @if (_borradorPrioridad.UltimaSolicitudEnviadaEnUtc is { } ultima)
                 {

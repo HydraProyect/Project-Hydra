@@ -895,7 +895,8 @@ public class ComunicacionesGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel .aviso-sin-buzon").Should().ContainSingle());
         cut.Find(".drawer-panel .aviso-sin-buzon-pedir").TextContent.Should().Contain("rol Administrador de esta organización");
-        cut.FindComponent<AvisoSinBuzonCorreo>().FindComponent<BotonCopiar>().Instance.Valor.Should().StartWith("Prioridad Centro Norte\n\n");
+        // El borrador es HTML y «Copiar» escribe texto plano: lo que se pega en el correo propio no lleva etiquetas.
+        cut.FindComponent<AvisoSinBuzonCorreo>().FindComponent<BotonCopiar>().Instance.Valor.Should().Be("Prioridad Centro Norte\n\nRogamos prioridad.");
     }
 
     [Fact]
