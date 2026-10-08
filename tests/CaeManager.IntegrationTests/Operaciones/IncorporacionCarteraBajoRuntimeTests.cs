@@ -524,7 +524,8 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
             new NotificacionUsuarioRepository(contexto), contexto, contexto,
             NullLogger<RevocarIncorporacionCarteraCommandHandler>.Instance,
             new CaeManager.Infrastructure.Persistence.TransaccionDeComando(contexto),
-            new SinDirectorioDeDestinos());
+            new SinDirectorioDeDestinos(),
+            new CaeManager.Infrastructure.Persistence.BloqueoCarteraUsuario(contexto));
 
     /// <summary>Estos tests no relevan al principal: nadie tiene Coordinador CAE.</summary>
     private sealed class SinDirectorioDeDestinos : CaeManager.Application.Clientes.IDirectorioDestinosCartera

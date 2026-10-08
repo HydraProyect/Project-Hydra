@@ -322,7 +322,9 @@ public class GestionCuentasCommandsTests
     private static readonly Guid Coordinador = Guid.NewGuid();
     private static readonly Guid Apoyo = Guid.NewGuid();
 
-    private static (CambiarActivacionUsuarioCommandHandler Handler, CatalogoIncorporacionCarteraFalso Catalogo, CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa Transaccion)
+    private readonly CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso _bloqueoDelRelevo = new();
+
+    private (CambiarActivacionUsuarioCommandHandler Handler, CatalogoIncorporacionCarteraFalso Catalogo, CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa Transaccion)
         DesactivacionDelPrincipal(Guid? coordinador, bool coordinadorActivo = true)
     {
         var catalogo = new CatalogoIncorporacionCarteraFalso();
@@ -334,7 +336,7 @@ public class GestionCuentasCommandsTests
         var transaccion = new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa();
         var handler = new CambiarActivacionUsuarioCommandHandler(
             new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") }, ActorCon("Administrador"), transaccion,
-            new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), catalogo,
+            _bloqueoDelRelevo, catalogo,
             new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", coordinador, EsOperadorDelegado: false)), roles);
         return (handler, catalogo, transaccion);
     }
@@ -357,6 +359,8 @@ public class GestionCuentasCommandsTests
         catalogo.CambiosDeMarca.Select(c => (c.Paso, c.TenantActivo)).Should().Equal(
             ("apagar", Propietario), ("guardar", Propietario), ("relevar", Propietario), ("guardar", Propietario));
         transaccion.Confirmadas.Should().Be(1);
+        _bloqueoDelRelevo.Exclusivos.Should().Equal(Cuenta);
+        _bloqueoDelRelevo.Compartidos.Should().Equal([Coordinador], "quien recibe la marca no puede estar desactivándose a la vez");
     }
 
     [Theory]

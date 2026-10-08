@@ -327,6 +327,9 @@ public class DesignarGestorCaePrincipalCommandTests
         e.Catalogo.CambiosDeMarca.Select(c => (c.Paso, c.TenantActivo)).Should().Equal(
             ("guardar", Propietario), ("relevar", Propietario), ("guardar", Propietario));
         e.Transaccion.Confirmadas.Should().Be(1);
+        e.Bloqueo.Exclusivos.Should().Equal(GestorA);
+        e.Bloqueo.Compartidos.Should().Equal([Coordinador1],
+            "el relevo toma el candado compartido de quien va a recibir la marca antes de validar su cuenta");
     }
 
     [Fact]

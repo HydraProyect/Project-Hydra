@@ -45,7 +45,8 @@ public class RevocarIncorporacionCarteraCommandHandler(
     IUnitOfWork unitOfWork,
     ILogger<RevocarIncorporacionCarteraCommandHandler> logger,
     ITransaccionDeComando transaccion,
-    IDirectorioDestinosCartera directorioDestinos)
+    IDirectorioDestinosCartera directorioDestinos,
+    IBloqueoCarteraUsuario bloqueoCartera)
     : IRequestHandler<RevocarIncorporacionCarteraCommand, Result>
 {
     public async Task<Result> Handle(RevocarIncorporacionCarteraCommand request, CancellationToken cancellationToken)
@@ -82,7 +83,7 @@ public class RevocarIncorporacionCarteraCommandHandler(
                 var coordinadorDeRelevo = sinPrincipal.Count == 0
                     ? null
                     : await RelevoDePrincipalDeCartera.ResolverCoordinadorAsync(
-                        solicitud.SolicitanteUsuarioId, ctx.OperadorTenantId, directorioDestinos, directorioUsuarios, ct);
+                        solicitud.SolicitanteUsuarioId, ctx.OperadorTenantId, directorioDestinos, directorioUsuarios, bloqueoCartera, ct);
 
                 // Mismo motivo que al aceptar: la cartera se cierra en el Tenant
                 // propietario, y el Guid sale de la solicitud ya cargada y

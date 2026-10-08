@@ -101,7 +101,7 @@ public class CambiarActivacionUsuarioCommandHandler(
             return Result.Exito();
 
         var coordinadorDeRelevo = await RelevoDePrincipalDeCartera.ResolverCoordinadorAsync(
-            usuarioId, operadorTenantId, directorioDestinos, directorioUsuarios, cancellationToken);
+            usuarioId, operadorTenantId, directorioDestinos, directorioUsuarios, bloqueoCartera, cancellationToken);
 
         return await RelevoDePrincipalDeCartera.ApagarYRelevarAsync(
                 catalogo, principales, operadorTenantId, usuarioId, coordinadorDeRelevo, cancellationToken)

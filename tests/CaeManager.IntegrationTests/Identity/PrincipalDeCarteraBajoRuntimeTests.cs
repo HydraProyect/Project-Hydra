@@ -266,6 +266,28 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     // ── Dos conexiones ────────────────────────────────────────────────────
 
     [Fact]
+    public async Task El_relevo_espera_a_la_desactivacion_en_curso_del_Coordinador_CAE_y_no_le_pasa_la_marca()
+    {
+        // Revisión Codex de I2. Otro circuito está desactivando al Coordinador CAE: tiene el candado
+        // exclusivo de cartera de esa cuenta y aún no ha confirmado.
+        await using var otro = ContextoPropietario(_operador.Id);
+        await using var desactivacion = await otro.Database.BeginTransactionAsync();
+        await new BloqueoCarteraUsuario(otro).BloquearExclusivoAsync(_coordinador);
+
+        var retirar = Retirar(_gestorA, _beneficiario);
+        (await Task.WhenAny(retirar, Task.Delay(TimeSpan.FromSeconds(3)))).Should().NotBeSameAs(retirar,
+            "el relevo no decide sobre una cuenta que se está desactivando: espera a que termine");
+
+        await otro.Users.Where(u => u.Id == _coordinador)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.LockoutEnd, DateTimeOffset.UtcNow.AddYears(100)));
+        await desactivacion.CommitAsync();
+
+        (await retirar).EsExitoso.Should().BeTrue();
+        (await PrincipalesAsync(_operacion)).Should().BeEmpty("la marca no va a una cuenta desactivada: la operación queda sin principal");
+        (await CarterasAsync(_operacion)).Select(c => c.UsuarioId).Should().NotContain(_coordinador);
+    }
+
+    [Fact]
     public async Task Una_designacion_que_decidio_antes_de_un_relevo_falla_y_queda_el_principal_del_relevo()
     {
         var enPausa = new Pausa("antes:apagar");

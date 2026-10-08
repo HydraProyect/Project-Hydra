@@ -24,12 +24,22 @@ public static class RelevoDePrincipalDeCartera
     /// El Coordinador CAE al que reporta <paramref name="usuarioId"/>, si hoy es una cuenta
     /// activa con ese rol en <paramref name="operadorTenantId"/>; <c>null</c> si no hay a quién
     /// relevar. El rol se lee en Identity sobre el Tenant del Operador CAE, no en el claim.
+    ///
+    /// <para>
+    /// Antes de leer su cuenta toma el candado compartido de cartera sobre él
+    /// (<see cref="IBloqueoCarteraUsuario"/>): desactivar una cuenta toma el exclusivo, así que
+    /// una desactivación del Coordinador CAE en curso termina antes de que aquí se decida, y
+    /// una que llegue después espera a que el relevo confirme y encuentra ya su marca para
+    /// cederla. Sin él, las dos transacciones confirmarían y la marca quedaría en una cuenta
+    /// desactivada (revisión Codex de I2). Se llama dentro de la transacción del comando.
+    /// </para>
     /// </summary>
     public static async Task<Guid?> ResolverCoordinadorAsync(
         Guid usuarioId,
         Guid operadorTenantId,
         IDirectorioDestinosCartera directorioDestinos,
         IDirectorioUsuariosService directorioUsuarios,
+        IBloqueoCarteraUsuario bloqueoCartera,
         CancellationToken cancellationToken)
     {
         using (AmbitoTenantExplicito.Establecer(operadorTenantId))
@@ -38,6 +48,8 @@ public static class RelevoDePrincipalDeCartera
             if (cuenta is null || cuenta.EsOperadorDelegado
                 || cuenta.CoordinadorUsuarioId is not { } coordinadorId || coordinadorId == usuarioId)
                 return null;
+
+            await bloqueoCartera.BloquearCompartidoAsync([coordinadorId], cancellationToken);
 
             return await directorioUsuarios.EsCuentaActivaConRolAsync(
                 coordinadorId, operadorTenantId, CoordinadorCae, cancellationToken)

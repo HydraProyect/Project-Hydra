@@ -31,6 +31,7 @@ public class IncorporacionCarteraCommandsTests
     private readonly TenantsQueryContextFalso _tenants = new();
     private readonly UnitOfWorkConAmbito _unitOfWork = new();
     private readonly DirectorioRolesEnOrigen _directorio = new();
+    private readonly CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso _bloqueo = new();
 
     public IncorporacionCarteraCommandsTests()
     {
@@ -71,7 +72,8 @@ public class IncorporacionCarteraCommandsTests
         new(usuario, _directorio, _catalogo, _repositorio, _notificaciones, _tenants, _unitOfWork,
             NullLogger<RevocarIncorporacionCarteraCommandHandler>.Instance,
             new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(),
-            new CaeManager.Application.Tests.Clientes.DirectorioDestinosCarteraFalso(cuentaDelGestor));
+            new CaeManager.Application.Tests.Clientes.DirectorioDestinosCarteraFalso(cuentaDelGestor),
+            _bloqueo);
 
     private SolicitudIncorporacionCartera Pendiente(Guid? solicitante = null)
     {
@@ -503,6 +505,8 @@ public class IncorporacionCarteraCommandsTests
         principal.Should().Be(tieneCoordinador ? _coordinador : null);
         _catalogo.CarterasVivas.Select(c => c.Cartera.UsuarioId).Should().BeEquivalentTo(
             tieneCoordinador ? new[] { apoyo, _coordinador } : [apoyo], "la cartera de apoyo no se toca");
+        _bloqueo.Compartidos.Should().Equal(tieneCoordinador ? [_coordinador] : Array.Empty<Guid>(),
+            "el relevo espera a una desactivación en curso de quien va a recibir la marca");
         if (tieneCoordinador)
             _catalogo.CambiosDeMarca.Where(c => c.Paso == "relevar").Should().ContainSingle()
                 .Which.TenantActivo.Should().Be(_empresa.Id);

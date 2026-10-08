@@ -160,7 +160,7 @@ public class AsignarCarteraGestorCaeCommandHandler(
                 var coordinadorDeRelevo = sinPrincipal.Count == 0
                     ? null
                     : await RelevoDePrincipalDeCartera.ResolverCoordinadorAsync(
-                        ctx.GestorUsuarioId, ctx.OperadorTenantId, directorioDestinos, directorioUsuarios, ct);
+                        ctx.GestorUsuarioId, ctx.OperadorTenantId, directorioDestinos, directorioUsuarios, bloqueoCartera, ct);
 
                 foreach (var propietarioTenantId in aRetirar)
                 {
