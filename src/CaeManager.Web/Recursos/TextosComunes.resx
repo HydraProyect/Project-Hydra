@@ -213,6 +213,15 @@
   <data name="CabeceraCambiarAvatar" xml:space="preserve">
     <value>Cambiar mi avatar</value>
   </data>
+  <data name="CabeceraMiCuenta" xml:space="preserve">
+    <value>Mi cuenta</value>
+  </data>
+  <data name="CabeceraVerificacionDosPasos" xml:space="preserve">
+    <value>Verificación en dos pasos</value>
+  </data>
+  <data name="CabeceraCambiarContrasena" xml:space="preserve">
+    <value>Cambiar contraseña</value>
+  </data>
   <data name="CabeceraCerrarSesion" xml:space="preserve">
     <value>Cerrar sesión</value>
   </data>
