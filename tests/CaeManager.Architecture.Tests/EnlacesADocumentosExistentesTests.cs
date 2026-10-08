@@ -67,6 +67,7 @@ public class EnlacesADocumentosExistentesTests
         [".github/workflows/ci.yml|coveragereport-web/SummaryGithub.md"] = (1, "fichero generado en CI (informe de cobertura), no es un enlace"),
         [".github/workflows/ci.yml|coveragereport/SummaryGithub.md"] = (2, "fichero generado en CI (informe de cobertura), no es un enlace"),
         [".github/workflows/ci.yml|informe-cobertura-por-capas.md"] = (3, "fichero generado en CI (informe de cobertura), no es un enlace"),
+        ["tests/CaeManager.E2ETests/Fidelidad360/Fidelidad360FichasTests.cs|informe.md"] = (1, "fichero que escribe el comparador de fidelidad 360 en su directorio de salida, no es un enlace"),
         ["scripts/control-estado-ramas.sh|261o.md"] = (1, "fichero de prueba con acento que crea el propio guion, no es un enlace"),
         ["scripts/control-estado-ramas.sh|año.md"] = (6, "fichero de prueba con acento que crea el propio guion, no es un enlace"),
         ["scripts/detectar-referencias-docs.sh|doc1.md"] = (2, "marcador de uso del guion, no es un enlace"),

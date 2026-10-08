@@ -318,6 +318,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.BootstrapOSiembra, "4 llamadas — Ids del tenant de plataforma y de tenants de demo, todos resueltos por el propio seeder"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "4 llamadas — Ids del tenant del Operador CAE de la demo y de cada tenant propietario, todos aprovisionados o localizados por el propio seeder por nombre"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs"] =
+            new(Categoria.BootstrapOSiembra, "3 llamadas — dos sobre el Tenant propietario Pizza Planet de la demo, localizado por nombre (antes y después de resolver a la Gestora CAE), y una sobre el Tenant del Operador CAE externo que tiene cartera vigente en él, leído de esa Asignación de Cartera, para leer su cuenta bajo la RLS de AspNetUsers; inerte salvo DatosPrueba:Fichas360 y rechazada en Producción"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] =
             new(Categoria.BootstrapOSiembra, "2 llamadas — marcador de datos de demo sobre el Tenant que la propia siembra acaba de crear, localizado por nombre, y el Tenant propietario de cada rama al sembrar su historial de Comunicaciones y su ciclo documental (su Id lo devuelve la propia siembra); solo se alcanza desde el modo de CLI (ver SiembraDemoDireccionSoloDesdeElModoCliTests)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] =
@@ -457,6 +459,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 4,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
