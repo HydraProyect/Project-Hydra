@@ -56,6 +56,10 @@ public class BarraLateralLupaSinFranjaTests
         activas.Should().NotBeEmpty("control positivo: el instrumento encuentra las reglas de la selección");
         activas.Should().Contain(r => r.Cuerpo.Contains("font-weight: 600"), "peso, color y fondo la distinguen");
 
+        activas.Where(r => r.Selector.EndsWith(".nav-item.active:hover")).Should().ContainSingle()
+            .Which.Cuerpo.Should().Contain("border-color: transparent",
+                "el hover genérico de .nav-item pinta un marco gris que el seleccionado no debe heredar");
+
         foreach (var (selector, cuerpo) in activas)
         {
             cuerpo.Should().NotContainAny(["border-left", "border-inline-start", "inset", "box-shadow", "outline"],
@@ -84,6 +88,9 @@ public class BarraLateralLupaSinFranjaTests
         var posAnim = css.IndexOf("animation: nav-icono-sacude", StringComparison.Ordinal);
         var posMedia = css.LastIndexOf("@media (prefers-reduced-motion: no-preference)", posAnim, StringComparison.Ordinal);
         posMedia.Should().BeGreaterThan(-1);
+        var tramo = css[posMedia..posAnim];
+        (tramo.Count(c => c == '{') - tramo.Count(c => c == '}')).Should().BeGreaterThan(0,
+            "la animación debe estar DENTRO del @media, no tras cerrarlo");
     }
 
     [Fact]

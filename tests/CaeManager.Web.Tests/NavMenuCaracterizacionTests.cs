@@ -322,6 +322,18 @@ public class NavMenuCaracterizacionTests
             enlacesVisibles.Should().Contain(CatalogoMenuLateral.Subopciones.Single(s => s.Id == id).EnlaceId);
     }
 
+    /// <summary>Macros.razor.cs expulsa a /not-found sin Comunicaciones:Activo: la lupa no puede ofrecerla.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public void La_subopcion_Macros_sigue_a_Comunicaciones_activo(bool comunicaciones, bool esperada)
+    {
+        var cut = Pintar(new Combinacion(Roles.Administrador, null, comunicaciones, false, PerfilVocabularioTenant.Consultora, 1), null);
+
+        cut.FindAll("[data-subopcion='config-macros']").Any().Should().Be(esperada);
+        cut.FindAll("[data-subopcion='config-usuarios']").Should().HaveCount(1, "control positivo: el resto de Configuración sigue");
+    }
+
     [Fact]
     public void Una_subopcion_navega_a_su_ruta_directa_con_el_rotulo_y_el_padre()
     {

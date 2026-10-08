@@ -202,7 +202,7 @@ function fijarBusqueda(abierta, enfocar) {
         lupa.setAttribute('aria-expanded', String(abierta));
         const campo = panel.querySelector('[data-menu-filtro]');
         if (!abierta && campo) campo.value = '';
-        if (abierta && enfocar && campo && nav.offsetParent !== null) campo.focus();
+        if (abierta && enfocar && campo && nav.offsetParent !== null) campo.focus({ preventScroll: true });
         if (!abierta && enfocar && teniaFoco) lupa.focus();
     });
     menus().forEach(aplicarFiltro);
@@ -309,6 +309,8 @@ document.addEventListener('keydown', function (evento) {
         fijarBusqueda(false, true);
     } else if (evento.key === 'Enter') {
         const nav = campo.closest('.nav-principal');
+        // Sin nada escrito Enter no navega: el primer enlace sería «Inicio».
+        if (filtroActivo(nav) === '') return;
         (nav.querySelector('.nav-fila:not([hidden]) .nav-item')
             ?? nav.querySelector('[data-subopcion]:not([hidden])'))?.click();
     }

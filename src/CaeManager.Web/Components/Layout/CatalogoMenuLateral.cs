@@ -283,7 +283,9 @@ public static class CatalogoMenuLateral
         new("config-importar", "configuracion", "configuracion/importar", "EntradaImportarNombre", FuenteRotuloSubopcion.TextosConfiguracion),
         new("config-tipos", "configuracion", "configuracion/tipos", "EntradaTiposNombre", FuenteRotuloSubopcion.TextosConfiguracion),
         new("config-ia", "configuracion", "configuracion/ia", "EntradaIaNombre", FuenteRotuloSubopcion.TextosConfiguracion),
-        new("config-macros", "configuracion", "configuracion/macros", "EntradaMacrosNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-macros", "configuracion", "configuracion/macros", "EntradaMacrosNombre", FuenteRotuloSubopcion.TextosConfiguracion,
+            // Macros.razor.cs expulsa a /not-found sin Comunicaciones:Activo: mismo gate que el enlace «comunicaciones».
+            Condicion: c => c.ComunicacionesActivo),
         new("config-params", "configuracion", "configuracion/params", "EntradaParamsNombre", FuenteRotuloSubopcion.TextosConfiguracion),
         new("config-retencion", "configuracion", "configuracion/retencion", "EntradaRetencionNombre", FuenteRotuloSubopcion.TextosConfiguracion),
         new("config-auditoria", "configuracion", "configuracion/auditoria", "EntradaAuditoriaNombre", FuenteRotuloSubopcion.TextosConfiguracion),

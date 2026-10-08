@@ -192,6 +192,7 @@
 .nav-principal ::deep .nav-item.active {
     /* La selección se distingue por fondo, color y peso: sin franja ni marco (ni inset, ni border-left). */
     background-color: var(--color-primary-50);
+    border-color: transparent;
     color: var(--color-primary-500);
     font-weight: 600;
 }
@@ -202,6 +203,8 @@
 
 .nav-principal ::deep .nav-item.active:hover {
     background-color: var(--color-nav-activo-hover-fondo);
+    /* El hover genérico de .nav-item pinta un marco gris: el seleccionado no lleva marco. */
+    border-color: transparent;
 }
 
 /*
@@ -280,6 +283,9 @@
 .nav-busqueda-interior {
     min-height: 0;
     overflow: hidden;
+    /* Holgura para que el anillo de foco del campo no se recorte con overflow: hidden. */
+    padding: 0 var(--space-1) var(--space-1);
+    margin-inline: calc(-1 * var(--space-1));
 }
 
 /* Resultados dentro de las páginas (opciones de Configuración, pestañas de Documentos). */
