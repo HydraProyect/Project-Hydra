@@ -252,8 +252,26 @@
   <data name="MenuNavegacionPrincipal" xml:space="preserve">
     <value>Navegación principal</value>
   </data>
-  <data name="MenuFiltrar" xml:space="preserve">
-    <value>Filtrar el menú</value>
+  <data name="MenuBuscar" xml:space="preserve">
+    <value>Buscar en el menú</value>
+  </data>
+  <data name="MenuBuscarEnPaginas" xml:space="preserve">
+    <value>Opciones dentro de las páginas</value>
+  </data>
+  <data name="MenuSubDocumentosPlataformas" xml:space="preserve">
+    <value>Plataformas CAE</value>
+  </data>
+  <data name="MenuSubDocumentosReclamaciones" xml:space="preserve">
+    <value>Reclamaciones</value>
+  </data>
+  <data name="MenuSubDocumentosPreventivo" xml:space="preserve">
+    <value>Preventivo</value>
+  </data>
+  <data name="MenuSubDocumentosRevisionIa" xml:space="preserve">
+    <value>Revisión IA</value>
+  </data>
+  <data name="MenuSubDocumentosPlantillas" xml:space="preserve">
+    <value>Plantillas</value>
   </data>
   <data name="MenuCompactar" xml:space="preserve">
     <value>Compactar la barra lateral</value>

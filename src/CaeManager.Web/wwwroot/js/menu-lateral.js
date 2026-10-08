@@ -18,7 +18,11 @@
 //     pintan los que YA están en este menú (el que el rol y el contexto de la
 //     persona hayan dejado): un identificador ajeno se ignora, así que fijar
 //     nunca da acceso a nada.
-//  5. Filtro rápido con la tecla «/»; lo escrito no se guarda.
+//  5. Búsqueda: un icono de lupa en la cabecera despliega el campo (animado). Filtra los enlaces del
+//     menú y muestra las opciones de dentro de las páginas (Configuración, pestañas de Documentos) que
+//     el servidor ya dejó en el marcado según las reglas de visibilidad del catálogo: este script solo
+//     muestra u oculta lo que existe, nunca añade un destino. Elegir una navega directo. Esc cierra.
+//     Lo escrito y si está abierta no se guardan.
 //  6. Tooltip (tooltip.js) con el rótulo de cada enlace cuando está compacto o
 //     el rótulo largo se corta con puntos suspensivos.
 //
@@ -71,6 +75,10 @@ const menus = () => document.querySelectorAll('.nav-principal');
 // El modo compacto es de la barra lateral: el menú del cajón móvil (bajo 1024px) siempre va completo.
 const enBarraLateral = nav => nav.closest('.barra-lateral') !== null;
 const filtroActivo = nav => normalizar(nav.querySelector('[data-menu-filtro]')?.value);
+
+// La búsqueda abierta vive en memoria: una navegación "enhanced" repinta el HTML del servidor (cerrado)
+// y refrescarTodo la vuelve a abrir si seguía abierta.
+let busquedaAbierta = false;
 
 function fijarAbierto(detalle, abierto) {
     // Lo guardado es solo lo que el usuario decide al pulsar la cabecera (ver el listener de
@@ -138,6 +146,18 @@ function aplicarFiltro(nav) {
     nav.querySelectorAll('.nav-grupo-detalle').forEach(grupo => {
         grupo.hidden = q !== '' && grupo.querySelector('.nav-fila:not([hidden])') === null;
     });
+    // Opciones de dentro de las páginas: se muestran las que casan con lo escrito, bajo el campo.
+    const resultados = nav.querySelector('[data-menu-resultados]');
+    if (resultados) {
+        let alguno = false;
+        resultados.querySelectorAll('[data-subopcion]').forEach(enlace => {
+            const texto = normalizar(enlace.querySelector('.nav-resultado-texto')?.textContent);
+            const casa = q !== '' && texto.includes(q);
+            enlace.hidden = !casa;
+            alguno = alguno || casa;
+        });
+        resultados.hidden = !alguno;
+    }
     const contenedor = nav.querySelector('[data-menu-fijados]');
     if (contenedor) {
         const hayFilas = contenedor.querySelector('.nav-fila:not([hidden])') !== null;
@@ -168,8 +188,38 @@ function aplicarCompacto() {
         boton.setAttribute('aria-label', compacto ? boton.dataset.etiquetaAmpliar : boton.dataset.etiquetaCompactar));
 }
 
+// Despliega o recoge el campo de búsqueda de todos los menús; al recoger se vacía lo escrito.
+function fijarBusqueda(abierta, enfocar) {
+    busquedaAbierta = abierta;
+    menus().forEach(nav => {
+        const panel = nav.querySelector('[data-menu-busqueda]');
+        const lupa = nav.querySelector('[data-menu-lupa]');
+        if (!panel || !lupa) return;
+        const teniaFoco = panel.contains(document.activeElement);
+        // inert mientras está recogido: sin foco por teclado ni lectura aunque se vea la transición.
+        panel.toggleAttribute('inert', !abierta);
+        panel.toggleAttribute('data-abierta', abierta);
+        lupa.setAttribute('aria-expanded', String(abierta));
+        const campo = panel.querySelector('[data-menu-filtro]');
+        if (!abierta && campo) campo.value = '';
+        if (abierta && enfocar && campo && nav.offsetParent !== null) campo.focus();
+        if (!abierta && enfocar && teniaFoco) lupa.focus();
+    });
+    menus().forEach(aplicarFiltro);
+    aplicarGrupos();
+}
+
 function refrescarTodo() {
     aplicarCompacto();
+    menus().forEach(nav => {
+        const panel = nav.querySelector('[data-menu-busqueda]');
+        if (!panel) return;
+        // Compacto no tiene campo: no puede quedar una búsqueda invisible activa.
+        const abierta = busquedaAbierta && !(esCompacto() && enBarraLateral(nav));
+        panel.toggleAttribute('inert', !abierta);
+        panel.toggleAttribute('data-abierta', abierta);
+        nav.querySelector('[data-menu-lupa]')?.setAttribute('aria-expanded', String(abierta));
+    });
     pintarFijados();
     menus().forEach(aplicarFiltro);
     aplicarGrupos();
@@ -203,14 +253,32 @@ document.addEventListener('click', function (evento) {
     const compactar = evento.target.closest?.('[data-menu-compactar]');
     if (compactar) {
         guardar(CLAVE_COMPACTO, esCompacto() ? '0' : '1');
-        // El campo de filtro desaparece en modo compacto: no puede quedar un filtro invisible activo.
-        document.querySelectorAll('[data-menu-filtro]').forEach(campo => { campo.value = ''; });
-        menus().forEach(aplicarFiltro);
+        // El campo de búsqueda desaparece en modo compacto: no puede quedar un filtro invisible activo.
+        fijarBusqueda(false, false);
         aplicarCompacto();
         aplicarGrupos();
         actualizarTooltips();
         // El ancho se anima: el recorte de los rótulos solo se puede medir al terminar.
         setTimeout(actualizarTooltips, 350);
+        return;
+    }
+
+    // Elegir un enlace del menú con la búsqueda abierta la recoge: no se queda el texto sobre la página de destino.
+    if (busquedaAbierta && evento.target.closest?.('.nav-principal .nav-item')) {
+        setTimeout(() => fijarBusqueda(false, false), 0);
+        return;
+    }
+
+    const lupa = evento.target.closest?.('[data-menu-lupa]');
+    if (lupa) {
+        fijarBusqueda(!busquedaAbierta, true);
+        return;
+    }
+
+    // Elegir una opción de dentro de una página: la navegación la hace el propio enlace; aquí solo se
+    // recoge la búsqueda para que no se quede abierta con el texto escrito sobre la página de destino.
+    if (evento.target.closest?.('[data-subopcion]')) {
+        setTimeout(() => fijarBusqueda(false, false), 0);
         return;
     }
 
@@ -234,30 +302,15 @@ document.addEventListener('input', function (evento) {
 
 document.addEventListener('keydown', function (evento) {
     const campo = evento.target.matches?.('[data-menu-filtro]') ? evento.target : null;
-    if (campo) {
-        if (evento.key === 'Escape') {
-            // No cerrar además el cajón u otro panel que escuche Escape.
-            evento.stopPropagation();
-            campo.value = '';
-            campo.dispatchEvent(new Event('input', { bubbles: true }));
-            campo.blur();
-        } else if (evento.key === 'Enter') {
-            campo.closest('.nav-principal').querySelector('.nav-fila:not([hidden]) .nav-item')?.click();
-        }
-        return;
-    }
-
-    // «/» enfoca el filtro, salvo que ya se esté escribiendo en otro sitio.
-    if (evento.key !== '/' || evento.ctrlKey || evento.metaKey || evento.altKey) return;
-    const objetivo = evento.target;
-    if (objetivo.isContentEditable || objetivo.matches?.('input, textarea, select')) return;
-    // Con un diálogo modal abierto el filtro queda detrás del velo.
-    if (document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"], dialog:modal')) return;
-    const filtro = [...document.querySelectorAll('[data-menu-filtro]')].find(c => c.offsetParent !== null);
-    if (filtro) {
-        evento.preventDefault();
-        filtro.focus();
-        filtro.select();
+    if (!campo) return;
+    if (evento.key === 'Escape') {
+        // No cerrar además el cajón u otro panel que escuche Escape.
+        evento.stopPropagation();
+        fijarBusqueda(false, true);
+    } else if (evento.key === 'Enter') {
+        const nav = campo.closest('.nav-principal');
+        (nav.querySelector('.nav-fila:not([hidden]) .nav-item')
+            ?? nav.querySelector('[data-subopcion]:not([hidden])'))?.click();
     }
 });
 

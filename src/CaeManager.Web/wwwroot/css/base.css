@@ -121,13 +121,12 @@ button {
 }
 
 /* Barras de desplazamiento finas en los contenedores que desplazan: shell,
-   menú lateral, overlays, listas y contenedores de tabla. Los estándares
+   barra lateral (el menú de dentro lo estiliza NavMenu.razor.css), overlays, listas y contenedores de tabla. Los estándares
    (scrollbar-width/color) mandan en Chromium 121+ y Firefox; el bloque
    ::-webkit-scrollbar solo cubre a Safari y a Chromium anterior, y por eso va
    tras @supports not: con los dos a la vez Chromium ignora el segundo. */
 .contenido,
 .barra-lateral,
-.nav-principal,
 .modal-cuerpo,
 .drawer-cuerpo,
 .menu-acciones-panel,
@@ -143,7 +142,6 @@ button {
 @supports not (scrollbar-width: thin) {
   .contenido::-webkit-scrollbar,
   .barra-lateral::-webkit-scrollbar,
-  .nav-principal::-webkit-scrollbar,
   .modal-cuerpo::-webkit-scrollbar,
   .drawer-cuerpo::-webkit-scrollbar,
   .menu-acciones-panel::-webkit-scrollbar,
@@ -158,7 +156,6 @@ button {
 
   .contenido::-webkit-scrollbar-thumb,
   .barra-lateral::-webkit-scrollbar-thumb,
-  .nav-principal::-webkit-scrollbar-thumb,
   .modal-cuerpo::-webkit-scrollbar-thumb,
   .drawer-cuerpo::-webkit-scrollbar-thumb,
   .menu-acciones-panel::-webkit-scrollbar-thumb,

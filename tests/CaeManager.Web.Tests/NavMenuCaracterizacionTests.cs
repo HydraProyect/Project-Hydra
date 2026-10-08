@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
@@ -275,6 +276,97 @@ public class NavMenuCaracterizacionTests
             "no hay contadores: ninguna de sus fuentes existe como Query de recuento (ver NavMenu.razor)");
     }
 
+    /// <summary>
+    /// Barra lateral, ajuste del 2026-10-08: el filtro deja de ser un campo siempre visible con atajo «/»
+    /// y pasa a ser solo una lupa en la cabecera que despliega el campo. Sin <c>kbd</c>, y el campo
+    /// recogido va <c>inert</c> (ni foco por teclado ni lectura de pantalla).
+    /// </summary>
+    [Fact]
+    public void El_filtro_es_una_lupa_que_despliega_el_campo_sin_insignia_de_atajo()
+    {
+        var cut = Pintar(new Combinacion(Roles.Administrador, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
+
+        var lupa = cut.Find("button[data-menu-lupa]");
+        lupa.GetAttribute("aria-expanded").Should().Be("false");
+        lupa.GetAttribute("aria-label").Should().NotBeNullOrWhiteSpace();
+
+        var panel = cut.Find("[data-menu-busqueda]");
+        panel.HasAttribute("inert").Should().BeTrue("recogido, el campo no puede recibir foco");
+        cut.Find("input[data-menu-filtro]").Closest("[data-menu-busqueda]").Should().NotBeNull(
+            "el campo vive dentro del panel desplegable, no suelto en la cabecera");
+        cut.FindAll("kbd, .nav-filtro-tecla").Should().BeEmpty("el atajo «/» y su insignia se retiraron");
+    }
+
+    /// <summary>
+    /// La lupa encuentra opciones de dentro de las páginas, pero solo las que el rol ya ve: la lista sale
+    /// del catálogo filtrada con la visibilidad de su enlace padre y su propia condición.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador, true, true)]
+    [InlineData(Roles.DireccionCae, false, true)]
+    [InlineData(Roles.GestorCae, false, true)]
+    [InlineData(Roles.Consulta, false, false)]
+    public void La_lupa_solo_ofrece_subopciones_que_el_rol_ya_puede_ver(string rol, bool configuracion, bool gestionDocumental)
+    {
+        var cut = Pintar(new Combinacion(rol, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
+        var ids = cut.FindAll("[data-subopcion]").Select(a => a.GetAttribute("data-subopcion")!).ToList();
+
+        ids.Any(i => i.StartsWith("config-")).Should().Be(configuracion, "Configuración solo existe para el Administrador");
+        ids.Contains("documentos-plantillas").Should().Be(gestionDocumental);
+        ids.Contains("documentos-plataformas").Should().Be(gestionDocumental);
+        ids.Should().Contain("documentos-preventivo", "esa pestaña no tiene restricción propia: la ve todo el que ve Documentos");
+
+        // Cada subopción cuelga de un enlace del menú que ESTE rol ve en su barra.
+        var enlacesVisibles = cut.FindAll(".nav-fila").Select(f => f.GetAttribute("data-enlace")).ToHashSet();
+        foreach (var id in ids)
+            enlacesVisibles.Should().Contain(CatalogoMenuLateral.Subopciones.Single(s => s.Id == id).EnlaceId);
+    }
+
+    [Fact]
+    public void Una_subopcion_navega_a_su_ruta_directa_con_el_rotulo_y_el_padre()
+    {
+        var cut = Pintar(new Combinacion(Roles.Administrador, null, true, false, PerfilVocabularioTenant.Consultora, 1), null);
+
+        var plantillas = cut.Find("a[data-subopcion='documentos-plantillas']");
+        plantillas.GetAttribute("href").Should().Be("documentos?pestana=plantillas");
+        plantillas.QuerySelector(".nav-resultado-texto")!.TextContent.Trim().Should().Be("Plantillas");
+        plantillas.QuerySelector(".nav-resultado-padre")!.TextContent.Trim().Should().Be("Documentos");
+
+        var usuarios = cut.Find("a[data-subopcion='config-usuarios']");
+        usuarios.GetAttribute("href").Should().Be("configuracion/usuarios");
+        usuarios.QuerySelector(".nav-resultado-padre")!.TextContent.Trim().Should().Be("Configuración");
+        usuarios.QuerySelector(".nav-resultado-texto")!.TextContent.Trim().Should().NotBeEmpty();
+        usuarios.HasAttribute("hidden").Should().BeTrue("nacen ocultas: el JS muestra solo las que casan con lo escrito");
+    }
+
+    [Fact]
+    public void Las_subopciones_del_catalogo_tienen_padre_ids_unicos_y_rutas_relativas()
+    {
+        var subs = CatalogoMenuLateral.Subopciones;
+
+        subs.Select(s => s.Id).Should().OnlyHaveUniqueItems();
+        subs.Select(s => s.EnlaceId).Distinct().Should().OnlyContain(id => CatalogoMenuLateral.Enlaces.Any(e => e.Id == id));
+        subs.Should().OnlyContain(s => !s.Ruta.StartsWith('/') && s.Ruta.StartsWith(
+            CatalogoMenuLateral.Enlaces.Single(e => e.Id == s.EnlaceId).Ruta),
+            "la subopción vive bajo la ruta de su enlace padre: es otra vista de la misma página");
+        subs.Should().OnlyContain(s => s.ClaveRotulo.Length > 0);
+    }
+
+    /// <summary>
+    /// Las pestañas de gestión documental se pintan a todos pero su contenido es solo de estos roles; el
+    /// catálogo duplica la lista (la constante de la página es privada), así que se vigila que coincidan.
+    /// </summary>
+    [Fact]
+    public void Los_roles_de_gestion_documental_del_catalogo_son_los_de_la_pagina_de_Documentos()
+    {
+        const BindingFlags privado = BindingFlags.NonPublic | BindingFlags.Static;
+        var deLaPagina = typeof(CaeManager.Web.Features.Documentos.Pages.Documentos)
+            .GetField("RolesDeGestionDocumental", privado)!.GetRawConstantValue();
+        var delCatalogo = typeof(CatalogoMenuLateral).GetField("RolesDeGestionDocumental", privado)!.GetRawConstantValue();
+
+        delCatalogo.Should().NotBeNull().And.Be(deLaPagina);
+    }
+
     [Fact]
     public void La_ruta_activa_se_anuncia_con_aria_current_y_ninguna_otra()
     {
@@ -354,7 +446,9 @@ public class NavMenuCaracterizacionTests
                     sb.Append(Enlace(a, iconos)).Append("; ");
                 sb.Append("] ");
             }
-            else if (el.LocalName == "a" && el.Closest(".nav-grupo-detalle") is null && el.Closest("[data-menu-fijados]") is null)
+            else if (el.LocalName == "a" && el.Closest(".nav-grupo-detalle") is null && el.Closest("[data-menu-fijados]") is null
+                     // Los resultados de la lupa no son enlaces del menú: los cubren los tests de búsqueda.
+                     && el.Closest("[data-menu-resultados]") is null)
             {
                 if (!enSuelto) { sb.Append("suelto["); enSuelto = true; }
                 sb.Append(Enlace(el, iconos)).Append("; ");
