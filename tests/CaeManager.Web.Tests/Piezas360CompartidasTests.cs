@@ -38,14 +38,14 @@ public class Piezas360CompartidasTests : BunitContext
             .Add(x => x.Titulo, "Camión grúa")
             .Add(x => x.Kicker, "Vehículo")
             .Add(x => x.Anillo, Marca("anillo"))
-            .Add(x => x.Meta, Marca("meta"))
+            .Add(x => x.Datos, Marca("datos"))
             .Add(x => x.Acciones, Marca("acciones")));
 
         var cabecera = cut.Find("header[data-pieza='cabecera-identidad']");
         cabecera.QuerySelector(".cabecera-identidad-kicker")!.TextContent.Should().Be("Vehículo");
         cut.FindAll("h1").Should().ContainSingle().Which.TextContent.Should().Be("Camión grúa");
         cabecera.QuerySelector(".cabecera-identidad-anillo #anillo").Should().NotBeNull();
-        cabecera.QuerySelector(".cabecera-identidad-meta #meta").Should().NotBeNull();
+        cabecera.QuerySelector(".cabecera-identidad-datos #datos").Should().NotBeNull();
         cabecera.QuerySelector(".cabecera-identidad-acciones #acciones").Should().NotBeNull();
     }
 
@@ -54,7 +54,7 @@ public class Piezas360CompartidasTests : BunitContext
     {
         var cut = Render<CabeceraIdentidad>(p => p.Add(x => x.Titulo, "Reforma nave 3"));
 
-        cut.FindAll(".cabecera-identidad-anillo, .cabecera-identidad-kicker, .cabecera-identidad-meta, .cabecera-identidad-acciones, .cabecera-identidad-titular")
+        cut.FindAll(".cabecera-identidad-anillo, .cabecera-identidad-kicker, .cabecera-identidad-datos, .cabecera-identidad-acciones, .cabecera-identidad-titular")
             .Should().BeEmpty();
     }
 
