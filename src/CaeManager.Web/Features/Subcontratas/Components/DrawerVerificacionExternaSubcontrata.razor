@@ -1,0 +1,254 @@
+@*
+    Formulario «Registrar verificación externa» de la página Subcontrata 360, escrito con el kit de
+    formularios (DrawerFormulario). Hace lo mismo que el Drawer del panel
+    (SubcontrataWorkspacePanel, que conserva el suyo): Centro, tipo de documento, resultado, fecha,
+    «válido hasta», observaciones y una evidencia en PDF, JPG o PNG.
+
+    Diferencia con el del panel: «Verificar» de una fila lo abre con el Centro y el tipo ya elegidos
+    (AbrirAsync con argumentos). Sin argumentos se comporta como el del panel: preselecciona el Centro
+    solo cuando hay uno.
+
+    Registrar es un ICommand denegado a Consulta en Application (AutorizacionEscrituraBehavior); quien
+    monta este componente solo ofrece sus disparadores dentro de SoloConEscritura.
+*@
+@using CaeManager.Application.Common
+@using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna
+@using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
+@using CaeManager.Domain.Documentos
+@using CaeManager.Domain.Subcontratas
+@using CaeManager.Web.Features.Subcontratas.Recursos
+@using CaeManager.Web.Services
+@using FluentValidation
+@using MediatR
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosSubcontratas> Textos
+@inject ToastService ToastService
+
+<DrawerFormulario Visible="_visible" VisibleChanged="CambiarVisibilidad" Titulo="@Textos["TituloDrawerVerificacion"]"
+                 HayCambios="() => HayCambios" Guardando="_guardando" MensajeError="@_mensajeError"
+                 OnGuardar="GuardarAsync"
+                 TextoGuardar="@Textos["BotonRegistrar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <CampoSelect Etiqueta="@Textos["RotuloCentro"]" Valor="@_centroId" ValorChanged="v => _centroId = v">
+        <option value="">@Textos["OpcionSeleccionaCentro"]</option>
+        @foreach (var centro in CentrosSeleccionables)
+        {
+            <option value="@centro.CentroId">@centro.CentroNombre (@centro.ClienteRazonSocial)</option>
+        }
+    </CampoSelect>
+
+    <CampoSelect Etiqueta="@Textos["RotuloTipoDocumento"]" Valor="@_tipoId" ValorChanged="v => _tipoId = v">
+        <option value="">@Textos["OpcionSeleccionaTipo"]</option>
+        @foreach (var tipo in _tiposVerificables)
+        {
+            <option value="@tipo.Id">@tipo.Nombre</option>
+        }
+    </CampoSelect>
+
+    <CampoSelect Etiqueta="@Textos["RotuloResultado"]" Valor="@_resultado" ValorChanged="v => _resultado = v">
+        <option value="@nameof(ResultadoVerificacionExterna.Valido)">@Textos["ResultadoVerificacionValido"]</option>
+        <option value="@nameof(ResultadoVerificacionExterna.NoValido)">@Textos["ResultadoVerificacionNoValido"]</option>
+        <option value="@nameof(ResultadoVerificacionExterna.NoEncontrado)">@Textos["ResultadoVerificacionNoEncontrado"]</option>
+    </CampoSelect>
+
+    <CampoTexto Etiqueta="@Textos["RotuloFechaVerificacion"]" Type="date" Valor="@_fecha" ValorChanged="v => _fecha = v" />
+    <CampoTexto Etiqueta="@Textos["RotuloValidoHasta"]" Type="date" Valor="@_validoHasta" ValorChanged="v => _validoHasta = v" />
+    <CampoTextarea Etiqueta="@Textos["RotuloObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
+
+    <div class="campo">
+        <label>@Textos["RotuloEvidencia"]</label>
+        <ZonaSoltarArchivo
+            OnChange="ManejarEvidenciaSeleccionadaAsync"
+            Multiple="false"
+            Accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png"
+            FormatosTexto="PDF · JPG · PNG"
+            Cargando="false" />
+        @if (_evidenciaNombre is not null)
+        {
+            <p class="texto-secundario">@Textos["EvidenciaAdjunta", _evidenciaNombre]</p>
+        }
+    </div>
+</DrawerFormulario>
+
+@code {
+    [Parameter, EditorRequired] public Guid SubcontrataId { get; set; }
+
+    /// <summary>Centros donde se puede verificar: los que trae <c>SupervisionSubcontrataDto.CentrosSeleccionables</c>.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<CentroSeleccionableDto> CentrosSeleccionables { get; set; } = [];
+
+    /// <summary>La verificación se registró: quien lo monta recarga la supervisión.</summary>
+    [Parameter] public EventCallback OnRegistrada { get; set; }
+
+    private readonly CancellationTokenSource _ciclo = new();
+    private readonly InstantaneaFormulario _instantanea = new();
+    private IReadOnlyList<TipoDocumentoListaDto> _tiposVerificables = [];
+    private bool _visible;
+    private bool _abriendo;
+    private bool _guardando;
+    private string? _mensajeError;
+    private string _centroId = string.Empty;
+    private string _tipoId = string.Empty;
+    private string _resultado = nameof(ResultadoVerificacionExterna.Valido);
+    private string _fecha = string.Empty;
+    private string _validoHasta = string.Empty;
+    private string _observaciones = string.Empty;
+    private byte[]? _evidenciaContenido;
+    private string? _evidenciaNombre;
+
+    /// <summary>Lo lee el aviso de salida de la página, además del propio Drawer.</summary>
+    public bool HayCambios => _visible && _instantanea.Difiere(Valores());
+
+    public bool Visible => _visible;
+
+    // La evidencia cuenta por su nombre: se lee a memoria y solo se sube al registrar, así que
+    // descartar no deja ningún archivo en el almacenamiento.
+    private object?[] Valores() => [_centroId, _tipoId, _resultado, _fecha, _validoHasta, _observaciones, _evidenciaNombre];
+
+    /// <summary>
+    /// Abre el formulario. Con <paramref name="centroId"/> y <paramref name="tipoDocumentoId"/> los deja
+    /// elegidos («Verificar» de una fila); sin ellos, el Centro solo se preselecciona cuando hay uno.
+    /// Un Centro que no esté entre los seleccionables no se preselecciona: el servidor lo rechazaría.
+    /// </summary>
+    public async Task AbrirAsync(Guid? centroId = null, Guid? tipoDocumentoId = null)
+    {
+        if (_abriendo) return;
+
+        _abriendo = true;
+        try
+        {
+            if (_tiposVerificables.Count == 0)
+            {
+                // Los ámbitos que un portal puede exigir a una subcontrata: misma regla que
+                // ObtenerSupervisionSubcontrataQuery.
+                var trabajador = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador), _ciclo.Token);
+                var empresa = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Empresa), _ciclo.Token);
+                _tiposVerificables = trabajador.Concat(empresa).OrderBy(t => t.Orden).ToList();
+            }
+
+            _centroId = centroId is { } elegido && CentrosSeleccionables.Any(c => c.CentroId == elegido)
+                ? elegido.ToString()
+                : CentrosSeleccionables.Count == 1 ? CentrosSeleccionables[0].CentroId.ToString() : string.Empty;
+            _tipoId = tipoDocumentoId is { } tipo && _tiposVerificables.Any(t => t.Id == tipo) ? tipo.ToString() : string.Empty;
+            _resultado = nameof(ResultadoVerificacionExterna.Valido);
+            _fecha = CaeManager.Domain.Common.DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
+            _validoHasta = string.Empty;
+            _observaciones = string.Empty;
+            _evidenciaContenido = null;
+            _evidenciaNombre = null;
+            _mensajeError = null;
+            _visible = true;
+            _instantanea.Fijar(Valores());
+            StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+            // La página se retiró mientras se preparaba el formulario.
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorPrepararVerificacion"], TonoToast.Error);
+        }
+        finally
+        {
+            _abriendo = false;
+        }
+    }
+
+    /// <summary>Cierra sin preguntar: lo usa la página cuando el usuario ya aceptó descartar al salir.</summary>
+    public void Descartar() => _visible = false;
+
+    private Task CambiarVisibilidad(bool visible)
+    {
+        _visible = visible;
+        return Task.CompletedTask;
+    }
+
+    private async Task ManejarEvidenciaSeleccionadaAsync(InputFileChangeEventArgs args)
+    {
+        var archivo = args.File;
+
+        if (archivo.Size > LimitesArchivoSubido.TamanoMaximoBytes)
+        {
+            _mensajeError = Textos["ErrorEvidenciaDemasiadoGrande"];
+            return;
+        }
+
+        using var memoria = new MemoryStream();
+        await archivo.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes).CopyToAsync(memoria);
+        _evidenciaContenido = memoria.ToArray();
+        _evidenciaNombre = archivo.Name;
+        _mensajeError = null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (_guardando) return;
+
+        if (!Guid.TryParse(_centroId, out var centroId))
+        {
+            _mensajeError = Textos["ErrorSeleccionaCentro"];
+            return;
+        }
+
+        if (!Guid.TryParse(_tipoId, out var tipoId))
+        {
+            _mensajeError = Textos["ErrorSeleccionaTipoDocumento"];
+            return;
+        }
+
+        if (!DateOnly.TryParse(_fecha, out var fecha))
+        {
+            _mensajeError = Textos["ErrorIndicaFechaVerificacion"];
+            return;
+        }
+
+        DateOnly? validoHasta = DateOnly.TryParse(_validoHasta, out var vh) ? vh : null;
+        var resultadoVerificacion = Enum.Parse<ResultadoVerificacionExterna>(_resultado);
+        var subcontrataId = SubcontrataId;
+
+        _guardando = true;
+        _mensajeError = null;
+
+        try
+        {
+            // Sin token: retirar la página no deshace un registro que el usuario ya pidió.
+            var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
+            var resultado = await Mediator.Send(new RegistrarVerificacionExternaSubcontrataCommand(
+                subcontrataId, centroId, tipoId, fecha, resultadoVerificacion, validoHasta, observaciones,
+                _evidenciaContenido, _evidenciaNombre));
+
+            if (resultado.EsFallido)
+            {
+                _mensajeError = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ToastVerificacionRegistrada"], TonoToast.Exito);
+            // La página pudo pasar a otra subcontrata con el registro en vuelo: su supervisión no es la de esta.
+            if (subcontrataId != SubcontrataId) return;
+            _visible = false;
+            await OnRegistrada.InvokeAsync();
+        }
+        catch (ValidationException ex)
+        {
+            _mensajeError = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorRevisaFormulario"];
+        }
+        catch (Exception)
+        {
+            _mensajeError = Textos["ErrorRegistrarVerificacion"];
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

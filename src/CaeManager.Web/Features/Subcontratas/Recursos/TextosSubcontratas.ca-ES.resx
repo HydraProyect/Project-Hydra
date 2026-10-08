@@ -717,4 +717,169 @@
   <data name="BotonQuitarFiltros" xml:space="preserve">
     <value>Treu els filtres</value>
   </data>
+  <data name="AccesoRequiereDosFactores" xml:space="preserve">
+    <value>Activa l'autenticació en dos passos per veure-les.</value>
+  </data>
+  <data name="ActivarDosFactores" xml:space="preserve">
+    <value>Activa</value>
+  </data>
+  <data name="AccionConfirmar" xml:space="preserve">
+    <value>Confirma</value>
+  </data>
+  <data name="AccionRenovar" xml:space="preserve">
+    <value>Renova</value>
+  </data>
+  <data name="AccionSubir" xml:space="preserve">
+    <value>Puja</value>
+  </data>
+  <data name="AccionVerificar" xml:space="preserve">
+    <value>Verifica</value>
+  </data>
+  <data name="AccionRegistrarVerificacion" xml:space="preserve">
+    <value>Registra una verificació</value>
+  </data>
+  <data name="AnilloEtiqueta" xml:space="preserve">
+    <value>{0} % · {1} de {2} al dia</value>
+  </data>
+  <data name="AnilloSinRequisitos" xml:space="preserve">
+    <value>Encara sense requisits documentals</value>
+  </data>
+  <data name="AnilloLeyenda" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="AnilloLeyendaSinRequisitos" xml:space="preserve">
+    <value>Sense requisits</value>
+  </data>
+  <data name="AriaAccionDocumento" xml:space="preserve">
+    <value>{0} {1} de {2}</value>
+  </data>
+  <data name="AriaMasAccionesVerificacion" xml:space="preserve">
+    <value>Més accions de la verificació de {0} a {1}</value>
+  </data>
+  <data name="AriaVerEvidencia" xml:space="preserve">
+    <value>Veure l'evidència de {0} a {1}</value>
+  </data>
+  <data name="AriaVerificar" xml:space="preserve">
+    <value>Verifica {0} a {1}</value>
+  </data>
+  <data name="BandaTrabajadoresUno" xml:space="preserve">
+    <value>1 treballador amb documentació vençuda o pendent:</value>
+  </data>
+  <data name="BandaTrabajadoresVarios" xml:space="preserve">
+    <value>{0} treballadors amb documentació vençuda o pendent:</value>
+  </data>
+  <data name="BandaVerEnSupervision" xml:space="preserve">
+    <value>Veure a Supervisió</value>
+  </data>
+  <data name="BandaY" xml:space="preserve">
+    <value>i</value>
+  </data>
+  <data name="BandaYMas" xml:space="preserve">
+    <value>i {0} més</value>
+  </data>
+  <data name="BotonCopiarContrasena" xml:space="preserve">
+    <value>Copia la contrasenya</value>
+  </data>
+  <data name="CopiarElDni" xml:space="preserve">
+    <value>el DNI</value>
+  </data>
+  <data name="DetalleDni" xml:space="preserve">
+    <value>DNI</value>
+  </data>
+  <data name="EditarFlecha" xml:space="preserve">
+    <value>Edita →</value>
+  </data>
+  <data name="ErrorRecargarCabecera" xml:space="preserve">
+    <value>No s'ha pogut actualitzar la capçalera. Recarrega la pàgina.</value>
+  </data>
+  <data name="EtiquetaLateral360" xml:space="preserve">
+    <value>Dades de la subcontracta</value>
+  </data>
+  <data name="EtiquetaMigas360" xml:space="preserve">
+    <value>Ruta de navegació</value>
+  </data>
+  <data name="FiltroPorEstado" xml:space="preserve">
+    <value>Filtra els treballadors per estat</value>
+  </data>
+  <data name="FiltroTodos" xml:space="preserve">
+    <value>Tots</value>
+  </data>
+  <data name="FraccionDe" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="GlosaCentros" xml:space="preserve">
+    <value>centres amb activitat</value>
+  </data>
+  <data name="GlosaSupervision" xml:space="preserve">
+    <value>documents amb problema a la supervisió</value>
+  </data>
+  <data name="GlosaTrabajadores" xml:space="preserve">
+    <value>treballadors</value>
+  </data>
+  <data name="IrATrabajadores" xml:space="preserve">
+    <value>Ves a Treballadors</value>
+  </data>
+  <data name="MenuEditarSubcontrata" xml:space="preserve">
+    <value>Edita la subcontracta</value>
+  </data>
+  <data name="MenuMasAcciones" xml:space="preserve">
+    <value>Més accions</value>
+  </data>
+  <data name="MetaCif360" xml:space="preserve">
+    <value>CIF</value>
+  </data>
+  <data name="MigaSubcontratas" xml:space="preserve">
+    <value>Subcontractes</value>
+  </data>
+  <data name="MotivoCaducaEl" xml:space="preserve">
+    <value>{0} caduca el {1}</value>
+  </data>
+  <data name="MotivoGenerico" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="MotivoPendiente" xml:space="preserve">
+    <value>{0} pendent</value>
+  </data>
+  <data name="MotivoSinConfirmar" xml:space="preserve">
+    <value>{0} sense confirmar</value>
+  </data>
+  <data name="MotivoVencioEl" xml:space="preserve">
+    <value>{0} va vèncer el {1}</value>
+  </data>
+  <data name="NingunoEnLosEstadosMarcados" xml:space="preserve">
+    <value>Cap en els estats marcats.</value>
+  </data>
+  <data name="ResumenCentrosUno" xml:space="preserve">
+    <value>1 centre amb activitat</value>
+  </data>
+  <data name="ResumenCentrosVarios" xml:space="preserve">
+    <value>{0} centres amb activitat</value>
+  </data>
+  <data name="ResumenListaOrdenada" xml:space="preserve">
+    <value>Es mostren {0} de {1} · del pitjor estat al millor</value>
+  </data>
+  <data name="SupervisionNuncaComprobada" xml:space="preserve">
+    <value>Mai comprovada</value>
+  </data>
+  <data name="SupervisionValidoHasta" xml:space="preserve">
+    <value>vàlid fins al {0}</value>
+  </data>
+  <data name="TarjetaInformacion360" xml:space="preserve">
+    <value>Informació</value>
+  </data>
+  <data name="VigenciaFaltaLaFecha" xml:space="preserve">
+    <value>Falta la data de venciment</value>
+  </data>
+  <data name="VigenciaHasta" xml:space="preserve">
+    <value>Fins al {0}</value>
+  </data>
+  <data name="VigenciaNoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="VigenciaSeExigeYNoHay" xml:space="preserve">
+    <value>S'exigeix i no hi ha document</value>
+  </data>
+  <data name="ExplicacionSupervisada360" xml:space="preserve">
+    <value>Supervisada: la subcontracta puja la seva documentació a la plataforma del titular del Centre i el teu equip hi comprova que és vàlida. La comprovació caduca i s'ha de repetir.</value>
+  </data>
 </root>

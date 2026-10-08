@@ -717,4 +717,169 @@
   <data name="BotonQuitarFiltros" xml:space="preserve">
     <value>Quitar los filtros</value>
   </data>
+  <data name="AccesoRequiereDosFactores" xml:space="preserve">
+    <value>Activa la autenticación en dos pasos para verlas.</value>
+  </data>
+  <data name="ActivarDosFactores" xml:space="preserve">
+    <value>Activar</value>
+  </data>
+  <data name="AccionConfirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="AccionRenovar" xml:space="preserve">
+    <value>Renovar</value>
+  </data>
+  <data name="AccionSubir" xml:space="preserve">
+    <value>Subir</value>
+  </data>
+  <data name="AccionVerificar" xml:space="preserve">
+    <value>Verificar</value>
+  </data>
+  <data name="AccionRegistrarVerificacion" xml:space="preserve">
+    <value>Registrar verificación</value>
+  </data>
+  <data name="AnilloEtiqueta" xml:space="preserve">
+    <value>{0} % · {1} de {2} al día</value>
+  </data>
+  <data name="AnilloSinRequisitos" xml:space="preserve">
+    <value>Sin requisitos documentales todavía</value>
+  </data>
+  <data name="AnilloLeyenda" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="AnilloLeyendaSinRequisitos" xml:space="preserve">
+    <value>Sin requisitos</value>
+  </data>
+  <data name="AriaAccionDocumento" xml:space="preserve">
+    <value>{0} {1} de {2}</value>
+  </data>
+  <data name="AriaMasAccionesVerificacion" xml:space="preserve">
+    <value>Más acciones de la verificación de {0} en {1}</value>
+  </data>
+  <data name="AriaVerEvidencia" xml:space="preserve">
+    <value>Ver la evidencia de {0} en {1}</value>
+  </data>
+  <data name="AriaVerificar" xml:space="preserve">
+    <value>Verificar {0} en {1}</value>
+  </data>
+  <data name="BandaTrabajadoresUno" xml:space="preserve">
+    <value>1 trabajador con documentación vencida o pendiente:</value>
+  </data>
+  <data name="BandaTrabajadoresVarios" xml:space="preserve">
+    <value>{0} trabajadores con documentación vencida o pendiente:</value>
+  </data>
+  <data name="BandaVerEnSupervision" xml:space="preserve">
+    <value>Ver en Supervisión</value>
+  </data>
+  <data name="BandaY" xml:space="preserve">
+    <value>y</value>
+  </data>
+  <data name="BandaYMas" xml:space="preserve">
+    <value>y {0} más</value>
+  </data>
+  <data name="BotonCopiarContrasena" xml:space="preserve">
+    <value>Copiar contraseña</value>
+  </data>
+  <data name="CopiarElDni" xml:space="preserve">
+    <value>el DNI</value>
+  </data>
+  <data name="DetalleDni" xml:space="preserve">
+    <value>DNI</value>
+  </data>
+  <data name="EditarFlecha" xml:space="preserve">
+    <value>Editar →</value>
+  </data>
+  <data name="ErrorRecargarCabecera" xml:space="preserve">
+    <value>No se pudo actualizar la cabecera. Recarga la página.</value>
+  </data>
+  <data name="EtiquetaLateral360" xml:space="preserve">
+    <value>Datos de la subcontrata</value>
+  </data>
+  <data name="EtiquetaMigas360" xml:space="preserve">
+    <value>Ruta de navegación</value>
+  </data>
+  <data name="FiltroPorEstado" xml:space="preserve">
+    <value>Filtrar trabajadores por estado</value>
+  </data>
+  <data name="FiltroTodos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="FraccionDe" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="GlosaCentros" xml:space="preserve">
+    <value>centros con actividad</value>
+  </data>
+  <data name="GlosaSupervision" xml:space="preserve">
+    <value>documentos con problema en la supervisión</value>
+  </data>
+  <data name="GlosaTrabajadores" xml:space="preserve">
+    <value>trabajadores</value>
+  </data>
+  <data name="IrATrabajadores" xml:space="preserve">
+    <value>Ir a Trabajadores</value>
+  </data>
+  <data name="MenuEditarSubcontrata" xml:space="preserve">
+    <value>Editar subcontrata</value>
+  </data>
+  <data name="MenuMasAcciones" xml:space="preserve">
+    <value>Más acciones</value>
+  </data>
+  <data name="MetaCif360" xml:space="preserve">
+    <value>CIF</value>
+  </data>
+  <data name="MigaSubcontratas" xml:space="preserve">
+    <value>Subcontratas</value>
+  </data>
+  <data name="MotivoCaducaEl" xml:space="preserve">
+    <value>{0} caduca el {1}</value>
+  </data>
+  <data name="MotivoGenerico" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="MotivoPendiente" xml:space="preserve">
+    <value>{0} pendiente</value>
+  </data>
+  <data name="MotivoSinConfirmar" xml:space="preserve">
+    <value>{0} sin confirmar</value>
+  </data>
+  <data name="MotivoVencioEl" xml:space="preserve">
+    <value>{0} venció el {1}</value>
+  </data>
+  <data name="NingunoEnLosEstadosMarcados" xml:space="preserve">
+    <value>Ninguno en los estados marcados.</value>
+  </data>
+  <data name="ResumenCentrosUno" xml:space="preserve">
+    <value>1 centro con actividad</value>
+  </data>
+  <data name="ResumenCentrosVarios" xml:space="preserve">
+    <value>{0} centros con actividad</value>
+  </data>
+  <data name="ResumenListaOrdenada" xml:space="preserve">
+    <value>Mostrando {0} de {1} · del peor estado al mejor</value>
+  </data>
+  <data name="SupervisionNuncaComprobada" xml:space="preserve">
+    <value>Nunca comprobada</value>
+  </data>
+  <data name="SupervisionValidoHasta" xml:space="preserve">
+    <value>válido hasta {0}</value>
+  </data>
+  <data name="TarjetaInformacion360" xml:space="preserve">
+    <value>Información</value>
+  </data>
+  <data name="VigenciaFaltaLaFecha" xml:space="preserve">
+    <value>Falta la fecha de vencimiento</value>
+  </data>
+  <data name="VigenciaHasta" xml:space="preserve">
+    <value>Hasta {0}</value>
+  </data>
+  <data name="VigenciaNoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="VigenciaSeExigeYNoHay" xml:space="preserve">
+    <value>Se exige y no hay documento</value>
+  </data>
+  <data name="ExplicacionSupervisada360" xml:space="preserve">
+    <value>Supervisada: la subcontrata sube su documentación a la plataforma del titular del Centro y tu equipo comprueba allí que es válida. La comprobación caduca y hay que repetirla.</value>
+  </data>
 </root>
