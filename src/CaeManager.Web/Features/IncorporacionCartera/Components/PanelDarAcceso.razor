@@ -31,7 +31,7 @@
                         }
                         else
                         {
-                            <span class="dar-acceso-nota">@Textos["ApoyosEtiqueta"] @string.Join(", ", operacion.Apoyos.Select(a => a.Nombre))</span>
+                            <span class="dar-acceso-nota">@Textos["ApoyosEtiqueta", NombresDeApoyo(operacion)]</span>
                         }
                         @foreach (var propuesta in PropuestasDe(operacion.AsignacionOperacionId))
                         {

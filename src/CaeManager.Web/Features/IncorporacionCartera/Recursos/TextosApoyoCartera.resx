@@ -49,7 +49,7 @@
     <value>Empresas de las que eres Gestor CAE principal. Puedes proponer a otro Gestor CAE de tu organización que te apoye: tendrá acceso cuando acepte.</value>
   </data>
   <data name="ApoyosEtiqueta" xml:space="preserve">
-    <value>Con acceso de apoyo:</value>
+    <value>Con acceso de apoyo: {0}</value>
   </data>
   <data name="SinApoyos" xml:space="preserve">
     <value>Nadie más tiene acceso de apoyo.</value>

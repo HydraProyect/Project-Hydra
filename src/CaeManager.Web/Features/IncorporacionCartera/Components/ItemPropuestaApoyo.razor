@@ -1,0 +1,65 @@
+@*
+    Una propuesta de apoyo dirigida a quien mira, tal como se pinta dentro de la campana de avisos:
+    pendiente (con Aceptar y Rechazar) o recién aceptada (con el enlace al Tenant propietario).
+
+    Solo pinta. El estado, la confirmación del rechazo y los Commands son de quien lo monta
+    (CampanaAvisos); la autorización, de esos Commands. El enlace es el mismo POST con antiforgery
+    a /cuenta/cliente-activo que usa el selector de Tenant: el endpoint revalida la cartera recién
+    emitida en cada envío, así que aquí no se decide nada.
+*@
+@using CaeManager.Application.Operaciones.ApoyoCartera.Queries
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.IncorporacionCartera.Recursos
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosApoyoCartera> Textos
+
+@if (Aceptada)
+{
+    <div class="propuesta-apoyo" data-propuesta-aceptada="@Propuesta.Id">
+        <strong role="status">@Textos["CampanaAceptada", Propuesta.NombreEmpresa]</strong>
+        <form method="post" action="/cuenta/cliente-activo" class="propuesta-apoyo-acciones">
+            @if (Token is not null)
+            {
+                <input type="hidden" name="@Token.FormFieldName" value="@Token.Value" />
+            }
+            <input type="hidden" name="tenantId" value="@Propuesta.TenantPropietarioId" />
+            <input type="hidden" name="returnUrl" value="/" />
+            <Boton Type="submit" Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno">@Textos["AbrirEmpresa", Propuesta.NombreEmpresa]</Boton>
+        </form>
+    </div>
+}
+else
+{
+    <div class="propuesta-apoyo" data-propuesta-apoyo="@Propuesta.Id">
+        <strong>@Textos["CampanaTitulo", Propuesta.NombreProponente, Propuesta.NombreEmpresa]</strong>
+        <small>@Textos["CampanaDetalle"]</small>
+        <span class="propuesta-apoyo-acciones">
+            <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
+                   OnClick="() => OnAceptar.InvokeAsync(Propuesta)"
+                   Deshabilitado="Ocupado" Cargando="EnCurso"
+                   aria-label="@Textos["AceptarEtiqueta", Propuesta.NombreEmpresa]">@Textos["Aceptar"]</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                   OnClick="() => OnRechazar.InvokeAsync(Propuesta)"
+                   Deshabilitado="Ocupado"
+                   aria-label="@Textos["RechazarEtiqueta", Propuesta.NombreEmpresa]">@Textos["Rechazar"]</Boton>
+        </span>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public PropuestaApoyoDto Propuesta { get; set; } = default!;
+
+    /// <summary>Quien mira acaba de aceptarla: ya no hay nada que decidir, solo abrir el Tenant.</summary>
+    [Parameter] public bool Aceptada { get; set; }
+
+    /// <summary>Hay una propuesta resolviéndose (esta u otra): ninguna acepta un segundo clic.</summary>
+    [Parameter] public bool Ocupado { get; set; }
+
+    /// <summary>La que se está resolviendo es esta.</summary>
+    [Parameter] public bool EnCurso { get; set; }
+
+    [Parameter] public AntiforgeryRequestToken? Token { get; set; }
+    [Parameter] public EventCallback<PropuestaApoyoDto> OnAceptar { get; set; }
+    [Parameter] public EventCallback<PropuestaApoyoDto> OnRechazar { get; set; }
+}

@@ -66,6 +66,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 1,
         ["src/CaeManager.Domain/Integraciones/CredencialIntegracion.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs"] = 1,
+        ["src/CaeManager.Domain/Operaciones/PropuestaApoyoCartera.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/SolicitudIncorporacionCartera.cs"] = 1,
         ["src/CaeManager.Domain/Plantillas/ItemGeneracionDocumento.cs"] = 1,
         ["src/CaeManager.Domain/Plataforma/ConcesionPrivilegio.cs"] = 1,

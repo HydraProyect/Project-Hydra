@@ -7,6 +7,7 @@
 @using CaeManager.Application.VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa
 @using CaeManager.Web.Components.DesignSystem
 @using CaeManager.Web.Components.Layout
+@using CaeManager.Web.Features.IncorporacionCartera.Components
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
 @using CaeManager.Web.Recursos
 @using MediatR
@@ -85,46 +86,23 @@
             else
             {
                 <ul class="campana-lista">
+                    @{ var claves = new ClavesDeHermanos(); }
                     @foreach (var aceptada in _aceptadas)
                     {
-                        <li @key="@($"aceptada:{aceptada.Id}")">
-                            <div class="campana-item campana-item-propuesta" data-propuesta-aceptada="@aceptada.Id">
-                                <span class="campana-item-texto" role="status">
-                                    <strong>@TextosApoyo["CampanaAceptada", aceptada.NombreEmpresa]</strong>
-                                </span>
-                                <form method="post" action="/cuenta/cliente-activo" class="campana-acciones">
-                                    @if (_token is not null)
-                                    {
-                                        <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
-                                    }
-                                    <input type="hidden" name="tenantId" value="@aceptada.TenantPropietarioId" />
-                                    <input type="hidden" name="returnUrl" value="/" />
-                                    <Boton Type="submit" Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno">@TextosApoyo["AbrirEmpresa", aceptada.NombreEmpresa]</Boton>
-                                </form>
-                            </div>
+                        <li @key="claves.De(aceptada)">
+                            <ItemPropuestaApoyo Propuesta="aceptada" Aceptada="true" Token="_token" />
                         </li>
                     }
                     @foreach (var item in _items)
                     {
-                        <li @key="item.Clave">
+                        <li @key="claves.De(item.Clave)">
                             @if (item.Propuesta is { } propuesta)
                             {
-                                <div class="campana-item campana-item-propuesta" data-propuesta-apoyo="@propuesta.Id">
-                                    <span class="campana-item-texto">
-                                        <strong>@item.Titulo</strong>
-                                        <small>@item.Detalle</small>
-                                    </span>
-                                    <span class="campana-acciones">
-                                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
-                                               OnClick="() => AceptarPropuestaAsync(propuesta)"
-                                               Deshabilitado="_propuestaEnCurso is not null" Cargando="_propuestaEnCurso == propuesta.Id"
-                                               aria-label="@TextosApoyo["AceptarEtiqueta", propuesta.NombreEmpresa]">@TextosApoyo["Aceptar"]</Boton>
-                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                               OnClick="() => PedirRechazarPropuesta(propuesta)"
-                                               Deshabilitado="_propuestaEnCurso is not null"
-                                               aria-label="@TextosApoyo["RechazarEtiqueta", propuesta.NombreEmpresa]">@TextosApoyo["Rechazar"]</Boton>
-                                    </span>
-                                </div>
+                                <ItemPropuestaApoyo Propuesta="propuesta"
+                                                    Ocupado="_propuestaEnCurso is not null"
+                                                    EnCurso="_propuestaEnCurso == propuesta.Id"
+                                                    OnAceptar="AceptarPropuestaAsync"
+                                                    OnRechazar="PedirRechazarPropuesta" />
                             }
                             else if (item.Url is not null && item.NotificacionId is null)
                             {
@@ -266,9 +244,9 @@
 
             foreach (var propuesta in (await Mediator.Send(new ObtenerPropuestasApoyoPendientesQuery())).Recibidas)
             {
-                items.Add(new ItemAviso($"apoyo:{propuesta.Id}",
-                    TextosApoyo["CampanaTitulo", propuesta.NombreProponente, propuesta.NombreEmpresa],
-                    TextosApoyo["CampanaDetalle"], Url: null, Externo: false, NotificacionId: null, propuesta));
+                // El texto lo pinta ItemPropuestaApoyo; aquí solo cuenta y lleva la propuesta.
+                items.Add(new ItemAviso($"apoyo:{propuesta.Id}", propuesta.NombreEmpresa, Detalle: null,
+                    Url: null, Externo: false, NotificacionId: null, propuesta));
             }
 
             _items = items;

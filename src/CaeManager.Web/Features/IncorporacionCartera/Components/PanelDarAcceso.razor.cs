@@ -82,6 +82,9 @@ public partial class PanelDarAcceso
             : (await Mediator.Send(new ObtenerPropuestasApoyoPendientesQuery())).Enviadas;
     }
 
+    private static string NombresDeApoyo(CarterasDeOperacion operacion) =>
+        string.Join(", ", operacion.Apoyos.Select(a => a.Nombre));
+
     private IEnumerable<PropuestaApoyoDto> PropuestasDe(Guid asignacionOperacionId) =>
         _enviadas.Where(p => p.AsignacionOperacionId == asignacionOperacionId);
 

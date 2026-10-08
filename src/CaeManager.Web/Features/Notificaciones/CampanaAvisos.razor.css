@@ -101,26 +101,7 @@
     font: var(--font-body-sm);
 }
 
-/* Propuesta de apoyo: el único elemento que se resuelve aquí mismo. No es un enlace: el texto
-   arriba y sus dos acciones debajo, sin el cursor ni el realce de los elementos que navegan. */
-.campana-item-propuesta {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-2);
-    cursor: default;
-}
-
-.campana-item-propuesta:hover {
-    background: none;
-}
-
-.campana-acciones {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin: 0;
-}
-
+/* El resultado de aceptar o rechazar una propuesta de apoyo que no salió: se dice en el panel. */
 .campana-error {
     margin: 0;
     padding: var(--space-2) var(--space-3);
