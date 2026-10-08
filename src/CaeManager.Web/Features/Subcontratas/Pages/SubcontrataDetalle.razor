@@ -385,7 +385,7 @@
                                 else
                                 {
                                     <ul class="subcontrata360-subfilas" aria-label="@Textos["AriaDocumentacionExigidaA", trabajador.TrabajadorNombre]">
-                                        @foreach (var documento in trabajador.Documentos.OrderByDescending(d => SeveridadEstadoDocumento.Rango(d.Estado)))
+                                        @foreach (var documento in trabajador.Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)))
                                         {
                                             var rotuloAccion = RotuloAccion(documento);
                                             <li class="subcontrata360-subfila" data-pieza="fila" @key="documento.TipoDocumentoId">

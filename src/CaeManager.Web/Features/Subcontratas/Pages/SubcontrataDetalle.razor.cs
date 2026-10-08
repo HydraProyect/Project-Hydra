@@ -496,7 +496,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     /// <summary>Del peor estado al mejor, con el rango del punto único; a igual estado, por nombre.</summary>
     private IReadOnlyList<TrabajadorDocumentacionSubcontrataDto> TrabajadoresOrdenados =>
         (_trabajadores ?? [])
-            .OrderByDescending(t => SeveridadEstadoDocumento.Rango(t.PeorEstado))
+            .OrderBy(t => SeveridadEstadoDocumento.Rango(t.PeorEstado))
             .ThenBy(t => t.TrabajadorNombre, StringComparer.CurrentCulture)
             .ToList();
 
@@ -557,7 +557,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private static DocumentoRequeridoDto? DocumentoQueLoCausa(TrabajadorDocumentacionSubcontrataDto trabajador)
     {
         var peor = trabajador.Documentos
-            .OrderByDescending(d => SeveridadEstadoDocumento.Rango(d.Estado))
+            .OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado))
             .FirstOrDefault();
         return peor is not null && EstadoDocumentoFicha360.Accion(peor.Estado) is not null ? peor : null;
     }

@@ -502,7 +502,7 @@ public class Cliente360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void El_nombre_de_una_subcontrata_abre_su_panel_porque_no_tiene_pagina()
+    public void El_nombre_de_una_subcontrata_enlaza_a_su_pagina_y_el_boton_360_abre_el_panel()
     {
         var (id, mediador) = ClienteBase();
         var subcontrata = new SubcontrataDeClienteDto(Guid.NewGuid(), "Andamios Cantábrico S.L.");
@@ -510,10 +510,9 @@ public class Cliente360PaginaTests : BunitContext
         Registrar(mediador);
         var cut = Renderizar(id, "?pestana=subcontratas");
 
-        cut.FindAll("li.fila-relacion a").Should().BeEmpty("Subcontrata 360 no tiene página: un enlace daría 404");
-        cut.Find("button.fila-relacion-nombre").GetAttribute("title").Should().Be("Abrir el panel de Andamios Cantábrico S.L.");
+        cut.Find("li.fila-relacion a.fila-relacion-nombre").GetAttribute("href").Should().Be($"/subcontratas/{subcontrata.Id}");
 
-        cut.Find("button.fila-relacion-nombre").Click();
+        cut.Find("li.fila-relacion button.boton-360").Click();
 
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(
             new WorkspaceFrame(EntidadWorkspace.Subcontrata, subcontrata.Id, "Andamios Cantábrico S.L.", "informacion"));

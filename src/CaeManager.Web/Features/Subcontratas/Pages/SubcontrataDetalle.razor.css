@@ -1,0 +1,135 @@
+/*
+    Subcontrata 360 — lo propio de esta página. Cabecera de identidad, banda,
+    contadores de estado y filas en rejilla viven en Components/DesignSystem;
+    aquí solo lo que no tiene primitiva.
+*/
+
+.subcontrata360-seccion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.subcontrata360-nota {
+    margin: var(--space-2) 0 0;
+    font: var(--font-caption);
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+/* .linea del mockup: la explicación a la izquierda y la acción a la derecha. */
+.subcontrata360-linea {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.subcontrata360-linea > span:first-child {
+    flex: 1;
+    min-width: 0;
+}
+
+/* .grupo del mockup: rótulo del Centro sobre sus tipos de documento. */
+.subcontrata360-grupo {
+    list-style: none;
+    padding: var(--space-3) 0 var(--space-1);
+    font: var(--font-label);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.subcontrata360-grupo span {
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 400;
+}
+
+/* .sub .fila del mockup: documento | pastilla en columna fija | acción. */
+.subcontrata360-subfilas {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.subcontrata360-subfila {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 152px 160px;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-top: var(--border-default);
+    font: var(--font-small);
+}
+
+.subcontrata360-subfila:first-child {
+    border-top-color: transparent;
+}
+
+.subcontrata360-subfila-texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.subcontrata360-subfila-detalle {
+    font: var(--font-caption);
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+.subcontrata360-subfila-accion {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.subcontrata360-enlace {
+    font: var(--font-caption);
+    color: var(--color-primary-600);
+}
+
+.subcontrata360-pastilla-tarjeta {
+    margin: 0 0 var(--space-2);
+}
+
+/* .mini del mockup: aviso de la tarjeta de credenciales con su acción a la derecha. */
+.subcontrata360-aviso {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    border: 1px dashed var(--color-border-control);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+    font: var(--font-caption);
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+.subcontrata360-aviso > :last-child {
+    margin-left: auto;
+}
+
+.subcontrata360-botones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.subcontrata360-contrasena {
+    font-family: var(--font-family-mono, monospace);
+}
+
+/* Pantalla estrecha: la pastilla y la acción bajan bajo el nombre del documento. */
+@media (max-width: 767px) {
+    .subcontrata360-subfila {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .subcontrata360-subfila-texto {
+        grid-column: 1 / -1;
+    }
+}
