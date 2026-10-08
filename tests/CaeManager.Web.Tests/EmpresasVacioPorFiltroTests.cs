@@ -167,17 +167,20 @@ public class EmpresasVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Ninguna empresa con este filtro");
     }
 
+    /// <summary>
+    /// Con la lista vacía por filtro, los dos filtros puestos siguen a la vista: la búsqueda como chip con su
+    /// valor y el estado documental marcado en la franja, con el rótulo del catálogo («Vencidos») y no el valor
+    /// crudo del enum.
+    /// </summary>
     [Fact]
-    public void Los_filtros_activos_se_ven_como_chips_con_su_valor()
+    public void Los_filtros_activos_se_ven_la_busqueda_como_chip_con_su_valor_y_el_estado_marcado_en_la_franja()
     {
         var cut = Renderizar(busqueda: "Refrielectric",
             estado: nameof(CaeManager.Domain.Documentos.EstadoDocumento.Vencido));
 
-        var chips = cut.FindAll(".chip-filtro");
-        chips.Should().HaveCount(2, "hay dos filtros puestos: la búsqueda y el estado documental");
-        cut.Markup.Should().Contain("Refrielectric");
-        cut.Markup.Should().Contain("Vencido",
-            "el chip muestra el rótulo del catálogo, no el valor crudo del enum");
+        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim())
+            .Should().ContainSingle("el estado documental ya no tiene chip").Which.Should().Contain("Refrielectric");
+        cut.MarcadosEnFranja().Should().Equal(["Vencidos"], "el estado de la URL se ve marcado, con el rótulo del catálogo");
     }
 
     /// <summary>
