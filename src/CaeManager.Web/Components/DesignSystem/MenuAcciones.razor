@@ -92,6 +92,11 @@
     internal void Cerrar()
     {
         _abierto = false;
+        // Los ítems se desmontan al cerrar: ningún render pendiente debe enfocarlos.
+        _primerItemPendiente = false;
+        _ultimoItemPendiente = false;
+        _itemPendienteDeFoco = null;
+        _items.Clear();
         StateHasChanged();
     }
 
@@ -108,10 +113,10 @@
 
     internal void Registrar(ItemMenuAccion item)
     {
-        if (_items.Contains(item)) return;
+        if (!_abierto || _items.Contains(item)) return;
 
         _items.Add(item);
-        if ((_primerItemPendiente || _ultimoItemPendiente) && _items.Count > 0)
+        if (_abierto && (_primerItemPendiente || _ultimoItemPendiente) && _items.Count > 0)
             StateHasChanged();
     }
 
@@ -139,7 +144,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if ((_primerItemPendiente || _ultimoItemPendiente) && _items.Count > 0)
+        if (_abierto && (_primerItemPendiente || _ultimoItemPendiente) && _items.Count > 0)
         {
             var habilitados = _items.Where(i => i.Habilitado).ToList();
             // En un menú de opciones (pastilla de filtro) el foco empieza en la vigente.
@@ -149,7 +154,7 @@
             _ultimoItemPendiente = false;
         }
 
-        if (_itemPendienteDeFoco is not null)
+        if (_abierto && _itemPendienteDeFoco is not null)
         {
             var item = _itemPendienteDeFoco;
             _itemPendienteDeFoco = null;
@@ -167,6 +172,7 @@
     {
         _abierto = true;
         _items.Clear();
+        _itemPendienteDeFoco = null;
         _primerItemPendiente = primerItem;
         _ultimoItemPendiente = !primerItem;
     }
@@ -176,7 +182,7 @@
     // no corre y el foco nunca se mueve en el navegador.
     private void ProgramarFoco(ItemMenuAccion? item)
     {
-        if (item is null) return;
+        if (!_abierto || item is null) return;
         _itemPendienteDeFoco = item;
         StateHasChanged();
     }

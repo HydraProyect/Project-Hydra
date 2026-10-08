@@ -23,7 +23,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina listado-propuesta listado-propuesta-subcontratas">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
        conmutador ☑ de selección múltiple, el menú «⋯» con «Exportar a Excel» (lectura: cualquier
        rol) y UNA acción primaria. Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo
@@ -168,7 +168,8 @@
            Empresas: la fila se despliega, y anunciarla como tabla prometería a
            un lector de pantalla una navegación por celdas que no existe. Sin
            QuickGrid por la misma razón: no soporta filas expandibles. *@
-        <div class="@ClaseRejilla("cabecera-columnas-subcontratas")">
+        <div class="listado-superficie marco-lista-propuesta">
+        <div class="@ClaseRejilla("cabecera-columnas-subcontratas listado-cabecera")">
             @if (_seleccionMultiple)
             {
                 <span></span>
@@ -190,7 +191,7 @@
                     @* Cada celda va envuelta para que la rejilla tenga SIEMPRE el
                        mismo número de columnas que la cabecera: un componente que
                        no se pinta desalinearía la fila. *@
-                    <div class="@ClaseRejilla("tarjeta-fila-acordeon-cabecera")">
+                    <div class="@ClaseRejilla("tarjeta-fila-acordeon-cabecera listado-fila")">
                         @if (_seleccionMultiple)
                         {
                             <input type="checkbox" aria-label="@Textos["AriaSeleccionarSubcontrata", subcontrata.RazonSocial]" checked="@_seleccionados.Contains(subcontrata.Id)" @onchange="e => AlternarSeleccion(subcontrata.Id, (bool)e.Value!)" />
@@ -201,11 +202,11 @@
                                 @onclick="() => AlternarExpansion(subcontrata.Id)">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
-                        <span class="celda-identidad-subcontrata">
+                        <span class="celda-identidad-subcontrata listado-identidad">
                             <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirPreview(subcontrata.Id)">
                                 @subcontrata.RazonSocial
                             </button>
-                            <span class="tarjeta-fila-acordeon-meta">@(string.IsNullOrEmpty(subcontrata.Cif) ? Textos["SinCif"] : subcontrata.Cif)</span>
+                            <span class="tarjeta-fila-acordeon-meta listado-identidad-secundaria">@(string.IsNullOrEmpty(subcontrata.Cif) ? Textos["SinCif"] : subcontrata.Cif)</span>
                         </span>
                         <span>
                             <Badge Tono="EstadoSupervisionUi.TonoNivel(subcontrata.NivelServicio)" Tamano="TamanoBadge.Pequeno"
@@ -213,7 +214,7 @@
                                 @EstadoSupervisionUi.TextoNivel(Textos, subcontrata.NivelServicio)
                             </Badge>
                         </span>
-                        <span>
+                        <span class="listado-cumplimiento">
                             <AnilloCumplimiento Porcentaje="subcontrata.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
                                                  Etiqueta="@EtiquetaCumplimiento(subcontrata.CumplimientoPorcentaje)" />
                         </span>
@@ -297,6 +298,7 @@
             }
         </div>
 
+        </div>
         @* Solo con más de una página al tamaño mínimo (20), o si ya se eligió un tamaño mayor:
            sin él no habría forma de volver al tamaño de antes. Mismo criterio que Clientes. *@
         @if (MostrarPaginador)

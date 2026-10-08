@@ -25,7 +25,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<CabeceraPagina Titulo="@Titulo" JuntoAlTitulo="@(Contador is null ? null : ContadorFragment)">
+<CabeceraPagina Titulo="@Titulo" ClaseCss="cabecera-listado" JuntoAlTitulo="@(Contador is null ? null : ContadorFragment)">
     <Acciones>
         @if (SeleccionMultipleChanged.HasDelegate)
         {

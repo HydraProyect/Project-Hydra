@@ -27,7 +27,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina listado-propuesta listado-propuesta-vehiculos">
     @* La empresa gestionada activa sigue resolviendo qué lista se carga; el rediseño oculta
        su rótulo en la cabecera y conserva el estado vacío cuando todavía no hay selección. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
@@ -105,10 +105,10 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+            <QuickGrid @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos tabla-listado-propuesta" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
-                    <TemplateColumn Title="" Align="Align.Center">
+                    <TemplateColumn Class="lp-col-seleccion" Title="" Align="Align.Center">
                         <HeaderTemplate Context="columna">
                             <input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                         </HeaderTemplate>
@@ -117,7 +117,7 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn @ref="_columnaVehiculo" Title="@TituloColumnaVehiculo" Sortable="true" SortBy="@OrdenColumnaVehiculo">
+                <TemplateColumn Class="lp-col-vehiculo" @ref="_columnaVehiculo" Title="@TituloColumnaVehiculo" Sortable="true" SortBy="@OrdenColumnaVehiculo">
                     <ColumnOptions>
                         @* El botón de orden y su dirección accesible siguen siendo los nativos de QuickGrid.
                            Solo se escoge cuál de los dos campos de esta celda se ordena. *@
@@ -135,16 +135,16 @@
                         </span>
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["EtiquetaMatricula"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.NumeroPlaca))">
+                <TemplateColumn Class="lp-col-matricula" Title="@Textos["EtiquetaMatricula"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.NumeroPlaca))">
                     <span class="celda-vehiculo-matricula">@context.NumeroPlaca</span>
                 </TemplateColumn>
-                <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true" />
-                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
-                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
+                <PropertyColumn Class="lp-col-empleador" Property="@(v => v.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true" />
+                <TemplateColumn Class="lp-col-documentacion" Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
+                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" data-estado-documental="@context.EstadoDocumental">
                         @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
                     </Badge>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
+                <TemplateColumn Class="lp-col-menu" Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>
                         <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
                             @Textos["AccionVer"]

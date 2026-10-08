@@ -1,0 +1,409 @@
+/* Variante explícita de los listados de la propuesta aprobada. Los selectores
+   apuntan a sus piezas, no a las cabeceras, tablas o menús de otras pantallas. */
+.contenedor-pagina.listado-propuesta {
+    /* La maqueta conserva un lienzo claro incluso con el marco exterior oscuro.
+       Las variables locales mantienen coherentes también sus menús y paneles. */
+    --font-family: "Public Sans", system-ui, sans-serif;
+    --color-text: #161e27;
+    --color-text-muted: #46566c;
+    --color-neutral-700: #46566c;
+    --color-surface: #ffffff;
+    --color-surface-hover: #f4f7fb;
+    --color-surface-subtle: #eef1f5;
+    --color-overlay: #ffffff;
+    --color-border: #cfd8e3;
+    --color-border-strong: #9aa9bd;
+    --color-primary-50: #e6eefb;
+    --color-primary-500: #235bc2;
+    --color-primary-600: #1e4a9e;
+    --color-primary-700: #163a7d;
+    --color-danger-50: #fef2f2;
+    --color-danger-700: #991b1b;
+    --color-warning-50: #fff8eb;
+    --color-warning-700: #b45309;
+    --color-success-50: #e3f4ea;
+    --color-success-700: #0b6a35;
+    padding: 18px 22px;
+    min-height: 680px;
+    background: #e9eef4;
+}
+
+.listado-propuesta > .cabecera-listado {
+    min-height: 48px;
+    margin-bottom: 0;
+    gap: 10px;
+}
+
+.listado-propuesta > .cabecera-listado .titulo-pagina {
+    margin: 0;
+    font: 700 22px "Public Sans", system-ui, sans-serif;
+    color: #161e27;
+}
+
+.listado-propuesta > .cabecera-listado .cabecera-pagina-titular {
+    gap: 10px;
+}
+
+.listado-propuesta > .cabecera-listado .acciones-cabecera {
+    gap: 8px;
+}
+
+.listado-propuesta > .cabecera-listado .cabecera-listado-contador {
+    padding: 1px 9px;
+    font: 600 12px/1.35 "Public Sans", system-ui, sans-serif;
+    background: #dbe4f1;
+    color: #46566c;
+}
+
+.listado-propuesta > .cabecera-listado :is(.cabecera-listado-icono, .menu-acciones-disparador-borde) {
+    width: 34px;
+    height: 34px;
+    border: 1px solid #b9c6d6;
+    border-radius: 8px;
+}
+
+:is(.listado-propuesta, .listado-propuesta-documentos > .pestanas > .pestanas-panel) > .barra-filtros-pastillas {
+    margin: 6px 0 12px;
+}
+
+:is(.listado-propuesta, .listado-propuesta-documentos > .pestanas > .pestanas-panel) > .barra-filtros-pastillas .barra-filtros-pastillas-fila {
+    min-height: 42px;
+    gap: 8px;
+}
+
+:is(.listado-propuesta, .listado-propuesta-documentos > .pestanas > .pestanas-panel) > .barra-filtros-pastillas .barra-filtros-buscador-pantalla {
+    max-width: 330px;
+}
+
+:is(.listado-propuesta, .listado-propuesta-documentos > .pestanas > .pestanas-panel) > .barra-filtros-pastillas .campo .campo-input {
+    min-height: 36px;
+    border: 1px solid #9aa9bd;
+    border-radius: 8px;
+    font: 400 13px/1.35 "Public Sans", system-ui, sans-serif;
+}
+
+:is(.listado-propuesta, .listado-propuesta-documentos > .pestanas > .pestanas-panel) > .barra-filtros-pastillas .menu-acciones-disparador-pastilla {
+    padding: 7px 12px;
+    border: 1px solid #b9c6d6;
+    font: 500 13px/1.35 "Public Sans", system-ui, sans-serif;
+}
+
+:is(.listado-propuesta, .listado-propuesta-documentos > .pestanas > .pestanas-panel) > .barra-filtros-pastillas .menu-acciones-disparador-activa {
+    border-color: #235bc2;
+    font-weight: 600;
+}
+
+.listado-propuesta .tabla-datos.tabla-listado-propuesta {
+    border: 1px solid #cfd8e3;
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgb(22 30 39 / 8%), 0 4px 12px rgb(22 30 39 / 5%);
+    font: 400 13px/1.35 "Public Sans", system-ui, sans-serif;
+    background: #fff;
+    color: #161e27;
+}
+
+.listado-propuesta .tabla-datos.tabla-listado-propuesta th {
+    height: 38px;
+    padding: 0 6px;
+    background: #f4f7fb;
+    color: #46566c;
+    font: 700 10.5px/1.35 "Public Sans", system-ui, sans-serif;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.listado-propuesta .tabla-datos.tabla-listado-propuesta td {
+    height: 52px;
+    padding: 6px;
+    border-bottom-color: #e6ebf1;
+    font: inherit;
+}
+
+.listado-propuesta .tabla-listado-propuesta :is(th, td):first-child {
+    padding-left: 16px;
+}
+
+.listado-propuesta .tabla-listado-propuesta :is(th, td):last-child {
+    padding-right: 16px;
+}
+
+/* El menú tiene una cabecera accesible, sin un rótulo visible en su pista. */
+.listado-propuesta .tabla-listado-propuesta thead .lp-col-menu .col-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+}
+
+.listado-propuesta :is(.tabla-listado-propuesta, .marco-lista-propuesta) .badge {
+    padding: 2px 9px;
+    border: 1px solid transparent;
+    font: 600 11px/1.35 "Public Sans", system-ui, sans-serif;
+}
+
+.listado-propuesta :is(.tabla-listado-propuesta, .marco-lista-propuesta) .badge-peligro {
+    background: #fbe5e3;
+    color: #8f1c19;
+    border-color: #f1bcb8;
+}
+
+.listado-propuesta :is(.tabla-listado-propuesta, .marco-lista-propuesta) .badge-advertencia {
+    background: #fdf0d5;
+    color: #7a4a00;
+    border-color: #f2d89b;
+}
+
+.listado-propuesta :is(.tabla-listado-propuesta, .marco-lista-propuesta) .badge-exito {
+    background: #e3f4ea;
+    color: #0b6a35;
+    border-color: #b5dfc6;
+}
+
+.listado-propuesta :is(.tabla-listado-propuesta, .marco-lista-propuesta) .badge-neutro {
+    background: #eef1f5;
+    color: #46566c;
+    border-color: #d4dbe5;
+}
+
+.listado-propuesta :is(.tabla-listado-propuesta, .marco-lista-propuesta) .badge[data-estado-documental="Urgente"] {
+    background: #fde9d4;
+    color: #8a3d00;
+    border-color: #f3c79c;
+}
+
+.listado-propuesta .tabla-listado-propuesta .menu-acciones-disparador:not(.menu-acciones-disparador-texto) {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid #b9c6d6;
+    border-radius: 8px;
+    background: #fff;
+}
+
+/* Geometría específica de los listados con acordeón. */
+@media (min-width: 920px) {
+  .listado-propuesta.listado-propuesta-empresas .listado-superficie .rejilla-empresas {
+    display: grid; grid-template-columns: 28px minmax(0,2fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr) 40px;
+    gap: 12px; align-items: center;
+  }
+  .listado-propuesta.listado-propuesta-empresas .listado-superficie .rejilla-empresas-seleccion {
+    grid-template-columns: 28px 28px minmax(0,2fr) minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr) 40px;
+  }
+  .listado-propuesta.listado-propuesta-subcontratas .listado-superficie .rejilla-subcontratas {
+    display: grid; grid-template-columns: 28px minmax(0,2.4fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,.8fr) minmax(0,.9fr) 40px;
+    gap: 12px; align-items: center;
+  }
+  .listado-propuesta.listado-propuesta-subcontratas .listado-superficie .rejilla-subcontratas-seleccion {
+    grid-template-columns: 28px 28px minmax(0,2.4fr) minmax(0,1.2fr) minmax(0,1fr) minmax(0,.8fr) minmax(0,.9fr) 40px;
+  }
+  .listado-propuesta.listado-propuesta-centros .listado-superficie :is(.cabecera-columnas-centros,.listado-fila) {
+    display: grid; grid-template-columns: 28px minmax(0,2fr) minmax(0,1.6fr) minmax(0,1fr) minmax(0,.8fr) minmax(0,.8fr) minmax(0,1.3fr) 40px;
+    gap: 12px; align-items: center;
+  }
+  .listado-propuesta.listado-propuesta-centros .listado-superficie.listado-con-seleccion :is(.cabecera-columnas-centros,.listado-fila) {
+    grid-template-columns: 28px 28px minmax(0,2fr) minmax(0,1.6fr) minmax(0,1fr) minmax(0,.8fr) minmax(0,.8fr) minmax(0,1.3fr) 40px;
+  }
+  .listado-propuesta.listado-propuesta-centros .listado-superficie :is(.cabecera-columnas-centros-indicadores,.listado-fila > .tarjeta-fila-acordeon-indicadores) {
+    display: contents;
+  }
+  .listado-propuesta.listado-propuesta-centros .listado-superficie .listado-fila > :is(.columna-empresa-centro,.columna-cumplimiento-centro),
+  .listado-propuesta.listado-propuesta-centros .listado-superficie .listado-fila .ranura-recuento {
+    width: auto; min-width: 0; flex: initial;
+  }
+}
+/* Superficie continua de acordeones: sin overflow:hidden, que cortaría menús. */
+.listado-propuesta .listado-superficie {
+  border: 1px solid #cfd8e3; border-radius: 10px; background: #fff;
+  box-shadow: 0 1px 2px rgb(22 30 39 / 8%), 0 4px 12px rgb(22 30 39 / 5%);
+  font: 400 13px/1.35 "Public Sans", system-ui, sans-serif; color: #161e27;
+}
+.listado-propuesta .listado-superficie > .lista-filas-acordeon { gap: 0; }
+.listado-propuesta .listado-superficie > .lista-filas-acordeon > .tarjeta-fila-acordeon {
+  border: 0; border-top: 1px solid #e6ebf1; border-radius: 0; background: transparent;
+}
+.listado-propuesta .listado-superficie > .lista-filas-acordeon > .tarjeta-fila-acordeon:last-child { border-radius: 0 0 10px 10px; }
+.listado-propuesta .listado-superficie > .listado-cabecera {
+  height: 38px; min-height: 38px; margin: 0; padding: 0 16px;
+  border: 0; border-radius: 10px 10px 0 0; background: #f4f7fb;
+  color: #46566c; font: 700 10.5px/1.35 "Public Sans",system-ui,sans-serif;
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.listado-propuesta .listado-superficie .tarjeta-fila-acordeon > .listado-fila {
+  min-height: 52px; padding: 6px 16px; box-sizing: border-box;
+}
+.listado-propuesta .listado-superficie .tarjeta-fila-acordeon > .listado-fila:hover { background: #f4f7fb; }
+.listado-propuesta .listado-superficie .listado-fila > .boton-expandir-fila {
+  width: 28px; height: 28px; min-width: 28px; padding: 0; border-radius: 6px; font-size: 16px;
+}
+.listado-propuesta .listado-superficie .listado-fila > .boton-expandir-fila:hover { background: #e6eefb; }
+.listado-propuesta .listado-superficie .listado-fila > .tarjeta-fila-acordeon-acciones { justify-self: end; }
+.listado-propuesta .listado-superficie .listado-fila > .tarjeta-fila-acordeon-acciones > .menu-acciones > .menu-acciones-disparador {
+  width: 30px; height: 30px; padding: 0; border: 1px solid #b9c6d6; border-radius: 8px; background: #fff;
+}
+.listado-propuesta .listado-superficie > .lista-filas-acordeon > .grupo-lista > .grupo-lista-cabecera {
+  min-height: 40px; background: #eef2f8; color: #1e3a6e; border-top: 1px solid #d9e0ea; font-weight: 700;
+}
+/* Identidad marcada expresamente: no alcanza identidades de vistas rápidas. */
+.listado-propuesta .listado-fila > .listado-identidad,
+.listado-propuesta .tabla-listado-propuesta .listado-identidad {
+  display: flex; flex-direction: column; gap: 0; min-width: 0;
+}
+.listado-propuesta .listado-identidad > .enlace-nombre-fila { font-size: 13px; line-height: 1.35; font-weight: 600; }
+.listado-propuesta .listado-identidad > .listado-identidad-secundaria { font-size: 12px; line-height: 1.35; color: #46566c; }
+/* Sólo el anillo directamente dentro de la celda marcada del resumen. */
+.listado-propuesta .listado-fila > .listado-cumplimiento > .anillo-cumplimiento-envoltorio {
+  width: 28px; height: 28px;
+}
+.listado-propuesta .listado-fila > .listado-cumplimiento > .anillo-cumplimiento-envoltorio .anillo-cumplimiento-texto { font-size: 8px; font-weight: 700; }
+.listado-propuesta .tabla-listado-propuesta .listado-col-gestor .persona-iniciales {
+  width: 24px; height: 24px; font-size: 9px; font-weight: 700; margin-right: 6px;
+}
+
+/* Classes de tinte ya producidas por ClaseTarjeta; preservar su prioridad
+   sobre hover normal y no reemplazar sombras/anuncios del foco existente. */
+.listado-propuesta .listado-superficie .tarjeta-fila-acordeon.fila-tintada-peligro > .listado-fila { background: #fef2f2; }
+.listado-propuesta .listado-superficie .tarjeta-fila-acordeon.fila-tintada-peligro > .listado-fila:hover { background: #fde8e8; }
+.listado-propuesta .listado-superficie .tarjeta-fila-acordeon.fila-tintada-aviso > .listado-fila { background: #fff8eb; }
+.listado-propuesta .listado-superficie .tarjeta-fila-acordeon.fila-tintada-aviso > .listado-fila:hover { background: #fff1d6; }
+@media (min-width: 920px) {
+  .listado-propuesta.listado-propuesta-centros .listado-superficie .listado-cabecera > :is(.columna-empresa-centro,.columna-cumplimiento-centro,.cabecera-columnas-centros-acciones),
+  .listado-propuesta.listado-propuesta-centros .listado-superficie .listado-fila > .tarjeta-fila-acordeon-acciones { width: auto; min-width: 0; }
+}
+/* Los tracks resuelven las proporciones en la fila. Las celdas mantienen
+   padding y fondos contiguos: el algoritmo de tabla ignora calc con porcentajes. */
+@media (min-width: 920px) {
+    .listado-propuesta:is(.listado-propuesta-documentos, .listado-propuesta-vehiculos, .listado-propuesta-gestiones, .listado-propuesta-proyectos, .listado-propuesta-trabajadores) .tabla-listado-propuesta {
+        display: block;
+        --lpc-reserva: calc(72px + 12px * var(--lpc-main));
+        --lpc-primera: 22px;
+        --lpc-grid: var(--lpc-columnas);
+    }
+
+    .listado-propuesta .tabla-listado-propuesta:has(> thead > tr > .lp-col-seleccion) {
+        --lpc-reserva: calc(112px + 12px * var(--lpc-main));
+        --lpc-primera: 12px;
+        --lpc-grid: 50px var(--lpc-columnas);
+    }
+
+    .listado-propuesta:is(.listado-propuesta-documentos, .listado-propuesta-vehiculos, .listado-propuesta-gestiones, .listado-propuesta-proyectos, .listado-propuesta-trabajadores) .tabla-listado-propuesta > :is(thead, tbody) {
+        display: block;
+    }
+
+    .listado-propuesta:is(.listado-propuesta-documentos, .listado-propuesta-vehiculos, .listado-propuesta-gestiones, .listado-propuesta-proyectos, .listado-propuesta-trabajadores) .tabla-listado-propuesta > :is(thead, tbody) > tr {
+        display: grid;
+        grid-template-columns: var(--lpc-grid);
+        gap: 0;
+        padding: 0;
+    }
+
+    .listado-propuesta:is(.listado-propuesta-documentos, .listado-propuesta-vehiculos, .listado-propuesta-gestiones, .listado-propuesta-proyectos, .listado-propuesta-trabajadores) .tabla-listado-propuesta > :is(thead, tbody) > tr > :is(th, td) {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        min-width: 0;
+        width: auto;
+        box-sizing: border-box;
+    }
+
+    .listado-propuesta:is(.listado-propuesta-documentos, .listado-propuesta-vehiculos, .listado-propuesta-gestiones, .listado-propuesta-proyectos, .listado-propuesta-trabajadores) .tabla-listado-propuesta > tbody > tr > td {
+        height: auto;
+        min-height: 52px;
+    }
+
+    .listado-propuesta .tabla-listado-propuesta > tbody > tr > td.col-justify-end { justify-content: flex-end; }
+    .listado-propuesta .tabla-listado-propuesta > tbody > tr > td.col-justify-center { justify-content: center; }
+    .listado-propuesta .tabla-listado-propuesta > thead > tr > th { flex-wrap: nowrap; }
+    .listado-propuesta .tabla-listado-propuesta > tbody > tr:not(:has(td:not(:empty))) { display: none; }
+
+    .listado-propuesta-vehiculos .tabla-listado-propuesta {
+        --lpc-main: 4;
+        --lpc-columnas: calc((100% - var(--lpc-reserva)) / 6 * 2 + var(--lpc-primera)) calc((100% - var(--lpc-reserva)) / 6 + 12px) calc((100% - var(--lpc-reserva)) / 6 * 1.8 + 12px) calc((100% - var(--lpc-reserva)) / 6 * 1.2 + 12px) 62px;
+    }
+    .listado-propuesta-documentos .tabla-listado-propuesta {
+        --lpc-main: 6;
+        --lpc-columnas: calc((100% - var(--lpc-reserva)) / 8.6 * 2 + var(--lpc-primera)) calc((100% - var(--lpc-reserva)) / 8.6 * 1.8 + 12px) calc((100% - var(--lpc-reserva)) / 8.6 * 1.6 + 12px) calc((100% - var(--lpc-reserva)) / 8.6 + 12px) calc((100% - var(--lpc-reserva)) / 8.6 * 1.3 + 12px) calc((100% - var(--lpc-reserva)) / 8.6 * .9 + 12px) 62px;
+    }
+    .listado-propuesta-gestiones .tabla-listado-propuesta {
+        --lpc-main: 5;
+        --lpc-columnas: calc((100% - var(--lpc-reserva)) / 7.1 * 2 + var(--lpc-primera)) calc((100% - var(--lpc-reserva)) / 7.1 * 1.8 + 12px) calc((100% - var(--lpc-reserva)) / 7.1 * 1.3 + 12px) calc((100% - var(--lpc-reserva)) / 7.1 + 12px) calc((100% - var(--lpc-reserva)) / 7.1 + 12px) 62px;
+    }
+    .listado-propuesta-proyectos .tabla-listado-propuesta {
+        --lpc-main: 3;
+        --lpc-columnas: calc((100% - var(--lpc-reserva)) / 5.8 * 2.2 + var(--lpc-primera)) calc((100% - var(--lpc-reserva)) / 5.8 * 2.2 + 12px) calc((100% - var(--lpc-reserva)) / 5.8 * 1.4 + 12px) 62px;
+    }
+    .listado-propuesta-trabajadores .tabla-listado-propuesta {
+        --lpc-main: 3;
+        --lpc-columnas: calc((100% - var(--lpc-reserva)) / 6.4 * 2 + var(--lpc-primera)) calc((100% - var(--lpc-reserva)) / 6.4 * 1.8 + 12px) calc((100% - var(--lpc-reserva)) / 6.4 * 2.6 + 12px) 62px;
+    }
+}
+/* Identidades apiladas, sin trasladar estilos al panel lateral. */
+.listado-propuesta-vehiculos .tabla-listado-propuesta .celda-vehiculo,
+.listado-propuesta-documentos .tabla-listado-propuesta .documentos-propietario,
+.listado-propuesta-gestiones .tabla-listado-propuesta .gestion-trabajador-centro,
+.listado-propuesta-proyectos .tabla-listado-propuesta .proyecto-nombre-centro { gap: 0; }
+.listado-propuesta-vehiculos .tabla-listado-propuesta .celda-vehiculo-modelo,
+.listado-propuesta-documentos .tabla-listado-propuesta .documentos-ambito,
+.listado-propuesta-documentos .tabla-listado-propuesta .documentos-vigencia,
+.listado-propuesta-gestiones .tabla-listado-propuesta .gestion-centro,
+.listado-propuesta-proyectos .tabla-listado-propuesta .proyecto-centro {
+  font-size: 12px; line-height: 1.35; font-weight: 400;
+}
+.listado-propuesta-gestiones .tabla-listado-propuesta .gestion-trabajador-centro > .enlace-nombre-fila:not(.gestion-centro) { font-weight: 600; }
+.listado-propuesta-vehiculos .tabla-listado-propuesta .celda-vehiculo-matricula {
+  font-family: ui-monospace, Consolas, monospace;
+  font-weight: 700; letter-spacing: .06em;
+  border: 1.5px solid #161e27; border-radius: 5px;
+  padding: 1px 7px; background: #fff;
+}
+.listado-propuesta-gestiones .tabla-listado-propuesta .lp-col-completar { text-align: left; }
+.listado-propuesta-gestiones .tabla-listado-propuesta .gestion-completar {
+  font-size: 12px; line-height: 1.35; padding: 5px 10px;
+  margin-right: 0; border-radius: 6px; white-space: nowrap;
+}
+.listado-propuesta-gestiones .tabla-listado-propuesta > tbody > tr > .lp-col-creada {
+  font-size: 12px; line-height: 1.35; color: var(--color-text-muted);
+}
+.listado-propuesta-proyectos .tabla-listado-propuesta .proyecto-plazo {
+  font-size: 12px; line-height: 1.35; font-weight: 400;
+  color: var(--color-text-muted); gap: 6px;
+}
+
+
+/* El resalte de interacción conserva el significado del estado documental. */
+.listado-propuesta .listado-superficie .fila-tintada-peligro > :is(.listado-fila, .grupo-lista-cabecera) {
+    background: #fef2f2;
+    color: #161e27;
+    box-shadow: inset 3px 0 0 #991b1b;
+}
+
+.listado-propuesta .listado-superficie .fila-tintada-peligro > :is(.listado-fila, .grupo-lista-cabecera):hover {
+    background: #fde8e8;
+}
+
+.listado-propuesta .listado-superficie .fila-tintada-aviso > :is(.listado-fila, .grupo-lista-cabecera) {
+    background: #fff8eb;
+    color: #161e27;
+    box-shadow: inset 3px 0 0 #b45309;
+}
+
+.listado-propuesta .listado-superficie .fila-tintada-aviso > :is(.listado-fila, .grupo-lista-cabecera):hover {
+    background: #fff1d6;
+}
+
+.listado-propuesta .tabla-listado-propuesta tr.fila-tintada-peligro:hover td {
+    background: #fde8e8;
+}
+
+.listado-propuesta .tabla-listado-propuesta tr.fila-tintada-aviso:hover td {
+    background: #fff1d6;
+}
+
+@media (max-width: 767px) {
+    :is(.listado-propuesta, .listado-propuesta-documentos > .pestanas > .pestanas-panel) > .barra-filtros-pastillas .campo .campo-input {
+        font-size: 16px;
+    }
+}

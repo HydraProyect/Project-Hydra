@@ -20,7 +20,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina listado-propuesta listado-propuesta-gestiones">
     @* Sin alta: las gestiones se crean desde los caminos ya existentes. *@
     <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)" />
 
@@ -63,8 +63,8 @@
            mientras no haya filas que enseñar, y en su lugar se ve el esqueleto
            o el estado vacío que toque. *@
         <div style="display:@(_totalElementos == 0 ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                <TemplateColumn @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
+            <QuickGrid @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos tabla-listado-propuesta" RowClass="ObtenerClaseFila">
+                <TemplateColumn Class="lp-col-trabajador" @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
                                 Sortable="true" SortBy="@(_ordenTrabajadorPorCentro ? OrdenCentroListado : OrdenTrabajadorListado)">
                     <ColumnOptions>
                         <div class="gestiones-opciones-orden" data-opciones-orden>
@@ -79,12 +79,12 @@
                         </span>
                     </ChildContent>
                 </TemplateColumn>
-                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="@Textos["ListaTipoDocumento"]" Sortable="true" Class="gestion-tipo-documento" />
-                <TemplateColumn Title="@Textos["ColumnaEstado"]" Align="Align.Center" Sortable="true" IsDefaultSortColumn="true" InitialSortDirection="SortDirection.Ascending" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
+                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="@Textos["ListaTipoDocumento"]" Sortable="true" Class="gestion-tipo-documento lp-col-tipo" />
+                <TemplateColumn Class="lp-col-estado" Title="@Textos["ColumnaEstado"]" Align="Align.Center" Sortable="true" IsDefaultSortColumn="true" InitialSortDirection="SortDirection.Ascending" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
                     <Badge Tono="@TonoEstado(context.Estado)">@TextoEstado(context.Estado)</Badge>
                 </TemplateColumn>
-                <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="@Textos["ColumnaCreada"]" Sortable="true" />
-                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
+                <PropertyColumn Class="lp-col-creada" Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="@Textos["ColumnaCreada"]" Sortable="true" />
+                <TemplateColumn Class="lp-col-completar" Title="" Align="Align.Start">
                     <SoloConEscritura>
                         @if (context.Estado == EstadoGestion.Pendiente)
                         {
@@ -94,6 +94,8 @@
                             </button>
                         }
                     </SoloConEscritura>
+                </TemplateColumn>
+                <TemplateColumn Class="lp-col-menu" Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>
                         <SoloConEscritura><ItemMenuAccion OnClick="() => CambiarEstadoAsync(context.Id, context.Estado != EstadoGestion.Completada)">
                             @(context.Estado == EstadoGestion.Completada ? Textos["AccionReabrir"] : Textos["AccionMarcarCompletada"])

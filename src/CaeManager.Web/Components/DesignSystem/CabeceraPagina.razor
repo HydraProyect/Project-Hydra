@@ -43,7 +43,7 @@
     coincide con Gen 2 y migrarlas sería refactor sin cambio visible. Entrarán
     con el incremento de su familia.
 *@
-<header class="cabecera-pagina @(Descripcion is null ? null : "cabecera-pagina-con-descripcion")">
+<header class="cabecera-pagina @ClaseCss @(Descripcion is null ? null : "cabecera-pagina-con-descripcion")">
     @if (Inicio is null)
     {
         @Texto
@@ -99,6 +99,9 @@
 
     /// <summary>Título de la pantalla. Es el <c>h1</c>, salvo en el hub de Configuración.</summary>
     [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>Variante visual opcional, sin alterar las demás cabeceras.</summary>
+    [Parameter] public string? ClaseCss { get; set; }
 
     /// <summary>
     /// Antetítulo en mayúsculas sobre el título — normalmente el grupo del

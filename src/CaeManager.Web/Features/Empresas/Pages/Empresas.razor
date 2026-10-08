@@ -31,7 +31,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@_tituloPagina — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina listado-propuesta listado-propuesta-empresas">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
        conmutador ☑ de selección múltiple, el menú «⋯» con «Exportar a Excel» (lectura: cualquier
        rol) y UNA acción primaria. El título lo sigue decidiendo el perfil de vocabulario del
@@ -191,13 +191,13 @@
            panel de MenuAcciones de las últimas filas se saldría y quedaría
            recortado (mismo motivo que la nota de .tarjeta-fila-acordeon en
            list-page.css). *@
-        <div class="marco-lista-empresas">
+        <div class="marco-lista-empresas listado-superficie marco-lista-propuesta">
         @* Cabecera de columnas (#498). Sin roles de tabla a propósito: esto no
            es una tabla —la fila se despliega— y anunciarlo como tal prometería
            a un lector de pantalla una navegación por celdas que no existe. Sin
            QuickGrid por lo mismo: no soporta filas expandibles. Los rótulos no
            ordenan: el mockup no lo pide. *@
-        <div class="@ClaseRejilla("cabecera-columnas-empresas")">
+        <div class="@ClaseRejilla("cabecera-columnas-empresas listado-cabecera")">
             @if (_seleccionMultiple)
             {
                 <span></span>
@@ -215,7 +215,7 @@
             {
                 <div class="@ClaseTarjeta(empresa)" @key="empresa.Id">
                     @{ var expandido = _expandidos.Contains(empresa.Id); }
-                    <div class="@ClaseRejilla("tarjeta-fila-acordeon-cabecera")">
+                    <div class="@ClaseRejilla("tarjeta-fila-acordeon-cabecera listado-fila")">
                         @if (_seleccionMultiple)
                         {
                             <input type="checkbox" aria-label="@($"Seleccionar {empresa.RazonSocial}")" checked="@_seleccionados.Contains(empresa.Id)" @onchange="e => AlternarSeleccion(empresa.Id, (bool)e.Value!)" />
@@ -235,22 +235,22 @@
                            «Vista rápida» del menú de la fila, como en la lista Clientes. *@
                         @* Razón social y CIF en una sola celda de dos líneas, como la columna «Empresa» de la
                            maqueta aprobada (fase 1). *@
-                        <span class="celda-identidad-empresa">
+                        <span class="celda-identidad-empresa listado-identidad">
                             <a class="enlace-nombre-fila celda-empresa" href="@($"/empresas/{empresa.Id}")">
                                 @empresa.RazonSocial
                             </a>
-                            <span class="tarjeta-fila-acordeon-meta celda-empresa">@(empresa.Cif ?? "—")</span>
+                            <span class="tarjeta-fila-acordeon-meta celda-empresa listado-identidad-secundaria">@(empresa.Cif ?? "—")</span>
                         </span>
                         @* Cumplimiento antes que Documentación, en el orden del mockup. Cada
                            celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
                            de columnas: un componente que no se pinta desalinearía la fila
                            respecto a la cabecera. *@
-                        <span>
+                        <span class="listado-cumplimiento">
                             <AnilloCumplimiento Porcentaje="empresa.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
                                                  Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
                         </span>
                         <span>
-                            <Badge Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)" Tamano="TamanoBadge.Pequeno"
+                            <Badge Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)" Tamano="TamanoBadge.Pequeno" data-estado-documental="@empresa.EstadoDocumental"
                                    title="@TituloEstadoDocumental(empresa.EstadoDocumental)">
                                 @EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)
                             </Badge>

@@ -16,7 +16,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina listado-propuesta listado-propuesta-proyectos">
     <CabeceraListado Titulo="@Textos["TituloPagina"]"
                      Contador="@(_resolviendoEmpresa || _sinEmpresaSeleccionada || _cargando || _errorCarga || _clienteSeleccionadoId == Guid.Empty || _cargandoProyectos || _errorProyectos ? null : (int?)ProyectosVisibles.Count)">
         <Primaria>
@@ -119,26 +119,26 @@
             <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
             <div class="contenedor-tabla-proyectos">
-                <table class="tabla-datos tabla-proyectos">
+                <table class="tabla-datos tabla-listado-propuesta tabla-proyectos">
                     <thead>
                         <tr>
-                            <th>@Textos["ListaProyecto"]</th>
-                            <th>@Textos["ListaPlazo"]</th>
-                            <th>@Textos["EtiquetaEstado"]</th>
-                            <th class="col-acciones"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
+                            <th class="lp-col-proyecto">@Textos["ListaProyecto"]</th>
+                            <th class="lp-col-plazo">@Textos["ListaPlazo"]</th>
+                            <th class="lp-col-estado">@Textos["EtiquetaEstado"]</th>
+                            <th class="col-acciones lp-col-menu"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var proyecto in ProyectosVisibles)
                         {
                             <tr class="@ClaseFila(proyecto)">
-                                <td>
+                                <td class="lp-col-proyecto">
                                     <span class="proyecto-nombre-centro">
                                         <button type="button" class="enlace-nombre-fila nombre-proyecto" @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">@proyecto.Nombre</button>
                                         <span class="proyecto-centro">@proyecto.CentroNombre</span>
                                     </span>
                                 </td>
-                                <td class="celda-fecha-proyecto">
+                                <td class="celda-fecha-proyecto lp-col-plazo">
                                     <span class="proyecto-plazo">
                                         <span><span class="texto-solo-lectores">@Textos["EtiquetaInicio"]: </span>@proyecto.FechaInicio.ToString("dd/MM/yyyy")</span>
                                         @if (proyecto.FechaFinPrevista is { } fin)
@@ -152,7 +152,7 @@
                                         }
                                     </span>
                                 </td>
-                                <td>
+                                <td class="lp-col-estado">
                                     @if (proyecto.EstaAbierto)
                                     {
                                         <Badge Tono="TonoBadge.Exito">@Textos["BadgeAbierto"]</Badge>
@@ -162,7 +162,7 @@
                                         <Badge Tono="TonoBadge.Neutro">@Textos["BadgeCerrado"]</Badge>
                                     }
                                 </td>
-                                <td class="col-acciones">
+                                <td class="col-acciones lp-col-menu">
                                     <MenuAcciones>
                                         <ItemMenuAccion OnClick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">@Textos["MenuDetalles"]</ItemMenuAccion>
                                         @if (proyecto.EstaAbierto)

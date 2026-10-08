@@ -32,7 +32,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>Documentos — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina listado-propuesta listado-propuesta-documentos">
     @* Fase 1: el selector lateral ya identifica la Empresa seleccionada; las seis pestañas conservan su comportamiento. *@
     <CabeceraListado Titulo="Documentos"
                      Contador="@(_pestanaActiva == "listado" && !_sinEmpresaSeleccionada && !_resolviendoEmpresa && !_cargando && !_errorCarga ? _totalElementos : (int?)null)"
@@ -153,10 +153,10 @@
             else
             {
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-                    <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                    <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos tabla-listado-propuesta" RowClass="ObtenerClaseFila">
                         @if (_seleccionMultiple)
                         {
-                            <TemplateColumn Title="" Align="Align.Center">
+                            <TemplateColumn Class="lp-col-seleccion" Title="" Align="Align.Center">
                                 <HeaderTemplate Context="columna">
                                     <input type="checkbox" aria-label="Seleccionar los documentos de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                                 </HeaderTemplate>
@@ -167,7 +167,7 @@
                         }
                         @* PropietarioNombre es la entidad asociada al Documento, no el Tenant propietario.
                            Se conserva el identificador legacy y el rótulo de la maqueta; hay deuda terminológica. *@
-                        <TemplateColumn @ref="_columnaEntidadAsociada" Title="@(_ordenEntidadAsociadaPorAmbito ? Textos["ListaEntidadAsociadaPorAmbito"].Value : Textos["ListaEntidadAsociada"].Value)"
+                        <TemplateColumn Class="lp-col-entidad" @ref="_columnaEntidadAsociada" Title="@(_ordenEntidadAsociadaPorAmbito ? Textos["ListaEntidadAsociadaPorAmbito"].Value : Textos["ListaEntidadAsociada"].Value)"
                                         Sortable="true" SortBy="@(_ordenEntidadAsociadaPorAmbito ? OrdenAmbitoListado : OrdenEntidadAsociadaListado)">
                             <ColumnOptions>
                                 <div class="documentos-opciones-orden" data-opciones-orden>
@@ -182,8 +182,8 @@
                                 </span>
                             </ChildContent>
                         </TemplateColumn>
-                        <PropertyColumn Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" Sortable="true" />
-                        <TemplateColumn @ref="_columnaVigencia" Title="@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVigenciaPorVencimiento"]"
+                        <PropertyColumn Class="lp-col-tipo" Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" Sortable="true" />
+                        <TemplateColumn Class="lp-col-vigencia" @ref="_columnaVigencia" Title="@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVigenciaPorVencimiento"]"
                                         Sortable="true" SortBy="@(_ordenVigenciaPorEmision ? OrdenEmisionListado : OrdenVencimientoListado)">
                             <ColumnOptions>
                                 <div class="documentos-opciones-orden" data-opciones-orden>
@@ -207,10 +207,10 @@
                                 </span>
                             </ChildContent>
                         </TemplateColumn>
-                        <TemplateColumn Title="Estado" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))">
-                            <Badge Tono="EstadoDocumentoUi.Tono(context.Estado)" ConIcono>@EstadoDocumentoUi.Texto(context.Estado)</Badge>
+                        <TemplateColumn Class="lp-col-estado" Title="Estado" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))">
+                            <Badge Tono="EstadoDocumentoUi.Tono(context.Estado)" data-estado-documental="@context.Estado">@EstadoDocumentoUi.Texto(context.Estado)</Badge>
                         </TemplateColumn>
-                        <TemplateColumn Title="Plataformas">
+                        <TemplateColumn Class="lp-col-plataformas" Title="Plataformas">
                             @if (context.Acreditaciones.Count == 0)
                             {
                                 <span class="detalle-tecnico">—</span>
@@ -220,7 +220,7 @@
                                 <BadgesAcreditacion Acreditaciones="context.Acreditaciones" />
                             }
                         </TemplateColumn>
-                        <TemplateColumn Title="Archivo">
+                        <TemplateColumn Class="lp-col-archivo" Title="Archivo">
                             @if (context.ArchivoUrl is not null)
                             {
                                 <a href="/documentos/@context.Id/archivo" target="_blank">Ver PDF</a>
@@ -230,7 +230,7 @@
                                 <span class="detalle-tecnico">Sin adjunto</span>
                             }
                         </TemplateColumn>
-                        <TemplateColumn Title="Acciones" Align="Align.End">
+                        <TemplateColumn Class="lp-col-menu" Title="Acciones" Align="Align.End">
                             <MenuAcciones>
                                 <ItemMenuAccion OnClick="() => AbrirPanelAsync(context.Id)">
                                     Ver

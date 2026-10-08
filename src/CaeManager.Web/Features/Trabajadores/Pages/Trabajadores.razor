@@ -28,7 +28,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@TituloPagina — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina listado-propuesta listado-propuesta-trabajadores">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
        conmutador ☑ de selección múltiple, el menú «⋯» con «Exportar a Excel» y UNA acción
        primaria. El título lo sigue decidiendo el perfil de vocabulario del Tenant y si el usuario
@@ -143,12 +143,12 @@
            enseñar, y en su lugar se ve el esqueleto o el estado vacío que
            toque. *@
         <div class="contenido-entra" style="display:@(_totalElementos == 0 ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+            <QuickGrid @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos tabla-listado-propuesta" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
                     @* La casilla de cabecera solo marca los de la página
                        visible, y su nombre accesible lo dice. *@
-                    <TemplateColumn Title="" Align="Align.Center">
+                    <TemplateColumn Class="lp-col-seleccion" Title="" Align="Align.Center">
                         <HeaderTemplate Context="columna">
                             <input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                         </HeaderTemplate>
@@ -160,30 +160,30 @@
                 @* Una sola celda «Trabajador», como la maqueta (fase 1): «Apellidos, Nombre» en
                    negrita —abre la vista previa— y el documento de identidad debajo. Ordena por
                    apellidos y, a igualdad, por nombre (ObtenerTrabajadoresQuery). *@
-                <TemplateColumn Title="@Textos["ListaColumnaTrabajador"]" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))">
-                    <span class="celda-trabajador">
+                <TemplateColumn Class="lp-col-trabajador" Title="@Textos["ListaColumnaTrabajador"]" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))">
+                    <span class="celda-trabajador listado-identidad">
                         <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick='() => AbrirPreview(context.Id)'>@NombreDeFila(context)</button>
                         @if (!string.IsNullOrWhiteSpace(context.Dni))
                         {
-                            <span class="celda-trabajador-dni">DNI @context.Dni</span>
+                            <span class="celda-trabajador-dni listado-identidad-secundaria">DNI @context.Dni</span>
                         }
                     </span>
                 </TemplateColumn>
                 @* La maqueta añade una segunda línea («Subcontrata de …») a las subcontratas:
                    TrabajadorListaDto no dice si el empleador es subcontrata ni de quién, así que no
                    se pinta (cambiaría la consulta: Application). *@
-                <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="@Textos["EtiquetaEmpresa"]" Sortable="true" />
+                <PropertyColumn Class="lp-col-empleador" Property="@(t => t.EmpleadorNombre)" Title="@Textos["EtiquetaEmpresa"]" Sortable="true" />
                 @* Solo la pastilla de estado. Columna de orden por defecto: el peor estado primero
                    (Vencido → Urgente → Próximo → Sin confirmar → Vigente → Sin caducidad), que
                    ObtenerTrabajadoresQuery ya resuelve en SQL. El documento que lo causa y
                    «vigentes/total» son fase 2. *@
-                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" IsDefaultSortColumn="true"
+                <TemplateColumn Class="lp-col-documentacion" Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" IsDefaultSortColumn="true"
                                 SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.EstadoDocumental))">
-                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
+                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" data-estado-documental="@context.EstadoDocumental">
                         @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
                     </Badge>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
+                <TemplateColumn Class="lp-col-menu" Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>
                         <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
                             @Textos["AccionDetalles"]

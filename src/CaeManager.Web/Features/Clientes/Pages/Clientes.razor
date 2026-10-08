@@ -28,7 +28,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>Clientes empresariales — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina listado-propuesta listado-propuesta-clientes">
     @* Rediseño de listados, fase 1 (piloto): cabecera de una línea (CabeceraListado) con el
        contador, el conmutador ☑ de selección múltiple, el menú «⋯» con las acciones
        secundarias y UNA acción primaria. Las filas de esta pantalla son Clientes
@@ -163,7 +163,7 @@
         }
 
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+            <QuickGrid @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos tabla-listado-propuesta" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
                     <TemplateColumn Title="" Align="Align.Center">

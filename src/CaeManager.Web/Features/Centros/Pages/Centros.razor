@@ -30,7 +30,7 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>Centros — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina listado-propuesta listado-propuesta-centros">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
        conmutador ☑ de selección múltiple, el menú «⋯» con las dos descargas (lectura: cualquier
        rol) y UNA acción primaria. Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo
@@ -212,7 +212,8 @@
            navegación por celdas que no existe. «Cumplimiento» es el único rótulo que ordena (la consulta
            solo ordena por él en esta pantalla): pulsarlo de nuevo invierte el sentido. Los anchos son los
            de la fila (Centros.razor.css). *@
-        <div class="cabecera-columnas-centros">
+        <div class="@("listado-superficie marco-lista-propuesta" + (_seleccionMultiple ? " listado-con-seleccion" : ""))">
+        <div class="cabecera-columnas-centros listado-cabecera">
             @if (_seleccionMultiple)
             {
                 <span class="cabecera-columnas-centros-seleccion"></span>
@@ -244,13 +245,15 @@
            peor estado al mejor; con un orden pedido, en el de su primera fila, y dentro de cada grupo
            se respeta ese orden (Grupos). Con más de una página, una nota dice que los recuentos son de
            esta página y no del Cliente empresarial entero. *@
-        var grupos = Grupos;
+        @{ var grupos = Grupos; }
         @if (_agruparPorCliente && TotalPaginas > 1)
         {
             <p class="nota-grupos-pagina texto-vacio-seccion">@Textos["GrupoNotaEstaPagina"]</p>
         }
-        var cabecerasDeGrupo = grupos.ToDictionary(g => g.Centros[0].Id);
-        var clavesDeGrupo = new ClavesDeHermanos();
+        @{
+            var cabecerasDeGrupo = grupos.ToDictionary(g => g.Centros[0].Id);
+            var clavesDeGrupo = new ClavesDeHermanos();
+        }
         <div class="lista-filas-acordeon">
             @foreach (var centro in FilasEnOrden(grupos))
             {
@@ -295,7 +298,7 @@
                     @{ var visitas = _visitasPorCentro.GetValueOrDefault(centro.Id) ?? []; }
                     @{ var visita = visitas.FirstOrDefault(); }
                     @{ var expandido = _expandidos.Contains(centro.Id); }
-                    <div class="tarjeta-fila-acordeon-cabecera">
+                    <div class="tarjeta-fila-acordeon-cabecera listado-fila">
                         @if (_seleccionMultiple)
                         {
                             <input type="checkbox" aria-label="@($"Seleccionar el centro {centro.Nombre}")" checked="@_seleccionados.Contains(centro.Id)" @onchange="e => AlternarSeleccion(centro.Id, (bool)e.Value!)" />
@@ -314,15 +317,15 @@
                             pantallas estrechas esa columna se oculta y la Empresa vuelve a la
                             segunda línea (.meta-empresa-movil, Centros.razor.css).
                         *@
-                        <span class="tarjeta-fila-acordeon-identidad">
+                        <span class="tarjeta-fila-acordeon-identidad listado-identidad">
                             <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirPanelAsync(centro.Id)">
                                 @centro.Nombre
                             </button>
                             @{ var meta = MetaCentro(centro); }
-                            <span class="tarjeta-fila-acordeon-meta">@meta<span class="meta-empresa-movil">@(meta.Length > 0 ? " · " : "")@centro.EmpresaRazonSocial</span></span>
+                            <span class="tarjeta-fila-acordeon-meta listado-identidad-secundaria">@meta<span class="meta-empresa-movil">@(meta.Length > 0 ? " · " : "")@centro.EmpresaRazonSocial</span></span>
                         </span>
                         <span class="columna-empresa-centro" title="@centro.EmpresaRazonSocial">@centro.EmpresaRazonSocial</span>
-                        <span class="columna-cumplimiento-centro">
+                        <span class="columna-cumplimiento-centro listado-cumplimiento">
                             <AnilloCumplimiento Porcentaje="centro.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
                                                  Etiqueta="@($"{centro.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />
                         </span>
@@ -479,6 +482,7 @@
             }
         </div>
 
+        </div>
         @* Con 20 o menos y el tamaño mínimo, una sola página: el paginador no aporta nada. *@
         @if (MostrarPaginador)
         {
