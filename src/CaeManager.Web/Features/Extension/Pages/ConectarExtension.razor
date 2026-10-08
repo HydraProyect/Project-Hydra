@@ -2,6 +2,9 @@
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>Conectar extensión — @Marca.Nombre</PageTitle>
@@ -56,6 +59,11 @@
                 break;
         }
 
+        @if (DebeSenalarInstalacion)
+        {
+            <p class="descripcion-delegaciones pista-instalar-extension">@Comunes["ExtensionInstalarPista"]</p>
+        }
+
         @if (DebePedirActualizar)
         {
             <p class="descripcion-delegaciones">
@@ -98,5 +106,29 @@
     {
         <p class="aviso-error">@_error</p>
     }
+
+    @* FS-17: la página decía «no hemos detectado la extensión» y no decía cómo instalarla. Va siempre, también antes de
+       generar el token: quien llega sin la extensión no tiene por qué fallar primero para enterarse. *@
+    <section class="instalar-extension" aria-labelledby="titulo-instalar-extension">
+        <h2 id="titulo-instalar-extension">@Comunes["ExtensionInstalarTitulo"]</h2>
+        @if (UrlInstalacion is { } url)
+        {
+            <p class="descripcion-delegaciones">
+                <a class="enlace-instalar-extension" href="@url" target="_blank" rel="noopener noreferrer">@Comunes["ExtensionInstalarEnlace"]</a>
+            </p>
+        }
+        else
+        {
+            <p class="descripcion-delegaciones">
+                @Comunes["ExtensionInstalarManualIntro", CompatibilidadExtension.VersionMinimaConexionManual, Marca.Nombre]
+            </p>
+            <ol class="descripcion-delegaciones pasos-instalar-extension">
+                <li>@Comunes["ExtensionInstalarPaso1"]</li>
+                <li>@Comunes["ExtensionInstalarPaso2"]</li>
+                <li>@Comunes["ExtensionInstalarPaso3"]</li>
+                <li>@Comunes["ExtensionInstalarPaso4"]</li>
+            </ol>
+        }
+    </section>
 </div>
 </LimiteDeErrores>
