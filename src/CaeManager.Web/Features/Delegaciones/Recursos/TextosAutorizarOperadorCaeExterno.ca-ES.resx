@@ -72,4 +72,34 @@
   <data name="RetirarConfirmar" xml:space="preserve">
     <value>Retirar</value>
   </data>
+  <data name="AltaIntro" xml:space="preserve">
+    <value>Es crearà el Tenant propietari de l'Operador CAE extern, sense delegacions, i el compte del seu primer Administrador, sense contrasenya: l'estableix aquesta persona des de l'enllaç d'activació que veuràs en crear-lo.</value>
+  </data>
+  <data name="AltaEtiquetaCorreoAdministrador" xml:space="preserve">
+    <value>Correu del primer Administrador</value>
+  </data>
+  <data name="AltaEtiquetaNombreAdministrador" xml:space="preserve">
+    <value>Nom del primer Administrador</value>
+  </data>
+  <data name="AltaCreadoTitulo" xml:space="preserve">
+    <value>Operador CAE extern creat</value>
+  </data>
+  <data name="AltaCreadoResumen" xml:space="preserve">
+    <value>«{0}» ja existeix, i el seu primer Administrador és {1} ({2}).</value>
+  </data>
+  <data name="AltaEnlaceInstrucciones" xml:space="preserve">
+    <value>No li hem enviat cap correu: li has de fer arribar tu aquest enllaç d'activació perquè estableixi la seva contrasenya. Caduca en {0} minuts, només es pot fer servir una vegada i no es torna a mostrar aquí.</value>
+  </data>
+  <data name="AltaCuentaSinContrasena" xml:space="preserve">
+    <value>Compte creat sense contrasenya: ningú més que aquesta persona no arriba a conèixer-la.</value>
+  </data>
+  <data name="AltaCopiarEnlace" xml:space="preserve">
+    <value>Copiar l'enllaç d'activació</value>
+  </data>
+  <data name="AltaEtiquetaEnlace" xml:space="preserve">
+    <value>l'enllaç d'activació</value>
+  </data>
+  <data name="AltaHecho" xml:space="preserve">
+    <value>Fet</value>
+  </data>
 </root>

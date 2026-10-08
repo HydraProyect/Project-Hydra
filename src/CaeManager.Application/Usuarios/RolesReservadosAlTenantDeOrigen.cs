@@ -23,8 +23,13 @@ namespace CaeManager.Application.Usuarios;
 /// Tenant de plataforma de TALVEG tampoco concede estos roles en el Context
 /// Workspace de otro Tenant: Soporte TALVEG no es Operador CAE ni Administrador
 /// del Tenant propietario, y el aprovisionamiento de su primer Administrador
-/// tiene su propio camino (no /usuarios). La regla no consulta la marca de
-/// plataforma del Tenant a propósito: compara identidades de Tenant, nada más.
+/// tiene su propio camino (no /usuarios). Para el Tenant de un Operador CAE
+/// externo ese camino es <c>CrearOperadorCaeExternoCommand</c>: el Actor de
+/// Plataforma TALVEG indica al primer Administrador en el mismo acto del alta, y
+/// la cuenta nace en el Tenant nuevo dentro de la misma transacción (decisión del
+/// propietario, 2026-10-08); no hay un Command que lo siembre después. La regla
+/// no consulta la marca de plataforma del Tenant a propósito: compara identidades
+/// de Tenant, nada más.
 /// </para>
 ///
 /// <para>
