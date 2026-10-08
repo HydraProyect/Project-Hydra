@@ -101,8 +101,8 @@ public static class ActosExcluidosDelEncargo
         "Calendario", "Centros", "Clientes", "Comercial", "Comunicaciones", "Configuracion", "Contactos",
         "Cumplimiento", "Dashboard", "Documentos", "DocumentosIa", "Empresas", "Gestiones", "Incidencias",
         "Integraciones", "Notificaciones", "Operaciones", "Plantillas", "Plataforma", "Proyectos",
-        "Reclamaciones", "RelacionesEmpresariales", "Reportes", "Subcontratas", "Telemetria", "Tenants",
-        "TiposDocumento", "Trabajadores", "Usuarios", "Vehiculos", "VigilanciaNormativa", "Visitas", "VistaDemo",
+        "Reclamaciones", "Reportes", "Subcontratas", "Telemetria", "Tenants",
+        "TiposDocumento", "Trabajadores", "Usuarios", "Vehiculos", "VigilanciaNormativa", "Visitas",
     };
 
     /// <summary>

@@ -68,7 +68,10 @@ public class RegistrarEncargoAdministracionCommandHandler(
 
         var operacion = await encargos.ObtenerOperacionAsync(
             request.AsignacionOperacionId, propietarioTenantId, cancellationToken);
-        if (operacion is null)
+        // La operación raíz y las internas tienen por operador al propio Tenant propietario: no hay
+        // Operador CAE externo a quien encargar. Va antes del rechazo de abajo porque en ellas ese
+        // rechazo confundiría al Administrador propio con «alguien del Operador CAE».
+        if (operacion is null || operacion.EsRaiz || operacion.EsOperacionInterna)
             return Result.Fallo<Guid>(ErroresEncargoAdministracion.OperacionNoValida);
 
         // Nunca nadie del Operador CAE que lo recibe, aunque la autoridad de arriba ya lo excluya.
@@ -76,8 +79,7 @@ public class RegistrarEncargoAdministracionCommandHandler(
             return Result.Fallo<Guid>(AutoridadSobreElEncargo.NoAutorizado);
 
         var ahora = reloj.GetUtcNow().UtcDateTime;
-        if (operacion.EsRaiz || operacion.EsOperacionInterna || !operacion.Ambito.EsUniversal
-            || !operacion.EstaVigenteEn(ahora))
+        if (!operacion.Ambito.EsUniversal || !operacion.EstaVigenteEn(ahora))
             return Result.Fallo<Guid>(ErroresEncargoAdministracion.OperacionNoValida);
 
         if (request.VigenciaHasta is { } hasta && hasta <= ahora)
