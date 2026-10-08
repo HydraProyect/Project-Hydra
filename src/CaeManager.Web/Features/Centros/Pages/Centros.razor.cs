@@ -203,6 +203,29 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = "empresa")]
     public string? EmpresaFiltroInicial { get; set; }
 
+    /// <summary>
+    /// Agrupación por Cliente empresarial. Nace activa: en la URL solo viaja
+    /// cuando se quita (<c>?agrupar=no</c>), para que la dirección sin
+    /// parámetros siga siendo la vista de fábrica.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "agrupar")]
+    public string? AgruparInicial { get; set; }
+
+    /// <summary>Orden pedido: <c>cumplimiento</c> (peores primero) o <c>cumplimiento-desc</c>. Sin él, el orden de catálogo.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    private const string AgruparNoEnUrl = "no";
+    private const string OrdenCumplimientoEnUrl = "cumplimiento";
+    private const string OrdenCumplimientoDescendenteEnUrl = "cumplimiento-desc";
+
+    private (string? OrdenarPor, bool Descendente) OrdenDesdeUrl() => OrdenInicial switch
+    {
+        OrdenCumplimientoEnUrl => (nameof(CentroListaDto.CumplimientoPorcentaje), false),
+        OrdenCumplimientoDescendenteEnUrl => (nameof(CentroListaDto.CumplimientoPorcentaje), true),
+        _ => (null, false),
+    };
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
 
@@ -290,6 +313,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         _clienteFiltro = IdDesdeUrl(ClienteFiltroInicial);
         _empresaFiltro = IdDesdeUrl(EmpresaFiltroInicial);
         _centroIdFiltro = CentroId;
+        (_ordenarPor, _ordenDescendente) = OrdenDesdeUrl();
+        _agruparPorCliente = AgruparInicial != AgruparNoEnUrl;
         await CargarAsync();
 
         if (Accion == "crear")
@@ -346,11 +371,18 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         var estadoDeLaUrl = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
         var clienteDeLaUrl = IdDesdeUrl(ClienteFiltroInicial);
         var empresaDeLaUrl = IdDesdeUrl(EmpresaFiltroInicial);
+        var (ordenarPorDeLaUrl, descendenteDeLaUrl) = OrdenDesdeUrl();
+
+        // La agrupación es solo visual: se aplica sin volver a pedir la lista.
+        AplicarAgrupacion(AgruparInicial != AgruparNoEnUrl);
 
         if (deLaUrl == _busqueda && estadoDeLaUrl == _estadoFiltro && clienteDeLaUrl == _clienteFiltro
-            && empresaDeLaUrl == _empresaFiltro && CentroId == _centroIdFiltro)
+            && empresaDeLaUrl == _empresaFiltro && CentroId == _centroIdFiltro
+            && ordenarPorDeLaUrl == _ordenarPor && descendenteDeLaUrl == _ordenDescendente)
             return;
 
+        _ordenarPor = ordenarPorDeLaUrl;
+        _ordenDescendente = descendenteDeLaUrl;
         _busqueda = deLaUrl;
         _estadoFiltro = estadoDeLaUrl;
         _clienteFiltro = clienteDeLaUrl;
@@ -639,7 +671,14 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _idEnfocado = null;
     }
 
+    /// <summary>El conmutador de la barra: cambia la agrupación y la escribe en la URL.</summary>
     private void CambiarAgrupacion(bool agrupar)
+    {
+        AplicarAgrupacion(agrupar);
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", agrupar ? null : AgruparNoEnUrl);
+    }
+
+    private void AplicarAgrupacion(bool agrupar)
     {
         if (_agruparPorCliente == agrupar)
             return;
@@ -1160,6 +1199,11 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _ordenarPor = ordenarPor;
             _ordenDescendente = false;
         }
+
+        // El orden viaja en la URL como los filtros: recargar o compartir el enlace lo conserva.
+        NavigationManager.ActualizarFiltroEnUrl("orden", _ordenarPor is null
+            ? null
+            : _ordenDescendente ? OrdenCumplimientoDescendenteEnUrl : OrdenCumplimientoEnUrl);
 
         _pagina = 1;
         await CargarAsync();

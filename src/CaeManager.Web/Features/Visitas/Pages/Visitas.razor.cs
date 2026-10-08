@@ -210,6 +210,17 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = "notificado")]
     public string? NotificadoInicial { get; set; }
 
+    /// <summary>
+    /// «Solo activas» nace marcado: en la URL solo viaja cuando se desmarca
+    /// (<c>?activas=false</c>), para que la dirección sin parámetros siga siendo
+    /// la vista de fábrica.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "activas")]
+    public bool? SoloActivasInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "urgentes")]
+    public bool? SoloUrgentesInicial { get; set; }
+
     /// <summary>Orden pedido por la URL: <c>documentacion</c> = las Visitas con documentación por gestionar primero.</summary>
     [SupplyParameterFromQuery(Name = "orden")]
     public string? OrdenInicial { get; set; }
@@ -243,6 +254,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     {
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _filtroNotificado = NotificadoInicial ?? string.Empty;
+        _soloActivas = SoloActivasInicial ?? true;
+        _soloUrgentes = SoloUrgentesInicial ?? false;
         _orden = OrdenInicial == OrdenPorDocumentacion ? OrdenPorDocumentacion : string.Empty;
     }
 
@@ -318,6 +331,23 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         await RecargarAsync();
     }
 
+    /// <summary>
+    /// Los dos conmutadores viajan en la URL como el resto de filtros: sin eso,
+    /// recargar o compartir el enlace los perdía, y ahora además los pisaría
+    /// <see cref="OnParametersSet"/> en la siguiente navegación dentro de la página.
+    /// </summary>
+    private async Task CambiarSoloActivasAsync()
+    {
+        NavigationManager.ActualizarFiltroEnUrl("activas", _soloActivas ? null : "false");
+        await RecargarAsync();
+    }
+
+    private async Task CambiarSoloUrgentesAsync()
+    {
+        NavigationManager.ActualizarFiltroEnUrl("urgentes", _soloUrgentes ? "true" : null);
+        await RecargarAsync();
+    }
+
     private const string OrdenPorDocumentacion = "documentacion";
 
     private async Task OrdenarAsync(string valor)
@@ -363,11 +393,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         // re-sincroniza desde ella: dejarlo puesto lo devolvía en la siguiente
         // pasada de parámetros, y "Quitar los filtros" no lo quitaba. Mismo
         // defecto que Clientes y Documentos, encontrado al barrer las pantallas
-        // hermanas. Los dos en una sola llamada: varias seguidas se pisan.
+        // hermanas. Todos en una sola llamada: varias seguidas se pisan.
+        // "activas" no se toca: es el filtro de fábrica, no uno que haya puesto
+        // el usuario (ver HayFiltrosActivos).
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,
             ["notificado"] = null,
+            ["urgentes"] = null,
         });
         await RecargarAsync();
     }
@@ -376,7 +409,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private async Task VerTambienFinalizadasAsync()
     {
         _soloActivas = false;
-        await RecargarAsync();
+        await CambiarSoloActivasAsync();
     }
 
     /// <summary>

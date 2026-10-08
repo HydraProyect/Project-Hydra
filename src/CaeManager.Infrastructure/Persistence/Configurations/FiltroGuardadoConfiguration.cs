@@ -15,10 +15,9 @@ public class FiltroGuardadoConfiguration : IEntityTypeConfiguration<FiltroGuarda
         builder.Property(f => f.Nombre).HasMaxLength(100).IsRequired();
         builder.Property(f => f.ValoresJson).IsRequired();
 
-        builder.HasIndex(f => new { f.UsuarioId, f.Pantalla });
-
-        // Sin HasQueryFilter: catálogo global, mismo tratamiento que
-        // PreferenciaDashboardUsuario — preferencia de un usuario, no un
-        // dato del tenant.
+        // Un nombre por Tenant, usuario y pantalla. El Tenant va primero: es la
+        // coordenada por la que aíslan el filtro global de EF y la política RLS
+        // (aislamiento_tenant), como en el resto de tablas por Tenant.
+        builder.HasIndex(f => new { f.TenantId, f.UsuarioId, f.Pantalla, f.Nombre }).IsUnique();
     }
 }

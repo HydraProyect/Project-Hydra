@@ -153,6 +153,17 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    /// <summary>
+    /// Empleador elegido en el filtro: una Empresa (<c>?empresa=</c>) o una
+    /// subcontrata (<c>?subcontrata=</c>), nunca las dos. Con ambas en la URL
+    /// gana la subcontrata, como en <see cref="ValorFiltroEmpleador"/>.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "empresa")]
+    public string? EmpresaInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "subcontrata")]
+    public string? SubcontrataInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IValidator<CrearVehiculoCommand> ValidadorCrear { get; set; } = default!;
@@ -254,7 +265,29 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             : string.Empty;
         if (estadoDeLaUrl != _estadoFiltro)
             _estadoFiltro = estadoDeLaUrl;
+
+        var subcontrataDeLaUrl = IdDesdeUrl(SubcontrataInicial);
+        var empresaDeLaUrl = subcontrataDeLaUrl.Length > 0 ? string.Empty : IdDesdeUrl(EmpresaInicial);
+        if (subcontrataDeLaUrl != _filtroSubcontrataId)
+            _filtroSubcontrataId = subcontrataDeLaUrl;
+        if (empresaDeLaUrl != _filtroEmpresaId)
+            _filtroEmpresaId = empresaDeLaUrl;
     }
+
+    /// <summary>Un Id de la URL solo vale si es un Guid; cualquier otra cosa es «sin filtro».</summary>
+    private static string IdDesdeUrl(string? valor) =>
+        Guid.TryParse(valor, out var id) ? id.ToString() : string.Empty;
+
+    /// <summary>
+    /// Los dos parámetros del empleador en una sola navegación: son excluyentes,
+    /// y dos navegaciones seguidas se pisarían (ver <c>ActualizarFiltrosEnUrl</c>).
+    /// </summary>
+    private void EscribirEmpleadorEnUrl() =>
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["empresa"] = _filtroEmpresaId,
+            ["subcontrata"] = _filtroSubcontrataId,
+        });
 
     private async Task CambiarEstadoAsync(string valor)
     {
@@ -341,6 +374,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         _filtroEmpresaId = valor;
         _filtroSubcontrataId = string.Empty;
+        EscribirEmpleadorEnUrl();
         await RecargarAsync();
     }
 
@@ -348,6 +382,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         _filtroSubcontrataId = valor;
         _filtroEmpresaId = string.Empty;
+        EscribirEmpleadorEnUrl();
         await RecargarAsync();
     }
 
@@ -425,8 +460,8 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId);
 
     /// <summary>
-    /// Quita los cuatro filtros en una sola recarga. Los dos que viven en la
-    /// URL se limpian TAMBIÉN allí: <see cref="OnParametersSet"/> re-sincroniza
+    /// Quita los cuatro filtros en una sola recarga. Todos viven en la
+    /// URL y se limpian TAMBIÉN allí: <see cref="OnParametersSet"/> re-sincroniza
     /// desde la URL en cada navegación dentro de la página, así que dejarlos
     /// puestos los devolvería en cuanto el router volviera a pasar.
     /// </summary>
@@ -436,7 +471,13 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         _estadoFiltro = string.Empty;
         _filtroEmpresaId = string.Empty;
         _filtroSubcontrataId = string.Empty;
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = null,
+            ["estado"] = null,
+            ["empresa"] = null,
+            ["subcontrata"] = null,
+        });
         await RecargarAsync();
     }
 

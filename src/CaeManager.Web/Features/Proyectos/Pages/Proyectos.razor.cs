@@ -128,7 +128,38 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         {
             _cargando = false;
         }
+
+        // Un enlace o una recarga con ?cliente= abre la lista de ese Cliente empresarial.
+        await AplicarClienteDeLaUrlAsync();
     }
+
+    /// <summary>
+    /// Cliente empresarial elegido, en la URL (<c>?cliente=</c>) como en Centros:
+    /// es el maestro de la lista, y sin él recargar o compartir el enlace
+    /// volvía a «Elige un Cliente empresarial».
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "cliente")]
+    public string? ClienteInicial { get; set; }
+
+    /// <summary>
+    /// Elige el Cliente empresarial que pide la URL si es uno de los que este
+    /// usuario puede elegir y no es ya el elegido. Un Id ajeno a la lista, o la
+    /// ausencia del parámetro, no cambian nada: la URL no puede abrir un Cliente
+    /// empresarial que el selector no ofrece. Pasa por
+    /// <see cref="OnClienteSeleccionadoAsync"/>, así que pregunta antes de
+    /// perder lo escrito en el panel de detalle.
+    /// </summary>
+    private async Task AplicarClienteDeLaUrlAsync()
+    {
+        if (_cargando || _errorCarga)
+            return;
+        if (Guid.TryParse(ClienteInicial, out var id) && id != _clienteSeleccionadoId && _clientes.Any(c => c.Id == id))
+            await OnClienteSeleccionadoAsync(id.ToString());
+    }
+
+    private void EscribirClienteEnUrl() =>
+        NavigationManager.ActualizarFiltroEnUrl(
+            "cliente", _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString());
 
     private async Task OnClienteSeleccionadoAsync(string valor)
     {
@@ -141,10 +172,13 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         {
             _versionSelectorCliente++;
             _focoSelectorClienteEmpresarialPendiente = true;
+            // Si el cambio lo pedía la URL, vuelve a decir el Cliente empresarial que sigue en pantalla.
+            EscribirClienteEnUrl();
             return;
         }
 
         _clienteSeleccionadoId = nuevo;
+        EscribirClienteEnUrl();
         await OnClienteChangedAsync();
     }
 
@@ -285,7 +319,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// que Vehiculos.razor.cs). Mientras se resuelve la empresa activa, en el
     /// estado 4a y con la página retirada la URL no se sincroniza.
     /// </summary>
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         // Retirada la página con la resolución en vuelo, ComponentBase aún invoca esto: no se procesan
         // parámetros de la URL de un componente que ya no existe, ni en el estado 4a.
@@ -306,6 +340,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         // quitar el filtro, sobre una fila que el usuario ya no tenía delante.
         if (_idEnfocado is { } idEnfocado && !_proyectos.Any(p => p.Id == idEnfocado && CumpleFiltros(p)))
             _idEnfocado = null;
+
+        await AplicarClienteDeLaUrlAsync();
     }
 
     private bool HayFiltrosActivos =>
@@ -357,7 +393,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     /// <summary>
     /// Quita los dos filtros, y los dos TAMBIÉN de la URL en una sola
-    /// navegación: <see cref="OnParametersSet"/> re-sincroniza desde la URL,
+    /// navegación: <see cref="OnParametersSetAsync"/> re-sincroniza desde la URL,
     /// así que dejarlos allí los devolvería en cuanto el router volviera a
     /// pasar. El cliente elegido no es un filtro: es el maestro de la lista y
     /// se queda como está.

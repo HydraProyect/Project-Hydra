@@ -89,7 +89,8 @@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   OnGuardarFiltro="AbrirGuardarFiltro" FiltrosGuardados="OpcionesFiltrosGuardados"
-                  OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync">
+                  OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
+                  OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado">
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["EtiquetaDocumentacion"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@_estadoFiltro"
                             ValorChanged="CambiarEstadoAsync" Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
@@ -333,6 +334,16 @@
     Mensaje="@Textos["DialogoEliminarLoteMensaje"]"
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+
+@* Borrar un filtro guardado pregunta antes: no se puede deshacer. Mismo patrón que Clientes empresariales. *@
+<DialogoConfirmacion
+    Visible="_filtroGuardadoAEliminar is not null"
+    VisibleChanged="v => { if (!v) _filtroGuardadoAEliminar = null; }"
+    Titulo="@($"¿Borrar el filtro guardado «{_filtroGuardadoAEliminar?.Nombre}»?")"
+    Mensaje="Desaparecerá de tus filtros guardados de Trabajadores. No borra ningún trabajador ni cambia lo que la lista enseña ahora."
+    TextoBotonConfirmar="Borrar filtro"
+    EnProgreso="_eliminandoFiltroGuardado"
+    OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />
 
 <TrabajadorPreviewDrawer TrabajadorId="_previewTrabajadorId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" />
 

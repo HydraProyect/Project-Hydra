@@ -4,16 +4,21 @@ namespace CaeManager.Domain.Configuracion;
 
 /// <summary>
 /// Combinación de filtros de una pantalla de listado, guardada con nombre
-/// por un usuario (P3-31, Project-Hydra-Negocio/MATURITY_REVIEW.md). Extiende
-/// <see cref="Entity"/>, no <see cref="EntidadConTenant"/> — mismo criterio
-/// que <see cref="PreferenciaDashboardUsuario"/>: es preferencia de un
-/// usuario, no un dato del tenant.
+/// por un usuario (P3-31, Project-Hydra-Negocio/MATURITY_REVIEW.md).
+///
+/// Pertenece al Tenant en el que se guardó (decisión D4 del 2026-10-08): la
+/// clave es Tenant + Usuario + Pantalla + Nombre. Un Gestor CAE con Asignación
+/// de Cartera sobre varios Tenants tiene en cada uno sus propios filtros,
+/// porque los valores que guardan (Empresas, Clientes empresariales, Gestores
+/// CAE) son identificadores de ese Tenant y en otro no significan nada. Por
+/// eso extiende <see cref="EntidadConTenant"/> y no <see cref="Entity"/>, a
+/// diferencia de <see cref="PreferenciaDashboardUsuario"/>.
 ///
 /// <see cref="ValoresJson"/> es opaco para Domain/Application: cada pantalla
 /// serializa y entiende su propia forma de filtros (Application no define un
 /// DTO de filtro por pantalla, evita acoplar este agregado a cada feature).
 /// </summary>
-public class FiltroGuardado : Entity
+public class FiltroGuardado : EntidadConTenant
 {
     public Guid UsuarioId { get; private set; }
     public string Pantalla { get; private set; } = string.Empty;
