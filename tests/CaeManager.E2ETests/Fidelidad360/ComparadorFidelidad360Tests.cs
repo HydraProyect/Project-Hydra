@@ -15,7 +15,7 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
         string TamanoPastilla = "13px", string BordeTarjeta = "#cfd8e3", string AnchoLateral = "300px", string Anillo = "84px",
         string ColumnaEstado = "138px", string DegradadoProblema = "linear-gradient(90deg, transparent 50%, #ffffff 100%)",
         string BordeVencido = "color-mix(in srgb, #b42318 35%, transparent)", string Divisor = "#a9b4c2",
-        string Sombra = "none", bool ConTarjetas = true, bool ConFilaProblema = true, bool ConClasesPropias = false);
+        string Sombra = "none", bool ConTarjetas = true, bool ConFilaProblema = true, bool ConClasesPropias = false, string Cabecera = "envuelta");
 
     private static string Html(Hoja h)
     {
@@ -29,6 +29,14 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
 
         var tarjeta = h.ConTarjetas ? Marca("tarjeta", "t") : "class=\"caja\"";
         var lateral = h.ConTarjetas ? Marca("lateral", "l") : "class=\"caja\"";
+        var interior = $"""<span {Marca("anillo", "a")}></span><h1>Montajes Skynet S.L.</h1><span {Marca("pastilla", "p g")}>Activa</span>""";
+        var cabecera = h.Cabecera switch
+        {
+            // La cabecera ES la tarjeta: un solo elemento, sin data-pieza="tarjeta".
+            "es-tarjeta" => $"""<div class="t c" data-pieza="cabecera-identidad">{interior}</div>""",
+            "suelta" => $"""<div class="c" data-pieza="cabecera-identidad">{interior}</div>""",
+            _ => $"""<div {tarjeta}><div {Marca("cabecera-identidad", "c")}>{interior}</div></div>""",
+        };
         return $$"""
             <!doctype html><html><head><meta charset="utf-8"><style>
             body { margin: 0; padding: 24px; background: #e9eef4; font-family: Inter, sans-serif; }
@@ -44,7 +52,7 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
             .p.r { background: #fef3f2; color: #b42318; border-color: {{h.BordeVencido}}; }
             .p.g { background: #ecfdf3; color: #067647; border-color: color-mix(in srgb, #067647 35%, transparent); }
             </style></head><body>
-            <div {{tarjeta}}><div {{Marca("cabecera-identidad", "c")}}><span {{Marca("anillo", "a")}}></span><h1>Montajes Skynet S.L.</h1><span {{Marca("pastilla", "p g")}}>Activa</span></div></div>
+            {{cabecera}}
             <div class="cuerpo">
               <div {{tarjeta}}><div class="lista">
                 {{(h.ConFilaProblema ? Fila("Formación PRL", "Vencido", "r", "peligro") : null)}}
@@ -207,6 +215,21 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
         // Y la convención no ve nada en una página que no la sigue: no hay «probar los dos selectores».
         var aCiegas = await MedirAsync("mockup", new Hoja(ConClasesPropias: true));
         Assert.All(aCiegas.PiezasVistas.Values, vistas => Assert.Equal(0, vistas));
+    }
+
+    [Fact]
+    public async Task Una_cabecera_que_es_la_tarjeta_mide_igual_que_una_cabecera_dentro_de_una_tarjeta()
+    {
+        var informe = await CompararAsync(new Hoja(Cabecera: "es-tarjeta"), new Hoja());
+
+        Assert.True(informe.SinDiferencias, informe.ATablaMarkdown());
+        Assert.Equal("sí", informe.Mockup.Magnitudes["cabecera-identidad.en-tarjeta"].Valor);
+        Assert.Equal(3, informe.Mockup.PiezasVistas["tarjeta"]);
+
+        // Y una cabecera sin caja, que es la del producto hoy, sigue saliendo como diferencia.
+        var suelta = await CompararAsync(new Hoja(Cabecera: "es-tarjeta"), new Hoja(Cabecera: "suelta"));
+        var fila = Assert.Single(suelta.Diferencias);
+        Assert.Equal(("cabecera-identidad.en-tarjeta", "sí", "no"), (fila.Clave, fila.Mockup, fila.Ficha));
     }
 
     [Fact]
