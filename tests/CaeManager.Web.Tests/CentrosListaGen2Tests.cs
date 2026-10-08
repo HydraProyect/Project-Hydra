@@ -9,6 +9,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Domain.Documentos;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -68,6 +69,8 @@ public class CentrosListaGen2Tests : BunitContext
                     lote.Ids.Where(NoEliminables.Contains).Select(_ => "No se pudo borrar.").ToList(),
                     EliminadosDelLote is null ? lote.Ids.Where(id => !NoEliminables.Contains(id)).ToList() : null)),
                 RestaurarCentroCommand => Result.Exito(),
+                // Sin documento que devolver: basta para observar qué se pidió abrir.
+                ObtenerDocumentoPorIdQuery => null!,
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
                 ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
@@ -301,5 +304,68 @@ public class CentrosListaGen2Tests : BunitContext
         var badges = cut.FindAll(".ranura-recuento .badge-solo-recuento");
         badges.Select(b => b.TextContent.Trim()).Should().Equal("2", "1");
         badges.Select(b => b.GetAttribute("title")).Should().Equal("2 documentos vencidos", "1 documento próximo a vencer");
+    }
+
+    /// <summary>
+    /// Listados 3/7 (decisión del 2026-10-08): la incidencia de la ventana de contexto se pulsa y
+    /// abre su corrección sin salir del listado. Solo es botón la que tiene algo que abrir; la que
+    /// no trae Documento ni Tipo sigue siendo una línea de texto, y entonces la ventana tampoco
+    /// cambia a su modo interactivo.
+    /// </summary>
+    [Fact]
+    public void Solo_es_pulsable_la_incidencia_que_tiene_algo_que_abrir()
+    {
+        var conDocumento = new IncidenciaCentroDto(
+            "Aptitud médica — Sonia Cano", AmbitoCausa.Trabajador, EstadoDocumento.Vencido,
+            Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
+        var faltaDeTrabajador = new IncidenciaCentroDto(
+            "Formación Art. 19 — Pedro Gil", AmbitoCausa.Trabajador, EstadoDocumento.Faltante,
+            null, Guid.NewGuid(), null, Guid.NewGuid());
+        var sinIdentificadores = new IncidenciaCentroDto(
+            "Causa antigua sin identificadores", AmbitoCausa.Trabajador, EstadoDocumento.Proximo, null, null, null);
+        var centro = Centro("Centro Logístico Norte") with
+        {
+            Recuentos = new RecuentosCentroDto([conDocumento, faltaDeTrabajador], [sinIdentificadores])
+        };
+
+        var cut = Renderizar(centro);
+
+        var ventanas = cut.FindAll(".ranura-recuento .ventana-contexto");
+        ventanas.Should().HaveCount(2);
+
+        ventanas[0].ClassList.Should().Contain("ventana-contexto-interactiva");
+        ventanas[0].QuerySelectorAll("button.ventana-contexto-elemento").Select(b => b.TextContent.Trim())
+            .Should().Equal("Aptitud médica — Sonia Cano", "Formación Art. 19 — Pedro Gil");
+        ventanas[0].QuerySelector(".ventana-contexto-pie")!.TextContent.Should().Be("Clic en una para corregirla aquí");
+
+        ventanas[1].ClassList.Should().NotContain("ventana-contexto-interactiva");
+        ventanas[1].QuerySelectorAll("button").Should().BeEmpty();
+        ventanas[1].QuerySelector(".ventana-linea:not(.ventana-grupo)")!.TextContent.Should().Be("Causa antigua sin identificadores");
+        ventanas[1].QuerySelector(".ventana-contexto-pie").Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Pulsar_una_incidencia_abre_la_correccion_de_ese_documento_sin_abrir_la_fila()
+    {
+        this.ConServiciosDelFormularioDeDocumento();
+        var documentoId = Guid.NewGuid();
+        var centro = Centro("Centro Logístico Norte") with
+        {
+            Recuentos = new RecuentosCentroDto(
+                [new IncidenciaCentroDto(
+                    "Aptitud médica — Sonia Cano", AmbitoCausa.Trabajador, EstadoDocumento.Vencido,
+                    documentoId, Guid.NewGuid(), null, Guid.NewGuid())],
+                [])
+        };
+        var cut = Renderizar(centro);
+        var consultasDeListaAntes = _mediador.Enviadas.OfType<ObtenerCentrosQuery>().Count();
+
+        await cut.Find(".ranura-recuento button.ventana-contexto-elemento").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle()
+            .Which.Id.Should().Be(documentoId);
+        // No navega ni recarga: la lista no se vuelve a pedir por pulsar, y el acordeón de la fila no se abre.
+        _mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().HaveCount(consultasDeListaAntes);
+        cut.FindAll(".tarjeta-fila-acordeon-cuerpo").Should().BeEmpty();
     }
 }

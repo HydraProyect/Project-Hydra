@@ -156,6 +156,33 @@ public class ObtenerCentrosQueryRecuentosTests : IAsyncLifetime
             "Urgente no es Vencido: el recuento de vencidas no debe mezclar severidad de color con vencimiento real");
     }
 
+    /// <summary>
+    /// Listados 3/7: la incidencia de la ventana de contexto se pulsa y abre su corrección. Para eso
+    /// la causa de un Trabajador tiene que decir de qué Documento, de qué Tipo y de qué Trabajador
+    /// es; antes solo llevaba la descripción y el listado no tenía nada que abrir.
+    /// </summary>
+    [Fact]
+    public async Task La_incidencia_de_un_Trabajador_identifica_su_documento_su_tipo_y_su_trabajador()
+    {
+        await SembrarDocumentoTrabajadorAsync(DiaDeNegocio.Hoy().AddDays(10));
+        Guid documentoId;
+        await using (var contexto = CrearContexto())
+        {
+            documentoId = await contexto.Documentos
+                .Where(d => d.TrabajadorId == _trabajadorId)
+                .Select(d => d.Id)
+                .SingleAsync();
+        }
+
+        var centro = await ObtenerCentroUnicoAsync();
+
+        var incidencia = centro.Recuentos.Proximas.Should().ContainSingle().Subject;
+        incidencia.Ambito.Should().Be(AmbitoCausa.Trabajador);
+        incidencia.DocumentoId.Should().Be(documentoId);
+        incidencia.TipoDocumentoId.Should().Be(_tipoDocumentoObligatorioId);
+        incidencia.TrabajadorId.Should().Be(_trabajadorId);
+    }
+
     private async Task<CentroListaDto> ObtenerCentroUnicoAsync()
     {
         await using var contexto = CrearContexto();

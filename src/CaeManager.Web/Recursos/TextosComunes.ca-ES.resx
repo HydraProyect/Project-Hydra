@@ -18,6 +18,12 @@
   <data name="Reintentar" xml:space="preserve">
     <value>Reintentar</value>
   </data>
+  <data name="VentanaIncidenciasPie" xml:space="preserve">
+    <value>Clic en una per corregir-la aquí</value>
+  </data>
+  <data name="VentanaIncidenciaAyuda" xml:space="preserve">
+    <value>Corregir sense sortir d’aquesta pantalla</value>
+  </data>
   <data name="IdiomaEtiqueta" xml:space="preserve">
     <value>Idioma</value>
   </data>

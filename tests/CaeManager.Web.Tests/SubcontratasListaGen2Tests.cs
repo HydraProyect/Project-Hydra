@@ -25,6 +25,7 @@ using FluentAssertions;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -83,6 +84,8 @@ public class SubcontratasListaGen2Tests : BunitContext
             return (TResponse)(request switch
             {
                 ObtenerPerfilVocabularioActualQuery => (object)PerfilVocabularioTenant.Consultora,
+                // Sin documento que devolver: basta para observar qué se pidió abrir.
+                CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery => null!,
                 ObtenerClientesAutorizadosQuery => Autorizados,
                 ObtenerSubcontratasQuery q => FiltrarPorBusqueda(q),
                 ObtenerSubcontrataPorIdQuery q => Detalle is not null && Detalle.Id == q.Id ? Detalle : null!,
@@ -901,5 +904,55 @@ public class SubcontratasListaGen2Tests : BunitContext
         await cut.PulsarCancelarDelPieAsync(".drawer-pie");
 
         await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
+    /// <summary>
+    /// Listados 3/7 (decisión del 2026-10-08): la incidencia de la ventana de contexto se pulsa y
+    /// abre su corrección sin salir del listado. Toda incidencia de una Subcontrata es de un
+    /// Trabajador: es pulsable si trae el Documento, o el Tipo junto con el Trabajador.
+    /// </summary>
+    [Fact]
+    public async Task La_incidencia_de_la_ventana_abre_la_correccion_de_su_documento()
+    {
+        this.ConServiciosDelFormularioDeDocumento();
+        var documentoId = Guid.NewGuid();
+        var vencida = new IncidenciaSubcontrataDto(
+            "Aptitud médica — Sonia Cano", EstadoDocumento.Vencido, documentoId, Guid.NewGuid(), null, Guid.NewGuid());
+        var urgente = new IncidenciaSubcontrataDto(
+            "Entrega de EPI — Carla Molina", EstadoDocumento.Urgente, Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
+        var mediador = new MediatorFalso
+        {
+            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 60, vencidas: [vencida], proximas: [urgente])]
+        };
+        var cut = Renderizar(mediador);
+
+        var ventanas = cut.FindAll(".celda-recuento-subcontrata .ventana-contexto");
+        ventanas.Should().HaveCount(2);
+        ventanas.Should().OnlyContain(v => v.ClassList.Contains("ventana-contexto-interactiva"));
+        // En «Próximos» el botón conserva el badge que distingue Urgente de Próximo.
+        ventanas[1].QuerySelector("button.ventana-contexto-elemento")!.TextContent.Should().Contain("Entrega de EPI — Carla Molina");
+        ventanas[1].QuerySelector("button.ventana-contexto-elemento .badge").Should().NotBeNull();
+
+        await ventanas[0].QuerySelector("button.ventana-contexto-elemento")!.ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery>()
+            .Should().ContainSingle().Which.Id.Should().Be(documentoId);
+    }
+
+    [Fact]
+    public void Una_incidencia_sin_trabajador_ni_documento_sigue_siendo_texto()
+    {
+        var mediador = new MediatorFalso
+        {
+            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 60,
+                vencidas: [Incidencia("Aptitud médica — Sonia Cano", EstadoDocumento.Vencido)])]
+        };
+
+        var cut = Renderizar(mediador);
+
+        var ventana = cut.Find(".celda-recuento-subcontrata .ventana-contexto");
+        ventana.ClassList.Should().NotContain("ventana-contexto-interactiva");
+        ventana.QuerySelectorAll("button").Should().BeEmpty();
+        ventana.QuerySelector(".ventana-linea")!.TextContent.Should().Be("Aptitud médica — Sonia Cano");
     }
 }
