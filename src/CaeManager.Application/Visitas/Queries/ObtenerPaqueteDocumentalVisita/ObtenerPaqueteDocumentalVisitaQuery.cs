@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Visitas.GestionPorCorreo;
 using CaeManager.Application.Visitas.PaqueteDocumental;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
@@ -27,6 +28,19 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 /// </para>
 ///
 /// <para>
+/// <b>Además del alcance, el rol</b> (decisión del propietario, 2026-10-08): el zip entrega
+/// documentos, también los sensibles, y sale de TALVEG —descargado o adjunto a un correo—,
+/// así que un usuario de negocio solo lo obtiene con un rol que escribe. Consulta lee la
+/// solicitud y la copia (<see cref="ObtenerSolicitudAccesoCorreoQueryHandler"/> no cambia),
+/// pero ni descarga el zip ni prepara su envío: «Descargar» y «Enviar por correo» pasan los
+/// dos por esta consulta. Lista blanca, como <see cref="AutorizacionEscrituraBehavior{TRequest,TResponse}"/>:
+/// Cliente y un rol sin resolver tampoco pasan. Se comprueba después del alcance, para que
+/// fuera de él la respuesta siga siendo la de una Visita inexistente. Una Sesión Privilegiada
+/// de plataforma queda como estaba: su rol efectivo es <c>null</c> y lo que ve lo decide su
+/// alcance, no esta regla.
+/// </para>
+///
+/// <para>
 /// DEC-36: el zip entrega el contenido de cada Documento que contiene, así que cada uno
 /// cuenta como una <see cref="TipoAccesoDocumentoSensible.Apertura"/> y se registra si es
 /// sensible — después de construir el zip, como el endpoint de un Documento suelto
@@ -43,12 +57,23 @@ public class ObtenerPaqueteDocumentalVisitaQueryHandler(
     ICentrosQueryContext centrosContext,
     IAlcanceDatosService alcanceDatos,
     IPaqueteDocumentalVisitaService paqueteDocumental,
-    IRegistroAccesoDocumentoSensibleService registroAcceso)
+    IRegistroAccesoDocumentoSensibleService registroAcceso,
+    ICurrentUserService currentUserService,
+    ISesionPrivilegiadaActual sesionPrivilegiadaActual)
     : IRequestHandler<ObtenerPaqueteDocumentalVisitaQuery, Result<PaqueteDocumentalDescargaDto>>
 {
     public static readonly Error SinDocumentos = Error.Crear(
         "PaqueteDocumental.SinDocumentos",
         "No hay documentación vigente que descargar para esta visita.");
+
+    public static readonly Error RolSinDescarga = Error.Crear(
+        "PaqueteDocumental.RolSinDescarga",
+        "Tu rol no permite descargar ni enviar la documentación de una visita — solo consultarla.");
+
+    // Los mismos literales que AutorizacionEscrituraBehavior, por el mismo motivo:
+    // Application no referencia Infrastructure.Identity.Roles.
+    private static readonly string[] RolesQueObtienenElPaquete =
+        ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
 
     public async Task<Result<PaqueteDocumentalDescargaDto>> Handle(ObtenerPaqueteDocumentalVisitaQuery request, CancellationToken cancellationToken)
     {
@@ -61,6 +86,10 @@ public class ObtenerPaqueteDocumentalVisitaQueryHandler(
 
         if (visita is null || !await alcanceDatos.CentroParaGestionVisibleAsync(visita.CentroId, cancellationToken))
             return Result.Fallo<PaqueteDocumentalDescargaDto>(ObtenerSolicitudAccesoCorreoQueryHandler.NoEncontrada);
+
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is null
+            && (await currentUserService.ObtenerRolEfectivoAsync() is not { } rol || !RolesQueObtienenElPaquete.Contains(rol)))
+            return Result.Fallo<PaqueteDocumentalDescargaDto>(RolSinDescarga);
 
         if (visita.EstaCancelada)
             return Result.Fallo<PaqueteDocumentalDescargaDto>(ObtenerSolicitudAccesoCorreoQueryHandler.VisitaCancelada);

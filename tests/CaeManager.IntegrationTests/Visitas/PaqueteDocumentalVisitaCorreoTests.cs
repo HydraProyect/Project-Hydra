@@ -9,6 +9,7 @@ using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
@@ -98,6 +99,78 @@ public class PaqueteDocumentalVisitaCorreoTests
         (await LeerRegistrosSensiblesAsync(arnes)).Should().BeEmpty("sin contenido entregado no hay acceso que registrar");
     }
 
+    /// <summary>
+    /// Decisión del 2026-10-08: Consulta conserva solo «Copiar solicitud». El zip —que es
+    /// también el adjunto de «Enviar por correo»— se le niega en la consulta, no solo en el
+    /// botón: mismo usuario, misma Visita y mismo alcance que la descarga que sí funciona,
+    /// cambia solo el rol. Sin contenido entregado no queda registro de acceso sensible.
+    /// </summary>
+    [Fact]
+    public async Task Consulta_no_obtiene_el_zip_ni_deja_registro()
+    {
+        await using var arnes = await PrepararAsync();
+
+        // Control del instrumento: con el mismo usuario y la misma Visita, Dirección CAE sí lo
+        // obtiene; si no, el rechazo de abajo podría venir del alcance y no del rol.
+        (await DescargarAsync(arnes, Guid.NewGuid(), "DireccionCae", _tenantA, _visitaDentro)).EsExitoso.Should().BeTrue();
+        await BorrarRegistrosSensiblesAsync(arnes);
+
+        var resultado = await DescargarAsync(arnes, Guid.NewGuid(), "Consulta", _tenantA, _visitaDentro);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Should().Be(ObtenerPaqueteDocumentalVisitaQueryHandler.RolSinDescarga);
+        (await LeerRegistrosSensiblesAsync(arnes)).Should().BeEmpty("sin contenido entregado no hay acceso que registrar");
+    }
+
+    // CoordinadorCae no está aquí: su alcance sale de su equipo, que esta siembra no tiene, y
+    // se quedaría en «no encontrada» antes de llegar a la regla del rol.
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("GestorCae")]
+    public async Task Los_roles_que_escriben_obtienen_el_zip(string rol)
+    {
+        await using var arnes = await PrepararAsync();
+
+        var resultado = await DescargarAsync(arnes, _gestora, rol, _tenantA, _visitaDentro);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+    }
+
+    [Fact]
+    public async Task Consulta_fuera_de_alcance_recibe_lo_mismo_que_una_Visita_inexistente()
+    {
+        await using var arnes = await PrepararAsync();
+
+        var resultado = await DescargarAsync(arnes, Guid.NewGuid(), "Consulta", _tenantB, _visitaDentro);
+
+        resultado.Error.Should().Be(ObtenerSolicitudAccesoCorreoQueryHandler.NoEncontrada,
+            "el rol se comprueba después del alcance: la respuesta no delata que la Visita existe en otro Tenant");
+    }
+
+    [Fact]
+    public async Task Consulta_sigue_leyendo_la_solicitud_para_copiarla()
+    {
+        await using var arnes = await PrepararAsync();
+
+        var resultado = await SolicitudAsync(arnes, _gestora, "Consulta", _tenantA, _visitaDentro);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+    }
+
+    [Fact]
+    public async Task El_detalle_trae_el_Centro_el_titular_el_origen_y_la_urgencia_que_la_pagina_necesita()
+    {
+        await using var arnes = await PrepararAsync();
+
+        var detalle = await DetalleAsync(arnes, _visitaDentro);
+
+        detalle.Should().NotBeNull();
+        detalle!.CentroId.Should().NotBeEmpty();
+        detalle.ClienteId.Should().NotBeEmpty();
+        detalle.ClienteId.Should().NotBe(detalle.EmpresaId, "el titular del Centro y la Empresa que entra son dos Empresas distintas en la siembra");
+    }
+
     [Fact]
     public async Task Desde_otro_Tenant_la_Visita_no_existe_ni_para_un_Administrador()
     {
@@ -178,6 +251,8 @@ public class PaqueteDocumentalVisitaCorreoTests
         contexto.CanalesGestionDocumental.AddRange(canalDentro, canalFuera);
 
         var ana = Trabajador.DeEmpresa(propia.Id, "Ana", "Garcia", "12345678Z");
+        // El detalle calcula la urgencia con los umbrales del Tenant, como el listado.
+        contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
         contexto.Trabajadores.Add(ana);
 
         var reconocimiento = new TipoDocumento("Reconocimiento médico", null, false, 1, AmbitoAplicacion.Trabajador,
@@ -242,7 +317,8 @@ public class PaqueteDocumentalVisitaCorreoTests
             contexto, contexto, _usuario,
             new RegistroAccesoDocumentoSensibleRepository(contexto, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance));
 
-        var handler = new ObtenerPaqueteDocumentalVisitaQueryHandler(contexto, contexto, Alcance(contexto), paquete, registro);
+        var handler = new ObtenerPaqueteDocumentalVisitaQueryHandler(
+            contexto, contexto, Alcance(contexto), paquete, registro, _usuario, new SesionPrivilegiadaAusente());
         return await handler.Handle(new ObtenerPaqueteDocumentalVisitaQuery(visitaId), CancellationToken.None);
     }
 
@@ -263,7 +339,7 @@ public class PaqueteDocumentalVisitaCorreoTests
         await using var scope = arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
 
-        var handler = new ObtenerDetalleVisitaQueryHandler(contexto, contexto, contexto, contexto, Alcance(contexto));
+        var handler = new ObtenerDetalleVisitaQueryHandler(contexto, contexto, contexto, contexto, Alcance(contexto), contexto);
         return await handler.Handle(new ObtenerDetalleVisitaQuery(visitaId), CancellationToken.None);
     }
 
@@ -283,6 +359,14 @@ public class PaqueteDocumentalVisitaCorreoTests
         while (await lector.ReadAsync())
             filas.Add((lector.GetGuid(0), await lector.IsDBNullAsync(1) ? null : lector.GetGuid(1), lector.GetGuid(2)));
         return filas;
+    }
+
+    private static async Task BorrarRegistrosSensiblesAsync(ArnesDeArranqueRuntime arnes)
+    {
+        await using var conexion = new NpgsqlConnection(arnes.CadenaPropietario);
+        await conexion.OpenAsync();
+        await using var orden = new NpgsqlCommand("""DELETE FROM "RegistrosAccesoDocumentoSensible" """, conexion);
+        await orden.ExecuteNonQueryAsync();
     }
 
     private static List<string> LeerZip(byte[] contenido)

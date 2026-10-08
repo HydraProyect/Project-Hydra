@@ -1,0 +1,451 @@
+@*
+    Visita 360 — página (mockup «Visita 360 página TALVEG»), primer incremento.
+    Ver el comentario de cabecera del .razor.cs: mismas consultas, comandos y
+    alcance que el Drawer «Detalle de la visita» del listado, qué se carga en
+    cada rama y qué conserva el rol Consulta.
+*@
+@page "/visitas/{VisitaId:guid}"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita
+@using CaeManager.Domain.Visitas
+@using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Visitas
+@using CaeManager.Web.Features.Visitas.Components
+@using CaeManager.Web.Features.Visitas.Recursos
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosVisitas> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@(_detalle is null ? Textos["Visita360TituloPestanaNavegador"] : Textos["Visita360TituloConCentro", _detalle.CentroNombre]) — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["Visita360EtiquetaMigas"]" />
+
+    @if (_error)
+    {
+        @* No encontrada y fuera de alcance se ven igual. *@
+        <Tarjeta>
+            <EstadoVacio Titulo="@Textos["Visita360ErrorTitulo"]" Descripcion="@Textos["Visita360ErrorDescripcion"]"
+                         NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Comunes["Reintentar"]</Boton>
+                </Accion>
+            </EstadoVacio>
+        </Tarjeta>
+    }
+    else if (_cargando)
+    {
+        <Tarjeta>
+            <EstadoCargando Filas="5" />
+        </Tarjeta>
+    }
+    else if (_detalle is not null)
+    {
+        var visita = _detalle;
+        var anillo = Anillo;
+        var incidencias = IncidenciasDeBanda;
+
+        @* Meta va como atributo: escrito como elemento, Razor lo toma por el <meta> de HTML, que no se cierra. *@
+        <CabeceraIdentidad Titulo="@visita.CentroNombre" Kicker="@Textos["Visita360Kicker"]" Meta="MetaDeCabecera(visita)">
+            <Anillo>
+                @if (anillo is { } a)
+                {
+                    <span class="visita360-anillo">
+                        <AnilloCumplimiento Porcentaje="a.Porcentaje" Tamano="TamanoAnillo.Cabecera"
+                                            Etiqueta="@Textos["Visita360AnilloEtiqueta", a.Listos, a.Total]" />
+                        <span class="visita360-anillo-fraccion" aria-hidden="true">@Textos["Visita360AnilloFraccion", a.Listos, a.Total]</span>
+                    </span>
+                }
+            </Anillo>
+            <JuntoAlTitulo>
+                @if (EsCancelada)
+                {
+                    <Badge Tono="TonoBadge.Neutro">@Textos["BadgeCancelada"]</Badge>
+                }
+                else
+                {
+                    @if (visita.NivelUrgencia != NivelUrgenciaVisita.Normal)
+                    {
+                        <Badge Tono="NivelUrgenciaVisitaUi.Tono(visita.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(visita.NivelUrgencia)</Badge>
+                    }
+                    @if (visita.Tramo is { } tramoCabecera)
+                    {
+                        <Badge Tono="TonoBadge.Neutro">@Textos["Visita360Tramo", AntelacionVisitaUi.Texto(tramoCabecera)]</Badge>
+                    }
+                    @if (EsSinGestionCae)
+                    {
+                        <Badge Tono="TonoBadge.Neutro">@Textos["BadgeSinGestionCae"]</Badge>
+                    }
+                }
+            </JuntoAlTitulo>
+            <Acciones>
+                @if (EsCancelada)
+                {
+                    @if (_puedeEscribir)
+                    {
+                        <Boton Variante="VarianteBoton.Primario" OnClick="AbrirReactivar">@Textos["AccionReactivar"]</Boton>
+                    }
+                }
+                else if (EsSinGestionCae)
+                {
+                    @if (_aviso is not null)
+                    {
+                        <BotonCopiar Valor="@TextoAvisoParaCopiar(_aviso)" Etiqueta="@Textos["AvisoVisitaEtiquetaCopiar"]" Texto="@Textos["AvisoVisitaCopiar"]" />
+                    }
+                }
+                else if (EsPorCorreo && _solicitudCorreo is not null)
+                {
+                    @if (_puedeEscribir)
+                    {
+                        <Boton Variante="VarianteBoton.Primario" Cargando="_preparandoEnvioPaquete" OnClick="AbrirEnviarPaquetePorCorreoAsync">@Textos["EnviarPaquetePorCorreo"]</Boton>
+                    }
+                    else
+                    {
+                        <BotonCopiar Valor="@TextoSolicitudParaCopiar(_solicitudCorreo)" Etiqueta="@Textos["SolicitudAccesoCorreoEtiquetaCopiar"]" Texto="@Textos["SolicitudAccesoCorreoCopiar"]" />
+                    }
+                }
+                @* Todo lo del menú escribe o es del paquete: sin escritura no hay menú. Una
+                   Visita cancelada no se edita ni se marca: solo se reactiva. *@
+                @if (_puedeEscribir && !EsCancelada)
+                {
+                    <MenuAcciones>
+                        <ItemMenuAccion OnClick="() => _editarVisible = true">@Textos["Visita360EditarVisita"]</ItemMenuAccion>
+                        @if (EsPorCorreo)
+                        {
+                            <ItemMenuAccion Href="@RutaPaqueteDocumental(visita.Id)">@Textos["DescargarPaqueteDocumental"]</ItemMenuAccion>
+                        }
+                        <ItemMenuAccion OnClick="AlternarNotificadoAsync">@(visita.NotificadoCliente ? Textos["BotonQuitarMarcaNotificada"] : Textos["BotonMarcarNotificada"])</ItemMenuAccion>
+                        <ItemMenuAccion OnClick="AbrirCancelar" Destructivo="true">@Textos["Visita360CancelarVisita"]</ItemMenuAccion>
+                    </MenuAcciones>
+                }
+            </Acciones>
+        </CabeceraIdentidad>
+
+        @if (EsCancelada)
+        {
+            <p class="visita360-banda-neutra" role="status">
+                <b>@(string.IsNullOrWhiteSpace(visita.MotivoCancelacion) ? Textos["DetalleCancelada"] : Textos["DetalleCanceladaMotivo", visita.MotivoCancelacion])</b>
+                @Textos["DetalleCanceladaSinAcciones"]
+            </p>
+        }
+        else if (incidencias.Count > 0)
+        {
+            @* Cada incidencia hace lo mismo que su fila: abre el documento, o lleva a
+               subirlo si no lo hay. Sin escritura se leen como texto. *@
+            <BandaAccion Tono="TonoBanda.Peligro">
+                @* Cada tramo va en una sola línea de marcado: un salto de línea entre una
+                   incidencia y su coma o su punto se pintaría como un espacio. *@
+                <span>@TextoPlazoBanda(visita)</span>
+                @foreach (var (titular, documentos) in incidencias)
+                {
+                    <span class="visita360-banda-tramo">@Textos["Visita360BandaTitular", titular] @for (var i = 0; i < documentos.Count; i++) { var documento = documentos[i]; @(i > 0 ? ", " : "")<IncidenciaBanda Texto="@TextoIncidencia(documento)" OnClick="@AlPulsarIncidencia(documento)" /> }<text>.</text></span>
+                }
+            </BandaAccion>
+        }
+
+        <CuerpoConLateral EtiquetaLateral="@Textos["Visita360EtiquetaLateral"]">
+            <ChildContent>
+                <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["Visita360EtiquetaGrupoPestanas"]">
+                    @switch (_pestana)
+                    {
+                        case PestanaAviso:
+                            @PestanaDelAviso
+                            break;
+                        case PestanaPaquete:
+                            @PestanaDelPaquete
+                            break;
+                        default:
+                            @PestanaDeComprobacion
+                            break;
+                    }
+                </Pestanas>
+            </ChildContent>
+            <Lateral>
+                <Tarjeta Titulo="@Textos["Visita360Informacion"]">
+                    <AccionesHeader>
+                        @if (_puedeEscribir && !EsCancelada)
+                        {
+                            <button type="button" class="visita360-enlace" @onclick="() => _editarVisible = true">@Textos["Visita360EditarEnlace"]</button>
+                        }
+                    </AccionesHeader>
+                    <ChildContent>
+                        <dl class="visita360-datos">
+                            <div class="visita360-dato-ancho"><dt>@Textos["DetalleTitularCentro"]</dt><dd>@visita.ClienteRazonSocial</dd></div>
+                            <div class="visita360-dato-ancho"><dt>@Textos["DetalleEmpresa"]</dt><dd>@visita.EmpresaRazonSocial</dd></div>
+                            <div><dt>@Textos["DetalleEntrada"]</dt><dd>@(visita.HoraEstimadaAcceso?.ToString("HH:mm") ?? Textos["DetalleSinHora"].Value)</dd></div>
+                            <div><dt>@Textos["EtiquetaOrigen"]</dt><dd>@TextoOrigen(visita.Origen)</dd></div>
+                            <div><dt>@Textos["EtiquetaTrabajadores"]</dt><dd>@visita.Trabajadores.Count</dd></div>
+                        </dl>
+                        @* El interruptor es a la vez el dato y el disparador de
+                           MarcarNotificadoClienteCommand: a Consulta y en una cancelada se
+                           pinta deshabilitado, no se oculta. *@
+                        <label class="visita360-linea">
+                            <span class="visita360-linea-texto">
+                                <b>@Textos["EtiquetaNotificadaTitular"]</b>
+                                <small>@Textos["AyudaNotificadaSoloMarca"]</small>
+                            </span>
+                            <input type="checkbox" role="switch" class="visita360-interruptor" checked="@visita.NotificadoCliente"
+                                   disabled="@(!_puedeEscribir || EsCancelada || _marcandoNotificado)"
+                                   @onchange="AlternarNotificadoAsync" />
+                        </label>
+                    </ChildContent>
+                </Tarjeta>
+
+                @if (!EsCancelada && visita.Tramo is { } tramo)
+                {
+                    <Tarjeta Titulo="@Textos["DetalleAntelacion"]">
+                        <p class="visita360-pastillas">
+                            <Badge Tono="@AntelacionVisitaUi.Tono(tramo)">@AntelacionVisitaUi.Texto(tramo)</Badge>
+                            @if (!string.IsNullOrWhiteSpace(AntelacionVisitaUi.TextoAtribucion(visita.Atribucion)))
+                            {
+                                <Badge Tono="TonoBadge.Neutro">@AntelacionVisitaUi.TextoAtribucion(visita.Atribucion)</Badge>
+                            }
+                        </p>
+                        <p class="visita360-texto">@Textos["DetalleAntelacionHoras", AntelacionVisitaUi.Horas(visita.AntelacionNominalHoras), AntelacionVisitaUi.Horas(visita.AntelacionEfectivaHoras)]</p>
+                    </Tarjeta>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(visita.Notas) || (_puedeEscribir && !EsCancelada))
+                {
+                    <Tarjeta Titulo="@Textos["EtiquetaNotas"]">
+                        <AccionesHeader>
+                            @if (_puedeEscribir && !EsCancelada)
+                            {
+                                <button type="button" class="visita360-enlace" @onclick="() => _editarVisible = true">@Textos["Visita360EditarEnlace"]</button>
+                            }
+                        </AccionesHeader>
+                        <ChildContent>
+                            <p class="visita360-texto visita360-notas">@(string.IsNullOrWhiteSpace(visita.Notas) ? Textos["Visita360SinNotas"] : visita.Notas)</p>
+                        </ChildContent>
+                    </Tarjeta>
+                }
+            </Lateral>
+        </CuerpoConLateral>
+    }
+</div>
+
+<VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
+
+@if (_puedeEscribir)
+{
+    <EditarVisitaDrawer @bind-Visible="_editarVisible" VisitaId="VisitaId" OnGuardada="CargarAsync" OnNoEncontrada="CargarAsync" />
+}
+
+<DialogoConfirmacion
+    Visible="_confirmarCancelarVisible"
+    VisibleChanged="v => _confirmarCancelarVisible = v"
+    HayCambios="() => HayMotivoSinConfirmar(_confirmarCancelarVisible, _motivoCancelacion)"
+    Titulo="@Textos["ConfirmarCancelarTitulo", _detalle?.CentroNombre ?? string.Empty]"
+    Mensaje="@Textos["ConfirmarCancelarMensaje"]"
+    TextoBotonConfirmar="@Textos["AccionCancelar"]"
+    TextoBotonDescartar="@Textos["BotonVolver"]"
+    EnProgreso="_cancelando"
+    OnConfirmar="ConfirmarCancelarAsync">
+    <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
+</DialogoConfirmacion>
+
+<DialogoConfirmacion
+    Visible="_confirmarReactivarVisible"
+    VisibleChanged="v => _confirmarReactivarVisible = v"
+    HayCambios="() => HayMotivoSinConfirmar(_confirmarReactivarVisible, _motivoReactivacion)"
+    Titulo="@Textos["ConfirmarReactivarTitulo", _detalle?.CentroNombre ?? string.Empty]"
+    Mensaje="@Textos["ConfirmarReactivarMensaje"]"
+    TextoBotonConfirmar="@Textos["AccionReactivar"]"
+    TextoBotonDescartar="@Textos["BotonVolver"]"
+    VarianteConfirmar="VarianteBoton.Primario"
+    EnProgreso="_reactivando"
+    OnConfirmar="ConfirmarReactivarAsync">
+    <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoReactivacion" ValorChanged="v => _motivoReactivacion = v" Filas="2" />
+</DialogoConfirmacion>
+
+@* Salir con un «Motivo (opcional)» escrito en alguno de los dos diálogos pregunta; el cierre del propio diálogo lo
+   pregunta el DialogoConfirmacion con ese mismo HayCambios. *@
+<AvisoCambiosSinGuardar HayCambios="HayMotivoEnAlgunDialogo" AlDescartar="CerrarDialogosDescartando" />
+
+@* Enviar el paquete por correo: el compositor llega con el contacto del Centro, el asunto y el cuerpo de la solicitud
+   y el ZIP adjunto. Nada sale hasta que el Gestor CAE pulsa «Enviar». *@
+<RedactarMensajeDrawer Visible="_composerPaqueteVisible" VisibleChanged="v => _composerPaqueteVisible = v"
+                       DestinatariosIniciales="@_solicitudCorreo?.Destinatarios" AsuntoInicial="@_solicitudCorreo?.Asunto"
+                       CuerpoInicial="@_solicitudCorreo?.Cuerpo" Adjunto="_adjuntoPaquete" />
+
+</LimiteDeErrores>
+
+@code {
+    private RenderFragment MetaDeCabecera(CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita.DetalleVisitaDto visita) => __builder =>
+    {
+                <BotonCopiar Valor="@TextoFechas(visita.FechaInicio, visita.FechaFin)" Etiqueta="@Textos["Visita360CopiarFechas"]"
+                             Texto="@TextoFechas(visita.FechaInicio, visita.FechaFin)" />
+                <span>
+                    · @TextoPlazo(visita) ·
+                    @Textos["DetalleEntrada"] <b>@(visita.HoraEstimadaAcceso?.ToString("HH:mm") ?? Textos["DetalleSinHora"].Value)</b>
+                    · @Textos["DetalleTitularCentro"]:
+                </span>
+                <a class="visita360-enlace" href="@($"/clientes/{visita.ClienteId}")" title="@Comunes["IrAPaginaDe", visita.ClienteRazonSocial]">@visita.ClienteRazonSocial</a>
+                <span>· @Textos["DetalleEmpresa"]:</span>
+                <a class="visita360-enlace" href="@($"/empresas/{visita.EmpresaId}")" title="@Comunes["IrAPaginaDe", visita.EmpresaRazonSocial]">@visita.EmpresaRazonSocial</a>
+                <span>·</span>
+                <a class="visita360-enlace" href="@($"/centros/{visita.CentroId}")" title="@Comunes["IrAPaginaDe", visita.CentroNombre]">@Textos["Visita360VerCentro"]</a>
+    };
+
+    private RenderFragment PestanaDeComprobacion => __builder =>
+    {
+        @if (EsCancelada)
+        {
+            <Tarjeta>
+                <p class="visita360-texto">@Textos["Visita360CanceladaSinComprobacion"]</p>
+            </Tarjeta>
+        }
+        else if (_cargandoDocumentacion)
+        {
+            <Tarjeta>
+                <EstadoCargando Filas="4" />
+            </Tarjeta>
+        }
+        else if (_errorDocumentacion)
+        {
+            <Tarjeta>
+                <EstadoVacio Titulo="@Textos["ErrorDocumentacionTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
+                    <Accion>
+                        <Boton Variante="VarianteBoton.Primario" OnClick="CargarDocumentacionAsync">@Comunes["Reintentar"]</Boton>
+                    </Accion>
+                </EstadoVacio>
+            </Tarjeta>
+        }
+        else if (_documentacion is { Trabajadores.Count: 0 })
+        {
+            <Tarjeta>
+                <EstadoVacio Titulo="@Textos["VacioTrabajadoresTitulo"]" Descripcion="@Textos["VacioTrabajadoresDescripcion"]">
+                    <Accion>
+                        @if (_puedeEscribir)
+                        {
+                            <Boton Variante="VarianteBoton.Primario" OnClick="() => _editarVisible = true">@Textos["Visita360EditarVisita"]</Boton>
+                        }
+                    </Accion>
+                </EstadoVacio>
+            </Tarjeta>
+        }
+        else if (_documentacion is { } documentacion)
+        {
+            var total = TodosLosDocumentos(documentacion).Count();
+            var grupos = Grupos(documentacion);
+            var visibles = grupos.Sum(g => g.Visibles.Count);
+
+            <FiltroEstadosMultiple Opciones="OpcionesEstado(documentacion)" @bind-Seleccion="_estadosMarcados" Total="total" />
+
+            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SubtituloComprobacionPrevia"]">
+                <Encabezado>
+                    @ResumenComprobacion(documentacion) @Textos["Visita360SoloLoExigido", _detalle!.CentroNombre]
+                    @if (_estadosMarcados.Count > 0)
+                    {
+                        <text> @Textos["Visita360Mostrando", visibles, total]</text>
+                    }
+                </Encabezado>
+                <ChildContent>
+                    @foreach (var grupo in grupos)
+                    {
+                        var abierto = !_gruposPlegados.Contains(grupo.Id);
+                        <li class="visita360-grupo" @key="grupo.Id">
+                            <button type="button" class="visita360-grupo-plegar" aria-expanded="@(abierto ? "true" : "false")"
+                                    aria-label="@(abierto ? Textos["Visita360PlegarGrupo", grupo.Nombre] : Textos["Visita360DesplegarGrupo", grupo.Nombre])"
+                                    @onclick="() => AlternarGrupo(grupo.Id, !abierto)">
+                                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                            </button>
+                            <span>@grupo.Nombre</span>
+                            <i>@grupo.Empleador</i>
+                        </li>
+                        @if (abierto)
+                        {
+                            @if (grupo.Documentos.Count == 0)
+                            {
+                                <li class="visita360-grupo-vacio" @key="@($"{grupo.Id}-vacio")">@Textos["Visita360GrupoSinExigencias"]</li>
+                            }
+                            @foreach (var documento in grupo.Visibles)
+                            {
+                                <FilaRelacion @key="@($"{grupo.Id}-{documento.TipoDocumentoId}")" Nombre="@documento.TipoDocumentoNombre"
+                                              OnNombre="() => AbrirDocumento(documento)" Tono="EstadoDocumentoVisitaUi.TonoDeFila(documento.Estado)">
+                                    <Detalle>@DetalleDocumento(documento)</Detalle>
+                                    <Estado><Badge Tono="EstadoDocumentoVisitaUi.Tono(documento.Estado)">@EstadoDocumentoVisitaUi.Texto(documento.Estado, Textos)</Badge></Estado>
+                                </FilaRelacion>
+                            }
+                        }
+                    }
+                </ChildContent>
+                <Pie>
+                    @if (_estadosMarcados.Count > 0 && visibles == 0)
+                    {
+                        @Textos["Visita360NingunoEnLosEstados"]
+                    }
+                </Pie>
+            </ListaRelaciones>
+        }
+    };
+
+    private RenderFragment PestanaDelPaquete => __builder =>
+    {
+        <Tarjeta Titulo="@Textos["SubtituloSolicitudAccesoCorreo"]">
+            <p class="visita360-nota">@Textos["SolicitudAccesoCorreoExplicacion"]</p>
+            @if (_cargandoSolicitudCorreo)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_solicitudCorreo is null)
+            {
+                <p class="alerta-formulario" role="alert">@(_errorSolicitudCorreo ?? Textos["ErrorSolicitudAccesoCorreo"].Value)</p>
+            }
+            else
+            {
+                <div class="visita360-caja">
+                    <p><b>@Textos["SolicitudAccesoCorreoPara"]</b> @_solicitudCorreo.Destinatarios</p>
+                    <p><b>@Textos["Visita360Asunto"]</b> @_solicitudCorreo.Asunto</p>
+                    <p class="visita360-caja-cuerpo">@_solicitudCorreo.Cuerpo</p>
+                </div>
+                <div class="visita360-botones">
+                    @* Enviar y Descargar ZIP son de quien escribe; a Consulta le queda copiar.
+                       Lo decide ObtenerPaqueteDocumentalVisitaQuery, no este @if. *@
+                    @if (_puedeEscribir)
+                    {
+                        <Boton Variante="VarianteBoton.Primario" Cargando="_preparandoEnvioPaquete" OnClick="AbrirEnviarPaquetePorCorreoAsync">@Textos["EnviarPaquetePorCorreo"]</Boton>
+                    }
+                    <BotonCopiar Valor="@TextoSolicitudParaCopiar(_solicitudCorreo)" Etiqueta="@Textos["SolicitudAccesoCorreoEtiquetaCopiar"]" Texto="@Textos["SolicitudAccesoCorreoCopiar"]" />
+                    @if (_puedeEscribir)
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" Href="@RutaPaqueteDocumental(_detalle!.Id)" download data-enhance-nav="false">@Textos["DescargarPaqueteDocumental"]</Boton>
+                    }
+                </div>
+                @if (_avisoEnvioPaquete is not null)
+                {
+                    <p class="alerta-formulario" role="alert">@_avisoEnvioPaquete</p>
+                }
+            }
+        </Tarjeta>
+    };
+
+    private RenderFragment PestanaDelAviso => __builder =>
+    {
+        <Tarjeta Titulo="@Textos["SubtituloAvisoVisita"]">
+            <p class="visita360-nota">@Textos["AvisoVisitaExplicacion"]</p>
+            @if (_cargandoAviso)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (_aviso is null)
+            {
+                <p class="alerta-formulario" role="alert">@(_errorAviso ?? Textos["ErrorAvisoVisita"].Value)</p>
+            }
+            else
+            {
+                <div class="visita360-caja">
+                    <p><b>@Textos["Visita360Asunto"]</b> @_aviso.Asunto</p>
+                    <p class="visita360-caja-cuerpo">@_aviso.Cuerpo</p>
+                </div>
+                <div class="visita360-botones">
+                    <BotonCopiar Valor="@TextoAvisoParaCopiar(_aviso)" Etiqueta="@Textos["AvisoVisitaEtiquetaCopiar"]" Texto="@Textos["AvisoVisitaCopiar"]" />
+                </div>
+            }
+        </Tarjeta>
+    };
+}

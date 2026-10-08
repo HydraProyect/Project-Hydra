@@ -506,5 +506,133 @@
   </data>
   <data name="VentanaTrabajadoresAyuda" xml:space="preserve">
     <value>Abrir la pestaña Trabajadores de la visita</value>
+  <data name="Visita360TituloPestanaNavegador" xml:space="preserve">
+    <value>Visita</value>
+  </data>
+  <data name="Visita360TituloConCentro" xml:space="preserve">
+    <value>Visita a {0}</value>
+  </data>
+  <data name="Visita360EtiquetaMigas" xml:space="preserve">
+    <value>Ruta de Visita 360</value>
+  </data>
+  <data name="Visita360ErrorTitulo" xml:space="preserve">
+    <value>No pudimos cargar esta visita</value>
+  </data>
+  <data name="Visita360ErrorDescripcion" xml:space="preserve">
+    <value>Puede que ya no exista o que no tengas acceso.</value>
+  </data>
+  <data name="Visita360Kicker" xml:space="preserve">
+    <value>Visita</value>
+  </data>
+  <data name="Visita360AnilloEtiqueta" xml:space="preserve">
+    <value>{0} de {1} trabajadores listos para entrar</value>
+  </data>
+  <data name="Visita360AnilloFraccion" xml:space="preserve">
+    <value>{0} de {1} listos</value>
+  </data>
+  <data name="Visita360Tramo" xml:space="preserve">
+    <value>Tramo {0}</value>
+  </data>
+  <data name="Visita360CopiarFechas" xml:space="preserve">
+    <value>las fechas de la visita</value>
+  </data>
+  <data name="Visita360VerCentro" xml:space="preserve">
+    <value>Ver el centro</value>
+  </data>
+  <data name="Visita360EditarVisita" xml:space="preserve">
+    <value>Editar visita</value>
+  </data>
+  <data name="Visita360CancelarVisita" xml:space="preserve">
+    <value>Cancelar visita…</value>
+  </data>
+  <data name="Visita360BandaTitular" xml:space="preserve">
+    <value>{0} no puede acreditarse:</value>
+  </data>
+  <data name="Visita360BandaIncidencia" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="Visita360EtiquetaLateral" xml:space="preserve">
+    <value>Contexto</value>
+  </data>
+  <data name="Visita360EtiquetaGrupoPestanas" xml:space="preserve">
+    <value>Secciones de la visita</value>
+  </data>
+  <data name="Visita360Informacion" xml:space="preserve">
+    <value>Información</value>
+  </data>
+  <data name="Visita360EditarEnlace" xml:space="preserve">
+    <value>Editar →</value>
+  </data>
+  <data name="Visita360SinNotas" xml:space="preserve">
+    <value>Sin notas.</value>
+  </data>
+  <data name="Visita360CanceladaSinComprobacion" xml:space="preserve">
+    <value>Esta visita está cancelada. Reactívala antes de pedir acceso o de enviar su documentación.</value>
+  </data>
+  <data name="Visita360SoloLoExigido" xml:space="preserve">
+    <value>Solo lo que exige {0}, del peor estado al mejor.</value>
+  </data>
+  <data name="Visita360Mostrando" xml:space="preserve">
+    <value>Mostrando {0} de {1}.</value>
+  </data>
+  <data name="Visita360PlegarGrupo" xml:space="preserve">
+    <value>Plegar {0}</value>
+  </data>
+  <data name="Visita360DesplegarGrupo" xml:space="preserve">
+    <value>Desplegar {0}</value>
+  </data>
+  <data name="Visita360GrupoSinExigencias" xml:space="preserve">
+    <value>Este centro no le exige documentación.</value>
+  </data>
+  <data name="Visita360NingunoEnLosEstados" xml:space="preserve">
+    <value>Ninguno en los estados marcados.</value>
+  </data>
+  <data name="Visita360Asunto" xml:space="preserve">
+    <value>Asunto:</value>
+  </data>
+  <data name="Visita360ContadorTrabajadores" xml:space="preserve">
+    <value>{0} trabajadores que entran</value>
+  </data>
+  <data name="Visita360PestanaPaquete" xml:space="preserve">
+    <value>Paquete de acreditación</value>
+  </data>
+  <data name="Visita360FilaSinDocumento" xml:space="preserve">
+    <value>No hay documento</value>
+  </data>
+  <data name="Visita360FilaNoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="Visita360FilaSinFecha" xml:space="preserve">
+    <value>Falta la fecha de vencimiento</value>
+  </data>
+  <data name="Visita360FilaVencio" xml:space="preserve">
+    <value>Venció el {0:dd/MM/yyyy}</value>
+  </data>
+  <data name="Visita360FilaVence" xml:space="preserve">
+    <value>Vence el {0:dd/MM/yyyy}</value>
+  </data>
+  <data name="Estado360Vencido" xml:space="preserve">
+    <value>Vencido</value>
+  </data>
+  <data name="Estado360Pendiente" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="Estado360EnTolerancia" xml:space="preserve">
+    <value>En tolerancia</value>
+  </data>
+  <data name="Estado360PorVencer" xml:space="preserve">
+    <value>Por vencer</value>
+  </data>
+  <data name="Estado360SinConfirmar" xml:space="preserve">
+    <value>Sin confirmar</value>
+  </data>
+  <data name="Estado360Vigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+  <data name="Visita360PlazoTerminaHoy" xml:space="preserve">
+    <value>Termina hoy</value>
+  </data>
+  <data name="DetalleAbrirPagina" xml:space="preserve">
+    <value>Abrir la página de la visita →</value>
   </data>
 </root>
