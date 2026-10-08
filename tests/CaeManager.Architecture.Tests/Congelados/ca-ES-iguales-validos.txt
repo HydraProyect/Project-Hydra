@@ -6,3 +6,6 @@
 #
 # Vacía el 2026-10-02: de los 41 candidatos a nombre propio revisados a mano ("Corriente AEAT",
 # "Descargar PDF", "Plataforma CAE"…) ninguno lo era; todos son castellano sin traducir.
+#
+# «la matrícula» se escribe igual en catalán (la matrícula del vehicle): complemento de «Se copió…» en la ficha de Vehículo.
+la matrícula
