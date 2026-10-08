@@ -139,11 +139,19 @@ public static class MedidorPiezas360
             return '#ffffffff';
           };
 
-          const pastillas = todos('pastilla'), tarjetas = todos('tarjeta'), laterales = todos('lateral'),
+          const selTarjeta = piezas['tarjeta'];
+          const pastillas = todos('pastilla'), laterales = todos('lateral'),
                 anillos = todos('anillo'), cabeceras = todos('cabecera-identidad'), detalles = todos('fila-detalle'),
                 filasPeligro = todos('fila-problema-peligro'), filasAdvertencia = todos('fila-problema-advertencia');
           const conProblema = new Set([...filasPeligro, ...filasAdvertencia]);
           const filas = todos('fila');
+
+          // Una cabecera puede SER la tarjeta (un solo elemento con fondo y borde, como en los
+          // mockups «… 360 página») en vez de ir dentro de una: cuenta como tarjeta, para que
+          // no salga una diferencia falsa contra la Tarjeta que envuelve a CabeceraPagina.
+          const esCaja = el => { const cs = getComputedStyle(el); return parseFloat(cs.borderTopWidth) > 0 && !color(cs.backgroundColor).endsWith('00'); };
+          const cabecerasCaja = cabeceras.filter(c => !c.closest(selTarjeta) && esCaja(c));
+          const tarjetas = [...todos('tarjeta'), ...cabecerasCaja];
 
           // Fondo de página: el primer fondo opaco por detrás del lateral (o de la raíz).
           pon('fondo-pagina.background-color', 'color', [fondoEfectivo(laterales[0] ? laterales[0].parentElement : R)]);
@@ -154,8 +162,7 @@ public static class MedidorPiezas360
           estilo('tarjeta.border-top-left-radius', 'px', tarjetas, 'border-top-left-radius', px);
           estilo('tarjeta.box-shadow', 'texto', tarjetas, 'box-shadow');
 
-          const selTarjeta = piezas['tarjeta'];
-          pon('cabecera-identidad.en-tarjeta', 'texto', cabeceras.map(c => c.closest(selTarjeta) ? 'sí' : 'no'));
+          pon('cabecera-identidad.en-tarjeta', 'texto', cabeceras.map(c => c.closest(selTarjeta) || cabecerasCaja.includes(c) ? 'sí' : 'no'));
 
           pon('anillo.width', 'px', anillos.map(a => px(a.getBoundingClientRect().width)));
           pon('anillo.height', 'px', anillos.map(a => px(a.getBoundingClientRect().height)));
