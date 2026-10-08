@@ -101,6 +101,12 @@
     <value>Volver a la ficha</value>
     <comment>P1-I2: salida de la página de 2FA cuando se llegó con un returnUrl local desde una ficha.</comment>
   </data>
+  <data name="CambiarContrasenaVoluntarioExplicacion" xml:space="preserve">
+    <value>Escribe tu contraseña actual y la que quieres usar a partir de ahora.</value>
+  </data>
+  <data name="CambiarContrasenaVolverSinCambiarla" xml:space="preserve">
+    <value>Volver sin cambiarla</value>
+  </data>
   <data name="SalidaVolver" xml:space="preserve">
     <value>Volver</value>
     <comment>Revisión UX pre-piloto (2026-09-28): salida de la página de 2FA, que usa AuthLayout y no tiene menú. Solo cuando la 2FA no es obligatoria.</comment>
