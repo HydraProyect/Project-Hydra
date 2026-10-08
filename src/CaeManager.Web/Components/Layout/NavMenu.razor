@@ -55,10 +55,16 @@
     <div class="nav-herramientas">
         @if (_grupos.Count > 0)
         {
-            <button type="button" class="nav-lupa" data-menu-lupa aria-expanded="false"
-                    aria-label="@Textos["MenuBuscar"]" title="@Textos["MenuBuscar"]">
-                <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
-            </button>
+            @* La lupa ES el campo: recogida es un botón de 32 px; al pulsarla se expande en la misma fila
+               hasta el botón de compactar (menu-lateral.js pone data-abierta) y se contrae al cerrar. *@
+            <div class="nav-buscador" data-menu-busqueda role="search">
+                <button type="button" class="nav-lupa" data-menu-lupa aria-expanded="false"
+                        aria-label="@Textos["MenuBuscar"]" title="@Textos["MenuBuscar"]">
+                    <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
+                </button>
+                <input type="text" class="nav-filtro-campo" data-menu-filtro autocomplete="off" inert
+                       placeholder="@Textos["MenuBuscar"]" aria-label="@Textos["MenuBuscar"]" />
+            </div>
         }
         <button type="button" class="nav-compactar" data-menu-compactar
                 aria-label="@Textos["MenuCompactar"]"
@@ -68,28 +74,19 @@
         </button>
         @if (_grupos.Count > 0)
         {
-            @* Se despliega con la lupa (menu-lateral.js). Cerrado va inert: ni se enfoca ni lo lee un lector. *@
-            <div class="nav-busqueda" data-menu-busqueda inert>
-                <div class="nav-busqueda-interior">
-                    <label class="nav-filtro">
-                        <Icono Nombre="buscar" Tamano="TamanoIcono.Pequeno" />
-                        <input type="text" class="nav-filtro-campo" data-menu-filtro autocomplete="off"
-                               placeholder="@Textos["MenuBuscar"]" aria-label="@Textos["MenuBuscar"]" />
-                    </label>
-                    @* Opciones dentro de las páginas del menú (Configuración, pestañas de Documentos): ya vienen
-                       filtradas por el catálogo con las reglas de visibilidad del menú. Todas nacen ocultas y el
-                       JS muestra las que casan con lo escrito; elegir una navega directo a esa opción. *@
-                    <div class="nav-resultados" data-menu-resultados hidden>
-                        <div class="nav-resultados-titulo">@Textos["MenuBuscarEnPaginas"]</div>
-                        @foreach (var sub in _subopciones)
-                        {
-                            <a class="nav-resultado" href="@sub.Subopcion.Ruta" data-subopcion="@sub.Subopcion.Id" hidden>
-                                <span class="nav-resultado-texto">@RotuloDe(sub.Subopcion)</span>
-                                <small class="nav-resultado-padre">@sub.Enlace.RotuloPara(_contexto!)</small>
-                            </a>
-                        }
-                    </div>
-                </div>
+            @* Opciones dentro de las páginas del menú (Configuración, pestañas de Documentos): ya vienen
+               filtradas por el catálogo con las reglas de visibilidad del menú. Todas nacen ocultas y el
+               JS muestra las que casan con lo escrito; elegir una navega directo a esa opción. La lista
+               solo ocupa su fila mientras hay coincidencias. *@
+            <div class="nav-resultados" data-menu-resultados hidden>
+                <div class="nav-resultados-titulo">@Textos["MenuBuscarEnPaginas"]</div>
+                @foreach (var sub in _subopciones)
+                {
+                    <a class="nav-resultado" href="@sub.Subopcion.Ruta" data-subopcion="@sub.Subopcion.Id" hidden>
+                        <span class="nav-resultado-texto">@RotuloDe(sub.Subopcion)</span>
+                        <small class="nav-resultado-padre">@sub.Enlace.RotuloPara(_contexto!)</small>
+                    </a>
+                }
             </div>
         }
     </div>
