@@ -433,8 +433,9 @@ actualizar_secretos_produccion() {
 }
 
 # Diagnóstico de solo lectura para REC-198/P33 (techo de memoria): ambos
-# docker-compose.*.yml solo fijan `mem_limit` en el servicio "app" —
-# db/caddy/seq van sin techo en los dos stacks, 8 contenedores compartiendo
+# docker-compose.*.yml solo fijan un `mem_limit` con valor en el servicio "app" —
+# db/caddy/seq lo llevan parametrizado (LIMITE_MEMORIA_DB/_CADDY/_SEQ) y sin
+# techo mientras la variable no esté en el .env, 8 contenedores compartiendo
 # la misma máquina de 4 GB entre staging y producción — y decidir un límite
 # sin medir el consumo real puede fijarlo demasiado bajo y provocar un OOM
 # del propio contenedor en producción. La clave SSH de CI solo puede
