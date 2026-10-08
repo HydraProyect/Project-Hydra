@@ -132,6 +132,15 @@ public class CatalogoIncorporacionCartera(
         var cartera = AsignacionCartera.Externa(
             operacion, usuarioId, RolIncorporado, AmbitoAsignacion.Universal,
             ahora, vigenciaHasta: null, ahora, actorId);
+
+        // Regla de emisión de la marca de principal (ADR-011 § 2.7, enmienda 2026-10-08): la
+        // cartera de Gestor CAE que entra en una operación sin principal vivo nace principal;
+        // si ya lo hay, nace sin marca (cartera de apoyo). Vale para las tres vías que llegan
+        // aquí —asignación directa, alta de Gestor CAE y solicitud aceptada—, todas decididas
+        // por un Coordinador CAE o superior.
+        if (!await PrincipalDeOperacion.HayPrincipalVivoAsync(dbContext, operacion, cancellationToken))
+            cartera.DesignarPrincipal();
+
         dbContext.AsignacionesCartera.Add(cartera);
 
         // Doble escritura de F1: el selector de Tenant, el fan-out de Mi
@@ -264,6 +273,10 @@ public class CatalogoIncorporacionCartera(
     [
         SolicitudIncorporacionCarteraConfiguration.IndicePendienteUnica,
         "IX_AsignacionesCartera_UsuarioUniversalVigente",
+        // Dos emisiones simultáneas a Gestores CAE distintos sobre una operación sin principal:
+        // las dos nacen marcadas y el índice deja pasar una. La que pierde se reintenta y nace
+        // sin marca.
+        AsignacionCarteraConfiguration.IndicePrincipalPorOperacion,
         "IX_AsignacionesOperadorDelegado_DelegacionTenantId_UsuarioId",
     ];
 

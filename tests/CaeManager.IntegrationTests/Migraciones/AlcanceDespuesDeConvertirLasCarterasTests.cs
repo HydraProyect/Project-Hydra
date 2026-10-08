@@ -75,7 +75,7 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
         await BaseDatosPostgresDePruebas.MigrarAsync(_cadena);
 
         // La base queda como estaba en staging y producción antes de desplegar el cambio.
-        await using (var contexto = NuevoContexto(null))
+        await using (var contexto = ContextoParaMigrar())
             await contexto.GetService<IMigrator>().MigrateAsync(MigracionAnterior);
 
         await using (var contexto = NuevoContexto(null))
@@ -94,7 +94,7 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
     {
         get
         {
-            using var contexto = NuevoContexto(null);
+            using var contexto = ContextoParaMigrar();
             var migraciones = contexto.Database.GetMigrations().ToList();
             var indice = migraciones.IndexOf(MigracionDelCambio);
             indice.Should().BeGreaterThan(0);
@@ -110,7 +110,7 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
             (await contexto.AsignacionesCartera.CountAsync(c => c.AmbitoRelacionClienteId != null && c.Estado != EstadoAsignacion.Cerrada))
                 .Should().BeGreaterThan(0, "el estado previo tiene carteras repartidas por Cliente empresarial");
 
-        await using (var contexto = NuevoContexto(null))
+        await using (var contexto = ContextoParaMigrar())
             await contexto.GetService<IMigrator>().MigrateAsync();
 
         var despues = await MedirTodosAsync();
@@ -295,6 +295,16 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
             .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
             .Options;
-        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+        // Esta clase retrocede a un esquema anterior a la columna EsPrincipal: ver ContextoAnteriorALaMarcaDePrincipal.
+        return new ContextoAnteriorALaMarcaDePrincipal(opciones, new EphemeralDataProtectionProvider(), tenantActual);
+    }
+
+    /// <summary>El contexto real: EF solo descubre las migraciones con el tipo exacto del contexto.</summary>
+    private CaeManagerDbContext ContextoParaMigrar()
+    {
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .Options;
+        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental { TenantId = null });
     }
 }

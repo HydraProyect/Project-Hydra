@@ -105,6 +105,11 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // la fila heredada. Autorización en los handlers de Application.
         "src/CaeManager.Infrastructure/Operaciones/CatalogoIncorporacionCartera.cs",
 
+        // Regla de emisión de la marca de principal: «¿hay ya una cartera principal viva bajo
+        // esta Asignación de Operación?». Acotada por la operación que el escritor ya validó,
+        // y leída con el Tenant propietario como Tenant activo. La comparten los dos escritores.
+        "src/CaeManager.Infrastructure/Operaciones/PrincipalDeOperacion.cs",
+
         // Job de expiración de vigencias: sin posición de llamante (no hay
         // sesión en un job de fondo). Acotado por Tenant propietario —un
         // AmbitoTenantExplicito por pase— y por la RLS de cae_app_runtime.

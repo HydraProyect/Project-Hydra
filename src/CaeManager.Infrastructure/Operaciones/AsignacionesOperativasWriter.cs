@@ -66,8 +66,10 @@ public class AsignacionesOperativasWriter(
 
             if (await TieneUniversalVigenteAsync(raiz, gestorUsuarioId, cancellationToken)) return;
 
-            dbContext.AsignacionesCartera.Add(AsignacionCartera.Interna(
-                raiz, gestorUsuarioId, AmbitoAsignacion.Universal, ahora, vigenciaHasta: null, ahora, actorId));
+            var interna = AsignacionCartera.Interna(
+                raiz, gestorUsuarioId, AmbitoAsignacion.Universal, ahora, vigenciaHasta: null, ahora, actorId);
+            await MarcarPrincipalSiNoHayAsync(raiz, interna, cancellationToken);
+            dbContext.AsignacionesCartera.Add(interna);
             return;
         }
 
@@ -90,8 +92,22 @@ public class AsignacionesOperativasWriter(
 
         if (await TieneUniversalVigenteAsync(externa, gestorUsuarioId, cancellationToken)) return;
 
-        dbContext.AsignacionesCartera.Add(AsignacionCartera.Externa(
-            externa, gestorUsuarioId, rol, AmbitoAsignacion.Universal, ahora, vigenciaHasta: null, ahora, actorId));
+        var cartera = AsignacionCartera.Externa(
+            externa, gestorUsuarioId, rol, AmbitoAsignacion.Universal, ahora, vigenciaHasta: null, ahora, actorId);
+        await MarcarPrincipalSiNoHayAsync(externa, cartera, cancellationToken);
+        dbContext.AsignacionesCartera.Add(cartera);
+    }
+
+    /// <summary>
+    /// Regla de emisión de la marca de principal (ADR-011 § 2.7, enmienda 2026-10-08), la misma
+    /// que aplica <see cref="CatalogoIncorporacionCartera"/>: la cartera de Gestor CAE que entra
+    /// en una operación sin principal vivo nace principal; si ya lo hay, nace sin marca.
+    /// </summary>
+    private async Task MarcarPrincipalSiNoHayAsync(
+        AsignacionOperacion operacion, AsignacionCartera cartera, CancellationToken cancellationToken)
+    {
+        if (!await PrincipalDeOperacion.HayPrincipalVivoAsync(dbContext, operacion, cancellationToken))
+            cartera.DesignarPrincipal();
     }
 
     /// <summary>
@@ -290,14 +306,25 @@ public class AsignacionesOperativasWriter(
         var ahora = DateTime.UtcNow;
         var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
+        var repuestas = new List<AsignacionCartera>();
         foreach (var gestorId in conCarteraCerrada)
         {
             if (await TieneUniversalVigenteAsync(operacion, gestorId, cancellationToken)) continue;
 
-            dbContext.AsignacionesCartera.Add(AsignacionCartera.Externa(
+            repuestas.Add(AsignacionCartera.Externa(
                 operacion, gestorId, Roles.GestorCae, AmbitoAsignacion.Universal,
                 ahora, vigenciaHasta: null, ahora, actorId));
         }
+
+        // La marca de principal no sobrevive al cierre (una cartera cerrada no es principal de
+        // nada), así que la reactivación no sabe quién lo era. Mismo criterio que la migración
+        // AnadePrincipalALasCarteras: si se repone una sola cartera de Gestor CAE, esa responde
+        // del Tenant; si se reponen varias, ninguna —no se inventa un responsable por el orden
+        // de un bucle— y la operación queda sin principal hasta que alguien lo designe.
+        if (repuestas.Count == 1)
+            await MarcarPrincipalSiNoHayAsync(operacion, repuestas[0], cancellationToken);
+
+        dbContext.AsignacionesCartera.AddRange(repuestas);
     }
 
     public async Task CerrarCarteraOperadorAsync(

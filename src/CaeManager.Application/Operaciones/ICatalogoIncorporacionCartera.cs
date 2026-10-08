@@ -76,6 +76,12 @@ public interface ICatalogoIncorporacionCartera
     /// sin caducidad) y su fila heredada de Operador Delegado, sin guardar.
     /// Devuelve un motivo de anulación, sin crear nada, si la operación ya no
     /// está vigente o el solicitante ya tiene el Tenant en su cartera.
+    ///
+    /// <b>Marca de principal</b> (ADR-011 § 2.7, enmienda 2026-10-08): si la
+    /// Asignación de Operación no tiene ninguna cartera principal viva (no
+    /// cerrada), la que se crea nace principal; si ya la tiene, nace sin marca.
+    /// Dos emisiones simultáneas las separa el índice único de la base de datos:
+    /// la que pierde hace fallar el guardado (<see cref="GuardarDetectandoCarreraAsync"/>).
     /// </summary>
     Task<ResultadoIncorporacionCartera> IncorporarAsync(
         SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default);

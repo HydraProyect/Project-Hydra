@@ -6,10 +6,12 @@ using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Configurations;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Operaciones;
@@ -290,6 +292,167 @@ public class EsquemaAsignacionesOperativasTests : IAsyncLifetime
 
         (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEmpty();
     }
+
+    // ── Marca de principal (ADR-011 § 2.7, enmienda 2026-10-08) ───────────
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Dos_carteras_principales_vivas_bajo_la_misma_operacion_son_imposibles(bool laPrimeraSuspendida)
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var operacion = await OperacionExternaAsync(contexto);
+
+        var primera = CarteraDe(operacion, Roles.GestorCae);
+        primera.DesignarPrincipal();
+        if (laPrimeraSuspendida) primera.Suspender();
+        contexto.AsignacionesCartera.Add(primera);
+        // Control positivo: una sola principal se guarda.
+        await contexto.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+
+        var segunda = CarteraDe(operacion, Roles.GestorCae);
+        segunda.DesignarPrincipal();
+        contexto.AsignacionesCartera.Add(segunda);
+
+        (await contexto.Invoking(c => c.SaveChangesAsync()).Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.Should().Match<PostgresException>(e =>
+                e.SqlState == PostgresErrorCodes.UniqueViolation
+                && e.ConstraintName == AsignacionCarteraConfiguration.IndicePrincipalPorOperacion,
+                "suspendida o vigente, la principal viva ocupa el sitio: el índice solo excluye las cerradas");
+    }
+
+    [Fact]
+    public async Task Una_principal_convive_con_carteras_de_apoyo_y_cada_operacion_tiene_la_suya()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var operacion = await OperacionExternaAsync(contexto);
+        var raiz = AsignacionOperacion.Raiz(_tenant, ServicioCae.Outbound, DateTime.UtcNow, DateTime.UtcNow);
+        contexto.AsignacionesOperacion.Add(raiz);
+
+        var principal = CarteraDe(operacion, Roles.GestorCae);
+        principal.DesignarPrincipal();
+        var principalDeLaRaiz = AsignacionCartera.Interna(
+            raiz, Guid.NewGuid(), AmbitoAsignacion.Universal, DateTime.UtcNow, null, DateTime.UtcNow);
+        principalDeLaRaiz.DesignarPrincipal();
+
+        contexto.AsignacionesCartera.AddRange(
+            principal, CarteraDe(operacion, Roles.GestorCae), CarteraDe(operacion, Roles.GestorCae),
+            CarteraDe(operacion, Roles.Consulta), principalDeLaRaiz);
+
+        // El índice es parcial: sin su filtro, dos carteras cualesquiera bajo la misma operación chocarían.
+        await contexto.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+        (await contexto.AsignacionesCartera.CountAsync(c => c.EsPrincipal)).Should().Be(2, "una por operación");
+    }
+
+    [Fact]
+    public async Task Cerrada_la_principal_otra_cartera_de_la_misma_operacion_puede_serlo()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var operacion = await OperacionExternaAsync(contexto);
+
+        var saliente = CarteraDe(operacion, Roles.GestorCae);
+        saliente.DesignarPrincipal();
+        contexto.AsignacionesCartera.Add(saliente);
+        await contexto.SaveChangesAsync();
+
+        // El índice no es diferible: primero se apaga (aquí, cerrando) y se guarda; después se enciende.
+        saliente.Cerrar(MotivoCierreAsignacion.RetiradaPorElOperador, DateTime.UtcNow);
+        await contexto.SaveChangesAsync();
+
+        var entrante = CarteraDe(operacion, Roles.CoordinadorCae);
+        entrante.DesignarPrincipal();
+        contexto.AsignacionesCartera.Add(entrante);
+
+        await contexto.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+    }
+
+    [Fact]
+    public async Task Una_fila_cerrada_que_conservara_la_marca_no_ocupa_el_sitio_del_principal()
+    {
+        // El dominio apaga la marca al cerrar; el índice no depende de ello. Se fuerza la fila que el dominio
+        // no produce para ver que el filtro excluye las cerradas por sí mismo.
+        await using var contexto = CrearContexto(_tenant);
+        var operacion = await OperacionExternaAsync(contexto);
+
+        var cerrada = CarteraDe(operacion, Roles.GestorCae);
+        cerrada.Cerrar(MotivoCierreAsignacion.RetiradaPorElOperador, DateTime.UtcNow);
+        ForzarMarca(cerrada);
+        var viva = CarteraDe(operacion, Roles.GestorCae);
+        viva.DesignarPrincipal();
+        contexto.AsignacionesCartera.AddRange(cerrada, viva);
+
+        await contexto.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+    }
+
+    [Theory]
+    [InlineData(Roles.Consulta)]
+    [InlineData(Roles.Administrador)]
+    [InlineData(Roles.DireccionCae)]
+    public async Task Una_cartera_principal_de_un_rol_que_no_es_Gestor_CAE_ni_Coordinador_CAE_la_rechaza_la_base(string rol)
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var operacion = await OperacionExternaAsync(contexto);
+
+        // Control positivo: la misma cartera, sin la marca, se guarda.
+        contexto.AsignacionesCartera.Add(CarteraDe(operacion, rol));
+        await contexto.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+
+        // La guarda de dominio lo impide; se salta para llegar al CHECK, que es lo que se prueba aquí.
+        var marcada = CarteraDe(operacion, rol);
+        ForzarMarca(marcada);
+        contexto.AsignacionesCartera.Add(marcada);
+
+        (await contexto.Invoking(c => c.SaveChangesAsync()).Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.Should().Match<PostgresException>(e =>
+                e.SqlState == PostgresErrorCodes.CheckViolation
+                && e.ConstraintName == AsignacionCarteraConfiguration.RestriccionPrincipal);
+    }
+
+    [Fact]
+    public async Task Una_cartera_principal_que_no_es_del_Tenant_entero_la_rechaza_la_base()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var operacion = await OperacionExternaAsync(contexto);
+
+        // Solo cabe como histórico cerrado (CK_AsignacionesCartera_TenantEnteroSalvoCerrada), y ni así lleva marca.
+        var porCliente = CarteraDe(operacion, Roles.GestorCae);
+        porCliente.Cerrar(MotivoCierreAsignacion.Reorganizada, DateTime.UtcNow);
+        typeof(AsignacionResponsabilidad).GetProperty(nameof(AsignacionResponsabilidad.AmbitoRelacionClienteId))!
+            .SetValue(porCliente, _clienteId);
+        ForzarMarca(porCliente);
+        contexto.AsignacionesCartera.Add(porCliente);
+
+        (await contexto.Invoking(c => c.SaveChangesAsync()).Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.ConstraintName.Should().Be(AsignacionCarteraConfiguration.RestriccionPrincipal);
+    }
+
+    [Fact]
+    public void Los_roles_que_el_dominio_deja_marcar_son_los_de_Identity_y_los_del_CHECK()
+    {
+        // Domain no referencia los roles de Identity y los repite como texto: aquí se atan.
+        AsignacionCartera.RolesQuePuedenSerPrincipal.Should().BeEquivalentTo([Roles.GestorCae, Roles.CoordinadorCae]);
+    }
+
+    private async Task<AsignacionOperacion> OperacionExternaAsync(CaeManagerDbContext contexto)
+    {
+        var ahora = DateTime.UtcNow;
+        var operacion = AsignacionOperacion.Externa(
+            _tenant, _otroTenant, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora);
+        contexto.AsignacionesOperacion.Add(operacion);
+        await contexto.SaveChangesAsync();
+        return operacion;
+    }
+
+    private static AsignacionCartera CarteraDe(AsignacionOperacion operacion, string rol) =>
+        AsignacionCartera.Externa(
+            operacion, Guid.NewGuid(), rol, AmbitoAsignacion.Universal, DateTime.UtcNow.AddDays(-1), null, DateTime.UtcNow);
+
+    /// <summary>Enciende la marca sin pasar por <c>DesignarPrincipal</c>: solo para llegar a las garantías de la base.</summary>
+    private static void ForzarMarca(AsignacionCartera cartera) =>
+        typeof(AsignacionCartera).GetProperty(nameof(AsignacionCartera.EsPrincipal))!.SetValue(cartera, true);
 
     private CaeManagerDbContext CrearContexto(Guid tenantId)
     {
