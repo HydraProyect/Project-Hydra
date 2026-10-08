@@ -244,48 +244,75 @@
     margin-top: calc(-1 * var(--space-4));
     padding: var(--space-4) 0 var(--space-2);
     background-color: var(--color-surface);
-    /* El campo desplegable (.nav-busqueda) ocupa su propia fila y, recogido, no deja hueco. */
+    /* Los resultados de la búsqueda (.nav-resultados) ocupan su propia fila y solo existen con coincidencias. */
     flex-wrap: wrap;
     row-gap: 0;
+}
+
+/*
+    La lupa es el campo: un único recuadro de 32 px que, al abrirse, crece en la misma fila (flex-grow
+    0 → 1) hasta el botón de compactar y descubre el input; al cerrar vuelve a ser el botón. Sin fila
+    nueva ni salto de altura. Recogido, el input va inert y transparente.
+*/
+.nav-buscador {
+    display: flex;
+    align-items: center;
+    flex: 0 0 32px;
+    min-width: 32px;
+    height: 32px;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    transition: flex-grow var(--motion-transition) var(--ease-fluid),
+        border-color var(--motion-fast) var(--ease-standard),
+        box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.nav-buscador[data-abierta] {
+    flex-grow: 1;
+}
+
+.nav-buscador:focus-within[data-abierta] {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px var(--color-primary-100);
 }
 
 .nav-lupa {
     display: grid;
     place-items: center;
     flex-shrink: 0;
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--color-border);
+    width: 30px;
+    height: 30px;
+    border: 0;
     border-radius: var(--radius-md);
-    background-color: var(--color-surface);
-    color: var(--color-text-muted);
+    background: none;
+    color: inherit;
     cursor: pointer;
 }
 
-.nav-lupa:hover,
-.nav-lupa[aria-expanded="true"] {
+.nav-buscador:not([data-abierta]):hover {
     background-color: var(--color-surface-hover);
     color: var(--color-text);
 }
 
-/* Campo desplegable bajo la cabecera: la altura se anima de 0 a su alto natural. */
-.nav-busqueda {
-    display: grid;
-    grid-template-rows: 0fr;
-    flex: 0 0 100%;
-    transition: grid-template-rows var(--motion-transition) var(--ease-fluid);
+.nav-filtro-campo {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0 var(--space-2) 0 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    color: var(--color-text);
+    font: var(--font-body-sm);
+    opacity: 0;
+    transition: opacity var(--motion-transition) var(--ease-fluid);
 }
 
-.nav-busqueda[data-abierta] {
-    grid-template-rows: 1fr;
-}
-
-.nav-busqueda-interior {
-    min-height: 0;
-    overflow: hidden;
-    /* Holgura para que el anillo de foco del campo no se recorte con overflow: hidden. */
-    padding: 0 var(--space-1) var(--space-1);
-    margin-inline: calc(-1 * var(--space-1));
+.nav-buscador[data-abierta] .nav-filtro-campo {
+    opacity: 1;
 }
 
 /* Resultados dentro de las páginas (opciones de Configuración, pestañas de Documentos). */
@@ -293,6 +320,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+    flex: 0 0 100%;
     padding-top: var(--space-2);
     /* La cabecera es sticky: una lista larga no puede ocupar toda la altura de la barra. */
     max-height: 40vh;
@@ -331,39 +359,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .nav-busqueda {
+    .nav-buscador,
+    .nav-filtro-campo {
         transition: none;
     }
-}
-
-.nav-filtro {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex: 1;
-    min-width: 0;
-    height: 32px;
-    padding: 0 var(--space-2);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background-color: var(--color-surface);
-    color: var(--color-text-muted);
-    margin-top: var(--space-2);
-}
-
-.nav-filtro:focus-within {
-    border-color: var(--color-primary-500);
-    box-shadow: 0 0 0 3px var(--color-primary-100);
-}
-
-.nav-filtro-campo {
-    flex: 1;
-    min-width: 0;
-    border: 0;
-    outline: 0;
-    background: none;
-    color: var(--color-text);
-    font: var(--font-body-sm);
 }
 
 .nav-compactar {
@@ -525,8 +524,7 @@ html[data-menu-compacto] .barra-lateral .nav-principal {
     padding-inline: var(--space-2);
 }
 
-html[data-menu-compacto] .barra-lateral .nav-lupa,
-html[data-menu-compacto] .barra-lateral .nav-busqueda,
+html[data-menu-compacto] .barra-lateral .nav-buscador,
 html[data-menu-compacto] .barra-lateral .nav-fijar,
 html[data-menu-compacto] .barra-lateral .nav-fijados-titulo,
 html[data-menu-compacto] .barra-lateral .nav-grupo-titulo {
