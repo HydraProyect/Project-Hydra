@@ -41,6 +41,22 @@
     color: var(--color-text-muted);
 }
 
+/* Identidad: desplegar + casilla + nombre y detalle. En flex ocupa lo que
+   deja la columna derecha; en rejilla es la primera columna. */
+.fila-relacion-identidad {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.fila-relacion-casilla {
+    flex: none;
+    display: flex;
+    align-items: center;
+}
+
 .fila-relacion-texto {
     flex: 1;
     min-width: 0;
@@ -95,4 +111,126 @@ a.fila-relacion-nombre:focus-visible,
     display: flex;
     align-items: center;
     gap: var(--space-2);
+}
+
+/*
+  Rejilla única de fila de las páginas 360 del 2026-10-08:
+  identidad | cifra | estado | acción. Las tres últimas columnas tienen ancho
+  fijo y la pastilla empieza siempre a la izquierda de la suya.
+*/
+.fila-relacion-rejilla {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 104px 152px 128px;
+    align-items: center;
+    min-height: 50px;
+    padding: 10px 0;
+    border-top: 1px solid var(--color-fila-divisor);
+}
+
+.fila-relacion-rejilla:first-child {
+    border-top: none;
+}
+
+.fila-relacion-cifra {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.fila-relacion-estado {
+    display: flex;
+    justify-content: flex-start;
+    min-width: 0;
+}
+
+.fila-relacion-acciones {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+/*
+  Fila con problema: ÚNICO sitio donde se define. El tinte lleva encima una
+  capa en degradado que lo funde con la superficie hacia la derecha; al pasar
+  el cursor la capa se desplaza y la fila queda teñida entera.
+*/
+.fila-relacion[data-tono] {
+    border-radius: var(--radius-md);
+    border-top-color: transparent;
+    background-image: linear-gradient(90deg, transparent 0, transparent 50%, var(--color-surface) 87.5%, var(--color-surface) 100%);
+    background-size: 200% 100%;
+    background-position: 100% 0;
+    transition: background-position 360ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fila-relacion[data-tono="peligro"] {
+    background-color: var(--color-danger-50);
+}
+
+.fila-relacion[data-tono="advertencia"] {
+    background-color: var(--color-warning-50);
+}
+
+.fila-relacion[data-tono]:hover {
+    background-position: 0 0;
+}
+
+/* En rejilla el tinte sobresale del contenido de la tarjeta lo que mide su
+   relleno lateral, para que el texto no cambie de columna respecto a las
+   filas sin teñir. */
+.fila-relacion-rejilla[data-tono] {
+    margin-inline: calc(-1 * var(--space-3));
+    padding-inline: var(--space-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fila-relacion[data-tono] {
+        transition: none;
+    }
+}
+
+.fila-relacion-desplegar {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: transform 150ms ease;
+}
+
+.fila-relacion-desplegar[aria-expanded="true"] {
+    transform: rotate(90deg);
+}
+
+.fila-relacion-desplegar:hover {
+    color: var(--color-text);
+}
+
+.fila-relacion-desplegar:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fila-relacion-desplegar {
+        transition: none;
+    }
+}
+
+/* Bloque desplegado bajo la fila: a todo el ancho, con la sangría que deja
+   el botón de desplegar más su separación (22 + 12). */
+.fila-relacion-desplegado {
+    flex-basis: 100%;
+    grid-column: 1 / -1;
+    padding: var(--space-2) var(--space-3) var(--space-2) 34px;
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
 }
