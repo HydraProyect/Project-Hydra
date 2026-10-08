@@ -39,7 +39,7 @@
     }
     else if (_detalle is not null)
     {
-        <CabeceraPagina Titulo="@_detalle.Nombre" Kicker="@Textos["KickerDetalle"]">
+        <CabeceraIdentidad Titulo="@_detalle.Nombre" Kicker="@Textos["KickerDetalle"]">
             <JuntoAlTitulo>
                 @if (_detalle.EstaAbierto)
                 {
@@ -50,7 +50,7 @@
                     <Badge Tono="TonoBadge.Neutro">@Textos["EstadoCerradoConFecha", _detalle.FechaCierreReal!]</Badge>
                 }
             </JuntoAlTitulo>
-            <Descripcion>
+            <Datos>
                 <span class="proyecto360-meta">
                     <span>@Textos["MetaCentro"] <a class="proyecto360-enlace" href="@($"/centros/{_detalle.CentroId}")">@_detalle.CentroNombre</a></span>
                     <span aria-hidden="true">·</span>
@@ -70,7 +70,7 @@
                         }
                     </span>
                 </span>
-            </Descripcion>
+            </Datos>
             <Acciones>
                 @* Editar, cerrar, reabrir, eliminar, asignar y dar de baja son ICommand que
                    AutorizacionEscrituraBehavior deniega a Consulta: sin escritura no se ofrecen. *@
@@ -89,7 +89,7 @@
                     </span>
                 </SoloConEscritura>
             </Acciones>
-        </CabeceraPagina>
+        </CabeceraIdentidad>
 
         <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaSecciones"]">
             <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
@@ -252,27 +252,21 @@
         }
         else
         {
-            <Tarjeta>
-                @if (TecnicosActivos.Any())
+            @* Una sola tarjeta, como el mockup: los activos, la raya «De baja · N» y los de baja. *@
+            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaTecnicos"]">
+                @foreach (var tecnico in TecnicosActivos)
                 {
-                    <ListaRelaciones Etiqueta="@Textos["ListaTecnicosActivos"]">
-                        @foreach (var tecnico in TecnicosActivos)
-                        {
-                            @FilaDeTecnico(tecnico)
-                        }
-                    </ListaRelaciones>
+                    @FilaDeTecnico(tecnico)
                 }
                 @if (TecnicosDeBaja is { Count: > 0 } deBaja)
                 {
-                    <h3 class="proyecto360-grupo">@Textos["GrupoDeBaja", deBaja.Count]</h3>
-                    <ListaRelaciones Etiqueta="@Textos["ListaTecnicosDeBaja"]">
-                        @foreach (var tecnico in deBaja)
-                        {
-                            @FilaDeTecnico(tecnico)
-                        }
-                    </ListaRelaciones>
+                    <li class="proyecto360-grupo">@Textos["GrupoDeBaja", deBaja.Count]</li>
+                    @foreach (var tecnico in deBaja)
+                    {
+                        @FilaDeTecnico(tecnico)
+                    }
                 }
-            </Tarjeta>
+            </ListaRelaciones>
         }
     };
 
@@ -283,22 +277,24 @@
         <FilaRelacion @key="tecnico.Id" Nombre="@tecnico.TrabajadorNombreCompleto" Iniciales="@AvatarTenant.Iniciales(tecnico.TrabajadorNombreCompleto)"
                       OnNombre="() => AbrirPanelTrabajador(tecnico)" OnAbrir360="() => IrAFichaTrabajador(tecnico)">
             <Detalle>@MetaTecnico(tecnico)</Detalle>
-            <Derecha>
+            <Estado>
                 @if (tecnico.EstaActivo)
                 {
                     <Badge Tono="TonoBadge.Exito">@Textos["BadgeActivo"]</Badge>
-                    @if (ListasEditables)
-                    {
-                        <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _tecnicoADarDeBaja = tecnico">@Textos["BotonDarDeBaja"]</Boton>
-                        </SoloConEscritura>
-                    }
                 }
                 else
                 {
                     <Badge Tono="TonoBadge.Neutro">@Textos["BadgeDeBaja"]</Badge>
                 }
-            </Derecha>
+            </Estado>
+            <Acciones>
+                @if (tecnico.EstaActivo && ListasEditables)
+                {
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _tecnicoADarDeBaja = tecnico">@Textos["BotonDarDeBaja"]</Boton>
+                    </SoloConEscritura>
+                }
+            </Acciones>
         </FilaRelacion>
     };
 

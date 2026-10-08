@@ -366,8 +366,7 @@
   <data name="GlosaTecnicosActivos" xml:space="preserve"><value>técnicos activos</value></data>
   <data name="GlosaDocumentosGestionados" xml:space="preserve"><value>documentos gestionados</value></data>
   <data name="ErrorTecnicosTitulo" xml:space="preserve"><value>No pudimos cargar los técnicos</value></data>
-  <data name="ListaTecnicosActivos" xml:space="preserve"><value>Técnicos activos del proyecto</value></data>
-  <data name="ListaTecnicosDeBaja" xml:space="preserve"><value>Técnicos de baja del proyecto</value></data>
+  <data name="ListaTecnicos" xml:space="preserve"><value>Técnicos del proyecto</value></data>
   <data name="GrupoDeBaja" xml:space="preserve"><value>De baja · {0}</value></data>
   <data name="PlazoDiasAbiertoUno" xml:space="preserve"><value>{0} día abierto</value></data>
   <data name="PlazoDiasAbiertoVarios" xml:space="preserve"><value>{0} días abierto</value></data>
