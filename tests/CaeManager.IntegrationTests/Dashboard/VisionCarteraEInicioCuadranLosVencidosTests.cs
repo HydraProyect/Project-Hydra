@@ -147,10 +147,13 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacionDeCliente, _gestorDeCliente, Roles.GestorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
             // Coordinador CAE con su propia cartera de rol Coordinador (el rol efectivo sale de ella) y
-            // un Gestor CAE a su cargo, el de la operación acotada al Cliente empresarial: el alcance
-            // de datos del Coordinador es el de su equipo, no el Tenant entero.
+            // un Gestor CAE a su cargo, los dos bajo la operación acotada al Cliente empresarial: su
+            // alcance de datos es ese Cliente empresarial, no el Tenant entero. Desde la enmienda de
+            // 2026-10-08 a ADR-011 § 2.7 la cartera propia del Coordinador CAE también da alcance, así
+            // que bajo la operación universal alcanzaría el Tenant entero (lo prueba
+            // AlcanceCarteraUniversalTenantCompletoTests).
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
-                operacion, _coordinador, Roles.CoordinadorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
+                operacionDeCliente, _coordinador, Roles.CoordinadorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
             await _propietario.SaveChangesAsync();
             _operacion = operacion.Id;
             _operacionDeCliente = operacionDeCliente.Id;
@@ -240,7 +243,7 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
         // Inicio llega con el Tenant beneficiario como Tenant de la petición; la Visión, con el de origen.
         var tenantDeLaPeticion = new TenantActualDeLaPeticion(seleccionado ? _beneficiario : _origen);
         IClienteActivoSeleccionado seleccion = seleccionado
-            ? new ClienteActivoSeleccionadoFijo(_beneficiario, usuario == _gestorDeCliente ? _operacionDeCliente : _operacion)
+            ? new ClienteActivoSeleccionadoFijo(_beneficiario, usuario == _gestorDeCliente || usuario == _coordinador ? _operacionDeCliente : _operacion)
             : new SinClienteActivo();
         var runtime = CrearRuntime(usuario, tenantDeLaPeticion);
         _desechables.Add(runtime);

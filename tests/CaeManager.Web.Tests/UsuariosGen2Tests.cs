@@ -14,7 +14,9 @@ using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
+using CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
 using CaeManager.Application.Usuarios.Queries.ObtenerCarteraDeGestorCae;
+using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
 using CaeManager.Application.Usuarios.Queries.ObtenerEmpresasAsignablesEnAlta;
 using CaeManager.Application.Operaciones;
@@ -356,7 +358,7 @@ public partial class UsuariosGen2Tests : BunitContext
             if (Despachar is not null && request is CrearUsuarioCommand or EditarUsuarioCommand
                     or CambiarActivacionUsuarioCommand or EliminarUsuarioPendienteCommand
                     or GenerarActivacionUsuarioCommand or ObtenerCuentaUsuarioQuery
-                    or ObtenerEmpresasAsignablesEnAltaQuery or AsignarCarteraGestorCaeCommand or ObtenerCarteraDeGestorCaeQuery
+                    or ObtenerEmpresasAsignablesEnAltaQuery or AsignarCarteraGestorCaeCommand or ObtenerCarteraDeGestorCaeQuery or ObtenerPersonasConCarteraQuery or DesignarGestorCaePrincipalCommand
                     or ObtenerEquipoDeCoordinadorQuery)
                 return (TResponse)(await Despachar(request, cancellationToken))!;
 
@@ -441,6 +443,73 @@ public partial class UsuariosGen2Tests : BunitContext
             return Task.FromResult(EnCartera.RemoveAll(t => t.PropietarioTenantId == propietarioTenantId) > 0);
         }
 
+        /// <summary>Carteras vivas por operación (marca de principal), con su Operador CAE.</summary>
+        public List<(Guid OperadorTenantId, CarteraVivaDeOperacion Cartera)> CarterasVivas { get; } = [];
+
+        /// <summary>Cada paso que toca la marca de principal, en orden, con el Tenant activo con que se pidió.</summary>
+        public List<(string Paso, Guid AsignacionOperacionId, Guid UsuarioId, Guid? TenantActivo)> CambiosDeMarca { get; } = [];
+
+        public Task<IReadOnlyList<CarteraVivaDeOperacion>> ObtenerCarterasVivasAsync(
+            Guid operadorTenantId, Guid? propietarioTenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<CarteraVivaDeOperacion>>(CarterasVivas
+                .Where(c => c.OperadorTenantId == operadorTenantId
+                            && (propietarioTenantId is null || c.Cartera.PropietarioTenantId == propietarioTenantId))
+                .Select(c => c.Cartera)
+                .ToList());
+
+        public Task<IReadOnlyList<OperacionConPrincipal>> ObtenerOperacionesDondeEsPrincipalAsync(
+            Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<OperacionConPrincipal>>(CarterasVivas
+                .Where(c => c.OperadorTenantId == operadorTenantId && c.Cartera.UsuarioId == usuarioId && c.Cartera.EsPrincipal)
+                .Select(c => new OperacionConPrincipal(c.Cartera.PropietarioTenantId, c.Cartera.AsignacionOperacionId))
+                .ToList());
+
+        private void Marcar(int indice, bool esPrincipal) =>
+            CarterasVivas[indice] = (CarterasVivas[indice].OperadorTenantId, CarterasVivas[indice].Cartera with { EsPrincipal = esPrincipal });
+
+        public Task<bool> ApagarPrincipalAsync(
+            Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioEsperadoId, CancellationToken cancellationToken = default)
+        {
+            CambiosDeMarca.Add(("apagar", asignacionOperacionId, usuarioEsperadoId, CaeManager.Application.Common.AmbitoTenantExplicito.TenantIdActual));
+            var i = CarterasVivas.FindIndex(c => c.OperadorTenantId == operadorTenantId
+                                                 && c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.EsPrincipal);
+            if (i < 0 || CarterasVivas[i].Cartera.UsuarioId != usuarioEsperadoId) return Task.FromResult(false);
+            Marcar(i, false);
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> EncenderPrincipalAsync(
+            Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId, CancellationToken cancellationToken = default)
+        {
+            CambiosDeMarca.Add(("encender", asignacionOperacionId, usuarioId, CaeManager.Application.Common.AmbitoTenantExplicito.TenantIdActual));
+            if (CarterasVivas.Any(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.EsPrincipal))
+                return Task.FromResult(false);
+            var i = CarterasVivas.FindIndex(c => c.OperadorTenantId == operadorTenantId
+                                                 && c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.UsuarioId == usuarioId);
+            if (i < 0) return Task.FromResult(false);
+            Marcar(i, true);
+            return Task.FromResult(true);
+        }
+
+        public Task<ResultadoRelevoPrincipal> RelevarPrincipalAsync(
+            Guid propietarioTenantId, Guid operadorTenantId, Guid asignacionOperacionId, Guid coordinadorUsuarioId,
+            CancellationToken cancellationToken = default)
+        {
+            CambiosDeMarca.Add(("relevar", asignacionOperacionId, coordinadorUsuarioId, CaeManager.Application.Common.AmbitoTenantExplicito.TenantIdActual));
+            if (CarterasVivas.Any(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.EsPrincipal))
+                return Task.FromResult(ResultadoRelevoPrincipal.SinRelevo);
+            var i = CarterasVivas.FindIndex(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.UsuarioId == coordinadorUsuarioId);
+            if (i >= 0)
+            {
+                Marcar(i, true);
+                return Task.FromResult(ResultadoRelevoPrincipal.CarteraExistenteMarcada);
+            }
+
+            CarterasVivas.Add((operadorTenantId, new CarteraVivaDeOperacion(
+                asignacionOperacionId, propietarioTenantId, "Empresa", coordinadorUsuarioId, "CoordinadorCae", true, null)));
+            return Task.FromResult(ResultadoRelevoPrincipal.CarteraEmitida);
+        }
+
         /// <summary>Tenants beneficiarios que el Gestor CAE ya tiene por otra vía (otra cartera vigente, p. ej. de otro rol, o la fila heredada de Operador Delegado): no son candidatos.</summary>
         public HashSet<Guid> PorOtraVia { get; } = [];
 
@@ -484,7 +553,9 @@ public partial class UsuariosGen2Tests : BunitContext
                 : null);
 
         public Task<bool> EsVisibleEnTenantActualAsync(Guid usuarioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyDictionary<Guid, string>> ObtenerNombresVisiblesAsync(IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, string>>(identidad.Cuentas.Values
+                .Where(c => usuarioIds.Contains(c.Id)).ToDictionary(c => c.Id, c => c.NombreCompleto));
         public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
@@ -626,7 +697,11 @@ public partial class UsuariosGen2Tests : BunitContext
                 usuarioActual, directorioCartera, directorioCartera, _catalogo).Handle(q, ct),
             EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
-                cuentas, usuarioActual, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
+                cuentas, usuarioActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera).Handle(c, ct),
+            ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
+                usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
+            DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(
+                usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
             EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, usuarioActual).Handle(c, ct),
             GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual).Handle(c, ct),
             ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, usuarioActual).Handle(q, ct),
@@ -1265,6 +1340,110 @@ public partial class UsuariosGen2Tests : BunitContext
             .Which.TenantsCartera.Should().BeNull("la cartera es solo de Gestor CAE");
         _catalogo.Incorporadas.Should().BeEmpty();
         _identidad.Creadas.Should().ContainSingle();
+    }
+
+    // ---------- Principal y apoyo en «Asignar empresas» (ADR-011 § 2.7, enmienda 2026-10-08) ----------
+
+    private static readonly Guid OperacionNorte = Guid.Parse("0a0a0a0a-0000-0000-0000-00000000000a");
+    private static readonly Guid OperacionSur = Guid.Parse("0b0b0b0b-0000-0000-0000-00000000000b");
+
+    private void SembrarCarteraViva(Guid operacion, Guid tenant, string nombre, Guid usuario, string rol, bool principal) =>
+        _catalogo.CarterasVivas.Add((TenantDelArnes, new CarteraVivaDeOperacion(operacion, tenant, nombre, usuario, rol, principal, null)));
+
+    /// <summary>Ander lleva Talleres Norte como principal y Montajes del Sur de apoyo; de Sur responde <paramref name="principalDeSur"/>.</summary>
+    private void SembrarPrincipalYApoyo(bool principalDeSur = true)
+    {
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.GestorCae),
+            (Cuenta(CoordinadoraId, "c.coordina@talveg.es", "Carmen Coordina"), RolesIdentidad.CoordinadorCae));
+        _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
+        _catalogo.Registrar(BeneficiarioSur, "Montajes del Sur");
+        _catalogo.EnCartera.Add(new TenantEnCarteraDeGestor(BeneficiarioNorte, "Talleres Norte"));
+        _catalogo.EnCartera.Add(new TenantEnCarteraDeGestor(BeneficiarioSur, "Montajes del Sur"));
+        SembrarCarteraViva(OperacionNorte, BeneficiarioNorte, "Talleres Norte", AnderId, RolesIdentidad.GestorCae, principal: true);
+        SembrarCarteraViva(OperacionSur, BeneficiarioSur, "Montajes del Sur", AnderId, RolesIdentidad.GestorCae, principal: false);
+        SembrarCarteraViva(OperacionSur, BeneficiarioSur, "Montajes del Sur", CoordinadoraId, RolesIdentidad.CoordinadorCae, principalDeSur);
+    }
+
+    private static IElement ResponsableDe(IRenderedComponent<UsuariosControlados> cut, Guid tenant) =>
+        cut.Find($"[role=dialog] .responsable-empresa[data-empresa='{tenant}']");
+
+    private static string Compacto(IElement elemento) =>
+        System.Text.RegularExpressions.Regex.Replace(elemento.TextContent, @"\s+", " ").Trim();
+
+    [Fact]
+    public async Task Asignar_empresas_dice_de_cada_una_si_la_persona_es_el_principal_o_apoyo_y_quien_responde()
+    {
+        SembrarPrincipalYApoyo();
+        var cut = Renderizar();
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .responsable-empresa").Should().HaveCount(2));
+
+        var norte = ResponsableDe(cut, BeneficiarioNorte);
+        Compacto(norte).Should().Be("Gestor CAE principal");
+        norte.QuerySelectorAll("button").Should().BeEmpty("quien ya es el principal no se designa otra vez");
+
+        var sur = ResponsableDe(cut, BeneficiarioSur);
+        sur.QuerySelector("strong")!.TextContent.Trim().Should().Be("Apoyo");
+        Compacto(sur.QuerySelector("span")!).Should().Be("· Coordinador CAE principal: Carmen Coordina",
+            "el rótulo del principal dice el rol de quien lleva la marca");
+        sur.QuerySelectorAll("button").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Designar principal");
+    }
+
+    [Fact]
+    public async Task Sin_nadie_marcado_el_dialogo_lo_dice_y_ofrece_designar()
+    {
+        SembrarPrincipalYApoyo(principalDeSur: false);
+        var cut = Renderizar();
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .responsable-empresa").Should().HaveCount(2));
+
+        var sur = ResponsableDe(cut, BeneficiarioSur);
+        sur.QuerySelector("strong")!.TextContent.Trim().Should().Be("Apoyo");
+        Compacto(sur.QuerySelector("span")!).Should().Be("· Sin Gestor CAE principal");
+        sur.QuerySelectorAll("button").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Designar principal");
+    }
+
+    [Fact]
+    public async Task Designar_principal_es_un_acto_propio_envia_la_operacion_y_la_persona_y_actualiza_el_rotulo()
+    {
+        SembrarPrincipalYApoyo();
+        var cut = Renderizar();
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .responsable-empresa").Should().HaveCount(2));
+
+        await ResponsableDe(cut, BeneficiarioSur).QuerySelector("button")!.ClickAsync(new());
+
+        var orden = _mediador.Enviadas.OfType<DesignarGestorCaePrincipalCommand>().Should().ContainSingle().Subject;
+        orden.Should().Be(new DesignarGestorCaePrincipalCommand(OperacionSur, AnderId));
+        _mediador.Enviadas.OfType<AsignarCarteraGestorCaeCommand>().Should().BeEmpty("no pasa por «Guardar» ni toca las casillas");
+        cut.WaitForAssertion(() => Compacto(ResponsableDe(cut, BeneficiarioSur)).Should().Be("Gestor CAE principal"));
+        _catalogo.CarterasVivas.Where(c => c.Cartera.AsignacionOperacionId == OperacionSur && c.Cartera.EsPrincipal)
+            .Select(c => c.Cartera.UsuarioId).Should().Equal(AnderId);
+        _catalogo.CarterasVivas.Should().HaveCount(3, "quien pierde la marca conserva su cartera");
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Ander Beitia es ahora el Gestor CAE principal de Montajes del Sur.");
+        CasillasAsignarEmpresas(cut).Should().OnlyContain(c => c.HasAttribute("checked"));
+    }
+
+    [Fact]
+    public async Task Si_designar_falla_el_dialogo_muestra_el_motivo_y_el_rotulo_no_cambia()
+    {
+        SembrarPrincipalYApoyo();
+        var cut = Renderizar();
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Asignar empresas");
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog] .responsable-empresa").Should().HaveCount(2));
+
+        // Otro retiró su cartera de esa empresa mientras el diálogo estaba abierto.
+        _catalogo.CarterasVivas.RemoveAll(c => c.Cartera.AsignacionOperacionId == OperacionSur && c.Cartera.UsuarioId == AnderId);
+        await ResponsableDe(cut, BeneficiarioSur).QuerySelector("button")!.ClickAsync(new());
+
+        cut.WaitForAssertion(() => cut.Find("[role=dialog]").TextContent.Should().Contain("no tiene esta empresa entera en su cartera"));
+        _toasts.Mensajes.Should().BeEmpty();
+        _catalogo.CarterasVivas.Single(c => c.Cartera.EsPrincipal && c.Cartera.AsignacionOperacionId == OperacionSur)
+            .Cartera.UsuarioId.Should().Be(CoordinadoraId);
     }
 
     // ---------- Asignar empresas a un Gestor CAE existente (2026-09-28) ----------

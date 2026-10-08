@@ -82,6 +82,39 @@
       "noConfundirCon": "Operador CAE (organización)"
     },
     {
+      "id": "gestor-cae-principal",
+      "forma": "Gestor CAE principal",
+      "plural": "Gestores CAE principales",
+      "formasCortasPermitidas": [
+        "Principal"
+      ],
+      "significado": "La persona, con rol Gestor CAE, cuya Asignación de Cartera lleva la marca de principal de una Asignación de Operación: responde de ese Tenant ante el Operador CAE. Como mucho una por operación. La marca no cambia el ámbito efectivo de nadie. «Principal» a secas solo junto al nombre de la persona.",
+      "contrato": "§ 3.5",
+      "noConfundirCon": "Gestor CAE de apoyo; Coordinador CAE principal (la misma marca en una persona de rol Coordinador CAE)"
+    },
+    {
+      "id": "coordinador-cae-principal",
+      "forma": "Coordinador CAE principal",
+      "plural": "Coordinadores CAE principales",
+      "formasCortasPermitidas": [
+        "Principal"
+      ],
+      "significado": "La misma marca de principal cuando quien la lleva tiene rol Coordinador CAE: por designación o por relevo automático al retirarse o desactivarse el Gestor CAE principal que le reporta.",
+      "contrato": "§ 3.5",
+      "noConfundirCon": "Gestor CAE principal; el rol Coordinador CAE (que por sí solo no da cartera)"
+    },
+    {
+      "id": "gestor-cae-de-apoyo",
+      "forma": "Gestor CAE de apoyo",
+      "plural": "Gestores CAE de apoyo",
+      "formasCortasPermitidas": [
+        "Apoyo"
+      ],
+      "significado": "Persona con Asignación de Cartera viva del Tenant entero bajo la operación y sin la marca de principal. Ve y gestiona lo mismo que el principal; no responde del Tenant ante el Operador CAE.",
+      "contrato": "§ 3.5",
+      "noConfundirCon": "Gestor CAE principal"
+    },
+    {
       "id": "mi-trabajo",
       "forma": "Mi trabajo",
       "plural": null,
