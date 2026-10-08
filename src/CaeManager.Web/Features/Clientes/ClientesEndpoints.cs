@@ -1,6 +1,7 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Importacion;
 using CaeManager.Web.Exportacion;
+using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
 
@@ -80,14 +81,16 @@ public static class ClientesEndpoints
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "plantilla-clientes.xlsx"))
-        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador));
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         endpoints.MapGet("/clientes/plantilla-combinada.xlsx", (IPlantillaCombinadaService servicio) =>
             Results.File(
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "plantilla-combinada.xlsx"))
-        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador));
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         return endpoints;
     }

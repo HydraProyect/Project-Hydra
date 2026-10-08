@@ -1,5 +1,6 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
+using CaeManager.Web.Services;
 using System.Text.Json;
 using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Domain.Auditoria;
@@ -85,7 +86,8 @@ public static class AuditoriaEndpoints
                 stream,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "auditoria.xlsx");
-        }).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador));
+        }).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         endpoints.MapGet("/auditoria/{id:guid}/archivo-anterior", async (
             Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
@@ -129,7 +131,8 @@ public static class AuditoriaEndpoints
             {
                 return Results.NotFound();
             }
-        }).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador));
+        }).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         return endpoints;
     }

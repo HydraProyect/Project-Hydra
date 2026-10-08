@@ -89,7 +89,8 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
             new AutorizacionAdminPlataformaPorConcesion(contexto),
             new CurrentUserServiceFalso(usuarioId),
             new AsignacionesOperativasWriter(contexto, _tenantActual, new CurrentUserServiceFalso(usuarioId)),
-            unitOfWork);
+            unitOfWork,
+            new CaeManager.Infrastructure.Persistence.Repositories.EncargoAdministracionRepository(contexto));
 
     [Fact]
     public async Task El_administrador_de_plataforma_crea_un_tenant_propietario_operado_por_el_operador_nombrado()

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Tenants;
@@ -51,8 +52,18 @@ namespace CaeManager.Application.Tenants.Commands.CrearTenantPropietarioDeOperad
 /// <c>Tenant</c>, <c>DelegacionTenant</c> y <c>ParametroSistema</c> con
 /// <c>ActorRealUsuarioId</c> del ejecutor (no hay usuario simulado: ni existe
 /// impersonación ni el Tenant tiene usuarios).
+///
+/// <b>Encargo de administración</b> (decisión D-8, 2026-10-08): si se informa
+/// <paramref name="ClausulaEncargoAdministracion"/>, el Tenant nace con el encargo
+/// a favor de ese Operador CAE externo, registrado en la misma transacción con
+/// origen <see cref="OrigenEncargoAdministracion.AprovisionamientoDePlataforma"/>.
+/// Es opcional: un Tenant propietario puede nacer sin Administrador propio y sin
+/// encargo, y entonces el Operador CAE externo lo gestiona con el techo de su
+/// cartera. La autoridad es la del alta (<c>AdminPlataforma</c> global), no una
+/// Sesión Privilegiada, porque el Tenant todavía no existe para abrirla.
 /// </summary>
-public record CrearTenantPropietarioDeOperadorCaeExternoCommand(Guid TenantOperadorId, string NombreTenantPropietario)
+public record CrearTenantPropietarioDeOperadorCaeExternoCommand(
+    Guid TenantOperadorId, string NombreTenantPropietario, string? ClausulaEncargoAdministracion = null)
     : ICommand<Guid>;
 
 public class CrearTenantPropietarioDeOperadorCaeExternoCommandValidator
@@ -64,6 +75,8 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandValidator
         RuleFor(c => c.NombreTenantPropietario)
             .NotEmpty().WithMessage("El nombre del Tenant propietario es obligatorio.")
             .MaximumLength(Tenant.LongitudMaximaNombre);
+        RuleFor(c => c.ClausulaEncargoAdministracion)
+            .MaximumLength(EncargoAdministracion.LongitudMaximaClausula);
     }
 }
 
@@ -75,7 +88,8 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
     IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IEncargoAdministracionRepository encargos)
     : IRequestHandler<CrearTenantPropietarioDeOperadorCaeExternoCommand, Result<Guid>>
 {
     /// <summary>Mismos valores por defecto que <c>CrearClienteDeleganteCommand</c>; se repiten porque Application no depende de Infrastructure.</summary>
@@ -110,10 +124,17 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
         if (await tenantRepositorio.ExisteConNombreAsync(nombreNormalizado, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("TenantPropietarioDeOperador.NombreDuplicado", "Ya existe una organización con este nombre."));
 
+        // En blanco es «sin encargo», no una cláusula vacía: el encargo exige cláusula.
+        var clausulaEncargo = string.IsNullOrWhiteSpace(request.ClausulaEncargoAdministracion)
+            ? null
+            : request.ClausulaEncargoAdministracion.Trim();
+        if (clausulaEncargo is { Length: > EncargoAdministracion.LongitudMaximaClausula })
+            return Result.Fallo<Guid>(ErroresEncargoAdministracion.ClausulaDemasiadoLarga);
+
         // ClienteDirecto: cómo el Tenant propietario se ve a sí mismo (una sola empresa gestionada).
         var tenantPropietario = new Tenant(nombreNormalizado, PerfilVocabularioTenant.ClienteDirecto);
-        // Un único SaveChanges: Tenant, ParametroSistema, operación raíz, DelegacionTenant y
-        // operación delegada se confirman en una sola transacción. Con dos guardados (como
+        // Un único SaveChanges: Tenant, ParametroSistema, operación raíz, DelegacionTenant,
+        // operación delegada y, si lo hay, el Encargo de administración se confirman en una sola transacción. Con dos guardados (como
         // CrearClienteDeleganteCommand) un fallo o una cancelación entre ambos dejaría un
         // Tenant propietario aprovisionado sin Operador CAE externo (hallazgo de Codex, alto).
         //
@@ -129,8 +150,16 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
 
             var vinculo = new DelegacionTenant(request.TenantOperadorId, tenantPropietario.Id);
             vinculosRepositorio.Agregar(vinculo);
-            await asignacionesWriter.AbrirOperacionDelegadaAsync(
+            var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
                 tenantPropietario.Id, request.TenantOperadorId, vinculo.CreadoEnUtc, vigenciaHasta: null, cancellationToken);
+
+            // El encargo nace en el mismo instante que la operación a la que se liga: con otro
+            // reloj, una operación abierta «después» del encargo no estaría vigente para él.
+            if (clausulaEncargo is not null)
+                encargos.Agregar(EncargoAdministracion.Registrar(
+                    operacion, clausulaEncargo, EncargoAdministracion.VersionTextoVigente,
+                    OrigenEncargoAdministracion.AprovisionamientoDePlataforma, usuarioId.Value,
+                    vinculo.CreadoEnUtc, vigenciaHasta: null));
 
             await unitOfWork.SaveChangesAsync(cancellationToken);
         }

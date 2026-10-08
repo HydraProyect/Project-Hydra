@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 
 namespace CaeManager.Web.Services;
@@ -43,10 +44,24 @@ namespace CaeManager.Web.Services;
 /// con el <c>HttpContext</c> de la negociación del circuito todavía
 /// ambiental, en vez de dejar que la memoice quien primero la necesite
 /// durante el renderizado, sin esa garantía.
+///
+/// Tercera, con el Encargo de administración (decisión D-8, 2026-10-08): el
+/// claim de rol del circuito queda congelado al negociarlo, y con él el claim
+/// <see cref="RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion"/>.
+/// Los handlers recalculan el rol en cada llamada, así que Application baja el
+/// techo en cuanto el encargo se retira; lo que seguiría abierto son las
+/// puertas de página (<c>[Authorize(Roles = …)]</c>, <c>AuthorizeView</c>) del
+/// circuito ya vivo. Si el circuito lleva ese claim y el encargo ya no eleva
+/// —se retiró, caducó, o la cuenta perdió su perfil en origen—, se invalida la
+/// selección, el mismo tratamiento que una cartera revocada: al volver a entrar
+/// lo hace con el rol de cartera. El principal del circuito se lee de
+/// <see cref="AuthenticationStateProvider"/>, igual que <see cref="CurrentUserService"/>.
 /// </summary>
 public class RevalidacionCircuitoActivoHandler(
     IClienteActivoSeleccionado clienteActivoSeleccionado,
     ICurrentUserService currentUserService,
+    IEncargoDeAdministracionActual encargoDeAdministracionActual,
+    AuthenticationStateProvider authenticationStateProvider,
     ITenantsQueryContext dbContext,
     IOperacionesQueryContext operacionesContext,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
@@ -167,7 +182,8 @@ public class RevalidacionCircuitoActivoHandler(
         {
             sigueAutorizado = await RevalidacionClienteActivoMiddleware.SigueAutorizadoAsync(
                 clienteActivoSeleccionado, currentUserService, dbContext, operacionesContext, sesionPrivilegiadaActual,
-                tenantSeleccionado, cancellationToken);
+                tenantSeleccionado, cancellationToken)
+                && !await ElEncargoDelCircuitoDejoDeElevarAsync();
         }
         catch (OperationCanceledException)
         {
@@ -186,6 +202,22 @@ public class RevalidacionCircuitoActivoHandler(
 
         if (!sigueAutorizado && clienteActivoSeleccionado is ClienteActivoSeleccionado seleccion)
             seleccion.Invalidar();
+    }
+
+    /// <summary>
+    /// El circuito se negoció con el rol elevado por un encargo (lleva su claim)
+    /// y ese mismo encargo ya no eleva. Un encargo DISTINTO tampoco vale: el
+    /// circuito se abrió al amparo de una cláusula concreta, y el claim que
+    /// lleva la nombra.
+    /// </summary>
+    private async Task<bool> ElEncargoDelCircuitoDejoDeElevarAsync()
+    {
+        var principal = (await authenticationStateProvider.GetAuthenticationStateAsync()).User;
+        var claim = principal.FindFirst(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion)?.Value;
+        if (claim is null) return false;
+
+        var encargoQueEleva = await encargoDeAdministracionActual.EncargoQueElevaAsync();
+        return !Guid.TryParse(claim, out var encargoDelCircuito) || encargoQueEleva != encargoDelCircuito;
     }
 
     public ValueTask DisposeAsync()

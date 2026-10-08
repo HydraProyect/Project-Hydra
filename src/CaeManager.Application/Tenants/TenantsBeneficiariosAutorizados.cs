@@ -125,13 +125,21 @@ public static class TenantsBeneficiariosAutorizados
     public static readonly IReadOnlyList<string> RolesDelegablesPorOperacion = ["CoordinadorCae", "GestorCae", "Consulta"];
 
     /// <summary>
-    /// UNA sola definición del rol efectivo por la vía de Operación, para la
+    /// UNA sola definición del <b>rol de cartera</b> por la vía de Operación, para la
     /// operación ya elegida (<see cref="OperacionQueAutorizaAsync"/> o la del token):
     /// el par (operación, usuario) NO es único (los índices solo garantizan una universal
     /// vigente), así que entre las carteras vigentes con rol delegable manda la de menor
-    /// Id: determinista. Lo usan
-    /// <c>CurrentUserService</c> (rol efectivo) y <c>ObtenerClientesAutorizadosQuery</c>
-    /// (Tenant por defecto, decisión 7 quater): ambos deben coincidir siempre.
+    /// Id: determinista. Lo usan <see cref="TechoDeRolPorEncargo"/> (de donde
+    /// <c>CurrentUserService</c> saca el rol efectivo) y <c>ObtenerClientesAutorizadosQuery</c>
+    /// (Tenant por defecto, decisión 7 quater): los dos parten de la misma cartera.
+    ///
+    /// <para>
+    /// El rol de cartera ya no es siempre el rol efectivo (decisión D-8, 2026-10-08): con
+    /// Encargo de administración vigente, <see cref="TechoDeRolPorEncargo"/> puede subirlo
+    /// al perfil de Propiedad que la persona tiene en su Tenant de origen. Sin cartera no
+    /// hay nada que subir: lo que devuelve este método sigue siendo la condición de acceso.
+    /// El Tenant por defecto se decide con el rol de cartera, no con el elevado.
+    /// </para>
     /// </summary>
     public static Task<string?> RolPorOperacionAsync(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,

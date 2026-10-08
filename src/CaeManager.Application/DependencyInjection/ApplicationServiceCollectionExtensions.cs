@@ -77,6 +77,16 @@ public static class ApplicationServiceCollectionExtensions
         // Valor por defecto: la implementación real (Infrastructure) es la misma instancia scoped de
         // AlcanceDatosService, que es quien memoiza.
         services.TryAddScoped<IInvalidadorAlcance, InvalidadorAlcanceInerte>();
+        // Señal «actúa por Encargo de administración» (decisión D-8, 2026-10-08): la da LA MISMA
+        // instancia que resuelve el rol efectivo, porque es la misma función. Se reenvía aquí, y no
+        // en cada composición, para que no exista un contenedor donde las dos se resuelvan a
+        // objetos distintos. Los dobles de ICurrentUserService que no modelan el encargo (los
+        // fixtures mínimos de CaeManager.IntegrationTests, la siembra) no elevan nunca, así que
+        // para ellos «sin encargo» es la respuesta exacta. Que la implementación de la aplicación
+        // web SÍ la dé lo fija EncargoDeAdministracionEnElContenedorTests.
+        services.TryAddScoped<IEncargoDeAdministracionActual>(sp =>
+            sp.GetService<ICurrentUserService>() as IEncargoDeAdministracionActual
+            ?? SinEncargoDeAdministracion.Instancia);
         // Orden importa. LoggingBehavior va el primero de todos: mide lo que
         // el usuario espera de verdad, incluido el tiempo en la cola de
         // acceso a datos, y su ámbito de log correlaciona todo lo que
@@ -104,6 +114,10 @@ public static class ApplicationServiceCollectionExtensions
         // bloqueado por rol ni siquiera necesita la consulta a Tenants que
         // hace este behavior (Horizonte 1.7, "Billing mínimo viable").
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(GateComercialTenantBehavior<,>));
+        // Después de la autorización de escritura: lo que el rol elevado por un Encargo de
+        // administración abriría y el encargo no cubre (decisión D-8, 2026-10-08). Se aplica
+        // a Commands y a Queries: varias de las áreas excluidas son de solo lectura.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ExclusionesDelEncargoBehavior<,>));
         // Aparte de AutorizacionEscritura porque responde a otra pregunta: no
         // "¿puede escribir?" sino "¿puede ver ESTE recurso?" — y se aplica a
         // Queries, que aquel deja pasar por definición.

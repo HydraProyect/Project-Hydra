@@ -51,6 +51,53 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
     }
 
     [Fact]
+    public async Task Quien_administra_por_encargo_lleva_el_claim_del_encargo_junto_al_rol_elevado()
+    {
+        var protector = ProtectorDePruebas();
+        var encargo = Guid.NewGuid();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+        var contexto = ContextoCon(token, rolDeSesion: Roles.Administrador);
+
+        await EjecutarAsync(contexto, protector, new CurrentUserServiceFalso(Roles.Administrador, encargo));
+
+        contexto.User.IsInRole(Roles.Administrador).Should().BeTrue();
+        contexto.User.FindAll(RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion)
+            .Should().ContainSingle("las páginas excluidas se niegan mirando este claim")
+            .Which.Value.Should().Be(encargo.ToString());
+    }
+
+    [Fact]
+    public async Task Sin_encargo_que_eleve_el_claim_del_encargo_no_sobrevive_aunque_viniera_en_el_principal()
+    {
+        var protector = ProtectorDePruebas();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+        var contexto = ContextoCon(token, rolDeSesion: Roles.Administrador);
+        ((ClaimsIdentity)contexto.User.Identity!).AddClaim(new Claim(
+            RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion, Guid.NewGuid().ToString()));
+
+        await EjecutarAsync(contexto, protector, rolEfectivo: Roles.GestorCae);
+
+        contexto.User.HasClaim(c => c.Type == RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion)
+            .Should().BeFalse("el claim solo lo pone el middleware, en cada petición, a partir de la resolución del rol");
+    }
+
+    [Fact]
+    public async Task Un_encargo_sin_rol_efectivo_no_deja_el_claim()
+    {
+        var protector = ProtectorDePruebas();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+        var contexto = ContextoCon(token, rolDeSesion: Roles.Administrador);
+
+        await EjecutarAsync(contexto, protector, new CurrentUserServiceFalso(rolEfectivo: null, Guid.NewGuid()));
+
+        contexto.User.HasClaim(c => c.Type == RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion)
+            .Should().BeFalse();
+    }
+
+    [Fact]
     public async Task La_identidad_del_usuario_no_se_toca()
     {
         var protector = ProtectorDePruebas();
@@ -343,7 +390,7 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
 
         var seleccion = new ClienteActivoSeleccionado(new HttpContextAccessorFijoLocal(contexto), protector);
 
-        await middleware.InvokeAsync(contexto, seleccion, servicio, logger);
+        await middleware.InvokeAsync(contexto, seleccion, servicio, servicio, logger);
 
         siguienteFueLlamado.Should().BeTrue("el middleware nunca corta la petición: solo ajusta el principal");
     }
@@ -372,9 +419,13 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
     /// afirman que el middleware <b>no</b> consulta, y sin el contador esa
     /// afirmación no sería observable.
     /// </summary>
-    private sealed class CurrentUserServiceFalso(string? rolEfectivo) : ICurrentUserService
+    private sealed class CurrentUserServiceFalso(string? rolEfectivo, Guid? encargoQueEleva = null)
+        : ICurrentUserService, IEncargoDeAdministracionActual
     {
         public int VecesConsultado { get; private set; }
+
+        public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult(encargoQueEleva);
+        public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => encargoQueEleva;
 
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
         public Task<string?> ObtenerRolEfectivoAsync()
