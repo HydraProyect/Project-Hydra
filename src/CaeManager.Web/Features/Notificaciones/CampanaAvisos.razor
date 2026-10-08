@@ -1,10 +1,17 @@
 @using CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida
 @using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes
 @using CaeManager.Application.Operaciones.IncorporacionCartera
+@using CaeManager.Application.Operaciones.IncorporacionCartera.Commands
 @using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
+@using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma
+@using CaeManager.Application.VigilanciaNormativa.Commands.MarcarAvisoRevisionNormativaRevisado
 @using CaeManager.Application.VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Components.DesignSystem
 @using CaeManager.Web.Components.Layout
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
+@using CaeManager.Web.Features.Notificaciones.Recursos
+@using CaeManager.Web.Features.VigilanciaNormativa.Recursos
 @using CaeManager.Web.Recursos
 @using MediatR
 @using Microsoft.Extensions.Localization
@@ -12,30 +19,34 @@
 @implements IDisposable
 @inject IMediator Mediator
 @inject NavigationManager Navigation
+@inject ToastService Toasts
 @inject ILogger<ExcepcionDeCircuitoDesconectado> Logger
 @inject IStringLocalizer<TextosComunes> Textos
 @inject IStringLocalizer<TextosIncorporacionCartera> TextosCartera
+@inject IStringLocalizer<TextosNotificaciones> TextosNotificacion
+@inject IStringLocalizer<TextosVigilanciaNormativa> TextosNormativa
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
 @*
-    Rediseño de la cabecera, propuesta 04: la campana reúne en un panel los avisos pendientes de
-    quien mira, visibles desde cualquier pantalla y con contador. No es una fuente nueva: lee las
-    tres que ya existen, cada una con su propia Query y su propio alcance —ninguna se amplía ni se
-    cruza aquí, así que el Tenant y la autorización los sigue decidiendo cada Query:
+    Rediseño de la cabecera, propuesta 04: la campana es el único sitio donde se anuncian los avisos
+    pendientes de quien mira, visibles desde cualquier pantalla y con contador. Sustituye al modal de
+    notificaciones, al botón flotante de avisos normativos y al aviso emergente de solicitudes de
+    cartera. Lee las tres fuentes que ya existían, cada una con su propia Query y su propio alcance
+    —ninguna se amplía ni se cruza aquí, así que el Tenant y la autorización los sigue decidiendo
+    cada Query—:
 
-      1. Notificaciones del usuario (ObtenerNotificacionesPendientesQuery, por usuario). Las
-         sigue anunciando además NotificacionesPopup; al descartarlas allí dejan de estar
-         pendientes, y la campana las recoge de nuevo al abrirse.
-      2. Avisos de revisión normativa sin revisar (ObtenerAvisosRevisionNormativaQuery, los
-         mismos que PanelAvisosNormativos). Solo informa y enlaza a la norma; marcar «revisado»
-         sigue siendo del Actor de Plataforma TALVEG en su panel.
+      1. Notificaciones del usuario (ObtenerNotificacionesPendientesQuery, por usuario). Se marcan
+         leídas con su Command al abrirlas, y la acción que traigan navega a su destino.
+      2. Avisos de revisión normativa sin revisar (ObtenerAvisosRevisionNormativaQuery). Enlazan a la
+         norma; «Marcar revisado» solo se ofrece al Actor de Plataforma TALVEG
+         (EsAdministradorPlataformaQuery) y la autoridad final es el Command.
       3. Solicitudes de incorporación a cartera que el Coordinador CAE puede resolver
-         (ObtenerSolicitudesIncorporacionCarteraQuery). Enlaza a la bandeja: resolverlas sigue
-         siendo allí o en AvisoSolicitudesCartera.
+         (ObtenerSolicitudesIncorporacionCarteraQuery): una entrada por solicitud, con Aceptar y
+         Rechazar (este con confirmación) por los mismos Commands que la bandeja.
 
-    El contador es el número de elementos de las tres. Se recarga al montarse, al abrir el panel
-    y cada IntervaloRefresco; no mantiene estado propio de «leído», salvo el de las
-    notificaciones, que se marca con su Command.
+    El contador es el número de elementos de las tres. Es el único productor de la lectura: se
+    recarga al montarse, al abrir el panel y cada IntervaloRefresco; no mantiene estado propio de
+    «leído», salvo el de las notificaciones, que se marca con su Command.
 *@
 <LimiteDeErrores Islote="this">
     <PanelDesplegableCabecera IdPanel="panel-campana-avisos"
@@ -55,7 +66,7 @@
         <ChildContent>
             <div class="campana-cabecera">
                 <strong>@Textos["CabeceraAvisos"]</strong>
-                @if (_items.Any(i => i.NotificacionId is not null))
+                @if (_items.Any(i => i.Tipo == TipoAviso.Notificacion))
                 {
                     <button type="button" class="campana-marcar" @onclick="MarcarNotificacionesLeidasAsync">@Textos["CabeceraAvisosMarcarLeidas"]</button>
                 }
@@ -70,55 +81,114 @@
                 <ul class="campana-lista">
                     @foreach (var item in _items)
                     {
-                        <li>
-                            @if (item.Url is not null && item.NotificacionId is null)
+                        <li data-aviso="@item.Clave">
+                            @switch (item.Tipo)
                             {
-                                <a class="campana-item" href="@item.Url" target="@(item.Externo ? "_blank" : null)" rel="@(item.Externo ? "noopener noreferrer" : null)">
-                                    <span class="campana-item-texto">
-                                        <strong>@item.Titulo</strong>
-                                        @if (!string.IsNullOrWhiteSpace(item.Detalle))
+                                case TipoAviso.Notificacion:
+                                    <button type="button" class="campana-item" @onclick="() => AbrirNotificacionAsync(item)">
+                                        <span class="campana-item-texto">
+                                            <strong>@item.Titulo</strong>
+                                            @if (!string.IsNullOrWhiteSpace(item.Detalle))
+                                            {
+                                                <small>@item.Detalle</small>
+                                            }
+                                        </span>
+                                        <span class="campana-nuevo">@(string.IsNullOrWhiteSpace(item.Url) ? Textos["CabeceraAvisosNuevo"] : item.TextoAccion ?? TextosNotificacion["AccionPorDefecto"])</span>
+                                    </button>
+                                    break;
+
+                                case TipoAviso.Normativa:
+                                    <div class="campana-item campana-item-con-acciones">
+                                        <a class="campana-item-texto" href="@item.Url" target="_blank" rel="noopener noreferrer">
+                                            <strong>@item.Titulo</strong>
+                                            @if (!string.IsNullOrWhiteSpace(item.Detalle))
+                                            {
+                                                <small>@item.Detalle</small>
+                                            }
+                                        </a>
+                                        @if (_esActorPlataforma)
                                         {
-                                            <small>@item.Detalle</small>
+                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                   OnClick="() => MarcarNormativaRevisadaAsync(item)"
+                                                   Deshabilitado="_enCurso is not null">@TextosNormativa["BotonMarcarRevisado"]</Boton>
                                         }
-                                    </span>
-                                    <span class="campana-nuevo">@Textos["CabeceraAvisosNuevo"]</span>
-                                </a>
-                            }
-                            else
-                            {
-                                <button type="button" class="campana-item" @onclick="() => AbrirNotificacionAsync(item)">
-                                    <span class="campana-item-texto">
-                                        <strong>@item.Titulo</strong>
-                                        @if (!string.IsNullOrWhiteSpace(item.Detalle))
+                                        else
                                         {
-                                            <small>@item.Detalle</small>
+                                            <span class="campana-nuevo">@Textos["CabeceraAvisosNuevo"]</span>
                                         }
-                                    </span>
-                                    <span class="campana-nuevo">@Textos["CabeceraAvisosNuevo"]</span>
-                                </button>
+                                    </div>
+                                    break;
+
+                                case TipoAviso.Solicitud:
+                                    <div class="campana-item campana-item-con-acciones">
+                                        <span class="campana-item-texto">
+                                            <strong>@item.Titulo</strong>
+                                            @if (!string.IsNullOrWhiteSpace(item.Detalle))
+                                            {
+                                                <small>@item.Detalle</small>
+                                            }
+                                        </span>
+                                        <span class="campana-acciones">
+                                            <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
+                                                   OnClick="() => AceptarSolicitudAsync(item)"
+                                                   Deshabilitado="_enCurso is not null"
+                                                   Cargando="_enCurso == item.Id">@TextosCartera["Aceptar"]</Boton>
+                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                   OnClick="() => PedirRechazar(item)"
+                                                   Deshabilitado="_enCurso is not null">@TextosCartera["Rechazar"]</Boton>
+                                        </span>
+                                    </div>
+                                    break;
                             }
                         </li>
                     }
                 </ul>
+
+                @if (_items.Any(i => i.Tipo == TipoAviso.Solicitud))
+                {
+                    <div class="campana-pie">
+                        <a class="campana-ver-todas" href="@RutasIncorporacionCartera.Bandeja">@TextosCartera["AvisoVerTodas"]</a>
+                    </div>
+                }
             }
         </ChildContent>
     </PanelDesplegableCabecera>
+
+    @* Fuera del panel: confirmar con el panel cerrado no puede dejar el diálogo sin anfitrión. *@
+    <DialogoConfirmacion Visible="_aRechazar is not null"
+                         VisibleChanged="CerrarConfirmacionRechazo"
+                         Titulo="@TextosCartera["ConfirmarRechazarTitulo"]"
+                         Mensaje="@MensajeConfirmarRechazar"
+                         TextoBotonConfirmar="@TextosCartera["Rechazar"]"
+                         EnProgreso="_enCurso is not null"
+                         OnConfirmar="RechazarSolicitudAsync" />
 </LimiteDeErrores>
 
 @code {
-    private static readonly TimeSpan IntervaloRefresco = TimeSpan.FromMinutes(2);
+    /// <summary>Único intervalo de refresco del contador y del panel (ver el comentario de arriba).</summary>
+    private static readonly TimeSpan IntervaloRefresco = TimeSpan.FromSeconds(60);
 
+    private enum TipoAviso { Notificacion, Normativa, Solicitud }
+
+    /// <param name="Id">Id de la notificación, del aviso normativo o de la solicitud, según <paramref name="Tipo"/>.</param>
     /// <param name="Clave">Identifica el elemento entre las tres fuentes; no se muestra.</param>
-    /// <param name="NotificacionId">Solo las notificaciones del usuario se pueden marcar leídas desde aquí.</param>
-    private sealed record ItemAviso(string Clave, string Titulo, string? Detalle, string? Url, bool Externo, Guid? NotificacionId);
+    private sealed record ItemAviso(TipoAviso Tipo, Guid Id, string Clave, string Titulo, string? Detalle, string? Url,
+        string? TextoAccion = null, string? Solicitante = null, string? Empresa = null);
 
     private IReadOnlyList<ItemAviso> _items = [];
     private bool _abierto;
+    private bool _esActorPlataforma;
+    private Guid? _enCurso;
+    private ItemAviso? _aRechazar;
     private CancellationTokenSource? _cancelacion;
 
     private string EtiquetaBoton => _items.Count == 0
         ? Textos["CabeceraAvisos"].Value
         : Textos["CabeceraAvisosConContador", _items.Count].Value;
+
+    private string MensajeConfirmarRechazar => _aRechazar is null
+        ? string.Empty
+        : TextosCartera["ConfirmarRechazarMensaje", _aRechazar.Solicitante ?? string.Empty, _aRechazar.Empresa ?? string.Empty];
 
     protected override async Task OnInitializedAsync()
     {
@@ -138,34 +208,37 @@
     /// </summary>
     private async Task CargarAsync()
     {
-        // Mismo mecanismo que NotificacionesPopup y PanelAvisosNormativos: el circuito puede
-        // desconectarse con la carga en vuelo (ExcepcionDeCircuitoDesconectado, REC-166). No queda
-        // nadie esperando el panel; solo se registra.
+        // El circuito puede desconectarse con la carga en vuelo (ExcepcionDeCircuitoDesconectado,
+        // REC-166). No queda nadie esperando el panel; solo se registra.
         try
         {
             var items = new List<ItemAviso>();
 
             foreach (var notificacion in await Mediator.Send(new ObtenerNotificacionesPendientesQuery()))
             {
-                items.Add(new ItemAviso($"notificacion:{notificacion.Id}", notificacion.Titulo, notificacion.Mensaje,
-                    notificacion.UrlAccion, Externo: false, notificacion.Id));
+                items.Add(new ItemAviso(TipoAviso.Notificacion, notificacion.Id, $"notificacion:{notificacion.Id}",
+                    notificacion.Titulo, notificacion.Mensaje, notificacion.UrlAccion, notificacion.TextoAccion));
             }
 
-            foreach (var aviso in (await Mediator.Send(new ObtenerAvisosRevisionNormativaQuery())).Where(a => !a.Revisado))
+            var normativa = (await Mediator.Send(new ObtenerAvisosRevisionNormativaQuery())).Where(a => !a.Revisado).ToList();
+            foreach (var aviso in normativa)
             {
-                items.Add(new ItemAviso($"normativa:{aviso.Id}", aviso.Titulo, aviso.NormaVigilada,
-                    aviso.UrlHtml, Externo: true, NotificacionId: null));
+                items.Add(new ItemAviso(TipoAviso.Normativa, aviso.Id, $"normativa:{aviso.Id}",
+                    aviso.Titulo, aviso.NormaVigilada, aviso.UrlHtml));
             }
+
+            // Solo se pregunta si hay algo que marcar: sin avisos normativos pendientes el botón no existe.
+            _esActorPlataforma = normativa.Count > 0 && await Mediator.Send(new EsAdministradorPlataformaQuery());
 
             var solicitudes = await Mediator.Send(new ObtenerSolicitudesIncorporacionCarteraQuery(SoloPendientes: true));
             if (solicitudes.EsExitoso && solicitudes.Valor.EsCoordinadorCae)
             {
-                var resolubles = solicitudes.Valor.Pendientes.Count(s => s.PuedeResolver);
-                if (resolubles > 0)
+                foreach (var solicitud in solicitudes.Valor.Pendientes.Where(s => s.PuedeResolver))
                 {
-                    items.Add(new ItemAviso("cartera", TextosCartera["AvisoTitulo"],
-                        resolubles == 1 ? TextosCartera["AvisoResumenUna", 1] : TextosCartera["AvisoResumenVarias", resolubles],
-                        RutasIncorporacionCartera.Bandeja, Externo: false, NotificacionId: null));
+                    items.Add(new ItemAviso(TipoAviso.Solicitud, solicitud.Id, $"cartera:{solicitud.Id}",
+                        TextosCartera["AvisoPide", solicitud.NombreSolicitante, solicitud.NombreEmpresa],
+                        solicitud.Mensaje, Url: null,
+                        Solicitante: solicitud.NombreSolicitante, Empresa: solicitud.NombreEmpresa));
                 }
             }
 
@@ -192,6 +265,10 @@
                 {
                     await InvokeAsync(async () =>
                     {
+                        // No se refresca con una resolución en curso: la recarga posterior a esa resolución ya lo hace.
+                        if (_enCurso is not null)
+                            return;
+
                         await CargarAsync();
                         StateHasChanged();
                     });
@@ -209,13 +286,11 @@
         }, token);
     }
 
-    /// <summary>Una notificación se marca leída al abrirla y, si trae acción, se navega a ella (como NotificacionesPopup).</summary>
+    /// <summary>Una notificación se marca leída al abrirla y, si trae acción, se navega a ella.</summary>
     private async Task AbrirNotificacionAsync(ItemAviso item)
     {
-        if (item.NotificacionId is not { } id) return;
-
-        await Mediator.Send(new MarcarNotificacionLeidaCommand(id));
-        _items = _items.Where(i => i.NotificacionId != id).ToList();
+        await Mediator.Send(new MarcarNotificacionLeidaCommand(item.Id));
+        _items = _items.Where(i => i.Clave != item.Clave).ToList();
 
         if (!string.IsNullOrWhiteSpace(item.Url))
             Navigation.NavigateTo(item.Url, forceLoad: true);
@@ -223,10 +298,72 @@
 
     private async Task MarcarNotificacionesLeidasAsync()
     {
-        foreach (var item in _items.Where(i => i.NotificacionId is not null).ToList())
-            await Mediator.Send(new MarcarNotificacionLeidaCommand(item.NotificacionId!.Value));
+        foreach (var item in _items.Where(i => i.Tipo == TipoAviso.Notificacion).ToList())
+            await Mediator.Send(new MarcarNotificacionLeidaCommand(item.Id));
 
-        _items = _items.Where(i => i.NotificacionId is null).ToList();
+        _items = _items.Where(i => i.Tipo != TipoAviso.Notificacion).ToList();
+    }
+
+    /// <summary>La autoridad final es el Command (ver su comentario); el botón solo se ofrece al Actor de Plataforma TALVEG.</summary>
+    private async Task MarcarNormativaRevisadaAsync(ItemAviso item)
+    {
+        var resultado = await EjecutarAsync(item.Id, new MarcarAvisoRevisionNormativaRevisadoCommand(item.Id, Notas: null));
+        if (resultado is { EsFallido: true })
+            Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+    }
+
+    private async Task AceptarSolicitudAsync(ItemAviso item)
+    {
+        var resultado = await EjecutarAsync(item.Id, new AceptarSolicitudIncorporacionCarteraCommand(item.Id));
+        if (resultado is null) return;
+
+        if (resultado.EsFallido)
+            Toasts.Mostrar(TextosIncorporacionCartera.MensajeDeError(TextosCartera, resultado.Error), TonoToast.Error);
+        else
+            Toasts.Mostrar(TextosCartera["ToastAceptada", item.Solicitante ?? string.Empty, item.Empresa ?? string.Empty], TonoToast.Exito);
+    }
+
+    // Rechazar cierra la solicitud sin vuelta atrás: se confirma, como en la bandeja.
+    private void PedirRechazar(ItemAviso item) => _aRechazar = item;
+
+    private void CerrarConfirmacionRechazo(bool visible)
+    {
+        if (!visible && _enCurso is null)
+            _aRechazar = null;
+    }
+
+    private async Task RechazarSolicitudAsync()
+    {
+        if (_aRechazar is not { } item)
+            return;
+
+        var resultado = await EjecutarAsync(item.Id, new RechazarSolicitudIncorporacionCarteraCommand(item.Id));
+        _aRechazar = null;
+        if (resultado is null) return;
+
+        if (resultado.EsFallido)
+            Toasts.Mostrar(TextosIncorporacionCartera.MensajeDeError(TextosCartera, resultado.Error), TonoToast.Error);
+        else
+            Toasts.Mostrar(TextosCartera["ToastRechazada"], TonoToast.Exito);
+    }
+
+    /// <summary>Ejecuta un Command de un solo elemento y recarga; devuelve null si ya había otro en curso.</summary>
+    private async Task<Result?> EjecutarAsync(Guid id, IRequest<Result> command)
+    {
+        if (_enCurso is not null)
+            return null;
+
+        _enCurso = id;
+        try
+        {
+            var resultado = await Mediator.Send(command);
+            await CargarAsync();
+            return resultado;
+        }
+        finally
+        {
+            _enCurso = null;
+        }
     }
 
     public void Dispose()

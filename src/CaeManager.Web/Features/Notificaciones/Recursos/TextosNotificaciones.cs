@@ -2,7 +2,7 @@ namespace CaeManager.Web.Features.Notificaciones.Recursos;
 
 /// <summary>
 /// Marcador de <c>IStringLocalizer&lt;TextosNotificaciones&gt;</c>: los textos
-/// propios del popup de notificaciones. <c>TextosNotificaciones.resx</c> es el
+/// propios de las notificaciones de la campana de avisos. <c>TextosNotificaciones.resx</c> es el
 /// neutral (español) y <c>TextosNotificaciones.ca-ES.resx</c> el catalán, con
 /// las mismas claves (<c>LocalizacionRecursosYRegistroTests</c>, Architecture.Tests).
 ///

@@ -58,8 +58,6 @@ public class ContrasteDeSeleccionHoverYLogoPorTemaTests
         new("Texto seleccionado (::selection)", "wwwroot/css/base.css", ["::selection"]),
         new("Elemento activo del menú lateral bajo el puntero", "Components/Layout/NavMenu.razor.css",
             [".nav-principal ::deep .nav-item.active", ".nav-principal ::deep .nav-item.active:hover"]),
-        new("Icono del botón flotante de avisos normativos",
-            "Features/VigilanciaNormativa/PanelAvisosNormativos.razor.css", [".boton-avisos-normativos"]),
     ];
 
     private static readonly ParDeColores[] Logos =

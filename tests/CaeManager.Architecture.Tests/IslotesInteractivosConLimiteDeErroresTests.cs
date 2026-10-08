@@ -12,8 +12,8 @@ namespace CaeManager.Architecture.Tests;
 /// P1-E1c: todo islote interactivo lleva el envoltorio común de errores. Un islote es una
 /// raíz de circuito sin ruta, y hay dos formas de serlo:
 /// <list type="bullet">
-/// <item>llevar <c>@rendermode InteractiveServer</c> en su propia directiva (NavegacionMovil,
-/// NotificacionesPopup…) — se ve por reflexión, en su <see cref="RenderModeAttribute"/>;</item>
+/// <item>llevar <c>@rendermode InteractiveServer</c> en su propia directiva (NavegacionMovil
+/// …) — se ve por reflexión, en su <see cref="RenderModeAttribute"/>;</item>
 /// <item>que otro .razor lo use con <c>@rendermode="InteractiveServer"</c> en el punto de uso
 /// (los de MainLayout: SelectorTema, AnfitrionToasts…) — no deja rastro en el tipo, así que se
 /// busca en el marcado de todos los .razor.</item>
