@@ -42,23 +42,100 @@ public static class EstadoDocumentalFiltro
     /// </summary>
     public const string AlCorriente = nameof(Domain.Documentos.EstadoDocumento.Vigente);
 
+    /// <summary>Separador de varios estados en un mismo filtro: <c>"Vencido,Urgente,Proximo"</c>.</summary>
+    public const char Separador = ',';
+
+    /// <summary>
+    /// Los valores de un filtro, que puede traer varios estados separados por <see cref="Separador"/> (la franja
+    /// de estado de los listados deja marcar más de uno). Un filtro de un solo estado, como los de los enlaces y
+    /// filtros guardados anteriores a la franja, es una lista de un elemento.
+    /// </summary>
+    public static IReadOnlyList<string> Separar(string? filtro) =>
+        string.IsNullOrWhiteSpace(filtro)
+            ? []
+            : filtro.Split(Separador, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
     /// <summary>
     /// <paramref name="estado"/> es null cuando el propietario no tiene
     /// Documentos. Un filtro vacío o desconocido no descarta nada, igual que
-    /// un <c>OrdenarPor</c> desconocido cae al orden por defecto.
+    /// un <c>OrdenarPor</c> desconocido cae al orden por defecto. Con varios
+    /// valores coincide el que cumpla cualquiera; los desconocidos se ignoran,
+    /// y solo si TODOS lo son el filtro no descarta nada.
     /// </summary>
     public static bool Coincide(EstadoDocumento? estado, string? filtro)
     {
-        if (string.IsNullOrWhiteSpace(filtro))
-            return true;
+        var algunoConocido = false;
+        foreach (var valor in Separar(filtro))
+        {
+            if (valor == SinDocumentos)
+            {
+                algunoConocido = true;
+                if (estado is null)
+                    return true;
+            }
+            else if (EsNombreDeEstado(valor, out var esperado))
+            {
+                algunoConocido = true;
+                if (estado == esperado)
+                    return true;
+            }
+        }
 
-        if (filtro == SinDocumentos)
-            return estado is null;
-
-        return Enum.TryParse<EstadoDocumento>(filtro, out var esperado)
-            ? estado == esperado
-            : true;
+        return !algunoConocido;
     }
+
+    /// <summary>
+    /// El filtro traducido a las <see cref="ClaveOrden"/> que deja pasar, para los listados que filtran en SQL por
+    /// la misma clave con la que ordenan. <c>null</c>: el filtro no descarta nada (vacío, o ningún valor conocido).
+    /// Lista vacía: ningún propietario coincide — es lo que ocurre con <see cref="SinDocumentos"/> (el SQL de esos
+    /// listados no distingue «sin documentos» de <see cref="EstadoDocumento.SinCaducidad"/>) y con los estados que
+    /// un propietario nunca tiene (<see cref="EstadoDocumento.Faltante"/>, <see cref="EstadoDocumento.EnTolerancia"/>):
+    /// un filtro válido pero no aplicable devuelve nada, no todo.
+    /// </summary>
+    public static IReadOnlyList<int>? ClavesDeOrden(string? filtro)
+    {
+        var algunoConocido = false;
+        var claves = new List<int>();
+        foreach (var valor in Separar(filtro))
+        {
+            if (valor == SinDocumentos)
+            {
+                algunoConocido = true;
+            }
+            else if (EsNombreDeEstado(valor, out var estado))
+            {
+                algunoConocido = true;
+                var clave = ClaveOrden(estado);
+                if (clave < ClaveSinEstadoDePropietario && !claves.Contains(clave))
+                    claves.Add(clave);
+            }
+        }
+
+        return algunoConocido ? claves : null;
+    }
+
+    /// <summary>
+    /// Recuentos por <see cref="ClaveOrden"/> (lo que devuelve un <c>GROUP BY</c> sobre la clave) convertidos al
+    /// diccionario por nombre de estado de <c>ResultadoPaginado.RecuentosPorEstado</c>. Lleva todos los estados
+    /// que un propietario puede tener, también los que no tienen filas (0), para que «no hay ninguno» no se
+    /// confunda con «no se contó».
+    /// </summary>
+    public static IReadOnlyDictionary<string, int> RecuentosPorEstado(IReadOnlyDictionary<int, int> filasPorClave) =>
+        Enum.GetValues<EstadoDocumento>()
+            .Where(estado => ClaveOrden(estado) < ClaveSinEstadoDePropietario)
+            .ToDictionary(estado => estado.ToString(), estado => filasPorClave.GetValueOrDefault(ClaveOrden(estado)));
+
+    /// <summary>Un número no es un nombre: <c>Enum.TryParse</c> aceptaría "4" como Vencido.</summary>
+    private static bool EsNombreDeEstado(string valor, out EstadoDocumento estado)
+    {
+        estado = default;
+        return !int.TryParse(valor, out _) && Enum.TryParse(valor, out estado) && Enum.IsDefined(estado);
+    }
+
+    /// <summary>La <see cref="ClaveOrden"/> de lo que no es un estado de propietario (sin documentos, Faltante, En tolerancia).</summary>
+    private const int ClaveSinEstadoDePropietario = 6;
 
     /// <summary>
     /// Clave de orden: primero lo que más urge. Lo malo conocido va antes que

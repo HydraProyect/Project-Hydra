@@ -21,10 +21,20 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCentros;
 /// empresarial o la de la Empresa (es lo que promete el buscador de /centros).
 /// </param>
 /// <param name="EmpresaId">Filtro exacto por la Empresa que trabaja en el Centro.</param>
+/// <param name="Estados">
+/// Varios estados a la vez (la franja de estado del listado deja marcar más de uno): pasa el Centro que esté en
+/// cualquiera. Se suma a <c>Estado</c> si llegan los dos.
+/// </param>
+/// <param name="ConRecuentosPorEstado">
+/// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Centros por estado con los demás filtros aplicados y sin el
+/// de estado. El estado de un Centro se calcula, así que pedirlo obliga a calcularlo para todos los Centros que
+/// pasan los filtros, no solo para la página: solo lo pide el listado, que es quien pinta la franja.
+/// </param>
 public record ObtenerCentrosQuery(
     string? Busqueda, Guid? ClienteId, EstadoCentro? Estado = null,
     string? OrdenarPor = null, bool Descendente = false, int Pagina = 1, int TamanoPagina = 20,
-    Guid? CentroId = null, Guid? EmpresaId = null)
+    Guid? CentroId = null, Guid? EmpresaId = null,
+    IReadOnlyCollection<EstadoCentro>? Estados = null, bool ConRecuentosPorEstado = false)
     : IRequest<ResultadoPaginado<CentroListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -126,8 +136,13 @@ public class ObtenerCentrosQueryHandler(
         // El cumplimiento, como el estado, no está persistido: se calcula. Para
         // ordenar por él hay que conocerlo de todos los centros que pasan los
         // filtros ANTES de paginar, así que toma el mismo camino que el estado.
+        var estadosPedidos = (request.Estados ?? []).ToHashSet();
+        if (request.Estado is { } unEstado)
+            estadosPedidos.Add(unEstado);
+
         var necesitaEstadoCompleto =
-            request.Estado is not null ||
+            estadosPedidos.Count > 0 ||
+            request.ConRecuentosPorEstado ||
             string.Equals(request.OrdenarPor, nameof(CentroListaDto.Estado), StringComparison.Ordinal) ||
             string.Equals(request.OrdenarPor, nameof(CentroListaDto.CumplimientoPorcentaje), StringComparison.Ordinal);
 
@@ -142,10 +157,20 @@ public class ObtenerCentrosQueryHandler(
             var idsTodas = todas.Select(c => c.Id).ToList();
             var estadosTodas = await calculoEstadoCentro.CalcularAsync(idsTodas, cancellationToken);
             var cumplimientoTodas = await calculoEstadoCentro.CalcularCumplimientoAsync(idsTodas, cancellationToken);
-            var conEstado = todas.Select(c => AplicarEstado(c, estadosTodas, cumplimientoTodas));
+            IEnumerable<CentroListaDto> conEstado = todas.Select(c => AplicarEstado(c, estadosTodas, cumplimientoTodas)).ToList();
 
-            if (request.Estado is not null)
-                conEstado = conEstado.Where(c => c.Estado == request.Estado);
+            // Antes de filtrar por estado: cada cifra de la franja dice cuántos Centros quedarían al marcar ese
+            // estado. Lleva todos los estados, también los que no tienen ninguno (0).
+            IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
+            if (request.ConRecuentosPorEstado)
+            {
+                var centrosPorEstado = conEstado.GroupBy(c => c.Estado).ToDictionary(grupo => grupo.Key, grupo => grupo.Count());
+                recuentosPorEstado = Enum.GetValues<EstadoCentro>()
+                    .ToDictionary(estado => estado.ToString(), estado => centrosPorEstado.GetValueOrDefault(estado));
+            }
+
+            if (estadosPedidos.Count > 0)
+                conEstado = conEstado.Where(c => estadosPedidos.Contains(c.Estado));
 
             var ordenados = OrdenarEnMemoria(conEstado, request.OrdenarPor, request.Descendente)
                 .ThenBy(c => c.Id)
@@ -155,7 +180,10 @@ public class ObtenerCentrosQueryHandler(
                 ordenados.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList(),
                 ordenados.Count,
                 request.Pagina,
-                request.TamanoPagina);
+                request.TamanoPagina)
+            {
+                RecuentosPorEstado = recuentosPorEstado
+            };
         }
 
         var total = await consulta.CountAsync(cancellationToken);

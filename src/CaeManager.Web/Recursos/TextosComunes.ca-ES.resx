@@ -298,4 +298,7 @@
   <data name="ContraerTodo" xml:space="preserve">
     <value>Plegar-ho tot</value>
   </data>
+  <data name="FranjaEstadoEtiqueta" xml:space="preserve">
+    <value>Filtra per estat</value>
+  </data>
 </root>

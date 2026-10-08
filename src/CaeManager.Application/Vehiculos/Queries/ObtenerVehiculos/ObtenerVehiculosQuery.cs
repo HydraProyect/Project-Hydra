@@ -17,7 +17,8 @@ namespace CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 /// </summary>
 public record ObtenerVehiculosQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
-    string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null)
+    string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
+    bool ConRecuentosPorEstado = false)
     : IRequest<ResultadoPaginado<VehiculoListaDto>>;
 
 public record VehiculoListaDto(
@@ -70,19 +71,11 @@ public class ObtenerVehiculosQueryHandler(
         // (hallazgo Módulo 8, PR #389 § 4.1), igual que ObtenerTrabajadoresQuery.
         var necesitaEstadoCompleto =
             !string.IsNullOrWhiteSpace(request.EstadoDocumental) ||
-            string.Equals(request.OrdenarPor, nameof(VehiculoListaDto.EstadoDocumental), StringComparison.Ordinal);
+            string.Equals(request.OrdenarPor, nameof(VehiculoListaDto.EstadoDocumental), StringComparison.Ordinal) ||
+            request.ConRecuentosPorEstado;
 
         if (necesitaEstadoCompleto)
         {
-            if (request.EstadoDocumental == EstadoDocumentalFiltro.SinDocumentos)
-            {
-                // Ningún Vehículo de este listado llega a EstadoDocumental
-                // null (CalculoEstadoDocumentalService.GetValueOrDefault cae a
-                // SinCaducidad, nunca a null) — "sin documentos" nunca
-                // coincide, igual que EstadoDocumentalFiltro.Coincide.
-                return new ResultadoPaginado<VehiculoListaDto>([], 0, request.Pagina, request.TamanoPagina);
-            }
-
             var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
             var hoy = DiaDeNegocio.Hoy();
             var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
@@ -106,26 +99,41 @@ public class ObtenerVehiculosQueryHandler(
                         .Any(d => d.VehiculoId == x.vehiculo.Id && d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 };
 
-            if (!string.IsNullOrWhiteSpace(request.EstadoDocumental))
+            // La clave de estado es la misma expresión con la que se ordena (EstadoDocumentalFiltro.ClaveOrden:
+            // 0 Vencido, 1 Urgente, 2 Próximo, 3 Sin confirmar, 4 Vigente, 5 Sin caducidad), escrita en línea
+            // porque tiene que traducirse a SQL. Contar y filtrar por ella garantiza que la franja de estado, el
+            // filtro y el orden parten las filas igual.
+            //
+            // Los recuentos se toman ANTES de filtrar por estado y después de todos los demás filtros: cada
+            // cifra de la franja dice cuántas filas quedarían al marcar solo ese estado.
+            IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
+            if (request.ConRecuentosPorEstado)
             {
-                // Si no parsea, no se filtra — igual que EstadoDocumentalFiltro.Coincide
-                // (su `: true` final). Pero si parsea a un valor que este
-                // listado nunca produce (p. ej. Faltante, que solo emiten las
-                // Alertas), el resultado tiene que ser "ninguna fila" — no
-                // "sin filtro" (hallazgo de Codex sobre el primer intento).
-                if (Enum.TryParse<EstadoDocumento>(request.EstadoDocumental, out var estadoFiltro))
-                {
-                    conFecha = estadoFiltro switch
-                    {
-                        EstadoDocumento.SinCaducidad => conFecha.Where(x => x.PeorFecha == null && !x.HaySinConfirmar),
-                        EstadoDocumento.SinConfirmar => conFecha.Where(x => x.HaySinConfirmar && (x.PeorFecha == null || x.PeorFecha > limiteAmbar)),
-                        EstadoDocumento.Vencido => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha < hoy),
-                        EstadoDocumento.Urgente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha >= hoy && x.PeorFecha <= limiteRojo),
-                        EstadoDocumento.Proximo => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteRojo && x.PeorFecha <= limiteAmbar),
-                        EstadoDocumento.Vigente => conFecha.Where(x => x.PeorFecha != null && x.PeorFecha > limiteAmbar && !x.HaySinConfirmar),
-                        _ => conFecha.Where(x => false)
-                    };
-                }
+                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await conFecha
+                    .GroupBy(x =>
+                        x.PeorFecha != null && x.PeorFecha < hoy ? 0
+                    : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
+                    : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? 2
+                    : x.HaySinConfirmar ? 3
+                    : x.PeorFecha != null ? 4
+                    : 5)
+                    .Select(grupo => new { Clave = grupo.Key, Filas = grupo.Count() })
+                    .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken));
+            }
+
+            // Varios estados a la vez (la franja deja marcar más de uno). null: el filtro no descarta nada
+            // (vacío o sin ningún valor conocido). Lista vacía: ninguna fila — «sin documentos» (este listado
+            // nunca produce un estado null: sin Documentos cae en Sin caducidad) o un estado que un propietario
+            // nunca tiene (Faltante, En tolerancia). Un filtro válido pero no aplicable devuelve nada, no todo.
+            if (EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental) is { } clavesPedidas)
+            {
+                conFecha = conFecha.Where(x => clavesPedidas.Contains(
+                    x.PeorFecha != null && x.PeorFecha < hoy ? 0
+                    : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
+                    : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? 2
+                    : x.HaySinConfirmar ? 3
+                    : x.PeorFecha != null ? 4
+                    : 5));
             }
 
             var totalConEstado = await conFecha.CountAsync(cancellationToken);
@@ -157,7 +165,10 @@ public class ObtenerVehiculosQueryHandler(
                     x.Id, x.Nombre, x.Modelo, x.NumeroPlaca, x.EmpleadorNombre,
                     CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
                     .ToList(),
-                totalConEstado, request.Pagina, request.TamanoPagina);
+                totalConEstado, request.Pagina, request.TamanoPagina)
+            {
+                RecuentosPorEstado = recuentosPorEstado
+            };
         }
 
         var total = await consulta.CountAsync(cancellationToken);

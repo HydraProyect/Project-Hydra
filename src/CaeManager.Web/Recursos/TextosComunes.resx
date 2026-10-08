@@ -300,4 +300,7 @@
   <data name="ContraerTodo" xml:space="preserve">
     <value>Contraer todo</value>
   </data>
+  <data name="FranjaEstadoEtiqueta" xml:space="preserve">
+    <value>Filtrar por estado</value>
+  </data>
 </root>

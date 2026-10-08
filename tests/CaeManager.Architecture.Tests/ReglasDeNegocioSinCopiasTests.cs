@@ -122,9 +122,9 @@ public class ReglasDeNegocioSinCopiasTests
         // únicos estados que enseña.
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerDesgloseDashboardQuery.cs"] = 1,
         // Orden de los BLOQUES de la pantalla Alertas: Vencido antes que Faltante, por el mockup (Gen 2); también
-        // decide la insignia «peor motivo» de cada grupo por tipo, así que ahí la pantalla puede decir «Vencido»
-        // mientras la consulta (ObtenerAlertasQuery, que usa el rango común) pone Faltante primero. Divergencia de
-        // presentación heredada del mockup, declarada en el informe de S4 como decisión pendiente del propietario.
+        // decide la insignia «peor motivo» de cada grupo por tipo. Desde el 2026-10-08 el rango común también pone
+        // Vencido antes que Faltante (orden fijado por el propietario el 2026-10-03), así que la pantalla y la
+        // consulta (ObtenerAlertasQuery) ya coinciden en esos dos; la copia sigue declarada porque es otra lista.
         ["src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor.cs"] = 4,
     };
 

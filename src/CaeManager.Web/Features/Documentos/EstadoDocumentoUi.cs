@@ -26,7 +26,10 @@ public static class EstadoDocumentoUi
     {
         EstadoDocumento.Vigente => TonoBadge.Exito,
         EstadoDocumento.Proximo => TonoBadge.Advertencia,
-        EstadoDocumento.Urgente => TonoBadge.Peligro,
+        // Urgente y Próximo se rotulan igual («Por vencer», decisión del 2026-10-08), así que llevan también el
+        // mismo tono: dos colores para un mismo rótulo serían dos pastillas. Lo urgente se distingue por el orden,
+        // por el tinte de la fila y por los días que dice el motivo, no por el color de la pastilla.
+        EstadoDocumento.Urgente => TonoBadge.Advertencia,
         EstadoDocumento.Vencido => TonoBadge.Peligro,
         EstadoDocumento.Faltante => TonoBadge.Peligro,
         EstadoDocumento.SinCaducidad => TonoBadge.Neutro,
@@ -39,13 +42,19 @@ public static class EstadoDocumentoUi
         _ => TonoBadge.Peligro
     };
 
+    /// <summary>
+    /// Rótulo de un estado en la interfaz. Vocabulario único (decisión del propietario, 2026-10-08):
+    /// <see cref="EstadoDocumento.Urgente"/> y <see cref="EstadoDocumento.Proximo"/> se leen los dos «Por vencer», y
+    /// <see cref="EstadoDocumento.Faltante"/> se lee «Pendiente». Los estados de código no cambian: el filtro, el
+    /// orden y el tinte de fila siguen distinguiendo lo urgente de lo próximo.
+    /// </summary>
     public static string Texto(EstadoDocumento estado) => estado switch
     {
         EstadoDocumento.Vigente => "Vigente",
-        EstadoDocumento.Proximo => "Próximo",
-        EstadoDocumento.Urgente => "Urgente",
+        EstadoDocumento.Proximo => PorVencer,
+        EstadoDocumento.Urgente => PorVencer,
         EstadoDocumento.Vencido => "Vencido",
-        EstadoDocumento.Faltante => "Falta",
+        EstadoDocumento.Faltante => TextosVigenciaDocumento.Texto("Pendiente"),
         EstadoDocumento.SinCaducidad => "Sin caducidad",
         EstadoDocumento.SinConfirmar => TextosVigenciaDocumento.Texto("SinConfirmar"),
         EstadoDocumento.EnTolerancia => TextosVigenciaDocumento.Texto("EnTolerancia"),
@@ -113,8 +122,58 @@ public static class EstadoDocumentoUi
     public static TonoBadge TonoDocumental(EstadoDocumento? estado) =>
         estado is null ? TonoBadge.Neutro : Tono(estado.Value);
 
+    /// <summary>
+    /// Rótulo del peor estado de un propietario. Lo que está bien se dice de una sola forma, «Sin incidencias»:
+    /// en un agregado, «Vigente» y «Sin caducidad» responden lo mismo (no hay nada que hacer) y eran dos verdes.
+    /// </summary>
     public static string TextoDocumental(EstadoDocumento? estado) =>
-        estado is null ? "Sin documentos" : Texto(estado.Value);
+        estado is null ? "Sin documentos"
+        : EsCorrecto(estado.Value) ? SinIncidencias
+        : Texto(estado.Value);
+
+    /// <summary>Rótulo único de Urgente y Próximo en la interfaz.</summary>
+    public static string PorVencer => TextosVigenciaDocumento.Texto("PorVencer");
+
+    /// <summary>Rótulo de un propietario (Trabajador, Empresa, Vehículo, Centro…) al que no hay nada que reclamar.</summary>
+    public static string SinIncidencias => TextosVigenciaDocumento.Texto("SinIncidencias");
+
+    /// <summary>
+    /// ¿El estado no pide ninguna acción? En los listados lo correcto no lleva pastilla de color (punto verde y texto
+    /// gris, <c>EstadoFila</c>): el color queda para lo que hay que atender.
+    /// </summary>
+    public static bool EsCorrecto(EstadoDocumento estado) =>
+        estado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad;
+
+    /// <summary>Como <see cref="EsCorrecto(EstadoDocumento)"/>; «sin documentos» (<c>null</c>) no es correcto, es desconocido.</summary>
+    public static bool EsCorrecto(EstadoDocumento? estado) => estado is { } valor && EsCorrecto(valor);
+
+    /// <summary>
+    /// Motivo que acompaña a la pastilla de un Documento, sin repetir lo que la pastilla ya dice: cuánto hace que
+    /// venció, cuánto le queda, o qué falta para saberlo. <c>null</c> si el estado no necesita explicación.
+    /// </summary>
+    public static string? MotivoDeDocumento(EstadoDocumento estado, DateOnly? fechaVencimiento, DateOnly hoy)
+    {
+        if (estado == EstadoDocumento.SinConfirmar)
+            return TextosVigenciaDocumento.Texto("MotivoFaltaFechaVencimiento");
+
+        if (fechaVencimiento is not { } vence)
+            return null;
+
+        var dias = vence.DayNumber - hoy.DayNumber;
+        return estado switch
+        {
+            EstadoDocumento.Vencido or EstadoDocumento.EnTolerancia => ConDias(-dias, "MotivoVencioHoy", "MotivoHaceUnDia", "MotivoHaceDias"),
+            EstadoDocumento.Urgente or EstadoDocumento.Proximo => ConDias(dias, "MotivoCaducaHoy", "MotivoCaducaEnUnDia", "MotivoCaducaEnDias"),
+            _ => null
+        };
+    }
+
+    private static string ConDias(int dias, string claveHoy, string claveUno, string claveVarios) => dias switch
+    {
+        <= 0 => TextosVigenciaDocumento.Texto(claveHoy),
+        1 => TextosVigenciaDocumento.Texto(claveUno),
+        _ => string.Format(CultureInfo.CurrentCulture, TextosVigenciaDocumento.Texto(claveVarios), dias)
+    };
 
     /// <summary>
     /// Opciones del filtro de estado documental, de peor a mejor: al filtrar,

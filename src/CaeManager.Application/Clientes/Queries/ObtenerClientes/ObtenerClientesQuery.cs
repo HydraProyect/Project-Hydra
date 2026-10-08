@@ -16,10 +16,29 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientes;
 /// toda la cartera; solo combinado con <paramref name="EstadoDocumental"/> hereda el tope de 2000
 /// candidatos de ese filtro. Sin valor, por razón social.
 /// </param>
+/// <param name="EstadosDocumentales">
+/// Varios estados a la vez (la franja de estado del listado deja marcar más de uno): pasa el Cliente empresarial
+/// que cumpla cualquiera. Se suma a <paramref name="EstadoDocumental"/> si llegan los dos, con su mismo criterio:
+/// un estado pregunta si HAY alguna alerta en él, y <c>Vigente</c> es el centinela de «sin ninguna alerta».
+/// </param>
+/// <param name="ConRecuentosPorEstado">
+/// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c> con los demás filtros aplicados y sin el de estado. Como
+/// el filtro pregunta «hay alguna», un Cliente empresarial con vencidos y urgentes cuenta en los dos: las cifras
+/// no suman el total. Por eso la clave <see cref="ClavePorVencer"/> cuenta aparte a quien tiene urgentes o
+/// próximos, sin sumarlo dos veces.
+/// </param>
 public record ObtenerClientesQuery(
     string? Busqueda, bool? SoloCriticos, Guid? EjecutivoUsuarioId = null, EstadoDocumento? EstadoDocumental = null,
-    int Pagina = 1, int TamanoPagina = 20, string? OrdenarPor = null, bool Descendente = false)
-    : IRequest<ResultadoPaginado<ClienteListaDto>>;
+    int Pagina = 1, int TamanoPagina = 20, string? OrdenarPor = null, bool Descendente = false,
+    IReadOnlyCollection<EstadoDocumento>? EstadosDocumentales = null, bool ConRecuentosPorEstado = false)
+    : IRequest<ResultadoPaginado<ClienteListaDto>>
+{
+    /// <summary>
+    /// Clave de <c>RecuentosPorEstado</c> para «tiene alguna alerta Urgente o Próxima»: los dos estados que la
+    /// interfaz rotula «Por vencer», unidos con el separador de la selección de estados.
+    /// </summary>
+    public const string ClavePorVencer = nameof(EstadoDocumento.Urgente) + "," + nameof(EstadoDocumento.Proximo);
+}
 
 /// <param name="SinContactoEnAgenda">
 /// Perfil incompleto: no hay nadie a quien reclamarle documentación. La
@@ -110,9 +129,17 @@ public class ObtenerClientesQueryHandler(
         var estadoPorCliente = await ObtenerEstadoDocumentalPorClienteAsync(cancellationToken);
         var ordenarPorEstado = request.OrdenarPor == nameof(ClienteListaDto.EstadoDocumentalPeor);
 
+        var estadosPedidos = (request.EstadosDocumentales ?? []).ToHashSet();
+        if (request.EstadoDocumental is { } unEstado)
+            estadosPedidos.Add(unEstado);
+
+        IReadOnlyDictionary<string, int>? recuentosPorEstado = request.ConRecuentosPorEstado
+            ? await ContarPorEstadoAsync(consulta, estadoPorCliente, totalSinEstado, cancellationToken)
+            : null;
+
         List<ClienteListaDto> elementos;
         int total;
-        if (request.EstadoDocumental is null && !ordenarPorEstado)
+        if (estadosPedidos.Count == 0 && !ordenarPorEstado)
         {
             // Sin filtro ni orden por Estado documental: paginación normal en SQL.
             elementos = ConEstado(await Proyectar(ordenada
@@ -121,7 +148,7 @@ public class ObtenerClientesQueryHandler(
                 .ToListAsync(cancellationToken), estadoPorCliente);
             total = totalSinEstado;
         }
-        else if (request.EstadoDocumental is null)
+        else if (estadosPedidos.Count == 0)
         {
             // Solo orden por estado (el de por defecto de la lista, rediseño de listados fase 1):
             // exacto y sin tope de candidatos, porque todo Cliente empresarial sin alertas es
@@ -143,21 +170,22 @@ public class ObtenerClientesQueryHandler(
             if (ordenarPorEstado)
                 candidatos = OrdenarPorEstado(candidatos, request.Descendente);
 
-            // "Con vencidos" pregunta si HAY algún Vencido, no si el PEOR
-            // estado es exactamente Vencido — un Cliente con Faltantes Y
-            // Vencidos a la vez (Faltante pesa más, ver PrioridadEstado) no
-            // puede desaparecer del filtro "Con vencidos" solo porque además
-            // tenga algo peor. EstadoDocumento.Vigente como centinela de "Al
-            // día" (mockup "Lista Clientes TALVEG"): nunca es un valor real
-            // de EstadosPresentes (ObtenerAlertasQuery no emite alertas
-            // Vigente), así que sirve para pedir "sin ninguna alerta
-            // abierta" sin un cuarto parámetro de tipo bool aparte.
-            var filtrados = request.EstadoDocumental == EstadoDocumento.Vigente
-                ? candidatos.Where(c => c.EstadoDocumentalPeor is null).ToList()
-                : candidatos
-                    .Where(c => estadoPorCliente.TryGetValue(c.Id, out var estado)
-                        && estado.EstadosPresentes.Contains(request.EstadoDocumental.Value))
-                    .ToList();
+            // Un estado pregunta si HAY alguna alerta en él, no si el PEOR
+            // estado es exactamente ese — un Cliente con Vencidos Y
+            // Urgentes a la vez (Vencido pesa más, ver PrioridadEstado) no
+            // puede desaparecer de «Por vencer» solo porque además tenga
+            // algo peor. EstadoDocumento.Vigente como centinela de «sin
+            // incidencias»: nunca es un valor real de EstadosPresentes
+            // (ObtenerAlertasQuery no emite alertas Vigente), así que sirve
+            // para pedir «sin ninguna alerta abierta» sin un parámetro de
+            // tipo bool aparte. Con varios estados pasa quien cumpla
+            // cualquiera.
+            var pideSinAlertas = estadosPedidos.Contains(EstadoDocumento.Vigente);
+            var filtrados = candidatos
+                .Where(c => estadoPorCliente.TryGetValue(c.Id, out var estado)
+                    ? estado.EstadosPresentes.Overlaps(estadosPedidos)
+                    : pideSinAlertas)
+                .ToList();
             total = filtrados.Count;
             elementos = filtrados.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList();
         }
@@ -185,7 +213,38 @@ public class ObtenerClientesQueryHandler(
             })
             .ToList();
 
-        return new ResultadoPaginado<ClienteListaDto>(enriquecidos, total, request.Pagina, request.TamanoPagina);
+        return new ResultadoPaginado<ClienteListaDto>(enriquecidos, total, request.Pagina, request.TamanoPagina)
+        {
+            RecuentosPorEstado = recuentosPorEstado
+        };
+    }
+
+    /// <summary>
+    /// Clientes empresariales por estado entre los que pasan los demás filtros (<paramref name="consulta"/>), con
+    /// el mismo criterio que el filtro: un estado cuenta a quien tiene ALGUNA alerta en él, y <c>Vigente</c> a
+    /// quien no tiene ninguna. Solo se traen los Id de quienes tienen alertas (pocos); el resto sale por resta.
+    /// </summary>
+    private static async Task<IReadOnlyDictionary<string, int>> ContarPorEstadoAsync(
+        IQueryable<Empresa> consulta,
+        Dictionary<Guid, (EstadoDocumento Peor, int Cantidad, HashSet<EstadoDocumento> EstadosPresentes)> estadoPorCliente,
+        int totalSinEstado, CancellationToken cancellationToken)
+    {
+        var idsConAlertas = estadoPorCliente.Keys.ToList();
+        var visiblesConAlertas = idsConAlertas.Count == 0
+            ? []
+            : await consulta.Where(c => idsConAlertas.Contains(c.Id)).Select(c => c.Id).ToListAsync(cancellationToken);
+        var presentes = visiblesConAlertas.Select(id => estadoPorCliente[id].EstadosPresentes).ToList();
+
+        var recuentos = new Dictionary<string, int>
+        {
+            [nameof(EstadoDocumento.Vencido)] = presentes.Count(p => p.Contains(EstadoDocumento.Vencido)),
+            [nameof(EstadoDocumento.Faltante)] = presentes.Count(p => p.Contains(EstadoDocumento.Faltante)),
+            [nameof(EstadoDocumento.Urgente)] = presentes.Count(p => p.Contains(EstadoDocumento.Urgente)),
+            [nameof(EstadoDocumento.Proximo)] = presentes.Count(p => p.Contains(EstadoDocumento.Proximo)),
+            [ObtenerClientesQuery.ClavePorVencer] = presentes.Count(p => p.Contains(EstadoDocumento.Urgente) || p.Contains(EstadoDocumento.Proximo)),
+            [nameof(EstadoDocumento.Vigente)] = totalSinEstado - visiblesConAlertas.Count
+        };
+        return recuentos;
     }
 
     /// <summary>
@@ -207,8 +266,8 @@ public class ObtenerClientesQueryHandler(
             .ToList();
 
     /// <summary>
-    /// «Peor estado primero» (rediseño de listados, fase 1): ascendente es Faltante → Vencido →
-    /// Urgente → Próximo → Al corriente. OrderBy de LINQ es estable: dentro de un mismo estado se
+    /// «Peor estado primero» (rediseño de listados, fase 1): ascendente es Vencido → Faltante →
+    /// Urgente → Próximo → sin incidencias (orden único fijado el 2026-10-03: Vencido antes que Faltante). OrderBy de LINQ es estable: dentro de un mismo estado se
     /// conserva el orden de entrada (razón social, Id).
     /// </summary>
     private static List<ClienteListaDto> OrdenarPorEstado(List<ClienteListaDto> filas, bool descendente) =>
@@ -293,8 +352,8 @@ public class ObtenerClientesQueryHandler(
 
     private static int PrioridadEstado(EstadoDocumento estado) => estado switch
     {
-        EstadoDocumento.Faltante => 0,
-        EstadoDocumento.Vencido => 1,
+        EstadoDocumento.Vencido => 0,
+        EstadoDocumento.Faltante => 1,
         EstadoDocumento.Urgente => 2,
         EstadoDocumento.Proximo => 3,
         _ => 4
@@ -302,8 +361,8 @@ public class ObtenerClientesQueryHandler(
 
     private static EstadoDocumento EstadoDeLaPrioridad(int prioridad) => prioridad switch
     {
-        0 => EstadoDocumento.Faltante,
-        1 => EstadoDocumento.Vencido,
+        0 => EstadoDocumento.Vencido,
+        1 => EstadoDocumento.Faltante,
         2 => EstadoDocumento.Urgente,
         3 => EstadoDocumento.Proximo,
         _ => EstadoDocumento.Vigente

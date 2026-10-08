@@ -1,0 +1,36 @@
+.estado-fila {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    max-width: 100%;
+}
+
+/* Lo correcto: sin pastilla. Mide lo mismo de alto que una (24px) para que la fila no baile entre estados. */
+.estado-fila-correcto {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 24px;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    white-space: nowrap;
+}
+
+.estado-fila-punto {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-success-700);
+}
+
+.estado-fila-motivo {
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
