@@ -37,6 +37,8 @@ public class MotivoBloqueoTrabajadorTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        // «Pedir» va en SoloConEscritura: estos tests lo pulsan con un rol que escribe.
+        this.ConRolDeEscritura();
     }
 
     private static DocumentacionBloqueantePendienteDto Bloqueo(

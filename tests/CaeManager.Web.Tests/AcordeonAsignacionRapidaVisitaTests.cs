@@ -102,6 +102,8 @@ public class AcordeonAsignacionRapidaVisitaTests : BunitContext
         // El acordeón inyecta IStringLocalizer<TextosCentros> (badge "Rechazado"
         // y "No aplica" de la fila de Empresa sin Estado, Codex oleada 3).
         Services.AddLocalization();
+        // «Asignar» va en SoloConEscritura: el test lo pulsa con un rol que escribe.
+        this.ConRolDeEscritura();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
