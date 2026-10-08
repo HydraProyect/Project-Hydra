@@ -41,6 +41,7 @@ public record CambiarActivacionUsuarioCommand(Guid UsuarioId, bool Activar) : IC
 public class CambiarActivacionUsuarioCommandHandler(
     IGestionCuentasUsuario cuentas,
     ICurrentUserService currentUserService,
+    ITenantActual tenantActual,
     ITransaccionDeComando transaccion,
     IBloqueoCarteraUsuario bloqueoCartera,
     ICatalogoIncorporacionCartera catalogo,
@@ -65,6 +66,13 @@ public class CambiarActivacionUsuarioCommandHandler(
             return Result.Fallo(AutoridadSobreCuentas.CuentaInexistente);
         if (!cuenta.EsPropiaDelTenantActual)
             return Result.Fallo(AutoridadSobreCuentas.NoEncontrado);
+
+        // La cuenta destino tiene rol de Propiedad: solo la toca quien actúa en su propio
+        // Tenant de origen (primer acto excluido del Encargo de administración, D-8).
+        var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+        if (destinoIntocable.EsFallido)
+            return destinoIntocable;
 
         var resultado = await transaccion.EjecutarAsync(async ct =>
         {

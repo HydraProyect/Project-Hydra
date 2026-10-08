@@ -19,8 +19,20 @@ namespace CaeManager.Application.Usuarios;
 /// El rol que se evalúa es el <b>efectivo</b> (<see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/>):
 /// dentro de un Workspace operativo derivado es el de la Asignación de Cartera,
 /// que nunca es Administrador ni Dirección CAE (la operación no concede roles
-/// de propiedad), así que un Operador CAE externo no administra las cuentas del
-/// Tenant propietario.
+/// de Propiedad), así que una persona de un Operador CAE externo no administra
+/// las cuentas del Tenant propietario <b>salvo que este haya registrado un
+/// Encargo de administración vigente</b> (decisión D-8, 2026-10-08): entonces
+/// el rol efectivo puede ser el perfil de Propiedad de esa persona en su Tenant
+/// de origen (<c>TechoDeRolPorEncargo</c>) y sí gestiona las cuentas con rol de
+/// Operación o de portal.
+/// </para>
+///
+/// <para>
+/// Lo que el encargo <b>no</b> abre, y por eso no se decide con el rol efectivo:
+/// conceder Administrador o Dirección CAE
+/// (<see cref="RolesReservadosAlTenantDeOrigen"/>) y actuar sobre una cuenta que
+/// ya tiene uno de esos roles (<see cref="CuentasConRolDePropiedad"/>). Las dos
+/// reglas comparan el Tenant de origen de quien actúa con el Tenant activo.
 /// </para>
 /// </summary>
 public static class AutoridadSobreCuentas

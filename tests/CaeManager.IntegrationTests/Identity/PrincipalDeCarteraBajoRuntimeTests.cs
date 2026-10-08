@@ -248,7 +248,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             var cuentas = new GestionCuentasUsuarioIdentity(
                 sp.GetRequiredService<UserManager<ApplicationUser>>(), sp.GetRequiredService<PuertaAccesoDatos>(), directorio, contexto);
             return new CambiarActivacionUsuarioCommandHandler(
-                    cuentas, usuario, new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
+                    cuentas, usuario, sp.GetRequiredService<ITenantActual>(),
+                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
                     new CatalogoIncorporacionCartera(contexto, usuario), directorio, directorio)
                 .Handle(new CambiarActivacionUsuarioCommand(_gestorA, Activar: false), CancellationToken.None);
         });

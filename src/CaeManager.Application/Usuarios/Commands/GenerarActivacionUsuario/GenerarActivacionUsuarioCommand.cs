@@ -21,7 +21,8 @@ public record GenerarActivacionUsuarioCommand(Guid UsuarioId) : ICommand<string>
 
 public class GenerarActivacionUsuarioCommandHandler(
     IGestionCuentasUsuario cuentas,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    ITenantActual tenantActual)
     : IRequestHandler<GenerarActivacionUsuarioCommand, Result<string>>
 {
     public static readonly Error YaActivada = Error.Crear(
@@ -37,6 +38,13 @@ public class GenerarActivacionUsuarioCommandHandler(
             return Result.Fallo<string>(Error.Crear("Usuarios.CuentaInexistente", "Esta cuenta ya no existe."));
         if (!cuenta.EsPropiaDelTenantActual)
             return Result.Fallo<string>(AutoridadSobreCuentas.NoEncontrado);
+
+        // Regenerar el enlace de activación de un Administrador pendiente equivale a
+        // quedarse con su cuenta: quien lo pide recibe el enlace.
+        var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+        if (destinoIntocable.EsFallido)
+            return Result.Fallo<string>(destinoIntocable.Error);
 
         if (!cuenta.PendienteActivacion)
             return Result.Fallo<string>(YaActivada);

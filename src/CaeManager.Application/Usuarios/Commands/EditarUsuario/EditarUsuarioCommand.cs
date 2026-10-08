@@ -24,6 +24,13 @@ namespace CaeManager.Application.Usuarios.Commands.EditarUsuario;
 /// </para>
 ///
 /// <para>
+/// <b>Cuenta destino con rol de Propiedad</b>: quien actúa en un Tenant que no es su
+/// Tenant de origen no la edita en ningún sentido — ni el nombre ni el rol
+/// (<see cref="CuentasConRolDePropiedad"/>). Cubre lo que la regla anterior deja
+/// fuera: degradar a un Administrador no concede ningún rol reservado.
+/// </para>
+///
+/// <para>
 /// <b>Permiso sensible</b> (Codex, HO-099-01 y revisión 2026-09-12):
 /// <list type="bullet">
 /// <item>si el rol resultante no es Administrador, se retira siempre, lo decida
@@ -76,6 +83,13 @@ public class EditarUsuarioCommandHandler(
         var cuenta = await cuentas.ObtenerAsync(request.UsuarioId, cancellationToken);
         if (cuenta is null || !cuenta.EsPropiaDelTenantActual)
             return Result.Fallo(AutoridadSobreCuentas.NoEncontrado);
+
+        // La cuenta destino tiene rol de Propiedad: solo la toca quien actúa en su propio
+        // Tenant de origen (primer acto excluido del Encargo de administración, D-8).
+        var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+        if (destinoIntocable.EsFallido)
+            return destinoIntocable;
 
         var concedeRol = !cuenta.Roles.Contains(request.Rol);
         if (concedeRol)
