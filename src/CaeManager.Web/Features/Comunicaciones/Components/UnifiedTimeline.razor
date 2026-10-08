@@ -33,7 +33,9 @@
             var autor = AutoresNotas.TryGetValue(nota.AutorUsuarioId, out var nombreAutor) ? nombreAutor : TextosNotas["AutorDesconocido"].Value;
             @* Texto plano, nunca MarkupString: la nota no pasa por el saneador de HTML. *@
             <div class="timeline-nota-interna-fila">
-                <span class="timeline-avatar" title="@autor" aria-hidden="true">@ObtenerIniciales(autor)</span>
+                <span class="timeline-autor-nota" title="@autor">
+                    <AvatarUsuario Nombre="@autor" Avatar="@AvataresNotas.GetValueOrDefault(nota.AutorUsuarioId)" />
+                </span>
                 <div class="timeline-nota-interna">
                     <div class="timeline-mensaje-cabecera">
                         <span class="timeline-mensaje-remitente">@autor</span>
@@ -173,6 +175,9 @@
 
     /// <summary>Nombre visible de cada autor de nota; un autor que ya no esté en el directorio del tenant se pinta con un rótulo genérico.</summary>
     [Parameter] public IReadOnlyDictionary<Guid, string> AutoresNotas { get; set; } = new Dictionary<Guid, string>();
+
+    /// <summary>Clave del avatar de cada autor de nota que eligió uno; quien no aparece se pinta con sus iniciales.</summary>
+    [Parameter] public IReadOnlyDictionary<Guid, string> AvataresNotas { get; set; } = new Dictionary<Guid, string>();
     [Parameter] public EventCallback<Guid> OnActualizarDocumentoDesdeAdjunto { get; set; }
     [Parameter] public EventCallback<Guid> OnConfirmarRuido { get; set; }
 

@@ -210,6 +210,9 @@
   <data name="CabeceraMiFirma" xml:space="preserve">
     <value>Mi firma y mis datos</value>
   </data>
+  <data name="CabeceraCambiarAvatar" xml:space="preserve">
+    <value>Cambiar mi avatar</value>
+  </data>
   <data name="CabeceraCerrarSesion" xml:space="preserve">
     <value>Cerrar sesión</value>
   </data>

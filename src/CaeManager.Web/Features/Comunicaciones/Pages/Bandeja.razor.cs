@@ -144,6 +144,12 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private IReadOnlyList<NotaInternaDetalleDto> _notasInternas = [];
     private IReadOnlyDictionary<Guid, string> _autoresNotas = new Dictionary<Guid, string>();
 
+    /// <summary>
+    /// Avatar elegido por cada autor de nota. Va por Id de usuario y no por conversación,
+    /// así que se asigna al leerlo: una carga que llega tarde no pinta nada equivocado.
+    /// </summary>
+    private IReadOnlyDictionary<Guid, string> _avataresNotas = new Dictionary<Guid, string>();
+
     // --- Composer (compartido entre Correo/WhatsApp/fallback — ver ComposerBar) ---
     private string _textoRespuesta = string.Empty;
     private string _macroSeleccionadaId = string.Empty;
@@ -713,8 +719,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         var notas = await Mediator.Send(new ObtenerNotasInternasConversacionQuery(conversacionId), _ciclo.Token);
         if (notas.Count == 0) return (notas, new Dictionary<Guid, string>());
 
-        var autores = await DirectorioUsuarios.ObtenerNombresVisiblesAsync(
-            notas.Select(n => n.AutorUsuarioId).Distinct().ToList(), _ciclo.Token);
+        var idsAutores = notas.Select(n => n.AutorUsuarioId).Distinct().ToList();
+        var autores = await DirectorioUsuarios.ObtenerNombresVisiblesAsync(idsAutores, _ciclo.Token);
+        _avataresNotas = await DirectorioUsuarios.ObtenerAvataresVisiblesAsync(idsAutores, _ciclo.Token);
         return (notas, autores);
     }
 

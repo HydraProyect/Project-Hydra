@@ -4,7 +4,9 @@ using MediatR;
 namespace CaeManager.Application.Usuarios;
 
 /// <summary>Un Gestor CAE del equipo de un Coordinador CAE, tal y como lo lista /usuarios para él.</summary>
-public record MiembroDeEquipo(Guid Id, string Email, string NombreCompleto, bool Activo, bool PendienteActivacion);
+/// <param name="Avatar">Clave del avatar elegido por esa persona (<see cref="CatalogoAvatares"/>), o <c>null</c>: iniciales.</param>
+public record MiembroDeEquipo(
+    Guid Id, string Email, string NombreCompleto, bool Activo, bool PendienteActivacion, string? Avatar = null);
 
 /// <summary>
 /// Los Gestores CAE de la propia organización que reportan a <c>coordinadorUsuarioId</c>

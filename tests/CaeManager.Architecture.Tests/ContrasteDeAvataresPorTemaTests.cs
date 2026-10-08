@@ -61,6 +61,8 @@ public class ContrasteDeAvataresPorTemaTests
     [
         new("AvatarTenant (selector de empresa, cabecera, Configuración)",
             "Components/DesignSystem/AvatarTenant.razor.css", [".avatar-tenant"]),
+        new("AvatarUsuario (iniciales de un usuario de la plataforma)",
+            "Components/DesignSystem/AvatarUsuario.razor.css", [".avatar-usuario"]),
         new("Fila de relación (trabajador de Empresa 360)",
             "Components/DesignSystem/FilaRelacion.razor.css", [".fila-relacion-avatar"]),
         new("Cartera de Mi trabajo",
@@ -92,6 +94,12 @@ public class ContrasteDeAvataresPorTemaTests
         "avatar-tenant-pequeno",   // solo cambia tamaño, radio y fuente; hereda colores de .avatar-tenant
         "avatar-tenant-logo",      // imagen del logo: sin iniciales
         "mi-trabajo-cartera-avatar-todo", // variante cubierta arriba junto a su base
+        "avatar-usuario-pequeno",  // solo cambia tamaño y fuente; hereda colores de .avatar-usuario
+        "avatar-usuario-grande",   // ídem
+        "avatar-usuario-glifo",    // el emoji del catálogo: trae sus propios colores, no es texto sobre fondo
+        "avatar-usuario-tono-verde",  // los tonos solo cambian el fondo y solo acompañan a un emoji:
+        "avatar-usuario-tono-ambar",  // las iniciales van siempre sobre el par de .avatar-usuario
+        "avatar-usuario-tono-neutro",
     };
 
     [Theory]

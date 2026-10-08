@@ -19,6 +19,14 @@ public class ApplicationUser : IdentityUser<Guid>
     public IdiomaPreferido Idioma { get; set; } = IdiomaPreferido.Espanol;
 
     /// <summary>
+    /// Clave del avatar elegido en <c>CatalogoAvatares</c> (<c>zorro-verde</c>), o
+    /// <c>null</c> si la persona no eligió ninguno y se pintan sus iniciales. Es de la
+    /// cuenta, como <see cref="Idioma"/>: cambiar de Tenant no lo cambia. Solo lo
+    /// escribe su dueño (<c>ElegirAvatarPropioCommand</c>).
+    /// </summary>
+    public string? Avatar { get; set; }
+
+    /// <summary>
     /// Solo relevante para el rol GestorCae — el CoordinadorCae al que
     /// reporta (ver Roles.cs y IAlcanceDatosService). Un GestorCae sin
     /// coordinador asignado solo es visible para Administrador/DireccionCae
