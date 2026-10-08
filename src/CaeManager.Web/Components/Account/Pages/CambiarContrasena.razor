@@ -17,11 +17,12 @@
 @inject IOptions<IdentityOptions> OpcionesIdentity
 @inject ILoggerFactory LoggerFactory
 @inject IEleccionLiderService CerrojoCredencial
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Components.Account.Recursos.TextosCuenta> Textos
 
 <PageTitle>Cambiar contraseña — @Marca.Nombre</PageTitle>
 
 <div class="acceso-tarjeta">
-    <CabeceraAcceso Titulo="Cambiar contraseña" Explicacion="Tienes que cambiar tu contraseña antes de continuar." />
+    <CabeceraAcceso Titulo="Cambiar contraseña" Explicacion="@Explicacion" />
 
     @if (Entrada is not null)
     {
@@ -57,9 +58,14 @@
             <button type="submit" class="acceso-entrar">Cambiar contraseña</button>
         </EditForm>
 
-        @* La única salida posible: con DebeCambiarContrasena el guard de MainLayout
-           devuelve aquí cualquier navegación, así que «Volver» no llevaría a ningún
-           sitio. Cerrar sesión es el mismo POST que la cabecera y Pendiente de Rol. *@
+        @* Con DebeCambiarContrasena el guard de MainLayout devuelve aquí cualquier
+           navegación, así que «Volver» no llevaría a ningún sitio y la única salida es
+           cerrar sesión (el mismo POST que la cabecera y Pendiente de Rol). «Volver» solo
+           se pinta a quien llega por voluntad propia desde «Mi cuenta» (FS-16). *@
+        @if (EsCambioVoluntario)
+        {
+            <p class="acceso-alterno"><a class="acceso-enlace-boton" href="/" data-enhance-nav="false">@Textos["CambiarContrasenaVolverSinCambiarla"]</a></p>
+        }
         <form class="acceso-alterno" method="post" action="/cuenta/cerrar-sesion">
             <AntiforgeryToken />
             <button type="submit" class="acceso-enlace-boton">Cerrar sesión</button>
@@ -72,6 +78,17 @@
 
     [SupplyParameterFromForm]
     private DatosEntrada? Entrada { get; set; }
+
+    // FS-16: el menú de usuario enlaza aquí con ?motivo=mi-cuenta (RutasMiCuenta). Solo
+    // decide el texto de la cabecera y si se ofrece «Volver»; no autoriza ni exime de nada.
+    [SupplyParameterFromQuery(Name = "motivo")]
+    private string? Motivo { get; set; }
+
+    private bool EsCambioVoluntario => Motivo == RutasMiCuenta.MotivoMiCuenta;
+
+    private string Explicacion => EsCambioVoluntario
+        ? Textos["CambiarContrasenaVoluntarioExplicacion"].Value
+        : "Tienes que cambiar tu contraseña antes de continuar.";
 
     protected override void OnInitialized() => Entrada ??= new DatosEntrada();
 

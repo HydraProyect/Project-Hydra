@@ -99,6 +99,12 @@
   <data name="VolverALaFicha" xml:space="preserve">
     <value>Tornar a la fitxa</value>
   </data>
+  <data name="CambiarContrasenaVoluntarioExplicacion" xml:space="preserve">
+    <value>Escriu la contrasenya actual i la que vols fer servir a partir d'ara.</value>
+  </data>
+  <data name="CambiarContrasenaVolverSinCambiarla" xml:space="preserve">
+    <value>Torna sense canviar-la</value>
+  </data>
   <data name="SalidaVolver" xml:space="preserve">
     <value>Tornar</value>
   </data>
