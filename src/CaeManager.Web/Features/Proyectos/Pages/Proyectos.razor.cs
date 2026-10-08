@@ -666,20 +666,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Días del periodo abierto del proyecto: de <paramref name="inicio"/> al
-    /// cierre real o, si sigue abierto, a <paramref name="hoy"/>. Cuenta
-    /// INCLUSIVA —el día de inicio y el de cierre cuentan los dos—, la misma
-    /// que usa la facturación por días de proyecto abierto
-    /// (ObtenerResumenFacturacionQuery, <c>hasta - desde + 1</c>): dos cifras
-    /// de "días abiertos" que no cuadrasen entre sí serían peor que ninguna.
-    /// Sin valor si el proyecto todavía no ha empezado.
-    /// </summary>
-    private static int? DiasAbiertos(DateOnly inicio, DateOnly? cierre, DateOnly hoy)
-    {
-        var fin = cierre ?? hoy;
-        return fin < inicio ? null : fin.DayNumber - inicio.DayNumber + 1;
-    }
+    private static int? DiasAbiertos(DateOnly inicio, DateOnly? cierre, DateOnly hoy) =>
+        PlazoProyecto.DiasAbiertos(inicio, cierre, hoy);
 
     private string TextoTecnicosActivos(int tecnicosActivos) =>
         tecnicosActivos == 1

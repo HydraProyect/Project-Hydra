@@ -287,3 +287,6 @@
 .proyecto-nombre-centro { display: flex; flex-direction: column; gap: var(--space-1); }
 .proyecto-centro { font: var(--font-caption); color: var(--color-text-muted); }
 .proyecto-plazo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.enlace-pagina-proyecto {
+    font: var(--font-label-md);
+}

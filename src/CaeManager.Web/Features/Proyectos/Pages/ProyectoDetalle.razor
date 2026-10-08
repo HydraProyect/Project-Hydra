@@ -1,0 +1,320 @@
+@*
+    Proyecto 360 — página (mockup «Proyecto 360 página TALVEG»), primer
+    incremento. Ver el comentario de cabecera del .razor.cs: mismas consultas y
+    comandos que el panel de detalle del listado de Proyectos.
+*@
+@page "/proyectos/{ProyectoId:guid}"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Proyectos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosProyectos> Textos
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@(_detalle?.Nombre ?? Textos["TituloPestanaNavegadorDetalle"]) — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />
+
+    @if (_error)
+    {
+        @* No encontrado y sin acceso se ven igual: la consulta devuelve null en los dos casos. *@
+        <EstadoVacio Titulo="@Textos["ErrorDetalleTitulo"]" Descripcion="@Textos["ErrorDetalleDescripcion"]"
+                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
+            <Accion>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+                <EnlaceProfundoOtraEmpresa />
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_cargando)
+    {
+        <Tarjeta>
+            <EstadoCargando Filas="5" />
+        </Tarjeta>
+    }
+    else if (_detalle is not null)
+    {
+        <CabeceraPagina Titulo="@_detalle.Nombre" Kicker="@Textos["KickerDetalle"]">
+            <JuntoAlTitulo>
+                @if (_detalle.EstaAbierto)
+                {
+                    <Badge Tono="TonoBadge.Exito">@Textos["BadgeAbierto"]</Badge>
+                }
+                else
+                {
+                    <Badge Tono="TonoBadge.Neutro">@Textos["EstadoCerradoConFecha", _detalle.FechaCierreReal!]</Badge>
+                }
+            </JuntoAlTitulo>
+            <Descripcion>
+                <span class="proyecto360-meta">
+                    <span>@Textos["MetaCentro"] <a class="proyecto360-enlace" href="@($"/centros/{_detalle.CentroId}")">@_detalle.CentroNombre</a></span>
+                    <span aria-hidden="true">·</span>
+                    <span>@Textos["MetaCliente"] <a class="proyecto360-enlace" href="@($"/clientes/{_detalle.ClienteId}")">@_detalle.ClienteRazonSocial</a></span>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                        <span class="texto-solo-lectores">@Textos["EtiquetaInicio"]: </span>@_detalle.FechaInicio.ToString("dd/MM/yyyy")
+                        <span aria-hidden="true">→</span>
+                        @if (_detalle.FechaFinPrevista is { } fin)
+                        {
+                            <span class="texto-solo-lectores">@Textos["EtiquetaFinPrevisto"]: </span>@fin.ToString("dd/MM/yyyy")
+                            <BotonCopiar Valor="@fin.ToString("dd/MM/yyyy")" Etiqueta="@Textos["CopiarLaFechaDeFin"]" />
+                        }
+                        else
+                        {
+                            @Textos["ListaSinFechaFinPrevista"]
+                        }
+                    </span>
+                </span>
+            </Descripcion>
+            <Acciones>
+                @* Editar, cerrar, reabrir, eliminar, asignar y dar de baja son ICommand que
+                   AutorizacionEscrituraBehavior deniega a Consulta: sin escritura no se ofrecen. *@
+                <SoloConEscritura>
+                    <span class="proyecto360-acciones">
+                        @if (_detalle.EstaAbierto)
+                        {
+                            <Boton Variante="VarianteBoton.Primario" OnClick="AbrirAsignarAsync">@Textos["AccionAsignarTecnico"]</Boton>
+                        }
+                        else
+                        {
+                            <Boton Variante="VarianteBoton.Primario" OnClick="() => _confirmarReabrirVisible = true">@Textos["AccionReabrir"]</Boton>
+                        }
+                        <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
+                            <ItemMenuAccion OnClick="AbrirEditar">@Textos["MenuEditarProyecto"]</ItemMenuAccion>
+                            @if (_detalle.EstaAbierto)
+                            {
+                                <ItemMenuAccion OnClick="AbrirCerrar">@Textos["MenuCerrarProyecto"]</ItemMenuAccion>
+                            }
+                            <ItemMenuAccion Destructivo="true" OnClick="() => _confirmarEliminarVisible = true">@Textos["MenuEliminarProyecto"]</ItemMenuAccion>
+                        </MenuAcciones>
+                    </span>
+                </SoloConEscritura>
+            </Acciones>
+        </CabeceraPagina>
+
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaSecciones"]">
+            <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
+                <ChildContent>
+                    @if (PestanaActiva == PestanaDocumentos)
+                    {
+                        @PestanaDeDocumentos
+                    }
+                    else
+                    {
+                        @PestanaDeTecnicos
+                    }
+                </ChildContent>
+                <Lateral>
+                    <Tarjeta Titulo="@Textos["PestanaInformacion"]" Compacta="true">
+                        <AccionesHeader>
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditar">@Textos["EditarFlecha"]</Boton>
+                            </SoloConEscritura>
+                        </AccionesHeader>
+                        <ChildContent>
+                            <RejillaDatos>
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaCliente"]" Valor="@_detalle.ClienteRazonSocial" Ancho="true" />
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_detalle.CentroNombre" />
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaInicio"]" Valor="@_detalle.FechaInicio.ToString("dd/MM/yyyy")" />
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaFinPrevisto"]" Valor="@(_detalle.FechaFinPrevista?.ToString("dd/MM/yyyy") ?? Textos["FinIndefinido"].Value)" />
+                            </RejillaDatos>
+                        </ChildContent>
+                    </Tarjeta>
+
+                    <Tarjeta Titulo="@Textos["ListaPlazo"]" Compacta="true">
+                        @if (PorcentajeDelPlazo is { } porcentaje)
+                        {
+                            <span class="proyecto360-plazo-barra" role="img" aria-label="@Textos["PlazoPorcentaje", porcentaje]">
+                                <span class="proyecto360-plazo-avance" style="width:@(porcentaje)%"></span>
+                            </span>
+                        }
+                        <p class="proyecto360-plazo-titulo">@PlazoTitulo</p>
+                        @if (!string.IsNullOrEmpty(PlazoDetalle))
+                        {
+                            <p class="proyecto360-plazo-detalle">@PlazoDetalle</p>
+                        }
+                        <p class="proyecto360-nota">@Textos["PlazoNota"]</p>
+                    </Tarjeta>
+
+                    <Tarjeta Titulo="@Textos["EtiquetaNotas"]" Compacta="true">
+                        <AccionesHeader>
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditar">@Textos["EditarFlecha"]</Boton>
+                            </SoloConEscritura>
+                        </AccionesHeader>
+                        <ChildContent>
+                            <p class="proyecto360-notas">@(string.IsNullOrWhiteSpace(_detalle.Notas) ? Textos["SinNotas"].Value : _detalle.Notas)</p>
+                        </ChildContent>
+                    </Tarjeta>
+                </Lateral>
+            </CuerpoConLateral>
+        </Pestanas>
+    }
+</div>
+
+@* Los dos formularios son laterales (kit S12): guardián de cambios, «Cancelar» como la X,
+   primario único con su estado y aviso de navegación vienen del kit. *@
+<DrawerFormulario Visible="_editarVisible" VisibleChanged="CambiarVisibilidadEditar" Titulo="@Textos["MenuEditarProyecto"]"
+                 HayCambios="() => HayCambiosEnEdicion" Guardando="_guardandoEdicion" MensajeError="@_editError"
+                 HayErroresDeCampo="@(_editErrores.Count > 0)" OnGuardar="GuardarEdicionAsync"
+                 TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <CampoTexto Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_editNombre" ValorChanged="v => _editNombre = v"
+                MensajeError="@(_editErrores.GetValueOrDefault("Nombre"))" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaFinPrevistoOpcional"]" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v" />
+    <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_editNotas" ValorChanged="v => _editNotas = v"
+                MensajeError="@(_editErrores.GetValueOrDefault("Notas"))" />
+</DrawerFormulario>
+
+<DrawerFormulario Visible="_asignarVisible" VisibleChanged="CambiarVisibilidadAsignar" Titulo="@Textos["AccionAsignarTecnico"]"
+                 HayCambios="() => HayCambiosEnAsignar" Guardando="_asignando" MensajeError="@_errorTecnico"
+                 Cargando="_cargandoTrabajadores" OnGuardar="AsignarTecnicoAsync"
+                 TextoGuardar="@Textos["BotonAsignar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <CampoSelect Etiqueta="@Textos["EtiquetaTecnico"]" Valor="@_nuevoTecnicoTrabajadorId" ValorChanged="v => { _nuevoTecnicoTrabajadorId = v; _errorTecnico = null; }">
+        <option value="">@Textos["OpcionElegirTecnico"]</option>
+        @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresDisponibles))
+        {
+            <option value="@trabajador.Id">@trabajador.Texto</option>
+        }
+    </CampoSelect>
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_nuevoTecnicoFechaAlta" ValorChanged="v => { _nuevoTecnicoFechaAlta = v; _errorTecnico = null; }" />
+</DrawerFormulario>
+
+<ModalFormulario Visible="_cerrarVisible" VisibleChanged="v => _cerrarVisible = v" Titulo="@Textos["AccionCerrarProyecto"]"
+                 HayCambios="() => HayCambiosEnElModalDeCierre" Guardando="_cerrando" MensajeError="@_errorCierre"
+                 OnGuardar="ConfirmarCerrarAsync" TextoGuardar="@Textos["AccionCerrarProyecto"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <p>@Textos["ModalCerrarExplicacion"]</p>
+    <CampoTexto Etiqueta="@Textos["EtiquetaFechaCierre"]" Type="date" Valor="@_fechaCierre" ValorChanged="v => { _fechaCierre = v; _errorCierre = null; }" />
+</ModalFormulario>
+
+<DialogoConfirmacion
+    Visible="_confirmarReabrirVisible"
+    VisibleChanged="v => _confirmarReabrirVisible = v"
+    Titulo="@Textos["ConfirmarReabrirTitulo"]"
+    Mensaje="@MensajeConfirmarReabrir"
+    TextoBotonConfirmar="@Textos["AccionReabrirProyecto"]"
+    EnProgreso="_reabriendo"
+    OnConfirmar="ConfirmarReabrirAsync" />
+
+<DialogoConfirmacion
+    Visible="_confirmarEliminarVisible"
+    VisibleChanged="v => _confirmarEliminarVisible = v"
+    Titulo="@Textos["ConfirmarEliminarTitulo"]"
+    Mensaje="@Textos["ConfirmarEliminarMensaje", _detalle?.Nombre ?? string.Empty]"
+    EnProgreso="_eliminando"
+    OnConfirmar="ConfirmarEliminarAsync" />
+
+<DialogoConfirmacion
+    Visible="_tecnicoADarDeBaja is not null"
+    VisibleChanged="CerrarConfirmacionBajaTecnico"
+    Titulo="@Textos["ConfirmarBajaTecnicoTitulo"]"
+    Mensaje="@MensajeConfirmarBajaTecnico"
+    TextoBotonConfirmar="@Textos["BotonDarDeBaja"]"
+    EnProgreso="_dandoDeBajaTecnico"
+    OnConfirmar="ConfirmarBajaTecnicoAsync" />
+</LimiteDeErrores>
+
+@code {
+    private RenderFragment PestanaDeTecnicos => __builder =>
+    {
+        @if (_cargandoTecnicos)
+        {
+            <Tarjeta>
+                <EstadoCargando Filas="5" />
+            </Tarjeta>
+        }
+        else if (_errorTecnicos)
+        {
+            <Tarjeta>
+                <EstadoVacio Titulo="@Textos["ErrorTecnicosTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
+                    <Accion>
+                        <Boton Variante="VarianteBoton.Primario" OnClick="CargarTecnicosAsync">@Textos["BotonReintentar"]</Boton>
+                    </Accion>
+                </EstadoVacio>
+            </Tarjeta>
+        }
+        else if (_tecnicos.Count == 0)
+        {
+            <Tarjeta>
+                @if (ListasEditables)
+                {
+                    <EstadoVacio Titulo="@Textos["VacioTecnicosTitulo"]" Descripcion="@Textos["VacioTecnicosDescripcion"]">
+                        <Accion>
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Primario" OnClick="AbrirAsignarAsync">@Textos["BotonAsignarTecnico"]</Boton>
+                            </SoloConEscritura>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else
+                {
+                    <EstadoVacio Titulo="@Textos["VacioTecnicosTitulo"]" Descripcion="@Textos["VacioTecnicosDescripcion"]" />
+                }
+            </Tarjeta>
+        }
+        else
+        {
+            <Tarjeta>
+                @if (TecnicosActivos.Any())
+                {
+                    <ListaRelaciones Etiqueta="@Textos["ListaTecnicosActivos"]">
+                        @foreach (var tecnico in TecnicosActivos)
+                        {
+                            @FilaDeTecnico(tecnico)
+                        }
+                    </ListaRelaciones>
+                }
+                @if (TecnicosDeBaja is { Count: > 0 } deBaja)
+                {
+                    <h3 class="proyecto360-grupo">@Textos["GrupoDeBaja", deBaja.Count]</h3>
+                    <ListaRelaciones Etiqueta="@Textos["ListaTecnicosDeBaja"]">
+                        @foreach (var tecnico in deBaja)
+                        {
+                            @FilaDeTecnico(tecnico)
+                        }
+                    </ListaRelaciones>
+                }
+            </Tarjeta>
+        }
+    };
+
+    // El nombre abre la consulta rápida (panel) y el botón 360 lleva a la página 360 del
+    // Trabajador, como dibuja el mockup de esta ficha.
+    private RenderFragment FilaDeTecnico(TecnicoProyectoDto tecnico) => __builder =>
+    {
+        <FilaRelacion @key="tecnico.Id" Nombre="@tecnico.TrabajadorNombreCompleto" Iniciales="@AvatarTenant.Iniciales(tecnico.TrabajadorNombreCompleto)"
+                      OnNombre="() => AbrirPanelTrabajador(tecnico)" OnAbrir360="() => IrAFichaTrabajador(tecnico)">
+            <Detalle>@MetaTecnico(tecnico)</Detalle>
+            <Derecha>
+                @if (tecnico.EstaActivo)
+                {
+                    <Badge Tono="TonoBadge.Exito">@Textos["BadgeActivo"]</Badge>
+                    @if (ListasEditables)
+                    {
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => _tecnicoADarDeBaja = tecnico">@Textos["BotonDarDeBaja"]</Boton>
+                        </SoloConEscritura>
+                    }
+                }
+                else
+                {
+                    <Badge Tono="TonoBadge.Neutro">@Textos["BadgeDeBaja"]</Badge>
+                }
+            </Derecha>
+        </FilaRelacion>
+    };
+
+    private RenderFragment PestanaDeDocumentos => __builder =>
+    {
+        <Tarjeta>
+            <PestanaDocumentacion Ambito="AmbitoAplicacion.Proyecto" PropietarioId="_detalle!.Id" />
+            @* «Subir documento» para un proyecto todavía no existe: la única vía sigue siendo Documentos. *@
+            <p class="texto-vacio-seccion">@Textos["AyudaAdjuntarDocumento"]</p>
+            <a class="proyecto360-enlace" href="/documentos?Ambito=Proyecto">@Textos["EnlaceIrADocumentos"]</a>
+        </Tarjeta>
+    };
+}

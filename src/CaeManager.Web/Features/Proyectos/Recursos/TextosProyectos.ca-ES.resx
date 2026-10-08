@@ -344,4 +344,44 @@
   <data name="ListaPlazo" xml:space="preserve"><value>Termini</value></data>
   <data name="ListaProyecto" xml:space="preserve"><value>Projecte</value></data>
   <data name="ListaSinFechaFinPrevista" xml:space="preserve"><value>Sense data de fi prevista</value></data>
+  <data name="MigaProyectos" xml:space="preserve"><value>Proyectos (obras)</value></data>
+  <data name="EtiquetaMigas" xml:space="preserve"><value>Ruta de Proyecto 360</value></data>
+  <data name="TituloPestanaNavegadorDetalle" xml:space="preserve"><value>Proyecto</value></data>
+  <data name="KickerDetalle" xml:space="preserve"><value>Proyecto</value></data>
+  <data name="ErrorDetalleTitulo" xml:space="preserve"><value>No pudimos cargar este proyecto</value></data>
+  <data name="ErrorDetalleDescripcion" xml:space="preserve"><value>Puede que ya no exista o que no tengas acceso.</value></data>
+  <data name="MetaCentro" xml:space="preserve"><value>Centro:</value></data>
+  <data name="MetaCliente" xml:space="preserve"><value>Cliente empresarial:</value></data>
+  <data name="CopiarLaFechaDeFin" xml:space="preserve"><value>la fecha de fin previsto</value></data>
+  <data name="AccionAsignarTecnico" xml:space="preserve"><value>Asignar técnico</value></data>
+  <data name="AccionReabrir" xml:space="preserve"><value>Reabrir</value></data>
+  <data name="MenuMasAcciones" xml:space="preserve"><value>Más acciones</value></data>
+  <data name="MenuEditarProyecto" xml:space="preserve"><value>Editar proyecto</value></data>
+  <data name="MenuCerrarProyecto" xml:space="preserve"><value>Cerrar proyecto…</value></data>
+  <data name="MenuEliminarProyecto" xml:space="preserve"><value>Eliminar proyecto</value></data>
+  <data name="MenuAbrirPagina" xml:space="preserve"><value>Abrir página</value></data>
+  <data name="EnlaceAbrirPagina" xml:space="preserve"><value>Abrir página del proyecto →</value></data>
+  <data name="EtiquetaLateral" xml:space="preserve"><value>Contexto</value></data>
+  <data name="EditarFlecha" xml:space="preserve"><value>Editar →</value></data>
+  <data name="GlosaTecnicosActivos" xml:space="preserve"><value>técnicos activos</value></data>
+  <data name="GlosaDocumentosGestionados" xml:space="preserve"><value>documentos gestionados</value></data>
+  <data name="ErrorTecnicosTitulo" xml:space="preserve"><value>No pudimos cargar los técnicos</value></data>
+  <data name="ListaTecnicosActivos" xml:space="preserve"><value>Técnicos activos del proyecto</value></data>
+  <data name="ListaTecnicosDeBaja" xml:space="preserve"><value>Técnicos de baja del proyecto</value></data>
+  <data name="GrupoDeBaja" xml:space="preserve"><value>De baja · {0}</value></data>
+  <data name="PlazoDiasAbiertoUno" xml:space="preserve"><value>{0} día abierto</value></data>
+  <data name="PlazoDiasAbiertoVarios" xml:space="preserve"><value>{0} días abierto</value></data>
+  <data name="PlazoSinEmpezar" xml:space="preserve"><value>Todavía no ha empezado</value></data>
+  <data name="PlazoSinFinPrevisto" xml:space="preserve"><value>Sin fecha de fin prevista</value></data>
+  <data name="PlazoPorcentaje" xml:space="preserve"><value>{0} % del plazo previsto</value></data>
+  <data name="PlazoQuedanUno" xml:space="preserve"><value>queda {0} día</value></data>
+  <data name="PlazoQuedanVarios" xml:space="preserve"><value>quedan {0} días</value></data>
+  <data name="PlazoSuperadoUno" xml:space="preserve"><value>fin previsto superado hace {0} día</value></data>
+  <data name="PlazoSuperadoVarios" xml:space="preserve"><value>fin previsto superado hace {0} días</value></data>
+  <data name="PlazoCerradoEl" xml:space="preserve"><value>Cerrado el {0:dd/MM/yyyy}</value></data>
+  <data name="PlazoAntesDelFinUno" xml:space="preserve"><value>{0} día antes del fin previsto</value></data>
+  <data name="PlazoAntesDelFinVarios" xml:space="preserve"><value>{0} días antes del fin previsto</value></data>
+  <data name="PlazoDespuesDelFinUno" xml:space="preserve"><value>{0} día después del fin previsto</value></data>
+  <data name="PlazoDespuesDelFinVarios" xml:space="preserve"><value>{0} días después del fin previsto</value></data>
+  <data name="PlazoNota" xml:space="preserve"><value>Los días abiertos son la base de la facturación del proyecto.</value></data>
 </root>
