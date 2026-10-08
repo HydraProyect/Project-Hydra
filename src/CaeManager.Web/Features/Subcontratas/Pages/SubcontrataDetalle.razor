@@ -47,8 +47,7 @@
     }
     else if (_detalle is not null)
     {
-        @* Meta va como atributo: una ranura <Meta> la toma Razor por la etiqueta HTML vacía <meta>. *@
-        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["KickerSubcontrata360"]" Meta="MetaDeCabecera">
+        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["KickerSubcontrata360"]" Datos="DatosDeCabecera">
             <Anillo>
                 <AnilloCumplimiento Porcentaje="_cumplimiento?.Porcentaje" Tamano="TamanoAnillo.Cabecera"
                                     Etiqueta="@TextoAnillo" Leyenda="@LeyendaAnillo" />
@@ -386,7 +385,7 @@
 </LimiteDeErrores>
 
 @code {
-    private RenderFragment MetaDeCabecera => @<text>
+    private RenderFragment DatosDeCabecera => @<text>
         @if (_detalle is { } detalle)
         {
                 @if (!string.IsNullOrWhiteSpace(detalle.Cif))
