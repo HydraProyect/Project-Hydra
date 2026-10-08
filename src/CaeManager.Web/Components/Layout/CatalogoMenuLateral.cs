@@ -71,6 +71,33 @@ public sealed record EnlaceMenuLateral(
 }
 
 /// <summary>
+/// Una opción DENTRO de la página de un enlace del menú (una sección de Configuración, una pestaña de
+/// Documentos): no es un enlace del menú, solo lo que encuentra la lupa de la cabecera. Solo cabe aquí
+/// lo que se puede direccionar con una URL (ruta o <c>?pestana=</c>) y cuya autorización es exactamente
+/// la del enlace padre o una regla que el catálogo ya conoce: una subopción nunca concede nada.
+/// </summary>
+/// <param name="Id">Identificador estable.</param>
+/// <param name="EnlaceId">Enlace padre del catálogo: la subopción solo existe si ese enlace es visible para quien mira.</param>
+/// <param name="Ruta">Ruta relativa con su parámetro si lo lleva (<c>documentos?pestana=plantillas</c>).</param>
+/// <param name="ClaveRotulo">Clave del rótulo en los recursos localizados (nunca un literal: el menú se pinta en cada idioma).</param>
+/// <param name="Fuente">Recurso de donde sale el rótulo: el hub de Configuración para sus secciones (una sola fuente), o TextosComunes.</param>
+/// <param name="Condicion">Restricción propia además de la del padre; null si basta con ver el padre.</param>
+public sealed record SubopcionMenuLateral(
+    string Id,
+    string EnlaceId,
+    string Ruta,
+    string ClaveRotulo,
+    FuenteRotuloSubopcion Fuente,
+    Func<ContextoMenuLateral, bool>? Condicion = null);
+
+/// <summary>Recurso localizado del que sale el rótulo de una <see cref="SubopcionMenuLateral"/>.</summary>
+public enum FuenteRotuloSubopcion
+{
+    TextosComunes,
+    TextosConfiguracion,
+}
+
+/// <summary>
 /// Catálogo del menú lateral de los usuarios internos: cada grupo y cada enlace con su
 /// identificador estable, su regla de visibilidad y su posición por defecto (el orden de las
 /// listas). El menú del rol Cliente NO está aquí: es deliberadamente distinto y mínimo (Fase 31),
@@ -101,6 +128,14 @@ public static class CatalogoMenuLateral
     private const string RolesDeDashboardEjecutivo = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.Consulta}";
 
     private const string RolesDeCartera = $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
+
+    /// <summary>
+    /// Quién ve las pestañas de gestión documental de Documentos. Mismo valor que
+    /// <c>Documentos.RolesDeGestionDocumental</c> (lo vigila un test): la pestaña se pinta a todos,
+    /// pero su contenido solo a estos roles, y el menú no debe ofrecer un destino que la página niega.
+    /// </summary>
+    private const string RolesDeGestionDocumental =
+        $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}";
 
     public static IReadOnlyList<GrupoMenuLateral> Grupos { get; } =
     [
@@ -227,6 +262,66 @@ public static class CatalogoMenuLateral
         new("estado-comercial", "plataforma", "configuracion/comercial", "etiqueta", "Estado comercial"),
         new("conectores-cae", "plataforma", "plataforma/conectores-cae", "plataforma", "Conectores CAE"),
     ];
+
+    /// <summary>
+    /// Opciones que la lupa encuentra dentro de las páginas del menú. Criterio de inclusión: tiene URL
+    /// propia (ruta o <c>?pestana=</c>) y la misma autorización que su enlace padre o una regla del
+    /// catálogo. Quedan FUERA a propósito: las pestañas de Facturación y de los detalles por registro
+    /// (Proyectos, Empresas…), que se cambian en la página sin dejar rastro en la URL; y, dentro de
+    /// Configuración, las entradas que tienen autoridad propia distinta del rol Administrador del hub
+    /// (organización, plataforma, orden del menú y accesos a documentos sensibles).
+    /// </summary>
+    public static IReadOnlyList<SubopcionMenuLateral> Subopciones { get; } =
+    [
+        // Configuración: el hub resuelve /configuracion/{id}; los ids y las claves de rótulo son los de
+        // Configuracion.razor.cs (lo vigila un test). Visibilidad = la del enlace «configuracion»
+        // (rol Administrador), que es la misma [Authorize] del hub.
+        new("config-usuarios", "configuracion", "configuracion/usuarios", "EntradaUsuariosNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-roles", "configuracion", "configuracion/roles", "EntradaRolesNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-api", "configuracion", "configuracion/api", "EntradaApiNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-integraciones", "configuracion", "configuracion/integraciones", "EntradaIntegracionesNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-importar", "configuracion", "configuracion/importar", "EntradaImportarNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-tipos", "configuracion", "configuracion/tipos", "EntradaTiposNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-ia", "configuracion", "configuracion/ia", "EntradaIaNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-macros", "configuracion", "configuracion/macros", "EntradaMacrosNombre", FuenteRotuloSubopcion.TextosConfiguracion,
+            // Macros.razor.cs expulsa a /not-found sin Comunicaciones:Activo: mismo gate que el enlace «comunicaciones».
+            Condicion: c => c.ComunicacionesActivo),
+        new("config-params", "configuracion", "configuracion/params", "EntradaParamsNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-retencion", "configuracion", "configuracion/retencion", "EntradaRetencionNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-auditoria", "configuracion", "configuracion/auditoria", "EntradaAuditoriaNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-auditoria-ia", "configuracion", "configuracion/auditoria-ia", "EntradaAuditoriaIaNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+        new("config-automatizaciones", "configuracion", "configuracion/automatizaciones", "EntradaAutomatizacionesNombre", FuenteRotuloSubopcion.TextosConfiguracion),
+
+        // Pestañas de Documentos con deep-link ?pestana= (Documentos.IdDePestanaDeUrl). «Estado» es la
+        // propia página. Rótulos de la tira de pestañas de la página.
+        new("documentos-plataformas", "documentos", "documentos?pestana=plataforma", "MenuSubDocumentosPlataformas", FuenteRotuloSubopcion.TextosComunes,
+            Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
+        new("documentos-reclamaciones", "documentos", "documentos?pestana=reclamaciones", "MenuSubDocumentosReclamaciones", FuenteRotuloSubopcion.TextosComunes,
+            Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
+        new("documentos-preventivo", "documentos", "documentos?pestana=sugerencias", "MenuSubDocumentosPreventivo", FuenteRotuloSubopcion.TextosComunes),
+        new("documentos-revision-ia", "documentos", "documentos?pestana=revision-ia", "MenuSubDocumentosRevisionIa", FuenteRotuloSubopcion.TextosComunes,
+            Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
+        new("documentos-plantillas", "documentos", "documentos?pestana=plantillas", "MenuSubDocumentosPlantillas", FuenteRotuloSubopcion.TextosComunes,
+            Condicion: c => c.TieneAlgunRol(RolesDeGestionDocumental)),
+    ];
+
+    /// <summary>Una subopción visible con el enlace padre bajo el que se muestra.</summary>
+    public sealed record SubopcionVisible(SubopcionMenuLateral Subopcion, EnlaceMenuLateral Enlace);
+
+    /// <summary>
+    /// Las subopciones que <paramref name="contexto"/> puede ver: solo las de un enlace que ya está en
+    /// <paramref name="visibles"/> (mismos grupo y condición del catálogo) y que cumplen su propia
+    /// condición. Nunca añade un destino que el menú no ofrecería ya.
+    /// </summary>
+    public static IReadOnlyList<SubopcionVisible> SubopcionesVisibles(
+        ContextoMenuLateral contexto, IReadOnlyList<GrupoVisible> visibles)
+    {
+        var enlaces = visibles.SelectMany(g => g.Enlaces).ToDictionary(e => e.Id);
+        return Subopciones
+            .Where(s => enlaces.ContainsKey(s.EnlaceId) && (s.Condicion?.Invoke(contexto) ?? true))
+            .Select(s => new SubopcionVisible(s, enlaces[s.EnlaceId]))
+            .ToList();
+    }
 
     /// <summary>Un grupo visible con sus enlaces visibles, en el orden en que se pintan.</summary>
     public sealed record GrupoVisible(GrupoMenuLateral Grupo, IReadOnlyList<EnlaceMenuLateral> Enlaces);

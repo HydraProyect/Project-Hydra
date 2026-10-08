@@ -1,3 +1,36 @@
+/*
+    Barra de scroll de la barra lateral (y del cajón móvil, que pinta este mismo elemento): fina, con
+    el pulgar redondeado y de color apagado derivado de tokens. Los estándares (scrollbar-width y
+    scrollbar-color) mandan en Chromium 121+ y Firefox; el bloque ::-webkit-scrollbar solo cubre a
+    Safari y a Chromium anterior, por eso va tras @supports not (con los dos a la vez Chromium ignora
+    el segundo). Es el único sitio que la estiliza: base.css ya no lista .nav-principal.
+*/
+.nav-principal {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-text-muted) 45%, transparent) transparent;
+}
+
+@supports not (scrollbar-width: thin) {
+    .nav-principal::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .nav-principal::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .nav-principal::-webkit-scrollbar-thumb {
+        background-color: color-mix(in srgb, var(--color-text-muted) 40%, transparent);
+        border: 2px solid transparent;
+        background-clip: content-box;
+        border-radius: var(--radius-full);
+    }
+
+    .nav-principal::-webkit-scrollbar-thumb:hover {
+        background-color: color-mix(in srgb, var(--color-text-muted) 70%, transparent);
+    }
+}
+
 .nav-principal {
     display: flex;
     flex-direction: column;
@@ -91,22 +124,6 @@
     }
 }
 
-/* Entrada escalonada de los enlaces al abrir el grupo. */
-.nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item {
-    animation: nav-grupo-item-entra var(--motion-transition) var(--ease-fluid) backwards;
-}
-
-.nav-grupo-detalle[open] .nav-grupo-items .nav-fila:nth-child(1) ::deep .nav-item { animation-delay: 70ms; }
-.nav-grupo-detalle[open] .nav-grupo-items .nav-fila:nth-child(2) ::deep .nav-item { animation-delay: 120ms; }
-.nav-grupo-detalle[open] .nav-grupo-items .nav-fila:nth-child(n + 3) ::deep .nav-item { animation-delay: 170ms; }
-
-@keyframes nav-grupo-item-entra {
-    from {
-        opacity: 0;
-        transform: translateY(-4px);
-    }
-}
-
 @media (prefers-reduced-motion: reduce) {
     .nav-grupo-detalle::details-content {
         transition: none;
@@ -114,10 +131,6 @@
 
     .nav-grupo-titulo ::deep .icono {
         transition: none;
-    }
-
-    .nav-grupo-detalle[open] .nav-grupo-items ::deep .nav-item {
-        animation: none;
     }
 }
 
@@ -177,8 +190,9 @@
 }
 
 .nav-principal ::deep .nav-item.active {
+    /* La selección se distingue por fondo, color y peso: sin franja ni marco (ni inset, ni border-left). */
     background-color: var(--color-primary-50);
-    border-color: var(--color-primary-100);
+    border-color: transparent;
     color: var(--color-primary-500);
     font-weight: 600;
 }
@@ -189,10 +203,37 @@
 
 .nav-principal ::deep .nav-item.active:hover {
     background-color: var(--color-nav-activo-hover-fondo);
-    border-color: var(--color-primary-100);
+    /* El hover genérico de .nav-item pinta un marco gris: el seleccionado no lleva marco. */
+    border-color: transparent;
 }
 
-/* ---- Cabecera de herramientas: filtro rápido («/») y modo compacto ---- */
+/*
+    ---- Movimiento de los iconos: solo al pasar el cursor o al enfocar con teclado ----
+    Un único keyframe corto. Ni al cargar ni al abrir un grupo (ya no hay entrada escalonada). Las
+    animaciones propias de algunos glifos (campana, check, aro: Icono.razor.css) se apagan aquí para que
+    no se sumen a esta. Con prefers-reduced-motion no hay movimiento.
+*/
+@media (prefers-reduced-motion: no-preference) {
+    .nav-principal ::deep a.nav-item:is(:hover, :focus-visible) .icono {
+        animation: nav-icono-sacude var(--motion-transition) var(--ease-fluid);
+    }
+
+    .nav-principal ::deep a.nav-item .icono :is(.ic-campana-cuerpo, .ic-campana-badajo, .ic-trazo, .ic-aro) {
+        animation: none;
+    }
+}
+
+@keyframes nav-icono-sacude {
+    35% {
+        transform: scale(1.18) rotate(-8deg);
+    }
+
+    70% {
+        transform: scale(0.96) rotate(4deg);
+    }
+}
+
+/* ---- Cabecera de herramientas: lupa de búsqueda y modo compacto ---- */
 .nav-herramientas {
     position: sticky;
     top: calc(-1 * var(--space-4));
@@ -203,6 +244,96 @@
     margin-top: calc(-1 * var(--space-4));
     padding: var(--space-4) 0 var(--space-2);
     background-color: var(--color-surface);
+    /* El campo desplegable (.nav-busqueda) ocupa su propia fila y, recogido, no deja hueco. */
+    flex-wrap: wrap;
+    row-gap: 0;
+}
+
+.nav-lupa {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.nav-lupa:hover,
+.nav-lupa[aria-expanded="true"] {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+/* Campo desplegable bajo la cabecera: la altura se anima de 0 a su alto natural. */
+.nav-busqueda {
+    display: grid;
+    grid-template-rows: 0fr;
+    flex: 0 0 100%;
+    transition: grid-template-rows var(--motion-transition) var(--ease-fluid);
+}
+
+.nav-busqueda[data-abierta] {
+    grid-template-rows: 1fr;
+}
+
+.nav-busqueda-interior {
+    min-height: 0;
+    overflow: hidden;
+    /* Holgura para que el anillo de foco del campo no se recorte con overflow: hidden. */
+    padding: 0 var(--space-1) var(--space-1);
+    margin-inline: calc(-1 * var(--space-1));
+}
+
+/* Resultados dentro de las páginas (opciones de Configuración, pestañas de Documentos). */
+.nav-resultados {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding-top: var(--space-2);
+    /* La cabecera es sticky: una lista larga no puede ocupar toda la altura de la barra. */
+    max-height: 40vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.nav-resultados[hidden],
+.nav-resultado[hidden] {
+    display: none;
+}
+
+.nav-resultados-titulo {
+    padding: 0 var(--space-3);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.nav-resultado {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    color: var(--color-text);
+    font: var(--font-body-md);
+    text-decoration: none;
+}
+
+.nav-resultado:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.nav-resultado-padre {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nav-busqueda {
+        transition: none;
+    }
 }
 
 .nav-filtro {
@@ -217,6 +348,7 @@
     border-radius: var(--radius-md);
     background-color: var(--color-surface);
     color: var(--color-text-muted);
+    margin-top: var(--space-2);
 }
 
 .nav-filtro:focus-within {
@@ -232,14 +364,6 @@
     background: none;
     color: var(--color-text);
     font: var(--font-body-sm);
-}
-
-.nav-filtro-tecla {
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    padding: 0 var(--space-1);
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
 }
 
 .nav-compactar {
@@ -377,6 +501,8 @@
 .nav-principal ::deep .nav-item:focus-visible,
 .nav-grupo-titulo:focus-visible,
 .nav-compactar:focus-visible,
+.nav-lupa:focus-visible,
+.nav-resultado:focus-visible,
 .nav-fijar:focus-visible {
     outline: 2px solid var(--color-primary-500);
     outline-offset: -2px;
@@ -399,7 +525,8 @@ html[data-menu-compacto] .barra-lateral .nav-principal {
     padding-inline: var(--space-2);
 }
 
-html[data-menu-compacto] .barra-lateral .nav-filtro,
+html[data-menu-compacto] .barra-lateral .nav-lupa,
+html[data-menu-compacto] .barra-lateral .nav-busqueda,
 html[data-menu-compacto] .barra-lateral .nav-fijar,
 html[data-menu-compacto] .barra-lateral .nav-fijados-titulo,
 html[data-menu-compacto] .barra-lateral .nav-grupo-titulo {
