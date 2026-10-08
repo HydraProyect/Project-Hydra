@@ -23,13 +23,38 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     private const string EmpresaDeLaMaqueta = "Montajes Skynet S.L.";
     private const string ClienteEmpresarialDeLaMaqueta = "Cyberdyne Ibérica S.A.";
 
-    /// <summary>Pareja ficha ↔ mockup. La ruta se resuelve por la razón social sembrada.</summary>
-    private sealed record Pareja(string Clave, string Ruta, string RazonSocial, Mockup360 Mockup);
+    private const string TipoDeDocumentoDeLaMaqueta = "Entrega de EPI";
+
+    /// <summary>Id de una Empresa del Tenant por su razón social: la consulta de una pareja que no declara otra.</summary>
+    private const string ConsultaIdDeEmpresa =
+        """
+        SELECT e."Id"::text FROM "Empresas" e JOIN "Tenants" t ON t."Id" = e."TenantId"
+        WHERE e."RazonSocial" = @valor AND t."Nombre" = @tenant
+        """;
+
+    private const string ConsultaIdDeTipoDeDocumento =
+        """
+        SELECT d."Id"::text FROM "TiposDocumento" d JOIN "Tenants" t ON t."Id" = d."TenantId"
+        WHERE d."Nombre" = @valor AND t."Nombre" = @tenant
+        """;
+
+    /// <summary>
+    /// Pareja ficha ↔ mockup. La ruta se resuelve por un valor sembrado: la razón social de una Empresa o, si la ficha
+    /// se localiza por otra tabla, lo que busque su <paramref name="ConsultaId"/> (SQL que devuelve el id como texto,
+    /// con los parámetros <c>@valor</c> y <c>@tenant</c>).
+    /// </summary>
+    private sealed record Pareja(string Clave, string Ruta, string Valor, Mockup360 Mockup, string? ConsultaId = null);
 
     private static readonly Pareja[] Parejas =
     [
         new("empresa-360", "/empresas/", EmpresaDeLaMaqueta, Mockup360.PaginaDc("Empresa 360 página TALVEG.dc.html")),
         new("cliente-empresarial-360", "/clientes/", ClienteEmpresarialDeLaMaqueta, Mockup360.PaginaDc("Cliente 360 página TALVEG.dc.html")),
+        new("tipo-documento-360", "/documentos/tipos/", TipoDeDocumentoDeLaMaqueta,
+            Mockup360.PorConvencion(
+                "Tipo Documento 360 página TALVEG.dc.html",
+                "[data-pieza=\"lateral\"] [data-pieza=\"tarjeta\"]",
+                tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme"),
+            ConsultaIdDeTipoDeDocumento),
     ];
 
     public static TheoryData<string, string> ParejasPorTema()
@@ -44,15 +69,11 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         return datos;
     }
 
-    private async Task<IPage> AbrirFichaAsync(IBrowserContext contexto, string ruta, string razonSocial, string tema)
+    private async Task<IPage> AbrirFichaAsync(IBrowserContext contexto, string ruta, string valor, string tema, string? consultaId = null)
     {
         var email = await fixture.LeerValorSqlAsync(
             """SELECT "Email" FROM "AspNetUsers" WHERE "Email" LIKE 'coordinador1.%@caemanager.local' """);
-        var id = await fixture.LeerValorSqlAsync(
-            """
-            SELECT e."Id"::text FROM "Empresas" e JOIN "Tenants" t ON t."Id" = e."TenantId"
-            WHERE e."RazonSocial" = @razon AND t."Nombre" = @tenant
-            """, ("razon", razonSocial), ("tenant", TenantPizzaPlanet));
+        var id = await fixture.LeerValorSqlAsync(consultaId ?? ConsultaIdDeEmpresa, ("valor", valor), ("tenant", TenantPizzaPlanet));
 
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
@@ -147,7 +168,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
 
         await Fidelidad360.CapturarAsync(paginaMockup, Path.Combine(salida, "mockup.png"));
 
-        var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.RazonSocial, tema);
+        var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.Valor, tema, pareja.ConsultaId);
         var ficha = await Fidelidad360.MedirAsentadoAsync(paginaFicha, "ficha", SelectoresDeLado.Convencion());
         await Fidelidad360.CapturarAsync(paginaFicha, Path.Combine(salida, "ficha.png"));
 
@@ -160,7 +181,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         var texto = new StringBuilder();
         texto.AppendLine(CultureInfo.InvariantCulture, $"## {pareja.Clave} · tema {tema}");
         texto.AppendLine();
-        texto.AppendLine(CultureInfo.InvariantCulture, $"Mockup: `{pareja.Mockup.Fichero}`. Ficha: `{pareja.Ruta}{{id}}` de «{pareja.RazonSocial}». Ventana {Fidelidad360.Ancho}×{Fidelidad360.Alto}.");
+        texto.AppendLine(CultureInfo.InvariantCulture, $"Mockup: `{pareja.Mockup.Fichero}`. Ficha: `{pareja.Ruta}{{id}}` de «{pareja.Valor}». Ventana {Fidelidad360.Ancho}×{Fidelidad360.Alto}.");
         texto.AppendLine(CultureInfo.InvariantCulture, $"Píxeles distintos entre capturas: {fraccion.ToString("P1", CultureInfo.InvariantCulture)} (indicador; ver `diferencia.png`).");
         if (mockupSinEsteTema)
             texto.AppendLine().AppendLine("**EL MOCKUP NO TIENE TEMA OSCURO**: pedirlo no cambió su fondo. La tabla compara la ficha en oscuro con un mockup en claro y no mide fidelidad.");
