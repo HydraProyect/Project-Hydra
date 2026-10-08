@@ -33,6 +33,14 @@ namespace CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 /// (<see cref="IBloqueoCarteraUsuario"/>): espera a una desactivación con traspaso en curso y,
 /// si la cuenta quedó desactivada, no le asigna nada (retirar sí se permite).
 /// </para>
+///
+/// <para>
+/// <b>Relevo del principal</b>: si una cartera retirada era la principal de su Asignación de
+/// Operación, la marca pasa en la misma transacción al Coordinador CAE de ese Gestor CAE
+/// (<see cref="RelevoDePrincipalDeCartera"/>): se marca su cartera viva o se le emite una de
+/// Coordinador CAE. Las carteras de apoyo no se tocan. Sin Coordinador CAE, la operación
+/// queda sin principal.
+/// </para>
 /// </summary>
 public record AsignarCarteraGestorCaeCommand(
     Guid GestorUsuarioId,
@@ -142,6 +150,18 @@ public class AsignarCarteraGestorCaeCommandHandler(
                 if (aAsignar.Count > 0 && !vigente.Valor.GestorActivo)
                     return Result.Fallo(GestorDesactivado);
 
+                // Qué operaciones se van a quedar sin principal, leído antes de cerrar nada (el
+                // cierre apaga la marca), y a quién se releva.
+                var sinPrincipal = aRetirar.Count == 0
+                    ? []
+                    : (await catalogo.ObtenerOperacionesDondeEsPrincipalAsync(ctx.OperadorTenantId, ctx.GestorUsuarioId, ct))
+                        .Where(o => aRetirar.Contains(o.PropietarioTenantId))
+                        .ToList();
+                var coordinadorDeRelevo = sinPrincipal.Count == 0
+                    ? null
+                    : await RelevoDePrincipalDeCartera.ResolverCoordinadorAsync(
+                        ctx.GestorUsuarioId, ctx.OperadorTenantId, directorioDestinos, directorioUsuarios, ct);
+
                 foreach (var propietarioTenantId in aRetirar)
                 {
                     var retirada = await EnPropietarioAsync(propietarioTenantId, async () =>
@@ -152,6 +172,11 @@ public class AsignarCarteraGestorCaeCommandHandler(
                     if (retirada.EsFallido)
                         return retirada;
                 }
+
+                // Con los cierres ya guardados: el índice único de principal no es diferible.
+                if (!await RelevoDePrincipalDeCartera.RelevarAsync(
+                        catalogo, sinPrincipal, ctx.OperadorTenantId, coordinadorDeRelevo, ct))
+                    return Result.Fallo(CarteraNoGuardada);
 
                 foreach (var operacion in operaciones)
                 {

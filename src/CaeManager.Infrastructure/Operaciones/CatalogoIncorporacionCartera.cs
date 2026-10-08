@@ -23,6 +23,14 @@ public class CatalogoIncorporacionCartera(
     /// </summary>
     private const string RolIncorporado = Roles.GestorCae;
 
+    /// <summary>
+    /// El rol de la cartera que el relevo automático del principal emite al Coordinador CAE
+    /// (ADR-011 § 2.7, enmienda 2026-10-08, puntos 2 y 3). Fijo, como <see cref="RolIncorporado"/>:
+    /// ningún llamante elige el rol de una cartera emitida aquí, y la Operación nunca concede
+    /// roles de Propiedad (Administrador, Dirección CAE).
+    /// </summary>
+    private const string RolDeRelevo = Roles.CoordinadorCae;
+
     public async Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerCandidatosAsync(
         Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default)
     {
@@ -175,18 +183,18 @@ public class CatalogoIncorporacionCartera(
     }
 
     /// <summary>
-    /// Las Asignaciones de Cartera universales vigentes del usuario, con rol Gestor CAE, sobre
-    /// una operación externa no raíz de este Operador CAE. Una sola definición para listar lo
-    /// que se puede retirar y para retirarlo.
+    /// Las Asignaciones de Cartera vivas de Gestor CAE y de Coordinador CAE de este Operador
+    /// CAE: vigentes hoy, del Tenant entero, sobre una operación externa no raíz suya. Una sola
+    /// definición para leer quién es principal y quién de apoyo, para encender la marca y para
+    /// listar y retirar la cartera de un Gestor CAE.
     /// </summary>
-    private IQueryable<AsignacionCartera> CarterasUniversalesDelGestor(Guid operadorTenantId, Guid usuarioId)
+    private IQueryable<AsignacionCartera> CarterasVivasDelOperador(Guid operadorTenantId)
     {
         var ahora = DateTime.UtcNow;
 
         return from c in dbContext.AsignacionesCartera
                join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
-               where c.UsuarioId == usuarioId
-                     && c.Rol == RolIncorporado
+               where (c.Rol == RolIncorporado || c.Rol == RolDeRelevo)
                      && c.Estado == EstadoAsignacion.Vigente
                      && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
                      && c.AmbitoRelacionClienteId == null
@@ -199,6 +207,162 @@ public class CatalogoIncorporacionCartera(
                      && c.PropietarioTenantId != operadorTenantId
                select c;
     }
+
+    /// <summary>
+    /// Las Asignaciones de Cartera universales vigentes del usuario, con rol Gestor CAE, sobre
+    /// una operación externa no raíz de este Operador CAE. Una sola definición para listar lo
+    /// que se puede retirar y para retirarlo.
+    /// </summary>
+    private IQueryable<AsignacionCartera> CarterasUniversalesDelGestor(Guid operadorTenantId, Guid usuarioId) =>
+        CarterasVivasDelOperador(operadorTenantId).Where(c => c.UsuarioId == usuarioId && c.Rol == RolIncorporado);
+
+    public async Task<IReadOnlyList<CarteraVivaDeOperacion>> ObtenerCarterasVivasAsync(
+        Guid operadorTenantId, Guid? propietarioTenantId, CancellationToken cancellationToken = default)
+    {
+        var vivas = await (
+            from c in CarterasVivasDelOperador(operadorTenantId)
+            join t in dbContext.Tenants on c.PropietarioTenantId equals t.Id
+            where propietarioTenantId == null || c.PropietarioTenantId == propietarioTenantId
+            select new CarteraVivaDeOperacion(
+                c.AsignacionOperacionId, c.PropietarioTenantId, t.Nombre, c.UsuarioId, c.Rol!, c.EsPrincipal, c.VigenciaHasta))
+            .ToListAsync(cancellationToken);
+
+        return vivas
+            .OrderBy(c => c.NombreTenant)
+            .ThenBy(c => c.AsignacionOperacionId)
+            .ThenByDescending(c => c.EsPrincipal)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<OperacionConPrincipal>> ObtenerOperacionesDondeEsPrincipalAsync(
+        Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+        await (
+            from c in dbContext.AsignacionesCartera
+            join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+            where c.UsuarioId == usuarioId
+                  && c.EsPrincipal
+                  && c.Estado != EstadoAsignacion.Cerrada
+                  && !o.EsRaiz
+                  && o.OperadorTenantId == operadorTenantId
+                  && c.PropietarioTenantId != operadorTenantId
+            select new OperacionConPrincipal(c.PropietarioTenantId, c.AsignacionOperacionId))
+            .ToListAsync(cancellationToken);
+
+    public async Task<bool> ApagarPrincipalAsync(
+        Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioEsperadoId,
+        CancellationToken cancellationToken = default)
+    {
+        var principal = await dbContext.AsignacionesCartera
+            .FirstOrDefaultAsync(c => c.AsignacionOperacionId == asignacionOperacionId
+                                      && c.OperadorTenantId == operadorTenantId
+                                      && c.EsPrincipal
+                                      && c.Estado != EstadoAsignacion.Cerrada, cancellationToken);
+        if (principal is null || principal.UsuarioId != usuarioEsperadoId)
+            return false;
+
+        principal.DejarDeSerPrincipal();
+        return true;
+    }
+
+    public async Task<bool> EncenderPrincipalAsync(
+        Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId,
+        CancellationToken cancellationToken = default)
+    {
+        var operacion = await OperacionExternaDelOperadorAsync(asignacionOperacionId, operadorTenantId, cancellationToken);
+        if (operacion is null || await PrincipalDeOperacion.HayPrincipalVivoAsync(dbContext, operacion, cancellationToken))
+            return false;
+
+        var cartera = await CarterasVivasDelOperador(operadorTenantId)
+            .FirstOrDefaultAsync(c => c.AsignacionOperacionId == asignacionOperacionId && c.UsuarioId == usuarioId, cancellationToken);
+        if (cartera is null)
+            return false;
+
+        cartera.DesignarPrincipal();
+        return true;
+    }
+
+    public async Task<ResultadoRelevoPrincipal> RelevarPrincipalAsync(
+        Guid propietarioTenantId, Guid operadorTenantId, Guid asignacionOperacionId, Guid coordinadorUsuarioId,
+        CancellationToken cancellationToken = default)
+    {
+        var operacion = await OperacionExternaDelOperadorAsync(asignacionOperacionId, operadorTenantId, cancellationToken);
+        if (operacion is null
+            || operacion.PropietarioTenantId != propietarioTenantId
+            || operacion.Estado == EstadoAsignacion.Cerrada
+            || await PrincipalDeOperacion.HayPrincipalVivoAsync(dbContext, operacion, cancellationToken))
+            return ResultadoRelevoPrincipal.SinRelevo;
+
+        var ahora = DateTime.UtcNow;
+        var suyas = await dbContext.AsignacionesCartera
+            .Where(c => c.AsignacionOperacionId == asignacionOperacionId
+                        && c.UsuarioId == coordinadorUsuarioId
+                        && c.Estado != EstadoAsignacion.Cerrada)
+            .ToListAsync(cancellationToken);
+
+        var marcable = suyas.FirstOrDefault(c =>
+            c.Estado == EstadoAsignacion.Vigente
+            && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+            && c.Ambito.EsUniversal
+            && (c.Rol == RolIncorporado || c.Rol == RolDeRelevo));
+        if (marcable is not null)
+        {
+            marcable.DesignarPrincipal();
+            return ResultadoRelevoPrincipal.CarteraExistenteMarcada;
+        }
+
+        // Ya tiene otra cartera no cerrada bajo esta operación (de Consulta, suspendida): el
+        // relevo no la sustituye ni le pone otra al lado. No se ensancha en silencio el alcance
+        // que otro decidió; la operación queda sin principal.
+        if (suyas.Count > 0)
+            return ResultadoRelevoPrincipal.SinRelevo;
+
+        // Emitir exige lo mismo que IncorporarAsync: operación vigente hoy y delegación viva.
+        if (await ObtenerOperacionVigenteAsync(asignacionOperacionId, cancellationToken) is null)
+            return ResultadoRelevoPrincipal.SinRelevo;
+
+        var vinculo = await dbContext.DelegacionesTenant
+            .Where(d => d.TenantClienteId == propietarioTenantId
+                        && d.TenantConsultoraId == operadorTenantId
+                        && d.Proposito == PropositoDelegacion.OperadorExterno
+                        && d.Activa
+                        && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
+            .OrderBy(d => d.CreadoEnUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (vinculo is null)
+            return ResultadoRelevoPrincipal.SinRelevo;
+
+        // La fila heredada es única por delegación y usuario y su rol no cambia: si el
+        // Coordinador CAE ya tiene una de Coordinador CAE se reutiliza; si la tiene de otro rol,
+        // alguien decidió ese acceso y el relevo no lo cambia.
+        var filaHeredada = await dbContext.AsignacionesOperadorDelegado
+            .FirstOrDefaultAsync(a => a.DelegacionTenantId == vinculo.Id && a.UsuarioId == coordinadorUsuarioId, cancellationToken);
+        if (filaHeredada is not null && filaHeredada.Rol != RolDeRelevo)
+            return ResultadoRelevoPrincipal.SinRelevo;
+
+        var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        var cartera = AsignacionCartera.Externa(
+            operacion, coordinadorUsuarioId, RolDeRelevo, AmbitoAsignacion.Universal,
+            ahora, vigenciaHasta: null, ahora, actorId);
+        cartera.DesignarPrincipal();
+        dbContext.AsignacionesCartera.Add(cartera);
+
+        // Misma doble escritura de F1 que IncorporarAsync: sin la fila heredada el Coordinador
+        // CAE tendría la cartera y no vería el Tenant en el selector.
+        if (filaHeredada is null)
+            dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(vinculo.Id, coordinadorUsuarioId, RolDeRelevo));
+
+        return ResultadoRelevoPrincipal.CarteraEmitida;
+    }
+
+    /// <summary>La operación externa, no raíz, de este Operador CAE; <c>null</c> si el Id es de otra.</summary>
+    private Task<AsignacionOperacion?> OperacionExternaDelOperadorAsync(
+        Guid asignacionOperacionId, Guid operadorTenantId, CancellationToken cancellationToken) =>
+        dbContext.AsignacionesOperacion.FirstOrDefaultAsync(
+            o => o.Id == asignacionOperacionId
+                 && !o.EsRaiz
+                 && o.OperadorTenantId == operadorTenantId
+                 && o.PropietarioTenantId != operadorTenantId, cancellationToken);
 
     public async Task<IReadOnlyList<TenantEnCarteraDeGestor>> ObtenerCarteraUniversalAsync(
         Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default)
@@ -275,7 +439,8 @@ public class CatalogoIncorporacionCartera(
         "IX_AsignacionesCartera_UsuarioUniversalVigente",
         // Dos emisiones simultáneas a Gestores CAE distintos sobre una operación sin principal:
         // las dos nacen marcadas y el índice deja pasar una. La que pierde se reintenta y nace
-        // sin marca.
+        // sin marca. También lo pierden una designación de principal o un relevo que llegan
+        // cuando otro ya puso la marca: fallan enteros, dentro de su transacción.
         AsignacionCarteraConfiguration.IndicePrincipalPorOperacion,
         "IX_AsignacionesOperadorDelegado_DelegacionTenantId_UsuarioId",
     ];

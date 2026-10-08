@@ -5,6 +5,7 @@ using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
+using CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Application.Usuarios.Commands.EditarUsuario;
@@ -12,6 +13,7 @@ using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.RestablecerSegundoFactor;
 using CaeManager.Application.Usuarios.Queries.ObtenerCarteraDeGestorCae;
+using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
 using CaeManager.Application.Usuarios.Queries.ObtenerEmpresasAsignablesEnAlta;
 using CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
@@ -627,18 +629,21 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         if (rol == Roles.CoordinadorCae)
         {
-            // Un Coordinador CAE no tiene cartera propia: alcanza la unión de
-            // las de los Gestores CAE que tiene asignados (ver
-            // AlcanceDatosService.ObtenerCarteraParaCoordinadorAsync).
-            // Mirar la suya sería mirar donde nunca hay nada.
+            // Un Coordinador CAE alcanza la unión de las carteras de los Gestores CAE
+            // que tiene asignados más la suya propia, si la tiene (ver
+            // AlcanceDatosService.ObtenerCarteraParaCoordinadorAsync y ADR-011 § 2.7,
+            // enmienda 2026-10-08, punto 2).
             var gestores = gestoresPorCoordinador[usuario.Id].ToList();
-            if (gestores.Count == 0)
+            var tienePropia = carteras.ContainsKey(usuario.Id);
+            if (gestores.Count == 0 && !tienePropia)
                 return new("Sin gestores asignados", true,
-                    "Un Coordinador CAE alcanza lo que alcanzan los Gestores CAE que tiene asignados. Sin ninguno, no ve nada.");
+                    "Un Coordinador CAE alcanza lo que alcanzan los Gestores CAE que tiene asignados y su propia Asignación de Cartera. Sin ninguna de las dos, no ve nada.");
 
             return DesdeCarteras(
-                gestores.Where(carteras.ContainsKey).Select(id => carteras[id]).ToList(),
-                explicacion: $"A través de {DescribirCantidad(gestores.Count, "Gestor CAE", "Gestores CAE")} que tiene asignados.",
+                gestores.Prepend(usuario.Id).Where(carteras.ContainsKey).Select(id => carteras[id]).ToList(),
+                explicacion: tienePropia
+                    ? $"Por su propia Asignación de Cartera y a través de {DescribirCantidad(gestores.Count, "Gestor CAE", "Gestores CAE")} que tiene asignados."
+                    : $"A través de {DescribirCantidad(gestores.Count, "Gestor CAE", "Gestores CAE")} que tiene asignados.",
                 explicacionSinAlcance: "Sus Gestores CAE no tienen ninguna cartera vigente, así que tampoco él alcanza nada.");
         }
 
@@ -1375,14 +1380,21 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _usuarioAAsignarEmpresas = usuario;
         _empresasDelGestor = [];
         _empresasMarcadasDelGestor.Clear();
+        _carterasPorEmpresa = new Dictionary<Guid, CarterasDeOperacion>();
         _errorEmpresasDelGestor = null;
         _cargandoEmpresasDelGestor = true;
 
         try
         {
             var empresas = await Mediator.Send(new ObtenerCarteraDeGestorCaeQuery(usuario.Id), _ciclo.Token);
+            var carteras = await Mediator.Send(new ObtenerPersonasConCarteraQuery(), _ciclo.Token);
             if (_usuarioAAsignarEmpresas?.Id != usuario.Id) return;
             _empresasDelGestor = empresas;
+            // «Asignar empresas» asigna sobre una operación por empresa; si hubiera más de una
+            // con carteras, se pinta la que tiene a esta persona.
+            _carterasPorEmpresa = carteras
+                .GroupBy(c => c.TenantId)
+                .ToDictionary(g => g.Key, g => g.FirstOrDefault(c => TieneCartera(c, usuario.Id)) ?? g.First());
             foreach (var e in empresas.Where(e => e.EnCartera))
                 _empresasMarcadasDelGestor.Add(e.TenantId);
         }
@@ -1397,6 +1409,85 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         finally
         {
             _cargandoEmpresasDelGestor = false;
+        }
+    }
+
+    // --- Gestor CAE principal y de apoyo (ADR-011 § 2.7, enmienda 2026-10-08) ---
+
+    private IReadOnlyDictionary<Guid, CarterasDeOperacion> _carterasPorEmpresa = new Dictionary<Guid, CarterasDeOperacion>();
+    private Guid? _designandoPrincipalEn;
+
+    /// <summary>Lo que se pinta junto a una empresa que la persona ya tiene en su cartera.</summary>
+    private sealed record ResponsableEmpresa(string Rotulo, string? DeOtraPersona, bool SePuedeDesignar);
+
+    private static bool TieneCartera(CarterasDeOperacion operacion, Guid usuarioId) =>
+        operacion.Principal?.UsuarioId == usuarioId || operacion.Apoyos.Any(a => a.UsuarioId == usuarioId);
+
+    private string RotuloPrincipal(PersonaConCartera principal) =>
+        TextosUsuarios[principal.Rol == Roles.CoordinadorCae ? "PrincipalRotuloCoordinador" : "PrincipalRotuloGestor"];
+
+    /// <summary>
+    /// Solo presentación: si la persona del diálogo es la principal de la empresa o tiene una
+    /// cartera de apoyo, y quién es el principal si es otra. <c>null</c> si la lectura no trae
+    /// su cartera (quien mira no puede leerla, o cambió): no se pinta nada antes que algo falso.
+    /// </summary>
+    private ResponsableEmpresa? ResponsableDeEmpresa(Guid tenantId)
+    {
+        if (_usuarioAAsignarEmpresas is not { } usuario
+            || !_carterasPorEmpresa.TryGetValue(tenantId, out var operacion)
+            || !TieneCartera(operacion, usuario.Id))
+            return null;
+
+        if (operacion.Principal is { } principal && principal.UsuarioId == usuario.Id)
+            return new(RotuloPrincipal(principal), null, SePuedeDesignar: false);
+
+        var apoyo = operacion.Apoyos.First(a => a.UsuarioId == usuario.Id);
+        var rotulo = apoyo.VigenciaHasta is { } hasta
+            ? TextosUsuarios["PrincipalApoyoHasta", hasta.ToLocalTime().ToString("d")].Value
+            : TextosUsuarios["PrincipalApoyo"].Value;
+        var deOtra = operacion.Principal is { } otro
+            ? $"{RotuloPrincipal(otro)}: {otro.Nombre}"
+            : TextosUsuarios["PrincipalSin"].Value;
+
+        return new(rotulo, deOtra, SePuedeDesignar: usuario.Activo);
+    }
+
+    /// <summary>
+    /// Acto propio, no parte de «Guardar»: pasa la marca de principal de esa empresa a la
+    /// persona del diálogo y recarga quién responde de cada una. Las casillas no se tocan.
+    /// </summary>
+    private async Task DesignarPrincipalAsync(EmpresaDeCarteraDeGestor empresa)
+    {
+        if (_usuarioAAsignarEmpresas is not { } usuario || _designandoPrincipalEn is not null
+            || !_carterasPorEmpresa.TryGetValue(empresa.TenantId, out var operacion))
+            return;
+
+        _designandoPrincipalEn = empresa.TenantId;
+        _errorEmpresasDelGestor = null;
+        try
+        {
+            var resultado = await Mediator.Send(
+                new DesignarGestorCaePrincipalCommand(operacion.AsignacionOperacionId, usuario.Id), _ciclo.Token);
+            if (resultado.EsFallido)
+            {
+                _errorEmpresasDelGestor = resultado.Error.Mensaje;
+                return;
+            }
+
+            ToastService.Mostrar(TextosUsuarios["PrincipalDesignado", usuario.NombreCompleto, empresa.Nombre], TonoToast.Exito);
+            var carteras = await Mediator.Send(new ObtenerPersonasConCarteraQuery(), _ciclo.Token);
+            if (_usuarioAAsignarEmpresas?.Id != usuario.Id) return;
+            _carterasPorEmpresa = carteras
+                .GroupBy(c => c.TenantId)
+                .ToDictionary(g => g.Key, g => g.FirstOrDefault(c => TieneCartera(c, usuario.Id)) ?? g.First());
+        }
+        catch (OperationCanceledException)
+        {
+            // La pantalla ya no está.
+        }
+        finally
+        {
+            _designandoPrincipalEn = null;
         }
     }
 

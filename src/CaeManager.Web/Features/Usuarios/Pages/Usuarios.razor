@@ -451,6 +451,29 @@
                 <div class="lista-seleccion-multiple lista-seleccion-multiple-natural">
                     @foreach (var empresa in _empresasDelGestor)
                     {
+                        @* Quién responde de la empresa ante el Operador CAE (ADR-011 § 2.7, enmienda 2026-10-08):
+                           solo sobre lo ya guardado (EnCartera), fuera del label para que el botón no marque la casilla.
+                           La marca no cambia lo que la persona ve; quién puede designar lo decide DesignarGestorCaePrincipalCommand. *@
+                        var responsable = empresa.EnCartera ? ResponsableDeEmpresa(empresa.TenantId) : null;
+                        if (responsable is not null)
+                        {
+                            <p class="texto-ayuda-campo responsable-empresa" data-empresa="@empresa.TenantId">
+                                <strong>@responsable.Rotulo</strong>
+                                @if (responsable.DeOtraPersona is not null)
+                                {
+                                    <span> · @responsable.DeOtraPersona</span>
+                                }
+                                @if (responsable.SePuedeDesignar)
+                                {
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                           Deshabilitado="@(_guardandoEmpresasDelGestor || _designandoPrincipalEn is not null)"
+                                           Cargando="@(_designandoPrincipalEn == empresa.TenantId)"
+                                           OnClick="() => DesignarPrincipalAsync(empresa)">
+                                        @TextosUsuarios["PrincipalDesignar"]
+                                    </Boton>
+                                }
+                            </p>
+                        }
                         <label class="campo-checkbox">
                             <input type="checkbox"
                                    checked="@_empresasMarcadasDelGestor.Contains(empresa.TenantId)"

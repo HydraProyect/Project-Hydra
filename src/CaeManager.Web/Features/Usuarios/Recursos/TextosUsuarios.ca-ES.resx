@@ -54,6 +54,27 @@
   <data name="CarteraAltaAyuda" xml:space="preserve">
     <value>Gestionarà sencera cada empresa que marquis. Pots deixar-ho sense cap i assignar-les-hi després.</value>
   </data>
+  <data name="PrincipalRotuloGestor" xml:space="preserve">
+    <value>Gestor CAE principal</value>
+  </data>
+  <data name="PrincipalRotuloCoordinador" xml:space="preserve">
+    <value>Coordinador CAE principal</value>
+  </data>
+  <data name="PrincipalApoyo" xml:space="preserve">
+    <value>Suport</value>
+  </data>
+  <data name="PrincipalApoyoHasta" xml:space="preserve">
+    <value>Suport fins al {0}</value>
+  </data>
+  <data name="PrincipalSin" xml:space="preserve">
+    <value>Sense Gestor CAE principal</value>
+  </data>
+  <data name="PrincipalDesignar" xml:space="preserve">
+    <value>Designa principal</value>
+  </data>
+  <data name="PrincipalDesignado" xml:space="preserve">
+    <value>{0} és ara el Gestor CAE principal de {1}.</value>
+  </data>
   <data name="AsignarEmpresasAccion" xml:space="preserve">
     <value>Assignar empreses</value>
   </data>
