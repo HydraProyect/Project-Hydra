@@ -151,6 +151,16 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     /// </para>
     ///
     /// <para>
+    /// Actualizado 2026-10-08 (Gestor CAE principal, ADR-011 § 2.7): entran
+    /// <c>DesignarGestorCaePrincipalCommand.cs</c> (2 llamadas),
+    /// <c>RelevoDePrincipalDeCartera.cs</c> (3) y
+    /// <c>ObtenerPersonasConCarteraQuery.cs</c> (1). El Tenant propietario sale
+    /// siempre de una cartera viva leída del catálogo y acotada al Operador CAE
+    /// de origen; el otro Guid es ese mismo Tenant de origen. De la petición
+    /// solo llegan la Asignación de Operación y la persona.
+    /// </para>
+    ///
+    /// <para>
     /// Actualizado 2026-09-28 (cartera en el alta de un Gestor CAE):
     /// <c>CrearUsuarioCommand.cs</c> entra con 1 llamada, sobre cada Tenant
     /// beneficiario que el catálogo de incorporación a cartera da por asignable
@@ -267,6 +277,15 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Usuarios/Commands/AsignarCarteraGestorCae/AutoridadSobreCarteraDeGestorCae.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario,
                 "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y la cuenta del Gestor CAE en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
+        ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y las carteras de su Operador CAE; y destino.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerCarterasVivasAsync de ese Operador CAE de origen, tras autorizar al actor. De la petición solo salen la Asignación de Operación y la persona"),
+        ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "operadorTenantId, el Tenant de origen que el comando llamante ya resolvió y autorizó; y operacion.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerOperacionesDondeEsPrincipalAsync de ese Operador CAE. Ningún Guid llega de la petición"),
+        ["src/CaeManager.Application/Usuarios/Queries/ObtenerPersonasConCartera/ObtenerPersonasConCarteraQuery.cs"] =
+            new(Categoria.TenantDeOrigenDelUsuario,
+                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y los nombres de su propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
         ["src/CaeManager.Application/Usuarios/Queries/ObtenerEquipoDeCoordinador/ObtenerEquipoDeCoordinadorQuery.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario,
                 "ObtenerTenantOrigenIdAsync() del propio Coordinador CAE, para leer su rol en Identity y la lista de su equipo en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
@@ -461,6 +480,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
+            ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
+            ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] = 2,

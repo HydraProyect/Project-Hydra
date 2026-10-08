@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
@@ -25,6 +26,12 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 /// cartera retirada. El rol efectivo dentro del workspace sí se consulta sin
 /// memo. Cerrar ese hueco no depende de este Command, sino del alcance.
 /// </para>
+///
+/// <para>
+/// Si la cartera retirada era la principal de su Asignación de Operación, la marca pasa en la
+/// misma transacción al Coordinador CAE de esa persona (<see cref="RelevoDePrincipalDeCartera"/>);
+/// sin Coordinador CAE, la operación queda sin principal.
+/// </para>
 /// </summary>
 public record RevocarIncorporacionCarteraCommand(Guid SolicitudId) : ICommand;
 
@@ -36,7 +43,10 @@ public class RevocarIncorporacionCarteraCommandHandler(
     INotificacionUsuarioRepository notificaciones,
     ITenantsQueryContext tenants,
     IUnitOfWork unitOfWork,
-    ILogger<RevocarIncorporacionCarteraCommandHandler> logger)
+    ILogger<RevocarIncorporacionCarteraCommandHandler> logger,
+    ITransaccionDeComando transaccion,
+    IDirectorioDestinosCartera directorioDestinos,
+    IBloqueoCarteraUsuario bloqueoCartera)
     : IRequestHandler<RevocarIncorporacionCarteraCommand, Result>
 {
     public async Task<Result> Handle(RevocarIncorporacionCarteraCommand request, CancellationToken cancellationToken)
@@ -49,32 +59,56 @@ public class RevocarIncorporacionCarteraCommandHandler(
 
         using (ctx.EnOrigen())
         {
-            var solicitud = await repositorio.ObtenerPorIdAsync(request.SolicitudId, ctx.OperadorTenantId, cancellationToken);
-            if (solicitud is null)
-                return Result.Fallo(ErroresSolicitudCartera.NoEncontrada);
+            SolicitudIncorporacionCartera? revocada = null;
 
-            var esLaSuya = solicitud.SolicitanteUsuarioId == ctx.UsuarioId;
-            if (!ctx.EsCoordinadorCae && !esLaSuya)
-                return Result.Fallo(ErroresSolicitudCartera.SinPermiso);
-
-            if (solicitud.Estado != EstadoSolicitudIncorporacionCartera.Aceptada)
-                return Result.Fallo(ErroresSolicitudCartera.NoRevocable);
-
-            // Mismo motivo que al aceptar: la cartera se cierra en el Tenant
-            // propietario, y el Guid sale de la solicitud ya cargada y
-            // autorizada. Cierre, borrado de la fila heredada y revocación, en
-            // un solo guardado.
-            using (AmbitoTenantExplicito.Establecer(solicitud.PropietarioTenantId))
+            // Cierre, borrado de la fila heredada, revocación y relevo del principal, en una
+            // transacción: el relevo necesita un segundo guardado (el índice único de principal
+            // no es diferible) y no puede quedar la retirada hecha y el relevo a medias.
+            var resultado = await transaccion.EjecutarAsync(async ct =>
             {
-                await catalogo.RetirarAsync(solicitud, cancellationToken);
-                solicitud.Revocar(ctx.UsuarioId, DateTime.UtcNow);
+                var solicitud = await repositorio.ObtenerPorIdAsync(request.SolicitudId, ctx.OperadorTenantId, ct);
+                if (solicitud is null)
+                    return Result.Fallo(ErroresSolicitudCartera.NoEncontrada);
 
-                if (!await catalogo.GuardarDetectandoCarreraAsync(cancellationToken))
+                if (!ctx.EsCoordinadorCae && solicitud.SolicitanteUsuarioId != ctx.UsuarioId)
+                    return Result.Fallo(ErroresSolicitudCartera.SinPermiso);
+
+                if (solicitud.Estado != EstadoSolicitudIncorporacionCartera.Aceptada)
+                    return Result.Fallo(ErroresSolicitudCartera.NoRevocable);
+
+                var sinPrincipal = (await catalogo.ObtenerOperacionesDondeEsPrincipalAsync(
+                        ctx.OperadorTenantId, solicitud.SolicitanteUsuarioId, ct))
+                    .Where(o => o.AsignacionOperacionId == solicitud.AsignacionOperacionId)
+                    .ToList();
+                var coordinadorDeRelevo = sinPrincipal.Count == 0
+                    ? null
+                    : await RelevoDePrincipalDeCartera.ResolverCoordinadorAsync(
+                        solicitud.SolicitanteUsuarioId, ctx.OperadorTenantId, directorioDestinos, directorioUsuarios, bloqueoCartera, ct);
+
+                // Mismo motivo que al aceptar: la cartera se cierra en el Tenant
+                // propietario, y el Guid sale de la solicitud ya cargada y
+                // autorizada.
+                using (AmbitoTenantExplicito.Establecer(solicitud.PropietarioTenantId))
+                {
+                    await catalogo.RetirarAsync(solicitud, ct);
+                    solicitud.Revocar(ctx.UsuarioId, DateTime.UtcNow);
+
+                    if (!await catalogo.GuardarDetectandoCarreraAsync(ct))
+                        return Result.Fallo(ErroresSolicitudCartera.YaResuelta);
+                }
+
+                if (!await RelevoDePrincipalDeCartera.RelevarAsync(
+                        catalogo, sinPrincipal, ctx.OperadorTenantId, coordinadorDeRelevo, ct))
                     return Result.Fallo(ErroresSolicitudCartera.YaResuelta);
-            }
 
-            if (!esLaSuya)
-                await NotificarAlGestorAsync(solicitud, cancellationToken);
+                revocada = solicitud;
+                return Result.Exito();
+            }, cancellationToken);
+            if (resultado.EsFallido)
+                return resultado;
+
+            if (revocada is { } hecha && hecha.SolicitanteUsuarioId != ctx.UsuarioId)
+                await NotificarAlGestorAsync(hecha, cancellationToken);
 
             return Result.Exito();
         }

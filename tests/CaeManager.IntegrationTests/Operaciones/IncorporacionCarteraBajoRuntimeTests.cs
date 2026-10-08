@@ -522,7 +522,17 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
     private RevocarIncorporacionCarteraCommandHandler Revocar(CaeManagerDbContext contexto) =>
         new(UsuarioDe(contexto), Directorio(), Catalogo(contexto), new SolicitudIncorporacionCarteraRepository(contexto),
             new NotificacionUsuarioRepository(contexto), contexto, contexto,
-            NullLogger<RevocarIncorporacionCarteraCommandHandler>.Instance);
+            NullLogger<RevocarIncorporacionCarteraCommandHandler>.Instance,
+            new CaeManager.Infrastructure.Persistence.TransaccionDeComando(contexto),
+            new SinDirectorioDeDestinos(),
+            new CaeManager.Infrastructure.Persistence.BloqueoCarteraUsuario(contexto));
+
+    /// <summary>Estos tests no relevan al principal: nadie tiene Coordinador CAE.</summary>
+    private sealed class SinDirectorioDeDestinos : CaeManager.Application.Clientes.IDirectorioDestinosCartera
+    {
+        public Task<CaeManager.Application.Clientes.DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<CaeManager.Application.Clientes.DestinoCartera?>(null);
+    }
 
     /// <summary>
     /// Rol de cada cuenta en su organización, como Identity: de aquí sale el rol de origen de
