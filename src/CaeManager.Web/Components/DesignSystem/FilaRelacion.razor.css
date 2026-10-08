@@ -234,3 +234,16 @@ a.fila-relacion-nombre:focus-visible,
     border-radius: var(--radius-md);
     background: var(--color-surface-subtle);
 }
+
+/* Pantalla estrecha: las tres columnas fijas (384 px) dejarían la identidad
+   sin sitio. El nombre pasa a ocupar su propia línea y debajo van cifra,
+   estado y acciones. */
+@media (max-width: 767px) {
+    .fila-relacion-rejilla {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .fila-relacion-rejilla > .fila-relacion-identidad {
+        grid-column: 1 / -1;
+    }
+}
