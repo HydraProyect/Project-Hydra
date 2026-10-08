@@ -3,7 +3,10 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Gestiones;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Application.Vehiculos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -78,6 +81,9 @@ public class ObtenerAuditoriaQueryHandler(
     ICentrosQueryContext centrosContext,
     ITrabajadoresQueryContext trabajadoresContext,
     IDocumentosQueryContext documentosContext,
+    IVehiculosQueryContext vehiculosContext,
+    IProyectosQueryContext proyectosContext,
+    IGestionesQueryContext gestionesContext,
     ITenantActual tenantActual)
     : IRequestHandler<ObtenerAuditoriaQuery, ResultadoPaginado<RegistroAuditoriaListaDto>>
 {
@@ -204,6 +210,10 @@ public class ObtenerAuditoriaQueryHandler(
     /// mismo tipo persistido desde F3b (ver RestaurarClienteCommand): ambos
     /// EntidadTipo se resuelven contra Empresas.
     ///
+    /// Un tipo que esté en <c>EntidadesRestaurables</c> y no tenga aquí su cruce nunca ofrece el
+    /// botón: <c>PuedeRestaurar</c> exige encontrarlo en este diccionario. Añadir un tipo son las
+    /// dos cosas (Listados 5/7: Vehículo, Proyecto y Gestión).
+    ///
     /// <c>IgnoreQueryFilters()</c> hace falta porque el filtro global de
     /// soft-delete excluiría justo las filas que se buscan (las eliminadas);
     /// como ese filtro combina tenant + soft-delete en una sola condición,
@@ -265,6 +275,39 @@ public class ObtenerAuditoriaQueryHandler(
                 .IgnoreQueryFilters()
                 .Where(d => d.TenantId == tenantId && idsDocumento.Contains(d.Id) && d.EstaEliminado)
                 .Select(d => d.Id)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+        }
+
+        var idsVehiculo = candidatos.Where(c => c.EntidadTipo == "Vehiculo").Select(c => c.EntidadId).Distinct().ToArray();
+        if (idsVehiculo.Length > 0)
+        {
+            resultado["Vehiculo"] = (await vehiculosContext.Vehiculos
+                .IgnoreQueryFilters()
+                .Where(x => x.TenantId == tenantId && idsVehiculo.Contains(x.Id) && x.EstaEliminado)
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+        }
+
+        var idsProyecto = candidatos.Where(c => c.EntidadTipo == "Proyecto").Select(c => c.EntidadId).Distinct().ToArray();
+        if (idsProyecto.Length > 0)
+        {
+            resultado["Proyecto"] = (await proyectosContext.Proyectos
+                .IgnoreQueryFilters()
+                .Where(x => x.TenantId == tenantId && idsProyecto.Contains(x.Id) && x.EstaEliminado)
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+        }
+
+        var idsGestion = candidatos.Where(c => c.EntidadTipo == "Gestion").Select(c => c.EntidadId).Distinct().ToArray();
+        if (idsGestion.Length > 0)
+        {
+            resultado["Gestion"] = (await gestionesContext.Gestiones
+                .IgnoreQueryFilters()
+                .Where(x => x.TenantId == tenantId && idsGestion.Contains(x.Id) && x.EstaEliminado)
+                .Select(x => x.Id)
                 .ToListAsync(cancellationToken))
                 .ToHashSet();
         }

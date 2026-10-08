@@ -1,3 +1,5 @@
+using CaeManager.Domain.Auditoria;
+using CaeManager.Application.Auditoria.Queries;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Clientes.Commands.RestaurarCliente;
@@ -554,6 +556,68 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         (await contexto.Vehiculos.AnyAsync(v => v.Id == s.VehiculoId)).Should().BeTrue();
         (await contexto.Proyectos.AnyAsync(p => p.Id == s.ProyectoId)).Should().BeTrue();
         (await contexto.Gestiones.AnyAsync(g => g.Id == s.GestionId)).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Los diálogos de Vehículos, Proyectos y Gestiones prometen «recuperarlo desde Auditoría». La
+    /// promesa solo es verdad si la consulta de Auditoría marca esas filas como restaurables: estar en
+    /// <c>EntidadesRestaurables</c> no basta, hace falta además el cruce con «sigue eliminada hoy».
+    /// </summary>
+    [Fact]
+    public async Task Auditoria_ofrece_restaurar_vehiculo_proyecto_y_gestion_mientras_siguen_eliminados_y_deja_de_ofrecerlo_al_restaurarlos()
+    {
+        var s = await SembrarEliminadosAsync(_tenant);
+        (string Tipo, Guid Id)[] bajas = [("Vehiculo", s.VehiculoId), ("Proyecto", s.ProyectoId), ("Gestion", s.GestionId)];
+
+        // La siembra no pasa por AuditoriaInterceptor: se escribe la fila que él habría dejado.
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            foreach (var (tipo, id) in bajas)
+                contexto.RegistrosAuditoria.Add(new RegistroAuditoria(
+                    tipo, id, "Modificado", null, """{"EstaEliminado":true}""", usuarioId: null, tipoActor: TipoActorAuditoria.Desconocido));
+            await contexto.SaveChangesAsync();
+        }
+
+        (await RestaurablesSegunAuditoriaAsync(bajas.Select(b => b.Id))).Should().BeEquivalentTo(bajas.Select(b => b.Id));
+
+        await using (var contexto = CrearContexto(_tenant))
+            await RestaurarLosCuatroAsync(contexto, _tenant, new AlcanceDatosServiceFalso(), s);
+
+        (await RestaurablesSegunAuditoriaAsync(bajas.Select(b => b.Id))).Should().BeEmpty(
+            "la fila de auditoría es historia: restaurada la entidad, ya no hay nada que ofrecer");
+    }
+
+    private async Task<List<Guid>> RestaurablesSegunAuditoriaAsync(IEnumerable<Guid> ids)
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var handler = new ObtenerAuditoriaQueryHandler(
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            new TenantActualAmbiental { TenantId = _tenant });
+
+        var pagina = await handler.Handle(new ObtenerAuditoriaQuery(EntidadTipo: null, UsuarioId: null, Pagina: 1, TamanoPagina: 200), CancellationToken.None);
+
+        return pagina.Elementos.Where(r => ids.Contains(r.EntidadId) && r.PuedeRestaurar).Select(r => r.EntidadId).ToList();
+    }
+
+    [Fact]
+    public async Task Un_proyecto_cuyo_nombre_tomo_otro_mientras_estaba_eliminado_no_se_restaura_y_lo_dice()
+    {
+        var s = await SembrarEliminadosAsync(_tenant);
+
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            contexto.Proyectos.Add(Proyecto.Crear(s.ClienteId, s.CentroId, "Proyecto Listados", new DateOnly(2026, 10, 2), null, null));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        var resultado = await new RestaurarProyectoCommandHandler(
+                contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar)
+            .Handle(new RestaurarProyectoCommand(s.ProyectoId), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Proyecto.NombreDuplicado");
+        (await SiguenEliminadosAsync(s)).Proyecto.Should().BeTrue();
     }
 
     [Fact]

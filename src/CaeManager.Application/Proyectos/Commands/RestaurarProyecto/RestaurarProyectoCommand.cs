@@ -29,6 +29,14 @@ public class RestaurarProyectoCommandHandler(
             || !await ProyectoAutorizacion.VisibleAsync(proyecto.ClienteId, alcanceDatos, cancellationToken))
             return Result.Fallo(Error.Crear("Proyecto.NoEncontrado", "No encontramos este proyecto eliminado."));
 
+        // El índice único (Tenant, Cliente empresarial, Nombre) solo cuenta los Proyectos vivos: al
+        // eliminarlo, su nombre quedó libre y otro pudo tomarlo. Sin esta comprobación la restauración
+        // acabaría en una violación de unicidad, que la pantalla contaría como un fallo pasajero.
+        if (await proyectosContext.Proyectos.AnyAsync(
+                p => p.ClienteId == proyecto.ClienteId && p.Nombre == proyecto.Nombre, cancellationToken))
+            return Result.Fallo(Error.Crear("Proyecto.NombreDuplicado",
+                "Ya existe otro proyecto con este nombre para el mismo Cliente empresarial. Cámbiale el nombre a ese proyecto para poder restaurar este."));
+
         proyecto.Restaurar();
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

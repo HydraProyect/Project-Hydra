@@ -62,7 +62,8 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
         yield return ["Trabajador", "Creado", null, """{"EstaEliminado":true}"""]; // no es Modificado
         yield return ["Trabajador", "Modificado", null, null];
         yield return ["Documento", "Modificado", "esto no es JSON", "tampoco esto"];
-        yield return ["Vehiculo", "Modificado", null, """{"EstaEliminado":true}"""]; // no restaurable
+        yield return ["Vehiculo", "Modificado", null, """{"EstaEliminado":true}"""]; // restaurable desde Listados 5/7
+        yield return ["Usuario", "Modificado", null, """{"EstaEliminado":true}"""]; // no restaurable
         // Hallazgo de Codex (revisión previa a esta PR): un TEXT corrupto que
         // ni siquiera empieza por "{" pero contiene el marcador en texto
         // libre. JsonDocument.Parse lo rechaza (no es JSON); el StartsWith("{")
@@ -88,6 +89,7 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
         await using var contextoLectura = CrearContexto();
         var handler = new ObtenerAuditoriaQueryHandler(
             contextoLectura, contextoLectura, contextoLectura, contextoLectura, contextoLectura,
+            contextoLectura, contextoLectura, contextoLectura,
             new TenantActualAmbiental { TenantId = _tenant });
 
         var resultado = await handler.Handle(
@@ -152,6 +154,7 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
         await using var contextoLectura = CrearContexto();
         var handler = new ObtenerAuditoriaQueryHandler(
             contextoLectura, contextoLectura, contextoLectura, contextoLectura, contextoLectura,
+            contextoLectura, contextoLectura, contextoLectura,
             new TenantActualAmbiental { TenantId = _tenant });
 
         var resultado = await handler.Handle(
@@ -230,6 +233,7 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
         await using var contextoLectura = CrearContexto();
         var handler = new ObtenerAuditoriaQueryHandler(
             contextoLectura, contextoLectura, contextoLectura, contextoLectura, contextoLectura,
+            contextoLectura, contextoLectura, contextoLectura,
             new TenantActualAmbiental { TenantId = _tenant });
 
         var resultado = await handler.Handle(
@@ -261,6 +265,7 @@ public class AuditoriaProyeccionSqlTests : IAsyncLifetime
         await using var contextoLectura = CrearContexto();
         var handler = new ObtenerAuditoriaQueryHandler(
             contextoLectura, contextoLectura, contextoLectura, contextoLectura, contextoLectura,
+            contextoLectura, contextoLectura, contextoLectura,
             new TenantActualAmbiental { TenantId = _tenant });
 
         var resultado = await handler.Handle(

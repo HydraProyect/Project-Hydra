@@ -29,10 +29,9 @@ public class RestaurarVehiculoCommandHandler(
         // Misma autoridad que la baja: VehiculoVisibleAsync es «su Empresa o su Subcontrata es
         // visible», pero su lista pasa por el filtro global de soft delete y excluye la fila que se
         // está restaurando — el titular persistido (EmpresaId/SubcontrataId) es la coordenada estable.
-        var titularVisible = vehiculo.EmpresaId is { } empresaId
-            ? await alcanceDatos.EmpresaVisibleAsync(empresaId, cancellationToken)
-            : vehiculo.SubcontrataId is { } subcontrataId
-              && await alcanceDatos.SubcontrataVisibleAsync(subcontrataId, cancellationToken);
+        var titularVisible =
+            (vehiculo.EmpresaId is { } empresaId && await alcanceDatos.EmpresaVisibleAsync(empresaId, cancellationToken))
+            || (vehiculo.SubcontrataId is { } subcontrataId && await alcanceDatos.SubcontrataVisibleAsync(subcontrataId, cancellationToken));
 
         if (!titularVisible)
             return Result.Fallo(Error.Crear("Vehiculo.NoEncontrado", "No encontramos este vehículo eliminado."));

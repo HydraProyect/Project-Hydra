@@ -130,7 +130,6 @@ public class AlcanceDatosServiceSobreRelacionEmpresarialTests : IAsyncLifetime
             "no tiene NivelServicio: es una Empresa propia con relación directa, no una subcontrata");
     }
 
-    /// <summary>Escenario 4: los datos de otro tenant no se filtran al alcance de este.</summary>
     /// <summary>
     /// Listados 5/7: «Deshacer» de la baja de una Subcontrata. La lista de gestión se deriva de las
     /// Empresas vivas, así que nunca contiene la eliminada; <c>SubcontrataEliminadaParaGestionVisibleAsync</c>
@@ -177,6 +176,7 @@ public class AlcanceDatosServiceSobreRelacionEmpresarialTests : IAsyncLifetime
         (await VisibleParaAsync(Guid.NewGuid(), "Administrador")).Should().BeTrue("el Administrador del Tenant tiene alcance total");
     }
 
+    /// <summary>Escenario 4: los datos de otro tenant no se filtran al alcance de este.</summary>
     [Fact]
     public async Task Datos_de_otro_tenant_no_se_filtran_al_alcance()
     {

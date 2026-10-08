@@ -23,8 +23,10 @@ public class RestaurarGestionCommandHandler(
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(g => g.Id == request.Id && g.TenantId == tenantActual.TenantId, cancellationToken);
 
-        // Misma autoridad que la baja: el Centro de la Gestión, que sigue vivo y por tanto en la lista
-        // de visibles. Si el Centro se eliminó entretanto, la Gestión no se restaura por este camino.
+        // Misma autoridad que la baja: el Centro de la Gestión. No se comprueba que el Centro y el
+        // Trabajador sigan vivos: con alcance acotado un Centro eliminado ya no está entre los
+        // visibles y la restauración se rechaza, pero con alcance de Tenant entero la Gestión vuelve
+        // aunque su Centro siga eliminado — igual que RestaurarTrabajadorCommand con su Empresa.
         if (gestion is null || !gestion.EstaEliminado
             || !await alcanceDatos.CentroVisibleAsync(gestion.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("Gestion.NoEncontrada", "No encontramos esta gestión eliminada."));

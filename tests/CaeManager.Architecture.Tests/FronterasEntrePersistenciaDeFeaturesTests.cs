@@ -103,7 +103,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Auditoria.ObtenerAuditoriaQueryHandler", "ICentrosQueryContext"),
         ("Auditoria.ObtenerAuditoriaQueryHandler", "IDocumentosQueryContext"),
         ("Auditoria.ObtenerAuditoriaQueryHandler", "IEmpresasQueryContext"),
+        ("Auditoria.ObtenerAuditoriaQueryHandler", "IGestionesQueryContext"),
+        ("Auditoria.ObtenerAuditoriaQueryHandler", "IProyectosQueryContext"),
         ("Auditoria.ObtenerAuditoriaQueryHandler", "ITrabajadoresQueryContext"),
+        ("Auditoria.ObtenerAuditoriaQueryHandler", "IVehiculosQueryContext"),
         // La pantalla de accesos a documentos sensibles enseña el nombre del Tipo
         // de documento en vez del GUID (revisión UX pre-piloto 2026-09-28, D.1):
         // una lectura en lote por página, con los filtros normales de Documentos
