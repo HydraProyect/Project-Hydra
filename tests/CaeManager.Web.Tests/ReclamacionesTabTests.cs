@@ -11,6 +11,7 @@ using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesEnviadas;
 using CaeManager.Application.Reclamaciones.Commands.PrepararVistaPreviaReclamacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos.Components;
 using FluentAssertions;
@@ -18,6 +19,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Tests;
 
@@ -659,5 +661,45 @@ public class ReclamacionesTabTests : BunitContext
 
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle(
             "el segundo clic llegó con el primero todavía en vuelo");
+    }
+
+    // ------------------------------------------------- C4: enlaces a Comunicaciones
+
+    /// <summary>
+    /// Defecto C4 del piloto Outbound (2026-10-08). Con el módulo apagado (<c>Comunicaciones:Activo</c>) la página
+    /// <c>/comunicaciones</c> responde «no encontrado» y el menú no la ofrece; estos dos enlaces la seguían ofreciendo.
+    /// Mismo criterio que la entrada del menú: el valor de <see cref="ComunicacionesOptions.Activo"/>.
+    /// </summary>
+    private void ConComunicaciones(bool activo) =>
+        Services.AddSingleton<IOptions<ComunicacionesOptions>>(Options.Create(new ComunicacionesOptions { Activo = activo }));
+
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public void Ver_hilo_solo_se_ofrece_con_el_modulo_de_Comunicaciones_activo(bool activo, int esperados)
+    {
+        ConComunicaciones(activo);
+        var (cut, _) = Renderizar(ConHistorial(ReclamacionEnviada() with { ConversacionId = Guid.NewGuid() }));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Refrielectric SL", "control: la reclamación con hilo está pintada"));
+        cut.FindAll("button").Count(b => b.TextContent.Trim() == "Ver hilo").Should().Be(esperados);
+    }
+
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task Ver_en_Comunicaciones_solo_se_ofrece_con_el_modulo_activo(bool activo, int esperados)
+    {
+        ConComunicaciones(activo);
+        var lote = LoteConTodoPreseleccionado() with
+        {
+            UltimaReclamacionFechaUtc = DateTime.UtcNow.AddDays(-3),
+            UltimaReclamacionConversacionId = Guid.NewGuid(),
+        };
+        var (cut, _) = Renderizar(new MediadorControlado { Lotes = _ => [lote] });
+        await AbrirComponerAsync(cut);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Última reclamación:", "control: el lote con reclamación previa está pintado"));
+        cut.FindAll("a").Count(a => a.TextContent.Trim() == "Ver en Comunicaciones").Should().Be(esperados);
     }
 }
