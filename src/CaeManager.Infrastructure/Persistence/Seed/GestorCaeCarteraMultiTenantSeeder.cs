@@ -73,6 +73,14 @@ public static class GestorCaeCarteraMultiTenantSeeder
     public const string NombreTenantOperador = "Gestoría Levante CAE S.L. (Operador CAE externo E2E)";
     public const string EmailGestorCae = "gestor.cartera.e2e@caemanager.local";
 
+    /// <summary>
+    /// Un segundo Gestor CAE del mismo Operador CAE externo, con cartera de apoyo en una sola de
+    /// las ramas (la que lleva <c>ConGestorDeApoyo</c>) y ninguna en las demás: quien recibe la
+    /// propuesta de apoyo en el recorrido E2E, trabajando en otro Tenant.
+    /// </summary>
+    public const string EmailGestorCaeDeApoyo = "gestor.apoyo.e2e@caemanager.local";
+    public const string NombreGestorCaeDeApoyo = "Iván Roca (Gestor CAE de apoyo, E2E)";
+
     private const string AptitudMedica = "Certificado de aptitud médica";
     private const string FormacionArt19 = "Formación Art. 19";
 
@@ -82,14 +90,15 @@ public static class GestorCaeCarteraMultiTenantSeeder
     /// <param name="Empleador">Empresa propia del Tenant, o la Subcontrata si <paramref name="EmpleadorEsSubcontrata"/>.</param>
     private sealed record RamaE2E(
         string NombreTenant, bool EnCartera, string Cliente, string Empleador, string Centro, string CodigoCentro,
-        string Nombre, string Apellidos, int Indice, bool EmpleadorEsSubcontrata = false);
+        string Nombre, string Apellidos, int Indice, bool EmpleadorEsSubcontrata = false, bool ConGestorDeApoyo = false);
 
     private static readonly RamaE2E[] Ramas =
     [
         new("Conservas Albatros S.L. (Tenant beneficiario E2E)", EnCartera: true,
             "Astilleros Cantábrico S.A.", "Conservas Albatros S.L.", "Nave Albatros Gijón", "GCM-A1", "Nerea", "Castany Olmo", 0),
         new("Talleres Boreal S.A. (Tenant beneficiario E2E)", EnCartera: true,
-            "Harinas del Duero S.A.", "Talleres Boreal S.A.", "Planta Boreal Burgos", "GCM-B1", "Bruno", "Ledesma Pardo", 1),
+            "Harinas del Duero S.A.", "Talleres Boreal S.A.", "Planta Boreal Burgos", "GCM-B1", "Bruno", "Ledesma Pardo", 1,
+            ConGestorDeApoyo: true),
         new("Minería Cierzo S.L. (fuera de cartera E2E)", EnCartera: false,
             "Áridos Moncayo S.A.", "Minería Cierzo S.L.", "Mina Cierzo Teruel", "GCM-C1", "Samuel", "Oria Benet", 2),
     ];
@@ -137,6 +146,11 @@ public static class GestorCaeCarteraMultiTenantSeeder
                          "Olga Serrano (Gestora CAE, E2E)", Roles.GestorCae, cancellationToken)
                      ?? throw new InvalidOperationException($"No se pudo sembrar el Gestor CAE {EmailGestorCae}.");
 
+        var gestorDeApoyo = await DelegacionDemoSeeder.CrearUsuarioConsultoraAsync(
+                                dbContext, userManager, credenciales, logger, tenantOperadorId, EmailGestorCaeDeApoyo,
+                                NombreGestorCaeDeApoyo, Roles.GestorCae, cancellationToken)
+                            ?? throw new InvalidOperationException($"No se pudo sembrar el Gestor CAE {EmailGestorCaeDeApoyo}.");
+
         var hoy = DiaDeNegocio.Hoy();
 
         foreach (var rama in Ramas)
@@ -146,6 +160,8 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 esOperadorCaeExterno: false);
 
             await AbrirOperacionHeredadaAsync(dbContext, tenantOperadorId, tenantBeneficiarioId, rama.EnCartera ? gestor : null, cancellationToken);
+            if (rama.ConGestorDeApoyo)
+                await AbrirOperacionHeredadaAsync(dbContext, tenantOperadorId, tenantBeneficiarioId, gestorDeApoyo, cancellationToken);
 
             using (AmbitoTenantExplicito.Establecer(tenantBeneficiarioId))
             {
@@ -160,6 +176,14 @@ public static class GestorCaeCarteraMultiTenantSeeder
                 if (rama.EnCartera)
                 {
                     await writer.AsegurarCarteraTenantEnteroAsync(tenantBeneficiarioId, gestor.Id, cancellationToken);
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                }
+
+                // Después de la del Gestor CAE de la rama, ya guardada: esa nació principal (la
+                // primera de la operación), así que esta nace sin la marca, como un apoyo.
+                if (rama.ConGestorDeApoyo)
+                {
+                    await writer.AsegurarCarteraTenantEnteroAsync(tenantBeneficiarioId, gestorDeApoyo.Id, cancellationToken);
                     await dbContext.SaveChangesAsync(cancellationToken);
                 }
             }
