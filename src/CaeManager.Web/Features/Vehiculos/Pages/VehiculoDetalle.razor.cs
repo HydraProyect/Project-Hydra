@@ -257,7 +257,16 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     {
         var generacion = _generacion;
         await CargarCabeceraAsync(silenciosa: true);
-        if (generacion != _generacion || _detalle is null) return;
+        if (generacion != _generacion) return;
+
+        // Si el Vehículo ya no existe o salió del alcance, la ficha pasa a su
+        // estado de error: nadie más repinta en este camino.
+        if (_detalle is null)
+        {
+            StateHasChanged();
+            return;
+        }
+
         await CargarDocumentosAsync();
     }
 
@@ -315,6 +324,17 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         _detalle?.PeorEstadoDocumental == EstadoDocumento.Vencido
             ? _documentos.Where(d => d.Estado == EstadoDocumento.Vencido).ToList()
             : [];
+
+    /// <summary>
+    /// El peor estado dice Vencido pero ningún documento pintado lo está: el
+    /// vencido quedó fuera de los <see cref="MaximoDocumentos"/> de la lista.
+    /// La banda lo dice sin nombrarlo, en vez de callar una alerta.
+    /// </summary>
+    private bool VencidosFueraDeLaLista =>
+        _detalle?.PeorEstadoDocumental == EstadoDocumento.Vencido
+        && !_cargandoDocumentos && !_errorDocumentos
+        && _totalDocumentos > _documentos.Count
+        && Vencidos.Count == 0;
 
     /// <summary>«venció el 02/09/2026, hace 36 días.»: neutro de género, porque el tipo de documento puede ser «ITV» o «Seguro».</summary>
     private string TextoVencimiento(DocumentoListaDto documento)

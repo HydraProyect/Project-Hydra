@@ -53,12 +53,23 @@ public class Vehiculo360PaginaTests : BunitContext
         public int? TotalDocumentos { get; set; }
 
         public bool FallaDocumentos { get; set; }
+
+        /// <summary>Si está, la consulta de detalle de ese Vehículo no responde hasta que se complete.</summary>
+        public Dictionary<Guid, TaskCompletionSource> Compuertas { get; } = [];
         public List<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
-            return Task.FromResult((TResponse)Responder(request)!);
+            return request is ObtenerVehiculoPorIdQuery q && Compuertas.TryGetValue(q.Id, out var compuerta)
+                ? ResponderTrasAsync<TResponse>(compuerta.Task, request)
+                : Task.FromResult((TResponse)Responder(request)!);
+        }
+
+        private async Task<TResponse> ResponderTrasAsync<TResponse>(Task compuerta, object request)
+        {
+            await compuerta;
+            return (TResponse)Responder(request)!;
         }
 
         private object? Responder(object request) => request switch
@@ -455,6 +466,97 @@ public class Vehiculo360PaginaTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().Be("Camión grúa 2"));
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().HaveCount(2, "anillo, banda y lista salen de la misma relectura");
+    }
+
+    [Fact]
+    public async Task Si_al_cerrar_el_panel_el_Vehiculo_ya_no_existe_la_ficha_pasa_a_su_estado_de_error()
+    {
+        Services.ConEnlaceProfundoOtraEmpresa();
+        var (id, mediador) = CamionGrua();
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(4));
+        var panel = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.Find("[data-pieza='lateral'] button.boton").ClickAsync(new());
+
+        mediador.Detalles.Remove(id);
+        await cut.InvokeAsync(panel.CerrarAsync);
+
+        cut.WaitForAssertion(() => cut.Find(".estado-vacio").TextContent.Should().Contain("No pudimos cargar el vehículo"));
+        cut.FindAll(".cabecera-identidad, [data-pieza='lateral'] button.boton").Should().BeEmpty(
+            "una ficha vieja con «Editar» abriría el panel de un Vehículo que ya no se puede ver");
+    }
+
+    // ── Carreras y ciclo de vida ──────────────────────────────────────────
+
+    [Fact]
+    public async Task La_respuesta_tardia_de_un_Vehiculo_no_pisa_la_ficha_del_siguiente()
+    {
+        var (lento, mediador) = CamionGrua();
+        var (rapido, otro) = RecienCreado();
+        mediador.Detalles[rapido] = otro.Detalles[rapido];
+        mediador.Compuertas[lento] = new TaskCompletionSource();
+        Registrar(mediador);
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"vehiculos/{lento}");
+        var cut = Render<VehiculoDetalle>(p => p.Add(x => x.VehiculoId, lento));
+
+        cut.Render(p => p.Add(x => x.VehiculoId, rapido));
+        cut.WaitForAssertion(() => cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().Be("Furgoneta nueva"));
+
+        mediador.Compuertas[lento].SetResult();
+        await cut.InvokeAsync(() => Task.CompletedTask);
+
+        cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().Be("Furgoneta nueva",
+            "la respuesta del Vehículo anterior llegó después: se descarta");
+        cut.FindAll("[data-pieza='banda']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Al_retirar_la_pagina_deja_de_escuchar_al_panel()
+    {
+        var (id, mediador) = CamionGrua();
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(4));
+        var panel = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.Find("[data-pieza='lateral'] button.boton").ClickAsync(new());
+        var enviadasAntes = mediador.Enviadas.Count;
+
+        cut.Instance.Dispose();
+        await panel.CerrarAsync();
+
+        mediador.Enviadas.Should().HaveCount(enviadasAntes, "una página retirada no vuelve a leer nada cuando el panel se cierra");
+    }
+
+    [Fact]
+    public async Task Tras_guardar_un_documento_nuevo_la_ficha_se_vuelve_a_leer()
+    {
+        var (id, mediador) = CamionGrua();
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(4));
+
+        mediador.Detalles[id] = mediador.Detalles[id] with { DocumentosAlDia = new FraccionCumplimiento(3, 5) };
+        mediador.Documentos.Add(Documento("Tarjeta de transporte", EstadoDocumento.Vigente, Hoy.AddDays(300)));
+        await cut.InvokeAsync(() => cut.FindComponent<DrawerGestionDocumento>().Instance.OnGuardado.InvokeAsync());
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(5));
+        SinEspaciosDeMas(cut.Find("[data-pieza='anillo'] .anillo-cumplimiento-texto").TextContent).Should().Be("60% 3 de 5");
+    }
+
+    [Fact]
+    public void Si_el_vencido_no_cabe_en_la_lista_la_banda_lo_dice_sin_nombrarlo()
+    {
+        var (id, mediador) = CamionGrua();
+        mediador.Documentos[0] = Documento("ITV", EstadoDocumento.Vigente, Hoy.AddDays(200));
+        mediador.TotalDocumentos = 73;
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.Find("[data-pieza='banda']").TextContent.Should()
+            .Contain("Hay documentos vencidos que no caben en esta lista."));
+        cut.Find("[data-pieza='banda']").QuerySelectorAll("button").Should().BeEmpty();
     }
 
     // ── Permisos ──────────────────────────────────────────────────────────

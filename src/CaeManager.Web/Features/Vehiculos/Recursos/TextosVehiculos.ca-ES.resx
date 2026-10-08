@@ -256,7 +256,7 @@
     <value>Copia la matrícula {0}</value>
   </data>
   <data name="FichaEmpleadorPrefijo" xml:space="preserve">
-    <value>Ocupador:</value>
+    <value>Empleador:</value>
   </data>
   <data name="FichaSubirDocumento" xml:space="preserve">
     <value>Puja un document</value>
@@ -295,7 +295,7 @@
     <value>Edita →</value>
   </data>
   <data name="FichaNotaEmpleador" xml:space="preserve">
-    <value>L'ocupador no es pot canviar.</value>
+    <value>L'empleador no es pot canviar.</value>
   </data>
   <data name="FichaBandaRenovar" xml:space="preserve">
     <value>Renova {0}</value>
@@ -314,5 +314,8 @@
   </data>
   <data name="FichaGlosaDocumentoVarios" xml:space="preserve">
     <value>documents</value>
+  </data>
+  <data name="FichaBandaVencidosSinNombrar" xml:space="preserve">
+    <value>Hi ha documents vençuts que no caben en aquesta llista.</value>
   </data>
 </root>

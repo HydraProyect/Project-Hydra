@@ -106,6 +106,13 @@
             </AuthorizeView>
         }
 
+        else if (VencidosFueraDeLaLista)
+        {
+            <BandaAccion Tono="TonoBanda.Peligro">
+                <b>@Textos["FichaBandaVencidosSinNombrar"]</b>
+            </BandaAccion>
+        }
+
         <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaSecciones"]">
             <CuerpoConLateral EtiquetaLateral="@Textos["FichaEtiquetaLateral"]">
                 <ChildContent>
