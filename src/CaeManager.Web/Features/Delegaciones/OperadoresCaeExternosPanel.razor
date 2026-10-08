@@ -63,7 +63,7 @@
     <ChildContent>
         @if (_modal is ModalActivo.Operador)
         {
-            <p>Se creará el Tenant propietario del Operador CAE externo. Nace sin delegaciones ni usuarios.</p>
+            <p>@TextosAutorizar["AltaIntro"]</p>
         }
         else if (_operadorDestino is not null)
         {
@@ -73,6 +73,16 @@
                     Valor="@_nombre"
                     ValorChanged="v => _nombre = v"
                     Placeholder="@PlaceholderNombre" />
+        @if (_modal is ModalActivo.Operador)
+        {
+            <CampoTexto Etiqueta="@TextosAutorizar["AltaEtiquetaCorreoAdministrador"]"
+                        Type="email"
+                        Valor="@_emailAdministrador"
+                        ValorChanged="v => _emailAdministrador = v" />
+            <CampoTexto Etiqueta="@TextosAutorizar["AltaEtiquetaNombreAdministrador"]"
+                        Valor="@_nombreAdministrador"
+                        ValorChanged="v => _nombreAdministrador = v" />
+        }
         @if (_errorFormulario is not null)
         {
             <p class="operadores-cae-error" role="alert">@_errorFormulario</p>
@@ -81,6 +91,30 @@
     <Pie>
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enCurso" OnClick="() => _modalContenedor?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" Cargando="_enCurso" OnClick="ConfirmarAsync">Crear</Boton>
+    </Pie>
+</Modal>
+
+@* El enlace de activación del primer Administrador. Este flujo no envía correo (el enlace manual es la
+   contingencia decidida para el alta de un Tenant): quien da el alta lo copia y se lo hace llegar. Sin clic
+   fuera: cerrarlo por descuido deja el enlace sin copiar, y esta pantalla no lo vuelve a enseñar. *@
+<Modal Visible="@(_activacion is not null)"
+       VisibleChanged="@(v => { if (!v) _activacion = null; })"
+       Titulo="@TextosAutorizar["AltaCreadoTitulo"]"
+       CerrarAlHacerClicFuera="false">
+    <ChildContent>
+        @if (_activacion is not null)
+        {
+            <p>@TextosAutorizar["AltaCreadoResumen", _activacion.NombreOperador, _activacion.NombreAdministrador, _activacion.EmailAdministrador]</p>
+            <p>@TextosAutorizar["AltaEnlaceInstrucciones", MinutosCaducidadActivacion]</p>
+            <p class="operadores-cae-enlace">@_activacion.Enlace</p>
+            <p class="operadores-cae-nota">@TextosAutorizar["AltaCuentaSinContrasena"]</p>
+        }
+    </ChildContent>
+    <Pie>
+        <BotonCopiar Valor="@(_activacion?.Enlace ?? string.Empty)"
+                     Texto="@TextosAutorizar["AltaCopiarEnlace"]"
+                     Etiqueta="@TextosAutorizar["AltaEtiquetaEnlace"]" />
+        <Boton Variante="VarianteBoton.Primario" OnClick="() => _activacion = null">@TextosAutorizar["AltaHecho"]</Boton>
     </Pie>
 </Modal>
 
