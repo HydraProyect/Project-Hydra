@@ -27,21 +27,17 @@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                   PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
-        <Pastillas>
-            <PastillaFiltro Etiqueta="@Textos["ListaFiltroEstado"]" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync"
-                            Opciones="OpcionesEstado" TextoTodos="@Textos["FiltroTodas"]" />
-        </Pastillas>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
                 <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["AriaQuitarBusqueda"]" OnQuitar="QuitarBusquedaAsync" />
             }
-            @if (!string.IsNullOrWhiteSpace(_filtroEstado))
-            {
-                <ChipFiltro Etiqueta="@TextoChipEstado" EtiquetaAccesible="@Textos["AriaQuitarFiltroEstado"]" OnQuitar="QuitarFiltroEstadoAsync" />
-            }
         </Chips>
     </BarraFiltros>
+    @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
+       cuántas Gestiones hay, con la búsqueda aplicada. Con los dos botones marcados se ven todas. *@
+    <FranjaEstado Opciones="OpcionesEstado" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync"
+                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["FiltroTodas"]" />
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
     @if (_errorCarga)
     {
@@ -80,8 +76,9 @@
                     </ChildContent>
                 </TemplateColumn>
                 <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="@Textos["ListaTipoDocumento"]" Sortable="true" Class="gestion-tipo-documento" />
-                <TemplateColumn Title="@Textos["ColumnaEstado"]" Align="Align.Center" Sortable="true" IsDefaultSortColumn="true" InitialSortDirection="SortDirection.Ascending" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
-                    <Badge Tono="@TonoEstado(context.Estado)">@TextoEstado(context.Estado)</Badge>
+                <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado" Sortable="true" IsDefaultSortColumn="true" InitialSortDirection="SortDirection.Ascending" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
+                    <EstadoFila Tono="@TonoEstado(context.Estado)" Texto="@TextoEstado(context.Estado)"
+                                Correcto="@(context.Estado == EstadoGestion.Completada)" />
                 </TemplateColumn>
                 <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="@Textos["ColumnaCreada"]" Sortable="true" />
                 <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
