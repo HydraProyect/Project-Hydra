@@ -290,10 +290,11 @@ public class NavMenuCaracterizacionTests
         lupa.GetAttribute("aria-expanded").Should().Be("false");
         lupa.GetAttribute("aria-label").Should().NotBeNullOrWhiteSpace();
 
-        var panel = cut.Find("[data-menu-busqueda]");
-        panel.HasAttribute("inert").Should().BeTrue("recogido, el campo no puede recibir foco");
-        cut.Find("input[data-menu-filtro]").Closest("[data-menu-busqueda]").Should().NotBeNull(
-            "el campo vive dentro del panel desplegable, no suelto en la cabecera");
+        var campo = cut.Find("input[data-menu-filtro]");
+        campo.HasAttribute("inert").Should().BeTrue("recogido, el campo no puede recibir foco");
+        campo.Closest("[data-menu-busqueda]")!.QuerySelector("[data-menu-lupa]").Should().NotBeNull(
+            "lupa y campo son un solo elemento que se expande en la misma fila: no hay fila nueva");
+        cut.Find("[data-menu-busqueda]").HasAttribute("data-abierta").Should().BeFalse("nace recogida");
         cut.FindAll("kbd, .nav-filtro-tecla").Should().BeEmpty("el atajo «/» y su insignia se retiraron");
     }
 

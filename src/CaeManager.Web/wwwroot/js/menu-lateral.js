@@ -18,7 +18,7 @@
 //     pintan los que YA están en este menú (el que el rol y el contexto de la
 //     persona hayan dejado): un identificador ajeno se ignora, así que fijar
 //     nunca da acceso a nada.
-//  5. Búsqueda: un icono de lupa en la cabecera despliega el campo (animado). Filtra los enlaces del
+//  5. Búsqueda: un icono de lupa en la cabecera se expande en la misma fila hasta ser el campo (animado). Filtra los enlaces del
 //     menú y muestra las opciones de dentro de las páginas (Configuración, pestañas de Documentos) que
 //     el servidor ya dejó en el marcado según las reglas de visibilidad del catálogo: este script solo
 //     muestra u oculta lo que existe, nunca añade un destino. Elegir una navega directo. Esc cierra.
@@ -195,12 +195,12 @@ function fijarBusqueda(abierta, enfocar) {
         const panel = nav.querySelector('[data-menu-busqueda]');
         const lupa = nav.querySelector('[data-menu-lupa]');
         if (!panel || !lupa) return;
-        const teniaFoco = panel.contains(document.activeElement);
-        // inert mientras está recogido: sin foco por teclado ni lectura aunque se vea la transición.
-        panel.toggleAttribute('inert', !abierta);
+        const campo = panel.querySelector('[data-menu-filtro]');
+        const teniaFoco = campo === document.activeElement;
+        // El campo va inert mientras la lupa está recogida: sin foco por teclado ni lectura.
+        campo?.toggleAttribute('inert', !abierta);
         panel.toggleAttribute('data-abierta', abierta);
         lupa.setAttribute('aria-expanded', String(abierta));
-        const campo = panel.querySelector('[data-menu-filtro]');
         if (!abierta && campo) campo.value = '';
         if (abierta && enfocar && campo && nav.offsetParent !== null) campo.focus({ preventScroll: true });
         if (!abierta && enfocar && teniaFoco) lupa.focus();
@@ -216,7 +216,7 @@ function refrescarTodo() {
         if (!panel) return;
         // Compacto no tiene campo: no puede quedar una búsqueda invisible activa.
         const abierta = busquedaAbierta && !(esCompacto() && enBarraLateral(nav));
-        panel.toggleAttribute('inert', !abierta);
+        panel.querySelector('[data-menu-filtro]')?.toggleAttribute('inert', !abierta);
         panel.toggleAttribute('data-abierta', abierta);
         nav.querySelector('[data-menu-lupa]')?.setAttribute('aria-expanded', String(abierta));
     });

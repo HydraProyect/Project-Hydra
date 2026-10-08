@@ -79,7 +79,7 @@
    token no cambia. No se le da variante oscura como a sus vecinos -600/-700/
    -800: el -500 es el eje del espejo neutro (su reflejo es él mismo) y además
    alimenta --color-border-control, que a propósito no se redeclara. El token
-   semántico de "texto secundario legible" resuelve las dos cosas: 5,19:1 en
+   semántico de "texto secundario legible" resuelve las dos cosas: 7,48:1 en
    claro y 5,14:1 en oscuro. Mismo criterio que #693. */
 .fecha-aviso-normativo {
     color: var(--color-text-muted);
