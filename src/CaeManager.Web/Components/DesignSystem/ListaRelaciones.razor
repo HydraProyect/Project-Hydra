@@ -9,10 +9,35 @@
     entera-botón del panel de 520 px, que navega dentro del panel. Aquí el
     nombre es un enlace a la página 360 de la entidad y el panel se abre con
     el botón 360 de la fila.
+
+    EnTarjeta (mockups «… 360 página» del 2026-10-08, .tarjeta.lista): la
+    lista ya no es una caja propia sino el contenido de una tarjeta, con una
+    línea de encabezado encima («Mostrando 3 de 4 · del peor estado al mejor»)
+    y una nota debajo. Es el contenedor de las filas en rejilla de
+    <FilaRelacion>.
 *@
-<ul class="lista-relaciones" aria-label="@Etiqueta">
-    @ChildContent
-</ul>
+@if (EnTarjeta)
+{
+    <div class="lista-relaciones-tarjeta" data-pieza="tarjeta">
+        @if (Encabezado is not null)
+        {
+            <p class="lista-relaciones-encabezado">@Encabezado</p>
+        }
+        <ul class="lista-relaciones lista-relaciones-sin-caja" aria-label="@Etiqueta">
+            @ChildContent
+        </ul>
+        @if (Pie is not null)
+        {
+            <p class="lista-relaciones-pie">@Pie</p>
+        }
+    </div>
+}
+else
+{
+    <ul class="lista-relaciones" aria-label="@Etiqueta">
+        @ChildContent
+    </ul>
+}
 
 @code {
     /// <summary>Las <see cref="FilaRelacion"/> de la lista.</summary>
@@ -20,4 +45,13 @@
 
     /// <summary>Nombre accesible de la lista, ya localizado («Centros de este cliente»). Opcional.</summary>
     [Parameter] public string? Etiqueta { get; set; }
+
+    /// <summary>Pinta la lista como contenido de una tarjeta. Falso por defecto: ningún consumidor existente cambia.</summary>
+    [Parameter] public bool EnTarjeta { get; set; }
+
+    /// <summary>Línea sobre las filas. Solo con <see cref="EnTarjeta"/>.</summary>
+    [Parameter] public RenderFragment? Encabezado { get; set; }
+
+    /// <summary>Nota bajo las filas. Solo con <see cref="EnTarjeta"/>.</summary>
+    [Parameter] public RenderFragment? Pie { get; set; }
 }

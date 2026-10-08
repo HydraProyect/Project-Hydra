@@ -33,6 +33,18 @@
   <data name="IrAPaginaDe" xml:space="preserve">
     <value>Anar a la pàgina de {0}</value>
   </data>
+  <data name="FiltroEstadosTodos" xml:space="preserve">
+    <value>Tots</value>
+    <comment>Contador que borra la selección en FiltroEstadosMultiple.</comment>
+  </data>
+  <data name="FiltrarPorEstado" xml:space="preserve">
+    <value>Filtra per estat</value>
+    <comment>Nombre accesible del grupo de contadores de estado (FiltroEstadosMultiple).</comment>
+  </data>
+  <data name="DesplegarFilaDe" xml:space="preserve">
+    <value>Desplega {0}</value>
+    <comment>Nombre accesible del botón que despliega el detalle de una fila de relación (FilaRelacion). {0}: nombre de la entidad.</comment>
+  </data>
   <data name="AbrirPanelDe" xml:space="preserve">
     <value>Obrir el panell de {0}</value>
   </data>

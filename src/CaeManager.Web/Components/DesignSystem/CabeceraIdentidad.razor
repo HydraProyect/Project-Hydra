@@ -1,0 +1,66 @@
+@*
+    Cabecera de identidad de una página 360, dentro de una tarjeta (mockups
+    «… 360 página» del 2026-10-08, .tarjeta.ident): anillo de cumplimiento a
+    la izquierda, qué es («Vehículo»), su nombre como h1, una línea de datos
+    y las acciones de la ficha a la derecha.
+
+    No es CabeceraPagina: aquella es la cabecera suelta de una pantalla
+    (h1 de 36/44, con entradilla); esta ES la tarjeta, y por eso lleva ella
+    el data-pieza="cabecera-identidad" que el comparador de fidelidad busca
+    dentro de una tarjeta.
+*@
+<header class="cabecera-identidad" data-pieza="cabecera-identidad">
+    @if (Anillo is not null)
+    {
+        <div class="cabecera-identidad-anillo">@Anillo</div>
+    }
+
+    <div class="cabecera-identidad-texto">
+        @if (!string.IsNullOrWhiteSpace(Kicker))
+        {
+            <span class="cabecera-identidad-kicker">@Kicker</span>
+        }
+
+        @if (JuntoAlTitulo is null)
+        {
+            <h1 class="cabecera-identidad-titulo">@Titulo</h1>
+        }
+        else
+        {
+            <div class="cabecera-identidad-titular">
+                <h1 class="cabecera-identidad-titulo">@Titulo</h1>
+                @JuntoAlTitulo
+            </div>
+        }
+
+        @if (Meta is not null)
+        {
+            <div class="cabecera-identidad-meta">@Meta</div>
+        }
+    </div>
+
+    @if (Acciones is not null)
+    {
+        <div class="cabecera-identidad-acciones">@Acciones</div>
+    }
+</header>
+
+@code {
+    /// <summary>Nombre de lo que se está viendo. Es el <c>h1</c> de la página.</summary>
+    [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+
+    /// <summary>Qué es, en mayúsculas sobre el nombre («Vehículo», «Proyecto»). Opcional.</summary>
+    [Parameter] public string? Kicker { get; set; }
+
+    /// <summary>Pieza a la izquierda: el anillo de cumplimiento. Opcional.</summary>
+    [Parameter] public RenderFragment? Anillo { get; set; }
+
+    /// <summary>Pieza en la misma línea que el nombre, a su derecha: la pastilla de estado. Opcional.</summary>
+    [Parameter] public RenderFragment? JuntoAlTitulo { get; set; }
+
+    /// <summary>Línea de datos bajo el nombre (matrícula, modelo, empleador). Opcional.</summary>
+    [Parameter] public RenderFragment? Meta { get; set; }
+
+    /// <summary>Acciones de la ficha, a la derecha: botón principal y menú «Más acciones». Opcional.</summary>
+    [Parameter] public RenderFragment? Acciones { get; set; }
+}

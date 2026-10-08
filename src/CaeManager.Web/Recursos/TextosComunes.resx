@@ -34,6 +34,18 @@
     <value>Ir a la página de {0}</value>
     <comment>Título del nombre enlazado en una fila de relación (FilaRelacion). {0}: nombre de la entidad.</comment>
   </data>
+  <data name="FiltroEstadosTodos" xml:space="preserve">
+    <value>Todos</value>
+    <comment>Contador que borra la selección en FiltroEstadosMultiple.</comment>
+  </data>
+  <data name="FiltrarPorEstado" xml:space="preserve">
+    <value>Filtrar por estado</value>
+    <comment>Nombre accesible del grupo de contadores de estado (FiltroEstadosMultiple).</comment>
+  </data>
+  <data name="DesplegarFilaDe" xml:space="preserve">
+    <value>Desplegar {0}</value>
+    <comment>Nombre accesible del botón que despliega el detalle de una fila de relación (FilaRelacion). {0}: nombre de la entidad.</comment>
+  </data>
   <data name="AbrirPanelDe" xml:space="preserve">
     <value>Abrir el panel de {0}</value>
     <comment>Título del nombre que abre el panel en una fila de relación sin página 360 (FilaRelacion). {0}: nombre de la entidad.</comment>

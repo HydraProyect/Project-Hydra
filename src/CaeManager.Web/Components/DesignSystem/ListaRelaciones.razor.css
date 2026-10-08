@@ -7,3 +7,35 @@
     overflow: hidden;
     background: var(--color-surface);
 }
+
+/* .tarjeta.lista de los mockups «… 360 página»: la tarjeta es la caja y la
+   lista va dentro sin borde propio. Sin sombra: sombra solo en Overlay. */
+.lista-relaciones-tarjeta {
+    min-width: 0;
+    padding: 6px 18px var(--space-2);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+/* Sin overflow: hidden, que recortaría el tinte de la fila con problema. */
+.lista-relaciones-sin-caja {
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+    background: none;
+}
+
+.lista-relaciones-encabezado {
+    margin: 2px 0 var(--space-1);
+    font: var(--font-caption);
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+.lista-relaciones-pie {
+    margin: var(--space-2) 0 0;
+    font: var(--font-caption);
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
