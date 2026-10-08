@@ -18,7 +18,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<li class="fila-relacion">
+<li class="fila-relacion" data-pieza="fila">
     @if (!string.IsNullOrWhiteSpace(Iniciales))
     {
         @* El nombre va al lado: las iniciales son decoración, no se anuncian. *@
@@ -45,7 +45,7 @@
 
         @if (Detalle is not null)
         {
-            <span class="fila-relacion-detalle">@Detalle</span>
+            <span class="fila-relacion-detalle" data-pieza="fila-detalle">@Detalle</span>
         }
     </span>
 

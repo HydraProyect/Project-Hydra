@@ -14,7 +14,7 @@
 *@
 @if (Porcentaje is { } porcentaje)
 {
-    <span class="@ClaseEnvoltorio(porcentaje)"
+    <span class="@ClaseEnvoltorio(porcentaje)" data-pieza="anillo"
           role="img" aria-label="@(Etiqueta ?? $"{porcentaje}% de cumplimiento")">
         <svg class="anillo-cumplimiento" viewBox="0 0 36 36" aria-hidden="true">
             <title>@(Etiqueta ?? $"{porcentaje}% de cumplimiento")</title>
@@ -33,7 +33,7 @@
 }
 else
 {
-    <span class="anillo-cumplimiento-envoltorio anillo-cumplimiento-@Tamano.ToString().ToLowerInvariant() anillo-cumplimiento-sin-universo"
+    <span class="anillo-cumplimiento-envoltorio anillo-cumplimiento-@Tamano.ToString().ToLowerInvariant() anillo-cumplimiento-sin-universo" data-pieza="anillo"
           role="img" aria-label="@(Etiqueta ?? "Sin requisitos")">
         <span class="anillo-cumplimiento-texto" aria-hidden="true">—</span>
     </span>
