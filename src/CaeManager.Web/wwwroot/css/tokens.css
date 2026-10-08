@@ -131,11 +131,11 @@
   /* Borde estructural reforzado: distingue el nivel Elevated del Surface en
      claro, donde ambos comparten fondo (02 § 4.1). Agrupa contenido, no
      identifica un control: NO está sujeto al 3:1 (DDL-062).
-     PENDIENTE (2026-10-08): con --color-border en #CFD8E3 este valor queda a
-     1,03:1 del borde normal (antes 1,20:1) y en claro ya no distingue Elevated
-     de Surface. No se toca sin decisión de diseño: los diseños aprobados no
-     lo definen. */
-  --color-border-strong: #cbd5e1;
+     #BCC7D4 desde el 2026-10-08 (DDL-081): con --color-border en #CFD8E3 el
+     valor anterior (#CBD5E1) quedaba a 1,03:1 del borde normal; este conserva
+     el escalón (1,19:1 sobre el borde normal, 1,71:1 sobre Surface, 1,47:1
+     sobre el lienzo). */
+  --color-border-strong: #bcc7d4;
   /* Borde que identifica un control interactivo. Sujeto al 3:1 de 02 § 8
      (DDL-062); --color-border no lo alcanza (1,44:1) y es solo estructural.
      Se define una sola vez: el valor es el mismo en ambos temas — 3,39:1 en
@@ -374,10 +374,10 @@
   /* Filas (ver el grupo en :root). Divisor y pista del anillo: el valor de
      --color-border-strong (#3a4a5c), 1,79:1 sobre Surface; la pista pintaba
      antes --color-neutral-300 (#d5dce5), casi blanca sobre oscuro.
-     PROPUESTAS SIN DECIDIR (2026-10-08), elegidas para que el texto secundario
-     (#8592a3) siga cumpliendo 4,5:1 encima:
-     · hover: --color-surface-hover (#202b36), 4,55:1. La propuesta de la
-       maqueta, #26323f, lo deja en 4,12:1.
+     Hover y resaltado (decididos el 2026-10-08) dejan al texto secundario
+     (#8592a3) cumpliendo 4,5:1 encima:
+     · hover: --color-surface-hover (#202b36), 4,55:1. Un fondo más claro,
+       como #26323f, lo dejaría en 4,12:1.
      · resaltado de búsqueda: #33280a, 4,58:1 (y 12,01:1 con --color-text). */
   --color-fila-hover: var(--color-surface-hover);
   --color-fila-divisor: var(--color-border-strong);
@@ -479,7 +479,7 @@
   --color-text: var(--color-neutral-900);
   --color-text-muted: #46566c; /* DDL-029 — ver comentario en :root */
   --color-border: #cfd8e3;
-  --color-border-strong: #cbd5e1;
+  --color-border-strong: #bcc7d4;
   --color-fila-hover: var(--color-neutral-200);
   --color-fila-divisor: var(--color-neutral-400);
   --color-resaltado-busqueda: #fff3c4;
