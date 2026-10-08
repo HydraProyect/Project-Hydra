@@ -682,6 +682,31 @@ public class AlcanceDatosService(
     }
 
     /// <summary>
+    /// Las mismas ramas, en el mismo orden, que <see cref="ObtenerSubcontrataIdsParaGestionAsync"/>
+    /// → <see cref="ObtenerSubcontrataIdsVisiblesAsync"/>, sin el cruce con <c>dbContext.Empresas</c>
+    /// (su filtro global oculta la eliminada). Sin memoizar: solo lo llama el «Deshacer» de una baja.
+    /// </summary>
+    public async Task<bool> SubcontrataEliminadaParaGestionVisibleAsync(Guid subcontrataId, CancellationToken cancellationToken = default)
+    {
+        if (await currentUserService.ObtenerRolEfectivoAsync() == Roles.Cliente)
+            return false;
+
+        if (await AlcanzaTenantEnteroPorCarteraAsync(cancellationToken))
+            return true;
+
+        var clienteIds = await ObtenerClienteIdsVisiblesAsync(cancellationToken);
+        if (clienteIds is null) return true;
+        if (clienteIds.Count == 0) return false;
+
+        var empresaIds = await ObtenerEmpresaIdsVisiblesAsync(cancellationToken) ?? [];
+
+        return await dbContext.RelacionesEmpresariales.AnyAsync(
+            r => r.VigenciaHasta == null && r.ProveedoraId == subcontrataId
+                 && (clienteIds.Contains(r.ClienteId) || empresaIds.Contains(r.ClienteId)),
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Dos vías, unidas:
     /// <list type="bullet">
     /// <item>por Asignación: los Trabajadores —de cualquier empleador— con una <c>Asignacion</c>

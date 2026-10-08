@@ -11,6 +11,7 @@ using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
+using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
@@ -915,7 +916,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarProyectoCommand(_idAEliminar));
+            var idEliminado = _idAEliminar;
+            var resultado = await Mediator.Send(new EliminarProyectoCommand(idEliminado));
 
             if (resultado.EsFallido)
             {
@@ -923,10 +925,10 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
                 return;
             }
 
-            ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(idEliminado));
             _confirmarEliminarVisible = false;
 
-            if (_proyectoSeleccionadoId == _idAEliminar)
+            if (_proyectoSeleccionadoId == idEliminado)
                 CerrarDetalle();
 
             await CargarProyectosAsync();
@@ -940,6 +942,35 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             _eliminando = false;
         }
     }
+
+    /// <summary>«Deshacer» del aviso tras eliminar — ver RestaurarProyectoCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        // Guarda por elemento: dos pulsaciones en «Deshacer» del mismo aviso no mandan dos restauraciones.
+        if (!_restaurando.Add(id)) return;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarProyectoCommand(id));
+
+            ToastService.Mostrar(
+                resultado.EsExitoso ? Textos["ToastRestaurado"].Value : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                await CargarProyectosAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurando.Remove(id);
+        }
+    }
+
+    private readonly HashSet<Guid> _restaurando = [];
 
     // ---- Técnicos ----
 

@@ -205,6 +205,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.EditarSubcontrataCommandHandler", "IEmpresaRepository"),
         ("Subcontratas.EliminarSubcontrataCommandHandler", "IEmpresaRepository"),
         ("Subcontratas.EliminarSubcontratasCommandHandler", "IEmpresaRepository"),
+        ("Subcontratas.RestaurarSubcontrataCommandHandler", "IEmpresasQueryContext"),
         ("Subcontratas.CambiarNivelServicioSubcontrataCommandHandler", "IEmpresaRepository"),
         ("Subcontratas.GuardarCredencialAccesoSubcontrataCommandHandler", "IEmpresaRepository"),
         ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "IEmpresaRepository"),

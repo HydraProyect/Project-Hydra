@@ -931,6 +931,35 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         else _seleccionados.Remove(id);
     }
 
+    private bool _restaurandoLote;
+
+    /// <summary>«Deshacer» del aviso de una eliminación en lote: un único deshacer restaura todos los que el lote sí eliminó.</summary>
+    private async Task DeshacerEliminarLoteAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_restaurandoLote) return;
+        _restaurandoLote = true;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new RestaurarClienteCommand(id)));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0 ? Textos["ToastLoteRestaurados", r.Restaurados].Value : Textos["ToastLoteRestauradosConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurarLote"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurandoLote = false;
+        }
+    }
+
     private async Task ConfirmarEliminarLoteAsync()
     {
         if (_eliminandoLote)
@@ -943,18 +972,20 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             var idsPedidos = _seleccionados.ToList();
             var resultado = await Mediator.Send(new EliminarClientesCommand(idsPedidos));
             var dto = resultado.Valor;
+            IReadOnlyList<Guid> eliminados = dto.IdsEliminados ?? [];
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
                     ? $"{dto.Eliminados} Cliente(s) empresarial(es) dado(s) de baja."
                     : $"{dto.Eliminados} dado(s) de baja. {dto.Errores.Count} no se pudieron dar de baja: {string.Join(" ", dto.Errores)}",
-                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
+                eliminados.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
+                eliminados.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminados) : null);
 
-            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
-            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
-            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            // Se retiran solo las fichas de los que cayeron (IdsEliminados); un superviviente
+            // conserva la suya y su edición sin guardar.
             if (dto.Eliminados > 0)
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, idsPedidos);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, dto.IdsEliminados ?? idsPedidos);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;

@@ -7,6 +7,7 @@ src/CaeManager.Application/Empresas/Queries/ObtenerClientesDeEmpresa/ObtenerClie
 src/CaeManager.Application/Empresas/Queries/ObtenerEmpresaPorId/ObtenerEmpresaPorIdQuery.cs :: EsCritico = 1
 src/CaeManager.Application/Importacion/Commands/EjecutarImportacion/EjecutarImportacionCommand.cs :: EsCritico = 1
 src/CaeManager.Application/Importacion/Commands/EjecutarImportacionCombinada/EjecutarImportacionCombinadaCommand.cs :: EsCritico = 3
+src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs :: NivelServicio = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerSubcontrataPorIdQuery.cs :: EsCritico = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontrataPorId/ObtenerSubcontrataPorIdQuery.cs :: NivelServicio = 1
 src/CaeManager.Application/Subcontratas/Queries/ObtenerSubcontratas/ObtenerSubcontratasQuery.cs :: NivelServicio = 1

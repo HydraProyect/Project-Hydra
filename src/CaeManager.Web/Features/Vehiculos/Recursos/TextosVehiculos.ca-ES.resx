@@ -115,13 +115,13 @@
     <value>¿Eliminar el vehículo {0}?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>Dejará de aparecer en las listas. No se puede recuperar desde la aplicación.</value>
+    <value>Dejará de aparecer en las listas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlo desde Auditoría.</value>
   </data>
   <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
     <value>¿Eliminar {0} vehículo(s)?</value>
   </data>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Dejarán de aparecer en las listas. No se pueden recuperar desde la aplicación.</value>
+    <value>Dejarán de aparecer en las listas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría.</value>
   </data>
   <data name="ErrorSeleccionaEmpresa" xml:space="preserve">
     <value>Selecciona una empresa.</value>
@@ -230,5 +230,20 @@
   </data>
   <data name="ListaColumnaVehiculoOrden" xml:space="preserve">
     <value>Vehicle · {0}</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="ToastRestaurado" xml:space="preserve">
+    <value>Vehicle restaurat.</value>
+  </data>
+  <data name="ToastLoteRestaurados" xml:space="preserve">
+    <value>{0} vehicle(s) restaurat(s).</value>
+  </data>
+  <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
+    <value>{0} restaurat(s). {1} no s'han pogut restaurar: {2}</value>
+  </data>
+  <data name="ErrorRestaurar" xml:space="preserve">
+    <value>No s'ha pogut desfer l'eliminació. Torna-ho a provar.</value>
   </data>
 </root>

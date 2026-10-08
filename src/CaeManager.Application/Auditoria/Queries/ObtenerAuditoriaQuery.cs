@@ -81,11 +81,11 @@ public class ObtenerAuditoriaQueryHandler(
     ITenantActual tenantActual)
     : IRequestHandler<ObtenerAuditoriaQuery, ResultadoPaginado<RegistroAuditoriaListaDto>>
 {
-    // Solo estas 5 tienen Restaurar*Command (patrón "Deshacer", ver
+    // Solo estas 8 tienen Restaurar*Command (patrón "Deshacer", ver
     // Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md § Eliminar) — son las únicas para las que la Auditoría
     // puede ofrecer una restauración real (H1, Project-Hydra-Negocio/tecnico/docs/ux-audit/14-administracion.md).
     private static readonly HashSet<string> EntidadesRestaurables =
-        ["Cliente", "Empresa", "Centro", "Trabajador", "Documento"];
+        ["Cliente", "Empresa", "Centro", "Trabajador", "Documento", "Vehiculo", "Proyecto", "Gestion"];
 
     // AuditoriaInterceptor.SerializarValores escribe "RoleId" tal cual (nombre
     // de propiedad del CLR de IdentityUserRole<Guid>) — ver su comentario
