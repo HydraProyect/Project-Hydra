@@ -1331,6 +1331,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().Equal([new EliminarFiltroGuardadoCommand(filtro.Id)]);
         cut.FindAll("[role=dialog]").Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().ContainSingle(
+            "borrado el filtro no se relee la lista: si esa relectura fallara, la confirmación quedaría abierta sobre un filtro que ya no existe");
         await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado").Should().BeEmpty());
     }

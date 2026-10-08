@@ -841,6 +841,32 @@ public class ClientesListaGen2Tests : BunitContext
         TextosDeLosChips(cut).Should().BeEmpty();
     }
 
+    /// <summary>Un Id en la URL no es autoridad: solo filtra un Gestor CAE que el directorio visible ofrece.</summary>
+    [Fact]
+    public void Un_Gestor_CAE_de_la_url_que_el_directorio_visible_no_ofrece_no_filtra()
+    {
+        var marta = GestorCae("Marta Ibarra");
+        var mediador = new MediatorFalso { Almacen = { Cliente("Refrielectric S.A.") } };
+        var cut = Renderizar(mediador, $"clientes?gestor={Guid.NewGuid()}", gestores: [marta]);
+
+        UltimaConsulta(mediador).EjecutivoUsuarioId.Should().BeNull();
+        TextosDeLosChips(cut).Should().BeEmpty("no hay chip «Gestor CAE: —»");
+    }
+
+    [Fact]
+    public async Task Un_filtro_guardado_con_un_estado_documental_que_no_existe_no_filtra_por_estado()
+    {
+        var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Antiguo",
+            JsonSerializer.Serialize(new { Busqueda = "Refri", EstadoDocumental = "99" }), DateTime.UtcNow);
+        var mediador = new MediatorFalso { Almacen = { Cliente("Refrielectric S.A.") }, FiltrosGuardados = { filtro } };
+        var cut = Renderizar(mediador);
+
+        await PulsarEnMasFiltros(cut, filtro.Nombre);
+
+        UltimaConsulta(mediador).EstadoDocumental.Should().BeNull("99 se convierte a un número de enum que no existe");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Refri").And.NotContain("estado=");
+    }
+
     [Fact]
     public async Task Limpiar_todo_quita_tambien_Gestor_CAE_y_estado_documental_de_la_url()
     {

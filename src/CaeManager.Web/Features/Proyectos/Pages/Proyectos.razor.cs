@@ -148,23 +148,30 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// empresarial que el selector no ofrece. Pasa por
     /// <see cref="OnClienteSeleccionadoAsync"/>, así que pregunta antes de
     /// perder lo escrito en el panel de detalle.
+    ///
+    /// <para>
+    /// <b>No escribe en la URL</b>: ya dice ese Cliente empresarial, y esta ruta
+    /// corre también en <c>OnInitializedAsync</c> durante el prerender, donde un
+    /// <c>NavigateTo</c> es una redirección HTTP — a la misma dirección, en bucle.
+    /// </para>
     /// </summary>
     private async Task AplicarClienteDeLaUrlAsync()
     {
         if (_cargando || _errorCarga)
             return;
         if (Guid.TryParse(ClienteInicial, out var id) && id != _clienteSeleccionadoId && _clientes.Any(c => c.Id == id))
-            await OnClienteSeleccionadoAsync(id.ToString());
+            await SeleccionarClienteAsync(id, pedidoPorLaUrl: true);
     }
 
     private void EscribirClienteEnUrl() =>
         NavigationManager.ActualizarFiltroEnUrl(
             "cliente", _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString());
 
-    private async Task OnClienteSeleccionadoAsync(string valor)
-    {
-        var nuevo = Guid.TryParse(valor, out var id) ? id : Guid.Empty;
+    private Task OnClienteSeleccionadoAsync(string valor) =>
+        SeleccionarClienteAsync(Guid.TryParse(valor, out var id) ? id : Guid.Empty, pedidoPorLaUrl: false);
 
+    private async Task SeleccionarClienteAsync(Guid nuevo, bool pedidoPorLaUrl)
+    {
         // Cambiar de Cliente empresarial cierra el panel de detalle (OnClienteChangedAsync): si
         // tenía algo escrito, se pregunta antes y, si se sigue editando, la selección vuelve
         // al Cliente empresarial anterior y se renueva el selector.
@@ -178,7 +185,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         }
 
         _clienteSeleccionadoId = nuevo;
-        EscribirClienteEnUrl();
+        if (!pedidoPorLaUrl)
+            EscribirClienteEnUrl();
         await OnClienteChangedAsync();
     }
 

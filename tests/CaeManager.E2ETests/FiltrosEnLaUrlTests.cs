@@ -13,7 +13,8 @@ namespace CaeManager.E2ETests;
 /// <para>
 /// El recorrido usa el filtro de Empresa de Trabajadores, que antes de este
 /// incremento vivía solo en memoria. No depende de qué Empresas siembra el
-/// fixture: elige la primera opción real de la pastilla y lee su Id de la URL.
+/// fixture: lee de la pastilla el nombre de una Empresa real, la elige por ese
+/// nombre accesible y lee su Id de la URL.
 /// </para>
 /// </summary>
 [Collection("AppCollection")]
@@ -34,11 +35,13 @@ public partial class FiltrosEnLaUrlTests(WebAppFixture fixture)
 
         var pastillas = page.Locator(".barra-filtros-pastillas");
         await pastillas.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Empresa", Exact = true }).ClickAsync();
-        // La primera opción es «Todas»; la segunda es la primera Empresa real.
-        var opcion = pastillas.GetByRole(AriaRole.Menuitemradio).Nth(1);
-        var nombreEmpresa = (await opcion.InnerTextAsync()).Trim();
-        Assert.False(string.IsNullOrWhiteSpace(nombreEmpresa), "la siembra debe ofrecer al menos una Empresa en la pastilla");
-        await opcion.ClickAsync();
+        var opciones = pastillas.GetByRole(AriaRole.Menuitemradio);
+        await Expect(opciones).Not.ToHaveCountAsync(0);
+        // «Todas» no filtra: se elige, por su nombre accesible, una Empresa real.
+        var nombreEmpresa = (await opciones.AllInnerTextsAsync()).Select(t => t.Trim())
+            .FirstOrDefault(t => t.Length > 0 && t != "Todas" && !t.StartsWith("Subcontrata", StringComparison.Ordinal));
+        Assert.False(nombreEmpresa is null, "la siembra debe ofrecer al menos una Empresa en la pastilla");
+        await pastillas.GetByRole(AriaRole.Menuitemradio, new LocatorGetByRoleOptions { Name = nombreEmpresa, Exact = true }).ClickAsync();
 
         await page.WaitForURLAsync(EmpresaEnLaUrl(), new PageWaitForURLOptions { Timeout = 30_000 });
         var urlConFiltro = page.Url;
@@ -49,9 +52,9 @@ public partial class FiltrosEnLaUrlTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(paginaFria, urlConFiltro);
         var chip = paginaFria.Locator(".chip-filtro");
         await Expect(chip).ToHaveCountAsync(1);
-        await Expect(chip).ToContainTextAsync(nombreEmpresa);
+        await Expect(chip).ToContainTextAsync(nombreEmpresa!);
 
-        await paginaFria.Locator("button.limpiar-filtros-barra").First.ClickAsync();
+        await paginaFria.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Limpiar todo", Exact = true }).ClickAsync();
 
         // Barrera positiva antes de afirmar la ausencia: el chip desaparece cuando
         // el circuito ya procesó el clic; solo entonces la URL sin filtro prueba algo.

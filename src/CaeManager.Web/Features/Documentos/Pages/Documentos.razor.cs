@@ -353,6 +353,11 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private IReadOnlyList<FiltroGuardadoDto> _filtrosGuardados = [];
     private FiltroGuardadoDto? _filtroGuardadoAEliminar;
     private bool _eliminandoFiltroGuardado;
+
+    private void CambiarVisibilidadBorradoFiltroGuardado(bool visible)
+    {
+        if (!visible) _filtroGuardadoAEliminar = null;
+    }
     private bool _mostrarGuardarFiltro;
     private string _nombreFiltroNuevo = string.Empty;
     private bool _guardandoFiltro;
@@ -1247,12 +1252,14 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 return;
             }
 
-            _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos), token);
+            // Ya está borrado: se cierra el diálogo y se quita de la lista sin releerla, para que
+            // un fallo de la relectura no deje la confirmación abierta sobre un filtro que no existe.
             _filtroGuardadoAEliminar = null;
+            _filtrosGuardados = _filtrosGuardados.Where(f => f.Id != filtro.Id).ToList();
         }
         catch (Exception) when (!token.IsCancellationRequested)
         {
-            ToastService.Mostrar("No pudimos borrar el filtro guardado. Intenta nuevamente en unos segundos.", TonoToast.Error);
+            ToastService.Mostrar(Textos["FiltroGuardadoBorrarError"], TonoToast.Error);
         }
         finally
         {

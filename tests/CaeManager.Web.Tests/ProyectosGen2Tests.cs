@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using CaeManager.Infrastructure.Identity;
 using Bunit;
+using Bunit.TestDoubles;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -508,6 +509,12 @@ public class ProyectosGen2Tests : BunitContext
         SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.");
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().ContainSingle(q => q.ClienteId == ClienteId,
             "la carga inicial y la primera pasada de parámetros no duplican la consulta");
+        ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History.Should().ContainSingle(
+            // bUnit sustituye la entrada cuando la página navega con replace: la única que queda
+            // tiene que ser la del arnés (sin replace), no una escrita por la página.
+            h => !h.Options.ReplaceHistoryEntry,
+            "abrir el enlace no navega: la URL ya dice el Cliente empresarial, y un NavigateTo en el prerender "
+            + "es una redirección HTTP a la misma dirección, en bucle");
     }
 
     /// <summary>La URL no puede abrir un Cliente empresarial que el selector no ofrece a este usuario.</summary>

@@ -352,8 +352,12 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var soloCriticosDeLaUrl = SoloCriticosInicial ?? false;
-        // Lo que no sea un Guid o un estado conocido es «sin filtro», como en Centros.
-        var gestorDeLaUrl = Guid.TryParse(GestorCaeInicial, out var gestorId) ? gestorId.ToString() : string.Empty;
+        // Lo que no sea un estado conocido, o un Gestor CAE que el directorio visible de este
+        // usuario no ofrece, es «sin filtro»: un Id en la URL no es autoridad, y la pantalla
+        // no filtra por alguien a quien no puede nombrar (misma regla que el filtro guardado).
+        var gestorDeLaUrl = Guid.TryParse(GestorCaeInicial, out var gestorId) && _ejecutivosParaFiltro.Any(g => g.Id == gestorId)
+            ? gestorId.ToString()
+            : string.Empty;
         var estadoDeLaUrl = Enum.TryParse<EstadoDocumento>(EstadoDocumentalInicial, out var estadoUrl) && Enum.IsDefined(estadoUrl)
             ? estadoUrl.ToString()
             : string.Empty;
@@ -1174,8 +1178,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
                 ? valores.GestorCaeId.Valor!
                 : string.Empty;
         if (valores.EstadoDocumental.Declarado)
-            _estadoDocumentalFiltro = Enum.TryParse<EstadoDocumento>(valores.EstadoDocumental.Valor, out _)
-                ? valores.EstadoDocumental.Valor!
+            _estadoDocumentalFiltro = Enum.TryParse<EstadoDocumento>(valores.EstadoDocumental.Valor, out var estadoGuardado) && Enum.IsDefined(estadoGuardado)
+                ? estadoGuardado.ToString()
                 : string.Empty;
 
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>

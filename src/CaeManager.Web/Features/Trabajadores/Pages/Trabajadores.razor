@@ -338,10 +338,10 @@
 @* Borrar un filtro guardado pregunta antes: no se puede deshacer. Mismo patrón que Clientes empresariales. *@
 <DialogoConfirmacion
     Visible="_filtroGuardadoAEliminar is not null"
-    VisibleChanged="v => { if (!v) _filtroGuardadoAEliminar = null; }"
-    Titulo="@($"¿Borrar el filtro guardado «{_filtroGuardadoAEliminar?.Nombre}»?")"
-    Mensaje="Desaparecerá de tus filtros guardados de Trabajadores. No borra ningún trabajador ni cambia lo que la lista enseña ahora."
-    TextoBotonConfirmar="Borrar filtro"
+    VisibleChanged="CambiarVisibilidadBorradoFiltroGuardado"
+    Titulo="@Textos["FiltroGuardadoBorrarTitulo", _filtroGuardadoAEliminar?.Nombre ?? string.Empty]"
+    Mensaje="@Textos["FiltroGuardadoBorrarMensaje"]"
+    TextoBotonConfirmar="@Textos["FiltroGuardadoBorrarBoton"]"
     EnProgreso="_eliminandoFiltroGuardado"
     OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />
 
