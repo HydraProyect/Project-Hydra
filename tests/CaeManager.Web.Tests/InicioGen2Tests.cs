@@ -754,6 +754,70 @@ public class InicioGen2Tests : BunitContext
             "el enlace de abajo se sustituye por el de la cabecera, no se duplica");
     }
 
+    private static VisitaListaDto VisitaProxima(string centroNombre) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), centroNombre, Guid.NewGuid(), "Cliente empresarial de prueba",
+            Guid.NewGuid(), "Empresa de prueba", new DateOnly(2026, 8, 18), new DateOnly(2026, 8, 20), 6,
+            DocumentacionCompleta: false, NotificadoCliente: false,
+            CaeManager.Domain.Visitas.OrigenVisita.Plataforma, CaeManager.Domain.Visitas.NivelUrgenciaVisita.Critica);
+
+    private static AngleSharp.Dom.IElement[] FilasDeProximamente(IRenderedComponent<Inicio> cut) =>
+        [.. cut.FindAll("table.tabla-datos tbody tr.fila-clicable")];
+
+    /// <summary>
+    /// La fila solo se operaba con ratón: un <c>&lt;tr @onclick&gt;</c> no recibe
+    /// foco ni responde a Enter. El patrón de los listados es un enlace real en la
+    /// celda del nombre; un <c>&lt;a href&gt;</c> es lo único que da foco, Enter y
+    /// «abrir en pestaña nueva» sin JavaScript, así que se afirma el elemento y no
+    /// un <c>tabindex</c>.
+    /// </summary>
+    [Fact]
+    public void Cada_fila_de_proximamente_se_alcanza_con_el_teclado_por_un_enlace_real_en_el_nombre_del_Centro()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Visitas = [VisitaProxima("Centro Norte"), VisitaProxima("Centro Sur")]
+        });
+
+        var filas = FilasDeProximamente(cut);
+        filas.Should().HaveCount(2);
+
+        foreach (var (fila, centro) in filas.Zip(["Centro Norte", "Centro Sur"]))
+        {
+            var enlace = fila.QuerySelector("td.dashboard-visita-centro a.enlace-nombre-fila");
+            enlace.Should().NotBeNull("sin un elemento enfocable dentro, la fila de «{0}» queda fuera del orden de tabulación", centro);
+            enlace!.TextContent.Trim().Should().Be(centro, "el nombre accesible del enlace es el Centro de su fila");
+            enlace.GetAttribute("href").Should().Be("/visitas", "un <a> sin href no recibe foco ni responde a Enter");
+            enlace.HasAttribute("tabindex").Should().BeFalse("un tabindex negativo lo sacaría del orden de tabulación");
+        }
+    }
+
+    /// <summary>
+    /// El clic en cualquier celda sigue navegando, pero el del enlace no puede
+    /// llegar además a la fila: el navegador ya sigue el <c>href</c>, y con
+    /// Ctrl+clic la fila movería también la pestaña actual.
+    /// </summary>
+    [Fact]
+    public void El_clic_en_la_fila_de_proximamente_navega_y_el_del_enlace_no_navega_por_segunda_vez()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Visitas = [VisitaProxima("Centro Norte")] });
+        var navegacion = (BunitNavigationManager)Services.GetRequiredService<NavigationManager>();
+        var antes = navegacion.History.Count;
+
+        // bUnit no tiene navegador que siga el href: cuando el clic no alcanza
+        // ningún manejador de Blazor —ni propio ni de la fila— lo dice lanzando
+        // MissingEventHandlerException. Esa es aquí la respuesta esperada; si el
+        // clic llegara a la fila, no lanzaría y el historial crecería.
+        var clicEnElEnlace = () => FilasDeProximamente(cut)[0].QuerySelector("a.enlace-nombre-fila")!.Click();
+        clicEnElEnlace.Should().Throw<MissingEventHandlerException>(
+            "el clic del enlace no debe propagarse al manejador de la fila");
+        navegacion.History.Count.Should().Be(antes,
+            "el clic del enlace lo resuelve el navegador con su href; si se propaga a la fila, navega dos veces");
+
+        FilasDeProximamente(cut)[0].QuerySelectorAll("td")[1].Click();
+        navegacion.History.Count.Should().Be(antes + 1, "el clic en el resto de la fila se conserva para el ratón");
+        new Uri(UrlActual).AbsolutePath.Should().Be("/visitas");
+    }
+
     // ------------------------------------------------- lo que ya existía
 
     /// <summary>

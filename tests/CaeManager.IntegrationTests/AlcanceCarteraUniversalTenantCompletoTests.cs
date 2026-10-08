@@ -237,6 +237,33 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Coordinador_con_cartera_universal_propia_y_sin_equipo_alcanza_todas_las_ramas_del_Tenant()
+    {
+        // ADR-011 § 2.7, enmienda 2026-10-08: el relevo del principal emite al Coordinador CAE una
+        // Asignación de Cartera suya. Sin nadie en su equipo, su alcance sale de ella.
+        var e = await SembrarAsync(_tenant, "A");
+        var coordinador = Guid.NewGuid();
+        await AltaUsuarioAsync(_tenant, coordinador);
+        await OtorgarCarteraAsync(_tenant, coordinador, AmbitoAsignacion.Universal);
+
+        DebeAlcanzarTodoElTenant(await MedirAsync(coordinador, "CoordinadorCae", _tenant), e);
+    }
+
+    [Fact]
+    public async Task Coordinador_sin_cartera_propia_ni_equipo_con_cartera_no_alcanza_nada()
+    {
+        await SembrarAsync(_tenant, "A");
+        var coordinador = Guid.NewGuid();
+        var gestorSinCartera = Guid.NewGuid();
+        await AltaUsuarioAsync(_tenant, coordinador);
+        await AltaUsuarioAsync(_tenant, gestorSinCartera, coordinadorUsuarioId: coordinador);
+        // La cartera de alguien que no le reporta no le da nada.
+        await OtorgarCarteraAsync(_tenant, Guid.NewGuid(), AmbitoAsignacion.Universal);
+
+        NoDebeAlcanzarNada(await MedirAsync(coordinador, "CoordinadorCae", _tenant));
+    }
+
+    [Fact]
     public async Task Gestor_sin_cartera_o_con_la_cartera_universal_caducada_no_alcanza_nada()
     {
         await SembrarAsync(_tenant, "A");

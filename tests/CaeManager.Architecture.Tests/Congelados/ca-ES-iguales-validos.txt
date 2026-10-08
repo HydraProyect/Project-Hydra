@@ -9,3 +9,8 @@
 #
 # «la matrícula» se escribe igual en catalán (la matrícula del vehicle): complemento de «Se copió…» en la ficha de Vehículo.
 la matrícula
+#
+# 2026-10-08 (Gestor CAE principal, ADR-011 § 2.7): «gestor», «coordinador» y «principal» se escriben
+# igual en catalán y CAE es la sigla del producto; no hay nada que traducir.
+Gestor CAE principal
+Coordinador CAE principal

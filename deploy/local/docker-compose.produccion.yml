@@ -277,10 +277,24 @@ services:
         condition: service_completed_successfully
 
   db:
-    # SIN mem_limit — hueco declarado, no resuelto aquí (REC-199, § 5 punto
-    # 4 del handoff HO-199-01). De los cuatro contenedores de este stack,
-    # "app" es hoy el único con techo (REC-198); su valor sale de REC-196,
-    # que sigue en stop condition — no se inventa aquí.
+    # Techo de memoria PARAMETRIZADO y, por defecto, SIN techo (REC-199, § 5
+    # punto 4 del handoff HO-199-01; REC-198). `0` es «sin límite» para
+    # Docker: mientras LIMITE_MEMORIA_DB no esté en el .env, la configuración
+    # efectiva de este servicio es la misma que antes y desplegar no recrea
+    # el contenedor. El valor no se fija aquí a propósito: sale de medir el
+    # pico bajo carga (REC-196, en stop condition) y no se inventa. Un techo
+    # corto a PostgreSQL es peor que ninguno: el kernel mata un backend, el
+    # postmaster corta todas las conexiones para recuperarse y la app se
+    # queda sin base.
+    #
+    # Al fijarlo: por encima de shared_buffers (cuenta en el cgroup) más
+    # max_connections × work_mem más maintenance_work_mem — este servicio no
+    # pasa `command` ni postgresql.conf, así que rigen los valores por
+    # defecto de la imagen salvo un ALTER SYSTEM hecho en el servidor
+    # (comprobarlo con SHOW antes de decidir). Y fijarlo o cambiarlo SÍ
+    # recrea este contenedor en el siguiente `up`: corte breve de la base.
+    # Contrato vigilado por deploy/compose-techos-memoria.tests.sh.
+    mem_limit: ${LIMITE_MEMORIA_DB:-0}
     #
     # Versión mayor 18, la de producción desde antes del VPS. Las copias
     # (scripts/backup-borg.sh) ejecutan pg_dump dentro de este contenedor,
@@ -315,8 +329,10 @@ services:
       retries: 10
 
   caddy:
-    # SIN mem_limit — mismo hueco declarado que "db" arriba (REC-199/REC-198,
-    # valor pendiente de REC-196).
+    # Techo parametrizado y por defecto sin techo, igual que "db" arriba
+    # (REC-199/REC-198, valor pendiente de REC-196). Este Caddy sirve a los
+    # DOS entornos: un techo corto aquí corta producción y staging a la vez.
+    mem_limit: ${LIMITE_MEMORIA_CADDY:-0}
     #
     # Versión exacta + digest, mismo motivo que "db" de arriba.
     image: caddy:2.11.4-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
@@ -385,8 +401,9 @@ services:
         exec caddy run --config "$$c" --adapter caddyfile
 
   seq:
-    # SIN mem_limit — mismo hueco declarado que "db" arriba (REC-199/REC-198,
-    # valor pendiente de REC-196).
+    # Techo parametrizado y por defecto sin techo, igual que "db" arriba
+    # (REC-199/REC-198, valor pendiente de REC-196).
+    mem_limit: ${LIMITE_MEMORIA_SEQ:-0}
     #
     # Logs centralizados (P0-3 de Project-Hydra-Negocio/tecnico/RUNBOOK-HORIZONTE-0.md) — licencia
     # Individual gratuita, autoalojado, sin coste por asiento (Datalust
