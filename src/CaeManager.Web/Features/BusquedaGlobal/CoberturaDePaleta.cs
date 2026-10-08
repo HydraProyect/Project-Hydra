@@ -84,6 +84,7 @@ public static class CoberturaDePaleta
         ("Ir a Facturación", "/facturacion"),
         ("Ir a Importación", "/importacion"),
         ("Ir a Integraciones", "/integraciones"),
+        (TextosBusquedaGlobal.Texto("IrAMiAvatar"), "/mi-avatar"),
         ("Ir a Mi firma", "/mi-firma"),
         ("Ir a Plantillas", "/plantillas"),
         ("Ir a Reportes", "/reportes"),

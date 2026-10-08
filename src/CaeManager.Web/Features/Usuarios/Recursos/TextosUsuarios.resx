@@ -126,4 +126,127 @@
   <data name="GuardarComprobandoCif" xml:space="preserve">
     <value>Comprobando la identificación fiscal de la empresa…</value>
   </data>
+  <data name="AvatarTitulo" xml:space="preserve">
+    <value>Mi avatar</value>
+  </data>
+  <data name="AvatarKicker" xml:space="preserve">
+    <value>Mi cuenta</value>
+  </data>
+  <data name="AvatarDescripcion" xml:space="preserve">
+    <value>Elige un animal y un color para que te representen en lugar de tus iniciales. Es opcional: si no eliges ninguno, se siguen mostrando tus iniciales.</value>
+  </data>
+  <data name="AvatarVistaPrevia" xml:space="preserve">
+    <value>Así te verán</value>
+  </data>
+  <data name="AvatarGrupoMotivo" xml:space="preserve">
+    <value>Elige un animal</value>
+  </data>
+  <data name="AvatarGrupoTono" xml:space="preserve">
+    <value>Elige un color</value>
+  </data>
+  <data name="AvatarGuardar" xml:space="preserve">
+    <value>Guardar avatar</value>
+  </data>
+  <data name="AvatarUsarIniciales" xml:space="preserve">
+    <value>Usar mis iniciales</value>
+  </data>
+  <data name="AvatarGuardado" xml:space="preserve">
+    <value>Avatar guardado.</value>
+  </data>
+  <data name="AvatarQuitado" xml:space="preserve">
+    <value>Vuelves a mostrarte con tus iniciales.</value>
+  </data>
+  <data name="AvatarErrorCargaTitulo" xml:space="preserve">
+    <value>No pudimos cargar tu avatar</value>
+  </data>
+  <data name="AvatarErrorCargaDescripcion" xml:space="preserve">
+    <value>Inténtalo de nuevo en unos segundos. Tu avatar no se ha modificado.</value>
+  </data>
+  <data name="AvatarReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="AvatarTono_azul" xml:space="preserve">
+    <value>Azul</value>
+  </data>
+  <data name="AvatarTono_verde" xml:space="preserve">
+    <value>Verde</value>
+  </data>
+  <data name="AvatarTono_ambar" xml:space="preserve">
+    <value>Ámbar</value>
+  </data>
+  <data name="AvatarTono_neutro" xml:space="preserve">
+    <value>Neutro</value>
+  </data>
+  <data name="AvatarMotivo_zorro" xml:space="preserve">
+    <value>Zorro</value>
+  </data>
+  <data name="AvatarMotivo_oso" xml:space="preserve">
+    <value>Oso</value>
+  </data>
+  <data name="AvatarMotivo_panda" xml:space="preserve">
+    <value>Oso panda</value>
+  </data>
+  <data name="AvatarMotivo_koala" xml:space="preserve">
+    <value>Koala</value>
+  </data>
+  <data name="AvatarMotivo_gato" xml:space="preserve">
+    <value>Gato</value>
+  </data>
+  <data name="AvatarMotivo_perro" xml:space="preserve">
+    <value>Perro</value>
+  </data>
+  <data name="AvatarMotivo_leon" xml:space="preserve">
+    <value>León</value>
+  </data>
+  <data name="AvatarMotivo_tigre" xml:space="preserve">
+    <value>Tigre</value>
+  </data>
+  <data name="AvatarMotivo_conejo" xml:space="preserve">
+    <value>Conejo</value>
+  </data>
+  <data name="AvatarMotivo_rana" xml:space="preserve">
+    <value>Rana</value>
+  </data>
+  <data name="AvatarMotivo_pinguino" xml:space="preserve">
+    <value>Pingüino</value>
+  </data>
+  <data name="AvatarMotivo_buho" xml:space="preserve">
+    <value>Búho</value>
+  </data>
+  <data name="AvatarMotivo_pollito" xml:space="preserve">
+    <value>Pollito</value>
+  </data>
+  <data name="AvatarMotivo_tortuga" xml:space="preserve">
+    <value>Tortuga</value>
+  </data>
+  <data name="AvatarMotivo_pulpo" xml:space="preserve">
+    <value>Pulpo</value>
+  </data>
+  <data name="AvatarMotivo_ballena" xml:space="preserve">
+    <value>Ballena</value>
+  </data>
+  <data name="AvatarMotivo_delfin" xml:space="preserve">
+    <value>Delfín</value>
+  </data>
+  <data name="AvatarMotivo_pez" xml:space="preserve">
+    <value>Pez</value>
+  </data>
+  <data name="AvatarMotivo_abeja" xml:space="preserve">
+    <value>Abeja</value>
+  </data>
+  <data name="AvatarMotivo_mariposa" xml:space="preserve">
+    <value>Mariposa</value>
+  </data>
+  <data name="AvatarMotivo_mariquita" xml:space="preserve">
+    <value>Mariquita</value>
+  </data>
+  <data name="AvatarMotivo_caracol" xml:space="preserve">
+    <value>Caracol</value>
+  </data>
+  <data name="AvatarMotivo_unicornio" xml:space="preserve">
+    <value>Unicornio</value>
+  </data>
+  <data name="AvatarMotivo_erizo" xml:space="preserve">
+    <value>Erizo</value>
+  </data>
 </root>

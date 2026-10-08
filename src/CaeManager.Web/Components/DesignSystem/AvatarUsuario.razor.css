@@ -1,0 +1,60 @@
+/*
+  El lado del círculo es una propiedad propia para que el emoji escale con él y para
+  que quien lo envuelve (el botón del menú de cuenta) pueda fijar otro tamaño sin
+  duplicar las reglas.
+*/
+.avatar-usuario {
+    --avatar-usuario-lado: 32px;
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: var(--avatar-usuario-lado);
+    height: var(--avatar-usuario-lado);
+    overflow: hidden;
+    border-radius: var(--radius-full);
+    /* Par con variante por tema (tokens.css): ver AvatarTenant.razor.css. */
+    background-color: var(--color-avatar-fondo);
+    color: var(--color-avatar-texto);
+    font: var(--font-label-md);
+    letter-spacing: 0;
+    vertical-align: middle;
+    user-select: none;
+}
+
+.avatar-usuario-pequeno {
+    --avatar-usuario-lado: 24px;
+    font: var(--font-caption);
+    font-weight: 600;
+}
+
+.avatar-usuario-grande {
+    --avatar-usuario-lado: 56px;
+}
+
+/* Tonos del catálogo: solo cambian el fondo, y solo acompañan a un emoji (que trae
+   sus propios colores); las iniciales van siempre sobre el par azul de arriba. */
+.avatar-usuario-tono-verde {
+    background-color: var(--color-success-50);
+}
+
+.avatar-usuario-tono-ambar {
+    background-color: var(--color-warning-50);
+}
+
+.avatar-usuario-tono-neutro {
+    background-color: var(--color-avatar-fondo-neutro);
+}
+
+.avatar-usuario-glifo {
+    font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif;
+    font-size: calc(var(--avatar-usuario-lado) * 0.58);
+    font-weight: 400;
+    line-height: 1;
+    transition: transform var(--motion-base) var(--ease-fluid);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .avatar-usuario-glifo {
+        transition: none;
+    }
+}

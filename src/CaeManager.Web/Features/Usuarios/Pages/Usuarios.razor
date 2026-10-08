@@ -114,7 +114,11 @@
                                 <span class="marca-eres-tu">tú</span>
                             }
                         </td>
-                        <td>@usuario.NombreCompleto</td>
+                        <td>
+                            <span class="persona-identidad">
+                                <AvatarUsuario Nombre="@usuario.NombreCompleto" Avatar="@usuario.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@usuario.NombreCompleto
+                            </span>
+                        </td>
                         <td>
                             @Roles.NombreVisible(usuario.Rol)
                             @if (usuario.EsOperadorDelegado)

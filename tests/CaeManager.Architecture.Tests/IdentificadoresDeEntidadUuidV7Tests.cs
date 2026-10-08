@@ -59,6 +59,8 @@ public class IdentificadoresDeEntidadUuidV7Tests
     /// </summary>
     private static readonly Dictionary<string, int> NoSonIdDeEntidad = new()
     {
+        // ConcurrencyStamp de Identity, renovado al guardar el avatar: token de concurrencia.
+        ["src/CaeManager.Infrastructure/Identity/AvatarDeCuentasIdentity.cs"] = 1,
         // Token de concurrencia Version (IVersionable) y quien lo renueva.
         ["src/CaeManager.Domain/AsistenteIa/TareaAsistente.cs"] = 1,
         ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 1,

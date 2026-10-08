@@ -144,6 +144,12 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private IReadOnlyList<NotaInternaDetalleDto> _notasInternas = [];
     private IReadOnlyDictionary<Guid, string> _autoresNotas = new Dictionary<Guid, string>();
 
+    /// <summary>
+    /// Avatar elegido por cada autor de nota. Va por Id de usuario y no por conversación,
+    /// así que se asigna al leerlo: una carga que llega tarde no pinta nada equivocado.
+    /// </summary>
+    private IReadOnlyDictionary<Guid, string> _avataresNotas = new Dictionary<Guid, string>();
+
     // --- Composer (compartido entre Correo/WhatsApp/fallback — ver ComposerBar) ---
     private string _textoRespuesta = string.Empty;
     private string _macroSeleccionadaId = string.Empty;
@@ -708,14 +714,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         await CargarDetalleAsync();
     }
 
-    private async Task<(IReadOnlyList<NotaInternaDetalleDto> Notas, IReadOnlyDictionary<Guid, string> Autores)> CargarNotasInternasAsync(Guid conversacionId)
+    private async Task<(IReadOnlyList<NotaInternaDetalleDto> Notas, IReadOnlyDictionary<Guid, string> Autores, IReadOnlyDictionary<Guid, string> Avatares)> CargarNotasInternasAsync(Guid conversacionId)
     {
         var notas = await Mediator.Send(new ObtenerNotasInternasConversacionQuery(conversacionId), _ciclo.Token);
-        if (notas.Count == 0) return (notas, new Dictionary<Guid, string>());
+        if (notas.Count == 0) return (notas, new Dictionary<Guid, string>(), new Dictionary<Guid, string>());
 
-        var autores = await DirectorioUsuarios.ObtenerNombresVisiblesAsync(
-            notas.Select(n => n.AutorUsuarioId).Distinct().ToList(), _ciclo.Token);
-        return (notas, autores);
+        var idsAutores = notas.Select(n => n.AutorUsuarioId).Distinct().ToList();
+        var autores = await DirectorioUsuarios.ObtenerNombresVisiblesAsync(idsAutores, _ciclo.Token);
+        var avatares = await DirectorioUsuarios.ObtenerAvataresVisiblesAsync(idsAutores, _ciclo.Token);
+        return (notas, autores, avatares);
     }
 
     /// <summary>Tras guardar una nota: solo se recargan las notas, no el hilo entero ni sus selectores.</summary>
@@ -724,11 +731,12 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (_conversacionSeleccionadaId is not { } id) return;
 
         var carga = _cargaDetalleVigente;
-        var (notas, autores) = await CargarNotasInternasAsync(id);
+        var (notas, autores, avatares) = await CargarNotasInternasAsync(id);
         if (carga != _cargaDetalleVigente) return;
 
         _notasInternas = notas;
         _autoresNotas = autores;
+        _avataresNotas = avatares;
     }
 
     private async Task CargarDetalleAsync()
@@ -755,13 +763,15 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             // timeline de un hilo nunca muestre las notas de otro.
             IReadOnlyList<NotaInternaDetalleDto> notas = [];
             IReadOnlyDictionary<Guid, string> autores = new Dictionary<Guid, string>();
+            IReadOnlyDictionary<Guid, string> avatares = new Dictionary<Guid, string>();
             if (detalle is not null)
-                (notas, autores) = await CargarNotasInternasAsync(id);
+                (notas, autores, avatares) = await CargarNotasInternasAsync(id);
             if (carga != _cargaDetalleVigente) return;
 
             _detalle = detalle;
             _notasInternas = notas;
             _autoresNotas = autores;
+            _avataresNotas = avatares;
 
             // Enlace corrupto o conversación fuera de alcance (borrada, de
             // otro tenant, sin visibilidad): mismo criterio que

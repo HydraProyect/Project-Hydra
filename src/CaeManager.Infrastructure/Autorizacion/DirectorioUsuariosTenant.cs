@@ -180,7 +180,8 @@ public class DirectorioUsuariosTenant(
             return cuentas
                 .Select(u => new CaeManager.Application.Usuarios.MiembroDeEquipo(
                     u.Id, u.Email ?? string.Empty, u.NombreCompleto, !u.EstaDesactivada(ahora),
-                    string.IsNullOrEmpty(u.PasswordHash) && !conLoginExterno.Contains(u.Id)))
+                    string.IsNullOrEmpty(u.PasswordHash) && !conLoginExterno.Contains(u.Id),
+                    u.Avatar))
                 .ToList();
         }, cancellationToken);
 
@@ -418,6 +419,30 @@ public class DirectorioUsuariosTenant(
             return usuarios.ToDictionary(
                 u => u.Id,
                 u => string.IsNullOrWhiteSpace(u.NombreCompleto) ? u.Email ?? "—" : u.NombreCompleto);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Clave del avatar elegido (<c>CatalogoAvatares</c>) de los usuarios pedidos que
+    /// tengan uno, con el mismo acotado que <see cref="ObtenerNombresVisiblesAsync"/>:
+    /// quien no es visible desde el tenant activo no aparece, y quien no eligió avatar
+    /// tampoco (se pintan sus iniciales).
+    /// </summary>
+    public virtual Task<IReadOnlyDictionary<Guid, string>> ObtenerAvataresVisiblesAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, string>>(async () =>
+        {
+            if (usuarioIds.Count == 0 || tenantActual.TenantId is not { } tenantId)
+                return new Dictionary<Guid, string>();
+
+            var rolesDelegados = await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken);
+
+            var avatares = await userManager.Users
+                .Where(u => usuarioIds.Contains(u.Id) && u.Avatar != null
+                            && (u.TenantId == tenantId || rolesDelegados.Keys.Contains(u.Id)))
+                .Select(u => new { u.Id, u.Avatar })
+                .ToListAsync(cancellationToken);
+
+            return avatares.ToDictionary(u => u.Id, u => u.Avatar!);
         }, cancellationToken);
 
     /// <summary>

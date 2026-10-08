@@ -414,17 +414,10 @@
 }
 
 /* Persona con sus iniciales delante (Gestor CAE de la fila). */
-.persona-iniciales {
-    display: inline-grid;
-    place-items: center;
-    width: 24px;
-    height: 24px;
-    margin-right: var(--space-2);
-    border-radius: var(--radius-full);
-    background-color: var(--color-primary-50);
-    color: var(--color-text);
-    font: var(--font-caption);
-    font-weight: 600;
+.persona-identidad {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
     vertical-align: middle;
 }
 

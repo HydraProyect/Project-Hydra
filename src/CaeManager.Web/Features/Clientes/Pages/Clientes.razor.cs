@@ -28,7 +28,8 @@ using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Clientes.Pages;
 
-public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email);
+/// <param name="Avatar">Clave del avatar elegido por esa persona (<c>CatalogoAvatares</c>), o <c>null</c>: iniciales.</param>
+public record GestorCaeSelectorDto(Guid Id, string NombreCompleto, string Email, string? Avatar = null);
 
 public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
@@ -310,7 +311,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         // segunda consulta ni un query nuevo.
         var gestores = await DirectorioUsuarios.ObtenerVisiblesEnRolAsync(Roles.GestorCae);
         _ejecutivosParaFiltro = gestores
-            .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty))
+            .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty, u.Avatar))
             .OrderBy(g => g.NombreCompleto)
             .ToList();
     }
@@ -482,14 +483,14 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         "Gestor CAE: " + (_ejecutivosParaFiltro.FirstOrDefault(g => g.Id.ToString() == _ejecutivoFiltro)?.NombreCompleto ?? "—");
 
     /// <summary>
-    /// Nombre del Gestor CAE de referencia de la fila (columna «Gestor CAE», con sus iniciales
+    /// Gestor CAE de referencia de la fila (columna «Gestor CAE», con su avatar o sus iniciales
     /// delante) — mismo directorio que ya resuelve el filtro, sin consulta nueva por fila. Null
     /// sin Gestor CAE asignado o si no está en el directorio visible: la celda pinta «—».
     /// </summary>
-    private string? NombreGestorCae(Guid? ejecutivoUsuarioId) =>
+    private GestorCaeSelectorDto? GestorCaeDeLaFila(Guid? ejecutivoUsuarioId) =>
         ejecutivoUsuarioId is null
             ? null
-            : _ejecutivosParaFiltro.FirstOrDefault(g => g.Id == ejecutivoUsuarioId)?.NombreCompleto;
+            : _ejecutivosParaFiltro.FirstOrDefault(g => g.Id == ejecutivoUsuarioId);
 
     /// <summary>Opciones de la pastilla «Gestor CAE»: el mismo directorio que la columna.</summary>
     private IReadOnlyList<OpcionEstado> OpcionesGestorCae =>

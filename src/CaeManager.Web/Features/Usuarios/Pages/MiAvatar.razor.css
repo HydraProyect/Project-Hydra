@@ -1,0 +1,124 @@
+.mi-emblema {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.mi-emblema-vista {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+/* Rebote de confirmación al guardar: una sola vez, cuando entra la clase. */
+.mi-emblema-vista-figura {
+    display: inline-flex;
+}
+
+.mi-emblema-vista-figura-rebota {
+    animation: mi-emblema-rebote var(--motion-transition) var(--ease-standard);
+}
+
+@keyframes mi-emblema-rebote {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.22); }
+    65% { transform: scale(0.94); }
+    100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mi-emblema-vista-figura-rebota {
+        animation: none;
+    }
+}
+
+.mi-emblema-vista-texto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.mi-emblema-vista-rotulo {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.mi-emblema-vista-nombre {
+    font: var(--font-label-md);
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.mi-emblema-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.mi-emblema-leyenda {
+    padding: 0;
+    font: var(--font-label-md);
+    color: var(--color-text);
+}
+
+.mi-emblema-opciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+/* La opción es la etiqueta de un radio nativo: flechas, espacio y foco los pone el
+   navegador. El radio se oculta a la vista, no al teclado ni al lector de pantalla. */
+.mi-emblema-opcion {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1);
+    border-radius: var(--radius-full);
+    font: var(--font-body-md);
+    color: var(--color-text);
+    cursor: pointer;
+}
+
+.mi-emblema-opcion-tono {
+    padding-right: var(--space-3);
+}
+
+.mi-emblema-radio {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.mi-emblema-opcion:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.mi-emblema-opcion:has(.mi-emblema-radio:checked) {
+    box-shadow: 0 0 0 2px var(--color-primary-500);
+}
+
+.mi-emblema-opcion:has(.mi-emblema-radio:focus-visible) {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+/* Pequeño gesto al pasar por encima; AvatarUsuario ya lo anula con movimiento reducido. */
+.mi-emblema-opcion:hover ::deep .avatar-usuario-glifo {
+    transform: scale(1.15) rotate(-8deg);
+}
+
+.mi-emblema-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}

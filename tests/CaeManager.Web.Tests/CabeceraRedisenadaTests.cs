@@ -1,3 +1,4 @@
+using CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio;
 using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida;
@@ -45,6 +46,7 @@ public class CabeceraRedisenadaTests : BunitContext
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         Services.AddSingleton<ILogger<ExcepcionDeCircuitoDesconectado>>(NullLogger<ExcepcionDeCircuitoDesconectado>.Instance);
         Services.AddSingleton<AntiforgeryStateProvider>(new AntiforgeryFalso());
+        Services.AddSingleton<ILogger<MenuUsuario>>(NullLogger<MenuUsuario>.Instance);
     }
 
     // ---- Iniciales del avatar ----
@@ -67,6 +69,8 @@ public class CabeceraRedisenadaTests : BunitContext
         Services.AddSingleton<IOptions<OpcionesLocalizacion>>(
             Opciones.Create(new OpcionesLocalizacion { CatalanHabilitado = true }));
 
+        Services.AddSingleton<IMediator>(new MediatorFalso(_ => null));
+
         var cut = Render<MenuUsuario>(p => p.Add(m => m.Nombre, "Elena Ríos"));
 
         var boton = cut.Find("#menu-cuenta-boton");
@@ -81,8 +85,9 @@ public class CabeceraRedisenadaTests : BunitContext
         panel.ClassList.Should().NotContain("abierto");
         panel.QuerySelector(".menu-cuenta-nombre")!.TextContent.Trim().Should().Be("Elena Ríos");
 
-        var firma = panel.QuerySelector("a[role=menuitem]")!;
-        firma.GetAttribute("href").Should().Be("/mi-firma");
+        var enlaces = panel.QuerySelectorAll("a[role=menuitem]").Select(a => a.GetAttribute("href")).ToList();
+        enlaces.Should().Equal(["/mi-avatar", "/mi-firma"],
+            "el propio avatar, arriba del todo, lleva a elegirlo; después «Mi firma y mis datos»");
 
         panel.QuerySelector("form.selector-idioma-formulario")!.GetAttribute("action").Should().Be("/cuenta/idioma",
             "el idioma sigue siendo el <form> POST de siempre, ahora dentro del menú");
@@ -98,6 +103,7 @@ public class CabeceraRedisenadaTests : BunitContext
     public void Con_el_catalan_apagado_el_menu_no_ofrece_idioma()
     {
         Services.AddSingleton<IOptions<OpcionesLocalizacion>>(Opciones.Create(new OpcionesLocalizacion()));
+        Services.AddSingleton<IMediator>(new MediatorFalso(_ => null));
 
         var cut = Render<MenuUsuario>(p => p.Add(m => m.Nombre, "Elena Ríos"));
 
@@ -177,6 +183,50 @@ public class CabeceraRedisenadaTests : BunitContext
 
         cut.Find("button.vistas-chip").GetAttribute("aria-expanded").Should().Be("false");
         cut.FindAll(".panel-desplegable-velo").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Decisión de producto del 2026-10-08: quien eligió un avatar del catálogo se ve con él en
+    /// lugar de sus iniciales, y desde el menú de cuenta se llega a cambiarlo pulsándolo.
+    /// </summary>
+    [Fact]
+    public void El_menu_de_usuario_pinta_el_avatar_elegido_y_enlaza_a_cambiarlo()
+    {
+        Services.AddSingleton<IOptions<OpcionesLocalizacion>>(
+            Opciones.Create(new OpcionesLocalizacion { CatalanHabilitado = true }));
+        Services.AddSingleton<IMediator>(new MediatorFalso(request => request switch
+        {
+            ObtenerAvatarPropioQuery => "zorro-verde",
+            _ => throw new NotSupportedException(request.GetType().Name),
+        }));
+
+        var cut = Render<MenuUsuario>(p => p.Add(m => m.Nombre, "Elena Ríos"));
+
+        var boton = cut.Find("#menu-cuenta-boton");
+        boton.TextContent.Trim().Should().Be("🦊");
+        boton.QuerySelector(".avatar-usuario")!.ClassList.Should().Contain("avatar-usuario-tono-verde");
+        boton.GetAttribute("aria-label").Should().Be("Menú de usuario", "un emoji tampoco es nombre accesible");
+
+        var cambiar = cut.Find("#menu-cuenta-panel a[href='/mi-avatar']");
+        cambiar.GetAttribute("role").Should().Be("menuitem");
+        cambiar.QuerySelector(".avatar-usuario")!.TextContent.Trim().Should().Be("🦊");
+        cambiar.TextContent.Should().Contain("Elena Ríos").And.Contain("Cambiar mi avatar");
+    }
+
+    /// <summary>
+    /// El avatar es decoración: si su lectura falla, la cabecera de todas las páginas se
+    /// pinta con las iniciales en vez de caerse.
+    /// </summary>
+    [Fact]
+    public void Si_no_se_puede_leer_el_avatar_el_menu_de_usuario_pinta_las_iniciales()
+    {
+        Services.AddSingleton<IOptions<OpcionesLocalizacion>>(
+            Opciones.Create(new OpcionesLocalizacion { CatalanHabilitado = true }));
+        Services.AddSingleton<IMediator>(new MediatorFalso(_ => throw new InvalidOperationException("base caída")));
+
+        var cut = Render<MenuUsuario>(p => p.Add(m => m.Nombre, "Elena Ríos"));
+
+        cut.Find("#menu-cuenta-boton").TextContent.Trim().Should().Be("ER");
     }
 
     // ---- Migas (propuesta 03) ----
