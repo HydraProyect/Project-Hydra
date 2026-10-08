@@ -20,16 +20,26 @@
 }
 
 .rejilla-empresas {
-    /* chevron · empresa (razón social y CIF) · cumplimiento · documentación · detecciones · acciones */
+    /*
+      chevron · empresa (razón social y CIF) · cumplimiento · documentación · detecciones · acciones
+
+      Ninguna pista se resuelve por contenido. La cabecera y cada fila son rejillas DISTINTAS que solo
+      comparten esta definición: con la última pista en «auto», la fila la medía por su disparador «⋯»
+      (44 px) y la cabecera, cuya celda está vacía, la dejaba en 0, así que la pista elástica de la
+      cabecera era 44 px más ancha y «Cumplimiento», «Documentación» y «Detecciones» quedaban 44 px a la
+      derecha de sus celdas (medido a 1280 px, 2026-10-09). 44 px es lo que mide hoy el disparador «⋯»
+      de MenuAcciones; si ese ancho cambia, las columnas siguen alineadas y solo cambia el aire de la
+      última. Lo fija EmpresasCabeceraAlineadaE2ETests.
+    */
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) 104px 132px 116px auto;
+    grid-template-columns: 28px minmax(0, 1fr) 104px 132px 116px 44px;
     gap: var(--space-2);
     align-items: center;
 }
 
 /* Con selección múltiple entra una casilla delante y las columnas se corren. */
 .rejilla-empresas-seleccion {
-    grid-template-columns: 24px 28px minmax(0, 1fr) 104px 132px 116px auto;
+    grid-template-columns: 24px 28px minmax(0, 1fr) 104px 132px 116px 44px;
 }
 
 /*
