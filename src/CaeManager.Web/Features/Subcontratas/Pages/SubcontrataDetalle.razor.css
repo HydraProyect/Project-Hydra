@@ -119,10 +119,6 @@
     margin-top: var(--space-3);
 }
 
-.subcontrata360-contrasena {
-    font-family: var(--font-family-mono, monospace);
-}
-
 /* Pantalla estrecha: la pastilla y la acción bajan bajo el nombre del documento. */
 @media (max-width: 767px) {
     .subcontrata360-subfila {

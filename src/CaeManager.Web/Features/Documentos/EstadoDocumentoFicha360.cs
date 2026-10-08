@@ -1,5 +1,6 @@
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Documentos.Recursos;
 using TonoDeFila = CaeManager.Web.Components.DesignSystem.TonoFila;
 
 namespace CaeManager.Web.Features.Documentos;
@@ -23,23 +24,15 @@ public enum AccionDocumentoFicha360
 /// </remarks>
 public static class EstadoDocumentoFicha360
 {
-    public static string Texto(EstadoDocumento estado) => estado switch
-    {
-        EstadoDocumento.Vencido => "Vencido",
-        EstadoDocumento.Faltante => "Pendiente",
-        EstadoDocumento.EnTolerancia => "En tolerancia",
-        EstadoDocumento.Urgente or EstadoDocumento.Proximo => "Por vencer",
-        EstadoDocumento.SinConfirmar => "Sin confirmar",
-        EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad => "Vigente",
-        _ => "Estado desconocido"
-    };
+    public static string Texto(EstadoDocumento estado) => TextosVigenciaDocumento.Texto(Clave(estado));
 
     public static TonoBadge Tono(EstadoDocumento estado) => estado switch
     {
         EstadoDocumento.Vencido or EstadoDocumento.Faltante => TonoBadge.Peligro,
         EstadoDocumento.EnTolerancia => TonoBadge.Tolerancia,
         EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.SinConfirmar => TonoBadge.Advertencia,
-        EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad => TonoBadge.Exito,
+        // Lo que no pide nada es lo que el porcentaje cuenta como al día: se pregunta al punto único, no se copia.
+        _ when CumplimientoDocumental.EsConforme(estado) => TonoBadge.Exito,
         _ => TonoBadge.Peligro
     };
 
@@ -55,10 +48,19 @@ public static class EstadoDocumentoFicha360
     };
 
     /// <summary>
-    /// Clave del contador de estado: agrupa los estados que comparten rótulo, para que el filtro no enseñe dos
-    /// «Por vencer» ni dos «Vigente».
+    /// Clave del contador de estado, que es también la de su rótulo en <see cref="TextosVigenciaDocumento"/>: agrupa
+    /// los estados que comparten rótulo, para que el filtro no enseñe dos «Por vencer» ni dos «Vigente».
     /// </summary>
-    public static string Clave(EstadoDocumento estado) => Texto(estado);
+    public static string Clave(EstadoDocumento estado) => estado switch
+    {
+        EstadoDocumento.Vencido => "Ficha360Vencido",
+        EstadoDocumento.Faltante => "Ficha360Pendiente",
+        EstadoDocumento.EnTolerancia => "EnTolerancia",
+        EstadoDocumento.Urgente or EstadoDocumento.Proximo => "Ficha360PorVencer",
+        EstadoDocumento.SinConfirmar => "SinConfirmar",
+        _ when CumplimientoDocumental.EsConforme(estado) => "Ficha360Vigente",
+        _ => "Ficha360Desconocido"
+    };
 
     /// <summary>La acción que pide el estado; <c>null</c> si no pide ninguna.</summary>
     public static AccionDocumentoFicha360? Accion(EstadoDocumento estado) => estado switch

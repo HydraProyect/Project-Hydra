@@ -515,6 +515,8 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             .Select(g => new OpcionEstadoRecuento(g.Key, EstadoDocumentoFicha360.Texto(g.First().PeorEstado), g.Count()))
             .ToList();
 
+    private bool HayFiltrosActivos => _estadosMarcados.Count > 0;
+
     private void CambiarEstadosMarcados(IReadOnlySet<string> seleccion) => _estadosMarcados = seleccion;
 
     private string TextoResumenTrabajadores =>

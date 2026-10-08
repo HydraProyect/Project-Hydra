@@ -114,7 +114,101 @@
                 @switch (_pestana)
                 {
                     case PestanaSupervision:
-                        @PestanaDeSupervision
+                        @* En el marcado, y no en @code como las otras dos: sus filas llevan una @key construida,
+                           y ClavesDeHermanos se declara junto a los hermanos. *@
+                    <section class="subcontrata360-seccion" aria-label="@Textos["PestanaSupervision"]">
+                            @if (_cargandoSupervision)
+                            {
+                                <Tarjeta><EstadoCargando Filas="4" /></Tarjeta>
+                            }
+                            else if (_errorSupervision)
+                            {
+                                <Tarjeta>
+                                    <EstadoVacio Titulo="@Textos["ErrorCargaSupervisionTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
+                                        <Accion>
+                                            <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarSupervisionAsync">@Comunes["Reintentar"]</Boton>
+                                        </Accion>
+                                    </EstadoVacio>
+                                </Tarjeta>
+                            }
+                            else if (_supervision is not null && CentrosSupervisados.Count == 0)
+                            {
+                                <Tarjeta>
+                                    <EstadoVacio Titulo="@Textos["SupervisionVacioTitulo"]" NombreIcono="vacio"
+                                                 Descripcion="@(HayCentrosDondeVerificar ? Textos["SupervisionVacioSinVerificaciones"] : Textos["SupervisionVacioSinCentros"])">
+                                        <Accion>
+                                            <SoloConEscritura>
+                                                <Boton Variante="VarianteBoton.Secundario" OnClick="RegistrarVerificacionAsync" Deshabilitado="@(!HayCentrosDondeVerificar)">
+                                                    @Textos["BotonRegistrarVerificacion"]
+                                                </Boton>
+                                            </SoloConEscritura>
+                                        </Accion>
+                                    </EstadoVacio>
+                                </Tarjeta>
+                            }
+                            else if (_supervision is not null)
+                            {
+                                <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaSupervision"]">
+                                    <Encabezado>
+                                        @* El encabezado de ListaRelaciones es un párrafo: dentro solo cabe contenido de línea. *@
+                                        <span class="subcontrata360-linea">
+                                            <span>@ExplicacionDeSupervision @TextoUltimaVerificacion</span>
+                                            <SoloConEscritura>
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="RegistrarVerificacionAsync" Deshabilitado="@(!HayCentrosDondeVerificar)">
+                                                    @Textos["BotonRegistrarVerificacion"]
+                                                </Boton>
+                                            </SoloConEscritura>
+                                        </span>
+                                    </Encabezado>
+                                    <ChildContent>
+                                        @{ var claves = new ClavesDeHermanos(); }
+                                        @foreach (var centro in CentrosSupervisados)
+                                        {
+                                            <li class="subcontrata360-grupo" @key="centro.CentroId">@centro.CentroNombre <span>· @centro.ClienteRazonSocial</span></li>
+                                            @foreach (var tipo in centro.Tipos)
+                                            {
+                                                <FilaRelacion @key="claves.De((centro.CentroId, tipo.TipoDocumentoId))" Nombre="@tipo.TipoDocumentoNombre"
+                                                              Tono="TonoFilaSupervision(tipo.Estado)">
+                                                    <Detalle>@DetalleVerificacion(tipo)</Detalle>
+                                                    <Estado>
+                                                        <Badge Tono="TonoEstadoSupervision(tipo.Estado)">@TextoEstadoSupervision(tipo.Estado)</Badge>
+                                                    </Estado>
+                                                    <Acciones>
+                                                        @if (PideVerificar(tipo.Estado))
+                                                        {
+                                                            <SoloConEscritura>
+                                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                                       aria-label="@Textos["AriaVerificar", tipo.TipoDocumentoNombre, centro.CentroNombre]"
+                                                                       OnClick="() => VerificarAsync(centro.CentroId, tipo.TipoDocumentoId)">
+                                                                    @Textos["AccionVerificar"]
+                                                                </Boton>
+                                                            </SoloConEscritura>
+                                                        }
+                                                        @if (tipo.UltimaVerificacion is { } ultima)
+                                                        {
+                                                            @if (ultima.TieneEvidencia)
+                                                            {
+                                                                <a class="subcontrata360-enlace" href="@($"/subcontratas/verificaciones/{ultima.Id}/evidencia")" target="_blank" rel="noopener"
+                                                                   aria-label="@Textos["AriaVerEvidencia", tipo.TipoDocumentoNombre, centro.CentroNombre]">@Textos["EnlaceVerEvidencia"]</a>
+                                                            }
+                                                            @* Eliminar es una orden denegada a Consulta; el nombre accesible distingue cuál borra. *@
+                                                            <SoloConEscritura>
+                                                                <MenuAcciones EtiquetaAccesible="@Textos["AriaMasAccionesVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]">
+                                                                    <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminarVerificacion(ultima.Id)"
+                                                                                    EtiquetaAccesible="@Textos["AriaEliminarVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]">
+                                                                        @Textos["BotonEliminarVerificacion"]
+                                                                    </ItemMenuAccion>
+                                                                </MenuAcciones>
+                                                            </SoloConEscritura>
+                                                        }
+                                                    </Acciones>
+                                                </FilaRelacion>
+                                            }
+                                        }
+                                    </ChildContent>
+                                </ListaRelaciones>
+                            }
+                        </section>
                         break;
                     case PestanaCentros:
                         @PestanaDeCentros
@@ -213,7 +307,7 @@
                                         }
                                         else
                                         {
-                                            <span class="subcontrata360-contrasena">@(_contrasenaVisible ? _credencial.Contrasena : "••••••••••")</span>
+                                            <span>@(_contrasenaVisible ? _credencial.Contrasena : "••••••••••")</span>
                                         }
                                     </DatoRejilla>
                                     @if (!string.IsNullOrWhiteSpace(_credencial.Notas))
@@ -421,100 +515,12 @@
     </section>;
 
     // ListaRelaciones envuelve el pie en su propio párrafo: aquí solo va el texto.
-    private RenderFragment PieSinCoincidencias => @<text>@Textos["NingunoEnLosEstadosMarcados"]</text>;
-
-    private RenderFragment PestanaDeSupervision => @<section class="subcontrata360-seccion" aria-label="@Textos["PestanaSupervision"]">
-        @if (_cargandoSupervision)
+    private RenderFragment PieSinCoincidencias => @<text>
+        @if (HayFiltrosActivos)
         {
-            <Tarjeta><EstadoCargando Filas="4" /></Tarjeta>
+            @Textos["NingunoEnLosEstadosMarcados"]
         }
-        else if (_errorSupervision)
-        {
-            <Tarjeta>
-                <EstadoVacio Titulo="@Textos["ErrorCargaSupervisionTitulo"]" Descripcion="@Textos["ErrorIntentaNuevamente"]">
-                    <Accion>
-                        <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarSupervisionAsync">@Comunes["Reintentar"]</Boton>
-                    </Accion>
-                </EstadoVacio>
-            </Tarjeta>
-        }
-        else if (_supervision is not null && CentrosSupervisados.Count == 0)
-        {
-            <Tarjeta>
-                <EstadoVacio Titulo="@Textos["SupervisionVacioTitulo"]" NombreIcono="vacio"
-                             Descripcion="@(HayCentrosDondeVerificar ? Textos["SupervisionVacioSinVerificaciones"] : Textos["SupervisionVacioSinCentros"])">
-                    <Accion>
-                        <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Secundario" OnClick="RegistrarVerificacionAsync" Deshabilitado="@(!HayCentrosDondeVerificar)">
-                                @Textos["BotonRegistrarVerificacion"]
-                            </Boton>
-                        </SoloConEscritura>
-                    </Accion>
-                </EstadoVacio>
-            </Tarjeta>
-        }
-        else if (_supervision is not null)
-        {
-            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaSupervision"]">
-                <Encabezado>
-                    @* El encabezado de ListaRelaciones es un párrafo: dentro solo cabe contenido de línea. *@
-                    <span class="subcontrata360-linea">
-                        <span>@ExplicacionDeSupervision @TextoUltimaVerificacion</span>
-                        <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="RegistrarVerificacionAsync" Deshabilitado="@(!HayCentrosDondeVerificar)">
-                                @Textos["BotonRegistrarVerificacion"]
-                            </Boton>
-                        </SoloConEscritura>
-                    </span>
-                </Encabezado>
-                <ChildContent>
-                    @foreach (var centro in CentrosSupervisados)
-                    {
-                        <li class="subcontrata360-grupo" @key="centro.CentroId">@centro.CentroNombre <span>· @centro.ClienteRazonSocial</span></li>
-                        @foreach (var tipo in centro.Tipos)
-                        {
-                            <FilaRelacion @key="(centro.CentroId, tipo.TipoDocumentoId)" Nombre="@tipo.TipoDocumentoNombre"
-                                          Tono="TonoFilaSupervision(tipo.Estado)">
-                                <Detalle>@DetalleVerificacion(tipo)</Detalle>
-                                <Estado>
-                                    <Badge Tono="TonoEstadoSupervision(tipo.Estado)">@TextoEstadoSupervision(tipo.Estado)</Badge>
-                                </Estado>
-                                <Acciones>
-                                    @if (PideVerificar(tipo.Estado))
-                                    {
-                                        <SoloConEscritura>
-                                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                                   aria-label="@Textos["AriaVerificar", tipo.TipoDocumentoNombre, centro.CentroNombre]"
-                                                   OnClick="() => VerificarAsync(centro.CentroId, tipo.TipoDocumentoId)">
-                                                @Textos["AccionVerificar"]
-                                            </Boton>
-                                        </SoloConEscritura>
-                                    }
-                                    @if (tipo.UltimaVerificacion is { } ultima)
-                                    {
-                                        @if (ultima.TieneEvidencia)
-                                        {
-                                            <a class="subcontrata360-enlace" href="@($"/subcontratas/verificaciones/{ultima.Id}/evidencia")" target="_blank" rel="noopener"
-                                               aria-label="@Textos["AriaVerEvidencia", tipo.TipoDocumentoNombre, centro.CentroNombre]">@Textos["EnlaceVerEvidencia"]</a>
-                                        }
-                                        @* Eliminar es una orden denegada a Consulta; el nombre accesible distingue cuál borra. *@
-                                        <SoloConEscritura>
-                                            <MenuAcciones EtiquetaAccesible="@Textos["AriaMasAccionesVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]">
-                                                <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminarVerificacion(ultima.Id)"
-                                                                EtiquetaAccesible="@Textos["AriaEliminarVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]">
-                                                    @Textos["BotonEliminarVerificacion"]
-                                                </ItemMenuAccion>
-                                            </MenuAcciones>
-                                        </SoloConEscritura>
-                                    }
-                                </Acciones>
-                            </FilaRelacion>
-                        }
-                    }
-                </ChildContent>
-            </ListaRelaciones>
-        }
-    </section>;
+    </text>;
 
     private RenderFragment PestanaDeCentros => @<section class="subcontrata360-seccion" aria-label="@Textos["PestanaCentros"]">
         @if (_cargandoCentros)
