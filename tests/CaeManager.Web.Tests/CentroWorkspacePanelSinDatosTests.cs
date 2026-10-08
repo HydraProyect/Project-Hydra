@@ -123,7 +123,7 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
     [InlineData(EstadoCentro.Vigente, 100, "Vigente")]
     [InlineData(EstadoCentro.Vigente, 0, "Vigente")]
     [InlineData(EstadoCentro.Vencido, null, "Vencido")]
-    [InlineData(EstadoCentro.Faltante, null, "Falta documentación")]
+    [InlineData(EstadoCentro.Faltante, null, "Pendiente")]
     public void El_badge_del_panel_dice_Sin_datos_solo_si_esta_Vigente_sin_cumplimiento_medido(
         EstadoCentro estado, int? cumplimiento, string esperado)
     {
