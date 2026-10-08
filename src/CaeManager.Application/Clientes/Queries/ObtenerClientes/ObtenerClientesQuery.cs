@@ -215,7 +215,8 @@ public class ObtenerClientesQueryHandler(
 
         return new ResultadoPaginado<ClienteListaDto>(enriquecidos, total, request.Pagina, request.TamanoPagina)
         {
-            RecuentosPorEstado = recuentosPorEstado
+            RecuentosPorEstado = recuentosPorEstado,
+            TotalSinFiltroDeEstado = request.ConRecuentosPorEstado ? totalSinEstado : null
         };
     }
 

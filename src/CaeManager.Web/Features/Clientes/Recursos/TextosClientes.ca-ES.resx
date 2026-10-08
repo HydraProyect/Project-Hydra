@@ -432,4 +432,13 @@
   <data name="ToleranciaSinTiposDescripcion" xml:space="preserve">
     <value>Aquest Client empresarial no té tipus de document de Treballador o d'Empresa als quals fixar tolerància, o no hi tens accés.</value>
   </data>
+  <data name="MotivoUnDocumento" xml:space="preserve">
+    <value>1 document</value>
+  </data>
+  <data name="MotivoDocumentos" xml:space="preserve">
+    <value>{0} documents</value>
+  </data>
+  <data name="TituloSinIncidencias" xml:space="preserve">
+    <value>Sense alertes de vigència obertes entre els seus treballadors</value>
+  </data>
 </root>

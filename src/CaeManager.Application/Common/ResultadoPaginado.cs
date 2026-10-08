@@ -12,4 +12,11 @@ public record ResultadoPaginado<T>(IReadOnlyList<T> Elementos, int TotalElemento
     /// o no se le pidieron: no es «cero filas».
     /// </summary>
     public IReadOnlyDictionary<string, int>? RecuentosPorEstado { get; init; }
+
+    /// <summary>
+    /// Filas que pasan los demás filtros, sin el de estado. Solo lo rellenan las consultas cuyos recuentos NO
+    /// suman el total (una misma fila cuenta en varios estados, como en Clientes empresariales); donde los
+    /// estados parten la lista, el total es la suma de <see cref="RecuentosPorEstado"/> y esto queda en <c>null</c>.
+    /// </summary>
+    public int? TotalSinFiltroDeEstado { get; init; }
 }

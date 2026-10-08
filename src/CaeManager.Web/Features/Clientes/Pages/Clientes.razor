@@ -102,7 +102,6 @@
                   OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado">
         <Pastillas>
             <PastillaFiltro Etiqueta="Gestor CAE" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync" Opciones="OpcionesGestorCae" />
-            <PastillaFiltro Etiqueta="@Textos["ListaFiltroEstado"]" Valor="@_estadoDocumentalFiltro" ValorChanged="CambiarEstadoDocumentalFiltroAsync" Opciones="OpcionesEstadoDocumental" />
             <PastillaFiltro Etiqueta="@Textos["ListaFiltroCriticidad"]" Valor="@(_soloCriticos ? ValorSoloCriticos : string.Empty)"
                             ValorChanged="v => CambiarSoloCriticosAsync(v == ValorSoloCriticos)" Opciones="OpcionesCriticidad" />
         </Pastillas>
@@ -119,10 +118,6 @@
             {
                 <ChipFiltro Etiqueta="@EtiquetaFiltroEjecutivo" EtiquetaAccesible="Quitar filtro de Gestor CAE" OnQuitar="QuitarFiltroEjecutivoAsync" />
             }
-            @if (!string.IsNullOrWhiteSpace(_estadoDocumentalFiltro))
-            {
-                <ChipFiltro Etiqueta="@EtiquetaFiltroEstadoDocumental" EtiquetaAccesible="Quitar filtro de estado documental" OnQuitar="QuitarFiltroEstadoDocumentalAsync" />
-            }
         </Chips>
         <Resumen>
             @if (!_errorCarga && _totalElementos > 0 && HayFiltrosActivos)
@@ -133,6 +128,12 @@
             }
         </Resumen>
     </BarraFiltros>
+
+    @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez y viaja en la URL como
+       «estado». Aquí un botón pregunta si el Cliente empresarial tiene ALGUNA alerta en ese estado, así que uno
+       con vencidos y por vencer cuenta en los dos botones: las cifras no suman el total, que se pasa aparte. *@
+    <FranjaEstado Opciones="FranjaEstadoDocumental" Valor="@_estadoDocumentalFiltro" ValorChanged="CambiarEstadoDocumentalFiltroAsync"
+                  Recuentos="_recuentosPorEstado" TotalTodos="_totalSinFiltroDeEstado" />
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -232,17 +233,19 @@
                         <span class="texto-vacio-celda">0</span>
                     }
                 </TemplateColumn>
-                @* Columna de orden por defecto: el peor estado primero (Faltante → Vencido →
-                   Urgente → Próximo → Al corriente), resuelto en ObtenerClientesQuery. *@
-                <TemplateColumn Title="Estado documental" Sortable="true" IsDefaultSortColumn="true"
+                @* Columna de orden por defecto: el peor estado primero (Vencido → Faltante →
+                   Urgente → Próximo → sin incidencias), resuelto en ObtenerClientesQuery. La pastilla dice el peor
+                   estado y el motivo de debajo cuántas alertas hay en él; lo correcto va sin pastilla. *@
+                <TemplateColumn Title="Estado documental" Sortable="true" IsDefaultSortColumn="true" Class="col-estado"
                                 SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EstadoDocumentalPeor))">
                     @if (context.EstadoDocumentalPeor is { } peor)
                     {
-                        <Badge Tono="EstadoDocumentoUi.Tono(peor)" ConIcono="true" title="@TituloEstadoDocumental(peor)">@TextoEstadoDocumental(peor, context.EstadoDocumentalCantidad)</Badge>
+                        <EstadoFila Tono="EstadoDocumentoUi.Tono(peor)" Texto="@EstadoDocumentoUi.Texto(peor)" Titulo="@TituloEstadoDocumental(peor)"
+                                    Motivo="@MotivoEstadoDocumental(context.EstadoDocumentalCantidad)" />
                     }
                     else
                     {
-                        <Badge Tono="TonoBadge.Exito" ConIcono="true" title="Sin alertas de vigencia abiertas entre sus trabajadores">Al corriente</Badge>
+                        <EstadoFila Correcto="true" Texto="@EstadoDocumentoUi.SinIncidencias" Titulo="@Textos["TituloSinIncidencias"]" />
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="Acciones" Align="Align.End">
