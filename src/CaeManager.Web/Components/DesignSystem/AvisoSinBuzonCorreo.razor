@@ -1,0 +1,54 @@
+@*
+    Salida de «enviar sin buzón de Microsoft 365 conectado» (FS-15). Antes cada punto de envío decía que no había buzón y
+    nada más. Este aviso dice por qué no se puede enviar, quién lo arregla y dónde (enlace a Conexiones de integración solo
+    para quien puede abrirla: el mismo rol que exige esa página), y deja SIEMPRE a mano la alternativa que no depende del
+    buzón: copiar el texto y adjuntar a mano lo que el punto de envío ofrezca descargar (ChildContent).
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<div class="alerta-formulario aviso-sin-buzon" role="alert">
+    <p>@Comunes["SinBuzonMotivo"]</p>
+    <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
+        <Authorized>
+            <p><a class="aviso-sin-buzon-conectar" href="@RutaConexiones">@Comunes["SinBuzonConectar"]</a></p>
+        </Authorized>
+        <NotAuthorized>
+            <p class="aviso-sin-buzon-pedir">@Comunes["SinBuzonPedirAdministrador"]</p>
+        </NotAuthorized>
+    </AuthorizeView>
+    <p>@Comunes["SinBuzonAlternativa"]</p>
+    @if (!string.IsNullOrWhiteSpace(Destinatarios))
+    {
+        <p class="aviso-sin-buzon-para">@Comunes["SinBuzonPara", Destinatarios]</p>
+    }
+    <div class="aviso-sin-buzon-acciones">
+        @if (!string.IsNullOrWhiteSpace(TextoParaCopiar))
+        {
+            <BotonCopiar Valor="@TextoParaCopiar" Etiqueta="@Comunes["SinBuzonEtiquetaCopiar"]" Texto="@Comunes["SinBuzonCopiarTexto"]" />
+        }
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    /// <summary>La página de Conexiones de integración: solo la abre el rol Administrador del Tenant propietario de los datos.</summary>
+    public const string RutaConexiones = "/integraciones";
+
+    /// <summary>Lo que se pega en el correo propio (asunto y cuerpo). Vacío: no se ofrece copiar.</summary>
+    [Parameter] public string? TextoParaCopiar { get; set; }
+
+    /// <summary>A quién iba el correo, para que quien lo envía a mano no tenga que buscarlo.</summary>
+    [Parameter] public string? Destinatarios { get; set; }
+
+    /// <summary>Lo que el punto de envío ofrece descargar para adjuntarlo a mano (el ZIP de la Visita).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Asunto en la primera línea y el cuerpo debajo, como «Copiar solicitud» de la Visita.</summary>
+    public static string? TextoDeCorreo(string? asunto, string? cuerpo) =>
+        string.IsNullOrWhiteSpace(asunto) && string.IsNullOrWhiteSpace(cuerpo)
+            ? null
+            : string.IsNullOrWhiteSpace(asunto) ? cuerpo : asunto + "\n\n" + cuerpo;
+}

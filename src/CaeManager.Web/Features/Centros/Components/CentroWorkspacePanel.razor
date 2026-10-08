@@ -627,7 +627,7 @@ else
             {
                 @if (!_borradorPrioridad.HayConexionDisponible)
                 {
-                    <div class="alerta-formulario" role="alert">No hay ningún buzón de correo conectado — conecta uno de Microsoft 365 antes de enviar.</div>
+                    <AvisoSinBuzonCorreo TextoParaCopiar="@AvisoSinBuzonCorreo.TextoDeCorreo(_asuntoPrioridad, _cuerpoPrioridad)" Destinatarios="@_destinatarioPrioridad" />
                 }
                 @if (_borradorPrioridad.UltimaSolicitudEnviadaEnUtc is { } ultima)
                 {
