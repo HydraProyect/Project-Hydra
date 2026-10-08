@@ -46,7 +46,7 @@
     {
         var cumplimiento = estado.Cumplimiento;
 
-        <CabeceraIdentidad Kicker="@Textos["Kicker"]" Titulo="@estado.Nombre" Meta="@DatosDeCabecera(estado)">
+        <CabeceraIdentidad Kicker="@Textos["Kicker"]" Titulo="@estado.Nombre" Datos="@DatosDeCabecera(estado)">
             <Anillo>
                 <AnilloCumplimiento Porcentaje="cumplimiento.Porcentaje" Tamano="TamanoAnillo.Cabecera"
                                     Leyenda="@(Textos["AnilloFraccion", cumplimiento.AlDia, cumplimiento.Requeridos])"
@@ -217,8 +217,7 @@
 
 @code {
     // Línea de datos de la cabecera: vigencia, pastilla de exigencia, a cuántos Centros y Trabajadores alcanza y la
-    // frase que hace evidente la regla de recuento. Va como fragmento y no como elemento hijo porque el parámetro se
-    // llama Meta y Razor lee <Meta> como el elemento vacío <meta> de HTML.
+    // frase que hace evidente la regla de recuento.
     private RenderFragment DatosDeCabecera(EstadoTipoDocumentoDto estado) => @<text>
         @{ var cumplimiento = estado.Cumplimiento; }
         <span>@(Textos["MetaVigencia"]) <b>@TextoVigencia(estado.VigenciaMeses)</b></span>

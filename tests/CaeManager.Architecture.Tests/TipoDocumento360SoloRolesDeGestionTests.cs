@@ -1,4 +1,5 @@
 using System.Reflection;
+using CaeManager.Architecture.Tests.Soporte;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 
