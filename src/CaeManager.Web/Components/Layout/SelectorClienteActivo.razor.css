@@ -135,8 +135,12 @@
 }
 
 .selector-tenant-fila-activa {
+    /* Sin franja lateral: fondo, nombre en negrita y la marca de verificación la distinguen. */
     background: var(--color-primary-50);
-    box-shadow: inset 3px 0 0 var(--color-primary-500);
+}
+
+.selector-tenant-fila-activa .selector-tenant-nombre {
+    font-weight: 600;
 }
 
 .selector-tenant-cabecera {
