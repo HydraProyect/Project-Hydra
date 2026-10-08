@@ -33,7 +33,7 @@
 /*
   Indicador de sistema (02 § 3.1): lo que hace la plataforma por su cuenta —
   aquí, cuándo leyó los datos— se marca en cian, no en el azul de las acciones
-  del usuario. --color-system-text para el texto (5,16:1 sobre Surface) y
+  del usuario. --color-system-text para el texto (5,38:1 sobre Surface) y
   --color-system-indicator para el punto, que no es texto y le basta 3:1.
 */
 .inicio-indicador-sistema {

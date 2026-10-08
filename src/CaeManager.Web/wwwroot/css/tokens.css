@@ -83,7 +83,9 @@
      acción, nunca sustituye a info, nunca es decoración (DDL-009).
      No existe un cian brillante válido en modo claro: #00F0FF da 1.41:1,
      #00C2E0 2.14:1 y #06B6D4 2.43:1 — los tres por debajo de su umbral. */
-  --color-system-text: #0c7792;      /* 5.16:1 sobre Surface ✓ (4.5:1) */
+  /* #0B748E desde el 2026-10-08 (DDL-081): #0C7792 daba 4,42:1 sobre el lienzo
+     nuevo (#E9EEF4) y el indicador de Inicio va directamente encima. */
+  --color-system-text: #0b748e;      /* 5,38:1 sobre Surface, 4,61:1 sobre el lienzo ✓ (4.5:1) */
   --color-system-indicator: #0e96b4; /* 3.48:1 sobre Surface ✓ (3:1) */
   --color-system-tint: color-mix(in srgb, var(--color-system-indicator) 10%, transparent);
 
@@ -96,8 +98,8 @@
      renombrando ni añadiendo un alias (ODM-04).
      Texto DIRECTAMENTE sobre el lienzo: --color-text 14,41:1 y
      --color-text-muted 6,41:1 cumplen; --color-success-700 y
-     --color-warning-700 (4,30:1) y --color-system-text (4,42:1) NO llegan al
-     4,5:1 — esos tres van sobre Surface o sobre su fondo -50, nunca sueltos
+     --color-warning-700 (4,30:1) NO llegan al
+     4,5:1 — van sobre Surface o sobre su fondo -50, nunca sueltos
      sobre el lienzo. */
   --color-bg: #e9eef4;
   --color-surface: var(--color-neutral-0);
@@ -483,7 +485,7 @@
   --color-resaltado-busqueda: #fff3c4;
   --color-anillo-pista: var(--color-neutral-300);
 
-  --color-system-text: #0c7792;
+  --color-system-text: #0b748e;
   --color-system-indicator: #0e96b4;
 
   --color-success-50: #eefdf3;
