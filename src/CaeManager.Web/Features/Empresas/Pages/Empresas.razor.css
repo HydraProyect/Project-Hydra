@@ -57,7 +57,7 @@
 
 /*
   Marco de la lista (mockup): una tarjeta con la cabecera de columnas en una
-  banda gris y las filas pegadas, separadas por una línea. Las reglas de
+  banda blanca y las filas pegadas, separadas por una línea. Las reglas de
   .tarjeta-fila-acordeon* de list-page.css las comparten Subcontratas y
   Centros; aquí solo se anulan DENTRO del marco, con el atributo de ámbito de
   esta página. Sin overflow: ver el comentario del marco en Empresas.razor.
@@ -71,8 +71,8 @@
 .cabecera-columnas-empresas {
     min-height: 40px;
     padding: 0 var(--space-4);
-    background: var(--color-surface-hover);
-    border-bottom: var(--border-default);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-fila-divisor);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     font: var(--font-label);
     font-size: 11px;
@@ -87,7 +87,7 @@
 
 .marco-lista-empresas .tarjeta-fila-acordeon {
     border: 0;
-    border-bottom: var(--border-default);
+    border-bottom: 1px solid var(--color-fila-divisor);
     border-radius: 0;
 }
 
