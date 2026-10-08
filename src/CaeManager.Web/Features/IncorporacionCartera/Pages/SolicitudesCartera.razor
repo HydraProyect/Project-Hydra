@@ -164,6 +164,14 @@
             </table>
         </Tarjeta>
     }
+
+    @* Provisional: «Dar acceso» vive aquí hasta que tenga su sitio en la ficha del Tenant. El
+       componente decide por sí mismo si hay algo que enseñar (solo a quien es Gestor CAE
+       principal de algún Tenant), así que no depende de qué bandeja se pinte arriba. *@
+    @if (_bandeja is not null)
+    {
+        <PanelDarAcceso />
+    }
 </div>
 
 <DialogoSolicitarIncorporacion @bind-Visible="_dialogoVisible" OnSolicitada="_ => CargarAsync()" />

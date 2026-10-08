@@ -1,12 +1,16 @@
 @using CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida
 @using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes
+@using CaeManager.Application.Operaciones.ApoyoCartera.Commands
+@using CaeManager.Application.Operaciones.ApoyoCartera.Queries
 @using CaeManager.Application.Operaciones.IncorporacionCartera
 @using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
 @using CaeManager.Application.VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa
+@using CaeManager.Web.Components.DesignSystem
 @using CaeManager.Web.Components.Layout
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
 @using CaeManager.Web.Recursos
 @using MediatR
+@using Microsoft.AspNetCore.Components.Forms
 @using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Logging
 @implements IDisposable
@@ -15,13 +19,15 @@
 @inject ILogger<ExcepcionDeCircuitoDesconectado> Logger
 @inject IStringLocalizer<TextosComunes> Textos
 @inject IStringLocalizer<TextosIncorporacionCartera> TextosCartera
+@inject IStringLocalizer<TextosApoyoCartera> TextosApoyo
+@inject AntiforgeryStateProvider AntiforgeryStateProvider
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
 @*
     Rediseño de la cabecera, propuesta 04: la campana reúne en un panel los avisos pendientes de
     quien mira, visibles desde cualquier pantalla y con contador. No es una fuente nueva: lee las
-    tres que ya existen, cada una con su propia Query y su propio alcance —ninguna se amplía ni se
-    cruza aquí, así que el Tenant y la autorización los sigue decidiendo cada Query:
+    cuatro que ya existen, cada una con su propia Query y su propio alcance —ninguna se amplía ni
+    se cruza aquí, así que el Tenant y la autorización los sigue decidiendo cada Query:
 
       1. Notificaciones del usuario (ObtenerNotificacionesPendientesQuery, por usuario). Las
          sigue anunciando además NotificacionesPopup; al descartarlas allí dejan de estar
@@ -32,8 +38,14 @@
       3. Solicitudes de incorporación a cartera que el Coordinador CAE puede resolver
          (ObtenerSolicitudesIncorporacionCarteraQuery). Enlaza a la bandeja: resolverlas sigue
          siendo allí o en AvisoSolicitudesCartera.
+      4. Propuestas de apoyo dirigidas a quien mira (ObtenerPropuestasApoyoPendientesQuery, por
+         su Operador CAE y su usuario; no dependen del Tenant activo). Es la única fuente que se
+         resuelve aquí mismo: un ítem por propuesta, con Aceptar y Rechazar. Rechazar pregunta
+         antes, porque no se deshace. Quién puede aceptar lo decide el Command, no este panel.
+         Al aceptar queda un enlace al Tenant propietario: el mismo POST revalidado de
+         /cuenta/cliente-activo que usa el selector de Tenant.
 
-    El contador es el número de elementos de las tres. Se recarga al montarse, al abrir el panel
+    El contador es el número de elementos de las cuatro. Se recarga al montarse, al abrir el panel
     y cada IntervaloRefresco; no mantiene estado propio de «leído», salvo el de las
     notificaciones, que se marca con su Command.
 *@
@@ -61,17 +73,60 @@
                 }
             </div>
 
-            @if (_items.Count == 0)
+            @if (_errorPropuesta is not null)
+            {
+                <p class="campana-error" role="alert" data-testid="campana-error-propuesta">@_errorPropuesta</p>
+            }
+
+            @if (_items.Count == 0 && _aceptadas.Count == 0)
             {
                 <p class="campana-vacio" role="status">@Textos["CabeceraAvisosVacio"]</p>
             }
             else
             {
                 <ul class="campana-lista">
+                    @foreach (var aceptada in _aceptadas)
+                    {
+                        <li @key="@($"aceptada:{aceptada.Id}")">
+                            <div class="campana-item campana-item-propuesta" data-propuesta-aceptada="@aceptada.Id">
+                                <span class="campana-item-texto" role="status">
+                                    <strong>@TextosApoyo["CampanaAceptada", aceptada.NombreEmpresa]</strong>
+                                </span>
+                                <form method="post" action="/cuenta/cliente-activo" class="campana-acciones">
+                                    @if (_token is not null)
+                                    {
+                                        <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+                                    }
+                                    <input type="hidden" name="tenantId" value="@aceptada.TenantPropietarioId" />
+                                    <input type="hidden" name="returnUrl" value="/" />
+                                    <Boton Type="submit" Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno">@TextosApoyo["AbrirEmpresa", aceptada.NombreEmpresa]</Boton>
+                                </form>
+                            </div>
+                        </li>
+                    }
                     @foreach (var item in _items)
                     {
-                        <li>
-                            @if (item.Url is not null && item.NotificacionId is null)
+                        <li @key="item.Clave">
+                            @if (item.Propuesta is { } propuesta)
+                            {
+                                <div class="campana-item campana-item-propuesta" data-propuesta-apoyo="@propuesta.Id">
+                                    <span class="campana-item-texto">
+                                        <strong>@item.Titulo</strong>
+                                        <small>@item.Detalle</small>
+                                    </span>
+                                    <span class="campana-acciones">
+                                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
+                                               OnClick="() => AceptarPropuestaAsync(propuesta)"
+                                               Deshabilitado="_propuestaEnCurso is not null" Cargando="_propuestaEnCurso == propuesta.Id"
+                                               aria-label="@TextosApoyo["AceptarEtiqueta", propuesta.NombreEmpresa]">@TextosApoyo["Aceptar"]</Boton>
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                               OnClick="() => PedirRechazarPropuesta(propuesta)"
+                                               Deshabilitado="_propuestaEnCurso is not null"
+                                               aria-label="@TextosApoyo["RechazarEtiqueta", propuesta.NombreEmpresa]">@TextosApoyo["Rechazar"]</Boton>
+                                    </span>
+                                </div>
+                            }
+                            else if (item.Url is not null && item.NotificacionId is null)
                             {
                                 <a class="campana-item" href="@item.Url" target="@(item.Externo ? "_blank" : null)" rel="@(item.Externo ? "noopener noreferrer" : null)">
                                     <span class="campana-item-texto">
@@ -103,16 +158,39 @@
             }
         </ChildContent>
     </PanelDesplegableCabecera>
+
+    <DialogoConfirmacion Visible="_aRechazar is not null"
+                         VisibleChanged="CerrarConfirmacionRechazo"
+                         Titulo="@TextosApoyo["ConfirmarRechazarTitulo"]"
+                         Mensaje="@MensajeConfirmarRechazar"
+                         TextoBotonConfirmar="@TextosApoyo["Rechazar"]"
+                         TextoBotonDescartar="@TextosApoyo["BotonCancelar"]"
+                         EnProgreso="_propuestaEnCurso is not null"
+                         OnConfirmar="RechazarPropuestaAsync" />
 </LimiteDeErrores>
 
 @code {
     private static readonly TimeSpan IntervaloRefresco = TimeSpan.FromMinutes(2);
 
-    /// <param name="Clave">Identifica el elemento entre las tres fuentes; no se muestra.</param>
+    /// <param name="Clave">Identifica el elemento entre las cuatro fuentes; no se muestra.</param>
     /// <param name="NotificacionId">Solo las notificaciones del usuario se pueden marcar leídas desde aquí.</param>
-    private sealed record ItemAviso(string Clave, string Titulo, string? Detalle, string? Url, bool Externo, Guid? NotificacionId);
+    /// <param name="Propuesta">La propuesta de apoyo que este elemento deja aceptar o rechazar aquí mismo.</param>
+    private sealed record ItemAviso(
+        string Clave, string Titulo, string? Detalle, string? Url, bool Externo, Guid? NotificacionId,
+        PropuestaApoyoDto? Propuesta = null);
 
     private IReadOnlyList<ItemAviso> _items = [];
+
+    /// <summary>
+    /// Las propuestas que quien mira acaba de aceptar en este panel: ya no están pendientes, y lo
+    /// único que queda por ofrecer es abrir ese Tenant. Se olvidan al cerrar el panel.
+    /// </summary>
+    private readonly List<PropuestaApoyoDto> _aceptadas = [];
+
+    private AntiforgeryRequestToken? _token;
+    private Guid? _propuestaEnCurso;
+    private PropuestaApoyoDto? _aRechazar;
+    private string? _errorPropuesta;
     private bool _abierto;
     private CancellationTokenSource? _cancelacion;
 
@@ -120,8 +198,13 @@
         ? Textos["CabeceraAvisos"].Value
         : Textos["CabeceraAvisosConContador", _items.Count].Value;
 
+    private string MensajeConfirmarRechazar => _aRechazar is null
+        ? string.Empty
+        : TextosApoyo["ConfirmarRechazarMensaje", _aRechazar.NombreProponente, _aRechazar.NombreEmpresa];
+
     protected override async Task OnInitializedAsync()
     {
+        _token = AntiforgeryStateProvider.GetAntiforgeryToken();
         await CargarAsync();
         IniciarRefresco();
     }
@@ -129,11 +212,23 @@
     private async Task AlCambiarAbiertoAsync(bool abierto)
     {
         _abierto = abierto;
-        if (abierto) await CargarAsync();
+        if (abierto)
+        {
+            await CargarAsync();
+            return;
+        }
+
+        // Con el diálogo de rechazo abierto el panel puede cerrarse por el clic fuera de él: lo
+        // aceptado y el error se conservan hasta que el diálogo se resuelva.
+        if (_aRechazar is null)
+        {
+            _aceptadas.Clear();
+            _errorPropuesta = null;
+        }
     }
 
     /// <summary>
-    /// Lee las tres fuentes. Cada una por su Query, con el alcance y la autorización que esa Query
+    /// Lee las cuatro fuentes. Cada una por su Query, con el alcance y la autorización que esa Query
     /// ya aplica; una que no puede decir nada (sin permiso, sin Operador CAE) aporta una lista vacía.
     /// </summary>
     private async Task CargarAsync()
@@ -167,6 +262,13 @@
                         resolubles == 1 ? TextosCartera["AvisoResumenUna", 1] : TextosCartera["AvisoResumenVarias", resolubles],
                         RutasIncorporacionCartera.Bandeja, Externo: false, NotificacionId: null));
                 }
+            }
+
+            foreach (var propuesta in (await Mediator.Send(new ObtenerPropuestasApoyoPendientesQuery())).Recibidas)
+            {
+                items.Add(new ItemAviso($"apoyo:{propuesta.Id}",
+                    TextosApoyo["CampanaTitulo", propuesta.NombreProponente, propuesta.NombreEmpresa],
+                    TextosApoyo["CampanaDetalle"], Url: null, Externo: false, NotificacionId: null, propuesta));
             }
 
             _items = items;
@@ -219,6 +321,69 @@
 
         if (!string.IsNullOrWhiteSpace(item.Url))
             Navigation.NavigateTo(item.Url, forceLoad: true);
+    }
+
+    /// <summary>
+    /// Acepta la propuesta. Quién puede y si sigue siendo válida lo decide el Command, que lo
+    /// vuelve a leer todo; aquí solo se enseña el resultado. Tras aceptar se ofrece abrir el
+    /// Tenant, sin cambiar el que quien mira tiene activo.
+    /// </summary>
+    private async Task AceptarPropuestaAsync(PropuestaApoyoDto propuesta)
+    {
+        if (_propuestaEnCurso is not null)
+            return;
+
+        _propuestaEnCurso = propuesta.Id;
+        _errorPropuesta = null;
+        try
+        {
+            var resultado = await Mediator.Send(new AceptarPropuestaApoyoCarteraCommand(propuesta.Id));
+            if (resultado.EsFallido)
+                _errorPropuesta = TextosApoyoCartera.MensajeDeError(TextosApoyo, resultado.Error);
+            else
+                _aceptadas.Add(propuesta);
+
+            // Siempre: aceptada o anulada, deja de estar pendiente.
+            await CargarAsync();
+        }
+        finally
+        {
+            _propuestaEnCurso = null;
+        }
+    }
+
+    // Rechazar cierra la propuesta para siempre: pasa por confirmación en vez de salir con un clic.
+    private void PedirRechazarPropuesta(PropuestaApoyoDto propuesta)
+    {
+        _errorPropuesta = null;
+        _aRechazar = propuesta;
+    }
+
+    private void CerrarConfirmacionRechazo(bool visible)
+    {
+        if (!visible && _propuestaEnCurso is null)
+            _aRechazar = null;
+    }
+
+    private async Task RechazarPropuestaAsync()
+    {
+        if (_aRechazar is not { } propuesta || _propuestaEnCurso is not null)
+            return;
+
+        _propuestaEnCurso = propuesta.Id;
+        try
+        {
+            var resultado = await Mediator.Send(new RechazarPropuestaApoyoCarteraCommand(propuesta.Id));
+            if (resultado.EsFallido)
+                _errorPropuesta = TextosApoyoCartera.MensajeDeError(TextosApoyo, resultado.Error);
+
+            await CargarAsync();
+        }
+        finally
+        {
+            _propuestaEnCurso = null;
+            _aRechazar = null;
+        }
     }
 
     private async Task MarcarNotificacionesLeidasAsync()

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="CampanaTitulo" xml:space="preserve">
+    <value>{0} te propone apoyo en {1}</value>
+  </data>
+  <data name="CampanaDetalle" xml:space="preserve">
+    <value>Propuesta de apoyo: si aceptas, podrás trabajar en esa Empresa como Gestor CAE de apoyo.</value>
+  </data>
+  <data name="Aceptar" xml:space="preserve">
+    <value>Aceptar</value>
+  </data>
+  <data name="Rechazar" xml:space="preserve">
+    <value>Rechazar</value>
+  </data>
+  <data name="AceptarEtiqueta" xml:space="preserve">
+    <value>Aceptar la propuesta de apoyo en {0}</value>
+  </data>
+  <data name="RechazarEtiqueta" xml:space="preserve">
+    <value>Rechazar la propuesta de apoyo en {0}</value>
+  </data>
+  <data name="CampanaAceptada" xml:space="preserve">
+    <value>Ya tienes acceso de apoyo a {0}</value>
+  </data>
+  <data name="AbrirEmpresa" xml:space="preserve">
+    <value>Abrir {0}</value>
+  </data>
+  <data name="ConfirmarRechazarTitulo" xml:space="preserve">
+    <value>Rechazar propuesta de apoyo</value>
+  </data>
+  <data name="ConfirmarRechazarMensaje" xml:space="preserve">
+    <value>No tendrás acceso de apoyo a {1}. El rechazo no se puede deshacer; si más adelante lo necesitas, {0} tendrá que proponértelo de nuevo.</value>
+  </data>
+  <data name="PanelTitulo" xml:space="preserve">
+    <value>Acceso de apoyo</value>
+  </data>
+  <data name="PanelDescripcion" xml:space="preserve">
+    <value>Empresas de las que eres Gestor CAE principal. Puedes proponer a otro Gestor CAE de tu organización que te apoye: tendrá acceso cuando acepte.</value>
+  </data>
+  <data name="ApoyosEtiqueta" xml:space="preserve">
+    <value>Con acceso de apoyo:</value>
+  </data>
+  <data name="SinApoyos" xml:space="preserve">
+    <value>Nadie más tiene acceso de apoyo.</value>
+  </data>
+  <data name="PropuestaSinResponder" xml:space="preserve">
+    <value>{0}, sin responder todavía</value>
+  </data>
+  <data name="BotonDarAcceso" xml:space="preserve">
+    <value>Dar acceso</value>
+  </data>
+  <data name="BotonDarAccesoEtiqueta" xml:space="preserve">
+    <value>Dar acceso de apoyo a {0}</value>
+  </data>
+  <data name="RetirarPropuesta" xml:space="preserve">
+    <value>Retirar propuesta</value>
+  </data>
+  <data name="RetirarPropuestaEtiqueta" xml:space="preserve">
+    <value>Retirar la propuesta de apoyo a {0} en {1}</value>
+  </data>
+  <data name="ConfirmarRetirarTitulo" xml:space="preserve">
+    <value>Retirar propuesta de apoyo</value>
+  </data>
+  <data name="ConfirmarRetirarMensaje" xml:space="preserve">
+    <value>{0} dejará de ver tu propuesta de apoyo en {1}. Podrás proponérselo de nuevo cuando quieras.</value>
+  </data>
+  <data name="DrawerTitulo" xml:space="preserve">
+    <value>Dar acceso a {0}</value>
+  </data>
+  <data name="DrawerIntro" xml:space="preserve">
+    <value>Propón a un Gestor CAE de tu organización que te apoye en esta Empresa. Cuando acepte tendrá el mismo acceso que tú, como Gestor CAE de apoyo; tú sigues siendo el Gestor CAE principal.</value>
+  </data>
+  <data name="EtiquetaDestinatario" xml:space="preserve">
+    <value>Gestor CAE al que se lo propones</value>
+  </data>
+  <data name="OpcionElige" xml:space="preserve">
+    <value>Elige un Gestor CAE</value>
+  </data>
+  <data name="SinDestinatarios" xml:space="preserve">
+    <value>No hay ningún otro Gestor CAE de tu organización al que proponérselo: todos tienen ya acceso o una propuesta tuya sin responder.</value>
+  </data>
+  <data name="MotivoSinDestinatarios" xml:space="preserve">
+    <value>No hay a quién proponérselo</value>
+  </data>
+  <data name="BotonProponer" xml:space="preserve">
+    <value>Proponer</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="ErrorFaltaDestinatario" xml:space="preserve">
+    <value>Elige a quién se lo propones.</value>
+  </data>
+  <data name="ToastPropuesta" xml:space="preserve">
+    <value>Propuesta enviada a {0}. Tendrá acceso a {1} cuando acepte.</value>
+  </data>
+  <data name="ToastRetirada" xml:space="preserve">
+    <value>Propuesta de apoyo retirada.</value>
+  </data>
+  <data name="ErrorGenerico" xml:space="preserve">
+    <value>No se ha podido completar la acción.</value>
+  </data>
+  <data name="ErrorSinPermiso" xml:space="preserve">
+    <value>Las propuestas de apoyo son de los Gestores CAE y los Coordinadores CAE de tu organización.</value>
+  </data>
+  <data name="ErrorNoEresElPrincipal" xml:space="preserve">
+    <value>Solo el Gestor CAE principal de esta Empresa puede proponer un apoyo, y ahora no lo eres tú.</value>
+  </data>
+  <data name="ErrorOperacionNoDisponible" xml:space="preserve">
+    <value>Tu organización ya no opera esta Empresa.</value>
+  </data>
+  <data name="ErrorDestinatarioNoValido" xml:space="preserve">
+    <value>Esa persona no es un Gestor CAE activo de tu organización.</value>
+  </data>
+  <data name="ErrorDestinatarioYaEnCartera" xml:space="preserve">
+    <value>Esa persona ya tiene acceso a esta Empresa.</value>
+  </data>
+  <data name="ErrorYaPendiente" xml:space="preserve">
+    <value>Ya le has propuesto este apoyo y todavía no ha respondido.</value>
+  </data>
+  <data name="ErrorNoEncontrada" xml:space="preserve">
+    <value>La propuesta de apoyo ya no existe.</value>
+  </data>
+  <data name="ErrorYaResuelta" xml:space="preserve">
+    <value>La propuesta de apoyo ya estaba resuelta.</value>
+  </data>
+  <data name="ErrorCambioMientrasDecidias" xml:space="preserve">
+    <value>Algo cambió mientras decidías. Vuelve a abrir los avisos y prueba otra vez.</value>
+  </data>
+  <data name="ErrorAnuladaProponenteYaNoEsPrincipal" xml:space="preserve">
+    <value>La propuesta se ha anulado: quien te la hizo ya no es el Gestor CAE principal de esa Empresa.</value>
+  </data>
+  <data name="ErrorAnuladaDestinatarioNoDisponible" xml:space="preserve">
+    <value>La propuesta se ha anulado: tu cuenta ya no puede recibir este acceso.</value>
+  </data>
+  <data name="ErrorAnuladaOperacionNoVigente" xml:space="preserve">
+    <value>La propuesta se ha anulado: tu organización ya no opera esa Empresa.</value>
+  </data>
+  <data name="ErrorAnuladaYaEnCartera" xml:space="preserve">
+    <value>La propuesta se ha anulado: ya tenías acceso a esa Empresa.</value>
+  </data>
+</root>
