@@ -363,6 +363,11 @@ public class AltaDeGestorCaeConCarteraTests : IAsyncLifetime
             public Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerCandidatosAsync(
                 Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
                 Real.ObtenerCandidatosAsync(operadorTenantId, usuarioId, cancellationToken);
+            public Task<IReadOnlyList<CarteraVivaDeOperacion>> ObtenerCarterasVivasAsync(Guid o, Guid? p, CancellationToken c = default) => Real.ObtenerCarterasVivasAsync(o, p, c);
+            public Task<IReadOnlyList<OperacionConPrincipal>> ObtenerOperacionesDondeEsPrincipalAsync(Guid o, Guid u, CancellationToken c = default) => Real.ObtenerOperacionesDondeEsPrincipalAsync(o, u, c);
+            public Task<bool> ApagarPrincipalAsync(Guid o, Guid op, Guid u, CancellationToken c = default) => Real.ApagarPrincipalAsync(o, op, u, c);
+            public Task<bool> EncenderPrincipalAsync(Guid o, Guid op, Guid u, CancellationToken c = default) => Real.EncenderPrincipalAsync(o, op, u, c);
+            public Task<ResultadoRelevoPrincipal> RelevarPrincipalAsync(Guid p, Guid o, Guid op, Guid u, CancellationToken c = default) => Real.RelevarPrincipalAsync(p, o, op, u, c);
             public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
                 Guid asignacionOperacionId, CancellationToken cancellationToken = default) =>
                 Real.ObtenerOperacionVigenteAsync(asignacionOperacionId, cancellationToken);
