@@ -351,6 +351,9 @@
                                 @if (centro.Recuentos.TotalVencidas > 0)
                                 {
                                     <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Vencidas, "vencido")"
+                                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                     Interactiva="HayCorregibles(centro, centro.Recuentos.Vencidas)"
+                                                     Pie="@PieDeIncidencias(centro, centro.Recuentos.Vencidas)"
                                                      Titulo="@($"{centro.Recuentos.TotalVencidas} {(centro.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
                                         <Disparador>
                                             <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento"
@@ -359,7 +362,7 @@
                                             </Badge>
                                         </Disparador>
                                         <Detalle>
-                                            @DesgloseIncidencias(centro.Recuentos.Vencidas)
+                                            @DesgloseIncidencias(centro, centro.Recuentos.Vencidas)
                                         </Detalle>
                                     </VentanaContexto>
                                 }
@@ -368,6 +371,9 @@
                                 @if (centro.Recuentos.TotalProximas > 0)
                                 {
                                     <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Proximas, "próximo a vencer")"
+                                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                     Interactiva="HayCorregibles(centro, centro.Recuentos.Proximas)"
+                                                     Pie="@PieDeIncidencias(centro, centro.Recuentos.Proximas)"
                                                      Titulo="@($"{centro.Recuentos.TotalProximas} {(centro.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
                                         <Disparador>
                                             <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento"
@@ -376,7 +382,7 @@
                                             </Badge>
                                         </Disparador>
                                         <Detalle>
-                                            @DesgloseIncidencias(centro.Recuentos.Proximas)
+                                            @DesgloseIncidencias(centro, centro.Recuentos.Proximas)
                                         </Detalle>
                                     </VentanaContexto>
                                 }
@@ -563,6 +569,9 @@
 </SoloConEscritura>
 
 <DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionMasivaGuardadaAsync" />
+
+@* Corregir una incidencia desde la ventana de contexto de «Vencidos» o «Próximos», sin salir del listado. *@
+<CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
