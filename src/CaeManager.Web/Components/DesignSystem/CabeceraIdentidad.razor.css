@@ -41,7 +41,7 @@
     gap: var(--space-2) var(--space-3);
 }
 
-.cabecera-identidad-meta {
+.cabecera-identidad-datos {
     display: flex;
     align-items: center;
     flex-wrap: wrap;

@@ -33,9 +33,9 @@
             </div>
         }
 
-        @if (Meta is not null)
+        @if (Datos is not null)
         {
-            <div class="cabecera-identidad-meta">@Meta</div>
+            <div class="cabecera-identidad-datos">@Datos</div>
         }
     </div>
 
@@ -58,8 +58,11 @@
     /// <summary>Pieza en la misma línea que el nombre, a su derecha: la pastilla de estado. Opcional.</summary>
     [Parameter] public RenderFragment? JuntoAlTitulo { get; set; }
 
-    /// <summary>Línea de datos bajo el nombre (matrícula, modelo, empleador). Opcional.</summary>
-    [Parameter] public RenderFragment? Meta { get; set; }
+    /// <summary>
+    /// Línea de datos bajo el nombre (matrícula, modelo, empleador). Opcional. No se llama «Meta»: Razor toma
+    /// un hijo <c>&lt;Meta&gt;</c> por el <c>&lt;meta&gt;</c> de HTML, que no se cierra, y la ranura no compila.
+    /// </summary>
+    [Parameter] public RenderFragment? Datos { get; set; }
 
     /// <summary>Acciones de la ficha, a la derecha: botón principal y menú «Más acciones». Opcional.</summary>
     [Parameter] public RenderFragment? Acciones { get; set; }
