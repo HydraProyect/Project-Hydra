@@ -201,3 +201,87 @@
     flex-wrap: wrap;
     gap: var(--space-2);
 }
+
+/* Pestaña «Trabajadores» del panel: quién entra, con baja por fila (icono «menos») y alta desde una lista con buscador. */
+.visitas-trabajadores-lista,
+.visitas-candidatos-lista {
+    list-style: none;
+    margin: 0 0 var(--space-3);
+    padding: 0;
+}
+
+.visitas-trabajador-fila {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 40px;
+    padding: var(--space-1) 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.visitas-trabajador-fila:first-child {
+    border-top: 0;
+}
+
+.visitas-trabajador-nombre {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.visitas-trabajador-quitar {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.visitas-trabajador-quitar:hover:not(:disabled),
+.visitas-trabajador-quitar:focus-visible {
+    border-color: var(--color-danger-700);
+    color: var(--color-danger-700);
+}
+
+.visitas-trabajador-quitar:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.visitas-candidatos {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.visitas-candidatos-lista {
+    max-height: 280px;
+    margin: 0;
+    overflow-y: auto;
+}
+
+.visitas-candidato {
+    display: block;
+    width: 100%;
+    padding: var(--space-2);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: none;
+    color: var(--color-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.visitas-candidato:hover:not(:disabled),
+.visitas-candidato:focus-visible {
+    background: var(--color-surface-subtle);
+}

@@ -10,6 +10,9 @@ using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisitas;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
+using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
+using CaeManager.Application.Visitas.Commands.QuitarTrabajadorDeVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerCandidatosTrabajadorVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
 using CaeManager.Application.Integraciones;
@@ -532,8 +535,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// aplica al Centro de esta visita, incluye "Faltante" y viene ordenada
     /// por severidad — ver el comentario de esa Query.
     /// </summary>
-    private async Task AbrirDetalleAsync(Guid id)
+    private Task AbrirDetalleAsync(Guid id) => AbrirDetalleAsync(id, PestanaInformacion);
+
+    private async Task AbrirDetalleAsync(Guid id, string pestana)
     {
+        _pestanaDetalle = pestana;
+        CerrarSelectorCandidatos();
+        _confirmarQuitarTrabajadorVisible = false;
+        _trabajadorAQuitar = null;
         // Abrir otra visita mientras la anterior aún carga: la respuesta que
         // llegue tarde no puede pintar la visita equivocada en el drawer.
         var carga = ++_cargaDetalle;
@@ -807,6 +816,166 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         {
             _marcandoNotificadoDetalle = false;
         }
+    }
+
+    // ---- Pestañas del panel y trabajadores de la Visita ----
+
+    private const string PestanaInformacion = "informacion";
+    private const string PestanaTrabajadores = "trabajadores";
+    private const string PestanaDocumentacion = "documentacion";
+
+    private string _pestanaDetalle = PestanaInformacion;
+
+    private IReadOnlyList<PestanaDefinicion> PestanasDetalle =>
+    [
+        new(PestanaInformacion, Textos["PestanaInformacion"]),
+        new(PestanaTrabajadores, Textos["EtiquetaTrabajadores"]),
+        new(PestanaDocumentacion, Textos["ColumnaDocumentacion"]),
+    ];
+
+    private bool _selectorCandidatosVisible;
+    private bool _cargandoCandidatos;
+    private bool _cambiandoTrabajadores;
+    private string _busquedaCandidatos = string.Empty;
+    private IReadOnlyList<ElementoSeleccionable> _candidatos = [];
+
+    private bool _confirmarQuitarTrabajadorVisible;
+    private TrabajadorVisitaDto? _trabajadorAQuitar;
+
+    private void CambiarPestanaDetalle(string pestana)
+    {
+        _pestanaDetalle = pestana;
+        if (pestana != PestanaTrabajadores)
+            CerrarSelectorCandidatos();
+    }
+
+    private void CerrarSelectorCandidatos()
+    {
+        _selectorCandidatosVisible = false;
+        _busquedaCandidatos = string.Empty;
+        _candidatos = [];
+    }
+
+    /// <summary>
+    /// Buscador sin acentos ni mayúsculas, como el de los listados: «formacion» encuentra «Formación».
+    /// </summary>
+    private IReadOnlyList<ElementoSeleccionable> CandidatosFiltrados
+    {
+        get
+        {
+            var buscado = SinAcentos(_busquedaCandidatos.Trim());
+            return buscado.Length == 0
+                ? _candidatos
+                : _candidatos.Where(c => SinAcentos(c.Nombre).Contains(buscado, StringComparison.Ordinal)).ToList();
+        }
+    }
+
+    private static string SinAcentos(string texto)
+    {
+        var descompuesto = texto.Normalize(System.Text.NormalizationForm.FormD);
+        var limpio = new System.Text.StringBuilder(descompuesto.Length);
+        foreach (var caracter in descompuesto)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(caracter) != System.Globalization.UnicodeCategory.NonSpacingMark)
+                limpio.Append(char.ToUpperInvariant(caracter));
+        }
+
+        return limpio.ToString();
+    }
+
+    /// <summary>
+    /// «Añadir trabajador»: nunca elige por el usuario. Con un único candidato posible lo añade
+    /// directamente; con varios abre la lista con buscador; sin ninguno lo dice.
+    /// Los candidatos los decide ObtenerCandidatosTrabajadorVisitaQuery (los del selector de
+    /// «Editar visita» menos los que ya entran).
+    /// </summary>
+    private async Task AbrirAnadirTrabajadorAsync()
+    {
+        if (_detalle is not { } detalle || _cargandoCandidatos || _cambiandoTrabajadores)
+            return;
+
+        _cargandoCandidatos = true;
+        try
+        {
+            var candidatos = await Mediator.Send(new ObtenerCandidatosTrabajadorVisitaQuery(detalle.Id));
+            if (_detalle?.Id != detalle.Id)
+                return;
+
+            _candidatos = EtiquetasSelectorTrabajador.Construir(candidatos).Select(o => new ElementoSeleccionable(o.Id, o.Texto)).ToList();
+            _busquedaCandidatos = string.Empty;
+
+            if (_candidatos.Count == 0)
+                ToastService.Mostrar(Textos["ToastSinCandidatos"], TonoToast.Info);
+            else if (_candidatos.Count == 1)
+                await AnadirTrabajadorAsync(_candidatos[0]);
+            else
+                _selectorCandidatosVisible = true;
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorCandidatos"], TonoToast.Error);
+        }
+        finally
+        {
+            _cargandoCandidatos = false;
+        }
+    }
+
+    private Task AnadirTrabajadorAsync(ElementoSeleccionable candidato) =>
+        CambiarTrabajadoresAsync(
+            detalle => new AnadirTrabajadorAVisitaCommand(detalle.Id, candidato.Id, detalle.Version),
+            Textos["ToastTrabajadorAnadido", candidato.Nombre]);
+
+    private void AbrirQuitarTrabajador(TrabajadorVisitaDto trabajador)
+    {
+        _trabajadorAQuitar = trabajador;
+        _confirmarQuitarTrabajadorVisible = true;
+    }
+
+    private async Task ConfirmarQuitarTrabajadorAsync()
+    {
+        if (_trabajadorAQuitar is not { } trabajador)
+            return;
+
+        await CambiarTrabajadoresAsync(
+            detalle => new QuitarTrabajadorDeVisitaCommand(detalle.Id, trabajador.Id, detalle.Version),
+            Textos["ToastTrabajadorQuitado", trabajador.NombreCompleto]);
+
+        _confirmarQuitarTrabajadorVisible = false;
+        _trabajadorAQuitar = null;
+    }
+
+    /// <summary>
+    /// Envía la escritura y vuelve a leer el panel y la lista del servidor: el recuento de la fila,
+    /// la documentación y la versión de la Visita salen de lo guardado, no de lo que la pantalla
+    /// creía tener. Tanto si sale bien como si falla (otra persona la cambió, se canceló).
+    /// </summary>
+    private async Task CambiarTrabajadoresAsync(Func<DetalleVisitaDto, ICommand> comando, string mensajeExito)
+    {
+        if (_detalle is not { } detalle || _cambiandoTrabajadores)
+            return;
+
+        _cambiandoTrabajadores = true;
+        try
+        {
+            var resultado = await Mediator.Send(comando(detalle));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(mensajeExito, TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorCambiarTrabajadores"], TonoToast.Error);
+        }
+        finally
+        {
+            _cambiandoTrabajadores = false;
+        }
+
+        await RecargarAsync();
+        if (_detalle?.Id == detalle.Id)
+            await AbrirDetalleAsync(detalle.Id, PestanaTrabajadores);
     }
 
     private async Task EditarDesdeDetalleAsync()
