@@ -382,6 +382,7 @@ src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs :: tenant
 src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs :: TenantClienteId = 3
 src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: clienteId = 3
+src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: clienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/IdentityRoleSeedData.cs :: ClienteId = 2

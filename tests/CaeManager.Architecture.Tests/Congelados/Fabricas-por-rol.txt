@@ -15,5 +15,6 @@ src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: CrearComo
 src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: CrearComoSubcontrata = 1
 src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: CrearComoCliente = 1
 src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs :: CrearComoSubcontrata = 1
+src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs :: CambiarNivelServicioComoSubcontrata = 1
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: CrearComoCliente = 1
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: CrearComoSubcontrata = 1

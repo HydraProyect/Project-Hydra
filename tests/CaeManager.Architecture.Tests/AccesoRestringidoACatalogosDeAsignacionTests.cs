@@ -118,6 +118,12 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // Backfill de F1: recorre todos los tenants una vez, al arrancar.
         "src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs",
 
+        // Siembra de la maqueta de las páginas 360 (inerte salvo DatosPrueba:Fichas360, rechazada en
+        // Producción): una lectura de las carteras vigentes del Tenant propietario Pizza Planet, acotada por
+        // PropietarioTenantId, para llegar a la Gestora CAE del Operador CAE externo que registra las
+        // verificaciones externas. No escribe en el catálogo.
+        "src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs",
+
         // Registro de los DbSet y de las interfaces de consulta.
         "src/CaeManager.Infrastructure/Persistence/CaeManagerDbContext.cs",
 
