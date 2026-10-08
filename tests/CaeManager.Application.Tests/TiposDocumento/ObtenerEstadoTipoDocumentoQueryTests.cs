@@ -1,4 +1,5 @@
 using CaeManager.Application.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
@@ -253,5 +254,61 @@ public class ObtenerEstadoTipoDocumentoQueryTests
         Enum.GetValues<EstadoDocumento>().OrderBy(EstadoTipoDocumentoCalculo.Gravedad).Should().Equal(
             EstadoDocumento.Vencido, EstadoDocumento.Faltante, EstadoDocumento.EnTolerancia, EstadoDocumento.Urgente,
             EstadoDocumento.Proximo, EstadoDocumento.SinConfirmar, EstadoDocumento.Vigente, EstadoDocumento.SinCaducidad);
+    }
+
+    [Fact]
+    public async Task La_fila_lleva_el_documento_del_tipo_y_la_tolerancia_es_la_del_Cliente_empresarial_de_cada_Centro()
+    {
+        var escenario = new Escenario();
+        var hoy = DiaDeNegocio.Hoy();
+        var otroCliente = Empresa.CrearComoCliente("Tyrell Logística S.A.", "B12345674", false, null, null);
+        escenario.Empresas.ListaEmpresas.Add(otroCliente);
+        var vigo = escenario.Centro("Almacén Vigo");
+        var sevilla = new Centro(otroCliente.Id, escenario.Empresa.Id, "Sede Sevilla");
+        escenario.Centros.ListaCentros.Add(sevilla);
+        var mateo = escenario.Trabajador("Mateo", "Soler Vidal");
+
+        // Vencido hace 3 días. El Cliente empresarial de Vigo tolera 10 días para este tipo; el de Sevilla, ninguno.
+        var epi = Documento.DeTrabajador(mateo.Id, escenario.Epi.Id, hoy.AddDays(-368), VigenciaDocumento.VenceEl(hoy.AddDays(-3)));
+        // Documento de OTRO tipo del mismo Trabajador, y tolerancia de OTRO tipo: no son de esta página.
+        var aptitud = Documento.DeTrabajador(mateo.Id, escenario.OtroTipo.Id, hoy.AddDays(-10), VigenciaDocumento.VenceEl(hoy.AddDays(300)));
+        escenario.Documentos.ListaDocumentos.AddRange([aptitud, epi]);
+        escenario.Tipos.ListaToleranciasDocumentoClienteEmpresarial.AddRange([
+            new ToleranciaDocumentoClienteEmpresarial(escenario.ClienteEmpresarial.Id, escenario.Epi.Id, 10),
+            new ToleranciaDocumentoClienteEmpresarial(otroCliente.Id, escenario.OtroTipo.Id, 30)]);
+        var calculo = new CalculoFalso(
+            escenario.Par(vigo, mateo, EstadoDocumento.Vencido),
+            new ParDocumentalExigido(sevilla.Id, otroCliente.Id, escenario.Empresa.Id, mateo.Id, escenario.Epi.Id, EstadoDocumento.Vencido));
+
+        var dto = await escenario.Handler(calculo).Handle(new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id), CancellationToken.None);
+
+        var fila = dto!.Filas.Should().ContainSingle().Subject;
+        fila.DocumentoId.Should().Be(epi.Id, "la fecha pintada es la del documento de este tipo, no la de otro documento del Trabajador");
+        fila.FechaEmision.Should().Be(hoy.AddDays(-368));
+        fila.FechaVencimiento.Should().Be(hoy.AddDays(-3));
+        fila.PeorEstado.Should().Be(EstadoDocumento.Vencido, "en Sevilla nadie lo tolera, y la fila lleva el peor de sus Centros");
+        fila.Centros.Select(c => (c.CentroNombre, c.Estado, c.EnToleranciaHasta)).Should().Equal(
+            ("Sede Sevilla", EstadoDocumento.Vencido, (DateOnly?)null),
+            ("Almacén Vigo", EstadoDocumento.EnTolerancia, (DateOnly?)hoy.AddDays(7)));
+        // Hoy ningún porcentaje cuenta «En tolerancia» como al día (CumplimientoDocumental): el anillo dice lo mismo que el resto.
+        dto.Cumplimiento.Should().Be(new FraccionCumplimiento(0, 2));
+    }
+
+    [Fact]
+    public async Task La_banda_recibe_nombres_de_cada_grupo_aunque_el_peor_tenga_muchos()
+    {
+        var escenario = new Escenario();
+        var vigo = escenario.Centro("Almacén Vigo");
+        var pares = Enumerable.Range(1, 7)
+            .Select(n => escenario.Par(vigo, escenario.Trabajador($"Vencido{n}", "Uno"), EstadoDocumento.Vencido))
+            .Append(escenario.Par(vigo, escenario.Trabajador("Paula", "Campos Lara"), EstadoDocumento.Faltante))
+            .Append(escenario.Par(vigo, escenario.Trabajador("Sonia", "Cano Prieto"), EstadoDocumento.EnTolerancia))
+            .ToArray();
+
+        var dto = await escenario.Handler(new CalculoFalso(pares)).Handle(new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id), CancellationToken.None);
+
+        dto!.Incidencias.Count(f => f.PeorEstado == EstadoDocumento.Vencido).Should().Be(ObtenerEstadoTipoDocumentoQuery.MaximoIncidenciasPorGrupo);
+        dto.Incidencias.Select(f => f.Nombre).Should().Contain(["Paula Campos Lara", "Sonia Cano Prieto"],
+            "siete vencidos no pueden dejar sin nombre a la pendiente ni a la que está en tolerancia");
     }
 }

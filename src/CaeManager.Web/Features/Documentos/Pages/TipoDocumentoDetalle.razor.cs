@@ -83,6 +83,9 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         }
     ];
 
+    /// <summary>Con algún contador marcado, una lista vacía es «nada con ese filtro», no «nadie lo tiene exigido».</summary>
+    private bool HayFiltrosActivos => _estadosMarcados.Count > 0;
+
     private IReadOnlyList<OpcionEstadoRecuento> OpcionesDeEstado =>
         (_estado?.Recuentos ?? [])
         .Select(r => new OpcionEstadoRecuento(r.Grupo.ToString(), TextoGrupo(r.Grupo), r.Filas))

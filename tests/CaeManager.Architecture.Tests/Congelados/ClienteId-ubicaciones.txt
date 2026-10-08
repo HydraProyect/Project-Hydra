@@ -252,6 +252,7 @@ src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/Ac
 src/CaeManager.Application/TiposDocumento/Commands/ActualizarLecturaIaCliente/ActualizarLecturaIaClienteCommand.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/TiposDocumento/Commands/EstablecerToleranciaClienteEmpresarial/EstablecerToleranciaClienteEmpresarialCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/TiposDocumento/Queries/ObtenerConfiguracionIaPorCliente/ObtenerConfiguracionIaPorClienteQuery.cs :: ClienteId = 4
+src/CaeManager.Application/TiposDocumento/Queries/ObtenerEstadoTipoDocumento/ObtenerEstadoTipoDocumentoQuery.cs :: ClienteId = 1
 src/CaeManager.Application/TiposDocumento/Queries/ObtenerTiposDocumento/ObtenerTiposDocumentoQuery.cs :: ClienteId = 5
 src/CaeManager.Application/Trabajadores/Deteccion/DeteccionTrabajadoresService.cs :: ClienteId = 4
 src/CaeManager.Application/Trabajadores/Deteccion/DeteccionTrabajadoresService.cs :: clienteId = 2

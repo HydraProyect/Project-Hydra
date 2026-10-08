@@ -110,7 +110,7 @@
                                                Total="estado.Trabajadores" TextoTodos="@Textos["Todos"]" Etiqueta="@Textos["EtiquetaFiltroEstado"]" />
 
                         <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["EtiquetaLista"]">
-                            <Encabezado>@Textos["Mostrando", estado.Filas.Count, estado.Trabajadores]</Encabezado>
+                            <Encabezado>@Textos["Mostrando", estado.Filas.Count, estado.TotalFiltradas]</Encabezado>
                             <ChildContent>
                                 @foreach (var fila in estado.Filas)
                                 {
@@ -174,7 +174,7 @@
                                 }
                             </ChildContent>
                             <Pie>
-                                @if (estado.Filas.Count == 0)
+                                @if (estado.Filas.Count == 0 && HayFiltrosActivos)
                                 {
                                     <p class="tipo360-nota">@Textos["FiltroSinResultados"]</p>
                                 }

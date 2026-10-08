@@ -564,6 +564,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("TiposDocumento.ActualizarLecturaIaClienteCommandHandler", "IClientesQueryContext"),
         ("TiposDocumento.ActualizarLecturaIaClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("TiposDocumento.ActualizarLecturaIaGlobalCommandHandler", "ITipoDocumentoRepository"),
+        // Tipo de documento 360: el estado de un tipo se pinta por Trabajador y Centro, con el nombre de su Empresa y las fechas de su documento.
+        ("TiposDocumento.ObtenerEstadoTipoDocumentoQueryHandler", "ICentrosQueryContext"),
+        ("TiposDocumento.ObtenerEstadoTipoDocumentoQueryHandler", "IDocumentosQueryContext"),
+        ("TiposDocumento.ObtenerEstadoTipoDocumentoQueryHandler", "IEmpresasQueryContext"),
+        ("TiposDocumento.ObtenerEstadoTipoDocumentoQueryHandler", "ITrabajadoresQueryContext"),
         // La tolerancia por defecto del Cliente empresarial (Empresa contraparte) vive junto a los Tipos; se comprueba el alcance como en la lectura por IA.
         ("TiposDocumento.EstablecerToleranciaClienteEmpresarialCommandHandler", "IToleranciaDocumentoClienteEmpresarialRepository"),
         ("TiposDocumento.ActualizarPerfilDocumentoOficialGlobalCommandHandler", "ITipoDocumentoRepository"),
