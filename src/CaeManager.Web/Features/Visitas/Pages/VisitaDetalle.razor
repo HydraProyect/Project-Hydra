@@ -49,8 +49,8 @@
         var anillo = Anillo;
         var incidencias = IncidenciasDeBanda;
 
-        @* Meta va como atributo: escrito como elemento, Razor lo toma por el <meta> de HTML, que no se cierra. *@
-        <CabeceraIdentidad Titulo="@visita.CentroNombre" Kicker="@Textos["Visita360Kicker"]" Meta="MetaDeCabecera(visita)">
+        <CabeceraIdentidad Titulo="@visita.CentroNombre" Kicker="@Textos["Visita360Kicker"]">
+            <Datos>@DatosDeCabecera(visita)</Datos>
             <Anillo>
                 @if (anillo is { } a)
                 {
@@ -275,7 +275,7 @@
 </LimiteDeErrores>
 
 @code {
-    private RenderFragment MetaDeCabecera(CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita.DetalleVisitaDto visita) => __builder =>
+    private RenderFragment DatosDeCabecera(CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita.DetalleVisitaDto visita) => __builder =>
     {
                 <BotonCopiar Valor="@TextoFechas(visita.FechaInicio, visita.FechaFin)" Etiqueta="@Textos["Visita360CopiarFechas"]"
                              Texto="@TextoFechas(visita.FechaInicio, visita.FechaFin)" />
