@@ -14,5 +14,7 @@ public class ApplicationUserConfiguration : IEntityTypeConfiguration<Application
         // Consultora— filtra por esta columna. Sin índice, ese filtro barre la tabla
         // entera en cada carga.
         builder.HasIndex(u => u.TenantId);
+
+        builder.Property(u => u.Avatar).HasMaxLength(CaeManager.Application.Usuarios.CatalogoAvatares.LongitudMaximaClave);
     }
 }

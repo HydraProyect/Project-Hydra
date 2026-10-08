@@ -361,7 +361,7 @@ public class ConvierteCarterasPorClienteATenantEnteroTests : IAsyncLifetime
 
         // Una cuenta del propio Tenant que en Identity es Administrador, con una cartera interna (sin rol propio).
         var rolAdministrador = await contexto.Roles.SingleAsync(x => x.Name == Roles.Administrador);
-        contexto.Users.Add(new ApplicationUser
+        await SiembraDeCuentasEnEsquemaAnterior.InsertarAsync(contexto, new ApplicationUser
         {
             Id = _administradorInterno,
             TenantId = _interno.Id,

@@ -32,6 +32,9 @@ public class ComandosDeAutoservicioInventariadosTests
         "MarcarNotificacionLeidaCommand",
         // P0-8: los códigos de recuperación de la 2FA de la propia cuenta.
         "GenerarCodigosRecuperacionCommand",
+        // El avatar de la propia cuenta (catálogo cerrado, decisión del 2026-10-08): es de la
+        // identidad, no del Tenant, y solo lo ve cambiar su dueño.
+        "ElegirAvatarPropioCommand",
     ];
 
     // Admite record o class, con o sin lista de parámetros (AceptarTerminosCommand no

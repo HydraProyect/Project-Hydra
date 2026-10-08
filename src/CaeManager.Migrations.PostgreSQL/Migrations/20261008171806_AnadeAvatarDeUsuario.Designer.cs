@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261008171806_AnadeAvatarDeUsuario")]
+    partial class AnadeAvatarDeUsuario
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5306,11 +5309,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("CreadoPorUsuarioId")
                         .HasColumnType("uuid");
 
-                    b.Property<bool>("EsPrincipal")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
                     b.Property<string>("Estado")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -5357,18 +5355,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("UsuarioId", "Estado");
 
-                    b.HasIndex(new[] { "AsignacionOperacionId" }, "IX_AsignacionesCartera_PrincipalPorOperacion")
-                        .IsUnique()
-                        .HasFilter("\"EsPrincipal\" AND \"Estado\" <> 'Cerrada'");
-
                     b.HasIndex(new[] { "AsignacionOperacionId", "UsuarioId" }, "IX_AsignacionesCartera_UsuarioUniversalVigente")
                         .IsUnique()
                         .HasFilter("\"Estado\" = 'Vigente' AND \"AmbitoRelacionClienteId\" IS NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL");
 
                     b.ToTable("AsignacionesCartera", null, t =>
                         {
-                            t.HasCheckConstraint("CK_AsignacionesCartera_PrincipalSoloGestorCaeTenantEntero", "NOT \"EsPrincipal\" OR (\"AmbitoRelacionClienteId\" IS NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL AND (\"Rol\" IS NULL OR \"Rol\" IN ('GestorCae', 'CoordinadorCae')))");
-
                             t.HasCheckConstraint("CK_AsignacionesCartera_TenantEnteroSalvoCerrada", "\"AmbitoRelacionClienteId\" IS NULL OR \"Estado\" = 'Cerrada'");
                         });
                 });

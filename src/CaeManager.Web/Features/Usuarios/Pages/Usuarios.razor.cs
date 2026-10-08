@@ -47,9 +47,10 @@ namespace CaeManager.Web.Features.Usuarios.Pages;
 /// ofrece «Restablecer verificación en dos pasos» (P0-8); quién puede hacerlo lo
 /// decide <c>RestablecerSegundoFactorCommand</c>.
 /// </param>
+/// <param name="Avatar">Clave del avatar elegido por esa persona (<c>CatalogoAvatares</c>), o <c>null</c>: iniciales.</param>
 public record UsuarioListaDto(
     Guid Id, string Email, string NombreCompleto, string Rol, bool Activo, bool EsOperadorDelegado,
-    bool PendienteActivacion, AlcanceUsuarioDto Alcance, bool DosFactoresActivo = false);
+    bool PendienteActivacion, AlcanceUsuarioDto Alcance, bool DosFactoresActivo = false, string? Avatar = null);
 
 /// <summary>
 /// Qué alcanza una cuenta, ya resuelto a texto. Es presentación y por eso vive
@@ -440,7 +441,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 _usuarios = equipo
                     .Select(m => new UsuarioListaDto(
                         m.Id, m.Email, m.NombreCompleto, Roles.GestorCae, m.Activo, false, m.PendienteActivacion,
-                        new AlcanceUsuarioDto("—", false, string.Empty)))
+                        new AlcanceUsuarioDto("—", false, string.Empty),
+                        Avatar: m.Avatar))
                     .ToList();
                 _pagina = 1;
                 return;
@@ -501,7 +503,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                         usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, rol, activo, esOperadorDelegado,
                         EsPendienteActivacion(usuario, idsConLoginExterno),
                         CalcularAlcance(usuario, rol, carteras, gestoresPorCoordinador),
-                        usuario.TwoFactorEnabled));
+                        usuario.TwoFactorEnabled,
+                        usuario.Avatar));
                 }
             }, token);
 

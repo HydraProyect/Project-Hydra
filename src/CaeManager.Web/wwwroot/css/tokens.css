@@ -134,6 +134,10 @@
      ContrasteDeAvataresPorTemaTests: >= 4,5:1 en los dos temas. */
   --color-avatar-fondo: var(--color-primary-100);
   --color-avatar-texto: var(--color-primary-700);
+  /* Tono neutro del catálogo de avatares de usuario (AvatarUsuario): solo fondo,
+     detrás de un emoji. Con variante por tema porque los neutros claros no se
+     espejan en oscuro. */
+  --color-avatar-fondo-neutro: var(--color-neutral-200);
 
   /* Selección de texto (::selection, base.css): fondo y letra como PAR. Antes
      solo se fijaba el fondo (--color-primary-100, #dcebff, sin variante
@@ -343,6 +347,7 @@
      letra el -700 remapeado (#dcebff): 13,86:1 — ver el par en :root. */
   --color-avatar-fondo: var(--color-primary-50);
   --color-avatar-texto: var(--color-primary-700);
+  --color-avatar-fondo-neutro: #2a3441;
   /* Selección: fondo del azul brillante de la paleta (-300, #5ca2f4) y letra
      --color-bg (#0e141b): 6,99:1 y visible sobre Surface (#17212c). */
   --color-seleccion-fondo: var(--color-primary-300);
@@ -435,6 +440,7 @@
   --color-primary-50: #eef5ff;
   --color-avatar-fondo: var(--color-primary-100);
   --color-avatar-texto: var(--color-primary-700);
+  --color-avatar-fondo-neutro: var(--color-neutral-200);
   --color-seleccion-fondo: var(--color-primary-100);
   --color-seleccion-texto: var(--color-text);
   --color-nav-activo-hover-fondo: var(--color-primary-100);

@@ -202,9 +202,11 @@
                 </TemplateColumn>
                 <PropertyColumn Property="@(c => c.Cif)" Title="CIF" Sortable="true" />
                 <TemplateColumn Title="Gestor CAE">
-                    @if (NombreGestorCae(context.EjecutivoUsuarioId) is { } gestor)
+                    @if (GestorCaeDeLaFila(context.EjecutivoUsuarioId) is { } gestor)
                     {
-                        <span class="persona-iniciales" aria-hidden="true">@InicialesDeUsuario.De(gestor)</span>@gestor
+                        <span class="persona-identidad">
+                            <AvatarUsuario Nombre="@gestor.NombreCompleto" Avatar="@gestor.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@gestor.NombreCompleto
+                        </span>
                     }
                     else
                     {

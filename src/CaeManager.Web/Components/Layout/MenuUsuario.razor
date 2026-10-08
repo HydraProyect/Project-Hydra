@@ -1,11 +1,16 @@
 @using CaeManager.Web.Recursos
+@using CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio
+@using MediatR
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Textos
+@inject IMediator Mediator
+@inject ILogger<MenuUsuario> Logger
 
 @*
-    Menú de la cuenta (rediseño de la cabecera, propuesta 01): el avatar con las iniciales abre
-    un panel con «Mi firma y mis datos», el idioma y «Cerrar sesión», que antes ocupaban la
-    fila de la cabecera. SSR estático, sin @rendermode: abre, cierra y navega con el teclado
+    Menú de la cuenta (rediseño de la cabecera, propuesta 01): el avatar de la persona (el que
+    eligió, o sus iniciales) abre un panel con «Mi firma y mis datos», el idioma y «Cerrar
+    sesión», que antes ocupaban la fila de la cabecera. Dentro del panel, pulsar el propio
+    avatar lleva a /mi-avatar, donde se elige (decisión de producto del 2026-10-08). SSR estático, sin @rendermode: abre, cierra y navega con el teclado
     wwwroot/js/cabecera.js (delegado en document), y «Cerrar sesión» e idioma siguen siendo
     <form> con POST y token antiforgery, como siempre.
 
@@ -16,13 +21,17 @@
     <button type="button" class="menu-cuenta-boton" id="menu-cuenta-boton"
             data-menu-cabecera aria-haspopup="menu" aria-expanded="false" aria-controls="menu-cuenta-panel"
             aria-label="@Textos["CabeceraMenuUsuario"]" data-tooltip="@Textos["CabeceraMenuUsuario"]">
-        <span class="menu-cuenta-iniciales" aria-hidden="true">@InicialesDeUsuario.De(Nombre)</span>
+        <AvatarUsuario Nombre="@Nombre" Avatar="@_avatar" />
     </button>
 
     <div class="panel-cabecera menu-cuenta-panel" id="menu-cuenta-panel" role="menu" aria-labelledby="menu-cuenta-boton">
-        <div class="menu-cuenta-cabecera" role="none">
-            <span class="menu-cuenta-nombre">@Nombre</span>
-        </div>
+        <a href="/mi-avatar" class="menu-cuenta-cabecera menu-cuenta-elemento" role="menuitem">
+            <AvatarUsuario Nombre="@Nombre" Avatar="@_avatar" />
+            <span class="menu-cuenta-identidad">
+                <span class="menu-cuenta-nombre">@Nombre</span>
+                <span class="menu-cuenta-cambiar">@Textos["CabeceraCambiarAvatar"]</span>
+            </span>
+        </a>
         <a href="/mi-firma" class="menu-cuenta-elemento" role="menuitem">@Textos["CabeceraMiFirma"]</a>
         <div class="menu-cuenta-idioma" role="none">
             <SelectorIdioma />
@@ -41,4 +50,21 @@
 @code {
     /// <summary>El nombre que expone la identidad de quien mira (<c>Identity.Name</c>).</summary>
     [Parameter] public string? Nombre { get; set; }
+
+    /// <summary>Clave del avatar de quien mira; <c>null</c> pinta sus iniciales.</summary>
+    private string? _avatar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _avatar = await Mediator.Send(new ObtenerAvatarPropioQuery());
+        }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            // El avatar es decoración: si no se puede leer, la cabecera se pinta con
+            // las iniciales en vez de tumbar el layout de todas las páginas.
+            Logger.LogWarning(excepcion, "No se pudo leer el avatar de la cuenta para el menú de cabecera");
+        }
+    }
 }

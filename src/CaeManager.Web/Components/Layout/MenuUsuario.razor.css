@@ -28,8 +28,14 @@
     outline-offset: 2px;
 }
 
-.menu-cuenta-iniciales {
-    font: var(--font-label-md);
+/* El avatar llena el botón; el fondo del botón queda debajo, como respaldo. */
+.menu-cuenta-boton ::deep .avatar-usuario {
+    --avatar-usuario-lado: 36px;
+}
+
+.menu-cuenta-boton:hover ::deep .avatar-usuario-glifo,
+.menu-cuenta-cabecera:hover ::deep .avatar-usuario-glifo {
+    transform: scale(1.15) rotate(-8deg);
 }
 
 /* Panel flotante. Cerrado: invisible y sin recibir eventos, pero presente, para animar la
@@ -65,10 +71,25 @@
         transform var(--motion-base) var(--ease-fluid);
 }
 
+/* Es un enlace a /mi-avatar: hereda de .menu-cuenta-elemento (declarado después) el
+   hover y el foco; aquí solo lo que lo distingue como cabecera del panel. */
 .menu-cuenta-cabecera {
-    padding: var(--space-2) var(--space-3);
-    border-bottom: var(--border-default);
     margin-bottom: var(--space-1);
+}
+
+.menu-cuenta-cabecera.menu-cuenta-elemento {
+    gap: var(--space-3);
+}
+
+.menu-cuenta-identidad {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.menu-cuenta-cambiar {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
 }
 
 .menu-cuenta-nombre {

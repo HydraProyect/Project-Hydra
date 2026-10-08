@@ -1,0 +1,55 @@
+@using CaeManager.Application.Usuarios
+@using CaeManager.Web.Components.Layout
+@*
+    Marca visual de un USUARIO de la plataforma (una persona con cuenta): el avatar que
+    eligió en CatalogoAvatares —un emoji de animal sobre uno de cuatro tonos— y, si no
+    eligió ninguno, sus iniciales, como siempre. Es el único sitio que pinta a un usuario:
+    toda pantalla que identifique a uno (Gestor CAE de una fila, autor de una nota,
+    menú de cuenta…) usa este componente y pasa la clave del avatar junto al nombre
+    (decisión de producto del 2026-10-08). No es para un Tenant (AvatarTenant), una
+    Empresa, un Trabajador ni un remitente externo de correo.
+
+    Es decorativo: el nombre siempre lo lleva el texto de al lado o el aria-label de
+    quien lo envuelve, por eso va oculto para los lectores de pantalla. Una clave que no
+    esté en el catálogo (motivo retirado, dato corrupto) pinta iniciales, nunca un hueco.
+*@
+<span class="@Clases" aria-hidden="true">
+    @if (_elegido is not null)
+    {
+        <span class="avatar-usuario-glifo">@_elegido.Motivo.Emoji</span>
+    }
+    else
+    {
+        @InicialesDeUsuario.De(Nombre)
+    }
+</span>
+
+@code {
+    private AvatarElegido? _elegido;
+
+    /// <summary>Nombre visible de la persona (o su correo): de aquí salen las iniciales.</summary>
+    [Parameter] public string? Nombre { get; set; }
+
+    /// <summary>Clave del avatar elegido (<c>zorro-verde</c>), o <c>null</c> para pintar las iniciales.</summary>
+    [Parameter] public string? Avatar { get; set; }
+
+    [Parameter] public TamanoAvatarUsuario Tamano { get; set; } = TamanoAvatarUsuario.Medio;
+
+    protected override void OnParametersSet() => _elegido = CatalogoAvatares.Resolver(Avatar);
+
+    private string Clases
+    {
+        get
+        {
+            var tamano = Tamano switch
+            {
+                TamanoAvatarUsuario.Pequeno => " avatar-usuario-pequeno",
+                TamanoAvatarUsuario.Grande => " avatar-usuario-grande",
+                _ => string.Empty,
+            };
+            // Las iniciales van siempre sobre el par azul, el único medido como texto sobre fondo.
+            var tono = _elegido is null ? string.Empty : $" avatar-usuario-tono-{_elegido.Tono}";
+            return $"avatar-usuario{tamano}{tono}";
+        }
+    }
+}

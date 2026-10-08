@@ -1238,9 +1238,26 @@ public class ClientesListaGen2Tests : BunitContext
             Almacen = { Cliente("Montajes Ebro S.L."), Cliente("Refrielectric S.A.") with { EjecutivoUsuarioId = marta.Id } }
         }, gestores: [marta]);
 
-        var iniciales = cut.FindAll("tbody .persona-iniciales").Should().ContainSingle().Subject;
+        var iniciales = cut.FindAll("tbody .persona-identidad .avatar-usuario").Should().ContainSingle().Subject;
         iniciales.TextContent.Trim().Should().Be("MI");
         iniciales.ParentElement!.TextContent.Should().Contain("Marta Ibarra");
+    }
+
+    /// <summary>Si esa persona eligió un avatar del catálogo, la columna lo pinta en lugar de sus iniciales.</summary>
+    [Fact]
+    public void El_Gestor_CAE_de_la_fila_lleva_su_avatar_si_lo_eligio()
+    {
+        var marta = GestorCae("Marta Ibarra");
+        marta.Avatar = "buho-ambar";
+        var cut = Renderizar(new MediatorFalso
+        {
+            Almacen = { Cliente("Refrielectric S.A.") with { EjecutivoUsuarioId = marta.Id } }
+        }, gestores: [marta]);
+
+        var avatar = cut.FindAll("tbody .persona-identidad .avatar-usuario").Should().ContainSingle().Subject;
+        avatar.TextContent.Trim().Should().Be("🦉");
+        avatar.ClassList.Should().Contain("avatar-usuario-tono-ambar");
+        avatar.ParentElement!.TextContent.Should().Contain("Marta Ibarra");
     }
 
     [Fact]

@@ -1,0 +1,104 @@
+@page "/mi-avatar"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize]
+@using CaeManager.Application.Usuarios
+@using CaeManager.Web.Features.Usuarios.Recursos
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Localization
+@using MediatR
+@inject IMediator Mediator
+@inject ToastService Toasts
+@inject NavigationManager Navegacion
+@inject IStringLocalizer<TextosUsuarios> Textos
+@inject ILogger<MiAvatar> Logger
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["AvatarTitulo"] — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <CabeceraPagina Titulo="@Textos["AvatarTitulo"]" Kicker="@Textos["AvatarKicker"]">
+        <Descripcion>@Textos["AvatarDescripcion"]</Descripcion>
+    </CabeceraPagina>
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="2" />
+    }
+    else if (_errorCarga)
+    {
+        <div role="alert">
+            <EstadoVacio Titulo="@Textos["AvatarErrorCargaTitulo"]"
+                         Descripcion="@Textos["AvatarErrorCargaDescripcion"]"
+                         NombreIcono="error-circulo"
+                         AcentoIcono="var(--color-danger-500)"
+                         FondoIcono="var(--color-danger-50)">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["AvatarReintentar"]</Boton>
+                </Accion>
+            </EstadoVacio>
+        </div>
+    }
+    else
+    {
+        <Tarjeta>
+            <div class="mi-emblema">
+                <div class="mi-emblema-vista" aria-live="polite">
+                    <span class="mi-emblema-vista-figura @(_recienGuardado ? "mi-emblema-vista-figura-rebota" : null)">
+                        <AvatarUsuario Nombre="@_nombre" Avatar="@ClaveElegida" Tamano="TamanoAvatarUsuario.Grande" />
+                    </span>
+                    <div class="mi-emblema-vista-texto">
+                        <span class="mi-emblema-vista-rotulo">@Textos["AvatarVistaPrevia"]</span>
+                        <span class="mi-emblema-vista-nombre">@_nombre</span>
+                    </div>
+                </div>
+
+                <fieldset class="mi-emblema-grupo">
+                    <legend class="mi-emblema-leyenda">@Textos["AvatarGrupoMotivo"]</legend>
+                    <div class="mi-emblema-opciones">
+                        @foreach (var motivo in CatalogoAvatares.Motivos)
+                        {
+                            var nombreMotivo = Textos[$"AvatarMotivo_{motivo.Clave}"].Value;
+                            <label class="mi-emblema-opcion" title="@nombreMotivo">
+                                <input type="radio" name="mi-emblema-motivo" class="mi-emblema-radio"
+                                       value="@motivo.Clave" aria-label="@nombreMotivo"
+                                       checked="@(_motivo == motivo.Clave)"
+                                       @onchange="() => ElegirMotivo(motivo.Clave)" />
+                                <AvatarUsuario Avatar="@CatalogoAvatares.Clave(motivo.Clave, _tono)" Tamano="TamanoAvatarUsuario.Grande" />
+                            </label>
+                        }
+                    </div>
+                </fieldset>
+
+                <fieldset class="mi-emblema-grupo">
+                    <legend class="mi-emblema-leyenda">@Textos["AvatarGrupoTono"]</legend>
+                    <div class="mi-emblema-opciones">
+                        @foreach (var tono in CatalogoAvatares.Tonos)
+                        {
+                            var nombreTono = Textos[$"AvatarTono_{tono}"].Value;
+                            <label class="mi-emblema-opcion mi-emblema-opcion-tono">
+                                <input type="radio" name="mi-emblema-tono" class="mi-emblema-radio"
+                                       value="@tono" checked="@(_tono == tono)"
+                                       @onchange="() => ElegirTono(tono)" />
+                                <AvatarUsuario Avatar="@CatalogoAvatares.Clave(_motivo ?? MotivoDeMuestra, tono)" />
+                                <span>@nombreTono</span>
+                            </label>
+                        }
+                    </div>
+                </fieldset>
+
+                <div class="mi-emblema-acciones">
+                    <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(_guardando || _motivo is null || ClaveElegida == _guardada)"
+                           OnClick="() => GuardarAsync(ClaveElegida)">
+                        @Textos["AvatarGuardar"]
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(_guardando || (_guardada is null && _motivo is null))"
+                           OnClick="() => GuardarAsync(null)">
+                        @Textos["AvatarUsarIniciales"]
+                    </Boton>
+                </div>
+            </div>
+        </Tarjeta>
+    }
+</div>
+</LimiteDeErrores>
