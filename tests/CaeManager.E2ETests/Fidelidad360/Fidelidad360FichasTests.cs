@@ -44,7 +44,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         new("subcontrata-360", "/subcontratas/", SubcontrataDeLaMaqueta, Mockup360.PorConvencion(
             "Subcontrata 360 página TALVEG.dc.html", "[data-pieza=\"cabecera-identidad\"]",
             tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : null),
-            DesplegarAntesDeMedir: "[data-pieza=\"fila\"]:first-child > .fila-relacion-desplegar"),
+            DesplegarAntesDeMedir: ".lista-relaciones > [data-pieza=\"fila\"]:first-child .fila-relacion-desplegar"),
         new("vehiculo-360", "/vehiculos/", VehiculoDeLaMaqueta,
             Mockup360.PorConvencion(
                 "Vehiculo 360 página TALVEG.dc.html", "[data-pieza=\"cabecera-identidad\"]",
