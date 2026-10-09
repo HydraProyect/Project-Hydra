@@ -31,8 +31,11 @@ else
         <EstadoVacio Titulo="Sin sello guardado" Descripcion="Sube una foto del sello de la empresa para poder incluirlo en las firmas en campo de sus documentos." />
     }
 
-    <ZonaSoltarArchivo Titulo="Sube una foto del sello" FormatosTexto="JPG o PNG, máx. 5 MB" Accept="image/*"
-                       Cargando="_guardando" OnChange="SubirArchivoAsync" />
+    @* GuardarSelloEmpresaCommand es ICommand, denegado a Consulta: ve el sello guardado, no la zona de subida. *@
+    <SoloConEscritura>
+        <ZonaSoltarArchivo Titulo="Sube una foto del sello" FormatosTexto="JPG o PNG, máx. 5 MB" Accept="image/*"
+                           Cargando="_guardando" OnChange="SubirArchivoAsync" />
+    </SoloConEscritura>
 }
 
 @code {
