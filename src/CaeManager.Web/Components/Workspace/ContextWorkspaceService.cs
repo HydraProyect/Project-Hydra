@@ -29,6 +29,41 @@ public class ContextWorkspaceService
         CambiarPilaAsync([new WorkspaceFrame(tipo, id, tituloVisible, pestanaInicial)]);
 
     /// <summary>
+    /// Abre la ficha en su pestaña «Información» y le pide que entre en edición: es la tecla
+    /// <c>e</c> de los listados, que equivale a abrir la vista rápida y pulsar el lápiz de su
+    /// cabecera. La petición es de un solo uso y la atiende el panel de esa entidad
+    /// (<see cref="ConsumirEdicionSolicitada"/>), que es quien comprueba que el rol puede
+    /// escribir. Si el cambio de ficha se cancela («Seguir editando»), no se pide nada.
+    /// </summary>
+    public async Task AbrirEnEdicionAsync(EntidadWorkspace tipo, Guid id, string tituloVisible)
+    {
+        await AbrirAsync(tipo, id, tituloVisible, "informacion");
+        if (FrameActual is not { } frame || frame.Tipo != tipo || frame.EntidadId != id)
+            return;
+
+        _edicionSolicitada = (tipo, id);
+        OnEdicionSolicitada?.Invoke();
+    }
+
+    /// <summary>La ficha abierta recibió una petición de edición (<see cref="AbrirEnEdicionAsync"/>).</summary>
+    public event Action? OnEdicionSolicitada;
+
+    private (EntidadWorkspace Tipo, Guid Id)? _edicionSolicitada;
+
+    /// <summary>
+    /// Devuelve <c>true</c>, una sola vez, si hay una petición de edición pendiente para esa
+    /// ficha. El panel la consume cuando ya tiene su detalle cargado.
+    /// </summary>
+    public bool ConsumirEdicionSolicitada(EntidadWorkspace tipo, Guid id)
+    {
+        if (_edicionSolicitada != (tipo, id))
+            return false;
+
+        _edicionSolicitada = null;
+        return true;
+    }
+
+    /// <summary>
     /// Empuja un nivel nuevo — o, si la entidad ya está en la pila (el
     /// usuario volvió a ella desde dos sitios distintos), trunca hasta ese
     /// nivel y lo reutiliza en vez de duplicarlo, para que el breadcrumb no
@@ -90,6 +125,7 @@ public class ContextWorkspaceService
         _pila.Clear();
         if (frame is not null)
             _pila.Add(frame);
+        OlvidarEdicionDeOtraFicha();
         OnCambio?.Invoke();
     }
 
@@ -129,7 +165,17 @@ public class ContextWorkspaceService
     {
         _pila.Clear();
         _pila.AddRange(nuevaPila);
+        OlvidarEdicionDeOtraFicha();
         OnCambio?.Invoke();
+    }
+
+    // Una petición de edición que nadie atendió no sobrevive a su ficha: si no, reabrir más
+    // tarde la misma entidad la encontraría pendiente y entraría en edición sin pedirlo.
+    private void OlvidarEdicionDeOtraFicha()
+    {
+        if (_edicionSolicitada is { } pedida
+            && (FrameActual is not { } frame || frame.Tipo != pedida.Tipo || frame.EntidadId != pedida.Id))
+            _edicionSolicitada = null;
     }
 
     /// <summary>

@@ -63,6 +63,13 @@
     <value>Consultar {0} de un vistazo</value>
     <comment>{0}: nombre de la entidad (Centro, Empresa, Cliente…) que abre el panel 360.</comment>
   </data>
+  <data name="Abrir360Pagina" xml:space="preserve">
+    <value>Abrir la ficha 360</value>
+  </data>
+  <data name="Abrir360PaginaEntidad" xml:space="preserve">
+    <value>Abrir la ficha 360 de {0}</value>
+    <comment>{0}: nombre de la entidad cuya página 360 completa abre el enlace.</comment>
+  </data>
   <data name="LimiteErroresTitulo" xml:space="preserve">
     <value>Algo ha fallado; vuelve a intentarlo</value>
   </data>

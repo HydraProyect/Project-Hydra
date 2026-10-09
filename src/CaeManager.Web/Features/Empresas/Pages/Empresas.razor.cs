@@ -1,6 +1,5 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
-using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
@@ -71,21 +70,24 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _razonSocialAEliminar = string.Empty;
-    private bool _eliminando;
+    // Un clic en la fila, su nombre o Enter sobre la fila enfocada abren la vista rápida: el
+    // panel de 520 px del Context Workspace, el mismo que abren los botones 360 del resto de
+    // pantallas. A la página Empresa 360 (/empresas/{id}) se va con el icono 360 de la fila.
+    private Task AbrirVistaRapidaAsync(Guid id) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, NombreDe(id), "informacion");
 
-    // El nombre de la fila es un enlace a Empresa 360 (/empresas/{id}); la
-    // «Vista rápida» del menú y Enter sobre la fila enfocada abren el panel de
-    // 520 px del Context Workspace, el mismo que abren los botones 360 del
-    // resto de pantallas, igual que en la lista Clientes. Antes el nombre abría
-    // EmpresaPreviewDrawer, que la lista ya no usa.
-    private Task AbrirVistaRapidaAsync(Guid id)
-    {
-        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial ?? string.Empty;
-        return WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, nombre, "informacion");
-    }
+    /// <summary>
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
+    /// del panel). Si el rol no puede escribir, el panel se abre y se queda en lectura.
+    /// </summary>
+    private Task AbrirVistaRapidaEnEdicionAsync(Guid id) =>
+        WorkspaceService.AbrirEnEdicionAsync(EntidadWorkspace.Empresa, id, NombreDe(id));
+
+    // La Empresa del panel puede no estar en la página (el filtro la dejó fuera): su nombre
+    // es entonces el del frame abierto.
+    private string NombreDe(Guid id) =>
+        _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial
+        ?? (WorkspaceService.FrameActual is { } frame && frame.EntidadId == id ? frame.TituloVisible : string.Empty);
 
     /// <summary>Empresa cuyo panel está abierto arriba de la pila del Context Workspace, si la hay.</summary>
     private Guid? EmpresaEnVistaPrevia =>
@@ -630,57 +632,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
     }
 
-    private void AbrirEliminar(Guid id, string razonSocial)
-    {
-        _idAEliminar = id;
-        _razonSocialAEliminar = razonSocial;
-        _confirmarEliminarVisible = true;
-    }
-
-    private async Task ConfirmarEliminarAsync()
-    {
-        _eliminando = true;
-
-        try
-        {
-            var idEliminado = _idAEliminar;
-            var resultado = await Mediator.Send(new EliminarEmpresaCommand(idEliminado));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.MostrarError(resultado.Error);
-            }
-            else
-            {
-                ToastService.Mostrar("Empresa eliminada correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Empresa, [idEliminado]);
-                _confirmarEliminarVisible = false;
-                await CargarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar("No pudimos eliminar la empresa. Intenta nuevamente en unos segundos.", TonoToast.Error);
-        }
-        finally
-        {
-            _eliminando = false;
-        }
-    }
-
-    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarEmpresaCommand.</summary>
-    private async Task DeshacerEliminarAsync(Guid id)
-    {
-        var resultado = await Mediator.Send(new RestaurarEmpresaCommand(id));
-
-        ToastService.Mostrar(
-            resultado.EsExitoso ? "Empresa restaurada." : resultado.Error.Mensaje,
-            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
-
-        if (resultado.EsExitoso)
-            await CargarAsync();
-    }
-
     private bool TodosSeleccionados =>
         _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
 
@@ -846,6 +797,16 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     private async Task ManejarAtajoAsync(string tecla)
     {
+        // «e» no depende de que haya filas: sin fila enfocada edita la ficha que esté abierta,
+        // aunque el filtro haya dejado la lista vacía.
+        if (tecla == "e")
+        {
+            // La fila enfocada siempre está en la página: cada recarga de la lista la olvida.
+            if ((_idEnfocado ?? EmpresaEnVistaPrevia) is { } idEditar)
+                await AbrirVistaRapidaEnEdicionAsync(idEditar);
+            return;
+        }
+
         if (_elementosPagina.Count == 0) return;
 
         switch (tecla)
@@ -863,8 +824,13 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
                     break;
                 }
             case "x":
+                // Marcar enciende la selección múltiple: una fila marcada sin casilla a la
+                // vista sería selección invisible justo antes de «Eliminar seleccionados».
                 if (_idEnfocado is { } idAlternar)
+                {
+                    _seleccionMultiple = true;
                     AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                }
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)

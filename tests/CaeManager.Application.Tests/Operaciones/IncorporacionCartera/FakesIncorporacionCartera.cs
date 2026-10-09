@@ -385,6 +385,14 @@ public class DirectorioRolesEnOrigen : IDirectorioUsuariosService
         Task.FromResult<IReadOnlyDictionary<Guid, string>>(
             usuarioIds.ToDictionary(id => id, id => $"Usuario {id:N}"[..12]));
 
+    /// <summary>Avatar elegido por cada usuario; quien no está aquí no eligió ninguno.</summary>
+    public Dictionary<Guid, string> Avatares { get; } = [];
+
+    public Task<IReadOnlyDictionary<Guid, string>> ObtenerAvataresVisiblesAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, string>>(
+            Avatares.Where(a => usuarioIds.Contains(a.Key)).ToDictionary(a => a.Key, a => a.Value));
+
     public Task<bool> EsCuentaActivaConRolAsync(
         Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
         Task.FromResult(_roles.TryGetValue((usuarioId, tenantId), out var suyo)

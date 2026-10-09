@@ -902,6 +902,15 @@
 }
 
 /*
+  Patrón de listados sin menú «⋯»: un clic en cualquier punto de la fila abre su vista
+  rápida. La fila lo anuncia con el cursor; los controles de dentro (casilla, desplegable,
+  identificador copiable, icono 360) conservan el suyo y no dejan subir el clic.
+*/
+.fila-pulsable {
+    cursor: pointer;
+}
+
+/*
   Fondo distinto del contenido expandido (lámina L3 ".expand", --c-subtle):
   el segundo/tercer nivel se lee como una superficie "hundida" respecto a la
   cabecera del centro, no como una continuación del mismo plano — es lo que
