@@ -35,7 +35,7 @@ public class RestaurarProyectoCommandHandler(
         if (await proyectosContext.Proyectos.AnyAsync(
                 p => p.ClienteId == proyecto.ClienteId && p.Nombre == proyecto.Nombre, cancellationToken))
             return Result.Fallo(Error.Crear("Proyecto.NombreDuplicado",
-                "Ya existe otro proyecto con este nombre para el mismo Cliente empresarial. Cámbiale el nombre a ese proyecto para poder restaurar este."));
+                "Ya existe otro proyecto con este nombre para el mismo Cliente. Cámbiale el nombre a ese proyecto para poder restaurar este."));
 
         proyecto.Restaurar();
         await unitOfWork.SaveChangesAsync(cancellationToken);

@@ -41,7 +41,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Centros por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
     private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
 
-    /// <summary>Pastilla «Cliente empresarial»: Id del Cliente empresarial o vacío. Viaja en la URL como <c>cliente</c>.</summary>
+    /// <summary>Pastilla «Cliente»: Id del Cliente empresarial o vacío. Viaja en la URL como <c>cliente</c>.</summary>
     private string _clienteFiltro = string.Empty;
 
     /// <summary>«Empresa» de «Más filtros»: Id de la Empresa o vacío. Viaja en la URL como <c>empresa</c>.</summary>
@@ -336,7 +336,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _instantanea.Fijar(alAbrir);
         }
 
-        // Las opciones de las pastillas «Cliente empresarial» y «Empresa», al final: la lista y el
+        // Las opciones de las pastillas «Cliente» y «Empresa», al final: la lista y el
         // alta encadenada no esperan por ellas.
         await CargarOpcionesDeFiltroAsync();
     }
@@ -390,7 +390,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private static Guid? IdDeFiltro(string valor) => Guid.TryParse(valor, out var id) ? id : null;
 
     /// <summary>
-    /// Opciones de las pastillas «Cliente empresarial» y «Empresa», las dos por el alcance de
+    /// Opciones de las pastillas «Cliente» y «Empresa», las dos por el alcance de
     /// <b>visibilidad</b>, el mismo que la lista: los Clientes empresariales visibles y las Empresas de
     /// los Centros visibles. No el selector de Empresas del alta, que acota por alcance de gestión y para
     /// un usuario de portal (rol Cliente) va vacío aunque vea Centros con su Empresa. Cada una con su
@@ -513,7 +513,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// El rol efectivo puede escribir (misma pregunta que <see cref="SoloConEscritura"/>). Decide si
-    /// las incidencias de las ventanas de «Vencidos» y «Próximos» se ofrecen como pulsables: a quien
+    /// las incidencias de las ventanas del motivo («N vencidos», «M por vencer») se ofrecen como pulsables: a quien
     /// solo consulta no se le ofrece un formulario que el comando le va a denegar.
     /// </summary>
     private bool _puedeEscribir;
@@ -877,7 +877,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _empresaId = string.Empty;
     }
 
-    private const string AvisoSeleccionaCliente = "Selecciona un Cliente empresarial.";
+    private const string AvisoSeleccionaCliente = "Selecciona un Cliente.";
     private const string AvisoSeleccionaEmpresa = "Selecciona una empresa.";
 
     private void AlElegirEmpresa(string valor)
@@ -887,7 +887,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     }
 
     /// <summary>
-    /// El aviso «Selecciona un Cliente empresarial.» (o «Selecciona una empresa.») es de un intento anterior de guardar: al rellenar el
+    /// El aviso «Selecciona un Cliente.» (o «Selecciona una empresa.») es de un intento anterior de guardar: al rellenar el
     /// campo deja de ser verdad (misma regla que Trabajadores, #1020). Un error de servidor sigue en pantalla.
     /// </summary>
     private void LimpiarAvisoDeSeleccionFaltante()
@@ -922,7 +922,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         _clientesDisponibles = [.. _clientesDisponibles, new ClienteSelectorDto(creado.Id, creado.RazonSocial)];
         await CambiarClienteCreacionAsync(creado.Id.ToString());
-        ToastService.Mostrar("Cliente empresarial creado correctamente.", TonoToast.Exito);
+        ToastService.Mostrar("Cliente creado correctamente.", TonoToast.Exito);
     }
 
     private void AbrirCrearEmpresaInline(string texto)
@@ -1296,24 +1296,25 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             .ToList();
 
     /// <summary>
-    /// 3ª ranura de indicadores del Centro (contrato de fidelidad 2026-08-09
-    /// § 1.6, bug C-2), cuando no hay visita que mostrar en su lugar. El
-    /// Badge de Estado solo aporta algo que los recuentos de vencidos/
-    /// próximos no digan ya: Vencido/Próximo/Falta documentación quedan
-    /// reflejados en esas dos ranuras (mismo criterio de bucketing que
-    /// <c>ObtenerCentrosQuery.Desglosar</c>), así que repetirlos aquí era
-    /// justo la redundancia que hacía desbordar la columna. Bloqueado
-    /// (el peor caso posible) sí necesita la ranura. Urgente también: desde
-    /// que <c>Desglosar</c> lo funde con Vencido/Faltante en "vencidas"
-    /// (mismo tono Peligro que ya le da <c>EstadoDocumentoUi.Tono</c>), el
-    /// recuento por sí solo ya no distingue Urgente de un vencimiento
-    /// consumado — el Badge de Estado es la única señal que sí lo hace.
-    /// "Sin incidencias" (0 y 0) también, para que la fila no quede
-    /// completamente muda.
+    /// Motivo bajo la pastilla de estado del Centro: cuántos documentos hay en
+    /// «vencidas» y cuántos en «próximas» (el reparto de
+    /// <c>ObtenerCentrosQuery.Desglosar</c>). Es lo que decían las columnas
+    /// «Venc.» y «Próx.», retiradas el 2026-10-09; cada parte abre su ventana de
+    /// contexto con las incidencias.
     /// </summary>
-    private static bool MostrarEstadoEnIndicadores(CentroListaDto centro) =>
-        centro.Estado is EstadoCentro.Bloqueado or EstadoCentro.Urgente
-        || (centro.Recuentos.TotalVencidas == 0 && centro.Recuentos.TotalProximas == 0);
+    private string MotivoVencidos(int cantidad) =>
+        cantidad == 1 ? Textos["MotivoUnVencido"].Value : Textos["MotivoVencidos", cantidad].Value;
+
+    private string MotivoProximos(int cantidad) =>
+        cantidad == 1 ? Textos["MotivoUnProximo"].Value : Textos["MotivoProximos", cantidad].Value;
+
+    /// <summary>
+    /// Nombre accesible del disparador del motivo. Empieza por el texto que se ve («2 vencidos») para que
+    /// quien lo nombre de viva voz lo active (WCAG 2.5.3, el nombre contiene la etiqueta visible), y sigue
+    /// con la frase completa y el reparto por ámbito de <see cref="DescribirRecuento"/>.
+    /// </summary>
+    private static string EtiquetaDeMotivo(string textoVisible, IReadOnlyList<IncidenciaCentroDto> incidencias, string calificativo) =>
+        $"{textoVisible}. {DescribirRecuento(incidencias, calificativo)}";
 
     /// <summary>
     /// Nombre accesible de un badge de solo recuento. Es lo unico que oye un

@@ -30,7 +30,7 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
     private static ItemBandejaDto Vencido(string id, string titulo) => new(
         Id: id, Tipo: TipoItemBandeja.Vencido, Titulo: titulo, Subtitulo: $"Trabajador {id}", Fecha: new DateOnly(2026, 10, 1),
         TrabajadorId: Guid.NewGuid(), CentroId: Guid.NewGuid(), DocumentoId: null, TipoDocumentoId: Guid.NewGuid(),
-        RequisitoId: null, ClienteId: Guid.NewGuid(), ClienteNombre: "Cliente empresarial de prueba");
+        RequisitoId: null, ClienteId: Guid.NewGuid(), ClienteNombre: "Cliente de prueba");
 
     private static MiTrabajoTenantDto Tenant(Guid id, string nombre, params ItemBandejaDto[] items) => new(
         id, nombre, id == TenantOrigen, ObtenerBandejaAgrupadaQueryHandler.Agrupar(items), [], [],

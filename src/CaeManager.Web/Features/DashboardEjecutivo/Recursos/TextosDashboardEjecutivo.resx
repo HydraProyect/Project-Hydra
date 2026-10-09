@@ -142,7 +142,7 @@
     <value>Ponderado por las incidencias resueltas de cada organización</value>
   </data>
   <data name="PistaFacturacionTarifas" xml:space="preserve">
-    <value>Solo los Clientes empresariales con tarifas configuradas</value>
+    <value>Solo los Clientes con tarifas configuradas</value>
   </data>
   <data name="PistaTonoInvertido" xml:space="preserve">
     <value>Tono invertido: un porcentaje alto es el problema</value>
@@ -214,7 +214,7 @@
     <value>{0}: {1} documentos de trabajador urgentes</value>
   </data>
   <data name="ColumnaReceptorServicio" xml:space="preserve">
-    <value>Cliente empresarial</value>
+    <value>Cliente</value>
   </data>
   <data name="ColumnaHorasGestion" xml:space="preserve">
     <value>Horas de gestión</value>
@@ -226,7 +226,7 @@
     <value>{0}: {1} de gestión medidas.</value>
   </data>
   <data name="DesgloseHorasConTotal" xml:space="preserve">
-    <value>{0}: {1} de las {2} medidas en los {3} Clientes empresariales con más tiempo; no incluye el resto de la cartera.</value>
+    <value>{0}: {1} de las {2} medidas en los {3} Clientes con más tiempo; no incluye el resto de la cartera.</value>
   </data>
   <data name="VacioAutomaticasManuales" xml:space="preserve">
     <value>Todavía no hay documentos verificados por IA.</value>
@@ -292,7 +292,7 @@
     <value>Facturación estimada</value>
   </data>
   <data name="DetalleFacturacionPeriodo" xml:space="preserve">
-    <value>{0:F2} € de facturación estimada del periodo consultado, sumando solo los Clientes empresariales con tarifas configuradas de las {1} de este panel.</value>
+    <value>{0:F2} € de facturación estimada del periodo consultado, sumando solo los Clientes con tarifas configuradas de las {1} de este panel.</value>
   </data>
   <data name="EnlaceVerFacturas" xml:space="preserve">
     <value>Ver facturación →</value>

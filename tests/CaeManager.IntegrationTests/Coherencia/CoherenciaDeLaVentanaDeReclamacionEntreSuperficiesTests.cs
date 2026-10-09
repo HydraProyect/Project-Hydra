@@ -170,7 +170,7 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
         {
             var alCliente = await enviarCliente.PrepararAsync(
                 new EnviarReclamacionCommand(_clienteId, [caso.DocumentoTrabajadorId]), CancellationToken.None);
-            Comprobar("Envío al Cliente empresarial (preparación)", caso, alCliente.EsExitoso);
+            Comprobar("Envío al Cliente (preparación)", caso, alCliente.EsExitoso);
 
             var aLaEmpresa = await enviarEmpresa.PrepararAsync(
                 new EnviarReclamacionEmpresaCommand(_empresaId, [caso.DocumentoEmpresaId]), CancellationToken.None);
@@ -224,7 +224,7 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
 
             var alCliente = await enviarCliente.PrepararAsync(
                 new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.SinConfirmar(caso.DocumentoTrabajadorId)]), CancellationToken.None);
-            Comprobar("Envío al Cliente empresarial (pendientes)", caso.Nombre, esperado, alCliente.EsExitoso);
+            Comprobar("Envío al Cliente (pendientes)", caso.Nombre, esperado, alCliente.EsExitoso);
 
             var aLaEmpresa = await enviarEmpresa.PrepararAsync(
                 new EnviarReclamacionEmpresaCommand(_empresaId, [], Pendientes: [PendienteSinFecha.SinConfirmar(caso.DocumentoEmpresaId)]), CancellationToken.None);
@@ -234,7 +234,7 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
         // Un documento que nunca se subió: de Trabajador (lo exige el Centro) y de Empresa (lo exige el Centro a la Empresa).
         Comprobar("Lote de Trabajadores (ausente)", "Formación obligatoria", true,
             ofrecidosTrabajadores.Any(p => p.Motivo == MotivoPendienteDeReclamacion.Ausente && p.TrabajadorId == _trabajadorId && p.TipoDocumentoId == _tipoTrabajadorAusenteId));
-        Comprobar("Envío al Cliente empresarial (ausente)", "Formación obligatoria", true,
+        Comprobar("Envío al Cliente (ausente)", "Formación obligatoria", true,
             (await enviarCliente.PrepararAsync(
                 new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.Ausente(_trabajadorId, _tipoTrabajadorAusenteId)]), CancellationToken.None)).EsExitoso);
 
@@ -247,7 +247,7 @@ public class CoherenciaDeLaVentanaDeReclamacionEntreSuperficiesTests : IAsyncLif
         // Lo que el Centro no exige no se ofrece ni se acepta como ausente.
         Comprobar("Lote de Trabajadores (ausente)", "Tipo no requerido", false,
             ofrecidosTrabajadores.Any(p => p.Motivo == MotivoPendienteDeReclamacion.Ausente && p.TipoDocumentoId == _tipoTrabajadorNoRequeridoId));
-        Comprobar("Envío al Cliente empresarial (ausente)", "Tipo no requerido", false,
+        Comprobar("Envío al Cliente (ausente)", "Tipo no requerido", false,
             (await enviarCliente.PrepararAsync(
                 new EnviarReclamacionCommand(_clienteId, [], Pendientes: [PendienteSinFecha.Ausente(_trabajadorId, _tipoTrabajadorNoRequeridoId)]), CancellationToken.None)).EsExitoso);
 

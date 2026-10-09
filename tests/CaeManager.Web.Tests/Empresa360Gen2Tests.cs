@@ -95,8 +95,8 @@ public partial class Empresa360Gen2Tests : BunitContext
         m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
         m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01"), new(Guid.NewGuid(), "Ibertec S.A.", "A-02")];
         var cut = Renderizar(id, "clientes");
-        cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes empresariales")).TextContent.Should().Contain("(2)");
-        cut.Markup.Should().Contain("2 Clientes empresariales");
+        cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes")).TextContent.Should().Contain("(2)");
+        cut.Markup.Should().Contain("2 Clientes");
     }
 
     [Fact]
@@ -107,11 +107,11 @@ public partial class Empresa360Gen2Tests : BunitContext
         m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01")];
         var cut = Renderizar(id, "clientes");
 
-        cut.FindAll(".recuentos-empresa-360").Should().ContainSingle("la pestaña de Clientes empresariales está activa")
-            .Which.TextContent.Trim().Should().Be("1 Cliente empresarial");
+        cut.FindAll(".recuentos-empresa-360").Should().ContainSingle("la pestaña de Clientes está activa")
+            .Which.TextContent.Trim().Should().Be("1 Cliente");
 
         cut.Render(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "informacion"));
-        cut.FindAll(".recuentos-empresa-360").Should().BeEmpty("el recuento de Clientes empresariales no pertenece a las demás pestañas");
+        cut.FindAll(".recuentos-empresa-360").Should().BeEmpty("el recuento de Clientes no pertenece a las demás pestañas");
     }
 
     private static string ValorInfo(IRenderedComponent<EmpresaWorkspacePanel> cut, string etiqueta) =>
@@ -137,8 +137,8 @@ public partial class Empresa360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        ValorInfo(cut, "Clientes empresariales con los que trabaja").Should().Be("1",
-            "el actor solo gestiona uno de los tres Clientes empresariales de la Empresa");
+        ValorInfo(cut, "Clientes con los que trabaja").Should().Be("1",
+            "el actor solo gestiona uno de los tres Clientes de la Empresa");
         cut.Markup.Should().NotContain("(3)");
     }
 
@@ -156,13 +156,13 @@ public partial class Empresa360Gen2Tests : BunitContext
         m.Cumplimientos[id] = 80;
 
         var cut = Renderizar(id);
-        ValorInfo(cut, "Clientes empresariales con los que trabaja").Should().Be("—");
+        ValorInfo(cut, "Clientes con los que trabaja").Should().Be("—");
 
         cut.Render(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "clientes"));
-        cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes empresariales")).TextContent.Should().NotContain("(");
+        cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes")).TextContent.Should().NotContain("(");
         cut.FindAll(".recuentos-empresa-360").Should().BeEmpty();
-        cut.Markup.Should().NotContain("todavía no tiene ningún Cliente empresarial")
-            .And.Contain("Sin Clientes empresariales que puedas consultar")
+        cut.Markup.Should().NotContain("todavía no tiene ningún Cliente")
+            .And.Contain("Sin Clientes que puedas consultar")
             .And.Contain("o no están dentro de tu alcance de gestión");
     }
 
@@ -178,15 +178,15 @@ public partial class Empresa360Gen2Tests : BunitContext
         m.Detalles[id] = Detalle(id, "Montajes Ebro S.L."); m.Cumplimientos[id] = 80;
         m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01")];
         var cut = Renderizar(id);
-        ValorInfo(cut, "Clientes empresariales con los que trabaja").Should().Be("1");
+        ValorInfo(cut, "Clientes con los que trabaja").Should().Be("1");
 
         await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
         m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01"), new(Guid.NewGuid(), "Ibertec S.A.", "A-02")];
         await Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
 
-        ValorInfo(cut, "Clientes empresariales con los que trabaja").Should().Be("2",
+        ValorInfo(cut, "Clientes con los que trabaja").Should().Be("2",
             "tras guardar, el recuento refleja la cartera acotada ya actualizada");
-        cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes empresariales")).TextContent.Should().Contain("(2)");
+        cut.FindAll("[role=tab]").Single(x => x.TextContent.Contains("Clientes")).TextContent.Should().Contain("(2)");
     }
 
     [Fact]
@@ -199,9 +199,9 @@ public partial class Empresa360Gen2Tests : BunitContext
         await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
 
         cut.FindAll("label").Select(x => x.TextContent.Trim()).Should().Contain("Credenciales de acceso a Plataforma CAE")
-            .And.Contain("Empresa / Cliente empresarial / Proveedor");
+            .And.Contain("Empresa / Cliente / Proveedor");
         cut.Markup.Should().NotContain("Credenciales de acceso a plataforma externa")
-            .And.NotContain("Empresa / Cliente / Proveedor");
+            .And.NotContain("Empresa / Cliente empresarial / Proveedor");
     }
 
     [Fact]
@@ -467,7 +467,7 @@ public partial class Empresa360Gen2Tests : BunitContext
         var cut = Renderizar(id);
         cut.FindAll(".estado-vacio").Should().ContainSingle("un fallo de carga se presenta como fallo, no como datos vacíos")
             .Which.TextContent.Should().Contain("No pudimos cargar la empresa");
-        cut.Markup.Should().NotContain("0%", "un fallo no equivale a cumplimiento cero").And.NotContain("Sin Clientes empresariales", "un resumen fallido no es una lista vacía");
+        cut.Markup.Should().NotContain("0%", "un fallo no equivale a cumplimiento cero").And.NotContain("Sin Clientes", "un resumen fallido no es una lista vacía");
     }
     /// <summary>
     /// El caso anterior no observa `_error`: el panel pinta el estado con

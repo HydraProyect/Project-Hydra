@@ -403,7 +403,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         TilePorEtiqueta(cut, "Visitas programadas").Valor.Should().Be("12");
         TilePorEtiqueta(cut, "Incidencias abiertas").Valor.Should().Be("4");
         TilePorEtiqueta(cut, "Facturación estimada del mes").Should().Be(
-            ("Facturación estimada del mes", "1480,00 €", "Solo los Clientes empresariales con tarifas configuradas", "tarjeta-metrica-neutro"));
+            ("Facturación estimada del mes", "1480,00 €", "Solo los Clientes con tarifas configuradas", "tarjeta-metrica-neutro"));
     }
 
     /// <summary>
@@ -557,10 +557,10 @@ public class DashboardEjecutivoGen2Tests : BunitContext
     public void El_reparto_de_horas_dice_que_es_sobre_los_mostrados_y_no_sobre_la_cartera()
     {
         var cut = Renderizar(new Escenario()).Cut;
-        var tarjeta = TarjetaKpi(cut, "Horas de gestión por Cliente empresarial");
+        var tarjeta = TarjetaKpi(cut, "Horas de gestión por Cliente");
 
         tarjeta.QuerySelectorAll("thead th").Select(Texto).Should().Equal(
-            "Cliente empresarial", "Horas de gestión", "Reparto entre los mostrados");
+            "Cliente", "Horas de gestión", "Reparto entre los mostrados");
         Filas(tarjeta).Should().BeEquivalentTo(
             new[]
             {
@@ -569,7 +569,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
             },
             o => o.WithStrictOrdering());
         tarjeta.QuerySelectorAll(".reparto-horas")[0].GetAttribute("aria-label").Should().Be(
-            "Instalaciones Beroa: 41,5 h de las 74,7 h medidas en los 2 Clientes empresariales con más tiempo; no incluye el resto de la cartera.");
+            "Instalaciones Beroa: 41,5 h de las 74,7 h medidas en los 2 Clientes con más tiempo; no incluye el resto de la cartera.");
     }
 
     [Fact]
@@ -859,7 +859,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         delPeriodo.QuerySelectorAll(".tarjeta-metrica").Select(t => Tile(t).Etiqueta).Should().Equal(
             "Confianza media de extracción IA", "Coste IA del mes", "Tiempo medio de procesamiento IA",
             "Facturación estimada del mes", "Índice de palanca IA", "Falsos avisos con tiempo",
-            "Tiempo bloqueado por el Cliente empresarial");
+            "Tiempo bloqueado por el Cliente");
 
         var fuera = cut.Find("section[aria-labelledby='titulo-estado-actual']");
         Texto(fuera.QuerySelector("h2")!).Should().Be("Al margen del periodo");
@@ -895,7 +895,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         // Las del periodo no llevan rótulo temporal: el silencio ya dice «del periodo».
         Aviso("Distribución por tramo de antelación").Should().BeNull();
         Aviso("Ocupación por Gestor CAE").Should().BeNull();
-        Aviso("Horas de gestión por Cliente empresarial").Should().BeNull();
+        Aviso("Horas de gestión por Cliente").Should().BeNull();
         Aviso("Urgencias por atribución").Should().BeNull();
     }
 
@@ -993,7 +993,7 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         Vacio("Urgencias por atribución").Should().Be("Todavía no hay visitas con la antelación medida.");
         Vacio("Ocupación por Gestor CAE").Should().Be(
             "No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.");
-        Vacio("Horas de gestión por Cliente empresarial").Should().Be(
+        Vacio("Horas de gestión por Cliente").Should().Be(
             "No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.");
         Vacio("Empresas con más riesgo").Should().Be("Ninguna empresa tiene documentación urgente o vencida.");
         Vacio("Gestiones automáticas vs manuales").Should().Be("Todavía no hay documentos verificados por IA.");

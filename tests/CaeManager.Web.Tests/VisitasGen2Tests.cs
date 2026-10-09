@@ -48,7 +48,7 @@ namespace CaeManager.Web.Tests;
 /// recorra el camino.
 /// </para>
 /// </summary>
-public class VisitasGen2Tests : BunitContext
+public partial class VisitasGen2Tests : BunitContext
 {
     public VisitasGen2Tests()
     {
@@ -214,15 +214,6 @@ public class VisitasGen2Tests : BunitContext
                     Visitas[indice] = Visitas[indice] with { NotificadoCliente = marcar.Notificado };
                     return Respuesta<TResponse>(Result.Exito());
 
-                case CancelarVisitaCommand cancelar:
-                    {
-                        Comandos.Add(cancelar);
-                        var i = Visitas.FindIndex(v => v.Id == cancelar.Id);
-                        var versionNueva = Guid.NewGuid();
-                        Visitas[i] = Visitas[i] with { EstaCancelada = true, MotivoCancelacion = cancelar.Motivo, Version = versionNueva };
-                        return Respuesta<TResponse>(Result.Exito(new VisitaCanceladaDto(cancelar.Id, versionNueva)));
-                    }
-
                 case CancelarVisitasCommand lote:
                     {
                         Comandos.Add(lote);
@@ -367,12 +358,30 @@ public class VisitasGen2Tests : BunitContext
     private static IElement FiltroCheckbox(IRenderedComponent<Visitas> cut, string texto) =>
         cut.FindAll("label.filtro-critico").First(l => l.TextContent.Contains(texto)).QuerySelector("input")!;
 
-    /// <summary>Abre el menú de la fila y devuelve el ítem pedido, sin pulsarlo.</summary>
-    private static IElement ItemDeMenu(IRenderedComponent<Visitas> cut, string centro, string accion)
+    /// <summary>
+    /// El botón de la fila que abre la vista rápida (sus fechas). Es el que pulsa por la fila el oyente
+    /// «pulsarFila» de atajos-lista.js cuando el clic cae en un punto sin control; esa mitad solo la ve el E2E.
+    /// </summary>
+    private static IElement BotonVistaRapida(IRenderedComponent<Visitas> cut, string centro) =>
+        Fila(cut, centro).QuerySelector("button.nombre-abre-vista-rapida")
+            ?? throw new InvalidOperationException($"La fila de {centro} no tiene botón de vista rápida.");
+
+    /// <summary>«Reactivar», la acción rápida de la fila de una Visita cancelada; null si no se ofrece.</summary>
+    private static IElement? BotonReactivarDeFila(IRenderedComponent<Visitas> cut, string centro) =>
+        Fila(cut, centro).QuerySelectorAll(".visitas-celda-acciones button").FirstOrDefault(b => b.TextContent.Trim() == "Reactivar");
+
+    /// <summary>Cancelar una Visita solo existe en la selección múltiple: la enciende, marca la fila y pulsa «Cancelar seleccionadas».</summary>
+    private static async Task AbrirCancelarPorSeleccionAsync(IRenderedComponent<Visitas> cut, string centro)
     {
-        Fila(cut, centro).QuerySelector(".menu-acciones-disparador")!.Click();
-        return Fila(cut, centro).QuerySelectorAll(".menu-acciones-item").First(i => i.TextContent.Trim() == accion);
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await Fila(cut, centro).QuerySelector("input[type=checkbox]:not(.visitas-interruptor)")!
+            .ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").First(b => b.TextContent.Trim() == "Cancelar seleccionadas")
+            .ClickAsync(new MouseEventArgs());
     }
+
+    private static Task AtajoAsync(IRenderedComponent<Visitas> cut, string tecla) =>
+        cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.OnAtajo.InvokeAsync(tecla));
 
     /// <summary>
     /// El panel de la Visita tiene tres pestañas y se abre en «Información»: la solicitud por correo,
@@ -466,17 +475,18 @@ public class VisitasGen2Tests : BunitContext
         mediator.DetallesDiferidos[zaragoza.Id] = detalleZaragoza;
         var cut = Renderizar(mediator);
 
-        // Click() no espera al manejador: las dos aperturas quedan en vuelo.
-        ItemDeMenu(cut, "Centro Norte", "Ver").Click();
-        ItemDeMenu(cut, "Planta Zaragoza", "Ver").Click();
+        // Sin esperar a los manejadores: las dos aperturas quedan en vuelo.
+        var aperturaNorte = BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
+        var aperturaZaragoza = BotonVistaRapida(cut, "Planta Zaragoza").ClickAsync(new MouseEventArgs());
 
         await cut.InvokeAsync(() => detalleZaragoza.SetResult(MediatorVisitas.Detalle(zaragoza)));
         cut.WaitForAssertion(() => cut.Find(".visitas-detalle-centro").TextContent.Trim().Should().Be("Planta Zaragoza"));
 
         await cut.InvokeAsync(() => detalleNorte.SetResult(MediatorVisitas.Detalle(norte)));
-        // Barrera: el menú de la primera fila se cierra cuando SU manejador
-        // termina, así que a partir de aquí la respuesta tardía ya se procesó.
-        cut.WaitForAssertion(() => cut.FindAll(".menu-acciones-panel").Should().BeEmpty());
+        // Barrera: el manejador de la primera fila termina, así que a partir de
+        // aquí la respuesta tardía ya se procesó.
+        await aperturaNorte;
+        await aperturaZaragoza;
 
         cut.Find(".visitas-detalle-centro").TextContent.Trim().Should().Be("Planta Zaragoza",
             "la visita que el usuario abrió la última es la que tiene que seguir en el detalle");
@@ -497,12 +507,18 @@ public class VisitasGen2Tests : BunitContext
         mediator.EdicionesDiferidas[norte.Id] = edicionNorte;
         var cut = Renderizar(mediator);
 
-        ItemDeMenu(cut, "Centro Norte", "Editar").Click();
-        await ItemDeMenu(cut, "Planta Zaragoza", "Editar").ClickAsync(new MouseEventArgs());
+        // Editar desde la lista es la tecla «e» sobre la fila enfocada. La primera queda en vuelo.
+        await AtajoAsync(cut, "j");
+        cut.WaitForAssertion(() => Fila(cut, "Centro Norte").ClassList.Should().Contain("fila-enfocada"));
+        var edicionEnVuelo = AtajoAsync(cut, "e");
+        await AtajoAsync(cut, "j");
+        cut.WaitForAssertion(() => Fila(cut, "Planta Zaragoza").ClassList.Should().Contain("fila-enfocada"));
+        await AtajoAsync(cut, "e");
         cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().Contain("Planta Zaragoza"));
 
         await cut.InvokeAsync(() => edicionNorte.SetResult(MediatorVisitas.ParaEditar(norte)));
-        cut.WaitForAssertion(() => cut.FindAll(".menu-acciones-panel").Should().BeEmpty());
+        // Barrera: el manejador de la primera «e» termina; la respuesta tardía ya se procesó.
+        await edicionEnVuelo;
 
         var formulario = cut.Find(".drawer-panel").TextContent;
         formulario.Should().Contain("Planta Zaragoza");
@@ -564,7 +580,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(sur);
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Almacén Sur", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Almacén Sur").ClickAsync(new MouseEventArgs());
         await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso").TextContent.Should().Contain("Ana Garcia (Contratista Demo SL)"));
@@ -591,7 +607,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.VisitasPorCorreo.Add(norte.Id);
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
         await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
@@ -613,7 +629,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(norte);
         mediator.VisitasPorCorreo.Add(norte.Id);
         var cut = Renderizar(mediator);
-        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
         await IrAPestanaAsync(cut, "Documentación");
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
         return (cut, mediator);
@@ -733,7 +749,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(norte);
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
         await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
@@ -748,7 +764,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(norte);
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
         await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
@@ -823,7 +839,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(norte);
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".drawer-pie button").First(b => b.TextContent.Contains("Marcar como notificada"))
             .ClickAsync(new MouseEventArgs());
 
@@ -848,7 +864,7 @@ public class VisitasGen2Tests : BunitContext
         Interruptor(cut, "Centro Norte").HasAttribute("checked").Should().BeTrue("el dato sigue a la vista");
         Interruptor(cut, "Centro Norte").HasAttribute("disabled").Should().BeTrue("pero no se ofrece cambiarlo");
 
-        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
 
         cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim())
             .Should().NotContain(["Quitar la marca de notificada", "Marcar como notificada", "Editar"])
@@ -877,11 +893,12 @@ public class VisitasGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// FS-11: cancelar pide confirmación con motivo opcional, deja la Visita fuera de la
-    /// lista activa y el aviso ofrece «Deshacer», que la reactiva.
+    /// FS-11 y fila sin menú: cancelar una sola Visita se hace desde la selección múltiple. Pide
+    /// confirmación con motivo opcional, deja la Visita fuera de la lista activa y el aviso ofrece
+    /// «Deshacer», que la reactiva.
     /// </summary>
     [Fact]
-    public async Task Cancelar_pide_confirmacion_con_motivo_y_el_aviso_la_deshace()
+    public async Task Cancelar_una_visita_va_por_la_seleccion_multiple_con_confirmacion_motivo_y_deshacer()
     {
         var norte = Visita("Centro Norte");
         var zaragoza = Visita("Planta Zaragoza");
@@ -889,16 +906,18 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.AddRange([norte, zaragoza]);
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Planta Zaragoza", "Cancelar visita").ClickAsync(new MouseEventArgs());
+        await AbrirCancelarPorSeleccionAsync(cut, "Planta Zaragoza");
 
-        cut.Markup.Should().Contain("¿Cancelar la visita a Planta Zaragoza?");
-        cut.Markup.Should().Contain("se conserva en el historial");
+        cut.Markup.Should().Contain("¿Cancelar 1 visita(s)?");
+        cut.Markup.Should().Contain("se conservan en el historial");
         mediator.Comandos.Should().BeEmpty("abrir el diálogo no cancela nada");
 
         await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = "Obra aplazada" });
-        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar visita").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar seleccionadas").ClickAsync(new MouseEventArgs());
 
-        mediator.Comandos.Should().ContainSingle().Which.Should().Be(new CancelarVisitaCommand(zaragoza.Id, "Obra aplazada"));
+        var comando = mediator.Comandos.Should().ContainSingle().Which.Should().BeOfType<CancelarVisitasCommand>().Subject;
+        comando.Ids.Should().Equal(zaragoza.Id);
+        comando.Motivo.Should().Be("Obra aplazada");
         cut.WaitForAssertion(() => cut.FindAll("tbody tr").Should().NotContain(tr => tr.TextContent.Contains("Planta Zaragoza")));
         cut.FindAll("tbody tr").Should().Contain(tr => tr.TextContent.Contains("Centro Norte"));
 
@@ -911,8 +930,8 @@ public class VisitasGen2Tests : BunitContext
 
     /// <summary>
     /// FS-11: en el historial una Visita cancelada se marca como tal y ofrece
-    /// «Reactivar», no «Editar» ni «Cancelar visita», a los mismos roles que pueden
-    /// cancelar (los de escritura); a Consulta, no.
+    /// «Reactivar» como acción rápida de la fila (que no lleva menú), a los mismos roles
+    /// que pueden cancelar (los de escritura); a Consulta, no.
     /// </summary>
     [Theory]
     [InlineData(Roles.GestorCae, true)]
@@ -933,11 +952,9 @@ public class VisitasGen2Tests : BunitContext
         var fila = Fila(cut, "Planta Zaragoza");
         fila.TextContent.Should().Contain("Cancelada");
         fila.QuerySelector("[title='Obra aplazada']").Should().NotBeNull("el motivo acompaña a la marca");
-        fila.QuerySelector(".menu-acciones-disparador")!.Click();
-        var acciones = Fila(cut, "Planta Zaragoza").QuerySelectorAll(".menu-acciones-item").Select(e => e.TextContent.Trim()).ToList();
-        acciones.Should().Contain("Ver", "control positivo: el menú se abrió");
-        acciones.Should().NotContain(["Editar", "Cancelar visita"]);
-        acciones.Contains("Reactivar").Should().Be(seOfrece);
+        fila.QuerySelector(".visitas-celda-acciones a.boton-360-pagina").Should().NotBeNull("control positivo: la celda de acciones se pintó");
+        fila.QuerySelectorAll(".menu-acciones-disparador").Should().BeEmpty();
+        (BotonReactivarDeFila(cut, "Planta Zaragoza") is not null).Should().Be(seOfrece);
     }
 
     /// <summary>
@@ -957,7 +974,7 @@ public class VisitasGen2Tests : BunitContext
             .ChangeAsync(new ChangeEventArgs { Value = false });
 
         Interruptor(cut, "Planta Zaragoza").HasAttribute("disabled").Should().BeTrue("una cancelada no se marca como notificada");
-        await ItemDeMenu(cut, "Planta Zaragoza", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Planta Zaragoza").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Visita cancelada. Motivo: Obra aplazada"));
         cut.Markup.Should().Contain("Reactívala para retomarla");
@@ -976,7 +993,7 @@ public class VisitasGen2Tests : BunitContext
         await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
             .ChangeAsync(new ChangeEventArgs { Value = false });
 
-        await ItemDeMenu(cut, "Planta Zaragoza", "Reactivar").ClickAsync(new MouseEventArgs());
+        await BotonReactivarDeFila(cut, "Planta Zaragoza")!.ClickAsync(new MouseEventArgs());
         cut.Markup.Should().Contain("¿Reactivar la visita a Planta Zaragoza?");
         await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = "Se retoma" });
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Reactivar").ClickAsync(new MouseEventArgs());
@@ -999,7 +1016,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
         await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
             .ChangeAsync(new ChangeEventArgs { Value = false });
-        await ItemDeMenu(cut, "Planta Zaragoza", "Reactivar").ClickAsync(new MouseEventArgs());
+        await BotonReactivarDeFila(cut, "Planta Zaragoza")!.ClickAsync(new MouseEventArgs());
 
         // Otra persona toca la Visita mientras el diálogo está abierto.
         var versionNueva = Guid.NewGuid();
@@ -1014,7 +1031,7 @@ public class VisitasGen2Tests : BunitContext
         cut.Markup.Should().NotContain("¿Reactivar la visita a Planta Zaragoza?", "el diálogo se cierra");
         mediator.ConsultasVisitas.Should().BeGreaterThan(consultasAntes, "se recarga para ver lo que hay");
 
-        await ItemDeMenu(cut, "Planta Zaragoza", "Reactivar").ClickAsync(new MouseEventArgs());
+        await BotonReactivarDeFila(cut, "Planta Zaragoza")!.ClickAsync(new MouseEventArgs());
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Reactivar").ClickAsync(new MouseEventArgs());
 
         mediator.Comandos.OfType<ReactivarVisitaCommand>().Last().VersionEsperada.Should().Be(versionNueva);
@@ -1034,8 +1051,8 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(zaragoza);
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Planta Zaragoza", "Cancelar visita").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar visita").ClickAsync(new MouseEventArgs());
+        await AbrirCancelarPorSeleccionAsync(cut, "Planta Zaragoza");
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar seleccionadas").ClickAsync(new MouseEventArgs());
         var versionDelRecibo = mediator.Visitas[0].Version;
 
         // Otra persona cambia la Visita antes de que se pulse «Deshacer».
@@ -1070,7 +1087,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(norte);
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
         await IrAPestanaAsync(cut, "Documentación");
 
         cut.Find(".visitas-detalle-resumen").TextContent.Should()
@@ -1107,7 +1124,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(norte);
         var cut = Renderizar(mediator);
 
-        ItemDeMenu(cut, "Centro Norte", "Ver").Click();
+        BotonVistaRapida(cut, "Centro Norte").Click();
         cut.WaitForAssertion(() => mediator.CargasDocumentacionPendientes.Should().HaveCount(1));
         await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[0].SetException(new InvalidOperationException()));
         // El panel no pinta sus pestañas hasta que termina la primera carga, también si falla.
@@ -1119,7 +1136,7 @@ public class VisitasGen2Tests : BunitContext
         var reintento = cut.FindAll(".drawer-panel button").First(b => b.TextContent.Contains("Reintentar")).ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => mediator.CargasDocumentacionPendientes.Should().HaveCount(2));
 
-        ItemDeMenu(cut, "Centro Norte", "Ver").Click();
+        BotonVistaRapida(cut, "Centro Norte").Click();
         cut.WaitForAssertion(() => mediator.CargasDocumentacionPendientes.Should().HaveCount(3));
 
         await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[2].SetResult(DocumentacionDe("Última respuesta")));
@@ -1164,7 +1181,7 @@ public class VisitasGen2Tests : BunitContext
 
         cliente.IsMatch(cut.Markup).Should().BeFalse("en la lista");
 
-        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
         cut.Markup.Should().Contain("Antelación", "el bloque de antelación tiene que estar pintado para que esto mida algo");
         cliente.IsMatch(cut.Markup).Should().BeFalse("en el detalle");
 
@@ -1200,7 +1217,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(Visita("Centro Norte"));
         var cut = Renderizar(mediator);
 
-        await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await BotonVistaRapida(cut, "Centro Norte").ClickAsync(new MouseEventArgs());
 
         var textoAntelacion = cut.FindAll(".texto-vacio-seccion")
             .First(p => p.TextContent.Contains("Aviso recibido")).TextContent;
@@ -1540,11 +1557,10 @@ public class VisitasGen2Tests : BunitContext
     // ---------------------------------------------------------------- Diálogos con «Motivo (opcional)»: regla de Chris (2026-09-29, toda pérdida de edición pregunta)
 
     private const string TextoDelMotivo = "Obra aplazada por lluvia";
-    private const string Cancelar = "cancelar";
     private const string Reactivar = "reactivar";
     private const string Lote = "lote";
 
-    /// <summary>Abre uno de los tres diálogos de confirmación con motivo (cancelar, reactivar, cancelar en lote) y escribe el motivo, si hay.</summary>
+    /// <summary>Abre uno de los dos diálogos de confirmación con motivo (reactivar, cancelar en lote) y escribe el motivo, si hay.</summary>
     private async Task<(IRenderedComponent<Visitas> Cut, MediatorVisitas Mediator)> AbrirDialogoConMotivoAsync(string cual, string motivo)
     {
         this.ConRolDeEscritura(Roles.GestorCae);
@@ -1555,13 +1571,10 @@ public class VisitasGen2Tests : BunitContext
 
         switch (cual)
         {
-            case Cancelar:
-                await ItemDeMenu(cut, "Planta Zaragoza", "Cancelar visita").ClickAsync(new MouseEventArgs());
-                break;
             case Reactivar:
                 await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
                     .ChangeAsync(new ChangeEventArgs { Value = false });
-                await ItemDeMenu(cut, "Planta Zaragoza", "Reactivar").ClickAsync(new MouseEventArgs());
+                await BotonReactivarDeFila(cut, "Planta Zaragoza")!.ClickAsync(new MouseEventArgs());
                 break;
             default:
                 await cut.FindAll("button").First(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
@@ -1580,14 +1593,12 @@ public class VisitasGen2Tests : BunitContext
 
     private static string BotonConfirmar(string cual) => cual switch
     {
-        Cancelar => "Cancelar visita",
         Reactivar => "Reactivar",
         _ => "Cancelar seleccionadas",
     };
 
     private static string? MotivoEnviado(MediatorVisitas mediator, string cual) => cual switch
     {
-        Cancelar => mediator.Comandos.OfType<CancelarVisitaCommand>().Single().Motivo,
         Reactivar => mediator.Comandos.OfType<ReactivarVisitaCommand>().Single().Motivo,
         _ => mediator.Comandos.OfType<CancelarVisitasCommand>().Single().Motivo,
     };
@@ -1605,14 +1616,10 @@ public class VisitasGen2Tests : BunitContext
         cut.FindAll("h2").Any(h => h.TextContent.Trim() == "¿Descartar cambios?");
 
     [Theory]
-    [InlineData(Cancelar, "Volver")]
-    [InlineData(Cancelar, "X")]
     [InlineData(Reactivar, "Volver")]
     [InlineData(Reactivar, "X")]
     [InlineData(Lote, "Volver")]
     [InlineData(Lote, "X")]
-    [InlineData(Cancelar, "Escape")]
-    [InlineData(Cancelar, "Fondo")]
     [InlineData(Reactivar, "Escape")]
     [InlineData(Reactivar, "Fondo")]
     [InlineData(Lote, "Escape")]
@@ -1635,14 +1642,10 @@ public class VisitasGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(Cancelar, "Volver")]
-    [InlineData(Cancelar, "X")]
     [InlineData(Reactivar, "Volver")]
     [InlineData(Reactivar, "X")]
     [InlineData(Lote, "Volver")]
     [InlineData(Lote, "X")]
-    [InlineData(Cancelar, "Escape")]
-    [InlineData(Cancelar, "Fondo")]
     [InlineData(Reactivar, "Escape")]
     [InlineData(Reactivar, "Fondo")]
     [InlineData(Lote, "Escape")]
@@ -1659,16 +1662,12 @@ public class VisitasGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(Cancelar, "Volver", "")]
-    [InlineData(Cancelar, "X", "")]
-    [InlineData(Cancelar, "Volver", "   ")]
     [InlineData(Reactivar, "Volver", "")]
     [InlineData(Reactivar, "X", "")]
     [InlineData(Reactivar, "X", "   ")]
     [InlineData(Lote, "Volver", "")]
     [InlineData(Lote, "X", "")]
     [InlineData(Lote, "Volver", "   ")]
-    [InlineData(Cancelar, "Escape", "")]
     [InlineData(Reactivar, "Fondo", "")]
     [InlineData(Lote, "Escape", "   ")]
     public async Task Cualquier_salida_sin_motivo_escrito_cierran_sin_preguntar(string cual, string salida, string motivo)
@@ -1684,7 +1683,6 @@ public class VisitasGen2Tests : BunitContext
 
     /// <summary>Salir de la pantalla con el motivo a medias pregunta; sin motivo, o con el diálogo ya cerrado, no.</summary>
     [Theory]
-    [InlineData(Cancelar)]
     [InlineData(Reactivar)]
     [InlineData(Lote)]
     public async Task Salir_de_la_pantalla_con_el_motivo_a_medias_pregunta_y_sin_el_no(string cual)
@@ -1705,7 +1703,6 @@ public class VisitasGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(Cancelar)]
     [InlineData(Reactivar)]
     [InlineData(Lote)]
     public async Task Salir_de_la_pantalla_con_el_dialogo_sin_motivo_no_pregunta(string cual)
@@ -1720,7 +1717,6 @@ public class VisitasGen2Tests : BunitContext
     /// «cambios sin guardar»: salir no pregunta.
     /// </summary>
     [Theory]
-    [InlineData(Cancelar)]
     [InlineData(Reactivar)]
     [InlineData(Lote)]
     public async Task Tras_confirmar_con_motivo_salir_de_la_pantalla_no_pregunta(string cual)

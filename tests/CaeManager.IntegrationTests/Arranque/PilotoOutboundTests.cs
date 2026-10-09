@@ -1015,7 +1015,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     }
 
     /// <summary>
-    /// La cuenta opcional de § 3.3: un Usuario de Cliente empresarial de T1, sembrado
+    /// La cuenta opcional de § 3.3: un Usuario de Cliente de T1, sembrado
     /// por el mismo camino que las demás cuentas y ligado a su Cliente empresarial.
     /// Lo que ve se mide y se imprime; no se exige, porque no es parte de la matriz.
     /// </summary>
@@ -1045,11 +1045,11 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                     return (await sp.GetRequiredService<ISender>().Send(
                         new CaeManager.Application.Centros.Queries.ObtenerCentros.ObtenerCentrosQuery(null, null, TamanoPagina: 1000))).Elementos;
             });
-            salida.WriteLine($"MEDIDO T1 Usuario de Cliente empresarial: ve {centros.Count} Centros [{string.Join("; ", centros.Select(c => c.Nombre))}]");
+            salida.WriteLine($"MEDIDO T1 Usuario de Cliente: ve {centros.Count} Centros [{string.Join("; ", centros.Select(c => c.Nombre))}]");
         }
         catch (Exception ex)
         {
-            salida.WriteLine($"MEDIDO T1 Usuario de Cliente empresarial: el listado de Centros no le responde ({ex.GetType().Name}: {ex.Message})");
+            salida.WriteLine($"MEDIDO T1 Usuario de Cliente: el listado de Centros no le responde ({ex.GetType().Name}: {ex.Message})");
         }
     }
 
@@ -1306,7 +1306,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     {
         var antes = await fixture.Arnes.RecuentoAsync();
         antes["Tenants del piloto"].Should().Be(7, "control: el recuento ve los seis Tenants propietarios y el del Operador CAE externo");
-        antes["Cuentas del piloto"].Should().Be(6, "MEDIDO: las cinco del equipo y de T1, y el Usuario de Cliente empresarial de T1");
+        antes["Cuentas del piloto"].Should().Be(6, "MEDIDO: las cinco del equipo y de T1, y el Usuario de Cliente de T1");
         antes["Documentos"].Should().Be(1164);
         antes["Ficheros en el almacén"].Should().Be(1164);
 

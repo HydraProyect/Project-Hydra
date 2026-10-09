@@ -65,7 +65,7 @@ public class GenerarDocumentoIndividualCommandHandler(
         // son válidos en Documento, pero esta generación no resuelve
         // contexto para ellos (sin caso de uso CAE detrás, ver ADR-010 § 1.1).
         if (plantilla.AmbitoAplicacion is not (AmbitoAplicacion.Trabajador or AmbitoAplicacion.Cliente or AmbitoAplicacion.Empresa))
-            return Fallo("Plantilla.AmbitoNoSoportado", "La generación de documentos solo soporta plantillas de Trabajador, Cliente empresarial o Empresa.");
+            return Fallo("Plantilla.AmbitoNoSoportado", "La generación de documentos solo soporta plantillas de Trabajador, Cliente o Empresa.");
 
         // Cierre de IDOR (auditoría de seguridad del módulo, 2026-08-30): la
         // existencia por tenant no basta — un operador podía generar

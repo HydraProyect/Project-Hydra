@@ -79,10 +79,8 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         // cuyo Cliente empresarial o Centro no exista ya. Se dice lo que hace.
         new(IdPlantillaClientes, "clientes", "PlantillaClientesTitulo", "PlantillaClientesTitulo", "PlantillaClientesDescripcion",
             "/clientes/plantilla.xlsx", TamanoMaximoPlantillaBytes, "Clientes"),
-        // El título conserva «Cliente» a secas: es el nombre que pinta el
-        // mockup «Importar Combinado» en la zona de soltar y el que busca el
-        // E2E. Es deuda terminológica (la hoja «Clientes» crea Empresas en
-        // papel de Cliente empresarial), no un concepto nuevo.
+        // El título dice «Clientes», el rótulo de pantalla del Cliente empresarial (decisión
+        // de rótulo del 2026-10-09): la hoja «Clientes» crea Empresas en ese papel.
         new(IdPlantillaCombinada, "empresas", "PlantillaCombinadaTitulo", "PlantillaCombinadaNombreCorto", "PlantillaCombinadaDescripcion",
             "/clientes/plantilla-combinada.xlsx", TamanoMaximoPlantillaBytes, "Combinada"),
         new("documentos", "documentos", "PlantillaDocumentosTitulo", "PlantillaDocumentosTitulo", "PlantillaDocumentosDescripcion",

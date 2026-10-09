@@ -44,7 +44,7 @@ public class EditarCentroCommandHandler(ICentroRepository repositorio, IAlcanceD
             return Result.Fallo(conflicto);
 
         if (await repositorio.ExisteConNombreEnClienteAsync(centro.ClienteId, request.Nombre, request.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Centro.NombreDuplicado", "Este Cliente empresarial ya tiene un centro con este nombre."));
+            return Result.Fallo(Error.Crear("Centro.NombreDuplicado", "Este Cliente ya tiene un centro con este nombre."));
 
         centro.Actualizar(request.Nombre, request.CodigoCentro, request.Direccion, request.Contacto, request.ContratoVigenteHasta);
         await unitOfWork.SaveChangesAsync(cancellationToken);

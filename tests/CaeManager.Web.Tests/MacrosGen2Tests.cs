@@ -223,7 +223,7 @@ public class MacrosGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(escenario);
 
         cut.Find(".macros-filtro-resumen").TextContent.Trim()
-            .Should().Be("2 macros genéricas. Elige un Cliente empresarial para ver también las suyas.");
+            .Should().Be("2 macros genéricas. Elige un Cliente para ver también las suyas.");
 
         await ElegirCliente(cut, ClienteA.Id);
 
@@ -497,7 +497,7 @@ public class MacrosGen2Tests : BunitContext
         await ElegirCliente(cut, ClienteA.Id);
         await AbrirNuevaMacro(cut);
         cut.Find(".drawer-cuerpo select").GetAttribute("value").Should().Be(ClienteA.Id.ToString(),
-            "el test necesita que la macro nueva nazca con el Cliente empresarial del filtro");
+            "el test necesita que la macro nueva nazca con el Cliente del filtro");
 
         await cut.SalirYComprobarQueNoPreguntaAsync(Services.GetRequiredService<NavigationManager>(),
             "abrir la macro nueva sin escribir nada no deja nada que perder");

@@ -412,7 +412,7 @@ public class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConCentros(Centro("Centro Norte")));
 
         var buscador = cut.Find(".barra-filtros-pastillas input[type=text]");
-        buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: centro, código, Cliente empresarial o empresa",
+        buscador.GetAttribute("placeholder").Should().Be("Filtrar esta pantalla: centro, código, Cliente o empresa",
             "ObtenerCentrosQuery busca en los cuatro; los E2E usan este texto");
         buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
     }
@@ -427,7 +427,7 @@ public class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConDosClientes());
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
-            .Should().Equal("Cliente empresarial", "Más filtros");
+            .Should().Equal("Cliente", "Más filtros");
         cut.RotulosDeFranja().Should().Equal(
             "Todos", "Bloqueo de la plataforma CAE", "Vencido", "Pendiente", "Por vencer", "Vigente", "No requiere gestión CAE");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
@@ -485,7 +485,7 @@ public class CentrosListaPatronTests : BunitContext
     {
         var url = $"centros?q=norte&estado=Vencido&cliente={ClienteOrion}&empresa={EmpresaMontajes}";
         var cut = Renderizar(ConDosClientes(), url: url);
-        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().HaveCount(3, "control positivo: búsqueda, Cliente empresarial y empresa llegaron de la URL");
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().HaveCount(3, "control positivo: búsqueda, Cliente y empresa llegaron de la URL");
         cut.MarcadosEnFranja().Should().Equal(["Vencido"], "control positivo: el cuarto filtro, el estado, llegó de la URL y está marcado en la franja");
         var navegacion = Services.GetRequiredService<NavigationManager>();
         var navegaciones = 0;
@@ -525,14 +525,14 @@ public class CentrosListaPatronTests : BunitContext
         var mediador = ConDosClientes();
         var cut = Renderizar(mediador);
 
-        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(p => p.GetAttribute("aria-label") == "Cliente empresarial").Click();
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(p => p.GetAttribute("aria-label") == "Cliente").Click();
         cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Single(i => i.TextContent.Trim() == "Pegaso Cliente S.L.").Click();
 
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().ClienteId.Should().Be(ClientePegaso);
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain($"cliente={ClientePegaso}").And.NotContain("clienteId=");
         cut.AbrirGruposDeCentros();
         cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim()).Should().Equal("Planta Bilbao");
-        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Cliente empresarial: Pegaso Cliente S.L.");
+        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Cliente: Pegaso Cliente S.L.");
     }
 
     /// <summary>«Empresa» vive en «Más filtros»; con ella aplicada, «Más filtros» se marca activo.</summary>
@@ -644,7 +644,7 @@ public class CentrosListaPatronTests : BunitContext
         mediador.FallarEmpresasDeCentros = true;
         var cut = Renderizar(mediador);
 
-        Disparador(cut, "Cliente empresarial").Click();
+        Disparador(cut, "Cliente").Click();
 
         cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Select(i => i.TextContent.Trim())
             .Should().Contain("Orion Cliente S.L.").And.Contain("Pegaso Cliente S.L.");
@@ -716,7 +716,7 @@ public class CentrosListaPatronTests : BunitContext
         cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
 
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().OrdenarPor.Should().Be(nameof(CentroListaDto.CumplimientoPorcentaje));
-        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Por Cliente empresarial");
+        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Por Cliente");
         NombresDeGrupo(cut).Should().Equal("Pegaso Cliente S.L.", "Orion Cliente S.L.");
     }
 
@@ -807,7 +807,7 @@ public class CentrosListaPatronTests : BunitContext
         cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Sin agrupar",
             "la pasada de parámetros que sigue a la navegación no puede devolver la agrupación");
 
-        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Por Cliente empresarial").Click();
+        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Por Cliente").Click();
 
         navegacion.Uri.Should().NotContain("agrupar", "agrupada es la vista de fábrica: no deja rastro en la URL");
     }
@@ -913,7 +913,7 @@ public class CentrosListaPatronTests : BunitContext
         grupos[0].ClassList.Should().Contain("fila-tintada-peligro", "el peor de Orion está vencido");
         grupos[1].ClassList.Should().NotContain("fila-tintada-peligro").And.NotContain("fila-tintada-aviso");
         cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty("los grupos contraídos no enseñan sus Centros");
-        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Por Cliente empresarial");
+        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Por Cliente");
     }
 
     [Fact]
@@ -1032,7 +1032,11 @@ public class CentrosListaPatronTests : BunitContext
 
         var cabecera = cut.Find(".cabecera-columnas-centros");
         cabecera.TextContent.Should().Contain("Centro").And.Contain("Empresa").And.Contain("Cumplimiento")
-            .And.Contain("Venc.").And.Contain("Próx.").And.Contain("Estado / visita");
+            .And.Contain("Estado").And.Contain("Visita");
+        // Vencidos y próximos no tienen columna: son el motivo bajo la pastilla de estado.
+        cabecera.TextContent.Should().NotContain("Venc.").And.NotContain("Próx.");
+        cabecera.QuerySelectorAll(".cabecera-columnas-centros-indicadores > span").Select(s => s.TextContent.Trim())
+            .Should().Equal("Estado", "Visita");
         cabecera.GetAttribute("role").Should().BeNull("no es una tabla: la fila se despliega");
         cut.Markup.IndexOf("cabecera-columnas-centros", StringComparison.Ordinal)
             .Should().BeLessThan(cut.Markup.IndexOf("lista-filas-acordeon", StringComparison.Ordinal));

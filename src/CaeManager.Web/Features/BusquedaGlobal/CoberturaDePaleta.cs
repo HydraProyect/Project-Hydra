@@ -57,7 +57,7 @@ public static class CoberturaDePaleta
     /// </remarks>
     public static IReadOnlyList<(string Nombre, string Ruta)> DestinosNavegacion =>
     [
-        ("Ir a Clientes empresariales", "/clientes"),
+        ("Ir a Clientes", "/clientes"),
         ("Ir a Empresas", "/empresas"),
         ("Ir a Subcontratas", "/subcontratas"),
         ("Ir a Centros", "/centros"),

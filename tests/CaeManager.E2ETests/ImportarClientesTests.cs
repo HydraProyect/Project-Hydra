@@ -61,7 +61,7 @@ public class ImportarClientesTests(WebAppFixture fixture)
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/importar");
             await Expect(page).ToHaveURLAsync(new Regex(@"/importacion\?plantilla=clientes$"));
 
-            await page.GetByText("Continuar con Plantilla de Clientes empresariales").ClickAsync();
+            await page.GetByText("Continuar con Plantilla de Clientes").ClickAsync();
             await Ayudas.SubirArchivoDeImportacionAsync(page, rutaExcel);
 
             // --- Paso 2 "Revisar plan": el análisis ya sabe que no puede crear

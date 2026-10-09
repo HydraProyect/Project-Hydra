@@ -743,7 +743,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     public async Task Asignar_a_centro_actualiza_el_catalogo_visible_despues_del_comando_correcto()
     {
         var bea = Trabajador("Bea", "Alonso");
-        var centro = new CentroSelectorDto(Guid.NewGuid(), "Planta Zaragoza", "Cliente empresarial de prueba", "Montajes Ebro S.L.");
+        var centro = new CentroSelectorDto(Guid.NewGuid(), "Planta Zaragoza", "Cliente de prueba", "Montajes Ebro S.L.");
         var mediador = new MediatorFalso
         {
             Almacen = { bea },

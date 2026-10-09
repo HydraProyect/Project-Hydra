@@ -197,7 +197,7 @@ public class ProyectosEstado4aTests : BunitContext
         cut.Markup.Should().NotContain(TextoEstado4a);
         cut.Find("h1").TextContent.Trim().Should().Be("Proyectos");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador")
-            .Should().Contain(b => b.TextContent.Trim() == "Cliente empresarial");
+            .Should().Contain(b => b.TextContent.Trim() == "Cliente");
         mediador.Enviadas.OfType<ObtenerClientesParaSelectorQuery>().Should().NotBeEmpty();
     }
 
@@ -211,7 +211,7 @@ public class ProyectosEstado4aTests : BunitContext
 
         cut.Find("h1").TextContent.Trim().Should().Be("Proyectos");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador")
-            .Should().Contain(b => b.TextContent.Trim() == "Cliente empresarial");
+            .Should().Contain(b => b.TextContent.Trim() == "Cliente");
         cut.Markup.Should().NotContain(TextoEstado4a);
         mediador.Enviadas.OfType<ObtenerClientesParaSelectorQuery>().Should().NotBeEmpty();
     }

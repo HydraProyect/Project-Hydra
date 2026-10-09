@@ -84,12 +84,6 @@
   <data name="AriaNotificadaTitular" xml:space="preserve">
     <value>Notificada al titular del Centro: {0}, {1}</value>
   </data>
-  <data name="ColumnaAcciones" xml:space="preserve">
-    <value>Acciones</value>
-  </data>
-  <data name="AccionVer" xml:space="preserve">
-    <value>Ver</value>
-  </data>
   <data name="AccionEditar" xml:space="preserve">
     <value>Editar</value>
   </data>
@@ -668,5 +662,17 @@
   </data>
   <data name="Visita360DocumentacionPorGestionar" xml:space="preserve">
     <value>Documentación por gestionar</value>
+  </data>
+  <data name="AriaAbrirVistaRapidaVisita" xml:space="preserve">
+    <value>Abrir la vista rápida de la visita a {0}, {1}</value>
+  </data>
+  <data name="AriaReactivarVisita" xml:space="preserve">
+    <value>Reactivar la visita a {0}, {1}</value>
+  </data>
+  <data name="NombreVisitaPara360" xml:space="preserve">
+    <value>la visita a {0}, {1}</value>
+  </data>
+  <data name="AriaEditarVisita" xml:space="preserve">
+    <value>Editar la visita</value>
   </data>
 </root>

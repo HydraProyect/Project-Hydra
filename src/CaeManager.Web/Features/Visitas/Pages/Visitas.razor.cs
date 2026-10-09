@@ -33,6 +33,7 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Visitas.Pages;
@@ -125,12 +126,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = "fechaFin")]
     public string? FechaFinOverride { get; set; }
 
-    private bool _confirmarCancelarVisible;
-    private Guid _idACancelar;
-    private string _centroACancelar = string.Empty;
-    private bool _cancelando;
-
-    // FS-11: el motivo es opcional y lo comparten la cancelación individual y la del lote.
+    // FS-11: el motivo de la cancelación es opcional. Cancelar solo existe en la selección múltiple.
     private string _motivoCancelacion = string.Empty;
 
     private bool _confirmarReactivarVisible;
@@ -1197,7 +1193,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _drawerVisible && _instantaneaAlAbrir is not null && InstantaneaFormulario() != _instantaneaAlAbrir;
 
     /// <summary>
-    /// Regla de Chris (2026-09-29, toda pérdida de edición pregunta): un diálogo de confirmación (cancelar, reactivar, cancelar
+    /// Regla de Chris (2026-09-29, toda pérdida de edición pregunta): un diálogo de confirmación (reactivar, cancelar
     /// en lote) con un «Motivo (opcional)» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo abierto (cerrado,
     /// también tras confirmar, el texto que quede en el campo ya no se puede perder) y un motivo en blanco no es nada escrito.
     /// </summary>
@@ -1206,13 +1202,11 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>Lo lee <c>AvisoCambiosSinGuardar</c> al salir de la pantalla con algún diálogo de motivo a medias.</summary>
     private bool HayMotivoEnAlgunDialogo() =>
-        HayMotivoSinConfirmar(_confirmarCancelarVisible, _motivoCancelacion)
-        || HayMotivoSinConfirmar(_confirmarReactivarVisible, _motivoReactivacion)
+        HayMotivoSinConfirmar(_confirmarReactivarVisible, _motivoReactivacion)
         || HayMotivoSinConfirmar(_confirmarCancelarLoteVisible, _motivoCancelacion);
 
     private void CerrarDialogosDescartando()
     {
-        _confirmarCancelarVisible = false;
         _confirmarReactivarVisible = false;
         _confirmarCancelarLoteVisible = false;
     }
@@ -1404,48 +1398,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
-    private void AbrirCancelar(Guid id, string centroNombre)
-    {
-        _idACancelar = id;
-        _centroACancelar = centroNombre;
-        _motivoCancelacion = string.Empty;
-        _confirmarCancelarVisible = true;
-    }
-
-    private async Task ConfirmarCancelarAsync()
-    {
-        _cancelando = true;
-
-        try
-        {
-            var id = _idACancelar;
-            var resultado = await Mediator.Send(new CancelarVisitaCommand(id, _motivoCancelacion));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.MostrarError(resultado.Error);
-            }
-            else
-            {
-                // FS-11: el aviso ofrece deshacer, que es reactivarla sin motivo y con la
-                // versión que dejó la cancelación (el recibo), no con la que la lista tenga luego.
-                var recibo = resultado.Valor;
-                ToastService.Mostrar(Textos["ToastCancelada"], TonoToast.Exito,
-                    Textos["ToastAccionDeshacer"].Value, () => DeshacerCancelarAsync([recibo]));
-                _confirmarCancelarVisible = false;
-                await RecargarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar(Textos["ToastErrorCancelar"], TonoToast.Error);
-        }
-        finally
-        {
-            _cancelando = false;
-        }
-    }
-
     private void AbrirReactivar(Guid id, Guid version, string centroNombre)
     {
         _idAReactivar = id;
@@ -1592,11 +1544,41 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
-    private string ObtenerClaseFila(VisitaListaDto item) => item.Id == _idEnfocado ? "fila-enfocada" : "";
+    /// <summary>
+    /// «fila-pulsable»: un clic en cualquier punto de la fila abre la vista rápida. QuickGrid no
+    /// expone el clic de fila, así que lo atiende el módulo de atajos de lista, que pulsa el
+    /// «nombre-abre-vista-rapida» de la fila (aquí, sus fechas).
+    /// </summary>
+    private string ObtenerClaseFila(VisitaListaDto item) => item.Id == _idEnfocado ? "fila-pulsable fila-enfocada" : "fila-pulsable";
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// Tecla «e»: el formulario de edición de la Visita enfocada, lo mismo que el lápiz de la cabecera
+    /// del panel. No se le abre a quien no puede escribir (tampoco se le ofrece el lápiz) ni sobre una
+    /// Visita cancelada, que no se edita: se reactiva. Con el panel abierto la tecla no llega: es un
+    /// diálogo modal y el módulo de atajos de lista calla mientras haya uno.
+    /// </summary>
+    private async Task EditarFilaEnfocadaAsync()
+    {
+        // Con el formulario o el panel abiertos no se abre otro encima: desde el panel se edita con su lápiz.
+        if (_drawerVisible || _detalleVisible) return;
+        if (_elementosPagina.FirstOrDefault(e => e.Id == _idEnfocado) is not { EstaCancelada: false } fila) return;
+        if (!await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion)) return;
+
+        await AbrirEditarAsync(fila.Id);
+    }
 
     private async Task ManejarAtajoAsync(string tecla)
     {
         if (_elementosPagina.Count == 0) return;
+
+        if (tecla == "e")
+        {
+            await EditarFilaEnfocadaAsync();
+            StateHasChanged();
+            return;
+        }
 
         switch (tecla)
         {
@@ -1613,8 +1595,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                     break;
                 }
             case "x":
+                // Cancelar solo existe en la selección múltiple: «x» la enciende, para que la fila
+                // marcada lleve su casilla a la vista y no quede una selección que no se ve.
                 if (_idEnfocado is { } idAlternar)
+                {
+                    _seleccionMultiple = true;
                     AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                }
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)

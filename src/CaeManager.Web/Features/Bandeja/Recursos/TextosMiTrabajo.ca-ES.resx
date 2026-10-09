@@ -79,7 +79,7 @@
     <value>Prioritat</value>
   </data>
   <data name="Cliente" xml:space="preserve">
-    <value>Client empresarial</value>
+    <value>Client</value>
   </data>
   <data name="FiltroEtiqueta" xml:space="preserve">
     <value>Filtra aquesta cua per treballador, document o centre</value>
@@ -106,7 +106,7 @@
     <value>Cartera al dia</value>
   </data>
   <data name="AlDiaEmpresaDetalle" xml:space="preserve">
-    <value>No queda cap gestió pendent per als Clients empresarials de {0}.</value>
+    <value>No queda cap gestió pendent per als Clients de {0}.</value>
   </data>
   <data name="AlDiaCarteraDetalle" xml:space="preserve">
     <value>Cap empresa de la teva cartera no té bloquejos, documentació pendent ni venciments propers.</value>
@@ -151,7 +151,7 @@
     <value>Treu els filtres</value>
   </data>
   <data name="SinCliente" xml:space="preserve">
-    <value>Sense Client empresarial</value>
+    <value>Sense Client</value>
   </data>
   <data name="LoteGestiones" xml:space="preserve">
     <value>{0} gestions</value>

@@ -71,7 +71,7 @@
             <div class="bandeja-vista-toggle" role="tablist" aria-label="Ámbito de la bandeja">
                 <button type="button" role="tab" aria-selected="@(_vista == "clientes" ? "true" : "false")"
                         class="bandeja-toggle @(_vista == "clientes" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("clientes")'>
-                    Clientes empresariales
+                    Clientes
                 </button>
                 <button type="button" role="tab" aria-selected="@(_vista == "personal" ? "true" : "false")"
                         class="bandeja-toggle @(_vista == "personal" ? "bandeja-toggle-activo" : null)" @onclick='() => CambiarVistaAsync("personal")'>
@@ -141,7 +141,7 @@
                             Sin asignar
                         </button>
                         <button type="button" class="bandeja-toggle @(_soloEsperandoCliente ? "bandeja-toggle-activo" : null)" @onclick="AlternarEsperandoCliente">
-                            Esperando al Cliente empresarial
+                            Esperando al Cliente
                         </button>
                     </div>
 
@@ -158,8 +158,8 @@
 
                             <CampoTexto Etiqueta="Mes" Type="month" Valor="@_mesFiltro" ValorChanged="async v => { _mesFiltro = v; await AplicarFiltrosAsync(); }" />
 
-                            <CampoSelect Etiqueta="Cliente empresarial" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
-                                <option value="">Todos los Clientes empresariales</option>
+                            <CampoSelect Etiqueta="Cliente" Valor="@_clienteIdFiltro" ValorChanged="async v => { _clienteIdFiltro = v; await AplicarFiltrosAsync(); }">
+                                <option value="">Todos los Clientes</option>
                                 @foreach (var cliente in _clientesSelector)
                                 {
                                     <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -201,7 +201,7 @@
                     else if (_conversaciones.Count == 0)
                     {
                         <EstadoVacio NombreIcono="chat" Titulo="No hay conversaciones"
-                                     Descripcion="Cuando llegue el primer correo de un Cliente empresarial aparecerá aquí." />
+                                     Descripcion="Cuando llegue el primer correo de un Cliente aparecerá aquí." />
                     }
                     else
                     {
@@ -218,7 +218,7 @@
                                         aria-expanded="@(GrupoColapsado("triage") ? "false" : "true")" title="@DesgloseGrupo(triage)"
                                         @onclick='() => AlternarGrupo("triage")'>
                                     <span class="bandeja-grupo-caret" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
-                                    <span class="bandeja-grupo-titulo">Sin Cliente empresarial asignado (Triage) (@triage.Count)</span>
+                                    <span class="bandeja-grupo-titulo">Sin Cliente asignado (Triage) (@triage.Count)</span>
                                 </button>
                                 @if (!GrupoColapsado("triage"))
                                 {
@@ -236,7 +236,7 @@
                         {
                             var clave = grupo.Key.ToString();
                             var conversacionesCliente = grupo.OrderByDescending(c => c.FechaUltimoMensajeUtc).ToList();
-                            var nombreCliente = conversacionesCliente[0].ClienteRazonSocial ?? "Cliente empresarial";
+                            var nombreCliente = conversacionesCliente[0].ClienteRazonSocial ?? "Cliente";
                             <div class="bandeja-grupo">
                                 <button type="button" class="bandeja-grupo-cabecera"
                                         aria-expanded="@(GrupoColapsado(clave) ? "false" : "true")" title="@DesgloseGrupo(conversacionesCliente)"
@@ -267,7 +267,7 @@
             else
             {
                 <p class="bandeja-vista-personal-descripcion">
-                    Correo que llega a tu buzón personal de Microsoft 365, no al de ningún Cliente empresarial — notificaciones de
+                    Correo que llega a tu buzón personal de Microsoft 365, no al de ningún Cliente — notificaciones de
                     plataformas externas a tu nombre, correo interno y correo que no reconocemos. Solo lectura: no hay
                     Composer aquí, no hay ninguna gestión CAE que atender.
                 </p>
@@ -343,7 +343,7 @@
                                     Contexto de negocio — sin gestión CAE todavía
                                 </Badge>
                             }
-                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin Cliente empresarial asignado")</span>
+                            <span class="bandeja-centro-subtitulo">@(_detalle.ClienteRazonSocial ?? "Sin Cliente asignado")</span>
                         </div>
                     </div>
                     <div class="bandeja-centro-acciones">
@@ -355,7 +355,7 @@
                             @if (_detalle.ClienteId is null)
                             {
                                 <CampoSelect Valor="@_clienteTriageSeleccionado" ValorChanged="v => _clienteTriageSeleccionado = v">
-                                    <option value="">Asignar Cliente empresarial…</option>
+                                    <option value="">Asignar Cliente…</option>
                                     @foreach (var cliente in _clientesSelector)
                                     {
                                         <option value="@cliente.Id">@cliente.RazonSocial</option>
@@ -450,7 +450,7 @@
                 @if (_clienteActivo is not null)
                 {
                     <div class="bandeja-cliente-titulo">
-                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del Cliente empresarial
+                        <Icono Nombre="clientes" Tamano="TamanoIcono.Pequeno" /> Contexto del Cliente
                     </div>
                     <div class="bandeja-cliente-cabecera">
                         <span class="bandeja-cliente-avatar" aria-hidden="true">@ObtenerInicialesCliente(_clienteActivo.RazonSocial)</span>
@@ -470,7 +470,7 @@
                     @if (!string.IsNullOrWhiteSpace(_clienteActivo.Notas))
                     {
                         <div class="bandeja-cliente-notas">
-                            <span class="bandeja-cliente-notas-titulo">Notas del Cliente empresarial</span>
+                            <span class="bandeja-cliente-notas-titulo">Notas del Cliente</span>
                             <p>@_clienteActivo.Notas</p>
                         </div>
                     }

@@ -112,14 +112,14 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         // cartera— sino el aviso «Sin Asignación de Cartera», y la cabecera
         // deja de ofrecer «+ Nuevo Cliente empresarial».
         var total = await LeerTotalDeLaCabeceraAsync(page);
-        Assert.True(total < 9, $"el administrador delegado ve {total} Clientes empresariales: la cartera entera son 9");
+        Assert.True(total < 9, $"el administrador delegado ve {total} Clientes: la cartera entera son 9");
 
         if (total == 0)
         {
             await Assertions.Expect(page.Locator("[data-estado=sin-asignacion-cartera]"))
                 .ToContainTextAsync("Sin Asignación de Cartera", new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });
-            await Assertions.Expect(page.GetByText("Aún no hay Clientes empresariales")).Not.ToBeVisibleAsync();
-            await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente empresarial" }))
+            await Assertions.Expect(page.GetByText("Aún no hay Clientes")).Not.ToBeVisibleAsync();
+            await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente" }))
                 .Not.ToBeVisibleAsync();
         }
     }
@@ -169,7 +169,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         // La denegación de verdad (AutorizacionEscrituraBehavior, «Autorizacion.SoloLectura»)
         // sigue siendo la que decide, y la vigila RolesConEscrituraParidadTests contra la
         // lista que usa la interfaz.
-        await Assertions.Expect(page.GetByText("+ Nuevo Cliente empresarial")).ToHaveCountAsync(0);
+        await Assertions.Expect(page.GetByText("+ Nuevo Cliente")).ToHaveCountAsync(0);
         await Assertions.Expect(page.Locator(".aviso-solo-consulta")).ToBeVisibleAsync();
     }
 

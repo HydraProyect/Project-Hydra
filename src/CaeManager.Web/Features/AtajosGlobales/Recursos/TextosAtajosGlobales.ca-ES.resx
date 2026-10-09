@@ -40,7 +40,7 @@
     <value>Copiar emisión, cuando esté disponible</value>
   </data>
   <data name="IrAClientes" xml:space="preserve">
-    <value>Ir a Clientes empresariales</value>
+    <value>Ir a Clientes</value>
   </data>
   <data name="IrAEmpresas" xml:space="preserve">
     <value>Ir a Empresas</value>
@@ -70,7 +70,7 @@
     <value>Ves a La meva feina</value>
   </data>
   <data name="AccionNuevoAqui" xml:space="preserve">
-    <value>Nuevo aquí (en Clientes empresariales, Empresas, Centros, Trabajadores o Documentos)</value>
+    <value>Nuevo aquí (en Clientes, Empresas, Centros, Trabajadores o Documentos)</value>
   </data>
   <data name="AccionBuscadorGlobal" xml:space="preserve">
     <value>Buscador global</value>

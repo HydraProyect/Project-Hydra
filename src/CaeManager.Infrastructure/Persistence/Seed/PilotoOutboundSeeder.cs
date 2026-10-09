@@ -516,7 +516,7 @@ public static class PilotoOutboundSeeder
     }
 
     /// <param name="cifDeSuClienteEmpresarial">
-    /// Solo para un Usuario de Cliente empresarial: el identificador fiscal del Cliente empresarial cuya relación
+    /// Solo para un Usuario de Cliente: el identificador fiscal del Cliente empresarial cuya relación
     /// puede leer. Es el mismo dato que fija la aplicación al dar de alta una cuenta de ese rol; sin él, su alcance es vacío.
     /// </param>
     private static async Task<ApplicationUser> CrearCuentaAsync(
