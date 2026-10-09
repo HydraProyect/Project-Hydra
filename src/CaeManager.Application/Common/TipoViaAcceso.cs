@@ -48,5 +48,18 @@ public enum TipoViaAcceso
     /// llegan aquí, y son hechos distintos.
     /// </para>
     /// </summary>
-    Desconocida = 3
+    Desconocida = 3,
+
+    /// <summary>
+    /// El usuario opera un Tenant propietario ajeno por una
+    /// <c>AsignacionOperacion</c> <b>y además</b> con el techo de rol subido
+    /// por un Encargo de administración vigente (decisión D-8, 2026-10-08).
+    /// <c>ViaAccesoId</c> lleva el Id del encargo, que a su vez nombra la
+    /// operación. Solo lo emite la auditoría general
+    /// (<c>AuditoriaInterceptor</c>, a partir de
+    /// <see cref="ActorAuditoria.EncargoAdministracionId"/>): el resto de
+    /// consumidores de <see cref="IActorAuditoria"/> siguen viendo la vía de
+    /// acceso, que es la operación delegada — el encargo no concede acceso.
+    /// </summary>
+    EncargoAdministracion = 4
 }

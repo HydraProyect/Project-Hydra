@@ -125,13 +125,21 @@ public static class TenantsBeneficiariosAutorizados
     public static readonly IReadOnlyList<string> RolesDelegablesPorOperacion = ["CoordinadorCae", "GestorCae", "Consulta"];
 
     /// <summary>
-    /// UNA sola definición del rol efectivo por la vía de Operación, para la
+    /// UNA sola definición del <b>rol de cartera</b> por la vía de Operación, para la
     /// operación ya elegida (<see cref="OperacionQueAutorizaAsync"/> o la del token):
     /// el par (operación, usuario) NO es único (los índices solo garantizan una universal
     /// vigente), así que entre las carteras vigentes con rol delegable manda la de menor
-    /// Id: determinista. Lo usan
-    /// <c>CurrentUserService</c> (rol efectivo) y <c>ObtenerClientesAutorizadosQuery</c>
-    /// (Tenant por defecto, decisión 7 quater): ambos deben coincidir siempre.
+    /// Id: determinista. Lo usan <see cref="TechoDeRolPorEncargo"/> (de donde
+    /// <c>CurrentUserService</c> saca el rol efectivo) y <c>ObtenerClientesAutorizadosQuery</c>
+    /// (Tenant por defecto, decisión 7 quater): los dos parten de la misma cartera.
+    ///
+    /// <para>
+    /// El rol de cartera ya no es siempre el rol efectivo (decisión D-8, 2026-10-08): con
+    /// Encargo de administración vigente, <see cref="TechoDeRolPorEncargo"/> puede subirlo
+    /// al perfil de Propiedad que la persona tiene en su Tenant de origen. Sin cartera no
+    /// hay nada que subir: lo que devuelve este método sigue siendo la condición de acceso.
+    /// El Tenant por defecto se decide con el rol de cartera, no con el elevado.
+    /// </para>
     /// </summary>
     public static Task<string?> RolPorOperacionAsync(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
@@ -143,6 +151,41 @@ public static class TenantsBeneficiariosAutorizados
             .OrderBy(v => v.Cartera.Id)
             .Select(v => v.Cartera.Rol)
             .FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>
+    /// El usuario tiene, bajo esa operación, una Asignación de Cartera vigente <b>del Tenant
+    /// entero</b> con uno de <paramref name="roles"/>: cartera universal bajo una operación
+    /// universal, es decir, ámbito efectivo sin ninguna dimensión concreta.
+    ///
+    /// <para>
+    /// Es la condición que <see cref="TechoDeRolPorEncargo"/> exige antes de subir el rol: un rol
+    /// de Propiedad tiene alcance total sin consultar carteras, así que elevar a quien solo tiene
+    /// una cartera parcial convertiría un ámbito acotado en el Tenant entero. Se pregunta por la
+    /// cartera que da el ámbito, no por la que da el rol (<see cref="RolPorOperacionAsync"/>
+    /// elige la de menor Id): con una cartera parcial de gestión y otra universal de Consulta no
+    /// hay ninguna que dé a la vez gestión y Tenant entero, y no se eleva.
+    /// </para>
+    ///
+    /// <para>
+    /// La universalidad se decide en memoria con <see cref="AmbitoAsignacion.EsUniversal"/>, la
+    /// única definición del dominio, y no repitiendo aquí sus cuatro columnas: son las carteras
+    /// de UNA persona bajo UNA operación (un puñado de filas) y así una dimensión nueva del
+    /// ámbito no deja esta comprobación atrás.
+    /// </para>
+    /// </summary>
+    public static async Task<bool> TieneCarteraDelTenantEnteroAsync(
+        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        Guid asignacionOperacionId, IReadOnlyList<string> roles, DateTime ahora,
+        CancellationToken cancellationToken)
+    {
+        var carteras = await CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora)
+            .Where(v => v.Operacion.Id == asignacionOperacionId
+                        && v.Operacion.PropietarioTenantId == tenantId
+                        && v.Cartera.Rol != null && roles.Contains(v.Cartera.Rol))
+            .ToListAsync(cancellationToken);
+
+        return carteras.Any(v => v.Cartera.Ambito.EsUniversal && v.Operacion.Ambito.EsUniversal);
+    }
 
     /// <summary>
     /// Revalidación de una selección que nombra una Asignación de Operación

@@ -196,8 +196,13 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
         public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
     }
 
-    private sealed class CurrentUserServiceFalso(Guid usuarioId, Func<Guid?> tenantOrigenId) : ICurrentUserService
+    private sealed class CurrentUserServiceFalso(Guid usuarioId, Func<Guid?> tenantOrigenId)
+        : ICurrentUserService, IEncargoDeAdministracionActual
     {
+        // Entra en un contenedor con AddApplication(): declara que no eleva por Encargo de administración.
+        public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(null);
+        public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => null;
+
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(usuarioId);
 
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();

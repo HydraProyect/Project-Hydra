@@ -91,20 +91,32 @@ else
         </div>
     </Tarjeta>
 
-    <Tarjeta Titulo="@Textos["PresupuestoTitulo"]" Class="tarjeta-configuracion">
-        <p class="descripcion-configuracion">
-            @Textos["PresupuestoDescripcion"]
-        </p>
+    @if (_presupuestoIaReservado)
+    {
+        @* Decisión D-8: el presupuesto de IA no forma parte del Encargo de administración. *@
+        <Tarjeta Titulo="@Textos["PresupuestoTitulo"]" Class="tarjeta-configuracion">
+            <p class="descripcion-configuracion" data-testid="presupuesto-ia-reservado">
+                @TextosEncargo["ReservadoPresupuestoIa"]
+            </p>
+        </Tarjeta>
+    }
+    else
+    {
+        <Tarjeta Titulo="@Textos["PresupuestoTitulo"]" Class="tarjeta-configuracion">
+            <p class="descripcion-configuracion">
+                @Textos["PresupuestoDescripcion"]
+            </p>
 
-        @if (_mensajeErrorPresupuestoIa is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorPresupuestoIa</div>
-        }
+            @if (_mensajeErrorPresupuestoIa is not null)
+            {
+                <div class="alerta-formulario" role="alert">@_mensajeErrorPresupuestoIa</div>
+            }
 
-        <CampoTexto Etiqueta="@Textos["PresupuestoMensualEtiqueta"]" Type="number" Valor="@_presupuestoMensualIaUsd" ValorChanged="v => _presupuestoMensualIaUsd = v" />
+            <CampoTexto Etiqueta="@Textos["PresupuestoMensualEtiqueta"]" Type="number" Valor="@_presupuestoMensualIaUsd" ValorChanged="v => _presupuestoMensualIaUsd = v" />
 
-        <div class="acciones-formulario">
-            <Boton Variante="VarianteBoton.Primario" OnClick="GuardarPresupuestoIaAsync" Cargando="_guardandoPresupuestoIa">@Textos["BotonGuardarCambios"]</Boton>
-        </div>
-    </Tarjeta>
+            <div class="acciones-formulario">
+                <Boton Variante="VarianteBoton.Primario" OnClick="GuardarPresupuestoIaAsync" Cargando="_guardandoPresupuestoIa">@Textos["BotonGuardarCambios"]</Boton>
+            </div>
+        </Tarjeta>
+    }
 }

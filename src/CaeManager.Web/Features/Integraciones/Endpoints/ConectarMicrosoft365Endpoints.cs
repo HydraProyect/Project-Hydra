@@ -4,6 +4,7 @@ using CaeManager.Application.Integraciones.Commands.ConectarBuzonMicrosoft365;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Integraciones;
+using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.Extensions.Options;
 
@@ -49,7 +50,8 @@ public static class ConectarMicrosoft365Endpoints
 
             var redirectUri = ConstruirRedirectUriCallback(opciones.Value);
             return Results.Redirect(graphClient.ConstruirUrlAutorizacion(redirectUri, solicitud.Id.ToString()));
-        }).RequireAuthorization(politica => politica.RequireRole(Roles.Administrador));
+        }).RequireAuthorization(politica => politica.RequireRole(Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         endpoints.MapGet("/integraciones/microsoft365-callback", async (
             string? code, string? state, string? error,
@@ -107,7 +109,8 @@ public static class ConectarMicrosoft365Endpoints
             return resultado.EsExitoso
                 ? Results.LocalRedirect("/integraciones?conectado=true")
                 : Results.LocalRedirect("/integraciones?error=suscripcion");
-        }).RequireAuthorization(politica => politica.RequireRole(Roles.Administrador));
+        }).RequireAuthorization(politica => politica.RequireRole(Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         return endpoints;
     }

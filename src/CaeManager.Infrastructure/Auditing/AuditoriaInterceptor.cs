@@ -225,7 +225,14 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     private static List<RegistroAuditoria> ConstruirRegistros(DbContext context, ActorAuditoria actor)
     {
         var registros = new List<RegistroAuditoria>();
-        var via = (TipoViaAccesoAuditoria)actor.Via;
+        // Quien actúa por Encargo de administración deja la vía del encargo en TODAS sus
+        // escrituras en ese Tenant propietario, no solo en las que necesitaron el techo
+        // subido (decisión D-8): la fila dice con qué cláusula administraba. El actor
+        // real no cambia: es la persona del Operador CAE externo.
+        var via = actor.EncargoAdministracionId is not null
+            ? TipoViaAccesoAuditoria.EncargoAdministracion
+            : (TipoViaAccesoAuditoria)actor.Via;
+        var viaAccesoId = actor.EncargoAdministracionId ?? actor.ViaAccesoId;
 
         // Se resuelve UNA vez por SaveChanges, fuera del bucle: el tipo de actor
         // es del acto, no de cada entidad que el acto toque, y
@@ -306,7 +313,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
                 tipoActor: tipoActor,
                 actorRealUsuarioId: actor.ActorRealUsuarioId,
                 viaAcceso: via,
-                viaAccesoId: actor.ViaAccesoId));
+                viaAccesoId: viaAccesoId));
         }
 
         return registros;

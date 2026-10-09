@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="PanelTitulo" xml:space="preserve">
+    <value>Encargo de administración</value>
+  </data>
+  <data name="PanelDescripcion" xml:space="preserve">
+    <value>Con un Encargo de administración vigente, las personas del Operador CAE externo que ya tienen cartera en esta organización la administran por encargo: quien es Administrador o Dirección CAE en la suya entra aquí con ese mismo perfil. No da acceso a nadie nuevo ni cambia de quién son los datos.</value>
+  </data>
+  <data name="PanelExclusiones" xml:space="preserve">
+    <value>Aunque administre por encargo, el Operador CAE externo no puede crear ni cambiar cuentas de Administrador o Dirección CAE de esta organización, autorizar o retirar Operadores CAE externos, ni registrar, cambiar o retirar este encargo.</value>
+  </data>
+  <data name="CampoOperador" xml:space="preserve">
+    <value>Operador CAE externo</value>
+  </data>
+  <data name="CampoClausula" xml:space="preserve">
+    <value>Cláusula del contrato</value>
+  </data>
+  <data name="CampoRegistrado" xml:space="preserve">
+    <value>Registrado</value>
+  </data>
+  <data name="CampoVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="SinFechaFin" xml:space="preserve">
+    <value>Sin fecha de fin</value>
+  </data>
+  <data name="VigenteHasta" xml:space="preserve">
+    <value>Hasta el {0}</value>
+  </data>
+  <data name="CampoOrigen" xml:space="preserve">
+    <value>Lo registró</value>
+  </data>
+  <data name="OrigenPlataforma" xml:space="preserve">
+    <value>El soporte de TALVEG, en el aprovisionamiento</value>
+  </data>
+  <data name="OrigenAdministradorPropio" xml:space="preserve">
+    <value>Un Administrador de esta organización</value>
+  </data>
+  <data name="EstadoVigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+  <data name="EstadoCaducado" xml:space="preserve">
+    <value>Caducado</value>
+  </data>
+  <data name="AccionRetirar" xml:space="preserve">
+    <value>Retirar el encargo</value>
+  </data>
+  <data name="AccionRegistrar" xml:space="preserve">
+    <value>Registrar el encargo</value>
+  </data>
+  <data name="EncargableNota" xml:space="preserve">
+    <value>{0} opera esta organización entera y no tiene Encargo de administración.</value>
+  </data>
+  <data name="RetirarTitulo" xml:space="preserve">
+    <value>¿Retirar el Encargo de administración de «{0}»?</value>
+  </data>
+  <data name="RetirarMensaje" xml:space="preserve">
+    <value>Las personas de {0} que administran esta organización por encargo volverán a entrar con el perfil de su cartera. Conservan su cartera y su acceso; dejan de ver las pantallas de administración. Podrás registrar otro encargo más adelante.</value>
+  </data>
+  <data name="ToastRetirado" xml:space="preserve">
+    <value>Encargo de administración retirado.</value>
+  </data>
+  <data name="ToastRegistrado" xml:space="preserve">
+    <value>Encargo de administración registrado.</value>
+  </data>
+  <data name="ErrorCarga" xml:space="preserve">
+    <value>No pudimos cargar el Encargo de administración.</value>
+  </data>
+  <data name="ErrorRetirar" xml:space="preserve">
+    <value>No pudimos retirar el encargo. Inténtalo de nuevo.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No pudimos registrar el encargo. Inténtalo de nuevo.</value>
+  </data>
+  <data name="DrawerTitulo" xml:space="preserve">
+    <value>Registrar el Encargo de administración</value>
+  </data>
+  <data name="DrawerExplicacion" xml:space="preserve">
+    <value>{0} pasará a administrar esta organización por encargo. Indica la cláusula del contrato que lo ampara: queda guardada con el encargo y no se puede cambiar después. Para corregirla se retira el encargo y se registra otro.</value>
+  </data>
+  <data name="ClausulaPlaceholder" xml:space="preserve">
+    <value>Cláusula 7.ª del contrato de servicio</value>
+  </data>
+  <data name="ClausulaObligatoria" xml:space="preserve">
+    <value>Indica la cláusula del contrato que ampara el encargo.</value>
+  </data>
+  <data name="ClausulaDemasiadoLarga" xml:space="preserve">
+    <value>La cláusula no puede superar los {0} caracteres.</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Registrar el encargo</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="AvisoPorEncargoEtiqueta" xml:space="preserve">
+    <value>Por encargo</value>
+  </data>
+  <data name="AvisoPorEncargoTitulo" xml:space="preserve">
+    <value>Administras esta organización por encargo</value>
+  </data>
+  <data name="AvisoPorEncargoCuerpo" xml:space="preserve">
+    <value>Entras con tu perfil de Administrador o Dirección CAE porque esta organización ha encargado su administración a la tuya. Quedan reservados a un Administrador propio de la organización las cuentas de Administrador y Dirección CAE, los Operadores CAE externos, el propio encargo, y las pantallas de auditoría, facturación, claves de API, integraciones, importaciones, retención y configuración global de IA.</value>
+  </data>
+  <data name="ReservadoPresupuestoIa" xml:space="preserve">
+    <value>El presupuesto de IA lo fija un Administrador propio de esta organización: no forma parte del Encargo de administración.</value>
+  </data>
+  <data name="ReservadoIaGlobal" xml:space="preserve">
+    <value>La configuración global de IA la cambia un Administrador propio de esta organización: no forma parte del Encargo de administración.</value>
+  </data>
+</root>

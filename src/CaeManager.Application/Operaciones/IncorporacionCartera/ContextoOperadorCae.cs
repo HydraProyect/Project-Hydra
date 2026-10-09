@@ -11,7 +11,8 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera;
 /// <para>
 /// La solicitud es un flujo interno del Operador CAE, y el Tenant activo de
 /// quien pulsa es imprevisible: un Gestor CAE puede estar dentro del workspace
-/// de un Tenant propietario, donde su rol efectivo es el de su cartera allí.
+/// de un Tenant propietario, donde su rol efectivo es el de su cartera allí
+/// (o el de su perfil de Propiedad, si un Encargo de administración lo eleva).
 /// Por eso todo se resuelve con <see cref="AmbitoTenantExplicito"/> sobre el
 /// tenant de origen —el que la selección de workspace no puede cambiar—, y
 /// nunca con el Tenant activo.

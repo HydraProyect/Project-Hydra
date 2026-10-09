@@ -9,8 +9,8 @@ public sealed record GestorDeVistaDemo(Guid UsuarioId, string Nombre);
 /// <summary>
 /// Lo que la sesión pide: la vista de la cookie. El rol que decide la disponibilidad NO viaja aquí:
 /// lo lee <c>VistaDemoActual</c> con <c>ICurrentUserService.ObtenerRolOrigenAsync</c> (decisión P7,
-/// 2026-09-23) — el claim de sesión ya está sustituido por el rol de la cartera dentro de un
-/// Workspace operativo derivado.
+/// 2026-09-23) — el claim de sesión ya está sustituido por el rol de la cartera (o por el que eleva
+/// un Encargo de administración) dentro de un Workspace operativo derivado.
 /// </summary>
 /// <param name="Vista">Vista pedida, o null si no hay cookie válida (ausente, manipulada, de otra cuenta, caducada).</param>
 /// <param name="GestorUsuarioId">Gestor CAE pedido para la vista Gestor; solo tiene sentido con <see cref="VistaDemo.GestorCae"/>.</param>

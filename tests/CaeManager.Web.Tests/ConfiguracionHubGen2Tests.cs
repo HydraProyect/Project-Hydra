@@ -120,12 +120,18 @@ public class ConfiguracionHubGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- arnés
 
-    private MediadorDelHub Registrar(bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false)
+    private MediadorDelHub Registrar(
+        bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false, bool porEncargo = false)
     {
         var mediador = new MediadorDelHub { EsAdministradorPlataforma = esAdministradorPlataforma };
         var autorizacion = AddAuthorization();
         autorizacion.SetAuthorized("administrador@tenant.test");
         autorizacion.SetRoles(CaeManager.Infrastructure.Identity.Roles.Administrador);
+        // Quien administra por Encargo de administración lleva el rol elevado Y el claim del encargo.
+        if (porEncargo)
+            autorizacion.SetClaims(new System.Security.Claims.Claim(
+                CaeManager.Web.Services.RolEfectivoDelWorkspaceMiddleware.TipoClaimEncargoAdministracion,
+                Guid.NewGuid().ToString()));
         if (conPermisoAccesosSensibles)
             autorizacion.SetPolicies(CaeManager.Infrastructure.Identity.Policies.ConsultarAccesoDocumentosSensibles);
         Services.AddScoped<IMediator>(_ => mediador);
@@ -135,10 +141,60 @@ public class ConfiguracionHubGen2Tests : BunitContext
     }
 
     private IRenderedComponent<Configuracion> RenderizarHub(
-        string? entrada, bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false)
+        string? entrada, bool esAdministradorPlataforma = false, bool conPermisoAccesosSensibles = false,
+        bool porEncargo = false)
     {
-        Registrar(esAdministradorPlataforma, conPermisoAccesosSensibles);
+        Registrar(esAdministradorPlataforma, conPermisoAccesosSensibles, porEncargo);
         return Render<Configuracion>(p => p.Add(x => x.EntradaRuta, entrada));
+    }
+
+    // ------------------------------------------- Encargo de administración (D-8)
+
+    private static readonly string[] RutasExcluidasDelEncargo =
+    [
+        "/configuracion/roles", "/configuracion/api", "/configuracion/integraciones", "/configuracion/importar",
+        "/configuracion/ia", "/configuracion/retencion", "/configuracion/auditoria", "/configuracion/auditoria-ia",
+        "/configuracion/accesos-sensibles",
+    ];
+
+    [Fact]
+    public void Quien_administra_por_encargo_no_ve_en_el_hub_las_entradas_que_el_encargo_no_abre()
+    {
+        var cut = RenderizarHub("plataforma", conPermisoAccesosSensibles: true, porEncargo: true);
+
+        var rutas = Navegacion(cut).QuerySelectorAll("a").Select(a => a.GetAttribute("href")).ToList();
+
+        rutas.Should().NotIntersectWith(RutasExcluidasDelEncargo);
+        rutas.Should().Contain(
+            ["/configuracion/usuarios", "/configuracion/tipos", "/configuracion/macros", "/configuracion/params",
+             "/configuracion/automatizaciones"],
+            "control positivo: lo que el encargo sí abre sigue en el hub");
+    }
+
+    [Fact]
+    public void Un_Administrador_propio_con_el_mismo_permiso_si_ve_todas_esas_entradas()
+    {
+        var cut = RenderizarHub("plataforma", conPermisoAccesosSensibles: true);
+
+        Navegacion(cut).QuerySelectorAll("a").Select(a => a.GetAttribute("href"))
+            .Should().Contain(RutasExcluidasDelEncargo, "el filtro solo actúa sobre quien lleva el claim del encargo");
+    }
+
+    [Theory]
+    [InlineData("api")]
+    [InlineData("roles")]
+    [InlineData("integraciones")]
+    [InlineData("importar")]
+    [InlineData("retencion")]
+    [InlineData("auditoria")]
+    [InlineData("auditoria-ia")]
+    public void A_quien_administra_por_encargo_la_ruta_de_una_entrada_excluida_no_le_abre_su_panel(string entrada)
+    {
+        // El panel se embebe con DynamicComponent: ahí no hay [Authorize] que valga. La barrera es
+        // que el hub no resuelva la entrada, igual que con una desconocida.
+        var cut = RenderizarHub(entrada, porEncargo: true);
+
+        Navegacion(cut).QuerySelector("[aria-current='page']")!.GetAttribute("href").Should().Be("/configuracion/params");
     }
 
     /// <summary>
