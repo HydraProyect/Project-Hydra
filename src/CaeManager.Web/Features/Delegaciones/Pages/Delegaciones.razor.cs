@@ -124,6 +124,14 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     /// </summary>
     private bool PuedeAutorizarOperador => _tenantPropietarioAutorizante is not null && !OperandoWorkspaceAjeno;
 
+    /// <summary>
+    /// Quién puede poner a un Gestor CAE en cartera, y por tanto abrir /usuarios: los mismos
+    /// roles de su <c>[Authorize]</c>. A los demás el vacío de la tarjeta les dice a quién
+    /// pedirlo en vez de enlazarles una ruta que su rol cierra.
+    /// </summary>
+    private const string RolesQueAsignanCartera =
+        $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae}";
+
     /// <summary>Nombre canónico para la guarda de reentrada del alta — evita repetir el campo legacy en cada punto de lectura.</summary>
     private bool CreacionEnCurso => _creandoDelegacion;
 

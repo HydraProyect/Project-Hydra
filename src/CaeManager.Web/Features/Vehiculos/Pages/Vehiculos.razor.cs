@@ -118,10 +118,16 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         _previewVisible = true;
     }
 
+    /// <summary>
+    /// «Abrir ficha 360» y «Ver toda su documentación» de la vista previa: la
+    /// página /vehiculos/{id}, en la pestaña pedida. Editar sigue en el panel,
+    /// que la ficha abre desde su «Editar».
+    /// </summary>
     private Task AbrirDesdePreviewAsync((Guid Id, string Pestana) destino)
     {
-        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.Nombre ?? string.Empty;
-        return WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, destino.Id, nombre, destino.Pestana);
+        var pestana = destino.Pestana == "historial" ? "?pestana=historial" : string.Empty;
+        NavigationManager.NavigateTo($"/vehiculos/{destino.Id}{pestana}");
+        return Task.CompletedTask;
     }
 
     private readonly HashSet<Guid> _seleccionados = [];

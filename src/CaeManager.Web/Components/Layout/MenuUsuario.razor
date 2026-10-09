@@ -1,3 +1,4 @@
+@using CaeManager.Web.Components.Account
 @using CaeManager.Web.Recursos
 @using CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio
 @using MediatR
@@ -13,6 +14,12 @@
     avatar lleva a /mi-avatar, donde se elige (decisión de producto del 2026-10-08). SSR estático, sin @rendermode: abre, cierra y navega con el teclado
     wwwroot/js/cabecera.js (delegado en document), y «Cerrar sesión» e idioma siguen siendo
     <form> con POST y token antiforgery, como siempre.
+
+    «Mi cuenta» (FS-16) agrupa lo que cada persona gestiona de su propio acceso: la firma, la
+    verificación en dos pasos (alta y códigos de recuperación) y el cambio de contraseña. Las
+    dos últimas son páginas estáticas con otro layout (RutasMiCuenta), de ahí
+    data-enhance-nav="false". Se pintan a todos los roles: leer o escribir credenciales de
+    plataforma exige 2FA también a quien no se le fuerza al iniciar sesión.
 
     El panel está siempre en el marcado (oculto con visibility, no con display) para que la
     transición de apertura se vea y para que Esc devuelva el foco al botón.
@@ -32,7 +39,10 @@
                 <span class="menu-cuenta-cambiar">@Textos["CabeceraCambiarAvatar"]</span>
             </span>
         </a>
+        <div class="menu-cuenta-titulo" role="none">@Textos["CabeceraMiCuenta"]</div>
         <a href="/mi-firma" class="menu-cuenta-elemento" role="menuitem">@Textos["CabeceraMiFirma"]</a>
+        <a href="@RutasMiCuenta.VerificacionDosPasos" class="menu-cuenta-elemento" role="menuitem" data-enhance-nav="false">@Textos["CabeceraVerificacionDosPasos"]</a>
+        <a href="@RutasMiCuenta.CambiarContrasena" class="menu-cuenta-elemento" role="menuitem" data-enhance-nav="false">@Textos["CabeceraCambiarContrasena"]</a>
         <div class="menu-cuenta-idioma" role="none">
             <SelectorIdioma />
         </div>

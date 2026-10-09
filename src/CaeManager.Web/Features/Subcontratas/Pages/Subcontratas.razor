@@ -221,7 +221,10 @@
                             @if (subcontrata.Recuentos.TotalVencidas > 0)
                             {
                                 <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Vencidas.Count, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")"
-                                                 Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalVencidas, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")">
+                                                 Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalVencidas, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")"
+                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                 Interactiva="HayCorregibles(subcontrata.Recuentos.Vencidas)"
+                                                 Pie="@PieDeIncidencias(subcontrata.Recuentos.Vencidas)">
                                     <Disparador>
                                         <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">
                                             @DescribirRecuento(subcontrata.Recuentos.TotalVencidas, "BadgeVencidosUno", "BadgeVencidosVarios")
@@ -230,7 +233,16 @@
                                     <Detalle>
                                         @foreach (var incidencia in subcontrata.Recuentos.Vencidas)
                                         {
-                                            <span class="ventana-linea">@incidencia.Descripcion</span>
+                                            @if (EsCorregible(incidencia))
+                                            {
+                                                <VentanaContextoElemento Ayuda="@Comunes["VentanaIncidenciaAyuda"]" AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
+                                                    @incidencia.Descripcion
+                                                </VentanaContextoElemento>
+                                            }
+                                            else
+                                            {
+                                                <span class="ventana-linea">@incidencia.Descripcion</span>
+                                            }
                                         }
                                     </Detalle>
                                 </VentanaContexto>
@@ -244,7 +256,10 @@
                             @if (subcontrata.Recuentos.TotalProximas > 0)
                             {
                                 <VentanaContexto Etiqueta="@EtiquetaProximos(subcontrata.Recuentos.Proximas)"
-                                                 Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalProximas, "RecuentoDocumentosProximosUno", "RecuentoDocumentosProximosVarios")">
+                                                 Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalProximas, "RecuentoDocumentosProximosUno", "RecuentoDocumentosProximosVarios")"
+                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                 Interactiva="HayCorregibles(subcontrata.Recuentos.Proximas)"
+                                                 Pie="@PieDeIncidencias(subcontrata.Recuentos.Proximas)">
                                     <Disparador>
                                         <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">
                                             @DescribirRecuento(subcontrata.Recuentos.TotalProximas, "BadgeProximosUno", "BadgeProximosVarios")
@@ -260,10 +275,20 @@
                                                desglose conserva el rojo para lo urgente y lo dice con palabras
                                                («Por vencer (urgente)»): el color no puede ser el único portador
                                                del significado. *@
-                                            <span class="ventana-linea">
-                                                <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDeSeveridad(incidencia.Estado)</Badge>
-                                                @incidencia.Descripcion
-                                            </span>
+                                            @if (EsCorregible(incidencia))
+                                            {
+                                                <VentanaContextoElemento Ayuda="@Comunes["VentanaIncidenciaAyuda"]" AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
+                                                    <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDeSeveridad(incidencia.Estado)</Badge>
+                                                    @incidencia.Descripcion
+                                                </VentanaContextoElemento>
+                                            }
+                                            else
+                                            {
+                                                <span class="ventana-linea">
+                                                    <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDeSeveridad(incidencia.Estado)</Badge>
+                                                    @incidencia.Descripcion
+                                                </span>
+                                            }
                                         }
                                     </Detalle>
                                 </VentanaContexto>
@@ -350,6 +375,9 @@
     Mensaje="@Textos["ConfirmarEliminarMensaje"]"
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
+
+@* Corregir una incidencia desde la ventana de contexto de «Vencidos» o «Próximos», sin salir del listado. *@
+<CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
 
 @* EliminarSubcontratasCommand es ICommand, denegado a Consulta. El ☑ de «Selección múltiple»
    de la cabecera sigue visible para Consulta: seleccionar es lectura, y solo la barra de lote

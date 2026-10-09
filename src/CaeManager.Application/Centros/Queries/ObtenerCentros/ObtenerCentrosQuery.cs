@@ -56,7 +56,7 @@ public record ObtenerCentrosQuery(
 /// </param>
 public record IncidenciaCentroDto(
     string Descripcion, AmbitoCausa Ambito, EstadoDocumento? Estado,
-    Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento);
+    Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento, Guid? TrabajadorId = null);
 
 /// <summary>
 /// Desglose de las incidencias de un centro por estado. No lleva contadores
@@ -280,7 +280,7 @@ public class ObtenerCentrosQueryHandler(
         foreach (var causa in resultado.Causas)
         {
             var incidencia = new IncidenciaCentroDto(
-                causa.Descripcion, causa.Ambito, causa.Estado, causa.DocumentoId, causa.TipoDocumentoId, causa.FechaVencimiento);
+                causa.Descripcion, causa.Ambito, causa.Estado, causa.DocumentoId, causa.TipoDocumentoId, causa.FechaVencimiento, causa.TrabajadorId);
             switch (causa.Estado)
             {
                 case EstadoDocumento.Vencido or EstadoDocumento.Faltante:

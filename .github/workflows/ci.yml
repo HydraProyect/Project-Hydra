@@ -1336,6 +1336,12 @@ jobs:
       - name: deploy/ci-deploy-muestreo-memoria.tests.sh
         run: bash deploy/ci-deploy-muestreo-memoria.tests.sh
 
+      # Techo de memoria parametrizado de db, caddy y seq: sin variables no
+      # hay techo ni cambia el hash (desplegar no recrea la base); con ellas
+      # llega solo al servicio nombrado. Mide con `docker compose config`.
+      - name: deploy/compose-techos-memoria.tests.sh
+        run: bash deploy/compose-techos-memoria.tests.sh
+
       # Vigía de producción y orquestación de la carga contra staging, con
       # curl/ssh/k6/gh falsos: nada sale del runner.
       - name: scripts/carga-staging-vigia.tests.sh

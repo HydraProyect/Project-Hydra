@@ -12,6 +12,7 @@ using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using MediatR;
@@ -362,6 +363,32 @@ public class AlertasGen2Tests : BunitContext
         await AbrirSeccionYElegirFiltro(cut);
 
         cut.Find(".alertas-lote-ultima").TextContent.Trim().Should().Be(esperado);
+    }
+
+    /// <summary>
+    /// Defecto C4 del piloto Outbound (2026-10-08), tercera aparición del mismo enlace: con el
+    /// módulo de Comunicaciones apagado (<c>Comunicaciones:Activo</c>) /comunicaciones redirige a
+    /// «no encontrado», así que el enlace no se ofrece, igual que el menú oculta su entrada.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task El_enlace_a_Comunicaciones_solo_se_ofrece_con_el_modulo_activo(bool activo, int esperados)
+    {
+        Services.Configure<ComunicacionesOptions>(o => o.Activo = activo);
+        var lote = LoteCliente() with
+        {
+            UltimaReclamacionFechaUtc = DateTime.UtcNow.AddDays(-3),
+            UltimaReclamacionConversacionId = Guid.NewGuid()
+        };
+        var (cut, _) = RenderizarConLote(lotes: [[lote]]);
+        await AbrirSeccionYElegirFiltro(cut);
+
+        cut.Find(".alertas-lote-ultima").TextContent.Should().Contain(
+            "Última reclamación", "control: el lote con reclamación previa está pintado");
+        cut.FindAll("a")
+            .Count(a => (a.GetAttribute("href") ?? string.Empty).StartsWith("/comunicaciones?cliente=", StringComparison.Ordinal))
+            .Should().Be(esperados);
     }
 
     [Fact]

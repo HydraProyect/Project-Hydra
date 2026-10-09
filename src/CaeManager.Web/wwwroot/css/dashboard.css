@@ -326,7 +326,9 @@
     font: var(--font-body-sm);
 }
 
-/* Filas de los "boxes" de desglose que llevan a la pantalla filtrada correspondiente. */
+/* Filas de «Próximamente» en Inicio: el clic en cualquier celda navega. Es solo
+   la comodidad del ratón; el foco y el teclado los da el enlace real de la celda
+   del Centro (`.enlace-nombre-fila`), no la fila. */
 .fila-clicable {
     cursor: pointer;
 }
