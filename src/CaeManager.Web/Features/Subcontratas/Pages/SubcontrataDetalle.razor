@@ -274,8 +274,7 @@
                                                 <Detalle>
                                                     @if (!string.IsNullOrWhiteSpace(trabajador.TrabajadorDni))
                                                     {
-                                                        @Textos["DetalleDni"] <span>@trabajador.TrabajadorDni</span>
-                                                        <BotonCopiar Valor="@trabajador.TrabajadorDni" Etiqueta="@Textos["CopiarElDni"]" />
+                                                        @Textos["DetalleDni"] <span class="subcontrata360-copia"><BotonCopiar Valor="@trabajador.TrabajadorDni" Texto="@trabajador.TrabajadorDni" Etiqueta="@Textos["CopiarElDni"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarElDni"], trabajador.TrabajadorDni]" /></span>
                                                     }
                                                     @if (motivo.Length > 0)
                                                     {
@@ -349,8 +348,7 @@
                                 }
                                 else
                                 {
-                                    @_detalle.Cif
-                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" />
+                                    <span class="subcontrata360-copia"><BotonCopiar Valor="@_detalle.Cif" Texto="@_detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarLaIdentificacionFiscal"], _detalle.Cif]" /></span>
                                 }
                             </DatoRejilla>
                             <DatoRejilla Etiqueta="@Textos["RotuloNivelServicio"]" Valor="@EstadoSupervisionUi.TextoNivel(Textos, _detalle.NivelServicio)" />
@@ -383,15 +381,13 @@
                                         }
                                         else
                                         {
-                                            @_credencial.UrlAcceso
-                                            <BotonCopiar Valor="@_credencial.UrlAcceso" Etiqueta="@Textos["CopiarLaUrl"]" />
+                                            <span class="subcontrata360-copia"><BotonCopiar Valor="@_credencial.UrlAcceso" Texto="@_credencial.UrlAcceso" Etiqueta="@Textos["CopiarLaUrl"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarLaUrl"], _credencial.UrlAcceso]" /></span>
                                         }
                                     </DatoRejilla>
                                     @if (!string.IsNullOrWhiteSpace(_credencial.CampoEmpresa))
                                     {
                                         <DatoRejilla Etiqueta="@Textos["RotuloCampoEmpresa"]" Ancho="true">
-                                            @_credencial.CampoEmpresa
-                                            <BotonCopiar Valor="@_credencial.CampoEmpresa" Etiqueta="@Textos["CopiarEsteCampo"]" />
+                                            <span class="subcontrata360-copia"><BotonCopiar Valor="@_credencial.CampoEmpresa" Texto="@_credencial.CampoEmpresa" Etiqueta="@Textos["CopiarEsteCampo"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarEsteCampo"], _credencial.CampoEmpresa]" /></span>
                                         </DatoRejilla>
                                     }
                                     <DatoRejilla Etiqueta="@Textos["RotuloUsuario"]" Ancho="true">
@@ -401,8 +397,7 @@
                                         }
                                         else
                                         {
-                                            @_credencial.Usuario
-                                            <BotonCopiar Valor="@_credencial.Usuario" Etiqueta="@Textos["CopiarElUsuario"]" />
+                                            <span class="subcontrata360-copia"><BotonCopiar Valor="@_credencial.Usuario" Texto="@_credencial.Usuario" Etiqueta="@Textos["CopiarElUsuario"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarElUsuario"], _credencial.Usuario]" /></span>
                                         }
                                     </DatoRejilla>
                                     <DatoRejilla Etiqueta="@Textos["RotuloContrasena"]" Ancho="true">
@@ -496,7 +491,7 @@
         {
                 @if (!string.IsNullOrWhiteSpace(detalle.Cif))
                 {
-                    <span>@Textos["MetaCif360"] <strong>@detalle.Cif</strong><BotonCopiar Valor="@detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" /></span>
+                    <span>@Textos["MetaCif360"] <strong><span class="subcontrata360-copia"><BotonCopiar Valor="@detalle.Cif" Texto="@detalle.Cif" Etiqueta="@Textos["CopiarLaIdentificacionFiscal"]" NombreAccesible="@Textos["AriaCopiarValor360", Textos["CopiarLaIdentificacionFiscal"], detalle.Cif]" /></span></strong></span>
                     <span aria-hidden="true">·</span>
                 }
                 <Badge Tono="TonoBadge.Neutro">@EstadoSupervisionUi.TextoNivel(Textos, detalle.NivelServicio)</Badge>

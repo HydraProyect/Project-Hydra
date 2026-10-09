@@ -58,7 +58,7 @@
     align-items: center;
     gap: var(--space-3);
     padding: var(--space-2) 0;
-    border-top: var(--border-default);
+    border-top: 1px solid var(--color-fila-divisor);
     font: var(--font-small);
 }
 
@@ -86,6 +86,24 @@
 .subcontrata360-enlace {
     font: var(--font-caption);
     color: var(--color-primary-600);
+}
+
+/* .copia del mockup: el propio valor es lo que se copia, sin botón al lado. */
+.subcontrata360-copia ::deep .boton-copiar {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    font: inherit;
+    color: inherit;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: left;
+    cursor: copy;
+}
+
+.subcontrata360-copia ::deep .boton-copiar:hover:not(:disabled) {
+    background: none;
+    text-decoration: underline;
 }
 
 .subcontrata360-pastilla-tarjeta {

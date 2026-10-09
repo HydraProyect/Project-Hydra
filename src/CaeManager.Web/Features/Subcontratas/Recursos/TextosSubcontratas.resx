@@ -783,6 +783,9 @@
   <data name="CopiarElDni" xml:space="preserve">
     <value>el DNI</value>
   </data>
+  <data name="AriaCopiarValor360" xml:space="preserve">
+    <value>Copiar {0}: {1}</value>
+  </data>
   <data name="DetalleDni" xml:space="preserve">
     <value>DNI</value>
   </data>
