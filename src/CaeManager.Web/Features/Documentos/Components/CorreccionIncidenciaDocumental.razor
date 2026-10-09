@@ -1,0 +1,51 @@
+@*
+    Corrección de una incidencia documental en la misma pantalla (Listados 3/7,
+    decisión del 2026-10-08): al pulsar una incidencia —vencido, por vencer, sin
+    confirmar, pendiente— dentro de una VentanaContexto, se abre aquí el mismo
+    formulario que «Gestionar» (DrawerGestionDocumento), sin navegar.
+
+    No añade reglas: quién puede guardar y sobre qué lo deciden los comandos
+    que ese formulario envía. Este componente solo ahorra a cada listado montar
+    el formulario y bifurcar entre renovar y dar de alta.
+
+    El formulario se monta al primer uso y no con la página: un listado que
+    nunca corrige nada no carga sus catálogos, ni obliga a quien solo consulta
+    a tenerlo en el árbol.
+*@
+@if (_montado)
+{
+    <DrawerGestionDocumento @ref="_drawer" OnGuardado="OnCorregida" />
+}
+
+@code {
+    private bool _montado;
+    private DrawerGestionDocumento? _drawer;
+
+    /// <summary>Se guardó la corrección: el listado refresca lo que enseñaba la incidencia.</summary>
+    [Parameter] public EventCallback OnCorregida { get; set; }
+
+    /// <summary>
+    /// ¿Se puede ofrecer la incidencia como pulsable? Mismo criterio que usa
+    /// el formulario para decidir qué abre.
+    /// </summary>
+    public static bool EsCorregible(Guid? documentoId, Guid? tipoDocumentoId, Guid? trabajadorId, Guid? empresaId) =>
+        DrawerGestionDocumento.PuedeCorregirIncidencia(documentoId, tipoDocumentoId, trabajadorId, empresaId);
+
+    public async Task AbrirAsync(Guid? documentoId, Guid? tipoDocumentoId, Guid? trabajadorId, Guid? empresaId)
+    {
+        if (!EsCorregible(documentoId, tipoDocumentoId, trabajadorId, empresaId))
+            return;
+
+        if (_drawer is null)
+        {
+            _montado = true;
+            StateHasChanged();
+            // El render pedido dentro de un manejador de evento no ocurre hasta
+            // que el manejador cede el hilo: sin esto @ref seguiría sin asignar.
+            await Task.Yield();
+        }
+
+        if (_drawer is not null)
+            await _drawer.AbrirParaIncidenciaAsync(documentoId, tipoDocumentoId, trabajadorId, empresaId);
+    }
+}
