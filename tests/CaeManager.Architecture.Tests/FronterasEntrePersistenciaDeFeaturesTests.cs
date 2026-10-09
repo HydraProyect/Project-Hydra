@@ -759,6 +759,16 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // solicitud de incorporación. Solo lee el nombre de los Tenants de las
         // propuestas que el repositorio ya acotó al Operador CAE de origen.
         ("Operaciones.ObtenerPropuestasApoyoPendientesQueryHandler", "ITenantsQueryContext"),
+
+        // Aviso de apoyo aceptado o terminado (2026-10-09, I4): el control del
+        // Coordinador CAE sobre quién entra en un Tenant propietario es posterior, y
+        // es este aviso. Como en la incorporación a cartera, es una notificación
+        // sellada con el Tenant de origen del Operador CAE que nombra el Tenant
+        // propietario por su nombre (solo lee el de la propuesta ya cargada).
+        ("Operaciones.AceptarPropuestaApoyoCarteraCommandHandler", "INotificacionUsuarioRepository"),
+        ("Operaciones.AceptarPropuestaApoyoCarteraCommandHandler", "ITenantsQueryContext"),
+        ("Operaciones.TerminarApoyoCarteraCommandHandler", "INotificacionUsuarioRepository"),
+        ("Operaciones.TerminarApoyoCarteraCommandHandler", "ITenantsQueryContext"),
     };
 
     [Fact]

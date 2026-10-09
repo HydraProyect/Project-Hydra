@@ -42,7 +42,11 @@ namespace CaeManager.IntegrationTests.Operaciones;
 /// nunca con un rol de Propiedad, y le abre ese Tenant al destinatario con rol efectivo Gestor
 /// CAE; que el índice único parcial deja proponer de nuevo tras un rechazo; y que aceptar a la
 /// vez que cambia la marca del proponente, o que se desactiva al destinatario, por dos
-/// conexiones, no concede nada sobre una decisión que ya no vale.
+/// conexiones, no concede nada sobre una decisión que ya no vale. Y del fin de un apoyo (I4):
+/// que la cartera se cierra de verdad con el Tenant propietario como ámbito, que la fila heredada
+/// de Operador Delegado se va con ella —también cuando la cierra la fecha de fin—, que la marca
+/// de principal de la base impide «Desasignarme», que otro Operador CAE no revoca y que el
+/// circuito vivo de quien pierde el apoyo deja de ver el Tenant.
 /// </para>
 ///
 /// <para>
@@ -66,8 +70,12 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _gestorB = Guid.NewGuid(); // sin cartera en _beneficiario: el destinatario
     private readonly Guid _gestorC = Guid.NewGuid(); // apoyo en _beneficiario
     private readonly Guid _gestorAjeno = Guid.NewGuid(); // Gestor CAE de _otroOperador
+    private readonly Guid _coordinadorAjeno = Guid.NewGuid(); // Coordinador CAE de _operador sin nadie de estos en su equipo
+    private readonly Guid _direccion = Guid.NewGuid();
+    private readonly Guid _coordinadorDeOtroOperador = Guid.NewGuid();
 
     private Guid _operacion;
+    private Guid _vinculoBeneficiario;
 
     public async Task InitializeAsync()
     {
@@ -105,6 +113,9 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
         Cuenta(_gestorB, _operador.Id, Roles.GestorCae, _coordinador);
         Cuenta(_gestorC, _operador.Id, Roles.GestorCae, _coordinador);
         Cuenta(_gestorAjeno, _otroOperador.Id, Roles.GestorCae);
+        Cuenta(_coordinadorAjeno, _operador.Id, Roles.CoordinadorCae);
+        Cuenta(_direccion, _operador.Id, Roles.DireccionCae);
+        Cuenta(_coordinadorDeOtroOperador, _otroOperador.Id, Roles.CoordinadorCae);
 
         void Cartera(AsignacionOperacion operacion, DelegacionTenant vinculo, Guid gestor, bool principal)
         {
@@ -129,6 +140,7 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
         Cartera(conPrincipal, vinculoConPrincipal, _gestorA, principal: true);
         Cartera(conPrincipal, vinculoConPrincipal, _gestorC, principal: false);
         _operacion = conPrincipal.Id;
+        _vinculoBeneficiario = vinculoConPrincipal.Id;
 
         // El Tenant en el que el destinatario está trabajando cuando le llega la propuesta.
         var (otra, vinculoOtra) = Operacion(_otroBeneficiario);
@@ -436,6 +448,329 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
         await using var propietario = ContextoPropietario(_operador.Id);
         return await propietario.AsignacionesCartera.AsNoTracking()
             .Where(c => c.AsignacionOperacionId == _operacion).ToListAsync();
+    }
+
+    // ── Fin de un apoyo (I4): desasignarse, retirar lo concedido (D-6), revocar (D-4) ──
+
+    /// <summary>GestorA propone a GestorB, que acepta: el apoyo vivo de partida.</summary>
+    private async Task<Guid> ApoyoAceptadoAsync(DateOnly? ultimoDia = null)
+    {
+        var propuesta = await EnArnes(_gestorA, Roles.GestorCae, _operador.Id, (usuario, contexto, directorio, _) =>
+            new ProponerApoyoCarteraCommandHandler(
+                    usuario, directorio, new CatalogoIncorporacionCartera(contexto, usuario), new PropuestaApoyoCarteraRepository(contexto))
+                .Handle(new ProponerApoyoCarteraCommand(_operacion, _gestorB, ultimoDia), CancellationToken.None));
+        propuesta.EsExitoso.Should().BeTrue(propuesta.EsFallido ? propuesta.Error.Codigo : null);
+        (await Aceptar(_gestorB, _operador.Id, propuesta.Valor)).EsExitoso.Should().BeTrue();
+        (await Abre(_gestorB, _beneficiario.Id)).Abre.Should().BeTrue("precondición: el apoyo aceptado abre el Tenant");
+        return propuesta.Valor;
+    }
+
+    private Task<Result> Terminar(
+        Guid usuarioId, string rolDeSesion, Guid origen, object comando, Guid? tenantActivo = null) =>
+        EnArnes(usuarioId, rolDeSesion, origen, (usuario, contexto, directorio, _) =>
+        {
+            var handler = new TerminarApoyoCarteraCommandHandler(
+                usuario, directorio, directorio, new CatalogoIncorporacionCartera(contexto, usuario),
+                new PropuestaApoyoCarteraRepository(contexto), new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
+                new NotificacionUsuarioRepository(contexto), contexto, contexto,
+                NullLogger<TerminarApoyoCarteraCommandHandler>.Instance);
+            return comando switch
+            {
+                DesasignarmeDeApoyoCommand c => handler.Handle(c, CancellationToken.None),
+                RetirarApoyoConcedidoCommand c => handler.Handle(c, CancellationToken.None),
+                RevocarApoyoCarteraCommand c => handler.Handle(c, CancellationToken.None),
+                _ => throw new NotSupportedException(comando.GetType().Name),
+            };
+        }, tenantActivo);
+
+    private async Task<AsignacionCartera> CarteraDeAsync(Guid usuarioId) =>
+        (await CarterasAsync()).Single(c => c.UsuarioId == usuarioId);
+
+    /// <summary>Quién conserva la fila heredada de Operador Delegado sobre ese vínculo, revocadas incluidas.</summary>
+    private async Task<List<Guid>> FilasHeredadasAsync(Guid vinculoId)
+    {
+        await using var propietario = ContextoPropietario(_operador.Id);
+        return await propietario.AsignacionesOperadorDelegadoConRevocadas.IgnoreQueryFilters().AsNoTracking()
+            .Where(f => f.DelegacionTenantId == vinculoId).Select(f => f.UsuarioId).ToListAsync();
+    }
+
+    /// <summary>Las notificaciones escritas, con el Tenant con que quedaron selladas.</summary>
+    private async Task<List<(Guid Destinatario, Guid TenantId, string Titulo)>> AvisosAsync()
+    {
+        await using var propietario = ContextoPropietario(_operador.Id);
+        return (await propietario.NotificacionesUsuario.IgnoreQueryFilters().AsNoTracking()
+                .Select(n => new { n.UsuarioDestinatarioId, TenantId = EF.Property<Guid>(n, "TenantId"), n.Titulo })
+                .ToListAsync())
+            .Select(n => (n.UsuarioDestinatarioId, n.TenantId, n.Titulo)).ToList();
+    }
+
+    private async Task CambiarCoordinadorAsync(Guid usuarioId, Guid? coordinadorId)
+    {
+        await using var propietario = ContextoPropietario(_operador.Id);
+        (await propietario.Users.IgnoreQueryFilters().Where(u => u.Id == usuarioId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.CoordinadorUsuarioId, coordinadorId))).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Desasignarme_cierra_solo_la_cartera_de_apoyo_en_el_Tenant_propietario_borra_su_fila_heredada_y_deja_de_abrir_el_Tenant()
+    {
+        var propuestaId = await ApoyoAceptadoAsync();
+        (await FilasHeredadasAsync(_vinculoBeneficiario)).Should().Contain(_gestorB, "precondición: la aceptación dejó la fila heredada");
+
+        // Desde dentro del propio Tenant propietario, que es donde lo hará: nada depende del activo.
+        var resultado = await Terminar(_gestorB, Roles.GestorCae, _operador.Id, new DesasignarmeDeApoyoCommand(propuestaId),
+            tenantActivo: _beneficiario.Id);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        var cartera = await CarteraDeAsync(_gestorB);
+        cartera.Estado.Should().Be(EstadoAsignacion.Cerrada);
+        cartera.MotivoCierre.Should().Be(MotivoCierreAsignacion.RetiradaPorElOperador, "el mismo cierre que la retirada de «Asignar empresas»");
+        cartera.PropietarioTenantId.Should().Be(_beneficiario.Id);
+        (await PropuestaAsync(propuestaId)).Estado.Should().Be(EstadoPropuestaApoyoCartera.Terminada);
+
+        (await FilasHeredadasAsync(_vinculoBeneficiario)).Should().BeEquivalentTo([_gestorA, _gestorC],
+            "la fila heredada autoriza el Tenant por sí sola: se va con la cartera, y solo la suya");
+        (await Abre(_gestorB, _beneficiario.Id)).Abre.Should().BeFalse("ya no tiene ni cartera ni fila heredada sobre ese Tenant");
+        (await Abre(_gestorB, _otroBeneficiario.Id)).Abre.Should().BeTrue("su otro Tenant no se toca");
+
+        // No toca la marca de principal ni ninguna otra cartera.
+        var carteras = await CarterasAsync();
+        carteras.Where(c => c.Estado == EstadoAsignacion.Vigente).Select(c => c.UsuarioId).Should().BeEquivalentTo([_gestorA, _gestorC]);
+        carteras.Where(c => c.EsPrincipal).Select(c => c.UsuarioId).Should().Equal([_gestorA]);
+
+        // El aviso de fin se sella con el Tenant de origen del Operador CAE, no con el propietario.
+        var avisos = await AvisosAsync();
+        avisos.Where(a => a.Titulo == "Acceso de apoyo terminado").Should().ContainSingle()
+            .Which.Should().Be((_coordinador, _operador.Id, "Acceso de apoyo terminado"));
+        avisos.Should().OnlyContain(a => a.TenantId == _operador.Id);
+    }
+
+    [Fact]
+    public async Task Quien_entro_como_apoyo_y_hoy_es_el_principal_no_se_desasigna()
+    {
+        var propuestaId = await ApoyoAceptadoAsync();
+        (await Designar(_gestorB)).EsExitoso.Should().BeTrue();
+
+        (await Terminar(_gestorB, Roles.GestorCae, _operador.Id, new DesasignarmeDeApoyoCommand(propuestaId)))
+            .Error.Should().Be(ErroresPropuestaApoyo.EresElPrincipal);
+
+        var cartera = await CarteraDeAsync(_gestorB);
+        cartera.Estado.Should().Be(EstadoAsignacion.Vigente);
+        cartera.EsPrincipal.Should().BeTrue("soltar el principal es una retirada con relevo, no esto");
+        (await PropuestaAsync(propuestaId)).Estado.Should().Be(EstadoPropuestaApoyoCartera.Aceptada);
+        (await Abre(_gestorB, _beneficiario.Id)).Abre.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task El_principal_retira_solo_el_apoyo_que_concedio_y_solo_mientras_sigue_siendo_el_principal()
+    {
+        var propuestaId = await ApoyoAceptadoAsync();
+
+        // Otro Gestor CAE con cartera en ese Tenant no retira lo que concedió el principal vigente.
+        (await Terminar(_gestorC, Roles.GestorCae, _operador.Id, new RetirarApoyoConcedidoCommand(propuestaId)))
+            .Error.Should().Be(ErroresPropuestaApoyo.SoloRetirasLoQueConcediste);
+        (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Vigente);
+
+        // Quien lo concedió deja de ser el principal: ya no decide quién entra.
+        (await Designar(_gestorC)).EsExitoso.Should().BeTrue();
+        (await Terminar(_gestorA, Roles.GestorCae, _operador.Id, new RetirarApoyoConcedidoCommand(propuestaId)))
+            .Error.Should().Be(ErroresPropuestaApoyo.YaNoEresElPrincipal);
+        (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Vigente);
+        (await PropuestaAsync(propuestaId)).Estado.Should().Be(EstadoPropuestaApoyoCartera.Aceptada);
+
+        // Vuelve a serlo: lo retira.
+        (await Designar(_gestorA)).EsExitoso.Should().BeTrue();
+        var resultado = await Terminar(_gestorA, Roles.GestorCae, _operador.Id, new RetirarApoyoConcedidoCommand(propuestaId),
+            tenantActivo: _beneficiario.Id);
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Cerrada);
+        (await CarterasAsync()).Where(c => c.EsPrincipal).Select(c => c.UsuarioId).Should().Equal([_gestorA], "retirar un apoyo no mueve la marca");
+        (await Abre(_gestorB, _beneficiario.Id)).Abre.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Revoca_el_Coordinador_CAE_al_que_hoy_reporta_alguno_de_los_dos_y_no_uno_sin_relacion()
+    {
+        var propuestaId = await ApoyoAceptadoAsync();
+
+        (await Terminar(_coordinadorAjeno, Roles.CoordinadorCae, _operador.Id, new RevocarApoyoCarteraCommand(propuestaId)))
+            .Error.Should().Be(ErroresPropuestaApoyo.ApoyoFueraDeTuEquipo);
+        (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Vigente);
+
+        // La jerarquía es la de Identity en el momento de revocar: el apoyo cambia de equipo, y
+        // quien propuso se queda sin Coordinador CAE.
+        await CambiarCoordinadorAsync(_gestorB, _coordinadorAjeno);
+        await CambiarCoordinadorAsync(_gestorA, null);
+        (await Terminar(_coordinador, Roles.CoordinadorCae, _operador.Id, new RevocarApoyoCarteraCommand(propuestaId)))
+            .Error.Should().Be(ErroresPropuestaApoyo.ApoyoFueraDeTuEquipo, "ya no le reporta ninguno de los dos");
+        (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Vigente);
+
+        // El claim de la sesión dentro del Tenant propietario es el de la cartera; el rol sale de Identity.
+        var resultado = await Terminar(_coordinadorAjeno, Roles.GestorCae, _operador.Id, new RevocarApoyoCarteraCommand(propuestaId),
+            tenantActivo: _beneficiario.Id);
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+        (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Cerrada);
+        (await PropuestaAsync(propuestaId)).Estado.Should().Be(EstadoPropuestaApoyoCartera.Terminada);
+        (await Abre(_gestorB, _beneficiario.Id)).Abre.Should().BeFalse();
+
+        // Falta el Coordinador CAE de quien propuso: el aviso llega también a la Dirección CAE, y
+        // al Gestor CAE que pierde el acceso; nunca a quien revoca.
+        var avisos = (await AvisosAsync()).Where(a => a.Titulo.StartsWith("Acceso de apoyo", StringComparison.Ordinal)).ToList();
+        avisos.Select(a => a.Destinatario).Should().BeEquivalentTo([_direccion, _gestorB]);
+        avisos.Should().OnlyContain(a => a.TenantId == _operador.Id);
+    }
+
+    [Fact]
+    public async Task Otro_Operador_CAE_no_revoca_el_apoyo_ni_por_el_comando_ni_escribiendo_por_el_catalogo()
+    {
+        var propuestaId = await ApoyoAceptadoAsync();
+
+        (await Terminar(_coordinadorDeOtroOperador, Roles.CoordinadorCae, _otroOperador.Id, new RevocarApoyoCarteraCommand(propuestaId)))
+            .Error.Should().Be(ErroresPropuestaApoyo.ApoyoNoEncontrado, "la política RLS de la propuesta no se la deja ver");
+
+        // Aunque se saltara el comando y llamara al catálogo con la propuesta en la mano y el
+        // Tenant propietario como ámbito, la política de las carteras no le deja tocarla.
+        var propuesta = await PropuestaAsync(propuestaId);
+        var colarse = () => EnArnes(_coordinadorDeOtroOperador, Roles.CoordinadorCae, _otroOperador.Id, async (usuario, contexto, _, _) =>
+        {
+            using (AmbitoTenantExplicito.Establecer(_beneficiario.Id))
+            {
+                var catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
+                await catalogo.RetirarCarteraDeApoyoAsync(propuesta, _coordinadorDeOtroOperador, exigirProponentePrincipal: false);
+                return await catalogo.GuardarDetectandoCarreraAsync();
+            }
+        });
+        try
+        {
+            await colarse();
+        }
+        catch (Exception ex) when (ex is DbUpdateException or PostgresException or InvalidOperationException)
+        {
+            // Cómo lo rechaza no importa aquí; importa lo que queda en la base.
+        }
+
+        (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Vigente);
+        (await PropuestaAsync(propuestaId)).Estado.Should().Be(EstadoPropuestaApoyoCartera.Aceptada);
+        (await FilasHeredadasAsync(_vinculoBeneficiario)).Should().Contain(_gestorB);
+        (await Abre(_gestorB, _beneficiario.Id)).Abre.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Si_quien_propuso_pierde_su_cartera_el_apoyo_ya_aceptado_no_cae()
+    {
+        var propuestaId = await ApoyoAceptadoAsync();
+
+        // La retirada de «Asignar empresas» sobre quien propuso, por el catálogo real.
+        await EnArnes(_coordinador, Roles.CoordinadorCae, _operador.Id, async (usuario, contexto, _, _) =>
+        {
+            using (AmbitoTenantExplicito.Establecer(_beneficiario.Id))
+            {
+                var catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
+                (await catalogo.RetirarCarteraUniversalAsync(_beneficiario.Id, _operador.Id, _gestorA, _coordinador)).Should().BeTrue();
+                (await catalogo.GuardarDetectandoCarreraAsync()).Should().BeTrue();
+            }
+
+            return true;
+        });
+
+        (await CarteraDeAsync(_gestorA)).Estado.Should().Be(EstadoAsignacion.Cerrada, "control: la retirada de quien propuso sí ocurrió");
+        var deApoyo = await CarteraDeAsync(_gestorB);
+        deApoyo.Estado.Should().Be(EstadoAsignacion.Vigente, "la cartera de apoyo cuelga de la operación, no de la de quien la propuso");
+        (await PropuestaAsync(propuestaId)).Estado.Should().Be(EstadoPropuestaApoyoCartera.Aceptada);
+        (await FilasHeredadasAsync(_vinculoBeneficiario)).Should().Contain(_gestorB);
+        (await Abre(_gestorB, _beneficiario.Id)).Should().Be((true, Roles.GestorCae));
+    }
+
+    [Fact]
+    public async Task El_apoyo_con_fecha_emite_una_cartera_que_vence_al_final_de_ese_dia_y_la_expiracion_le_cierra_el_Tenant()
+    {
+        var ultimoDia = DiaDeNegocio.Hoy();
+        var propuestaId = await ApoyoAceptadoAsync(ultimoDia);
+
+        var cartera = await CarteraDeAsync(_gestorB);
+        cartera.VigenciaHasta.Should().Be(DiaDeNegocio.InicioEnUtc(ultimoDia.AddDays(1)), "«hasta hoy» incluye hoy entero, en hora peninsular");
+        cartera.EsPrincipal.Should().BeFalse();
+
+        // El día termina: se adelanta la vigencia de la cartera en la base, como si hubiera pasado.
+        await using (var propietario = ContextoPropietario(_operador.Id))
+        {
+            var hace2h = DateTime.UtcNow.AddHours(-2);
+            (await propietario.AsignacionesCartera.Where(c => c.Id == cartera.Id).ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.VigenciaDesde, hace2h)
+                .SetProperty(c => c.VigenciaHasta, hace2h.AddHours(1)))).Should().Be(1);
+        }
+
+        // Entre el vencimiento y el pase del servicio, la fila heredada sigue autorizando por sí
+        // sola (hasta una hora): es la ventana que el pase cierra.
+        (await Abre(_gestorB, _beneficiario.Id)).Should().Be((true, (string?)null));
+
+        // El pase de producción: bajo runtime, con el Tenant propietario como ámbito.
+        await EnArnes(_administrador, Roles.Administrador, _operador.Id, async (_, contexto, _, _) =>
+        {
+            using (AmbitoTenantExplicito.Establecer(_beneficiario.Id))
+                await ExpiracionAsignacionesHostedService.ProcesarParaPruebasAsync(contexto, NullLogger.Instance, CancellationToken.None);
+            return true;
+        });
+
+        var caducada = await CarteraDeAsync(_gestorB);
+        caducada.Estado.Should().Be(EstadoAsignacion.Cerrada);
+        caducada.MotivoCierre.Should().Be(MotivoCierreAsignacion.Expirada);
+        (await FilasHeredadasAsync(_vinculoBeneficiario)).Should().BeEquivalentTo([_gestorA, _gestorC]);
+        (await Abre(_gestorB, _beneficiario.Id)).Abre.Should().BeFalse();
+        (await CarterasAsync()).Where(c => c.EsPrincipal).Select(c => c.UsuarioId).Should().Equal([_gestorA]);
+
+        // La propuesta se queda Aceptada hasta que alguien la mire: terminarla después no rompe nada.
+        (await Terminar(_coordinador, Roles.CoordinadorCae, _operador.Id, new RevocarApoyoCarteraCommand(propuestaId)))
+            .EsExitoso.Should().BeTrue();
+        (await PropuestaAsync(propuestaId)).Estado.Should().Be(EstadoPropuestaApoyoCartera.Terminada);
+    }
+
+    /// <summary>
+    /// La garantía de <c>RevocacionCarteraEnCircuitoVivoTests</c>, para un apoyo: el circuito de
+    /// Blazor del Gestor CAE de apoyo, que ya tenía resuelto su alcance dentro del Tenant
+    /// propietario, deja de servirlo al caducar la memoización cuando otro circuito revoca.
+    /// </summary>
+    [Fact]
+    public async Task El_circuito_vivo_del_Gestor_CAE_revocado_pierde_el_Tenant_al_caducar_la_memoizacion()
+    {
+        var propuestaId = await ApoyoAceptadoAsync();
+        await using (var siembra = ContextoPropietario(_beneficiario.Id))
+        {
+            siembra.Empresas.Add(new CaeManager.Domain.Empresas.Empresa("Empresa del Tenant propietario", "B10380186"));
+            await siembra.SaveChangesAsync();
+        }
+
+        var caducidad = TimeSpan.FromSeconds(60);
+        var reloj = new RelojManual();
+        var ambitoTenant = new TenantActualAmbiental { TenantId = _beneficiario.Id };
+        await using var contextoCircuito = ContextoPropietario(_beneficiario.Id);
+        var circuito = new AlcanceDatosService(
+            contextoCircuito, new AsignarCarteraGestorCaeBajoRuntimeTests.UsuarioDeSesion(_gestorB, Roles.GestorCae, _operador.Id),
+            ambitoTenant, new CaeManager.Application.Plataforma.SesionPrivilegiadaAusente(), vistaDemo: null, reloj,
+            Microsoft.Extensions.Options.Options.Create(new CaducidadAlcanceOptions { Caducidad = caducidad }));
+
+        var antes = await circuito.ObtenerEmpresaIdsVisiblesAsync();
+        (antes is null || antes.Count > 0).Should().BeTrue("precondición: con la cartera de apoyo ve las Empresas del Tenant propietario");
+
+        // Otro circuito: su Coordinador CAE lo revoca.
+        (await Terminar(_coordinador, Roles.CoordinadorCae, _operador.Id, new RevocarApoyoCarteraCommand(propuestaId)))
+            .EsExitoso.Should().BeTrue();
+
+        reloj.Avanzar(caducidad - TimeSpan.FromSeconds(1));
+        (await circuito.ObtenerEmpresaIdsVisiblesAsync()).Should().BeEquivalentTo(antes,
+            "dentro de la cota la memoización se conserva: lo que lo corta es la caducidad");
+
+        reloj.Avanzar(TimeSpan.FromSeconds(1));
+        (await circuito.ObtenerEmpresaIdsVisiblesAsync()).Should().NotBeNull().And.BeEmpty(
+            "pasada la caducidad, el mismo circuito deja de ver el Tenant propietario");
+    }
+
+    private sealed class RelojManual : TimeProvider
+    {
+        private long _ticks;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public void Avanzar(TimeSpan intervalo) => _ticks += intervalo.Ticks;
+        public override long GetTimestamp() => _ticks;
     }
 
     /// <param name="tenantActivo">El Tenant en el que la sesión está trabajando; sin valor, el de origen.</param>

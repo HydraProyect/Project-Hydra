@@ -8,19 +8,22 @@ namespace CaeManager.E2ETests;
 /// Propuesta de apoyo de punta a punta, con dos sesiones de dos Gestores CAE del mismo Operador
 /// CAE externo: la Gestora CAE principal de un Tenant propone desde «Dar acceso», el otro Gestor
 /// CAE —que está trabajando en otro Tenant— la acepta desde la campana y abre el Tenant nuevo
-/// por el POST revalidado de <c>/cuenta/cliente-activo</c>.
+/// por el POST revalidado de <c>/cuenta/cliente-activo</c>. Y el final del apoyo: ese Gestor CAE
+/// se desasigna desde dentro del propio Tenant y el Tenant desaparece de su selector.
 ///
 /// <para>
 /// <b>Lo que solo esta capa prueba:</b> que la campana enseña la propuesta con otro Tenant activo
 /// en la sesión real (cookie de Tenant, circuito, RLS de producción), y que la cartera recién
-/// emitida autoriza de verdad el cambio de Tenant y la lectura de sus datos. Las reglas (quién
-/// propone, quién acepta, carreras) están en Application.Tests e IntegrationTests.
+/// emitida autoriza de verdad el cambio de Tenant y la lectura de sus datos; y que, cerrada esa
+/// cartera por «Desasignarme», la sesión real deja de ofrecer el Tenant y de leer sus datos. Las
+/// reglas (quién propone, quién acepta, quién termina un apoyo, carreras) están en
+/// Application.Tests e IntegrationTests.
 /// </para>
 ///
 /// <para>
-/// Comparte fixture con <see cref="GestorCaeCarteraMultiTenantTests"/> y deja escrito un cambio:
-/// el Gestor CAE de apoyo gana cartera en el Tenant A. Ningún otro test de la colección usa esa
-/// cuenta. Los nombres duplican los de la siembra a propósito (este proyecto no referencia
+/// Comparte fixture con <see cref="GestorCaeCarteraMultiTenantTests"/>. El Gestor CAE de apoyo
+/// gana cartera en el Tenant A y la deja al final: queda una cartera cerrada y una propuesta
+/// terminada. Ningún otro test de la colección usa esa cuenta. Los nombres duplican los de la siembra a propósito (este proyecto no referencia
 /// Infrastructure).
 /// </para>
 /// </summary>
@@ -38,7 +41,7 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
     private static readonly LocatorAssertionsToBeVisibleOptions EsperaEnFrio = new() { Timeout = 30_000 };
 
     [Fact]
-    public async Task La_principal_propone_el_apoyo_y_el_otro_Gestor_CAE_lo_acepta_desde_la_campana_con_otro_Tenant_activo_y_abre_el_Tenant()
+    public async Task La_principal_propone_el_apoyo_el_otro_Gestor_CAE_lo_acepta_desde_la_campana_abre_el_Tenant_y_al_desasignarse_lo_pierde()
     {
         var tenantPropuesto = await fixture.LeerValorSqlAsync(
             """SELECT "Id"::text FROM "Tenants" WHERE "Nombre" = @n""", ("n", TenantPropuesto));
@@ -111,6 +114,57 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
         await Expect(Ayudas.DisparadorSelectorTenant(pagina)).ToHaveAttributeAsync("data-tenant-id", tenantPropuesto, new() { Timeout = 30_000 });
         await Ayudas.NavegarYEsperarAsync(pagina, $"{fixture.BaseUrl}/trabajadores?q={TrabajadorDelTenantPropuesto}");
         await Expect(FilaDeTrabajador(pagina, TrabajadorDelTenantPropuesto)).ToHaveCountAsync(1, new() { Timeout = 30_000 });
+
+        // ── B se desasigna, desde dentro del propio Tenant ──
+        // Control positivo: el Tenant está en su selector antes de desasignarse.
+        await Ayudas.AbrirSelectorTenantAsync(pagina);
+        await Expect(Ayudas.OpcionesSelectorTenant(pagina).Filter(new() { HasText = TenantPropuesto })).ToHaveCountAsync(1);
+        await Ayudas.CerrarSelectorTenantAsync(pagina);
+
+        await Ayudas.NavegarYEsperarAsync(pagina, $"{fixture.BaseUrl}/cartera/solicitudes");
+        var miApoyo = pagina.Locator("[data-mi-apoyo]").Filter(new() { HasText = TenantPropuesto });
+        await Expect(miApoyo).ToBeVisibleAsync(EsperaEnFrio);
+        await Expect(miApoyo).ToContainTextAsync("Apoyo, a propuesta de", new() { Timeout = 30_000 });
+        await miApoyo.GetByRole(AriaRole.Button, new() { Name = $"Desasignarme de {TenantPropuesto}", Exact = true }).ClickAsync();
+
+        var confirmacion = pagina.GetByRole(AriaRole.Dialog, new() { Name = "¿Desasignarte de esta Empresa?", Exact = true });
+        await Expect(confirmacion).ToBeVisibleAsync(EsperaEnFrio);
+        await confirmacion.GetByRole(AriaRole.Button, new() { Name = "Desasignarme", Exact = true }).ClickAsync();
+        await Expect(pagina.Locator("[data-mi-apoyo]")).ToHaveCountAsync(0, new() { Timeout = 30_000 });
+
+        // Lo que escribió: la cartera cerrada, la propuesta terminada y ni rastro de la fila heredada.
+        Assert.Equal("Cerrada/RetiradaPorElOperador", await fixture.LeerValorSqlAsync(
+            """
+            SELECT string_agg(c."Estado" || '/' || c."MotivoCierre", ',')
+            FROM "AsignacionesCartera" c
+            JOIN "AspNetUsers" u ON u."Id" = c."UsuarioId"
+            WHERE u."Email" = @e AND c."PropietarioTenantId"::text = @t
+            """, ("e", EmailGestorDeApoyo), ("t", tenantPropuesto)));
+        Assert.Equal("Terminada", await fixture.LeerValorSqlAsync(
+            """
+            SELECT string_agg(p."Estado", ',')
+            FROM "PropuestasApoyoCartera" p
+            JOIN "AspNetUsers" u ON u."Id" = p."DestinatarioUsuarioId"
+            WHERE u."Email" = @e AND p."PropietarioTenantId"::text = @t
+            """, ("e", EmailGestorDeApoyo), ("t", tenantPropuesto)));
+        Assert.Equal("0", await fixture.LeerValorSqlAsync(
+            """
+            SELECT count(*)::text
+            FROM "AsignacionesOperadorDelegado" f
+            JOIN "DelegacionesTenant" d ON d."Id" = f."DelegacionTenantId"
+            JOIN "AspNetUsers" u ON u."Id" = f."UsuarioId"
+            WHERE u."Email" = @e AND d."TenantClienteId"::text = @t
+            """, ("e", EmailGestorDeApoyo), ("t", tenantPropuesto)));
+
+        // En la petición siguiente la sesión ya no está en ese Tenant, no lo ofrece y no lee sus datos.
+        await Ayudas.NavegarYEsperarAsync(pagina, $"{fixture.BaseUrl}/trabajadores?q={TrabajadorDelTenantPropuesto}");
+        await Expect(Ayudas.DisparadorSelectorTenant(pagina)).Not.ToHaveAttributeAsync("data-tenant-id", tenantPropuesto, new() { Timeout = 30_000 });
+        await Expect(FilaDeTrabajador(pagina, TrabajadorDelTenantPropuesto)).ToHaveCountAsync(0);
+        await Ayudas.AbrirSelectorTenantAsync(pagina);
+        // Control positivo de la lista: sigue teniendo opciones (si estuviera vacía, la ausencia no diría nada).
+        await Expect(Ayudas.OpcionesSelectorTenant(pagina).First).ToBeVisibleAsync(EsperaEnFrio);
+        await Expect(Ayudas.OpcionesSelectorTenant(pagina).Filter(new() { HasText = TenantPropuesto })).ToHaveCountAsync(0);
+        await Ayudas.CerrarSelectorTenantAsync(pagina);
     }
 
     private static ILocator FilaDeTrabajador(IPage page, string apellidos) =>

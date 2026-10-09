@@ -121,6 +121,68 @@ public class ExpiracionAsignacionesBajoRlsTests
     }
 
     /// <summary>
+    /// La fecha de fin de un apoyo (D-5) la cierra este job. Cerrar la cartera no basta: la fila
+    /// heredada de Operador Delegado autoriza el Tenant por sí sola
+    /// (<c>TenantsBeneficiariosAutorizados.EstaAutorizadoAsync</c>), así que una cartera externa
+    /// que caduca tiene que llevársela, igual que la retirada. Bajo <c>cae_app_runtime</c> y con
+    /// el recorrido de producción (ámbito = Tenant propietario, sin usuario).
+    /// </summary>
+    [Fact]
+    public async Task Al_caducar_una_cartera_externa_se_borra_la_fila_heredada_de_quien_ya_no_tiene_otra_cartera_vigente()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
+
+        var ahora = DateTime.UtcNow;
+        var hace3h = ahora.AddHours(-3);
+        var propietario = new Tenant("Propietario con apoyo que caduca", PerfilVocabularioTenant.ClienteDirecto);
+        var operadorExterno = new Tenant("Operador CAE externo del apoyo que caduca", PerfilVocabularioTenant.Consultora);
+        var operacion = AsignacionOperacion.Externa(
+            propietario.Id, operadorExterno.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+            vigenciaDesde: hace3h, vigenciaHasta: null, ahora: hace3h);
+        var vinculo = new DelegacionTenant(operadorExterno.Id, propietario.Id);
+
+        var apoyoQueCaduca = Guid.NewGuid();
+        var gestorSinFecha = Guid.NewGuid();
+        var carteraQueCaduca = AsignacionCartera.Externa(
+            operacion, apoyoQueCaduca, Roles.GestorCae, AmbitoAsignacion.Universal,
+            vigenciaDesde: hace3h, vigenciaHasta: ahora.AddHours(-1), ahora: hace3h);
+        var carteraSinFecha = AsignacionCartera.Externa(
+            operacion, gestorSinFecha, Roles.GestorCae, AmbitoAsignacion.Universal,
+            vigenciaDesde: hace3h, vigenciaHasta: null, ahora: hace3h);
+
+        await using (var propietarioBd = CrearContextoPropietario(arnes.CadenaPropietario))
+        {
+            propietarioBd.Tenants.AddRange(propietario, operadorExterno);
+            propietarioBd.AsignacionesOperacion.Add(operacion);
+            propietarioBd.DelegacionesTenant.Add(vinculo);
+            propietarioBd.AsignacionesCartera.AddRange(carteraQueCaduca, carteraSinFecha);
+            propietarioBd.AsignacionesOperadorDelegadoConRevocadas.AddRange(
+                new AsignacionOperadorDelegado(vinculo.Id, apoyoQueCaduca, Roles.GestorCae),
+                new AsignacionOperadorDelegado(vinculo.Id, gestorSinFecha, Roles.GestorCae));
+            await propietarioBd.SaveChangesAsync();
+        }
+
+        var job = new ExpiracionAsignacionesHostedService(
+            arnes.Servicios.GetRequiredService<IServiceScopeFactory>(),
+            new LiderSiempre(),
+            NullLogger<ExpiracionAsignacionesHostedService>.Instance);
+
+        await job.ProcesarAsync(CancellationToken.None);
+
+        await using var verificacion = CrearContextoPropietario(arnes.CadenaPropietario);
+        var caducada = await verificacion.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == carteraQueCaduca.Id);
+        caducada.Estado.Should().Be(EstadoAsignacion.Cerrada);
+        caducada.MotivoCierre.Should().Be(MotivoCierreAsignacion.Expirada);
+
+        var filas = await verificacion.AsignacionesOperadorDelegadoConRevocadas.IgnoreQueryFilters().AsNoTracking()
+            .Where(f => f.DelegacionTenantId == vinculo.Id).Select(f => f.UsuarioId).ToListAsync();
+        filas.Should().Equal([gestorSinFecha],
+            "la fila heredada de quien caducó autoriza el Tenant por sí sola y se va con la cartera; la de quien sigue vigente no se toca");
+        (await verificacion.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == carteraSinFecha.Id))
+            .Estado.Should().Be(EstadoAsignacion.Vigente, "sin fecha de fin, no caduca");
+    }
+
+    /// <summary>
     /// Contexto como propietario de la base, sin interceptores: siembra y lectura
     /// de verificación con visión global, fuera de la política.
     /// </summary>
