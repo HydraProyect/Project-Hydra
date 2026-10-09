@@ -139,10 +139,10 @@
     <value>{0} vençuts</value>
   </data>
   <data name="MotivoUnProximo" xml:space="preserve">
-    <value>1 pròxim</value>
+    <value>1 per vèncer</value>
   </data>
   <data name="MotivoProximos" xml:space="preserve">
-    <value>{0} pròxims</value>
+    <value>{0} per vèncer</value>
   </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al dia: no cal intervenir-hi, però el pots substituir</value>

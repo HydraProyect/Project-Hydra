@@ -140,11 +140,11 @@
     <value>{0} vencidos</value>
   </data>
   <data name="MotivoUnProximo" xml:space="preserve">
-    <value>1 próximo</value>
-    <comment>Motivo bajo la pastilla de estado del Centro: documentos en Recuentos.Proximas.</comment>
+    <value>1 por vencer</value>
+    <comment>Motivo bajo la pastilla de estado del Centro: documentos en Recuentos.Proximas. Mismo rótulo que la pastilla «Por vencer» (decisión del 2026-10-08).</comment>
   </data>
   <data name="MotivoProximos" xml:space="preserve">
-    <value>{0} próximos</value>
+    <value>{0} por vencer</value>
   </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al día: no necesita intervención, pero puedes sustituirlo</value>

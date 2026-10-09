@@ -293,7 +293,7 @@ public class CentrosListaGen2Tests : BunitContext
     }
     /// <summary>
     /// Los recuentos de vencidos y próximos no tienen columna (retiradas el 2026-10-09): son el motivo bajo la
-    /// pastilla de estado, «2 vencidos · 1 próximo», y cada parte es el disparador de su ventana de contexto,
+    /// pastilla de estado, «2 vencidos · 1 por vencer», y cada parte es el disparador de su ventana de contexto,
     /// que conserva el nombre accesible con el reparto por ámbito.
     /// </summary>
     [Fact]
@@ -314,11 +314,11 @@ public class CentrosListaGen2Tests : BunitContext
         estado.QuerySelector(".estado-fila-correcto").Should().BeNull("un Centro vencido lleva pastilla de color");
         estado.TextContent.Should().Contain("Vencido");
         var motivo = estado.QuerySelector(".estado-fila-motivo")!;
-        motivo.QuerySelectorAll(".motivo-recuento").Select(m => m.TextContent.Trim()).Should().Equal("2 vencidos", "1 próximo");
+        motivo.QuerySelectorAll(".motivo-recuento").Select(m => m.TextContent.Trim()).Should().Equal("2 vencidos", "1 por vencer");
         // Con incidencias corregibles la ventana es interactiva y el nombre accesible va en su botón disparador.
         motivo.QuerySelectorAll(".ventana-contexto-disparador").Select(v => v.GetAttribute("aria-label")).Should().Equal(
             "2 vencidos. 2 documentos vencidos: 1 de empresa y 1 de trabajadores",
-            "1 próximo. 1 documento próximo a vencer: 1 de trabajadores");
+            "1 por vencer. 1 documento próximo a vencer: 1 de trabajadores");
         // El nombre accesible empieza por lo que se ve: quien dicta «2 vencidos» activa ese disparador (WCAG 2.5.3).
         motivo.QuerySelectorAll(".ventana-contexto-disparador").Should().OnlyContain(
             d => d.GetAttribute("aria-label")!.StartsWith(d.TextContent.Trim() + ".", StringComparison.Ordinal));
@@ -327,7 +327,7 @@ public class CentrosListaGen2Tests : BunitContext
 
     [Theory]
     [InlineData(1, 0, "1 vencido")]
-    [InlineData(0, 3, "3 próximos")]
+    [InlineData(0, 3, "3 por vencer")]
     public void El_motivo_solo_nombra_el_recuento_que_hay(int vencidas, int proximas, string esperado)
     {
         IReadOnlyList<IncidenciaCentroDto> Incidencias(int n, EstadoDocumento estado) => Enumerable.Range(0, n)

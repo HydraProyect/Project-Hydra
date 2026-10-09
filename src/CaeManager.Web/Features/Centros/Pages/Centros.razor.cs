@@ -513,7 +513,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// El rol efectivo puede escribir (misma pregunta que <see cref="SoloConEscritura"/>). Decide si
-    /// las incidencias de las ventanas del motivo («N vencidos», «M próximos») se ofrecen como pulsables: a quien
+    /// las incidencias de las ventanas del motivo («N vencidos», «M por vencer») se ofrecen como pulsables: a quien
     /// solo consulta no se le ofrece un formulario que el comando le va a denegar.
     /// </summary>
     private bool _puedeEscribir;

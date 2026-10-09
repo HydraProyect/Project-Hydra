@@ -341,7 +341,7 @@
                             el largo del nombre del centro (lámina L3, blueprint § 3.2).
 
                             Estado: la pastilla se pinta SIEMPRE (lo correcto, con punto verde y texto
-                            gris) y debajo va el motivo, «N vencidos · M próximos», que es lo que antes
+                            gris) y debajo va el motivo, «N vencidos · M por vencer», que es lo que antes
                             decían las columnas «Venc.» y «Próx.». Cada parte del motivo abre su ventana
                             de contexto con las incidencias, por ámbito y corregibles sin salir del
                             listado. Sin vencidos ni próximos no hay motivo.
@@ -570,7 +570,7 @@
 
 <DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionMasivaGuardadaAsync" />
 
-@* Corregir una incidencia desde la ventana de contexto del motivo («N vencidos», «M próximos»), sin salir del listado. *@
+@* Corregir una incidencia desde la ventana de contexto del motivo («N vencidos», «M por vencer»), sin salir del listado. *@
 <CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
 
 <DialogoConfirmacion

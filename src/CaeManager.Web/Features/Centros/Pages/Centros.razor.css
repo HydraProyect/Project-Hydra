@@ -142,7 +142,7 @@
 }
 
 /*
-  Dos ranuras: estado (pastilla y, debajo, el motivo «N vencidos · M próximos») y visita. La fila usa
+  Dos ranuras: estado (pastilla y, debajo, el motivo «N vencidos · M por vencer») y visita. La fila usa
   las mismas columnas y el mismo ancho (regla de abajo), para que cada una caiga bajo su rótulo.
   320 px: la ranura de estado queda en 200, lo que mide la pastilla más larga («Bloqueo de la
   plataforma CAE», 193 px medidos el 2026-10-09); con menos se metía en la ranura de la visita.
@@ -180,7 +180,7 @@
     overflow: visible;
 }
 
-/* El color no es el único portador: el texto ya dice «vencidos» o «próximos». */
+/* El color no es el único portador: el texto ya dice «vencidos» o «por vencer». */
 .motivo-recuento {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
