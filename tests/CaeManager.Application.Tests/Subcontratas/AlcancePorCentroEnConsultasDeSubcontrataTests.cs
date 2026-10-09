@@ -47,9 +47,9 @@ public class AlcancePorCentroEnConsultasDeSubcontrataTests
     private readonly ConfiguracionQueryContextFalso _configuracion = new();
 
     private readonly Empresa _clienteEmpresarialPropio =
-        Empresa.CrearComoCliente("Cliente empresarial propio SA", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        Empresa.CrearComoCliente("Cliente propio SA", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
     private readonly Empresa _otroClienteEmpresarial =
-        Empresa.CrearComoCliente("Otro Cliente empresarial SA", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        Empresa.CrearComoCliente("Otro Cliente SA", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
     private readonly Empresa _contratista = new("Contratista del Tenant SL", "B12345674");
     private readonly Empresa _subcontrata = Empresa.CrearComoSubcontrata("Subcontrata visible SL", "B12345674", "Estandar");
 
@@ -146,9 +146,9 @@ public class AlcancePorCentroEnConsultasDeSubcontrataTests
             .Handle(new ObtenerCentrosConActividadDeSubcontrataQuery(_subcontrata.Id), CancellationToken.None);
 
         centros.Select(c => c.Id).Should().BeEquivalentTo([_centroPropio.Id],
-            "un Centro de otro Cliente empresarial no es visible aunque la subcontrata trabaje en él");
+            "un Centro de otro Cliente no es visible aunque la subcontrata trabaje en él");
         centros.Select(c => c.ClienteRazonSocial).Should().NotContain(_otroClienteEmpresarial.RazonSocial,
-            "la razón social de otro Cliente empresarial del mismo Tenant propietario no se revela");
+            "la razón social de otro Cliente del mismo Tenant propietario no se revela");
         centros.Single().TrabajadoresAsignados.Should().Be(1, "solo cuenta a quien trabaja en el Centro visible");
     }
 

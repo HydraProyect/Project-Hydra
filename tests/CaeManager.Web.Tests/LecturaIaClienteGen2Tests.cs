@@ -109,7 +109,7 @@ public class LecturaIaClienteGen2Tests : BunitContext
         niveles.Should().HaveCount(3, "el control positivo confirma que se muestran los tres niveles");
         niveles.Select(n => n.TextContent).Should().ContainSingle(t => t.Contains("Nivel 0 · Tratamiento con IA") && t.Contains("Instrucción vigente"));
         niveles.Select(n => n.TextContent).Should().ContainSingle(t => t.Contains("Nivel 1 · Configuración general") && t.Contains("2 de 3 activos") && t.Contains("no se puede reactivar abajo"));
-        niveles.Select(n => n.TextContent).Should().ContainSingle(t => t.Contains("Nivel 2 · Este Cliente empresarial") && t.Contains("Estás aquí"));
+        niveles.Select(n => n.TextContent).Should().ContainSingle(t => t.Contains("Nivel 2 · Este Cliente") && t.Contains("Estás aquí"));
     }
 
     [Fact]
@@ -130,7 +130,7 @@ public class LecturaIaClienteGen2Tests : BunitContext
         Filas(cut).Should().HaveCount(3, "el control positivo confirma que la tabla contiene los tres tipos del doble");
         Filas(cut).Select(f => f.TextContent).Should().ContainSingle(t => t.Contains("Formación PRL") && t.Contains("También detecta personal"));
         Filas(cut).Select(f => f.TextContent).Should().ContainSingle(t => t.Contains("Certificado médico") && !t.Contains("También detecta personal"));
-        cut.Find(".lectura-ia-aviso-informacion").TextContent.Should().Contain("todos los Clientes empresariales vinculados");
+        cut.Find(".lectura-ia-aviso-informacion").TextContent.Should().Contain("todos los Clientes vinculados");
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class LecturaIaClienteGen2Tests : BunitContext
         var casilla = filaDesactivada.QuerySelector("input[type=checkbox]")!;
 
         Filas(cut).Should().HaveCount(3, "el control positivo confirma que se muestra la fila desactivada en el Nivel 1");
-        casilla.HasAttribute("disabled").Should().BeTrue("el Nivel 1 desactivado bloquea la configuración del Cliente empresarial");
+        casilla.HasAttribute("disabled").Should().BeTrue("el Nivel 1 desactivado bloquea la configuración del Cliente");
         await casilla.ChangeAsync(new ChangeEventArgs { Value = true });
 
         Consultas<ActualizarLecturaIaClienteCommand>(mediador).Should().Be(0, "el manejador también rechaza una escritura que la interfaz bloquea");
@@ -273,7 +273,7 @@ public class LecturaIaClienteGen2Tests : BunitContext
         Consultas<ObtenerConfiguracionIaPorClienteQuery>(mediador).Should().Be(1, "el control positivo confirma que la primera carga quedó retenida");
         cut.Render(p => p.Add(x => x.ClienteId, ClienteB));
         mediador.Enviados.Where(e => e.Peticion is ObtenerClientePorIdQuery or ObtenerConfiguracionIaPorClienteQuery or ObtenerEstadoTratamientoIaActualQuery)
-            .Should().Contain(e => e.Token.IsCancellationRequested, "el ciclo anterior se cancela al cambiar de Cliente empresarial");
+            .Should().Contain(e => e.Token.IsCancellationRequested, "el ciclo anterior se cancela al cambiar de Cliente");
         await cut.InvokeAsync(() => configuracionA.SetResult((IReadOnlyList<ConfiguracionIaTipoDocumentoDto>)[new ConfiguracionIaTipoDocumentoDto(TipoA, "Obsoleto", true, null, false)]));
 
         Consultas<ObtenerConfiguracionIaPorClienteQuery>(mediador).Should().Be(2);

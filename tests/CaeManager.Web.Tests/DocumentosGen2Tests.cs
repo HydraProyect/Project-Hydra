@@ -56,7 +56,7 @@ using EstadoAcreditacionUi = CaeManager.Web.Features.Documentos.EstadoAcreditaci
 /// ni el aislamiento por tenant.
 /// </para>
 /// </summary>
-public class DocumentosGen2Tests : BunitContext
+public partial class DocumentosGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado y Modal, que importan sus módulos JS.</summary>
     public DocumentosGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
@@ -330,19 +330,19 @@ public class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// D-27: el filtro Ámbito rotula al Cliente empresarial con su nombre completo
-    /// (CONTRATO_TERMINOLOGIA § 3.2), no «Cliente» a secas.
+    /// El filtro Ámbito rotula al Cliente empresarial «Cliente», su rótulo de pantalla
+    /// (CONTRATO_TERMINOLOGIA § 3.2, decisión del 2026-10-09), no con el rótulo largo.
     /// </summary>
     [Fact]
-    public async Task El_filtro_Ambito_y_su_chip_rotulan_Cliente_empresarial_y_no_Cliente_a_secas()
+    public async Task El_filtro_Ambito_y_su_chip_rotulan_Cliente_y_no_Cliente_empresarial()
     {
         var (cut, mediador) = Renderizar();
         await PastillaDocumentoFase1(cut, "Ámbito").ClickAsync(new MouseEventArgs());
         var opcion = cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]")
-            .Single(b => b.TextContent.Trim() == "Cliente empresarial");
+            .Single(b => b.TextContent.Trim() == "Cliente");
         await opcion.ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ámbito: Cliente empresarial",
-            "el chip del filtro activo no puede devolver Cliente a secas"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ámbito: Cliente",
+            "el chip del filtro activo dice el rótulo de pantalla").And.NotContain("Cliente empresarial"));
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Ambito.Should().Be(AmbitoAplicacion.Cliente);
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("Ambito=Cliente");
     }
@@ -1519,7 +1519,7 @@ public class DocumentosGen2Tests : BunitContext
         filas.Should().HaveCount(3);
         cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
         var celda = filas[0].QuerySelectorAll("td").Single(td => td.TextContent.Contains(vencido.PropietarioNombre));
-        celda.TextContent.Should().Contain("Cliente empresarial");
+        celda.TextContent.Should().Contain("Cliente").And.NotContain("Cliente empresarial");
         filas[0].TextContent.Should().Contain(vencido.FechaEmision.ToString("dd/MM/yyyy"))
             .And.Contain(vencido.FechaVencimiento!.Value.ToString("dd/MM/yyyy"));
         filas[2].TextContent.Should().Contain("Emitido " + sinVence.FechaEmision.ToString("dd/MM/yyyy"));

@@ -193,6 +193,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         // La marca de fila sigue al panel del Context Workspace, que se abre y
         // se cierra fuera de esta página.
         WorkspaceService.OnCambio += AlCambiarWorkspace;
+        WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = EstadoDesdeUrl();
 
@@ -294,6 +295,61 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private readonly CancellationTokenSource _ciclo = new();
     private bool _desechado;
 
+    // ── La fila se refresca tras guardar en la vista rápida ─────────────────────────────────────
+    // El panel vive en MainLayout y guarda sin pasar por esta página: avisa por
+    // ContextWorkspaceService.OnEntidadGuardada. Se vuelve a pedir SOLO esa fila y se sustituye
+    // en sitio (mismo criterio que Centros.RefrescarCentroAsync): filtros, orden, página,
+    // selección, acordeones, fila enfocada y desplazamiento no se tocan, y la fila permanece
+    // aunque el cambio la saque del filtro activo, hasta la siguiente carga.
+    private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
+    {
+        if (tipo == EntidadWorkspace.Empresa)
+            _ = InvokeAsync(() => RefrescarFilaAsync(id));
+    }
+
+    private async Task RefrescarFilaAsync(Guid id)
+    {
+        // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
+        // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
+        // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
+        if (_desechado || _cargando || !_elementosPagina.Any(e => e.Id == id))
+            return;
+
+        var carga = _cargaVigente;
+        try
+        {
+            // Misma pregunta de estado que la carga de página (ConRecuentosPorEstado): sin ella el
+            // handler toma el camino que deja sin estado a quien no tiene documentos, y la fila
+            // pasaría de «Sin incidencias» a «Sin documentos» al refrescarla.
+            var resultado = await Mediator.Send(
+                new ObtenerEmpresasQuery(Busqueda: null, ConRecuentosPorEstado: true, EmpresaId: id), _ciclo.Token);
+            var indice = _elementosPagina.FindIndex(e => e.Id == id);
+            if (_desechado || _cargando || carga != _cargaVigente || indice < 0
+                || resultado.Elementos.FirstOrDefault() is not { } actualizada)
+                return;
+
+            _elementosPagina[indice] = actualizada;
+
+            // El formulario del panel también edita los Clientes empresariales de la Empresa, que
+            // son el contenido del acordeón de la fila: lo cargado ya no vale. Si está
+            // desplegado se vuelve a pedir; si no, se pedirá al desplegarlo. La fila se pinta
+            // antes de esa segunda consulta, para que no espere por ella.
+            _clientesPorEmpresa.Remove(id);
+            _clientesConError.Remove(id);
+            StateHasChanged();
+            if (_expandidos.Contains(id))
+            {
+                await CargarClientesDeEmpresaAsync(id);
+                StateHasChanged();
+            }
+        }
+        catch (Exception)
+        {
+            // El guardado ya es firme: que falle la relectura no es un error que enseñar. La
+            // fila conserva el dato anterior hasta la siguiente carga, como antes de este aviso.
+        }
+    }
+
     public void Dispose()
     {
         if (_desechado)
@@ -301,6 +357,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         _desechado = true;
         WorkspaceService.OnCambio -= AlCambiarWorkspace;
+        WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }

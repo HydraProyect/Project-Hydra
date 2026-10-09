@@ -27,7 +27,7 @@
     <CabeceraPagina Titulo="Macros de respuesta" Integrada="IntegradaEnConfiguracion">
         <Descripcion>
             Textos reutilizables para responder desde la bandeja de Comunicaciones. Una macro es genérica
-            —se ofrece en las conversaciones de cualquier Cliente empresarial— o específica de un Cliente empresarial.
+            —se ofrece en las conversaciones de cualquier Cliente— o específica de un Cliente.
         </Descripcion>
         <Acciones>
             <a class="enlace-volver-bandeja" href="/comunicaciones">Volver a la bandeja</a>
@@ -41,7 +41,7 @@
        sin filtro de cliente que ObtenerMacrosQuery no tiene, y añadirla es
        tocar Application, fuera de este incremento. *@
     <div class="barra-filtros macros-filtros">
-        <CampoSelect Etiqueta="Cliente empresarial" Valor="@_clienteFiltro" ValorChanged="FiltrarPorClienteAsync">
+        <CampoSelect Etiqueta="Cliente" Valor="@_clienteFiltro" ValorChanged="FiltrarPorClienteAsync">
             <option value="">Solo genéricas</option>
             @foreach (var cliente in _clientesSelector)
             {
@@ -82,8 +82,8 @@
              de todas las demás: quitarlo enseñaría MENOS, no más. La salida
              útil es crear la macro que falta, o cambiar de cliente en el
              selector de arriba, que sigue puesto. *@
-        <EstadoVacio NombreIcono="vacio" Titulo="Ni macros genéricas ni de este Cliente empresarial"
-                     Descripcion="Este Cliente empresarial no tiene plantillas propias, y tampoco hay ninguna genérica que aplicarle.">
+        <EstadoVacio NombreIcono="vacio" Titulo="Ni macros genéricas ni de este Cliente"
+                     Descripcion="Este Cliente no tiene plantillas propias, y tampoco hay ninguna genérica que aplicarle.">
             <Accion>
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
             </Accion>
@@ -96,7 +96,7 @@
            puede haber macros específicas de algún cliente y esta pantalla no
            las está viendo. Decir que no hay ninguna sería falso. *@
         <EstadoVacio Titulo="No hay macros genéricas"
-                     Descripcion="Crea la primera plantilla de respuesta, o elige un Cliente empresarial arriba para ver las suyas.">
+                     Descripcion="Crea la primera plantilla de respuesta, o elige un Cliente arriba para ver las suyas.">
             <Accion>
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nueva macro</Boton></SoloConEscritura>
             </Accion>
@@ -110,7 +110,7 @@
                     <thead>
                         <tr>
                             <th scope="col">Título</th>
-                            <th scope="col" class="macros-col-cliente">Cliente empresarial</th>
+                            <th scope="col" class="macros-col-cliente">Cliente</th>
                             <th scope="col" class="macros-col-acciones"><span class="macros-solo-lectores">Acciones</span></th>
                         </tr>
                     </thead>
@@ -165,7 +165,7 @@
     <ChildContent>
         <p class="macros-drawer-subtitulo">
             @(_editandoId is null
-                ? "Se ofrecerá al responder desde la bandeja, en las conversaciones vinculadas a un Cliente empresarial."
+                ? "Se ofrecerá al responder desde la bandeja, en las conversaciones vinculadas a un Cliente."
                 : "Los cambios valen para las respuestas que se redacten a partir de ahora; las ya enviadas no cambian.")
         </p>
 
@@ -197,15 +197,15 @@
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
-        <CampoSelect Etiqueta="Cliente empresarial (opcional)" Valor="@_clienteIdFormulario" ValorChanged="v => _clienteIdFormulario = v">
-            <option value="">Genérica (todos los Clientes empresariales)</option>
+        <CampoSelect Etiqueta="Cliente (opcional)" Valor="@_clienteIdFormulario" ValorChanged="v => _clienteIdFormulario = v">
+            <option value="">Genérica (todos los Clientes)</option>
             @foreach (var cliente in _clientesSelector)
             {
                 <option value="@cliente.Id">@cliente.RazonSocial</option>
             }
         </CampoSelect>
         <p class="texto-ayuda-campo">
-            Una macro de Cliente empresarial solo se ofrece en las conversaciones de ese Cliente empresarial; una genérica, en las de cualquier Cliente empresarial.
+            Una macro de Cliente solo se ofrece en las conversaciones de ese Cliente; una genérica, en las de cualquier Cliente.
         </p>
 
         <CampoTexto Etiqueta="Título" Valor="@_titulo" ValorChanged="v => _titulo = v" Placeholder="Cómo la verás en la lista de macros"

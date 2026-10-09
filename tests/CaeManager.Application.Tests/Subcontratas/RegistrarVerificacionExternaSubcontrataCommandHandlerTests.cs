@@ -278,8 +278,8 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandlerTests
     private static Centro AgregarCentroDeOtroClienteEmpresarialConRelacionVigente(
         Empresa subcontrata, EmpresasQueryContextFalso empresas, CentrosQueryContextFalso centros)
     {
-        var otroClienteEmpresarial = Empresa.CrearComoCliente("Otro Cliente empresarial S.A.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
-        var centro = new Centro(otroClienteEmpresarial.Id, Guid.NewGuid(), "Planta de otro Cliente empresarial");
+        var otroClienteEmpresarial = Empresa.CrearComoCliente("Otro Cliente S.A.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var centro = new Centro(otroClienteEmpresarial.Id, Guid.NewGuid(), "Planta de otro Cliente");
         empresas.ListaEmpresas.Add(otroClienteEmpresarial);
         empresas.ListaRelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrata.Id, otroClienteEmpresarial.Id, DateTime.UtcNow.AddMonths(-6)));
         centros.ListaCentros.Add(centro);

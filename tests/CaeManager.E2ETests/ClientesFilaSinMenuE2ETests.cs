@@ -19,7 +19,7 @@ namespace CaeManager.E2ETests;
 [Collection("AppCollection")]
 public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
 {
-    private const string Lapiz = "button[aria-label='Editar la identidad del Cliente empresarial']";
+    private const string Lapiz = "button[aria-label='Editar la identidad del Cliente']";
 
     /// <summary>
     /// Crea un Cliente empresarial propio del test y deja la lista acotada a él: el Tenant del
@@ -34,8 +34,8 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
         // Con la lista vacía el botón de alta se pinta dos veces (cabecera y estado vacío): vale cualquiera.
-        var drawer = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nuevo Cliente empresarial", Exact = true });
-        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente empresarial", Exact = true }).First.ClickAsync();
+        var drawer = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nuevo Cliente", Exact = true });
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocial);
         await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync(Ayudas.GenerarCifValido(semillaCif));
@@ -92,7 +92,7 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
         var (page, razonSocial) = await AbrirClientesConUnClienteAsync(contexto, 9_993_101);
         var fila = await FiltrarPorAsync(page, razonSocial);
         var panel = page.Locator(".workspace-panel");
-        var editar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Editar Cliente empresarial", Exact = true });
+        var editar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Editar Cliente", Exact = true });
 
         await Expect(page.Locator("tbody .menu-acciones-disparador")).ToHaveCountAsync(0);
 
@@ -150,6 +150,54 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
 
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(razonSocial);
         await Expect(panel.Locator(".workspace-acciones-edicion")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
+    /// El recuento de Centros abre una ventana de contexto; su título no es un botón, pero quien
+    /// pulsa ahí está usando la ventana, no la fila: el oyente <c>pulsarFila</c> excluye el panel
+    /// entero. Entra como Gestor CAE porque su cartera sembrada trae Clientes empresariales con
+    /// Centros (el Tenant propietario del Administrador de pruebas arranca vacío).
+    /// </summary>
+    [Fact]
+    public async Task El_clic_dentro_de_la_ventana_de_Centros_no_abre_la_vista_rapida()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await page.SetViewportSizeAsync(1280, 800);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
+        var panel = page.Locator(".workspace-panel");
+
+        var filas = page.Locator("tbody tr.fila-pulsable")
+            .Filter(new LocatorFilterOptions { Has = page.Locator(".ranura-centros-cliente .ventana-contexto") });
+        await Expect(filas).Not.ToHaveCountAsync(0);
+        var fila = filas.First;
+        var razonSocial = (await fila.Locator(".nombre-abre-vista-rapida").InnerTextAsync()).Trim();
+        var titulo = fila.Locator(".ranura-centros-cliente .ventana-contexto-panel .ventana-contexto-titulo");
+
+        // Cuenta, en el propio navegador y sin viaje al servidor, las pulsaciones que recibe el
+        // nombre de una fila: es lo que hace el oyente cuando decide que el clic era de la fila.
+        await page.EvaluateAsync(@"() => {
+            window.__pulsacionesDelNombre = 0;
+            document.addEventListener('click', e => {
+                if (e.target.closest?.('.nombre-abre-vista-rapida')) window.__pulsacionesDelNombre++;
+            }, true);
+        }");
+
+        // El clic se despacha: se mide el oyente de la fila, no que la ventana esté a la vista (se
+        // sostiene por :hover y :focus-within). El oyente es síncrono: al volver del despacho, o
+        // pulsó el nombre o no lo pulsó.
+        await Expect(titulo).ToHaveCountAsync(1);
+        await titulo.DispatchEventAsync("click");
+        Assert.Equal(0, await page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre"));
+        await Expect(panel).ToHaveCountAsync(0);
+
+        // Control positivo, por el mismo camino: el mismo clic despachado sobre la celda que
+        // contiene la ventana —un punto de la fila sin control— sí pulsa el nombre y abre la vista rápida.
+        await fila.Locator("td").Filter(new LocatorFilterOptions { Has = page.Locator(".ranura-centros-cliente") })
+            .DispatchEventAsync("click");
+        Assert.Equal(1, await page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre"));
+        await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(razonSocial);
     }
 
     [Fact]

@@ -18,7 +18,7 @@
        vive en Estado comercial (Pagador TALVEG, Producto Contratado). *@
     <CabeceraPagina Titulo="Facturación y costes">
         <Descripcion>
-            Define las tarifas pactadas con cada Cliente empresarial para estimar lo que le facturas cada mes
+            Define las tarifas pactadas con cada Cliente para estimar lo que le facturas cada mes
             por el servicio CAE. No incluye lo que se paga a TALVEG por usar la plataforma.
         </Descripcion>
     </CabeceraPagina>
@@ -47,14 +47,14 @@
     {
         @* El selector está acotado al alcance del usuario: la pantalla sabe que
            la lista vino vacía, no por qué. No afirma que no existan clientes. *@
-        <EstadoVacio NombreIcono="clientes" Titulo="No hay Clientes empresariales disponibles"
-                     Descripcion="Cuando haya Clientes empresariales que puedas gestionar, podrás configurar aquí sus tarifas." />
+        <EstadoVacio NombreIcono="clientes" Titulo="No hay Clientes disponibles"
+                     Descripcion="Cuando haya Clientes que puedas gestionar, podrás configurar aquí sus tarifas." />
     }
     else
     {
         <div class="franja-cliente">
             <div class="bloque-selector-cliente">
-                <label for="sel-cliente" class="etiqueta-facturacion">Cliente empresarial</label>
+                <label for="sel-cliente" class="etiqueta-facturacion">Cliente</label>
                 <CampoSelectAvanzado Id="sel-cliente" Compacto="true" Opciones="OpcionesClientes"
                                      Valor="@_clienteSeleccionadoId.ToString()" ValorChanged="CambiarClienteDesdeSelectorAsync" />
             </div>
@@ -77,8 +77,8 @@
         {
             @* Antes, sin cliente elegido no se pintaba nada bajo el selector: no
                se distinguía «aún no has elegido» de «no hay resultados». *@
-            <EstadoVacio NombreIcono="clientes" Titulo="Elige un Cliente empresarial para empezar"
-                         Descripcion="Las tarifas y el resumen mensual se configuran por Cliente empresarial. Sin ninguno elegido no hay nada que mostrar." />
+            <EstadoVacio NombreIcono="clientes" Titulo="Elige un Cliente para empezar"
+                         Descripcion="Las tarifas y el resumen mensual se configuran por Cliente. Sin ninguno elegido no hay nada que mostrar." />
         }
         else
         {
@@ -106,7 +106,7 @@
                             @if (_tarifas.Count == 0)
                             {
                                 <EstadoVacio Titulo="Sin tarifas configuradas"
-                                             Descripcion="Añade las tarifas pactadas con este Cliente empresarial para calcular el resumen de facturación." />
+                                             Descripcion="Añade las tarifas pactadas con este Cliente para calcular el resumen de facturación." />
                             }
                             else
                             {
@@ -236,7 +236,7 @@
                                    una tarifa por concepto y cliente, y no quedan
                                    conceptos libres. *@
                                 <p class="nota-facturacion nota-conceptos-completos">
-                                    Todos los conceptos facturables ya tienen tarifa para este Cliente empresarial. Para cambiar un precio, edita su tarifa.
+                                    Todos los conceptos facturables ya tienen tarifa para este Cliente. Para cambiar un precio, edita su tarifa.
                                 </p>
                             }
                         }
@@ -274,15 +274,15 @@
                         {
                             @* La consulta devuelve null cuando no encuentra la
                                empresa: no hay nombre ni tarifas que enseñar. *@
-                            <EstadoVacio Titulo="No encontramos este Cliente empresarial"
-                                         Descripcion="Recarga la página para actualizar la lista de Clientes empresariales." />
+                            <EstadoVacio Titulo="No encontramos este Cliente"
+                                         Descripcion="Recarga la página para actualizar la lista de Clientes." />
                         }
                         else if (_resumen is not null)
                         {
                             @if (_resumen.Lineas.Count == 0)
                             {
                                 <EstadoVacio Titulo="Sin tarifas configuradas"
-                                             Descripcion="Configura las tarifas del Cliente empresarial en la pestaña 'Tarifas configuradas'." />
+                                             Descripcion="Configura las tarifas del Cliente en la pestaña 'Tarifas configuradas'." />
                             }
                             else
                             {
@@ -363,7 +363,7 @@
                                         @if (totales.Count > 1)
                                         {
                                             <p class="nota-facturacion nota-varias-monedas">
-                                                Las tarifas de este Cliente empresarial usan varias monedas: el total se da por moneda, sin convertir.
+                                                Las tarifas de este Cliente usan varias monedas: el total se da por moneda, sin convertir.
                                             </p>
                                         }
                                         <p class="nota-facturacion">

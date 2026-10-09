@@ -66,7 +66,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
         ("Plataforma y conexiones", "Importar datos", "Cuadro de Control CAE (Excel)", "/configuracion/importar"),
         ("Plataforma y conexiones", "Administración de plataforma", "Inicialización e identidad raíz", "/configuracion/plataforma"),
         ("Catálogos y datos", "Tipos de documento", "Catálogo y vigencias", "/configuracion/tipos"),
-        ("Catálogos y datos", "Lectura IA por Cliente empresarial", "Restricción por tipo de documento", "/configuracion/ia"),
+        ("Catálogos y datos", "Lectura IA por Cliente", "Restricción por tipo de documento", "/configuracion/ia"),
         ("Catálogos y datos", "Macros de respuesta", "Plantillas de comunicación", "/configuracion/macros"),
         ("Catálogos y datos", "Parámetros del sistema", "Umbrales del semáforo", "/configuracion/params"),
         ("Catálogos y datos", "Retención de datos", "Plazos de borrado", "/configuracion/retencion"),
@@ -312,7 +312,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
             Contenido(cut).QuerySelectorAll("a.item-seleccion-cliente").Should().HaveCount(2));
         cut.FindComponents<Features.Configuracion.Components.ParametrosSistemaPanel>().Should().BeEmpty();
         Contenido(cut).QuerySelectorAll("h2").Select(h => h.TextContent.Trim())
-            .Should().Equal(["Lectura IA por Cliente empresarial"]);
+            .Should().Equal(["Lectura IA por Cliente"]);
     }
 
     [Fact]
@@ -321,7 +321,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
         var cut = RenderizarHub("ia");
 
         var migas = cut.Find(".migas-configuracion");
-        TextoAccesible(migas).Should().Be("Configuración Catálogos y datos Lectura IA por Cliente empresarial");
+        TextoAccesible(migas).Should().Be("Configuración Catálogos y datos Lectura IA por Cliente");
         migas.TextContent.Should().Contain("→", "las flechas del mockup se ven");
     }
 
@@ -354,7 +354,7 @@ public class ConfiguracionHubGen2Tests : BunitContext
             Contenido(cut).QuerySelectorAll("a.item-seleccion-cliente").Should().HaveCount(2));
 
         Contenido(cut).QuerySelectorAll("h2").Select(h => h.TextContent.Trim())
-            .Should().Equal(["Lectura IA por Cliente empresarial"]);
+            .Should().Equal(["Lectura IA por Cliente"]);
         cut.FindAll("h1").Select(h => h.TextContent.Trim()).Should().Equal(["Configuración"]);
     }
 

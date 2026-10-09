@@ -196,7 +196,7 @@ public class MiTrabajoAlcanceCeroBajoRlsTests : IAsyncLifetime
 
         var conCartera = resultado.Tenants.Single(t => t.TenantId == _tenantConCartera);
         conCartera.AlcanceCero.Should().BeFalse(
-            "tiene cartera sobre un Cliente empresarial: una cola vacía aquí sí es «al día»");
+            "tiene cartera sobre un Cliente: una cola vacía aquí sí es «al día»");
         conCartera.Resumen.TotalAcciones.Should().Be(0, "la siembra no deja ningún pendiente");
 
         resultado.Tenants.Single(t => t.TenantId == _tenantOrigen).AlcanceCero.Should().BeFalse(

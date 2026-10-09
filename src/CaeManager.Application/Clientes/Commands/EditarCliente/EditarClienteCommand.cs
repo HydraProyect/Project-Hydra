@@ -58,9 +58,9 @@ public class EditarClienteCommandHandler(IEmpresaRepository repositorio, IAlcanc
     {
         var empresa = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (empresa is null || !await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial."));
+            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente."));
 
-        if (ConcurrenciaOptimista.Verificar(empresa, request.Version, "este Cliente empresarial") is { } conflicto)
+        if (ConcurrenciaOptimista.Verificar(empresa, request.Version, "este Cliente") is { } conflicto)
             return Result.Fallo(conflicto);
 
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, request.Id, cancellationToken))

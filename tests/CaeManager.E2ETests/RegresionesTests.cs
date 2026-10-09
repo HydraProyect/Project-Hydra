@@ -30,7 +30,7 @@ public class RegresionesTests(WebAppFixture fixture)
         // Clientes arranca vacía y el botón "+ Nuevo Cliente empresarial" aparece dos
         // veces — en la cabecera y en el EstadoVacio — ambos abren el mismo
         // drawer, así que cualquiera de los dos sirve para este test.
-        await page.GetByText("+ Nuevo Cliente empresarial").First.ClickAsync();
+        await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
 
         var panel = page.Locator(".drawer-panel");
         var superposicion = page.Locator(".drawer-superposicion");

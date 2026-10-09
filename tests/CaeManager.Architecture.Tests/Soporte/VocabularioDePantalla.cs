@@ -20,7 +20,7 @@ internal sealed record TerminoCanonico(
 /// <summary>
 /// Un término que la pantalla no puede decir a secas: <see cref="Patron"/> es el patrón (regex .NET y
 /// Python a la vez: solo <c>\b</c>, grupos y anticipaciones) que casa con la forma NO permitida, de modo
-/// que las completaciones legítimas («Cliente empresarial») ya quedan fuera del patrón. <see cref="Casa"/> y
+/// que las completaciones legítimas («Bandeja de entrada») ya quedan fuera del patrón. <see cref="Casa"/> y
 /// <see cref="NoCasa"/> son los ejemplos que el propio fichero lleva como control positivo y negativo de su
 /// patrón: una regla sin ejemplos que deba cazar no se puede distinguir de una regla ciega.
 /// </summary>
@@ -124,9 +124,9 @@ internal static class VocabularioDePantalla
 
     /// <summary>
     /// Patrones de lo que NO es lenguaje de pantalla aunque viva en un texto (una URL de ejemplo con
-    /// <c>portal-del-cliente.com</c>): se sustituyen por un espacio antes de casar. Es mejor descartar el
+    /// <c>portal-del-operador.com</c>): se sustituyen por un espacio antes de casar. Es mejor descartar el
     /// objeto que no es texto que abrir un hueco en el patrón del término, que dejaría pasar compuestos reales
-    /// como «empresa-cliente».
+    /// como «empresa-operador».
     /// </summary>
     public static List<Regex> Descartes(VocabularioJson vocabulario) =>
         (vocabulario.DescartarAntesDeCasar ?? []).Select(p => new Regex(p, RegexOptions.CultureInvariant)).ToList();

@@ -36,7 +36,7 @@ public class ReasignadorCarteraCliente(
     IDirectorioDestinosCartera directorioDestinos,
     IBloqueoCarteraUsuario bloqueoCartera)
 {
-    public static readonly Error ClienteNoEncontrado = Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial.");
+    public static readonly Error ClienteNoEncontrado = Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente.");
 
     /// <returns>
     /// <c>true</c> si dejó cambios que guardar; <c>false</c> si el Cliente empresarial ya
@@ -80,22 +80,22 @@ public class ReasignadorCarteraCliente(
         if (gestorAnteriorId is not null)
             notificacionRepositorio.Agregar(new NotificacionUsuario(
                 gestorAnteriorId.Value,
-                "Cambio en tus Clientes empresariales de referencia",
-                $"Ya no eres el Gestor CAE de referencia del Cliente empresarial \"{empresa.RazonSocial}\". Tu cartera no cambia."));
+                "Cambio en tus Clientes de referencia",
+                $"Ya no eres el Gestor CAE de referencia del Cliente \"{empresa.RazonSocial}\". Tu cartera no cambia."));
 
         if (nuevoGestorId is not null)
         {
             notificacionRepositorio.Agregar(new NotificacionUsuario(
                 nuevoGestorId.Value,
-                "Cambio en tus Clientes empresariales de referencia",
-                $"Eres ahora el Gestor CAE de referencia del Cliente empresarial \"{empresa.RazonSocial}\". Tu cartera no cambia."));
+                "Cambio en tus Clientes de referencia",
+                $"Eres ahora el Gestor CAE de referencia del Cliente \"{empresa.RazonSocial}\". Tu cartera no cambia."));
 
             var tiposSinLecturaIa = await configuracionIaRepositorio.ObtenerNombresTiposDocumentoSinLecturaIaAsync(empresa.Id, cancellationToken);
             if (tiposSinLecturaIa.Count > 0)
                 notificacionRepositorio.Agregar(new NotificacionUsuario(
                     nuevoGestorId.Value,
                     "Lectura automática por IA desactivada",
-                    $"El Cliente empresarial \"{empresa.RazonSocial}\" tiene la lectura automática por IA desactivada para: {string.Join(", ", tiposSinLecturaIa)}.",
+                    $"El Cliente \"{empresa.RazonSocial}\" tiene la lectura automática por IA desactivada para: {string.Join(", ", tiposSinLecturaIa)}.",
                     urlAccion: $"/clientes/{empresa.Id}/lectura-ia",
                     textoAccion: "Gestionar"));
         }

@@ -97,7 +97,7 @@ public sealed record TenantPilotoOutbound(
 }
 
 /// <summary>Direcciones de las cuentas de la demostración. Las locales son las del arranque en Development; la vía administrativa pasa las de un dominio propio.</summary>
-/// <param name="UsuarioDeClienteEmpresarialT1">La cuenta opcional de la matriz: un Usuario de Cliente empresarial de T1, que solo lee lo de su Cliente empresarial.</param>
+/// <param name="UsuarioDeClienteEmpresarialT1">La cuenta opcional de la matriz: un Usuario de Cliente de T1, que solo lee lo de su Cliente empresarial.</param>
 public sealed record CuentasPilotoOutbound(
     string GestoraPrimera, string GestorSegundo, string Coordinadora, string AdministradorOperador, string AdministradorT1,
     string UsuarioDeClienteEmpresarialT1)

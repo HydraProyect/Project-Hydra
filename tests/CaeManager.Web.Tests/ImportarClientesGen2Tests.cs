@@ -62,7 +62,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
     public ImportarClientesGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     private const string MotivoClienteNoExiste =
-        "Este Cliente empresarial no existe todavía. Ahora requiere un CIF, que esta plantilla no recoge — créalo manualmente en Clientes empresariales.";
+        "Este Cliente no existe todavía. Ahora requiere un CIF, que esta plantilla no recoge — créalo manualmente en Clientes.";
 
     private const string MotivoCentroNoExiste =
         "Este centro no existe todavía. Ahora requiere una Empresa asociada, que esta plantilla no recoge — créalo manualmente en Centros.";
@@ -400,7 +400,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
     private static async Task LlevarAConfirmarAsync(IRenderedComponent<PaginaImportacion> cut, string archivo, string contenido)
     {
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
         await Subir(cut, archivo, contenido);
         await Pulsar(cut, "Ver plan de importación");
         await Pulsar(cut, "Continuar a confirmar");
@@ -463,19 +463,19 @@ public partial class ImportarClientesGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario());
 
-        Texto(cut.Find("h1.titulo-pagina")).Should().Be("Importar Clientes empresariales");
+        Texto(cut.Find("h1.titulo-pagina")).Should().Be("Importar Clientes");
         Texto(cut.Find(".cabecera-pagina-kicker")).Should().Be("Configuración");
         var volver = cut.Find("a.enlace-volver-importacion");
         volver.GetAttribute("href").Should().Be("/clientes");
-        Texto(volver).Should().Be("Volver a Clientes empresariales");
-        Texto(cut.Find(".miga-importacion")).Should().Be("Negocio → Clientes empresariales → Importar Clientes empresariales");
+        Texto(volver).Should().Be("Volver a Clientes");
+        Texto(cut.Find(".miga-importacion")).Should().Be("Negocio → Clientes → Importar Clientes");
         OpcionPlantilla(cut, "clientes").GetAttribute("aria-checked").Should().Be("true");
 
         await OpcionPlantilla(cut, "documentos").ClickAsync(new MouseEventArgs());
 
         Texto(cut.Find("h1.titulo-pagina")).Should().Be("Importar datos",
-            "con otra plantilla ya no se están importando Clientes empresariales");
-        Texto(cut.Find("a.enlace-volver-importacion")).Should().Be("Volver a Clientes empresariales", "se sigue habiendo llegado desde Clientes");
+            "con otra plantilla ya no se están importando Clientes");
+        Texto(cut.Find("a.enlace-volver-importacion")).Should().Be("Volver a Clientes", "se sigue habiendo llegado desde Clientes");
     }
 
     [Fact]
@@ -532,7 +532,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
     public async Task Las_columnas_del_paso_2_son_las_de_la_plantilla_que_se_descarga()
     {
         var (cut, _) = Renderizar(new Escenario());
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
 
         using var libro = new XLWorkbook(new MemoryStream(new ClosedXmlPlantillaClientesService(null!, null!).GenerarPlantilla()));
         var hoja = libro.Worksheets.Should().ContainSingle().Subject;
@@ -577,7 +577,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         ]);
         var (cut, mediador) = Renderizar(escenario);
 
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
         await Subir(cut, "clientes-levante.xlsx", "levante");
         mediador.Enviados.OfType<AnalizarPlantillaClientesQuery>().Should().ContainSingle()
             .Which.ContenidoArchivo.Should().Equal(Encoding.UTF8.GetBytes("levante"), "se analiza el archivo que se subió");
@@ -585,17 +585,17 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
         cut.FindAll(".badges-resumen-plan .badge").Select(Texto).Should().Equal(
             ["0 se crearán", "3 no se crearán", "0 con aviso", "0 se omitirán"],
-            "1 Cliente empresarial y 2 Centros con nombre nuevo que la escritura omite no son creaciones (REC-106)");
+            "1 Cliente y 2 Centros con nombre nuevo que la escritura omite no son creaciones (REC-106)");
         var badges = cut.FindAll(".badges-resumen-plan .badge");
         badges[0].GetAttribute("class").Should().Contain("badge-exito", "«se crearán» solo cuenta lo que sí se escribe");
         badges[1].GetAttribute("class").Should().Contain("badge-advertencia");
-        badges[1].GetAttribute("title").Should().Be("1 Clientes empresariales y 2 Centros con nombre nuevo");
+        badges[1].GetAttribute("title").Should().Be("1 Clientes y 2 Centros con nombre nuevo");
         cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr").Select(f => f.QuerySelectorAll("td").Select(Texto).ToArray())
             .Should().BeEquivalentTo(new[]
             {
-                new[] { "Instalaciones Vidal S.L.", "No se creará", "La plantilla de Clientes empresariales no recoge CIF, y el Cliente empresarial lo exige. Créalo a mano en Clientes empresariales." },
-                new[] { "Instalaciones Vidal S.L.", "No se creará", "La plantilla de Clientes empresariales no recoge Empresa, y el Centro la exige. Créalo a mano en Centros." },
-                new[] { "Refrielectric S.L.", "No se creará", "La plantilla de Clientes empresariales no recoge Empresa, y el Centro la exige. Créalo a mano en Centros." }
+                new[] { "Instalaciones Vidal S.L.", "No se creará", "La plantilla de Clientes no recoge CIF, y el Cliente lo exige. Créalo a mano en Clientes." },
+                new[] { "Instalaciones Vidal S.L.", "No se creará", "La plantilla de Clientes no recoge Empresa, y el Centro la exige. Créalo a mano en Centros." },
+                new[] { "Refrielectric S.L.", "No se creará", "La plantilla de Clientes no recoge Empresa, y el Centro la exige. Créalo a mano en Centros." }
             }, o => o.WithStrictOrdering());
         cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr").Select(f => f.GetAttribute("data-tipo-fila-plan"))
             .Should().OnlyContain(t => t == "NoSeCrea");
@@ -603,10 +603,10 @@ public partial class ImportarClientesGen2Tests : BunitContext
             .Should().OnlyContain(clase => clase!.Contains("badge-advertencia"),
                 "las tres filas son altas de Cliente/Centro que el handler nunca hará: ninguna debe pintarse en verde");
 
-        Texto(cut.Find(".titulo-aviso-altas")).Should().Be("3 altas de Cliente empresarial o Centro no se harán al importar.");
+        Texto(cut.Find(".titulo-aviso-altas")).Should().Be("3 altas de Cliente o Centro no se harán al importar.");
         Texto(cut.Find(".detalle-aviso-altas")).Should().Be(
-            "Las 2 filas de Cliente empresarial o Centro con un nombre que todavía no existe se omitirán: esta importación no recoge " +
-            "el CIF que exige el alta de un Cliente empresarial ni la Empresa que exige la de un Centro. Dalos de alta a mano en Clientes empresariales y Centros.",
+            "Las 2 filas de Cliente o Centro con un nombre que todavía no existe se omitirán: esta importación no recoge " +
+            "el CIF que exige el alta de un Cliente ni la Empresa que exige la de un Centro. Dalos de alta a mano en Clientes y Centros.",
             "dos filas —no tres altas— porque el handler omite una vez por fila");
     }
 
@@ -617,7 +617,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         escenario.Plan<AnalizarPlantillaClientesQuery>("existentes", [Fila("Refrielectric S.L.", true, true)]);
         var (cut, _) = Renderizar(escenario);
 
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
         await Subir(cut, "existentes.xlsx", "existentes");
         await Pulsar(cut, "Ver plan de importación");
 
@@ -639,14 +639,14 @@ public partial class ImportarClientesGen2Tests : BunitContext
         await Pulsar(cut, "Ver plan de importación");
 
         cut.FindAll(".badges-resumen-plan .badge").Select(Texto).Take(2).Should().Equal(["1 se crearán", "2 no se crearán"],
-            "solo el alta de Empresa se escribe; Cliente empresarial y Centro de Centros_Plataformas no (REC-106)");
-        Texto(cut.Find(".titulo-aviso-altas")).Should().Be("2 altas de Cliente empresarial o Centro no se harán al importar.");
+            "solo el alta de Empresa se escribe; Cliente y Centro de Centros_Plataformas no (REC-106)");
+        Texto(cut.Find(".titulo-aviso-altas")).Should().Be("2 altas de Cliente o Centro no se harán al importar.");
         var filasPlan = cut.FindAll(".tabla-plan-importacion-envoltorio tbody tr");
 
         var filasNoSeCrea = filasPlan.Where(f => f.GetAttribute("data-tipo-fila-plan") == "NoSeCrea").ToList();
         filasNoSeCrea.Select(f => f.QuerySelectorAll("td").Select(Texto).ToArray()).Should().BeEquivalentTo(new[]
         {
-            new[] { "Obra Norte", "No se creará", "La hoja «Centros_Plataformas» no recoge CIF, y el Cliente empresarial lo exige. Créalo a mano en Clientes empresariales." },
+            new[] { "Obra Norte", "No se creará", "La hoja «Centros_Plataformas» no recoge CIF, y el Cliente lo exige. Créalo a mano en Clientes." },
             new[] { "Obra Norte", "No se creará", "La hoja «Centros_Plataformas» no recoge Empresa, y el Centro la exige. Créalo a mano en Centros." }
         }, o => o.WithStrictOrdering());
         filasNoSeCrea.Select(f => f.QuerySelector(".badge")!.GetAttribute("class"))
@@ -675,7 +675,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
         Texto(cut.Find(".titulo-aviso-confirmacion")).Should().Be("No se creará ningún elemento.");
         Texto(cut.Find(".detalle-aviso-confirmacion")).Should().StartWith(
-            "La fila de Cliente empresarial o Centro con un nombre que todavía no existe se omitirá:");
+            "La fila de Cliente o Centro con un nombre que todavía no existe se omitirá:");
         cut.FindAll("label.opcion-reemplazar-importacion").Should().BeEmpty("solo la Combinada actualiza lo existente");
         Boton(cut, "Importar ahora").HasAttribute("disabled").Should().BeTrue("hasta marcar la casilla de revisión");
 
@@ -684,8 +684,8 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
         Texto(cut.Find(".modal-contenido h2")).Should().Be("¿Importar este archivo?");
         Texto(cut.Find(".modal-cuerpo p")).Should().Be(
-            "No se creará ningún elemento. La fila de Cliente empresarial o Centro con un nombre que todavía no existe se omitirá: " +
-            "esta importación no recoge el CIF que exige el alta de un Cliente empresarial ni la Empresa que exige la de un Centro. " +
+            "No se creará ningún elemento. La fila de Cliente o Centro con un nombre que todavía no existe se omitirá: " +
+            "esta importación no recoge el CIF que exige el alta de un Cliente ni la Empresa que exige la de un Centro. " +
             "La fila que el análisis ya descartó no se toca. " +
             "Lo que se escriba no se deshace desde esta pantalla; el resultado queda en el historial de importaciones.");
         mediador.Enviados.OfType<EjecutarImportacionCommand>().Should().BeEmpty("abrir el diálogo no escribe");
@@ -714,7 +714,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var abrir = Pulsar(cut, "Importar ahora");
         abrir.IsCompleted.Should().BeTrue("«Importar ahora» solo abre el diálogo: no espera a ninguna escritura");
         await abrir;
-        Texto(cut.Find(".modal-cuerpo p")).Should().Contain("Las 2 filas de Cliente empresarial o Centro con un nombre que todavía no existe se omitirán");
+        Texto(cut.Find(".modal-cuerpo p")).Should().Contain("Las 2 filas de Cliente o Centro con un nombre que todavía no existe se omitirán");
 
         var dialogo = cut.FindComponent<DialogoConfirmacion>();
         var primero = BotonDelDialogo(cut, "Sí, importar").ClickAsync(new MouseEventArgs());
@@ -740,7 +740,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
             f => f.Should().Contain("Instalaciones Vidal S.L.").And.Contain("CIF"),
             f => f.Should().Contain("Refrielectric S.L.").And.Contain("Empresa asociada"));
 
-        var alta = cut.FindAll("a").Single(a => Texto(a) == "Dar de alta un Cliente empresarial a mano");
+        var alta = cut.FindAll("a").Single(a => Texto(a) == "Dar de alta un Cliente a mano");
         alta.GetAttribute("href").Should().Be("/clientes?accion=crear");
 
         var registro = mediador.Enviados.OfType<RegistrarHistorialImportacionCommand>().Should().ContainSingle().Subject;
@@ -783,7 +783,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
             ? Encoding.UTF8.GetString(q.ContenidoArchivo) == "A" ? puertaA.Task : puertaB.Task
             : null;
         var (cut, _) = Renderizar(escenario);
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
 
         var subidaA = Subir(cut, "a.xlsx", "A");
         var subidaB = Subir(cut, "b.xlsx", "B");
@@ -811,7 +811,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
             ? Encoding.UTF8.GetString(q.ContenidoArchivo) == "ilegible" ? puertaA.Task : puertaB.Task
             : null;
         var (cut, _) = Renderizar(escenario);
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
 
         var subidaA = Subir(cut, "roto.xlsx", "ilegible");
         var subidaB = Subir(cut, "b.xlsx", "B");
@@ -835,7 +835,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var puerta = Puerta();
         escenario.Retener = p => p is AnalizarPlantillaClientesQuery ? puerta.Task : null;
         var (cut, _) = Renderizar(escenario);
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
 
         var subida = Subir(cut, "a.xlsx", "A");
         await Pulsar(cut, "← Cambiar plantilla");
@@ -847,7 +847,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
             PasoDelIndicador(cut, paso).HasAttribute("disabled").Should().BeTrue($"«{paso}» dependía del plan de la otra plantilla");
         await Pulsar(cut, "Continuar con Importación CAE completa");
         Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeTrue(
-            "el análisis de la Plantilla de Clientes empresariales terminó después del cambio y no puede confirmarse como CAE completa");
+            "el análisis de la Plantilla de Clientes terminó después del cambio y no puede confirmarse como CAE completa");
     }
 
     [Fact]
@@ -892,7 +892,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var puerta = Puerta();
         escenario.Retener = p => p is AnalizarPlantillaClientesQuery ? puerta.Task : null;
         var (cut, mediador) = Renderizar(escenario);
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
         var subida = Subir(cut, "a.xlsx", "A");
         cut.WaitForAssertion(() => mediador.Recibidas.Should().Contain(r => r.Peticion is AnalizarPlantillaClientesQuery));
         var token = mediador.Recibidas.Single(r => r.Peticion is AnalizarPlantillaClientesQuery).Token;
@@ -972,7 +972,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
     public async Task Un_OnChange_del_InputFile_que_llega_tras_Dispose_no_toca_nada()
     {
         var (cut, mediador) = Renderizar(new Escenario());
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
         // La instancia REAL del InputFile se toma ANTES de Dispose: después,
         // el propio wrapper de bUnit (RenderedComponent<T>.Instance) lanza
         // ComponentDisposedException al pedirla de nuevo — pero el objeto en
@@ -1031,7 +1031,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
     public async Task Un_archivo_por_encima_del_limite_de_la_plantilla_se_rechaza_sin_abrirlo_ni_analizarlo()
     {
         var (cut, mediador) = Renderizar(new Escenario());
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
 
         await Subir(cut, "grande.xlsx", new string('x', (5 * 1024 * 1024) + 1));
 
@@ -1051,11 +1051,11 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var escenario = new Escenario();
         escenario.Plan<AnalizarPlantillaClientesQuery>(contenido, [Fila("Alfa S.L.")]);
         var (cut, mediador) = Renderizar(escenario);
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
 
         await Subir(cut, "un-mega.xlsx", contenido);
 
-        cut.FindAll(".alerta-formulario").Should().BeEmpty("1 MB está por debajo de los 5 MB de la Plantilla de Clientes empresariales");
+        cut.FindAll(".alerta-formulario").Should().BeEmpty("1 MB está por debajo de los 5 MB de la Plantilla de Clientes");
         mediador.Enviados.OfType<AnalizarPlantillaClientesQuery>().Should().ContainSingle()
             .Which.ContenidoArchivo.Length.Should().Be(1024 * 1024);
         Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeFalse();
@@ -1155,8 +1155,8 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
         OpcionPlantilla(cut, "combinada").GetAttribute("aria-checked").Should().Be("true");
         foreach (var paso in new[] { "Analizar", "Revisar plan", "Confirmar", "Reporte" })
-            PasoDelIndicador(cut, paso).HasAttribute("disabled").Should().BeTrue($"«{paso}» dependía del plan de la Plantilla de Clientes empresariales");
-        Campo<PlanImportacionDto?>(cut.Instance, "_planSimple").Should().BeNull("el plan era de la Plantilla de Clientes empresariales");
+            PasoDelIndicador(cut, paso).HasAttribute("disabled").Should().BeTrue($"«{paso}» dependía del plan de la Plantilla de Clientes");
+        Campo<PlanImportacionDto?>(cut.Instance, "_planSimple").Should().BeNull("el plan era de la Plantilla de Clientes");
         Campo<bool>(cut.Instance, "_confirmado").Should().BeFalse("la revisión marcada era de ese plan");
         await Pulsar(cut, "Continuar con Combinada");
         Boton(cut, "Ver plan de importación").HasAttribute("disabled").Should().BeTrue();
@@ -1358,7 +1358,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         escenario.Plan<AnalizarPlantillaClientesQuery>("existentes", [Fila("Refrielectric S.L.", true, true)]);
         var (cut, _) = Renderizar(escenario);
 
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
         await Subir(cut, "existentes.xlsx", "existentes");
         await Pulsar(cut, "Ver plan de importación");
 

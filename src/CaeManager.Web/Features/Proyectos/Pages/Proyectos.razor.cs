@@ -138,7 +138,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>
     /// Cliente empresarial elegido, en la URL (<c>?cliente=</c>) como en Centros:
     /// es el maestro de la lista, y sin él recargar o compartir el enlace
-    /// volvía a «Elige un Cliente empresarial».
+    /// volvía a «Elige un Cliente».
     /// </summary>
     [SupplyParameterFromQuery(Name = "cliente")]
     public string? ClienteInicial { get; set; }

@@ -50,7 +50,7 @@ namespace CaeManager.Web.Tests;
 /// ellos dejaría en verde una pantalla que no los envía.
 /// </para>
 /// </summary>
-public class EmpresasListaGen2Tests : BunitContext
+public partial class EmpresasListaGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado, que importa un módulo JS.</summary>
     public EmpresasListaGen2Tests()
@@ -145,6 +145,7 @@ public class EmpresasListaGen2Tests : BunitContext
         public ResultadoPaginado<EmpresaListaDto> Filtrar(ObtenerEmpresasQuery q)
         {
             var coincidentes = Almacen
+                .Where(e => q.EmpresaId is null || e.Id == q.EmpresaId)
                 .Where(e => string.IsNullOrWhiteSpace(q.Busqueda)
                     || e.RazonSocial.ToUpperInvariant().Contains(q.Busqueda.ToUpperInvariant()))
                 .Where(e => EstadoDocumentalFiltro.Coincide(e.EstadoDocumental, q.EstadoDocumental))
@@ -295,7 +296,7 @@ public class EmpresasListaGen2Tests : BunitContext
 
         cut.Find(".cabecera-columnas-empresas").TextContent.Should().NotContain("Presta servicio");
         cut.Markup.Should().NotContain("Orion Cliente S.L.").And.NotContain("B10000016");
-        ConsultasDeClientes(mediador).Should().Be(0, "plegada, la lista no pregunta por los Clientes empresariales de nadie");
+        ConsultasDeClientes(mediador).Should().Be(0, "plegada, la lista no pregunta por los Clientes de nadie");
 
         await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
@@ -311,7 +312,7 @@ public class EmpresasListaGen2Tests : BunitContext
     [Fact]
     public async Task Una_Relacion_Empresarial_fuera_del_alcance_de_gestion_no_se_revela_al_desplegar_la_fila()
     {
-        const string textoNeutro = "Esta empresa no tiene Clientes empresariales asociados, o no están dentro de tu alcance de gestión.";
+        const string textoNeutro = "Esta empresa no tiene Clientes asociados, o no están dentro de tu alcance de gestión.";
         var mediador = new MediatorFalso();
         var sinRelaciones = Empresa("Obras Este S.L.");
         var fueraDeAlcance = Empresa("Montajes Norte S.L.");
@@ -641,13 +642,13 @@ public class EmpresasListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } });
         var chevron = cut.Find(".boton-expandir-fila");
-        chevron.GetAttribute("aria-label").Should().Be("Ver los Clientes empresariales de Refrielectric S.A.");
+        chevron.GetAttribute("aria-label").Should().Be("Ver los Clientes de Refrielectric S.A.");
         chevron.GetAttribute("aria-expanded").Should().Be("false");
 
         await chevron.ClickAsync(new MouseEventArgs());
 
         var abierto = cut.Find(".boton-expandir-fila");
-        abierto.GetAttribute("aria-label").Should().Be("Ocultar los Clientes empresariales de Refrielectric S.A.");
+        abierto.GetAttribute("aria-label").Should().Be("Ocultar los Clientes de Refrielectric S.A.");
         abierto.GetAttribute("aria-expanded").Should().Be("true");
     }
 
@@ -918,7 +919,7 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Expandir todo").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.FindAll(".titulo-clientes-empresa").Select(t => t.TextContent.Trim())
-            .Should().Equal(["Clientes empresariales", "Clientes empresariales"], "el rótulo es neutro: ni «presta servicio a» ni recuento"));
+            .Should().Equal(["Clientes", "Clientes"], "el rótulo es neutro: ni «presta servicio a» ni recuento"));
         var contenidoRefrielectric = cut.FindAll(".tarjeta-fila-acordeon-contenido")[1];
         contenidoRefrielectric.TextContent.Should().Contain("Grupo Arbeko").And.Contain("Petronor Servicios");
         cut.Markup.Should().NotContain("Presta servicio");
@@ -938,7 +939,7 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
         cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Trim()
-            .Should().Be("Esta empresa no tiene Clientes empresariales asociados, o no están dentro de tu alcance de gestión.");
+            .Should().Be("Esta empresa no tiene Clientes asociados, o no están dentro de tu alcance de gestión.");
         cut.FindAll(".titulo-clientes-empresa").Should().BeEmpty();
     }
 
@@ -957,7 +958,7 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
         var contenido = cut.Find(".tarjeta-fila-acordeon-contenido");
-        contenido.QuerySelectorAll("[role=alert]").Select(a => a.TextContent.Trim()).Should().Equal(["No pudimos cargar los Clientes empresariales"], "un fallo de la consulta se dice como fallo");
+        contenido.QuerySelectorAll("[role=alert]").Select(a => a.TextContent.Trim()).Should().Equal(["No pudimos cargar los Clientes"], "un fallo de la consulta se dice como fallo");
         contenido.TextContent.Should().NotContain("todavía no tiene", "no se sabe si tiene o no: la consulta falló");
 
         mediador.ClientesQueFallan.Clear();
@@ -1315,7 +1316,7 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarEmpresasCommand>().Should().ContainSingle("la baja se ejecutó");
-        workspace.EstaAbierto.Should().BeFalse("es la misma fila: la ficha del Cliente empresarial quedaría viva sobre algo eliminado");
+        workspace.EstaAbierto.Should().BeFalse("es la misma fila: la ficha del Cliente quedaría viva sobre algo eliminado");
     }
 
     /// <summary>

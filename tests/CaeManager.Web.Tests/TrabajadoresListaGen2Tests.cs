@@ -64,7 +64,7 @@ namespace CaeManager.Web.Tests;
 /// Id solo garantiza aquí que el orden sea total, no cuál.
 /// </para>
 /// </summary>
-public class TrabajadoresListaGen2Tests : BunitContext
+public partial class TrabajadoresListaGen2Tests : BunitContext
 {
     /// <summary>QuickGrid y AtajosListaTeclado importan sus módulos JS al montarse.</summary>
     public TrabajadoresListaGen2Tests()
@@ -226,6 +226,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         public ResultadoPaginado<TrabajadorListaDto> Filtrar(ObtenerTrabajadoresQuery q)
         {
             var coincidentes = Almacen
+                .Where(f => q.TrabajadorId is null || f.Dto.Id == q.TrabajadorId)
                 .Where(f => string.IsNullOrWhiteSpace(q.Busqueda) || CoincideBusqueda(f, q.Busqueda))
                 .Where(f => q.EmpresaId is null || f.EmpresaId == q.EmpresaId)
                 .Where(f => q.SubcontrataId is null || f.SubcontrataId == q.SubcontrataId)
@@ -743,7 +744,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
     public async Task Asignar_a_centro_actualiza_el_catalogo_visible_despues_del_comando_correcto()
     {
         var bea = Trabajador("Bea", "Alonso");
-        var centro = new CentroSelectorDto(Guid.NewGuid(), "Planta Zaragoza", "Cliente empresarial de prueba", "Montajes Ebro S.L.");
+        var centro = new CentroSelectorDto(Guid.NewGuid(), "Planta Zaragoza", "Cliente de prueba", "Montajes Ebro S.L.");
         var mediador = new MediatorFalso
         {
             Almacen = { bea },

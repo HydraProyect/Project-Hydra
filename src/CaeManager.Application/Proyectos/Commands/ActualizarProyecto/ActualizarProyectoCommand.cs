@@ -34,7 +34,7 @@ public class ActualizarProyectoCommandHandler(IProyectoRepository repositorio, I
 
         if (!string.Equals(proyecto.Nombre, request.Nombre.Trim(), StringComparison.Ordinal)
             && await repositorio.ExisteNombreParaClienteAsync(proyecto.ClienteId, request.Nombre, proyecto.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Proyecto.NombreDuplicado", "Ya existe un proyecto con este nombre para el Cliente empresarial seleccionado."));
+            return Result.Fallo(Error.Crear("Proyecto.NombreDuplicado", "Ya existe un proyecto con este nombre para el Cliente seleccionado."));
 
         proyecto.Actualizar(request.Nombre, request.FechaFinPrevista, request.Notas);
         await unitOfWork.SaveChangesAsync(cancellationToken);

@@ -252,8 +252,8 @@ public class PaqueteDocumentalVisitaCorreoTests
         await using var scope = arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
 
-        var clienteDentro = Empresa.CrearComoCliente("Cliente empresarial dentro", "B10380186", false, null, null);
-        var clienteFuera = Empresa.CrearComoCliente("Cliente empresarial fuera", "B10380194", false, null, null);
+        var clienteDentro = Empresa.CrearComoCliente("Cliente dentro", "B10380186", false, null, null);
+        var clienteFuera = Empresa.CrearComoCliente("Cliente fuera", "B10380194", false, null, null);
         var propia = new Empresa("Empresa propia", "B10380202");
         contexto.Empresas.AddRange(clienteDentro, clienteFuera, propia);
 

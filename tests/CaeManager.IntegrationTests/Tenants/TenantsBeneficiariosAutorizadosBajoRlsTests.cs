@@ -137,7 +137,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         // Dashboard no distinguiría nada.
         using (AmbitoTenantExplicito.Establecer(_a))
         {
-            _propietario.Empresas.Add(Empresa.CrearComoCliente("Cliente empresarial de A", "B10380186", false, null, null));
+            _propietario.Empresas.Add(Empresa.CrearComoCliente("Cliente de A", "B10380186", false, null, null));
             await _propietario.SaveChangesAsync();
         }
 
@@ -209,7 +209,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             _propietario.AsignacionesOperacion.Add(raiz);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Interna(
                 raiz, _gestorConOrigen, AmbitoAsignacion.Universal, ayer, null, ahora, rol: Roles.GestorCae));
-            var clienteDelOrigen = Empresa.CrearComoCliente("Cliente empresarial del origen", "B10380194", false, null, null);
+            var clienteDelOrigen = Empresa.CrearComoCliente("Cliente del origen", "B10380194", false, null, null);
             _propietario.Empresas.Add(clienteDelOrigen);
             await _propietario.SaveChangesAsync();
 

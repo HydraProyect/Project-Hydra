@@ -245,9 +245,9 @@ public class ClientesVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Refrielectric");
 
-        cut.Markup.Should().Contain("Ningún Cliente empresarial con estos filtros");
+        cut.Markup.Should().Contain("Ningún Cliente con estos filtros");
         cut.Markup.Should().Contain("Quitar los filtros");
-        cut.Markup.Should().NotContain("Aún no hay Clientes empresariales",
+        cut.Markup.Should().NotContain("Aún no hay Clientes",
             "mandar a crear a quien acaba de buscar termina en un cliente duplicado");
     }
 
@@ -256,8 +256,8 @@ public class ClientesVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(soloCriticos: true);
 
-        cut.Markup.Should().Contain("Ningún Cliente empresarial con estos filtros");
-        cut.Markup.Should().NotContain("Aún no hay Clientes empresariales",
+        cut.Markup.Should().Contain("Ningún Cliente con estos filtros");
+        cut.Markup.Should().NotContain("Aún no hay Clientes",
             "«solo críticos» sin resultados es una buena noticia, no una lista vacía");
     }
 
@@ -266,9 +266,9 @@ public class ClientesVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay Clientes empresariales");
+        cut.Markup.Should().Contain("Aún no hay Clientes");
         cut.Markup.Should().Contain("Crea el primero para empezar a organizar tus centros de trabajo.");
-        cut.Markup.Should().NotContain("Ningún Cliente empresarial con estos filtros");
+        cut.Markup.Should().NotContain("Ningún Cliente con estos filtros");
     }
 
     /// <summary>
@@ -280,7 +280,7 @@ public class ClientesVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Refrielectric");
 
-        cut.Markup.Should().Contain("Ningún Cliente empresarial con estos filtros");
+        cut.Markup.Should().Contain("Ningún Cliente con estos filtros");
         cut.Markup.Should().NotContain("Hay clientes dados de alta");
     }
 
@@ -297,7 +297,7 @@ public class ClientesVacioPorFiltroTests : BunitContext
     public void Quitar_los_filtros_borra_los_dos_de_la_url_y_no_solo_la_busqueda()
     {
         var cut = Renderizar(busqueda: "Refrielectric", soloCriticos: true);
-        cut.Markup.Should().Contain("Ningún Cliente empresarial con estos filtros", "es el punto de partida de este caso");
+        cut.Markup.Should().Contain("Ningún Cliente con estos filtros", "es el punto de partida de este caso");
 
         cut.Find(".estado-vacio button").Click();
 
@@ -305,8 +305,8 @@ public class ClientesVacioPorFiltroTests : BunitContext
         uri.Should().NotContain("critico", "dejarlo en la URL lo devuelve en la siguiente pasada de parámetros");
         uri.Should().NotContain("q=Refrielectric");
 
-        cut.Markup.Should().NotContain("Ningún Cliente empresarial con estos filtros");
-        cut.Markup.Should().Contain("Aún no hay Clientes empresariales");
+        cut.Markup.Should().NotContain("Ningún Cliente con estos filtros");
+        cut.Markup.Should().Contain("Aún no hay Clientes");
         cut.FindAll(".chip-filtro").Should().BeEmpty("el chip de «solo críticos» volvía a aparecer");
     }
 
@@ -329,8 +329,8 @@ public class ClientesVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Refrielectric", clientes: Cliente("Refrielectric S.A."));
 
-        cut.Markup.Should().NotContain("Ningún Cliente empresarial con estos filtros");
-        cut.Markup.Should().NotContain("Aún no hay Clientes empresariales");
+        cut.Markup.Should().NotContain("Ningún Cliente con estos filtros");
+        cut.Markup.Should().NotContain("Aún no hay Clientes");
         cut.Markup.Should().Contain("Refrielectric S.A.");
     }
 
@@ -348,8 +348,8 @@ public class ClientesVacioPorFiltroTests : BunitContext
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
             .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
-        cut.Markup.Should().NotContain("Aún no hay Clientes empresariales");
-        cut.Markup.Should().NotContain("+ Nuevo Cliente empresarial", "invitar a crear con alcance cero termina en un duplicado");
+        cut.Markup.Should().NotContain("Aún no hay Clientes");
+        cut.Markup.Should().NotContain("+ Nuevo Cliente", "invitar a crear con alcance cero termina en un duplicado");
         cut.Markup.Should().NotContain("Alta guiada", "invitar a crear con alcance cero termina en un duplicado");
 
         // «Alta guiada» vive en el «⋯» de la cabecera (rediseño de listados, fase 1), que cerrado
@@ -367,9 +367,9 @@ public class ClientesVacioPorFiltroTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay Clientes empresariales");
-        cut.Markup.Should().Contain("+ Nuevo Cliente empresarial");
-        cut.Markup.Should().Contain("Alta guiada (Cliente empresarial + Empresa + Centro)");
+        cut.Markup.Should().Contain("Aún no hay Clientes");
+        cut.Markup.Should().Contain("+ Nuevo Cliente");
+        cut.Markup.Should().Contain("Alta guiada (Cliente + Empresa + Centro)");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 

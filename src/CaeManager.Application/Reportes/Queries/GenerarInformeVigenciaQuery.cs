@@ -143,9 +143,9 @@ public class GenerarInformeVigenciaQueryHandler(
         if (clienteId is { } clId)
         {
             var cliente = await empresasContext.Empresas.Where(c => c.Id == clId).Select(c => c.RazonSocial).SingleOrDefaultAsync(cancellationToken);
-            return cliente is null ? "Cliente empresarial" : $"{cliente} · todo el Cliente empresarial";
+            return cliente is null ? "Cliente" : $"{cliente} · todo el Cliente";
         }
 
-        return "Toda la cartera (sin filtrar por Cliente empresarial)";
+        return "Toda la cartera (sin filtrar por Cliente)";
     }
 }
