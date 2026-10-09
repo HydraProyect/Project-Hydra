@@ -261,6 +261,7 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
                 ["Asignaciones"] = await b.Asignaciones.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
                 ["Documentos"] = await b.Documentos.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
                 ["Contactos de agenda"] = await b.ContactosAgenda.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
+                ["Instrucciones de tratamiento de IA"] = await b.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.TenantId)),
                 ["Asignaciones de Operación"] = await b.AsignacionesOperacion.IgnoreQueryFilters().CountAsync(e => ids.Contains(e.PropietarioTenantId)),
                 ["Asignaciones de Cartera"] = await (
                     from cartera in b.AsignacionesCartera.IgnoreQueryFilters()
