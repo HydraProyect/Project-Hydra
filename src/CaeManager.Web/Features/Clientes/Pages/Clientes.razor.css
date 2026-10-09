@@ -18,6 +18,21 @@
     border-color: var(--color-warning-700);
 }
 
+/* Celda de identidad del Cliente empresarial, en dos líneas: la razón social con sus
+   avisos y, debajo, el CIF en pequeño. Mismas reglas que la celda «Trabajador» de
+   /trabajadores (Trabajadores.razor.css): no hay clase compartida para este patrón. */
+.celda-cliente-empresarial {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+}
+
+.celda-cliente-empresarial-cif {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
 /* La barra de filtros (tarjeta, chips, «Limpiar todo») vive ahora en el
    componente BarraFiltros y en list-page.css: aquí ya no se copia. */
 
