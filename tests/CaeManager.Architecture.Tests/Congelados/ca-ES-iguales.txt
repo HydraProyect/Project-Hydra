@@ -721,7 +721,6 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Ari
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaSeleccionarSubcontrata = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaTrabajadoresDe = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaVistaPrevia = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: BadgeAlCorriente = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: BadgeCredencialesTerceros = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: BotonEditarIdentidad = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: BotonGuardarCredenciales = 1

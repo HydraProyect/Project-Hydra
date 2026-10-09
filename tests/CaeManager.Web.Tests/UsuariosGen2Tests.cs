@@ -8,6 +8,7 @@ using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.CorregirCorreoCuentaPendiente;
 using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Application.Usuarios.Commands.EditarUsuario;
 using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
@@ -357,7 +358,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
             if (Despachar is not null && request is CrearUsuarioCommand or EditarUsuarioCommand
                     or CambiarActivacionUsuarioCommand or EliminarUsuarioPendienteCommand
-                    or GenerarActivacionUsuarioCommand or ObtenerCuentaUsuarioQuery
+                    or GenerarActivacionUsuarioCommand or CorregirCorreoCuentaPendienteCommand or ObtenerCuentaUsuarioQuery
                     or ObtenerEmpresasAsignablesEnAltaQuery or AsignarCarteraGestorCaeCommand or ObtenerCarteraDeGestorCaeQuery or ObtenerPersonasConCarteraQuery or DesignarGestorCaePrincipalCommand
                     or ObtenerEquipoDeCoordinadorQuery)
                 return (TResponse)(await Despachar(request, cancellationToken))!;
@@ -703,13 +704,14 @@ public partial class UsuariosGen2Tests : BunitContext
                 usuarioActual, directorioCartera, directorioCartera, _catalogo).Handle(q, ct),
             EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
-                cuentas, usuarioActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera).Handle(c, ct),
+                cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera).Handle(c, ct),
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
                 usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
             DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(
                 usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
-            EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, usuarioActual).Handle(c, ct),
-            GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual).Handle(c, ct),
+            EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            CorregirCorreoCuentaPendienteCommand c => await new CorregirCorreoCuentaPendienteCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
             ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, usuarioActual).Handle(q, ct),
             _ => throw new NotSupportedException(peticion.GetType().Name),
         };
@@ -1051,7 +1053,7 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task En_un_Context_Workspace_cruzado_editar_un_Administrador_conserva_su_rol_en_el_selector()
+    public async Task En_un_Context_Workspace_cruzado_no_se_edita_una_cuenta_con_rol_de_Propiedad()
     {
         Sembrar(
             (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
@@ -1068,7 +1070,10 @@ public partial class UsuariosGen2Tests : BunitContext
         await EscribirAsync(cut, "Nombre completo", "Ander Beitia Zabala");
         await GuardarAsync(cut);
 
-        _identidad.Cuentas[AnderId].NombreCompleto.Should().Be("Ander Beitia Zabala");
+        // Decisión D-8 (2026-10-08): quien actúa fuera de su Tenant de origen no toca una cuenta con
+        // rol de Propiedad, ni siquiera para cambiarle el nombre. Hasta entonces este guardado pasaba.
+        cut.Find(".alerta-formulario").TextContent.Should().Contain("solo las gestiona un Administrador propio");
+        _identidad.Cuentas[AnderId].NombreCompleto.Should().Be("Ander Beitia");
         _identidad.RolesPorCuenta[AnderId].Should().Equal(RolesIdentidad.Administrador);
     }
 
@@ -2053,6 +2058,117 @@ public partial class UsuariosGen2Tests : BunitContext
             cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos reenviar el correo"));
         cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty(
             "el enlace sigue siendo la vía de entrega alternativa aunque el correo fallara");
+    }
+
+    // ------------------------------- corregir el correo de una cuenta pendiente (H9)
+
+    private static Task GuardarCorreoCorregidoAsync(IRenderedComponent<UsuariosControlados> cut) =>
+        BotonCorregirYEnviar(cut).ClickAsync(new());
+
+    private static IElement BotonCorregirYEnviar(IRenderedComponent<UsuariosControlados> cut) =>
+        cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Corregir y enviar");
+
+    private static Task EscribirCorreoCorregidoAsync(IRenderedComponent<UsuariosControlados> cut, string valor) =>
+        cut.Find("[role=dialog] input[type=email]").InputAsync(new() { Value = valor });
+
+    private void SembrarAdministradoraYPendiente() =>
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true), RolesIdentidad.GestorCae));
+
+    [Fact]
+    public async Task Corregir_correo_solo_se_ofrece_para_una_cuenta_pendiente_de_activacion()
+    {
+        SembrarAdministradoraYPendiente();
+        var cut = Renderizar(actorId: MartaId);
+
+        await AbrirMenuAsync(cut, "a.beitia@talveg.es");
+        Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item")
+            .Select(b => b.TextContent.Trim()).Should().Contain("Corregir correo");
+
+        await AbrirMenuAsync(cut, "marta.r@talveg.es");
+        Fila(cut, "marta.r@talveg.es").QuerySelectorAll(".menu-acciones-item")
+            .Select(b => b.TextContent.Trim()).Should().NotContain("Corregir correo",
+                "una cuenta ya activada no cambia de correo por esta vía");
+    }
+
+    [Fact]
+    public async Task Corregir_el_correo_lo_cambia_y_envia_el_enlace_a_la_direccion_nueva()
+    {
+        SembrarAdministradoraYPendiente();
+        var cut = Renderizar(actorId: MartaId);
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Corregir correo");
+        await EscribirCorreoCorregidoAsync(cut, "  ander.beitia@talveg.es ");
+        await GuardarCorreoCorregidoAsync(cut);
+
+        var orden = _mediador.Enviadas.OfType<CorregirCorreoCuentaPendienteCommand>().Should().ContainSingle().Subject;
+        orden.UsuarioId.Should().Be(AnderId);
+        orden.CorreoNuevo.Should().Be("ander.beitia@talveg.es");
+        _identidad.Cuentas[AnderId].Email.Should().Be("ander.beitia@talveg.es");
+        _correo.Enviados.Should().ContainSingle().Which.Destinatario.Should().Be("ander.beitia@talveg.es",
+            "el enlace nuevo va a la dirección corregida, nunca a la anterior");
+        cut.WaitForAssertion(() => cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty());
+        cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Correo corregido",
+            "el diálogo del enlace es el del reenvío, pero aquí lo que pasó es una corrección");
+        cut.WaitForAssertion(() => Fila(cut, "ander.beitia@talveg.es").Should().NotBeNull());
+    }
+
+    /// <summary>
+    /// Revisión puente de H9 (2/2): con la corrección de correo, la fila de una lista
+    /// abierta puede enseñar una dirección que otra persona ya corrigió. El reenvío
+    /// emite un enlace válido; si saliera hacia el correo de la fila, iría justo a la
+    /// dirección equivocada.
+    /// </summary>
+    [Fact]
+    public async Task Reenviar_envia_al_correo_que_la_cuenta_tiene_ahora_y_no_al_de_la_fila()
+    {
+        SembrarAdministradoraYPendiente();
+        var cut = Renderizar(actorId: MartaId);
+
+        // Otra sesión corrige el correo con la lista ya pintada.
+        _identidad.Cuentas[AnderId].Email = "ander.beitia@talveg.es";
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Reenviar correo de activación");
+
+        _correo.Enviados.Should().ContainSingle().Which.Destinatario.Should().Be("ander.beitia@talveg.es");
+    }
+
+    [Fact]
+    public async Task Sin_un_correo_distinto_no_se_puede_guardar_la_correccion()
+    {
+        SembrarAdministradoraYPendiente();
+        var cut = Renderizar(actorId: MartaId);
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Corregir correo");
+
+        BotonCorregirYEnviar(cut).HasAttribute("disabled").Should().BeTrue(
+            "el campo abre con el correo actual: guardar tal cual sería un reenvío disfrazado");
+        _mediador.Enviadas.OfType<CorregirCorreoCuentaPendienteCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_la_correccion_falla_el_motivo_queda_en_el_dialogo_y_no_se_envia_ningun_correo()
+    {
+        SembrarAdministradoraYPendiente();
+        var cut = Renderizar(actorId: MartaId);
+
+        // El fallo se pone en la respuesta de Application y no en el UserManager falso:
+        // el adaptador real, al fallar, limpia el contexto de EF, y el de este arnés no
+        // tiene proveedor. Que un correo repetido llegue hasta aquí como fallo lo prueba
+        // la integración (EnlaceDeActivacionBajoRuntimeTests); esto mide solo la pantalla.
+        var despacharReal = _mediador.Despachar!;
+        _mediador.Despachar = (peticion, ct) => peticion is CorregirCorreoCuentaPendienteCommand
+            ? Task.FromResult<object?>(Result.Fallo<string>(
+                Error.Crear("Usuarios.FalloAlCorregirCorreo", "Ese correo ya es de otra cuenta.")))
+            : despacharReal(peticion, ct);
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Corregir correo");
+        await EscribirCorreoCorregidoAsync(cut, "marta.r@talveg.es");
+        await GuardarCorreoCorregidoAsync(cut);
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Ese correo ya es de otra cuenta.");
+        _correo.Enviados.Should().BeEmpty("sin corrección no hay enlace nuevo que enviar");
+        cut.FindAll(".enlace-activacion").Should().BeEmpty();
     }
 
     [Fact]

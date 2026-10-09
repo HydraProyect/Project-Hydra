@@ -115,11 +115,28 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     /// </summary>
     private string? _rutaMiTrabajo;
 
-    private IReadOnlyList<OpcionEstado> OpcionesEstado =>
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesEstado =>
     [
-        new(nameof(EstadoGestion.Pendiente), Textos["FiltroPendientes"]),
-        new(nameof(EstadoGestion.Completada), Textos["FiltroCompletadas"])
+        new(Textos["FiltroPendientes"], TonoEstado(EstadoGestion.Pendiente), nameof(EstadoGestion.Pendiente)),
+        new(Textos["FiltroCompletadas"], TonoEstado(EstadoGestion.Completada), nameof(EstadoGestion.Completada))
     ];
+
+    /// <summary>Gestiones por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
+
+    /// <summary>
+    /// La selección de estados que llega de la URL reducida a nombres de <see cref="EstadoGestion"/>; lo demás se
+    /// descarta. Cadena vacía si no queda ninguno.
+    /// </summary>
+    private static string EstadosValidos(string? seleccion) =>
+        SeleccionEstados.Unir(SeleccionEstados.Separar<EstadoGestion>(seleccion).Select(e => e.ToString())) ?? string.Empty;
+
+    /// <summary>
+    /// El estado por el que filtra la consulta, que admite uno solo: con los dos marcados no hay nada que
+    /// filtrar (son todos los estados que existen).
+    /// </summary>
+    private EstadoGestion? EstadoDeLaConsulta =>
+        SeleccionEstados.Separar<EstadoGestion>(_filtroEstado) is [var unico] ? unico : null;
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -134,7 +151,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>La URL es la fuente de verdad del filtro (P1-18) — ver el resto de listados.</summary>
     protected override void OnParametersSet()
     {
-        var deLaUrl = Enum.TryParse<EstadoGestion>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
+        var deLaUrl = EstadosValidos(EstadoInicial);
         if (deLaUrl != _filtroEstado)
             _filtroEstado = deLaUrl;
 
@@ -158,12 +175,13 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         _idEnfocado = null;
         var consulta = new ObtenerGestionesQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-            Estado: Enum.TryParse<EstadoGestion>(_filtroEstado, out var estado) ? estado : null,
+            Estado: EstadoDeLaConsulta,
             TrabajadorId: null,
             Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
             TamanoPagina: _paginacion.ItemsPerPage,
             OrdenarPor: ordenarPor,
-            Descendente: descendente);
+            Descendente: descendente,
+            ConRecuentosPorEstado: true);
 
         _cargando = true;
         _errorCarga = false;
@@ -189,6 +207,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             }
 
             _totalElementos = resultado.TotalElementos;
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
             _elementosPagina = resultado.Elementos.ToList();
 
             return GridItemsProviderResult.From(resultado.Elementos.ToList(), resultado.TotalElementos);
@@ -240,9 +259,9 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         await RecargarAsync();
     }
 
-    private async Task FiltrarPorEstadoAsync(string valor)
+    private async Task FiltrarPorEstadoAsync(string? valor)
     {
-        _filtroEstado = valor;
+        _filtroEstado = valor ?? string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await RecargarAsync();
     }
@@ -254,10 +273,6 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     /// </summary>
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_filtroEstado);
-
-    private string TextoChipEstado => _filtroEstado == nameof(EstadoGestion.Completada)
-        ? Textos["ChipEstadoCompletadas"]
-        : Textos["ChipEstadoPendientes"];
 
     /// <summary>
     /// Cuántas coinciden. Sin filtros no habla de ninguno; con filtros dice que

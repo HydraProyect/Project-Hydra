@@ -84,7 +84,7 @@ public class ExportacionInformeVigenciaVencimientoTests
             ("Bea Sin Confirmar", "Sin confirmar"),
             ("Carlos Sin Caducidad", "Sin caducidad"),
             ("Dora Falta", "—"));
-        filas.Select(f => f[0]).Should().Equal("Vigente", "Sin confirmar", "Sin caducidad", "Falta");
+        filas.Select(f => f[0]).Should().Equal("Vigente", "Sin confirmar", "Sin caducidad", "Pendiente");
     }
 
     [Fact]

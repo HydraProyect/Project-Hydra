@@ -43,6 +43,7 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using CaeManager.Infrastructure.Comunicaciones
 @using Microsoft.Extensions.Options
+@implements IDisposable
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
@@ -79,12 +80,21 @@ else
             @* «Bloqueado» es un estado del Trabajador, nunca del Centro: el Centro dice cuántos Trabajadores están bloqueados en él. *@
             <Badge Tono="TonoBadge.Peligro" ConIcono="true">@TextoBloqueoDeAcceso.Titulo(Textos, TextoBloqueoDeAcceso.TrabajadoresBloqueados(_bloqueos))</Badge>
         }
-        @if (PestanaActiva == "informacion" && !_editandoInformacion)
+        @if (!_editandoInformacion)
         {
-            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="Editar información del centro">
-                <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
-            </Boton>
+            @* El lápiz vive en la cabecera en todas las pestañas (patrón de listados: la fila no
+               lleva menú y editar se hace desde el panel, también con la tecla «e»). Desde otra
+               pestaña lleva primero a «Información», que es donde está el formulario. Solo roles
+               con escritura: EditarCentroCommand rechazaría a un rol de Consulta al guardar. *@
+            <SoloConEscritura>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="EditarDesdeCabeceraAsync"
+                       aria-label="Editar información del centro" title="@Textos["EditarConAtajo"]">
+                    <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+                </Boton>
+            </SoloConEscritura>
         }
+        @* Icono 360 del catálogo: lleva a la página completa de Centro 360. *@
+        <Boton360 Nombre="@_detalle.Nombre" Href="@($"/centros/{_detalle.Id}")" />
         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirPedirPrioridadAsync">
             Pedir prioridad
         </Boton>
@@ -957,6 +967,48 @@ else
         _instantaneaReclamacion.Fijar(ValoresReclamacion());
     }
 
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    protected override void OnInitialized() => WorkspaceService.OnEdicionSolicitada += AlSolicitarEdicion;
+
+    public void Dispose() => WorkspaceService.OnEdicionSolicitada -= AlSolicitarEdicion;
+
+    private void AlSolicitarEdicion() => InvokeAsync(async () =>
+    {
+        await AtenderEdicionSolicitadaAsync();
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Tecla «e» de un listado (<c>ContextWorkspaceService.AbrirEnEdicionAsync</c>): equivale
+    /// a pulsar el lápiz de la cabecera. Solo se consume con el detalle ya cargado; si llega
+    /// antes, la atiende el final de la carga. El lápiz va dentro de <c>SoloConEscritura</c>,
+    /// así que aquí se repite su misma condición: un rol de Consulta no entra en edición.
+    /// </summary>
+    private async Task AtenderEdicionSolicitadaAsync()
+    {
+        if (_cargando || _detalle is null || _detalle.Id != EntidadId)
+            return;
+        if (!WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Centro, EntidadId))
+            return;
+        if (_editandoInformacion || EstadoAutenticacion is null)
+            return;
+
+        var usuario = (await EstadoAutenticacion).User;
+        if (!CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole))
+            return;
+
+        await EditarDesdeCabeceraAsync();
+    }
+
+    private async Task EditarDesdeCabeceraAsync()
+    {
+        if (PestanaActiva != "informacion")
+            await PestanaActivaChanged.InvokeAsync("informacion");
+
+        IniciarEdicionInformacion();
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         if (EntidadId != _idCargado)
@@ -992,12 +1044,18 @@ else
 
     private async Task CargarCabeceraAsync()
     {
+        // La ficha puede cambiar de Centro mientras esta carga viaja (dos filas seguidas con
+        // «e» o con clic): una respuesta que llega tarde no pisa el detalle del Centro actual,
+        // ni su estado de carga, ni su petición de edición.
+        var id = EntidadId;
         _cargando = true;
         _error = false;
 
         try
         {
-            _detalle = await Mediator.Send(new ObtenerCentroPorIdQuery(EntidadId));
+            var detalle = await Mediator.Send(new ObtenerCentroPorIdQuery(id));
+            if (id != EntidadId) return;
+            _detalle = detalle;
 
             // Rastro de la última reclamación al Cliente de este Centro: es el
             // puente hacia Comunicaciones desde la superficie de operación. Su
@@ -1010,7 +1068,8 @@ else
             // _ultimaReclamacion (histórico), esto decide si el botón "Reclamar
             // documentación" se pinta. Mismo criterio de "no tumbar el panel":
             // si falla, simplemente no aparece el botón.
-            var lotes = await Mediator.Send(new ObtenerLoteReclamacionQuery(CentroId: EntidadId));
+            var lotes = await Mediator.Send(new ObtenerLoteReclamacionQuery(CentroId: id));
+            if (id != EntidadId) return;
             _loteReclamacionCentro = lotes.FirstOrDefault();
             // Todos marcados de salida: desmarcar es la excepción, no el paso
             // obligatorio antes de poder enviar.
@@ -1020,12 +1079,24 @@ else
         }
         catch (Exception)
         {
-            _error = true;
+            if (id == EntidadId)
+                _error = true;
         }
         finally
         {
-            _cargando = false;
+            if (id == EntidadId)
+                _cargando = false;
         }
+
+        if (id != EntidadId)
+            return;
+
+        // Una petición de edición («e») no sobrevive a una carga fallida o sin Centro: si se
+        // quedara pendiente, un reintento con éxito entraría en edición sin que nadie lo pida.
+        if (_error || _detalle is null)
+            WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Centro, id);
+        else
+            await AtenderEdicionSolicitadaAsync();
     }
 
     private void IniciarEdicionInformacion()

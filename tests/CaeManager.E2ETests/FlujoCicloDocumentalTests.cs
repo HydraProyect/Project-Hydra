@@ -176,9 +176,12 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
         var filaDocumento = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        var insigniaEstado = filaDocumento.Locator(".badge-peligro");
+        // Desde el 2026-10-08 Urgente y Próximo comparten la pastilla «Por vencer» (ámbar); lo que
+        // dice que está a 10 días —dentro del umbral rojo— es el motivo de debajo.
+        var insigniaEstado = filaDocumento.Locator(".badge-advertencia");
         await insigniaEstado.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        Assert.Equal("Urgente", (await insigniaEstado.InnerTextAsync()).Trim());
+        Assert.Equal("Por vencer", (await insigniaEstado.InnerTextAsync()).Trim());
+        Assert.Matches("^Caduca en (9|10|11) días$", (await filaDocumento.Locator(".estado-fila-motivo").InnerTextAsync()).Trim());
 
         // --- Paso 5 (IA + Validación): la revisión IA aparece y se resuelve ---
         // /documentos/revision-ia carga sus datos una sola vez al entrar
@@ -347,7 +350,8 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
         await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        var insigniaVigente = filaDocumento.Locator(".badge-exito");
+        // Lo correcto ya no lleva pastilla de color (2026-10-08): punto verde y texto gris.
+        var insigniaVigente = filaDocumento.Locator("[data-pieza=estado-correcto]");
         await insigniaVigente.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         Assert.Equal("Vigente", (await insigniaVigente.InnerTextAsync()).Trim());
     }

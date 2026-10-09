@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
@@ -49,7 +50,10 @@ public class ReactivarDelegacionTenantCommandHandler(
     IDelegacionTenantRepository repositorio,
     IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork,
-    ITenantsQueryContext tenantsContext)
+    ITenantsQueryContext tenantsContext,
+    ITransaccionDeComando transaccion, ICatalogoIncorporacionCartera catalogo,
+    IDirectorioDestinosCartera directorioDestinos, IDirectorioUsuariosService directorioUsuarios,
+    IBloqueoCarteraUsuario bloqueoCartera)
     : IRequestHandler<ReactivarDelegacionTenantCommand, Result>,
       IRequestHandler<PuedeReactivarQuery, bool>
 {
@@ -90,9 +94,21 @@ public class ReactivarDelegacionTenantCommandHandler(
                await PuedeGestionarAsync(request.TenantClienteId, usuarioId.Value, cancellationToken);
     }
 
-    public async Task<Result> Handle(ReactivarDelegacionTenantCommand request, CancellationToken cancellationToken)
+    internal static readonly Error CambioMientrasReactivabas = Error.Crear(
+        "DelegacionTenant.CambioMientrasReactivabas",
+        "Alguien cambió las asignaciones de esta delegación mientras la reactivabas. Vuelve a intentarlo.");
+
+    /// <summary>
+    /// En una transacción: devolver la marca de principal a quien la llevaba es un segundo
+    /// guardado (el índice único de principal no es diferible y las carteras repuestas tienen que
+    /// existir antes), y no puede quedar la delegación reactivada con el principal a medias.
+    /// </summary>
+    public Task<Result> Handle(ReactivarDelegacionTenantCommand request, CancellationToken cancellationToken) =>
+        transaccion.EjecutarAsync(ct => ReactivarAsync(request.DelegacionTenantId, ct), cancellationToken);
+
+    private async Task<Result> ReactivarAsync(Guid id, CancellationToken cancellationToken)
     {
-        var delegacion = await repositorio.ObtenerPorIdAsync(request.DelegacionTenantId, cancellationToken);
+        var delegacion = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)
@@ -157,8 +173,23 @@ public class ReactivarDelegacionTenantCommandHandler(
             // filas de operador delegado, así que reactivar sin esto dejaría una
             // operación vigente con cero carteras: el operador entraría al
             // workspace sin ver un solo dato hasta el siguiente arranque.
-            await asignacionesWriter.ReabrirCarterasDeOperadoresAsync(
+            var anteriorPrincipal = await asignacionesWriter.ReabrirCarterasDeOperadoresAsync(
                 operacion, delegacion.Id, cancellationToken);
+
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+
+            // «Al reactivar vuelve a ser principal quien lo era antes» (D-9, 2026-10-08). Con las
+            // carteras ya guardadas: la marca se enciende sobre la cartera repuesta, o se releva
+            // al Coordinador CAE de esa persona si ya no puede llevarla.
+            if (anteriorPrincipal is { } anteriorPrincipalId
+                && !await RelevoDePrincipalDeCartera.RestaurarAlReactivarAsync(
+                    catalogo,
+                    new OperacionConPrincipal(operacion.PropietarioTenantId, operacion.Id),
+                    operacion.OperadorTenantId, anteriorPrincipalId,
+                    directorioDestinos, directorioUsuarios, bloqueoCartera, cancellationToken))
+                return Result.Fallo(CambioMientrasReactivabas);
+
+            return Result.Exito();
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

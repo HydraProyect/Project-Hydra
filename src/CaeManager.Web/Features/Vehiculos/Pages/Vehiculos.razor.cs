@@ -79,6 +79,9 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool _errorCarga;
     private int _totalElementos;
 
+    /// <summary>Filas por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
+
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
     private IReadOnlyList<SubcontrataSelectorDto> _subcontratasDisponibles = [];
 
@@ -267,9 +270,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (deLaUrl != _busqueda)
             _busqueda = deLaUrl;
 
-        var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial)
-            ? EstadoInicial!
-            : string.Empty;
+        var estadoDeLaUrl = EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
         if (estadoDeLaUrl != _estadoFiltro)
             _estadoFiltro = estadoDeLaUrl;
 
@@ -296,9 +297,9 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             ["subcontrata"] = _filtroSubcontrataId,
         });
 
-    private async Task CambiarEstadoAsync(string valor)
+    private async Task CambiarEstadoAsync(string? valor)
     {
-        _estadoFiltro = valor;
+        _estadoFiltro = valor ?? string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await RecargarAsync();
     }
@@ -337,7 +338,8 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
                 TamanoPagina: _paginacion.ItemsPerPage,
                 OrdenarPor: ordenarPor,
                 Descendente: descendente,
-                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro), token);
+                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+                ConRecuentosPorEstado: true), token);
 
             // La respuesta de una búsqueda ya abandonada no puede pisar el
             // total, las filas ni la selección de la pregunta que sí se está
@@ -347,6 +349,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
                 return GridItemsProviderResult.From(new List<VehiculoListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
@@ -417,9 +420,6 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         valor.StartsWith(PrefijoSubcontrata, StringComparison.Ordinal) ? FiltrarPorSubcontrataAsync(valor[PrefijoSubcontrata.Length..])
         : valor.StartsWith(PrefijoEmpresa, StringComparison.Ordinal) ? FiltrarPorEmpresaAsync(valor[PrefijoEmpresa.Length..])
         : FiltrarPorEmpresaAsync(string.Empty);
-
-    private string EtiquetaFiltroEstado =>
-        EstadoDocumentoUi.OpcionesDocumentales.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto ?? _estadoFiltro;
 
     private string EtiquetaFiltroEmpresa =>
         _empresasDisponibles.FirstOrDefault(e => e.Id.ToString() == _filtroEmpresaId)?.RazonSocial ?? Textos["EtiquetaEmpresa"].Value;

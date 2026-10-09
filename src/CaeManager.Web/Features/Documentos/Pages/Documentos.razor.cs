@@ -18,6 +18,7 @@ using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Commands.AsignarAliasTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
@@ -501,9 +502,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// </summary>
     protected override void OnParametersSet()
     {
-        _estadoFiltro = !string.IsNullOrWhiteSpace(Estado) && Enum.TryParse<EstadoDocumento>(Estado, out _)
-            ? Estado
-            : string.Empty;
+        _estadoFiltro = EstadosValidos(Estado);
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _ambitoFiltro = Ambito ?? string.Empty;
 
@@ -607,15 +606,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         new(nameof(AmbitoAplicacion.Proyecto), Textos["ListaAmbitoProyecto"].Value),
     ];
 
-    private IReadOnlyList<OpcionEstado> OpcionesEstadoListado =>
-    [
-        new(nameof(EstadoDocumento.Vencido), EstadoDocumentoUi.Texto(EstadoDocumento.Vencido)),
-        new(nameof(EstadoDocumento.Urgente), EstadoDocumentoUi.Texto(EstadoDocumento.Urgente)),
-        new(nameof(EstadoDocumento.Proximo), EstadoDocumentoUi.Texto(EstadoDocumento.Proximo)),
-        new(nameof(EstadoDocumento.Vigente), EstadoDocumentoUi.Texto(EstadoDocumento.Vigente)),
-        new(nameof(EstadoDocumento.SinConfirmar), TextosVigenciaDocumento.Texto("SinConfirmar")),
-        new(nameof(EstadoDocumento.SinCaducidad), EstadoDocumentoUi.Texto(EstadoDocumento.SinCaducidad)),
-    ];
+    /// <summary>
+    /// La selección de estados que llega de fuera (la URL, un filtro guardado) reducida a nombres de
+    /// <see cref="EstadoDocumento"/>; lo demás se descarta. Cadena vacía si no queda ninguno.
+    /// </summary>
+    private static string EstadosValidos(string? seleccion) =>
+        SeleccionEstados.Unir(SeleccionEstados.Separar<EstadoDocumento>(seleccion).Select(e => e.ToString())) ?? string.Empty;
 
     private string EtiquetaAmbitoListado(AmbitoAplicacion ambito) =>
         OpcionesAmbitoListado.FirstOrDefault(o => o.Valor == ambito.ToString())?.Texto ?? ambito.ToString();
@@ -623,6 +619,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private string _busqueda = string.Empty;
     private string _ambitoFiltro = string.Empty;
     private string _estadoFiltro = string.Empty;
+
+    /// <summary>Documentos por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
+
+    /// <summary>Día de negocio con el que la columna de estado cuenta los días del motivo; se fija en cada carga.</summary>
+    private DateOnly _hoy = DiaDeNegocio.Hoy();
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -674,17 +676,19 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
 
             var ambitoFiltro = Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambito) ? ambito : (AmbitoAplicacion?)null;
-            var estadoFiltro = Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado) ? estado : (EstadoDocumento?)null;
+            var estadosFiltro = SeleccionEstados.Separar<EstadoDocumento>(_estadoFiltro);
 
             var resultado = await Mediator.Send(new ObtenerDocumentosQuery(
                 TrabajadorId: null,
                 Ambito: ambitoFiltro,
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                Estado: estadoFiltro,
+                Estado: null,
                 Pagina: pagina,
                 TamanoPagina: _paginacion.ItemsPerPage,
                 OrdenarPor: ordenarPor,
-                Descendente: descendente), token);
+                Descendente: descendente,
+                Estados: estadosFiltro.Count == 0 ? null : estadosFiltro,
+                ConRecuentosPorEstado: true), token);
 
             // La respuesta de un filtro ya abandonado no puede pisar el total,
             // las filas ni la selección de la pregunta que sí se está mirando.
@@ -695,6 +699,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
             _totalElementos = resultado.TotalElementos;
             _totalConocido = resultado.TotalElementos;
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
+            _hoy = DiaDeNegocio.Hoy();
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
@@ -744,9 +750,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         await RecargarAsync();
     }
 
-    private async Task CambiarEstadoFiltroAsync(string valor)
+    private async Task CambiarEstadoFiltroAsync(string? valor)
     {
-        _estadoFiltro = valor;
+        _estadoFiltro = valor ?? string.Empty;
         NavigationManager.ActualizarFiltroEnUrl(nameof(Estado), valor);
         await RecargarAsync();
     }
@@ -1119,9 +1125,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private string EtiquetaFiltroAmbito =>
         Textos["ChipAmbito", _ambitoFiltro == nameof(AmbitoAplicacion.Cliente) ? Textos["ChipAmbitoCliente"].Value : _ambitoFiltro].Value;
 
-    private string EtiquetaFiltroEstado =>
-        Textos["ChipEstado", Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado) ? EstadoDocumentoUi.Texto(estado) : "—"].Value;
-
     /// <summary>«N documentos»; con filtros, dice que el número es el de los que coinciden.</summary>
     private string TextoConteo
     {
@@ -1149,7 +1152,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
         _busqueda = valores.Busqueda ?? string.Empty;
         _ambitoFiltro = valores.Ambito ?? string.Empty;
-        _estadoFiltro = valores.Estado ?? string.Empty;
+        _estadoFiltro = EstadosValidos(valores.Estado);
 
         // Los tres van también a la URL, y en una sola llamada. Sin esto, el
         // filtro guardado duraba hasta la siguiente pasada de parámetros:

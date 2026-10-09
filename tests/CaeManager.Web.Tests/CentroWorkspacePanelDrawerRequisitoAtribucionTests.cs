@@ -32,7 +32,12 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class CentroWorkspacePanelDrawerRequisitoAtribucionTests : BunitContext
 {
-    public CentroWorkspacePanelDrawerRequisitoAtribucionTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+    public CentroWorkspacePanelDrawerRequisitoAtribucionTests()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        // La cabecera del panel lleva el lápiz dentro de SoloConEscritura en todas las pestañas.
+        this.ConRolDeEscritura();
+    }
 
     private sealed class MediatorFalso : IMediator
     {

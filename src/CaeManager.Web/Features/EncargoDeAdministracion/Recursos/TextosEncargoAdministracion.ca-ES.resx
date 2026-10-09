@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="PanelTitulo" xml:space="preserve">
+    <value>Encàrrec d'administració</value>
+  </data>
+  <data name="PanelDescripcion" xml:space="preserve">
+    <value>Amb un Encàrrec d'administració vigent, les persones de l'Operador CAE extern que ja tenen cartera en aquesta organització l'administren per encàrrec: qui és Administrador o Direcció CAE a la seva hi entra amb aquest mateix perfil. No dona accés a ningú nou ni canvia de qui són les dades.</value>
+  </data>
+  <data name="PanelExclusiones" xml:space="preserve">
+    <value>Encara que administri per encàrrec, l'Operador CAE extern no pot crear ni canviar comptes d'Administrador o Direcció CAE d'aquesta organització, autoritzar o retirar Operadors CAE externs, ni registrar, canviar o retirar aquest encàrrec.</value>
+  </data>
+  <data name="CampoOperador" xml:space="preserve">
+    <value>Operador CAE extern</value>
+  </data>
+  <data name="CampoClausula" xml:space="preserve">
+    <value>Clàusula del contracte</value>
+  </data>
+  <data name="CampoRegistrado" xml:space="preserve">
+    <value>Registrat</value>
+  </data>
+  <data name="CampoVigencia" xml:space="preserve">
+    <value>Vigència</value>
+  </data>
+  <data name="SinFechaFin" xml:space="preserve">
+    <value>Sense data de fi</value>
+  </data>
+  <data name="VigenteHasta" xml:space="preserve">
+    <value>Fins al {0}</value>
+  </data>
+  <data name="CampoOrigen" xml:space="preserve">
+    <value>El va registrar</value>
+  </data>
+  <data name="OrigenPlataforma" xml:space="preserve">
+    <value>El suport de TALVEG, en l'aprovisionament</value>
+  </data>
+  <data name="OrigenAdministradorPropio" xml:space="preserve">
+    <value>Un Administrador d'aquesta organització</value>
+  </data>
+  <data name="EstadoVigente" xml:space="preserve">
+    <value>Vigent</value>
+  </data>
+  <data name="EstadoCaducado" xml:space="preserve">
+    <value>Caducat</value>
+  </data>
+  <data name="AccionRetirar" xml:space="preserve">
+    <value>Retirar l'encàrrec</value>
+  </data>
+  <data name="AccionRegistrar" xml:space="preserve">
+    <value>Registrar l'encàrrec</value>
+  </data>
+  <data name="EncargableNota" xml:space="preserve">
+    <value>{0} opera aquesta organització sencera i no té Encàrrec d'administració.</value>
+  </data>
+  <data name="RetirarTitulo" xml:space="preserve">
+    <value>Vols retirar l'Encàrrec d'administració de «{0}»?</value>
+  </data>
+  <data name="RetirarMensaje" xml:space="preserve">
+    <value>Les persones de {0} que administren aquesta organització per encàrrec tornaran a entrar amb el perfil de la seva cartera. Conserven la cartera i l'accés; deixen de veure les pantalles d'administració. Podràs registrar un altre encàrrec més endavant.</value>
+  </data>
+  <data name="ToastRetirado" xml:space="preserve">
+    <value>Encàrrec d'administració retirat.</value>
+  </data>
+  <data name="ToastRegistrado" xml:space="preserve">
+    <value>Encàrrec d'administració registrat.</value>
+  </data>
+  <data name="ErrorCarga" xml:space="preserve">
+    <value>No hem pogut carregar l'Encàrrec d'administració.</value>
+  </data>
+  <data name="ErrorRetirar" xml:space="preserve">
+    <value>No hem pogut retirar l'encàrrec. Torna-ho a provar.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No hem pogut registrar l'encàrrec. Torna-ho a provar.</value>
+  </data>
+  <data name="DrawerTitulo" xml:space="preserve">
+    <value>Registrar l'Encàrrec d'administració</value>
+  </data>
+  <data name="DrawerExplicacion" xml:space="preserve">
+    <value>{0} passarà a administrar aquesta organització per encàrrec. Indica la clàusula del contracte que l'empara: queda desada amb l'encàrrec i no es pot canviar després. Per corregir-la es retira l'encàrrec i se'n registra un altre.</value>
+  </data>
+  <data name="ClausulaPlaceholder" xml:space="preserve">
+    <value>Clàusula 7a del contracte de servei</value>
+  </data>
+  <data name="ClausulaObligatoria" xml:space="preserve">
+    <value>Indica la clàusula del contracte que empara l'encàrrec.</value>
+  </data>
+  <data name="ClausulaDemasiadoLarga" xml:space="preserve">
+    <value>La clàusula no pot superar els {0} caràcters.</value>
+  </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Registrar l'encàrrec</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancel·lar</value>
+  </data>
+  <data name="AvisoPorEncargoEtiqueta" xml:space="preserve">
+    <value>Per encàrrec</value>
+  </data>
+  <data name="AvisoPorEncargoTitulo" xml:space="preserve">
+    <value>Administres aquesta organització per encàrrec</value>
+  </data>
+  <data name="AvisoPorEncargoCuerpo" xml:space="preserve">
+    <value>Hi entres amb el teu perfil d'Administrador o Direcció CAE perquè aquesta organització ha encarregat la seva administració a la teva. Queden reservats a un Administrador propi de l'organització els comptes d'Administrador i Direcció CAE, els Operadors CAE externs, el mateix encàrrec, i les pantalles d'auditoria, facturació, claus d'API, integracions, importacions, retenció i configuració global d'IA.</value>
+  </data>
+  <data name="ReservadoPresupuestoIa" xml:space="preserve">
+    <value>El pressupost d'IA el fixa un Administrador propi d'aquesta organització: no forma part de l'Encàrrec d'administració.</value>
+  </data>
+  <data name="ReservadoIaGlobal" xml:space="preserve">
+    <value>La configuració global d'IA la canvia un Administrador propi d'aquesta organització: no forma part de l'Encàrrec d'administració.</value>
+  </data>
+</root>

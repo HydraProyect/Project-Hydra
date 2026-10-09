@@ -90,6 +90,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool _errorCarga;
     private int _totalElementos;
 
+    /// <summary>Filas por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
+
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
     private IReadOnlyList<SubcontrataSelectorDto> _subcontratasDisponibles = [];
 
@@ -348,9 +351,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             return;
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        var estadoDeLaUrl = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial)
-            ? EstadoInicial!
-            : string.Empty;
+        var estadoDeLaUrl = EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
 
         var subcontrataDeLaUrl = IdDesdeUrl(SubcontrataInicial);
         var empresaDeLaUrl = subcontrataDeLaUrl.Length > 0 ? string.Empty : IdDesdeUrl(EmpresaInicial);
@@ -380,9 +381,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         }
     }
 
-    private async Task CambiarEstadoAsync(string valor)
+    private async Task CambiarEstadoAsync(string? valor)
     {
-        _estadoFiltro = valor;
+        _estadoFiltro = valor ?? string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await RecargarAsync();
     }
@@ -414,7 +415,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             TamanoPagina: _paginacion.ItemsPerPage,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
-            EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro);
+            EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+            ConRecuentosPorEstado: true);
 
         _cargando = true;
         _errorCarga = false;
@@ -427,6 +429,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 return GridItemsProviderResult.From(new List<TrabajadorListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
             // El alcance cero solo lo fija VacioSegunAlcance con la lista vacía: con datos ya no aplica
             // (cambio de empresa o Asignación de Cartera concedida con la página abierta).
             if (_totalElementos > 0) _alcanceCero = false;
@@ -502,9 +505,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
         || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId);
 
-    private string EtiquetaFiltroEstado =>
-        EstadoDocumentoUi.OpcionesDocumentales.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto ?? _estadoFiltro;
-
     /// <summary>
     /// Rótulo del chip de empresa. Si el id filtrado no está en el catálogo
     /// cargado —cartera que ya no lo alcanza, empresa dada de baja— se dice
@@ -557,8 +557,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     }
 
     private Task QuitarFiltroBusquedaAsync() => BuscarAsync(string.Empty);
-
-    private Task QuitarFiltroEstadoAsync() => CambiarEstadoAsync(string.Empty);
 
     private Task QuitarFiltroEmpresaAsync() => FiltrarPorEmpresaAsync(string.Empty);
 
@@ -1192,7 +1190,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(valores.EmpresaId);
         // Un filtro guardado define el conjunto entero: sin estado guardado, el estado se quita. Un valor que
         // ya no es una opción (catálogo cambiado) se ignora, como uno de la URL.
-        _estadoFiltro = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == valores.Estado) ? valores.Estado! : string.Empty;
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(valores.Estado);
 
         // Los cuatro filtros del filtro guardado se escriben también en la URL, en una sola navegación.
         // Si solo se aplicaran en memoria, la siguiente navegación dentro de la página haría que

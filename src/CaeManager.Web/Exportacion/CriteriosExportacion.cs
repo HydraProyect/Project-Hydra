@@ -18,4 +18,17 @@ public static class CriteriosExportacion
     /// </summary>
     public static string? SoloNombre(string? valor) =>
         valor is { Length: > 0 and <= 40 } && valor.All(char.IsAsciiLetter) ? valor : null;
+
+    /// <summary>
+    /// Una selección de estados (la franja de estado deja marcar varios): nombres separados por coma.
+    /// Cada uno pasa por <see cref="SoloNombre"/>; si alguno no es un nombre, nada llega al rastro.
+    /// </summary>
+    public static string? SoloNombres(string? valor)
+    {
+        if (valor is not { Length: > 0 and <= 200 })
+            return null;
+
+        var nombres = valor.Split(',');
+        return nombres.All(n => SoloNombre(n) is not null) ? valor : null;
+    }
 }

@@ -628,6 +628,13 @@ public class TrabajadoresListaGen2Tests : BunitContext
             .Single(i => i.TextContent.Trim() == opcion).ClickAsync(new MouseEventArgs());
     }
 
+    /// <summary>
+    /// Marca o desmarca un botón de la franja de estado por su rótulo. La documentación ya no es una pastilla:
+    /// «Vencidos», «Por vencer», «Sin confirmar» y «Sin incidencias» se marcan por separado y se suman.
+    /// </summary>
+    private static Task AlternarEnLaFranja(IRenderedComponent<Trabajadores> cut, string rotulo) =>
+        cut.BotonDeFranja(rotulo).ClickAsync(new MouseEventArgs());
+
     /// <summary>Textos de las opciones de la pastilla, abierta para leerlos.</summary>
     private static async Task<List<string>> OpcionesDeLaPastilla(IRenderedComponent<Trabajadores> cut, string etiqueta)
     {
@@ -940,13 +947,60 @@ public class TrabajadoresListaGen2Tests : BunitContext
     /// «Empresa».
     /// </summary>
     [Fact]
-    public void Las_pastillas_son_Documentacion_y_Empresa_seguidas_de_Mas_filtros()
+    public void La_pastilla_es_Empresa_seguida_de_Mas_filtros_y_la_documentacion_va_en_la_franja()
     {
-        var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno") } });
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno") } };
+        var cut = Renderizar(mediador);
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
-            .Should().Equal("Documentación", "Empresa", "Más filtros");
+            .Should().Equal("Empresa", "Más filtros");
+        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
+        cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
+        UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
         cut.Markup.Should().NotContain("Todos los centros");
+    }
+
+    /// <summary>
+    /// La franja admite varios estados: cada botón marcado se suma en la consulta y en la URL
+    /// (<c>estado=Vencido,Urgente,Proximo</c>), «Por vencer» manda Urgente y Próximo a la vez, desmarcar quita
+    /// solo lo suyo y «Todos» borra la selección.
+    /// </summary>
+    [Fact]
+    public async Task La_franja_suma_los_estados_marcados_en_la_consulta_y_en_la_url_y_Todos_los_borra()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen =
+            {
+                Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido),
+                Trabajador("Ana", "Vega Ortiz", estado: EstadoDocumento.Proximo),
+                Trabajador("Luis", "Iglesias Rey", estado: EstadoDocumento.Vigente)
+            }
+        };
+        var cut = Renderizar(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await AlternarEnLaFranja(cut, "Vencidos");
+        await AlternarEnLaFranja(cut, "Por vencer");
+
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be("Vencido,Urgente,Proximo");
+        Uri.UnescapeDataString(navegacion.Uri).Should().EndWith("estado=Vencido,Urgente,Proximo");
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Salas Moreno", "Vega Ortiz"));
+        cut.MarcadosEnFranja().Should().Equal("Vencidos", "Por vencer");
+        TextosDeLosChips(cut).Should().BeEmpty("el estado se ve en la franja, no como chip");
+
+        await AlternarEnLaFranja(cut, "Vencidos");
+
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be("Urgente,Proximo");
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Vega Ortiz"));
+        cut.MarcadosEnFranja().Should().Equal("Por vencer");
+
+        await AlternarEnLaFranja(cut, "Todos");
+
+        UltimaConsulta(mediador).EstadoDocumental.Should().BeNull();
+        navegacion.Uri.Should().NotContain("estado=");
+        cut.WaitForAssertion(() => Columna(cut, 0).Should().HaveCount(3));
+        cut.MarcadosEnFranja().Should().Equal("Todos");
     }
 
     [Fact]
@@ -1144,15 +1198,20 @@ public class TrabajadoresListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Skip(consultasAntes).Distinct().Should().ContainSingle();
     }
 
-    /// <summary>Cada filtro aplicado se ve como chip con su ✕, y «Limpiar todo» los quita todos de la URL.</summary>
+    /// <summary>
+    /// Búsqueda y empresa se ven como chips con su ✕ y el estado, marcado en la franja; «Limpiar todo» quita los
+    /// tres, también de la URL.
+    /// </summary>
     [Fact]
-    public async Task Los_filtros_se_ven_como_chips_y_Limpiar_todo_los_quita_tambien_de_la_URL()
+    public async Task Los_filtros_se_ven_como_chips_y_en_la_franja_y_Limpiar_todo_los_quita_tambien_de_la_URL()
     {
         var mediador = new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido) } };
         var cut = Renderizar(mediador, "trabajadores?q=Salas&estado=Vencido");
         await ElegirEnLaPastilla(cut, "Empresa", "Montajes Ebro S.L.");
 
-        cut.WaitForAssertion(() => TextosDeLosChips(cut).Should().Equal("Búsqueda: \"Salas\"", "Vencido", "Montajes Ebro S.L."));
+        cut.WaitForAssertion(() => TextosDeLosChips(cut).Should().Equal("Búsqueda: \"Salas\"", "Montajes Ebro S.L."));
+        cut.MarcadosEnFranja().Should().Equal("Vencidos");
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vencido), "control: el estado de la URL filtra");
 
         await cut.Find(".barra-filtros-pastillas .limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
 
@@ -1162,6 +1221,25 @@ public class TrabajadoresListaGen2Tests : BunitContext
         UltimaConsulta(mediador).EstadoDocumental.Should().BeNull();
         UltimaConsulta(mediador).EmpresaId.Should().BeNull();
         cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().BeEmpty());
+        cut.MarcadosEnFranja().Should().Equal("Todos");
+    }
+
+    /// <summary>
+    /// El estado no tiene chip pero sigue contando como filtro activo: con solo el estado marcado, «Limpiar todo»
+    /// aparece y lo quita.
+    /// </summary>
+    [Fact]
+    public async Task Con_solo_el_estado_marcado_Limpiar_todo_aparece_y_lo_quita()
+    {
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido) } };
+        var cut = Renderizar(mediador, "trabajadores?estado=Vencido");
+        TextosDeLosChips(cut).Should().BeEmpty("control: el estado no pinta chip");
+
+        await cut.Find(".barra-filtros-pastillas .limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("estado=");
+        UltimaConsulta(mediador).EstadoDocumental.Should().BeNull();
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Todos"));
     }
 
     // ------------------------------------- El empleador viaja en la URL (T20)
@@ -1389,7 +1467,9 @@ public class TrabajadoresListaGen2Tests : BunitContext
         celdas[0].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Javier Salas Moreno");
         celdas[0].QuerySelector(".celda-trabajador-dni")!.TextContent.Should().Contain("DNI").And.Contain(javier.Dto.Dni);
         celdas[1].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
-        celdas[2].TextContent.Trim().Should().Be("Urgente", "solo la pastilla: el documento causante y «vigentes/total» son fase 2");
+        celdas[2].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer", "Urgente y Próximo se rotulan igual");
+        celdas[2].QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia", "y con el mismo tono: lo urgente ya no va en rojo en la pastilla");
+        celdas[2].TextContent.Trim().Should().Be("Por vencer", "solo la pastilla: el documento causante y «vigentes/total» son fase 2");
         cut.Markup.Should().NotContain("Al día en lo básico").And.NotContain("Documentación base");
         cut.FindAll(".panel-doc-base").Should().BeEmpty();
         mediador.Enviadas.Should().NotContain(e => e.GetType().Name == "ObtenerDocumentacionBaseTrabajadoresQuery",
@@ -1521,7 +1601,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var cut = Render<Trabajadores>();
         cut.WaitForAssertion(() => retenida.Should().BeTrue());
 
-        await ElegirEnLaPastilla(cut, "Documentación", "Vencido");
+        await AlternarEnLaFranja(cut, "Vencidos");
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ningún trabajador con estos filtros"));
 
         await cut.InvokeAsync(() => respuestaVieja.SetResult(
@@ -1758,10 +1838,11 @@ public class TrabajadoresListaGen2Tests : BunitContext
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Vega");
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Vega Ortiz"));
 
-        await ElegirEnLaPastilla(cut, "Documentación", "Vigente");
+        await AlternarEnLaFranja(cut, "Sin incidencias");
 
         UltimaConsulta(mediador).Busqueda.Should().Be("Vega", "cambiar un filtro no puede soltar otro que sigue puesto");
-        UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vigente));
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be("Vigente,SinCaducidad", "«Sin incidencias» marca los dos estados que se rotulan así");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Vega");
     }
 
     /// <summary>
@@ -1798,8 +1879,11 @@ public class TrabajadoresListaGen2Tests : BunitContext
 
     /// <summary>
     /// Lo mismo con el filtro de documentación, que también vive en la URL
-    /// (<c>?estado=</c>). También aquí el total se queda en 1, de «Vencido» a
-    /// «Vigente», por el mismo motivo que en la búsqueda.
+    /// (<c>?estado=</c>). También aquí el total se queda en 1, por el mismo
+    /// motivo que en la búsqueda: con la franja un clic solo añade o quita
+    /// estados, así que el cambio que deja el total quieto es sumar «Por vencer»
+    /// a «Vencidos» cuando nadie está por vencer. Que el filtro cambió se
+    /// comprueba en la consulta y en la URL; las filas son las mismas.
     /// </summary>
     [Fact]
     public async Task Cambiar_la_documentacion_navega_una_vez_y_hace_una_sola_consulta()
@@ -1813,13 +1897,14 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var navegaciones = ContarNavegaciones();
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await ElegirEnLaPastilla(cut, "Documentación", "Vigente");
+        await AlternarEnLaFranja(cut, "Por vencer");
 
-        cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal("Salas Moreno"));
-        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("estado=Vigente");
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Vencidos", "Por vencer"));
+        Columna(cut, 0).Should().Equal("Vega Ortiz");
+        Uri.UnescapeDataString(Services.GetRequiredService<NavigationManager>().Uri).Should().EndWith("estado=Vencido,Urgente,Proximo");
         navegaciones().Should().Be(1);
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1, "la pasada de parámetros que sigue a la navegación no vuelve a pedir la lista");
-        UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vigente));
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be("Vencido,Urgente,Proximo");
     }
 
     /// <summary>

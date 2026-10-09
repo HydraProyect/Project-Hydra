@@ -27,6 +27,51 @@
   <data name="ErrorFechaYNoCaduca" xml:space="preserve">
     <value>Indica una fecha de vencimiento o marca «No caduca», no las dos.</value>
   </data>
+  <data name="PorVencer" xml:space="preserve">
+    <value>Por vencer</value>
+  </data>
+  <data name="Pendiente" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="SinIncidencias" xml:space="preserve">
+    <value>Sin incidencias</value>
+  </data>
+  <data name="MotivoFaltaFechaVencimiento" xml:space="preserve">
+    <value>Falta la fecha de vencimiento</value>
+  </data>
+  <data name="MotivoVencioHoy" xml:space="preserve">
+    <value>Hoy</value>
+  </data>
+  <data name="MotivoHaceUnDia" xml:space="preserve">
+    <value>Hace 1 día</value>
+  </data>
+  <data name="MotivoHaceDias" xml:space="preserve">
+    <value>Hace {0} días</value>
+  </data>
+  <data name="MotivoCaducaHoy" xml:space="preserve">
+    <value>Caduca hoy</value>
+  </data>
+  <data name="MotivoCaducaEnUnDia" xml:space="preserve">
+    <value>Caduca en 1 día</value>
+  </data>
+  <data name="MotivoCaducaEnDias" xml:space="preserve">
+    <value>Caduca en {0} días</value>
+  </data>
+  <data name="FranjaVencidos" xml:space="preserve">
+    <value>Vencidos</value>
+  </data>
+  <data name="FranjaVigentes" xml:space="preserve">
+    <value>Vigentes</value>
+  </data>
+  <data name="FranjaPendientes" xml:space="preserve">
+    <value>Pendientes</value>
+  </data>
+  <data name="FranjaSinCaducidad" xml:space="preserve">
+    <value>Sin caducidad</value>
+  </data>
+  <data name="PorVencerUrgente" xml:space="preserve">
+    <value>Por vencer (urgente)</value>
+  </data>
   <data name="Ficha360Vencido" xml:space="preserve">
     <value>Vencido</value>
   </data>

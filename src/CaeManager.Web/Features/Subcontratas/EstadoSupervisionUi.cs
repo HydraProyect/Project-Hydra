@@ -16,7 +16,7 @@ public static class EstadoSupervisionUi
     {
         EstadoSupervision.Vigente => TonoBadge.Exito,
         EstadoSupervision.Proximo => TonoBadge.Advertencia,
-        EstadoSupervision.Urgente => TonoBadge.Peligro,
+        EstadoSupervision.Urgente => TonoBadge.Advertencia,
         EstadoSupervision.Vencido => TonoBadge.Peligro,
         EstadoSupervision.NoValido => TonoBadge.Peligro,
         _ => TonoBadge.Neutro

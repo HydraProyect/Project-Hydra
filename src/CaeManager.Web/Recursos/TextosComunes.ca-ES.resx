@@ -341,6 +341,9 @@
   <data name="ContraerTodo" xml:space="preserve">
     <value>Plegar-ho tot</value>
   </data>
+  <data name="FranjaEstadoEtiqueta" xml:space="preserve">
+    <value>Filtra per estat</value>
+  </data>
   <data name="SinBuzonMotivo" xml:space="preserve">
     <value>No es pot enviar des d'aquí: no hi ha cap bústia de Microsoft 365 connectada i habilitada per enviar correu.</value>
   </data>

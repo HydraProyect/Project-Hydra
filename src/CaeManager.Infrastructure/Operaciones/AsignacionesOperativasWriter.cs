@@ -185,8 +185,10 @@ public class AsignacionesOperativasWriter(
             .Where(c => c.AsignacionOperacionId == operacion.Id && c.Estado == EstadoAsignacion.Vigente)
             .ToListAsync(cancellationToken);
 
+        // Por la cascada y no por Cerrar: la cartera recuerda si llevaba la marca de principal,
+        // que es lo que la reactivación necesita para devolvérsela a quien la tenía (D-9).
         foreach (var cartera in carteras)
-            cartera.Cerrar(motivo, ahora);
+            cartera.CerrarPorCascadaDeLaOperacion(motivo, ahora);
 
         operacion.Cerrar(motivo, ahora);
     }
@@ -253,7 +255,7 @@ public class AsignacionesOperativasWriter(
         await AbrirCarteraOperadorAsync(operacion, usuarioId, rol, cancellationToken);
     }
 
-    public async Task ReabrirCarterasDeOperadoresAsync(
+    public async Task<Guid?> ReabrirCarterasDeOperadoresAsync(
         AsignacionOperacion operacion, Guid delegacionTenantId, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(operacion);
@@ -269,11 +271,11 @@ public class AsignacionesOperativasWriter(
         foreach (var operador in operadores)
             await AbrirCarteraOperadorAsync(operacion, operador.UsuarioId, operador.Rol, cancellationToken);
 
-        // Un Gestor CAE recupera la cartera del Tenant entero solo si la tenía vigente en la
-        // operación que esta desactivación cerró: una concesión explícita anterior, no una
-        // referencia (Empresa.EjecutivoUsuarioId) ni la mera fila de operador delegado.
-        var gestores = operadores.Where(o => o.Rol == Roles.GestorCae).Select(o => o.UsuarioId).ToList();
-        if (gestores.Count == 0) return;
+        // Un Gestor CAE —o un Coordinador CAE con cartera propia— recupera la cartera del Tenant
+        // entero solo si la tenía vigente en la operación que esta desactivación cerró: una concesión
+        // explícita anterior, no una referencia (Empresa.EjecutivoUsuarioId) ni la mera fila de
+        // operador delegado.
+        var conCarteraPropia = operadores.Where(o => RolesConCarteraPropia.Contains(o.Rol)).ToList();
 
         // La última operación externa cerrada del mismo par, sea cual sea su motivo: si la última etapa
         // terminó por caducidad (Expirada) o por traspaso, no se repone nada desde una anterior.
@@ -287,44 +289,66 @@ public class AsignacionesOperativasWriter(
             .OrderByDescending(o => o.VigenciaHasta)
             .Select(o => new { o.Id, o.MotivoCierre, o.VigenciaHasta })
             .FirstOrDefaultAsync(cancellationToken);
-        if (anterior is null || anterior.MotivoCierre != MotivoCierreAsignacion.Revocada) return;
+        if (anterior is null || anterior.MotivoCierre != MotivoCierreAsignacion.Revocada) return null;
 
         // Solo las carteras que cerró la cascada de esa misma desactivación: CerrarOperacionDelegadaAsync
         // cierra operación y carteras con el mismo instante, así que comparten VigenciaHasta. Una cartera
         // revocada a un operador concreto con la operación aún vigente (CerrarCarteraOperadorAsync) se
         // cerró antes y no se repone: nadie decidió devolvérsela.
-        var conCarteraCerrada = await dbContext.AsignacionesCartera
+        //
+        // Se leen todas, no solo las de quien hoy sigue figurando como operador delegado: quién era el
+        // principal tiene que saberse aunque su fila se haya revocado o cambiado de rol con la delegación
+        // desactivada. Si no, su ausencia pasaría por «no había principal» y la regla de más abajo
+        // marcaría al Gestor CAE de apoyo que quedara solo (revisión puente de I2b).
+        var cerradasPorLaCascada = await dbContext.AsignacionesCartera
             .Where(c => c.AsignacionOperacionId == anterior.Id
                         && c.Estado == EstadoAsignacion.Cerrada
                         && c.MotivoCierre == MotivoCierreAsignacion.Revocada
-                        && c.VigenciaHasta == anterior.VigenciaHasta
-                        && gestores.Contains(c.UsuarioId))
-            .Select(c => c.UsuarioId)
-            .Distinct()
+                        && c.VigenciaHasta == anterior.VigenciaHasta)
+            .Select(c => new { c.UsuarioId, c.Rol, c.EraPrincipalAlCerrarsePorCascada })
             .ToListAsync(cancellationToken);
 
         var ahora = DateTime.UtcNow;
         var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
+        // La cartera vuelve con el rol que tenía, y solo si la fila de operador delegado sigue diciendo
+        // ese mismo rol: una cartera de Coordinador CAE (la del relevo del principal) no se repone a
+        // quien hoy figura como Gestor CAE, ni al revés.
         var repuestas = new List<AsignacionCartera>();
-        foreach (var gestorId in conCarteraCerrada)
+        foreach (var operador in conCarteraPropia)
         {
-            if (await TieneUniversalVigenteAsync(operacion, gestorId, cancellationToken)) continue;
+            if (!cerradasPorLaCascada.Any(c => c.UsuarioId == operador.UsuarioId && c.Rol == operador.Rol)) continue;
+            if (await TieneUniversalVigenteAsync(operacion, operador.UsuarioId, cancellationToken)) continue;
 
             repuestas.Add(AsignacionCartera.Externa(
-                operacion, gestorId, Roles.GestorCae, AmbitoAsignacion.Universal,
+                operacion, operador.UsuarioId, operador.Rol, AmbitoAsignacion.Universal,
                 ahora, vigenciaHasta: null, ahora, actorId));
         }
 
-        // La marca de principal no sobrevive al cierre (una cartera cerrada no es principal de
-        // nada), así que la reactivación no sabe quién lo era. Mismo criterio que la migración
-        // AnadePrincipalALasCarteras: si se repone una sola cartera de Gestor CAE, esa responde
-        // del Tenant; si se reponen varias, ninguna —no se inventa un responsable por el orden
-        // de un bucle— y la operación queda sin principal hasta que alguien lo designe.
-        if (repuestas.Count == 1)
-            await MarcarPrincipalSiNoHayAsync(operacion, repuestas[0], cancellationToken);
-
         dbContext.AsignacionesCartera.AddRange(repuestas);
+
+        // D-9 (2026-10-08): vuelve a ser principal quien lo era. La cascada lo dejó escrito en la fila
+        // cerrada; aquí solo se dice quién era —las carteras nacen todas sin marca— porque devolvérsela
+        // exige comprobar que su cuenta sigue pudiendo llevarla y, si no, relevar a su Coordinador CAE,
+        // y eso lo hace quien llama (RelevoDePrincipalDeCartera.RestaurarAlReactivarAsync).
+        var anteriorPrincipal = cerradasPorLaCascada
+            .Where(c => c.EraPrincipalAlCerrarsePorCascada)
+            .Select(c => (Guid?)c.UsuarioId)
+            .FirstOrDefault();
+        if (anteriorPrincipal is not null)
+            return await PrincipalDeOperacion.HayPrincipalVivoAsync(dbContext, operacion, cancellationToken)
+                ? null
+                : anteriorPrincipal;
+
+        // Sin ese dato —la operación se cerró antes de que existiera, o no tenía principal— rige el
+        // criterio de la migración AnadePrincipalALasCarteras: si se repone una sola cartera de Gestor
+        // CAE, esa responde del Tenant; si se reponen varias, ninguna —no se inventa un responsable
+        // por el orden de un bucle— y la operación queda sin principal hasta que alguien lo designe.
+        var deGestorCae = repuestas.Where(c => c.Rol == Roles.GestorCae).ToList();
+        if (deGestorCae.Count == 1)
+            await MarcarPrincipalSiNoHayAsync(operacion, deGestorCae[0], cancellationToken);
+
+        return null;
     }
 
     public async Task CerrarCarteraOperadorAsync(
@@ -366,6 +390,13 @@ public class AsignacionesOperativasWriter(
     /// </summary>
     private static readonly string[] RolesDelegadosPermitidos =
         [Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
+
+    /// <summary>
+    /// Roles cuya cartera del Tenant entero nace de un acto explícito (asignación, solicitud
+    /// aceptada, relevo del principal) y por eso la reactivación solo la repone si la cascada la
+    /// cerró. Son los mismos que pueden llevar la marca de principal.
+    /// </summary>
+    private static readonly string[] RolesConCarteraPropia = [Roles.GestorCae, Roles.CoordinadorCae];
 
     /// <summary>
     /// Falla cerrado: sin una <see cref="AsignacionOperadorDelegado"/> única y

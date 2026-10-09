@@ -48,12 +48,12 @@ public static class TipoItemBandejaUi
     public static string Texto(ItemBandejaDto item) => item.Tipo switch
     {
         TipoItemBandeja.SugerenciaVisitaUrgente => "Visita sorpresa",
-        TipoItemBandeja.Faltante => "Falta",
+        TipoItemBandeja.Faltante => "Pendiente",
         TipoItemBandeja.Vencido => "Vencido",
         // «Bloqueado» es un estado del Trabajador, no del Centro: la fila es un Trabajador sin acceso a ESE Centro.
         TipoItemBandeja.RequisitoPendiente => "Trabajador bloqueado",
         TipoItemBandeja.VisitaUrgente => "Visita próxima",
-        TipoItemBandeja.Urgente => "Urgente",
+        TipoItemBandeja.Urgente => "Por vencer",
         TipoItemBandeja.RevisionIa => "Revisión IA",
         TipoItemBandeja.DeteccionPendiente => "Detección de personal",
         // No "Falta": la documentación existe y está al día en Talveg, solo

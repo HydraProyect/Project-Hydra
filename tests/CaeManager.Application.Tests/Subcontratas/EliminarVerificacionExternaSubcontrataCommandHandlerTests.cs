@@ -88,4 +88,51 @@ public class EliminarVerificacionExternaSubcontrataCommandHandlerTests
         verificacion.EstaEliminado.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
+
+    /// <summary>
+    /// Revisión puente 2026-10-09. Quien gestiona la Subcontrata bajo una Asignación de
+    /// Operación acotada a un Cliente empresarial no gestiona los Centros de otro Cliente
+    /// empresarial al que la misma Subcontrata sirve: una verificación registrada en uno de
+    /// esos Centros no se borra con solo conocer su identificador. Misma respuesta que «no
+    /// existe», para no confirmar que la fila está ahí.
+    /// </summary>
+    [Fact]
+    public async Task Falla_como_no_encontrada_cuando_el_Centro_de_la_verificacion_no_esta_al_alcance_de_gestion()
+    {
+        var subcontrataId = Guid.NewGuid();
+        var verificacion = CrearVerificacion(subcontrataId);
+        var repositorio = new VerificacionExternaSubcontrataRepositorioFalso();
+        repositorio.Agregar(verificacion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new EliminarVerificacionExternaSubcontrataCommandHandler(
+            repositorio,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId], centroIdsVisibles: [Guid.NewGuid()]),
+            unitOfWork, new CurrentUserServiceFalso(Guid.NewGuid()));
+
+        var resultado = await handler.Handle(new EliminarVerificacionExternaSubcontrataCommand(verificacion.Id), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("VerificacionExterna.NoEncontrada");
+        verificacion.EstaEliminado.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>Control del anterior: con el mismo alcance acotado, la verificación de un Centro que sí gestiona se elimina.</summary>
+    [Fact]
+    public async Task Elimina_la_verificacion_de_un_Centro_que_si_esta_al_alcance_de_gestion()
+    {
+        var subcontrataId = Guid.NewGuid();
+        var verificacion = CrearVerificacion(subcontrataId);
+        var repositorio = new VerificacionExternaSubcontrataRepositorioFalso();
+        repositorio.Agregar(verificacion);
+        var handler = new EliminarVerificacionExternaSubcontrataCommandHandler(
+            repositorio,
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId], centroIdsVisibles: [verificacion.CentroId]),
+            new UnitOfWorkFalso(), new CurrentUserServiceFalso(Guid.NewGuid()));
+
+        var resultado = await handler.Handle(new EliminarVerificacionExternaSubcontrataCommand(verificacion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        verificacion.EstaEliminado.Should().BeTrue();
+    }
 }

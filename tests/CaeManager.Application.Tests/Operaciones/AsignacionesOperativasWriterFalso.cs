@@ -69,11 +69,18 @@ public class AsignacionesOperativasWriterFalso : IAsignacionesOperativasWriter
         return Task.CompletedTask;
     }
 
-    public Task ReabrirCarterasDeOperadoresAsync(
+    /// <summary>Quién era el principal cuando la cascada cerró la operación; lo fija cada test.</summary>
+    public Guid? AnteriorPrincipal { get; set; }
+
+    /// <summary>Para que un test cuelgue de la operación recién abierta las carteras que la reactivación repone.</summary>
+    public Action<AsignacionOperacion>? AlReabrirCarteras { get; set; }
+
+    public Task<Guid?> ReabrirCarterasDeOperadoresAsync(
         AsignacionOperacion operacion, Guid delegacionTenantId, CancellationToken cancellationToken = default)
     {
         DelegacionesConCarterasReabiertas.Add(delegacionTenantId);
-        return Task.CompletedTask;
+        AlReabrirCarteras?.Invoke(operacion);
+        return Task.FromResult(AnteriorPrincipal);
     }
 
     public Task CerrarCarteraOperadorAsync(

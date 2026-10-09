@@ -23,7 +23,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Lista de Centros: la baja («Eliminar centro» del menú de fila y «Eliminar seleccionados» del lote) y la
+/// Lista de Centros: la baja («Eliminar seleccionados» del lote; la fila ya no lleva menú «⋯») y la
 /// asignación masiva son escrituras, y un rol de solo lectura (Consulta) no debe verlas. Cada caso lleva su
 /// control positivo con un rol de escritura: sin él, la ausencia podría venir de un menú que no abrió.
 /// </summary>
@@ -114,19 +114,6 @@ public class CentrosListaSoloLecturaTests : BunitContext
         ventana.ClassList.Contains("ventana-contexto-interactiva").Should().Be(pulsable);
         ventana.QuerySelectorAll("button.ventana-contexto-elemento").Should().HaveCount(pulsable ? 1 : 0);
         ventana.QuerySelectorAll(".ventana-linea:not(.ventana-grupo)").Should().HaveCount(pulsable ? 0 : 1);
-    }
-
-    [Theory]
-    [InlineData(Roles.GestorCae, true)]
-    [InlineData(Roles.Consulta, false)]
-    public async Task Eliminar_centro_del_menu_de_fila_solo_lo_ve_un_rol_con_escritura(string rol, bool debeVerse)
-    {
-        var cut = Renderizar(rol);
-        await cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-
-        var items = cut.FindAll("[role=menu] button, [role=menu] [role=menuitem]").Select(i => i.TextContent.Trim()).ToList();
-        items.Should().Contain("Abrir ficha 360", "barrera: el menú se abrió y pinta sus acciones de lectura");
-        items.Contains("Eliminar centro").Should().Be(debeVerse);
     }
 
     [Theory]

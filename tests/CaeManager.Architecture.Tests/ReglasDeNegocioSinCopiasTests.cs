@@ -122,9 +122,9 @@ public class ReglasDeNegocioSinCopiasTests
         // únicos estados que enseña.
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerDesgloseDashboardQuery.cs"] = 1,
         // Orden de los BLOQUES de la pantalla Alertas: Vencido antes que Faltante, por el mockup (Gen 2); también
-        // decide la insignia «peor motivo» de cada grupo por tipo, así que ahí la pantalla puede decir «Vencido»
-        // mientras la consulta (ObtenerAlertasQuery, que usa el rango común) pone Faltante primero. Divergencia de
-        // presentación heredada del mockup, declarada en el informe de S4 como decisión pendiente del propietario.
+        // decide la insignia «peor motivo» de cada grupo por tipo. Desde el 2026-10-08 el rango común también pone
+        // Vencido antes que Faltante (orden fijado como decisión de producto el 2026-10-03), así que la pantalla y la
+        // consulta (ObtenerAlertasQuery) ya coinciden en esos dos; la copia sigue declarada porque es otra lista.
         ["src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor.cs"] = 4,
     };
 
@@ -223,6 +223,10 @@ public class ReglasDeNegocioSinCopiasTests
         // (sin incidencia), no calcula un porcentaje. Deuda: el rótulo «Al día» del filtro y el porcentaje de la misma
         // pantalla responden a preguntas distintas; unificarlos es una decisión de producto (no se decidió).
         ["src/CaeManager.Web/Features/Empresas/Pages/EmpresaDetalle.razor.cs"] = 1,
+        // «Lo correcto no lleva pastilla de color» (listados 2/7): EstadoDocumentoUi.EsCorrecto decide si la columna de
+        // estado pinta punto verde y texto gris en vez de pastilla. Es una pregunta de presentación sobre el rótulo de una
+        // fila (Vigente y Sin caducidad), no un porcentaje: Próximo y Urgente son conformes y aun así llevan pastilla.
+        ["src/CaeManager.Web/Features/Documentos/EstadoDocumentoUi.cs"] = 1,
     };
 
     [Fact]

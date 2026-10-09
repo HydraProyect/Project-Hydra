@@ -174,6 +174,22 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
         _accionAuditoria = RegistroAuditoria.AccionActivacionEmitida;
     }
 
+    /// <summary>
+    /// Corrige el correo de una cuenta que sigue pendiente de activación: dirección y
+    /// nombre de usuario nuevos (son el mismo dato; los normalizados los recalcula
+    /// <c>UpdateAsync</c>) <b>y</b> sello nuevo, en la misma escritura. Juntos en un
+    /// método para que no pueda guardarse el correo corregido dejando vivo un enlace
+    /// enviado a la dirección anterior. Que la cuenta siga pendiente lo comprueba quien
+    /// llama, sobre esta misma instancia.
+    /// </summary>
+    public void CorregirCorreoPendiente(string correoNuevo)
+    {
+        Email = correoNuevo;
+        UserName = correoNuevo;
+        PrepararEmisionDeEnlaceDeActivacion();
+        _accionAuditoria = RegistroAuditoria.AccionCorreoCorregido;
+    }
+
     // Solo campo: sin propiedad, EF no lo mapea y nunca llega a la base de datos.
     private string? _accionAuditoria;
 

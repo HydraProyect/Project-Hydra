@@ -107,6 +107,18 @@
     margin-bottom: var(--space-4);
 }
 
+.visitas-detalle-pagina {
+    align-self: flex-start;
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-primary-500);
+    text-decoration: none;
+}
+
+.visitas-detalle-pagina:hover {
+    text-decoration: underline;
+}
+
 .visitas-detalle-centro {
     font: var(--font-heading-md);
     color: var(--color-text);

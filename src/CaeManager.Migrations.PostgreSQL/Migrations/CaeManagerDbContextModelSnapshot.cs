@@ -395,8 +395,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("ViaAcceso")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<Guid?>("ViaAccesoId")
                         .HasColumnType("uuid");
@@ -5310,6 +5310,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("CreadoPorUsuarioId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("EraPrincipalAlCerrarsePorCascada")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("EsPrincipal")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -5371,6 +5376,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.ToTable("AsignacionesCartera", null, t =>
                         {
+                            t.HasCheckConstraint("CK_AsignacionesCartera_EraPrincipalSoloCerrada", "NOT \"EraPrincipalAlCerrarsePorCascada\" OR \"Estado\" = 'Cerrada'");
+
                             t.HasCheckConstraint("CK_AsignacionesCartera_PrincipalSoloGestorCaeTenantEntero", "NOT \"EsPrincipal\" OR (\"AmbitoRelacionClienteId\" IS NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL AND (\"Rol\" IS NULL OR \"Rol\" IN ('GestorCae', 'CoordinadorCae')))");
 
                             t.HasCheckConstraint("CK_AsignacionesCartera_TenantEnteroSalvoCerrada", "\"AmbitoRelacionClienteId\" IS NULL OR \"Estado\" = 'Cerrada'");
@@ -7014,6 +7021,73 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("DelegacionesTenant", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Tenants.EncargoAdministracion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AsignacionOperacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClausulaContrato")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("OperadorTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Origen")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("PropietarioTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("RegistradoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RegistradoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RetiradoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RetiradoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("VersionTexto")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("VigenciaDesde")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("VigenciaHasta")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperadorTenantId");
+
+                    b.HasIndex("PropietarioTenantId");
+
+                    b.HasIndex("AsignacionOperacionId", "PropietarioTenantId");
+
+                    b.HasIndex(new[] { "AsignacionOperacionId" }, "IX_EncargosAdministracion_VigentePorOperacion")
+                        .IsUnique()
+                        .HasFilter("\"RetiradoEnUtc\" IS NULL");
+
+                    b.ToTable("EncargosAdministracion", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Tenants.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8461,6 +8535,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("TenantId", "TipoDocumentoId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Tenants.EncargoAdministracion", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Operaciones.AsignacionOperacion", null)
+                        .WithMany()
+                        .HasForeignKey("AsignacionOperacionId", "PropietarioTenantId")
+                        .HasPrincipalKey("Id", "PropietarioTenantId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
