@@ -92,6 +92,14 @@ public class MiTrabajoGen2Tests(WebAppFixture fixture)
         Assert.InRange(respuesta.Status, 300, 399);
         Assert.Equal(destino, respuesta.Headers.GetValueOrDefault("location"));
 
+        // La respuesta 302 llega antes de que el navegador confirme la
+        // navegación a su Location: NetworkIdle a secas se resolvía sobre el
+        // documento de partida, ya en reposo, y page.Url seguía siendo «/»
+        // (CI de main, run 37821761480: el test falló 77 ms antes de que el
+        // servidor respondiera el GET /documentos, con 200). Primero la URL
+        // exacta, después el reposo, y la URL se vuelve a afirmar al final
+        // para que una redirección posterior del destino no pase inadvertida.
+        await page.WaitForURLAsync(url => new Uri(url).PathAndQuery == destino);
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         Assert.Equal(destino, new Uri(page.Url).PathAndQuery);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantDexter!);
