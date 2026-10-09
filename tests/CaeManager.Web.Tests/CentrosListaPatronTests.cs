@@ -25,7 +25,7 @@ namespace CaeManager.Web.Tests;
 /// Lote 3 del selector de Tenant y patrón de lista en <c>/centros</c> tras el rediseño de listados
 /// (fase 1): el estado 4a, la carga asíncrona de la empresa, la cabecera de una línea, la barra de
 /// filtros en pastillas con chips, la agrupación por Cliente empresarial, las filas tintadas, la
-/// cabecera de columnas, el «⋯», la vista previa y el paginador.
+/// cabecera de columnas, la fila sin menú «⋯», la vista rápida y el paginador.
 /// El acordeón de asignaciones se sustituye por un stub: aquí se mide lo que pinta la PÁGINA.
 /// </summary>
 public class CentrosListaPatronTests : BunitContext
@@ -276,27 +276,23 @@ public class CentrosListaPatronTests : BunitContext
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().BeEmpty("la página ya no existe: no hay carga posterior");
     }
 
+    /// <summary>
+    /// Patrón de listados (decisión 2026-10-08): la fila no lleva menú «⋯»; su última columna es el icono
+    /// 360, un enlace real a la página del Centro con nombre accesible propio de cada fila.
+    /// </summary>
     [Fact]
-    public void Cada_fila_tiene_un_nombre_accesible_distinto_en_su_menu()
+    public void La_fila_no_lleva_menu_y_su_ultima_columna_es_el_icono_360_con_nombre_propio()
     {
-        var cut = Renderizar(ConCentros(Centro("Centro Norte"), Centro("Centro Sur")));
+        var norte = Centro("Centro Norte");
+        var sur = Centro("Centro Sur");
+        var cut = Renderizar(ConCentros(norte, sur));
 
-        var nombres = cut.FindAll(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador")
-            .Select(d => d.GetAttribute("aria-label")).ToList();
-
-        nombres.Should().Equal("Acciones de Centro Norte", "Acciones de Centro Sur");
-    }
-
-    [Fact]
-    public void El_disparador_del_menu_de_fila_es_el_icono_y_tiene_nombre_accesible()
-    {
-        var cut = Renderizar(ConCentros(Centro("Centro Norte")));
-
-        var disparador = cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador");
-        disparador.ClassList.Should().NotContain("menu-acciones-disparador-texto", "en la columna de 44 px no cabe un texto");
-        disparador.TextContent.Trim().Should().BeEmpty("el disparador es el icono «⋯»");
-        disparador.QuerySelector("svg, .icono").Should().NotBeNull();
-        disparador.GetAttribute("aria-label").Should().NotBeNullOrWhiteSpace();
+        cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(2, "control positivo: las dos filas están pintadas");
+        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        var iconos = cut.FindAll(".tarjeta-fila-acordeon-acciones a.boton-360-pagina");
+        iconos.Select(i => i.GetAttribute("href")).Should().Equal($"/centros/{norte.Id}", $"/centros/{sur.Id}");
+        iconos.Select(i => i.GetAttribute("aria-label")).Should().Equal(
+            "Abrir la ficha 360 de Centro Norte", "Abrir la ficha 360 de Centro Sur");
     }
 
     [Fact]
@@ -987,30 +983,106 @@ public class CentrosListaPatronTests : BunitContext
             .Should().BeLessThan(cut.Markup.IndexOf("lista-filas-acordeon", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// Un clic en cualquier punto de la fila abre la vista rápida. Se pulsa una celda sin controles (la
+    /// de la Empresa): el clic sube a la fila, que es quien lo atiende.
+    /// </summary>
     [Fact]
-    public async Task La_ultima_columna_es_el_menu_de_tres_puntos_y_no_el_enlace_Detalles()
-    {
-        var cut = Renderizar(ConCentros(Centro("Centro Norte")));
-
-        cut.FindAll(".tarjeta-fila-acordeon-acciones button").Select(b => b.TextContent.Trim()).Should().NotContain("Detalles");
-        await cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-
-        var items = cut.FindAll(".menu-acciones-item").Select(i => i.TextContent.Trim()).ToList();
-        // D-16: «Eliminar centro» (solo con escritura) cierra el menú; el mockup no lo dibuja, pero sin él un
-        // Centro creado no tenía baja por fila.
-        items.Should().Equal("Abrir ficha 360", "Vista rápida", "Eliminar centro");
-    }
-
-    [Fact]
-    public async Task Ver_ficha_360_del_menu_lleva_a_la_pagina_del_centro()
+    public async Task Un_clic_en_la_fila_abre_la_vista_rapida_del_centro()
     {
         var centro = Centro("Centro Norte");
         var cut = Renderizar(ConCentros(centro));
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        cut.Find(".tarjeta-fila-acordeon-cabecera").ClassList.Should().Contain("fila-pulsable");
 
-        await cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Abrir ficha 360").ClickAsync(new MouseEventArgs());
+        await cut.Find(".tarjeta-fila-acordeon-cabecera .columna-empresa-centro").ClickAsync(new MouseEventArgs());
 
-        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith($"/centros/{centro.Id}");
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Centro, centro.Id, "Centro Norte", "informacion"));
+    }
+
+    /// <summary>
+    /// La casilla (que reacciona al cambio, no al clic) y el icono 360 (que navega el navegador) no
+    /// tienen manejador de clic propio y cortan la subida: bUnit lo dice con «nadie recibe este clic».
+    /// Sin el corte, el clic llegaría a la fila —que sí lo atiende— y no habría excepción. El corte del
+    /// desplegable, que tiene manejador propio, solo lo prueba el E2E
+    /// (<c>CentrosFilaSinMenuE2ETests</c>): bUnit queda en verde aunque se quite.
+    /// Por lo mismo, el de la pastilla de visitas no tiene prueba: bUnit no lo ve y la siembra del E2E
+    /// no garantiza un Centro con visita.
+    /// </summary>
+    [Theory]
+    [InlineData("input[aria-label='Seleccionar el centro Centro Norte']")]
+    [InlineData("a.boton-360-pagina")]
+    public async Task La_casilla_y_el_icono_360_cortan_el_clic_antes_de_la_fila(string selector)
+    {
+        var cut = Renderizar(ConCentros(Centro("Centro Norte")));
+        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+
+        var clic = () => cut.Find(".lista-filas-acordeon " + selector).ClickAsync(new MouseEventArgs());
+
+        await clic.Should().ThrowAsync<MissingEventHandlerException>();
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición. La petición queda en el servicio
+    /// para que el panel la atienda (y solo para esa ficha).
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_abre_la_vista_rapida_de_la_fila_enfocada_pidiendo_edicion()
+    {
+        var centro = Centro("Centro Norte");
+        var cut = Renderizar(ConCentros(centro));
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("e"));
+        workspace.FrameActual.Should().BeNull("sin fila enfocada ni panel abierto, «e» no tiene qué editar");
+
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("j"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("e"));
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Centro, centro.Id, "Centro Norte", "informacion"));
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Centro, centro.Id).Should().BeTrue("la edición quedó pedida para esa ficha");
+    }
+
+    /// <summary>
+    /// Sin fila enfocada, «e» edita la ficha que esté abierta, aunque su Centro no esté en la página (el
+    /// filtro lo dejó fuera o la lista está vacía): el nombre sale del frame abierto.
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_sin_fila_enfocada_edita_la_ficha_abierta_aunque_no_este_en_la_lista()
+    {
+        var fueraDeLaLista = Guid.NewGuid();
+        var cut = Renderizar(ConCentros());
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Centro, fueraDeLaLista, "Planta Bilbao", "requisitos"));
+
+        await cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo("e"));
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Centro, fueraDeLaLista, "Planta Bilbao", "informacion"));
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Centro, fueraDeLaLista).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Una fila enfocada que quedó dentro de un grupo contraído no se ve: «e» no la edita a ciegas (misma
+    /// regla que «x» y Enter).
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_no_edita_una_fila_enfocada_que_quedo_en_un_grupo_contraido()
+    {
+        var centro = Centro("Centro Norte");
+        var cut = Renderizar(ConCentros(centro));
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("j"));
+        cut.Find(".fila-enfocada .enlace-nombre-fila").TextContent.Trim().Should().Be("Centro Norte", "control positivo");
+
+        await cut.Find("button.grupo-lista-cabecera").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty("control positivo: el grupo se contrajo");
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("e"));
+
+        workspace.FrameActual.Should().BeNull();
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Centro, centro.Id).Should().BeFalse();
     }
 
     [Fact]
@@ -1026,18 +1098,6 @@ public class CentrosListaPatronTests : BunitContext
 
         workspace.EstaAbierto.Should().BeTrue("el nombre abre el panel del centro");
         cut.FindAll("[class*='drawer-preview']").Should().BeEmpty("no hay un segundo drawer de vista previa");
-    }
-
-    [Fact]
-    public async Task Vista_previa_del_menu_de_fila_abre_el_mismo_panel()
-    {
-        var cut = Renderizar(ConCentros(Centro("Centro Norte")));
-        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-
-        await cut.Find(".tarjeta-fila-acordeon-acciones .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Vista rápida").ClickAsync(new MouseEventArgs());
-
-        workspace.EstaAbierto.Should().BeTrue();
     }
 
     [Theory]
