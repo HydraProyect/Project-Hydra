@@ -520,4 +520,87 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Should().NotBeEmpty("la barra sigue ahí")
             .And.NotContain(b => (b.GetAttribute("aria-label") ?? string.Empty).Contains("Refrielectric"), "ya no hay Cliente empresarial elegido");
     }
+
+    // ------------------------------------- Lo ausente se quita, parámetro a parámetro
+    //
+    // Los «aplicar» de arriba quitan los parámetros que su filtro no trae, pero cada uno deja alguno
+    // puesto. Un filtro guardado sin ningún parámetro parte de la URL con TODA la lista blanca y exige
+    // que no quede ninguno: así un parámetro que conservara su valor anterior no pasa inadvertido.
+
+    [Fact]
+    public async Task Empresas_un_filtro_guardado_sin_parametros_quita_todos_los_de_la_vista()
+    {
+        ConFiltroGuardado("Todo", "{}");
+        var cut = Renderizar<Empresas>("empresas?q=Ebro&estado=Vencido");
+
+        var url = await AplicarAsync(cut, "Todo");
+
+        url.Should().BeEmpty();
+        Ultima<ObtenerEmpresasQuery>().Should().Match<ObtenerEmpresasQuery>(q => q.Busqueda == null && q.EstadoDocumental == null);
+    }
+
+    [Fact]
+    public async Task Centros_un_filtro_guardado_sin_parametros_quita_todos_los_de_la_vista()
+    {
+        ConFiltroGuardado("Todo", "{}");
+        var cut = Renderizar<Centros>($"centros?q=Nave&estado=Vencido&cliente={ClienteA}&empresa={EmpresaE}&agrupar=no&orden=cumplimiento-desc");
+        // Control positivo: antes de aplicar, la consulta sí lleva el Cliente empresarial y el orden de la URL.
+        Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q => q.ClienteId == ClienteA && q.Descendente);
+
+        var url = await AplicarAsync(cut, "Todo");
+
+        url.Should().BeEmpty();
+        Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
+            q.Busqueda == null && q.ClienteId == null && q.EmpresaId == null && q.Estados == null && !q.Descendente);
+    }
+
+    [Fact]
+    public async Task Subcontratas_un_filtro_guardado_sin_parametros_quita_todos_los_de_la_vista()
+    {
+        ConFiltroGuardado("Todo", "{}");
+        var cut = Renderizar<Subcontratas>("subcontratas?q=Aislamientos&nivel=Supervisada");
+
+        var url = await AplicarAsync(cut, "Todo");
+
+        url.Should().BeEmpty();
+        Ultima<ObtenerSubcontratasQuery>().Should().Match<ObtenerSubcontratasQuery>(q => q.Busqueda == null && q.NivelServicio == null);
+    }
+
+    [Fact]
+    public async Task Vehiculos_un_filtro_guardado_sin_parametros_quita_todos_los_de_la_vista()
+    {
+        ConFiltroGuardado("Todo", "{}");
+        var cut = Renderizar<Vehiculos>($"vehiculos?q=Transit&estado=Vencido&subcontrata={SubcontrataS}");
+        Ultima<ObtenerVehiculosQuery>().SubcontrataId.Should().Be(SubcontrataS, "control positivo: la URL sí filtra por la subcontrata");
+
+        var url = await AplicarAsync(cut, "Todo");
+
+        url.Should().BeEmpty();
+        Ultima<ObtenerVehiculosQuery>().Should().Match<ObtenerVehiculosQuery>(q =>
+            q.Busqueda == null && q.EstadoDocumental == null && q.EmpresaId == null && q.SubcontrataId == null);
+    }
+
+    [Fact]
+    public async Task Gestiones_un_filtro_guardado_sin_parametros_quita_todos_los_de_la_vista()
+    {
+        ConFiltroGuardado("Todo", "{}");
+        var cut = Renderizar<Gestiones>("gestiones?q=Salas&estado=Pendiente");
+
+        var url = await AplicarAsync(cut, "Todo");
+
+        url.Should().BeEmpty();
+        Ultima<ObtenerGestionesQuery>().Should().Match<ObtenerGestionesQuery>(q => q.Busqueda == null && q.Estado == null);
+    }
+
+    [Fact]
+    public async Task Proyectos_un_filtro_guardado_sin_parametros_quita_todos_los_de_la_vista()
+    {
+        ConFiltroGuardado("Todo", "{}");
+        var cut = Renderizar<Proyectos>($"proyectos?cliente={ClienteA}&q=Nave&estado=cerrados");
+
+        var url = await AplicarAsync(cut, "Todo");
+
+        url.Should().BeEmpty("sin Cliente empresarial en el filtro, la lista vuelve a «elige un Cliente»");
+        cut.FindAll(".chip-filtro").Should().BeEmpty();
+    }
 }
