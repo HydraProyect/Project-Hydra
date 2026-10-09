@@ -111,20 +111,32 @@ public class AcabadoEstadosVaciosTablasYToastsTests : BunitContext
         Services.AddSingleton(servicio);
         var cut = Render<AnfitrionToasts>();
 
+        // La cuenta atrás es de reloj real y el pintado de bUnit no tiene tiempo acotado: en
+        // ningún momento el aviso puede quedar sin pausa mientras el test pinta o busca en el
+        // DOM, o caduca antes de la búsqueda (intermitente medido el 2026-10-09: con la máquina
+        // cargada, entre MouseLeave y FocusIn corría lo que quedara de los 250 ms). Por eso
+        // nace sujeto por el servicio y cada evento del anfitrión releva al anterior antes de
+        // soltarlo; las esperas que quedan solo pueden alargarse, nunca llegar tarde.
         servicio.Mostrar("hola");
+        var id = servicio.Mensajes.Single().Id;
+        servicio.FocoEn(id, true);
         cut.WaitForState(() => cut.FindAll(".toast").Count == 1);
+
         cut.Find(".toast").MouseEnter();
+        servicio.FocoEn(id, false); // desde aquí solo lo sujeta el mouseenter del anfitrión
         await Task.Delay(Corto * 3);
         servicio.Mensajes.Should().ContainSingle("mouseenter del anfitrión pausa el temporizador");
 
-        cut.Find(".toast").MouseLeave();
         cut.Find(".toast").FocusIn();
+        cut.Find(".toast").MouseLeave(); // desde aquí solo lo sujeta el focusin del anfitrión
         await Task.Delay(Corto * 3);
         servicio.Mensajes.Should().ContainSingle("focusin del anfitrión también lo pausa");
 
+        // Sin el mouseleave conectado el puntero seguiría «encima» y esto no terminaría nunca;
+        // sin el focusout, tampoco.
         cut.Find(".toast").FocusOut();
         await EsperarAsync(() => servicio.Mensajes.Count == 0);
-        servicio.Mensajes.Should().BeEmpty();
+        servicio.Mensajes.Should().BeEmpty("al soltar el último evento, la cuenta atrás se reanuda");
     }
 
     // ---------- Listados 5/7: cuenta atrás visible de «Deshacer» (decisión del 2026-10-08) ----------
