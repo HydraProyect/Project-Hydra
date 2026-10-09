@@ -26,7 +26,9 @@
 
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                   PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
-                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
         @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
         <Pastillas></Pastillas>
         <Chips>
@@ -36,6 +38,8 @@
             }
         </Chips>
     </BarraFiltros>
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
        cuántas Gestiones hay, con la búsqueda aplicada. Con los dos botones marcados se ven todas. *@
     <FranjaEstado Opciones="OpcionesEstado" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync"

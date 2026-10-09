@@ -182,7 +182,12 @@ public class VehiculosConcurrenciaTests : BunitContext
         var furgoneta = Vehiculo("Furgoneta de obra");
         var (cut, m) = Renderizar(furgoneta, Vehiculo("Camión grúa"));
         m.BajaLote = Result.Exito(new ResultadoEliminacionLoteDto(1, [], [furgoneta.Id]));
-        cut.FindComponents<DialogoConfirmacion>().Should().ContainSingle("solo queda el diálogo del lote");
+        // El de borrar un filtro guardado es de la pieza compartida de la barra, no una baja de vehículo.
+        var deFiltrosGuardados = cut.FindComponent<FiltrosGuardadosDeListado>()
+            .FindComponents<DialogoConfirmacion>().Select(d => d.Instance).ToList();
+        deFiltrosGuardados.Should().ContainSingle();
+        cut.FindComponents<DialogoConfirmacion>().Where(d => !deFiltrosGuardados.Contains(d.Instance))
+            .Should().ContainSingle("de baja solo queda el diálogo del lote");
 
         await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await cut.Find("input[aria-label^='Seleccionar el vehículo Furgoneta de obra']").ChangeAsync(new ChangeEventArgs { Value = true });

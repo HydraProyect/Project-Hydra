@@ -411,6 +411,32 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         await CargarAsync(resetPagina: true);
     }
 
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Empresas;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.
+    /// Fuera quedan <c>accion</c> y las precargas del alta (<c>Nombre</c>, <c>ClienteId</c>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. Cada valor pasa por la misma
+    /// validación que el de la URL (un estado que ya no existe se ignora), y la URL se escribe en una
+    /// sola navegación antes de recargar; así <see cref="OnParametersSetAsync"/> la encuentra igual que los campos.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = _busqueda, ["estado"] = _estadoFiltro });
+        await CargarAsync(resetPagina: true);
+    }
+
     /// <summary>
     /// «N de M empresas». M es el total que devuelve la consulta, que con
     /// filtros ya viene filtrado — por eso la frase lo dice, y no promete

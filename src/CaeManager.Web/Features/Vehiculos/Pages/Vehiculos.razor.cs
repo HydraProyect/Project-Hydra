@@ -482,6 +482,38 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         await RecargarAsync();
     }
 
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Vehiculos;
+
+    /// <summary>Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.</summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. Cada valor pasa por la misma
+    /// validación que el de la URL en <see cref="OnParametersSet"/> (un Id que no es Guid o un estado que ya
+    /// no existe se ignoran; con Empresa y subcontrata gana la subcontrata). La URL se escribe en una sola
+    /// navegación y se recarga aquí: <see cref="OnParametersSet"/> sincroniza los campos, pero no recarga.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
+        _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro,
+            ["empresa"] = _filtroEmpresaId,
+            ["subcontrata"] = _filtroSubcontrataId,
+        });
+        await RecargarAsync();
+    }
+
     /// <summary>
     /// Vuelve a la página 1 y pide la lista UNA vez.
     /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> no lleva guarda de

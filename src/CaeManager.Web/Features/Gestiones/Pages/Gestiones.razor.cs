@@ -307,6 +307,29 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         await RecargarAsync();
     }
 
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Gestiones;
+
+    /// <summary>Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.</summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. El estado pasa por la misma
+    /// validación que el de la URL (<see cref="EstadosValidos"/>). La URL se escribe en una sola navegación
+    /// y se recarga aquí: <see cref="OnParametersSet"/> sincroniza los campos, pero no recarga.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _filtroEstado = EstadosValidos(vista.GetValueOrDefault("estado"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = _busqueda, ["estado"] = _filtroEstado });
+        await RecargarAsync();
+    }
+
     /// <summary>Mismo motivo que <see cref="LimpiarFiltrosAsync"/>: la búsqueda se quita también de la URL.</summary>
     private async Task QuitarBusquedaAsync()
     {

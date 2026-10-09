@@ -434,6 +434,57 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         return Task.CompletedTask;
     }
 
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Proyectos;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado. El
+    /// Cliente empresarial elegido es parte de la vista: sin él no hay lista que filtrar.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["cliente", "q", "estado"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita, también el Cliente empresarial.
+    /// Cada valor pasa por la misma validación que el de la URL: el estado por <see cref="EstadosValidos"/>
+    /// y el Cliente empresarial solo si es uno de los que el selector ofrece (un Id guardado no es
+    /// autoridad; uno que ya no se ofrece cuenta como ausente).
+    ///
+    /// <para>
+    /// Con algo a medias en el panel de detalle se pregunta UNA vez y antes de tocar nada: aplicar la vista
+    /// puede cerrarlo (otro Cliente empresarial) y reescribe la URL, y una navegación con el panel sin guardar
+    /// volvería a preguntar «¿Salir sin guardar?». «Seguir editando» deja la vista como estaba.
+    /// </para>
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
+            return;
+
+        var cliente = Guid.TryParse(vista.GetValueOrDefault("cliente"), out var id) && _clientes.Any(c => c.Id == id)
+            ? id
+            : Guid.Empty;
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
+
+        if (cliente != _clienteSeleccionadoId)
+        {
+            _clienteSeleccionadoId = cliente;
+            await OnClienteChangedAsync();
+        }
+
+        // Una sola navegación, con el panel de detalle ya cerrado o sin nada pendiente de guardar.
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["cliente"] = _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString(),
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro,
+        });
+    }
+
     // ---- Nuevo proyecto (Drawer) ----
 
     private bool _drawerVisible;
