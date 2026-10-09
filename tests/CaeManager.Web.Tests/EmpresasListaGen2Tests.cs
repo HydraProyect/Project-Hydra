@@ -238,6 +238,10 @@ public class EmpresasListaGen2Tests : BunitContext
             .Single(i => i.TextContent.Trim() == opcion).ClickAsync(new MouseEventArgs());
     }
 
+    /// <summary>Marca o desmarca un botón de la franja de estado por su rótulo («Vencidos», «Por vencer»…).</summary>
+    private static Task AlternarEnLaFranja(IRenderedComponent<Empresas> cut, string rotulo) =>
+        cut.BotonDeFranja(rotulo).ClickAsync(new MouseEventArgs());
+
     /// <summary>El conmutador ☑ de la cabecera (nombre accesible «Selección múltiple»).</summary>
     private static Task AlternarSeleccionMultiple(IRenderedComponent<Empresas> cut) =>
         cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
@@ -399,35 +403,80 @@ public class EmpresasListaGen2Tests : BunitContext
 
     // ------------------------------------------------------- Barra de filtros
 
+    /// <summary>
+    /// El estado documental ya no es la pastilla «Documentación»: es la franja de estado. Empieza en «Todos», y
+    /// marcar un botón viaja en la consulta y en la URL y lo deja marcado; el estado no pinta chip. Un segundo
+    /// botón se suma, y «Por vencer» manda Urgente y Próximo a la vez.
+    /// </summary>
     [Fact]
-    public async Task La_pastilla_Documentacion_dice_Todas_viaja_en_la_consulta_y_su_chip_nombra_la_documentacion()
+    public async Task La_franja_de_estado_empieza_en_Todos_viaja_en_la_consulta_y_en_la_url_y_marca_su_boton()
     {
         var mediador = new MediatorFalso
         {
-            Almacen = { Empresa("Refrielectric S.A.", estado: EstadoDocumento.Vencido), Empresa("Montajes Ebro S.L.", estado: EstadoDocumento.Vigente) }
+            Almacen =
+            {
+                Empresa("Refrielectric S.A.", estado: EstadoDocumento.Vencido),
+                Empresa("Montajes Ebro S.L.", estado: EstadoDocumento.Vigente),
+                Empresa("Grúas Aldapa S.L.", estado: EstadoDocumento.Proximo)
+            }
         };
         var cut = Renderizar(mediador);
-        await Pastilla(cut, "Documentación").ClickAsync(new MouseEventArgs());
-        cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").First().TextContent.Trim().Should().Be("Todas");
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
+            .Should().NotContain("Documentación", "el estado documental se filtra en la franja, no en una pastilla");
+        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
+        cut.MarcadosEnFranja().Should().Equal("Todos");
+        UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
 
-        await cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Single(i => i.TextContent.Trim() == "Vencido").ClickAsync(new MouseEventArgs());
+        await AlternarEnLaFranja(cut, "Vencidos");
 
         UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vencido));
-        Navegacion.Uri.Should().Contain("estado=Vencido");
-        cut.WaitForAssertion(() => TextosDeLosChips(cut).Should().Equal(["Documentación: Vencido"]));
-        Pastilla(cut, "Documentación").GetAttribute("aria-label").Should().Be("Documentación: Vencido");
+        Navegacion.Uri.Should().EndWith("estado=Vencido");
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Vencidos"));
+        TextosDeLosChips(cut).Should().BeEmpty("el estado se ve en la franja, no como chip");
         cut.FindAll(".enlace-nombre-fila").Select(b => b.TextContent.Trim()).Should().Equal(["Refrielectric S.A."]);
+
+        await AlternarEnLaFranja(cut, "Por vencer");
+
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be("Vencido,Urgente,Proximo");
+        Uri.UnescapeDataString(Navegacion.Uri).Should().EndWith("estado=Vencido,Urgente,Proximo");
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Vencidos", "Por vencer"));
+        cut.FindAll(".enlace-nombre-fila").Select(b => b.TextContent.Trim()).Should().Equal(["Grúas Aldapa S.L.", "Refrielectric S.A."]);
     }
 
+    /// <summary>
+    /// La búsqueda sale como chip dentro de la barra, junto a «Limpiar todo»; el estado que llega de la URL se
+    /// ve marcado en la franja.
+    /// </summary>
     [Fact]
-    public void Los_filtros_activos_y_Limpiar_todo_viven_dentro_de_la_barra_de_filtros()
+    public void Los_filtros_activos_y_Limpiar_todo_viven_dentro_de_la_barra_de_filtros_y_el_estado_en_la_franja()
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.", estado: EstadoDocumento.Vencido) } },
             "empresas?q=Refri&estado=Vencido");
 
         var tarjeta = cut.Find(".barra-filtros-pastillas");
-        tarjeta.QuerySelectorAll(".chip-filtro").Should().HaveCount(2);
+        tarjeta.QuerySelectorAll(".chip-filtro").Select(c => c.TextContent.Trim())
+            .Should().ContainSingle("el estado ya no tiene chip").Which.Should().Contain("Refri");
         tarjeta.QuerySelector("button.limpiar-filtros-barra")!.TextContent.Trim().Should().Be("Limpiar todo");
+        cut.MarcadosEnFranja().Should().Equal("Vencidos");
+    }
+
+    /// <summary>
+    /// El estado no tiene chip pero sigue contando como filtro activo: con solo el estado marcado, «Limpiar todo»
+    /// aparece y lo quita de la consulta y de la URL.
+    /// </summary>
+    [Fact]
+    public async Task Con_solo_el_estado_marcado_Limpiar_todo_aparece_y_lo_quita()
+    {
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.", estado: EstadoDocumento.Vencido) } };
+        var cut = Renderizar(mediador, "empresas?estado=Vencido");
+        TextosDeLosChips(cut).Should().BeEmpty("control: el estado no pinta chip");
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Vencido), "control: el estado de la URL filtra");
+
+        await cut.Find(".barra-filtros-pastillas button.limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
+
+        Navegacion.Uri.Should().NotContain("estado=");
+        UltimaConsulta(mediador).EstadoDocumental.Should().BeNull();
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Todos"));
     }
 
     /// <summary>
@@ -446,6 +495,7 @@ public class EmpresasListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador, "empresas?q=Refri&estado=Vencido");
         Navegacion.Uri.Should().Contain("estado=Vencido", "es el punto de partida de este caso");
+        cut.MarcadosEnFranja().Should().Equal(["Vencidos"], "es el punto de partida de este caso");
         var consultasAntes = ConsultasDeLista(mediador);
 
         await cut.Find(".barra-filtros-pastillas button.limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
@@ -456,6 +506,7 @@ public class EmpresasListaGen2Tests : BunitContext
         consulta.Busqueda.Should().BeNull();
         consulta.EstadoDocumental.Should().BeNull();
         cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().BeEmpty());
+        cut.MarcadosEnFranja().Should().Equal("Todos");
         cut.Find(".conteo-empresas").TextContent.Trim().Should().Be("2 de 2 empresas");
     }
 
@@ -811,7 +862,7 @@ public class EmpresasListaGen2Tests : BunitContext
 
         // Sin await: su manejador espera a la consulta retenida.
         var expansion = cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
-        await ElegirEnLaPastilla(cut, "Documentación", "Vencido");
+        await AlternarEnLaFranja(cut, "Vencidos");
         cut.WaitForAssertion(() => cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty(
             "recargar la lista pliega las filas"));
 
@@ -853,7 +904,7 @@ public class EmpresasListaGen2Tests : BunitContext
         Navegacion.NavigateTo("empresas");
         var cut = Render<Empresas>();
 
-        await ElegirEnLaPastilla(cut, "Documentación", "Vencido");
+        await AlternarEnLaFranja(cut, "Vencidos");
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ninguna empresa con este filtro"));
 
         await cut.InvokeAsync(() => respuestaVieja.SetResult(mediador.Filtrar(new ObtenerEmpresasQuery(null))));

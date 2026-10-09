@@ -472,49 +472,51 @@ public class DocumentosGen2Tests : BunitContext
     /// <summary>
     /// Dos filtros seguidos: el segundo responde primero y el primero llega
     /// tarde. El total que se pinta —la píldora de la pestaña— tiene que ser el
-    /// de la pregunta vigente.
+    /// de la pregunta vigente. Con la franja el segundo filtro se SUMA al
+    /// primero: la pregunta abandonada es «solo vencidos» y la vigente,
+    /// «vencidos y por vencer».
     /// </summary>
     [Fact]
     public async Task El_total_de_un_filtro_ya_abandonado_no_pisa_al_de_la_pregunta_vigente()
     {
+        EstadoDocumento[] soloVencidos = [EstadoDocumento.Vencido];
+        EstadoDocumento[] vencidosYPorVencer = [EstadoDocumento.Vencido, EstadoDocumento.Urgente, EstadoDocumento.Proximo];
         var vencidos = new[] { Documento("Formación PRL") };
-        var urgentes = new[] { Documento("Reconocimiento médico"), Documento("ITV"), Documento("Seguro RC") };
+        var conLosPorVencer = new[] { Documento("Reconocimiento médico"), Documento("ITV"), Documento("Seguro RC") };
 
         var respuestaVencidos = new TaskCompletionSource<object?>();
-        var respuestaUrgentes = new TaskCompletionSource<object?>();
+        var respuestaConLosPorVencer = new TaskCompletionSource<object?>();
         var mediador = new MediadorControlado
         {
-            Documentos = q => q.Estado switch
-            {
-                EstadoDocumento.Vencido => vencidos,
-                EstadoDocumento.Urgente => urgentes,
-                _ => []
-            }
+            Documentos = q => PideEstados(q, soloVencidos) ? vencidos
+                : PideEstados(q, vencidosYPorVencer) ? conLosPorVencer
+                : []
         };
         mediador.Interceptar = p => p switch
         {
-            ObtenerDocumentosQuery { Estado: EstadoDocumento.Vencido } => respuestaVencidos.Task,
-            ObtenerDocumentosQuery { Estado: EstadoDocumento.Urgente } => respuestaUrgentes.Task,
+            ObtenerDocumentosQuery q when PideEstados(q, soloVencidos) => respuestaVencidos.Task,
+            ObtenerDocumentosQuery q when PideEstados(q, vencidosYPorVencer) => respuestaConLosPorVencer.Task,
             _ => null
         };
 
         var (cut, _) = Renderizar(mediador);
 
-        var filtroVencido = ElegirPastillaDocumentoFase1(cut, "Estado", "Vencido");
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Estado.Should().Be(EstadoDocumento.Vencido));
-        var filtroUrgente = ElegirPastillaDocumentoFase1(cut, "Estado", "Urgente");
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Estado.Should().Be(EstadoDocumento.Urgente));
+        var filtroVencidos = AlternarFranjaDocumentoFase1(cut, "Vencidos");
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(soloVencidos));
+        var filtroConLosPorVencer = AlternarFranjaDocumentoFase1(cut, "Por vencer");
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(vencidosYPorVencer));
 
         // El vigente responde primero; el abandonado, después.
-        await cut.InvokeAsync(() => respuestaUrgentes.SetResult(
-            mediador.Pagina(new ObtenerDocumentosQuery(null, null, null, EstadoDocumento.Urgente))));
-        await filtroUrgente;
+        await cut.InvokeAsync(() => respuestaConLosPorVencer.SetResult(
+            mediador.Pagina(new ObtenerDocumentosQuery(null, null, null, Estados: vencidosYPorVencer))));
+        await filtroConLosPorVencer;
         await cut.InvokeAsync(() => respuestaVencidos.SetResult(
-            mediador.Pagina(new ObtenerDocumentosQuery(null, null, null, EstadoDocumento.Vencido))));
-        await filtroVencido;
+            mediador.Pagina(new ObtenerDocumentosQuery(null, null, null, Estados: soloVencidos))));
+        await filtroVencidos;
 
         Pestana(cut, "Estado").QuerySelector(".pestanas-contador")!.TextContent
-            .Should().Contain("3", "el filtro vigente es «Urgente», que devolvió tres: la respuesta de «Vencido» llegó tarde");
+            .Should().Contain("3", "el filtro vigente es «Vencidos y Por vencer», que devolvió tres: la respuesta de «solo Vencidos» llegó tarde");
+        cut.MarcadosEnFranja().Should().Equal("Vencidos", "Por vencer");
     }
 
     /// <summary>
@@ -543,8 +545,8 @@ public class DocumentosGen2Tests : BunitContext
 
         // Una consulta que se queda esperando: es la que de verdad hay que cortar.
         mediador.Interceptar = p => p is ObtenerDocumentosQuery ? enVuelo.Task : null;
-        var recarga = ElegirPastillaDocumentoFase1(cut, "Estado", "Vencido");
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Estado.Should().Be(EstadoDocumento.Vencido));
+        var recarga = AlternarFranjaDocumentoFase1(cut, "Vencidos");
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(EstadoDocumento.Vencido));
 
         var tokenEnVuelo = mediador.Tokens[^1];
         tokenEnVuelo.IsCancellationRequested.Should().BeFalse("todavía no se ha retirado nada");
@@ -555,7 +557,7 @@ public class DocumentosGen2Tests : BunitContext
             "retirar la página corta la consulta que seguía trabajando para ella");
 
         mediador.Interceptar = null;
-        enVuelo.SetResult(mediador.Pagina(new ObtenerDocumentosQuery(null, null, null, EstadoDocumento.Vencido)));
+        enVuelo.SetResult(mediador.Pagina(new ObtenerDocumentosQuery(null, null, null, Estados: [EstadoDocumento.Vencido])));
         await recarga;
     }
 
@@ -614,8 +616,9 @@ public class DocumentosGen2Tests : BunitContext
         await AbrirConfirmacionDeLote(cut);
         cut.Markup.Should().Contain("Se ocultarán de las listas activas", "es el punto de partida de este caso");
 
-        await ElegirPastillaDocumentoFase1(cut, "Estado", "Vencido");
+        await AlternarFranjaDocumentoFase1(cut, "Vencidos");
 
+        UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal([EstadoDocumento.Vencido], "control: el filtro cambió de verdad");
         cut.Markup.Should().NotContain("Se ocultarán de las listas activas");
         mediador.Enviadas.OfType<EliminarDocumentosCommand>().Should().BeEmpty();
     }
@@ -749,7 +752,7 @@ public class DocumentosGen2Tests : BunitContext
     public void Consulta_ve_Guardar_filtro_porque_guardar_sus_filtros_es_autoservicio()
     {
         var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")), url: "documentos?Estado=Vencido", rol: "Consulta");
-        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Estado.Should().Be(EstadoDocumento.Vencido);
+        UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(EstadoDocumento.Vencido);
         PastillaDocumentoFase1(cut, "Más filtros").Click();
         var guardar = cut.FindAll(".barra-filtros-pastillas [role=menuitem]").Single(b => b.TextContent.Trim() == "Guardar filtro");
         guardar.GetAttribute("disabled").Should().BeNull();
@@ -1128,22 +1131,62 @@ public class DocumentosGen2Tests : BunitContext
 
     // ------------------------------------------------- patrón único de lista
 
+    /// <summary>
+    /// Búsqueda y ámbito salen como chips y cada chip quita el suyo; el estado ya no tiene chip: se ve marcado en
+    /// la franja y se quita desmarcándolo, también de la URL, sin tocar los otros dos.
+    /// </summary>
     [Fact]
-    public void Los_filtros_activos_salen_como_chips_y_cada_chip_quita_su_filtro_de_la_url()
+    public void Los_filtros_activos_salen_como_chips_el_estado_marcado_en_la_franja_y_cada_uno_se_quita_de_la_url()
     {
-        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")),
+        var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")),
             url: "documentos?q=medico&Ambito=Trabajador&Estado=Vencido");
 
         var chips = cut.FindAll(".barra-filtros-pastillas .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
-        chips.Should().HaveCount(3);
-        chips.Should().Contain(c => c.Contains("medico")).And.Contain(c => c.Contains("Trabajador")).And.Contain(c => c.Contains("Vencido"));
+        chips.Should().HaveCount(2);
+        chips.Should().Contain(c => c.Contains("medico")).And.Contain(c => c.Contains("Trabajador"));
+        cut.MarcadosEnFranja().Should().Equal("Vencidos");
+
+        cut.BotonDeFranja("Vencidos").Click();
+
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.Uri.Should().NotContain("Estado=").And.Contain("Ambito=Trabajador").And.Contain("q=medico");
+        cut.MarcadosEnFranja().Should().Equal("Todos");
+        UltimaConsultaDeDocumentos(mediador).Estados.Should().BeNull();
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().HaveCount(2);
 
         cut.FindAll(".barra-filtros-pastillas .chip-filtro")
-            .Single(c => c.TextContent.Contains("Vencido")).QuerySelector(".chip-filtro-quitar")!.Click();
+            .Single(c => c.TextContent.Contains("Trabajador")).QuerySelector(".chip-filtro-quitar")!.Click();
 
-        var url = Services.GetRequiredService<NavigationManager>().Uri;
-        url.Should().NotContain("Estado=").And.Contain("Ambito=Trabajador").And.Contain("q=medico");
-        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().HaveCount(2);
+        navegacion.Uri.Should().NotContain("Ambito=").And.Contain("q=medico");
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// «Por vencer» es un solo botón para Urgente y Próximo: viajan los dos en la consulta y en la URL
+    /// (<c>Estado=Urgente,Proximo</c>), y un segundo botón se suma.
+    /// </summary>
+    [Fact]
+    public void Marcar_Por_vencer_en_la_franja_manda_Urgente_y_Proximo_en_la_consulta_y_en_la_url()
+    {
+        var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Vigentes", "Sin caducidad");
+
+        cut.BotonDeFranja("Por vencer").Click();
+
+        var consulta = UltimaConsultaDeDocumentos(mediador);
+        consulta.Estados.Should().Equal(EstadoDocumento.Urgente, EstadoDocumento.Proximo);
+        consulta.Estado.Should().BeNull("la página manda la lista, no el filtro de un solo estado");
+        consulta.ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
+        Uri.UnescapeDataString(navegacion.Uri).Should().EndWith("Estado=Urgente,Proximo");
+        cut.MarcadosEnFranja().Should().Equal("Por vencer");
+
+        cut.BotonDeFranja("Sin confirmar").Click();
+
+        UltimaConsultaDeDocumentos(mediador).Estados
+            .Should().Equal(EstadoDocumento.Urgente, EstadoDocumento.Proximo, EstadoDocumento.SinConfirmar);
+        Uri.UnescapeDataString(navegacion.Uri).Should().EndWith("Estado=Urgente,Proximo,SinConfirmar");
+        cut.MarcadosEnFranja().Should().Equal("Por vencer", "Sin confirmar");
     }
 
     [Fact]
@@ -1151,21 +1194,43 @@ public class DocumentosGen2Tests : BunitContext
     {
         var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")),
             url: "documentos?q=medico&Ambito=Trabajador&Estado=Vencido");
+        cut.MarcadosEnFranja().Should().Equal(["Vencidos"], "control positivo: el estado llegó de la URL y está marcado en la franja");
 
         cut.Find(".limpiar-filtros-barra").Click();
 
         var url = Services.GetRequiredService<NavigationManager>().Uri;
         url.Should().NotContain("q=").And.NotContain("Estado=").And.NotContain("Ambito=");
         cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().BeEmpty();
+        cut.MarcadosEnFranja().Should().Equal("Todos");
+    }
+
+    /// <summary>
+    /// El estado no tiene chip pero sigue contando como filtro activo: con solo el estado marcado, «Limpiar todo»
+    /// aparece y lo quita.
+    /// </summary>
+    [Fact]
+    public void Con_solo_el_estado_marcado_Limpiar_todo_aparece_y_lo_quita()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")), url: "documentos?Estado=Vencido");
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().BeEmpty("control: el estado no pinta chip");
+
+        cut.Find(".limpiar-filtros-barra").Click();
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("Estado=");
+        cut.MarcadosEnFranja().Should().Equal("Todos");
     }
 
     [Fact]
-    public void Las_pastillas_llevan_su_etiqueta_accesible()
+    public void La_pastilla_de_ambito_y_la_franja_de_estado_llevan_su_etiqueta_accesible()
     {
         var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
         PastillaDocumentoFase1(cut, "Ámbito").GetAttribute("aria-label").Should().Be("Ámbito");
-        PastillaDocumentoFase1(cut, "Estado").GetAttribute("aria-label").Should().Be("Estado");
+        var franja = cut.Find(".franja-estado");
+        franja.GetAttribute("role").Should().Be("group");
+        franja.GetAttribute("aria-label").Should().Be("Filtrar por estado");
+        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
+            .Should().NotContain("Estado", "el estado se filtra en la franja, no en una pastilla");
     }
 
     [Fact]
@@ -1385,6 +1450,17 @@ public class DocumentosGen2Tests : BunitContext
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
             .Single(b => b.GetAttribute("aria-label") is { } nombre &&
                 (nombre == etiqueta || nombre.StartsWith(etiqueta + ": ", StringComparison.Ordinal)));
+
+    /// <summary>Marca o desmarca un botón de la franja de estado por su rótulo («Vencidos», «Por vencer»…).</summary>
+    private static Task AlternarFranjaDocumentoFase1(IRenderedComponent<PaginaDocumentos> cut, string rotulo) =>
+        cut.BotonDeFranja(rotulo).ClickAsync(new MouseEventArgs());
+
+    private static ObtenerDocumentosQuery UltimaConsultaDeDocumentos(MediadorControlado mediador) =>
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last();
+
+    /// <summary>La consulta pide exactamente esos estados (la selección de la franja), en ese orden.</summary>
+    private static bool PideEstados(ObtenerDocumentosQuery consulta, EstadoDocumento[] estados) =>
+        consulta.Estados is { } pedidos && pedidos.SequenceEqual(estados);
 
     private static async Task ElegirPastillaDocumentoFase1(
         IRenderedComponent<PaginaDocumentos> cut, string etiqueta, string opcion)

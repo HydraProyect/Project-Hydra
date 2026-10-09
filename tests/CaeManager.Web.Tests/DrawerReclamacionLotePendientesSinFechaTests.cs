@@ -121,7 +121,7 @@ public class DrawerReclamacionLotePendientesSinFechaTests : BunitContext
         var filas = cut.FindAll(".tabla-datos tbody tr");
         filas.Should().HaveCount(3, "una que vence y dos pedidas sin fecha");
         var falta = filas.Single(f => f.TextContent.Contains("Formación PRL"));
-        falta.TextContent.Should().Contain("Falta").And.Contain("Sin fecha");
+        falta.TextContent.Should().Contain("Pendiente").And.Contain("Sin fecha").And.NotContain("Falta", "el rótulo de Faltante es «Pendiente» desde el vocabulario único");
         filas.Single(f => f.TextContent.Contains("Aptitud médica")).TextContent.Should().Contain("Sin confirmar").And.Contain("Sin fecha");
         cut.FindAll(".tabla-datos input[type=checkbox]").Should().OnlyContain(c => c.HasAttribute("checked"), "como lo que vence, todo viene marcado y el Gestor CAE desmarca");
         cut.FindAll(".tabla-datos input[type=checkbox]")

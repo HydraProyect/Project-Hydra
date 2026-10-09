@@ -159,15 +159,19 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Ningún trabajador con estos filtros");
     }
 
+    /// <summary>
+    /// Con la lista vacía por filtro, los dos filtros puestos siguen a la vista: la búsqueda como chip y el
+    /// estado documental marcado en la franja (ya no tiene chip).
+    /// </summary>
     [Fact]
-    public void Los_filtros_activos_se_ven_como_chips()
+    public void Los_filtros_activos_se_ven_la_busqueda_como_chip_y_el_estado_marcado_en_la_franja()
     {
         var cut = Renderizar(busqueda: "Salas",
             estado: nameof(CaeManager.Domain.Documentos.EstadoDocumento.Vencido));
 
-        var chips = cut.FindAll(".chip-filtro");
-        chips.Should().HaveCount(2);
-        cut.Markup.Should().Contain("Salas").And.Contain("Vencido");
+        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim())
+            .Should().ContainSingle("el estado documental ya no tiene chip").Which.Should().Contain("Salas");
+        cut.MarcadosEnFranja().Should().Equal("Vencidos");
     }
 
     [Fact]
