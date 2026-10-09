@@ -126,6 +126,9 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? TerminoBusquedaInicial { get; set; }
+
     protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
 
     /// <summary>La URL es la fuente de verdad del filtro (P1-18) — ver el resto de listados.</summary>
@@ -134,6 +137,10 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         var deLaUrl = Enum.TryParse<EstadoGestion>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
         if (deLaUrl != _filtroEstado)
             _filtroEstado = deLaUrl;
+
+        var busquedaDeLaUrl = TerminoBusquedaInicial ?? string.Empty;
+        if (busquedaDeLaUrl != _busqueda)
+            _busqueda = busquedaDeLaUrl;
     }
 
     private async ValueTask<GridItemsProviderResult<GestionListaDto>> ProveerElementosAsync(
@@ -229,6 +236,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 
@@ -271,21 +279,24 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     }
 
     /// <summary>
-    /// Quita los dos filtros en una sola recarga. El estado vive además en la
-    /// URL y se limpia allí: <see cref="OnParametersSet"/> re-sincroniza desde
-    /// ella en cada navegación dentro de la página.
+    /// Quita los dos filtros en una sola recarga y en una sola navegación. Los
+    /// dos viven además en la URL y se limpian allí: <see cref="OnParametersSet"/>
+    /// re-sincroniza desde ella en cada navegación dentro de la página, y un
+    /// filtro que siguiera en la URL volvería a aplicarse.
     /// </summary>
     private async Task LimpiarFiltrosAsync()
     {
         _busqueda = string.Empty;
         _filtroEstado = string.Empty;
-        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
         await RecargarAsync();
     }
 
+    /// <summary>Mismo motivo que <see cref="LimpiarFiltrosAsync"/>: la búsqueda se quita también de la URL.</summary>
     private async Task QuitarBusquedaAsync()
     {
         _busqueda = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
         await RecargarAsync();
     }
 

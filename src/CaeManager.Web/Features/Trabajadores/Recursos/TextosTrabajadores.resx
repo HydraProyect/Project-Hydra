@@ -714,4 +714,16 @@
   <data name="ListaOpcionSubcontrata" xml:space="preserve">
     <value>{0} (subcontrata)</value>
   </data>
+  <data name="FiltroGuardadoBorrarTitulo" xml:space="preserve">
+    <value>¿Borrar el filtro guardado «{0}»?</value>
+  </data>
+  <data name="FiltroGuardadoBorrarMensaje" xml:space="preserve">
+    <value>Desaparecerá de tus filtros guardados de Trabajadores. No borra ningún trabajador ni cambia lo que la lista enseña ahora.</value>
+  </data>
+  <data name="FiltroGuardadoBorrarBoton" xml:space="preserve">
+    <value>Borrar filtro</value>
+  </data>
+  <data name="FiltroGuardadoBorrarError" xml:space="preserve">
+    <value>No pudimos borrar el filtro guardado. Intenta nuevamente en unos segundos.</value>
+  </data>
 </root>

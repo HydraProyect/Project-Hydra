@@ -793,6 +793,105 @@ public class ClientesListaGen2Tests : BunitContext
     /// Si dejara <c>critico</c> en la URL, la siguiente pasada de parámetros lo
     /// devolvería.
     /// </summary>
+    // ------------------------- Gestor CAE y estado documental viajan en la URL (T20)
+
+    [Fact]
+    public async Task Elegir_Gestor_CAE_y_estado_documental_los_escribe_en_la_url()
+    {
+        var marta = GestorCae("Marta Ibarra");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 2) with { EjecutivoUsuarioId = marta.Id } }
+        };
+        var cut = Renderizar(mediador, gestores: [marta]);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await ElegirEnLaPastilla(cut, "Gestor CAE", "Marta Ibarra");
+        await ElegirEnLaPastilla(cut, "Estado", "Con vencidos");
+
+        navegacion.Uri.Should().Contain($"gestor={marta.Id}").And.Contain("estado=Vencido");
+        var consulta = UltimaConsulta(mediador);
+        consulta.EjecutivoUsuarioId.Should().Be(marta.Id, "escribir el segundo filtro en la URL no puede devolver el primero a vacío");
+        consulta.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+    }
+
+    /// <summary>Recargar o compartir el enlace reproduce la vista: los dos filtros salen de la URL.</summary>
+    [Fact]
+    public void Un_enlace_con_Gestor_CAE_y_estado_documental_filtra_la_consulta_y_pinta_sus_chips()
+    {
+        var marta = GestorCae("Marta Ibarra");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 2) with { EjecutivoUsuarioId = marta.Id } }
+        };
+        var cut = Renderizar(mediador, $"clientes?gestor={marta.Id}&estado=Vencido", gestores: [marta]);
+
+        var consulta = UltimaConsulta(mediador);
+        consulta.EjecutivoUsuarioId.Should().Be(marta.Id);
+        consulta.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        cut.WaitForAssertion(() => TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Gestor CAE: Marta Ibarra"))
+            .And.Contain(t => t.StartsWith("Estado: Vencido")));
+    }
+
+    [Fact]
+    public void Valores_de_la_url_que_no_son_un_Id_ni_un_estado_conocido_no_filtran()
+    {
+        var mediador = new MediatorFalso { Almacen = { Cliente("Refrielectric S.A.") } };
+        var cut = Renderizar(mediador, "clientes?gestor=marta&estado=999");
+
+        var consulta = UltimaConsulta(mediador);
+        consulta.EjecutivoUsuarioId.Should().BeNull();
+        consulta.EstadoDocumental.Should().BeNull("999 se convierte a un número de enum que no existe: no es un estado");
+        TextosDeLosChips(cut).Should().BeEmpty();
+    }
+
+    /// <summary>Un Id en la URL no es autoridad: solo filtra un Gestor CAE que el directorio visible ofrece.</summary>
+    [Fact]
+    public void Un_Gestor_CAE_de_la_url_que_el_directorio_visible_no_ofrece_no_filtra()
+    {
+        var marta = GestorCae("Marta Ibarra");
+        var mediador = new MediatorFalso { Almacen = { Cliente("Refrielectric S.A.") } };
+        var cut = Renderizar(mediador, $"clientes?gestor={Guid.NewGuid()}", gestores: [marta]);
+
+        UltimaConsulta(mediador).EjecutivoUsuarioId.Should().BeNull();
+        TextosDeLosChips(cut).Should().BeEmpty("no hay chip «Gestor CAE: —»");
+    }
+
+    [Fact]
+    public async Task Un_filtro_guardado_con_un_estado_documental_que_no_existe_no_filtra_por_estado()
+    {
+        var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Antiguo",
+            JsonSerializer.Serialize(new { Busqueda = "Refri", EstadoDocumental = "99" }), DateTime.UtcNow);
+        var mediador = new MediatorFalso { Almacen = { Cliente("Refrielectric S.A.") }, FiltrosGuardados = { filtro } };
+        var cut = Renderizar(mediador);
+
+        await PulsarEnMasFiltros(cut, filtro.Nombre);
+
+        UltimaConsulta(mediador).EstadoDocumental.Should().BeNull("99 se convierte a un número de enum que no existe");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Refri").And.NotContain("estado=");
+    }
+
+    [Fact]
+    public async Task Limpiar_todo_quita_tambien_Gestor_CAE_y_estado_documental_de_la_url()
+    {
+        var marta = GestorCae("Marta Ibarra");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 2) with { EjecutivoUsuarioId = marta.Id } }
+        };
+        var cut = Renderizar(mediador, $"clientes?gestor={marta.Id}&estado=Vencido", gestores: [marta]);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await cut.Find("button.limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
+
+        navegacion.Uri.Should().NotContain("gestor=").And.NotContain("estado=",
+            "OnParametersSetAsync los repondría desde la URL en la siguiente pasada de parámetros");
+        var consulta = UltimaConsulta(mediador);
+        consulta.EjecutivoUsuarioId.Should().BeNull();
+        consulta.EstadoDocumental.Should().BeNull();
+        cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().BeEmpty());
+    }
+
     [Fact]
     public async Task Limpiar_todo_quita_los_filtros_de_la_consulta_y_de_la_url()
     {

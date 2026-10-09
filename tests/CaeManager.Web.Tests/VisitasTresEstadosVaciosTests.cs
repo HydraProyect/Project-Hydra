@@ -84,6 +84,62 @@ public class VisitasTresEstadosVaciosTests : BunitContext
     private MediatorPorTipo _mediator = null!;
 
     /// <param name="notificado">Filtro que llega por la URL (?notificado=).</param>
+    /// <summary>Dirección completa de partida, para los casos que no caben en <c>notificado</c>. Se fija antes de renderizar.</summary>
+    private string? _url;
+
+    // ------------------- «Solo activas» y «Solo urgentes» viajan en la URL (T20)
+
+    [Fact]
+    public void Un_enlace_con_los_dos_conmutadores_los_lleva_a_la_consulta()
+    {
+        _url = "visitas?activas=false&urgentes=true";
+
+        Renderizar();
+
+        _mediator.UltimaConsulta!.SoloActivas.Should().BeFalse();
+        _mediator.UltimaConsulta!.SoloUrgentes.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Marcar_solo_urgentes_lo_escribe_en_la_url_y_quitar_los_filtros_lo_borra()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        cut.FindAll(".barra-filtros .filtro-critico input")[1].Change(true);
+
+        navegacion.Uri.Should().Contain("urgentes=true");
+        _mediator.UltimaConsulta!.SoloUrgentes.Should().BeTrue();
+
+        cut.Find(".estado-vacio button").Click();
+
+        navegacion.Uri.Should().NotContain("urgentes", "dejarlo en la URL lo devuelve en la siguiente pasada de parámetros");
+        _mediator.UltimaConsulta!.SoloUrgentes.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// «Solo activas» nace marcado: la dirección sin parámetros es la vista de
+    /// fábrica, y solo desmarcarlo deja rastro. Sin ese rastro, la siguiente
+    /// pasada de parámetros lo volvería a marcar.
+    /// </summary>
+    [Fact]
+    public void Ver_tambien_las_finalizadas_lo_escribe_en_la_url_y_volver_a_marcarlo_lo_quita()
+    {
+        var cut = Renderizar();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.Uri.Should().NotContain("activas");
+
+        cut.FindAll("button").First(b => b.TextContent.Contains("Ver también las finalizadas")).Click();
+
+        navegacion.Uri.Should().Contain("activas=false");
+        _mediator.UltimaConsulta!.SoloActivas.Should().BeFalse();
+
+        cut.FindAll(".barra-filtros .filtro-critico input")[0].Change(true);
+
+        navegacion.Uri.Should().NotContain("activas");
+        _mediator.UltimaConsulta!.SoloActivas.Should().BeTrue();
+    }
+
     private IRenderedComponent<Visitas> Renderizar(string? notificado = null, params VisitaListaDto[] visitas)
     {
         _mediator = new MediatorPorTipo { Visitas = visitas };
@@ -91,7 +147,9 @@ public class VisitasTresEstadosVaciosTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
 
-        if (notificado is not null)
+        if (_url is not null)
+            Services.GetRequiredService<NavigationManager>().NavigateTo(_url);
+        else if (notificado is not null)
             Services.GetRequiredService<NavigationManager>()
                 .NavigateTo("visitas?notificado=" + Uri.EscapeDataString(notificado));
 

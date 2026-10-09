@@ -194,14 +194,14 @@ public class GestionesListaGen2Tests : BunitContext
         Guid.NewGuid(), documento, estado, new DateTime(2026, 8, 14, 9, 0, 0, DateTimeKind.Utc));
 
     /// <param name="estado">Filtro de estado que llega por la URL (?estado=).</param>
-    private IRenderedComponent<Gestiones> Renderizar(MediatorFalso mediador, string? estado = null)
+    private IRenderedComponent<Gestiones> Renderizar(MediatorFalso mediador, string? estado = null, string? url = null)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
 
         Services.GetRequiredService<NavigationManager>()
-            .NavigateTo(estado is null ? "gestiones" : "gestiones?estado=" + estado);
+            .NavigateTo(url ?? (estado is null ? "gestiones" : "gestiones?estado=" + estado));
 
         var cut = Render<Gestiones>();
         cut.WaitForAssertion(() => cut.Markup.Should().NotContain("aria-busy=\"true\""));
@@ -590,6 +590,38 @@ public class GestionesListaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Ninguna gestión con estos filtros",
             "la respuesta vieja era de «Pendientes», no de la pregunta vigente");
         cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("0", "no hay coincidencias con el filtro vigente");
+    }
+
+    // ------------------------------------- La búsqueda viaja en la URL (T20)
+
+    [Fact]
+    public void Un_enlace_con_la_busqueda_la_lleva_a_la_consulta_y_a_la_caja()
+    {
+        var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra"), Gestion("Nuria Salas Ortiz") } };
+        var cut = Renderizar(mediador, url: "gestiones?q=Salas");
+
+        mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().Busqueda.Should().Be("Salas");
+        cut.Find(".chip-filtro").TextContent.Should().Contain("Salas");
+    }
+
+    [Fact]
+    public async Task Limpiar_todo_quita_la_busqueda_y_el_estado_de_la_url_en_una_sola_navegacion()
+    {
+        var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra"), Gestion("Nuria Salas Ortiz", EstadoGestion.Completada) } };
+        var cut = Renderizar(mediador, url: "gestiones?q=Salas&estado=Completada");
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().HaveCount(2));
+        var navegaciones = 0;
+        navegacion.LocationChanged += (_, _) => navegaciones++;
+
+        await cut.Find("button.limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
+
+        navegacion.Uri.Should().NotContain("q=").And.NotContain("estado=");
+        navegaciones.Should().Be(1, "dos navegaciones seguidas se pisan: la segunda lee la URL sin el cambio de la primera");
+        var consulta = mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last();
+        consulta.Busqueda.Should().BeNull();
+        consulta.Estado.Should().BeNull();
+        cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().BeEmpty());
     }
 
     [Fact]

@@ -274,6 +274,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // antes de llegar aquí — nunca se resuelve del ambiente.
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.Set<TEntidad>().IgnoreQueryFilters().Where(e => e.TenantId == tenantId).ToListAsync(cancellationToken);")] = 1,
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "var tenant = await dbContext.Tenants.IgnoreQueryFilters()")] = 1,
+        // Los filtros guardados son por Tenant desde el 2026-10-08, pero pertenecen a un
+        // usuario: al retirar el Tenant de demo se borran los de SUS usuarios, también los
+        // que hubieran guardado operando sobre otro Tenant. El Where() acota por UsuarioId.
+        [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.FiltrosGuardados.IgnoreQueryFilters().Where(f => idsUsuarios.Contains(f.UsuarioId) && f.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);")] = 1,
 
         // Siembra administrativa de la demo a dirección (modo de CLI, nunca el
         // arranque normal): las tres lecturas buscan Tenants por su nombre EXACTO
