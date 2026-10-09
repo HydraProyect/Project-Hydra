@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Playwright;
 using Xunit;
+using static Microsoft.Playwright.Assertions;
 
 namespace CaeManager.E2ETests;
 
@@ -82,7 +83,7 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture)
         await page.SetViewportSizeAsync(anchoVentana, 800);
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.Locator("table.tabla-datos tbody tr .menu-acciones-disparador").First.WaitForAsync();
+        await Expect(page.Locator("table.tabla-datos tbody tr .menu-acciones-disparador")).Not.ToHaveCountAsync(0);
 
         foreach (var reservaBarra in new[] { 0, 17 })
         {
