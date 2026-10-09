@@ -1,4 +1,5 @@
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Domain.Centros;
 using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
 using MediatR;
@@ -14,7 +15,11 @@ public static class CentrosEndpoints
 {
     public static IEndpointRouteBuilder MapCentrosEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/centros/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/centros/exportar.xlsx", async (
+            IMediator mediator, CancellationToken cancellationToken,
+            string? q = null, string? estado = null, string? cliente = null, string? empresa = null,
+            [Microsoft.AspNetCore.Mvc.FromQuery(Name = "centro")] string? centroFiltro = null,
+            string? orden = null, bool desc = false) =>
         {
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Centros");
@@ -33,7 +38,16 @@ public static class CentrosEndpoints
             var fila = 2;
             await foreach (var centro in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
                 mediator.Send(
-                    new ObtenerCentrosQuery(Busqueda: null, ClienteId: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    new ObtenerCentrosQuery(
+                        Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
+                        ClienteId: Guid.TryParse(cliente, out var idClienteEmpresarial) ? idClienteEmpresarial : null,
+                        Estado: Enum.TryParse<EstadoCentro>(estado, out var estadoCentro) ? estadoCentro : null,
+                        OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
+                        Descendente: desc,
+                        Pagina: pagina,
+                        TamanoPagina: tamanoPagina,
+                        CentroId: Guid.TryParse(centroFiltro, out var centroId) ? centroId : null,
+                        EmpresaId: Guid.TryParse(empresa, out var empresaId) ? empresaId : null),
                     cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = centro.Nombre;
