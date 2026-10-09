@@ -253,7 +253,9 @@ public class PaqueteDocumentalVisitaService(
         CancellationToken cancellationToken)
     {
         using var memoria = new MemoryStream();
-        var nombresUsados = new HashSet<string>();
+        // Sin distinguir mayúsculas: quien extrae el zip lo hace en Windows, donde «ANA» y «Ana» son
+        // el mismo fichero.
+        var nombresUsados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var agregados = new List<DocumentoEnPaquete>();
 
         using (var zip = new ZipArchive(memoria, ZipArchiveMode.Create, leaveOpen: true))
@@ -311,12 +313,14 @@ public class PaqueteDocumentalVisitaService(
     /// único nivel que existe dentro del zip. El nombre sale de datos que escribe el usuario (Tipo
     /// de documento y titular), así que se sanea entero —barras incluidas, que de otro modo abrirían
     /// una subcarpeta— y se le quitan los puntos y espacios del final, para que no queden pegados a
-    /// la extensión. Si dos documentos acaban con el mismo nombre, el segundo lleva « (2)».
+    /// la extensión. A la extensión se le quitan también, porque Windows no admite un fichero que
+    /// acabe en punto o en espacio. Si dos documentos acaban con el mismo nombre —sin distinguir
+    /// mayúsculas—, el segundo lleva « (2)».
     /// </summary>
     private static string SanearNombreEntrada(string carpeta, string nombre, string extension, HashSet<string> nombresUsados)
     {
         var nombreLimpio = Sanear(nombre).TrimEnd('.', ' ');
-        var extensionLimpia = Sanear(extension);
+        var extensionLimpia = Sanear(extension).TrimEnd('.', ' ');
 
         var candidato = $"{carpeta}/{nombreLimpio}{extensionLimpia}";
         for (var contador = 2; !nombresUsados.Add(candidato); contador++)

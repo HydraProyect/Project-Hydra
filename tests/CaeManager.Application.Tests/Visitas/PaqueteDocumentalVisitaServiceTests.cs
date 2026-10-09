@@ -580,6 +580,34 @@ public class PaqueteDocumentalVisitaServiceTests
         zip.Values.Should().BeEquivalentTo("ana-epi", "otra-ana-epi");
     }
 
+    [Fact]
+    public async Task Dos_titulares_que_solo_difieren_en_mayusculas_no_dan_el_mismo_fichero_en_Windows()
+    {
+        // Windows no distingue mayúsculas en los nombres: sin el « (2)», al extraer el zip el segundo
+        // fichero pisaría al primero.
+        var anaEnMayusculas = TrabajadorQueAcude("ANA", "GARCIA");
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "ana-epi");
+        DocumentoDeTrabajador(anaEnMayusculas, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "ana-mayusculas-epi");
+
+        var zip = LeerZip((await ConstruirAsync())!.Contenido);
+
+        zip.Values.Should().BeEquivalentTo("ana-epi", "ana-mayusculas-epi");
+        zip.Keys.Should().ContainSingle(nombre => nombre.EndsWith(" (2).pdf", StringComparison.Ordinal), "la segunda entrada se distingue con « (2)»");
+        zip.Keys.Select(nombre => nombre.ToUpperInvariant()).Should().OnlyHaveUniqueItems();
+    }
+
+    [Theory]
+    [InlineData("doc.pdf ", "Empresa/Seguro RC - Contratista Demo SL.pdf")]
+    [InlineData("doc.pdf  ", "Empresa/Seguro RC - Contratista Demo SL.pdf")]
+    [InlineData("doc.pdf. ", "Empresa/Seguro RC - Contratista Demo SL")] // la extensión que queda es «. »: se va entera
+    public async Task Una_extension_acabada_en_puntos_o_espacios_no_los_deja_al_final_del_fichero(string nombreArchivoOriginal, string entradaEsperada)
+    {
+        var archivo = await _almacenamiento.GuardarAsync(new MemoryStream("seguro"u8.ToArray()), nombreArchivoOriginal);
+        _documentos.ListaDocumentos.Add(Documento.DeEmpresa(_empresa.Id, _seguro.Id, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), archivo));
+
+        (await NombresDeEntradaAsync()).Should().BeEquivalentTo(entradaEsperada);
+    }
+
     private async Task<IEnumerable<string>> NombresDeEntradaAsync() =>
         LeerZip((await ConstruirAsync())!.Contenido).Keys;
 
