@@ -1012,7 +1012,7 @@ using (var scope = app.Services.CreateScope())
         {
             var informePilotoOutbound = await PilotoOutboundAutoverificacion.MedirAsync(
                 app.Services.GetRequiredService<IServiceScopeFactory>(),
-                OpcionesPilotoOutbound.Leer(app.Configuration, CaeManager.Domain.Common.DiaDeNegocio.Hoy()));
+                OpcionesPilotoOutbound.Leer(app.Configuration));
 
             foreach (var advertencia in PilotoOutboundAutoverificacion.Advertencias(informePilotoOutbound))
                 logger.LogWarning("Piloto Outbound, divergencia declarada: {Advertencia}", advertencia);

@@ -85,8 +85,32 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
         builder.Services.AddScoped<IActorAuditoria, CaeManager.Web.Services.ActorAuditoriaDesdeSesion>();
         builder.Services.AddScoped<ITenantActual, CaeManager.Web.Services.TenantActual>();
 
+        // El último registro gana: cualquier correo que algo intente enviar durante la siembra o la
+        // medición llega a este espía en vez de a SmtpEmailService.
+        var correo = new EspiaDeCorreo();
+        builder.Services.AddSingleton<IEmailService>(correo);
+
         // No se arranca el host: los servicios de fondo de Infrastructure no llegan a ejecutarse.
-        return new ArnesPilotoOutbound(@base, builder.Services.BuildServiceProvider(), directorio);
+        return new ArnesPilotoOutbound(@base, builder.Services.BuildServiceProvider(), directorio) { Correo = correo };
+    }
+
+    /// <summary>Lo que se ha intentado enviar por <see cref="IEmailService"/> desde que existe el arnés.</summary>
+    public EspiaDeCorreo Correo { get; private init; } = new();
+
+    /// <summary>Un <see cref="IEmailService"/> que no envía nada y apunta a quién se quiso escribir.</summary>
+    internal sealed class EspiaDeCorreo : IEmailService
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<(string Destinatario, string Asunto)> _intentos = new();
+
+        public IReadOnlyCollection<(string Destinatario, string Asunto)> Intentos => _intentos;
+
+        public Task<Result> EnviarAsync(
+            string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+            string? responderA = null, CancellationToken cancellationToken = default)
+        {
+            _intentos.Enqueue((destinatarioEmail, asunto));
+            return Task.FromResult(Result.Exito());
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -118,7 +142,8 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
 
     public async Task<PilotoOutboundSeeder.Resultado?> SembrarAsync(
         IConfiguration configuracion, IHostEnvironment? entorno = null,
-        Func<IFileStorageService, IFileStorageService>? envolverAlmacen = null, CancellationToken cancellationToken = default)
+        Func<IFileStorageService, IFileStorageService>? envolverAlmacen = null, CancellationToken cancellationToken = default,
+        ILogger? logger = null)
     {
         using var ambito = _servicios.CreateScope();
         var sp = ambito.ServiceProvider;
@@ -129,11 +154,27 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
             sp.GetRequiredService<UserManager<ApplicationUser>>(),
             sp.GetRequiredService<IUserStore<ApplicationUser>>(),
             envolverAlmacen?.Invoke(almacen) ?? almacen,
-            configuracion, entorno ?? EntornoDePrueba.Desarrollo, NullLogger.Instance, cancellationToken);
+            configuracion, entorno ?? EntornoDePrueba.Desarrollo, logger ?? NullLogger.Instance, cancellationToken);
     }
 
     public Task<PilotoOutboundAutoverificacion.Informe> MedirAsync(IConfiguration configuracion) =>
-        PilotoOutboundAutoverificacion.MedirAsync(FabricaDeAmbitos, OpcionesPilotoOutbound.Leer(configuracion, DiaDeNegocio.Hoy()));
+        PilotoOutboundAutoverificacion.MedirAsync(FabricaDeAmbitos, OpcionesPilotoOutbound.Leer(configuracion));
+
+    /// <summary>Un registro que guarda los avisos, para afirmar que la siembra avisó en vez de lanzar.</summary>
+    internal sealed class RegistroDeAvisos : ILogger
+    {
+        public List<string> Avisos { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+                Avisos.Add(formatter(state, exception));
+        }
+    }
 
     public async Task<IReadOnlyList<RetiradaTenantDemoService.ResultadoRetirada>> RetirarAsync()
     {
@@ -224,6 +265,21 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
 
         recuento["Ficheros en el almacén"] = FicherosEnElAlmacen();
         return recuento;
+    }
+
+    /// <summary>
+    /// Una lectura como la Gestora CAE primera dentro del ámbito de un Tenant
+    /// propietario: la identidad y el ámbito con los que la autoverificación mide.
+    /// </summary>
+    public async Task<T> ComoGestoraPrimeraEnAsync<T>(string nombreTenantPropietario, Func<IServiceProvider, Task<T>> lectura)
+    {
+        var tenantId = await TenantIdAsync(nombreTenantPropietario);
+        return await ComoCuentaAsync(
+            CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.GestoraPrimera, async sp =>
+            {
+                using (AmbitoTenantExplicito.Establecer(tenantId))
+                    return await lectura(sp);
+            });
     }
 
     /// <summary>

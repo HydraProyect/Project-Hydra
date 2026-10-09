@@ -19,3 +19,4 @@ src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs :: Cambiar
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: CrearComoCliente = 1
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: CrearComoSubcontrata = 1
 src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: CrearComoCliente = 1
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: CrearComoSubcontrata = 1

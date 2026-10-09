@@ -58,7 +58,7 @@ public static class PilotoOutboundAutoverificacion
         public int MiTrabajoFilas => MiTrabajoBloqueos + MiTrabajoActuaciones + MiTrabajoProximos + MiTrabajoSeguimiento;
     }
 
-    public sealed record Informe(VarianteT4PilotoOutbound VarianteT4, IReadOnlyList<MedicionTenant> Tenants)
+    public sealed record Informe(IReadOnlyList<MedicionTenant> Tenants)
     {
         public MedicionTenant De(TenantPilotoOutbound tenant) => Tenants.Single(t => t.Clave == tenant.Clave);
     }
@@ -66,7 +66,7 @@ public static class PilotoOutboundAutoverificacion
     /// <summary>Mide con las cuentas de la siembra local.</summary>
     public static Task<Informe> MedirAsync(
         IServiceScopeFactory fabricaDeAmbitos, OpcionesPilotoOutbound opciones, CancellationToken cancellationToken = default) =>
-        MedirAsync(fabricaDeAmbitos, CuentasPilotoOutbound.Locales, opciones.Contactos, opciones.VarianteT4, cancellationToken);
+        MedirAsync(fabricaDeAmbitos, CuentasPilotoOutbound.Locales, opciones.Contactos, cancellationToken);
 
     /// <summary>
     /// Mide con las cuentas indicadas, que tienen que ser la Gestora CAE primera y la
@@ -75,7 +75,7 @@ public static class PilotoOutboundAutoverificacion
     /// </summary>
     internal static async Task<Informe> MedirAsync(
         IServiceScopeFactory fabricaDeAmbitos, CuentasPilotoOutbound cuentas, ContactosPilotoOutbound contactos,
-        VarianteT4PilotoOutbound varianteT4, CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         var comoGestora = await ComoCuentaDelPilotoAsync(
             fabricaDeAmbitos, cuentas.GestoraPrimera, Roles.GestorCae,
@@ -87,7 +87,7 @@ public static class PilotoOutboundAutoverificacion
                 .ClientesConMasRiesgo.ToDictionary(c => c.Nombre),
             cancellationToken);
 
-        return new Informe(varianteT4,
+        return new Informe(
         [
             .. comoGestora.Select(m => m with
             {
@@ -129,20 +129,21 @@ public static class PilotoOutboundAutoverificacion
             Exige("Clientes empresariales · sin contacto en la agenda", m.ClientesEmpresarialesSinContacto, 0);
             Exige("Agenda · tiene contactos", m.ContactosDeAgenda > 0, true);
 
-            if (CatalogoPilotoOutbound.Esperado(tenant, informe.VarianteT4) is not { } e)
+            if (CatalogoPilotoOutbound.Esperado(tenant) is not { } e)
                 continue;
 
             // «Cero filas» solo vale con alcance: un Tenant sin cartera también daría cero.
             Exige("Mi trabajo · alcance cero", m.MiTrabajoAlcanceCero, false);
             Exige("Mi trabajo · filas", m.MiTrabajoFilas, e.FilasMiTrabajo);
-            if (e.CumplimientoInicio is { } inicio)
-                Exige("Inicio · % de cumplimiento", m.InicioCumplimiento, inicio);
+            // Inicio y Visión de cartera se exigen siempre, también donde divergen de Empresas: la
+            // divergencia declarada tiene su número, y si la pantalla cambia de regla esto lo dice.
+            Exige("Inicio · % de cumplimiento", m.InicioCumplimiento, e.CumplimientoInicio);
+            Exige("Inicio · Trabajadores bloqueados", m.InicioTrabajadoresBloqueados, e.TrabajadoresBloqueados);
             Exige("Visión de cartera · Tenant presente para la Coordinadora CAE", m.VisionCarteraPresente, true);
             // Con cualquiera de las dos, la fila pinta «Sin cartera» o «Sin datos» en vez del porcentaje.
             Exige("Visión de cartera · fila sin cartera asignada", m.VisionCarteraSinCartera, false);
             Exige("Visión de cartera · fila sin datos", m.VisionCarteraSinDatos, false);
-            if (e.CumplimientoVisionCartera is { } vision)
-                Exige("Visión de cartera · % de cumplimiento", m.VisionCarteraCumplimiento, vision);
+            Exige("Visión de cartera · % de cumplimiento", m.VisionCarteraCumplimiento, e.CumplimientoVisionCartera);
             Exige("Empresas · % de cumplimiento de la Empresa propia", m.EmpresaCumplimiento, e.CumplimientoEmpresa);
             Exige("Centros · número de Centros", m.Centros.Count, e.Centros.Count);
             foreach (var centroEsperado in e.Centros)
@@ -167,7 +168,6 @@ public static class PilotoOutboundAutoverificacion
             Exige("Inicio · documentos próximos", m.InicioProximos, 0);
             Exige("Inicio · documentos sin confirmar", m.InicioSinConfirmar, 0);
             Exige("Inicio · Centros bloqueados", m.InicioCentrosBloqueados, 0);
-            Exige("Inicio · Trabajadores bloqueados", m.InicioTrabajadoresBloqueados, 0);
             Exige("Inicio · Visitas urgentes", m.InicioVisitasUrgentes, 0);
             Exige("Clientes empresariales · con alguna alerta documental", m.ClientesEmpresarialesConAlertas, 0);
         }
@@ -181,17 +181,21 @@ public static class PilotoOutboundAutoverificacion
 
     /// <summary>
     /// Las divergencias declaradas del catálogo, con lo que se ha medido: no hacen
-    /// fallar, pero quien prepara la demostración tiene que leerlas.
+    /// fallar, pero quien prepara la demostración tiene que leerlas. Hay una por
+    /// cada Tenant cuyo valor esperado de Inicio o de Visión de cartera no coincide
+    /// con el de Empresas, y solo mientras no coincida: el día que el catálogo los
+    /// iguale, la advertencia desaparece sin tocar nada aquí.
     /// </summary>
     public static IReadOnlyList<string> Advertencias(Informe informe) =>
     [
         .. from tenant in CatalogoPilotoOutbound.Tenants
-           let esperado = CatalogoPilotoOutbound.Esperado(tenant, informe.VarianteT4)
-           where esperado?.Divergencia is not null
+           let esperado = CatalogoPilotoOutbound.Esperado(tenant)
+           where esperado is not null && esperado.InicioOVisionDeCarteraDivergenDeEmpresa
            let m = informe.Tenants.SingleOrDefault(t => t.Clave == tenant.Clave)
            where m is not null
-           select $"{tenant.Clave} «{tenant.Nombre}»: {esperado.Divergencia} Medido: Inicio {m.InicioCumplimiento} %, " +
-                  $"Visión de cartera {Texto(m.VisionCarteraCumplimiento)} %."
+           select $"{tenant.Clave} «{tenant.Nombre}»: " +
+                  $"{esperado.Divergencia ?? "Inicio y Visión de cartera no dan la cifra de Empresas."} Medido: Inicio " +
+                  $"{m.InicioCumplimiento} %, Visión de cartera {Texto(m.VisionCarteraCumplimiento)} %, Empresas {Texto(m.EmpresaCumplimiento)} %."
     ];
 
     /// <summary>Lanza con TODAS las discrepancias si lo medido no es lo que la matriz declara.</summary>
