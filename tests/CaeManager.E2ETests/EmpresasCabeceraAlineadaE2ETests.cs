@@ -74,7 +74,23 @@ public class EmpresasCabeceraAlineadaE2ETests(WebAppFixture fixture)
             await AfirmarAlineadoAsync(page, columnas: 6, $"tema {tema}");
         }
 
-        await page.Locator("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync();
+        // El modal de notificaciones sin leer se abre cuando el circuito de la página nueva se vuelve
+        // interactivo, en un momento que el test no controla (medido: tapó este clic 30 s): el manejador lo
+        // descarta cada vez que estorba a una acción. Y el clic se repite hasta que el propio conmutador dice
+        // que está pulsado, porque llega con el prerender antes que el circuito (mismo patrón que
+        // Ayudas.MostrarCentrosSinAgruparAsync).
+        await page.AddLocatorHandlerAsync(
+            page.Locator(".modal-superposicion"),
+            _ => Ayudas.DescartarNotificacionesPendientesAsync(page),
+            new PageAddLocatorHandlerOptions { NoWaitAfter = true });
+        var conmutador = page.Locator("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']");
+        for (var intento = 1; await conmutador.GetAttributeAsync("aria-pressed") != "true"; intento++)
+        {
+            Assert.True(intento <= 10, "«Selección múltiple» no se aplicó tras 10 clics.");
+            await conmutador.ClickAsync();
+            await page.WaitForTimeoutAsync(1_000);
+        }
+
         await Expect(page.Locator(".cabecera-columnas-empresas.rejilla-empresas-seleccion")).ToBeVisibleAsync();
         await AfirmarAlineadoAsync(page, columnas: 7, "tema oscuro con selección múltiple");
     }
