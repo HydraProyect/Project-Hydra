@@ -318,11 +318,11 @@ public partial class VisitasGen2Tests : BunitContext
         var mediator = new MediatorVisitas { Visitas = { Visita("Centro Norte"), Visita("Planta Zaragoza", notificado: true) } };
         var cut = Renderizar(mediator);
 
-        await cut.Find(".barra-filtros select").ChangeAsync(new ChangeEventArgs { Value = "no" });
+        await FiltrosVisitasDePrueba.ElegirAsync(cut, "Notificada al titular del Centro", "No");
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte").And.NotContain("Planta Zaragoza"));
         var consultasAntes = mediator.ConsultasVisitas;
 
-        await cut.Find(".barra-filtros select").ChangeAsync(new ChangeEventArgs { Value = "si" });
+        await FiltrosVisitasDePrueba.ElegirAsync(cut, "Notificada al titular del Centro", "Sí");
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Planta Zaragoza").And.NotContain("Centro Norte"));
         (mediator.ConsultasVisitas - consultasAntes).Should().Be(1,
@@ -355,9 +355,6 @@ public partial class VisitasGen2Tests : BunitContext
         Fila(cut, centro).QuerySelector("input.visitas-interruptor")
             ?? throw new InvalidOperationException($"La fila de {centro} no tiene interruptor.");
 
-    private static IElement FiltroCheckbox(IRenderedComponent<Visitas> cut, string texto) =>
-        cut.FindAll("label.filtro-critico").First(l => l.TextContent.Contains(texto)).QuerySelector("input")!;
-
     /// <summary>
     /// El botón de la fila que abre la vista rápida (sus fechas). Es el que pulsa por la fila el oyente
     /// «pulsarFila» de atajos-lista.js cuando el clic cae en un punto sin control; esa mitad solo la ve el E2E.
@@ -373,7 +370,7 @@ public partial class VisitasGen2Tests : BunitContext
     /// <summary>Cancelar una Visita solo existe en la selección múltiple: la enciende, marca la fila y pulsa «Cancelar seleccionadas».</summary>
     private static async Task AbrirCancelarPorSeleccionAsync(IRenderedComponent<Visitas> cut, string centro)
     {
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").First(b => b.GetAttribute("aria-label") == "Selección múltiple").ClickAsync(new MouseEventArgs());
         await Fila(cut, centro).QuerySelector("input[type=checkbox]:not(.visitas-interruptor)")!
             .ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll(".barra-acciones-lote button").First(b => b.TextContent.Trim() == "Cancelar seleccionadas")
@@ -422,11 +419,11 @@ public partial class VisitasGen2Tests : BunitContext
         // final como barrera: la primera versión de este test comprobaba antes
         // de que la respuesta tardía se aplicara, y dio verde con la guarda
         // quitada (mutación M1).
-        var cambioUrgentes = FiltroCheckbox(cut, "Solo urgentes").ChangeAsync(new ChangeEventArgs { Value = true });
+        var cambioUrgentes = FiltrosVisitasDePrueba.ElegirAsync(cut, "Solo urgentes", "Sí");
         cut.WaitForAssertion(() => mediator.CargasPendientes.Should().HaveCount(2));
         var anterior = mediator.CargasPendientes[1];
 
-        var cambioNotificado = cut.Find(".barra-filtros select").ChangeAsync(new ChangeEventArgs { Value = "no" });
+        var cambioNotificado = FiltrosVisitasDePrueba.ElegirAsync(cut, "Notificada al titular del Centro", "No");
         cut.WaitForAssertion(() => mediator.CargasPendientes.Should().HaveCount(3));
         var actual = mediator.CargasPendientes[2];
 
@@ -884,7 +881,7 @@ public partial class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(Visita("Centro Norte"));
         var cut = Renderizar(mediator);
 
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").First(b => b.GetAttribute("aria-label") == "Selección múltiple").ClickAsync(new MouseEventArgs());
         await Fila(cut, "Centro Norte").QuerySelector("input[type=checkbox]:not(.visitas-interruptor)")!
             .ChangeAsync(new ChangeEventArgs { Value = true });
 
@@ -946,8 +943,7 @@ public partial class VisitasGen2Tests : BunitContext
         var mediator = new MediatorVisitas();
         mediator.Visitas.Add(cancelada);
         var cut = Renderizar(mediator);
-        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
-            .ChangeAsync(new ChangeEventArgs { Value = false });
+        await FiltrosVisitasDePrueba.ElegirAsync(cut, "Solo activas", "No");
 
         var fila = Fila(cut, "Planta Zaragoza");
         fila.TextContent.Should().Contain("Cancelada");
@@ -970,8 +966,7 @@ public partial class VisitasGen2Tests : BunitContext
         mediator.Visitas.Add(cancelada);
         mediator.VisitasPorCorreo.Add(cancelada.Id);
         var cut = Renderizar(mediator);
-        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
-            .ChangeAsync(new ChangeEventArgs { Value = false });
+        await FiltrosVisitasDePrueba.ElegirAsync(cut, "Solo activas", "No");
 
         Interruptor(cut, "Planta Zaragoza").HasAttribute("disabled").Should().BeTrue("una cancelada no se marca como notificada");
         await BotonVistaRapida(cut, "Planta Zaragoza").ClickAsync(new MouseEventArgs());
@@ -990,8 +985,7 @@ public partial class VisitasGen2Tests : BunitContext
         var mediator = new MediatorVisitas();
         mediator.Visitas.Add(cancelada);
         var cut = Renderizar(mediator);
-        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
-            .ChangeAsync(new ChangeEventArgs { Value = false });
+        await FiltrosVisitasDePrueba.ElegirAsync(cut, "Solo activas", "No");
 
         await BotonReactivarDeFila(cut, "Planta Zaragoza")!.ClickAsync(new MouseEventArgs());
         cut.Markup.Should().Contain("¿Reactivar la visita a Planta Zaragoza?");
@@ -1014,8 +1008,7 @@ public partial class VisitasGen2Tests : BunitContext
         var mediator = new MediatorVisitas();
         mediator.Visitas.Add(cancelada);
         var cut = Renderizar(mediator);
-        await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
-            .ChangeAsync(new ChangeEventArgs { Value = false });
+        await FiltrosVisitasDePrueba.ElegirAsync(cut, "Solo activas", "No");
         await BotonReactivarDeFila(cut, "Planta Zaragoza")!.ClickAsync(new MouseEventArgs());
 
         // Otra persona toca la Visita mientras el diálogo está abierto.
@@ -1572,12 +1565,11 @@ public partial class VisitasGen2Tests : BunitContext
         switch (cual)
         {
             case Reactivar:
-                await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
-                    .ChangeAsync(new ChangeEventArgs { Value = false });
+                await FiltrosVisitasDePrueba.ElegirAsync(cut, "Solo activas", "No");
                 await BotonReactivarDeFila(cut, "Planta Zaragoza")!.ClickAsync(new MouseEventArgs());
                 break;
             default:
-                await cut.FindAll("button").First(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+                await cut.FindAll("button").First(b => b.GetAttribute("aria-label") == "Selección múltiple").ClickAsync(new MouseEventArgs());
                 await Fila(cut, "Planta Zaragoza").QuerySelector("input[type=checkbox]:not(.visitas-interruptor)")!
                     .ChangeAsync(new ChangeEventArgs { Value = true });
                 await cut.FindAll(".barra-acciones-lote button").First(b => b.TextContent.Trim() == "Cancelar seleccionadas")

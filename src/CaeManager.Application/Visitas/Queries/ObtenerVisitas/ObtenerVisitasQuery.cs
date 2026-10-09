@@ -15,9 +15,19 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 
+/// <param name="EstadosDocumentacion">
+/// Estados de la columna «Documentación» que se quieren ver (franja de estado del listado). Vacío o
+/// <c>null</c>: todos. Se combina con los demás filtros: con <c>SoloActivas</c> una cancelada no sale
+/// aunque se pida <see cref="EstadoDocumentacionVisita.Cancelada"/>.
+/// </param>
+/// <param name="ConRecuentosPorEstado">
+/// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Visitas por estado de la documentación con los demás
+/// filtros aplicados y sin el de estado. Los cuatro estados parten la lista, así que su suma es el total.
+/// </param>
 public record ObtenerVisitasQuery(
     string? Busqueda, bool SoloActivas, bool? NotificadoCliente, bool SoloUrgentes = false, int Pagina = 1, int TamanoPagina = 20,
-    string? OrdenarPor = null, bool Descendente = false)
+    string? OrdenarPor = null, bool Descendente = false,
+    IReadOnlyCollection<EstadoDocumentacionVisita>? EstadosDocumentacion = null, bool ConRecuentosPorEstado = false)
     : IRequest<ResultadoPaginado<VisitaListaDto>>;
 
 public record VisitaListaDto(
@@ -140,6 +150,38 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 x.empresa.RazonSocial.ToUpper().Contains(busqueda));
         }
 
+        // Para la franja de estado del listado: Visitas por estado de la documentación con los demás filtros
+        // aplicados y ANTES de filtrar por estado, de modo que cada cifra diga cuántas quedarían al marcar ese
+        // estado. Lleva los cuatro aunque alguno no tenga ninguna (0): «no hay» no es «no se contó». La clave
+        // es la misma partición que pinta la columna «Documentación» (cancelada, Centro sin gestión CAE,
+        // gestionada, por gestionar; en ese orden de precedencia).
+        IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
+        if (request.ConRecuentosPorEstado)
+        {
+            var filasPorEstado = await consulta
+                .GroupBy(x => x.visita.EstaCancelada ? (int)EstadoDocumentacionVisita.Cancelada
+                    : x.centro.GestionCae == ModalidadGestionCae.SinGestionCae ? (int)EstadoDocumentacionVisita.SinGestionCae
+                    : x.visita.DocumentacionGestionadaEnUtc != null ? (int)EstadoDocumentacionVisita.Gestionada
+                    : (int)EstadoDocumentacionVisita.PorGestionar)
+                .Select(grupo => new { Estado = grupo.Key, Filas = grupo.Count() })
+                .ToDictionaryAsync(grupo => grupo.Estado, grupo => grupo.Filas, cancellationToken);
+            recuentosPorEstado = Enum.GetValues<EstadoDocumentacionVisita>()
+                .ToDictionary(estado => estado.ToString(), estado => filasPorEstado.GetValueOrDefault((int)estado));
+        }
+
+        if (request.EstadosDocumentacion is { Count: > 0 } estados)
+        {
+            var canceladas = estados.Contains(EstadoDocumentacionVisita.Cancelada);
+            var sinGestionCae = estados.Contains(EstadoDocumentacionVisita.SinGestionCae);
+            var gestionadas = estados.Contains(EstadoDocumentacionVisita.Gestionada);
+            var porGestionar = estados.Contains(EstadoDocumentacionVisita.PorGestionar);
+            consulta = consulta.Where(x =>
+                (canceladas && x.visita.EstaCancelada) ||
+                (sinGestionCae && !x.visita.EstaCancelada && x.centro.GestionCae == ModalidadGestionCae.SinGestionCae) ||
+                (gestionadas && !x.visita.EstaCancelada && x.centro.GestionCae != ModalidadGestionCae.SinGestionCae && x.visita.DocumentacionGestionadaEnUtc != null) ||
+                (porGestionar && !x.visita.EstaCancelada && x.centro.GestionCae != ModalidadGestionCae.SinGestionCae && x.visita.DocumentacionGestionadaEnUtc == null));
+        }
+
         var total = await consulta.CountAsync(cancellationToken);
 
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
@@ -207,7 +249,7 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
             .ToListAsync(cancellationToken);
 
         if (pagina.Count == 0)
-            return new ResultadoPaginado<VisitaListaDto>([], total, request.Pagina, request.TamanoPagina);
+            return new ResultadoPaginado<VisitaListaDto>([], total, request.Pagina, request.TamanoPagina) { RecuentosPorEstado = recuentosPorEstado };
 
         var visitaIds = pagina.Select(p => p.Id).ToList();
 
@@ -296,6 +338,6 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 DocumentacionGestionadaEnUtc: p.DocumentacionGestionadaEnUtc);
         }).ToList();
 
-        return new ResultadoPaginado<VisitaListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
+        return new ResultadoPaginado<VisitaListaDto>(elementos, total, request.Pagina, request.TamanoPagina) { RecuentosPorEstado = recuentosPorEstado };
     }
 }

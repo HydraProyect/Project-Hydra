@@ -1,3 +1,4 @@
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -173,6 +174,91 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
         (medida.Tramo, medida.AntelacionNominalHoras, medida.AntelacionEfectivaHoras)
             .Should().Be((TramoAntelacion.Expres, 25m, 22m));
         r.Elementos.Single(v => v.Id == _gestionada).Tramo.Should().BeNull();
+    }
+
+    // ------------------------------------------------ franja de estado de la documentación
+
+    private async Task<CaeManager.Application.Common.ResultadoPaginado<VisitaListaDto>> LeerPorEstadoAsync(
+        bool soloActivas = false, params EstadoDocumentacionVisita[] estados)
+    {
+        await using var lectura = CrearContexto();
+        return await new ObtenerVisitasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), lectura)
+            .Handle(new ObtenerVisitasQuery(null, SoloActivas: soloActivas, NotificadoCliente: null,
+                EstadosDocumentacion: estados, ConRecuentosPorEstado: true), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Los cuatro estados parten la lista con la misma precedencia que la columna «Documentación»:
+    /// cancelada, Centro sin gestión CAE, gestionada y, lo demás, por gestionar. Cada Visita cuenta una vez.
+    /// </summary>
+    [Fact]
+    public async Task Los_recuentos_parten_la_lista_en_los_cuatro_estados_de_la_documentacion()
+    {
+        var r = await LeerPorEstadoAsync();
+
+        r.RecuentosPorEstado.Should().BeEquivalentTo(new Dictionary<string, int>
+        {
+            [nameof(EstadoDocumentacionVisita.PorGestionar)] = 3,
+            [nameof(EstadoDocumentacionVisita.Gestionada)] = 1,
+            [nameof(EstadoDocumentacionVisita.SinGestionCae)] = 1,
+            [nameof(EstadoDocumentacionVisita.Cancelada)] = 1,
+        });
+        r.RecuentosPorEstado!.Values.Sum().Should().Be(r.TotalElementos, "sin filtro de estado, los recuentos suman el total");
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumentacionVisita.PorGestionar)]
+    [InlineData(EstadoDocumentacionVisita.Gestionada)]
+    [InlineData(EstadoDocumentacionVisita.SinGestionCae)]
+    [InlineData(EstadoDocumentacionVisita.Cancelada)]
+    public async Task Filtrar_por_un_estado_devuelve_exactamente_las_visitas_que_contaba_su_recuento(EstadoDocumentacionVisita estado)
+    {
+        var esperadas = estado switch
+        {
+            EstadoDocumentacionVisita.PorGestionar => new[] { _porGestionarCercana, _vigenteSinGestionar, _porGestionarLejana },
+            EstadoDocumentacionVisita.Gestionada => [_gestionada],
+            EstadoDocumentacionVisita.SinGestionCae => [_sinGestionCae],
+            _ => [_cancelada],
+        };
+
+        var r = await LeerPorEstadoAsync(estados: estado);
+
+        r.Elementos.Select(v => v.Id).Should().BeEquivalentTo(esperadas);
+        r.TotalElementos.Should().Be(esperadas.Length);
+        r.RecuentosPorEstado![estado.ToString()].Should().Be(esperadas.Length, "el recuento se calcula sin el filtro de estado");
+        r.RecuentosPorEstado!.Values.Sum().Should().Be(6, "los recuentos no se recortan al filtrar por estado");
+    }
+
+    [Fact]
+    public async Task Varios_estados_a_la_vez_se_suman()
+    {
+        var r = await LeerPorEstadoAsync(estados: [EstadoDocumentacionVisita.Gestionada, EstadoDocumentacionVisita.Cancelada]);
+
+        r.Elementos.Select(v => v.Id).Should().BeEquivalentTo([_gestionada, _cancelada]);
+    }
+
+    /// <summary>«Solo activas» sigue mandando: la cancelada no cuenta ni sale aunque se pida su estado.</summary>
+    [Fact]
+    public async Task Con_solo_activas_las_canceladas_cuentan_cero_y_pedirlas_no_devuelve_nada()
+    {
+        var r = await LeerPorEstadoAsync(soloActivas: true, EstadoDocumentacionVisita.Cancelada);
+
+        r.RecuentosPorEstado![nameof(EstadoDocumentacionVisita.Cancelada)].Should().Be(0);
+        r.RecuentosPorEstado![nameof(EstadoDocumentacionVisita.PorGestionar)].Should().Be(3);
+        r.Elementos.Should().BeEmpty();
+        r.RecuentosPorEstado.Should().NotBeNull("una página vacía también lleva recuentos: la franja no puede quedarse sin cifras");
+    }
+
+    [Fact]
+    public async Task Sin_pedirlos_no_hay_recuentos()
+    {
+        var r = await LeerAsync(descendente: true);
+
+        r.Total.Should().Be(6);
+        await using var lectura = CrearContexto();
+        var sinRecuentos = await new ObtenerVisitasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), lectura)
+            .Handle(new ObtenerVisitasQuery(null, SoloActivas: false, NotificadoCliente: null), CancellationToken.None);
+        sinRecuentos.RecuentosPorEstado.Should().BeNull("null es «no se contó», no «cero»");
     }
 
     private CaeManagerDbContext CrearContexto()

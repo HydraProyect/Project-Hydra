@@ -4,6 +4,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorreo;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
@@ -64,6 +65,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _soloUrgentes;
     private string _filtroNotificado = string.Empty;
     private string _orden = string.Empty;
+    private string _estadoFiltro = string.Empty;
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -231,7 +234,34 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = "orden")]
     public string? OrdenInicial { get; set; }
 
+    /// <summary>
+    /// Franja de estado: estados de la columna «Documentación» separados por coma
+    /// (<c>?estado=PorGestionar,Gestionada</c>), con los nombres de <see cref="EstadoDocumentacionVisita"/>.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    private const string ValorSi = "si";
+
+    /// <summary>La única opción de las pastillas «Solo activas» y «Solo urgentes»; quitarla es «No».</summary>
+    private IReadOnlyList<OpcionEstado> OpcionesSi => [new(ValorSi, Textos["OpcionSi"])];
+
+    private IReadOnlyList<OpcionEstado> OpcionesNotificado =>
+        [new(ValorSi, Textos["OpcionSi"]), new("no", Textos["OpcionNo"])];
+
+    /// <summary>
+    /// Los cuatro valores de la columna «Documentación», con el mismo rótulo que la celda y de lo que
+    /// pide acción a lo que no.
+    /// </summary>
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesEstadoDocumentacion =>
+    [
+        new(Textos["BadgeDocumentacionPorGestionar"], TonoBadge.Peligro, nameof(EstadoDocumentacionVisita.PorGestionar)),
+        new(Textos["BadgeDocumentacionGestionada"], TonoBadge.Exito, nameof(EstadoDocumentacionVisita.Gestionada)),
+        new(Textos["BadgeSinGestionCae"], TonoBadge.Neutro, nameof(EstadoDocumentacionVisita.SinGestionCae)),
+        new(Textos["BadgeCancelada"], TonoBadge.Neutro, nameof(EstadoDocumentacionVisita.Cancelada)),
+    ];
 
     private GridItemsProvider<VisitaListaDto>? _proveedorElementos;
 
@@ -263,6 +293,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _soloActivas = SoloActivasInicial ?? true;
         _soloUrgentes = SoloUrgentesInicial ?? false;
         _orden = OrdenInicial == OrdenPorDocumentacion ? OrdenPorDocumentacion : string.Empty;
+        // Solo nombres del enum: lo que la URL traiga y la franja no conozca no filtra ni se queda marcado.
+        _estadoFiltro = SeleccionEstados.Unir(
+            SeleccionEstados.Separar<EstadoDocumentacionVisita>(EstadoInicial).Select(estado => estado.ToString())) ?? string.Empty;
     }
 
     /// <summary>
@@ -295,7 +328,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
             TamanoPagina: _paginacion.ItemsPerPage,
             OrdenarPor: ordenarPor,
-            Descendente: descendente);
+            Descendente: descendente,
+            EstadosDocumentacion: SeleccionEstados.Separar<EstadoDocumentacionVisita>(_estadoFiltro),
+            ConRecuentosPorEstado: true);
 
         try
         {
@@ -306,6 +341,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                 return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
 
             _totalElementos = resultado.TotalElementos;
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
             _elementosPagina = elementos;
             _seleccionados.Clear();
             _idEnfocado = null;
@@ -342,14 +378,16 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// recargar o compartir el enlace los perdía, y ahora además los pisaría
     /// <see cref="OnParametersSet"/> en la siguiente navegación dentro de la página.
     /// </summary>
-    private async Task CambiarSoloActivasAsync()
+    private async Task CambiarSoloActivasAsync(bool soloActivas)
     {
+        _soloActivas = soloActivas;
         NavigationManager.ActualizarFiltroEnUrl("activas", _soloActivas ? null : "false");
         await RecargarAsync();
     }
 
-    private async Task CambiarSoloUrgentesAsync()
+    private async Task CambiarSoloUrgentesAsync(bool soloUrgentes)
     {
+        _soloUrgentes = soloUrgentes;
         NavigationManager.ActualizarFiltroEnUrl("urgentes", _soloUrgentes ? "true" : null);
         await RecargarAsync();
     }
@@ -360,6 +398,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     {
         _orden = valor == OrdenPorDocumentacion ? valor : string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("orden", _orden);
+        await RecargarAsync();
+    }
+
+    private async Task CambiarEstadoAsync(string? valor)
+    {
+        _estadoFiltro = valor ?? string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await RecargarAsync();
     }
 
@@ -388,13 +433,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || _soloUrgentes
-        || !string.IsNullOrWhiteSpace(_filtroNotificado);
+        || !string.IsNullOrWhiteSpace(_filtroNotificado) || !string.IsNullOrWhiteSpace(_estadoFiltro);
 
     private async Task LimpiarFiltrosAsync()
     {
         _busqueda = string.Empty;
         _soloUrgentes = false;
         _filtroNotificado = string.Empty;
+        _estadoFiltro = string.Empty;
         // "notificado" también viaja por la URL y OnParametersSet lo
         // re-sincroniza desde ella: dejarlo puesto lo devolvía en la siguiente
         // pasada de parámetros, y "Quitar los filtros" no lo quitaba. Mismo
@@ -407,6 +453,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             ["q"] = null,
             ["notificado"] = null,
             ["urgentes"] = null,
+            ["estado"] = null,
         });
         await RecargarAsync();
     }
@@ -414,8 +461,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Desmarca el filtro de fábrica para que aparezcan las finalizadas.</summary>
     private async Task VerTambienFinalizadasAsync()
     {
-        _soloActivas = false;
-        await CambiarSoloActivasAsync();
+        await CambiarSoloActivasAsync(false);
     }
 
     /// <summary>
@@ -1138,9 +1184,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _ => TonoBadge.Neutro
     };
 
-    private string TextoRecuento => _totalElementos == 1
-        ? Textos["RecuentoUno", _totalElementos].Value
-        : Textos["RecuentoVarios", _totalElementos].Value;
 
     /// <summary>
     /// Un Documento existente abre el visor inline. Un hueco "Faltante" lleva

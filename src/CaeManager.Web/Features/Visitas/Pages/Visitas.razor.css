@@ -17,13 +17,7 @@
     margin-bottom: var(--space-2);
 }
 
-/* Barra de herramientas (Gen 2): recuento a la izquierda, junto a
-   «Selección múltiple», y la nota de sistema empujada a la derecha. */
-.visitas-recuento {
-    font: var(--font-caption);
-    color: var(--color-text-muted);
-}
-
+/* Nota de sistema: va en el resumen de la barra de filtros, a la derecha. */
 .visitas-nota-sistema {
     display: inline-flex;
     align-items: center;
