@@ -113,13 +113,31 @@ public static class PilotoOutboundAutoverificacion
     /// Coordinadora CAE sembradas en el Tenant del Operador CAE externo del piloto
     /// (ver <see cref="ComoCuentaDelPilotoAsync{T}"/>). Solo lectura.
     /// </summary>
+    internal static Task<Informe> MedirAsync(
+        IServiceScopeFactory fabricaDeAmbitos, CuentasPilotoOutbound cuentas, OpcionesPilotoOutbound opciones,
+        CancellationToken cancellationToken) =>
+        MedirAsync(fabricaDeAmbitos, cuentas, opciones, tenantsQueNoSeMiden: [], cancellationToken);
+
+    /// <summary>
+    /// La misma medición, sin los Tenants propietarios de <paramref name="tenantsQueNoSeMiden"/>
+    /// (por su nombre del catálogo): no se abre su ámbito ni se hace ninguna de sus lecturas, y
+    /// el informe no los trae.
+    ///
+    /// <para>
+    /// Las dos lecturas que recorren la cartera entera se hacen igual, porque son consultas de
+    /// pantalla y no se parten: Mi trabajo, que degrada por Tenant y no lanza por lo que uno
+    /// lleve, y Visión de cartera, que ejecuta la consulta de Inicio en cada Tenant de la cartera
+    /// de la Coordinadora CAE y sí lanza si esa consulta falla en alguno, también en uno que
+    /// aquí no se mide. De lo que traen de un Tenant que no se mide no se usa nada.
+    /// </para>
+    /// </summary>
     internal static async Task<Informe> MedirAsync(
         IServiceScopeFactory fabricaDeAmbitos, CuentasPilotoOutbound cuentas, OpcionesPilotoOutbound opciones,
-        CancellationToken cancellationToken)
+        IReadOnlyCollection<string> tenantsQueNoSeMiden, CancellationToken cancellationToken)
     {
         var comoGestora = await ComoCuentaDelPilotoAsync(
             fabricaDeAmbitos, cuentas.GestoraPrimera, Roles.GestorCae,
-            servicios => MedirComoGestoraAsync(servicios, opciones, cancellationToken), cancellationToken);
+            servicios => MedirComoGestoraAsync(servicios, opciones, tenantsQueNoSeMiden, cancellationToken), cancellationToken);
 
         var visionCartera = await ComoCuentaDelPilotoAsync(
             fabricaDeAmbitos, cuentas.Coordinadora, Roles.CoordinadorCae,
@@ -140,38 +158,40 @@ public static class PilotoOutboundAutoverificacion
     }
 
     /// <summary>
-    /// Una discrepancia y el Tenant propietario al que se atribuye, por su nombre del
-    /// catálogo. Sin nombre es del lote entero: sale de comparar varios Tenants y no
-    /// se puede cargar a uno solo.
-    /// </summary>
-    internal sealed record Discrepancia(string? NombreDeTenant, string Texto);
-
-    /// <summary>
     /// Todas las discrepancias entre lo medido y la matriz, cada una con su Tenant
     /// y su contador. Vacía si la siembra está como la matriz dice.
     /// </summary>
-    public static IReadOnlyList<string> Discrepancias(Informe informe) =>
-        [.. DiscrepanciasAtribuidas(informe).Select(d => d.Texto)];
+    public static IReadOnlyList<string> Discrepancias(Informe informe) => Repartir(informe, tenantsQueNoSeMiden: []).Exigidas;
 
     /// <summary>
-    /// Las mismas discrepancias, cada una con el Tenant propietario al que se
-    /// atribuye. Todas son de un solo Tenant menos una, que es del lote entero: el
-    /// control positivo de «cero filas» de Mi trabajo, que mira los seis a la vez.
+    /// Las discrepancias entre lo medido y la matriz, repartidas entre las que se
+    /// exigen y las que solo se avisan.
+    ///
+    /// <para>
+    /// Todas son de un solo Tenant propietario menos una, que es del lote entero: el
+    /// control positivo de «cero filas» de Mi trabajo, que mira a la vez todos los
+    /// Tenants medidos. Si no se ha dejado ninguno sin medir, se exigen todas. De un
+    /// Tenant de <paramref name="tenantsQueNoSeMiden"/> no sale ninguna —ni la de
+    /// «no se pudo medir»—, y lo del lote entero entonces solo se avisa, porque
+    /// depende de lo que ese Tenant lleve. Lo de cualquier otro Tenant se exige igual
+    /// que siempre: lo único que exime a un Tenant es estar en esa lista.
+    /// </para>
     /// </summary>
-    internal static IReadOnlyList<Discrepancia> DiscrepanciasAtribuidas(Informe informe)
+    internal static (IReadOnlyList<string> Exigidas, IReadOnlyList<string> SoloAvisadas) Repartir(
+        Informe informe, IReadOnlyCollection<string> tenantsQueNoSeMiden)
     {
-        var d = new List<Discrepancia>();
+        var d = new List<string>();
 
-        foreach (var tenant in CatalogoPilotoOutbound.Tenants)
+        foreach (var tenant in CatalogoPilotoOutbound.Tenants.Where(t => !tenantsQueNoSeMiden.Contains(t.Nombre)))
         {
             if (informe.Tenants.SingleOrDefault(t => t.Clave == tenant.Clave) is not { } m)
             {
-                d.Add(new(tenant.Nombre, $"{tenant.Clave} «{tenant.Nombre}»: el Tenant no existe o no se pudo medir."));
+                d.Add($"{tenant.Clave} «{tenant.Nombre}»: el Tenant no existe o no se pudo medir.");
                 continue;
             }
 
             void Discrepa(string contador, string medido, string esperado) =>
-                d.Add(new(tenant.Nombre, $"{tenant.Clave} «{tenant.Nombre}» · {contador}: medido {medido}, esperado {esperado}."));
+                d.Add($"{tenant.Clave} «{tenant.Nombre}» · {contador}: medido {medido}, esperado {esperado}.");
 
             void Exige<T>(string contador, T medido, T esperado)
             {
@@ -238,33 +258,11 @@ public static class PilotoOutboundAutoverificacion
 
         // Control positivo de «cero filas»: en la MISMA lectura de Mi trabajo, otro Tenant sí trae filas.
         // Es del lote entero: no se atribuye a ningún Tenant.
-        if (informe.Tenants.All(t => t.MiTrabajoFilas == 0))
-            d.Add(new(null, "Mi trabajo · control positivo: ningún Tenant del piloto trae filas, así que un cero no demuestra nada."));
+        IReadOnlyList<string> delLoteEntero = informe.Tenants.All(t => t.MiTrabajoFilas == 0)
+            ? ["Mi trabajo · control positivo: ningún Tenant del piloto trae filas, así que un cero no demuestra nada."]
+            : [];
 
-        return d;
-    }
-
-    /// <summary>
-    /// Reparte las discrepancias de una ejecución que acaba de escribir entre las que
-    /// se exigen y las que solo se avisan.
-    ///
-    /// <para>
-    /// Sin ningún Tenant propietario con datos de otra versión de la siembra se exigen
-    /// todas. Si hay alguno, las suyas solo se avisan —esta ejecución no ha escrito en
-    /// él, así que no responde de lo que lleva—, y también las del lote entero, que
-    /// dependen de lo que lleve ese Tenant. Las de cualquier otro Tenant se exigen
-    /// igual que siempre.
-    /// </para>
-    /// </summary>
-    internal static (IReadOnlyList<Discrepancia> Exigidas, IReadOnlyList<Discrepancia> SoloAvisadas) Repartir(
-        IReadOnlyList<Discrepancia> discrepancias, IReadOnlyList<string> tenantsConDatosDeOtraVersion)
-    {
-        if (tenantsConDatosDeOtraVersion.Count == 0)
-            return (discrepancias, []);
-
-        bool SeExige(Discrepancia d) => d.NombreDeTenant is { } nombre && !tenantsConDatosDeOtraVersion.Contains(nombre);
-
-        return ([.. discrepancias.Where(SeExige)], [.. discrepancias.Where(d => !SeExige(d))]);
+        return tenantsQueNoSeMiden.Count == 0 ? ([.. d, .. delLoteEntero], []) : (d, delLoteEntero);
     }
 
     /// <summary>
@@ -379,12 +377,14 @@ public static class PilotoOutboundAutoverificacion
 
     /// <summary>
     /// El paso del arranque local tras la siembra: mide con las cuentas locales y decide
-    /// según <paramref name="escribio"/>.
+    /// según <paramref name="escribio"/> y <paramref name="tenantsConDatosDeOtraVersion"/>,
+    /// que son los dos datos del resultado de esa siembra (<see cref="PilotoOutboundSeeder.Resultado"/>).
     /// </summary>
     public static Task MedirYExigirOAvisarAsync(
-        IServiceScopeFactory fabricaDeAmbitos, OpcionesPilotoOutbound opciones, bool escribio, ILogger logger,
-        CancellationToken cancellationToken = default) =>
-        MedirYExigirOAvisarAsync(fabricaDeAmbitos, CuentasPilotoOutbound.Locales, opciones, escribio, logger, cancellationToken);
+        IServiceScopeFactory fabricaDeAmbitos, OpcionesPilotoOutbound opciones, bool escribio,
+        IReadOnlyList<string> tenantsConDatosDeOtraVersion, ILogger logger, CancellationToken cancellationToken = default) =>
+        MedirYExigirOAvisarAsync(
+            fabricaDeAmbitos, CuentasPilotoOutbound.Locales, opciones, escribio, tenantsConDatosDeOtraVersion, logger, cancellationToken);
 
     /// <summary>
     /// Mide y, según la ejecución haya escrito o no, exige o avisa.
@@ -396,53 +396,62 @@ public static class PilotoOutboundAutoverificacion
     ///
     /// <para>
     /// <b>Si acaba de escribir y hay un Tenant propietario con datos de otra versión de la
-    /// siembra</b> —la siembra lo dejó como estaba y escribió los que faltaban—, la matriz se
-    /// exige de lo que esta ejecución pudo escribir, no de ese Tenant: sus discrepancias quedan
-    /// como advertencias con su nombre, y las del lote entero, que dependen de lo que él lleve,
-    /// también (<see cref="Repartir"/>). Una discrepancia de cualquier otro Tenant sigue
-    /// lanzando, y no poder medir, también. Qué Tenants son de otra versión se lee aquí,
-    /// después de la siembra, con la misma pregunta que ella se hace antes de escribir
-    /// (<see cref="PilotoOutboundSeeder.TenantsConDatosDeOtraVersionAsync"/>): como en ellos no
-    /// se escribe, la respuesta es la misma.
+    /// siembra</b> —la siembra lo dejó como estaba y escribió los que faltaban—, ese Tenant no
+    /// se mide: se avisa, con su nombre, de que no se mide ni se le exige la matriz, y no se
+    /// hace ninguna de sus lecturas, así que tampoco tumba el arranque que no se deje medir. Lo
+    /// del lote entero, que depende de lo que él lleve, solo se avisa (<see cref="Repartir"/>).
+    /// Los demás Tenants se miden y se exigen igual que siempre: una discrepancia suya lanza, y
+    /// no poder medirlos, también.
     /// </para>
     ///
     /// <para>
-    /// <b>Si no escribió</b> (un re-arranque con el lote ya sembrado), nada de esto lanza. Tras
-    /// un ensayo los datos cambian a propósito —se descarta un documento, se cambia el rol de
-    /// una cuenta, se borra un Centro—, y eso puede dar discrepancias o impedir la medición
-    /// entera (la cuenta con la que se mide ya no tiene su rol, falta la fila que una lectura
-    /// espera única). Las dos cosas quedan como advertencias en el registro y el arranque sigue.
+    /// <b>Qué Tenants son de otra versión no se averigua aquí.</b> Es
+    /// <paramref name="tenantsConDatosDeOtraVersion"/>, la lista que la siembra calculó antes de
+    /// escribir nada (<see cref="PilotoOutboundSeeder.Resultado.TenantsConDatosDeOtraVersion"/>).
+    /// Leerlo después de sembrar haría depender la autoverificación de los mismos datos que
+    /// verifica: un Tenant recién escrito sin la Empresa propia que se espera pasaría por uno de
+    /// otra versión y quedaría eximido. Un Tenant que no está en la lista se mide y se exige,
+    /// lleve lo que lleve.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Si no escribió</b> (un re-arranque con el lote ya sembrado), nada de esto lanza y se
+    /// miden todos los Tenants, también los de otra versión. Tras un ensayo los datos cambian a
+    /// propósito —se descarta un documento, se cambia el rol de una cuenta, se borra un Centro—,
+    /// y eso puede dar discrepancias o impedir la medición entera (la cuenta con la que se mide
+    /// ya no tiene su rol, falta la fila que una lectura espera única). Las dos cosas quedan
+    /// como advertencias en el registro y el arranque sigue.
     /// </para>
     /// </summary>
     internal static async Task MedirYExigirOAvisarAsync(
         IServiceScopeFactory fabricaDeAmbitos, CuentasPilotoOutbound cuentas, OpcionesPilotoOutbound opciones, bool escribio,
-        ILogger logger, CancellationToken cancellationToken)
+        IReadOnlyList<string> tenantsConDatosDeOtraVersion, ILogger logger, CancellationToken cancellationToken)
     {
+        // Solo una ejecución que escribió deja Tenants sin medir: un re-arranque mide todo y de todo avisa.
+        IReadOnlyList<string> sinMedir = escribio ? tenantsConDatosDeOtraVersion : [];
+
         try
         {
-            var informe = await MedirAsync(fabricaDeAmbitos, cuentas, opciones, cancellationToken);
+            foreach (var nombre in sinMedir)
+                logger.LogWarning(
+                    "Piloto Outbound, el Tenant «{Tenant}» no se mide ni se le exige la matriz: tiene datos de otra versión " +
+                    "de la siembra y esta ejecución no ha escrito en él.", nombre);
+
+            var informe = await MedirAsync(fabricaDeAmbitos, cuentas, opciones, sinMedir, cancellationToken);
 
             foreach (var advertencia in Advertencias(informe))
                 logger.LogWarning("Piloto Outbound, divergencia declarada: {Advertencia}", advertencia);
 
             if (escribio)
             {
-                var deOtraVersion = await TenantsConDatosDeOtraVersionAsync(fabricaDeAmbitos, cancellationToken);
-                var (exigidas, soloAvisadas) = Repartir(DiscrepanciasAtribuidas(informe), deOtraVersion);
+                var (exigidas, soloAvisadas) = Repartir(informe, sinMedir);
 
                 foreach (var discrepancia in soloAvisadas)
-                {
-                    if (discrepancia.NombreDeTenant is { } nombre)
-                        logger.LogWarning(
-                            "Piloto Outbound, discrepancia que no se exige porque el Tenant «{Tenant}» tiene datos de otra " +
-                            "versión de la siembra: {Discrepancia}", nombre, discrepancia.Texto);
-                    else
-                        logger.LogWarning(
-                            "Piloto Outbound, discrepancia del lote entero que no se exige porque hay datos de otra versión " +
-                            "de la siembra en «{Tenants}»: {Discrepancia}", string.Join("», «", deOtraVersion), discrepancia.Texto);
-                }
+                    logger.LogWarning(
+                        "Piloto Outbound, discrepancia del lote entero que no se exige porque hay datos de otra versión " +
+                        "de la siembra en «{Tenants}»: {Discrepancia}", string.Join("», «", sinMedir), discrepancia);
 
-                LanzarSiHay([.. exigidas.Select(d => d.Texto)]);
+                LanzarSiHay(exigidas);
                 return;
             }
 
@@ -458,24 +467,11 @@ public static class PilotoOutboundAutoverificacion
         }
     }
 
-    /// <summary>
-    /// Los Tenants propietarios del lote con datos de otra versión de la siembra, por su
-    /// nombre, leídos en un ámbito de servicios nuevo y sin identidad de ninguna cuenta: la
-    /// misma lectura que hace la siembra del arranque. Solo lee.
-    /// </summary>
-    private static async Task<IReadOnlyList<string>> TenantsConDatosDeOtraVersionAsync(
-        IServiceScopeFactory fabricaDeAmbitos, CancellationToken cancellationToken)
-    {
-        await using var ambito = fabricaDeAmbitos.CreateAsyncScope();
-
-        return await PilotoOutboundSeeder.TenantsConDatosDeOtraVersionAsync(
-            ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>(), cancellationToken);
-    }
-
     private static string Texto<T>(T valor) => valor is null ? "(nada)" : valor.ToString()!;
 
     private static async Task<IReadOnlyList<MedicionTenant>> MedirComoGestoraAsync(
-        IServiceProvider servicios, OpcionesPilotoOutbound opciones, CancellationToken cancellationToken)
+        IServiceProvider servicios, OpcionesPilotoOutbound opciones, IReadOnlyCollection<string> tenantsQueNoSeMiden,
+        CancellationToken cancellationToken)
     {
         var contactos = opciones.Contactos;
         var sender = servicios.GetRequiredService<ISender>();
@@ -494,6 +490,8 @@ public static class PilotoOutboundAutoverificacion
         var mediciones = new List<MedicionTenant>();
         foreach (var tenant in CatalogoPilotoOutbound.Tenants)
         {
+            // Ni su ámbito ni ninguna de sus lecturas: lo que lleve no puede hacer lanzar a esta medición.
+            if (tenantsQueNoSeMiden.Contains(tenant.Nombre)) continue;
             if (!idPorNombre.TryGetValue(tenant.Nombre, out var tenantId)) continue;
 
             var cola = miTrabajo.Tenants.SingleOrDefault(t => t.TenantId == tenantId);

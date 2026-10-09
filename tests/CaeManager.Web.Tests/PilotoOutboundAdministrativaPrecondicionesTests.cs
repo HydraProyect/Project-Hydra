@@ -303,7 +303,7 @@ public class PilotoOutboundAdministrativaPrecondicionesTests
     }
 
     private static PilotoOutboundAdministrativa.Resultado Resultado(bool escribio, IReadOnlyList<string> discrepancias) => new(
-        new PilotoOutboundSeeder.Resultado(escribio, escribio ? ["Tenant de ejemplo"] : [], 12, 12, TimeSpan.FromSeconds(3)),
+        new PilotoOutboundSeeder.Resultado(escribio, escribio ? ["Tenant de ejemplo"] : [], [], 12, 12, TimeSpan.FromSeconds(3)),
         [("Tenant de ejemplo", Guid.NewGuid())],
         [new PilotoOutboundAdministrativa.CuentaSembrada("gestora1.piloto@" + Dominio, "GestorCae", "Operador de ejemplo", ContrasenaEntregada: true)],
         "/dev/shm/piloto/credenciales.json",

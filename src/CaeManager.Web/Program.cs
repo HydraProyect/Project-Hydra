@@ -1064,15 +1064,17 @@ using (var scope = app.Services.CreateScope())
         // Autoverificación del piloto, después de TODA la siembra: mide con las consultas de las
         // pantallas y compara con la matriz. Si esta ejecución sembró, una discrepancia —o no poder
         // medir— tumba el arranque con el contador y el Tenant; en un re-arranque solo avisa, pase lo
-        // que pase en la medición, porque tras un ensayo los datos cambian a propósito. De un Tenant
-        // con datos de otra versión de la siembra, en el que no se escribe, solo avisa también cuando
-        // esta ejecución sembró los demás: ni sus discrepancias ni las del lote entero tumban el
-        // arranque. La decisión vive en PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync;
+        // que pase en la medición, porque tras un ensayo los datos cambian a propósito. Un Tenant con
+        // datos de otra versión de la siembra, en el que no se escribe, no se mide cuando esta
+        // ejecución sembró los demás: se avisa con su nombre, y ni él ni lo del lote entero tumban el
+        // arranque. Qué Tenants son lo dice la lista que la siembra calculó antes de escribir, no una
+        // lectura posterior. La decisión vive en PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync;
         // aquí solo se invoca.
         if (siembraPilotoOutbound is not null)
             await PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync(
                 app.Services.GetRequiredService<IServiceScopeFactory>(),
-                OpcionesPilotoOutbound.Leer(app.Configuration), siembraPilotoOutbound.Escribio, logger);
+                OpcionesPilotoOutbound.Leer(app.Configuration), siembraPilotoOutbound.Escribio,
+                siembraPilotoOutbound.TenantsConDatosDeOtraVersion, logger);
     }
 }
 
