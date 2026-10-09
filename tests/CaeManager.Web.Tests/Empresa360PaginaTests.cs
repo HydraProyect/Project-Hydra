@@ -239,7 +239,7 @@ public class Empresa360PaginaTests : BunitContext
         cabecera.QuerySelector(".cabecera-identidad-acciones")!.QuerySelector("[role=img]").Should().BeNull();
         // «Detectar altas y bajas» y el menú siguen en la cabecera.
         cabecera.QuerySelector(".cabecera-identidad-acciones")!.TextContent.Should().Contain("Detectar altas y bajas");
-        cabecera.QuerySelector(".cabecera-identidad-acciones .menu-acciones-disparador").Should().NotBeNull();
+        cabecera.QuerySelector(".cabecera-identidad-acciones .menu-acciones-disparador")!.GetAttribute("title").Should().Be("Más acciones");
 
         mediador.Enviadas.Should().Contain(new ObtenerEmpresaPorIdQuery(EmpresaId));
         mediador.Enviadas.Should().Contain(new ObtenerCumplimientoEmpresaQuery(EmpresaId));

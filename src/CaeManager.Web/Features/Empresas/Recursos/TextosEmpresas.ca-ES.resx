@@ -81,6 +81,9 @@
   <data name="AccionDetectar" xml:space="preserve">
     <value>Detectar altes i baixes</value>
   </data>
+  <data name="MenuMasAcciones" xml:space="preserve">
+    <value>Més accions</value>
+  </data>
   <data name="AccionEditarEmpresa" xml:space="preserve">
     <value>Editar l'empresa</value>
   </data>

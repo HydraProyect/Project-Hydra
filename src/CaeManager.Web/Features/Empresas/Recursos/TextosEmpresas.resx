@@ -46,7 +46,7 @@
   </data>
   <data name="MetaCif" xml:space="preserve">
     <value>CIF {0}</value>
-    <comment>Identificación fiscal en la entradilla de la cabecera. {0} = CIF.</comment>
+    <comment>Identificación fiscal en la línea de datos de la tarjeta de cabecera. {0} = CIF.</comment>
   </data>
   <data name="CopiarElCif" xml:space="preserve">
     <value>el CIF</value>
@@ -103,6 +103,10 @@
   <data name="AccionDetectar" xml:space="preserve">
     <value>Detectar altas y bajas</value>
     <comment>Acción principal: enlace a la detección de trabajadores de la Empresa.</comment>
+  </data>
+  <data name="MenuMasAcciones" xml:space="preserve">
+    <value>Más acciones</value>
+    <comment>Nombre accesible y título del disparador del menú de acciones de la cabecera.</comment>
   </data>
   <data name="AccionEditarEmpresa" xml:space="preserve">
     <value>Editar empresa</value>

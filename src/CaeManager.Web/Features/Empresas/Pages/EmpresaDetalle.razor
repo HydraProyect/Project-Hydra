@@ -120,7 +120,7 @@
                 <Boton Variante="VarianteBoton.Primario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
                 @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
                 <SoloConEscritura>
-                    <MenuAcciones ConBorde="true">
+                    <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
                         <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditarEmpresa"]</ItemMenuAccion>
                     </MenuAcciones>
                 </SoloConEscritura>
