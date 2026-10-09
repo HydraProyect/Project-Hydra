@@ -120,6 +120,119 @@ public sealed class AnthropicParadaRespuestaTests
         solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("medium");
     }
 
+    /// <summary>
+    /// Las cinco rutas de clasificación y extracción, cada una con el código
+    /// de error que le corresponde: quitar la comprobación de
+    /// <c>stop_reason</c> en cualquiera de ellas pone una fila en rojo.
+    /// </summary>
+    public static TheoryData<string, string> RutasDeExtraccion => new()
+    {
+        { "relevancia", "DeteccionRelevanciaCae.RespuestaIncompleta" },
+        { "visita", "DeteccionVisitaCorreo.RespuestaIncompleta" },
+        { "gestion", "DeteccionGestionCorreo.RespuestaIncompleta" },
+        { "trabajadores", "ExtraccionTrabajadores.RespuestaIncompleta" },
+        { "ocr", "DocumentAIProvider.RespuestaIncompleta" },
+        { "estructurado", "DocumentAIProvider.RespuestaIncompleta" },
+    };
+
+    [Theory]
+    [MemberData(nameof(RutasDeExtraccion))]
+    public async Task Cada_ruta_de_extraccion_falla_como_incompleta_ante_un_rechazo(string ruta, string codigoEsperado)
+    {
+        var manejador = new ManejadorFijo("""{"content":[],"stop_reason":"refusal"}""");
+
+        var error = await LlamarAsync(ruta, manejador);
+
+        error!.Codigo.Should().Be(codigoEsperado);
+    }
+
+    [Theory]
+    [MemberData(nameof(RutasDeExtraccion))]
+    public async Task Cada_ruta_de_extraccion_falla_como_incompleta_ante_un_motivo_de_parada_que_no_es_fin_normal(string ruta, string codigoEsperado)
+    {
+        var manejador = new ManejadorFijo(Respuesta("model_context_window_exceeded", """{"esAccionableCae": true}"""));
+
+        var error = await LlamarAsync(ruta, manejador);
+
+        error!.Codigo.Should().Be(codigoEsperado);
+    }
+
+    [Theory]
+    [MemberData(nameof(RutasDeExtraccion))]
+    public async Task Cada_ruta_de_extraccion_envia_el_esfuerzo_de_extraccion_y_no_el_del_chat(string ruta, string codigoEsperado)
+    {
+        _ = codigoEsperado;
+        var opciones = Options.Create(new AnthropicOptions { ApiKey = "sk-ant-de-prueba", Esfuerzo = "high", EsfuerzoAsistente = "max" });
+        var manejador = new ManejadorFijo(Respuesta("end_turn", "{}"));
+
+        await LlamarAsync(ruta, manejador, opciones);
+
+        using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
+        solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("high");
+    }
+
+    [Theory]
+    [InlineData("end_turn")]
+    [InlineData("stop_sequence")]
+    public async Task Un_fin_normal_no_se_trata_como_incompleto(string motivoParada)
+    {
+        var manejador = new ManejadorFijo(Respuesta(motivoParada, """{"esAccionableCae": false, "resumen": "Sin gestión", "confianza": 90}"""));
+
+        var error = await LlamarAsync("relevancia", manejador);
+
+        error.Should().BeNull();
+    }
+
+    /// <summary>Llama a la ruta y devuelve su error, o null si terminó con éxito.</summary>
+    private static async Task<CaeManager.Domain.Common.Error?> LlamarAsync(
+        string ruta, ManejadorFijo manejador, IOptions<AnthropicOptions>? opciones = null)
+    {
+        opciones ??= Opciones;
+        var http = new HttpClient(manejador);
+
+        switch (ruta)
+        {
+            case "relevancia":
+                {
+                    var r = await new AnthropicDeteccionRelevanciaCaeService(http, opciones, NullLogger<AnthropicDeteccionRelevanciaCaeService>.Instance)
+                        .DetectarAsync("Conversación de prueba");
+                    return r.EsFallido ? r.Error : null;
+                }
+            case "visita":
+                {
+                    var r = await new AnthropicDeteccionVisitaCorreoService(http, opciones, NullLogger<AnthropicDeteccionVisitaCorreoService>.Instance)
+                        .DetectarAsync("Correo de prueba", [], new DateOnly(2026, 10, 9));
+                    return r.EsFallido ? r.Error : null;
+                }
+            case "gestion":
+                {
+                    var r = await new AnthropicDeteccionGestionCorreoService(http, opciones, NullLogger<AnthropicDeteccionGestionCorreoService>.Instance)
+                        .DetectarAsync("Correo de prueba", [], []);
+                    return r.EsFallido ? r.Error : null;
+                }
+            case "trabajadores":
+                {
+                    var r = await new AnthropicExtraccionTrabajadoresIaService(http, opciones, NullLogger<AnthropicExtraccionTrabajadoresIaService>.Instance)
+                        .ExtraerAsync([1, 2, 3]);
+                    return r.EsFallido ? r.Error : null;
+                }
+            case "ocr":
+                {
+                    var r = await new AnthropicDocumentAIProvider(http, opciones, NullLogger<AnthropicDocumentAIProvider>.Instance)
+                        .ExtraerTextoAsync([1, 2, 3], "documento.pdf");
+                    return r.EsFallido ? r.Error : null;
+                }
+            case "estructurado":
+                {
+                    var r = await new AnthropicDocumentAIProvider(http, opciones, NullLogger<AnthropicDocumentAIProvider>.Instance)
+                        .ExtraerEstructuradoAsync("Texto del documento", "Formación");
+                    return r.EsFallido ? r.Error : null;
+                }
+            default:
+                throw new ArgumentOutOfRangeException(nameof(ruta), ruta, "Ruta de extracción desconocida.");
+        }
+    }
+
     private static string Respuesta(string motivoParada, string texto) =>
         JsonSerializer.Serialize(new
         {
