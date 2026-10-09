@@ -91,30 +91,17 @@ div > ::deep .tabla-datos td {
   menos 324 px de barra lateral y márgenes, y menos lo que ocupe la barra de desplazamiento vertical.
   Ahí el envoltorio del listado pasa a ser el contenedor de desplazamiento horizontal y la página no
   se mueve. Si el mínimo de la tabla crece (otra columna, rótulos o insignias más largos), el corte
-  sube con él.
+  sube con él. De 767 px para abajo manda la regla de móvil de list-page.css y esto no se aplica.
 
-  Es el envoltorio y no la tabla (lo que hace .tabla-datos en móvil, list-page.css). Un contenedor
-  que desplaza en horizontal también recorta en vertical, y el panel del menú «⋯» se abre hacia
-  abajo: en la última fila, sin paginador debajo, el panel de tres opciones (121 px de alto) asoma
-  unos 88 px por debajo del contenedor y le metía entre 91 y 100 px de desplazamiento vertical
-  propio (E2E a 1100 px del 2026-10-09, igual con la tabla que con el envoltorio como contenedor).
-  Mientras hay un panel abierto, el envoltorio termina en un bloque vacío de 8rem, y el panel cabe
-  en él. Tiene que ser contenido y no padding-bottom: con un relleno de 10rem el desplazamiento
-  vertical seguía en 100 px, porque el relleno final se añade por debajo de lo que desborda. Si el
-  menú gana opciones, el bloque crece con él. La regla alcanza también a las opciones de orden de
-  una cabecera (.col-options), que se abren igual; ese caso no tiene test propio.
-
-  Consecuencia que queda: en este tramo la cabecera de la tabla no se pega al desplazar en vertical.
-  De 767 px para abajo manda la regla de móvil de list-page.css y esto no se aplica.
+  Un contenedor que desplaza en horizontal también recorta en vertical. Dos consecuencias en este
+  tramo: la cabecera de la tabla no se pega al desplazar en vertical, y lo que se abre hacia abajo
+  desde el final de la tabla queda dentro del contenedor. Medido con el menú «⋯» de la última fila,
+  sin paginador debajo (E2E a 1100 px del 2026-10-09): el panel de tres opciones, de 121 px de alto,
+  le mete 100 px de desplazamiento vertical propio al listado; las opciones siguen siendo pulsables
+  al desplazarlo. Las opciones de orden de las cabeceras (.col-options) están sin medir.
 */
 @media (min-width: 768px) and (max-width: 1239px) {
     div:has(> .tabla-datos) {
         overflow-x: auto;
-    }
-
-    div:has(> .tabla-datos):has(.menu-acciones-panel, .col-options)::after {
-        content: "";
-        display: block;
-        height: 8rem;
     }
 }

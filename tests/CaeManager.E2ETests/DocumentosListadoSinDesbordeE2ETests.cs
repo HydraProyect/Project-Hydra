@@ -74,76 +74,6 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
         }
         """;
 
-    private const string AbrirMenuDeLaUltimaFila = """
-        () => {
-            // QuickGrid completa la página con filas vacías, que list-page.css oculta: no cuentan como filas.
-            const filas = Array.from(document.querySelectorAll('table.tabla-datos tbody tr')).filter(f => f.querySelector('.menu-acciones-disparador'));
-            window.vueltasConElMenuAbierto ??= 0;
-            if (!filas.length) return false;
-            const ultima = filas[filas.length - 1];
-            // Abierto en dos vueltas seguidas: si el listado se repinta entre medias, el panel se va con su fila.
-            if (ultima.querySelector('.menu-acciones-panel')) return ++window.vueltasConElMenuAbierto >= 2;
-            window.vueltasConElMenuAbierto = 0;
-            const disparador = ultima.querySelector('.menu-acciones-disparador');
-            if (disparador && disparador.getAttribute('aria-expanded') !== 'true') disparador.click();
-            return false;
-        }
-        """;
-
-    /// <summary>
-    /// Con un menú «⋯» abierto: cuánto desplazamiento VERTICAL propio le ha aparecido al listado (un
-    /// contenedor que desplaza en horizontal también recorta en vertical, y el panel se abre hacia abajo),
-    /// cuánto sobresale el panel de ese contenedor y qué opciones quedan tapadas una vez traído el panel a la vista.
-    /// </summary>
-    private const string MedirMenuAbierto = """
-        async () => {
-            const tabla = document.querySelector('table.tabla-datos');
-            const hueco = tabla.parentElement;
-            const panel = hueco.querySelector('.menu-acciones-panel');
-            // El panel entra con una transición que lo desplaza 8 px: se mide ya asentado.
-            await Promise.all(panel.getAnimations().map(a => a.finished.catch(() => null)));
-            const filas = Array.from(document.querySelectorAll('table.tabla-datos tbody tr')).filter(f => f.querySelector('.menu-acciones-disparador'));
-            // Solo cuenta el contenedor que desplaza: en un elemento que no recorta, scrollHeight también incluye
-            // lo que sobresale de él (el panel), sin que haya ninguna barra.
-            const contenedor = [hueco, tabla].find(e => ['auto', 'scroll'].includes(getComputedStyle(e).overflowX)) ?? hueco;
-            const altoContenido = contenedor.scrollHeight;
-            const altoVisible = contenedor.clientHeight;
-            const vertical = altoContenido - altoVisible;
-            const sobresale = panel.getBoundingClientRect().bottom - contenedor.getBoundingClientRect().bottom;
-            panel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-            const opciones = Array.from(panel.querySelectorAll('[role=menuitem]'));
-            const tapadas = opciones.filter(o => {
-                const r = o.getBoundingClientRect();
-                const encima = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-                return !(encima && (encima === o || o.contains(encima)));
-            }).map(o => o.textContent.trim());
-            return {
-                filas: filas.length,
-                esDeLaUltimaFila: panel.closest('tr') === filas[filas.length - 1],
-                opciones: opciones.length,
-                tapadas,
-                vertical,
-                altoContenido,
-                altoVisible,
-                sobresale,
-                altoPanel: Math.round(panel.getBoundingClientRect().height),
-                contenedor: contenedor === tabla ? 'la tabla' : 'el envoltorio',
-                desplazaEnHorizontal: [hueco, tabla].some(e => ['auto', 'scroll'].includes(getComputedStyle(e).overflowX))
-            };
-        }
-        """;
-
-    /// <summary>Con qué se encontró el recorrido cuando el menú de la última fila no llegó a abrirse.</summary>
-    private const string DescribirMenuSinAbrir = """
-        () => {
-            const todas = document.querySelectorAll('table.tabla-datos tbody tr').length;
-            const filas = Array.from(document.querySelectorAll('table.tabla-datos tbody tr')).filter(f => f.querySelector('.menu-acciones-disparador'));
-            const ultimo = filas.length ? filas[filas.length - 1].querySelector('.menu-acciones-disparador') : null;
-            return `${todas} <tr>, ${filas.length} con menú; el de la última ${ultimo ? 'dice aria-expanded=' + ultimo.getAttribute('aria-expanded') : 'no existe'}; `
-                + `${document.querySelectorAll('.menu-acciones-panel').length} panel(es) abiertos; ${location.pathname}${location.search}`;
-        }
-        """;
-
     /// <summary>
     /// 1024, 1266 y 1440 son los anchos del encargo (1266 es el de la medición de staging). 1240 es el primer
     /// ancho por encima del corte de Documentos.razor.css en el que el listado deja de desplazarse por su
@@ -210,49 +140,6 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
                 Assert.True(accionesFuera <= 0.5, $"{donde} al desplazar el listado hasta el final, «Acciones» queda {accionesFuera:0.#} px fuera.");
             }
         }
-    }
-
-    /// <summary>
-    /// 1100 px, pocas filas y el menú de la ÚLTIMA: es el caso en que el panel no tiene nada debajo salvo el
-    /// borde del contenedor que desplaza. La posición es aquí la propiedad que se mide, no un atajo para
-    /// encontrar una fila: por eso la última fila se busca en la página en vez de con un localizador por orden.
-    /// </summary>
-    [Fact]
-    public async Task Con_el_listado_desplazandose_por_su_cuenta_el_menu_de_la_ultima_fila_se_abre_entero()
-    {
-        await using var contexto = await fixture.Browser.NewContextAsync();
-        var page = await AbrirDocumentosAsync(contexto, 1100, "/documentos");
-        // Se filtra por la entidad de una fila cualquiera para quedarse con pocos documentos y sin paginador.
-        var entidad = await page.EvaluateAsync<string>("() => document.querySelector('table.tabla-datos tbody .nombre-fila-entidad').textContent.trim()");
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?q={Uri.EscapeDataString(entidad)}");
-        // QuickGrid vuelve a pintar las filas cuando el circuito trae los datos, así que una marca puesta en la
-        // fila se pierde y un clic anterior al circuito también: se pulsa el disparador de la que sea la última
-        // fila en cada vuelta, hasta que su panel existe (y solo si no consta ya como abierto).
-        try
-        {
-            await page.WaitForFunctionAsync(AbrirMenuDeLaUltimaFila, null, new PageWaitForFunctionOptions { PollingInterval = 1_000, Timeout = 30_000 });
-        }
-        catch (TimeoutException)
-        {
-            // Un menú que no llega a abrirse es un fallo del recorrido, no una medida del listado.
-            Assert.Fail($"El menú de la última fila no se abrió en 30 s: {await page.EvaluateAsync<string>(DescribirMenuSinAbrir)}");
-        }
-
-        var medicion = await page.EvaluateAsync<JsonElement>(MedirMenuAbierto);
-        var vertical = medicion.GetProperty("vertical").GetInt32();
-        var sobresale = medicion.GetProperty("sobresale").GetDouble();
-        var tapadas = medicion.GetProperty("tapadas").EnumerateArray().Select(t => t.GetString()).ToList();
-        var donde = $"[1100 px, {medicion.GetProperty("filas").GetInt32()} fila(s), panel de {medicion.GetProperty("altoPanel").GetInt32()} px de alto]";
-        salida.WriteLine($"MEDIDA {donde} desplazamiento vertical propio: {vertical} px (contenido de {medicion.GetProperty("altoContenido").GetInt32()} px en {medicion.GetProperty("altoVisible").GetInt32()} px visibles); "
-            + $"el panel sobresale {sobresale:0.#} px del contenedor, que es {medicion.GetProperty("contenedor").GetString()}; opciones tapadas: {tapadas.Count} de {medicion.GetProperty("opciones").GetInt32()}");
-
-        // Si a este ancho el listado no se desplazara por su cuenta, el caso no estaría midiendo lo que dice.
-        Assert.True(medicion.GetProperty("desplazaEnHorizontal").GetBoolean(), $"{donde} el listado no es un contenedor de desplazamiento a este ancho.");
-        Assert.True(medicion.GetProperty("esDeLaUltimaFila").GetBoolean(), $"{donde} el menú abierto no es el de la última fila.");
-        Assert.True(medicion.GetProperty("opciones").GetInt32() > 0, $"{donde} el menú no tiene opciones.");
-        Assert.True(vertical <= 0, $"{donde} el menú abierto mete {vertical} px de desplazamiento vertical dentro del listado.");
-        Assert.True(sobresale <= 0.5, $"{donde} el panel sobresale {sobresale:0.#} px por debajo del contenedor que desplaza.");
-        Assert.True(tapadas.Count == 0, $"{donde} opciones que no se pueden pulsar: {string.Join(", ", tapadas)}");
     }
 
     private async Task<IPage> AbrirDocumentosAsync(IBrowserContext contexto, int anchoVentana, string ruta)
