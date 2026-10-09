@@ -30,5 +30,7 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
     {
         base.OnModelCreating(builder);
         builder.Entity<AsignacionCartera>().Ignore(c => c.EsPrincipal);
+        // Posterior a EsPrincipal (D-9): un esquema anterior a la marca tampoco tiene esta columna.
+        builder.Entity<AsignacionCartera>().Ignore(c => c.EraPrincipalAlCerrarsePorCascada);
     }
 }

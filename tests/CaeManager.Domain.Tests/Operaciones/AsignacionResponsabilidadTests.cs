@@ -362,6 +362,59 @@ public class AsignacionResponsabilidadTests
         cartera.EsPrincipal.Should().BeFalse("una cartera cerrada no es la principal de nada");
     }
 
+    // ── D-9: quién era el principal cuando la cascada cerró la operación ──
+
+    [Fact]
+    public void El_cierre_por_cascada_recuerda_que_era_la_principal_y_la_cartera_cerrada_sigue_sin_serlo()
+    {
+        var cartera = CarteraExterna("GestorCae");
+        cartera.DesignarPrincipal();
+
+        cartera.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, Ahora);
+
+        cartera.EraPrincipalAlCerrarsePorCascada.Should().BeTrue("es lo que la reactivación lee para devolverle la marca");
+        cartera.EsPrincipal.Should().BeFalse("el dato es histórico: una cartera cerrada no cuenta como principal vivo");
+        cartera.Estado.Should().Be(EstadoAsignacion.Cerrada);
+        cartera.MotivoCierre.Should().Be(MotivoCierreAsignacion.Revocada);
+    }
+
+    [Fact]
+    public void El_cierre_por_cascada_de_una_cartera_de_apoyo_no_la_recuerda_como_principal()
+    {
+        var cartera = CarteraExterna("GestorCae");
+
+        cartera.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, Ahora);
+
+        cartera.EraPrincipalAlCerrarsePorCascada.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(MotivoCierreAsignacion.RetiradaPorElOperador)]
+    [InlineData(MotivoCierreAsignacion.Revocada)]
+    [InlineData(MotivoCierreAsignacion.Expirada)]
+    public void La_retirada_individual_y_la_expiracion_de_la_principal_no_dejan_ese_dato(MotivoCierreAsignacion motivo)
+    {
+        var cartera = CarteraExterna("GestorCae");
+        cartera.DesignarPrincipal();
+
+        cartera.Cerrar(motivo, Ahora);
+
+        cartera.EraPrincipalAlCerrarsePorCascada.Should().BeFalse(
+            "ahí el principal se releva en el acto: no hay nada que restaurar al reactivar la delegación");
+    }
+
+    [Fact]
+    public void Una_cartera_ya_cerrada_no_se_puede_cerrar_otra_vez_por_cascada_para_fabricar_el_dato()
+    {
+        var cartera = CarteraExterna("GestorCae");
+        cartera.DesignarPrincipal();
+        cartera.Cerrar(MotivoCierreAsignacion.RetiradaPorElOperador, Ahora);
+
+        cartera.Invoking(c => c.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, Ahora))
+            .Should().Throw<InvalidOperationException>();
+        cartera.EraPrincipalAlCerrarsePorCascada.Should().BeFalse();
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
