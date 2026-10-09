@@ -46,6 +46,9 @@ public class AlcanceDatosServiceFalso(
     public Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(subcontrataIdsParaGestion ?? (tieneAccesoTotal ? null : subcontrataIdsVisibles ?? []));
 
+    public async Task<bool> SubcontrataEliminadaParaGestionVisibleAsync(Guid subcontrataId, CancellationToken cancellationToken = default) =>
+        await ObtenerSubcontrataIdsParaGestionAsync(cancellationToken) is not { } ids || ids.Contains(subcontrataId);
+
     /// <summary>Por defecto null (sin restricción), igual que antes de que este parámetro existiera — solo lo controla el test que lo pase explícitamente.</summary>
     public Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(trabajadorIdsVisibles);

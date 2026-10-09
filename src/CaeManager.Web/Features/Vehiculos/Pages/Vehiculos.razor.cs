@@ -3,6 +3,7 @@ using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EliminarVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EliminarVehiculos;
+using CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
@@ -638,7 +639,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             }
             else
             {
-                ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(idEliminado));
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Vehiculo, [idEliminado]);
                 _confirmarEliminarVisible = false;
                 await RecargarAsync();
@@ -671,6 +672,64 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         else _seleccionados.Remove(id);
     }
 
+    /// <summary>«Deshacer» del aviso tras eliminar — ver RestaurarVehiculoCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        // Guarda por elemento: dos pulsaciones en «Deshacer» del mismo aviso no mandan dos restauraciones.
+        if (!_restaurando.Add(id)) return;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarVehiculoCommand(id));
+
+            ToastService.Mostrar(
+                resultado.EsExitoso ? Textos["ToastRestaurado"].Value : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurando.Remove(id);
+        }
+    }
+
+    private readonly HashSet<Guid> _restaurando = [];
+
+    private bool _restaurandoLote;
+
+    /// <summary>«Deshacer» del aviso de una eliminación en lote: un único deshacer restaura todos los que el lote sí eliminó.</summary>
+    private async Task DeshacerEliminarLoteAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_restaurandoLote) return;
+        _restaurandoLote = true;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new RestaurarVehiculoCommand(id)));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0 ? Textos["ToastLoteRestaurados", r.Restaurados].Value : Textos["ToastLoteRestauradosConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurandoLote = false;
+        }
+    }
+
     private async Task ConfirmarEliminarLoteAsync()
     {
         if (_eliminandoLote) return;
@@ -681,18 +740,20 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             var idsPedidos = _seleccionados.ToList();
             var resultado = await Mediator.Send(new EliminarVehiculosCommand(idsPedidos));
             var dto = resultado.Valor;
+            IReadOnlyList<Guid> eliminados = dto.IdsEliminados ?? [];
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
                     ? Textos["ToastLoteEliminados", dto.Eliminados]
                     : Textos["ToastLoteEliminadosConErrores", dto.Eliminados, dto.Errores.Count, string.Join(" ", dto.Errores)],
-                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
+                eliminados.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
+                eliminados.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminados) : null);
 
-            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
-            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
-            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            // Se retiran solo las fichas de los que cayeron (IdsEliminados); un superviviente
+            // conserva la suya y su edición sin guardar.
             if (dto.Eliminados > 0)
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Vehiculo, idsPedidos);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Vehiculo, dto.IdsEliminados ?? idsPedidos);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;

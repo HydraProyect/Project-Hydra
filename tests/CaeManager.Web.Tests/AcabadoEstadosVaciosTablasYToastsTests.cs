@@ -127,6 +127,66 @@ public class AcabadoEstadosVaciosTablasYToastsTests : BunitContext
         servicio.Mensajes.Should().BeEmpty();
     }
 
+    // ---------- Listados 5/7: cuenta atrás visible de «Deshacer» (decisión del 2026-10-08) ----------
+
+    private static readonly TimeSpan DosSegundos = TimeSpan.FromSeconds(2);
+
+    [Fact]
+    public void Solo_el_toast_con_accion_ensena_los_segundos_que_le_quedan()
+    {
+        var servicio = new ToastService();
+        Services.AddSingleton(servicio);
+        var cut = Render<AnfitrionToasts>();
+
+        servicio.Mostrar("Guardado", TonoToast.Exito);
+        servicio.Mostrar("No se pudo", TonoToast.Error);
+        servicio.Mostrar("Vehículo eliminado correctamente.", TonoToast.Exito, "Deshacer", () => Task.CompletedTask);
+        cut.WaitForState(() => cut.FindAll(".toast").Count == 3);
+
+        var cuenta = cut.FindAll(".toast-cuenta").Should().ContainSingle("solo el aviso con «Deshacer» lleva cuenta atrás").Subject;
+        cuenta.TextContent.Should().Be($"{(int)ToastService.DuracionAutoDescarteConAccion.TotalSeconds} s",
+            "el aviso nace enseñando el tiempo configurado entero");
+        cuenta.GetAttribute("aria-hidden").Should().Be("true",
+            "la región es aria-live: un número que cambia cada segundo no se anuncia");
+        cuenta.ParentElement!.QuerySelector(".toast-accion")!.TextContent.Should().Be("Deshacer");
+
+        servicio.SegundosRestantes(servicio.Mensajes[0].Id).Should().BeNull("un aviso sin acción no enseña cuenta");
+        servicio.SegundosRestantes(servicio.Mensajes[1].Id).Should().BeNull("un error no se autodescarta");
+    }
+
+    [Fact]
+    public async Task La_cuenta_baja_segundo_a_segundo_y_el_anfitrion_la_repinta()
+    {
+        var servicio = new ToastService(Corto, DosSegundos);
+        Services.AddSingleton(servicio);
+        var cut = Render<AnfitrionToasts>();
+
+        servicio.Mostrar("Eliminado", TonoToast.Exito, "Deshacer", () => Task.CompletedTask);
+        cut.WaitForState(() => cut.FindAll(".toast-cuenta").Count == 1);
+        cut.Find(".toast-cuenta").TextContent.Should().Be("2 s");
+
+        cut.WaitForAssertion(() => cut.Find(".toast-cuenta").TextContent.Should().Be("1 s"), TimeSpan.FromSeconds(5));
+
+        await EsperarAsync(() => servicio.Mensajes.Count == 0);
+        servicio.Mensajes.Should().BeEmpty("al agotarse la cuenta el aviso se descarta, como antes");
+    }
+
+    [Fact]
+    public async Task Con_el_puntero_encima_la_cuenta_no_baja_y_al_salir_sigue_por_donde_iba()
+    {
+        var servicio = new ToastService(Corto, DosSegundos);
+        servicio.Mostrar("Eliminado", TonoToast.Exito, "Deshacer", () => Task.CompletedTask);
+        var id = servicio.Mensajes.Single().Id;
+
+        servicio.PunteroSobre(id, true);
+        await Task.Delay(TimeSpan.FromSeconds(1.3));
+        servicio.SegundosRestantes(id).Should().Be(2, "con el puntero encima el número no baja");
+
+        servicio.PunteroSobre(id, false);
+        await EsperarAsync(() => servicio.SegundosRestantes(id) == 1);
+        servicio.SegundosRestantes(id).Should().Be(1, "al salir el puntero, la cuenta sigue por donde iba");
+    }
+
     [Fact]
     public void El_anfitrion_mantiene_aria_live_y_role_status()
     {

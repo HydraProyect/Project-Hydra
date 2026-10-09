@@ -239,7 +239,7 @@ public class ObtenerAuditoriaQueryListadoMinimizadoTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto(_tenant);
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
-        var handler = new ObtenerAuditoriaQueryHandler(contexto, contexto, contexto, contexto, contexto, tenantActual);
+        var handler = new ObtenerAuditoriaQueryHandler(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, tenantActual);
 
         var resultado = await handler.Handle(
             new ObtenerAuditoriaQuery(EntidadTipo: null, UsuarioId: null, Pagina: 1, TamanoPagina: 30),

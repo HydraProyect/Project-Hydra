@@ -73,6 +73,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Application/Empresas/Commands/RestaurarEmpresa/RestaurarEmpresaCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Trabajadores/Commands/RestaurarTrabajador/RestaurarTrabajadorCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Vehiculos/Commands/RestaurarVehiculo/RestaurarVehiculoCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Proyectos/Commands/RestaurarProyecto/RestaurarProyectoCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Gestiones/Commands/RestaurarGestion/RestaurarGestionCommand.cs", ".IgnoreQueryFilters()")] = 1,
 
         // ObtenerAuditoriaQuery (H1, defecto de Codex 2026-09-11): mismo
         // motivo que los cinco Restaurar*Command de arriba — PuedeRestaurar
@@ -82,7 +86,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Cuatro apariciones: una por tabla consultada en lote (Empresas
         // cubre tanto "Cliente" como "Empresa"; Centros; Trabajadores;
         // Documentos), siempre con el TenantId comprobado a mano.
-        [("src/CaeManager.Application/Auditoria/Queries/ObtenerAuditoriaQuery.cs", ".IgnoreQueryFilters()")] = 4,
+        [("src/CaeManager.Application/Auditoria/Queries/ObtenerAuditoriaQuery.cs", ".IgnoreQueryFilters()")] = 7,
 
         // Retención (purga de datos vencidos): tiene que alcanzar también los
         // registros ya borrados lógicamente, así que el filtro global se

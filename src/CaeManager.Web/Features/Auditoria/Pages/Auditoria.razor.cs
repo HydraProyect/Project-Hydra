@@ -4,7 +4,10 @@ using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
+using CaeManager.Application.Gestiones.Commands.RestaurarGestion;
+using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
+using CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
@@ -303,6 +306,9 @@ public partial class Auditoria : CaeManager.Web.Components.PaginaIntegrableConfi
             "Centro" => await Mediator.Send(new RestaurarCentroCommand(registro.EntidadId)),
             "Trabajador" => await Mediator.Send(new RestaurarTrabajadorCommand(registro.EntidadId)),
             "Documento" => await Mediator.Send(new RestaurarDocumentoCommand(registro.EntidadId)),
+            "Vehiculo" => await Mediator.Send(new RestaurarVehiculoCommand(registro.EntidadId)),
+            "Proyecto" => await Mediator.Send(new RestaurarProyectoCommand(registro.EntidadId)),
+            "Gestion" => await Mediator.Send(new RestaurarGestionCommand(registro.EntidadId)),
             _ => Result.Fallo(Error.Crear("Auditoria.NoRestaurable", "Esta entidad no se puede restaurar."))
         };
 

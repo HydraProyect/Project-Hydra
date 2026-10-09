@@ -151,7 +151,7 @@
     <value>¿Eliminar esta gestión?</value>
   </data>
   <data name="DialogoEliminarMensaje" xml:space="preserve">
-    <value>Dejará de aparecer en las listas. No se puede recuperar desde la aplicación: si ya está hecha, márcala como completada en lugar de eliminarla.</value>
+    <value>Dejará de aparecer en las listas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarla desde Auditoría. Si ya está hecha, márcala como completada en lugar de eliminarla.</value>
   </data>
   <data name="ToastErrorEstado" xml:space="preserve">
     <value>No pudimos actualizar el estado. Intenta nuevamente en unos segundos.</value>
@@ -169,4 +169,13 @@
   <data name="ListaOrdenarTrabajador" xml:space="preserve"><value>Ordenar por trabajador</value></data>
   <data name="ListaTrabajadorPorCentro" xml:space="preserve"><value>Trabajador · Centro</value></data>
   <data name="ListaTipoDocumento" xml:space="preserve"><value>Tipo de documento</value></data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="ToastRestaurada" xml:space="preserve">
+    <value>Gestión restaurada.</value>
+  </data>
+  <data name="ErrorRestaurar" xml:space="preserve">
+    <value>No se pudo deshacer la eliminación. Inténtalo de nuevo.</value>
+  </data>
 </root>

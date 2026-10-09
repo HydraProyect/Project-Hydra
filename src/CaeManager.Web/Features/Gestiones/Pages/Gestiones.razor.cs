@@ -1,6 +1,7 @@
 using CaeManager.Web.Components;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.EliminarGestion;
+using CaeManager.Application.Gestiones.Commands.RestaurarGestion;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Gestiones;
@@ -413,6 +414,35 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         _confirmarEliminarVisible = true;
     }
 
+    /// <summary>«Deshacer» del aviso tras eliminar — ver RestaurarGestionCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        // Guarda por elemento: dos pulsaciones en «Deshacer» del mismo aviso no mandan dos restauraciones.
+        if (!_restaurando.Add(id)) return;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarGestionCommand(id));
+
+            ToastService.Mostrar(
+                resultado.EsExitoso ? Textos["ToastRestaurada"].Value : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurando.Remove(id);
+        }
+    }
+
+    private readonly HashSet<Guid> _restaurando = [];
+
     private async Task ConfirmarEliminarAsync()
     {
         _eliminando = true;
@@ -428,7 +458,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             }
             else
             {
-                ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(id));
                 _confirmarEliminarVisible = false;
 
                 // Una vista rápida abierta sobre la gestión borrada enseñaría,

@@ -7,6 +7,7 @@ using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
+using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
@@ -57,6 +58,9 @@ public class SubcontratasListaGen2Tests : BunitContext
     {
         public IReadOnlyList<SubcontrataListaDto> Subcontratas { get; init; } = [];
         public int? EliminadosForzados { get; set; }
+
+        /// <summary>El lote devuelve qué ids cayeron, como el handler real (los tests anteriores a «Deshacer» solo fijan el recuento).</summary>
+        public bool LoteDevuelveIds { get; set; }
         public SubcontrataDetalleDto? Detalle { get; init; }
 
         /// <summary>
@@ -94,7 +98,8 @@ public class SubcontratasListaGen2Tests : BunitContext
                 ObtenerEmpresasParaSelectorQuery => Empresas,
                 ObtenerClientesParaSelectorQuery => Clientes,
                 EliminarSubcontrataCommand => ResultadoEliminar,
-                EliminarSubcontratasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? lote.Ids.Count, [])),
+                EliminarSubcontratasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? lote.Ids.Count, [], LoteDevuelveIds ? lote.Ids : null)),
+                RestaurarSubcontrataCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             });
         }
@@ -569,6 +574,53 @@ public class SubcontratasListaGen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EliminarSubcontrataCommand>().Select(c => c.Id).Should().Equal([id],
             "se elimina la fila cuyo menú se abrió, y solo esa");
+    }
+
+    /// <summary>Listados 5/7 (decisión D6, 2026-10-08): eliminar una Subcontrata deja «Deshacer», que restaura esa y solo esa.</summary>
+    [Fact]
+    public async Task Eliminar_ofrece_Deshacer_y_Deshacer_restaura_esa_subcontrata()
+    {
+        var id = Guid.NewGuid();
+        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] };
+        var cut = Renderizar(mediador);
+
+        AbrirMenuYPulsar(cut, "Eliminar");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        mediador.Enviadas.OfType<RestaurarSubcontrataCommand>().Should().BeEmpty("ofrecer «Deshacer» no restaura nada");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<RestaurarSubcontrataCommand>().Should().Equal([new RestaurarSubcontrataCommand(id)]);
+        avisos.Mensajes.Should().Contain(m => m.Mensaje == "Subcontrata restaurada." && m.Tono == TonoToast.Exito);
+    }
+
+    /// <summary>En lote, un único «Deshacer» para todo el lote, y restaura solo las que el lote sí eliminó.</summary>
+    [Fact]
+    public async Task Eliminar_en_lote_ofrece_un_unico_Deshacer_que_restaura_las_que_cayeron()
+    {
+        var elegida = Guid.NewGuid();
+        var mediador = new MediatorFalso
+        {
+            LoteDevuelveIds = true,
+            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: elegida), Subcontrata("Pinturas Lauburu S.A.")]
+        };
+        var cut = Renderizar(mediador);
+
+        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']")
+            .ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").Click();
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<RestaurarSubcontrataCommand>().Select(c => c.Id).Should().Equal([elegida]);
     }
 
     [Fact]

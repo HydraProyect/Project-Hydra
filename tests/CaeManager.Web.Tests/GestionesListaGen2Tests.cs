@@ -4,6 +4,7 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.EliminarGestion;
+using CaeManager.Application.Gestiones.Commands.RestaurarGestion;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Common;
@@ -102,6 +103,9 @@ public class GestionesListaGen2Tests : BunitContext
 
                 case EliminarGestionCommand e:
                     Almacen.RemoveAll(g => g.Id == e.Id);
+                    return Result.Exito();
+
+                case RestaurarGestionCommand:
                     return Result.Exito();
 
                 // El estado vacío sin filtros pregunta cuántos Tenants hay para decidir adónde
@@ -479,6 +483,32 @@ public class GestionesListaGen2Tests : BunitContext
     {
         await FilaGestionFase1(cut, trabajador).QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
         await cut.FindAll("tbody .menu-acciones-item").Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
+    }
+
+    /// <summary>Listados 5/7 (decisión D6, 2026-10-08): eliminar una Gestión deja «Deshacer», que la restaura.</summary>
+    [Fact]
+    public async Task Eliminar_ofrece_Deshacer_y_Deshacer_restaura_esa_gestion()
+    {
+        var abierta = Gestion("Nuria Salas Ortiz");
+        var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra"), abierta } };
+        var cut = Renderizar(mediador);
+
+        await NombreEnLaFila(cut, "Nuria Salas Ortiz").ClickAsync(new MouseEventArgs());
+        await BotonDeLaVistaRapida(cut, "Eliminar").ClickAsync(new MouseEventArgs());
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Podrás deshacerlo desde el aviso que aparecerá",
+            "el diálogo ya no dice que no se puede recuperar: ahora hay «Deshacer» y restauración desde Auditoría");
+
+        await BotonDelDialogo(cut, "Eliminar").ClickAsync(new MouseEventArgs());
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        mediador.Enviadas.OfType<RestaurarGestionCommand>().Should().BeEmpty("ofrecer «Deshacer» no restaura nada");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<RestaurarGestionCommand>().Should().Equal([new RestaurarGestionCommand(abierta.Id)]);
+        avisos.Mensajes.Should().Contain(m => m.Mensaje == "Gestión restaurada." && m.Tono == TonoToast.Exito);
     }
 
     [Fact]
