@@ -105,7 +105,7 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixture fixture)
         var tecnicos = (await lista.Locator(".ventana-contexto-elemento-texto").AllTextContentsAsync())
             .Select(t => t.Trim()).Where(t => t.Length > 0).ToArray();
         Assert.True(tecnicos.Length > 0, "Control positivo: la ventana de contexto nombra a los técnicos activos.");
-        await lista.Locator(".ventana-contexto-elemento").Filter(new LocatorFilterOptions { HasText = tecnicos[0] }).ClickAsync();
+        await lista.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = tecnicos[0] }).ClickAsync();
         await Expect(panel.Locator(".nombre-cabecera-panel-proyecto")).ToHaveTextAsync(nombre);
         await Expect(panel.Locator(".lista-tecnicos-proyecto")).ToContainTextAsync(tecnicos[0]);
 

@@ -1,5 +1,11 @@
-.contenedor-tabla-proyectos {
-    overflow-x: auto;
+/* El desplazamiento horizontal solo hace falta en pantallas estrechas. En las anchas el
+   contenedor no recorta: `overflow-x: auto` obliga también a recortar en vertical, y la
+   ventana de contexto del recuento de técnicos (que se abre hacia abajo) quedaba cortada
+   en una lista de pocas filas. */
+@media (max-width: 767px) {
+    .contenedor-tabla-proyectos {
+        overflow-x: auto;
+    }
 }
 
 .acciones-seccion {
