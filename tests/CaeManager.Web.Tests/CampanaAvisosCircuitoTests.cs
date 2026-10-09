@@ -5,6 +5,7 @@ using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.Notificaciones;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -36,6 +37,13 @@ public class CampanaAvisosCircuitoTests : BunitContext
         Services.AddSingleton<IAlertaOperativa>(_alertas);
         Services.AddSingleton<ToastService>();
         Services.AddSingleton<ILogger<ExcepcionDeCircuitoDesconectado>>(_logger);
+        // La campana toma el token al montarse: lo lleva el POST que abre un Tenant recién aceptado como apoyo.
+        Services.AddSingleton<AntiforgeryStateProvider>(new AntiforgerySinToken());
+    }
+
+    private sealed class AntiforgerySinToken : AntiforgeryStateProvider
+    {
+        public override AntiforgeryRequestToken? GetAntiforgeryToken() => null;
     }
 
     private sealed class AlertaOperativaQueCuenta : IAlertaOperativa

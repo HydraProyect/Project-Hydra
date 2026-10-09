@@ -267,6 +267,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "tenantPropietario.Id, del Tenant recién creado por el propio comando tras la autorización global (PuedeGlobalmenteAsync) y la validación del Operador, en la misma transacción"),
         ["src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/AceptarSolicitudIncorporacionCarteraCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "solicitud.PropietarioTenantId, tras cargar la solicitud filtrada por el Operador CAE de origen y autorizar al Coordinador CAE por su rol en ese origen"),
+        ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/AceptarPropuestaApoyoCarteraCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "propuesta.PropietarioTenantId, tras cargar la propuesta filtrada por el Operador CAE de origen, exigir que el actor sea su destinatario y releer, bajo el candado compartido, las cuentas de destinatario y proponente. De la petición solo sale el id de la propuesta"),
         ["src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/RevocarIncorporacionCarteraCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "solicitud.PropietarioTenantId, tras cargar la solicitud filtrada por el Operador CAE de origen y autorizar al Coordinador CAE o al propio Gestor CAE solicitante"),
         ["src/CaeManager.Application/Usuarios/Commands/CrearUsuario/CrearUsuarioCommand.cs"] =

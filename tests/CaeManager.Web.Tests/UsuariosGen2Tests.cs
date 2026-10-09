@@ -523,6 +523,8 @@ public partial class UsuariosGen2Tests : BunitContext
             Guid asignacionOperacionId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<ResultadoIncorporacionCartera> IncorporarAsync(
             SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ResultadoApoyoCartera> IncorporarApoyoAsync(
+            PropuestaApoyoCartera propuesta, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
         public void DescartarPendientes() => throw new NotSupportedException();

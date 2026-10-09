@@ -571,6 +571,39 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         }
     }
 
+    /// <summary>
+    /// Categoría 5 también: las <b>propuestas de apoyo</b> entre Gestores CAE de un mismo
+    /// Operador CAE. Mismo motivo que la solicitud de incorporación: se aceptan en la transacción
+    /// que escribe la cartera, con <c>app.tenant_id</c> en el Tenant propietario, así que se
+    /// aíslan por <c>app.tenant_origen_id</c>. Lo que la política NO decide es quién, dentro del
+    /// Operador CAE, puede aceptar cada una: eso es del Command (solo el destinatario).
+    /// </summary>
+    [Fact]
+    public async Task Las_propuestas_de_apoyo_se_aislan_por_el_Operador_CAE_de_origen_sin_FORCE()
+    {
+        const string tabla = "PropuestasApoyoCartera";
+        var estado = await LeerEstadoRlsAsync([tabla]);
+
+        estado.Should().ContainKey(tabla, "la migración de la propuesta tiene que haber creado la tabla");
+        var (habilitado, forzado, politicas) = estado[tabla];
+
+        using var _ = new AssertionScope();
+        habilitado.Should().BeTrue("sin RLS, un Gestor CAE de otro Operador CAE leería y aceptaría las propuestas ajenas");
+        forzado.Should().BeFalse("con FORCE, la retirada de un Tenant de demo no vería las propuestas que tiene que borrar");
+        politicas.Select(p => p.Nombre).Should().Equal(["operador_de_la_propuesta"],
+            "una política PERMISSIVE adicional se combina con OR y ensancharía el acceso");
+
+        var politica = politicas.Single();
+        foreach (var expresion in new[] { politica.Using, politica.WithCheck })
+        {
+            expresion.Should().NotBeNull("USING protege la lectura y WITH CHECK la escritura; hacen falta las dos")
+                .And.Subject.As<string>().Should().Contain("OperadorTenantId")
+                .And.Contain("app.tenant_origen_id")
+                .And.NotContain("app.tenant_id'",
+                    "el Tenant activo es el propietario al aceptar; aislar por él rompería la aceptación");
+        }
+    }
+
     [Fact]
     public void No_existe_ninguna_variable_de_sesion_que_afirme_privilegio_de_plataforma()
     {

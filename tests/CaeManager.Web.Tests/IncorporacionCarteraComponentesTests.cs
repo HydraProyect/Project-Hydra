@@ -53,6 +53,19 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         Services.AddSingleton<IMediator>(_mediator);
         Services.AddSingleton<ToastService>();
         Services.AddSingleton<ILogger<ExcepcionDeCircuitoDesconectado>>(NullLogger<ExcepcionDeCircuitoDesconectado>.Instance);
+        Services.AddSingleton<CaeManager.Application.Common.ICurrentUserService>(new UsuarioActualFalso());
+    }
+
+    private static readonly Guid Yo = Guid.NewGuid();
+
+    /// <summary>El panel «Dar acceso» que monta la página compara este usuario con el principal de cada operación.</summary>
+    private sealed class UsuarioActualFalso : CaeManager.Application.Common.ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Yo);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
     private IStringLocalizer<TextosIncorporacionCartera> Textos =>
@@ -189,6 +202,24 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         var pagina = Render<SolicitudesCartera>();
 
         pagina.Markup.Should().Contain(Textos["ErrorCargaTitulo"]).And.NotContain(Textos["SinAccesoTitulo"]);
+    }
+
+    [Fact]
+    public void La_pagina_ofrece_Dar_acceso_solo_en_los_Tenants_de_los_que_quien_mira_es_principal()
+    {
+        static CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.CarterasDeOperacion Operacion(string tenant, Guid principal) =>
+            new(Guid.NewGuid(), Guid.NewGuid(), tenant,
+                new CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.PersonaConCartera(principal, "Alguien", "GestorCae", null), []);
+
+        _mediator.Bandeja = new BandejaIncorporacionCarteraDto(EsCoordinadorCae: false, [], [], []);
+        _mediator.Carteras = [Operacion("Empresa Mía", Yo), Operacion("Empresa Ajena", Guid.NewGuid())];
+
+        var pagina = Render<SolicitudesCartera>();
+
+        var panel = pagina.Find("[data-testid=panel-dar-acceso]");
+        panel.TextContent.Should().Contain("Empresa Mía").And.NotContain("Empresa Ajena");
+        panel.QuerySelectorAll("[data-dar-acceso-operacion] > button").Should().ContainSingle()
+            .Which.TextContent.Should().Contain("Dar acceso");
     }
 
     [Fact]
@@ -389,6 +420,8 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         public List<ObtenerSolicitudesIncorporacionCarteraQuery> Consultas { get; } = [];
         public List<object> Comandos { get; } = [];
 
+        public IReadOnlyList<CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.CarterasDeOperacion> Carteras { get; set; } = [];
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             object respuesta;
@@ -408,6 +441,14 @@ public class IncorporacionCarteraComponentesTests : BunitContext
                     or RevocarIncorporacionCarteraCommand or AsumirPrincipalDeOperacionCommand:
                     Comandos.Add(request);
                     respuesta = AlComando(request);
+                    break;
+                // La página monta el panel «Dar acceso», que pregunta por las carteras del
+                // Operador CAE; vacío, el panel no pinta nada (lo cubre PanelDarAccesoTests).
+                case CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.ObtenerPersonasConCarteraQuery:
+                    respuesta = Carteras;
+                    break;
+                case CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerPropuestasApoyoPendientesQuery:
+                    respuesta = CaeManager.Application.Operaciones.ApoyoCartera.Queries.PropuestasApoyoPendientesDto.Vacia;
                     break;
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
