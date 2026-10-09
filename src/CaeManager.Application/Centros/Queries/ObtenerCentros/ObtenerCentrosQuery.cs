@@ -310,9 +310,10 @@ public class ObtenerCentrosQueryHandler(
             (nameof(CentroListaDto.ClienteRazonSocial), true) => elementos.OrderByDescending(x => x.ClienteRazonSocial).ThenBy(x => x.Nombre),
             (nameof(CentroListaDto.EmpresaRazonSocial), false) => elementos.OrderBy(x => x.EmpresaRazonSocial).ThenBy(x => x.Nombre),
             (nameof(CentroListaDto.EmpresaRazonSocial), true) => elementos.OrderByDescending(x => x.EmpresaRazonSocial).ThenBy(x => x.Nombre),
-            // El orden del enum va de mejor a peor (Vigente … Bloqueado), así
-            // que descendente deja arriba lo que más urge — que es lo que el
-            // gestor espera al ordenar por cumplimiento.
+            // La gravedad va de mejor a peor (Vigente … Faltante, Vencido,
+            // Bloqueado; no es el valor numérico del enum), así que descendente
+            // deja arriba lo que más urge — que es lo que el Gestor CAE espera
+            // al ordenar por cumplimiento.
             (nameof(CentroListaDto.Estado), false) => elementos.OrderBy(x => CalculadoraEstadoCentro.Gravedad(x.Estado)).ThenBy(x => x.Nombre),
             (nameof(CentroListaDto.Estado), true) => elementos.OrderByDescending(x => CalculadoraEstadoCentro.Gravedad(x.Estado)).ThenBy(x => x.Nombre),
             // Orden por cumplimiento (blueprint § 3.1, DDL-036): existe para

@@ -457,9 +457,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         List<(EstadoCentro, int?)> De(ZonaPilotoOutbound zona) =>
             [.. T6.CentrosDe(zona).Select(c => m.Centros.Single(x => x.Nombre == c.Nombre)).Select(c => (c.Estado, c.Cumplimiento))];
 
-        // Barcelona, la peor: ningún Centro al 100 %. El primero es el del desplazamiento: 15 de 18 pares.
+        // Barcelona, la peor: ningún Centro al 100 %. El primero es el del desplazamiento: 15 de 18 pares, con dos
+        // documentos vencidos y uno que falta, así que está Vencido (Vencido precede a Faltante).
         De(DisenoT6PilotoOutbound.Barcelona).Should().Equal(
-            (EstadoCentro.Faltante, 83), (EstadoCentro.Vencido, 80), (EstadoCentro.Faltante, 80), (EstadoCentro.Faltante, 87));
+            (EstadoCentro.Vencido, 83), (EstadoCentro.Vencido, 80), (EstadoCentro.Faltante, 80), (EstadoCentro.Faltante, 87));
         // Madrid, intermedia: dos Centros con pares incumplidos y dos solo con avisos.
         De(DisenoT6PilotoOutbound.Madrid).Should().Equal(
             (EstadoCentro.Vencido, 90), (EstadoCentro.Urgente, 100), (EstadoCentro.Urgente, 100), (EstadoCentro.Faltante, 87));

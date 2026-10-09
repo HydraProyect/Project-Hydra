@@ -176,7 +176,8 @@ public static class DatosPruebaSeeder
     /// <c>TipoDocumentoCentro</c> aplica a todos los centros
     /// (<c>ResolucionTipoDocumentoCentro.Aplica</c>), y
     /// <c>CalculadoraEstadoCentro</c> evalúa <c>Faltante</c> <b>antes</b> que
-    /// <c>Vencido/Urgente/Proximo</c>. Las dos cosas juntas hacían que el
+    /// <c>Urgente/Proximo</c> (y, hasta el 2026-10-09, también antes que
+    /// <c>Vencido</c>). Las dos cosas juntas hacían que el
     /// hueco universal tapara cualquier otro estado: medido sobre la siembra
     /// completa, <b>41 de 41</b> centros con plantilla salían
     /// <c>Faltante</c> (40) o <c>Bloqueado</c> (1) — el semáforo entero de un
