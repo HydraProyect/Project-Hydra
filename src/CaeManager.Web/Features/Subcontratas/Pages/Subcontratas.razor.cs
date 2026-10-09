@@ -2,7 +2,6 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
-using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
 using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
@@ -88,25 +87,11 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private bool _eliminandoLote;
     private bool _confirmarEliminarLoteVisible;
 
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _razonSocialAEliminar = string.Empty;
-    private bool _eliminando;
+    /// <summary>Subcontrata cuyo panel está abierto arriba de la pila del Context Workspace, si la hay.</summary>
+    private Guid? SubcontrataEnVistaPrevia =>
+        WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Subcontrata } frame ? frame.EntidadId : null;
 
-    // Vista previa (Subcontratas TALVEG.dc.html, mismo patrón que Empresas y
-    // Vehículos): el nombre de la fila y "Detalles" abren esto primero, no el
-    // Context Workspace directamente. Antes los dos abrían Subcontrata 360.
-    private Guid? _previewSubcontrataId;
-    private bool _previewVisible;
-
-    /// <summary>
-    /// La fila que la vista previa enseña, leída de la página ya cargada: el
-    /// panel reutiliza el cumplimiento y los recuentos que la lista ya tiene,
-    /// y se entera sola cuando <see cref="RefrescarSubcontrataAsync"/> los
-    /// sustituye tras gestionar un documento desde el acordeón.
-    /// </summary>
-    private SubcontrataListaDto? FilaEnVistaPrevia =>
-        _previewSubcontrataId is { } id ? _elementosPagina.FirstOrDefault(e => e.Id == id) : null;
+    private void AlCambiarWorkspace() => InvokeAsync(StateHasChanged);
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -134,12 +119,14 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     public void Dispose()
     {
+        WorkspaceService.OnCambio -= AlCambiarWorkspace;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
 
     protected override async Task OnInitializedAsync()
     {
+        WorkspaceService.OnCambio += AlCambiarWorkspace;
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _nivelFiltro = NivelDesdeUrl();
 
@@ -252,8 +239,6 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _elementosPagina = resultado.Elementos.ToList();
         _seleccionados.IntersectWith(_elementosPagina.Select(s => s.Id));
         _expandidos.Clear();
-        if (FilaEnVistaPrevia is null)
-            _previewVisible = false;
         StateHasChanged();
     }
 
@@ -275,12 +260,6 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             _seleccionados.Clear();
             _expandidos.Clear();
             _idEnfocado = null;
-
-            // La vista previa se alimenta de la fila de la página: si esa fila
-            // ya no está (otra página, otra búsqueda, eliminada), el panel no
-            // tiene nada cierto que enseñar y se cierra.
-            if (FilaEnVistaPrevia is null)
-                _previewVisible = false;
         }
         catch (Exception)
         {
@@ -386,7 +365,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private string ClaseTarjeta(SubcontrataListaDto subcontrata) =>
         "tarjeta-fila-acordeon"
         + (subcontrata.Id == _idEnfocado ? " fila-enfocada" : string.Empty)
-        + (_previewVisible && subcontrata.Id == _previewSubcontrataId ? " fila-en-vista-previa" : string.Empty)
+        + (subcontrata.Id == SubcontrataEnVistaPrevia ? " fila-en-vista-previa" : string.Empty)
         + ClaseTinte(subcontrata.Recuentos);
 
     /// <summary>
@@ -398,19 +377,25 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         : recuentos.Proximas.Any(p => p.Estado == EstadoDocumento.Urgente) ? " fila-tintada-aviso"
         : string.Empty;
 
-    private void AbrirPreview(Guid id)
-    {
-        _previewSubcontrataId = id;
-        _previewVisible = true;
-    }
+    // Un clic en la fila, su nombre o Enter sobre la fila enfocada abren la vista rápida: el
+    // panel de 520 px del Context Workspace, el mismo que abren los botones 360 del resto de
+    // pantallas. A la página Subcontrata 360 (/subcontratas/{id}) se va con el icono 360 de
+    // la fila.
+    private Task AbrirVistaRapidaAsync(Guid id) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, id, NombreDe(id), "informacion");
 
-    private void IrASubcontrata360(Guid id) => NavigationManager.NavigateTo($"/subcontratas/{id}");
+    /// <summary>
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
+    /// del panel). Si el rol no puede escribir, el panel se abre y se queda en lectura.
+    /// </summary>
+    private Task AbrirVistaRapidaEnEdicionAsync(Guid id) =>
+        WorkspaceService.AbrirEnEdicionAsync(EntidadWorkspace.Subcontrata, id, NombreDe(id));
 
-    private Task AbrirDesdePreviewAsync((Guid Id, string Pestana) destino)
-    {
-        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.RazonSocial ?? string.Empty;
-        return WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, destino.Id, nombre, destino.Pestana);
-    }
+    // La Subcontrata del panel puede no estar en la página (el filtro la dejó fuera): su
+    // nombre es entonces el del frame abierto.
+    private string NombreDe(Guid id) =>
+        _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial
+        ?? (WorkspaceService.FrameActual is { } frame && frame.EntidadId == id ? frame.TituloVisible : string.Empty);
 
     private async Task AbrirCrear()
     {
@@ -561,79 +546,6 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         else _seleccionados.Remove(id);
     }
 
-    private void AbrirEliminar(Guid id, string razonSocial)
-    {
-        _idAEliminar = id;
-        _razonSocialAEliminar = razonSocial;
-        _confirmarEliminarVisible = true;
-    }
-
-    /// <summary>
-    /// Eliminación de una sola fila desde su menú, con el mismo comando que
-    /// ya existía (EliminarSubcontrataCommand) y que la lista no usaba. El
-    /// aviso ofrece «Deshacer» (RestaurarSubcontrataCommand). El motivo de un
-    /// rechazo —p. ej. que aún tenga trabajadores— lo da el propio comando y
-    /// se enseña tal cual.
-    /// </summary>
-    private async Task ConfirmarEliminarAsync()
-    {
-        _eliminando = true;
-
-        try
-        {
-            var idEliminada = _idAEliminar;
-            var resultado = await Mediator.Send(new EliminarSubcontrataCommand(idEliminada));
-            _confirmarEliminarVisible = false;
-
-            if (resultado.EsFallido)
-            {
-                ToastService.MostrarError(resultado.Error);
-                return;
-            }
-
-            ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(idEliminada));
-            WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, [idEliminada]);
-            await CargarAsync();
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar(Textos["ToastErrorEliminar"], TonoToast.Error);
-        }
-        finally
-        {
-            _eliminando = false;
-        }
-    }
-
-    /// <summary>«Deshacer» del aviso tras eliminar — ver RestaurarSubcontrataCommand.</summary>
-    private async Task DeshacerEliminarAsync(Guid id)
-    {
-        // Guarda por elemento: dos pulsaciones en «Deshacer» del mismo aviso no mandan dos restauraciones.
-        if (!_restaurando.Add(id)) return;
-
-        try
-        {
-            var resultado = await Mediator.Send(new RestaurarSubcontrataCommand(id));
-
-            ToastService.Mostrar(
-                resultado.EsExitoso ? Textos["ToastRestaurada"].Value : resultado.Error.Mensaje,
-                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
-
-            if (resultado.EsExitoso)
-                await CargarAsync();
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
-        }
-        finally
-        {
-            _restaurando.Remove(id);
-        }
-    }
-
-    private readonly HashSet<Guid> _restaurando = [];
-
     private bool _restaurandoLote;
 
     /// <summary>«Deshacer» del aviso de una eliminación en lote: un único deshacer restaura todos los que el lote sí eliminó.</summary>
@@ -701,9 +613,19 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         }
     }
 
-    private Task ManejarAtajoAsync(string tecla)
+    private async Task ManejarAtajoAsync(string tecla)
     {
-        if (_elementosPagina.Count == 0) return Task.CompletedTask;
+        // «e» no depende de que haya filas: sin fila enfocada edita la ficha que esté abierta,
+        // aunque el filtro haya dejado la lista vacía.
+        if (tecla == "e")
+        {
+            // La fila enfocada siempre está en la página: cada recarga de la lista la olvida.
+            if ((_idEnfocado ?? SubcontrataEnVistaPrevia) is { } idEditar)
+                await AbrirVistaRapidaEnEdicionAsync(idEditar);
+            return;
+        }
+
+        if (_elementosPagina.Count == 0) return;
 
         switch (tecla)
         {
@@ -720,19 +642,22 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
                     break;
                 }
             case "x":
+                // Marcar enciende la selección múltiple: una fila marcada sin casilla a la
+                // vista sería selección invisible justo antes de «Eliminar seleccionados».
                 if (_idEnfocado is { } idAlternar)
+                {
+                    _seleccionMultiple = true;
                     AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                }
                 break;
             case "Enter":
-                // Enter hace lo mismo que pulsar el nombre de la fila: abrir la
-                // vista previa. Mismo criterio que Empresas.
+                // Enter hace lo mismo que un clic en la fila: abrir la vista rápida.
                 if (_idEnfocado is { } idAbrir)
-                    AbrirPreview(idAbrir);
+                    await AbrirVistaRapidaAsync(idAbrir);
                 break;
         }
 
         StateHasChanged();
-        return Task.CompletedTask;
     }
 
     /// <summary>
