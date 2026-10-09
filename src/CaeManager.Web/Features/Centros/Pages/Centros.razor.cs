@@ -1296,24 +1296,17 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             .ToList();
 
     /// <summary>
-    /// 3ª ranura de indicadores del Centro (contrato de fidelidad 2026-08-09
-    /// § 1.6, bug C-2), cuando no hay visita que mostrar en su lugar. El
-    /// Badge de Estado solo aporta algo que los recuentos de vencidos/
-    /// próximos no digan ya: Vencido/Próximo/Falta documentación quedan
-    /// reflejados en esas dos ranuras (mismo criterio de bucketing que
-    /// <c>ObtenerCentrosQuery.Desglosar</c>), así que repetirlos aquí era
-    /// justo la redundancia que hacía desbordar la columna. Bloqueado
-    /// (el peor caso posible) sí necesita la ranura. Urgente también: desde
-    /// que <c>Desglosar</c> lo funde con Vencido/Faltante en "vencidas"
-    /// (mismo tono Peligro que ya le da <c>EstadoDocumentoUi.Tono</c>), el
-    /// recuento por sí solo ya no distingue Urgente de un vencimiento
-    /// consumado — el Badge de Estado es la única señal que sí lo hace.
-    /// "Sin incidencias" (0 y 0) también, para que la fila no quede
-    /// completamente muda.
+    /// Motivo bajo la pastilla de estado del Centro: cuántos documentos hay en
+    /// «vencidas» y cuántos en «próximas» (el reparto de
+    /// <c>ObtenerCentrosQuery.Desglosar</c>). Es lo que decían las columnas
+    /// «Venc.» y «Próx.», retiradas el 2026-10-09; cada parte abre su ventana de
+    /// contexto con las incidencias.
     /// </summary>
-    private static bool MostrarEstadoEnIndicadores(CentroListaDto centro) =>
-        centro.Estado is EstadoCentro.Bloqueado or EstadoCentro.Urgente
-        || (centro.Recuentos.TotalVencidas == 0 && centro.Recuentos.TotalProximas == 0);
+    private string MotivoVencidos(int cantidad) =>
+        cantidad == 1 ? Textos["MotivoUnVencido"].Value : Textos["MotivoVencidos", cantidad].Value;
+
+    private string MotivoProximos(int cantidad) =>
+        cantidad == 1 ? Textos["MotivoUnProximo"].Value : Textos["MotivoProximos", cantidad].Value;
 
     /// <summary>
     /// Nombre accesible de un badge de solo recuento. Es lo unico que oye un

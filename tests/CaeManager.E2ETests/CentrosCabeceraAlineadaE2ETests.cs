@@ -13,8 +13,8 @@ namespace CaeManager.E2ETests;
 /// y «Empresa» no caían sobre sus celdas. Un test de bUnit no puede verlo: no hay maquetación.
 /// <para>
 /// <b>Qué mira y qué no.</b> Compara el borde izquierdo de cada hueco de la cabecera con el de la celda que
-/// ocupa su mismo lugar en la fila, sin afirmar ningún ancho en píxeles. Los tres indicadores («Venc.»,
-/// «Próx.», «Estado / visita») se comparan uno a uno, no como bloque. No mira dónde empieza el contenido
+/// ocupa su mismo lugar en la fila, sin afirmar ningún ancho en píxeles. Los dos indicadores («Estado» y
+/// «Visita») se comparan uno a uno, no como bloque. No mira dónde empieza el contenido
 /// DENTRO de cada celda.
 /// </para>
 /// </summary>
@@ -58,8 +58,8 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixture fixture)
         // Los grupos por Cliente empresarial arrancan contraídos: sin agrupar se ven todas las filas.
         await Ayudas.MostrarCentrosSinAgruparAsync(page);
 
-        // chevron · Centro · Empresa · Cumplimiento · Venc. · Próx. · Estado / visita · acciones
-        await AfirmarAlineadoEnLosDosTemasAsync(page, columnas: 8, "sin selección");
+        // chevron · Centro · Empresa · Cumplimiento · Estado · Visita · acciones
+        await AfirmarAlineadoEnLosDosTemasAsync(page, columnas: 7, "sin selección");
     }
 
     [Fact]
@@ -83,8 +83,8 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixture fixture)
         // El hueco de la casilla en la cabecera está vacío y no tiene alto: se afirma que existe, no que se ve.
         await Expect(page.Locator(".cabecera-columnas-centros-seleccion")).ToHaveCountAsync(1);
 
-        // casilla · chevron · Centro · Empresa · Cumplimiento · Venc. · Próx. · Estado / visita · acciones
-        await AfirmarAlineadoEnLosDosTemasAsync(page, columnas: 9, "con selección múltiple");
+        // casilla · chevron · Centro · Empresa · Cumplimiento · Estado · Visita · acciones
+        await AfirmarAlineadoEnLosDosTemasAsync(page, columnas: 8, "con selección múltiple");
     }
 
     private async Task<IPage> AbrirCentrosAsync(IBrowserContext contexto)
@@ -109,7 +109,7 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixture fixture)
             // Sin filas, sin rótulos o con otra cabecera no habría nada que comparar y el test pasaría en vacío.
             Assert.True(medicion.GetProperty("filas").GetInt32() > 0, $"[{contexto}] la lista sembrada no tiene filas a la vista: no hay nada que medir.");
             Assert.Equal(columnas, medicion.GetProperty("columnas").GetInt32());
-            Assert.Equal(6, medicion.GetProperty("rotulos").GetInt32());
+            Assert.Equal(5, medicion.GetProperty("rotulos").GetInt32());
 
             var desvios = medicion.GetProperty("desvios").EnumerateArray().Select(d => d.GetString()).ToList();
             Assert.True(desvios.Count == 0, $"[{contexto}] la cabecera no coincide con sus celdas:{Environment.NewLine}{string.Join(Environment.NewLine, desvios.Take(12))}");

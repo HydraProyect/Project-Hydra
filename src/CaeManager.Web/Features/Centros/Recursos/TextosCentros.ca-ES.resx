@@ -126,14 +126,23 @@
   <data name="ColEmpresa" xml:space="preserve">
     <value>Empresa</value>
   </data>
-  <data name="ColVencidos" xml:space="preserve">
-    <value>Venc.</value>
+  <data name="ColEstado" xml:space="preserve">
+    <value>Estat</value>
   </data>
-  <data name="ColProximos" xml:space="preserve">
-    <value>Prop.</value>
+  <data name="ColVisita" xml:space="preserve">
+    <value>Visita</value>
   </data>
-  <data name="ColEstadoVisita" xml:space="preserve">
-    <value>Estat / visita</value>
+  <data name="MotivoUnVencido" xml:space="preserve">
+    <value>1 vençut</value>
+  </data>
+  <data name="MotivoVencidos" xml:space="preserve">
+    <value>{0} vençuts</value>
+  </data>
+  <data name="MotivoUnProximo" xml:space="preserve">
+    <value>1 pròxim</value>
+  </data>
+  <data name="MotivoProximos" xml:space="preserve">
+    <value>{0} pròxims</value>
   </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al dia: no cal intervenir-hi, però el pots substituir</value>
