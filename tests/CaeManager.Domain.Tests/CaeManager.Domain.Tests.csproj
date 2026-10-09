@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="10.0.1" />
+    <PackageReference Include="coverlet.collector" Version="10.1.0" />
     <!-- Fijado en exacta (no comodín) a propósito: desde la 8.x,
          FluentAssertions exige licencia comercial de pago (Xceed). La rama
          7.x sigue Apache 2.0 y recibe bugfixes indefinidamente — ver
