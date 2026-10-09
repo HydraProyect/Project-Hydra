@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPestanaNavegador" xml:space="preserve">
+    <value>Tipo de documento</value>
+  </data>
+  <data name="EtiquetaMigas" xml:space="preserve">
+    <value>Ruta de Tipo de documento 360</value>
+  </data>
+  <data name="MigaDocumentos" xml:space="preserve">
+    <value>Documentos</value>
+  </data>
+  <data name="MigaCargando" xml:space="preserve">
+    <value>…</value>
+  </data>
+  <data name="ErrorTitulo" xml:space="preserve">
+    <value>No pudimos cargar este tipo de documento</value>
+  </data>
+  <data name="ErrorDescripcion" xml:space="preserve">
+    <value>Puede que ya no exista o que no tengas acceso.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Tipo de documento · se pide a trabajadores</value>
+  </data>
+  <data name="MetaVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="VigenciaMesesUno" xml:space="preserve">
+    <value>{0} mes</value>
+  </data>
+  <data name="VigenciaMesesVarios" xml:space="preserve">
+    <value>{0} meses</value>
+  </data>
+  <data name="VigenciaSinDefinir" xml:space="preserve">
+    <value>Sin vigencia fija</value>
+  </data>
+  <data name="MetaExigidoEn" xml:space="preserve">
+    <value>Exigido en</value>
+  </data>
+  <data name="MetaCentrosUno" xml:space="preserve">
+    <value>centro</value>
+  </data>
+  <data name="MetaCentrosVarios" xml:space="preserve">
+    <value>centros</value>
+  </data>
+  <data name="MetaA" xml:space="preserve">
+    <value>a</value>
+  </data>
+  <data name="MetaTrabajadoresUno" xml:space="preserve">
+    <value>trabajador</value>
+  </data>
+  <data name="MetaTrabajadoresVarios" xml:space="preserve">
+    <value>trabajadores</value>
+  </data>
+  <data name="ReglaRecuento" xml:space="preserve">
+    <value>Cada trabajador cuenta una vez por cada Centro que se lo exige: {0} de {1} al día.</value>
+  </data>
+  <data name="AnilloEtiqueta" xml:space="preserve">
+    <value>{0} de {1} al día, contando una vez por cada Centro que lo exige</value>
+  </data>
+  <data name="AnilloSinDato" xml:space="preserve">
+    <value>Ningún Centro exige este documento</value>
+  </data>
+  <data name="AnilloFraccion" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="MasAcciones" xml:space="preserve">
+    <value>Más acciones</value>
+  </data>
+  <data name="AccionSubidaMultiple" xml:space="preserve">
+    <value>Subida múltiple</value>
+  </data>
+  <data name="AccionEditarTipo" xml:space="preserve">
+    <value>Editar tipo de documento</value>
+  </data>
+  <data name="BandaVencidosUno" xml:space="preserve">
+    <value>{0} vencido:</value>
+  </data>
+  <data name="BandaVencidosVarios" xml:space="preserve">
+    <value>{0} vencidos:</value>
+  </data>
+  <data name="BandaPendientesUno" xml:space="preserve">
+    <value>{0} pendiente:</value>
+  </data>
+  <data name="BandaPendientesVarios" xml:space="preserve">
+    <value>{0} pendientes:</value>
+  </data>
+  <data name="BandaToleranciaUno" xml:space="preserve">
+    <value>{0} en tolerancia:</value>
+  </data>
+  <data name="BandaToleranciaVarios" xml:space="preserve">
+    <value>{0} en tolerancia:</value>
+  </data>
+  <data name="BandaYMas" xml:space="preserve">
+    <value>y {0} más</value>
+  </data>
+  <data name="BandaEnlacePeligro" xml:space="preserve">
+    <value>Ver vencidos y pendientes</value>
+  </data>
+  <data name="BandaEnlaceTolerancia" xml:space="preserve">
+    <value>Ver en tolerancia</value>
+  </data>
+  <data name="EtiquetaGrupoPestanas" xml:space="preserve">
+    <value>Secciones del tipo de documento</value>
+  </data>
+  <data name="PestanaTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="GlosaPestanaTrabajadores" xml:space="preserve">
+    <value>trabajadores a los que se exige</value>
+  </data>
+  <data name="EtiquetaFiltroEstado" xml:space="preserve">
+    <value>Filtrar por estado</value>
+  </data>
+  <data name="Todos" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="EstadoVencido" xml:space="preserve">
+    <value>Vencido</value>
+  </data>
+  <data name="EstadoPendiente" xml:space="preserve">
+    <value>Pendiente</value>
+  </data>
+  <data name="EstadoEnTolerancia" xml:space="preserve">
+    <value>En tolerancia</value>
+  </data>
+  <data name="EstadoPorVencer" xml:space="preserve">
+    <value>Por vencer</value>
+  </data>
+  <data name="EstadoSinConfirmar" xml:space="preserve">
+    <value>Sin confirmar</value>
+  </data>
+  <data name="EstadoVigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+  <data name="EtiquetaLista" xml:space="preserve">
+    <value>Trabajadores a los que se exige este documento</value>
+  </data>
+  <data name="Mostrando" xml:space="preserve">
+    <value>Mostrando {0} de {1} · del peor estado al mejor</value>
+  </data>
+  <data name="FiltroSinResultados" xml:space="preserve">
+    <value>Ninguno en los estados marcados.</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Ningún Centro exige este documento a ningún trabajador</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Aquí aparecerá cada trabajador con al menos un Centro asignado que se lo exija. Todavía no hay ninguno.</value>
+  </data>
+  <data name="FilaDni" xml:space="preserve">
+    <value>DNI</value>
+  </data>
+  <data name="CopiarElDni" xml:space="preserve">
+    <value>el DNI</value>
+  </data>
+  <data name="FilaSinDocumento" xml:space="preserve">
+    <value>Sin documento</value>
+  </data>
+  <data name="FilaEmitido" xml:space="preserve">
+    <value>Emitido {0}</value>
+  </data>
+  <data name="FilaEmisionHasta" xml:space="preserve">
+    <value>{0} →</value>
+  </data>
+  <data name="CifraFraccion" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="CifraCentrosUno" xml:space="preserve">
+    <value>centro</value>
+  </data>
+  <data name="CifraCentrosVarios" xml:space="preserve">
+    <value>centros</value>
+  </data>
+  <data name="AccionRenovar" xml:space="preserve">
+    <value>Renovar</value>
+  </data>
+  <data name="AccionSubir" xml:space="preserve">
+    <value>Subir</value>
+  </data>
+  <data name="AccionConfirmar" xml:space="preserve">
+    <value>Confirmar</value>
+  </data>
+  <data name="VerEstadoPorCentro" xml:space="preserve">
+    <value>Ver el estado por Centro de {0}</value>
+  </data>
+  <data name="CentroNoHayDocumento" xml:space="preserve">
+    <value>No hay documento</value>
+  </data>
+  <data name="CentroVencio" xml:space="preserve">
+    <value>Venció el {0}</value>
+  </data>
+  <data name="CentroEnTolerancia" xml:space="preserve">
+    <value>Venció el {0} · en tolerancia hasta {1}</value>
+  </data>
+  <data name="CentroCaducaEnDias" xml:space="preserve">
+    <value>Caduca en {0} días</value>
+  </data>
+  <data name="CentroCaducaManana" xml:space="preserve">
+    <value>Caduca mañana</value>
+  </data>
+  <data name="CentroCaducaHoy" xml:space="preserve">
+    <value>Caduca hoy</value>
+  </data>
+  <data name="CentroVigenteHasta" xml:space="preserve">
+    <value>Vigente hasta {0}</value>
+  </data>
+  <data name="CentroNoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="CentroSinFecha" xml:space="preserve">
+    <value>Falta la fecha de vencimiento</value>
+  </data>
+  <data name="EtiquetaLateral" xml:space="preserve">
+    <value>Contexto</value>
+  </data>
+  <data name="InfoTitulo" xml:space="preserve">
+    <value>Información</value>
+  </data>
+  <data name="InfoEditar" xml:space="preserve">
+    <value>Editar →</value>
+  </data>
+  <data name="InfoSePideA" xml:space="preserve">
+    <value>Se pide a</value>
+  </data>
+  <data name="InfoSePideATrabajador" xml:space="preserve">
+    <value>Trabajador</value>
+  </data>
+  <data name="InfoVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="InfoVencimientoAutomatico" xml:space="preserve">
+    <value>Vencimiento automático</value>
+  </data>
+  <data name="Si" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="InfoSePide" xml:space="preserve">
+    <value>¿Se pide?</value>
+  </data>
+  <data name="InfoAutoridad" xml:space="preserve">
+    <value>Autoridad</value>
+  </data>
+  <data name="InfoSeSolicitaA" xml:space="preserve">
+    <value>Se solicita a</value>
+  </data>
+  <data name="InfoAlias" xml:space="preserve">
+    <value>Nombres alternativos</value>
+  </data>
+  <data name="SinDato" xml:space="preserve">
+    <value>—</value>
+  </data>
+</root>
