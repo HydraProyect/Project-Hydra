@@ -252,3 +252,10 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* El recuento de trabajadores del listado abre la ventana de quién entra: un dígito suelto mide 7 px,
+   así que el botón gana anchura para que el puntero lo encuentre. */
+::deep .visitas-recuento-trabajadores .ventana-contexto-disparador {
+    min-width: var(--space-8);
+    padding-inline: var(--space-2);
+}
