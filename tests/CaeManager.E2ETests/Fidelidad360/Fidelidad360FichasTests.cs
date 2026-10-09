@@ -41,9 +41,12 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     /// <summary>
     /// Pareja ficha ↔ mockup. La ruta se resuelve por un valor sembrado: la razón social de una Empresa o, si la ficha
     /// se localiza por otra tabla, lo que busque su <paramref name="ConsultaId"/> (SQL que devuelve el id como texto,
-    /// con los parámetros <c>@valor</c> y <c>@tenant</c>).
+    /// con los parámetros <c>@valor</c> y <c>@tenant</c>). Si el mockup se enseña con algo ya abierto (una fila
+    /// desplegada), <paramref name="ClicAntesDeMedir"/> es el selector que se pulsa en la ficha para dejarla en el
+    /// mismo estado: sin él se compararían dos estados distintos, no dos pantallas.
     /// </summary>
-    private sealed record Pareja(string Clave, string Ruta, string Valor, Mockup360 Mockup, string? ConsultaId = null);
+    private sealed record Pareja(
+        string Clave, string Ruta, string Valor, Mockup360 Mockup, string? ConsultaId = null, string? ClicAntesDeMedir = null);
 
     private static readonly Pareja[] Parejas =
     [
@@ -54,7 +57,9 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
                 "Tipo Documento 360 página TALVEG.dc.html",
                 "[data-pieza=\"lateral\"] [data-pieza=\"tarjeta\"]",
                 tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme"),
-            ConsultaIdDeTipoDeDocumento),
+            ConsultaIdDeTipoDeDocumento,
+            // La maqueta abre el estado por Centro de una fila; la ficha arranca con todas plegadas.
+            ClicAntesDeMedir: "[data-pieza=\"fila\"] button[aria-expanded=\"false\"]"),
     ];
 
     public static TheoryData<string, string> ParejasPorTema()
@@ -169,6 +174,12 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         await Fidelidad360.CapturarAsync(paginaMockup, Path.Combine(salida, "mockup.png"));
 
         var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.Valor, tema, pareja.ConsultaId);
+        if (pareja.ClicAntesDeMedir is { } selector)
+        {
+            await paginaFicha.Locator(selector).First.ClickAsync();
+            await paginaFicha.Locator("[data-pieza=\"fila\"] button[aria-expanded=\"true\"]").First.WaitForAsync();
+        }
+
         var ficha = await Fidelidad360.MedirAsentadoAsync(paginaFicha, "ficha", SelectoresDeLado.Convencion());
         await Fidelidad360.CapturarAsync(paginaFicha, Path.Combine(salida, "ficha.png"));
 
