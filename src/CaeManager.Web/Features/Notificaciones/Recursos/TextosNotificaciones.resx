@@ -15,4 +15,13 @@
   <data name="AccionPorDefecto" xml:space="preserve">
     <value>Gestionar</value>
   </data>
+  <data name="BotonMarcarRevisado" xml:space="preserve">
+    <value>Marcar revisado</value>
+  </data>
+  <data name="BotonAceptarSolicitud" xml:space="preserve">
+    <value>Aceptar</value>
+  </data>
+  <data name="BotonRechazarSolicitud" xml:space="preserve">
+    <value>Rechazar</value>
+  </data>
 </root>

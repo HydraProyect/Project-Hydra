@@ -11,7 +11,6 @@
 @using CaeManager.Web.Components.Layout
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
 @using CaeManager.Web.Features.Notificaciones.Recursos
-@using CaeManager.Web.Features.VigilanciaNormativa.Recursos
 @using CaeManager.Web.Recursos
 @using MediatR
 @using Microsoft.Extensions.Localization
@@ -24,7 +23,6 @@
 @inject IStringLocalizer<TextosComunes> Textos
 @inject IStringLocalizer<TextosIncorporacionCartera> TextosCartera
 @inject IStringLocalizer<TextosNotificaciones> TextosNotificacion
-@inject IStringLocalizer<TextosVigilanciaNormativa> TextosNormativa
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
 @*
@@ -110,7 +108,7 @@
                                         {
                                             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                    OnClick="() => MarcarNormativaRevisadaAsync(item)"
-                                                   Deshabilitado="_enCurso is not null">@TextosNormativa["BotonMarcarRevisado"]</Boton>
+                                                   Deshabilitado="_enCurso is not null">@TextosNotificacion["BotonMarcarRevisado"]</Boton>
                                         }
                                         else
                                         {
@@ -132,10 +130,10 @@
                                             <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
                                                    OnClick="() => AceptarSolicitudAsync(item)"
                                                    Deshabilitado="_enCurso is not null"
-                                                   Cargando="_enCurso == item.Id">@TextosCartera["Aceptar"]</Boton>
+                                                   Cargando="_enCurso == item.Id">@TextosNotificacion["BotonAceptarSolicitud"]</Boton>
                                             <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                    OnClick="() => PedirRechazar(item)"
-                                                   Deshabilitado="_enCurso is not null">@TextosCartera["Rechazar"]</Boton>
+                                                   Deshabilitado="_enCurso is not null">@TextosNotificacion["BotonRechazarSolicitud"]</Boton>
                                         </span>
                                     </div>
                                     break;

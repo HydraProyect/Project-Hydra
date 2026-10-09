@@ -58,8 +58,8 @@ public class IslotesInteractivosConLimiteDeErroresTests
             "control positivo del uso cualificado con espacio de nombres (<CaeManager.Web.Components.Workspace.ContextWorkspace …>)");
         islotes.Should().Contain("NavegacionMovil",
             "control positivo de la directiva @rendermode propia: si la reflexión se queda ciega, falta");
-        islotes.Should().HaveCountGreaterThanOrEqualTo(19,
-            "los 13 islotes de MainLayout y los 6 componentes sin ruta con @rendermode propio medidos al crear el trinquete");
+        islotes.Should().HaveCountGreaterThanOrEqualTo(17,
+            "los islotes de MainLayout y los componentes sin ruta con @rendermode propio: 19 al crear el trinquete, 17 tras retirar NotificacionesPopup, PanelAvisosNormativos y AvisoSolicitudesCartera");
         IslotesInteractivos().Should().OnlyContain(t => File.Exists(RutaRazor(t)),
             "cada islote tiene que resolverse a su .razor; si no, la mitad de marcado no estaría mirando nada");
     }
