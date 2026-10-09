@@ -513,7 +513,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// El rol efectivo puede escribir (misma pregunta que <see cref="SoloConEscritura"/>). Decide si
-    /// las incidencias de las ventanas de «Vencidos» y «Próximos» se ofrecen como pulsables: a quien
+    /// las incidencias de las ventanas del motivo («N vencidos», «M próximos») se ofrecen como pulsables: a quien
     /// solo consulta no se le ofrece un formulario que el comando le va a denegar.
     /// </summary>
     private bool _puedeEscribir;
@@ -1307,6 +1307,14 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     private string MotivoProximos(int cantidad) =>
         cantidad == 1 ? Textos["MotivoUnProximo"].Value : Textos["MotivoProximos", cantidad].Value;
+
+    /// <summary>
+    /// Nombre accesible del disparador del motivo. Empieza por el texto que se ve («2 vencidos») para que
+    /// quien lo nombre de viva voz lo active (WCAG 2.5.3, el nombre contiene la etiqueta visible), y sigue
+    /// con la frase completa y el reparto por ámbito de <see cref="DescribirRecuento"/>.
+    /// </summary>
+    private static string EtiquetaDeMotivo(string textoVisible, IReadOnlyList<IncidenciaCentroDto> incidencias, string calificativo) =>
+        $"{textoVisible}. {DescribirRecuento(incidencias, calificativo)}";
 
     /// <summary>
     /// Nombre accesible de un badge de solo recuento. Es lo unico que oye un

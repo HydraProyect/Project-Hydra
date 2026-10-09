@@ -317,8 +317,11 @@ public class CentrosListaGen2Tests : BunitContext
         motivo.QuerySelectorAll(".motivo-recuento").Select(m => m.TextContent.Trim()).Should().Equal("2 vencidos", "1 próximo");
         // Con incidencias corregibles la ventana es interactiva y el nombre accesible va en su botón disparador.
         motivo.QuerySelectorAll(".ventana-contexto-disparador").Select(v => v.GetAttribute("aria-label")).Should().Equal(
-            "2 documentos vencidos: 1 de empresa y 1 de trabajadores",
-            "1 documento próximo a vencer: 1 de trabajadores");
+            "2 vencidos. 2 documentos vencidos: 1 de empresa y 1 de trabajadores",
+            "1 próximo. 1 documento próximo a vencer: 1 de trabajadores");
+        // El nombre accesible empieza por lo que se ve: quien dicta «2 vencidos» activa ese disparador (WCAG 2.5.3).
+        motivo.QuerySelectorAll(".ventana-contexto-disparador").Should().OnlyContain(
+            d => d.GetAttribute("aria-label")!.StartsWith(d.TextContent.Trim() + ".", StringComparison.Ordinal));
         cut.FindAll(".badge-solo-recuento").Should().BeEmpty("la cifra suelta de las columnas retiradas ya no se pinta");
     }
 

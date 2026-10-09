@@ -360,7 +360,7 @@
                                         <MotivoContenido>
                                             @if (centro.Recuentos.TotalVencidas > 0)
                                             {
-                                                <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Vencidas, "vencido")"
+                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoVencidos(centro.Recuentos.TotalVencidas), centro.Recuentos.Vencidas, "vencido")"
                                                                  Colocacion="VentanaContextoColocacion.AbajoCentro"
                                                                  Interactiva="HayCorregibles(centro, centro.Recuentos.Vencidas)"
                                                                  Pie="@PieDeIncidencias(centro, centro.Recuentos.Vencidas)"
@@ -379,7 +379,7 @@
                                             }
                                             @if (centro.Recuentos.TotalProximas > 0)
                                             {
-                                                <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Proximas, "próximo a vencer")"
+                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoProximos(centro.Recuentos.TotalProximas), centro.Recuentos.Proximas, "próximo a vencer")"
                                                                  Colocacion="VentanaContextoColocacion.AbajoCentro"
                                                                  Interactiva="HayCorregibles(centro, centro.Recuentos.Proximas)"
                                                                  Pie="@PieDeIncidencias(centro, centro.Recuentos.Proximas)"
