@@ -139,9 +139,12 @@ public class PilotoOutboundSoloDesdeElModoCliTests
             "control positivo: el instrumento ve los argumentos de la llamada, no solo su nombre");
         llamada.Should().NotContain("TenantsConDatosNuevos",
             "los Tenants que esta ejecución acaba de escribir son justo los que hay que medir y exigir: pasarlos como «de otra versión» los eximiría");
-        llamada.Should().MatchRegex(@"siembraPilotoOutbound\.Escribio,\s*siembraPilotoOutbound\.TenantsConDatosDeOtraVersion,\s*logger\)",
-            "el argumento que sigue a «escribió» es, entero, la lista que la siembra calculó antes de escribir: con otra lista o con una vacía, " +
-            "la autoverificación exime a quien no debe o vuelve a medir un Tenant en el que esta ejecución no ha escrito");
+        // La coma de delante ancla también «escribió»: sin ella, «!siembraPilotoOutbound.Escribio» casaría igual
+        // y la ejecución que acaba de escribir pasaría por un re-arranque, del que todo solo se avisa.
+        llamada.Should().MatchRegex(@",\s*siembraPilotoOutbound\.Escribio,\s*siembraPilotoOutbound\.TenantsConDatosDeOtraVersion,\s*logger\)",
+            "«escribió» va tal cual lo entrega la siembra, y el argumento que le sigue es, entero, la lista que calculó antes de escribir: " +
+            "con «escribió» negado, con otra lista o con una vacía, la autoverificación exime a quien no debe o vuelve a medir un Tenant " +
+            "en el que esta ejecución no ha escrito");
     }
 
     [Fact]
