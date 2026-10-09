@@ -15,6 +15,17 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
+/// <b>Ese riesgo sigue cerrado salvo con Encargo de administración</b> (decisión D-8, 2026-10-08):
+/// cuando el Tenant propietario tiene un encargo vigente a favor de ese Operador CAE externo, y la
+/// persona tiene además cartera vigente en él, su perfil de Propiedad en el Tenant de origen SÍ sube
+/// el techo de su rol efectivo. La regla general no se relaja: <c>CurrentUserService</c> sigue sin
+/// llamar al rol de origen; la lectura vive en un único fichero
+/// (<c>PerfilDePropiedadEnOrigenEnBase</c>), que entra como una excepción nominal más, y su puerto
+/// tiene un único consumidor (<c>TechoDeRolPorEncargo</c>), que a su vez solo usa
+/// <c>CurrentUserService</c>: <see cref="El_perfil_de_propiedad_en_origen_solo_llega_al_rol_efectivo_por_el_techo_del_encargo"/>.
+/// </para>
+///
+/// <para>
 /// <b>Lo que SÍ observa</b>, por nombre exacto de símbolo (<c>\b…\b</c>, nunca por prefijo): cada
 /// fichero <c>.cs</c>/<c>.razor</c> de <c>src/</c> que nombra <c>ObtenerRolOrigenAsync</c> fuera de
 /// su declaración, y, dentro de las zonas de autorización y alcance, además las lecturas directas del
@@ -68,7 +79,38 @@ public class RolDeOrigenFueraDeAutorizacionTests
         ["src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs"] =
             "directorio de cuentas del Tenant (GetUsersInRoleAsync): identidad de terceros para /usuarios y /roles, "
             + "no decide la autoridad del usuario actual; los Operadores delegados se muestran con su rol de cartera",
+        ["src/CaeManager.Infrastructure/Autorizacion/PerfilDePropiedadEnOrigenEnBase.cs"] =
+            "solo eleva bajo Encargo de administración vigente del Tenant propietario, con cartera y con techo "
+            + "(D-8): su único consumidor es TechoDeRolPorEncargo, que exige las tres cosas antes de preguntar",
     };
+
+    /// <summary>
+    /// Quién puede nombrar el puerto que lee el perfil de Propiedad en el Tenant de origen: su
+    /// declaración, su implementación, el registro en el contenedor y su único consumidor.
+    /// </summary>
+    private static readonly HashSet<string> NombranElPerfilDePropiedadEnOrigen = new(StringComparer.Ordinal)
+    {
+        "src/CaeManager.Application/Tenants/IPerfilDePropiedadEnOrigen.cs",
+        "src/CaeManager.Application/Tenants/TechoDeRolPorEncargo.cs",
+        "src/CaeManager.Infrastructure/Autorizacion/PerfilDePropiedadEnOrigenEnBase.cs",
+        "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs",
+    };
+
+    /// <summary>
+    /// Quién puede nombrar el techo: él mismo, el registro en el contenedor y la resolución del rol
+    /// efectivo. Ninguna otra autorización decide con el encargo por su cuenta.
+    /// </summary>
+    private static readonly HashSet<string> NombranElTechoDelEncargo = new(StringComparer.Ordinal)
+    {
+        "src/CaeManager.Application/Tenants/TechoDeRolPorEncargo.cs",
+        "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs",
+        "src/CaeManager.Web/Services/CurrentUserService.cs",
+    };
+
+    private static readonly Regex NombraElPerfilDePropiedadEnOrigen =
+        new(@"\bI?PerfilDePropiedadEnOrigen(?:EnBase)?\b", RegexOptions.Compiled);
+
+    private static readonly Regex NombraElTechoDelEncargo = new(@"\bTechoDeRolPorEncargo\b", RegexOptions.Compiled);
 
     /// <summary>
     /// La interfaz nombra el símbolo en un literal (<c>[Obsolete("… ObtenerRolOrigenAsync …")]</c>): no
@@ -110,6 +152,27 @@ public class RolDeOrigenFueraDeAutorizacionTests
         enZona.Should().BeEquivalentTo(ExcepcionesEnZona.Keys,
             "autorización y alcance usan ObtenerRolEfectivoAsync; el rol de origen solo entra con una excepción que "
             + "demuestre que no amplía nada");
+    }
+
+    [Fact]
+    public void El_perfil_de_propiedad_en_origen_solo_llega_al_rol_efectivo_por_el_techo_del_encargo()
+    {
+        var ficheros = FicherosDeSrc();
+
+        ficheros.Where(f => NombraElPerfilDePropiedadEnOrigen.IsMatch(Codigo(f))).Should().BeEquivalentTo(
+            NombranElPerfilDePropiedadEnOrigen,
+            "el perfil de Propiedad en el Tenant de origen solo lo pregunta TechoDeRolPorEncargo, después de comprobar "
+            + "cartera vigente y encargo vigente (D-8): un segundo consumidor sería una autorización por rol de origen");
+
+        ficheros.Where(f => NombraElTechoDelEncargo.IsMatch(Codigo(f))).Should().BeEquivalentTo(
+            NombranElTechoDelEncargo,
+            "el techo del encargo solo entra en la resolución del rol efectivo: quien necesite saber si alguien "
+            + "administra por encargo pregunta a IEncargoDeAdministracionActual, que restringe y no concede");
+
+        NombraElPerfilDePropiedadEnOrigen.IsMatch("IPerfilDePropiedadEnOrigen perfil").Should().BeTrue();
+        NombraElPerfilDePropiedadEnOrigen.IsMatch("new PerfilDePropiedadEnOrigenEnBase(x)").Should().BeTrue();
+        NombraElPerfilDePropiedadEnOrigen.IsMatch("IPerfilDePropiedadEnOrigenes").Should().BeFalse("prefijo, no el símbolo");
+        NombraElTechoDelEncargo.IsMatch("GetRequiredService<TechoDeRolPorEncargo>()").Should().BeTrue();
     }
 
     [Fact]

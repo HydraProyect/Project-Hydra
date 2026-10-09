@@ -646,17 +646,15 @@ public class SubcontratasListaGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Abrir_Subcontrata_360_desde_el_menu_abre_el_workspace_de_esa_fila()
+    public void Abrir_Subcontrata_360_desde_el_menu_lleva_a_la_pagina_de_esa_fila()
     {
         var id = Guid.NewGuid();
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] });
 
         AbrirMenuYPulsar(cut, "Abrir Subcontrata 360");
 
-        var frame = Services.GetRequiredService<ContextWorkspaceService>().FrameActual;
-        frame.Should().NotBeNull("el menú ofrece el 360 directamente, sin pasar por la vista previa");
-        frame!.Tipo.Should().Be(EntidadWorkspace.Subcontrata);
-        frame.EntidadId.Should().Be(id);
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be($"/subcontratas/{id}");
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull("el menú lleva a la página, no al panel");
     }
 
     /// <summary>

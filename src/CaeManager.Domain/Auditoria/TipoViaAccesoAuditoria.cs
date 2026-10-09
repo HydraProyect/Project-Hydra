@@ -18,5 +18,12 @@ public enum TipoViaAccesoAuditoria
     SesionPrivilegiada = 2,
 
     /// <summary>No se pudo resolver. Explícito para que el hueco se vea, en vez de pasar por Normal.</summary>
-    Desconocida = 3
+    Desconocida = 3,
+
+    /// <summary>
+    /// Operación delegada con el techo de rol subido por un Encargo de administración
+    /// vigente. <c>ViaAccesoId</c> es el Id del encargo. La persona del Operador CAE
+    /// externo administra el Tenant propietario <b>por encargo</b>: sigue siendo el actor real.
+    /// </summary>
+    EncargoAdministracion = 4
 }

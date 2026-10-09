@@ -1,4 +1,5 @@
 using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
+using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
 
@@ -67,7 +68,8 @@ public static class FacturacionEndpoints
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 $"facturacion-{resumen.ClienteNombre}-{anyo}-{mes:00}.xlsx");
         }).RequireAuthorization(policy => policy.RequireRole(
-            CaeManager.Infrastructure.Identity.Roles.Administrador, CaeManager.Infrastructure.Identity.Roles.DireccionCae));
+            CaeManager.Infrastructure.Identity.Roles.Administrador, CaeManager.Infrastructure.Identity.Roles.DireccionCae))
+        .ExcluidoDelEncargoDeAdministracion();
 
         return endpoints;
     }
