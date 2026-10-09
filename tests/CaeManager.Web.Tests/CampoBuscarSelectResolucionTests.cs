@@ -78,4 +78,48 @@ public class CampoBuscarSelectResolucionTests : BunitContext
 
         cut.WaitForAssertion(() => _valores.Should().Equal(string.Empty));
     }
+
+    /// <summary>
+    /// Defecto L1 del piloto Outbound (2026-10-08): quien preselecciona una entidad antes de haber
+    /// cargado la lista (el lote de reclamación abierto desde «Pedir») dejaba el campo vacío para
+    /// siempre, porque el texto solo se resolvía cuando cambiaba el Id y no cuando llegaban las opciones.
+    /// </summary>
+    [Fact]
+    public void Un_Id_recibido_antes_que_sus_opciones_se_pinta_cuando_llegan()
+    {
+        var cut = Render<CampoBuscarSelect>(p => p
+            .Add(c => c.Etiqueta, "Trabajador")
+            .Add(c => c.Valor, "b")
+            .Add(c => c.Opciones, []));
+        (cut.Find("input").GetAttribute("value") ?? string.Empty).Should().BeEmpty(
+            "control: sin opciones todavía no hay texto que pintar");
+
+        cut.Render(p => p.Add(c => c.Opciones, [new OpcionBuscable("a", "Ana Ruiz"), new OpcionBuscable("b", "Luis Gil")]));
+
+        cut.Find("input").GetAttribute("value").Should().Be("Luis Gil");
+    }
+
+    /// <summary>
+    /// La otra cara: en cuanto la persona escribe, manda lo que escribe. Si las opciones llegan
+    /// mientras su pulsación espera el rebote (el padre todavía no sabe nada y sigue pasando el Id
+    /// de partida), no se le pisa el texto con el de ese Id.
+    /// </summary>
+    [Fact]
+    public async Task Si_las_opciones_llegan_mientras_se_escribe_no_se_pisa_lo_escrito()
+    {
+        var cut = Render<CampoBuscarSelect>(p => p
+            .Add(c => c.Etiqueta, "Trabajador")
+            .Add(c => c.Valor, "b")
+            .Add(c => c.Opciones, [])
+            .Add(c => c.ValorChanged, EventCallback.Factory.Create<string>(this, v => _valores.Add(v))));
+
+        var escritura = cut.Find("input").InputAsync(new ChangeEventArgs { Value = "Ana" });
+        _valores.Should().BeEmpty("control: la pulsación sigue en el rebote y el padre no ha recibido nada");
+
+        cut.Render(p => p.Add(c => c.Opciones, [new OpcionBuscable("a", "Ana Ruiz"), new OpcionBuscable("b", "Luis Gil")]));
+
+        (cut.Find("input").GetAttribute("value") ?? string.Empty).Should().BeEmpty(
+            "el campo no refleja lo tecleado (ver ManejarEscrituraAsync), pero tampoco debe imponer «Luis Gil»");
+        await escritura;
+    }
 }
