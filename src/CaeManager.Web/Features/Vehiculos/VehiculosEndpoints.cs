@@ -54,7 +54,7 @@ public static class VehiculosEndpoints
                 cancellationToken));
 
         var (libro, filas) = await LibroDeListado.EscribirAsync(
-            "Vehículos",
+            textos["TituloPagina"].Value,
             [
                 textos["EtiquetaNombre"].Value, textos["EtiquetaModelo"].Value, textos["EtiquetaMatricula"].Value,
                 textos["ColumnaEmpleador"].Value, textos["EtiquetaDocumentacion"].Value

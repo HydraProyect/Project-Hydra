@@ -49,7 +49,7 @@ public static class ProyectosEndpoints
         // El selector es la lista de lo que este usuario puede elegir: un «cliente» que no
         // está en ella no exporta nada.
         var clientes = await mediator.Send(new ObtenerClientesParaSelectorQuery(), cancellationToken);
-        Guid? clienteAplicado = Guid.TryParse(cliente, out var clienteId) ? clienteId : null;
+        Guid? clienteAplicado = Guid.TryParse(cliente, out var idPedido) ? idPedido : null;
         if (clienteAplicado is not null)
             clientes = clientes.Where(c => c.Id == clienteAplicado).ToList();
 

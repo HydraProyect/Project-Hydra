@@ -12,9 +12,7 @@ namespace CaeManager.Web.Exportacion;
 /// </summary>
 public static class RolesDeListados
 {
-    public static readonly string[] Operativos =
-        [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
-
     public static TBuilder SoloRolesDelListado<TBuilder>(this TBuilder endpoint) where TBuilder : IEndpointConventionBuilder =>
-        endpoint.RequireAuthorization(politica => politica.RequireRole(Operativos));
+        endpoint.RequireAuthorization(politica => politica.RequireRole(
+            Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta));
 }
