@@ -1584,6 +1584,9 @@
   del contenedor que desplaza. Sin overflow en .tabla-datos (ver arriba), el
   sticky llega al contenedor real. En móvil .tabla-datos pasa a ser su propio
   contenedor (overflow-x) y la cabecera deja de pegarse: no es un fallo.
+  Lo mismo pasa, a cualquier ancho, en una tabla envuelta en un contenedor con
+  overflow-x propio (listado de Documentos, .documentos-tabla-desplazable): ni
+  la cabecera ni la sombra de abajo se pegan.
 */
 .tabla-datos thead th {
     position: sticky;

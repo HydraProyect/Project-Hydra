@@ -153,6 +153,7 @@
             else
             {
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+                    <div class="documentos-tabla-desplazable" tabindex="0" role="region" aria-label="@Textos["TablaDesplazableEtiqueta"]">
                     <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                         @if (_seleccionMultiple)
                         {
@@ -225,7 +226,7 @@
                                 @* La ventana repite lo que la celda ya dice (plataforma y estado), una línea por
                                    plataforma; pulsar una abre la vista rápida del documento en «Validación». *@
                                 <VentanaContexto Interactiva="true"
-                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                 Colocacion="ColocacionVentanaPlataformas(context.Id)"
                                                  Etiqueta="@Textos["VentanaPlataformasEtiqueta", context.Acreditaciones.Count]"
                                                  Titulo="@Textos["VentanaPlataformasTitulo"]"
                                                  class="documentos-plataformas">
@@ -276,6 +277,7 @@
                             </span>
                         </TemplateColumn>
                     </QuickGrid>
+                    </div>
 
                     @if (_totalElementos > 20 || (_totalElementos > 0 && _paginacion.ItemsPerPage > 20))
                     {

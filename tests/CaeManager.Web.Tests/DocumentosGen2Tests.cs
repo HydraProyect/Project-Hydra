@@ -1417,6 +1417,23 @@ public class DocumentosGen2Tests : BunitContext
         workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Documento, documento.Id, "Reconocimiento médico", "validacion"));
     }
 
+    /// <summary>
+    /// La tabla va en un envoltorio que desplaza en horizontal y recorta en vertical: en las filas bajas
+    /// de la página la ventana se abre hacia arriba, para no sobresalir por debajo de la tabla.
+    /// </summary>
+    [Fact]
+    public void La_ventana_de_Plataformas_se_abre_hacia_abajo_en_las_seis_primeras_filas_y_hacia_arriba_en_las_demas()
+    {
+        var documentos = Enumerable.Range(0, 8)
+            .Select(_ => DocumentoDeFila("blob/reconocimiento.pdf", new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Aceptada)))
+            .ToArray();
+        var (cut, _) = Renderizar(ConDocumentos(documentos));
+
+        var haciaAbajo = cut.FindAll("tbody .documentos-plataformas").Select(v => v.ClassList.Contains("ventana-contexto-abajo")).ToList();
+
+        haciaAbajo.Should().Equal(true, true, true, true, true, true, false, false);
+    }
+
     [Fact]
     public void Sin_plataformas_la_celda_no_abre_ninguna_ventana()
     {

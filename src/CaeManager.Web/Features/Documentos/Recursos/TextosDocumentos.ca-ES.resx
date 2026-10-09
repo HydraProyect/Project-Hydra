@@ -230,6 +230,7 @@
     <value>No hem pogut esborrar el filtre desat. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="VentanaPlataformasTitulo" xml:space="preserve"><value>Estat a les plataformes</value></data>
+  <data name="TablaDesplazableEtiqueta" xml:space="preserve"><value>Llistat de documents, desplaçable en horitzontal</value></data>
   <data name="VentanaPlataformasEtiqueta" xml:space="preserve"><value>Estat a les plataformes: {0}</value></data>
   <data name="VentanaPlataformasAyuda" xml:space="preserve"><value>Obre la pestanya Validació del document</value></data>
   <data name="AccionRapidaRenovar" xml:space="preserve"><value>Renova</value></data>
