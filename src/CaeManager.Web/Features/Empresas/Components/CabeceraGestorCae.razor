@@ -44,6 +44,7 @@ else if (_grupos.Count > 0)
 {
     <span class="cabecera-gestor-cae" role="group" aria-label="@Textos["GestorCaeGrupo"]" title="@Textos[_desdeElPropietario ? "GestorCaeTituloPropietario" : "GestorCaeTitulo"]">
         <span class="cabecera-gestor-cae-rotulo">@Textos["GestorCaeRotulo"]</span>
+        @{ var claves = new ClavesDeHermanos(); }
         @foreach (var grupo in _grupos)
         {
             @if (grupo != _grupos[0])
@@ -63,7 +64,7 @@ else if (_grupos.Count > 0)
                 {
                     <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
                 }
-                <span class="cabecera-gestor-cae-persona" data-gestor-cae="principal" @key="(grupo.Clave, principal.UsuarioId)">
+                <span class="cabecera-gestor-cae-persona" data-gestor-cae="principal" @key="claves.De((grupo.Clave, principal.UsuarioId))">
                     <AvatarUsuario Nombre="@principal.Nombre" Avatar="@principal.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
                     <strong>@principal.Nombre</strong>
                     <span class="cabecera-gestor-cae-pastilla cabecera-gestor-cae-principal">@RotuloPrincipal(principal)</span>
@@ -89,7 +90,7 @@ else if (_grupos.Count > 0)
             @foreach (var apoyo in grupo.Apoyos)
             {
                 <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
-                <span class="cabecera-gestor-cae-persona" data-gestor-cae="apoyo" @key="(grupo.Clave, apoyo.UsuarioId)">
+                <span class="cabecera-gestor-cae-persona" data-gestor-cae="apoyo" @key="claves.De((grupo.Clave, apoyo.UsuarioId))">
                     <AvatarUsuario Nombre="@apoyo.Nombre" Avatar="@apoyo.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
                     @apoyo.Nombre
                     <span class="cabecera-gestor-cae-pastilla">@RotuloApoyo(apoyo)</span>

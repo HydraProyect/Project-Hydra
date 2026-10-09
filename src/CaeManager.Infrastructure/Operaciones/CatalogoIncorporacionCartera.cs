@@ -46,28 +46,10 @@ public class CatalogoIncorporacionCartera(
     public async Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerAsignablesAsync(
         Guid operadorTenantId, CancellationToken cancellationToken = default)
     {
-        var ahora = DateTime.UtcNow;
-
         var operaciones = await (
-            from operacion in dbContext.AsignacionesOperacion
+            from operacion in OperacionesExternasVivas()
             join tenant in dbContext.Tenants on operacion.PropietarioTenantId equals tenant.Id
-            where !operacion.EsRaiz
-                  && operacion.OperadorTenantId == operadorTenantId
-                  && operacion.PropietarioTenantId != operadorTenantId
-                  && operacion.Servicio == ServicioCae.Outbound
-                  && operacion.AmbitoRelacionClienteId == null
-                  && operacion.AmbitoCentroId == null
-                  && operacion.AmbitoTrabajadorId == null
-                  && operacion.AmbitoProyectoId == null
-                  && operacion.Estado == EstadoAsignacion.Vigente
-                  && operacion.VigenciaDesde <= ahora
-                  && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
-                  && dbContext.DelegacionesTenant.Any(d =>
-                      d.TenantClienteId == operacion.PropietarioTenantId
-                      && d.TenantConsultoraId == operadorTenantId
-                      && d.Proposito == PropositoDelegacion.OperadorExterno
-                      && d.Activa
-                      && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
+            where operacion.OperadorTenantId == operadorTenantId
             select new TenantCandidatoIncorporacion(operacion.PropietarioTenantId, tenant.Nombre, operacion.Id))
             .ToListAsync(cancellationToken);
 
@@ -79,6 +61,36 @@ public class CatalogoIncorporacionCartera(
             .Select(g => g.OrderBy(o => o.AsignacionOperacionId).First())
             .OrderBy(o => o.Nombre)
             .ToList();
+    }
+
+    /// <summary>
+    /// Las Asignaciones de Operación externas vivas: Outbound, del Tenant entero, no raíz,
+    /// vigentes hoy, de un Operador CAE distinto del Tenant propietario y con su delegación de
+    /// Operador CAE externo activa. Una sola definición para las dos miradas: la del Operador
+    /// CAE (qué Tenants puede asignar) y la del Tenant propietario (quién lo gestiona).
+    /// </summary>
+    private IQueryable<AsignacionOperacion> OperacionesExternasVivas()
+    {
+        var ahora = DateTime.UtcNow;
+
+        return from operacion in dbContext.AsignacionesOperacion
+               where !operacion.EsRaiz
+                     && operacion.PropietarioTenantId != operacion.OperadorTenantId
+                     && operacion.Servicio == ServicioCae.Outbound
+                     && operacion.AmbitoRelacionClienteId == null
+                     && operacion.AmbitoCentroId == null
+                     && operacion.AmbitoTrabajadorId == null
+                     && operacion.AmbitoProyectoId == null
+                     && operacion.Estado == EstadoAsignacion.Vigente
+                     && operacion.VigenciaDesde <= ahora
+                     && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+                     && dbContext.DelegacionesTenant.Any(d =>
+                         d.TenantClienteId == operacion.PropietarioTenantId
+                         && d.TenantConsultoraId == operacion.OperadorTenantId
+                         && d.Proposito == PropositoDelegacion.OperadorExterno
+                         && d.Activa
+                         && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
+               select operacion;
     }
 
     public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(
@@ -240,24 +252,31 @@ public class CatalogoIncorporacionCartera(
     /// definición para leer quién es principal y quién de apoyo, para encender la marca y para
     /// listar y retirar la cartera de un Gestor CAE.
     /// </summary>
-    private IQueryable<AsignacionCartera> CarterasVivasDelOperador(Guid operadorTenantId)
+    private IQueryable<AsignacionCartera> CarterasVivasDelOperador(Guid operadorTenantId) =>
+        from c in CarterasVivasDeTenantEntero()
+        join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
+        where !o.EsRaiz
+              && o.OperadorTenantId == operadorTenantId
+              && o.PropietarioTenantId == c.PropietarioTenantId
+              && c.PropietarioTenantId != operadorTenantId
+        select c;
+
+    /// <summary>
+    /// Qué es una cartera viva de Gestor CAE o de Coordinador CAE sobre el Tenant entero, sin
+    /// decir de qué Operador CAE ni de qué Tenant propietario: eso lo acota cada mirada.
+    /// </summary>
+    private IQueryable<AsignacionCartera> CarterasVivasDeTenantEntero()
     {
         var ahora = DateTime.UtcNow;
 
-        return from c in dbContext.AsignacionesCartera
-               join o in dbContext.AsignacionesOperacion on c.AsignacionOperacionId equals o.Id
-               where (c.Rol == RolIncorporado || c.Rol == RolDeRelevo)
-                     && c.Estado == EstadoAsignacion.Vigente
-                     && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
-                     && c.AmbitoRelacionClienteId == null
-                     && c.AmbitoCentroId == null
-                     && c.AmbitoTrabajadorId == null
-                     && c.AmbitoProyectoId == null
-                     && !o.EsRaiz
-                     && o.OperadorTenantId == operadorTenantId
-                     && o.PropietarioTenantId == c.PropietarioTenantId
-                     && c.PropietarioTenantId != operadorTenantId
-               select c;
+        return dbContext.AsignacionesCartera.Where(c =>
+            (c.Rol == RolIncorporado || c.Rol == RolDeRelevo)
+            && c.Estado == EstadoAsignacion.Vigente
+            && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+            && c.AmbitoRelacionClienteId == null
+            && c.AmbitoCentroId == null
+            && c.AmbitoTrabajadorId == null
+            && c.AmbitoProyectoId == null);
     }
 
     /// <summary>
@@ -289,47 +308,17 @@ public class CatalogoIncorporacionCartera(
     public async Task<IReadOnlyList<OperacionExternaSobreTenant>> ObtenerOperacionesExternasSobreTenantAsync(
         Guid propietarioTenantId, CancellationToken cancellationToken = default)
     {
-        var ahora = DateTime.UtcNow;
-
-        // Mismo predicado de «operación externa viva» que ObtenerAsignablesAsync, mirado desde el
-        // Tenant propietario: cualquier Operador CAE externo, con su delegación vigente.
         var operaciones = await (
-            from operacion in dbContext.AsignacionesOperacion
+            from operacion in OperacionesExternasVivas()
             join operador in dbContext.Tenants on operacion.OperadorTenantId equals operador.Id
-            where !operacion.EsRaiz
-                  && operacion.PropietarioTenantId == propietarioTenantId
-                  && operacion.OperadorTenantId != propietarioTenantId
-                  && operacion.Servicio == ServicioCae.Outbound
-                  && operacion.AmbitoRelacionClienteId == null
-                  && operacion.AmbitoCentroId == null
-                  && operacion.AmbitoTrabajadorId == null
-                  && operacion.AmbitoProyectoId == null
-                  && operacion.Estado == EstadoAsignacion.Vigente
-                  && operacion.VigenciaDesde <= ahora
-                  && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
-                  && dbContext.DelegacionesTenant.Any(d =>
-                      d.TenantClienteId == propietarioTenantId
-                      && d.TenantConsultoraId == operacion.OperadorTenantId
-                      && d.Proposito == PropositoDelegacion.OperadorExterno
-                      && d.Activa
-                      && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
+            where operacion.PropietarioTenantId == propietarioTenantId
             select new { operacion.Id, operacion.OperadorTenantId, NombreOperador = operador.Nombre })
             .ToListAsync(cancellationToken);
         if (operaciones.Count == 0) return [];
 
         var operacionIds = operaciones.Select(o => o.Id).ToList();
-
-        // Mismo predicado de «cartera viva» que CarterasVivasDelOperador.
-        var carteras = await dbContext.AsignacionesCartera
-            .Where(c => operacionIds.Contains(c.AsignacionOperacionId)
-                        && c.PropietarioTenantId == propietarioTenantId
-                        && (c.Rol == RolIncorporado || c.Rol == RolDeRelevo)
-                        && c.Estado == EstadoAsignacion.Vigente
-                        && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
-                        && c.AmbitoRelacionClienteId == null
-                        && c.AmbitoCentroId == null
-                        && c.AmbitoTrabajadorId == null
-                        && c.AmbitoProyectoId == null)
+        var carteras = await CarterasVivasDeTenantEntero()
+            .Where(c => operacionIds.Contains(c.AsignacionOperacionId) && c.PropietarioTenantId == propietarioTenantId)
             .Select(c => new CarteraVivaDeOperacion(
                 c.AsignacionOperacionId, c.PropietarioTenantId, string.Empty, c.UsuarioId, c.Rol!, c.EsPrincipal, c.VigenciaHasta))
             .ToListAsync(cancellationToken);

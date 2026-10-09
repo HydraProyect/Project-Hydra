@@ -14,3 +14,6 @@ la matrícula
 # igual en catalán y CAE es la sigla del producto; no hay nada que traducir.
 Gestor CAE principal
 Coordinador CAE principal
+# 2026-10-09 (cabecera «Gestor CAE» para el Administrador del Tenant propietario): «operador» se
+# escribe igual en catalán y CAE es la sigla del producto; es el término canónico de la organización.
+Operador CAE
