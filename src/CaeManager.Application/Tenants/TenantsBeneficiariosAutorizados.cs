@@ -153,6 +153,41 @@ public static class TenantsBeneficiariosAutorizados
             .FirstOrDefaultAsync(cancellationToken);
 
     /// <summary>
+    /// El usuario tiene, bajo esa operación, una Asignación de Cartera vigente <b>del Tenant
+    /// entero</b> con uno de <paramref name="roles"/>: cartera universal bajo una operación
+    /// universal, es decir, ámbito efectivo sin ninguna dimensión concreta.
+    ///
+    /// <para>
+    /// Es la condición que <see cref="TechoDeRolPorEncargo"/> exige antes de subir el rol: un rol
+    /// de Propiedad tiene alcance total sin consultar carteras, así que elevar a quien solo tiene
+    /// una cartera parcial convertiría un ámbito acotado en el Tenant entero. Se pregunta por la
+    /// cartera que da el ámbito, no por la que da el rol (<see cref="RolPorOperacionAsync"/>
+    /// elige la de menor Id): con una cartera parcial de gestión y otra universal de Consulta no
+    /// hay ninguna que dé a la vez gestión y Tenant entero, y no se eleva.
+    /// </para>
+    ///
+    /// <para>
+    /// La universalidad se decide en memoria con <see cref="AmbitoAsignacion.EsUniversal"/>, la
+    /// única definición del dominio, y no repitiendo aquí sus cuatro columnas: son las carteras
+    /// de UNA persona bajo UNA operación (un puñado de filas) y así una dimensión nueva del
+    /// ámbito no deja esta comprobación atrás.
+    /// </para>
+    /// </summary>
+    public static async Task<bool> TieneCarteraDelTenantEnteroAsync(
+        IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, Guid tenantId,
+        Guid asignacionOperacionId, IReadOnlyList<string> roles, DateTime ahora,
+        CancellationToken cancellationToken)
+    {
+        var carteras = await CarterasPorOperacion(operaciones, usuarioId, tenantOrigenId, ahora)
+            .Where(v => v.Operacion.Id == asignacionOperacionId
+                        && v.Operacion.PropietarioTenantId == tenantId
+                        && v.Cartera.Rol != null && roles.Contains(v.Cartera.Rol))
+            .ToListAsync(cancellationToken);
+
+        return carteras.Any(v => v.Cartera.Ambito.EsUniversal && v.Operacion.Ambito.EsUniversal);
+    }
+
+    /// <summary>
     /// Revalidación de una selección que nombra una Asignación de Operación
     /// concreta: la operación sigue autorizando <paramref name="tenantId"/> a este
     /// usuario por el mismo predicado que la concedió, incluida la coherencia

@@ -192,7 +192,7 @@ public class CurrentUserService(
     ///
     /// <para>
     /// También es la mitad «de sesión» del techo por Encargo de administración
-    /// (<see cref="TechoDeRolPorEncargo"/>, paso 5): la claim nunca eleva, solo
+    /// (<see cref="TechoDeRolPorEncargo"/>, paso 6): la claim nunca eleva, solo
     /// puede impedirlo cuando no coincide con el perfil de Identity.
     /// </para>
     /// </summary>

@@ -29,6 +29,12 @@ public readonly record struct RolEfectivoPorOperacion(string? Rol, Guid? Encargo
 /// <item>Solo se eleva una cartera de Gestor CAE o de Coordinador CAE. Una
 /// cartera de Consulta es una concesión expresa de solo lectura: elevarla
 /// convertiría una asignación de consulta en administración.</item>
+/// <item>Esa cartera de gestión tiene que ser <b>del Tenant entero</b>: universal,
+/// bajo una operación universal
+/// (<see cref="TenantsBeneficiariosAutorizados.TieneCarteraDelTenantEnteroAsync"/>).
+/// Un rol de Propiedad tiene alcance total sin consultar carteras, así que
+/// elevar una cartera parcial ampliaría su ámbito a todo el Tenant. Con cartera
+/// parcial la persona se queda con su rol de cartera y su alcance parcial.</item>
 /// <item>Tiene que haber un encargo vigente para ESA operación, cuyo Operador
 /// CAE externo sea el Tenant de origen del usuario y cuyo Tenant propietario
 /// sea el operado. El encargo de otro Operador CAE, o de otra operación, no
@@ -77,7 +83,15 @@ public class TechoDeRolPorEncargo(
         if (!RolesDeCarteraElevables.Contains(rolDeCartera))
             return soloCartera;
 
-        // 3. Encargo vigente de ESTA operación, de ESTE Operador CAE, sobre ESTE
+        // 3. Solo se eleva a quien su cartera ya da el Tenant entero. Un rol de
+        // Propiedad tiene alcance total sin consultar carteras: elevar una
+        // cartera parcial convertiría su ámbito acotado en todo el Tenant.
+        if (!await TenantsBeneficiariosAutorizados.TieneCarteraDelTenantEnteroAsync(
+                operaciones, usuarioId, tenantOrigenId, tenantId, asignacionOperacionId,
+                RolesDeCarteraElevables, ahora, cancellationToken))
+            return soloCartera;
+
+        // 4. Encargo vigente de ESTA operación, de ESTE Operador CAE, sobre ESTE
         // Tenant propietario. Las tres igualdades hacen falta: la operación llega
         // elegida por el llamante, y el Operador CAE y el Tenant propietario se
         // comprueban contra la fila del encargo, no se dan por buenos.
@@ -94,16 +108,16 @@ public class TechoDeRolPorEncargo(
         if (encargoId is null)
             return soloCartera;
 
-        // 4. Perfil de Propiedad en el Tenant de origen, de Identity.
+        // 5. Perfil de Propiedad en el Tenant de origen, de Identity.
         var perfil = await perfilDePropiedadEnOrigen.ObtenerAsync(usuarioId, tenantOrigenId, cancellationToken);
         if (perfil is null || !RolesDePropiedad.Contains(perfil))
             return soloCartera;
 
-        // 5. La sesión tiene que decir lo mismo: la claim no eleva, solo impide.
+        // 6. La sesión tiene que decir lo mismo: la claim no eleva, solo impide.
         if (!string.Equals(rolDeSesionEnOrigen, perfil, StringComparison.Ordinal))
             return soloCartera;
 
-        // 6. El perfil de origen, con el encargo que lo ampara.
+        // 7. El perfil de origen, con el encargo que lo ampara.
         return new RolEfectivoPorOperacion(perfil, encargoId);
     }
 }
