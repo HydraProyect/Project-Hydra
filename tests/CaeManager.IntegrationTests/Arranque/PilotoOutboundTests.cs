@@ -1900,8 +1900,8 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
 
         var discrepancias = PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion));
         foreach (var linea in discrepancias) salida.WriteLine("MEDIDO " + linea);
-        discrepancias.Should().OnlyContain(l => l.StartsWith("Asistente IA · "), "control: del lote solo falla el Asistente IA");
         discrepancias.Should().HaveCount(14, "MEDIDO: una por Tenant y por cuenta, siete de la Gestora CAE y siete de la Coordinadora CAE");
+        discrepancias.Should().OnlyContain(l => l.StartsWith("Asistente IA · "), "control: del lote solo falla el Asistente IA");
         discrepancias.Should().Contain(
             $"Asistente IA · cartera de la Coordinadora CAE · «{CatalogoPilotoOutbound.NombreTenantT1}»: medido sin instrucción de tratamiento de IA " +
             "vigente, esperado con instrucción de tratamiento de IA vigente.");
