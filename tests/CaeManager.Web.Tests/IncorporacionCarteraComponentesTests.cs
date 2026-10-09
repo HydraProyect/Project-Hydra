@@ -25,18 +25,18 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Aviso emergente y bandeja de solicitudes de incorporación a cartera.
+/// Bandeja de solicitudes de incorporación a cartera.
 ///
 /// <para>
 /// <b>Lo que SÍ observa:</b> qué pinta cada componente a partir de la bandeja
 /// que devuelve la Query (qué filas, qué acciones), qué Command envía cada
 /// botón y que tras resolver se vuelve a pedir el estado — que es lo que hace
-/// desaparecer del aviso una solicitud que otro Coordinador CAE ya resolvió.
+/// desaparecer de la bandeja una solicitud que otro Coordinador CAE ya resolvió.
 /// </para>
 /// <para>
 /// <b>Lo que NO observa:</b> la autorización (la decide la Query y cada
 /// Command, probados en Application.Tests y bajo RLS en IntegrationTests), ni
-/// el refresco periódico real (60 s) ni la propagación entre circuitos.
+/// el refresco periódico real ni la propagación entre circuitos.
 /// </para>
 /// </summary>
 public class IncorporacionCarteraComponentesTests : BunitContext
@@ -81,146 +81,6 @@ public class IncorporacionCarteraComponentesTests : BunitContext
 
     private static BandejaIncorporacionCarteraDto BandejaCoordinador(params SolicitudIncorporacionCarteraDto[] pendientes) =>
         new(true, pendientes, [], []);
-
-    // ---------------------------------------------------------------- Aviso
-
-    [Fact]
-    public void El_aviso_lista_las_pendientes_que_puede_resolver_y_omite_la_propia()
-    {
-        var ajena = Solicitud("Empresa Norte", "Marta");
-        var propia = Solicitud("Empresa Sur", "Yo mismo", puedeResolver: false);
-        _mediator.Bandeja = BandejaCoordinador(ajena, propia);
-
-        var aviso = Render<AvisoSolicitudesCartera>();
-
-        aviso.FindAll("[data-solicitud]").Select(e => e.GetAttribute("data-solicitud"))
-            .Should().Equal(ajena.Id.ToString());
-        aviso.Markup.Should().Contain(Textos["AvisoPide", "Marta", "Empresa Norte"]);
-        aviso.Markup.Should().Contain(Textos["AvisoResumenUna", 1]);
-        _mediator.Consultas.Should().ContainSingle().Which.SoloPendientes.Should().BeTrue();
-    }
-
-    [Fact]
-    public void Sin_pendientes_resolubles_el_aviso_no_se_pinta()
-    {
-        _mediator.Bandeja = BandejaCoordinador(Solicitud("Empresa Sur", "Yo mismo", puedeResolver: false));
-
-        Render<AvisoSolicitudesCartera>().Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Si_la_Query_niega_el_permiso_el_aviso_no_se_pinta()
-    {
-        _mediator.FalloBandeja = ErroresSolicitudCartera.SinPermiso;
-
-        Render<AvisoSolicitudesCartera>().Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Una_bandeja_de_Gestor_CAE_no_abre_el_aviso_aunque_traiga_pendientes()
-    {
-        _mediator.Bandeja = new BandejaIncorporacionCarteraDto(false, [Solicitud("Empresa Norte", "Marta")], [], []);
-
-        Render<AvisoSolicitudesCartera>().Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public void En_la_propia_bandeja_el_aviso_no_se_pinta()
-    {
-        _mediator.Bandeja = BandejaCoordinador(Solicitud("Empresa Norte", "Marta"));
-        Services.GetRequiredService<NavigationManager>().NavigateTo(RutasIncorporacionCartera.Bandeja);
-
-        Render<AvisoSolicitudesCartera>().Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Mas_tarde_oculta_el_aviso()
-    {
-        _mediator.Bandeja = BandejaCoordinador(Solicitud("Empresa Norte", "Marta"));
-        var aviso = Render<AvisoSolicitudesCartera>();
-
-        aviso.FindAll("button").Single(b => b.TextContent.Trim() == Textos["AvisoMasTarde"]).Click();
-
-        aviso.Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Aceptar_envia_el_Command_de_esa_solicitud_avisa_y_recarga()
-    {
-        var solicitud = Solicitud("Empresa Norte", "Marta");
-        _mediator.Bandeja = BandejaCoordinador(solicitud);
-        var aviso = Render<AvisoSolicitudesCartera>();
-        _mediator.Bandeja = BandejaCoordinador();
-
-        await aviso.Find($"[data-solicitud='{solicitud.Id}'] button").ClickAsync(new());
-
-        _mediator.Comandos.Should().ContainSingle()
-            .Which.Should().Be(new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id));
-        Toasts.Mensajes.Should().ContainSingle(t =>
-            t.Tono == TonoToast.Exito && t.Mensaje == Textos["ToastAceptada", "Marta", "Empresa Norte"]);
-        _mediator.Consultas.Should().HaveCount(2);
-        aviso.Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Si_otro_Coordinador_CAE_ya_la_resolvio_se_explica_y_desaparece()
-    {
-        var solicitud = Solicitud("Empresa Norte", "Marta");
-        var otra = Solicitud("Empresa Este", "Luis");
-        _mediator.Bandeja = BandejaCoordinador(solicitud, otra);
-        _mediator.AlComando = _ => Result.Fallo(ErroresSolicitudCartera.YaResuelta);
-        var aviso = Render<AvisoSolicitudesCartera>();
-        _mediator.Bandeja = BandejaCoordinador(otra);
-
-        var rechazar = aviso.FindAll($"[data-solicitud='{solicitud.Id}'] button")
-            .Single(b => b.TextContent.Trim() == Textos["Rechazar"]);
-        await rechazar.ClickAsync(new());
-        await BotonDelDialogo(aviso, Textos["Rechazar"]).ClickAsync(new());
-
-        _mediator.Comandos.Should().ContainSingle()
-            .Which.Should().Be(new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id));
-        Toasts.Mensajes.Should().ContainSingle(t =>
-            t.Tono == TonoToast.Error && t.Mensaje == Textos["ErrorYaResuelta"].Value);
-        aviso.FindAll("[data-solicitud]").Select(e => e.GetAttribute("data-solicitud"))
-            .Should().Equal(otra.Id.ToString());
-    }
-
-    [Fact]
-    public async Task Rechazar_en_el_aviso_pide_confirmacion_y_cancelar_no_envia_el_Command()
-    {
-        var solicitud = Solicitud("Empresa Norte", "Marta");
-        _mediator.Bandeja = BandejaCoordinador(solicitud);
-        var aviso = Render<AvisoSolicitudesCartera>();
-
-        await BotonDeFila(aviso, solicitud, Textos["Rechazar"]).ClickAsync(new());
-
-        _mediator.Comandos.Should().BeEmpty("el rechazo se confirma antes de enviarse");
-        aviso.Find(".modal-pie").TextContent.Should().Contain(Textos["Rechazar"], "control positivo: el diálogo se abrió");
-        aviso.Markup.Should().Contain(Textos["ConfirmarRechazarMensaje", "Marta", "Empresa Norte"]);
-
-        await BotonDelDialogo(aviso, "Cancelar").ClickAsync(new());
-
-        _mediator.Comandos.Should().BeEmpty();
-        aviso.FindAll(".modal-pie").Should().BeEmpty("cancelar cierra el diálogo");
-        aviso.FindAll("[data-solicitud]").Should().ContainSingle("la solicitud sigue pendiente");
-    }
-
-    [Fact]
-    public async Task Rechazar_en_el_aviso_y_confirmar_envia_el_Command_de_esa_solicitud()
-    {
-        var solicitud = Solicitud("Empresa Norte", "Marta");
-        _mediator.Bandeja = BandejaCoordinador(solicitud);
-        var aviso = Render<AvisoSolicitudesCartera>();
-        _mediator.Bandeja = BandejaCoordinador();
-
-        await BotonDeFila(aviso, solicitud, Textos["Rechazar"]).ClickAsync(new());
-        await BotonDelDialogo(aviso, Textos["Rechazar"]).ClickAsync(new());
-
-        _mediator.Comandos.Should().ContainSingle()
-            .Which.Should().Be(new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id));
-        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Exito && t.Mensaje == Textos["ToastRechazada"].Value);
-        aviso.FindAll(".modal-pie").Should().BeEmpty();
-    }
 
     // -------------------------------------------------------------- Bandeja
 
@@ -386,13 +246,13 @@ public class IncorporacionCarteraComponentesTests : BunitContext
     }
 
     [Fact]
-    public void El_aviso_del_layout_no_queda_tras_una_puerta_de_rol()
+    public void La_campana_del_layout_no_queda_tras_una_puerta_de_rol()
     {
         var layout = LeerWeb(Path.Combine("Components", "Layout", "MainLayout.razor"));
-        var posicion = layout.IndexOf("IncorporacionCartera.Components.AvisoSolicitudesCartera", StringComparison.Ordinal);
-        posicion.Should().BePositive("el aviso debe estar montado en el layout");
+        var posicion = layout.IndexOf("Notificaciones.CampanaAvisos", StringComparison.Ordinal);
+        posicion.Should().BePositive("la campana debe estar montada en el layout");
 
-        // AuthorizeView abiertos y sin cerrar antes del aviso: los que lo envuelven.
+        // AuthorizeView abiertos y sin cerrar antes de la campana: los que lo envuelven.
         var abiertos = new Stack<string>();
         foreach (Match m in Regex.Matches(layout[..posicion], @"<AuthorizeView\b[^>]*>|</AuthorizeView>"))
         {
@@ -402,7 +262,7 @@ public class IncorporacionCarteraComponentesTests : BunitContext
                 abiertos.Push(m.Value);
         }
 
-        abiertos.Should().NotBeEmpty("el aviso sigue exigiendo sesión (control positivo)");
+        abiertos.Should().NotBeEmpty("la campana sigue exigiendo sesión (control positivo)");
         abiertos.Should().OnlyContain(etiqueta => !etiqueta.Contains("Roles") && !etiqueta.Contains("Policy"));
     }
 

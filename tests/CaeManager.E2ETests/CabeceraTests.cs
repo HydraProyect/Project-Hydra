@@ -18,7 +18,6 @@ public class CabeceraTests(WebAppFixture fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         var avatar = page.Locator("#menu-cuenta-boton");
         var panel = page.Locator("#menu-cuenta-panel");
@@ -41,7 +40,6 @@ public class CabeceraTests(WebAppFixture fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         await Ayudas.AbrirMenuDeUsuarioAsync(page);
         await page.Locator("main#contenido-principal").ClickAsync(new() { Position = new Position { X = 5, Y = 5 } });
@@ -56,7 +54,6 @@ public class CabeceraTests(WebAppFixture fixture)
         var page = await contexto.NewPageAsync();
         await page.SetViewportSizeAsync(1280, 400);
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         var cabecera = page.Locator(".cabecera-fija");
         await Assertions.Expect(cabecera).Not.ToHaveAttributeAsync("data-desplazada", "");
@@ -75,7 +72,6 @@ public class CabeceraTests(WebAppFixture fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         // El login espera el menú lateral, que en móvil no existe: se entra en escritorio y se estrecha.
         await page.SetViewportSizeAsync(375, 812);

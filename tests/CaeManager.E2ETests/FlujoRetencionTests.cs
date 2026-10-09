@@ -58,7 +58,6 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
 
         // Los usuarios prueba.<rol> arrancan con una notificación sin leer que
         // bloquea toda interacción hasta descartarla (ver Ayudas).
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/retencion");
 

@@ -201,6 +201,7 @@
                                             <Badge Tono="@TonoComprobacion(comprobacion)" ConIcono="true">@TextoComprobacion(comprobacion)</Badge>
                                         </td>
                                         <td>
+                                            <SoloConEscritura>
                                             <div class="deteccion-acciones-fila">
                                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                        Deshabilitado="@(_procesandoId is not null)"
@@ -214,6 +215,7 @@
                                                     Dar de alta
                                                 </Boton>
                                             </div>
+                                            </SoloConEscritura>
                                         </td>
                                     </tr>
                                 }
@@ -252,6 +254,7 @@
                                         </td>
                                         <td class="deteccion-impacto">@TextoQueSePierde(deteccion.AsignacionesActivas)</td>
                                         <td>
+                                            <SoloConEscritura>
                                             <div class="deteccion-acciones-fila">
                                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                        Deshabilitado="@(_procesandoId is not null)"
@@ -265,6 +268,7 @@
                                                     Dar de baja
                                                 </Boton>
                                             </div>
+                                            </SoloConEscritura>
                                         </td>
                                     </tr>
                                 }

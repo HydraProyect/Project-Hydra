@@ -18,9 +18,6 @@
   <data name="CampanaDetalle" xml:space="preserve">
     <value>Propuesta de apoyo: si aceptas, podrás trabajar en esa Empresa como Gestor CAE de apoyo.</value>
   </data>
-  <data name="Aceptar" xml:space="preserve">
-    <value>Aceptar</value>
-  </data>
   <data name="Rechazar" xml:space="preserve">
     <value>Rechazar</value>
   </data>
@@ -107,6 +104,9 @@
   </data>
   <data name="ToastRetirada" xml:space="preserve">
     <value>Propuesta de apoyo retirada.</value>
+  </data>
+  <data name="ToastRechazada" xml:space="preserve">
+    <value>Propuesta de apoyo rechazada.</value>
   </data>
   <data name="ErrorGenerico" xml:space="preserve">
     <value>No se ha podido completar la acción.</value>

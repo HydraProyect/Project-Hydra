@@ -77,7 +77,8 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
         await Expect(FilaDeTrabajador(pagina, TrabajadorDelTenantPropuesto)).ToHaveCountAsync(0);
 
         await pagina.Locator("button.campana-boton").ClickAsync();
-        var propuesta = pagina.Locator("#panel-campana-avisos [data-propuesta-apoyo]");
+        // La propuesta es un tipo más de aviso de la campana: su clave es «apoyo:{id}».
+        var propuesta = pagina.Locator("#panel-campana-avisos [data-aviso^='apoyo:']");
         await Expect(propuesta).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(propuesta).ToContainTextAsync($"te propone apoyo en {TenantPropuesto}");
 
@@ -85,7 +86,7 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
 
         var aceptada = pagina.Locator("#panel-campana-avisos [data-propuesta-aceptada]");
         await Expect(aceptada).ToBeVisibleAsync(EsperaEnFrio);
-        await Expect(pagina.Locator("#panel-campana-avisos [data-propuesta-apoyo]")).ToHaveCountAsync(0);
+        await Expect(propuesta).ToHaveCountAsync(0);
 
         // Lo que la aceptación escribió: una cartera viva, sin la marca de principal y de rol Gestor CAE.
         Assert.Equal("false/GestorCae", await fixture.LeerValorSqlAsync(
