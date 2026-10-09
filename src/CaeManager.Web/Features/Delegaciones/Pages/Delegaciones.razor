@@ -115,7 +115,41 @@
 
                     @if (delegacion.Operadores.Count == 0)
                     {
-                        <p class="delegaciones-sin-personas">Sin personas autorizadas todavía.</p>
+                        @* FS-20: a una delegación de Operador CAE externo las personas no las añade
+                           esta pantalla, las pone el propio Operador CAE externo con una Asignación de
+                           Cartera desde /usuarios. El vacío dice quién decide y, a quien puede, le da
+                           el enlace. *@
+                        @if (delegacion.EsSoporte || !delegacion.Activa)
+                        {
+                            <p class="delegaciones-sin-personas">Sin personas autorizadas todavía.</p>
+                        }
+                        else if (delegacion.SomosLaConsultora)
+                        {
+                            <p class="delegaciones-sin-personas" data-testid="sin-personas-operador">
+                                @TextosAutorizar["SinPersonasOperador", delegacion.ClienteNombre]
+                                @if (OperandoWorkspaceAjeno)
+                                {
+                                    @TextosAutorizar["SinPersonasOperadorQuien"]
+                                }
+                                else
+                                {
+                                    <AuthorizeView Roles="@RolesQueAsignanCartera" Context="autorizacionCartera">
+                                        <Authorized>
+                                            <a href="/usuarios">@TextosAutorizar["SinPersonasOperadorEnlace"]</a>
+                                        </Authorized>
+                                        <NotAuthorized>
+                                            @TextosAutorizar["SinPersonasOperadorQuien"]
+                                        </NotAuthorized>
+                                    </AuthorizeView>
+                                }
+                            </p>
+                        }
+                        else
+                        {
+                            <p class="delegaciones-sin-personas" data-testid="sin-personas-propietario">
+                                @TextosAutorizar["SinPersonasPropietario", delegacion.ConsultoraNombre]
+                            </p>
+                        }
                     }
                     else
                     {

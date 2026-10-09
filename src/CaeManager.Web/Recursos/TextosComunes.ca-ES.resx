@@ -18,6 +18,12 @@
   <data name="Reintentar" xml:space="preserve">
     <value>Reintentar</value>
   </data>
+  <data name="VentanaIncidenciasPie" xml:space="preserve">
+    <value>Clic en una per corregir-la aquí</value>
+  </data>
+  <data name="VentanaIncidenciaAyuda" xml:space="preserve">
+    <value>Corregir sense sortir d’aquesta pantalla</value>
+  </data>
   <data name="IdiomaEtiqueta" xml:space="preserve">
     <value>Idioma</value>
   </data>
@@ -318,5 +324,56 @@
   </data>
   <data name="ContraerTodo" xml:space="preserve">
     <value>Plegar-ho tot</value>
+  </data>
+  <data name="SinBuzonMotivo" xml:space="preserve">
+    <value>No es pot enviar des d'aquí: no hi ha cap bústia de Microsoft 365 connectada i habilitada per enviar correu.</value>
+  </data>
+  <data name="SinBuzonConectar" xml:space="preserve">
+    <value>Connecta una bústia a Connexions d'integració</value>
+  </data>
+  <data name="SinBuzonPedirAdministrador" xml:space="preserve">
+    <value>Connectar-la correspon a un usuari amb rol Administrador d'aquesta organització, des de Connexions d'integració: demana-li-ho.</value>
+  </data>
+  <data name="SinBuzonAlternativa" xml:space="preserve">
+    <value>Mentrestant el pots enviar des del teu propi correu: copia el text i adjunta-hi a mà els documents.</value>
+  </data>
+  <data name="SinBuzonPara" xml:space="preserve">
+    <value>Per a: {0}</value>
+  </data>
+  <data name="SinBuzonCopiarTexto" xml:space="preserve">
+    <value>Copia el text del correu</value>
+  </data>
+  <data name="SinBuzonEtiquetaCopiar" xml:space="preserve">
+    <value>el text del correu</value>
+  </data>
+  <data name="SinBuzonDescargarAdjunto" xml:space="preserve">
+    <value>Baixa {0}</value>
+  </data>
+  <data name="SinBuzonEnviarDeshabilitado" xml:space="preserve">
+    <value>No hi ha cap bústia connectada des de la qual enviar.</value>
+  </data>
+  <data name="ExtensionInstalarTitulo" xml:space="preserve">
+    <value>Instal·la l'extensió</value>
+  </data>
+  <data name="ExtensionInstalarEnlace" xml:space="preserve">
+    <value>Obre la pàgina d'instal·lació de l'extensió</value>
+  </data>
+  <data name="ExtensionInstalarManualIntro" xml:space="preserve">
+    <value>L'extensió encara no s'instal·la des de la botiga del navegador: es carrega a mà a Chrome, amb la carpeta de l'extensió (versió {0} o posterior) que et facilita {1}.</value>
+  </data>
+  <data name="ExtensionInstalarPaso1" xml:space="preserve">
+    <value>Obre chrome://extensions en una pestanya nova.</value>
+  </data>
+  <data name="ExtensionInstalarPaso2" xml:space="preserve">
+    <value>Activa «Mode de desenvolupador», a dalt a la dreta.</value>
+  </data>
+  <data name="ExtensionInstalarPaso3" xml:space="preserve">
+    <value>Prem «Carrega descomprimida» i tria la carpeta de l'extensió.</value>
+  </data>
+  <data name="ExtensionInstalarPaso4" xml:space="preserve">
+    <value>Torna a aquesta pàgina i genera el token.</value>
+  </data>
+  <data name="ExtensionInstalarPista" xml:space="preserve">
+    <value>Si encara no la tens instal·lada, mira «Instal·la l'extensió», més avall.</value>
   </data>
 </root>
