@@ -1,10 +1,13 @@
 using System.Reflection;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
+using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
+using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
+using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
@@ -384,11 +387,133 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         return File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", relativa));
     }
 
+    // ------------------------------------------------- Alerta «sin principal»
+
+    private static OperacionEnAlertaDePrincipal EnAlerta(
+        string nombre, SituacionDePrincipal situacion, int personas = 0, string? principal = null, bool propia = false) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), nombre, situacion, personas, principal, propia);
+
+    private static IElement BotonAsumir(IRenderedComponent<SolicitudesCartera> pagina, OperacionEnAlertaDePrincipal operacion) =>
+        pagina.Find($"table[data-sin-principal] tr[data-operacion='{operacion.AsignacionOperacionId}'] button");
+
+    [Fact]
+    public void La_bandeja_lista_las_empresas_sin_principal_con_su_situacion_y_el_boton_Asumir()
+    {
+        var sinNadie = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        var conApoyo = EnAlerta("Obras Sur", SituacionDePrincipal.ConPersonasSinPrincipal, personas: 2);
+        var conCoordinador = EnAlerta("Montajes Este", SituacionDePrincipal.CoordinadorCaePrincipal, 1, "Carla");
+        _mediator.Alerta = new AlertaDePrincipal(true, [sinNadie, conApoyo, conCoordinador]);
+
+        var pagina = Render<SolicitudesCartera>();
+
+        var filas = pagina.FindAll("table[data-sin-principal] tbody tr");
+        filas.Select(f => f.GetAttribute("data-operacion")).Should().Equal(
+            sinNadie.AsignacionOperacionId.ToString(), conApoyo.AsignacionOperacionId.ToString());
+        filas[0].TextContent.Should().Contain("Talleres Norte").And.Contain(Textos["SinPrincipalSinNadie"]);
+        filas[1].TextContent.Should().Contain("Obras Sur").And.Contain(Textos["SinPrincipalConApoyoVarias", 2]);
+        BotonAsumir(pagina, sinNadie).TextContent.Trim().Should().Be(Textos["SinPrincipalAsumir"]);
+
+        // La que ya tiene un Coordinador CAE principal es informativa: sin botón.
+        var informativa = pagina.Find("table[data-coordinador-principal] tbody tr");
+        informativa.TextContent.Should().Contain("Montajes Este").And.Contain("Carla");
+        pagina.FindAll("table[data-coordinador-principal] button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Asumir_envia_el_Command_de_esa_operacion_sin_confirmacion_y_recarga_la_alerta()
+    {
+        var operacion = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        _mediator.Alerta = new AlertaDePrincipal(true, [operacion]);
+        var pagina = Render<SolicitudesCartera>();
+        _mediator.Alerta = new AlertaDePrincipal(true, []);
+
+        await BotonAsumir(pagina, operacion).ClickAsync(new());
+
+        _mediator.Comandos.Should().ContainSingle()
+            .Which.Should().Be(new AsumirPrincipalDeOperacionCommand(operacion.AsignacionOperacionId));
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Exito
+            && t.Mensaje == Textos["SinPrincipalAsumida", "Talleres Norte"].Value);
+        _mediator.ConsultasDeAlerta.Should().Be(2);
+        pagina.FindAll("table[data-sin-principal]").Should().BeEmpty("la empresa asumida sale de la lista");
+    }
+
+    [Fact]
+    public async Task Si_otra_persona_la_asumio_antes_se_dice_y_la_lista_se_recarga()
+    {
+        var operacion = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        _mediator.Alerta = new AlertaDePrincipal(true, [operacion]);
+        _mediator.AlComando = _ => Result.Fallo(AsumirPrincipalDeOperacionCommandHandler.YaTienePrincipal);
+        var pagina = Render<SolicitudesCartera>();
+
+        await BotonAsumir(pagina, operacion).ClickAsync(new());
+
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Error
+            && t.Mensaje == Textos["ErrorAsumirYaTienePrincipal"].Value);
+        _mediator.ConsultasDeAlerta.Should().Be(2);
+    }
+
+    [Fact]
+    public void Cada_error_de_Asumir_tiene_su_texto_en_los_dos_idiomas()
+    {
+        Error[] errores =
+        [
+            AsumirPrincipalDeOperacionCommandHandler.SinAutoridad,
+            AsumirPrincipalDeOperacionCommandHandler.OperacionNoEncontrada,
+            AsumirPrincipalDeOperacionCommandHandler.YaTienePrincipal,
+            AsumirPrincipalDeOperacionCommandHandler.AccesoDeOtroTipo,
+            AsumirPrincipalDeOperacionCommandHandler.CambioMientrasDecidias,
+        ];
+
+        foreach (var cultura in new[] { "es-ES", "ca-ES" })
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+            foreach (var error in errores)
+                Textos[$"ErrorAsumir{error.Codigo["AsumirPrincipal.".Length..]}"].ResourceNotFound
+                    .Should().BeFalse($"{error.Codigo} debe tener texto en {cultura}");
+        }
+    }
+
+    [Fact]
+    public void Direccion_CAE_y_Administrador_ven_la_alerta_en_vez_de_el_aviso_de_sin_acceso()
+    {
+        _mediator.FalloBandeja = ErroresSolicitudCartera.SinPermiso;
+        _mediator.Alerta = new AlertaDePrincipal(true, [EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado)]);
+
+        var pagina = Render<SolicitudesCartera>();
+
+        pagina.FindAll("table[data-sin-principal] tbody tr").Should().ContainSingle();
+        pagina.Markup.Should().NotContain(Textos["SinAccesoTitulo"]);
+    }
+
+    [Fact]
+    public void Con_la_alerta_vacia_Direccion_CAE_y_Administrador_leen_que_todo_tiene_principal()
+    {
+        _mediator.FalloBandeja = ErroresSolicitudCartera.SinPermiso;
+        _mediator.Alerta = new AlertaDePrincipal(true, []);
+
+        var pagina = Render<SolicitudesCartera>();
+
+        pagina.Markup.Should().Contain(Textos["SinPrincipalVacioTitulo"]).And.NotContain(Textos["SinAccesoTitulo"]);
+    }
+
+    [Fact]
+    public void Quien_no_ve_la_alerta_ni_tiene_bandeja_sigue_leyendo_que_no_tiene_acceso()
+    {
+        _mediator.FalloBandeja = ErroresSolicitudCartera.SinPermiso;
+
+        var pagina = Render<SolicitudesCartera>();
+
+        pagina.Markup.Should().Contain(Textos["SinAccesoTitulo"]);
+        pagina.FindAll("table[data-sin-principal]").Should().BeEmpty();
+    }
+
     private sealed class MediatorFalso : IMediator
     {
         public BandejaIncorporacionCarteraDto Bandeja { get; set; } = BandejaCoordinador();
         public Error? FalloBandeja { get; set; }
         public Func<object, Result> AlComando { get; set; } = _ => Result.Exito();
+        public AlertaDePrincipal Alerta { get; set; } = AlertaDePrincipal.Ninguna;
+        public int ConsultasDeAlerta { get; private set; }
         public List<ObtenerSolicitudesIncorporacionCarteraQuery> Consultas { get; } = [];
         public List<object> Comandos { get; } = [];
 
@@ -403,8 +528,12 @@ public class IncorporacionCarteraComponentesTests : BunitContext
                         ? Result.Fallo<BandejaIncorporacionCarteraDto>(error)
                         : Result.Exito(Bandeja);
                     break;
+                case ObtenerOperacionesSinPrincipalQuery:
+                    ConsultasDeAlerta++;
+                    respuesta = Alerta;
+                    break;
                 case AceptarSolicitudIncorporacionCarteraCommand or RechazarSolicitudIncorporacionCarteraCommand
-                    or RevocarIncorporacionCarteraCommand:
+                    or RevocarIncorporacionCarteraCommand or AsumirPrincipalDeOperacionCommand:
                     Comandos.Add(request);
                     respuesta = AlComando(request);
                     break;

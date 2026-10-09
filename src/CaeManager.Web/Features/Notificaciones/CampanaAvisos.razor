@@ -2,6 +2,7 @@
 @using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes
 @using CaeManager.Application.Operaciones.IncorporacionCartera
 @using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
+@using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal
 @using CaeManager.Application.VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa
 @using CaeManager.Web.Components.Layout
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
@@ -167,6 +168,16 @@
                         resolubles == 1 ? TextosCartera["AvisoResumenUna", 1] : TextosCartera["AvisoResumenVarias", resolubles],
                         RutasIncorporacionCartera.Bandeja, Externo: false, NotificacionId: null));
                 }
+            }
+
+            // Alerta «sin principal» (ADR-011 § 2.7, enmienda 2026-10-08, punto 4): un solo elemento
+            // resumen, como las solicitudes. Quién la ve lo decide la Query con el rol de origen.
+            var sinPrincipal = (await Mediator.Send(new ObtenerOperacionesSinPrincipalQuery())).SinPrincipal.Count();
+            if (sinPrincipal > 0)
+            {
+                items.Add(new ItemAviso("cartera-sin-principal", TextosCartera["SinPrincipalAvisoTitulo"],
+                    sinPrincipal == 1 ? TextosCartera["SinPrincipalAvisoResumenUna", 1] : TextosCartera["SinPrincipalAvisoResumenVarias", sinPrincipal],
+                    RutasIncorporacionCartera.Bandeja, Externo: false, NotificacionId: null));
             }
 
             _items = items;

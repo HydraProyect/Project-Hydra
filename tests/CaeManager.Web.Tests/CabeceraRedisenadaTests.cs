@@ -7,6 +7,7 @@ using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
+using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal;
 using CaeManager.Application.VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa;
 using CaeManager.Application.VistaDemo;
 using CaeManager.Domain.Common;
@@ -317,10 +318,12 @@ public class CabeceraRedisenadaTests : BunitContext
         IReadOnlyList<NotificacionDto>? notificaciones = null,
         IReadOnlyList<AvisoRevisionNormativaDto>? normativa = null,
         bool esCoordinadorCae = false,
-        IReadOnlyList<SolicitudIncorporacionCarteraDto>? solicitudes = null)
+        IReadOnlyList<SolicitudIncorporacionCarteraDto>? solicitudes = null,
+        AlertaDePrincipal? alertaSinPrincipal = null)
     {
         var mediador = new MediatorFalso(request => request switch
         {
+            ObtenerOperacionesSinPrincipalQuery => alertaSinPrincipal ?? AlertaDePrincipal.Ninguna,
             ObtenerNotificacionesPendientesQuery => notificaciones ?? [],
             ObtenerAvisosRevisionNormativaQuery => normativa ?? [],
             ObtenerSolicitudesIncorporacionCarteraQuery => Result.Exito(
@@ -360,6 +363,40 @@ public class CabeceraRedisenadaTests : BunitContext
         cut.Find("button.campana-boton").GetAttribute("aria-label").Should().Be("Avisos pendientes, 4 sin leer");
         cut.FindAll(".campana-item").Should().HaveCount(4);
         cut.Markup.Should().Contain("2 solicitudes pendientes");
+    }
+
+    private static OperacionEnAlertaDePrincipal EnAlerta(string nombre, SituacionDePrincipal situacion) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), nombre, situacion,
+            situacion == SituacionDePrincipal.SinNadieAsignado ? 0 : 1,
+            situacion == SituacionDePrincipal.CoordinadorCaePrincipal ? "Carla" : null, EsDeQuienConsulta: false);
+
+    [Fact]
+    public void Las_empresas_sin_principal_son_un_solo_elemento_resumen_que_lleva_a_la_bandeja_de_cartera()
+    {
+        RegistrarCampana(alertaSinPrincipal: new AlertaDePrincipal(true,
+        [
+            EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado),
+            EnAlerta("Obras Sur", SituacionDePrincipal.ConPersonasSinPrincipal),
+            EnAlerta("Con coordinador", SituacionDePrincipal.CoordinadorCaePrincipal),
+        ]));
+
+        var cut = Render<CampanaAvisos>();
+
+        cut.Find("[data-testid=campana-contador]").TextContent.Should().Be("1");
+        var item = cut.FindAll(".campana-item").Should().ContainSingle().Subject;
+        item.TextContent.Should().Contain("Empresas sin Gestor CAE principal")
+            .And.Contain("2 empresas de tu organización no tienen principal",
+                "la que tiene un Coordinador CAE principal es informativa y no cuenta");
+        item.GetAttribute("href").Should().Be("/cartera/solicitudes");
+    }
+
+    [Fact]
+    public void Con_todas_las_empresas_con_principal_la_campana_no_avisa()
+    {
+        RegistrarCampana(alertaSinPrincipal: new AlertaDePrincipal(true,
+            [EnAlerta("Con coordinador", SituacionDePrincipal.CoordinadorCaePrincipal)]));
+
+        Render<CampanaAvisos>().FindAll(".campana-item").Should().BeEmpty();
     }
 
     [Fact]

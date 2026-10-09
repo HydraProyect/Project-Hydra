@@ -234,4 +234,70 @@
   <data name="SinAsignacionEnlaceUsuarios" xml:space="preserve">
     <value>Ir a Usuarios</value>
   </data>
+  <data name="SinPrincipalAvisoTitulo" xml:space="preserve">
+    <value>Empresas sin Gestor CAE principal</value>
+  </data>
+  <data name="SinPrincipalAvisoResumenUna" xml:space="preserve">
+    <value>{0} empresa de tu organización no tiene principal</value>
+  </data>
+  <data name="SinPrincipalAvisoResumenVarias" xml:space="preserve">
+    <value>{0} empresas de tu organización no tienen principal</value>
+  </data>
+  <data name="SinPrincipalSeccion" xml:space="preserve">
+    <value>Empresas sin Gestor CAE principal</value>
+  </data>
+  <data name="SinPrincipalIntro" xml:space="preserve">
+    <value>Nadie responde hoy de estas empresas ante tu organización. Si asumes una, pasas a ser su Coordinador CAE principal en el acto; después puedes designar a un Gestor CAE principal.</value>
+  </data>
+  <data name="SinPrincipalColSituacion" xml:space="preserve">
+    <value>Situación</value>
+  </data>
+  <data name="SinPrincipalSinNadie" xml:space="preserve">
+    <value>Sin nadie asignado</value>
+  </data>
+  <data name="SinPrincipalConApoyoUna" xml:space="preserve">
+    <value>{0} persona de apoyo, ninguna principal</value>
+  </data>
+  <data name="SinPrincipalConApoyoVarias" xml:space="preserve">
+    <value>{0} personas de apoyo, ninguna principal</value>
+  </data>
+  <data name="SinPrincipalAsumir" xml:space="preserve">
+    <value>Asumir</value>
+  </data>
+  <data name="SinPrincipalAsumida" xml:space="preserve">
+    <value>Ahora eres el Coordinador CAE principal de {0}.</value>
+  </data>
+  <data name="CoordinadorPrincipalSeccion" xml:space="preserve">
+    <value>Empresas con un Coordinador CAE principal</value>
+  </data>
+  <data name="CoordinadorPrincipalIntro" xml:space="preserve">
+    <value>Tienen principal. Cuando convenga, designa a un Gestor CAE principal desde Usuarios.</value>
+  </data>
+  <data name="CoordinadorPrincipalColPrincipal" xml:space="preserve">
+    <value>Coordinador CAE principal</value>
+  </data>
+  <data name="CoordinadorPrincipalEresTu" xml:space="preserve">
+    <value>Tú</value>
+  </data>
+  <data name="ErrorAsumirSinAutoridad" xml:space="preserve">
+    <value>Tu rol no permite asumir una empresa que está sin principal.</value>
+  </data>
+  <data name="ErrorAsumirOperacionNoEncontrada" xml:space="preserve">
+    <value>No encontramos esa empresa entre las que gestiona tu organización. Recarga la lista y revisa.</value>
+  </data>
+  <data name="ErrorAsumirYaTienePrincipal" xml:space="preserve">
+    <value>Esa empresa ya tiene principal. No se ha cambiado nada.</value>
+  </data>
+  <data name="ErrorAsumirAccesoDeOtroTipo" xml:space="preserve">
+    <value>No se te puede asignar esta empresa: ya tienes en ella un acceso de otro tipo. Pide que te lo retiren y vuelve a intentarlo.</value>
+  </data>
+  <data name="ErrorAsumirCambioMientrasDecidias" xml:space="preserve">
+    <value>Otra persona recibió esta empresa mientras decidías. No se ha cambiado nada.</value>
+  </data>
+  <data name="SinPrincipalVacioTitulo" xml:space="preserve">
+    <value>Todas las empresas tienen principal</value>
+  </data>
+  <data name="SinPrincipalVacioDetalle" xml:space="preserve">
+    <value>Cuando una empresa que gestiona tu organización se quede sin Gestor CAE principal, aparecerá aquí para que alguien la asuma.</value>
+  </data>
 </root>

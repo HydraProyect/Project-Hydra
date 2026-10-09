@@ -1,0 +1,60 @@
+@using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal
+
+@*
+    Alerta «sin principal» (ADR-011 § 2.7, enmienda 2026-10-08, punto 4). Se pinta en la bandeja de
+    cartera para Coordinador CAE, Dirección CAE y Administrador del Operador CAE; quién la ve y qué
+    se puede asumir lo decide la Query con el rol leído en la organización de origen. Para el resto
+    no pinta nada.
+*@
+@if (_alerta is { LaVe: true } && _alerta.SinPrincipal.Any())
+{
+    <Tarjeta Titulo="@Textos["SinPrincipalSeccion"]" NivelTitulo="2">
+        <p class="sin-principal-intro">@Textos["SinPrincipalIntro"]</p>
+        <table class="tabla-datos" data-sin-principal>
+            <thead>
+                <tr>
+                    <th scope="col">@Textos["ColEmpresa"]</th>
+                    <th scope="col">@Textos["SinPrincipalColSituacion"]</th>
+                    <th scope="col"><span class="sin-principal-solo-lectores">@Textos["ColAcciones"]</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var operacion in _alerta.SinPrincipal)
+                {
+                    <tr @key="operacion.AsignacionOperacionId" data-operacion="@operacion.AsignacionOperacionId">
+                        <td>@operacion.NombreTenant</td>
+                        <td>@Situacion(operacion)</td>
+                        <td class="sin-principal-acciones">
+                            <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
+                                   OnClick="() => AsumirAsync(operacion)" Deshabilitado="_enCurso is not null">@Textos["SinPrincipalAsumir"]</Boton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </Tarjeta>
+}
+
+@if (_alerta is { LaVe: true } && _alerta.ConCoordinadorCaePrincipal.Any())
+{
+    <Tarjeta Titulo="@Textos["CoordinadorPrincipalSeccion"]" NivelTitulo="2">
+        <p class="sin-principal-intro">@Textos["CoordinadorPrincipalIntro"]</p>
+        <table class="tabla-datos" data-coordinador-principal>
+            <thead>
+                <tr>
+                    <th scope="col">@Textos["ColEmpresa"]</th>
+                    <th scope="col">@Textos["CoordinadorPrincipalColPrincipal"]</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var operacion in _alerta.ConCoordinadorCaePrincipal)
+                {
+                    <tr @key="operacion.AsignacionOperacionId" data-operacion="@operacion.AsignacionOperacionId">
+                        <td>@operacion.NombreTenant</td>
+                        <td>@(operacion.EsDeQuienConsulta ? Textos["CoordinadorPrincipalEresTu"] : operacion.NombrePrincipal)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </Tarjeta>
+}
