@@ -33,14 +33,16 @@ public class VehiculosFilaSinMenuE2ETests(WebAppFixture fixture)
         var matricula = $"{prefijo}-M";
         await ListadosFase1VehiculosDocumentosTests.CrearVehiculoAsync(page, nombre, "Modelo de prueba", matricula);
         var fila = await FiltrarAsync(page, prefijo);
-        await Expect(fila.Locator(".nombre-abre-vista-rapida")).ToHaveTextAsync(nombre);
+        await Expect(fila.Locator(".enlace-nombre-fila")).ToHaveTextAsync(nombre);
         return (page, fila, nombre, matricula);
     }
 
     private static async Task<ILocator> FiltrarAsync(IPage page, string busqueda)
     {
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre, modelo o matrícula").FillAsync(busqueda);
-        var fila = page.Locator("tbody tr.fila-pulsable");
+        // La fila se localiza por su celda, no por «fila-pulsable»: si la marca faltara, lo que
+        // debe fallar es el clic en la fila, no la preparación.
+        var fila = page.Locator("tbody tr").Filter(new LocatorFilterOptions { Has = page.Locator(".celda-vehiculo") });
         await Expect(fila).ToHaveCountAsync(1);
         return fila;
     }
@@ -85,8 +87,8 @@ public class VehiculosFilaSinMenuE2ETests(WebAppFixture fixture)
 
         // La matrícula se copia y NO abre el panel: es un control de dentro de la fila.
         await fila.Locator(".boton-copiar-en-linea").ClickAsync();
-        await Expect(page.Locator(".toast")).ToContainTextAsync("matrícula");
-        Assert.Equal(matricula, await page.EvaluateAsync<string>("navigator.clipboard.readText()"));
+        // Se observa el portapapeles y no el aviso: el del alta recién hecha sigue en pantalla.
+        await page.WaitForFunctionAsync("async esperado => (await navigator.clipboard.readText()) === esperado", matricula);
         await Expect(panel).ToHaveCountAsync(0);
 
         // Un punto de la fila que no es ningún control: la celda de estado documental.
