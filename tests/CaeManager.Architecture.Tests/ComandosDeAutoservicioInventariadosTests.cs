@@ -35,6 +35,10 @@ public class ComandosDeAutoservicioInventariadosTests
         // El avatar de la propia cuenta (catálogo cerrado, decisión del 2026-10-08): es de la
         // identidad, no del Tenant, y solo lo ve cambiar su dueño.
         "ElegirAvatarPropioCommand",
+        // El orden personal de las cajas de la pestaña «Ficha» de las fichas 360 (decisión del
+        // 2026-10-09): una fila por Tenant, usuario y tipo de ficha, que solo lee su dueño.
+        "GuardarOrdenCajasFichaCommand",
+        "RestablecerOrdenCajasFichaCommand",
     ];
 
     // Admite record o class, con o sin lista de parámetros (AceptarTerminosCommand no
