@@ -837,18 +837,27 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         salida.WriteLine($"MEDIDO T1 solicitud de acceso por correo: a {solicitud.Valor.Destinatarios} · {solicitud.Valor.Asunto}");
         solicitud.Valor.Destinatarios.Should().StartWith("ensayo+t1-accesos-").And.EndWith("@destino.example");
 
-        // La comprobación previa: dos Trabajadores con sus cinco documentos en regla, y de la Empresa propia nada que falte.
+        // La comprobación previa: dos Trabajadores con todo en regla, y de la Empresa propia nada que falte. La
+        // pantalla pone una fila «Faltante» por cada tipo exigido sin documento, y no lista lo que está confirmado
+        // como que no caduca: que no haya ningún Faltante es lo que dice que lo exigido está entero.
         previa.Should().NotBeNull();
-        previa!.Trabajadores.Should().HaveCount(2).And.OnlyContain(
-            t => t.Documentacion.Documentos.Count == 5 && t.Documentacion.Documentos.All(
-                x => x.DocumentoId != null && (x.Estado == EstadoDocumento.Vigente || x.Estado == EstadoDocumento.SinCaducidad)));
+        foreach (var t in previa!.Trabajadores)
+            salida.WriteLine(
+                $"MEDIDO T1 comprobación previa · {t.NombreCompleto}: {t.Documentacion.Documentos.Count} filas " +
+                $"[{string.Join("; ", t.Documentacion.Documentos.Select(x => $"{x.TipoDocumentoNombre} {x.Estado}"))}]");
+        previa.Trabajadores.Should().HaveCount(2).And.OnlyContain(
+            t => t.Documentacion.Documentos.Count > 0 && t.Documentacion.Documentos.All(
+                x => x.DocumentoId != null && x.Estado == EstadoDocumento.Vigente),
+            "MEDIDO: ningún Faltante ni nada fuera de vigencia; los documentos que no caducan no se listan");
         salida.WriteLine(
             $"MEDIDO T1 comprobación previa · Empresa propia: {previa.Empresa.Documentos.Count} filas " +
             $"[{string.Join("; ", previa.Empresa.Documentos.GroupBy(x => x.Estado).Select(e => $"{e.Key} {e.Count()}"))}]");
         previa.Empresa.Documentos.Should().NotContain(x => x.Estado == EstadoDocumento.Faltante);
         previa.Empresa.Documentos.Where(x => x.Estado == EstadoDocumento.Vencido).Should().ContainSingle(
             "MEDIDO: el único documento vencido de la Empresa propia").Which.TipoDocumentoNombre.Should().Be("Mutua");
-        previa.Empresa.Documentos.Should().HaveCount(14, "MEDIDO: los 13 que el Centro exige y el vencido, que no exige");
+        previa.Empresa.Documentos.Where(x => x.Estado != EstadoDocumento.Vencido).Should().NotBeEmpty().And.OnlyContain(
+            x => x.DocumentoId != null && x.Estado == EstadoDocumento.Vigente,
+            "MEDIDO: lo demás que se lista de la Empresa propia está Vigente");
 
         // El ZIP que descarga la pantalla.
         descarga.EsExitoso.Should().BeTrue();
@@ -950,9 +959,12 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                 $"MEDIDO {clave} comprobación previa ({(sembrada is null ? "Visita del test" : "Visita sembrada")}) · Empresa propia: peor estado " +
                 $"{previa!.Empresa.PeorEstado}; {previa.Empresa.Documentos.Count} filas " +
                 $"[{string.Join("; ", previa.Empresa.Documentos.GroupBy(x => x.Estado).Select(e => $"{e.Key} {e.Count()}"))}]");
-            previa.Empresa.Documentos.Should().HaveCount(13, "MEDIDO: los trece tipos que se exigen por defecto a una Empresa");
-            previa.Empresa.Documentos.Should().OnlyContain(
-                x => x.DocumentoId != null && (x.Estado == EstadoDocumento.Vigente || x.Estado == EstadoDocumento.SinCaducidad));
+            // La pantalla pone una fila «Faltante» por cada tipo exigido sin documento y no lista lo confirmado como
+            // que no caduca: de los trece que se exigen por defecto a una Empresa salen los nueve que tienen fecha.
+            previa.Empresa.Documentos.Should().NotContain(
+                x => x.Estado == EstadoDocumento.Faltante, "MEDIDO: a la Empresa propia no le falta nada de lo que el Centro exige");
+            previa.Empresa.Documentos.Should().HaveCount(9, "MEDIDO: los nueve tipos con fecha de los trece que se exigen por defecto");
+            previa.Empresa.Documentos.Should().OnlyContain(x => x.DocumentoId != null && x.Estado == EstadoDocumento.Vigente);
         }
         finally
         {
