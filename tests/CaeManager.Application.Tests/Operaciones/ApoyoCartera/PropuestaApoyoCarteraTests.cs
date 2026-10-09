@@ -12,6 +12,8 @@ using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Operaciones.ApoyoCartera;
@@ -138,7 +140,8 @@ public class PropuestaApoyoCarteraTests
 
         public Task<Result> Aceptar(Guid actor, Guid propuestaId, Guid? origen = null, string? rolDeSesion = "GestorCae") =>
             new AceptarPropuestaApoyoCarteraCommandHandler(
-                    Como(actor, origen, rolDeSesion), new DirectorioConTraza(Roles, Eventos), Catalogo, Repositorio, Transaccion, Bloqueo)
+                    Como(actor, origen, rolDeSesion), new DirectorioConTraza(Roles, Eventos), Catalogo, Repositorio, Transaccion, Bloqueo,
+                    NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance)
                 .Handle(new AceptarPropuestaApoyoCarteraCommand(propuestaId), default);
 
         public Task<Result> Rechazar(Guid actor, Guid propuestaId, Guid? origen = null) =>
@@ -596,23 +599,61 @@ public class PropuestaApoyoCarteraTests
         e.Transaccion.Confirmadas.Should().Be(0);
     }
 
+    /// <summary>
+    /// A quien acepta se le dice que algo cambió, pero la excepción no se pierde: un fallo
+    /// determinista (clave ajena, tipo) llega por el mismo <c>catch</c> que una carrera, y sin
+    /// la entrada de registro —con el id de la propuesta y la excepción— no se distinguirían.
+    /// </summary>
     [Fact]
-    public async Task Un_fallo_de_base_de_datos_al_confirmar_se_devuelve_como_cambio_concurrente()
+    public async Task Un_fallo_de_base_de_datos_al_confirmar_se_devuelve_como_cambio_concurrente_y_queda_registrado()
     {
         var e = new Escenario();
         var propuesta = e.PropuestaPendiente();
+        var registro = new RegistroCaptura();
         var handler = new AceptarPropuestaApoyoCarteraCommandHandler(
-            e.Como(GestorB), e.Roles, e.Catalogo, e.Repositorio, new TransaccionQueFalla(), e.Bloqueo);
+            e.Como(GestorB), e.Roles, e.Catalogo, e.Repositorio, new TransaccionQueFalla(), e.Bloqueo, registro);
 
         var resultado = await handler.Handle(new AceptarPropuestaApoyoCarteraCommand(propuesta.Id), default);
 
         resultado.Error.Should().Be(ErroresPropuestaApoyo.CambioMientrasDecidias);
+        var entrada = registro.Entradas.Should().ContainSingle().Subject;
+        entrada.Nivel.Should().Be(LogLevel.Warning);
+        entrada.Mensaje.Should().Contain(propuesta.Id.ToString());
+        entrada.Excepcion.Should().BeOfType<DbUpdateException>()
+            .Which.Message.Should().Be("conflicto al confirmar");
+    }
+
+    /// <summary>Control del anterior: una aceptación sin fallo no escribe nada en el registro.</summary>
+    [Fact]
+    public async Task Una_aceptacion_sin_fallo_de_base_de_datos_no_registra_nada()
+    {
+        var e = new Escenario();
+        var propuesta = e.PropuestaPendiente();
+        var registro = new RegistroCaptura();
+        var handler = new AceptarPropuestaApoyoCarteraCommandHandler(
+            e.Como(GestorB), e.Roles, e.Catalogo, e.Repositorio, e.Transaccion, e.Bloqueo, registro);
+
+        var resultado = await handler.Handle(new AceptarPropuestaApoyoCarteraCommand(propuesta.Id), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        registro.Entradas.Should().BeEmpty();
     }
 
     private sealed class TransaccionQueFalla : ITransaccionDeComando
     {
         public Task<Result> EjecutarAsync(Func<CancellationToken, Task<Result>> operacion, CancellationToken cancellationToken = default) =>
             throw new DbUpdateException("conflicto al confirmar");
+    }
+
+    private sealed class RegistroCaptura : ILogger<AceptarPropuestaApoyoCarteraCommandHandler>
+    {
+        public List<(LogLevel Nivel, string Mensaje, Exception? Excepcion)> Entradas { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entradas.Add((logLevel, formatter(state, exception), exception));
     }
 
     [Theory]

@@ -46,7 +46,7 @@
     <value>Accés de suport</value>
   </data>
   <data name="PanelDescripcion" xml:space="preserve">
-    <value>Empreses de les quals ets Gestor CAE principal. Pots proposar a un altre Gestor CAE de la teva organització que et doni suport: hi tindrà accés quan accepti.</value>
+    <value>Empreses de les quals ets principal. Pots proposar a un Gestor CAE de la teva organització que et doni suport: hi tindrà accés quan accepti.</value>
   </data>
   <data name="ApoyosEtiqueta" xml:space="preserve">
     <value>Amb accés de suport: {0}</value>
@@ -79,7 +79,7 @@
     <value>Donar accés a {0}</value>
   </data>
   <data name="DrawerIntro" xml:space="preserve">
-    <value>Proposa a un Gestor CAE de la teva organització que et doni suport en aquesta Empresa. Quan accepti hi tindrà el mateix accés que tu, com a Gestor CAE de suport; tu continues sent el Gestor CAE principal.</value>
+    <value>Proposa a un Gestor CAE de la teva organització que et doni suport en aquesta Empresa. Quan accepti tindrà accés a aquesta Empresa com a Gestor CAE de suport; tu continues sent el principal.</value>
   </data>
   <data name="EtiquetaDestinatario" xml:space="preserve">
     <value>Gestor CAE a qui ho proposes</value>
@@ -115,7 +115,7 @@
     <value>Les propostes de suport són dels Gestors CAE i els Coordinadors CAE de la teva organització.</value>
   </data>
   <data name="ErrorNoEresElPrincipal" xml:space="preserve">
-    <value>Només el Gestor CAE principal d'aquesta Empresa pot proposar un suport, i ara no ho ets tu.</value>
+    <value>Només qui és principal d'aquesta Empresa pot proposar un suport, i ara no ho ets tu.</value>
   </data>
   <data name="ErrorOperacionNoDisponible" xml:space="preserve">
     <value>La teva organització ja no opera aquesta Empresa.</value>
@@ -139,7 +139,7 @@
     <value>Alguna cosa ha canviat mentre decidies. Torna a obrir els avisos i prova-ho una altra vegada.</value>
   </data>
   <data name="ErrorAnuladaProponenteYaNoEsPrincipal" xml:space="preserve">
-    <value>La proposta s'ha anul·lat: qui te la va fer ja no és el Gestor CAE principal d'aquesta Empresa.</value>
+    <value>La proposta s'ha anul·lat: qui te la va fer ja no és el principal d'aquesta Empresa.</value>
   </data>
   <data name="ErrorAnuladaDestinatarioNoDisponible" xml:space="preserve">
     <value>La proposta s'ha anul·lat: el teu compte ja no pot rebre aquest accés.</value>

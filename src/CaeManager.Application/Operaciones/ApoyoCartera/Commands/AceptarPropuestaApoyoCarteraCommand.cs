@@ -5,6 +5,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 
@@ -41,7 +42,8 @@ public class AceptarPropuestaApoyoCarteraCommandHandler(
     ICatalogoIncorporacionCartera catalogo,
     IPropuestaApoyoCarteraRepository repositorio,
     ITransaccionDeComando transaccion,
-    IBloqueoCarteraUsuario bloqueoCartera)
+    IBloqueoCarteraUsuario bloqueoCartera,
+    ILogger<AceptarPropuestaApoyoCarteraCommandHandler> logger)
     : IRequestHandler<AceptarPropuestaApoyoCarteraCommand, Result>
 {
     public async Task<Result> Handle(AceptarPropuestaApoyoCarteraCommand request, CancellationToken cancellationToken)
@@ -111,9 +113,15 @@ public class AceptarPropuestaApoyoCarteraCommandHandler(
                 }
             }, cancellationToken);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException ex)
         {
             // La transacción ya se deshizo y el contexto quedó vacío (ITransaccionDeComando).
+            // A quien acepta se le dice que algo cambió, que es lo habitual; pero un fallo
+            // determinista (una clave ajena, un tipo) llegaría aquí con el mismo aspecto, así
+            // que la excepción se registra siempre: sin rastro no se distinguirían.
+            logger.LogWarning(ex,
+                "La propuesta de apoyo de cartera {PropuestaId} no se pudo aceptar: la base de datos rechazó la escritura.",
+                request.PropuestaId);
             return Result.Fallo(ErroresPropuestaApoyo.CambioMientrasDecidias);
         }
 

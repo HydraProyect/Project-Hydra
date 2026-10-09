@@ -24,6 +24,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Xunit;
 
@@ -373,7 +374,8 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
             ICatalogoIncorporacionCartera catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
             return new AceptarPropuestaApoyoCarteraCommandHandler(
                     usuario, directorio, pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
-                    new PropuestaApoyoCarteraRepository(contexto), new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto))
+                    new PropuestaApoyoCarteraRepository(contexto), new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
+                    NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance)
                 .Handle(new AceptarPropuestaApoyoCarteraCommand(propuestaId), CancellationToken.None);
         }, tenantActivo);
 

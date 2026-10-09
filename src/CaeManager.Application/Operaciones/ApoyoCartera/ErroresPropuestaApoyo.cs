@@ -14,7 +14,7 @@ public static class ErroresPropuestaApoyo
 
     public static readonly Error NoEresElPrincipal = Error.Crear(
         "PropuestaApoyo.NoEresElPrincipal",
-        "Solo el Gestor CAE principal de esa empresa puede dar acceso de apoyo.");
+        "Solo quien es principal de esa empresa puede dar acceso de apoyo.");
 
     public static readonly Error OperacionNoDisponible = Error.Crear(
         "PropuestaApoyo.OperacionNoDisponible", "Tu organización ya no gestiona esa empresa.");
@@ -41,7 +41,7 @@ public static class ErroresPropuestaApoyo
 
     public static readonly Error AnuladaProponenteYaNoEsPrincipal = Error.Crear(
         "PropuestaApoyo.AnuladaProponenteYaNoEsPrincipal",
-        "Quien te propuso el apoyo ya no es el Gestor CAE principal de esa empresa; la propuesta se ha anulado.");
+        "Quien te propuso el apoyo ya no es el principal de esa empresa; la propuesta se ha anulado.");
 
     public static readonly Error AnuladaDestinatarioNoDisponible = Error.Crear(
         "PropuestaApoyo.AnuladaDestinatarioNoDisponible",

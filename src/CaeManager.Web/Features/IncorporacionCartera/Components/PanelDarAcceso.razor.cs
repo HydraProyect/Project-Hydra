@@ -11,8 +11,8 @@ using Microsoft.Extensions.Localization;
 namespace CaeManager.Web.Features.IncorporacionCartera.Components;
 
 /// <summary>
-/// Panel «Dar acceso»: las operaciones de las que quien mira es hoy Gestor CAE principal, con sus
-/// apoyos y sus propuestas sin responder, y el formulario para proponer un apoyo nuevo.
+/// Panel «Dar acceso»: las operaciones de las que quien mira es hoy el principal (como Gestor
+/// CAE o como Coordinador CAE), con sus apoyos y sus propuestas sin responder, y el formulario para proponer un apoyo nuevo.
 ///
 /// <para>
 /// «Soy el principal» se lee aquí solo para decidir qué se enseña: se compara el usuario de la

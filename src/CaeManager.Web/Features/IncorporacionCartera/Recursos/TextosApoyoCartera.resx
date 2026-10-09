@@ -46,7 +46,7 @@
     <value>Acceso de apoyo</value>
   </data>
   <data name="PanelDescripcion" xml:space="preserve">
-    <value>Empresas de las que eres Gestor CAE principal. Puedes proponer a otro Gestor CAE de tu organización que te apoye: tendrá acceso cuando acepte.</value>
+    <value>Empresas de las que eres principal. Puedes proponer a un Gestor CAE de tu organización que te apoye: tendrá acceso cuando acepte.</value>
   </data>
   <data name="ApoyosEtiqueta" xml:space="preserve">
     <value>Con acceso de apoyo: {0}</value>
@@ -79,7 +79,7 @@
     <value>Dar acceso a {0}</value>
   </data>
   <data name="DrawerIntro" xml:space="preserve">
-    <value>Propón a un Gestor CAE de tu organización que te apoye en esta Empresa. Cuando acepte tendrá el mismo acceso que tú, como Gestor CAE de apoyo; tú sigues siendo el Gestor CAE principal.</value>
+    <value>Propón a un Gestor CAE de tu organización que te apoye en esta Empresa. Cuando acepte tendrá acceso a esta Empresa como Gestor CAE de apoyo; tú sigues siendo el principal.</value>
   </data>
   <data name="EtiquetaDestinatario" xml:space="preserve">
     <value>Gestor CAE al que se lo propones</value>
@@ -115,7 +115,7 @@
     <value>Las propuestas de apoyo son de los Gestores CAE y los Coordinadores CAE de tu organización.</value>
   </data>
   <data name="ErrorNoEresElPrincipal" xml:space="preserve">
-    <value>Solo el Gestor CAE principal de esta Empresa puede proponer un apoyo, y ahora no lo eres tú.</value>
+    <value>Solo quien es principal de esta Empresa puede proponer un apoyo, y ahora no lo eres tú.</value>
   </data>
   <data name="ErrorOperacionNoDisponible" xml:space="preserve">
     <value>Tu organización ya no opera esta Empresa.</value>
@@ -139,7 +139,7 @@
     <value>Algo cambió mientras decidías. Vuelve a abrir los avisos y prueba otra vez.</value>
   </data>
   <data name="ErrorAnuladaProponenteYaNoEsPrincipal" xml:space="preserve">
-    <value>La propuesta se ha anulado: quien te la hizo ya no es el Gestor CAE principal de esa Empresa.</value>
+    <value>La propuesta se ha anulado: quien te la hizo ya no es el principal de esa Empresa.</value>
   </data>
   <data name="ErrorAnuladaDestinatarioNoDisponible" xml:space="preserve">
     <value>La propuesta se ha anulado: tu cuenta ya no puede recibir este acceso.</value>

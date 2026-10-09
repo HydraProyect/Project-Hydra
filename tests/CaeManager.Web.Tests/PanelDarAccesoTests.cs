@@ -151,7 +151,7 @@ public class PanelDarAccesoTests : BunitContext
 
         var drawer = cut.FindComponent<DrawerFormulario>().Instance;
         drawer.Visible.Should().BeTrue();
-        drawer.MensajeError.Should().Contain("Solo el Gestor CAE principal");
+        drawer.MensajeError.Should().Contain("Solo quien es principal");
     }
 
     [Fact]

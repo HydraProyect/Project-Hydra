@@ -10,7 +10,8 @@ namespace CaeManager.Domain.Operaciones;
 ///
 /// <para>
 /// <b>La propuesta no concede nada.</b> Mientras está <see cref="EstadoPropuestaApoyoCartera.Pendiente"/>
-/// el destinatario no ve ni un dato del Tenant propietario: solo su aceptación emite la
+/// el destinatario ve el <b>nombre</b> del Tenant propietario —la propuesta tiene que decirle
+/// qué empresa le ofrecen— y ninguno de sus datos: solo su aceptación emite la
 /// <see cref="AsignacionCartera"/>, del Tenant entero, con rol Gestor CAE y <b>sin la marca de
 /// principal</b>. Quien propone no elige el rol, ni el ámbito, ni la marca.
 /// </para>

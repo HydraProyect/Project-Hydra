@@ -549,7 +549,7 @@ public class CabeceraRedisenadaTests : BunitContext
         await cut.InvokeAsync(() => BotonDe(cut, "Aceptar").Click());
 
         cut.Find("[data-testid=campana-error-propuesta]").TextContent
-            .Should().Contain("ya no es el Gestor CAE principal");
+            .Should().Contain("ya no es el principal");
         cut.FindAll("[data-propuesta-aceptada]").Should().BeEmpty("sin cartera emitida no hay Tenant que abrir");
         cut.FindAll("[data-propuesta-apoyo]").Should().BeEmpty("anulada, deja de estar pendiente");
     }
