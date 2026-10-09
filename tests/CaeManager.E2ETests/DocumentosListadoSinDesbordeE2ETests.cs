@@ -78,9 +78,12 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
         () => {
             // QuickGrid completa la página con filas vacías, que list-page.css oculta: no cuentan como filas.
             const filas = Array.from(document.querySelectorAll('table.tabla-datos tbody tr')).filter(f => f.querySelector('.menu-acciones-disparador'));
+            window.vueltasConElMenuAbierto ??= 0;
             if (!filas.length) return false;
             const ultima = filas[filas.length - 1];
-            if (ultima.querySelector('.menu-acciones-panel')) return true;
+            // Abierto en dos vueltas seguidas: si el listado se repinta entre medias, el panel se va con su fila.
+            if (ultima.querySelector('.menu-acciones-panel')) return ++window.vueltasConElMenuAbierto >= 2;
+            window.vueltasConElMenuAbierto = 0;
             const disparador = ultima.querySelector('.menu-acciones-disparador');
             if (disparador && disparador.getAttribute('aria-expanded') !== 'true') disparador.click();
             return false;
