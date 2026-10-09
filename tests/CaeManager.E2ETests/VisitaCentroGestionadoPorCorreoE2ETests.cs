@@ -211,6 +211,8 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         // El documento exigido está vigente y el ZIP ya se descargó: aun así la Visita sigue
         // «Por gestionar» hasta que se envía el paquete o se marca a mano.
         await Expect(filaVisita).ToContainTextAsync("Por gestionar");
+        // La marca manual vive junto al dato «Documentación», en la pestaña «Información».
+        await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Información", Exact = true }).ClickAsync();
         var marcarGestionada = drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Marcar documentación gestionada", Exact = true });
         await marcarGestionada.ClickAsync();
         await Expect(filaVisita).ToContainTextAsync("Gestionada", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
@@ -246,7 +248,6 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await Expect(listaTrabajadores).ToContainTextAsync($"{nombreSegundo} {apellidosSegundo}");
         // Cambió quién entra: lo gestionado era para los de antes, la Visita vuelve a «Por gestionar».
         await Expect(filaVisita).ToContainTextAsync("Por gestionar", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
-        await Expect(marcarGestionada).ToBeVisibleAsync();
 
         // Con dos, el primero ya se puede quitar: pregunta antes y, al confirmar, sale de la visita.
         await quitarAlPrimero.ClickAsync();

@@ -469,9 +469,20 @@
                 </div>
                 @if (_detalle is { CentroRequiereGestionCae: true, EstaCancelada: false })
                 {
-                    <div class="visitas-detalle-campo">
+                    <div class="visitas-detalle-campo visitas-detalle-campo-ancho">
                         <dt>@Textos["ColumnaDocumentacion"]</dt>
-                        <dd>@TextoDocumentacionGestionada(_detalle)</dd>
+                        <dd class="visitas-detalle-documentacion">
+                            <span>@TextoDocumentacionGestionada(_detalle)</span>
+                            @* Salida manual de «Por gestionar»: lo gestionado fuera de TALVEG (portal del
+                               titular, otro correo). Vive junto al dato y no en el pie: con «Marcar como
+                               notificada» y «Editar», un tercer botón no cabe en el ancho del panel. *@
+                            @if (_detalle.DocumentacionGestionadaEnUtc is null)
+                            {
+                                <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionMarca">
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_marcandoDocumentacionGestionada" OnClick="MarcarDocumentacionGestionadaAsync">@Textos["BotonMarcarDocumentacionGestionada"]</Boton>
+                                </AuthorizeView>
+                            }
+                        </dd>
                     </div>
                 }
             </dl>
@@ -695,11 +706,6 @@
                     <Boton Variante="VarianteBoton.Primario" Cargando="_marcandoNotificadoDetalle" OnClick="AlternarNotificadoDesdeDetalleAsync">
                         @(_detalle.NotificadoCliente ? Textos["BotonQuitarMarcaNotificada"].Value : Textos["BotonMarcarNotificada"].Value)
                     </Boton>
-                    @* Salida manual de «Por gestionar»: lo gestionado fuera de TALVEG (portal del titular, otro correo). *@
-                    @if (_detalle is { CentroRequiereGestionCae: true, DocumentacionGestionadaEnUtc: null })
-                    {
-                        <Boton Variante="VarianteBoton.Secundario" Cargando="_marcandoDocumentacionGestionada" OnClick="MarcarDocumentacionGestionadaAsync">@Textos["BotonMarcarDocumentacionGestionada"]</Boton>
-                    }
                     <Boton Variante="VarianteBoton.Secundario" OnClick="EditarDesdeDetalleAsync">@Textos["AccionEditar"]</Boton>
                 </Authorized>
                 <NotAuthorized>

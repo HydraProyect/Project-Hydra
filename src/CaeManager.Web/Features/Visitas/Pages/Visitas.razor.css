@@ -154,6 +154,19 @@
     min-width: 0;
 }
 
+/* El dato «Documentación» lleva su acción al lado: ocupa las dos columnas. */
+.visitas-detalle-campo-ancho {
+    grid-column: 1 / -1;
+}
+
+.visitas-detalle-documentacion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
 .visitas-detalle-campo dt {
     font: var(--font-caption);
     color: var(--color-text-muted);
