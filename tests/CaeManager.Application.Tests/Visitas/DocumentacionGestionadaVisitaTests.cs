@@ -48,12 +48,12 @@ public class DocumentacionGestionadaVisitaTests
             new MarcarDocumentacionGestionadaCommandHandler(Visitas, Centros, UnitOfWork, Alcance)
                 .Handle(new MarcarDocumentacionGestionadaCommand(Visita.Id, version), CancellationToken.None);
 
-        public Task<Result<Guid>> EnviarPaqueteAsync(Guid version = default) =>
+        public Task<Result<Guid>> EnviarPaqueteAsync(Guid? version = null) =>
             new EnviarPaqueteAcreditacionVisitaCommandHandler(
-                    Visitas, Alcance, Emisor, UnitOfWork, NullLogger<EnviarPaqueteAcreditacionVisitaCommandHandler>.Instance)
+                    Visitas, Centros, Alcance, Emisor, UnitOfWork, NullLogger<EnviarPaqueteAcreditacionVisitaCommandHandler>.Instance)
                 .Handle(
                     new EnviarPaqueteAcreditacionVisitaCommand(
-                        Visita.Id, version, Guid.NewGuid(), ["titular@example.test"], "Acceso", "<p>Adjunto</p>",
+                        Visita.Id, version ?? Visita.Version, Guid.NewGuid(), ["titular@example.test"], "Acceso", "<p>Adjunto</p>",
                         [new AdjuntoParaEnviarDto("paquete.zip", "application/zip", [1, 2, 3])]),
                     CancellationToken.None);
 
@@ -278,11 +278,62 @@ public class DocumentacionGestionadaVisitaTests
         Fila(documentosVigentes: false, gestionadaEn: null, requiereGestionCae: false).PorGestionar.Should().BeFalse();
     }
 
+    /// <summary>La misma regla P1-X2 que la marca manual: sin gestión CAE no hay paquete que enviar ni marca que poner.</summary>
+    [Fact]
+    public async Task Enviar_el_paquete_en_un_Centro_sin_gestion_CAE_no_envia_ni_marca()
+    {
+        var escenario = new Escenario();
+        escenario.Centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+
+        var resultado = await escenario.EnviarPaqueteAsync();
+
+        resultado.Error.Should().Be(MarcarDocumentacionGestionadaCommandHandler.CentroSinGestionCae);
+        escenario.Emisor.Enviados.Should().BeEmpty();
+        escenario.Visita.DocumentacionGestionada.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// El correo ya salió: si la marca no se puede guardar, responder con error invitaría a
+    /// reenviar el mismo paquete. El envío se da por bueno y la Visita se marca a mano.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Si_el_correo_sale_y_la_marca_no_se_guarda_el_envio_no_se_da_por_fallido(bool porConcurrencia)
+    {
+        var escenario = new Escenario();
+        escenario.UnitOfWork.ExcepcionAlGuardar = porConcurrencia
+            ? new Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException("otra sesión tocó la Visita")
+            : new Microsoft.EntityFrameworkCore.DbUpdateException("la base no respondió");
+
+        var resultado = await escenario.EnviarPaqueteAsync();
+
+        resultado.EsExitoso.Should().BeTrue();
+        escenario.Emisor.Enviados.Should().ContainSingle();
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0, "control: el guardado de la marca falló de verdad");
+    }
+
+    /// <summary>
+    /// «Sin versión» apagaría la única garantía del comando (que el paquete no salga si la
+    /// Visita cambió desde que se preparó): aquí no es opcional, a diferencia de la marca manual.
+    /// </summary>
+    [Fact]
+    public void El_envio_del_paquete_exige_la_version_de_la_Visita()
+    {
+        var sinVersion = new EnviarPaqueteAcreditacionVisitaCommand(
+            Guid.NewGuid(), Guid.Empty, Guid.NewGuid(), ["titular@example.test"], "Acceso", "<p>x</p>",
+            [new AdjuntoParaEnviarDto("paquete.zip", "application/zip", [1])]);
+        var conVersion = sinVersion with { VersionVisita = Guid.NewGuid() };
+
+        new EnviarPaqueteAcreditacionVisitaCommandValidator().Validate(sinVersion).IsValid.Should().BeFalse();
+        new EnviarPaqueteAcreditacionVisitaCommandValidator().Validate(conVersion).IsValid.Should().BeTrue("control: lo único que faltaba era la versión");
+    }
+
     [Fact]
     public void El_envio_del_paquete_exige_el_adjunto()
     {
         var sinAdjunto = new EnviarPaqueteAcreditacionVisitaCommand(
-            Guid.NewGuid(), Guid.Empty, Guid.NewGuid(), ["titular@example.test"], "Acceso", "<p>x</p>", []);
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), ["titular@example.test"], "Acceso", "<p>x</p>", []);
 
         new EnviarPaqueteAcreditacionVisitaCommandValidator().Validate(sinAdjunto).IsValid.Should().BeFalse();
     }

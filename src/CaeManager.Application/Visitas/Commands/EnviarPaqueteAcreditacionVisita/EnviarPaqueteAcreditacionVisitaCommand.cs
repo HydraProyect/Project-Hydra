@@ -1,4 +1,7 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
+using CaeManager.Domain.Centros;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Domain.Common;
@@ -39,12 +42,16 @@ public class EnviarPaqueteAcreditacionVisitaCommandValidator : AbstractValidator
     public EnviarPaqueteAcreditacionVisitaCommandValidator()
     {
         RuleFor(c => c.VisitaId).NotEmpty();
+        // Aquí la versión no es opcional: «sin versión» apagaría la única garantía del comando,
+        // que el paquete no salga si la Visita cambió desde que se preparó.
+        RuleFor(c => c.VersionVisita).NotEmpty();
         RuleFor(c => c.Adjuntos).NotEmpty().WithMessage("El envío del paquete de acreditación debe llevar el paquete adjunto.");
     }
 }
 
 public class EnviarPaqueteAcreditacionVisitaCommandHandler(
-    IVisitaRepository repositorio, IAlcanceDatosService alcanceDatos, ISender mediator, IUnitOfWork unitOfWork,
+    IVisitaRepository repositorio, ICentrosQueryContext centrosContext, IAlcanceDatosService alcanceDatos,
+    ISender mediator, IUnitOfWork unitOfWork,
     ILogger<EnviarPaqueteAcreditacionVisitaCommandHandler> logger)
     : IRequestHandler<EnviarPaqueteAcreditacionVisitaCommand, Result<Guid>>
 {
@@ -63,6 +70,15 @@ public class EnviarPaqueteAcreditacionVisitaCommandHandler(
         if (ConcurrenciaOptimista.Verificar(visita, request.VersionVisita, "esta visita") is { } conflicto)
             return Result.Fallo<Guid>(conflicto);
 
+        // P1-X2, la misma regla que la marca manual: un Centro sin gestión CAE no tiene
+        // paquete de acreditación ni documentación que dar por gestionada.
+        var gestionCae = await centrosContext.Centros
+            .Where(c => c.Id == visita.CentroId)
+            .Select(c => (ModalidadGestionCae?)c.GestionCae)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (gestionCae is null or ModalidadGestionCae.SinGestionCae)
+            return Result.Fallo<Guid>(MarcarDocumentacionGestionadaCommandHandler.CentroSinGestionCae);
+
         var envio = await mediator.Send(
             new EnviarMensajeNuevoCommand(
                 request.ConexionIntegracionId, request.Destinatarios, request.Asunto, request.CuerpoHtml, Adjuntos: request.Adjuntos),
@@ -71,14 +87,16 @@ public class EnviarPaqueteAcreditacionVisitaCommandHandler(
             return envio;
 
         // El correo ya salió y su conversación ya está guardada. Si la marca no entra (alguien
-        // tocó la Visita en este instante), el envío no se da por fallido: la Visita se queda
-        // «Por gestionar», que es el lado seguro, y se puede marcar a mano.
+        // tocó la Visita en este instante, o la base falla al guardar), el envío no se da por
+        // fallido: responder con error invitaría a reenviar el mismo paquete. La Visita se queda
+        // «Por gestionar», que es el lado seguro, y se puede marcar a mano. Por lo mismo el
+        // guardado no atiende a la cancelación de la petición: el correo ya no se puede retirar.
         try
         {
             visita.MarcarDocumentacionGestionada(DateTime.UtcNow);
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+            await unitOfWork.SaveChangesAsync(CancellationToken.None);
         }
-        catch (DbUpdateConcurrencyException ex)
+        catch (DbUpdateException ex)
         {
             logger.LogWarning(ex, "El paquete de la visita {VisitaId} se envió, pero no se pudo marcar su documentación como gestionada.", visita.Id);
         }

@@ -5,6 +5,7 @@ using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
+using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
@@ -45,6 +46,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
         public Guid VisitaId { get; } = Guid.NewGuid();
         public Guid Version { get; private set; } = Guid.NewGuid();
         public DateTime? GestionadaEn { get; set; }
+        public bool Avisada { get; private set; }
         public bool DocumentosVigentes { get; set; } = true;
         public bool RequiereGestionCae { get; set; } = true;
         public Result RespuestaAlMarcar { get; set; } = Result.Exito();
@@ -58,7 +60,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
 
         private DetalleVisitaDto Detalle() => new(
             VisitaId, "Centro Norte", "Iberojet S.A.", Guid.NewGuid(), "Instalaciones Arbeko S.L.", Hoy, Hoy.AddDays(2),
-            Notas: null, NotificadoCliente: false, Trabajadores: [new TrabajadorVisitaDto(Guid.NewGuid(), "Ana García Ruiz")],
+            Notas: null, NotificadoCliente: Avisada, Trabajadores: [new TrabajadorVisitaDto(Guid.NewGuid(), "Ana García Ruiz")],
             HoraEstimadaAcceso: null, FechaHoraSolicitudUtc: null, FechaHoraExpedienteCompletoUtc: null,
             AntelacionNominalHoras: null, AntelacionEfectivaHoras: null, Tramo: null, AtribucionUrgencia.SinUrgencia,
             CentroRequiereGestionCae: RequiereGestionCae, Version: Version, DocumentacionGestionadaEnUtc: GestionadaEn);
@@ -77,6 +79,12 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
 
                 case ObtenerDocumentacionVisitaQuery:
                     return Respuesta<TResponse>(new DocumentacionVisitaDto(Guid.NewGuid(), new SeccionDocumentacionDto(EstadoDocumento.Vigente, []), []));
+
+                // Como el servidor: cualquier guardado de la Visita renueva su versión.
+                case MarcarNotificadoClienteCommand avisar:
+                    Avisada = avisar.Notificado;
+                    Version = Guid.NewGuid();
+                    return Respuesta<TResponse>(Result.Exito());
 
                 case MarcarDocumentacionGestionadaCommand marcar:
                     Marcas.Add(marcar);
@@ -185,6 +193,28 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
             BotonesMarcar(cut).Should().BeEmpty("ya gestionada, no se ofrece marcarla otra vez");
             cut.Find(".drawer-panel").TextContent.Should().Contain("Gestionada el");
         });
+    }
+
+    /// <summary>
+    /// Marcar «Avisada» renueva la versión de la Visita. Si el panel se quedara con la anterior,
+    /// la marca siguiente chocaría «porque otra persona la modificó» sin que nadie la tocara.
+    /// </summary>
+    [Fact]
+    public async Task Tras_marcar_Avisada_en_el_panel_la_marca_de_gestionada_viaja_con_la_version_nueva()
+    {
+        var mediator = new MediatorPanel();
+        var versionAlAbrir = mediator.Version;
+        var cut = await AbrirPanelAsync(mediator);
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Marcar como notificada").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-pie button").Should().Contain(b => b.TextContent.Trim() == "Quitar la marca de notificada"));
+        mediator.Version.Should().NotBe(versionAlAbrir, "control: «Avisada» renovó la versión");
+
+        await BotonesMarcar(cut).Single().ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediator.Marcas.Should().ContainSingle());
+        mediator.Marcas.Single().Version.Should().NotBe(versionAlAbrir);
+        cut.WaitForAssertion(() => Fila(cut).QuerySelectorAll(".badge-exito").Should().ContainSingle());
     }
 
     [Fact]

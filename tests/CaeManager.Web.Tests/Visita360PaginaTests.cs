@@ -93,7 +93,8 @@ public class Visita360PaginaTests : BunitContext
                     Detalles[c.VisitaId] = Detalles[c.VisitaId] with { DocumentacionGestionadaEnUtc = new DateTime(2026, 10, 9, 10, 0, 0, DateTimeKind.Utc), Version = Guid.NewGuid() };
                     return Result.Exito(Guid.NewGuid());
                 case MarcarNotificadoClienteCommand c:
-                    Detalles[c.Id] = Detalles[c.Id] with { NotificadoCliente = c.Notificado };
+                    // Como el servidor: cualquier guardado de la Visita renueva su versión.
+                    Detalles[c.Id] = Detalles[c.Id] with { NotificadoCliente = c.Notificado, Version = Guid.NewGuid() };
                     return Result.Exito();
                 case CancelarVisitaCommand c:
                     Detalles[c.Id] = Detalles[c.Id] with { EstaCancelada = true, MotivoCancelacion = c.Motivo };
@@ -436,6 +437,29 @@ public class Visita360PaginaTests : BunitContext
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<MarcarDocumentacionGestionadaCommand>().Should().ContainSingle()
             .Which.Should().Be(new MarcarDocumentacionGestionadaCommand(VisitaId, detalle.Version)));
         cut.WaitForAssertion(() => Cabecera(cut).Should().Contain("Documentación gestionada"));
+    }
+
+    /// <summary>
+    /// Marcar «Avisada» renueva la versión de la Visita. Si la página se quedara con la anterior,
+    /// la marca siguiente chocaría «porque otra persona la modificó» sin que nadie la tocara.
+    /// </summary>
+    [Fact]
+    public async Task Tras_marcar_Avisada_la_marca_de_gestionada_viaja_con_la_version_nueva()
+    {
+        var detalle = Detalle();
+        var (cut, mediador) = Montar(detalle, documentacion: DocumentacionConIncidencias());
+
+        await cut.Find("[data-pieza=cabecera-identidad] .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Marcar como notificada").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<MarcarNotificadoClienteCommand>().Should().ContainSingle());
+        var versionTrasAvisar = mediador.Detalles[VisitaId].Version;
+        versionTrasAvisar.Should().NotBe(detalle.Version, "control: «Avisada» renovó la versión");
+
+        await cut.Find("[data-pieza=cabecera-identidad] .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Marcar documentación gestionada").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<MarcarDocumentacionGestionadaCommand>().Should().ContainSingle()
+            .Which.Version.Should().Be(versionTrasAvisar));
     }
 
     /// <summary>

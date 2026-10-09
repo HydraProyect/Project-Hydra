@@ -839,11 +839,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                 return;
             }
 
-            // Si mientras tanto se abrió otra visita, su detalle no se toca.
-            if (_detalle?.Id == detalle.Id)
-                _detalle = _detalle with { NotificadoCliente = notificado };
-
+            // El panel se vuelve a leer, no se retoca en memoria: marcar «Avisada» renueva la
+            // versión de la Visita, y con la anterior «Enviar por correo» y «Marcar documentación
+            // gestionada» chocarían como si otra persona la hubiera cambiado. Si mientras tanto
+            // se abrió otra visita, su detalle no se toca.
             await RecargarAsync();
+            if (_detalle?.Id == detalle.Id)
+                await AbrirDetalleAsync(detalle.Id, _pestanaDetalle);
         }
         catch (Exception)
         {
@@ -863,12 +865,26 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// Application la deja con la documentación gestionada. Viajan el Id y la versión de la Visita
     /// para la que se preparó el paquete, no los de la que esté abierta al pulsar «Enviar».
     /// </summary>
-    private Task<Result<Guid>> EnviarPaqueteDeLaVisitaAsync(EnviarMensajeNuevoCommand mensaje) =>
-        _visitaDelPaquete is not { } visita
-            ? Task.FromResult(Result.Fallo<Guid>(AutorizacionCancelacionVisita.NoEncontrada))
-            : Mediator.Send(new EnviarPaqueteAcreditacionVisitaCommand(
-                visita.Id, visita.Version, mensaje.ConexionIntegracionId, mensaje.Destinatarios, mensaje.Asunto, mensaje.CuerpoHtml,
-                mensaje.Adjuntos ?? []));
+    private async Task<Result<Guid>> EnviarPaqueteDeLaVisitaAsync(EnviarMensajeNuevoCommand mensaje)
+    {
+        if (_visitaDelPaquete is not { } visita)
+            return Result.Fallo<Guid>(AutorizacionCancelacionVisita.NoEncontrada);
+
+        var resultado = await Mediator.Send(new EnviarPaqueteAcreditacionVisitaCommand(
+            visita.Id, visita.Version, mensaje.ConexionIntegracionId, mensaje.Destinatarios, mensaje.Asunto, mensaje.CuerpoHtml,
+            mensaje.Adjuntos ?? []));
+
+        // La Visita cambió desde que se preparó el paquete: fila y panel se vuelven a leer para
+        // que el siguiente «Enviar por correo» prepare el paquete de la Visita como está ahora.
+        if (resultado.EsFallido && resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+        {
+            await RecargarAsync();
+            if (_detalle?.Id == visita.Id)
+                await AbrirDetalleAsync(visita.Id, _pestanaDetalle);
+        }
+
+        return resultado;
+    }
 
     /// <summary>Enviado el paquete: la fila y el panel se vuelven a leer del servidor, que es quien sabe si quedó gestionada.</summary>
     private async Task AlEnviarPaqueteAsync()
