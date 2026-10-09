@@ -1293,6 +1293,12 @@ jobs:
       - name: deploy/resolve-deploy-sha.tests.sh
         run: bash deploy/resolve-deploy-sha.tests.sh
 
+      # El lanzador del banco de modelos de IA maneja una clave: que no la
+      # imprima, que solo la reciba la medición y que un test omitido no
+      # cuente como medido se prueba aquí, con un doble de `dotnet` y sin red.
+      - name: scripts/banco-ia.tests.sh
+        run: bash scripts/banco-ia.tests.sh
+
       - name: deploy/liberar-disco.tests.sh
         run: bash deploy/liberar-disco.tests.sh
 

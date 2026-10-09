@@ -5,59 +5,72 @@ using System.Text.Json.Serialization;
 
 namespace CaeManager.Web.Tests.BancoModelosIa;
 
-/// <summary>
-/// Tarifa pública de la API de Anthropic en dólares por millón de tokens,
-/// consultada el 2026-10-06. Solo sirve para estimar el coste de cada caso:
-/// el gasto real es el de la consola de Anthropic. Un modelo que no esté
-/// aquí se mide igual, sin coste, salvo que la ejecución dé su precio.
-/// </summary>
-public sealed record TarifaAnthropic(decimal EntradaPorMillon, decimal SalidaPorMillon)
+/// <summary>Precio de un modelo en dólares por millón de tokens.</summary>
+public sealed record TarifaAnthropic(decimal Entrada, decimal Salida)
 {
     public decimal Coste(int tokensEntrada, int tokensSalida) =>
-        Math.Round(tokensEntrada / 1_000_000m * EntradaPorMillon + tokensSalida / 1_000_000m * SalidaPorMillon, 6);
+        Math.Round(tokensEntrada / 1_000_000m * Entrada + tokensSalida / 1_000_000m * Salida, 6);
 }
 
+/// <summary>
+/// Tarifa pública de la API de Anthropic, leída de <c>tarifas-anthropic.json</c>
+/// (junto a este fichero), que guarda la fecha y la página de donde se tomó.
+/// Con ella se CALCULA el coste de cada caso a partir de los tokens que la
+/// API MIDE: el gasto real es el de la consola de Anthropic. Un modelo que no
+/// esté en el fichero se mide igual, sin coste, salvo que la ejecución dé su
+/// precio.
+/// </summary>
 public static class TarifasAnthropic
 {
-    private static readonly Dictionary<string, TarifaAnthropic> Conocidas = new()
-    {
-        ["claude-haiku-5-5"] = new(0.10m, 0.50m),
-        ["claude-haiku-4-5"] = new(1m, 5m),
-        ["claude-sonnet-5-5"] = new(2m, 10m),
-        ["claude-sonnet-5"] = new(2m, 10m),
-        ["claude-sonnet-4-6"] = new(3m, 15m),
-        ["claude-opus-5-5"] = new(4m, 20m),
-        ["claude-opus-5"] = new(5m, 25m),
-    };
+    private sealed record Fichero(string FechaDeConsulta, string Fuente, Dictionary<string, TarifaAnthropic> Modelos);
+
+    private static readonly Lazy<Fichero> Leido = new(() =>
+        JsonSerializer.Deserialize<Fichero>(
+            File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "BancoModelosIa", "tarifas-anthropic.json")),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web))!);
+
+    public static string FechaDeConsulta => Leido.Value.FechaDeConsulta;
+
+    public static string Fuente => Leido.Value.Fuente;
 
     public static TarifaAnthropic? Para(ParametrosBanco parametros) =>
         parametros is { PrecioEntrada: { } entrada, PrecioSalida: { } salida }
             ? new TarifaAnthropic(entrada, salida)
-            : Conocidas.GetValueOrDefault(parametros.Modelo);
+            : Leido.Value.Modelos.GetValueOrDefault(parametros.Modelo);
 }
 
-/// <summary>Agregado de una ruta: la fila de la tabla ruta × modelo × esfuerzo.</summary>
+/// <summary>
+/// Agregado de una ruta: la fila de la tabla ruta × modelo × esfuerzo.
+/// <paramref name="CostePorMilUsd"/> es la proyección «coste de mil
+/// documentos como los del corpus», el coste medio por caso por mil.
+/// </summary>
 public sealed record ResumenRuta(
     RutaIa Ruta, int Casos, double PuntuacionMedia, int CasosPerfectos, int CasosConErrorDeServicio,
     IReadOnlyDictionary<NivelCaso, double> PuntuacionPorNivel,
-    long LatenciaMedianaMs, long LatenciaMaximaMs, int TokensEntrada, int TokensSalida, decimal? CosteUsd,
+    long LatenciaMedianaMs, long LatenciaMaximaMs, int TokensEntrada, int TokensSalida,
+    decimal? CosteUsd, decimal? CostePorCasoUsd, decimal? CostePorMilUsd,
     IReadOnlyDictionary<string, int> StopReasons);
+
+/// <summary>Gasto calculado del mes según el libro de gasto local, frente al presupuesto mensual.</summary>
+public sealed record GastoDelMes(string Mes, decimal AcumuladoUsd, decimal PresupuestoUsd);
 
 public sealed record InformeBanco(
     DateTimeOffset Fecha, string? Commit, string Modelo, string? EsfuerzoPedido, IReadOnlyList<string> EsfuerzosEnviados,
-    IReadOnlyList<string> ModelosQueRespondieron, TarifaAnthropic? Tarifa, decimal? CosteTotalUsd,
+    IReadOnlyList<string> ModelosQueRespondieron, TarifaAnthropic? Tarifa, string TarifaConsultadaEl, decimal? CosteTotalUsd,
     IReadOnlyList<string> ProblemasDelInstrumento, IReadOnlyList<string> CasosNoConstruibles,
-    IReadOnlyList<ResumenRuta> Rutas, IReadOnlyList<ResultadoCaso> Casos);
+    IReadOnlyList<ResumenRuta> Rutas, IReadOnlyList<ResultadoCaso> Casos, GastoDelMes? GastoDelMes = null);
 
 public static class InformeBancoModelosIa
 {
-    private static readonly JsonSerializerOptions Json = new()
+    public static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         Converters = { new JsonStringEnumConverter() },
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
+
+    private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
 
     public static InformeBanco Construir(
         ParametrosBanco parametros, IReadOnlyList<ResultadoCaso> resultados, IReadOnlyList<string> problemas,
@@ -69,6 +82,7 @@ public static class InformeBancoModelosIa
             .Select(g =>
             {
                 var latencias = g.Select(r => r.LatenciaMs).OrderBy(l => l).ToList();
+                decimal? coste = g.All(r => r.CosteUsd is null) ? null : g.Sum(r => r.CosteUsd ?? 0);
                 return new ResumenRuta(
                     g.Key, g.Count(),
                     Math.Round(g.Average(r => r.Puntuacion), 4),
@@ -77,7 +91,9 @@ public static class InformeBancoModelosIa
                     g.GroupBy(r => r.Nivel).OrderBy(n => n.Key).ToDictionary(n => n.Key, n => Math.Round(n.Average(r => r.Puntuacion), 4)),
                     latencias[latencias.Count / 2], latencias[^1],
                     g.Sum(r => r.TokensEntrada), g.Sum(r => r.TokensSalida),
-                    g.All(r => r.CosteUsd is null) ? null : g.Sum(r => r.CosteUsd ?? 0),
+                    coste,
+                    coste is null ? null : Math.Round(coste.Value / g.Count(), 6),
+                    coste is null ? null : Math.Round(coste.Value / g.Count() * 1000, 2),
                     g.GroupBy(r => r.StopReason ?? "(sin respuesta)").ToDictionary(s => s.Key, s => s.Count()));
             })
             .ToList();
@@ -86,7 +102,7 @@ public static class InformeBancoModelosIa
             fecha, commit, parametros.Modelo, parametros.Esfuerzo,
             [.. resultados.Select(r => r.EsfuerzoEnviado ?? "(no enviado)").Distinct().Order()],
             [.. resultados.Select(r => r.ModeloQueRespondio).OfType<string>().Distinct().Order()],
-            TarifasAnthropic.Para(parametros),
+            TarifasAnthropic.Para(parametros), TarifasAnthropic.FechaDeConsulta,
             resultados.All(r => r.CosteUsd is null) ? null : resultados.Sum(r => r.CosteUsd ?? 0),
             problemas, casosNoConstruibles, rutas, resultados);
     }
@@ -104,7 +120,7 @@ public static class InformeBancoModelosIa
         return baseRuta + ".md";
     }
 
-    private static string Limpio(string valor) =>
+    public static string Limpio(string valor) =>
         new(valor.Select(c => char.IsLetterOrDigit(c) || c is '-' or '.' ? c : '_').ToArray());
 
     public static string Csv(InformeBanco informe)
@@ -118,64 +134,186 @@ public static class InformeBancoModelosIa
             csv.AppendLine(string.Join(',', new[]
             {
                 informe.Modelo, informe.EsfuerzoPedido ?? "", r.EsfuerzoEnviado ?? "", r.Ruta.ToString(), r.Caso, r.Nivel.ToString(),
-                r.Puntuacion.ToString("0.####", CultureInfo.InvariantCulture),
-                r.ComprobacionesCorrectas.ToString(CultureInfo.InvariantCulture), r.ComprobacionesTotales.ToString(CultureInfo.InvariantCulture),
-                r.ErrorServicio ?? "", r.EstadoHttp.ToString(CultureInfo.InvariantCulture), r.LatenciaMs.ToString(CultureInfo.InvariantCulture),
-                r.Intentos.ToString(CultureInfo.InvariantCulture), r.TokensEntrada.ToString(CultureInfo.InvariantCulture),
-                r.TokensSalida.ToString(CultureInfo.InvariantCulture), r.StopReason ?? "",
-                r.CosteUsd?.ToString("0.######", CultureInfo.InvariantCulture) ?? "",
-                r.MaxTokensEnviado?.ToString(CultureInfo.InvariantCulture) ?? "", r.ModeloQueRespondio ?? "",
+                r.Puntuacion.ToString("0.####", Inv),
+                r.ComprobacionesCorrectas.ToString(Inv), r.ComprobacionesTotales.ToString(Inv),
+                r.ErrorServicio ?? "", r.EstadoHttp.ToString(Inv), r.LatenciaMs.ToString(Inv),
+                r.Intentos.ToString(Inv), r.TokensEntrada.ToString(Inv),
+                r.TokensSalida.ToString(Inv), r.StopReason ?? "",
+                r.CosteUsd?.ToString("0.######", Inv) ?? "",
+                r.MaxTokensEnviado?.ToString(Inv) ?? "", r.ModeloQueRespondio ?? "",
             }));
         }
 
         return csv.ToString();
     }
 
+    private static string Dolares(decimal? importe, string formato = "0.0000") => importe is { } v ? v.ToString(formato, Inv) : "—";
+
     public static string Markdown(InformeBanco informe)
     {
-        var inv = CultureInfo.InvariantCulture;
         var md = new StringBuilder();
-        md.AppendLine(inv, $"### Banco de modelos de IA — `{informe.Modelo}`, esfuerzo `{informe.EsfuerzoPedido ?? "por defecto del producto"}`");
+        md.AppendLine(Inv, $"### Banco de modelos de IA — `{informe.Modelo}`, esfuerzo `{informe.EsfuerzoPedido ?? "por defecto del producto"}`");
         md.AppendLine();
-        md.AppendLine(inv, $"- Esfuerzo que viajó en la petición: {string.Join(", ", informe.EsfuerzosEnviados)}");
-        md.AppendLine(inv, $"- Modelo que respondió: {(informe.ModelosQueRespondieron.Count == 0 ? "(ninguno)" : string.Join(", ", informe.ModelosQueRespondieron))}");
-        md.AppendLine(inv, $"- Coste estimado: {(informe.CosteTotalUsd is { } total ? total.ToString("0.0000", inv) + " $" : "sin tarifa conocida para este modelo")}");
-        md.AppendLine(inv, $"- Commit: {informe.Commit ?? "(local)"} · {informe.Fecha:yyyy-MM-dd HH:mm} UTC");
+        md.AppendLine(Inv, $"- Esfuerzo que viajó en la petición: {string.Join(", ", informe.EsfuerzosEnviados)}");
+        md.AppendLine(Inv, $"- Modelo que respondió: {(informe.ModelosQueRespondieron.Count == 0 ? "(ninguno)" : string.Join(", ", informe.ModelosQueRespondieron))}");
+        md.AppendLine(Inv, $"- Commit: {informe.Commit ?? "(local)"} · {informe.Fecha:yyyy-MM-dd HH:mm} UTC");
 
         if (informe.ProblemasDelInstrumento.Count > 0)
         {
             md.AppendLine();
             md.AppendLine("**⚠ Medición NO válida para comparar:**");
             foreach (var problema in informe.ProblemasDelInstrumento)
-                md.AppendLine(inv, $"- {problema}");
+                md.AppendLine(Inv, $"- {problema}");
         }
 
         foreach (var aviso in informe.CasosNoConstruibles)
-            md.AppendLine(inv, $"- No ejecutado: {aviso}");
+            md.AppendLine(Inv, $"- No ejecutado: {aviso}");
+
+        md.AppendLine(Inv, $"- Tope de salida que viajó (`max_tokens`): {string.Join(", ", informe.Casos.Where(c => c.MaxTokensEnviado is not null).Select(c => c.MaxTokensEnviado).Distinct().Order())}");
+        var truncados = informe.Casos.Where(c => c.StopReason == "max_tokens").Select(c => c.Caso).ToList();
+        if (truncados.Count > 0)
+        {
+            md.AppendLine(Inv,
+                $"- **Respuestas truncadas por el tope de salida ({truncados.Count})**: {string.Join(", ", truncados)}. Su nota mide el tope, no el modelo: el razonamiento cuenta contra `max_tokens`, así que no compares esfuerzos en estos casos sin subirlo (`--max-tokens`).");
+        }
+
+        md.AppendLine("- Una sola respuesta por caso: una diferencia entre dos ejecuciones menor que un caso de la ruta está dentro del ruido.");
 
         md.AppendLine();
-        md.AppendLine("| Ruta | Casos | Puntuación | Perfectos | Sencillo | Medio | Difícil | Adversarial | Latencia mediana | Latencia máx. | Tokens ent./sal. | Coste $ | stop_reason |");
-        md.AppendLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|");
+        md.AppendLine("#### Calidad y latencia");
+        md.AppendLine();
+        md.AppendLine("| Ruta | Casos | Puntuación | Perfectos | Sencillo | Medio | Difícil | Adversarial | Latencia mediana | Latencia máx. | stop_reason |");
+        md.AppendLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|");
         foreach (var r in informe.Rutas)
         {
-            string Nivel(NivelCaso nivel) => r.PuntuacionPorNivel.TryGetValue(nivel, out var p) ? p.ToString("0.00", inv) : "—";
-            md.AppendLine(inv,
-                $"| {r.Ruta} | {r.Casos} | {r.PuntuacionMedia:0.00} | {r.CasosPerfectos}/{r.Casos} | {Nivel(NivelCaso.Sencillo)} | {Nivel(NivelCaso.Medio)} | {Nivel(NivelCaso.Dificil)} | {Nivel(NivelCaso.Adversarial)} | {r.LatenciaMedianaMs} ms | {r.LatenciaMaximaMs} ms | {r.TokensEntrada}/{r.TokensSalida} | {(r.CosteUsd is { } c ? c.ToString("0.0000", inv) : "—")} | {string.Join(", ", r.StopReasons.Select(s => $"{s.Key}×{s.Value}"))} |");
+            string Nivel(NivelCaso nivel) => r.PuntuacionPorNivel.TryGetValue(nivel, out var p) ? p.ToString("0.00", Inv) : "—";
+            md.AppendLine(Inv,
+                $"| {r.Ruta} | {r.Casos} | {r.PuntuacionMedia:0.00} | {r.CasosPerfectos}/{r.Casos} | {Nivel(NivelCaso.Sencillo)} | {Nivel(NivelCaso.Medio)} | {Nivel(NivelCaso.Dificil)} | {Nivel(NivelCaso.Adversarial)} | {r.LatenciaMedianaMs} ms | {r.LatenciaMaximaMs} ms | {string.Join(", ", r.StopReasons.Select(s => $"{s.Key}×{s.Value}"))} |");
+        }
+
+        md.AppendLine();
+        md.AppendLine("#### Gasto y proyección");
+        md.AppendLine();
+        md.AppendLine("| Ruta | Casos | Tokens de entrada | Tokens de salida | Coste $ | Coste por caso $ | Proyección: 1.000 documentos $ |");
+        md.AppendLine("|---|---:|---:|---:|---:|---:|---:|");
+        foreach (var r in informe.Rutas)
+        {
+            md.AppendLine(Inv,
+                $"| {r.Ruta} | {r.Casos} | {r.TokensEntrada} | {r.TokensSalida} | {Dolares(r.CosteUsd)} | {Dolares(r.CostePorCasoUsd, "0.000000")} | {Dolares(r.CostePorMilUsd, "0.00")} |");
+        }
+
+        md.AppendLine(Inv,
+            $"| **Total** | {informe.Casos.Count} | {informe.Casos.Sum(c => c.TokensEntrada)} | {informe.Casos.Sum(c => c.TokensSalida)} | **{Dolares(informe.CosteTotalUsd)}** | | |");
+        md.AppendLine();
+        md.AppendLine("- **Medido**: los tokens de entrada y de salida, que devuelve la API en cada respuesta (los de salida incluyen el razonamiento).");
+        md.AppendLine(informe.Tarifa is { } tarifa
+            ? string.Create(Inv, $"- **Calculado**: coste = tokens × tarifa ({tarifa.Entrada} $ de entrada y {tarifa.Salida} $ de salida por millón, consultada el {informe.TarifaConsultadaEl}). Contrástalo con la consola de Anthropic: el gasto real es el de allí.")
+            : "- **Sin coste calculado**: este modelo no está en `tarifas-anthropic.json`; da su precio con `--precio-entrada` y `--precio-salida`.");
+        md.AppendLine("- **Proyección**: coste medio por caso del corpus × 1.000. Vale para documentos y correos del tamaño de los del corpus.");
+        if (informe.GastoDelMes is { } gasto)
+        {
+            md.AppendLine(Inv,
+                $"- **Acumulado de {gasto.Mes}** según el libro de gasto local, con esta ejecución: {Dolares(gasto.AcumuladoUsd)} $ de {Dolares(gasto.PresupuestoUsd, "0")} $ ({gasto.AcumuladoUsd / gasto.PresupuestoUsd:P1}). Solo cuenta lo que se ha anotado en este equipo.");
         }
 
         var conFallos = informe.Casos.Where(c => c.Puntuacion < 1).ToList();
         if (conFallos.Count > 0)
         {
             md.AppendLine();
-            md.AppendLine("| Caso con fallos | Puntuación | Qué falló |");
+            md.AppendLine("#### Casos con fallos");
+            md.AppendLine();
+            md.AppendLine("| Caso | Puntuación | Qué falló |");
             md.AppendLine("|---|---:|---|");
             foreach (var c in conFallos)
             {
                 var motivo = c.ErrorServicio is not null ? $"el servicio falló: {c.ErrorServicio} (stop_reason {c.StopReason ?? "—"})" : string.Join("; ", c.Fallos);
-                md.AppendLine(inv, $"| {c.Caso} | {c.Puntuacion:0.00} | {motivo.Replace("|", "\\|", StringComparison.Ordinal).ReplaceLineEndings(" ")} |");
+                md.AppendLine(Inv, $"| {c.Caso} | {c.Puntuacion:0.00} | {motivo.Replace("|", "\\|", StringComparison.Ordinal).ReplaceLineEndings(" ")} |");
             }
         }
 
         return md.ToString();
+    }
+
+    /// <summary>
+    /// Cota de gasto ANTES de ejecutar, a partir de las peticiones que el
+    /// producto construiría (sin enviarlas): entrada acotada por
+    /// <see cref="CotaDeTokensDeEntrada"/> y salida acotada por el tope
+    /// <c>max_tokens</c> de cada petición, que la API no deja superar.
+    /// </summary>
+    public static string MarkdownDeEstimacion(ParametrosBanco parametros, IReadOnlyList<ResultadoCaso> peticiones)
+    {
+        var tarifa = TarifasAnthropic.Para(parametros);
+        var md = new StringBuilder();
+        md.AppendLine(Inv, $"### Banco de modelos de IA — estimación sin llamadas, `{parametros.Modelo}`");
+        md.AppendLine();
+        md.AppendLine("| Ruta | Casos | Cota de tokens de entrada | Cota de tokens de salida (max_tokens) | Cota de coste $ |");
+        md.AppendLine("|---|---:|---:|---:|---:|");
+        foreach (var g in peticiones.GroupBy(p => p.Ruta).OrderBy(g => g.Key))
+        {
+            var entrada = g.Sum(p => p.TokensEntradaCota);
+            var salida = g.Sum(p => p.MaxTokensEnviado ?? 0);
+            md.AppendLine(Inv, $"| {g.Key} | {g.Count()} | {entrada} | {salida} | {Dolares(tarifa?.Coste(entrada, salida))} |");
+        }
+
+        var totalEntrada = peticiones.Sum(p => p.TokensEntradaCota);
+        var totalSalida = peticiones.Sum(p => p.MaxTokensEnviado ?? 0);
+        md.AppendLine(Inv, $"| **Total** | {peticiones.Count} | {totalEntrada} | {totalSalida} | **{Dolares(tarifa?.Coste(totalEntrada, totalSalida))}** |");
+        md.AppendLine();
+        md.AppendLine("- Es una **cota superior**, no una previsión: supone que cada respuesta agota su `max_tokens`. El gasto real suele ser una fracción pequeña.");
+        md.AppendLine(tarifa is null
+            ? "- Sin tarifa conocida para este modelo: da su precio con `--precio-entrada` y `--precio-salida`."
+            : string.Create(Inv, $"- Tarifa: {tarifa.Entrada} $ de entrada y {tarifa.Salida} $ de salida por millón de tokens, consultada el {TarifasAnthropic.FechaDeConsulta}."));
+        md.AppendLine("- No se ha hecho ninguna llamada a la API.");
+        return md.ToString();
+    }
+}
+
+/// <summary>
+/// Libro de gasto local: un CSV fuera de todo repositorio al que cada
+/// ejecución añade una línea por ruta. Es la contabilidad propia con la que
+/// contrastar la consola de Anthropic y con la que se calcula el acumulado
+/// del mes. Anotar dos veces el mismo informe no duplica líneas.
+/// </summary>
+public static class LibroDeGasto
+{
+    public const string Cabecera = "fecha_utc,origen,modelo,esfuerzo_enviado,ruta,casos,tokens_entrada,tokens_salida,coste_usd,commit";
+
+    private static readonly CultureInfo Inv = CultureInfo.InvariantCulture;
+
+    public static int Anotar(InformeBanco informe, string rutaDelLibro, string origen)
+    {
+        var carpeta = Path.GetDirectoryName(Path.GetFullPath(rutaDelLibro))!;
+        Directory.CreateDirectory(carpeta);
+        var existentes = File.Exists(rutaDelLibro) ? File.ReadAllLines(rutaDelLibro).ToHashSet() : [];
+
+        var nuevas = informe.Rutas
+            .Select(r => string.Join(',', new[]
+            {
+                informe.Fecha.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ", Inv), origen, informe.Modelo,
+                string.Join('+', informe.EsfuerzosEnviados), r.Ruta.ToString(), r.Casos.ToString(Inv),
+                r.TokensEntrada.ToString(Inv), r.TokensSalida.ToString(Inv),
+                r.CosteUsd?.ToString("0.######", Inv) ?? "", informe.Commit ?? "",
+            }))
+            .Where(linea => !existentes.Contains(linea))
+            .ToList();
+
+        if (existentes.Count == 0)
+            nuevas.Insert(0, Cabecera);
+        File.AppendAllLines(rutaDelLibro, nuevas, new UTF8Encoding(false));
+        return nuevas.Count(l => l != Cabecera);
+    }
+
+    /// <summary>Suma del coste anotado en el mes de <paramref name="fecha"/> (UTC). Las líneas sin coste (modelo sin tarifa) no suman.</summary>
+    public static decimal AcumuladoDelMes(string rutaDelLibro, DateTimeOffset fecha)
+    {
+        if (!File.Exists(rutaDelLibro))
+            return 0;
+
+        var mes = fecha.UtcDateTime.ToString("yyyy-MM", Inv);
+        return File.ReadLines(rutaDelLibro)
+            .Skip(1)
+            .Select(linea => linea.Split(','))
+            .Where(campos => campos.Length >= 9 && campos[0].StartsWith(mes, StringComparison.Ordinal))
+            .Sum(campos => decimal.TryParse(campos[8], NumberStyles.Number, Inv, out var coste) ? coste : 0);
     }
 }

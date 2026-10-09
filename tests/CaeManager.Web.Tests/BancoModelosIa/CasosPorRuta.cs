@@ -64,10 +64,20 @@ public sealed record CasoGestionCorreo(
         {
             new("etiqueta esActualizacionDocumento", resultado.Valor.EsActualizacionDocumento == EsActualizacionEsperada,
                 $"esperado {EsActualizacionEsperada}, obtenido {resultado.Valor.EsActualizacionDocumento}"),
-            new("sin ítems inventados", inventados == 0, $"{inventados} ítems que el correo no pide"),
-            new("resumen agregado", resultado.Valor.ResumenAgregado == ResumenAgregadoEsperado,
-                $"esperado {ResumenAgregadoEsperado?.ToString() ?? "ninguno"}, obtenido {resultado.Valor.ResumenAgregado?.ToString() ?? "ninguno"}"),
         };
+
+        // Una respuesta vacía no inventa nada: «sin inventados» solo puntúa cuando el caso no espera ítems o cuando
+        // se ha acertado alguno; si no, callar regalaría el punto. El número de inventados queda siempre en las medidas.
+        if (ItemsEsperados.Count == 0 || aciertos > 0 || inventados > 0)
+            comprobaciones.Add(new("sin ítems inventados", inventados == 0, $"{inventados} ítems que el correo no pide"));
+
+        // El resumen agregado solo puntúa donde se juega: cuando se espera uno o cuando el modelo da uno que no toca.
+        if (ResumenAgregadoEsperado is not null || resultado.Valor.ResumenAgregado is not null)
+        {
+            comprobaciones.Add(new("resumen agregado", resultado.Valor.ResumenAgregado == ResumenAgregadoEsperado,
+                $"esperado {ResumenAgregadoEsperado?.ToString() ?? "ninguno"}, obtenido {resultado.Valor.ResumenAgregado?.ToString() ?? "ninguno"}"));
+        }
+
         comprobaciones.AddRange(ItemsEsperados.Select((item, indice) =>
             new Comprobacion($"ítem esperado {indice + 1}", obtenidos.Contains(item), "omitido o resuelto a otro Trabajador / Tipo de documento")));
 
@@ -352,7 +362,7 @@ public sealed record CasoListadoTrabajadores(
 
     /// <summary>Omite al primero (si lo hay), cambia el nombre del resto y añade un Trabajador que el documento no contiene.</summary>
     public override string RespuestaErronea() =>
-        Json([.. Esperados.Skip(1).Select(e => e with { Nombre = "Otro" }), new TrabajadorEsperado("Inventado", "Sin Documento", "99999999R")]);
+        Json([.. Esperados.Skip(1).Select(e => e with { Nombre = "Otro" }), new TrabajadorEsperado("Inventado", "Sin Documento", "99999999X")]);
 
     private static string Json(IEnumerable<TrabajadorEsperado> trabajadores) =>
         JsonSerializer.Serialize(trabajadores.Select(t => new { nombre = t.Nombre, apellidos = t.Apellidos, dni = t.Dni }));

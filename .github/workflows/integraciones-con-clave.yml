@@ -63,8 +63,11 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 # sola orden mide un modelo nuevo:
 #   gh workflow run integraciones-con-clave.yml --ref main \
 #     -f banco_modelos=claude-haiku-5-5 -f banco_esfuerzos=low,medium
-# El resultado (JSON, CSV y tabla) queda como artefacto de la ejecución y en su
-# resumen. El banco MIDE y no vigila: la nota que saque un modelo no pone el
+# Es el mismo lanzador que se usa en local (scripts/banco-ia.sh), y una
+# ejecución lanzada para el banco NO corre los otros dos jobs: no gasta en lo
+# que nadie ha pedido. El resultado (JSON, CSV y tabla) queda como artefacto de
+# la ejecución y en su resumen; el JSON se pasa al libro de gasto local con
+# `bash scripts/banco-ia.sh --anotar <json>`. El banco MIDE y no vigila: la nota que saque un modelo no pone el
 # job en rojo; sí lo pone un instrumento que no midió lo pedido (la API rechaza
 # casos, o el modelo o el esfuerzo pedidos no viajan en la petición).
 on:
@@ -84,13 +87,20 @@ on:
         description: "Banco: rutas a medir, nombres de RutaIa separados por comas. Vacío = las siete."
         required: false
         default: ""
+      banco_max_tokens:
+        description: "Banco: tope de tokens de salida. Vacío = el del producto. El razonamiento cuenta contra él: súbelo al comparar esfuerzos."
+        required: false
+        default: ""
 
 # Ninguna de las dos claves necesita escribir en el repositorio.
 permissions:
   contents: read
 
+# Cada ejecución del banco va en su propio grupo: si compartiera el de la
+# vigilancia, una fusión a main que llegara mientras el banco espera turno lo
+# sustituiría en la cola y la medición se cancelaría sin aviso.
 concurrency:
-  group: integraciones-con-clave-${{ github.ref }}
+  group: integraciones-con-clave-${{ github.ref }}-${{ inputs.banco_modelos != '' && github.run_id || 'vigilancia' }}
   cancel-in-progress: false
 
 env:
@@ -100,6 +110,8 @@ env:
 jobs:
   regresion-prompts-ia:
     name: Regresión de prompts de IA (Anthropic, clave de CI)
+    # Una ejecución lanzada para el banco de modelos solo mide el banco.
+    if: github.event_name == 'push' || inputs.banco_modelos == ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: ci-integraciones
@@ -227,17 +239,29 @@ jobs:
           MODELOS: ${{ inputs.banco_modelos }}
           ESFUERZOS: ${{ inputs.banco_esfuerzos }}
           RUTAS: ${{ inputs.banco_rutas }}
+          MAX_TOKENS: ${{ inputs.banco_max_tokens }}
         run: |
           set -euo pipefail
-          for valor in "$MODELOS" "$ESFUERZOS" "$RUTAS"; do
-            if ! printf '%s' "$valor" | grep -Eq '^[A-Za-z0-9._, -]*$'; then
+          for valor in "$MODELOS" "$ESFUERZOS" "$RUTAS" "$MAX_TOKENS"; do
+            if ! printf '%s\n' "$valor" | grep -Eq '^[A-Za-z0-9._, -]*$'; then
               echo "::error::Las entradas del banco solo admiten letras, cifras, punto, guion, coma y espacio."
               exit 1
             fi
           done
-          lista() { printf '%s' "$1" | tr ',' '\n' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | jq -R -s -c 'split("\n") | map(select(length > 0))'; }
+          if ! printf '%s\n' "$MAX_TOKENS" | grep -Eq '^([1-9][0-9]*)?$'; then
+            echo "::error::banco_max_tokens debe ser un entero positivo o ir vacío."
+            exit 1
+          fi
+          # Sin repetidos: dos pasadas del mismo par gastarían el doble y chocarían en el nombre del artefacto.
+          lista() { printf '%s' "$1" | tr ',' '\n' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | jq -R -s -c 'split("\n") | map(select(length > 0)) | reduce .[] as $x ([]; if any(.[]; . == $x) then . else . + [$x] end)'; }
           modelos=$(lista "$MODELOS")
           esfuerzos=$(lista "$ESFUERZOS")
+          # Un esfuerzo que la API no conoce daría un 400 en cada caso, después de montar todo el entorno.
+          desconocidos=$(jq -r '. - ["low", "medium", "high", "xhigh", "max"] | join(", ")' <<<"$esfuerzos")
+          if [ -n "$desconocidos" ]; then
+            echo "::error::Esfuerzo desconocido en banco_esfuerzos: $desconocidos. Los válidos son low, medium, high, xhigh y max."
+            exit 1
+          fi
           # Sin esfuerzos, una sola pasada por modelo con el esfuerzo por defecto del producto.
           matriz=$(jq -c -n --argjson m "$modelos" --argjson e "$esfuerzos" \
             '{include: [ $m[] as $modelo | (if ($e | length) == 0 then [""] else $e end)[] as $esfuerzo | {modelo: $modelo, esfuerzo: $esfuerzo} ]}')
@@ -304,42 +328,36 @@ jobs:
           dotnet restore CaeManager.slnx
           dotnet build tests/CaeManager.Web.Tests --no-restore -warnaserror
 
-      # La clave entra con el nombre que espera la aplicación y solo en este paso.
+      # La clave entra con el nombre que espera la aplicación y solo en este
+      # paso. El lanzador es el mismo que en local: la pasa únicamente al
+      # proceso del banco, la tacha de la salida y comprueba en el .trx que el
+      # test se ejecutó de verdad (un test omitido también sale con 0).
       - name: Medir las rutas con modelo real
         if: steps.clave.outputs.hay_clave == 'true'
         env:
           Anthropic__ApiKey: ${{ secrets.CI_ANTHROPIC_API_KEY }}
-          BANCO_IA_MODELO: ${{ matrix.modelo }}
-          BANCO_IA_ESFUERZO: ${{ matrix.esfuerzo }}
-          BANCO_IA_RUTAS: ${{ inputs.banco_rutas }}
-          BANCO_IA_SALIDA: ${{ github.workspace }}/resultados-banco-ia
+          MODELO: ${{ matrix.modelo }}
+          ESFUERZO: ${{ matrix.esfuerzo }}
+          RUTAS: ${{ inputs.banco_rutas }}
+          MAX_TOKENS: ${{ inputs.banco_max_tokens }}
         run: >
-          dotnet test tests/CaeManager.Web.Tests --no-build
-          --filter "FullyQualifiedName~BancoModelosIaTests.Mide_las_rutas_Anthropic"
-          --logger "trx;LogFileName=banco-ia.trx" --results-directory ./resultados-banco-ia
+          bash scripts/banco-ia.sh --sin-compilar --salida resultados-banco-ia
+          --modelo "$MODELO" --esfuerzo "$ESFUERZO" --rutas "$RUTAS" --max-tokens "$MAX_TOKENS"
 
       # Se publica aunque el paso anterior acabe en rojo: un instrumento que
       # se declara inválido deja escrito por qué, y eso es lo que hay que leer.
       - name: Publicar la tabla en el resumen
         if: always() && steps.clave.outputs.hay_clave == 'true'
         run: |
-          informe=$(find resultados-banco-ia -maxdepth 1 -name 'banco-ia-*.md' | head -1)
+          informe=""
+          if [ -d resultados-banco-ia ]; then
+            informe=$(find resultados-banco-ia -maxdepth 1 -name 'banco-ia-*.md' | head -1)
+          fi
           if [ -z "$informe" ]; then
             echo "::error::El banco no escribió ningún informe: no hay medición."
             exit 1
           fi
           cat "$informe" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Comprobar que la medición se ejecutó de verdad
-        if: steps.clave.outputs.hay_clave == 'true'
-        run: |
-          trx=$(find resultados-banco-ia -name "banco-ia.trx" | head -1)
-          pasados=$(grep -o 'outcome="Passed"' "$trx" | wc -l)
-          omitidos=$(grep -o 'outcome="NotExecuted"' "$trx" | wc -l)
-          if [ "$omitidos" -gt 0 ] || [ "$pasados" -ne 1 ]; then
-            echo "::error::Con clave configurada, el test del banco debe ejecutarse y pasar (pasados=$pasados, omitidos=$omitidos). Verde falso descartado."
-            exit 1
-          fi
 
       - name: Guardar el informe (JSON, CSV y Markdown)
         if: always() && steps.clave.outputs.hay_clave == 'true'
@@ -352,6 +370,8 @@ jobs:
 
   stripe-modo-prueba:
     name: Stripe en modo prueba (clave de CI)
+    # Una ejecución lanzada para el banco de modelos solo mide el banco.
+    if: github.event_name == 'push' || inputs.banco_modelos == ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: ci-integraciones

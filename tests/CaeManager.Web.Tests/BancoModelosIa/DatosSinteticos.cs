@@ -6,9 +6,10 @@ namespace CaeManager.Web.Tests.BancoModelosIa;
 
 /// <summary>
 /// Datos inventados y deterministas para el corpus (repositorio público:
-/// ningún dato real de personas ni de empresas). Los DNI y NIE llevan a
-/// propósito una letra de control que NO es la que les corresponde: así un
-/// número generado aquí no puede coincidir con el documento de nadie.
+/// ningún dato real de personas ni de empresas). Los DNI y NIE que genera
+/// esta clase llevan a propósito una letra de control que NO es la que les
+/// corresponde: así un número generado aquí no puede coincidir con el
+/// documento de nadie.
 /// </summary>
 public static class DatosSinteticos
 {
@@ -108,33 +109,32 @@ public static class PdfSintetico
 /// Imagen que imita un documento escaneado: texto girado unos grados, motas
 /// y rayas con semilla fija y compresión JPEG agresiva. Es la única entrada
 /// del banco sin capa de texto, así que es la que mide de verdad la lectura.
+///
+/// Las letras se dibujan con una matriz de puntos propia (5 × 7, solo
+/// mayúsculas), no con una tipografía del sistema: el runner de CI no tiene
+/// ninguna, y con una tipografía distinta en cada máquina dos ejecuciones no
+/// leerían el mismo documento. La imagen es la misma en todas partes salvo
+/// por lo que varíe el codificador JPEG de la plataforma.
 /// </summary>
 public static class EscaneoSintetico
 {
-    /// <summary>
-    /// Devuelve <c>null</c> si la máquina no tiene ninguna tipografía con la
-    /// que dibujar (la imagen saldría en blanco y el caso mediría la nada):
-    /// el banco declara entonces el caso como no ejecutado.
-    /// </summary>
-    public static byte[]? Crear(IReadOnlyList<string> lineas, int semilla)
+    private const int Punto = 3;
+    private const int Avance = 6 * Punto + 2;
+
+    public static byte[] Crear(IReadOnlyList<string> lineas, int semilla)
     {
         const int ancho = 1240, alto = 1754;
         using var mapa = new SKBitmap(ancho, alto);
         using var lienzo = new SKCanvas(mapa);
         lienzo.Clear(new SKColor(250, 248, 242));
 
-        using var tipografia = SKTypeface.FromFamilyName("DejaVu Sans Mono") ?? SKTypeface.Default;
-        using var fuente = new SKFont(tipografia, 24);
         using var tinta = new SKPaint { Color = new SKColor(40, 40, 48), IsAntialias = true };
 
         lienzo.Save();
         lienzo.RotateDegrees(2.2f, ancho / 2f, alto / 2f);
         for (var i = 0; i < lineas.Count; i++)
-            lienzo.DrawText(lineas[i], 110, 150 + i * 36, fuente, tinta);
+            DibujarLinea(lienzo, tinta, lineas[i], 110, 130 + i * 40);
         lienzo.Restore();
-
-        if (!TieneTinta(mapa))
-            return null;
 
         var azar = new Random(semilla);
         using var mota = new SKPaint { Color = new SKColor(90, 90, 90, 120) };
@@ -151,18 +151,70 @@ public static class EscaneoSintetico
         return datos.ToArray();
     }
 
-    private static bool TieneTinta(SKBitmap mapa)
+    private static void DibujarLinea(SKCanvas lienzo, SKPaint tinta, string linea, int x, int y)
     {
-        var oscuros = 0;
-        for (var y = 0; y < mapa.Height; y += 3)
+        var texto = TextoBanco.SinTildes(linea).ToUpperInvariant();
+        for (var c = 0; c < texto.Length; c++)
         {
-            for (var x = 0; x < mapa.Width; x += 3)
+            if (!Glifos.TryGetValue(texto[c], out var filas))
+                continue;
+
+            for (var fila = 0; fila < filas.Length; fila++)
             {
-                if (mapa.GetPixel(x, y).Red < 120)
-                    oscuros++;
+                for (var columna = 0; columna < 5; columna++)
+                {
+                    if (filas[fila][columna] == '#')
+                        lienzo.DrawRect(x + c * Avance + columna * Punto, y + fila * Punto, Punto, Punto, tinta);
+                }
             }
         }
-
-        return oscuros > 500;
     }
+
+    /// <summary>Los caracteres que el escaneo sabe dibujar. Uno que falte aquí saldría en blanco: lo vigila un test.</summary>
+    public static bool SabeDibujar(char caracter) => caracter == ' ' || Glifos.ContainsKey(caracter);
+
+    private static readonly Dictionary<char, string[]> Glifos = new()
+    {
+        ['A'] = [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+        ['B'] = ["####.", "#...#", "#...#", "####.", "#...#", "#...#", "####."],
+        ['C'] = [".###.", "#...#", "#....", "#....", "#....", "#...#", ".###."],
+        ['D'] = ["####.", "#...#", "#...#", "#...#", "#...#", "#...#", "####."],
+        ['E'] = ["#####", "#....", "#....", "####.", "#....", "#....", "#####"],
+        ['F'] = ["#####", "#....", "#....", "####.", "#....", "#....", "#...."],
+        ['G'] = [".###.", "#...#", "#....", "#.###", "#...#", "#...#", ".####"],
+        ['H'] = ["#...#", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+        ['I'] = [".###.", "..#..", "..#..", "..#..", "..#..", "..#..", ".###."],
+        ['J'] = ["..###", "...#.", "...#.", "...#.", "...#.", "#..#.", ".##.."],
+        ['K'] = ["#...#", "#..#.", "#.#..", "##...", "#.#..", "#..#.", "#...#"],
+        ['L'] = ["#....", "#....", "#....", "#....", "#....", "#....", "#####"],
+        ['M'] = ["#...#", "##.##", "#.#.#", "#.#.#", "#...#", "#...#", "#...#"],
+        ['N'] = ["#...#", "##..#", "#.#.#", "#..##", "#...#", "#...#", "#...#"],
+        ['O'] = [".###.", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+        ['P'] = ["####.", "#...#", "#...#", "####.", "#....", "#....", "#...."],
+        ['Q'] = [".###.", "#...#", "#...#", "#...#", "#.#.#", "#..#.", ".##.#"],
+        ['R'] = ["####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#"],
+        ['S'] = [".####", "#....", "#....", ".###.", "....#", "....#", "####."],
+        ['T'] = ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
+        ['U'] = ["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+        ['V'] = ["#...#", "#...#", "#...#", "#...#", "#...#", ".#.#.", "..#.."],
+        ['W'] = ["#...#", "#...#", "#...#", "#.#.#", "#.#.#", "##.##", "#...#"],
+        ['X'] = ["#...#", "#...#", ".#.#.", "..#..", ".#.#.", "#...#", "#...#"],
+        ['Y'] = ["#...#", "#...#", ".#.#.", "..#..", "..#..", "..#..", "..#.."],
+        ['Z'] = ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"],
+        ['0'] = [".###.", "#...#", "#..##", "#.#.#", "##..#", "#...#", ".###."],
+        ['1'] = ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", ".###."],
+        ['2'] = [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"],
+        ['3'] = ["####.", "....#", "....#", ".###.", "....#", "....#", "####."],
+        ['4'] = ["...#.", "..##.", ".#.#.", "#..#.", "#####", "...#.", "...#."],
+        ['5'] = ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
+        ['6'] = ["..##.", ".#...", "#....", "####.", "#...#", "#...#", ".###."],
+        ['7'] = ["#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#..."],
+        ['8'] = [".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###."],
+        ['9'] = [".###.", "#...#", "#...#", ".####", "....#", "...#.", ".##.."],
+        [':'] = [".....", "..#..", "..#..", ".....", "..#..", "..#..", "....."],
+        ['/'] = ["....#", "....#", "...#.", "..#..", ".#...", "#....", "#...."],
+        ['.'] = [".....", ".....", ".....", ".....", ".....", ".##..", ".##.."],
+        [','] = [".....", ".....", ".....", ".....", ".##..", "..#..", ".#..."],
+        ['-'] = [".....", ".....", ".....", "#####", ".....", ".....", "....."],
+    };
 }

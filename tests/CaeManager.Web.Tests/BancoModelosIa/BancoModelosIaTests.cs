@@ -7,23 +7,46 @@ namespace CaeManager.Web.Tests.BancoModelosIa;
 
 /// <summary>
 /// La medición con modelo real solo corre con una clave de Anthropic en
-/// <c>Anthropic__ApiKey</c>. Sin ella el test queda OMITIDO con este motivo
-/// a la vista, nunca en verde: un verde sin casos no es una medición.
+/// <c>Anthropic__ApiKey</c> Y con la petición expresa <c>BANCO_IA_EJECUTAR</c>,
+/// que pone el lanzador. Sin las dos el test queda OMITIDO con su motivo a
+/// la vista, nunca en verde: un verde sin casos no es una medición. La
+/// petición expresa existe para que un <c>dotnet test</c> corriente, lanzado
+/// en una consola que tenga la clave, no gaste dinero sin que nadie lo pida.
 /// </summary>
 public sealed class FactSiHayClaveDeAnthropicAttribute : FactAttribute
 {
     public const string Variable = AnthropicOptions.SeccionConfiguracion + "__ApiKey";
+    public const string VariableDePeticion = "BANCO_IA_EJECUTAR";
 
     public FactSiHayClaveDeAnthropicAttribute()
     {
-        Skip = MotivoDeOmision(Environment.GetEnvironmentVariable(Variable));
+        Skip = MotivoDeOmision(Environment.GetEnvironmentVariable(Variable), Environment.GetEnvironmentVariable(VariableDePeticion));
     }
 
-    public static string? MotivoDeOmision(string? clave) =>
-        string.IsNullOrWhiteSpace(clave)
-            ? $"Banco de modelos de IA NO ejecutado: falta la clave en \"{Variable}\". En CI solo la aporta el workflow " +
-              "integraciones-con-clave.yml, lanzado a mano con la entrada banco_modelos; en ci.yml este test se omite por diseño."
+    public static string? MotivoDeOmision(string? clave, string? peticion)
+    {
+        if (string.IsNullOrWhiteSpace(clave))
+        {
+            return $"Banco de modelos de IA NO ejecutado: falta la clave en \"{Variable}\". Se lanza con scripts/banco-ia.sh, que la toma " +
+                   "del fichero local de clave o, en CI, del workflow integraciones-con-clave.yml; en ci.yml este test se omite por diseño.";
+        }
+
+        return string.IsNullOrWhiteSpace(peticion)
+            ? $"Banco de modelos de IA NO ejecutado: hay clave pero nadie lo ha pedido (\"{VariableDePeticion}\"). Gasta dinero: se lanza con scripts/banco-ia.sh."
             : null;
+    }
+}
+
+/// <summary>Modos del banco que no llaman a la API y que solo corren cuando el lanzador los pide con una variable de entorno.</summary>
+public sealed class FactSiSePideAttribute : FactAttribute
+{
+    public FactSiSePideAttribute(string variable)
+    {
+        Skip = MotivoDeOmision(variable, Environment.GetEnvironmentVariable(variable));
+    }
+
+    public static string? MotivoDeOmision(string variable, string? valor) =>
+        string.IsNullOrWhiteSpace(valor) ? $"Modo del banco de modelos de IA no pedido: se activa con \"{variable}\" (lo hace scripts/banco-ia.sh)." : null;
 }
 
 /// <summary>
@@ -48,19 +71,90 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
         var parametros = ParametrosBanco.DesdeEntorno(Environment.GetEnvironmentVariable);
         var clave = Environment.GetEnvironmentVariable(FactSiHayClaveDeAnthropicAttribute.Variable)!;
 
-        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(
-            parametros, clave, CorpusBancoModelosIa.Casos, _ => new SocketsHttpHandler());
+        // Una sola conexión para todos los casos, abierta antes de medir: la latencia de cada caso es la del modelo,
+        // no la de negociar TCP y TLS. La petición de calentamiento no lleva clave y no cuesta nada.
+        using var red = new SocketsHttpHandler();
+        using (var calentamiento = new HttpClient(red, disposeHandler: false))
+        {
+            try
+            {
+                using var _ = await calentamiento.GetAsync("https://api.anthropic.com/");
+            }
+            catch (HttpRequestException)
+            {
+                // Sin red, los casos lo dirán con su propio diagnóstico.
+            }
+        }
+
+        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(parametros, clave, CorpusBancoModelosIa.Casos, _ => red);
 
         var problemas = ValidacionDelInstrumento.Problemas(parametros, resultados);
         var informe = InformeBancoModelosIa.Construir(
             parametros, resultados, problemas, CorpusBancoModelosIa.CasosNoConstruibles,
             DateTimeOffset.UtcNow, Environment.GetEnvironmentVariable("GITHUB_SHA"));
+
+        // El gasto se anota aunque el instrumento se declare inválido: los tokens se han consumido igual.
+        informe = AnotarEnElLibro(informe, Environment.GetEnvironmentVariable("BANCO_IA_ORIGEN") ?? "local");
         var rutaMarkdown = InformeBancoModelosIa.Escribir(informe, parametros.CarpetaSalida);
 
         salida.WriteLine(InformeBancoModelosIa.Markdown(informe));
         salida.WriteLine($"Informe escrito en {rutaMarkdown}");
 
         problemas.Should().BeEmpty("la medición solo es comparable si el instrumento midió lo que se le pidió");
+    }
+
+    /// <summary>
+    /// Construye las peticiones que el producto enviaría y las cuenta, sin
+    /// enviarlas: el transporte es un modelo simulado. Da la cota de gasto
+    /// antes de decidir si se ejecuta el banco de verdad.
+    /// </summary>
+    [FactSiSePide("BANCO_IA_SOLO_ESTIMAR")]
+    public async Task Estima_el_coste_sin_llamar_a_la_API()
+    {
+        var parametros = ParametrosBanco.DesdeEntorno(Environment.GetEnvironmentVariable);
+
+        var peticiones = await EjecutorBancoModelosIa.EjecutarAsync(
+            parametros, "sin-clave-solo-estimacion", CorpusBancoModelosIa.Casos, _ => new ModeloSimulado(string.Empty));
+
+        var markdown = InformeBancoModelosIa.MarkdownDeEstimacion(parametros, peticiones);
+        Directory.CreateDirectory(parametros.CarpetaSalida);
+        File.WriteAllText(Path.Combine(parametros.CarpetaSalida, $"banco-ia-estimacion-{InformeBancoModelosIa.Limpio(parametros.Modelo)}.md"), markdown);
+        salida.WriteLine(markdown);
+
+        peticiones.Should().NotBeEmpty("una estimación sobre cero casos no acota nada");
+    }
+
+    /// <summary>Pasa al libro de gasto local un informe ya medido en otro sitio (el artefacto JSON de una ejecución de CI).</summary>
+    [FactSiSePide("BANCO_IA_ANOTAR")]
+    public void Anota_en_el_libro_de_gasto_un_informe_ya_medido()
+    {
+        var informe = JsonSerializer.Deserialize<InformeBanco>(
+            File.ReadAllText(Environment.GetEnvironmentVariable("BANCO_IA_ANOTAR")!), InformeBancoModelosIa.Json)!;
+        var libro = Environment.GetEnvironmentVariable("BANCO_IA_LIBRO_GASTO");
+        libro.Should().NotBeNullOrWhiteSpace("anotar exige saber dónde está el libro de gasto");
+
+        var anotadas = LibroDeGasto.Anotar(informe, libro!, Environment.GetEnvironmentVariable("BANCO_IA_ORIGEN") ?? "ci");
+
+        salida.WriteLine($"Líneas anotadas: {anotadas} (0 = el informe ya estaba en el libro). " +
+            $"Acumulado del mes: {LibroDeGasto.AcumuladoDelMes(libro!, informe.Fecha).ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)} $");
+    }
+
+    private static InformeBanco AnotarEnElLibro(InformeBanco informe, string origen)
+    {
+        var libro = Environment.GetEnvironmentVariable("BANCO_IA_LIBRO_GASTO");
+        if (string.IsNullOrWhiteSpace(libro))
+            return informe;
+
+        LibroDeGasto.Anotar(informe, libro, origen);
+        var presupuesto = decimal.TryParse(
+            Environment.GetEnvironmentVariable("BANCO_IA_PRESUPUESTO_MES"), System.Globalization.NumberStyles.Number,
+            System.Globalization.CultureInfo.InvariantCulture, out var p) ? p : 240m;
+        return informe with
+        {
+            GastoDelMes = new GastoDelMes(
+                informe.Fecha.UtcDateTime.ToString("yyyy-MM", System.Globalization.CultureInfo.InvariantCulture),
+                LibroDeGasto.AcumuladoDelMes(libro, informe.Fecha), presupuesto),
+        };
     }
 
     [Fact]
@@ -125,7 +219,7 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
         string Json(IEnumerable<TrabajadorEsperado> trabajadores) =>
             JsonSerializer.Serialize(trabajadores.Select(t => new { nombre = t.Nombre, apellidos = t.Apellidos, dni = t.Dni }));
 
-        var conInventado = await EjecutarUnoAsync(caso, Json([.. caso.Esperados, new TrabajadorEsperado("Pedro", "Inventado", "00000000T")]));
+        var conInventado = await EjecutarUnoAsync(caso, Json([.. caso.Esperados, new TrabajadorEsperado("Pedro", "Inventado", "00000000X")]));
         conInventado.Medidas["inventados"].Should().Be(1);
         conInventado.Medidas["omitidos"].Should().Be(0);
         conInventado.Fallos.Should().ContainSingle().Which.Should().StartWith("sin Trabajadores inventados");
@@ -170,6 +264,25 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
         resultado.Medidas["inventados"].Should().Be(caso.Trabajadores.Count);
         resultado.Medidas["omitidos"].Should().Be(0);
         resultado.Puntuacion.Should().BeLessThan(1);
+    }
+
+    [Fact]
+    public async Task En_la_gestion_documental_callar_no_regala_el_punto_de_no_inventar_ni_el_del_resumen()
+    {
+        var caso = (CasoGestionCorreo)CorpusBancoModelosIa.Casos.First(c => c.Id == "ges-adversarial-inyeccion");
+        var callado = JsonSerializer.Serialize(new
+        {
+            esActualizacionDocumento = caso.EsActualizacionEsperada,
+            resumen = "Simulado.",
+            confianza = 100,
+            items = Array.Empty<object>(),
+        });
+
+        var resultado = await EjecutarUnoAsync(caso, callado);
+
+        resultado.ComprobacionesTotales.Should().Be(1 + caso.ItemsEsperados.Count, "solo cuentan la etiqueta y los ítems que el correo pide");
+        resultado.ComprobacionesCorrectas.Should().Be(1);
+        resultado.Medidas["inventados"].Should().Be(0);
     }
 
     [Fact]
@@ -258,6 +371,142 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
         resultado.CosteUsd.Should().BeNull("el modelo de prueba no tiene tarifa y un coste inventado sería peor que ninguno");
     }
 
+    /// <summary>Responde 429 las primeras veces y después 200, devolviendo como texto la petición que recibió.</summary>
+    private sealed class SaturadoAlPrincipio(int rechazos) : HttpMessageHandler
+    {
+        private int _vistas;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            if (++_vistas <= rechazos)
+                return new HttpResponseMessage(System.Net.HttpStatusCode.TooManyRequests) { Content = new StringContent("{}") };
+
+            var cuerpo = JsonSerializer.Serialize(new
+            {
+                model = "modelo-simulado",
+                stop_reason = "end_turn",
+                content = new[] { new { type = "text", text = await request.Content!.ReadAsStringAsync(cancellationToken) } },
+                usage = new { input_tokens = 7, output_tokens = 3 },
+            });
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(cuerpo, System.Text.Encoding.UTF8, "application/json") };
+        }
+    }
+
+    private sealed class RedCaida : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new HttpRequestException("sin red");
+    }
+
+    [Fact]
+    public async Task La_sonda_lee_el_esfuerzo_de_la_peticion_y_reintenta_una_saturacion_sin_perder_la_cuenta()
+    {
+        var sonda = new SondaAnthropic(new SaturadoAlPrincipio(rechazos: 1)) { EsperaEntreIntentos = TimeSpan.Zero };
+        using var http = new HttpClient(sonda);
+        var peticion = JsonSerializer.Serialize(new { model = "modelo-pedido", max_tokens = 2048, output_config = new { effort = "medium" } });
+
+        using var respuesta = await http.PostAsync("https://banco.invalid/v1/messages", new StringContent(peticion));
+
+        ((int)respuesta.StatusCode).Should().Be(200);
+        var llamada = sonda.Llamadas.Should().ContainSingle().Subject;
+        llamada.Intentos.Should().Be(2, "el 429 se reintenta y no cuenta como respuesta del modelo");
+        llamada.EsfuerzoEnviado.Should().Be("medium");
+        llamada.ModeloEnviado.Should().Be("modelo-pedido");
+        llamada.MaxTokensEnviado.Should().Be(2048);
+        llamada.TokensEntrada.Should().Be(7);
+    }
+
+    [Fact]
+    public async Task Una_saturacion_que_no_cede_se_anota_con_su_estado_tras_tres_intentos()
+    {
+        var sonda = new SondaAnthropic(new SaturadoAlPrincipio(rechazos: 99)) { EsperaEntreIntentos = TimeSpan.Zero };
+        using var http = new HttpClient(sonda);
+
+        using var respuesta = await http.PostAsync("https://banco.invalid/v1/messages", new StringContent("{}"));
+
+        var llamada = sonda.Llamadas.Should().ContainSingle().Subject;
+        llamada.Intentos.Should().Be(3);
+        llamada.EstadoHttp.Should().Be(429);
+    }
+
+    [Fact]
+    public async Task Con_la_red_caida_el_caso_queda_medido_como_fallo_de_red_y_el_banco_sigue_con_los_demas()
+    {
+        var casos = CorpusBancoModelosIa.Casos.Where(c => c.Ruta == RutaIa.RelevanciaCaeDeConversacion).Take(2).ToList();
+
+        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(
+            ParametrosDePrueba, "clave-de-prueba", casos, _ => new SondaAnthropic(new RedCaida()) { EsperaEntreIntentos = TimeSpan.Zero });
+
+        resultados.Should().HaveCount(2).And.OnlyContain(r => r.Puntuacion == 0 && r.EstadoHttp == 0 && r.Intentos == 3);
+        ValidacionDelInstrumento.Problemas(ParametrosDePrueba, resultados).Should().Contain(p => p.Contains("la red falló"));
+    }
+
+    private sealed record CasoQueRevienta() : CasoBanco("caso-que-revienta", NivelCaso.Sencillo, "Deja escapar una excepción que el servicio no captura")
+    {
+        public override RutaIa Ruta => RutaIa.ChatDelAsistente;
+
+        public override Task<Evaluacion> EjecutarAsync(ServiciosAnthropic servicios, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("tipo de contenido inesperado");
+
+        public override string RespuestaIdeal() => string.Empty;
+
+        public override string RespuestaErronea() => string.Empty;
+    }
+
+    [Fact]
+    public async Task Una_excepcion_que_escapa_de_un_caso_no_pierde_la_medicion_de_los_demas()
+    {
+        var siguiente = CorpusBancoModelosIa.Casos.First(c => c.Id == "rel-sencillo-alta");
+
+        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(
+            ParametrosDePrueba, "clave-de-prueba", [new CasoQueRevienta(), siguiente], c => new ModeloSimulado(c.RespuestaIdeal()));
+
+        resultados.Should().HaveCount(2);
+        resultados[0].ErrorServicio.Should().Be("Excepcion.NotSupportedException");
+        resultados[0].Puntuacion.Should().Be(0);
+        resultados[1].Puntuacion.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task El_tope_de_salida_pedido_viaja_y_las_respuestas_truncadas_se_declaran_en_el_informe()
+    {
+        var parametros = ParametrosDePrueba with { MaxTokens = 4096 };
+        var caso = CorpusBancoModelosIa.Casos.First(c => c.Id == "rel-sencillo-alta");
+
+        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(
+            parametros, "clave-de-prueba", [caso], c => new ModeloSimulado(c.RespuestaIdeal(), stopReason: "max_tokens"));
+
+        resultados.Single().MaxTokensEnviado.Should().Be(4096);
+        ValidacionDelInstrumento.Problemas(parametros, resultados).Should().BeEmpty();
+        ValidacionDelInstrumento.Problemas(parametros with { MaxTokens = 512 }, resultados).Should().ContainSingle().Which.Should().Contain("tope de salida");
+
+        var md = InformeBancoModelosIa.Markdown(InformeBancoModelosIa.Construir(parametros, resultados, [], [], DateTimeOffset.UnixEpoch, null));
+        md.Should().Contain("Respuestas truncadas por el tope de salida (1)").And.Contain("rel-sencillo-alta").And.Contain("`max_tokens`): 4096");
+    }
+
+    [Fact]
+    public void El_escaneo_sintetico_sabe_dibujar_todos_los_caracteres_de_su_documento_y_no_sale_en_blanco()
+    {
+        var caso = (CasoTranscripcion)CorpusBancoModelosIa.Casos.Single(c => c.Id == "ocr-dificil-escaneo");
+
+        TextoBanco.SinTildes(caso.TextoDeReferencia).ToUpperInvariant().Where(c => c != '\n' && !EscaneoSintetico.SabeDibujar(c))
+            .Should().BeEmpty("un carácter sin glifo saldría en blanco y el caso pediría leer lo que no está");
+
+        using var imagen = SkiaSharp.SKBitmap.Decode(caso.Archivo);
+        var oscuros = 0;
+        for (var y = 0; y < imagen.Height; y += 2)
+        {
+            for (var x = 0; x < imagen.Width; x += 2)
+            {
+                if (imagen.GetPixel(x, y).Red < 110)
+                    oscuros++;
+            }
+        }
+
+        oscuros.Should().BeGreaterThan(5000, "el documento lleva diez líneas de texto");
+        CorpusBancoModelosIa.CasosNoConstruibles.Should().BeEmpty();
+    }
+
     [Fact]
     public void El_coste_se_estima_con_la_tarifa_del_modelo_o_con_la_que_de_la_ejecucion()
     {
@@ -265,14 +514,21 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
         TarifasAnthropic.Para(ParametrosDePrueba with { Modelo = "modelo-futuro", PrecioEntrada = 1m, PrecioSalida = 4m })!
             .Coste(500_000, 250_000).Should().Be(1.5m);
         TarifasAnthropic.Para(ParametrosDePrueba with { Modelo = "modelo-futuro" }).Should().BeNull();
+        TarifasAnthropic.Para(ParametrosDePrueba with { Modelo = "claude-haiku-5-5" }).Should().Be(new TarifaAnthropic(0.10m, 0.50m));
+        DateOnly.ParseExact(TarifasAnthropic.FechaDeConsulta, "yyyy-MM-dd").Should().BeAfter(new DateOnly(2026, 1, 1));
+        TarifasAnthropic.Fuente.Should().StartWith("https://");
     }
 
     [Fact]
     public void Sin_clave_el_banco_se_declara_omitido_con_su_motivo_y_con_clave_no()
     {
-        FactSiHayClaveDeAnthropicAttribute.MotivoDeOmision(null).Should().Contain("NO ejecutado");
-        FactSiHayClaveDeAnthropicAttribute.MotivoDeOmision("  ").Should().Contain("NO ejecutado");
-        FactSiHayClaveDeAnthropicAttribute.MotivoDeOmision("una-clave").Should().BeNull();
+        FactSiHayClaveDeAnthropicAttribute.MotivoDeOmision(null, "1").Should().Contain("NO ejecutado").And.Contain("falta la clave");
+        FactSiHayClaveDeAnthropicAttribute.MotivoDeOmision("  ", "1").Should().Contain("NO ejecutado");
+        FactSiHayClaveDeAnthropicAttribute.MotivoDeOmision("una-clave", null).Should().Contain("NO ejecutado").And.Contain("nadie lo ha pedido");
+        FactSiHayClaveDeAnthropicAttribute.MotivoDeOmision("una-clave", "1").Should().BeNull();
+
+        FactSiSePideAttribute.MotivoDeOmision("BANCO_IA_SOLO_ESTIMAR", null).Should().Contain("no pedido");
+        FactSiSePideAttribute.MotivoDeOmision("BANCO_IA_SOLO_ESTIMAR", "1").Should().BeNull();
     }
 
     [Fact]
@@ -319,6 +575,108 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
         {
             Directory.Delete(parametros.CarpetaSalida, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task La_clave_no_aparece_en_el_informe_ni_en_el_libro_de_gasto()
+    {
+        const string clave = "sk-ant-api03-CANARIO-QUE-NO-DEBE-SALIR";
+        var carpeta = Path.Combine(Path.GetTempPath(), "banco-modelos-ia-" + Guid.NewGuid().ToString("N"));
+        var parametros = ParametrosDePrueba with { CarpetaSalida = carpeta, Modelo = "claude-sonnet-5" };
+        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(
+            parametros, clave, CorpusBancoModelosIa.Casos, caso => new ModeloSimulado(caso.RespuestaIdeal()));
+        var informe = InformeBancoModelosIa.Construir(parametros, resultados, [], [], DateTimeOffset.UnixEpoch, null);
+
+        try
+        {
+            InformeBancoModelosIa.Escribir(informe, carpeta);
+            LibroDeGasto.Anotar(informe, Path.Combine(carpeta, "libro.csv"), "local");
+
+            var escrito = Directory.GetFiles(carpeta);
+            escrito.Should().HaveCount(4);
+            foreach (var fichero in escrito)
+                File.ReadAllText(fichero).Should().NotContain("CANARIO", $"{Path.GetFileName(fichero)} se publica como artefacto");
+        }
+        finally
+        {
+            Directory.Delete(carpeta, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task El_libro_de_gasto_suma_una_linea_por_ruta_no_duplica_y_acumula_solo_el_mes_pedido()
+    {
+        var libro = Path.Combine(Path.GetTempPath(), "banco-modelos-ia-libro-" + Guid.NewGuid().ToString("N") + ".csv");
+        var parametros = ParametrosDePrueba with { Modelo = "claude-sonnet-5" };
+        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(
+            parametros, "clave-de-prueba", CorpusBancoModelosIa.Casos, caso => new ModeloSimulado(caso.RespuestaIdeal()));
+        var octubre = InformeBancoModelosIa.Construir(parametros, resultados, [], [], new DateTimeOffset(2026, 10, 9, 12, 0, 0, TimeSpan.Zero), "abc");
+        var noviembre = octubre with { Fecha = new DateTimeOffset(2026, 11, 2, 8, 0, 0, TimeSpan.Zero) };
+        // Cada caso simulado consume 120 tokens de entrada y 30 de salida: 120 × 2 $ + 30 × 10 $ por millón.
+        var costePorPasada = resultados.Count * (120 * 2m + 30 * 10m) / 1_000_000m;
+
+        try
+        {
+            LibroDeGasto.Anotar(octubre, libro, "local").Should().Be(Enum.GetValues<RutaIa>().Length);
+            LibroDeGasto.Anotar(octubre, libro, "local").Should().Be(0, "anotar dos veces el mismo informe no duplica el gasto");
+            LibroDeGasto.Anotar(noviembre, libro, "ci").Should().Be(Enum.GetValues<RutaIa>().Length);
+
+            File.ReadAllLines(libro)[0].Should().Be(LibroDeGasto.Cabecera);
+            File.ReadAllLines(libro).Should().HaveCount(1 + 2 * Enum.GetValues<RutaIa>().Length);
+            octubre.CosteTotalUsd.Should().Be(costePorPasada);
+            LibroDeGasto.AcumuladoDelMes(libro, octubre.Fecha).Should().Be(costePorPasada);
+            LibroDeGasto.AcumuladoDelMes(libro, new DateTimeOffset(2026, 12, 1, 0, 0, 0, TimeSpan.Zero)).Should().Be(0);
+        }
+        finally
+        {
+            File.Delete(libro);
+        }
+    }
+
+    [Fact]
+    public async Task El_resumen_da_coste_por_caso_proyeccion_por_mil_y_acumulado_del_mes_y_dice_que_es_medido_y_que_calculado()
+    {
+        var parametros = ParametrosDePrueba with { Modelo = "claude-sonnet-5" };
+        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(
+            parametros, "clave-de-prueba", CorpusBancoModelosIa.Casos, caso => new ModeloSimulado(caso.RespuestaIdeal()));
+        var sinGasto = InformeBancoModelosIa.Construir(parametros, resultados, [], [], DateTimeOffset.UnixEpoch, null);
+        var informe = sinGasto with { GastoDelMes = new GastoDelMes("2026-10", 12m, 240m) };
+
+        var chat = informe.Rutas.Single(r => r.Ruta == RutaIa.ChatDelAsistente);
+        chat.CostePorCasoUsd.Should().Be(0.00054m);
+        chat.CostePorMilUsd.Should().Be(0.54m);
+
+        var markdown = InformeBancoModelosIa.Markdown(informe);
+        markdown.Should().Contain("**Medido**").And.Contain("**Calculado**").And.Contain("1.000 documentos")
+            .And.Contain("Acumulado de 2026-10").And.Contain("12.0000 $ de 240 $").And.Contain(TarifasAnthropic.FechaDeConsulta);
+    }
+
+    [Fact]
+    public async Task La_estimacion_sin_llamadas_acota_la_entrada_por_el_texto_y_las_paginas_y_la_salida_por_max_tokens()
+    {
+        var parametros = ParametrosDePrueba with { Modelo = "claude-sonnet-5" };
+        var listado = CorpusBancoModelosIa.Casos.First(c => c.Id == "lis-dificil-sesenta");
+        var relevancia = CorpusBancoModelosIa.Casos.First(c => c.Id == "rel-sencillo-alta");
+
+        var peticiones = await EjecutorBancoModelosIa.EjecutarAsync(
+            parametros, "sin-clave", [listado, relevancia], _ => new ModeloSimulado(string.Empty));
+
+        // El listado de sesenta Trabajadores ocupa dos páginas de PDF: dos veces la cota por página, más el texto del prompt.
+        peticiones.Single(p => p.Caso == listado.Id).TokensEntradaCota.Should().BeInRange(
+            2 * CotaDeTokensDeEntrada.TokensPorPaginaOImagen, 2 * CotaDeTokensDeEntrada.TokensPorPaginaOImagen + 2000);
+        peticiones.Single(p => p.Caso == relevancia.Id).TokensEntradaCota.Should().BeInRange(300, 3000);
+
+        var markdown = InformeBancoModelosIa.MarkdownDeEstimacion(parametros, peticiones);
+        markdown.Should().Contain("cota superior").And.Contain("No se ha hecho ninguna llamada");
+        var maxTokens = peticiones.Sum(p => p.MaxTokensEnviado!.Value);
+        markdown.Should().Contain($"| **Total** | 2 | {peticiones.Sum(p => p.TokensEntradaCota)} | {maxTokens} |");
+    }
+
+    [Fact]
+    public void El_banco_conoce_la_clave_de_configuracion_de_las_siete_rutas()
+    {
+        EjecutorBancoModelosIa.ClaveDeConfiguracion.Keys.Should().BeEquivalentTo(Enum.GetValues<RutaIa>());
+        EjecutorBancoModelosIa.ClaveDeConfiguracion.Values.Should().OnlyHaveUniqueItems();
     }
 
     [Fact]

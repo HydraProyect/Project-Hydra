@@ -97,6 +97,11 @@ public static class TextoBanco
     public static string Identificador(string? valor) =>
         new string((valor ?? string.Empty).Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
 
+    public static string SinTildes(string texto) =>
+        new(texto.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+            .ToArray());
+
     public static string[] Palabras(string texto) =>
         texto.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
 }
