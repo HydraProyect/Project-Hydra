@@ -50,11 +50,13 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
             await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestoraPrincipal, Ayudas.ContrasenaUsuariosPrueba);
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/cartera/solicitudes");
 
-            var fila = page.Locator("[data-dar-acceso-operacion]", new() { HasText = TenantPropuesto });
+            // Por nombre accesible: el botón de cada fila lleva el del Tenant propietario.
+            var darAcceso = page.GetByRole(AriaRole.Button, new() { Name = $"Dar acceso de apoyo a {TenantPropuesto}", Exact = true });
+            var fila = page.Locator("[data-dar-acceso-operacion]").Filter(new() { Has = darAcceso });
             await Expect(fila).ToBeVisibleAsync(EsperaEnFrio);
-            await fila.Locator("> button").ClickAsync();
+            await darAcceso.ClickAsync();
 
-            var desplegable = page.Locator("select").Filter(new() { Has = page.Locator("option", new() { HasText = "Elige un Gestor CAE" }) });
+            var desplegable = page.GetByLabel("Gestor CAE al que se lo propones", new() { Exact = true });
             await Expect(desplegable).ToBeVisibleAsync(EsperaEnFrio);
             await desplegable.SelectOptionAsync(new SelectOptionValue { Label = NombreGestorDeApoyo });
             await page.GetByRole(AriaRole.Button, new() { Name = "Proponer", Exact = true }).ClickAsync();
@@ -79,7 +81,7 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
         await Expect(propuesta).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(propuesta).ToContainTextAsync($"te propone apoyo en {TenantPropuesto}");
 
-        await propuesta.Locator("button", new() { HasText = "Aceptar" }).ClickAsync();
+        await propuesta.GetByRole(AriaRole.Button, new() { Name = $"Aceptar la propuesta de apoyo en {TenantPropuesto}", Exact = true }).ClickAsync();
 
         var aceptada = pagina.Locator("#panel-campana-avisos [data-propuesta-aceptada]");
         await Expect(aceptada).ToBeVisibleAsync(EsperaEnFrio);

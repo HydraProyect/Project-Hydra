@@ -141,15 +141,14 @@ public static class GestorCaeCarteraMultiTenantSeeder
             dbContext, NombreTenantOperador, PerfilVocabularioTenant.Consultora, logger, cancellationToken,
             esOperadorCaeExterno: true);
 
-        var gestor = await DelegacionDemoSeeder.CrearUsuarioConsultoraAsync(
-                         dbContext, userManager, credenciales, logger, tenantOperadorId, EmailGestorCae,
-                         "Olga Serrano (Gestora CAE, E2E)", Roles.GestorCae, cancellationToken)
-                     ?? throw new InvalidOperationException($"No se pudo sembrar el Gestor CAE {EmailGestorCae}.");
+        var gestor = await SembrarGestorCaeAsync(EmailGestorCae, "Olga Serrano (Gestora CAE, E2E)");
+        var gestorDeApoyo = await SembrarGestorCaeAsync(EmailGestorCaeDeApoyo, NombreGestorCaeDeApoyo);
 
-        var gestorDeApoyo = await DelegacionDemoSeeder.CrearUsuarioConsultoraAsync(
-                                dbContext, userManager, credenciales, logger, tenantOperadorId, EmailGestorCaeDeApoyo,
-                                NombreGestorCaeDeApoyo, Roles.GestorCae, cancellationToken)
-                            ?? throw new InvalidOperationException($"No se pudo sembrar el Gestor CAE {EmailGestorCaeDeApoyo}.");
+        async Task<ApplicationUser> SembrarGestorCaeAsync(string email, string nombre) =>
+            await DelegacionDemoSeeder.CrearUsuarioConsultoraAsync(
+                dbContext, userManager, credenciales, logger, tenantOperadorId, email,
+                nombre, Roles.GestorCae, cancellationToken)
+            ?? throw new InvalidOperationException($"No se pudo sembrar el Gestor CAE {email}.");
 
         var hoy = DiaDeNegocio.Hoy();
 
