@@ -12,7 +12,8 @@ namespace CaeManager.Web.Tests;
 /// Acabado de interfaz, fichas 12 (estados vacíos), 14 (tablas) y 15 (toasts).
 /// <para>
 /// Lo que estos tests observan: el temporizador del toast se detiene de verdad
-/// mientras el puntero o el foco están encima (C#, con tiempos reales cortos), el
+/// mientras el puntero o el foco están encima (C#, con tiempos reales cortos; la cuenta
+/// atrás visible, con reloj de prueba), el
 /// anfitrión conecta esos eventos, y las hojas de estilo declaran cada efecto y su
 /// anulación con <c>prefers-reduced-motion</c>. Lo que NO observan: cómo se ve; bUnit no
 /// aplica CSS, y el destello de fila es JS de navegador (se mide en el navegador).
@@ -170,37 +171,73 @@ public class AcabadoEstadosVaciosTablasYToastsTests : BunitContext
         servicio.SegundosRestantes(servicio.Mensajes[1].Id).Should().BeNull("un error no se autodescarta");
     }
 
+    // Los dos casos que siguen afirman un número de segundos, así que el tiempo lo mueven ellos
+    // (RelojManual) en vez de esperarlo: contra reloj real, con la máquina cargada, el
+    // hilo de la prueba llegaba tarde a mirar y el número ya era otro (medido el 2026-10-09: 5 y 1
+    // fallos de 12 pasadas con la CPU saturada). Las esperas que quedan no son tiempo del aviso,
+    // solo el margen para que corra la continuación que el temporizador despierta.
+    private static readonly TimeSpan MargenDeContinuacion = TimeSpan.FromSeconds(30);
+
     [Fact]
     public async Task La_cuenta_baja_segundo_a_segundo_y_el_anfitrion_la_repinta()
     {
-        var servicio = new ToastService(Corto, DosSegundos);
+        var reloj = new RelojManual();
+        var servicio = new ToastService(Corto, DosSegundos, reloj);
         Services.AddSingleton(servicio);
         var cut = Render<AnfitrionToasts>();
 
         servicio.Mostrar("Eliminado", TonoToast.Exito, "Deshacer", () => Task.CompletedTask);
-        cut.WaitForState(() => cut.FindAll(".toast-cuenta").Count == 1);
+        cut.WaitForState(() => cut.FindAll(".toast-cuenta").Count == 1, MargenDeContinuacion);
         cut.Find(".toast-cuenta").TextContent.Should().Be("2 s");
 
-        cut.WaitForAssertion(() => cut.Find(".toast-cuenta").TextContent.Should().Be("1 s"), TimeSpan.FromSeconds(5));
+        reloj.Avanzar(TimeSpan.FromMilliseconds(900));
+        servicio.SegundosRestantes(servicio.Mensajes.Single().Id).Should().Be(2, "el número cambia con el segundo, no antes");
+        cut.Find(".toast-cuenta").TextContent.Should().Be("2 s");
 
-        await EsperarAsync(() => servicio.Mensajes.Count == 0);
+        reloj.Avanzar(TimeSpan.FromMilliseconds(100));
+        cut.WaitForAssertion(() => cut.Find(".toast-cuenta").TextContent.Should().Be("1 s"), MargenDeContinuacion);
+
+        await EsperarAsync(() => reloj.TemporizadoresVivos == 1, MargenDeContinuacion);
+        reloj.TemporizadoresVivos.Should().Be(1, "tras repintar, el servicio arma el tramo del último segundo");
+        servicio.Mensajes.Should().ContainSingle("le queda un segundo entero");
+
+        reloj.Avanzar(TimeSpan.FromSeconds(1));
+        await EsperarAsync(() => servicio.Mensajes.Count == 0, MargenDeContinuacion);
         servicio.Mensajes.Should().BeEmpty("al agotarse la cuenta el aviso se descarta, como antes");
     }
 
     [Fact]
     public async Task Con_el_puntero_encima_la_cuenta_no_baja_y_al_salir_sigue_por_donde_iba()
     {
-        var servicio = new ToastService(Corto, DosSegundos);
+        var reloj = new RelojManual();
+        var servicio = new ToastService(Corto, DosSegundos, reloj);
         servicio.Mostrar("Eliminado", TonoToast.Exito, "Deshacer", () => Task.CompletedTask);
         var id = servicio.Mensajes.Single().Id;
 
+        reloj.Avanzar(TimeSpan.FromMilliseconds(300));
         servicio.PunteroSobre(id, true);
-        await Task.Delay(TimeSpan.FromSeconds(1.3));
+        reloj.Avanzar(TimeSpan.FromSeconds(10));
         servicio.SegundosRestantes(id).Should().Be(2, "con el puntero encima el número no baja");
+        servicio.Mensajes.Should().ContainSingle("ni el aviso caduca, por mucho que pase");
 
+        // Quedaban 1,7 s al entrar el puntero: al salir, el cambio de segundo llega a los 0,7 s,
+        // no al segundo entero (eso sería empezar de nuevo) ni de inmediato (eso sería haber
+        // descontado la pausa).
+        var repintados = 0;
+        servicio.OnCambio += () => Interlocked.Increment(ref repintados);
         servicio.PunteroSobre(id, false);
-        await EsperarAsync(() => servicio.SegundosRestantes(id) == 1);
+        reloj.Avanzar(TimeSpan.FromMilliseconds(600));
+        servicio.SegundosRestantes(id).Should().Be(2, "al salir el puntero, la cuenta sigue por donde iba");
+        reloj.Avanzar(TimeSpan.FromMilliseconds(200));
         servicio.SegundosRestantes(id).Should().Be(1, "al salir el puntero, la cuenta sigue por donde iba");
+        await EsperarAsync(() => Volatile.Read(ref repintados) == 1, MargenDeContinuacion);
+        Volatile.Read(ref repintados).Should().Be(1, "la cuenta reanudada también avisa a la interfaz en el cambio de segundo");
+
+        await EsperarAsync(() => reloj.TemporizadoresVivos == 1, MargenDeContinuacion);
+        servicio.Mensajes.Should().ContainSingle("le queda el último segundo");
+        reloj.Avanzar(TimeSpan.FromSeconds(1));
+        await EsperarAsync(() => servicio.Mensajes.Count == 0, MargenDeContinuacion);
+        servicio.Mensajes.Should().BeEmpty("y se descarta cuando se agota lo que quedaba");
     }
 
     [Fact]
@@ -284,9 +321,11 @@ public class AcabadoEstadosVaciosTablasYToastsTests : BunitContext
         Leer("Components", "App.razor").Should().Contain("js/destello-fila.js");
     }
 
-    private static async Task EsperarAsync(Func<bool> condicion)
+    private static Task EsperarAsync(Func<bool> condicion) => EsperarAsync(condicion, TimeSpan.FromSeconds(5));
+
+    private static async Task EsperarAsync(Func<bool> condicion, TimeSpan margen)
     {
-        var limite = DateTime.UtcNow.AddSeconds(5);
+        var limite = DateTime.UtcNow + margen;
         while (!condicion() && DateTime.UtcNow < limite)
             await Task.Delay(25);
     }

@@ -7,6 +7,7 @@ using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -282,21 +283,26 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
                 CatalogoPilotoOutbound.NombresTenants.Except(anunciados),
                 "MEDIDO: lo anunciado es exactamente lo que ya no existe; el resto sigue ahí");
 
-            // B.3 Repetir la orden retira lo que faltaba y no deja nada del piloto.
+            // B.3 Repetir la orden retira lo que faltaba.
             var resto = await RetirarAsync(arnes, ConfiguracionConfirmada, anunciados);
             resto.Should().HaveCount(6);
             anunciados.Should().Equal(CatalogoPilotoOutbound.NombresTenants, "MEDIDO: Tenants propietarios primero y el del Operador CAE externo al final");
-            (await arnes.RecuentoAsync()).Should().BeEquivalentTo(sinPiloto, "MEDIDO: ni Tenants, ni cuentas, ni filas, ni ficheros del piloto; lo demás, igual que antes");
-            (await CuentasDelDominioAsync(arnes)).Should().Be(0);
 
             // B.3 bis. Los ficheros del ensayo se han ido, el descartado incluido; el del Tenant ajeno sigue y se lee.
-            File.Exists(RutaEnElAlmacen(arnes, claveDescartada)).Should().BeFalse(
-                "MEDIDO: el PDF de un documento descartado durante el ensayo no sobrevive a la retirada");
-            File.Exists(RutaEnElAlmacen(arnes, claveLogo)).Should().BeFalse("MEDIDO: el logo del Tenant retirado tampoco");
-            File.Exists(RutaEnElAlmacen(arnes, clavePlantilla)).Should().BeFalse("MEDIDO: ni la plantilla en blanco de un requisito de Centro");
+            // Fichero a fichero y ANTES del recuento global, y los cuatro juntos: si la retirada deja de borrar una
+            // familia (o borra el ajeno), el rojo la nombra. El recuento, que antes fallaba primero, solo dice cuántos
+            // ficheros sobran o faltan.
+            using (new AssertionScope())
+            {
+                File.Exists(RutaEnElAlmacen(arnes, claveDescartada)).Should().BeFalse(
+                    "MEDIDO: el PDF de un documento descartado durante el ensayo no sobrevive a la retirada");
+                File.Exists(RutaEnElAlmacen(arnes, claveLogo)).Should().BeFalse("MEDIDO: el logo del Tenant retirado tampoco");
+                File.Exists(RutaEnElAlmacen(arnes, clavePlantilla)).Should().BeFalse("MEDIDO: ni la plantilla en blanco de un requisito de Centro");
 
-            File.Exists(RutaEnElAlmacen(arnes, ajeno.Clave)).Should().BeTrue(
-                "MEDIDO: la retirada no borra un fichero de otro Tenant, ni cuando una fila del piloto nombra su clave");
+                File.Exists(RutaEnElAlmacen(arnes, ajeno.Clave)).Should().BeTrue(
+                    "MEDIDO: la retirada no borra un fichero de otro Tenant, ni cuando una fila del piloto nombra su clave");
+            }
+
             (await arnes.EnTenantAsync(ajeno.TenantId, async (_, sp) =>
                 {
                     await using var flujo = await sp.GetRequiredService<IFileStorageService>().AbrirAsync(ajeno.Clave);
@@ -305,6 +311,10 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
                     return memoria.ToArray();
                 }))
                 .Should().Equal(ContenidoAjeno, "MEDIDO: y su Tenant lo sigue leyendo entero");
+
+            // B.3 ter. Y no queda nada del piloto.
+            (await arnes.RecuentoAsync()).Should().BeEquivalentTo(sinPiloto, "MEDIDO: ni Tenants, ni cuentas, ni filas, ni ficheros del piloto; lo demás, igual que antes");
+            (await CuentasDelDominioAsync(arnes)).Should().Be(0);
 
             // B.4 Lo que la retirada deja, medido: los directorios vacíos de cada Tenant en el almacén y la
             // auditoría de su propio borrado, sellada con Tenants que ya no existen.
@@ -487,7 +497,7 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
                 ArnesPilotoOutbound.FechaDemostracion(), ContactosPilotoOutbound.Crear(ArnesPilotoOutbound.CorreoDePrueba, dominio: null));
 
             Task MedirAsync(bool escribio, ILogger registro) => PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync(
-                arnes.FabricaDeAmbitos, cuentas, opciones, escribio, registro, CancellationToken.None);
+                arnes.FabricaDeAmbitos, cuentas, opciones, escribio, tenantsConDatosDeOtraVersion: [], registro, CancellationToken.None);
 
             var sinCambios = () => MedirAsync(escribio: true, NullLogger.Instance);
             await sinCambios.Should().NotThrowAsync("control: sin tocar nada, ni siquiera el camino que exige lanza");
