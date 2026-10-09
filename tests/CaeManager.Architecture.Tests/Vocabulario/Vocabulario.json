@@ -115,6 +115,17 @@
       "noConfundirCon": "Gestor CAE principal"
     },
     {
+      "id": "encargo-de-administracion",
+      "forma": "Encargo de administración",
+      "plural": "Encargos de administración",
+      "formasCortasPermitidas": [
+        "por encargo"
+      ],
+      "significado": "Acto del plano de Propiedad por el que un Tenant propietario sin Administrador propio encarga su administración al Operador CAE externo, apoyado en una cláusula del contrato. Sube el techo del rol de las personas del Operador CAE dentro de esa organización; no da acceso ni cambia de quién son los datos. En pantalla se dice que el Operador CAE externo «administra la organización por encargo», nunca que «es administrador de» ella.",
+      "contrato": "§ 3.5",
+      "noConfundirCon": "Delegación; Administrador de esta organización"
+    },
+    {
       "id": "mi-trabajo",
       "forma": "Mi trabajo",
       "plural": null,
