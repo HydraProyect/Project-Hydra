@@ -523,6 +523,22 @@ public class ProyectosGen2Tests : BunitContext
     /// 2026 son 55 días así contados (el mockup pintaba 54, cuenta exclusiva).
     /// </summary>
     [Fact]
+    public async Task La_pagina_360_se_alcanza_desde_el_menu_de_la_fila_y_desde_el_panel()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+        var destino = $"/proyectos/{ProyectoCerrado.Id}";
+
+        var fila = cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == ProyectoCerrado.Nombre);
+        await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
+        cut.FindAll("a[role=menuitem]").Single(a => a.TextContent.Trim() == "Abrir página")
+            .GetAttribute("href").Should().Be(destino);
+
+        await AbrirDetalle(cut, ProyectoCerrado);
+        cut.Find("aside.panel-proyecto a.enlace-pagina-proyecto").GetAttribute("href").Should().Be(destino);
+    }
+
+    [Fact]
     public async Task El_detalle_se_abre_en_el_panel_lateral_con_los_dias_abiertos_de_facturacion()
     {
         _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];

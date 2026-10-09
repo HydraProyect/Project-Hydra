@@ -441,10 +441,13 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             }
 
             ToastService.Mostrar(Textos["ToastReabierto"], TonoToast.Exito);
-            _confirmarReabrirVisible = false;
 
-            if (ProyectoId == id)
-                await CargarAsync();
+            // Si mientras tanto se navegó a otro proyecto, el resultado es del anterior:
+            // no se toca ningún diálogo ni lista del que se está viendo ahora.
+            if (ProyectoId != id) return;
+
+            _confirmarReabrirVisible = false;
+            await CargarAsync();
         }
         finally
         {
@@ -461,10 +464,11 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     {
         if (_eliminando || _detalle is null) return;
         _eliminando = true;
+        var id = _detalle.Id;
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarProyectoCommand(_detalle.Id));
+            var resultado = await Mediator.Send(new EliminarProyectoCommand(id));
 
             if (resultado.EsFallido)
             {
@@ -474,6 +478,11 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
             // El proyecto eliminado ya no tiene página: se vuelve al listado, que es donde deja de aparecer.
             ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito);
+
+            // Si mientras tanto se navegó a otro proyecto, el resultado es del anterior:
+            // no se toca ningún diálogo ni lista del que se está viendo ahora.
+            if (ProyectoId != id) return;
+
             _confirmarEliminarVisible = false;
             NavigationManager.NavigateTo("/proyectos");
         }
@@ -559,18 +568,25 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
         _asignando = true;
         _errorTecnico = null;
+        var id = _detalle.Id;
 
         try
         {
-            var resultado = await Mediator.Send(new AsignarTecnicoProyectoCommand(_detalle.Id, trabajadorId, fechaAlta));
+            var resultado = await Mediator.Send(new AsignarTecnicoProyectoCommand(id, trabajadorId, fechaAlta));
 
             if (resultado.EsFallido)
             {
-                _errorTecnico = resultado.Error.Mensaje;
+                if (ProyectoId == id)
+                    _errorTecnico = resultado.Error.Mensaje;
                 return;
             }
 
             ToastService.Mostrar(Textos["ToastTecnicoAsignado"], TonoToast.Exito);
+
+            // Si mientras tanto se navegó a otro proyecto, el resultado es del anterior:
+            // no se toca ningún diálogo ni lista del que se está viendo ahora.
+            if (ProyectoId != id) return;
+
             _asignarVisible = false;
             await CargarTecnicosAsync();
         }
@@ -601,6 +617,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             return;
 
         _dandoDeBajaTecnico = true;
+        var id = ProyectoId;
         try
         {
             var resultado = await Mediator.Send(new DesasignarTecnicoProyectoCommand(tecnico.Id, Hoy));
@@ -612,7 +629,9 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             }
 
             ToastService.Mostrar(Textos["ToastTecnicoDeBaja"], TonoToast.Exito);
-            await CargarTecnicosAsync();
+
+            if (ProyectoId == id)
+                await CargarTecnicosAsync();
         }
         catch (Exception)
         {
@@ -621,7 +640,11 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         finally
         {
             _dandoDeBajaTecnico = false;
-            _tecnicoADarDeBaja = null;
+
+            // Solo se cierra la confirmación de ESTA baja: si se navegó a otro proyecto y
+            // allí se abrió otra, esa no es la que acaba de resolverse.
+            if (ReferenceEquals(_tecnicoADarDeBaja, tecnico))
+                _tecnicoADarDeBaja = null;
         }
     }
 

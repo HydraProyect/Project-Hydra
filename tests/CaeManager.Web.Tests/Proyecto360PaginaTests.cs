@@ -85,6 +85,15 @@ public class Proyecto360PaginaTests : BunitContext
         public Dictionary<Guid, ProyectoDetalleDto> Detalles { get; } = new() { [AbiertoId] = Abierto, [CerradoId] = Cerrado };
         public bool FallarDetalle { get; set; }
         public bool SinTecnicos { get; set; }
+        public bool FallarTecnicos { get; set; }
+
+        /// <summary>Comandos que responden con un <see cref="Result"/> fallido, por tipo.</summary>
+        public HashSet<Type> Fallidos { get; } = [];
+
+        /// <summary>Comandos que lanzan, por tipo.</summary>
+        public HashSet<Type> QueLanzan { get; } = [];
+
+        private static readonly Error Rechazo = Error.Crear("Proyecto.Rechazado", "El servidor lo ha rechazado.");
         public List<object> Enviados { get; } = [];
 
         private readonly List<(Func<object, bool> Cuando, TaskCompletionSource<object?> Respuesta)> _retenciones = [];
@@ -122,6 +131,12 @@ public class Proyecto360PaginaTests : BunitContext
                 return Esperar<TResponse>(retencion.Respuesta.Task);
             }
 
+            if (QueLanzan.Contains(request.GetType()))
+                throw new InvalidOperationException("fallo simulado del comando");
+
+            if (Fallidos.Contains(request.GetType()))
+                return Task.FromResult((TResponse)(object)Result.Fallo(Rechazo));
+
             if (request is DesasignarTecnicoProyectoCommand baja)
                 _dadosDeBaja.Add(baja.Id);
 
@@ -129,6 +144,7 @@ public class Proyecto360PaginaTests : BunitContext
             {
                 ObtenerProyectoPorIdQuery when FallarDetalle => throw new InvalidOperationException("fallo simulado de la consulta"),
                 ObtenerProyectoPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
+                ObtenerTecnicosProyectoQuery when FallarTecnicos => throw new InvalidOperationException("fallo simulado de los técnicos"),
                 ObtenerTecnicosProyectoQuery => Tecnicos(),
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[new TrabajadorSelectorDto(TrabajadorSelectorId, "Ibáñez Soto, Marta", null, null)],
                 AsignarTecnicoProyectoCommand => Result.Exito(Guid.NewGuid()),
@@ -485,6 +501,137 @@ public class Proyecto360PaginaTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find("h1").TextContent.Trim().Should().Be("Sustitución de red contra incendios"));
         cut.Find("[data-pieza=cabecera-identidad]").TextContent.Should().NotContain("Reforma nave Sevilla");
+    }
+
+    /// <summary>La misma carrera, en la consulta de técnicos: los del proyecto anterior no se pintan en el nuevo.</summary>
+    [Fact]
+    public async Task Los_tecnicos_tardios_de_otro_proyecto_no_se_pintan()
+    {
+        var tardios = _mediador.Retener(r => r is ObtenerTecnicosProyectoQuery q && q.ProyectoId == AbiertoId);
+        var cut = Renderizar(AbiertoId);
+
+        _mediador.SinTecnicos = true;
+        cut.Render(p => p.Add(x => x.ProyectoId, CerradoId));
+        cut.FindAll("[data-pieza=fila]").Should().BeEmpty();
+
+        IReadOnlyList<TecnicoProyectoDto> ajenos =
+            [new TecnicoProyectoDto(Guid.NewGuid(), Guid.NewGuid(), "Ajeno, Técnico", new DateOnly(2026, 6, 2), null, EstaActivo: true)];
+        await cut.InvokeAsync(() => tardios.SetResult(ajenos));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().NotContain("Ajeno, Técnico"));
+    }
+
+    [Fact]
+    public async Task Al_cambiar_de_proyecto_se_cierra_la_confirmacion_que_estaba_abierta()
+    {
+        var cut = Renderizar(AbiertoId);
+        await BotonConTexto(cut, "[data-pieza=fila] button", "Dar de baja").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=dialog]").Should().ContainSingle();
+
+        cut.Render(p => p.Add(x => x.ProyectoId, CerradoId));
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty("la confirmación era de un técnico del proyecto anterior");
+    }
+
+    /// <summary>
+    /// Una eliminación que termina cuando ya se está viendo otro proyecto borra el que se pidió,
+    /// pero no saca al usuario de la página en la que está ahora.
+    /// </summary>
+    [Fact]
+    public async Task Una_eliminacion_que_termina_tras_cambiar_de_proyecto_no_saca_de_la_pagina_nueva()
+    {
+        var cut = Renderizar(AbiertoId);
+        var enVuelo = _mediador.Retener(r => r is EliminarProyectoCommand);
+        await ElegirDelMenuAsync(cut, "Eliminar proyecto");
+        var clic = BotonConTexto(cut, "[role=dialog] .modal-pie button", "Eliminar").ClickAsync(new MouseEventArgs());
+
+        cut.Render(p => p.Add(x => x.ProyectoId, CerradoId));
+        var uriAntes = Navegacion.Uri;
+        await cut.InvokeAsync(() => enVuelo.SetResult(Result.Exito()));
+        await clic;
+
+        _mediador.Enviados.OfType<EliminarProyectoCommand>().Should().ContainSingle().Which.Id.Should().Be(AbiertoId);
+        Navegacion.Uri.Should().Be(uriAntes);
+        cut.Find("h1").TextContent.Trim().Should().Be("Sustitución de red contra incendios");
+    }
+
+    // ------------------------------------------------------------------ caminos de fallo
+
+    [Fact]
+    public void Si_fallan_los_tecnicos_el_detalle_sigue_y_la_lista_ofrece_reintentar()
+    {
+        _mediador.FallarTecnicos = true;
+        var cut = Renderizar(AbiertoId);
+
+        cut.Find("h1").TextContent.Trim().Should().Be("Reforma nave Sevilla");
+        cut.Markup.Should().Contain("No pudimos cargar los técnicos");
+        cut.FindAll("[data-pieza=fila]").Should().BeEmpty();
+
+        _mediador.FallarTecnicos = false;
+        BotonConTexto(cut, "button", "Reintentar").Click();
+        cut.WaitForAssertion(() => cut.FindAll("[data-pieza=fila]").Should().HaveCount(2));
+    }
+
+    [Fact]
+    public async Task Eliminar_rechazado_avisa_y_no_sale_de_la_pagina()
+    {
+        _mediador.Fallidos.Add(typeof(EliminarProyectoCommand));
+        var cut = Renderizar(AbiertoId);
+        var uriAntes = Navegacion.Uri;
+        await ElegirDelMenuAsync(cut, "Eliminar proyecto");
+
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Eliminar").ClickAsync(new MouseEventArgs());
+
+        Navegacion.Uri.Should().Be(uriAntes);
+        var avisos = Services.GetRequiredService<ToastService>().Mensajes;
+        avisos.Should().Contain(t => t.Mensaje == "El servidor lo ha rechazado.");
+        avisos.Should().NotContain(t => t.Mensaje == "Proyecto eliminado.");
+    }
+
+    [Fact]
+    public async Task Eliminar_que_lanza_avisa_y_no_sale_de_la_pagina()
+    {
+        _mediador.QueLanzan.Add(typeof(EliminarProyectoCommand));
+        var cut = Renderizar(AbiertoId);
+        var uriAntes = Navegacion.Uri;
+        await ElegirDelMenuAsync(cut, "Eliminar proyecto");
+
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Eliminar").ClickAsync(new MouseEventArgs());
+
+        Navegacion.Uri.Should().Be(uriAntes);
+        var avisos = Services.GetRequiredService<ToastService>().Mensajes;
+        avisos.Should().NotContain(t => t.Mensaje == "Proyecto eliminado.");
+        avisos.Should().Contain(t => t.Mensaje == "No pudimos eliminar el proyecto. Intenta nuevamente en unos segundos.");
+    }
+
+    [Fact]
+    public async Task Dar_de_baja_rechazado_avisa_y_el_tecnico_sigue_activo()
+    {
+        _mediador.Fallidos.Add(typeof(DesasignarTecnicoProyectoCommand));
+        var cut = Renderizar(AbiertoId);
+        await BotonConTexto(cut, "[data-pieza=fila] button", "Dar de baja").ClickAsync(new MouseEventArgs());
+
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Dar de baja").ClickAsync(new MouseEventArgs());
+
+        var avisos = Services.GetRequiredService<ToastService>().Mensajes;
+        avisos.Should().Contain(t => t.Mensaje == "El servidor lo ha rechazado.");
+        avisos.Should().NotContain(t => t.Mensaje == "Técnico dado de baja del proyecto.");
+        cut.Find(".proyecto360-grupo").TextContent.Trim().Should().Be("De baja · 1");
+    }
+
+    [Fact]
+    public async Task Reabrir_rechazado_avisa_y_el_proyecto_sigue_cerrado()
+    {
+        _mediador.Fallidos.Add(typeof(ReabrirProyectoCommand));
+        var cut = Renderizar(CerradoId);
+        await BotonConTexto(cut, "[data-pieza=cabecera-identidad] button", "Reabrir").ClickAsync(new MouseEventArgs());
+
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Reabrir proyecto").ClickAsync(new MouseEventArgs());
+
+        var avisos = Services.GetRequiredService<ToastService>().Mensajes;
+        avisos.Should().Contain(t => t.Mensaje == "El servidor lo ha rechazado.");
+        avisos.Should().NotContain(t => t.Mensaje.StartsWith("Proyecto reabierto"));
+        cut.Find("[data-pieza=cabecera-identidad]").TextContent.Should().Contain("Cerrado (04/03/2026)");
     }
 
     // ------------------------------------------------------------------ plazo
