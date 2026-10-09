@@ -10,6 +10,7 @@ tests/CaeManager.E2ETests/Ayudas.cs :: GetByText = 1
 tests/CaeManager.E2ETests/Ayudas.cs :: Posicional = 4
 tests/CaeManager.E2ETests/BucleCorreccionPlataformaTests.cs :: FiltroPorTexto = 2
 tests/CaeManager.E2ETests/BucleCorreccionPlataformaTests.cs :: GetByText = 3
+tests/CaeManager.E2ETests/CentrosFilaSinMenuE2ETests.cs :: Posicional = 1
 tests/CaeManager.E2ETests/CentrosGestionarEnVivoE2ETests.cs :: FiltroPorTexto = 3
 tests/CaeManager.E2ETests/CentrosGestionarEnVivoE2ETests.cs :: GetByText = 13
 tests/CaeManager.E2ETests/CentrosGestionarEnVivoE2ETests.cs :: Posicional = 2

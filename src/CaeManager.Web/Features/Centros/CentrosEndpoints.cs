@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Domain.Centros;
 using CaeManager.Web.Exportacion;
@@ -41,7 +42,9 @@ public static class CentrosEndpoints
                     new ObtenerCentrosQuery(
                         Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
                         ClienteId: Guid.TryParse(cliente, out var idClienteEmpresarial) ? idClienteEmpresarial : null,
-                        Estado: Enum.TryParse<EstadoCentro>(estado, out var estadoCentro) ? estadoCentro : null,
+                        // La selección de la franja de estado: varios nombres separados por coma.
+                        Estado: null,
+                        Estados: SeleccionEstados.Separar<EstadoCentro>(estado) is { Count: > 0 } estados ? estados : null,
                         OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
                         Descendente: desc,
                         Pagina: pagina,

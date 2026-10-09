@@ -9,6 +9,7 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerEvidenciaVerificaci
 /// endpoint de descarga — mismo criterio que
 /// <c>ObtenerAdjuntoParaDescargaQuery</c> (Issue #18): nunca servir un
 /// archivo por clave sin verificar que la fila es visible para quien lo pide.
+/// Visible = la Subcontrata Y el Centro de la verificación, las dos cosas.
 /// </summary>
 public record ObtenerEvidenciaVerificacionParaDescargaQuery(Guid VerificacionId) : IRequest<EvidenciaParaDescargaDto?>;
 
@@ -32,11 +33,16 @@ public class ObtenerEvidenciaVerificacionParaDescargaQueryHandler(
     {
         var fila = await subcontratasContext.VerificacionesExternaSubcontrata
             .Where(v => v.Id == request.VerificacionId && v.EvidenciaArchivoRuta != null)
-            .Select(v => new { v.SubcontrataId, v.EvidenciaArchivoRuta, v.EvidenciaNombreArchivo, v.TipoDocumentoId })
+            .Select(v => new { v.SubcontrataId, v.CentroId, v.EvidenciaArchivoRuta, v.EvidenciaNombreArchivo, v.TipoDocumentoId })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (fila is null) return null;
         if (!await alcanceDatos.SubcontrataVisibleAsync(fila.SubcontrataId, cancellationToken)) return null;
+
+        // La verificación es de la Subcontrata EN un Centro: la Subcontrata
+        // visible no basta. Mismo cruce que ObtenerSupervisionSubcontrataQuery,
+        // que es quien enseña el identificador con el que se llega aquí.
+        if (!await alcanceDatos.CentroVisibleAsync(fila.CentroId, cancellationToken)) return null;
 
         return new EvidenciaParaDescargaDto(fila.EvidenciaNombreArchivo ?? "evidencia", fila.EvidenciaArchivoRuta!, fila.TipoDocumentoId);
     }

@@ -74,6 +74,13 @@ public class AsignarRolACuentaCommandHandler(
         if (cuenta is null)
             return Result.Fallo<CuentaConRolAsignado>(AutoridadSobreCuentas.NoEncontrado);
 
+        // La cuenta destino tiene rol de Propiedad: solo la toca quien actúa en su propio
+        // Tenant de origen (primer acto excluido del Encargo de administración, D-8).
+        var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+        if (destinoIntocable.EsFallido)
+            return Result.Fallo<CuentaConRolAsignado>(destinoIntocable.Error);
+
         if (cuenta.Roles.Count > 0)
             return Result.Fallo<CuentaConRolAsignado>(CuentaConRol);
 

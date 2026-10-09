@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
@@ -6,6 +7,7 @@ using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Exportacion;
+using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
 
@@ -42,7 +44,8 @@ public static class DocumentosEndpoints
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "plantilla-documentos.xlsx"))
-        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador));
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         // Mismo patrón de referencia que ClientesEndpoints. Sin columna de
         // Plataformas/Acreditaciones: ObtenerDocumentosQueryHandler la
@@ -74,7 +77,9 @@ public static class DocumentosEndpoints
                         TrabajadorId: null,
                         Ambito: Enum.TryParse<AmbitoAplicacion>(ambito, out var ambitoFiltro) ? ambitoFiltro : null,
                         Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
-                        Estado: Enum.TryParse<EstadoDocumento>(estado, out var estadoFiltro) ? estadoFiltro : null,
+                        // La selección de la franja de estado: varios nombres separados por coma.
+                        Estado: null,
+                        Estados: SeleccionEstados.Separar<EstadoDocumento>(estado) is { Count: > 0 } estados ? estados : null,
                         Pagina: pagina,
                         TamanoPagina: tamanoPagina,
                         OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,

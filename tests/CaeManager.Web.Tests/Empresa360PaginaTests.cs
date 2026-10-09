@@ -197,6 +197,16 @@ public class Empresa360PaginaTests : BunitContext
     private static List<string> EstadosDeLasFilas(IRenderedComponent<EmpresaDetalle> cut) =>
         cut.FindAll(".fila-relacion .badge").Select(b => b.TextContent.Trim()).ToList();
 
+    /// <summary>
+    /// El estado de CÓDIGO de cada fila, por el Id de su enlace. Desde el vocabulario único (2026-10-08) Urgente
+    /// y Próximo se rotulan igual («Por vencer») y Vigente y Sin caducidad también («Sin incidencias»): el orden
+    /// dentro de un mismo rótulo —lo urgente delante de lo próximo— ya no se lee en la pastilla, solo en el dato.
+    /// </summary>
+    private static List<EstadoDocumento?> EstadosDeCodigoDeLasFilas(IRenderedComponent<EmpresaDetalle> cut, MediatorFalso mediador) =>
+        cut.FindAll(".fila-relacion-nombre")
+            .Select(a => mediador.Trabajadores[EmpresaId].Single(t => a.GetAttribute("href") == $"/trabajadores/{t.Id}").EstadoDocumental)
+            .ToList();
+
     private static IElement Pestana(IRenderedComponent<EmpresaDetalle> cut, string texto) =>
         cut.FindAll("[role=tab]").Single(b => b.TextContent.Trim().StartsWith(texto, StringComparison.Ordinal));
 
@@ -302,13 +312,16 @@ public class Empresa360PaginaTests : BunitContext
     [Fact]
     public void Todos_ordena_del_peor_estado_al_mejor_y_pagina_de_20_en_20()
     {
-        Registrar(Empresa());
+        var mediador = Registrar(Empresa());
 
         var cut = Renderizar();
 
         var estados = EstadosDeLasFilas(cut);
         estados.Should().HaveCount(20);
-        estados.Take(6).Should().Equal(["Vencido", "Vencido", "Vencido", "Urgente", "Urgente", "Próximo"]);
+        estados.Take(6).Should().Equal(["Vencido", "Vencido", "Vencido", "Por vencer", "Por vencer", "Por vencer"]);
+        EstadosDeCodigoDeLasFilas(cut, mediador).Take(6).Should().Equal(
+            [EstadoDocumento.Vencido, EstadoDocumento.Vencido, EstadoDocumento.Vencido, EstadoDocumento.Urgente, EstadoDocumento.Urgente, EstadoDocumento.Proximo],
+            "los dos se rotulan «Por vencer», pero lo urgente sigue yendo delante de lo próximo");
         cut.Find(".paginador-texto").TextContent.Should().Contain("Página 1 de 2");
     }
 
@@ -326,32 +339,37 @@ public class Empresa360PaginaTests : BunitContext
     }
 
     [Theory]
-    [InlineData("Por vencer", "por-vencer", new[] { "Urgente", "Urgente", "Próximo" })]
-    [InlineData("Sin documentación válida", "sin-documentacion-valida", new[] { "Vencido", "Vencido", "Vencido" })]
-    public async Task Cada_chip_enseña_solo_su_tramo_y_viaja_en_la_url(string chip, string enUrl, string[] esperados)
+    [InlineData("Por vencer", "por-vencer", new[] { "Por vencer", "Por vencer", "Por vencer" },
+        new[] { EstadoDocumento.Urgente, EstadoDocumento.Urgente, EstadoDocumento.Proximo })]
+    [InlineData("Sin documentación válida", "sin-documentacion-valida", new[] { "Vencido", "Vencido", "Vencido" },
+        new[] { EstadoDocumento.Vencido, EstadoDocumento.Vencido, EstadoDocumento.Vencido })]
+    public async Task Cada_chip_enseña_solo_su_tramo_y_viaja_en_la_url(
+        string chip, string enUrl, string[] rotulosEsperados, EstadoDocumento[] estadosEsperados)
     {
-        Registrar(Empresa());
+        var mediador = Registrar(Empresa());
         var cut = Renderizar();
 
         await cut.FindAll(".empresa360-chip").Single(b => b.TextContent.StartsWith(chip, StringComparison.Ordinal)).ClickAsync(new MouseEventArgs());
 
-        EstadosDeLasFilas(cut).Should().Equal(esperados);
+        EstadosDeLasFilas(cut).Should().Equal(rotulosEsperados);
+        EstadosDeCodigoDeLasFilas(cut, mediador).Should().Equal(estadosEsperados.Cast<EstadoDocumento?>());
         Navegacion.Uri.Should().Contain($"estado={enUrl}");
     }
 
     [Fact]
     public async Task Al_dia_cruza_la_frontera_de_pagina_de_la_lista_ordenada_sin_perder_filas()
     {
-        Registrar(Empresa());
+        var mediador = Registrar(Empresa());
         var cut = Renderizar();
 
         await cut.FindAll(".empresa360-chip").Single(b => b.TextContent.StartsWith("Al día", StringComparison.Ordinal)).ClickAsync(new MouseEventArgs());
 
-        // Tramo [6, 25) de la lista ordenada: 14 filas de su página 1 y 5 de la 2.
-        var estados = EstadosDeLasFilas(cut);
-        estados.Should().HaveCount(19);
-        estados.Should().OnlyContain(e => e == "Vigente" || e == "Sin caducidad");
-        estados.Take(12).Should().OnlyContain(e => e == "Vigente", "dentro del tramo también manda el orden");
+        // Tramo [6, 25) de la lista ordenada: 14 filas de su página 1 y 5 de la 2. Vigente y Sin caducidad se
+        // rotulan los dos «Sin incidencias»; el orden dentro del tramo se comprueba con el estado de código.
+        EstadosDeLasFilas(cut).Should().HaveCount(19).And.OnlyContain(e => e == "Sin incidencias");
+        var estados = EstadosDeCodigoDeLasFilas(cut, mediador);
+        estados.Take(12).Should().OnlyContain(e => e == EstadoDocumento.Vigente, "dentro del tramo también manda el orden");
+        estados.Skip(12).Should().HaveCount(7).And.OnlyContain(e => e == EstadoDocumento.SinCaducidad);
         cut.FindAll(".paginador").Should().BeEmpty("19 caben en una página");
     }
 
@@ -364,31 +382,34 @@ public class Empresa360PaginaTests : BunitContext
     [Fact]
     public async Task Un_chip_de_varias_paginas_llena_cada_pagina_con_su_tramo()
     {
-        Registrar(Empresa([
+        var mediador = Registrar(Empresa([
             .. Enumerable.Range(0, 3).Select(_ => Trabajador(EstadoDocumento.Vencido)),
             Trabajador(EstadoDocumento.Proximo),
             .. Enumerable.Range(0, 30).Select(_ => Trabajador(EstadoDocumento.Vigente)),
         ]));
         var cut = Renderizar("?estado=al-dia");
 
-        EstadosDeLasFilas(cut).Should().HaveCount(20).And.OnlyContain(e => e == "Vigente");
+        EstadosDeLasFilas(cut).Should().HaveCount(20).And.OnlyContain(e => e == "Sin incidencias");
+        EstadosDeCodigoDeLasFilas(cut, mediador).Should().HaveCount(20).And.OnlyContain(e => e == EstadoDocumento.Vigente);
         cut.Find(".paginador-texto").TextContent.Should().Contain("Página 1 de 2").And.Contain("30");
         cut.Find(".empresa360-pie").TextContent.Should().Contain("Mostrando 20 de 30 · Ordenados del peor estado al mejor");
 
         await cut.FindAll(".paginador button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
 
-        EstadosDeLasFilas(cut).Should().HaveCount(10).And.OnlyContain(e => e == "Vigente");
+        EstadosDeLasFilas(cut).Should().HaveCount(10).And.OnlyContain(e => e == "Sin incidencias");
+        EstadosDeCodigoDeLasFilas(cut, mediador).Should().HaveCount(10).And.OnlyContain(e => e == EstadoDocumento.Vigente);
     }
 
     [Fact]
     public void El_chip_de_la_url_se_adopta_al_entrar()
     {
-        Registrar(Empresa());
+        var mediador = Registrar(Empresa());
 
         var cut = Renderizar("?estado=por-vencer");
 
         ChipPulsado(cut).Should().StartWith("Por vencer");
-        EstadosDeLasFilas(cut).Should().Equal(["Urgente", "Urgente", "Próximo"]);
+        EstadosDeLasFilas(cut).Should().Equal(["Por vencer", "Por vencer", "Por vencer"]);
+        EstadosDeCodigoDeLasFilas(cut, mediador).Should().Equal(EstadoDocumento.Urgente, EstadoDocumento.Urgente, EstadoDocumento.Proximo);
     }
 
     // ── Pestañas ──────────────────────────────────────────────────────────

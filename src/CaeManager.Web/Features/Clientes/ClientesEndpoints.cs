@@ -1,7 +1,9 @@
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Importacion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Exportacion;
+using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
 
@@ -37,13 +39,15 @@ public static class ClientesEndpoints
             await foreach (var cliente in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
                 mediator.Send(
                     new ObtenerClientesQuery(
-                        // Posicionales, en el orden del record: búsqueda, solo críticos,
-                        // Gestor CAE de referencia y estado documental.
+                        // Posicionales, en el orden del record: búsqueda, solo críticos y
+                        // Gestor CAE de referencia. El estado es la selección de la franja
+                        // (varios nombres separados por coma) y va en EstadosDocumentales.
                         string.IsNullOrWhiteSpace(q) ? null : q,
                         critico ? true : null,
                         Guid.TryParse(ejecutivo, out var ejecutivoId) ? ejecutivoId : null,
-                        Enum.TryParse<EstadoDocumento>(estado, out var estadoDocumental) ? estadoDocumental : null,
+                        EstadoDocumental: null,
                         Pagina: pagina,
+                        EstadosDocumentales: SeleccionEstados.Separar<EstadoDocumento>(estado) is { Count: > 0 } estados ? estados : null,
                         TamanoPagina: tamanoPagina,
                         OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
                         Descendente: desc),
@@ -94,14 +98,16 @@ public static class ClientesEndpoints
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "plantilla-clientes.xlsx"))
-        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador));
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         endpoints.MapGet("/clientes/plantilla-combinada.xlsx", (IPlantillaCombinadaService servicio) =>
             Results.File(
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "plantilla-combinada.xlsx"))
-        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador));
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         return endpoints;
     }

@@ -22,8 +22,12 @@ public static class VisitasEndpoints
 
             if (resultado.EsFallido)
             {
-                // Fuera de alcance responde igual que inexistente; el resto son
-                // estados de la Visita que el Gestor CAE puede entender.
+                // Fuera de alcance responde igual que inexistente; un rol que no descarga
+                // (Consulta), 403; el resto son estados de la Visita que el Gestor CAE
+                // puede entender.
+                if (resultado.Error.Equals(ObtenerPaqueteDocumentalVisitaQueryHandler.RolSinDescarga))
+                    return Results.Text(resultado.Error.Mensaje, "text/plain; charset=utf-8", statusCode: StatusCodes.Status403Forbidden);
+
                 return resultado.Error.Equals(ObtenerSolicitudAccesoCorreoQueryHandler.NoEncontrada)
                     ? Results.NotFound()
                     : Results.Text(resultado.Error.Mensaje, "text/plain; charset=utf-8", statusCode: StatusCodes.Status409Conflict);

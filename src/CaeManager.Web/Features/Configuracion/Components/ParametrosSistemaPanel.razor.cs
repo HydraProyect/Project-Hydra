@@ -3,13 +3,20 @@ using CaeManager.Application.Configuracion.Commands.ActualizarParametroSistema;
 using CaeManager.Application.Configuracion.Commands.ActualizarPresupuestoIa;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.EncargoDeAdministracion.Recursos;
+using CaeManager.Web.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Configuracion.Components;
 
 public partial class ParametrosSistemaPanel : ComponentBase
 {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+    [Inject] private IStringLocalizer<TextosEncargoAdministracion> TextosEncargo { get; set; } = default!;
+
     private bool _cargando = true;
     private bool _errorCarga;
     private bool _guardando;
@@ -33,7 +40,20 @@ public partial class ParametrosSistemaPanel : ComponentBase
     private string _presupuestoMensualIaUsd = string.Empty;
     private string? _mensajeErrorPresupuestoIa;
 
-    protected override Task OnInitializedAsync() => CargarAsync();
+    /// <summary>
+    /// Quien administra por Encargo de administración (decisión D-8, 2026-10-08) no fija el
+    /// presupuesto de IA: <c>ActualizarPresupuestoIaCommand</c> está entre los actos excluidos y la
+    /// tarjeta no se le ofrece. La barrera es la de Application; esto evita ofrecer lo que falla.
+    /// </summary>
+    private bool _presupuestoIaReservado;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // El estado de autenticación del circuito ya está resuelto: se asigna antes del primer render.
+        if (EstadoAutenticacion is not null)
+            _presupuestoIaReservado = PaginasExcluidasDelEncargo.ActuaPorEncargo((await EstadoAutenticacion).User);
+        await CargarAsync();
+    }
 
     private async Task CargarAsync()
     {

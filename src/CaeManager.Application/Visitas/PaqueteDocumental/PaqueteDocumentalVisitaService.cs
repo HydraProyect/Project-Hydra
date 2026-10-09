@@ -253,7 +253,9 @@ public class PaqueteDocumentalVisitaService(
         CancellationToken cancellationToken)
     {
         using var memoria = new MemoryStream();
-        var nombresUsados = new HashSet<string>();
+        // Sin distinguir mayúsculas: quien extrae el zip lo hace en Windows, donde «ANA» y «Ana» son
+        // el mismo fichero.
+        var nombresUsados = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var agregados = new List<DocumentoEnPaquete>();
 
         using (var zip = new ZipArchive(memoria, ZipArchiveMode.Create, leaveOpen: true))
@@ -282,7 +284,7 @@ public class PaqueteDocumentalVisitaService(
                             : razonSocialEmpresa ?? "Empresa";
 
                         var extension = Path.GetExtension(documento.ArchivoUrl);
-                        var nombreEntrada = SanearNombreEntrada($"{carpeta}/{tipoNombre} - {titular}{extension}", nombresUsados);
+                        var nombreEntrada = SanearNombreEntrada(carpeta, $"{tipoNombre} - {titular}", extension, nombresUsados);
 
                         var entrada = zip.CreateEntry(nombreEntrada, CompressionLevel.Fastest);
                         await using var flujoEntrada = entrada.Open();
@@ -298,23 +300,35 @@ public class PaqueteDocumentalVisitaService(
         return agregados.Count > 0 ? (memoria.ToArray(), agregados) : null;
     }
 
-    private static string SanearNombreEntrada(string nombrePropuesto, HashSet<string> nombresUsados)
+    /// <summary>
+    /// Caracteres que Windows no admite en un nombre de fichero, junto con los de control (por
+    /// debajo del espacio). La lista es fija a propósito: <see cref="Path.GetInvalidFileNameChars"/>
+    /// depende del sistema donde corre el servidor —en Linux solo devuelve «\0» y «/»— y quien abre
+    /// el zip lo hace en Windows.
+    /// </summary>
+    private static readonly char[] CaracteresNoValidosEnNombre = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
+
+    /// <summary>
+    /// Nombre de una entrada del zip: «carpeta/nombre.ext». La carpeta la decide el servicio y es el
+    /// único nivel que existe dentro del zip. El nombre sale de datos que escribe el usuario (Tipo
+    /// de documento y titular), así que se sanea entero —barras incluidas, que de otro modo abrirían
+    /// una subcarpeta— y se le quitan los puntos y espacios del final, para que no queden pegados a
+    /// la extensión. A la extensión se le quitan también, porque Windows no admite un fichero que
+    /// acabe en punto o en espacio. Si dos documentos acaban con el mismo nombre —sin distinguir
+    /// mayúsculas—, el segundo lleva « (2)».
+    /// </summary>
+    private static string SanearNombreEntrada(string carpeta, string nombre, string extension, HashSet<string> nombresUsados)
     {
-        var invalidos = Path.GetInvalidFileNameChars();
-        var limpio = string.Concat(nombrePropuesto.Select(c => invalidos.Contains(c) && c != '/' ? '_' : c));
+        var nombreLimpio = Sanear(nombre).TrimEnd('.', ' ');
+        var extensionLimpia = Sanear(extension).TrimEnd('.', ' ');
 
-        if (nombresUsados.Add(limpio)) return limpio;
-
-        var extension = Path.GetExtension(limpio);
-        var sinExtension = limpio[..^extension.Length];
-        var contador = 2;
-        string candidato;
-        do
-        {
-            candidato = $"{sinExtension} ({contador}){extension}";
-            contador++;
-        } while (!nombresUsados.Add(candidato));
+        var candidato = $"{carpeta}/{nombreLimpio}{extensionLimpia}";
+        for (var contador = 2; !nombresUsados.Add(candidato); contador++)
+            candidato = $"{carpeta}/{nombreLimpio} ({contador}){extensionLimpia}";
 
         return candidato;
+
+        static string Sanear(string texto) =>
+            string.Concat(texto.Select(c => c < ' ' || CaracteresNoValidosEnNombre.Contains(c) ? '_' : c));
     }
 }

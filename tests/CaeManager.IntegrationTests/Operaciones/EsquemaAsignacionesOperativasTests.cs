@@ -430,6 +430,33 @@ public class EsquemaAsignacionesOperativasTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Era_principal_al_cerrarse_por_cascada_solo_cabe_en_una_cartera_cerrada()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var operacion = await OperacionExternaAsync(contexto);
+
+        // Control positivo: la cartera principal que cierra la cascada guarda el dato, y sigue sin ser principal.
+        var cerrada = CarteraDe(operacion, Roles.GestorCae);
+        cerrada.DesignarPrincipal();
+        cerrada.CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion.Revocada, DateTime.UtcNow);
+        contexto.AsignacionesCartera.Add(cerrada);
+        await contexto.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync();
+        (await contexto.AsignacionesCartera.AsNoTracking().SingleAsync(c => c.Id == cerrada.Id))
+            .Should().Match<AsignacionCartera>(c => c.EraPrincipalAlCerrarsePorCascada && !c.EsPrincipal);
+
+        // El dominio solo lo escribe al cerrar; se fuerza sobre una cartera viva para llegar al CHECK.
+        var viva = CarteraDe(operacion, Roles.GestorCae);
+        typeof(AsignacionCartera).GetProperty(nameof(AsignacionCartera.EraPrincipalAlCerrarsePorCascada))!.SetValue(viva, true);
+        contexto.AsignacionesCartera.Add(viva);
+
+        (await contexto.Invoking(c => c.SaveChangesAsync()).Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>()
+            .Which.Should().Match<PostgresException>(e =>
+                e.SqlState == PostgresErrorCodes.CheckViolation
+                && e.ConstraintName == AsignacionCarteraConfiguration.RestriccionEraPrincipal);
+    }
+
+    [Fact]
     public void Los_roles_que_el_dominio_deja_marcar_son_los_de_Identity_y_los_del_CHECK()
     {
         // Domain no referencia los roles de Identity y los repite como texto: aquí se atan.

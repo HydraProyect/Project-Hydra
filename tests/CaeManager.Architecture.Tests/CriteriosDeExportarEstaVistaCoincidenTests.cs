@@ -46,6 +46,29 @@ public class CriteriosDeExportarEstaVistaCoincidenTests
             $"«Exportar esta vista» de {listado} debe llevar a {ruta} los mismos criterios que el endpoint lee");
     }
 
+    /// <summary>
+    /// El criterio «estado» es la selección de la franja de estado: varios nombres separados por coma
+    /// («Por vencer» son dos, <c>Urgente,Proximo</c>). Leerlo con <c>Enum.TryParse</c> no lo rechaza:
+    /// en un enum sin <c>[Flags]</c>, una lista con comas se convierte en la combinación binaria de sus
+    /// valores, que es OTRO estado o ninguno, y el Excel saldría con filas que no son las de la pantalla.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Listados))]
+    public void El_endpoint_no_lee_el_criterio_estado_como_un_solo_valor_de_enum(string listado, string ruta)
+    {
+        var endpoint = File.ReadAllText(Path.Combine(
+            RaizDelRepositorio(), "src", "CaeManager.Web", "Features", listado, $"{listado}Endpoints.cs"));
+        endpoint.Should().Contain(ruta, "control positivo: es el fichero que sirve la exportación");
+
+        Regex.IsMatch(endpoint, @"Enum\.TryParse<\w+>\(\s*estado\b").Should().BeFalse(
+            $"{listado}Endpoints.cs debe leer «estado» con SeleccionEstados.Separar o pasarlo como texto a una consulta que admita varios");
+    }
+
+    [Fact]
+    public void El_detector_de_estado_leido_como_un_solo_valor_ve_la_forma_que_prohibe() =>
+        Regex.IsMatch("Estado: Enum.TryParse<EstadoCentro>(estado, out var e) ? e : null", @"Enum\.TryParse<\w+>\(\s*estado\b")
+            .Should().BeTrue("control positivo del patrón: es la línea que tenían Centros, Clientes y Documentos");
+
     /// <summary>Las claves <c>["nombre"] =</c> del inicializador de <c>CriteriosExportar</c>.</summary>
     private static List<string> CriteriosDeLaPagina(string fuente)
     {

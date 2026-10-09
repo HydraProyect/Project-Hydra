@@ -438,10 +438,10 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             if (!string.IsNullOrWhiteSpace(TextoBusqueda))
                 lista = lista.Where(t => t.TrabajadorNombre.Contains(TextoBusqueda, StringComparison.OrdinalIgnoreCase)).ToList();
 
-            if (EstadoFiltrado is { } estado)
+            if (EstadosFiltrados is { Count: > 0 } estados)
                 // «Vencido» incluye al vencido en tolerancia: filtrar por vencidos no puede esconderlo.
-                lista = lista.Where(t => t.Documentos.Any(d => d.Estado == estado
-                    || (estado == EstadoDocumento.Vencido && d.Estado == EstadoDocumento.EnTolerancia))).ToList();
+                lista = lista.Where(t => t.Documentos.Any(d => estados.Contains(d.Estado)
+                    || (d.Estado == EstadoDocumento.EnTolerancia && estados.Contains(EstadoDocumento.Vencido)))).ToList();
 
             return lista;
         }
@@ -452,12 +452,12 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// que el resto de la aplicación (<c>nameof(EstadoDocumento.X)</c>, igual
     /// que <see cref="EstadoDocumentoUi.OpcionesDocumentales"/>). Un valor
     /// desconocido no filtra: la lista completa es el desenlace honesto de un
-    /// filtro que no se entiende, no una lista vacía.
+    /// filtro que no se entiende, no una lista vacía. Admite varios separados por
+    /// comas: la opción «Por vencer» lleva Urgente y Próximo, que comparten rótulo.
     /// </summary>
-    private EstadoDocumento? EstadoFiltrado =>
-        Enum.TryParse<EstadoDocumento>(FiltroEstado, out var estado) ? estado : null;
+    private IReadOnlyList<EstadoDocumento> EstadosFiltrados => SeleccionEstados.Separar<EstadoDocumento>(FiltroEstado);
 
-    private bool HayFiltroAplicado => !string.IsNullOrWhiteSpace(TextoBusqueda) || EstadoFiltrado is not null;
+    private bool HayFiltroAplicado => !string.IsNullOrWhiteSpace(TextoBusqueda) || EstadosFiltrados.Count > 0;
 
     /// <summary>
     /// Opciones del filtro de estado de la barra de trabajo de Centro 360. Un
@@ -466,15 +466,16 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// Se ordenan de peor a mejor por el mismo motivo que
     /// <see cref="EstadoDocumentoUi.OpcionesDocumentales"/>: al filtrar, lo que
     /// el gestor busca es lo que le urge. «Sin confirmar» (vigencia sin anotar)
-    /// va detrás de lo malo conocido y delante de lo vigente.
+    /// va detrás de lo malo conocido y delante de lo vigente. Urgente y Próximo
+    /// se rotulan igual («Por vencer»), así que son una sola opción con los dos
+    /// valores: dos opciones con el mismo texto no se podrían distinguir.
     /// </summary>
     public static IReadOnlyList<OpcionEstado> OpcionesEstadoDocumental =>
     [
         new(nameof(EstadoDocumento.Vencido), EstadoDocumentoUi.Texto(EstadoDocumento.Vencido)),
         new(nameof(EstadoDocumento.Faltante), EstadoDocumentoUi.Texto(EstadoDocumento.Faltante)),
         new(nameof(EstadoDocumento.EnTolerancia), EstadoDocumentoUi.Texto(EstadoDocumento.EnTolerancia)),
-        new(nameof(EstadoDocumento.Urgente), EstadoDocumentoUi.Texto(EstadoDocumento.Urgente)),
-        new(nameof(EstadoDocumento.Proximo), EstadoDocumentoUi.Texto(EstadoDocumento.Proximo)),
+        new(nameof(EstadoDocumento.Urgente) + "," + nameof(EstadoDocumento.Proximo), EstadoDocumentoUi.Texto(EstadoDocumento.Urgente)),
         new(nameof(EstadoDocumento.SinConfirmar), EstadoDocumentoUi.Texto(EstadoDocumento.SinConfirmar)),
         new(nameof(EstadoDocumento.Vigente), EstadoDocumentoUi.Texto(EstadoDocumento.Vigente))
     ];
@@ -488,7 +489,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         get
         {
             var porTexto = string.IsNullOrWhiteSpace(TextoBusqueda) ? null : $"«{TextoBusqueda}»";
-            var porEstado = EstadoFiltrado is { } estado ? EstadoDocumentoUi.Texto(estado).ToLowerInvariant() : null;
+            var porEstado = EstadosFiltrados is [var estado, ..] ? EstadoDocumentoUi.Texto(estado).ToLowerInvariant() : null;
 
             return (porTexto, porEstado) switch
             {

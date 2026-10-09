@@ -52,7 +52,9 @@ public class PanelDocumentacionBaseTests : BunitContext
         cut.FindAll(".panel-doc-base-fila").Should().HaveCount(4);
         cut.Markup.Should().Contain("Aptitud médica").And.Contain("Formación Art. 19")
             .And.Contain("Información Art. 18").And.Contain("Entrega de EPI");
-        cut.Markup.Should().Contain("Próximo a vencer");
+        cut.FindAll(".panel-doc-base-fila").Select(f => f.TextContent).Should().ContainSingle(f => f.Contains("Por vencer"))
+            .Which.Should().Contain("Formación Art. 19");
+        cut.Markup.Should().NotContain("Próximo a vencer");
     }
 
     [Fact]
@@ -64,7 +66,7 @@ public class PanelDocumentacionBaseTests : BunitContext
         cut.Markup.Should().Contain("Falta algo en lo básico").And.NotContain("Al día en lo básico");
         var filas = cut.FindAll(".panel-doc-base-fila").Select(f => f.TextContent).ToList();
         filas[0].Should().Contain("Vencido");
-        filas[1].Should().Contain("Falta");
+        filas[1].Should().Contain("Pendiente").And.NotContain("Falta");
         filas[2].Should().Contain("Vigencia sin confirmar");
     }
 

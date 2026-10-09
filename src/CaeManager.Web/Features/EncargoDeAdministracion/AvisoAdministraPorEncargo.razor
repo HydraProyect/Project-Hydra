@@ -1,0 +1,30 @@
+@* Quien administra por Encargo de administración (decisión D-8, 2026-10-08) lo ve escrito: su perfil
+   de Administrador o Dirección CAE aquí es prestado, y hay actos que siguen reservados a un
+   Administrador propio del Tenant propietario. Se pinta solo si el principal del circuito lleva el
+   claim del encargo; para cualquier otro usuario no existe. No autoriza nada: es un rótulo. *@
+@using CaeManager.Web.Features.EncargoDeAdministracion.Recursos
+@using CaeManager.Web.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosEncargoAdministracion> Textos
+
+@if (_actuaPorEncargo)
+{
+    <div class="aviso-por-encargo" role="note" data-testid="aviso-por-encargo">
+        <Badge Tono="TonoBadge.Info">@Textos["AvisoPorEncargoEtiqueta"]</Badge>
+        <strong>@Textos["AvisoPorEncargoTitulo"]</strong>
+        <span>@Textos["AvisoPorEncargoCuerpo"]</span>
+    </div>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    private bool _actuaPorEncargo;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (EstadoAutenticacion is null) return;
+        _actuaPorEncargo = PaginasExcluidasDelEncargo.ActuaPorEncargo((await EstadoAutenticacion).User);
+    }
+}

@@ -320,7 +320,7 @@ public class CalendarioTests : BunitContext
         var dia10 = BotonDelDia(cut, Dia10);
         dia10.QuerySelector(".badge")!.ClassList.Should().Contain("badge-peligro");
         dia10.QuerySelector(".badge")!.TextContent.Trim().Should().Be("2", "el número es el recuento del día, no el de los urgentes");
-        dia10.GetAttribute("aria-label").Should().Contain("2 vencimientos (peor estado: urgente)");
+        dia10.GetAttribute("aria-label").Should().Contain("2 vencimientos (peor estado: por vencer (urgente))");
 
         BotonDelDia(cut, Dia11).QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia");
     }

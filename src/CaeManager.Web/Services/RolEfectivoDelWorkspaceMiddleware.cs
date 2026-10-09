@@ -50,6 +50,20 @@ namespace CaeManager.Web.Services;
 /// </para>
 ///
 /// <para>
+/// <b>El rol que pone ya no es siempre el de la cartera</b> (decisión D-8,
+/// 2026-10-08). Con Encargo de administración vigente del Tenant propietario,
+/// <c>ObtenerRolEfectivoAsync</c> devuelve el rol elevado —Administrador o
+/// Dirección CAE—, y este middleware lo pone tal cual: el Administrador del
+/// Operador CAE externo del ejemplo de arriba vuelve a pasar las puertas de
+/// Administrador, pero solo donde hay encargo y con cartera. Junto al rol
+/// elevado deja el claim <see cref="TipoClaimEncargoAdministracion"/>, que es lo
+/// que <see cref="PaginasExcluidasDelEncargoAuthorizationHandler"/> mira para
+/// negarle las páginas y endpoints que el encargo no abre. Ese claim solo lo
+/// pone este middleware, en cada petición: el que viniera en el principal se
+/// retira antes de decidir.
+/// </para>
+///
+/// <para>
 /// <b>Posición y coste.</b> Entre <c>UseAuthentication</c> y
 /// <c>UseAuthorization</c>, después del middleware del plano 3: es la ventana
 /// en la que el principal ya existe y todavía no lo ha leído ninguna puerta.
@@ -80,19 +94,49 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
     /// </summary>
     public const string TipoClaimRolDeSesionOrigen = "hydra:rol_sesion_origen";
 
+    /// <summary>
+    /// Claim en memoria que acompaña al rol cuando lo ha subido un Encargo de
+    /// administración (decisión D-8, 2026-10-08). Su valor es el Id del encargo.
+    /// No se persiste en la cookie: se calcula en cada petición, igual que el
+    /// rol efectivo, y el circuito de Blazor lo conserva congelado junto a él.
+    ///
+    /// <para>
+    /// <b>No concede nada: restringe.</b> Lo leen
+    /// <see cref="PaginasExcluidasDelEncargoAuthorizationHandler"/>, para negar
+    /// las páginas que el rol elevado abriría y el encargo no cubre, y
+    /// <see cref="RevalidacionCircuitoActivoHandler"/>, para cortar el circuito
+    /// cuando el encargo deja de elevar. Por eso se retira siempre antes de
+    /// volver a ponerlo: un valor que llegara de fuera no debe sobrevivir.
+    /// </para>
+    /// </summary>
+    public const string TipoClaimEncargoAdministracion = "talveg:encargo_administracion";
+
     public async Task InvokeAsync(
         HttpContext contexto,
         IClienteActivoSeleccionado clienteActivoSeleccionado,
         ICurrentUserService currentUserService,
+        IEncargoDeAdministracionActual encargoDeAdministracionActual,
         ILogger<RolEfectivoDelWorkspaceMiddleware> logger)
     {
+        // Antes de decidir nada: el claim del encargo solo lo pone este
+        // middleware, en esta petición.
+        RetirarClaimDelEncargo(contexto.User);
+
         if (DebeAjustarse(contexto, clienteActivoSeleccionado))
         {
             var rolDeSesion = contexto.User.FindFirst(ClaimTypes.Role)?.Value;
             var rolEfectivo = await currentUserService.ObtenerRolEfectivoAsync();
 
+            // Misma resolución que acaba de dar el rol (no una segunda consulta):
+            // el claim del encargo y el rol elevado salen de la misma decisión.
+            var encargoQueEleva = clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } operacionId
+                ? encargoDeAdministracionActual.EncargoDeLaUltimaResolucion(operacionId)
+                : null;
+
             ConservarRolDeSesionOrigen(contexto.User, rolDeSesion);
             AplicarRol(contexto.User, rolEfectivo);
+            if (rolEfectivo is not null && encargoQueEleva is { } encargoId)
+                AplicarClaimDelEncargo(contexto.User, encargoId);
 
             // Se registra porque hasta REC-189 esta sustitución no dejaba
             // rastro alguno: el propio hallazgo N-5 que este middleware
@@ -208,6 +252,19 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
     /// puede llevar varias, y dejar una con el rol viejo bastaría para que
     /// <c>IsInRole</c> siguiera contestando que sí.
     /// </summary>
+    private static void RetirarClaimDelEncargo(ClaimsPrincipal principal)
+    {
+        foreach (var identidad in principal.Identities)
+            foreach (var claim in identidad.FindAll(TipoClaimEncargoAdministracion).ToList())
+                identidad.RemoveClaim(claim);
+    }
+
+    private static void AplicarClaimDelEncargo(ClaimsPrincipal principal, Guid encargoId)
+    {
+        if (principal.Identity is ClaimsIdentity identidadPrincipal)
+            identidadPrincipal.AddClaim(new Claim(TipoClaimEncargoAdministracion, encargoId.ToString()));
+    }
+
     private static void AplicarRol(ClaimsPrincipal principal, string? rolEfectivo)
     {
         foreach (var identidad in principal.Identities)

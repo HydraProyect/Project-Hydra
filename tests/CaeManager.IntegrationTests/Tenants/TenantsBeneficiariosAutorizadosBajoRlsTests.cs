@@ -782,7 +782,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
             new AuthenticationStateProviderFalso(new ClaimsPrincipal(identidad)),
             new HttpContextAccessorNulo(),
             new SinClienteActivo(),
-            servicios.BuildServiceProvider());
+            servicios.AddTechoDeRolSinEncargoSembrado().BuildServiceProvider());
     }
 
     private static string? CookieEmitida(HttpContext contexto, string nombre)
