@@ -1085,6 +1085,38 @@ public class EmpresasListaGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Una fila que se enfocó y ya no está en la página (cambió el filtro o la página) no es
+    /// «la fila enfocada»: «e» edita entonces la ficha abierta, que es lo que el usuario ve.
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_no_edita_una_fila_enfocada_que_ya_no_esta_en_la_pagina()
+    {
+        var enfocada = Empresa("Aislamientos Nervión S.L.");
+        var delPanel = Empresa("Refrielectric S.A.");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { enfocada, delPanel },
+            Retener = p => p is ObtenerEmpresaPorIdQuery ? new TaskCompletionSource<object>().Task : null
+        };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("j"));
+        cut.Find(".fila-enfocada .enlace-nombre-fila").TextContent.Trim().Should().Be("Aislamientos Nervión S.L.", "control positivo");
+
+        mediador.Almacen.Remove(enfocada);
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("empresas?q=Refrielectric"));
+        cut.WaitForAssertion(() => cut.FindAll(".enlace-nombre-fila").Select(n => n.TextContent.Trim())
+            .Should().Equal(["Refrielectric S.A."], "control positivo: la fila enfocada salió de la página"));
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Empresa, delPanel.Id, delPanel.RazonSocial, "documentacion"));
+
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("e"));
+
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, enfocada.Id).Should().BeFalse();
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, delPanel.Id).Should().BeTrue("se edita la ficha que se está viendo");
+    }
+
+    /// <summary>
     /// P41b (2026-09-19): la baja de la empresa solo vive aquí, en la lista; la ficha 360 ya no
     /// la ofrece. Y dentro de la lista, solo en la selección múltiple (patrón de listados sin
     /// menú «⋯», 2026-10-08): la fila no la ofrece. Lo que se pierda aquí se pierde en todo el

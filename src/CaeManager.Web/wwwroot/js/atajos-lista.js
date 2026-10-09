@@ -89,14 +89,19 @@ export function registrarAtajosLista(dotNetRef) {
     let ultimaGSuelta = 0;
 
     const manejador = async (evento) => {
-        // Cualquier tecla consume el prefijo; solo lo vuelve a armar una «g» que el módulo
+        // Una tecla con modificador (o el modificador solo: Ctrl, AltGr) no es de nadie y no
+        // toca el prefijo: el módulo global tampoco lo limpia ahí, y «g, Ctrl, e» sigue
+        // siendo «ir a Empresas».
+        if (evento.ctrlKey || evento.metaKey || evento.altKey) return;
+
+        // Cualquier otra tecla consume el prefijo; solo lo vuelve a armar una «g» que el módulo
         // global también trataría como prefijo (más abajo, pasadas sus mismas guardas).
         const trasPrefijoGlobal = Date.now() - ultimaGSuelta < VENTANA_PREFIJO_GLOBAL_MS;
         ultimaGSuelta = 0;
 
         const esPrefijoGlobal = evento.key === 'g';
         if (!esPrefijoGlobal && !TECLAS_ADMITIDAS.includes(evento.key)) return;
-        if (evento.defaultPrevented || evento.isComposing || evento.ctrlKey || evento.metaKey || evento.altKey) return;
+        if (evento.defaultPrevented || evento.isComposing) return;
         if (hayDialogoModalAbierto()) return;
 
         const activo = document.activeElement;
@@ -106,7 +111,7 @@ export function registrarAtajosLista(dotNetRef) {
         );
         if (enCampoEditable) return;
 
-        // Una «g» tecleada dentro de un campo, con un diálogo abierto o con modificador no
+        // Una «g» tecleada dentro de un campo o con un diálogo abierto no
         // arma nada (el módulo global tampoco): la «e» que venga después es la de editar.
         // Con el prefijo ya armado, la segunda «g» lo consume, igual que allí.
         if (esPrefijoGlobal) {

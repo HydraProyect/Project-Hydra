@@ -106,6 +106,20 @@ public class CabeceraGestorCaeTests : BunitContext
         cut.FindAll("[data-gestor-cae='sin-principal']").Should().BeEmpty();
     }
 
+    /// <summary>
+    /// La misma persona como principal de dos Asignaciones de Operación sale una sola vez: dos
+    /// elementos con la misma clave matarían el circuito de Blazor.
+    /// </summary>
+    [Fact]
+    public void Quien_es_principal_de_dos_Asignaciones_de_Operacion_sale_una_sola_vez()
+    {
+        var marta = Persona("Marta Ibarra");
+        var cut = Renderizar(_ => [Operacion(marta), Operacion(marta, Persona("Ane Larrea"))]);
+
+        cut.FindAll("[data-gestor-cae='principal']").Should().ContainSingle();
+        cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle();
+    }
+
     /// <summary>Sin principal es un estado válido: se dice, y los de apoyo siguen saliendo.</summary>
     [Fact]
     public void Sin_principal_lo_dice_y_sigue_pintando_a_los_de_apoyo()

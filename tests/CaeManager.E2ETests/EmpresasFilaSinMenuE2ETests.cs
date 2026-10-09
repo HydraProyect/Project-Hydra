@@ -52,6 +52,17 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixture fixture)
         await Expect(fila.Locator(".boton-expandir-fila")).ToHaveAttributeAsync("aria-expanded", "true");
         await Expect(panel).ToHaveCountAsync(0);
 
+        // La pastilla de detecciones navega a la detección y NO abre además la vista rápida
+        // (si el clic subiera a la fila, la URL de destino llevaría el «ctx» del panel).
+        var pastilla = page.Locator(".marco-lista-empresas button.badge-deteccion").First;
+        await Expect(pastilla).ToBeVisibleAsync();
+        await pastilla.ClickAsync();
+        await page.WaitForURLAsync(new Regex(@"/empresas/[0-9a-f-]{36}/deteccion-trabajadores$"));
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Expect(page).ToHaveURLAsync(new Regex(@"/deteccion-trabajadores$"));
+        await Expect(panel).ToHaveCountAsync(0);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
+
         // Un punto de la fila que no es ningún control: la celda de cumplimiento.
         await fila.Locator(":scope > :nth-child(3)").ClickAsync();
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToContainTextAsync(nombre);

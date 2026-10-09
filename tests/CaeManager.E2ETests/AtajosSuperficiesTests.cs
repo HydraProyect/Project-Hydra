@@ -139,6 +139,22 @@ public class AtajosSuperficiesTests : IAsyncLifetime
         Assert.Equal(["RecibirAtajo:e"], await LlamadasAsync());
     }
 
+    /// <summary>
+    /// Un modificador pulsado entre la «g» y la «e» no limpia el prefijo en el módulo global;
+    /// si la lista lo olvidara, «g, Ctrl, e» navegaría y además editaría (revisión puente).
+    /// </summary>
+    [Theory]
+    [InlineData("Control")]
+    [InlineData("Alt")]
+    public async Task Un_modificador_suelto_entre_g_y_e_no_convierte_la_e_en_editar(string modificador)
+    {
+        await _page.Keyboard.PressAsync("g");
+        await _page.Keyboard.PressAsync(modificador);
+        await _page.Keyboard.PressAsync("e");
+
+        Assert.Equal(["IrA:e"], await LlamadasAsync());
+    }
+
     [Fact]
     public async Task La_e_no_edita_mientras_se_escribe_en_un_campo()
     {
