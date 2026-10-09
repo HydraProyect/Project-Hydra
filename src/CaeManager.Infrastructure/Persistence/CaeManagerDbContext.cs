@@ -282,6 +282,7 @@ public class CaeManagerDbContext(
     public DbSet<AsignacionCartera> AsignacionesCartera => Set<AsignacionCartera>();
     IQueryable<AsignacionCartera> IOperacionesQueryContext.AsignacionesCartera => AsignacionesCartera;
     public DbSet<SolicitudIncorporacionCartera> SolicitudesIncorporacionCartera => Set<SolicitudIncorporacionCartera>();
+    public DbSet<PropuestaApoyoCartera> PropuestasApoyoCartera => Set<PropuestaApoyoCartera>();
     public DbSet<CaeManager.Domain.Plataforma.ConcesionPrivilegio> ConcesionesPrivilegio => Set<CaeManager.Domain.Plataforma.ConcesionPrivilegio>();
     IQueryable<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma> CaeManager.Application.Plataforma.IPlataformaQueryContext.EstadoBootstrapPlataforma => EstadoBootstrapPlataforma;
 

@@ -120,6 +120,9 @@ public static class RetiradaTenantDemoService
         ..SiembraDemoDireccionAdministrativa.NombresTenantsDelLote,
         // La colección E2E del Gestor CAE con cartera en dos Tenants beneficiarios.
         ..GestorCaeCarteraMultiTenantSeeder.NombresTenants,
+        // La siembra del piloto Outbound: seis Tenants propietarios y su Operador CAE externo,
+        // con nombres limpios. Ver ExigenMarcador.
+        ..CatalogoPilotoOutbound.NombresTenants,
     ];
 
     /// <summary>
@@ -131,6 +134,7 @@ public static class RetiradaTenantDemoService
     /// </summary>
     private static bool ExigenMarcador(string nombre) =>
         SiembraDemoDireccionAdministrativa.NombresTenantsDelLote.Contains(nombre) ||
+        CatalogoPilotoOutbound.NombresTenants.Contains(nombre) ||
         nombre is CatalogoEscenariosDireccionDemo.NombreTenantDuff or CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet;
 
     private static readonly MethodInfo MetodoCargarFilasDeTenant =
@@ -248,9 +252,13 @@ public static class RetiradaTenantDemoService
             // SaveChangesAsync de abajo resuelve el orden real por sí solo.
             //
             // Las solicitudes de incorporación a cartera van delante: tienen FK
-            // Restrict hacia la operación y hacia la cartera que crearon.
+            // Restrict hacia la operación y hacia la cartera que crearon. Lo mismo
+            // las propuestas de apoyo.
             dbContext.RemoveRange(await dbContext.SolicitudesIncorporacionCartera
                 .Where(s => s.PropietarioTenantId == tenantId || s.OperadorTenantId == tenantId)
+                .ToListAsync(cancellationToken));
+            dbContext.RemoveRange(await dbContext.PropuestasApoyoCartera
+                .Where(p => p.PropietarioTenantId == tenantId || p.OperadorTenantId == tenantId)
                 .ToListAsync(cancellationToken));
             dbContext.RemoveRange(await dbContext.AsignacionesCartera
                 .Where(a => a.PropietarioTenantId == tenantId || a.OperadorTenantId == tenantId)

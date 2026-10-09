@@ -4,7 +4,6 @@
 @attribute [Authorize]
 @using CaeManager.Application.Empresas.Commands.CrearEmpresa
 @using CaeManager.Application.Empresas.Commands.EditarEmpresa
-@using CaeManager.Application.Empresas.Commands.EliminarEmpresa
 @using CaeManager.Application.Empresas.Commands.EliminarEmpresas
 @using CaeManager.Application.Empresas.Commands.GuardarCredencialAccesoEmpresa
 @using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa
@@ -33,8 +32,8 @@
 
 <div class="contenedor-pagina">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
-       conmutador ☑ de selección múltiple, el menú «⋯» con «Exportar a Excel» (lectura: cualquier
-       rol) y UNA acción primaria. El título lo sigue decidiendo el perfil de vocabulario del
+       conmutador ☑ de selección múltiple —la única vía para eliminar: la fila no lleva menú—,
+       el menú «⋯» con «Exportar a Excel» (lectura: cualquier rol) y UNA acción primaria. El título lo sigue decidiendo el perfil de vocabulario del
        Tenant («Empresas», o «Mi empresa» con el perfil ClienteDirecto).
 
        Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo de la empresa gestionada:
@@ -44,6 +43,11 @@
     {
         <CabeceraListado Titulo="@_tituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+            @* «Gestor CAE» es dato de cabecera, no columna: la Asignación de Cartera es sobre el
+               Tenant entero, así que es el mismo para todas las filas. *@
+            <DatoCabecera>
+                <CabeceraGestorCae />
+            </DatoCabecera>
             <Menu>
                 <ItemMenuAccion Href="/empresas/exportar.xlsx">@Textos["ListaExportarExcel"]</ItemMenuAccion>
             </Menu>
@@ -187,10 +191,7 @@
 
         @* Marco de la lista del mockup: una sola tarjeta con la cabecera de
            columnas arriba y las filas separadas por una línea, en vez de una
-           tarjeta suelta por Empresa. Sin overflow en el marco a propósito: el
-           panel de MenuAcciones de las últimas filas se saldría y quedaría
-           recortado (mismo motivo que la nota de .tarjeta-fila-acordeon en
-           list-page.css). *@
+           tarjeta suelta por Empresa. *@
         <div class="marco-lista-empresas">
         @* Cabecera de columnas (#498). Sin roles de tabla a propósito: esto no
            es una tabla —la fila se despliega— y anunciarlo como tal prometería
@@ -215,31 +216,49 @@
             {
                 <div class="@ClaseTarjeta(empresa)" @key="empresa.Id">
                     @{ var expandido = _expandidos.Contains(empresa.Id); }
-                    <div class="@ClaseRejilla("tarjeta-fila-acordeon-cabecera")">
+                    @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
+                       fila abre la vista rápida (el panel del Context Workspace), igual que Enter
+                       sobre la fila enfocada; los controles de dentro —casilla, desplegable, CIF
+                       copiable, detecciones, icono 360— hacen lo suyo y no dejan subir el clic. *@
+                    <div class="@(ClaseRejilla("tarjeta-fila-acordeon-cabecera") + " fila-pulsable")"
+                         @onclick="() => AbrirVistaRapidaAsync(empresa.Id)">
                         @if (_seleccionMultiple)
                         {
-                            <input type="checkbox" aria-label="@($"Seleccionar {empresa.RazonSocial}")" checked="@_seleccionados.Contains(empresa.Id)" @onchange="e => AlternarSeleccion(empresa.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@($"Seleccionar {empresa.RazonSocial}")" checked="@_seleccionados.Contains(empresa.Id)" @onchange="e => AlternarSeleccion(empresa.Id, (bool)e.Value!)" @onclick:stopPropagation="true" />
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
                                 aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los Clientes empresariales de {empresa.RazonSocial}")"
-                                @onclick="() => AlternarExpansionAsync(empresa.Id)">
+                                @onclick="() => AlternarExpansionAsync(empresa.Id)" @onclick:stopPropagation="true">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
                         @* El mockup pinta bajo la razón social «CNAE 4322 · Anexo I».
                            EmpresaListaDto no trae ni el CNAE ni el Anexo I (viven en
                            el detalle, y el panel de vista previa ya los enseña), así
                            que no se copia: sería una consulta más por fila. *@
-                        @* El nombre es un enlace real a Empresa 360 (decisión del propietario
-                           2026-09-22: cada 360 tiene página propia); el panel de 520 px queda en
-                           «Vista rápida» del menú de la fila, como en la lista Clientes. *@
+                        @* El nombre es un botón que abre la vista rápida: es el destino de teclado
+                           del clic en la fila (la fila entera no es focable con Tab). A la página
+                           Empresa 360 (decisión del propietario 2026-09-22: cada 360 tiene página
+                           propia) se va con el icono 360 del final de la fila y con el del panel. *@
                         @* Razón social y CIF en una sola celda de dos líneas, como la columna «Empresa» de la
-                           maqueta aprobada (fase 1). *@
+                           maqueta aprobada (fase 1). El CIF se copia con un clic, sin abrir la fila. *@
                         <span class="celda-identidad-empresa">
-                            <a class="enlace-nombre-fila celda-empresa" href="@($"/empresas/{empresa.Id}")">
+                            <button type="button" class="enlace-nombre-fila celda-empresa nombre-abre-vista-rapida"
+                                    aria-label="@Textos["AbrirVistaRapidaDe", empresa.RazonSocial]"
+                                    @onclick="() => AbrirVistaRapidaAsync(empresa.Id)" @onclick:stopPropagation="true">
                                 @empresa.RazonSocial
-                            </a>
-                            <span class="tarjeta-fila-acordeon-meta celda-empresa">@(empresa.Cif ?? "—")</span>
+                            </button>
+                            <span class="tarjeta-fila-acordeon-meta celda-empresa">
+                                @if (string.IsNullOrWhiteSpace(empresa.Cif))
+                                {
+                                    @("—")
+                                }
+                                else
+                                {
+                                    <BotonCopiar EnLinea="true" Valor="@empresa.Cif" Texto="@empresa.Cif" Etiqueta="@Textos["EtiquetaCif"]"
+                                                 NombreAccesible="@Textos["CopiarCif", empresa.Cif]" />
+                                }
+                            </span>
                         </span>
                         @* La fila no nombra ni cuenta Clientes empresariales (decisión del propietario, 2026-10-08:
                            sin columna «Presta servicio a»): solo los enseña el desplegable del chevron, que los pide
@@ -262,7 +281,8 @@
                             @if (empresa.DeteccionesPendientes > 0)
                             {
                                 <button type="button" class="badge-deteccion"
-                                        @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'>
+                                        @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'
+                                        @onclick:stopPropagation="true">
                                     <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
                                     @(empresa.DeteccionesPendientes == 1 ? "1 detección" : $"{empresa.DeteccionesPendientes} detecciones")
                                 </button>
@@ -272,29 +292,13 @@
                                 <span class="celda-sin-deteccion">—</span>
                             }
                         </span>
-                        @* Las acciones se agrupan tras "⋯", mismo criterio que Usuarios: dos
-                           botones fantasma en línea competían visualmente y estiraban la fila.
-                           "Detección de trabajadores" solo aparece cuando hay alguna pendiente
-                           — es la misma condición que hoy gobierna el badge, y ofrecerla
-                           siempre sería un cambio de producto que nadie ha decidido. *@
+                        @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú:
+                           «Vista rápida» es el clic en la fila; «Abrir Empresa 360», este icono;
+                           «Detección de trabajadores», la pastilla de la columna Detecciones (misma
+                           condición: solo con detecciones pendientes); «Eliminar», la selección
+                           múltiple (☑ de la cabecera o tecla «x»). *@
                         <div class="tarjeta-fila-acordeon-acciones">
-                            <MenuAcciones>
-                                <ItemMenuAccion OnClick="() => AbrirVistaRapidaAsync(empresa.Id)">
-                                    @Textos["VistaRapida"]
-                                </ItemMenuAccion>
-                                <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}")'>
-                                    @Textos["AbrirEmpresa360"]
-                                </ItemMenuAccion>
-                                @if (empresa.DeteccionesPendientes > 0)
-                                {
-                                    <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'>
-                                        Detección de trabajadores
-                                    </ItemMenuAccion>
-                                }
-                                <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(empresa.Id, empresa.RazonSocial)">
-                                    Eliminar
-                                </ItemMenuAccion></SoloConEscritura>
-                            </MenuAcciones>
+                            <Boton360 Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" />
                         </div>
                     </div>
                     @if (expandido)
@@ -388,14 +392,6 @@
         </Boton>
     </PieExtra>
 </DrawerFormulario>
-
-<DialogoConfirmacion
-    Visible="_confirmarEliminarVisible"
-    VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@($"¿Eliminar a {_razonSocialAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
-    EnProgreso="_eliminando"
-    OnConfirmar="ConfirmarEliminarAsync" />
 
 <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
                     OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true" />

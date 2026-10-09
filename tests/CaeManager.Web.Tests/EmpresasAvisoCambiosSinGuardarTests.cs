@@ -7,6 +7,7 @@ using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
+using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
@@ -47,6 +48,7 @@ public class EmpresasAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerEmpresasQuery q => new ResultadoPaginado<EmpresaListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerAlcanceCeroQuery => false,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
+                ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)[],
                 ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[],
                 CrearEmpresaCommand => Result.Exito(EmpresaCreadaId),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="CampanaTitulo" xml:space="preserve">
+    <value>{0} et proposa suport a {1}</value>
+  </data>
+  <data name="CampanaDetalle" xml:space="preserve">
+    <value>Proposta de suport: si acceptes, podràs treballar en aquesta Empresa com a Gestor CAE de suport.</value>
+  </data>
+  <data name="Rechazar" xml:space="preserve">
+    <value>Rebutjar</value>
+  </data>
+  <data name="AceptarEtiqueta" xml:space="preserve">
+    <value>Acceptar la proposta de suport a {0}</value>
+  </data>
+  <data name="RechazarEtiqueta" xml:space="preserve">
+    <value>Rebutjar la proposta de suport a {0}</value>
+  </data>
+  <data name="CampanaAceptada" xml:space="preserve">
+    <value>Ja tens accés de suport a {0}</value>
+  </data>
+  <data name="AbrirEmpresa" xml:space="preserve">
+    <value>Obrir {0}</value>
+  </data>
+  <data name="ConfirmarRechazarTitulo" xml:space="preserve">
+    <value>Rebutjar la proposta de suport</value>
+  </data>
+  <data name="ConfirmarRechazarMensaje" xml:space="preserve">
+    <value>No tindràs accés de suport a {1}. El rebuig no es pot desfer; si més endavant el necessites, {0} t'ho haurà de tornar a proposar.</value>
+  </data>
+  <data name="PanelTitulo" xml:space="preserve">
+    <value>Accés de suport</value>
+  </data>
+  <data name="PanelDescripcion" xml:space="preserve">
+    <value>Empreses de les quals ets principal. Pots proposar a un Gestor CAE de la teva organització que et doni suport: hi tindrà accés quan accepti.</value>
+  </data>
+  <data name="ApoyosEtiqueta" xml:space="preserve">
+    <value>Amb accés de suport: {0}</value>
+  </data>
+  <data name="SinApoyos" xml:space="preserve">
+    <value>Ningú més hi té accés de suport.</value>
+  </data>
+  <data name="PropuestaSinResponder" xml:space="preserve">
+    <value>{0}, encara sense resposta</value>
+  </data>
+  <data name="BotonDarAcceso" xml:space="preserve">
+    <value>Donar accés</value>
+  </data>
+  <data name="BotonDarAccesoEtiqueta" xml:space="preserve">
+    <value>Donar accés de suport a {0}</value>
+  </data>
+  <data name="RetirarPropuesta" xml:space="preserve">
+    <value>Retirar la proposta</value>
+  </data>
+  <data name="RetirarPropuestaEtiqueta" xml:space="preserve">
+    <value>Retirar la proposta de suport a {0} per a {1}</value>
+  </data>
+  <data name="ConfirmarRetirarTitulo" xml:space="preserve">
+    <value>Retirar la proposta de suport</value>
+  </data>
+  <data name="ConfirmarRetirarMensaje" xml:space="preserve">
+    <value>{0} deixarà de veure la teva proposta de suport a {1}. Li ho podràs tornar a proposar quan vulguis.</value>
+  </data>
+  <data name="DrawerTitulo" xml:space="preserve">
+    <value>Donar accés a {0}</value>
+  </data>
+  <data name="DrawerIntro" xml:space="preserve">
+    <value>Proposa a un Gestor CAE de la teva organització que et doni suport en aquesta Empresa. Quan accepti tindrà accés a aquesta Empresa com a Gestor CAE de suport; tu continues sent el principal.</value>
+  </data>
+  <data name="EtiquetaDestinatario" xml:space="preserve">
+    <value>Gestor CAE a qui ho proposes</value>
+  </data>
+  <data name="OpcionElige" xml:space="preserve">
+    <value>Tria un Gestor CAE</value>
+  </data>
+  <data name="SinDestinatarios" xml:space="preserve">
+    <value>No hi ha cap altre Gestor CAE de la teva organització a qui proposar-ho: tots hi tenen ja accés o una proposta teva sense resposta.</value>
+  </data>
+  <data name="MotivoSinDestinatarios" xml:space="preserve">
+    <value>No hi ha ningú a qui proposar-ho</value>
+  </data>
+  <data name="BotonProponer" xml:space="preserve">
+    <value>Proposar</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancel·lar</value>
+  </data>
+  <data name="ErrorFaltaDestinatario" xml:space="preserve">
+    <value>Tria a qui ho proposes.</value>
+  </data>
+  <data name="ToastPropuesta" xml:space="preserve">
+    <value>Proposta enviada a {0}. Tindrà accés a {1} quan accepti.</value>
+  </data>
+  <data name="ToastRetirada" xml:space="preserve">
+    <value>Proposta de suport retirada.</value>
+  </data>
+  <data name="ToastRechazada" xml:space="preserve">
+    <value>Proposta de suport rebutjada.</value>
+  </data>
+  <data name="ErrorGenerico" xml:space="preserve">
+    <value>No s'ha pogut completar l'acció.</value>
+  </data>
+  <data name="ErrorSinPermiso" xml:space="preserve">
+    <value>Les propostes de suport són dels Gestors CAE i els Coordinadors CAE de la teva organització.</value>
+  </data>
+  <data name="ErrorNoEresElPrincipal" xml:space="preserve">
+    <value>Només qui és principal d'aquesta Empresa pot proposar un suport, i ara no ho ets tu.</value>
+  </data>
+  <data name="ErrorOperacionNoDisponible" xml:space="preserve">
+    <value>La teva organització ja no opera aquesta Empresa.</value>
+  </data>
+  <data name="ErrorDestinatarioNoValido" xml:space="preserve">
+    <value>Aquesta persona no és un Gestor CAE actiu de la teva organització.</value>
+  </data>
+  <data name="ErrorDestinatarioYaEnCartera" xml:space="preserve">
+    <value>Aquesta persona ja té accés a aquesta Empresa.</value>
+  </data>
+  <data name="ErrorYaPendiente" xml:space="preserve">
+    <value>Ja li has proposat aquest suport i encara no ha respost.</value>
+  </data>
+  <data name="ErrorNoEncontrada" xml:space="preserve">
+    <value>La proposta de suport ja no existeix.</value>
+  </data>
+  <data name="ErrorYaResuelta" xml:space="preserve">
+    <value>La proposta de suport ja estava resolta.</value>
+  </data>
+  <data name="ErrorCambioMientrasDecidias" xml:space="preserve">
+    <value>Alguna cosa ha canviat mentre decidies. Torna a obrir els avisos i prova-ho una altra vegada.</value>
+  </data>
+  <data name="ErrorAnuladaProponenteYaNoEsPrincipal" xml:space="preserve">
+    <value>La proposta s'ha anul·lat: qui te la va fer ja no és el principal d'aquesta Empresa.</value>
+  </data>
+  <data name="ErrorAnuladaDestinatarioNoDisponible" xml:space="preserve">
+    <value>La proposta s'ha anul·lat: el teu compte ja no pot rebre aquest accés.</value>
+  </data>
+  <data name="ErrorAnuladaOperacionNoVigente" xml:space="preserve">
+    <value>La proposta s'ha anul·lat: la teva organització ja no opera aquesta Empresa.</value>
+  </data>
+  <data name="ErrorAnuladaYaEnCartera" xml:space="preserve">
+    <value>La proposta s'ha anul·lat: ja tenies accés a aquesta Empresa.</value>
+  </data>
+</root>

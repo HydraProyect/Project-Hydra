@@ -388,6 +388,8 @@ src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs :: Cliente
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: clienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/IdentityRoleSeedData.cs :: ClienteId = 2
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: ClienteId = 2
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: TenantClienteId = 1
 src/CaeManager.Web/Api/V1/CentrosApiEndpoints.cs :: clienteId = 2
 src/CaeManager.Web/Features/Blindaje42/Components/DrawerBlindaje42.razor :: ClienteId = 3
 src/CaeManager.Web/Features/Blindaje42/Components/PestanaBlindaje42.razor :: ClienteId = 1
@@ -461,6 +463,7 @@ src/CaeManager.Web/Features/Integraciones/Endpoints/ConectarMicrosoft365Endpoint
 src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor.cs :: clienteId = 2
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor :: _clienteId = 2
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor.cs :: _clienteId = 3
+src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor :: ClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: clienteId = 7
 src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor :: _clienteId = 1

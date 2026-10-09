@@ -23,9 +23,11 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     private const string EmpresaDeLaMaqueta = "Montajes Skynet S.L.";
     private const string ClienteEmpresarialDeLaMaqueta = "Cyberdyne Ibérica S.A.";
     private const string VehiculoDeLaMaqueta = "Camión grúa";
+    private const string ProyectoDeLaMaqueta = "Reforma nave Sevilla";
 
     /// <summary>Tabla y columna por las que se resuelve el id de la ficha cuando no es una Empresa.</summary>
     private const string VehiculosPorNombre = "\"Vehiculos\".\"Nombre\"";
+    private const string ProyectosPorNombre = "\"Proyectos\".\"Nombre\"";
     private const string TiposDeDocumentoPorNombre = "\"TiposDocumento\".\"Nombre\"";
     private const string TipoDeDocumentoDeLaMaqueta = "Entrega de EPI";
 
@@ -47,6 +49,11 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
                 "Vehiculo 360 página TALVEG.dc.html", "[data-pieza=\"cabecera-identidad\"]",
                 tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme"),
             BuscarEn: VehiculosPorNombre),
+        new("proyecto-360", "/proyectos/", ProyectoDeLaMaqueta,
+            Mockup360.PorConvencion(
+                "Proyecto 360 página TALVEG.dc.html", "[data-pieza=\"lateral\"] [data-pieza=\"tarjeta\"]",
+                tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme"),
+            BuscarEn: ProyectosPorNombre),
         new("tipo-documento-360", "/documentos/tipos/", TipoDeDocumentoDeLaMaqueta,
             Mockup360.PorConvencion(
                 "Tipo Documento 360 página TALVEG.dc.html",

@@ -76,6 +76,8 @@ public class DiaDeNegocioUnicaFuenteTests
         ["src/CaeManager.Application/Integraciones/IngestaWebhookWhatsAppService.cs"] = 1,
         // Nombre del fichero de credenciales de la siembra demo, con sufijo Z: zona explícita.
         ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 1,
+        // Nombre del fichero de credenciales de la siembra administrativa del piloto Outbound, con sufijo Z: zona explícita.
+        ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAdministrativa.cs"] = 1,
     };
 
     [Fact]
