@@ -94,6 +94,32 @@ public class Piezas360CompartidasTests : BunitContext
             ReglasDeColorDelVelo().Where(r => cabecera.QuerySelector(r.SelectorDelAnillo) is not null).Should().BeEmpty();
     }
 
+    // La regla que pinta: un solo degradado, como background-image, al 9 %, plano hasta 128 px
+    // y fundido al 62 %, para los tres tonos y solo para ellos.
+    [Fact]
+    public void La_regla_que_pinta_el_velo_casa_con_los_tres_tonos_y_con_ninguna_cabecera_sin_color()
+    {
+        var regla = Regex.Match(LeerDeWeb("wwwroot", "css", "base.css"),
+            @"\.velo-cumplimiento:has\((?<anillo>[^{]+)\)\s*\{(?<cuerpo>[^}]*background-image:[^}]*)\}");
+
+        regla.Success.Should().BeTrue("el velo se pinta como background-image en una regla propia");
+        var cuerpo = regla.Groups["cuerpo"].Value;
+        cuerpo.Should().Contain("color-mix(in srgb, var(--velo-cumplimiento-color) 9%, var(--color-surface))");
+        cuerpo.Should().Contain("linear-gradient(90deg, var(--velo-cumplimiento) 0, var(--velo-cumplimiento) 128px, var(--color-surface) 62%)");
+
+        var anillo = regla.Groups["anillo"].Value;
+        foreach (var porcentaje in new[] { 100, 75, 10 })
+        {
+            Render<CabeceraIdentidad>(p => p.Add(x => x.Titulo, "Camión grúa").Add(x => x.Anillo, AnilloDeCabecera(porcentaje)))
+                .Find("header.velo-cumplimiento").QuerySelector(anillo).Should().NotBeNull($"el velo se pinta con el anillo al {porcentaje} %");
+        }
+
+        Render<CabeceraIdentidad>(p => p.Add(x => x.Titulo, "Reforma nave 3").Add(x => x.Anillo, AnilloDeCabecera(null)))
+            .Find("header.velo-cumplimiento").QuerySelector(anillo).Should().BeNull();
+        Render<CabeceraIdentidad>(p => p.Add(x => x.Titulo, "Reforma nave 3"))
+            .Find("header.velo-cumplimiento").QuerySelector(anillo).Should().BeNull();
+    }
+
     [Fact]
     public void La_cabecera_no_fija_su_fondo_con_el_atajo_que_borraria_el_velo()
     {

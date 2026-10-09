@@ -82,9 +82,15 @@ public class FilaSinMenuPiezasCompartidasTests : BunitContext
         while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
             dir = Path.GetDirectoryName(dir);
         var hoja = File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", "Components", "DesignSystem", "Boton360.razor.css"));
-        var partes = hoja.Split("@media (prefers-reduced-motion: reduce)");
+        var corte = hoja.IndexOf("@media (prefers-reduced-motion: reduce)", StringComparison.Ordinal);
+        corte.Should().BePositive();
+        string[] partes = [hoja[..corte], hoja[corte..]];
 
-        partes.Should().HaveCount(2);
+        System.Text.RegularExpressions.Regex.IsMatch(partes[0],
+            @"(?m)^\.boton-360 ::deep svg\s*\{\s*transition:\s*transform 360ms var\(--ease-fluid\);").Should().BeTrue(
+            "el giro es una media vuelta animada de 360 ms, no un salto");
+        System.Text.RegularExpressions.Regex.IsMatch(partes[1],
+            @"\.boton-360 ::deep svg\s*\{\s*transition:\s*none;").Should().BeTrue();
         System.Text.RegularExpressions.Regex.IsMatch(partes[0],
             @"\.boton-360:hover ::deep svg,\s*\.boton-360:focus-visible ::deep svg\s*\{\s*transform:\s*rotate\(180deg\);").Should().BeTrue();
         System.Text.RegularExpressions.Regex.IsMatch(partes[1],
