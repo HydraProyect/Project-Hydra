@@ -21,7 +21,8 @@ namespace CaeManager.Web.Services;
 /// </summary>
 public class ActorAuditoriaDesdeSesion(
     ICurrentUserService currentUserService,
-    IClienteActivoSeleccionado clienteActivoSeleccionado) : IActorAuditoria
+    IClienteActivoSeleccionado clienteActivoSeleccionado,
+    IEncargoDeAdministracionActual encargoDeAdministracionActual) : IActorAuditoria
 {
     public async Task<ActorAuditoria> ObtenerAsync()
     {
@@ -73,8 +74,17 @@ public class ActorAuditoriaDesdeSesion(
         // Operar un workspace delegado es una vía distinta de operar el
         // propio, y la auditoría del tenant visitado tiene derecho a
         // distinguirlas: es su dato el que se está tocando.
+        //
+        // Si además el techo de su rol lo subía un Encargo de administración
+        // (decisión D-8, 2026-10-08), viaja con el actor: la auditoría general lo
+        // registra como vía propia, con el Id del encargo. El actor real sigue
+        // siendo la persona del Operador CAE externo. Tampoco consulta la base:
+        // lee la última resolución del rol efectivo de este ámbito, que
+        // AutorizacionEscrituraBehavior acaba de hacer antes de cada Command.
         if (clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } operacionId)
-            return new ActorAuditoria(usuarioId, null, TipoViaAcceso.OperacionDelegada, operacionId);
+            return new ActorAuditoria(
+                usuarioId, null, TipoViaAcceso.OperacionDelegada, operacionId,
+                encargoDeAdministracionActual.EncargoDeLaUltimaResolucion(operacionId));
 
         return ActorAuditoria.Normal(usuarioId);
     }

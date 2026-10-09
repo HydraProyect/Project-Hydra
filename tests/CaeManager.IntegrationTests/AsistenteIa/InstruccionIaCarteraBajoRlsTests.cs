@@ -189,7 +189,7 @@ public class InstruccionIaCarteraBajoRlsTests : IAsyncLifetime
             new AuthenticationStateProviderFalso(new ClaimsPrincipal(identidad)),
             new HttpContextAccessorFalso(),
             new SinClienteActivo(),
-            servicios.BuildServiceProvider());
+            servicios.AddTechoDeRolSinEncargoSembrado().BuildServiceProvider());
     }
 
     private sealed class TenantActualPorAmbito : ITenantActual

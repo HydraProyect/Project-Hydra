@@ -25,7 +25,7 @@ public class RegistroAuditoriaConfiguration : IEntityTypeConfiguration<RegistroA
         // resto del modelo: un valor intercalado en el futuro no debe
         // reinterpretar filas existentes — y aquí eso convertiría un acceso
         // normal en uno privilegiado.
-        builder.Property(r => r.ViaAcceso).HasConversion<string>().HasMaxLength(20);
+        builder.Property(r => r.ViaAcceso).HasConversion<string>().HasMaxLength(30);
 
         // Mismo criterio de nombre-y-no-número para el eje ortogonal de P41c, y
         // con defecto también en la base: las filas anteriores a esta columna, y

@@ -11,8 +11,14 @@ namespace CaeManager.IntegrationTests;
 public class CurrentUserServiceFalso(
     Guid? usuarioId = null, string? rol = null, Guid? tenantOrigenId = null, bool tieneDobleFactorActivo = true,
     string? rolOrigen = null)
-    : ICurrentUserService
+    : ICurrentUserService, IEncargoDeAdministracionActual
 {
+    // Este doble no modela el Encargo de administración y lo declara: nunca eleva. Tiene que
+    // decirlo él porque AddApplication() falla si el ICurrentUserService registrado no da la señal.
+    public Task<Guid?> EncargoQueElevaAsync() => Task.FromResult<Guid?>(null);
+
+    public Guid? EncargoDeLaUltimaResolucion(Guid asignacionOperacionId) => null;
+
     public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult(usuarioId);
 
     public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(rol);
