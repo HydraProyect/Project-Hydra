@@ -145,6 +145,15 @@
   <data name="SelectorTenantOrigen" xml:space="preserve">
     <value>Tu organización</value>
   </data>
+  <data name="ExportarEstaVista" xml:space="preserve">
+    <value>Exportar esta vista (filas: {0})</value>
+  </data>
+  <data name="ExportarEstaVistaSinRecuento" xml:space="preserve">
+    <value>Exportar esta vista</value>
+  </data>
+  <data name="ExportarTodo" xml:space="preserve">
+    <value>Exportar todo</value>
+  </data>
   <data name="SelectorTenantSinResultados" xml:space="preserve">
     <value>Ninguna empresa coincide con la búsqueda.</value>
   </data>

@@ -371,6 +371,18 @@ public class VisitasGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// El panel de la Visita tiene tres pestañas y se abre en «Información»: la solicitud por correo,
+    /// el aviso y la comprobación previa viven en «Documentación». Sin este paso, un test que afirme
+    /// una ausencia en esa pestaña pasaría sin mirarla.
+    /// </summary>
+    private static async Task IrAPestanaAsync(IRenderedComponent<Visitas> cut, string etiqueta)
+    {
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel [role=tab]").Should().Contain(t => t.TextContent.Trim() == etiqueta));
+        await cut.FindAll(".drawer-panel [role=tab]").First(t => t.TextContent.Trim() == etiqueta).ClickAsync(new MouseEventArgs());
+        cut.Find(".drawer-panel [role=tab][aria-selected=true]").TextContent.Trim().Should().Be(etiqueta);
+    }
+
+    /// <summary>
     /// Dos cambios de filtro seguidos lanzan dos cargas. Si la del filtro
     /// ANTERIOR vuelve la última, no puede pisar el total del filtro actual:
     /// antes lo hacía, y el estado vacío «con estos filtros» desaparecía
@@ -548,6 +560,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await ItemDeMenu(cut, "Almacén Sur", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso").TextContent.Should().Contain("Ana Garcia (Contratista Demo SL)"));
         var panel = cut.Find(".drawer-panel").TextContent;
@@ -574,6 +587,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
         cut.FindComponents<BotonCopiar>().Should().ContainSingle()
@@ -595,6 +609,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.VisitasPorCorreo.Add(norte.Id);
         var cut = Renderizar(mediator);
         await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
         return (cut, mediator);
     }
@@ -711,6 +726,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
         cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Enviar por correo");
@@ -725,6 +741,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
         cut.FindAll("a[href$='paquete-documental.zip']").Should().BeEmpty();
@@ -1046,6 +1063,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
 
         cut.Find(".visitas-detalle-resumen").TextContent.Should()
             .Be("2 de 3 trabajadores tienen documentación pendiente para este centro.");
@@ -1084,6 +1102,8 @@ public class VisitasGen2Tests : BunitContext
         ItemDeMenu(cut, "Centro Norte", "Ver").Click();
         cut.WaitForAssertion(() => mediator.CargasDocumentacionPendientes.Should().HaveCount(1));
         await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[0].SetException(new InvalidOperationException()));
+        // El panel no pinta sus pestañas hasta que termina la primera carga, también si falla.
+        await IrAPestanaAsync(cut, "Documentación");
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel button").Should().Contain(b => b.TextContent.Contains("Reintentar")));
 
         // Cada elemento se busca de nuevo antes de pulsarlo: tras un render,
@@ -1095,6 +1115,7 @@ public class VisitasGen2Tests : BunitContext
         cut.WaitForAssertion(() => mediator.CargasDocumentacionPendientes.Should().HaveCount(3));
 
         await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[2].SetResult(DocumentacionDe("Última respuesta")));
+        await IrAPestanaAsync(cut, "Documentación");
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Última respuesta"));
 
         await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[1].SetResult(DocumentacionDe("Respuesta antigua")));

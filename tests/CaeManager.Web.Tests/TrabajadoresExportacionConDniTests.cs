@@ -8,11 +8,12 @@ using Xunit;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Decisión S4 (2026-09-24): <c>/trabajadores/exportar.xlsx</c> no lleva el
-/// DNI del Trabajador, ni en la cabecera ni en el contenido, aunque la query
-/// del listado lo siga devolviendo. Se mide el xlsx real que escribe
+/// Decisión D2 del propietario (2026-10-08), que sustituye a la S4 del
+/// 2026-09-24: <c>/trabajadores/exportar.xlsx</c> lleva el DNI del Trabajador,
+/// el mismo que pinta el listado. Se mide el xlsx real que escribe
 /// <see cref="TrabajadoresEndpoints.GenerarLibroAsync"/>, leído de vuelta con
-/// ClosedXML.
+/// ClosedXML. El rastro de la descarga lo mide
+/// <see cref="TrabajadoresExportacionEstado4aTests"/>.
 ///
 /// <para>
 /// Límite del instrumento: no pasa por el routing de ASP.NET (el proyecto no
@@ -21,9 +22,9 @@ namespace CaeManager.Web.Tests;
 /// vigila este test.
 /// </para>
 /// </summary>
-public class TrabajadoresExportacionSinDniTests
+public class TrabajadoresExportacionConDniTests
 {
-    private const string DniMarcador = "12345678Z";
+    private const string DniMarcador = "01234567Z";
     private const string DniMarcadorOtro = "X1234567L";
 
     private static readonly TrabajadorListaDto[] Trabajadores =
@@ -33,30 +34,34 @@ public class TrabajadoresExportacionSinDniTests
     ];
 
     [Fact]
-    public async Task La_cabecera_no_tiene_columna_de_DNI()
+    public async Task La_cabecera_tiene_la_columna_de_DNI()
     {
         var celdas = await LeerHojaAsync();
 
-        celdas[0].Should().Equal("Apellidos", "Nombre", "Empresa/Subcontrata", "Documentación");
-        celdas[0].Should().NotContain(c => c.Contains("DNI", StringComparison.OrdinalIgnoreCase)
-                                        || c.Contains("NIE", StringComparison.OrdinalIgnoreCase));
+        celdas[0].Should().Equal("Apellidos", "Nombre", "DNI", "Empresa/Subcontrata", "Documentación");
     }
 
     [Fact]
-    public async Task Ninguna_celda_contiene_el_DNI_de_un_Trabajador()
+    public async Task Cada_fila_lleva_el_DNI_de_su_Trabajador()
     {
         var celdas = await LeerHojaAsync();
 
-        // Control positivo: el DTO de entrada SÍ lleva DNI y el libro SÍ
-        // contiene las filas de esos Trabajadores. Sin esto, un libro vacío
-        // o una entrada sin DNI dejarían el test en verde sin medir nada.
-        Trabajadores.Should().OnlyContain(t => !string.IsNullOrEmpty(t.Dni));
         celdas.Should().HaveCount(1 + Trabajadores.Length);
-        celdas.SelectMany(f => f).Should().Contain(["Prieto Ramos", "Sanz Olmo"]);
 
-        celdas.SelectMany(f => f).Should().NotContain(c =>
-            c.Contains(DniMarcador, StringComparison.OrdinalIgnoreCase) ||
-            c.Contains(DniMarcadorOtro, StringComparison.OrdinalIgnoreCase));
+        celdas[1].Should().Equal("Prieto Ramos", "Lucía", DniMarcador, "Refrigeración Norte, S.L.", celdas[1][4]);
+        celdas[2][2].Should().Be(DniMarcadorOtro);
+    }
+
+    [Fact]
+    public async Task Un_Trabajador_sin_DNI_deja_la_celda_vacia()
+    {
+        TrabajadorListaDto[] sinDni = [new(Guid.NewGuid(), "Ana", "Gil Soto", null, "Montajes Sur, S.L.")];
+
+        await using var stream = await TrabajadoresEndpoints.GenerarLibroAsync(sinDni.ToAsyncEnumerable());
+        using var libro = new XLWorkbook(stream);
+
+        libro.Worksheet("Trabajadores").Cell(2, 3).GetString().Should().BeEmpty();
+        libro.Worksheet("Trabajadores").Cell(2, 4).GetString().Should().Be("Montajes Sur, S.L.");
     }
 
     private static async Task<List<List<string>>> LeerHojaAsync()

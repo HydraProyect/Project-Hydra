@@ -628,5 +628,9 @@ public class IncorporacionCarteraBajoRuntimeTests : IAsyncLifetime
         public Task<bool> EsCuentaActivaConRolAsync(
             Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
             Task.FromResult(roles.TryGetValue(usuarioId, out var suyo) && suyo == rol);
+
+        public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+            Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>(roles.Where(r => r.Value == rol).Select(r => r.Key).ToList());
     }
 }

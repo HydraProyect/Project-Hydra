@@ -236,7 +236,7 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
         cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty();
         await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Should().ContainSingle()
-            .Which.GetAttribute("href").Should().Be("/trabajadores/exportar.xlsx");
+        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
+            .Should().HaveCount(2).And.OnlyContain(h => h!.StartsWith("/trabajadores/exportar.xlsx"));
     }
 }

@@ -49,7 +49,7 @@
                 <CabeceraGestorCae />
             </DatoCabecera>
             <Menu>
-                <ItemMenuAccion Href="/empresas/exportar.xlsx">@Textos["ListaExportarExcel"]</ItemMenuAccion>
+                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/empresas/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
             </Menu>
             <Primaria>
                 @if (!_alcanceCero)

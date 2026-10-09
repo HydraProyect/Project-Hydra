@@ -438,4 +438,73 @@
   <data name="OpcionOrdenDocumentacion" xml:space="preserve">
     <value>Documentació per gestionar primer</value>
   </data>
+  <data name="PestanasDetalleEtiqueta" xml:space="preserve">
+    <value>Seccions de la visita</value>
+  </data>
+  <data name="PestanaInformacion" xml:space="preserve">
+    <value>Informació</value>
+  </data>
+  <data name="TrabajadoresPanelVacio" xml:space="preserve">
+    <value>Sense treballadors assignats.</value>
+  </data>
+  <data name="TrabajadoresPanelLista" xml:space="preserve">
+    <value>Treballadors que hi entren</value>
+  </data>
+  <data name="AriaQuitarTrabajador" xml:space="preserve">
+    <value>Treure {0} de la visita</value>
+  </data>
+  <data name="AyudaQuitarTrabajador" xml:space="preserve">
+    <value>Treure de la visita</value>
+  </data>
+  <data name="AyudaQuitarUltimoTrabajador" xml:space="preserve">
+    <value>La visita ha d'incloure almenys un treballador</value>
+  </data>
+  <data name="BotonAnadirTrabajador" xml:space="preserve">
+    <value>Afegir treballador</value>
+  </data>
+  <data name="CandidatosEtiqueta" xml:space="preserve">
+    <value>Treballadors que es poden afegir</value>
+  </data>
+  <data name="CandidatosBuscar" xml:space="preserve">
+    <value>Cercar treballador</value>
+  </data>
+  <data name="CandidatosSinCoincidencias" xml:space="preserve">
+    <value>Cap treballador hi coincideix.</value>
+  </data>
+  <data name="ToastSinCandidatos" xml:space="preserve">
+    <value>No queda cap treballador per afegir a aquesta visita.</value>
+  </data>
+  <data name="ToastErrorCandidatos" xml:space="preserve">
+    <value>No hem pogut carregar els treballadors. Torna-ho a provar.</value>
+  </data>
+  <data name="ToastTrabajadorAnadido" xml:space="preserve">
+    <value>{0} entra a la visita.</value>
+  </data>
+  <data name="ToastTrabajadorQuitado" xml:space="preserve">
+    <value>{0} surt de la visita.</value>
+  </data>
+  <data name="ToastErrorCambiarTrabajadores" xml:space="preserve">
+    <value>No hem pogut canviar els treballadors de la visita. Torna-ho a provar.</value>
+  </data>
+  <data name="ConfirmarQuitarTrabajadorTitulo" xml:space="preserve">
+    <value>Vols treure {0} de la visita?</value>
+  </data>
+  <data name="ConfirmarQuitarTrabajadorMensaje" xml:space="preserve">
+    <value>Deixarà d'entrar en aquesta visita. El pots tornar a afegir després.</value>
+  </data>
+  <data name="BotonQuitarTrabajador" xml:space="preserve">
+    <value>Treure de la visita</value>
+  </data>
+  <data name="AriaTrabajadoresVisita" xml:space="preserve">
+    <value>Treballadors assignats: {0}</value>
+  </data>
+  <data name="VentanaTrabajadoresTitulo" xml:space="preserve">
+    <value>Treballadors assignats</value>
+  </data>
+  <data name="VentanaTrabajadoresPie" xml:space="preserve">
+    <value>Clic en un per obrir la pestanya Treballadors</value>
+  </data>
+  <data name="VentanaTrabajadoresAyuda" xml:space="preserve">
+    <value>Obrir la pestanya Treballadors de la visita</value>
+  </data>
 </root>

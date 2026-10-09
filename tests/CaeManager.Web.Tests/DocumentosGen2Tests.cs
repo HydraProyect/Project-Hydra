@@ -362,7 +362,8 @@ public class DocumentosGen2Tests : BunitContext
         acciones.TextContent.Should().Contain("+ Nuevo documento");
         acciones.TextContent.Should().NotContain("Subida múltiple");
         cut.Find(".cabecera-pagina .menu-acciones-disparador").Click();
-        cut.Find(".cabecera-pagina a[href='/documentos/exportar.xlsx']").TextContent.Should().Contain("Exportar a Excel");
+        cut.FindAll(".cabecera-pagina a[href^='/documentos/exportar.xlsx']").Select(a => a.TextContent.Trim())
+            .Should().Equal("Exportar esta vista (filas: 1)", "Exportar todo");
         cut.FindAll(".cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
             .Should().Contain("Importar documentos").And.Contain("Subida múltiple");
     }
@@ -1086,7 +1087,7 @@ public class DocumentosGen2Tests : BunitContext
         cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("el origen no es la empresa elegida: la cabecera no lo enseña como tal");
         cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
-        cut.FindAll(".cabecera-pagina a[href='/documentos/exportar.xlsx']").Should().BeEmpty("exportaría los datos del origen");
+        cut.FindAll(".cabecera-pagina a[href^='/documentos/exportar.xlsx']").Should().BeEmpty("exportaría los datos del origen");
         cut.Markup.Should().NotContain("+ Nuevo documento");
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty("no se piden los documentos de la organización de origen");
         mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().BeEmpty("tampoco sus filtros guardados");
@@ -1113,14 +1114,14 @@ public class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar(mediador, tenantSeleccionado: EmpresaSur);
 
         cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
-        cut.FindAll(".cabecera-pagina a[href='/documentos/exportar.xlsx']").Should().BeEmpty();
+        cut.FindAll(".cabecera-pagina a[href^='/documentos/exportar.xlsx']").Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty();
 
         puerta.SetResult((IReadOnlyList<ClienteAutorizadoDto>)mediador.Autorizados.ToList());
 
         cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty());
         cut.Find(".cabecera-pagina .menu-acciones-disparador").Click();
-        cut.FindAll(".cabecera-pagina a[href='/documentos/exportar.xlsx']").Should().ContainSingle();
+        cut.FindAll(".cabecera-pagina a[href^='/documentos/exportar.xlsx']").Should().HaveCount(2);
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
     }
 
@@ -1293,7 +1294,7 @@ public class DocumentosGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
         cut.FindAll(".barra-filtros-pastillas a").Should().BeEmpty();
         cut.Find(".cabecera-pagina .menu-acciones-disparador").Click();
-        cut.FindAll(".cabecera-pagina a[href='/documentos/exportar.xlsx']").Should().ContainSingle();
+        cut.FindAll(".cabecera-pagina a[href^='/documentos/exportar.xlsx']").Should().HaveCount(2);
         cut.FindAll(".barra-filtros-pastillas a").Should().BeEmpty();
     }
 
@@ -1527,7 +1528,7 @@ public class DocumentosGen2Tests : BunitContext
         m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
         await cut.Find(".cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
         var cabecera = cut.Find(".cabecera-pagina");
-        cabecera.QuerySelectorAll("a[href='/documentos/exportar.xlsx']").Should().ContainSingle();
+        cabecera.QuerySelectorAll("a[href^='/documentos/exportar.xlsx']").Should().HaveCount(2);
         cabecera.TextContent.Should().NotContain("Importar documentos").And.NotContain("Subida múltiple");
         cabecera.QuerySelectorAll("button[aria-label='Selección múltiple']").Should().BeEmpty();
         cabecera.TextContent.Should().NotContain("Nuevo documento");

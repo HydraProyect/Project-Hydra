@@ -1,0 +1,31 @@
+@*
+    Las dos entradas de exportación del «⋯» de la cabecera de un listado (decisión D2 del
+    2026-10-08, confirmada el 2026-10-09): «Exportar esta vista» lleva al endpoint los mismos
+    criterios que la consulta de la pantalla —búsqueda, filtros y orden— y dice cuántas filas
+    saldrán; «Exportar todo» va sin criterios. Son enlaces (descarga por GET), no acciones del
+    circuito. Los dos pasan por la misma consulta del listado, con su autorización y su alcance.
+*@
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.Extensions.Localization
+@using CaeManager.Web.Recursos
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<ItemMenuAccion Href="@EnlaceVista">@(Total is { } total ? Comunes["ExportarEstaVista", total] : Comunes["ExportarEstaVistaSinRecuento"])</ItemMenuAccion>
+<ItemMenuAccion Href="@Ruta">@Comunes["ExportarTodo"]</ItemMenuAccion>
+
+@code {
+    /// <summary>Ruta del endpoint, sin query: <c>/trabajadores/exportar.xlsx</c>.</summary>
+    [Parameter, EditorRequired] public string Ruta { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Total de filas de la vista (todas las páginas), el mismo que pinta el contador de la cabecera.
+    /// Sin valor mientras la página carga o si la carga falló: el rótulo no dice un número que no sabe.
+    /// </summary>
+    [Parameter] public int? Total { get; set; }
+
+    /// <summary>Criterios de la vista, con los nombres de parámetro del endpoint. Los vacíos no viajan.</summary>
+    [Parameter] public IReadOnlyDictionary<string, string?> Criterios { get; set; } = new Dictionary<string, string?>();
+
+    private string EnlaceVista => QueryHelpers.AddQueryString(
+        Ruta, Criterios.Where(c => !string.IsNullOrWhiteSpace(c.Value)));
+}

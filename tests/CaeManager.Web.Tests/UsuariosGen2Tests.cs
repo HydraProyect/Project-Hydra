@@ -549,6 +549,10 @@ public partial class UsuariosGen2Tests : BunitContext
         public Task<bool> EsCuentaActivaConRolAsync(Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
             Task.FromResult(usuarioId == actorId && tenantId == TenantDelArnes && rol == rolActor);
 
+        public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+            Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>(tenantId == TenantDelArnes && rol == rolActor ? [actorId] : []);
+
         public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult(identidad.Cuentas.TryGetValue(usuarioId, out var cuenta) && identidad.RolesPorCuenta.TryGetValue(usuarioId, out var roles)
                 ? new DestinoCartera(cuenta.LockoutEnd is null, roles.FirstOrDefault(), cuenta.CoordinadorUsuarioId, EsOperadorDelegado: false)
@@ -688,7 +692,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _mediador.Despachar = async (peticion, ct) => peticion switch
         {
             CrearUsuarioCommand c => await new CrearUsuarioCommandHandler(
-                cuentas, usuarioActual, tenantActual, _catalogo, new TransaccionDirecta()).Handle(c, ct),
+                cuentas, usuarioActual, tenantActual, _catalogo, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, ct),
             ObtenerEmpresasAsignablesEnAltaQuery q => await new ObtenerEmpresasAsignablesEnAltaQueryHandler(
                 usuarioActual, tenantActual, _catalogo).Handle(q, ct),
             AsignarCarteraGestorCaeCommand c => await new AsignarCarteraGestorCaeCommandHandler(
@@ -697,7 +701,7 @@ public partial class UsuariosGen2Tests : BunitContext
                 usuarioActual, directorioCartera, directorioCartera).Handle(q, ct),
             ObtenerCarteraDeGestorCaeQuery q => await new ObtenerCarteraDeGestorCaeQueryHandler(
                 usuarioActual, directorioCartera, directorioCartera, _catalogo).Handle(q, ct),
-            EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
                 cuentas, usuarioActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera).Handle(c, ct),
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(

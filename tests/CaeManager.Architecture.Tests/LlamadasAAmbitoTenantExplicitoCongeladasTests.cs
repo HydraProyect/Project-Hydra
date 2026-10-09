@@ -285,6 +285,16 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "operadorTenantId, el Tenant de origen que el comando llamante ya resolvió y autorizó; y operacion.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerOperacionesDondeEsPrincipalAsync de ese Operador CAE. Ningún Guid llega de la petición"),
+        // I5 (ADR-011 § 2.7, enmienda 2026-10-08, punto 4): alerta «sin principal», escalado y «Asumir».
+        ["src/CaeManager.Application/Operaciones/EscaladoDePrincipalDeCartera.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "operadorTenantId, las dos veces: el Operador CAE de la Asignación de Operación que el comando llamante ya resolvió y autorizó (su Tenant de origen, o el de la operación que acaba de abrir tras validar al Operador CAE). Solo sirve para contar en Identity las cuentas activas de cada perfil de ese Operador CAE; no lee datos de negocio ni llega de la petición"),
+        ["src/CaeManager.Application/Usuarios/Commands/AsumirPrincipalDeOperacion/AsumirPrincipalDeOperacionCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y las operaciones de su Operador CAE; y decision.PropietarioTenantId, de ICatalogoIncorporacionCartera.ObtenerAsignablesAsync de ese Operador CAE de origen, tras autorizar a quien asume por su perfil leído en Identity. De la petición solo llega el identificador de la Asignación de Operación"),
+        ["src/CaeManager.Application/Usuarios/Queries/ObtenerOperacionesSinPrincipal/ObtenerOperacionesSinPrincipalQuery.cs"] =
+            new(Categoria.TenantDeOrigenDelUsuario,
+                "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y el catálogo de carteras de su propia organización; no ensancha nada (mismo criterio que ObtenerPersonasConCarteraQuery)"),
         ["src/CaeManager.Application/Usuarios/Queries/ObtenerPersonasConCartera/ObtenerPersonasConCarteraQuery.cs"] =
             new(Categoria.TenantDeOrigenDelUsuario,
                 "ObtenerTenantOrigenIdAsync() del propio usuario, para leer su rol en Identity y los nombres de su propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
@@ -492,6 +502,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
             ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 3,
+            ["src/CaeManager.Application/Operaciones/EscaladoDePrincipalDeCartera.cs"] = 2,
+            ["src/CaeManager.Application/Usuarios/Commands/AsumirPrincipalDeOperacion/AsumirPrincipalDeOperacionCommand.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SiembraDemoDireccionAdministrativa.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] = 2,

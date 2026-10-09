@@ -320,8 +320,11 @@ public class EmpresasListaGen2Tests : BunitContext
             .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nueva empresa");
 
         await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
-        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim()).Should().Equal("Exportar a Excel");
-        cut.Find("header.cabecera-pagina a.menu-acciones-item").GetAttribute("href").Should().Be("/empresas/exportar.xlsx");
+        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim()).Should().SatisfyRespectively(
+                vista => vista.Should().StartWith("Exportar esta vista (filas: "),
+                todo => todo.Should().Be("Exportar todo"));
+        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
+            .Should().Equal("/empresas/exportar.xlsx", "/empresas/exportar.xlsx");
     }
 
     [Fact]
