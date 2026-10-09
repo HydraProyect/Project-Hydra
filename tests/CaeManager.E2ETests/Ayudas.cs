@@ -1,4 +1,5 @@
 ﻿using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
 using PdfSharp.Pdf;
@@ -796,23 +797,44 @@ public static class Ayudas
     /// <summary>
     /// /centros agrupa por Cliente empresarial y los grupos arrancan contraídos (rediseño de
     /// listados, fase 1): sin buscar, las filas de Centro no se ven. Para los recorridos que
-    /// necesitan una fila cualquiera, «Sin agrupar» las pinta todas.
-    ///
-    /// El botón llega con el prerender antes que el circuito y un clic en esa ventana se pierde:
-    /// se repite hasta que el propio botón dice que está pulsado (aria-pressed), y luego se
-    /// espera a que no quede ninguna cabecera de grupo.
+    /// necesitan una fila cualquiera, «Sin agrupar» (en el desplegable «Agrupar») las pinta todas.
     /// </summary>
     public static async Task MostrarCentrosSinAgruparAsync(IPage page)
     {
-        var sinAgrupar = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Sin agrupar", Exact = true });
-        await sinAgrupar.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
-        for (var intento = 1; await sinAgrupar.GetAttributeAsync("aria-pressed") != "true"; intento++)
+        await ElegirAgrupacionAsync(page, new Regex("^Sin agrupar$"), new Regex("^Agrupar: no$"));
+        await Assertions.Expect(page.Locator(".grupo-lista")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>El desplegable «Agrupar» de un listado: el disparador que declara la letra A de KeyTips.</summary>
+    public static ILocator DesplegableAgrupar(IPage page) => page.Locator("[data-keytip='A']");
+
+    /// <summary>
+    /// Elige una opción del desplegable «Agrupar» y espera a que su pastilla diga el rótulo esperado.
+    ///
+    /// El desplegable llega con el prerender antes que el circuito y un clic en esa ventana se pierde
+    /// (el menú no se abre): se repite hasta que la propia pastilla dice la agrupación elegida. El
+    /// disparador alterna el menú, así que solo se pulsa si la opción no está ya a la vista.
+    /// </summary>
+    public static async Task ElegirAgrupacionAsync(IPage page, Regex opcion, Regex rotuloEsperado)
+    {
+        var agrupar = DesplegableAgrupar(page);
+        var item = page.GetByRole(AriaRole.Menuitemradio, new PageGetByRoleOptions { NameRegex = opcion });
+        await agrupar.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+        for (var intento = 1; !rotuloEsperado.IsMatch((await agrupar.InnerTextAsync()).Trim()); intento++)
         {
-            Assert.True(intento <= 10, "«Sin agrupar» no se aplicó tras 10 clics.");
-            await sinAgrupar.ClickAsync();
+            Assert.True(intento <= 10, $"«Agrupar» no llegó a decir «{rotuloEsperado}» tras 10 intentos.");
+            if (!await item.IsVisibleAsync())
+                await agrupar.ClickAsync();
+            try
+            {
+                await item.ClickAsync(new LocatorClickOptions { Timeout = 2_000 });
+            }
+            catch (TimeoutException)
+            {
+                // El menú no se abrió (clic perdido antes del circuito): la vuelta siguiente lo reintenta.
+            }
             await page.WaitForTimeoutAsync(1_000);
         }
-        await Assertions.Expect(page.Locator(".grupo-lista")).ToHaveCountAsync(0);
     }
 
     /// <summary>
