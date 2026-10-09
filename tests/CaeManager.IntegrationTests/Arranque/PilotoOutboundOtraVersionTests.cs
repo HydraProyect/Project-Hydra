@@ -33,7 +33,8 @@ namespace CaeManager.IntegrationTests.Arranque;
 /// <b>La autoverificación del arranque.</b> Con ese mismo montaje la ejecución escribe los
 /// Tenants que faltaban, y la autoverificación, que exige la matriz a lo recién escrito, no
 /// mide el Tenant con datos de otra versión: avisa con su nombre. Qué Tenants son de otra
-/// versión se lo dice la siembra, que lo calculó antes de escribir.
+/// versión se lo dice la siembra, que lo calculó antes de escribir. En un re-arranque que ya
+/// no escribe, ese Tenant sí se mide, y de lo que descuadra solo se avisa.
 /// </para>
 /// </summary>
 [Collection(ColeccionPilotoOutbound.Nombre)]
@@ -315,6 +316,57 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
                 "MEDIDO: un Tenant que no está en la lista que la siembra calculó antes de escribir se mide aunque parezca de otra versión, " +
                 "y no poder medirlo tumba el arranque"))
             .WithMessage("*verificación de integridad*", "MEDIDO: lo que tumba es la medición de ese Tenant");
+    }
+
+    /// <summary>
+    /// El re-arranque, que es lo que más veces ve un servidor: el Tenant con datos de otra versión sigue ahí, la
+    /// siembra ya no tiene nada que escribir y vuelve a entregar la lista con él dentro. Estar en la lista solo deja
+    /// sin medir en la ejecución que escribe: en esta el Tenant se mide como los demás, y de lo que descuadra se avisa.
+    /// </summary>
+    [Fact]
+    public async Task En_un_re_arranque_que_no_escribe_el_Tenant_con_datos_de_otra_version_se_mide_y_de_lo_que_descuadra_solo_se_avisa()
+    {
+        await using var arnes = await ArnesPilotoOutbound.CrearAsync();
+        var configuracion = ArnesPilotoOutbound.Configurar(ArnesPilotoOutbound.FechaDemostracion());
+        var opciones = OpcionesPilotoOutbound.Leer(configuracion);
+
+        var cortada = () => arnes.SembrarAsync(configuracion, logger: CorteJustoDespuesDeAprovisionarElPendiente());
+        await cortada.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Fallo inyectado por la prueba*");
+
+        var idDeOtraVersion = await arnes.TenantIdAsync(ConDatosDeOtraVersion.Nombre);
+        await CambiarElIdentificadorFiscalDeLaEmpresaPropiaAsync(arnes, idDeOtraVersion);
+        await DescuadrarUnaFechaAsync(arnes, idDeOtraVersion);
+
+        // La ejecución que escribe los Tenants que faltaban y, después, el re-arranque, que ya no escribe en ninguno.
+        (await arnes.SembrarAsync(configuracion))!.Escribio.Should().BeTrue("control: la primera ejecución escribe los Tenants que faltaban");
+        await arnes.BackfillAsync();
+
+        var rearranque = await arnes.SembrarAsync(configuracion);
+        rearranque!.Escribio.Should().BeFalse("control: es un re-arranque, no queda nada que esta ejecución vaya a escribir");
+        var deOtraVersion = rearranque.TenantsConDatosDeOtraVersion;
+        deOtraVersion.Should().Equal(
+            [ConDatosDeOtraVersion.Nombre], "control: el re-arranque vuelve a entregar la lista con el Tenant de otra versión, no una vacía");
+        await arnes.BackfillAsync();
+
+        var descuadre = $"{Prefijo(ConDatosDeOtraVersion)} · {DiscrepanciaDeFecha}";
+        PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion)).Should().Contain(
+            descuadre, "control positivo: el Tenant de otra versión se deja medir y no cuadra con la matriz");
+
+        var avisos = new ArnesPilotoOutbound.RegistroDeAvisos();
+        var arranque = () => PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync(
+            arnes.FabricaDeAmbitos, opciones, escribio: false, tenantsConDatosDeOtraVersion: deOtraVersion, logger: avisos);
+
+        await arranque.Should().NotThrowAsync("MEDIDO: un re-arranque no se cae por lo que descuadre, tampoco en un Tenant de otra versión");
+        foreach (var aviso in avisos.Avisos) salida.WriteLine("MEDIDO " + aviso);
+
+        avisos.Avisos.Should().Contain(
+            "Piloto Outbound, los datos ya no son los de la matriz: " + descuadre,
+            "MEDIDO: en el re-arranque el Tenant de otra versión se mide, y su discrepancia llega al registro con su nombre");
+        avisos.Avisos.Should().NotContain(
+            a => a.Contains("no se mide ni se le exige la matriz"),
+            "MEDIDO: solo la ejecución que escribe deja un Tenant sin medir; un re-arranque no avisa de que no lo mide, porque lo mide");
+        avisos.Avisos.Should().NotContain(
+            a => a.Contains("no se ha podido medir el lote ya sembrado"), "control: la medición se hizo entera, no se quedó en el aviso de que falló");
     }
 
     private const string ControlPositivoDeCeroFilas = "Mi trabajo · control positivo";

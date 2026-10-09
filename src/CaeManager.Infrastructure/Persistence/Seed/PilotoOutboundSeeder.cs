@@ -64,8 +64,10 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// administrativa se niega antes de escribir en ninguno
 /// (<see cref="RechazarDatosDeOtraVersionAsync"/>). Para volver a sembrarlo hay
 /// que retirar antes el lote. La autoverificación del arranque tampoco le exige
-/// la matriz, ni siquiera cuando esa ejecución ha escrito otros Tenants: entonces
-/// no lo mide y avisa de ello. Qué Tenants son se decide aquí, antes de escribir
+/// la matriz, y lo que hace con él depende de si la ejecución ha escrito. La que
+/// escribe otros Tenants no lo mide, y avisa de que no lo mide. Un re-arranque
+/// que no escribe nada sí lo mide, como a los demás, y de lo que descuadre solo
+/// avisa. Qué Tenants son se decide aquí, antes de escribir
 /// nada, y viaja en el resultado (<see cref="Resultado.TenantsConDatosDeOtraVersion"/>):
 /// la autoverificación no vuelve a preguntarlo sobre los datos que verifica.
 /// </para>
