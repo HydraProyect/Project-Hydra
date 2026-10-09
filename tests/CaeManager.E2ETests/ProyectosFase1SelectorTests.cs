@@ -16,7 +16,7 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
             Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/proyectos");
         var selector = page.GetByRole(AriaRole.Button,
-            new PageGetByRoleOptions { NameRegex = new Regex(@"^Cliente empresarial(?:$|:)") });
+            new PageGetByRoleOptions { NameRegex = new Regex(@"^Cliente(?:$|:)") });
         await Expect(selector).ToBeVisibleAsync();
         await selector.FocusAsync();
         await selector.PressAsync("Space");
@@ -24,20 +24,20 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
         Assert.False(string.IsNullOrWhiteSpace(panelId), "Control positivo: selector con panel identificado.");
         var menu = page.Locator("#" + panelId);
         await Expect(menu).ToBeVisibleAsync();
-        const string sinEleccion = "Selecciona un Cliente empresarial";
+        const string sinEleccion = "Selecciona un Cliente";
         var nombres = (await menu.GetByRole(AriaRole.Menuitemradio).AllTextContentsAsync())
             .Select(n => n.Trim()).ToArray();
         Assert.Contains(sinEleccion, nombres);
         Assert.DoesNotContain("Todos", nombres);
         var contraparte = nombres.FirstOrDefault(n => n != sinEleccion);
-        Assert.False(string.IsNullOrWhiteSpace(contraparte), "Control positivo: el catálogo contiene un Cliente empresarial concreto.");
+        Assert.False(string.IsNullOrWhiteSpace(contraparte), "Control positivo: el catálogo contiene un Cliente concreto.");
         var opcion = menu.GetByRole(AriaRole.Menuitemradio,
             new LocatorGetByRoleOptions { Name = contraparte, Exact = true });
         await opcion.FocusAsync();
         await opcion.PressAsync("Space");
         await Expect(menu).ToBeHiddenAsync();
-        Assert.True((await selector.InnerTextAsync()).Trim() == "Cliente empresarial: " + contraparte,
-            "La selección física no aplica el Cliente empresarial concreto a la pastilla de Proyectos.");
+        Assert.True((await selector.InnerTextAsync()).Trim() == "Cliente: " + contraparte,
+            "La selección física no aplica el Cliente concreto a la pastilla de Proyectos.");
         await Expect(selector).ToBeFocusedAsync();
         await selector.PressAsync("Space");
         await Expect(menu).ToBeVisibleAsync();
@@ -48,9 +48,9 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
         await elegir.FocusAsync();
         await elegir.PressAsync("Space");
         await Expect(menu).ToBeHiddenAsync();
-        await Expect(selector).ToHaveTextAsync("Cliente empresarial");
+        await Expect(selector).ToHaveTextAsync("Cliente");
         await Expect(selector).ToBeFocusedAsync();
-        await Expect(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Elige un Cliente empresarial para ver sus proyectos", Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Elige un Cliente para ver sus proyectos", Exact = true })).ToBeVisibleAsync();
         await Expect(page.Locator("tbody .nombre-proyecto")).ToHaveCountAsync(0);
         await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo proyecto", Exact = true })).ToHaveCountAsync(0);
     }
@@ -63,13 +63,13 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl,
             Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/proyectos");
-        const string sinEleccion = "Selecciona un Cliente empresarial";
+        const string sinEleccion = "Selecciona un Cliente";
         var selector = SelectorCliente(page);
         var menu = await AbrirMenuClienteAsync(selector, page);
         var opciones = (await menu.GetByRole(AriaRole.Menuitemradio).AllTextContentsAsync())
             .Select(n => n.Trim()).Where(n => n != sinEleccion).OrderBy(n => n, StringComparer.Ordinal).ToArray();
         Assert.True(opciones.Length > 0 && opciones.Distinct(StringComparer.Ordinal).Count() == opciones.Length,
-            "Control positivo: catálogo no vacío y nombres de Clientes empresariales sin duplicados.");
+            "Control positivo: catálogo no vacío y nombres de Clientes sin duplicados.");
         await selector.PressAsync("Escape");
         await Expect(menu).ToBeHiddenAsync();
         var filas = page.Locator("table.tabla-proyectos tbody tr");
@@ -82,7 +82,7 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
             await opcion.FocusAsync();
             await opcion.PressAsync("Space");
             await Expect(menu).ToBeHiddenAsync(); // El callback termina después de cargar este contexto.
-            await Expect(selector).ToHaveTextAsync("Cliente empresarial: " + nombre);
+            await Expect(selector).ToHaveTextAsync("Cliente: " + nombre);
             await Expect(page.GetByRole(AriaRole.Heading,
                 new PageGetByRoleOptions { Name = "No pudimos cargar los proyectos", Exact = true })).ToHaveCountAsync(0);
             if (await filas.CountAsync() > 0)
@@ -92,7 +92,7 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
             }
         }
         Assert.False(string.IsNullOrWhiteSpace(clienteConProyectos),
-            "Control positivo: algún Cliente empresarial del catálogo tiene proyectos visibles sembrados.");
+            "Control positivo: algún Cliente del catálogo tiene proyectos visibles sembrados.");
         var nombresAntes = (await filas.Locator("button.nombre-proyecto").AllTextContentsAsync())
             .Select(n => n.Trim()).ToArray();
         Assert.True(nombresAntes.Length > 0 && nombresAntes.All(n => !string.IsNullOrWhiteSpace(n)),
@@ -126,19 +126,19 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
         await Expect(pregunta).ToBeHiddenAsync();
         await Expect(selector).Not.ToHaveAttributeAsync("aria-controls", panelAnteriorId!);
         await Expect(selector).ToBeVisibleAsync();
-        await Expect(selector).ToHaveTextAsync("Cliente empresarial: " + clienteConProyectos);
+        await Expect(selector).ToHaveTextAsync("Cliente: " + clienteConProyectos);
         await Expect(panel.Locator(".nombre-cabecera-panel-proyecto")).ToHaveTextAsync(nombreProyecto);
         await Expect(campoNombre).ToHaveValueAsync(nombreSinGuardar);
         Assert.Equal(nombresAntes, (await filas.Locator("button.nombre-proyecto").AllTextContentsAsync())
             .Select(n => n.Trim()).ToArray());
         Assert.Equal(1, await selector.CountAsync());
         Assert.True(await selector.EvaluateAsync<bool>("elemento => elemento === document.activeElement"),
-            "Foco del selector de Cliente empresarial ausente tras Seguir editando y recrear la pastilla.");
+            "Foco del selector de Cliente ausente tras Seguir editando y recrear la pastilla.");
         // Se cierra el contexto sin Guardar: no se mide persistencia ni orden SQL.
     }
 
     private static ILocator SelectorCliente(IPage page) => page.GetByRole(AriaRole.Button,
-        new PageGetByRoleOptions { NameRegex = new Regex(@"^Cliente empresarial(?:$|:)") });
+        new PageGetByRoleOptions { NameRegex = new Regex(@"^Cliente(?:$|:)") });
 
     private static async Task<ILocator> AbrirMenuClienteAsync(ILocator selector, IPage page)
     {

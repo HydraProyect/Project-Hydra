@@ -122,7 +122,7 @@ public class BackfillAsignacionesOperativasTests : IAsyncLifetime
         // es _gestorInterno, y no le concede nada: antes el backfill le abría
         // una cartera por Cliente empresarial sobre la raíz de su tenant.
         carteras.Should().NotContain(c => c.UsuarioId == _gestorInterno,
-            "ser la referencia de un Cliente empresarial no concede cartera (D-7)");
+            "ser la referencia de un Cliente no concede cartera (D-7)");
     }
 
     [Fact]

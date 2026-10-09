@@ -688,7 +688,7 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
 
         cut.Find(".estado-vacio h3").TextContent.Trim().Should().Be("Sin cambios pendientes");
         cut.Find(".estado-vacio p").TextContent.Should().Contain("no garantiza que se haya leído ningún documento")
-            .And.Contain("Clientes empresariales");
+            .And.Contain("Clientes");
 
         var enlaces = cut.FindAll(".estado-vacio a").Select(a => a.GetAttribute("href")).ToList();
         if (veEnlaces)

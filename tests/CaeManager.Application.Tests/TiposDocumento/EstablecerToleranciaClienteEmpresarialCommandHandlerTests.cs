@@ -20,7 +20,7 @@ public class EstablecerToleranciaClienteEmpresarialCommandHandlerTests
     private readonly EmpresasQueryContextFalso _empresas = new();
     private readonly TiposDocumentoQueryContextFalso _tipos = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
-    private readonly Empresa _cliente = Empresa.CrearComoCliente("Cliente empresarial", "B12345674", false, null, null);
+    private readonly Empresa _cliente = Empresa.CrearComoCliente("Cliente", "B12345674", false, null, null);
     private readonly CaeManager.Domain.Documentos.TipoDocumento _tipo = new("Certificado", null, false, 1, AmbitoAplicacion.Empresa);
 
     public EstablecerToleranciaClienteEmpresarialCommandHandlerTests()

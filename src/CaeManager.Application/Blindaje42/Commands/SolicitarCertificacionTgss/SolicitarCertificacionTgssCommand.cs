@@ -50,7 +50,7 @@ public class SolicitarCertificacionTgssCommandHandler(
     public async Task<Result<Guid>> Handle(SolicitarCertificacionTgssCommand request, CancellationToken cancellationToken)
     {
         if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("CertificacionTgss.ClienteNoEncontrado", "No encontramos este Cliente empresarial."));
+            return Result.Fallo<Guid>(Error.Crear("CertificacionTgss.ClienteNoEncontrado", "No encontramos este Cliente."));
 
         // Defensa en profundidad (REC-149): este Command ya es inalcanzable
         // para el rol Cliente vía AutorizacionEscrituraBehavior (lista blanca
@@ -76,7 +76,7 @@ public class SolicitarCertificacionTgssCommandHandler(
 
         if (!sonEmpresaYClienteRelacionados)
             return Result.Fallo<Guid>(Error.Crear(
-                "CertificacionTgss.SinRelacion", "Esta empresa no trabaja (ni trabajó) para este Cliente empresarial."));
+                "CertificacionTgss.SinRelacion", "Esta empresa no trabaja (ni trabajó) para este Cliente."));
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)

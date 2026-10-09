@@ -38,9 +38,9 @@ public class CabeceraListadoTests : BunitContext
     [Fact]
     public void Pinta_titulo_y_contador_en_una_linea_sin_antetitulo()
     {
-        var cut = Render<CabeceraListado>(p => p.Add(c => c.Titulo, "Clientes empresariales").Add(c => c.Contador, 12));
+        var cut = Render<CabeceraListado>(p => p.Add(c => c.Titulo, "Clientes").Add(c => c.Contador, 12));
 
-        cut.Find("h1.titulo-pagina").TextContent.Trim().Should().Be("Clientes empresariales");
+        cut.Find("h1.titulo-pagina").TextContent.Trim().Should().Be("Clientes");
         cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("12");
         cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty();
     }

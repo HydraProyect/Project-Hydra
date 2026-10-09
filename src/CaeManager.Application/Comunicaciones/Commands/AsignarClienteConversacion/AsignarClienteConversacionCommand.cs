@@ -15,7 +15,7 @@ public class AsignarClienteConversacionCommandValidator : AbstractValidator<Asig
     public AsignarClienteConversacionCommandValidator()
     {
         RuleFor(c => c.ConversacionId).NotEmpty().WithMessage("La asignación debe indicar una conversación.");
-        RuleFor(c => c.ClienteId).NotEmpty().WithMessage("Debes elegir un Cliente empresarial.");
+        RuleFor(c => c.ClienteId).NotEmpty().WithMessage("Debes elegir un Cliente.");
     }
 }
 
@@ -31,7 +31,7 @@ public class AsignarClienteConversacionCommandHandler(
         // AlcanceDatosServiceExtensions): no se confirma la existencia de un
         // cliente fuera de la cartera de quien pregunta.
         if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial."));
+            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente."));
 
         var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(request.ConversacionId, cancellationToken);
         if (conversacion is null || !await alcanceDatos.ConversacionVisibleAsync(conversacion.ClienteId, conversacion.EmpresaId, conversacion.ConexionIntegracionId, cancellationToken))

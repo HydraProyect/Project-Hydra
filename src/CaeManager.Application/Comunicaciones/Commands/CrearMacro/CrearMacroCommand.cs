@@ -32,7 +32,7 @@ public class CrearMacroCommandHandler(
             // dar de alta una plantilla en la cartera de otro gestor.
             var cliente = await empresaRepositorio.ObtenerPorIdAsync(request.ClienteId.Value, cancellationToken);
             if (cliente is null || !await alcanceDatos.ClienteVisibleAsync(cliente.Id, cancellationToken))
-                return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial."));
+                return Result.Fallo<Guid>(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente."));
         }
 
         var macro = new MacroRespuesta(request.Titulo, request.CuerpoHtml, request.ClienteId);

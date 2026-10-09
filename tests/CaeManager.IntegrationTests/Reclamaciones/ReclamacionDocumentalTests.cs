@@ -741,7 +741,7 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         falta.TrabajadorId.Should().Be(_trabajadorId);
         falta.TipoDocumentoId.Should().Be(_tipoDocumentoId);
         lote.Destinatarios.Should().ContainSingle().Which.Email.Should().Be("agenda@cliente.test",
-            "el destinatario es el de siempre: la agenda del Cliente empresarial, resuelta por el Tipo que falta");
+            "el destinatario es el de siempre: la agenda del Cliente, resuelta por el Tipo que falta");
     }
 
     [Fact]

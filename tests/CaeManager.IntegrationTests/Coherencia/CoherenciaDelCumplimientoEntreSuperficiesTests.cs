@@ -96,8 +96,8 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         else
             parametros.Actualizar(UmbralAmbarDias, UmbralRojoDias);
 
-        var clienteX = Empresa.CrearComoCliente("Cliente empresarial X", "B12345674", false, null, null);
-        var clienteY = Empresa.CrearComoCliente("Cliente empresarial Y", "B87654323", false, null, null);
+        var clienteX = Empresa.CrearComoCliente("Cliente X", "B12345674", false, null, null);
+        var clienteY = Empresa.CrearComoCliente("Cliente Y", "B87654323", false, null, null);
         var empresaP = new Empresa("Empresa P S.L.");
         var empresaQ = new Empresa("Empresa Q S.L.");
         var subcontrataS = Empresa.CrearComoSubcontrata("Subcontrata S S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
@@ -278,9 +278,9 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
 
         // 5. Contexto Cliente empresarial: todos los pares de sus Centros (hoy sin pantalla; la función es el contrato).
         var pares = await calculoCentro.ObtenerParesExigidosAsync([_centroA, _centroB, _centroC], CancellationToken.None);
-        Comprobar("Cliente empresarial X", CumplimientoDocumental.De(ContextoCumplimiento.ClienteEmpresarial, _clienteX, pares), 8, 12);
-        Comprobar("Cliente empresarial Y", CumplimientoDocumental.De(ContextoCumplimiento.ClienteEmpresarial, _clienteY, pares), 2, 5);
-        Comprobar("Cliente empresarial X = suma de sus Centros A y B",
+        Comprobar("Cliente X", CumplimientoDocumental.De(ContextoCumplimiento.ClienteEmpresarial, _clienteX, pares), 8, 12);
+        Comprobar("Cliente Y", CumplimientoDocumental.De(ContextoCumplimiento.ClienteEmpresarial, _clienteY, pares), 2, 5);
+        Comprobar("Cliente X = suma de sus Centros A y B",
             FraccionCumplimiento.Sumar([porCentro[_centroA], porCentro[_centroB]]), 8, 12);
 
         // Los cuatro contextos reparten los mismos pares: ninguno se pierde ni se cuenta dos veces.

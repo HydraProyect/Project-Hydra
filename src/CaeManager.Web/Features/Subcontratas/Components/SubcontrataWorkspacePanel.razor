@@ -1443,6 +1443,9 @@ else
             var cif = string.IsNullOrWhiteSpace(_cifInfo) ? null : _cifInfo;
             var resultado = await Mediator.Send(new EditarSubcontrataCommand(
                 detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(), _empresaIdsInfo.ToList(), detalle.Version));
+            // El guardado ya es firme aunque el panel haya pasado a otra ficha: el listado que
+            // tenga esta fila a la vista la vuelve a pedir y la sustituye en sitio.
+            if (!resultado.EsFallido) WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Subcontrata, detalle.Id);
             if (generacion != _generacion) return;
 
             if (resultado.EsFallido)
@@ -1499,6 +1502,8 @@ else
         {
             var resultado = await Mediator.Send(new CambiarNivelServicioSubcontrataCommand(
                 detalle.Id, nivelDestino, detalle.Version));
+            // El nivel también se pinta en la fila del listado: mismo aviso que al guardar la información.
+            if (!resultado.EsFallido) WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Subcontrata, detalle.Id);
 
             if (resultado.EsFallido)
             {

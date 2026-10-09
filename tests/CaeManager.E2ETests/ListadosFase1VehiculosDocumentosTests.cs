@@ -161,7 +161,7 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixture fixture)
 
     private const string ClavesDocumentoJs = """
         campo => {
-          const ambitos = {'Trabajador':0,'Cliente empresarial':1,'Empresa':2,'Vehículo':3,'Proyecto':4};
+          const ambitos = {'Trabajador':0,'Cliente':1,'Empresa':2,'Vehículo':3,'Proyecto':4};
           return [...document.querySelectorAll('tbody tr')].map(fila => {
             if (campo === 'ambito') {
               const nodo = fila.querySelector('.documentos-ambito');

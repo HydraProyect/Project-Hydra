@@ -16,12 +16,12 @@ public class EliminarClienteCommandHandler(
     {
         var empresa = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (empresa is null || !await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial."));
+            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente."));
 
         if (await repositorio.TieneCentrosComoTitularAsync(request.Id, cancellationToken))
             return Result.Fallo(Error.Crear(
                 "Cliente.TieneCentrosActivos",
-                "No puedes eliminar un Cliente empresarial con centros activos. Da de baja sus centros primero."));
+                "No puedes eliminar un Cliente con centros activos. Da de baja sus centros primero."));
 
         // Auditoría Módulo 5, hallazgo crítico 7/9 — ver EliminarCentroCommand.
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();

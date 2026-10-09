@@ -57,7 +57,7 @@ public class VincularConversacionCommandHandler(
             return Result.Fallo(Error.Crear("Conversacion.CanalInvalido", "Solo una conversación de WhatsApp puede vincularse a otra."));
 
         if (origen.ClienteId is not { } clienteId)
-            return Result.Fallo(Error.Crear("Conversacion.SinCliente", "La conversación de origen todavía no tiene un Cliente empresarial asignado."));
+            return Result.Fallo(Error.Crear("Conversacion.SinCliente", "La conversación de origen todavía no tiene un Cliente asignado."));
 
         var destino = await repositorio.ObtenerPorIdAsync(request.ConversacionDestinoId, cancellationToken);
         // Mismo Cliente exigido en el servidor, no solo confiado del motor de

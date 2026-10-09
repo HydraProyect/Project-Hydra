@@ -268,7 +268,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
         // 7. Contexto Cliente empresarial (la función es el contrato; hoy sin pantalla).
         var pares = await calculoCentro.ObtenerParesExigidosAsync(centroIds, CancellationToken.None);
         foreach (var cliente in await c.Centros.Select(x => x.ClienteId).Distinct().ToListAsync())
-            Seccion("Cliente empresarial").Add($"{Emp(cliente)} | {Fr(CumplimientoDocumental.De(ContextoCumplimiento.ClienteEmpresarial, cliente, pares))}");
+            Seccion("Cliente").Add($"{Emp(cliente)} | {Fr(CumplimientoDocumental.De(ContextoCumplimiento.ClienteEmpresarial, cliente, pares))}");
         Seccion("Pares exigidos").Add(pares.Count.ToString());
 
         // 8. Subcontrata.

@@ -170,7 +170,7 @@ public class AlcanceDatosServiceSobreRelacionEmpresarialTests : IAsyncLifetime
         (await ResolverSubcontrataIdsParaUsuarioAsync(gestorConCartera)).Should().NotContain(subcontrata,
             "control: la lista de vivas no la trae, por eso la restauración no puede decidir con ella");
 
-        (await VisibleParaAsync(gestorConCartera, "GestorCae")).Should().BeTrue("lleva al Cliente empresarial con el que la Subcontrata tiene Relación vigente");
+        (await VisibleParaAsync(gestorConCartera, "GestorCae")).Should().BeTrue("lleva al Cliente con el que la Subcontrata tiene Relación vigente");
         (await VisibleParaAsync(Guid.NewGuid(), "GestorCae")).Should().BeFalse("un Gestor CAE sin cartera no la alcanza");
         (await VisibleParaAsync(gestorConCartera, "Cliente")).Should().BeFalse("el rol Cliente (portal) lee, no gestiona (REC-159)");
         (await VisibleParaAsync(Guid.NewGuid(), "Administrador")).Should().BeTrue("el Administrador del Tenant tiene alcance total");

@@ -269,7 +269,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
             if (!clientesIdPorRazonSocial.TryGetValue(fila.RazonSocialCliente, out var clienteId))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Centros", 0, fila.Nombre, $"No se encontró el Cliente empresarial \"{fila.RazonSocialCliente}\" (ni en el sistema ni en la hoja Clientes de este archivo)."));
+                    "Centros", 0, fila.Nombre, $"No se encontró el Cliente \"{fila.RazonSocialCliente}\" (ni en el sistema ni en la hoja Clientes de este archivo)."));
                 continue;
             }
 

@@ -134,9 +134,9 @@ public class PlantillaClientesAlineacionAnalisisEjecucionTests : IAsyncLifetime
 
         var plan = await AnalizarAsync(LibroConFila(nombre));
 
-        plan.ClientesCentros.Should().BeEmpty("una Empresa homónima que no es Cliente empresarial no cuenta como 'el cliente ya existe'");
+        plan.ClientesCentros.Should().BeEmpty("una Empresa homónima que no es Cliente no cuenta como 'el cliente ya existe'");
         var omitido = plan.Omitidos.Should().ContainSingle().Subject;
-        omitido.Motivo.Should().Contain("Este Cliente empresarial no existe todavía");
+        omitido.Motivo.Should().Contain("Este Cliente no existe todavía");
 
         await using var contexto = CrearContexto();
         var resultado = (await ConstruirHandler(contexto).Handle(new EjecutarImportacionCommand(plan), CancellationToken.None)).Valor;

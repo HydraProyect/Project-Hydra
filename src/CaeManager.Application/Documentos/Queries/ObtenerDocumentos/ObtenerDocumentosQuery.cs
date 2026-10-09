@@ -44,7 +44,7 @@ public record ObtenerDocumentosQuery(
     int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,
     string? OrdenarPor = null, bool Descendente = false, DateOnly? FechaVencimientoHasta = null,
     IReadOnlyCollection<EstadoDocumento>? Estados = null, bool ConRecuentosPorEstado = false,
-    Guid? TipoDocumentoId = null, Guid? ProveedorPlataformaCaeId = null)
+    Guid? DocumentoId = null, Guid? TipoDocumentoId = null, Guid? ProveedorPlataformaCaeId = null)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>
 {
     /// <summary>
@@ -201,6 +201,11 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             };
 
         var consulta = deTrabajador.Concat(deCliente).Concat(deEmpresa).Concat(deVehiculo).Concat(deProyecto);
+
+        // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
+        // Las cinco ramas de arriba ya están acotadas al alcance: solo estrecha.
+        if (request.DocumentoId is not null)
+            consulta = consulta.Where(x => x.Id == request.DocumentoId);
 
         if (request.TrabajadorId is not null)
             consulta = consulta.Where(x => x.TrabajadorId == request.TrabajadorId);
