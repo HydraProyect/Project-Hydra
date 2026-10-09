@@ -158,15 +158,28 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                @* Una sola celda «Trabajador», como la maqueta (fase 1): «Apellidos, Nombre» en
-                   negrita —abre la vista previa— y el documento de identidad debajo. Ordena por
-                   apellidos y, a igualdad, por nombre (ObtenerTrabajadoresQuery). *@
+                @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la fila
+                   abre la vista rápida (el panel del Context Workspace), igual que Enter sobre la
+                   fila enfocada. QuickGrid no ofrece clic de fila: la fila lleva «fila-pulsable»
+                   (ObtenerClaseFila) y atajos-lista.js pulsa por ella este botón, que es además el
+                   destino de teclado; los controles de dentro (casilla, DNI copiable, icono 360)
+                   hacen lo suyo y ese oyente no los toca.
+
+                   Una sola celda «Trabajador»: «Nombre Apellidos» en negrita, el orden en que se
+                   teclean al dar de alta en una plataforma, y el DNI debajo, que se copia con un
+                   clic. Sigue ordenando por apellidos y, a igualdad, por nombre
+                   (ObtenerTrabajadoresQuery). *@
                 <TemplateColumn Title="@Textos["ListaColumnaTrabajador"]" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))">
                     <span class="celda-trabajador">
-                        <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick='() => AbrirPreview(context.Id)'>@NombreDeFila(context)</button>
+                        <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
+                                aria-label="@Textos["AbrirVistaRapidaDe", NombreCompleto(context)]"
+                                @onclick="() => AbrirVistaRapidaAsync(context.Id)">@NombreCompleto(context)</button>
                         @if (!string.IsNullOrWhiteSpace(context.Dni))
                         {
-                            <span class="celda-trabajador-dni">DNI @context.Dni</span>
+                            <span class="celda-trabajador-dni">
+                                DNI <BotonCopiar EnLinea="true" Valor="@context.Dni" Texto="@context.Dni" Etiqueta="@Textos["EtiquetaCopiarDni"]"
+                                                 NombreAccesible="@Textos["CopiarDni", context.Dni]" />
+                            </span>
                         }
                     </span>
                 </TemplateColumn>
@@ -184,20 +197,12 @@
                         @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
                     </Badge>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
-                    <MenuAcciones>
-                        <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
-                            @Textos["AccionDetalles"]
-                        </ItemMenuAccion>
-                        @* Trabajador 360 sin pasar por la vista previa: la ruta /trabajadores/{id}
-                           ya existe. *@
-                        <ItemMenuAccion OnClick='() => AbrirTrabajador360(context.Id)'>
-                            @Textos["AccionAbrirTrabajador360"]
-                        </ItemMenuAccion>
-                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, NombreCompleto(context))">
-                            @Textos["AccionEliminar"]
-                        </ItemMenuAccion></SoloConEscritura>
-                    </MenuAcciones>
+                @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Detalles» es el clic en
+                   la fila; «Abrir Trabajador 360», este icono, que lleva a la página completa
+                   (/trabajadores/{id}); «Eliminar», la selección múltiple (☑ de la cabecera o
+                   tecla «x»), con su confirmación y su «Deshacer». *@
+                <TemplateColumn Title="" Align="Align.End">
+                    <Boton360 Nombre="@NombreCompleto(context)" Href="@($"/trabajadores/{context.Id}")" />
                 </TemplateColumn>
             </QuickGrid>
 
@@ -306,14 +311,6 @@
     <CampoTextarea Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
 </DrawerFormulario>
 
-<DialogoConfirmacion
-    Visible="_confirmarEliminarVisible"
-    VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@(Textos["DialogoEliminarTitulo", _nombreAEliminar])"
-    Mensaje="@Textos["DialogoEliminarMensaje"]"
-    EnProgreso="_eliminando"
-    OnConfirmar="ConfirmarEliminarAsync" />
-
 @* Eliminar seleccionados (EliminarTrabajadoresCommand) y Asignar a centro (CrearAsignacionesCommand)
    son ICommand denegados a Consulta; «Cancelar» sin ellos no tiene nada que cancelar. *@
 <SoloConEscritura>
@@ -344,8 +341,6 @@
     TextoBotonConfirmar="@Textos["FiltroGuardadoBorrarBoton"]"
     EnProgreso="_eliminandoFiltroGuardado"
     OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />
-
-<TrabajadorPreviewDrawer TrabajadorId="_previewTrabajadorId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" />
 
 <Modal @ref="_modalAsignarCentro" HayCambios="() => HayCambiosSinGuardar" Visible="_asignarCentroVisible" VisibleChanged="v => { if (!v) CerrarAsignarCentro(); }" Titulo="@(Textos["ModalAsignarCentroTitulo", _seleccionados.Count])" CerrarAlHacerClicFuera="!_asignandoLote">
     <ChildContent>

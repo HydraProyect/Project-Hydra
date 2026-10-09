@@ -180,22 +180,19 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
     }
 
     /// <summary>
-    /// Hasta ahora Trabajador 360 solo se alcanzaba abriendo antes la vista
-    /// previa. El mockup plantea tres opciones y marca esta como recomendada.
+    /// A Trabajador 360 se llega sin pasar por la vista rápida: el icono 360 del final de la
+    /// fila es un enlace a la página (antes, una entrada del menú «⋯» de la fila).
     /// </summary>
     [Fact]
-    public void El_menu_de_fila_ofrece_abrir_Trabajador_360()
+    public void La_fila_ofrece_abrir_Trabajador_360_con_su_icono()
     {
+        var id = Guid.NewGuid();
         var cut = Renderizar(trabajadores: new TrabajadorListaDto(
-            Guid.NewGuid(), "Javier", "Salas Moreno", "12345678Z", "Montajes Ebro S.L."));
+            id, "Javier", "Salas Moreno", "12345678Z", "Montajes Ebro S.L."));
 
-        // MenuAcciones no pinta sus ítems hasta abrirse: sin el clic, la
-        // comprobación siguiente sería verde vacío.
-        // El de la fila: la cabecera y la barra de filtros también llevan disparadores de menú.
-        cut.Find("tbody .menu-acciones-disparador").Click();
-
-        cut.Markup.Should().Contain("Abrir ficha 360");
-        cut.Markup.Should().Contain("Vista rápida", "el destino nuevo se suma, no sustituye a la vista previa");
+        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/trabajadores/{id}");
+        cut.Find("tbody button.nombre-abre-vista-rapida").TextContent.Trim().Should().Be("Javier Salas Moreno",
+            "el destino nuevo se suma, no sustituye a la vista rápida");
     }
 
     // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera

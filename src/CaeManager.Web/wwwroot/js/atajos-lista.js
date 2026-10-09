@@ -85,6 +85,28 @@ function esVisibleYUsable(campo) {
     return getComputedStyle(campo).visibility !== 'hidden';
 }
 
+// Fila sin menú «⋯» en las listas con QuickGrid: QuickGrid no ofrece clic de fila, así que la
+// página marca el <tr> con «fila-pulsable» (RowClass) y el nombre de la fila es un botón
+// «nombre-abre-vista-rapida» con el manejador de Blazor. Un clic en cualquier otro punto de
+// la fila pulsa ese botón. Los controles de dentro (casilla, identificador copiable, icono
+// 360, pastillas con acción) conservan su clic: aquí no se tocan. Tampoco el clic que
+// termina una selección de texto, ni el de una fila cuyo marcado ya trae su propio @onclick
+// (Empresas: su fila no es un <tr>).
+const SELECTOR_FILA_PULSABLE = 'tr.fila-pulsable';
+const SELECTOR_ABRE_VISTA_RAPIDA = '.nombre-abre-vista-rapida';
+const SELECTOR_CONTROL_DE_FILA = SELECTOR_INTERACTIVO + ', label, textarea';
+
+function pulsarFila(evento) {
+    if (evento.defaultPrevented || evento.button !== 0) return;
+    if (evento.ctrlKey || evento.metaKey || evento.altKey || evento.shiftKey) return;
+    const origen = evento.target;
+    const fila = origen?.closest?.(SELECTOR_FILA_PULSABLE);
+    if (!fila) return;
+    if (origen.closest(SELECTOR_CONTROL_DE_FILA)) return;
+    if (window.getSelection?.()?.toString()) return;
+    fila.querySelector(SELECTOR_ABRE_VISTA_RAPIDA)?.click();
+}
+
 export function registrarAtajosLista(dotNetRef) {
     let ultimaGSuelta = 0;
 
@@ -147,8 +169,12 @@ export function registrarAtajosLista(dotNetRef) {
     };
 
     document.addEventListener('keydown', manejador);
+    document.addEventListener('click', pulsarFila);
 
     return {
-        dispose: () => document.removeEventListener('keydown', manejador)
+        dispose: () => {
+            document.removeEventListener('keydown', manejador);
+            document.removeEventListener('click', pulsarFila);
+        }
     };
 }
