@@ -723,6 +723,11 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         public Task<bool> EsCuentaActivaConRolAsync(
             Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
             Task.FromResult(rol == Roles.GestorCae);
+
+        // Sin nadie en los perfiles de escalado: sin Coordinador CAE la operación queda sin principal.
+        public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+            Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
     }
 
     private sealed class SinDirectorioDeDestinos : Application.Clientes.IDirectorioDestinosCartera

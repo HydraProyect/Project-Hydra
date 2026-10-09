@@ -8,7 +8,9 @@ namespace CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 
 /// <summary>
 /// Guarda una combinación de filtros con nombre, para el usuario actual, en
-/// una pantalla concreta (P3-31). <see cref="ValoresJson"/> lo serializa y
+/// una pantalla concreta y en el Tenant actual (P3-31; clave con Tenant desde
+/// la decisión D4 del 2026-10-08). El nombre no se repite dentro de esa clave.
+/// <see cref="ValoresJson"/> lo serializa y
 /// entiende la propia pantalla — este Command no conoce la forma de los
 /// filtros de cada feature.
 /// </summary>
@@ -35,7 +37,8 @@ public class GuardarFiltroCommandValidator : AbstractValidator<GuardarFiltroComm
 }
 
 public class GuardarFiltroCommandHandler(
-    ICurrentUserService currentUserService, IFiltroGuardadoRepository repositorio, IUnitOfWork unitOfWork)
+    ICurrentUserService currentUserService, ITenantActual tenantActual,
+    IFiltroGuardadoRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<GuardarFiltroCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(GuardarFiltroCommand request, CancellationToken cancellationToken)
@@ -43,6 +46,19 @@ public class GuardarFiltroCommandHandler(
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)
             return Result.Fallo<Guid>(Error.Crear("FiltroGuardado.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
+
+        // Sin Tenant activo no se guarda: el filtro lleva dentro identificadores de un Tenant
+        // y la fila se sella con él. Fallo legible aquí, antes de que lo rechace el sellado.
+        if (tenantActual.TenantId is not { } tenantId || tenantId == Guid.Empty)
+            return Result.Fallo<Guid>(Error.Crear(
+                "FiltroGuardado.SinTenant",
+                "No pudimos determinar en qué organización estás trabajando. Vuelve a iniciar sesión."));
+
+        // El índice único (Tenant, Usuario, Pantalla, Nombre) es quien lo garantiza;
+        // esta comprobación solo convierte el caso corriente en un mensaje legible.
+        if (await repositorio.ExisteConNombreAsync(usuarioId.Value, request.Pantalla, request.Nombre.Trim(), cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear(
+                "FiltroGuardado.NombreDuplicado", "Ya tienes un filtro guardado con ese nombre en esta pantalla. Elige otro nombre."));
 
         var filtro = new FiltroGuardado(usuarioId.Value, request.Pantalla, request.Nombre, request.ValoresJson);
         repositorio.Agregar(filtro);

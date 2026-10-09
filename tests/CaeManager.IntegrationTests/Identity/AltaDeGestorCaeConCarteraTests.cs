@@ -321,7 +321,7 @@ public class AltaDeGestorCaeConCarteraTests : IAsyncLifetime
                 sp.GetRequiredService<DirectorioUsuariosTenant>(),
                 contexto);
             return new CrearUsuarioCommandHandler(
-                cuentas, usuario, tenantActual, new CatalogoConGanchos(this), new TransaccionDeComando(contexto));
+                cuentas, usuario, tenantActual, new CatalogoConGanchos(this), new TransaccionDeComando(contexto), new AsignacionAutomaticaInerte());
         }
 
         public async ValueTask DisposeAsync()
@@ -374,6 +374,9 @@ public class AltaDeGestorCaeConCarteraTests : IAsyncLifetime
             public Task<ResultadoIncorporacionCartera> IncorporarAsync(
                 SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default) =>
                 Real.IncorporarAsync(solicitud, cancellationToken);
+            public Task<ResultadoApoyoCartera> IncorporarApoyoAsync(
+                PropuestaApoyoCartera propuesta, CancellationToken cancellationToken = default) =>
+                Real.IncorporarApoyoAsync(propuesta, cancellationToken);
             public Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default) =>
                 Real.RetirarAsync(solicitud, cancellationToken);
             public Task<IReadOnlyList<TenantEnCarteraDeGestor>> ObtenerCarteraUniversalAsync(

@@ -28,6 +28,7 @@ public partial class SolicitudesCartera : CaeManager.Web.Components.PaginaIntera
     private BandejaIncorporacionCarteraDto? _bandeja;
     private bool _errorCarga;
     private bool _sinAcceso;
+    private CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal.AlertaDePrincipal? _alertaSinPrincipal;
     private bool _dialogoVisible;
     private Guid? _enCurso;
     private SolicitudIncorporacionCarteraDto? _aRevocar;
@@ -60,6 +61,10 @@ public partial class SolicitudesCartera : CaeManager.Web.Components.PaginaIntera
 
         _bandeja = resultado.Valor;
     }
+
+    private void AlCargarAlertaSinPrincipal(
+        CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal.AlertaDePrincipal alerta) =>
+        _alertaSinPrincipal = alerta;
 
     private void AbrirDialogo() => _dialogoVisible = true;
 

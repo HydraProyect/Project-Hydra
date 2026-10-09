@@ -65,7 +65,6 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Email, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
         var medidor = new MedidorConsultasSql(fixture);

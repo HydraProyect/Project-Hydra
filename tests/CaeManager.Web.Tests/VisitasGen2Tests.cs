@@ -115,6 +115,9 @@ public class VisitasGen2Tests : BunitContext
         public Result<PaqueteDocumentalDescargaDto> Paquete { get; set; } =
             Result.Exito(new PaqueteDocumentalDescargaDto("paquete-centro-norte.zip", new byte[1024]));
 
+        /// <summary>FS-15: el Tenant no tiene ningún buzón de Microsoft 365 conectado desde el que enviar.</summary>
+        public bool SinBuzon { get; set; }
+
         public int ConsultasPaquete { get; private set; }
 
         public AvisoVisitaDto Aviso { get; set; } = new("Aviso de visita — Almacén Sur — 01/10/2026", "Buenos días:\n\n- Ana Garcia (Contratista Demo SL)");
@@ -168,6 +171,9 @@ public class VisitasGen2Tests : BunitContext
                 case ObtenerPaqueteDocumentalVisitaQuery:
                     ConsultasPaquete++;
                     return Respuesta<TResponse>(Paquete);
+
+                case ObtenerConexionesIntegracionQuery when SinBuzon:
+                    return Respuesta<TResponse>((IReadOnlyList<ConexionIntegracionListaDto>)[]);
 
                 case ObtenerConexionesIntegracionQuery:
                     return Respuesta<TResponse>((IReadOnlyList<ConexionIntegracionListaDto>)
@@ -365,6 +371,18 @@ public class VisitasGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// El panel de la Visita tiene tres pestañas y se abre en «Información»: la solicitud por correo,
+    /// el aviso y la comprobación previa viven en «Documentación». Sin este paso, un test que afirme
+    /// una ausencia en esa pestaña pasaría sin mirarla.
+    /// </summary>
+    private static async Task IrAPestanaAsync(IRenderedComponent<Visitas> cut, string etiqueta)
+    {
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel [role=tab]").Should().Contain(t => t.TextContent.Trim() == etiqueta));
+        await cut.FindAll(".drawer-panel [role=tab]").First(t => t.TextContent.Trim() == etiqueta).ClickAsync(new MouseEventArgs());
+        cut.Find(".drawer-panel [role=tab][aria-selected=true]").TextContent.Trim().Should().Be(etiqueta);
+    }
+
+    /// <summary>
     /// Dos cambios de filtro seguidos lanzan dos cargas. Si la del filtro
     /// ANTERIOR vuelve la última, no puede pisar el total del filtro actual:
     /// antes lo hacía, y el estado vacío «con estos filtros» desaparecía
@@ -542,6 +560,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await ItemDeMenu(cut, "Almacén Sur", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso").TextContent.Should().Contain("Ana Garcia (Contratista Demo SL)"));
         var panel = cut.Find(".drawer-panel").TextContent;
@@ -568,6 +587,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
         cut.FindComponents<BotonCopiar>().Should().ContainSingle()
@@ -589,6 +609,7 @@ public class VisitasGen2Tests : BunitContext
         mediator.VisitasPorCorreo.Add(norte.Id);
         var cut = Renderizar(mediator);
         await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
         cut.WaitForAssertion(() => cut.Find(".visitas-aviso-destinatarios").TextContent.Should().Contain("acceso@centronorte.es"));
         return (cut, mediator);
     }
@@ -673,6 +694,29 @@ public class VisitasGen2Tests : BunitContext
         cut.FindComponents<RedactarMensajeDrawer>().Single().Instance.Visible.Should().BeFalse();
     }
 
+    /// <summary>
+    /// FS-15: en una Visita de un Centro de canal Email, «Enviar por correo» sin buzón de Microsoft 365 conectado no acaba
+    /// en un aviso que se va. El compositor se queda abierto con el motivo, a quién pedírselo (el Gestor CAE no puede abrir
+    /// Conexiones de integración) y la alternativa de siempre: copiar la solicitud y bajar el mismo ZIP.
+    /// </summary>
+    [Fact]
+    public async Task Enviar_por_correo_sin_buzon_conectado_explica_el_motivo_y_deja_copiar_el_texto_y_bajar_el_zip()
+    {
+        var (cut, mediator) = await AbrirCajonPorCorreoAsync();
+        mediator.SinBuzon = true;
+
+        await BotonEnviarPorCorreo(cut).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel .aviso-sin-buzon").TextContent.Should().Contain("no hay ningún buzón de Microsoft 365 conectado"));
+        cut.FindComponents<RedactarMensajeDrawer>().Single().Instance.Visible.Should().BeTrue("cerrarse solo era el flujo sin salida");
+        cut.Find(".aviso-sin-buzon-pedir").TextContent.Should().Contain("rol Administrador de esta organización");
+        cut.FindAll("a.aviso-sin-buzon-conectar").Should().BeEmpty("el rol Gestor CAE no abre /integraciones");
+        cut.Find(".aviso-sin-buzon").TextContent.Should().Contain("acceso@centronorte.es");
+        cut.FindComponent<AvisoSinBuzonCorreo>().FindComponent<BotonCopiar>().Instance.Valor.Should().StartWith(mediator.Solicitud.Asunto + "\n\n");
+        cut.Find("a.aviso-sin-buzon-descargar").GetAttribute("href").Should().EndWith("/paquete-documental.zip");
+        mediator.Comandos.OfType<EnviarMensajeNuevoCommand>().Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Un_centro_sin_canal_de_correo_no_ofrece_enviar_por_correo()
     {
@@ -682,6 +726,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
         cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Enviar por correo");
@@ -696,6 +741,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
 
         cut.WaitForAssertion(() => mediator.ConsultasDocumentacion.Should().Be(1));
         cut.FindAll("a[href$='paquete-documental.zip']").Should().BeEmpty();
@@ -1017,6 +1063,7 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await ItemDeMenu(cut, "Centro Norte", "Ver").ClickAsync(new MouseEventArgs());
+        await IrAPestanaAsync(cut, "Documentación");
 
         cut.Find(".visitas-detalle-resumen").TextContent.Should()
             .Be("2 de 3 trabajadores tienen documentación pendiente para este centro.");
@@ -1055,6 +1102,8 @@ public class VisitasGen2Tests : BunitContext
         ItemDeMenu(cut, "Centro Norte", "Ver").Click();
         cut.WaitForAssertion(() => mediator.CargasDocumentacionPendientes.Should().HaveCount(1));
         await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[0].SetException(new InvalidOperationException()));
+        // El panel no pinta sus pestañas hasta que termina la primera carga, también si falla.
+        await IrAPestanaAsync(cut, "Documentación");
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel button").Should().Contain(b => b.TextContent.Contains("Reintentar")));
 
         // Cada elemento se busca de nuevo antes de pulsarlo: tras un render,
@@ -1066,6 +1115,7 @@ public class VisitasGen2Tests : BunitContext
         cut.WaitForAssertion(() => mediator.CargasDocumentacionPendientes.Should().HaveCount(3));
 
         await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[2].SetResult(DocumentacionDe("Última respuesta")));
+        await IrAPestanaAsync(cut, "Documentación");
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Última respuesta"));
 
         await cut.InvokeAsync(() => mediator.CargasDocumentacionPendientes[1].SetResult(DocumentacionDe("Respuesta antigua")));

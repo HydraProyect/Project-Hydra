@@ -70,12 +70,19 @@ export function registrarAtajosGlobales(dotNetRef) {
         }
     };
 
+    // El botón ⌨ de la cabecera de listado (CabeceraListado) abre la misma chuleta que «?».
+    const alHacerClic = (evento) => {
+        if (evento.target.closest?.('[data-abrir-atajos]')) dotNetRef.invokeMethodAsync('AlternarAyuda');
+    };
+
     document.addEventListener('keydown', manejador);
+    document.addEventListener('click', alHacerClic);
 
     return {
         dispose: () => {
             limpiarPrefijo();
             document.removeEventListener('keydown', manejador);
+            document.removeEventListener('click', alHacerClic);
         }
     };
 }

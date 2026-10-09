@@ -26,4 +26,19 @@
 
 @code {
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>
+    /// La misma pregunta que responde el componente, para quien no puede envolver
+    /// un disparador: un parámetro que cambia el comportamiento de otro componente
+    /// (p. ej. <c>VentanaContexto.Interactiva</c>). Misma lista de roles y mismo
+    /// ClaimsPrincipal del circuito; sin estado de autenticación, no hay escritura.
+    /// </summary>
+    public static async Task<bool> PuedeEscribirAsync(Task<AuthenticationState>? estadoAutenticacion)
+    {
+        if (estadoAutenticacion is null)
+            return false;
+
+        var usuario = (await estadoAutenticacion).User;
+        return CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
+    }
 }

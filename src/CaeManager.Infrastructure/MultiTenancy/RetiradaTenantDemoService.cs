@@ -73,7 +73,7 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// ella; se limpian aquí explícitamente, y no todos por el mismo motivo.
 /// <c>DelegacionesTenant</c>, <c>AsignacionesOperadorDelegado</c> (incluidas las
 /// revocadas, que la vista de lectura oculta),
-/// <c>AceptacionesTerminos</c>, <c>FiltrosGuardados</c>,
+/// <c>AceptacionesTerminos</c>,
 /// <c>PreferenciasDashboardUsuario</c>, <c>SesionesPrivilegiadas</c> y
 /// <c>TenantsAlcanzadosPorConcesion</c> no tienen FK física hacia
 /// <c>Tenants</c> (ver los comentarios "Sin HasQueryFilter" de sus
@@ -86,6 +86,14 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// de alguna asignación. Esto no lo demostró el test contra el arnés (que
 /// nunca corre <c>AsignacionesOperativasBackfillSeeder</c>): lo destapó la
 /// primera ejecución real del binario contra una base sembrada de verdad.
+/// </para>
+///
+/// <para>
+/// <c>FiltrosGuardados</c> sí hereda de <see cref="EntidadConTenant"/> (clave
+/// con Tenant desde el 2026-10-08): los filtros guardados EN este tenant los
+/// borra el bucle. Los que sus usuarios guardaron en OTROS tenants — un Gestor
+/// CAE con Asignación de Cartera — se borran aparte, por usuario y sin el
+/// filtro global; no tienen FK, así que dejarlos sería basura huérfana.
 /// </para>
 /// </summary>
 public static class RetiradaTenantDemoService
@@ -112,6 +120,9 @@ public static class RetiradaTenantDemoService
         ..SiembraDemoDireccionAdministrativa.NombresTenantsDelLote,
         // La colección E2E del Gestor CAE con cartera en dos Tenants beneficiarios.
         ..GestorCaeCarteraMultiTenantSeeder.NombresTenants,
+        // La siembra del piloto Outbound: seis Tenants propietarios y su Operador CAE externo,
+        // con nombres limpios. Ver ExigenMarcador.
+        ..CatalogoPilotoOutbound.NombresTenants,
     ];
 
     /// <summary>
@@ -123,6 +134,7 @@ public static class RetiradaTenantDemoService
     /// </summary>
     private static bool ExigenMarcador(string nombre) =>
         SiembraDemoDireccionAdministrativa.NombresTenantsDelLote.Contains(nombre) ||
+        CatalogoPilotoOutbound.NombresTenants.Contains(nombre) ||
         nombre is CatalogoEscenariosDireccionDemo.NombreTenantDuff or CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet;
 
     private static readonly MethodInfo MetodoCargarFilasDeTenant =
@@ -240,9 +252,13 @@ public static class RetiradaTenantDemoService
             // SaveChangesAsync de abajo resuelve el orden real por sí solo.
             //
             // Las solicitudes de incorporación a cartera van delante: tienen FK
-            // Restrict hacia la operación y hacia la cartera que crearon.
+            // Restrict hacia la operación y hacia la cartera que crearon. Lo mismo
+            // las propuestas de apoyo.
             dbContext.RemoveRange(await dbContext.SolicitudesIncorporacionCartera
                 .Where(s => s.PropietarioTenantId == tenantId || s.OperadorTenantId == tenantId)
+                .ToListAsync(cancellationToken));
+            dbContext.RemoveRange(await dbContext.PropuestasApoyoCartera
+                .Where(p => p.PropietarioTenantId == tenantId || p.OperadorTenantId == tenantId)
                 .ToListAsync(cancellationToken));
             dbContext.RemoveRange(await dbContext.AsignacionesCartera
                 .Where(a => a.PropietarioTenantId == tenantId || a.OperadorTenantId == tenantId)
@@ -257,7 +273,12 @@ public static class RetiradaTenantDemoService
             if (idsUsuarios.Count > 0)
             {
                 dbContext.RemoveRange(await dbContext.AceptacionesTerminos.Where(a => idsUsuarios.Contains(a.UsuarioId)).ToListAsync(cancellationToken));
-                dbContext.RemoveRange(await dbContext.FiltrosGuardados.Where(f => idsUsuarios.Contains(f.UsuarioId)).ToListAsync(cancellationToken));
+                // Filtros guardados: los del propio Tenant caen en el barrido genérico de arriba. Los que
+                // un usuario de este Tenant guardó operando sobre OTRO Tenant llevan el TenantId ajeno:
+                // marcarlos con Remove los rechaza el sellado («entidad perteneciente a otro tenant») y
+                // abortaría la retirada entera, así que se borran con una sentencia directa, acotada por
+                // usuario. No tienen FK entrante ni saliente: no participan en el orden del guardado final.
+                await dbContext.FiltrosGuardados.IgnoreQueryFilters().Where(f => idsUsuarios.Contains(f.UsuarioId) && f.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);
                 dbContext.RemoveRange(await dbContext.PreferenciasDashboardUsuario.Where(p => idsUsuarios.Contains(p.UsuarioId)).ToListAsync(cancellationToken));
                 dbContext.RemoveRange(await dbContext.AsignacionesOperadorDelegadoConRevocadas.Where(a => idsUsuarios.Contains(a.UsuarioId)).ToListAsync(cancellationToken));
             }

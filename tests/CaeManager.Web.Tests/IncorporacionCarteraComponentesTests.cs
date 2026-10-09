@@ -1,10 +1,13 @@
 using System.Reflection;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
+using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
+using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
+using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
@@ -25,18 +28,18 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Aviso emergente y bandeja de solicitudes de incorporación a cartera.
+/// Bandeja de solicitudes de incorporación a cartera.
 ///
 /// <para>
 /// <b>Lo que SÍ observa:</b> qué pinta cada componente a partir de la bandeja
 /// que devuelve la Query (qué filas, qué acciones), qué Command envía cada
 /// botón y que tras resolver se vuelve a pedir el estado — que es lo que hace
-/// desaparecer del aviso una solicitud que otro Coordinador CAE ya resolvió.
+/// desaparecer de la bandeja una solicitud que otro Coordinador CAE ya resolvió.
 /// </para>
 /// <para>
 /// <b>Lo que NO observa:</b> la autorización (la decide la Query y cada
 /// Command, probados en Application.Tests y bajo RLS en IntegrationTests), ni
-/// el refresco periódico real (60 s) ni la propagación entre circuitos.
+/// el refresco periódico real ni la propagación entre circuitos.
 /// </para>
 /// </summary>
 public class IncorporacionCarteraComponentesTests : BunitContext
@@ -50,6 +53,19 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         Services.AddSingleton<IMediator>(_mediator);
         Services.AddSingleton<ToastService>();
         Services.AddSingleton<ILogger<ExcepcionDeCircuitoDesconectado>>(NullLogger<ExcepcionDeCircuitoDesconectado>.Instance);
+        Services.AddSingleton<CaeManager.Application.Common.ICurrentUserService>(new UsuarioActualFalso());
+    }
+
+    private static readonly Guid Yo = Guid.NewGuid();
+
+    /// <summary>El panel «Dar acceso» que monta la página compara este usuario con el principal de cada operación.</summary>
+    private sealed class UsuarioActualFalso : CaeManager.Application.Common.ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Yo);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
     private IStringLocalizer<TextosIncorporacionCartera> Textos =>
@@ -68,146 +84,6 @@ public class IncorporacionCarteraComponentesTests : BunitContext
 
     private static BandejaIncorporacionCarteraDto BandejaCoordinador(params SolicitudIncorporacionCarteraDto[] pendientes) =>
         new(true, pendientes, [], []);
-
-    // ---------------------------------------------------------------- Aviso
-
-    [Fact]
-    public void El_aviso_lista_las_pendientes_que_puede_resolver_y_omite_la_propia()
-    {
-        var ajena = Solicitud("Empresa Norte", "Marta");
-        var propia = Solicitud("Empresa Sur", "Yo mismo", puedeResolver: false);
-        _mediator.Bandeja = BandejaCoordinador(ajena, propia);
-
-        var aviso = Render<AvisoSolicitudesCartera>();
-
-        aviso.FindAll("[data-solicitud]").Select(e => e.GetAttribute("data-solicitud"))
-            .Should().Equal(ajena.Id.ToString());
-        aviso.Markup.Should().Contain(Textos["AvisoPide", "Marta", "Empresa Norte"]);
-        aviso.Markup.Should().Contain(Textos["AvisoResumenUna", 1]);
-        _mediator.Consultas.Should().ContainSingle().Which.SoloPendientes.Should().BeTrue();
-    }
-
-    [Fact]
-    public void Sin_pendientes_resolubles_el_aviso_no_se_pinta()
-    {
-        _mediator.Bandeja = BandejaCoordinador(Solicitud("Empresa Sur", "Yo mismo", puedeResolver: false));
-
-        Render<AvisoSolicitudesCartera>().Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Si_la_Query_niega_el_permiso_el_aviso_no_se_pinta()
-    {
-        _mediator.FalloBandeja = ErroresSolicitudCartera.SinPermiso;
-
-        Render<AvisoSolicitudesCartera>().Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Una_bandeja_de_Gestor_CAE_no_abre_el_aviso_aunque_traiga_pendientes()
-    {
-        _mediator.Bandeja = new BandejaIncorporacionCarteraDto(false, [Solicitud("Empresa Norte", "Marta")], [], []);
-
-        Render<AvisoSolicitudesCartera>().Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public void En_la_propia_bandeja_el_aviso_no_se_pinta()
-    {
-        _mediator.Bandeja = BandejaCoordinador(Solicitud("Empresa Norte", "Marta"));
-        Services.GetRequiredService<NavigationManager>().NavigateTo(RutasIncorporacionCartera.Bandeja);
-
-        Render<AvisoSolicitudesCartera>().Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public void Mas_tarde_oculta_el_aviso()
-    {
-        _mediator.Bandeja = BandejaCoordinador(Solicitud("Empresa Norte", "Marta"));
-        var aviso = Render<AvisoSolicitudesCartera>();
-
-        aviso.FindAll("button").Single(b => b.TextContent.Trim() == Textos["AvisoMasTarde"]).Click();
-
-        aviso.Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Aceptar_envia_el_Command_de_esa_solicitud_avisa_y_recarga()
-    {
-        var solicitud = Solicitud("Empresa Norte", "Marta");
-        _mediator.Bandeja = BandejaCoordinador(solicitud);
-        var aviso = Render<AvisoSolicitudesCartera>();
-        _mediator.Bandeja = BandejaCoordinador();
-
-        await aviso.Find($"[data-solicitud='{solicitud.Id}'] button").ClickAsync(new());
-
-        _mediator.Comandos.Should().ContainSingle()
-            .Which.Should().Be(new AceptarSolicitudIncorporacionCarteraCommand(solicitud.Id));
-        Toasts.Mensajes.Should().ContainSingle(t =>
-            t.Tono == TonoToast.Exito && t.Mensaje == Textos["ToastAceptada", "Marta", "Empresa Norte"]);
-        _mediator.Consultas.Should().HaveCount(2);
-        aviso.Markup.Trim().Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Si_otro_Coordinador_CAE_ya_la_resolvio_se_explica_y_desaparece()
-    {
-        var solicitud = Solicitud("Empresa Norte", "Marta");
-        var otra = Solicitud("Empresa Este", "Luis");
-        _mediator.Bandeja = BandejaCoordinador(solicitud, otra);
-        _mediator.AlComando = _ => Result.Fallo(ErroresSolicitudCartera.YaResuelta);
-        var aviso = Render<AvisoSolicitudesCartera>();
-        _mediator.Bandeja = BandejaCoordinador(otra);
-
-        var rechazar = aviso.FindAll($"[data-solicitud='{solicitud.Id}'] button")
-            .Single(b => b.TextContent.Trim() == Textos["Rechazar"]);
-        await rechazar.ClickAsync(new());
-        await BotonDelDialogo(aviso, Textos["Rechazar"]).ClickAsync(new());
-
-        _mediator.Comandos.Should().ContainSingle()
-            .Which.Should().Be(new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id));
-        Toasts.Mensajes.Should().ContainSingle(t =>
-            t.Tono == TonoToast.Error && t.Mensaje == Textos["ErrorYaResuelta"].Value);
-        aviso.FindAll("[data-solicitud]").Select(e => e.GetAttribute("data-solicitud"))
-            .Should().Equal(otra.Id.ToString());
-    }
-
-    [Fact]
-    public async Task Rechazar_en_el_aviso_pide_confirmacion_y_cancelar_no_envia_el_Command()
-    {
-        var solicitud = Solicitud("Empresa Norte", "Marta");
-        _mediator.Bandeja = BandejaCoordinador(solicitud);
-        var aviso = Render<AvisoSolicitudesCartera>();
-
-        await BotonDeFila(aviso, solicitud, Textos["Rechazar"]).ClickAsync(new());
-
-        _mediator.Comandos.Should().BeEmpty("el rechazo se confirma antes de enviarse");
-        aviso.Find(".modal-pie").TextContent.Should().Contain(Textos["Rechazar"], "control positivo: el diálogo se abrió");
-        aviso.Markup.Should().Contain(Textos["ConfirmarRechazarMensaje", "Marta", "Empresa Norte"]);
-
-        await BotonDelDialogo(aviso, "Cancelar").ClickAsync(new());
-
-        _mediator.Comandos.Should().BeEmpty();
-        aviso.FindAll(".modal-pie").Should().BeEmpty("cancelar cierra el diálogo");
-        aviso.FindAll("[data-solicitud]").Should().ContainSingle("la solicitud sigue pendiente");
-    }
-
-    [Fact]
-    public async Task Rechazar_en_el_aviso_y_confirmar_envia_el_Command_de_esa_solicitud()
-    {
-        var solicitud = Solicitud("Empresa Norte", "Marta");
-        _mediator.Bandeja = BandejaCoordinador(solicitud);
-        var aviso = Render<AvisoSolicitudesCartera>();
-        _mediator.Bandeja = BandejaCoordinador();
-
-        await BotonDeFila(aviso, solicitud, Textos["Rechazar"]).ClickAsync(new());
-        await BotonDelDialogo(aviso, Textos["Rechazar"]).ClickAsync(new());
-
-        _mediator.Comandos.Should().ContainSingle()
-            .Which.Should().Be(new RechazarSolicitudIncorporacionCarteraCommand(solicitud.Id));
-        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Exito && t.Mensaje == Textos["ToastRechazada"].Value);
-        aviso.FindAll(".modal-pie").Should().BeEmpty();
-    }
 
     // -------------------------------------------------------------- Bandeja
 
@@ -329,6 +205,24 @@ public class IncorporacionCarteraComponentesTests : BunitContext
     }
 
     [Fact]
+    public void La_pagina_ofrece_Dar_acceso_solo_en_los_Tenants_de_los_que_quien_mira_es_principal()
+    {
+        static CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.CarterasDeOperacion Operacion(string tenant, Guid principal) =>
+            new(Guid.NewGuid(), Guid.NewGuid(), tenant,
+                new CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.PersonaConCartera(principal, "Alguien", "GestorCae", null), []);
+
+        _mediator.Bandeja = new BandejaIncorporacionCarteraDto(EsCoordinadorCae: false, [], [], []);
+        _mediator.Carteras = [Operacion("Empresa Mía", Yo), Operacion("Empresa Ajena", Guid.NewGuid())];
+
+        var pagina = Render<SolicitudesCartera>();
+
+        var panel = pagina.Find("[data-testid=panel-dar-acceso]");
+        panel.TextContent.Should().Contain("Empresa Mía").And.NotContain("Empresa Ajena");
+        panel.QuerySelectorAll("[data-dar-acceso-operacion] > button").Should().ContainSingle()
+            .Which.TextContent.Should().Contain("Dar acceso");
+    }
+
+    [Fact]
     public void La_pagina_no_filtra_por_el_claim_de_rol()
     {
         var autorizaciones = typeof(SolicitudesCartera).GetCustomAttributes<AuthorizeAttribute>().ToList();
@@ -355,13 +249,13 @@ public class IncorporacionCarteraComponentesTests : BunitContext
     }
 
     [Fact]
-    public void El_aviso_del_layout_no_queda_tras_una_puerta_de_rol()
+    public void La_campana_del_layout_no_queda_tras_una_puerta_de_rol()
     {
         var layout = LeerWeb(Path.Combine("Components", "Layout", "MainLayout.razor"));
-        var posicion = layout.IndexOf("IncorporacionCartera.Components.AvisoSolicitudesCartera", StringComparison.Ordinal);
-        posicion.Should().BePositive("el aviso debe estar montado en el layout");
+        var posicion = layout.IndexOf("Notificaciones.CampanaAvisos", StringComparison.Ordinal);
+        posicion.Should().BePositive("la campana debe estar montada en el layout");
 
-        // AuthorizeView abiertos y sin cerrar antes del aviso: los que lo envuelven.
+        // AuthorizeView abiertos y sin cerrar antes de la campana: los que lo envuelven.
         var abiertos = new Stack<string>();
         foreach (Match m in Regex.Matches(layout[..posicion], @"<AuthorizeView\b[^>]*>|</AuthorizeView>"))
         {
@@ -371,7 +265,7 @@ public class IncorporacionCarteraComponentesTests : BunitContext
                 abiertos.Push(m.Value);
         }
 
-        abiertos.Should().NotBeEmpty("el aviso sigue exigiendo sesión (control positivo)");
+        abiertos.Should().NotBeEmpty("la campana sigue exigiendo sesión (control positivo)");
         abiertos.Should().OnlyContain(etiqueta => !etiqueta.Contains("Roles") && !etiqueta.Contains("Policy"));
     }
 
@@ -384,13 +278,149 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         return File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", relativa));
     }
 
+    // ------------------------------------------------- Alerta «sin principal»
+
+    private static OperacionEnAlertaDePrincipal EnAlerta(
+        string nombre, SituacionDePrincipal situacion, int personas = 0, string? principal = null, bool propia = false) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), nombre, situacion, personas, principal, propia);
+
+    private static IElement BotonAsumir(IRenderedComponent<SolicitudesCartera> pagina, OperacionEnAlertaDePrincipal operacion) =>
+        pagina.Find($"table[data-sin-principal] tr[data-operacion='{operacion.AsignacionOperacionId}'] button");
+
+    [Fact]
+    public void La_bandeja_lista_las_empresas_sin_principal_con_su_situacion_y_el_boton_Asumir()
+    {
+        var sinNadie = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        var conApoyo = EnAlerta("Obras Sur", SituacionDePrincipal.ConPersonasSinPrincipal, personas: 2);
+        var conCoordinador = EnAlerta("Montajes Este", SituacionDePrincipal.CoordinadorCaePrincipal, 1, "Carla");
+        _mediator.Alerta = new AlertaDePrincipal(true, [sinNadie, conApoyo, conCoordinador]);
+
+        var pagina = Render<SolicitudesCartera>();
+
+        var filas = pagina.FindAll("table[data-sin-principal] tbody tr");
+        filas.Select(f => f.GetAttribute("data-operacion")).Should().Equal(
+            sinNadie.AsignacionOperacionId.ToString(), conApoyo.AsignacionOperacionId.ToString());
+        filas[0].TextContent.Should().Contain("Talleres Norte").And.Contain(Textos["SinPrincipalSinNadie"]);
+        filas[1].TextContent.Should().Contain("Obras Sur").And.Contain(Textos["SinPrincipalConApoyoVarias", 2]);
+        BotonAsumir(pagina, sinNadie).TextContent.Trim().Should().Be(Textos["SinPrincipalAsumir"]);
+
+        // La que ya tiene un Coordinador CAE principal es informativa: sin botón.
+        var informativa = pagina.Find("table[data-coordinador-principal] tbody tr");
+        informativa.TextContent.Should().Contain("Montajes Este").And.Contain("Carla");
+        pagina.FindAll("table[data-coordinador-principal] button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Asumir_envia_el_Command_de_esa_operacion_sin_confirmacion_y_recarga_la_alerta()
+    {
+        var operacion = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        _mediator.Alerta = new AlertaDePrincipal(true, [operacion]);
+        var pagina = Render<SolicitudesCartera>();
+        _mediator.Alerta = new AlertaDePrincipal(true, []);
+
+        await BotonAsumir(pagina, operacion).ClickAsync(new());
+
+        _mediator.Comandos.Should().ContainSingle()
+            .Which.Should().Be(new AsumirPrincipalDeOperacionCommand(operacion.AsignacionOperacionId));
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Exito
+            && t.Mensaje == Textos["SinPrincipalAsumida", "Talleres Norte"].Value);
+        _mediator.ConsultasDeAlerta.Should().Be(2);
+        pagina.FindAll("table[data-sin-principal]").Should().BeEmpty("la empresa asumida sale de la lista");
+    }
+
+    [Fact]
+    public async Task Si_otra_persona_la_asumio_antes_se_dice_y_la_lista_se_recarga()
+    {
+        var operacion = EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado);
+        _mediator.Alerta = new AlertaDePrincipal(true, [operacion]);
+        _mediator.AlComando = _ => Result.Fallo(AsumirPrincipalDeOperacionCommandHandler.YaTienePrincipal);
+        var pagina = Render<SolicitudesCartera>();
+
+        await BotonAsumir(pagina, operacion).ClickAsync(new());
+
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Error
+            && t.Mensaje == Textos["ErrorAsumirYaTienePrincipal"].Value);
+        _mediator.ConsultasDeAlerta.Should().Be(2);
+    }
+
+    [Theory]
+    [InlineData("es-ES")]
+    [InlineData("ca-ES")]
+    public void El_aviso_de_exito_de_Asumir_no_afirma_un_rol(string cultura)
+    {
+        // Quien ya tenía cartera de Gestor CAE la conserva marcada: decirle «Coordinador CAE» sería falso.
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+
+        Textos["SinPrincipalAsumida", "Talleres Norte"].Value.Should().Contain("Talleres Norte")
+            .And.NotContain("Coordinador").And.NotContain("Gestor");
+    }
+
+    [Fact]
+    public void Cada_error_de_Asumir_tiene_su_texto_en_los_dos_idiomas()
+    {
+        Error[] errores =
+        [
+            AsumirPrincipalDeOperacionCommandHandler.SinAutoridad,
+            AsumirPrincipalDeOperacionCommandHandler.OperacionNoEncontrada,
+            AsumirPrincipalDeOperacionCommandHandler.YaTienePrincipal,
+            AsumirPrincipalDeOperacionCommandHandler.NoSePudoAsignar,
+            AsumirPrincipalDeOperacionCommandHandler.CambioMientrasDecidias,
+        ];
+
+        foreach (var cultura in new[] { "es-ES", "ca-ES" })
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+            foreach (var error in errores)
+                Textos[$"ErrorAsumir{error.Codigo["AsumirPrincipal.".Length..]}"].ResourceNotFound
+                    .Should().BeFalse($"{error.Codigo} debe tener texto en {cultura}");
+        }
+    }
+
+    [Fact]
+    public void Direccion_CAE_y_Administrador_ven_la_alerta_en_vez_de_el_aviso_de_sin_acceso()
+    {
+        _mediator.FalloBandeja = ErroresSolicitudCartera.SinPermiso;
+        _mediator.Alerta = new AlertaDePrincipal(true, [EnAlerta("Talleres Norte", SituacionDePrincipal.SinNadieAsignado)]);
+
+        var pagina = Render<SolicitudesCartera>();
+
+        pagina.FindAll("table[data-sin-principal] tbody tr").Should().ContainSingle();
+        pagina.Markup.Should().NotContain(Textos["SinAccesoTitulo"]);
+    }
+
+    [Fact]
+    public void Con_la_alerta_vacia_Direccion_CAE_y_Administrador_leen_que_todo_tiene_principal()
+    {
+        _mediator.FalloBandeja = ErroresSolicitudCartera.SinPermiso;
+        _mediator.Alerta = new AlertaDePrincipal(true, []);
+
+        var pagina = Render<SolicitudesCartera>();
+
+        pagina.Markup.Should().Contain(Textos["SinPrincipalVacioTitulo"]).And.NotContain(Textos["SinAccesoTitulo"]);
+    }
+
+    [Fact]
+    public void Quien_no_ve_la_alerta_ni_tiene_bandeja_sigue_leyendo_que_no_tiene_acceso()
+    {
+        _mediator.FalloBandeja = ErroresSolicitudCartera.SinPermiso;
+
+        var pagina = Render<SolicitudesCartera>();
+
+        pagina.Markup.Should().Contain(Textos["SinAccesoTitulo"]);
+        pagina.FindAll("table[data-sin-principal]").Should().BeEmpty();
+    }
+
     private sealed class MediatorFalso : IMediator
     {
         public BandejaIncorporacionCarteraDto Bandeja { get; set; } = BandejaCoordinador();
         public Error? FalloBandeja { get; set; }
         public Func<object, Result> AlComando { get; set; } = _ => Result.Exito();
+        public AlertaDePrincipal Alerta { get; set; } = AlertaDePrincipal.Ninguna;
+        public int ConsultasDeAlerta { get; private set; }
         public List<ObtenerSolicitudesIncorporacionCarteraQuery> Consultas { get; } = [];
         public List<object> Comandos { get; } = [];
+
+        public IReadOnlyList<CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.CarterasDeOperacion> Carteras { get; set; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -403,10 +433,22 @@ public class IncorporacionCarteraComponentesTests : BunitContext
                         ? Result.Fallo<BandejaIncorporacionCarteraDto>(error)
                         : Result.Exito(Bandeja);
                     break;
+                case ObtenerOperacionesSinPrincipalQuery:
+                    ConsultasDeAlerta++;
+                    respuesta = Alerta;
+                    break;
                 case AceptarSolicitudIncorporacionCarteraCommand or RechazarSolicitudIncorporacionCarteraCommand
-                    or RevocarIncorporacionCarteraCommand:
+                    or RevocarIncorporacionCarteraCommand or AsumirPrincipalDeOperacionCommand:
                     Comandos.Add(request);
                     respuesta = AlComando(request);
+                    break;
+                // La página monta el panel «Dar acceso», que pregunta por las carteras del
+                // Operador CAE; vacío, el panel no pinta nada (lo cubre PanelDarAccesoTests).
+                case CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.ObtenerPersonasConCarteraQuery:
+                    respuesta = Carteras;
+                    break;
+                case CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerPropuestasApoyoPendientesQuery:
+                    respuesta = CaeManager.Application.Operaciones.ApoyoCartera.Queries.PropuestasApoyoPendientesDto.Vacia;
                     break;
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");

@@ -10,6 +10,7 @@
 <div class="menu-acciones">
     <button type="button" class="@ClasesDisparador" aria-haspopup="menu" aria-expanded="@(_abierto ? "true" : "false")"
             aria-controls="@_panelId" aria-label="@(Etiqueta ?? EtiquetaAccesible ?? "Más acciones")" title="@(Etiqueta is null && ConBorde ? EtiquetaAccesible : null)"
+            data-keytip="@Keytip" data-keytip-nombre="@KeytipNombre"
             @ref="_disparador" @onclick="Alternar" @onkeydown="ManejarTeclaDisparadorAsync">
         @if (Etiqueta is null)
         {
@@ -70,6 +71,19 @@
 
     /// <summary>Disparador de icono «⋯» con borde, del tamaño de los botones de la cabecera de listado.</summary>
     [Parameter] public bool ConBorde { get; set; }
+
+    /// <summary>
+    /// Letra de KeyTips del disparador (<c>keytips.js</c>): una de <c>CatalogoAtajos.KeyTips</c>, o
+    /// cadena vacía para que se deduzca del nombre. Sin valor (los «⋯» de las filas) el
+    /// disparador no recibe letra.
+    /// </summary>
+    [Parameter] public string? Keytip { get; set; }
+
+    /// <summary>
+    /// Nombre del que se deduce la letra cuando <see cref="Keytip"/> es vacío y el texto del
+    /// disparador cambia con el estado (una pastilla dice «Estado: Con vencidos»).
+    /// </summary>
+    [Parameter] public string? KeytipNombre { get; set; }
 
     private string ClasesDisparador =>
         "menu-acciones-disparador"

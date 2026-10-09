@@ -20,44 +20,31 @@
 }
 
 .rejilla-empresas {
-    /* chevron · empresa (razón social y CIF) · presta servicio a · cumplimiento · documentación · detecciones · acciones */
+    /*
+      chevron · empresa (razón social y CIF) · cumplimiento · documentación · detecciones · acciones
+
+      Ninguna pista se resuelve por contenido. La cabecera y cada fila son rejillas DISTINTAS que solo
+      comparten esta definición: con la última pista en «auto», la fila la medía por su disparador «⋯»
+      (44 px) y la cabecera, cuya celda está vacía, la dejaba en 0, así que la pista elástica de la
+      cabecera era 44 px más ancha y «Cumplimiento», «Documentación» y «Detecciones» quedaban 44 px a la
+      derecha de sus celdas (medido a 1280 px, 2026-10-09). 44 px es lo que mide hoy el disparador «⋯»
+      de MenuAcciones; si ese ancho cambia, las columnas siguen alineadas y solo cambia el aire de la
+      última. Lo fija EmpresasCabeceraAlineadaE2ETests.
+    */
     display: grid;
-    grid-template-columns: 28px minmax(0, 2fr) minmax(0, 1.8fr) 104px 132px 116px auto;
+    grid-template-columns: 28px minmax(0, 1fr) 104px 132px 116px 44px;
     gap: var(--space-2);
     align-items: center;
 }
 
 /* Con selección múltiple entra una casilla delante y las columnas se corren. */
 .rejilla-empresas-seleccion {
-    grid-template-columns: 24px 28px minmax(0, 2fr) minmax(0, 1.8fr) 104px 132px 116px auto;
-}
-
-/*
-  «Presta servicio a» (maqueta: 2fr / 1.8fr). En pantallas estrechas no cabe junto a los anchos fijos: se
-  oculta en cabecera y fila (el chevron sigue abriendo el desplegable con la misma información) y la
-  rejilla pierde su pista.
-*/
-.columna-presta-servicio {
-    min-width: 0;
-}
-
-@media (max-width: 767px) {
-    .columna-presta-servicio {
-        display: none;
-    }
-
-    .rejilla-empresas {
-        grid-template-columns: 28px minmax(0, 2fr) 104px 132px 116px auto;
-    }
-
-    .rejilla-empresas-seleccion {
-        grid-template-columns: 24px 28px minmax(0, 2fr) 104px 132px 116px auto;
-    }
+    grid-template-columns: 24px 28px minmax(0, 1fr) 104px 132px 116px 44px;
 }
 
 /*
   Marco de la lista (mockup): una tarjeta con la cabecera de columnas en una
-  banda gris y las filas pegadas, separadas por una línea. Las reglas de
+  banda blanca y las filas pegadas, separadas por una línea. Las reglas de
   .tarjeta-fila-acordeon* de list-page.css las comparten Subcontratas y
   Centros; aquí solo se anulan DENTRO del marco, con el atributo de ámbito de
   esta página. Sin overflow: ver el comentario del marco en Empresas.razor.
@@ -71,8 +58,8 @@
 .cabecera-columnas-empresas {
     min-height: 40px;
     padding: 0 var(--space-4);
-    background: var(--color-surface-hover);
-    border-bottom: var(--border-default);
+    background: var(--color-surface);
+    border-bottom: 1px solid var(--color-fila-divisor);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     font: var(--font-label);
     font-size: 11px;
@@ -87,7 +74,7 @@
 
 .marco-lista-empresas .tarjeta-fila-acordeon {
     border: 0;
-    border-bottom: var(--border-default);
+    border-bottom: 1px solid var(--color-fila-divisor);
     border-radius: 0;
 }
 
@@ -124,61 +111,6 @@
     min-width: 0;
 }
 
-/*
-  Pastilla «Presta servicio a»: abre el desplegable de la fila. Recorta el nombre con elipsis para que
-  la columna no estire la rejilla; el chevron indica que despliega.
-*/
-.pastilla-presta-servicio {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    max-width: 100%;
-    padding: 2px var(--space-2);
-    border: var(--border-control);
-    border-radius: var(--radius-full);
-    background: var(--color-surface);
-    color: var(--color-text);
-    font: var(--font-body-sm);
-    cursor: pointer;
-}
-
-/* Sin Clientes empresariales que enseñar: la raya atenuada, como la de detecciones. */
-.celda-sin-presta-servicio {
-    color: var(--color-text-muted);
-}
-
-.pastilla-presta-servicio-texto {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-/* El chevron (lo pinta Icono, de ahí ::deep) gira con aria-expanded, como el de la fila. */
-.pastilla-presta-servicio ::deep svg {
-    flex-shrink: 0;
-    transition: transform var(--motion-fast) var(--ease-standard);
-}
-
-.pastilla-presta-servicio-abierta ::deep svg {
-    transform: rotate(180deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .pastilla-presta-servicio ::deep svg {
-        transition: none;
-    }
-}
-
-.pastilla-presta-servicio:hover {
-    background: var(--color-surface-hover);
-}
-
-.pastilla-presta-servicio:focus-visible {
-    outline: var(--border-focus);
-    outline-offset: 2px;
-}
-
 /* La columna de detecciones se reserva aunque no haya ninguna — es lo que
    mantiene la rejilla cuadrada de fila en fila. */
 .celda-sin-deteccion {
@@ -192,8 +124,7 @@
     outline-offset: -2px;
 }
 
-/* Rótulo de la fila desplegada: a cuántos Clientes empresariales presta
-   servicio esta Empresa. */
+/* Rótulo de la fila desplegada: «Clientes empresariales», sin recuento. */
 .titulo-clientes-empresa {
     display: block;
     margin-bottom: var(--space-2);

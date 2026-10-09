@@ -79,6 +79,37 @@ public class SolicitudIncorporacionCarteraRepositorioFalso : ISolicitudIncorpora
     public void Agregar(SolicitudIncorporacionCartera solicitud) => Solicitudes.Add(solicitud);
 }
 
+public class PropuestaApoyoCarteraRepositorioFalso : IPropuestaApoyoCarteraRepository
+{
+    public List<PropuestaApoyoCartera> Propuestas { get; } = [];
+
+    public Task<PropuestaApoyoCartera?> ObtenerPorIdAsync(
+        Guid id, Guid operadorTenantId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Propuestas.FirstOrDefault(p => p.Id == id && p.OperadorTenantId == operadorTenantId));
+
+    public Task<IReadOnlyList<PropuestaApoyoCartera>> ListarPendientesDelDestinatarioAsync(
+        Guid operadorTenantId, Guid destinatarioUsuarioId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<PropuestaApoyoCartera>>(Propuestas
+            .Where(p => p.OperadorTenantId == operadorTenantId && p.DestinatarioUsuarioId == destinatarioUsuarioId
+                        && p.Estado == EstadoPropuestaApoyoCartera.Pendiente)
+            .ToList());
+
+    public Task<IReadOnlyList<PropuestaApoyoCartera>> ListarPendientesDelProponenteAsync(
+        Guid operadorTenantId, Guid proponenteUsuarioId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<PropuestaApoyoCartera>>(Propuestas
+            .Where(p => p.OperadorTenantId == operadorTenantId && p.ProponenteUsuarioId == proponenteUsuarioId
+                        && p.Estado == EstadoPropuestaApoyoCartera.Pendiente)
+            .ToList());
+
+    public Task<bool> ExistePendienteAsync(
+        Guid asignacionOperacionId, Guid destinatarioUsuarioId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Propuestas.Any(p => p.AsignacionOperacionId == asignacionOperacionId
+                                            && p.DestinatarioUsuarioId == destinatarioUsuarioId
+                                            && p.Estado == EstadoPropuestaApoyoCartera.Pendiente));
+
+    public void Agregar(PropuestaApoyoCartera propuesta) => Propuestas.Add(propuesta);
+}
+
 /// <summary>
 /// Fake del catálogo. Por defecto: los candidatos son los que se registren, y
 /// la incorporación crea una cartera universal válida sobre la operación
@@ -92,6 +123,9 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
 
     public MotivoAnulacionSolicitudCartera? AnularAlIncorporar { get; set; }
     public bool PierdeLaCarrera { get; set; }
+
+    /// <summary>La escritura real no encuentra cómo emitir ni qué marcar (otra cartera suya, delegación caída): <c>SinRelevo</c>.</summary>
+    public bool RelevoImposible { get; set; }
 
     public List<Guid?> TenantsAlIncorporar { get; } = [];
     public List<Guid?> TenantsAlRetirar { get; } = [];
@@ -173,6 +207,40 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
         return Task.FromResult(new ResultadoIncorporacionCartera(cartera, Guid.NewGuid(), null));
     }
 
+    /// <summary>Motivo con el que la vía de apoyo anula, en vez de emitir, si se fija.</summary>
+    public MotivoAnulacionPropuestaApoyo? AnularAlIncorporarApoyo { get; set; }
+
+    /// <summary>Cada emisión de apoyo pedida, con el Tenant activo con que se pidió.</summary>
+    public List<(PropuestaApoyoCartera Propuesta, Guid? TenantActivo)> ApoyosPedidos { get; } = [];
+
+    /// <summary>
+    /// Como el real: solo emite si quien propuso lleva hoy la marca de principal en
+    /// <see cref="CarterasVivas"/>, y lo que emite nunca la lleva.
+    /// </summary>
+    public Task<ResultadoApoyoCartera> IncorporarApoyoAsync(
+        PropuestaApoyoCartera propuesta, CancellationToken cancellationToken = default)
+    {
+        ApoyosPedidos.Add((propuesta, AmbitoTenantExplicito.TenantIdActual));
+
+        if (AnularAlIncorporarApoyo is { } motivo)
+            return Task.FromResult(ResultadoApoyoCartera.Anulada(motivo));
+
+        var principal = CarterasVivas.FirstOrDefault(c => c.OperadorTenantId == propuesta.OperadorTenantId
+                                                          && c.Cartera.AsignacionOperacionId == propuesta.AsignacionOperacionId
+                                                          && c.Cartera.EsPrincipal).Cartera;
+        if (principal?.UsuarioId != propuesta.ProponenteUsuarioId)
+            return Task.FromResult(ResultadoApoyoCartera.Anulada(MotivoAnulacionPropuestaApoyo.ProponenteYaNoEsPrincipal));
+
+        var cartera = AsignacionCartera.Externa(
+            Operaciones[propuesta.AsignacionOperacionId], propuesta.DestinatarioUsuarioId, "GestorCae",
+            AmbitoAsignacion.Universal, DateTime.UtcNow, null, DateTime.UtcNow);
+        CarterasVigentes.Add(cartera.Id);
+        CarterasVivas.Add((propuesta.OperadorTenantId, new CarteraVivaDeOperacion(
+            propuesta.AsignacionOperacionId, propuesta.PropietarioTenantId, "Empresa",
+            propuesta.DestinatarioUsuarioId, "GestorCae", false, null)));
+        return Task.FromResult(new ResultadoApoyoCartera(cartera, Guid.NewGuid(), null));
+    }
+
     /// <summary>Los Tenants que cada Gestor CAE tiene enteros, por Operador CAE.</summary>
     public List<(Guid OperadorTenantId, Guid UsuarioId, TenantEnCarteraDeGestor Tenant)> CarterasUniversales { get; } = [];
 
@@ -251,6 +319,8 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
         CancellationToken cancellationToken = default)
     {
         CambiosDeMarca.Add(("relevar", asignacionOperacionId, coordinadorUsuarioId, AmbitoTenantExplicito.TenantIdActual));
+        if (RelevoImposible)
+            return Task.FromResult(ResultadoRelevoPrincipal.SinRelevo);
         if (CarterasVivas.Any(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.EsPrincipal))
             return Task.FromResult(ResultadoRelevoPrincipal.SinRelevo);
         var i = CarterasVivas.FindIndex(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.UsuarioId == coordinadorUsuarioId);
@@ -320,9 +390,48 @@ public class DirectorioRolesEnOrigen : IDirectorioUsuariosService
         Task.FromResult<IReadOnlyDictionary<Guid, string>>(
             usuarioIds.ToDictionary(id => id, id => $"Usuario {id:N}"[..12]));
 
+    /// <summary>Avatar elegido por cada usuario; quien no está aquí no eligió ninguno.</summary>
+    public Dictionary<Guid, string> Avatares { get; } = [];
+
+    public Task<IReadOnlyDictionary<Guid, string>> ObtenerAvataresVisiblesAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, string>>(
+            Avatares.Where(a => usuarioIds.Contains(a.Key)).ToDictionary(a => a.Key, a => a.Value));
+
     public Task<bool> EsCuentaActivaConRolAsync(
         Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
         Task.FromResult(_roles.TryGetValue((usuarioId, tenantId), out var suyo)
                         && suyo == rol
                         && !_desactivadas.Contains(usuarioId));
+
+    public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+        Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Guid>>(_roles
+            .Where(r => r.Key.Tenant == tenantId && r.Value == rol && !_desactivadas.Contains(r.Key.Usuario))
+            .Select(r => r.Key.Usuario)
+            .OrderBy(id => id)
+            .ToList());
+}
+
+/// <summary>
+/// Doble de <see cref="IAsignacionAutomaticaDePrincipal"/> que no asigna nada y anota lo que se le pidió:
+/// para los tests de comandos de delegaciones y de cuentas que no tratan de la cartera.
+/// </summary>
+public class AsignacionAutomaticaInerte : IAsignacionAutomaticaDePrincipal
+{
+    public List<AsignacionOperacion> OperacionesAbiertas { get; } = [];
+    public List<(Guid UsuarioId, Guid OperadorTenantId)> PrimerosElegibles { get; } = [];
+    public bool Resultado { get; set; } = true;
+
+    public Task<bool> AlAbrirOperacionAsync(AsignacionOperacion operacion, CancellationToken cancellationToken = default)
+    {
+        OperacionesAbiertas.Add(operacion);
+        return Task.FromResult(Resultado);
+    }
+
+    public Task<bool> AlPrimerElegibleAsync(Guid usuarioId, Guid operadorTenantId, CancellationToken cancellationToken = default)
+    {
+        PrimerosElegibles.Add((usuarioId, operadorTenantId));
+        return Task.FromResult(Resultado);
+    }
 }

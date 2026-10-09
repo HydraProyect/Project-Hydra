@@ -72,4 +72,46 @@
   <data name="RetirarConfirmar" xml:space="preserve">
     <value>Retirar</value>
   </data>
+  <data name="SinPersonasOperador" xml:space="preserve">
+    <value>Encara no hi ha cap Gestor CAE del teu equip amb «{0}» a la seva cartera: ningú de la teva organització hi pot treballar.</value>
+  </data>
+  <data name="SinPersonasOperadorEnlace" xml:space="preserve">
+    <value>Assigna cartera a Usuaris</value>
+  </data>
+  <data name="SinPersonasOperadorQuien" xml:space="preserve">
+    <value>La cartera l'assigna un Administrador, Direcció CAE o Coordinador CAE des d'Usuaris, a la teva pròpia organització.</value>
+  </data>
+  <data name="SinPersonasPropietario" xml:space="preserve">
+    <value>«{0}» encara no hi ha posat ningú del seu equip. Les persones les decideix «{0}» des de la seva organització; quan ho faci apareixeran aquí i les podràs retirar.</value>
+  </data>
+  <data name="AltaIntro" xml:space="preserve">
+    <value>Es crearà el Tenant propietari de l'Operador CAE extern, sense delegacions, i el compte del seu primer Administrador, sense contrasenya: l'estableix aquesta persona des de l'enllaç d'activació que veuràs en crear-lo.</value>
+  </data>
+  <data name="AltaEtiquetaCorreoAdministrador" xml:space="preserve">
+    <value>Correu del primer Administrador</value>
+  </data>
+  <data name="AltaEtiquetaNombreAdministrador" xml:space="preserve">
+    <value>Nom del primer Administrador</value>
+  </data>
+  <data name="AltaCreadoTitulo" xml:space="preserve">
+    <value>Operador CAE extern creat</value>
+  </data>
+  <data name="AltaCreadoResumen" xml:space="preserve">
+    <value>«{0}» ja existeix, i el seu primer Administrador és {1} ({2}).</value>
+  </data>
+  <data name="AltaEnlaceInstrucciones" xml:space="preserve">
+    <value>No li hem enviat cap correu: li has de fer arribar tu aquest enllaç d'activació perquè estableixi la seva contrasenya. Caduca en {0} minuts, només es pot fer servir una vegada i no es torna a mostrar aquí.</value>
+  </data>
+  <data name="AltaCuentaSinContrasena" xml:space="preserve">
+    <value>Compte creat sense contrasenya: ningú més que aquesta persona no arriba a conèixer-la.</value>
+  </data>
+  <data name="AltaCopiarEnlace" xml:space="preserve">
+    <value>Copiar l'enllaç d'activació</value>
+  </data>
+  <data name="AltaEtiquetaEnlace" xml:space="preserve">
+    <value>l'enllaç d'activació</value>
+  </data>
+  <data name="AltaHecho" xml:space="preserve">
+    <value>Fet</value>
+  </data>
 </root>

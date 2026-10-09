@@ -127,7 +127,7 @@ public class VisitaCanceladaFueraDeLoActivoTests : IAsyncLifetime
     }
 
     private static ObtenerVisitasQueryHandler HandlerLista(CaeManagerDbContext contexto) =>
-        new(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
+        new(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(), contexto);
 
     private CaeManagerDbContext CrearContexto()
     {

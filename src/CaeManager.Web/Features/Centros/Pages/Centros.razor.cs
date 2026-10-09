@@ -203,6 +203,29 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = "empresa")]
     public string? EmpresaFiltroInicial { get; set; }
 
+    /// <summary>
+    /// Agrupación por Cliente empresarial. Nace activa: en la URL solo viaja
+    /// cuando se quita (<c>?agrupar=no</c>), para que la dirección sin
+    /// parámetros siga siendo la vista de fábrica.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "agrupar")]
+    public string? AgruparInicial { get; set; }
+
+    /// <summary>Orden pedido: <c>cumplimiento</c> (peores primero) o <c>cumplimiento-desc</c>. Sin él, el orden de catálogo.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    private const string AgruparNoEnUrl = "no";
+    private const string OrdenCumplimientoEnUrl = "cumplimiento";
+    private const string OrdenCumplimientoDescendenteEnUrl = "cumplimiento-desc";
+
+    private (string? OrdenarPor, bool Descendente) OrdenDesdeUrl() => OrdenInicial switch
+    {
+        OrdenCumplimientoEnUrl => (nameof(CentroListaDto.CumplimientoPorcentaje), false),
+        OrdenCumplimientoDescendenteEnUrl => (nameof(CentroListaDto.CumplimientoPorcentaje), true),
+        _ => (null, false),
+    };
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
 
@@ -290,6 +313,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         _clienteFiltro = IdDesdeUrl(ClienteFiltroInicial);
         _empresaFiltro = IdDesdeUrl(EmpresaFiltroInicial);
         _centroIdFiltro = CentroId;
+        (_ordenarPor, _ordenDescendente) = OrdenDesdeUrl();
+        _agruparPorCliente = AgruparInicial != AgruparNoEnUrl;
+        _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
         await CargarAsync();
 
         if (Accion == "crear")
@@ -346,11 +372,18 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         var estadoDeLaUrl = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
         var clienteDeLaUrl = IdDesdeUrl(ClienteFiltroInicial);
         var empresaDeLaUrl = IdDesdeUrl(EmpresaFiltroInicial);
+        var (ordenarPorDeLaUrl, descendenteDeLaUrl) = OrdenDesdeUrl();
+
+        // La agrupación es solo visual: se aplica sin volver a pedir la lista.
+        AplicarAgrupacion(AgruparInicial != AgruparNoEnUrl);
 
         if (deLaUrl == _busqueda && estadoDeLaUrl == _estadoFiltro && clienteDeLaUrl == _clienteFiltro
-            && empresaDeLaUrl == _empresaFiltro && CentroId == _centroIdFiltro)
+            && empresaDeLaUrl == _empresaFiltro && CentroId == _centroIdFiltro
+            && ordenarPorDeLaUrl == _ordenarPor && descendenteDeLaUrl == _ordenDescendente)
             return;
 
+        _ordenarPor = ordenarPorDeLaUrl;
+        _ordenDescendente = descendenteDeLaUrl;
         _busqueda = deLaUrl;
         _estadoFiltro = estadoDeLaUrl;
         _clienteFiltro = clienteDeLaUrl;
@@ -409,6 +442,18 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private string TextoOpcion(IReadOnlyList<OpcionEstado> opciones, string valor) =>
         opciones.FirstOrDefault(o => o.Valor == valor)?.Texto ?? (_opcionesFiltroCargadas ? "—" : "…");
 
+    /// <summary>La consulta de la página que se está viendo: filtros, orden y paginación actuales.</summary>
+    private ObtenerCentrosQuery ConsultaDePaginaActual() => new(
+        Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+        ClienteId: IdDeFiltro(_clienteFiltro),
+        Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
+        OrdenarPor: _ordenarPor,
+        Descendente: _ordenDescendente,
+        Pagina: _pagina,
+        TamanoPagina: _tamanoPagina,
+        CentroId: _centroIdFiltro,
+        EmpresaId: IdDeFiltro(_empresaFiltro));
+
     private async Task CargarAsync(bool resetPagina = false)
     {
         if (resetPagina)
@@ -420,16 +465,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerCentrosQuery(
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                ClienteId: IdDeFiltro(_clienteFiltro),
-                Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
-                OrdenarPor: _ordenarPor,
-                Descendente: _ordenDescendente,
-                Pagina: _pagina,
-                TamanoPagina: _tamanoPagina,
-                CentroId: _centroIdFiltro,
-                EmpresaId: IdDeFiltro(_empresaFiltro)));
+            var resultado = await Mediator.Send(ConsultaDePaginaActual());
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
@@ -482,6 +518,69 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     }
 
     private DrawerAsignacionMasiva _drawerAsignacion = default!;
+
+    [CascadingParameter] private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// El rol efectivo puede escribir (misma pregunta que <see cref="SoloConEscritura"/>). Decide si
+    /// las incidencias de las ventanas de «Vencidos» y «Próximos» se ofrecen como pulsables: a quien
+    /// solo consulta no se le ofrece un formulario que el comando le va a denegar.
+    /// </summary>
+    private bool _puedeEscribir;
+
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes { get; set; } = default!;
+
+    private CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental _correccion = default!;
+
+    /// <summary>
+    /// Las causas de Empresa no llevan su Empresa en la incidencia: es la del Centro. Las de
+    /// Trabajador llevan su <c>TrabajadorId</c>. Devuelve la Empresa solo cuando la incidencia es suya.
+    /// </summary>
+    private static Guid? EmpresaDeIncidencia(CentroListaDto centro, IncidenciaCentroDto incidencia) =>
+        incidencia.Ambito == AmbitoCausa.Empresa ? centro.EmpresaId : null;
+
+    private bool EsCorregible(CentroListaDto centro, IncidenciaCentroDto incidencia) =>
+        _puedeEscribir && CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental.EsCorregible(
+            incidencia.DocumentoId, incidencia.TipoDocumentoId, incidencia.TrabajadorId, EmpresaDeIncidencia(centro, incidencia));
+
+    private bool HayCorregibles(CentroListaDto centro, IReadOnlyList<IncidenciaCentroDto> incidencias) =>
+        incidencias.Any(i => EsCorregible(centro, i));
+
+    private string? PieDeIncidencias(CentroListaDto centro, IReadOnlyList<IncidenciaCentroDto> incidencias) =>
+        HayCorregibles(centro, incidencias) ? Comunes["VentanaIncidenciasPie"].Value : null;
+
+    private Task CorregirIncidenciaAsync(CentroListaDto centro, IncidenciaCentroDto incidencia) =>
+        _correccion.AbrirAsync(
+            incidencia.DocumentoId, incidencia.TipoDocumentoId, incidencia.TrabajadorId, EmpresaDeIncidencia(centro, incidencia));
+
+    /// <summary>
+    /// Tras corregir una incidencia desde la ventana de contexto. Un documento de Empresa cuenta en
+    /// todos sus Centros y un Trabajador puede estar asignado a varios, así que no basta con
+    /// refrescar la fila pulsada (<see cref="RefrescarCentroAsync"/>): se vuelve a pedir la página
+    /// tal como está —mismos filtros, orden y página— y se sustituye en sitio. La selección se
+    /// conserva; los acordeones se cierran porque su contenido ya no es el de antes de corregir.
+    /// </summary>
+    private async Task RefrescarTrasCorreccionAsync()
+    {
+        ResultadoPaginado<CentroListaDto> resultado;
+        try
+        {
+            resultado = await Mediator.Send(ConsultaDePaginaActual());
+        }
+        catch (Exception)
+        {
+            // El documento ya se guardó: que falle la relectura no es un error del formulario.
+            // CargarAsync enseña el estado de error de la lista, con su reintento.
+            await CargarAsync();
+            return;
+        }
+
+        _totalElementos = resultado.TotalElementos;
+        _elementosPagina = resultado.Elementos.ToList();
+        _seleccionados.IntersectWith(_elementosPagina.Select(c => c.Id));
+        _expandidos.Clear();
+        StateHasChanged();
+    }
 
     /// <summary>
     /// Item 4 del backlog Centro 360: "Asignar a centros seleccionados…" en
@@ -639,7 +738,14 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _idEnfocado = null;
     }
 
+    /// <summary>El conmutador de la barra: cambia la agrupación y la escribe en la URL.</summary>
     private void CambiarAgrupacion(bool agrupar)
+    {
+        AplicarAgrupacion(agrupar);
+        NavigationManager.ActualizarFiltroEnUrl("agrupar", agrupar ? null : AgruparNoEnUrl);
+    }
+
+    private void AplicarAgrupacion(bool agrupar)
     {
         if (_agruparPorCliente == agrupar)
             return;
@@ -1161,6 +1267,11 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _ordenDescendente = false;
         }
 
+        // El orden viaja en la URL como los filtros: recargar o compartir el enlace lo conserva.
+        NavigationManager.ActualizarFiltroEnUrl("orden", _ordenarPor is null
+            ? null
+            : _ordenDescendente ? OrdenCumplimientoDescendenteEnUrl : OrdenCumplimientoEnUrl);
+
         _pagina = 1;
         await CargarAsync();
     }
@@ -1222,7 +1333,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// quien es cada incidencia, porque el recuento agrega los dos ambitos
     /// (DDL-031, DDL-047).
     /// </summary>
-    private static RenderFragment DesgloseIncidencias(IReadOnlyList<IncidenciaCentroDto> incidencias) => builder =>
+    private RenderFragment DesgloseIncidencias(CentroListaDto centro, IReadOnlyList<IncidenciaCentroDto> incidencias) => builder =>
     {
         // Numeros de secuencia LITERALES, no una variable incrementada
         // (ASP0006): el analizador de Blazor lo senala porque el numero debe
@@ -1244,6 +1355,21 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
             foreach (var incidencia in deEsteAmbito)
             {
+                // Pulsable solo si hay algo que abrir y el rol puede guardarlo: una incidencia sin
+                // Documento ni Tipo, o vista por quien solo consulta, sigue siendo una línea de texto.
+                if (EsCorregible(centro, incidencia))
+                {
+                    var descripcion = incidencia.Descripcion;
+                    builder.OpenComponent<VentanaContextoElemento>(6);
+                    builder.AddComponentParameter(7, nameof(VentanaContextoElemento.Ayuda), Comunes["VentanaIncidenciaAyuda"].Value);
+                    builder.AddComponentParameter(8, nameof(VentanaContextoElemento.AlPulsar),
+                        EventCallback.Factory.Create(this, () => CorregirIncidenciaAsync(centro, incidencia)));
+                    builder.AddComponentParameter(9, nameof(VentanaContextoElemento.ChildContent),
+                        (RenderFragment)(contenido => contenido.AddContent(10, descripcion)));
+                    builder.CloseComponent();
+                    continue;
+                }
+
                 builder.OpenElement(3, "span");
                 builder.AddAttribute(4, "class", "ventana-linea");
                 builder.AddContent(5, incidencia.Descripcion);

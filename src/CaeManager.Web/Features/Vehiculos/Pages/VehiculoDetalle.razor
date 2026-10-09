@@ -1,0 +1,232 @@
+@*
+    Vehículo 360 (página): la ficha entera de un Vehículo, con su
+    documentación registrada, su historial y sus datos. Mockup de referencia:
+    «Vehiculo 360 página TALVEG.dc.html».
+
+    Primer incremento («con lo que ya viaja»): identidad con anillo, banda de
+    documentos vencidos, pestañas Documentación e Historial y tarjeta lateral
+    Información. Quedan para los siguientes: contadores de estado, orden del
+    peor al mejor y «Renovar»/«Confirmar» en la fila (segundo); pestaña
+    «Centros de su empleador» (tercero); fecha de alta, tarjeta lateral del
+    empleador y «Eliminar vehículo» con «Deshacer».
+
+    El anillo mide los documentos REGISTRADOS, no los exigidos: todavía no
+    existe un universo de documentos exigidos a un vehículo. Por eso aquí no
+    hay estado «Pendiente» y la banda es informativa: los documentos de un
+    vehículo no bloquean el acceso de nadie.
+
+    Editar abre el panel del Vehículo (Context Workspace) en «Información»,
+    que es donde vive la edición en línea con su aviso de cambios sin
+    guardar; al cerrarse el panel la ficha se vuelve a leer.
+*@
+@page "/vehiculos/{VehiculoId:guid}"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Vehiculos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosVehiculos> Textos
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@(_detalle?.Nombre ?? Textos["FichaKicker"]) — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["FichaRutaNavegacion"]" />
+
+    @if (_error)
+    {
+        @* No encontrado y sin acceso se ven igual, para no revelar si el
+           registro existe en otra organización: la consulta devuelve null en
+           los dos casos. *@
+        <Tarjeta>
+            <EstadoVacio Titulo="@Textos["ErrorCargaVehiculoTitulo"]" Descripcion="@Textos["FichaErrorDescripcion"]"
+                         NombreIcono="error-circulo" AcentoIcono="var(--color-danger-700)" FondoIcono="var(--color-danger-50)">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarAsync">@Textos["BotonReintentar"]</Boton>
+                    <EnlaceProfundoOtraEmpresa />
+                </Accion>
+            </EstadoVacio>
+        </Tarjeta>
+    }
+    else if (_cargando)
+    {
+        <Tarjeta>
+            <EstadoCargando Filas="5" />
+        </Tarjeta>
+    }
+    else if (_detalle is not null)
+    {
+        <CabeceraIdentidad Titulo="@_detalle.Nombre" Kicker="@Textos["FichaKicker"]">
+            <Anillo>
+                <AnilloCumplimiento Porcentaje="_detalle.DocumentosAlDia.Porcentaje" Tamano="TamanoAnillo.Cabecera"
+                                    Detalle="@Textos["FichaAnilloDetalle", _detalle.DocumentosAlDia.AlDia, _detalle.DocumentosAlDia.Requeridos]"
+                                    Etiqueta="@EtiquetaAnillo" />
+            </Anillo>
+            <Datos>
+                <span class="vehiculo360-placa">
+                    <BotonCopiar Valor="@_detalle.NumeroPlaca" Texto="@_detalle.NumeroPlaca"
+                                 Etiqueta="@Textos["FichaCopiarLaMatricula"]"
+                                 NombreAccesible="@Textos["FichaCopiarMatricula", _detalle.NumeroPlaca]" />
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>@_detalle.Modelo</span>
+                <span aria-hidden="true">·</span>
+                <span>@Textos["FichaEmpleadorPrefijo"]</span>
+                @if (RutaEmpleador is { } rutaEmpleador)
+                {
+                    <a class="vehiculo360-enlace" href="@rutaEmpleador">@_detalle.EmpleadorNombre</a>
+                }
+                else
+                {
+                    <span>@_detalle.EmpleadorNombre</span>
+                }
+            </Datos>
+            <Acciones>
+                <SoloConEscritura>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["FichaSubirDocumento"]</Boton>
+                    <MenuAcciones EtiquetaAccesible="@Textos["FichaMasAcciones"]" ConBorde="true">
+                        <ItemMenuAccion OnClick="AbrirInformacionAsync">@Textos["FichaEditarVehiculo"]</ItemMenuAccion>
+                    </MenuAcciones>
+                </SoloConEscritura>
+            </Acciones>
+        </CabeceraIdentidad>
+
+        @if (Vencidos.Count > 0)
+        {
+            @* Con escritura, cada incidencia es un botón y hay enlace general;
+               el rol Consulta conserva el texto y pierde los botones. *@
+            <SoloConEscritura>
+                @Banda(true)
+            </SoloConEscritura>
+            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Consulta" Context="soloConsulta">
+                @Banda(false)
+            </AuthorizeView>
+        }
+
+        else if (VencidosFueraDeLaLista)
+        {
+            <BandaAccion Tono="TonoBanda.Peligro">
+                <b>@Textos["FichaBandaVencidosSinNombrar"]</b>
+            </BandaAccion>
+        }
+
+        <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaSecciones"]">
+            <CuerpoConLateral EtiquetaLateral="@Textos["FichaEtiquetaLateral"]">
+                <ChildContent>
+                    @switch (_pestanaActiva)
+                    {
+                        case "documentacion":
+                            @if (_cargandoDocumentos)
+                            {
+                                <EstadoCargando Filas="3" />
+                            }
+                            else if (_errorDocumentos)
+                            {
+                                <Tarjeta>
+                                    <EstadoVacio Titulo="@Textos["FichaErrorDocumentosTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]"
+                                                 NombreIcono="error-circulo" AcentoIcono="var(--color-danger-700)" FondoIcono="var(--color-danger-50)">
+                                        <Accion>
+                                            <Boton Variante="VarianteBoton.Secundario" OnClick="CargarDocumentosAsync">@Textos["BotonReintentar"]</Boton>
+                                        </Accion>
+                                    </EstadoVacio>
+                                </Tarjeta>
+                            }
+                            else if (_documentos.Count == 0)
+                            {
+                                <Tarjeta>
+                                    <EstadoVacio Titulo="@Textos["FichaVacioDocumentosTitulo"]" Descripcion="@Textos["FichaVacioDocumentosDescripcion"]"
+                                                 NombreIcono="documentos">
+                                        <Accion>
+                                            <SoloConEscritura>
+                                                <Boton Variante="VarianteBoton.Secundario" OnClick="SubirDocumentoAsync">@Textos["FichaSubirDocumento"]</Boton>
+                                            </SoloConEscritura>
+                                        </Accion>
+                                    </EstadoVacio>
+                                </Tarjeta>
+                            }
+                            else
+                            {
+                                <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["FichaListaDocumentos"]">
+                                    <Encabezado>@Textos["FichaMostrando", _documentos.Count, _totalDocumentos]</Encabezado>
+                                    <ChildContent>
+                                        @foreach (var documento in _documentos)
+                                        {
+                                            <FilaRelacion @key="documento.Id"
+                                                          Nombre="@documento.TipoDocumentoNombre"
+                                                          NombreIcono="documentos"
+                                                          OnNombre="() => AbrirDocumentoAsync(documento)"
+                                                          Tono="@(documento.Estado == EstadoDocumento.Vencido ? TonoFila.Peligro : null)">
+                                                <Detalle>@Textos["FichaVence", documento.FechaVencimiento is { } vence ? vence.ToString("dd/MM/yyyy") : "—"]</Detalle>
+                                                <Estado>
+                                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+                                                    <BadgesAcreditacion Acreditaciones="documento.Acreditaciones" />
+                                                </Estado>
+                                            </FilaRelacion>
+                                        }
+                                    </ChildContent>
+                                    <Pie>@Textos["FichaNotaRegistrados"]</Pie>
+                                </ListaRelaciones>
+                            }
+                            break;
+
+                        case "historial":
+                            <PestanaHistorial EntidadTipo="Vehiculo" EntidadId="VehiculoId" />
+                            break;
+                    }
+                </ChildContent>
+                <Lateral>
+                    <Tarjeta Compacta="true" Titulo="@Textos["PestanaInformacion"]">
+                        <AccionesHeader>
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirInformacionAsync">@Textos["FichaEditarEnlace"]</Boton>
+                            </SoloConEscritura>
+                        </AccionesHeader>
+                        <ChildContent>
+                            <RejillaDatos>
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_detalle.Nombre" />
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaMatricula"]" Valor="@_detalle.NumeroPlaca" />
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaModelo"]" Valor="@_detalle.Modelo" />
+                                <DatoRejilla Etiqueta="@Textos["EtiquetaEmpleador"]" Valor="@_detalle.EmpleadorNombre" Ancho="true" />
+                            </RejillaDatos>
+                            <p class="vehiculo360-nota">@Textos["FichaNotaEmpleador"]</p>
+                        </ChildContent>
+                    </Tarjeta>
+                </Lateral>
+            </CuerpoConLateral>
+        </Pestanas>
+
+        <SoloConEscritura>
+            <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="RecargarTrasCambioAsync" />
+        </SoloConEscritura>
+    }
+</div>
+</LimiteDeErrores>
+
+@code {
+    /// <summary>
+    /// La banda: una incidencia por documento vencido. Con un solo vencido
+    /// lleva además cuándo venció y el enlace general «Renovar {tipo}»; con
+    /// varios, cada nombre es su propia entrada. Abrir la incidencia lleva al
+    /// panel del Documento, que es donde hoy se renueva.
+    /// </summary>
+    private RenderFragment Banda(bool conEscritura) => __builder =>
+    {
+        var unico = Vencidos.Count == 1 ? Vencidos[0] : null;
+
+        <BandaAccion Tono="TonoBanda.Peligro"
+                     TextoEnlace="@(unico is null ? null : Textos["FichaBandaRenovar", unico.TipoDocumentoNombre].Value)"
+                     OnEnlace="@(conEscritura && unico is not null ? EventCallback.Factory.Create(this, () => AbrirDocumentoAsync(unico)) : default)">
+            @foreach (var vencido in Vencidos)
+            {
+                <span class="vehiculo360-incidencia" @key="vencido.Id">
+                    <IncidenciaBanda Texto="@vencido.TipoDocumentoNombre"
+                                     OnClick="@(conEscritura ? EventCallback.Factory.Create(this, () => AbrirDocumentoAsync(vencido)) : default)" />
+                    <span>@TextoVencimiento(vencido)</span>
+                </span>
+            }
+        </BandaAccion>
+    };
+}

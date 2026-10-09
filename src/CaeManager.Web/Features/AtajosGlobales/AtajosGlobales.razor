@@ -38,6 +38,26 @@
                     </div>
                 }
             </section>
+            @* KeyTips: los gestos, las letras estables que hoy tienen control y, para quien no
+               usa el teclado, un botón que enciende el modo (cierra la chuleta primero). *@
+            <section>
+                <h3>@Textos["SeccionKeyTips"]</h3>
+                @foreach (var atajo in CatalogoAtajos.KeyTipsGestos)
+                {
+                    <div class="chuleta-atajos-fila">
+                        <kbd>@atajo.Tecla</kbd>
+                        <span>@Textos[atajo.ClaveDescripcion]</span>
+                    </div>
+                }
+                <div class="chuleta-atajos-letras">
+                    @foreach (var atajo in CatalogoAtajos.KeyTips.Where(a => CatalogoAtajos.KeyTipsConControl.Contains(a.Tecla)))
+                    {
+                        <span class="chuleta-atajos-letra"><kbd>@atajo.Tecla</kbd> @Textos[atajo.ClaveDescripcion]</span>
+                    }
+                </div>
+                <p class="chuleta-atajos-nota">@Textos["KeyTipsNotaDeducidas"]</p>
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="MostrarKeyTipsAsync">@Textos["KeyTipsMostrar"]</Boton>
+            </section>
             <section>
                 <h3>@Textos["SeccionFecha"]</h3>
                 <div class="chuleta-atajos-fila"><kbd>@Textos["TeclaClic"]</kbd><span>@Textos["FechaCopiarVencimiento"]</span></div>

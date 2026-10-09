@@ -94,6 +94,13 @@
     white-space: nowrap;
 }
 
+/* Segundos que quedan para «Deshacer»: cifras de ancho fijo para que el aviso no baile al cambiar. */
+.toast-cuenta {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    opacity: 0.8;
+}
+
 /*
   Barra de progreso que se vacía a la misma velocidad que el autodescarte
   (duración fijada desde ToastService.DuracionAutoDescarte vía

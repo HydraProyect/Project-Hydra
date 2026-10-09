@@ -1,10 +1,8 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Commands.CrearEmpresa;
-using CaeManager.Application.Empresas.Commands.EliminarEmpresa;
 using CaeManager.Application.Empresas.Commands.EliminarEmpresas;
 using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
-using CaeManager.Application.Empresas.Queries.ObtenerResumenClientesDeEmpresas;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Common;
 using CaeManager.Web.Components.Layout;
@@ -69,21 +67,24 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _razonSocialAEliminar = string.Empty;
-    private bool _eliminando;
+    // Un clic en la fila, su nombre o Enter sobre la fila enfocada abren la vista rápida: el
+    // panel de 520 px del Context Workspace, el mismo que abren los botones 360 del resto de
+    // pantallas. A la página Empresa 360 (/empresas/{id}) se va con el icono 360 de la fila.
+    private Task AbrirVistaRapidaAsync(Guid id) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, NombreDe(id), "informacion");
 
-    // El nombre de la fila es un enlace a Empresa 360 (/empresas/{id}); la
-    // «Vista rápida» del menú y Enter sobre la fila enfocada abren el panel de
-    // 520 px del Context Workspace, el mismo que abren los botones 360 del
-    // resto de pantallas, igual que en la lista Clientes. Antes el nombre abría
-    // EmpresaPreviewDrawer, que la lista ya no usa.
-    private Task AbrirVistaRapidaAsync(Guid id)
-    {
-        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial ?? string.Empty;
-        return WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, nombre, "informacion");
-    }
+    /// <summary>
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
+    /// del panel). Si el rol no puede escribir, el panel se abre y se queda en lectura.
+    /// </summary>
+    private Task AbrirVistaRapidaEnEdicionAsync(Guid id) =>
+        WorkspaceService.AbrirEnEdicionAsync(EntidadWorkspace.Empresa, id, NombreDe(id));
+
+    // La Empresa del panel puede no estar en la página (el filtro la dejó fuera): su nombre
+    // es entonces el del frame abierto.
+    private string NombreDe(Guid id) =>
+        _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial
+        ?? (WorkspaceService.FrameActual is { } frame && frame.EntidadId == id ? frame.TituloVisible : string.Empty);
 
     /// <summary>Empresa cuyo panel está abierto arriba de la pila del Context Workspace, si la hay.</summary>
     private Guid? EmpresaEnVistaPrevia =>
@@ -356,52 +357,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
                 StateHasChanged();
             }
         }
-
-        if (EsVigente(carga) && !_errorCarga)
-            await CargarResumenClientesAsync(carga);
     }
-
-    /// <summary>
-    /// Columna «Presta servicio a»: el resumen de Clientes empresariales de las Empresas de la página, en una
-    /// sola consulta (alcance de gestión, REC-153). Va después de la lista y por su cuenta: si falla, la lista
-    /// se ve igual y la columna dice «—», como para una Empresa sin Clientes empresariales a tu alcance.
-    /// </summary>
-    private async Task CargarResumenClientesAsync(int carga)
-    {
-        _resumenClientes = new Dictionary<Guid, ResumenClientesDeEmpresaDto>();
-        _resumenClientesConError = false;
-        if (_elementosPagina.Count == 0)
-            return;
-
-        try
-        {
-            var resumen = await Mediator.Send(
-                new ObtenerResumenClientesDeEmpresasQuery(_elementosPagina.Select(e => e.Id).ToList()), _ciclo.Token);
-            if (!EsVigente(carga))
-                return;
-
-            _resumenClientes = resumen;
-        }
-        catch (Exception) when (!EsVigente(carga))
-        {
-            return;
-        }
-        catch (Exception)
-        {
-            // Un fallo no se pinta como «no presta servicio»: no sabemos nada (mismo criterio que el desplegable).
-            _resumenClientes = new Dictionary<Guid, ResumenClientesDeEmpresaDto>();
-            _resumenClientesConError = true;
-        }
-
-        StateHasChanged();
-    }
-
-    private IReadOnlyDictionary<Guid, ResumenClientesDeEmpresaDto> _resumenClientes = new Dictionary<Guid, ResumenClientesDeEmpresaDto>();
-    private bool _resumenClientesConError;
-
-    /// <summary>«Orion Cliente S.L. +1»: el primero por razón social y cuántos más. Es también el comienzo del nombre accesible.</summary>
-    private static string TextoPrestaServicio(ResumenClientesDeEmpresaDto resumen) =>
-        resumen.Total > 1 ? $"{resumen.Primero} +{resumen.Total - 1}" : resumen.Primero;
 
     // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
     private Task CambiarTamanoPaginaAsync(int tamano)
@@ -521,9 +477,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         estado is null
             ? "Todavía no tiene ningún documento"
             : $"Peor estado de vigencia entre sus documentos: {EstadoDocumentoUi.Texto(estado.Value)}";
-
-    private static string TituloClientes(int cantidad) =>
-        cantidad == 1 ? "Presta servicio a 1 Cliente empresarial" : $"Presta servicio a {cantidad} Clientes empresariales";
 
     private async Task AbrirCrear()
     {
@@ -683,57 +636,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             _erroresCampo.Remove(campo);
         else
             _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
-    }
-
-    private void AbrirEliminar(Guid id, string razonSocial)
-    {
-        _idAEliminar = id;
-        _razonSocialAEliminar = razonSocial;
-        _confirmarEliminarVisible = true;
-    }
-
-    private async Task ConfirmarEliminarAsync()
-    {
-        _eliminando = true;
-
-        try
-        {
-            var idEliminado = _idAEliminar;
-            var resultado = await Mediator.Send(new EliminarEmpresaCommand(idEliminado));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.MostrarError(resultado.Error);
-            }
-            else
-            {
-                ToastService.Mostrar("Empresa eliminada correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Empresa, [idEliminado]);
-                _confirmarEliminarVisible = false;
-                await CargarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar("No pudimos eliminar la empresa. Intenta nuevamente en unos segundos.", TonoToast.Error);
-        }
-        finally
-        {
-            _eliminando = false;
-        }
-    }
-
-    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarEmpresaCommand.</summary>
-    private async Task DeshacerEliminarAsync(Guid id)
-    {
-        var resultado = await Mediator.Send(new RestaurarEmpresaCommand(id));
-
-        ToastService.Mostrar(
-            resultado.EsExitoso ? "Empresa restaurada." : resultado.Error.Mensaje,
-            resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
-
-        if (resultado.EsExitoso)
-            await CargarAsync();
     }
 
     private bool TodosSeleccionados =>
@@ -901,6 +803,16 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     private async Task ManejarAtajoAsync(string tecla)
     {
+        // «e» no depende de que haya filas: sin fila enfocada edita la ficha que esté abierta,
+        // aunque el filtro haya dejado la lista vacía.
+        if (tecla == "e")
+        {
+            // La fila enfocada siempre está en la página: cada recarga de la lista la olvida.
+            if ((_idEnfocado ?? EmpresaEnVistaPrevia) is { } idEditar)
+                await AbrirVistaRapidaEnEdicionAsync(idEditar);
+            return;
+        }
+
         if (_elementosPagina.Count == 0) return;
 
         switch (tecla)
@@ -918,8 +830,13 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
                     break;
                 }
             case "x":
+                // Marcar enciende la selección múltiple: una fila marcada sin casilla a la
+                // vista sería selección invisible justo antes de «Eliminar seleccionados».
                 if (_idEnfocado is { } idAlternar)
+                {
+                    _seleccionMultiple = true;
                     AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                }
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)

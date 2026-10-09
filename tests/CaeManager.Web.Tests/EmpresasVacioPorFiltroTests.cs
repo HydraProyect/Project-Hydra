@@ -7,6 +7,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
+using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -15,6 +16,7 @@ using FluentAssertions;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -64,6 +66,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
                     Empresas, Empresas.Count, q.Pagina, q.TamanoPagina),
                 ObtenerAlcanceCeroQuery => (object)AlcanceCero,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
+                ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 
@@ -192,8 +195,11 @@ public class EmpresasVacioPorFiltroTests : BunitContext
 
         var cabecera = cut.Find(".cabecera-columnas-empresas");
         // «Empresa» lleva razón social y CIF en una celda de dos líneas (maqueta aprobada): no hay columna CIF.
-        cabecera.TextContent.Should().Contain("Empresa").And.Contain("Presta servicio a").And.NotContain("CIF").And.NotContain("Razón social")
-            .And.Contain("Cumplimiento").And.Contain("Documentación").And.Contain("Detecciones");
+        // Tampoco «Presta servicio a» (decisión del propietario, 2026-10-08): los Clientes empresariales solo
+        // se ven en la fila desplegada.
+        cabecera.Children.Select(c => c.TextContent.Trim()).Should().Equal(
+            [string.Empty, "Empresa", "Cumplimiento", "Documentación", "Detecciones", string.Empty],
+            "chevron · Empresa · Cumplimiento · Documentación · Detecciones · acciones");
 
         var fila = cut.Find(".tarjeta-fila-acordeon-cabecera");
         fila.QuerySelector(".celda-identidad-empresa")!.TextContent.Should().Contain("Montajes Ebro S.L.").And.Contain("B-48.220.917",
@@ -213,36 +219,36 @@ public class EmpresasVacioPorFiltroTests : BunitContext
     }
 
     /// <summary>
-    /// «Detección de trabajadores» solo se ofrece cuando hay alguna pendiente —
-    /// misma condición que ya gobierna el badge. Ofrecerla siempre sería un
-    /// cambio de producto que nadie ha decidido.
+    /// «Detección de trabajadores» solo se ofrece cuando hay alguna pendiente, y desde la
+    /// pastilla de la columna Detecciones: la fila no lleva menú «⋯» (patrón de listados,
+    /// 2026-10-08). Ofrecerla siempre sería un cambio de producto que nadie ha decidido.
     /// </summary>
     [Fact]
-    public void Sin_detecciones_pendientes_el_menu_de_fila_no_ofrece_la_deteccion()
+    public void Sin_detecciones_pendientes_la_fila_no_ofrece_la_deteccion()
     {
         var cut = Renderizar(empresas: new EmpresaListaDto(
             Guid.NewGuid(), "Montajes Ebro S.L.", "B-48.220.917", DateTime.UtcNow, null, null, 0));
 
-        // MenuAcciones no pinta sus ítems hasta que se abre: sin este clic el
-        // test comprobaría una ausencia contra un menú cerrado, que es verde
-        // vacío — daría lo mismo que el ítem existiera o no.
-        cut.Find(".lista-filas-acordeon .menu-acciones-disparador").Click();
-
-        cut.Markup.Should().Contain("Vista rápida",
-            "el menú abierto es la barrera que hace válida la comprobación siguiente");
-        cut.Markup.Should().NotContain("Detección de trabajadores");
+        cut.FindAll(".lista-filas-acordeon a.boton-360-pagina").Should().ContainSingle(
+            "la fila pintada es la barrera que hace válida la comprobación siguiente");
+        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        cut.FindAll(".badge-deteccion").Should().BeEmpty();
     }
 
     [Fact]
-    public void Con_detecciones_pendientes_el_menu_de_fila_si_las_ofrece()
+    public async Task Con_detecciones_pendientes_la_pastilla_lleva_a_la_deteccion()
     {
+        var id = Guid.NewGuid();
         var cut = Renderizar(empresas: new EmpresaListaDto(
-            Guid.NewGuid(), "Aislamientos Nervión S.L.", "B-48.111.222", DateTime.UtcNow, null, null, 3));
+            id, "Aislamientos Nervión S.L.", "B-48.111.222", DateTime.UtcNow, null, null, 3));
 
-        cut.Markup.Should().Contain("3 detecciones", "el badge de la celda sigue estando");
+        var pastilla = cut.Find(".lista-filas-acordeon button.badge-deteccion");
+        pastilla.TextContent.Should().Contain("3 detecciones");
 
-        cut.Find(".lista-filas-acordeon .menu-acciones-disparador").Click();
-        cut.Markup.Should().Contain("Detección de trabajadores");
+        await pastilla.ClickAsync(new MouseEventArgs());
+
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath
+            .Should().Be($"/empresas/{id}/deteccion-trabajadores");
     }
 
     [Fact]

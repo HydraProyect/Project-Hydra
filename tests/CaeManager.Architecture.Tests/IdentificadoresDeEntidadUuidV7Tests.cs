@@ -39,8 +39,8 @@ public class IdentificadoresDeEntidadUuidV7Tests
     /// </summary>
     private static readonly Dictionary<string, int> SecretosYTokens = new()
     {
-        // SecurityStamp de Identity: invalida sesiones abiertas; es un secreto.
-        ["src/CaeManager.Infrastructure/Identity/ApplicationUser.cs"] = 1,
+        // SecurityStamp de Identity: invalida sesiones abiertas y enlaces de activación emitidos; es un secreto.
+        ["src/CaeManager.Infrastructure/Identity/ApplicationUser.cs"] = 2,
         ["src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs"] = 1,
         // jti del aserto de cliente de Microsoft 365: nonce anti-repetición.
         ["src/CaeManager.Infrastructure/Integraciones/AsertoClienteMicrosoft365.cs"] = 1,
@@ -63,9 +63,10 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Infrastructure/Identity/AvatarDeCuentasIdentity.cs"] = 1,
         // Token de concurrencia Version (IVersionable) y quien lo renueva.
         ["src/CaeManager.Domain/AsistenteIa/TareaAsistente.cs"] = 1,
-        ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 1,
+        ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 2,
         ["src/CaeManager.Domain/Integraciones/CredencialIntegracion.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs"] = 1,
+        ["src/CaeManager.Domain/Operaciones/PropuestaApoyoCartera.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/SolicitudIncorporacionCartera.cs"] = 1,
         ["src/CaeManager.Domain/Plantillas/ItemGeneracionDocumento.cs"] = 1,
         ["src/CaeManager.Domain/Plataforma/ConcesionPrivilegio.cs"] = 1,

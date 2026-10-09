@@ -123,6 +123,19 @@ public class RestaurarPrincipalAlReactivarTests
     }
 
     [Fact]
+    public async Task Sin_Coordinador_CAE_se_escala_a_la_unica_cuenta_del_primer_perfil_que_tiene_alguna()
+    {
+        var direccion = Guid.NewGuid();
+        _cuentas.Asignar(direccion, Operador, "DireccionCae");
+        _cuentas.Desactivar(AnteriorPrincipal);
+        _cuentas.Desactivar(Coordinador);
+
+        (await Restaurar()).Should().BeTrue();
+
+        Principales().Should().Equal([direccion], "el escalado de la enmienda, punto 4: no hay Coordinador CAE y Dirección CAE tiene una sola cuenta");
+    }
+
+    [Fact]
     public async Task El_candado_de_cartera_se_toma_antes_de_leer_la_cuenta()
     {
         _cuentas.Desactivar(AnteriorPrincipal);

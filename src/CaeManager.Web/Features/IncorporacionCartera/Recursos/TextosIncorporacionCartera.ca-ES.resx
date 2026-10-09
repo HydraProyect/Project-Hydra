@@ -150,23 +150,11 @@
   <data name="ConfirmarRevocarPropiaMensaje" xml:space="preserve">
     <value>Deixaràs de tenir {0} a la teva cartera.</value>
   </data>
-  <data name="AvisoTitulo" xml:space="preserve">
-    <value>Sol·licituds de cartera</value>
-  </data>
-  <data name="AvisoResumenUna" xml:space="preserve">
-    <value>{0} sol·licitud pendent</value>
-  </data>
-  <data name="AvisoResumenVarias" xml:space="preserve">
-    <value>{0} sol·licituds pendents</value>
-  </data>
   <data name="AvisoPide" xml:space="preserve">
     <value>{0} demana incorporar-se a {1}</value>
   </data>
   <data name="AvisoVerTodas" xml:space="preserve">
     <value>Veure-les totes</value>
-  </data>
-  <data name="AvisoMasTarde" xml:space="preserve">
-    <value>Més tard</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
     <value>No s'han pogut carregar les sol·licituds</value>
@@ -233,5 +221,71 @@
   </data>
   <data name="SinAsignacionEnlaceUsuarios" xml:space="preserve">
     <value>Anar a Usuaris</value>
+  </data>
+  <data name="SinPrincipalAvisoTitulo" xml:space="preserve">
+    <value>Empreses sense Gestor CAE principal</value>
+  </data>
+  <data name="SinPrincipalAvisoResumenUna" xml:space="preserve">
+    <value>{0} empresa de la teva organització no té principal</value>
+  </data>
+  <data name="SinPrincipalAvisoResumenVarias" xml:space="preserve">
+    <value>{0} empreses de la teva organització no tenen principal</value>
+  </data>
+  <data name="SinPrincipalSeccion" xml:space="preserve">
+    <value>Empreses sense Gestor CAE principal</value>
+  </data>
+  <data name="SinPrincipalIntro" xml:space="preserve">
+    <value>Avui ningú respon d'aquestes empreses davant la teva organització. Si n'assumeixes una, passes a ser-ne el Coordinador CAE principal a l'acte; després pots designar un Gestor CAE principal.</value>
+  </data>
+  <data name="SinPrincipalColSituacion" xml:space="preserve">
+    <value>Situació</value>
+  </data>
+  <data name="SinPrincipalSinNadie" xml:space="preserve">
+    <value>Sense ningú assignat</value>
+  </data>
+  <data name="SinPrincipalConApoyoUna" xml:space="preserve">
+    <value>{0} persona de suport, cap de principal</value>
+  </data>
+  <data name="SinPrincipalConApoyoVarias" xml:space="preserve">
+    <value>{0} persones de suport, cap de principal</value>
+  </data>
+  <data name="SinPrincipalAsumir" xml:space="preserve">
+    <value>Assumir</value>
+  </data>
+  <data name="SinPrincipalAsumida" xml:space="preserve">
+    <value>Ara portes {0} com a principal.</value>
+  </data>
+  <data name="CoordinadorPrincipalSeccion" xml:space="preserve">
+    <value>Empreses amb un Coordinador CAE principal</value>
+  </data>
+  <data name="CoordinadorPrincipalIntro" xml:space="preserve">
+    <value>Tenen principal. Quan convingui, designa un Gestor CAE principal des d'Usuaris.</value>
+  </data>
+  <data name="CoordinadorPrincipalColPrincipal" xml:space="preserve">
+    <value>Coordinador CAE principal</value>
+  </data>
+  <data name="CoordinadorPrincipalEresTu" xml:space="preserve">
+    <value>Tu</value>
+  </data>
+  <data name="ErrorAsumirSinAutoridad" xml:space="preserve">
+    <value>El teu rol no permet assumir una empresa que està sense principal.</value>
+  </data>
+  <data name="ErrorAsumirOperacionNoEncontrada" xml:space="preserve">
+    <value>No trobem aquesta empresa entre les que gestiona la teva organització. Recarrega la llista i revisa-ho.</value>
+  </data>
+  <data name="ErrorAsumirYaTienePrincipal" xml:space="preserve">
+    <value>Aquesta empresa ja té principal. No s'ha canviat res.</value>
+  </data>
+  <data name="ErrorAsumirNoSePudoAsignar" xml:space="preserve">
+    <value>No se t'ha pogut assignar aquesta empresa: ja hi tens un accés d'un altre tipus o la seva situació acaba de canviar. Recarrega la llista i, si continua aquí, demana que revisin el teu accés.</value>
+  </data>
+  <data name="ErrorAsumirCambioMientrasDecidias" xml:space="preserve">
+    <value>Una altra persona ha rebut aquesta empresa mentre decidies. No s'ha canviat res.</value>
+  </data>
+  <data name="SinPrincipalVacioTitulo" xml:space="preserve">
+    <value>Totes les empreses tenen principal</value>
+  </data>
+  <data name="SinPrincipalVacioDetalle" xml:space="preserve">
+    <value>Quan una empresa que gestiona la teva organització es quedi sense Gestor CAE principal, apareixerà aquí perquè algú l'assumeixi.</value>
   </data>
 </root>

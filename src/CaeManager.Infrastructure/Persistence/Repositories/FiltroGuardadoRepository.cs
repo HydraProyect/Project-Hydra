@@ -8,6 +8,10 @@ public class FiltroGuardadoRepository(CaeManagerDbContext dbContext) : IFiltroGu
     public Task<FiltroGuardado?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.FiltrosGuardados.FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
 
+    public Task<bool> ExisteConNombreAsync(Guid usuarioId, string pantalla, string nombre, CancellationToken cancellationToken = default) =>
+        dbContext.FiltrosGuardados.AnyAsync(
+            f => f.UsuarioId == usuarioId && f.Pantalla == pantalla && f.Nombre == nombre, cancellationToken);
+
     public void Agregar(FiltroGuardado filtro) => dbContext.FiltrosGuardados.Add(filtro);
 
     public void Eliminar(FiltroGuardado filtro) => dbContext.FiltrosGuardados.Remove(filtro);

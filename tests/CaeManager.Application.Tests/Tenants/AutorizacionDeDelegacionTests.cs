@@ -202,7 +202,7 @@ public class AutorizacionDeDelegacionTests
 
         var handler = new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler(
             delegaciones, tenantsContext: null!, writer,
-            new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork);
+            new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte());
 
         var resultado = await handler.Handle(
             new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(
@@ -229,7 +229,7 @@ public class AutorizacionDeDelegacionTests
         var handler = new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler(
             new DelegacionTenantRepositorioFalso(), tenantsContext: null!,
             new AsignacionesOperativasWriterFalso(),
-            autorizacion, new CurrentUserServiceFalso(Usuario), new UnitOfWorkFalso());
+            autorizacion, new CurrentUserServiceFalso(Usuario), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte());
 
         await handler.Handle(
             new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(
@@ -248,7 +248,7 @@ public class AutorizacionDeDelegacionTests
             new DelegacionTenantRepositorioFalso(), tenantsContext: null!,
             new AsignacionesOperativasWriterFalso(),
             new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(usuarioId: null),
-            new UnitOfWorkFalso());
+            new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte());
 
         var resultado = await handler.Handle(
             new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(

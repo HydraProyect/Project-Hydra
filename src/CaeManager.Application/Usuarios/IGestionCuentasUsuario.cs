@@ -75,6 +75,15 @@ public interface IGestionCuentasUsuario
     /// «olvidé mi contraseña»), ya codificado para ir en una URL, <b>solo si la cuenta
     /// sigue pendiente de activación</b>, comprobado sobre la misma lectura cuyo sello
     /// lleva el token; si no, falla con <see cref="AutoridadSobreCuentas.YaNoPendiente"/>.
+    ///
+    /// <para>
+    /// <b>Escribe</b>: cada emisión cambia el sello de seguridad de la cuenta antes de
+    /// generar el token, así que deja sin valor todos los enlaces emitidos antes —también
+    /// los de «olvidé mi contraseña», que comparten proveedor y sello pero no lo cambian
+    /// al emitirse— y queda en la auditoría de la cuenta como
+    /// <c>RegistroAuditoria.AccionActivacionEmitida</c>, con el Actor real de
+    /// quien la pide. Vale igual para el enlace del alta y para un reenvío.
+    /// </para>
     /// </summary>
     Task<Result<string>> GenerarTokenActivacionAsync(Guid usuarioId, CancellationToken cancellationToken = default);
 }

@@ -49,6 +49,8 @@ public class SeleccionarTodosDiceQueEsLaPaginaTests : BunitContext
                 ObtenerClientesAutorizadosQuery => (object)(IReadOnlyList<ClienteAutorizadoDto>)[new(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerEmpresasQuery q => (object)new ResultadoPaginado<EmpresaListaDto>(
                     Pagina, TotalFiltrado, q.Pagina, q.TamanoPagina),
+                CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.ObtenerPersonasConCarteraQuery =>
+                    (object)(IReadOnlyList<CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.CarterasDeOperacion>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista: {request.GetType().Name}.")
             }));
 
@@ -87,7 +89,7 @@ public class SeleccionarTodosDiceQueEsLaPaginaTests : BunitContext
         Services.AddScoped<IMediator>(_ => new MediatorPorTipo { Pagina = pagina, TotalFiltrado = totalFiltrado });
         Services.AddScoped<ToastService>();
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
-        // Empresas pinta con IStringLocalizer<TextosEmpresas> (la «Vista rápida» del menú de fila).
+        // Empresas pinta con IStringLocalizer<TextosEmpresas> (el nombre accesible de la fila, la cabecera «Gestor CAE»).
         Services.AddLocalization();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();

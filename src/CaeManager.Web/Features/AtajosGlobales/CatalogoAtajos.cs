@@ -96,7 +96,9 @@ public static class CatalogoAtajos
     /// <summary>
     /// Atajos dentro de una lista: las teclas que reparte <c>atajos-lista.js</c> (su array
     /// <c>TECLAS_ADMITIDAS</c> lleva exactamente estas; <c>CatalogoAtajosSincronizadoConJsTests</c>
-    /// lo vigila). <c>f</c> enfoca el buscador «Filtrar esta pantalla» del listado; no choca
+    /// lo vigila). <c>e</c> abre la vista rápida de la fila enfocada ya en edición (el lápiz de
+    /// la cabecera del panel); no choca con <c>g e</c>, que <c>atajos-lista.js</c> deja pasar.
+    /// <c>f</c> enfoca el buscador «Filtrar esta pantalla» del listado; no choca
     /// con Ctrl/Cmd+K (buscador universal de la cabecera). La búsqueda del menú lateral ya no tiene atajo
     /// de teclado: se abre con su lupa.
     /// </summary>
@@ -105,6 +107,55 @@ public static class CatalogoAtajos
         new("j / k", "ListaFilaSiguienteAnterior"),
         new("x", "ListaMarcarFila"),
         new("Enter", "ListaAbrirFila"),
+        new("e", "ListaEditarFila"),
         new("f", "ListaFiltrarPantalla")
     ];
+
+    /// <summary>
+    /// Gestos del modo KeyTips (<c>keytips.js</c>): Alt pulsada y soltada sola lo enciende;
+    /// con el modo encendido cada control declarado enseña una letra.
+    /// </summary>
+    public static readonly IReadOnlyList<DefinicionAtajo> KeyTipsGestos =
+    [
+        new("Alt", "KeyTipsEncender"),
+        new("A – Z", "KeyTipsLetra"),
+        new("Retroceso", "KeyTipsSubir"),
+        new("Esc", "KeyTipsSalir")
+    ];
+
+    /// <summary>
+    /// Letras estables de KeyTips: las de los controles compartidos de los listados, iguales
+    /// en todas las pantallas. Una letra por control, sin repetir. <c>keytips.js</c> lleva las
+    /// mismas en <c>LETRAS_ESTABLES</c> y nunca las da a un control que deduce su letra
+    /// (pastillas de filtro, pestañas, opciones de un menú), aunque el control estable no esté
+    /// en la pantalla; <c>CatalogoAtajosSincronizadoConJsTests</c> vigila el emparejamiento y
+    /// que cada <c>data-keytip</c> del código salga de aquí.
+    /// </summary>
+    /// <remarks>
+    /// <c>X</c> (exportar) y <c>T</c> (franja de estado) están reservadas por la propuesta de
+    /// listados: hoy «Exportar a Excel» vive dentro del menú «⋯» (<c>M</c>) y la franja de
+    /// estado no existe todavía. <c>G</c> (filtros guardados) vive dentro de «Más filtros»
+    /// (<c>L</c>) en el modo pastillas.
+    /// </remarks>
+    public static readonly IReadOnlyList<DefinicionAtajo> KeyTips =
+    [
+        new("S", "KeyTipSeleccionar"),
+        new("X", "KeyTipExportar"),
+        new("K", "KeyTipAtajos"),
+        new("M", "KeyTipMasAcciones"),
+        new("N", "KeyTipNuevo"),
+        new("F", "KeyTipFiltrar"),
+        new("T", "KeyTipFranjaEstado"),
+        new("L", "KeyTipMasFiltros"),
+        new("G", "KeyTipFiltrosGuardados"),
+        new("A", "KeyTipAgrupar"),
+        new("E", "KeyTipExpandir")
+    ];
+
+    /// <summary>
+    /// Letras de <see cref="KeyTips"/> que hoy tiene algún control (las que enseña la chuleta).
+    /// Las reservadas sin control no se anuncian: una letra anunciada que no hace nada es peor
+    /// que una que falta.
+    /// </summary>
+    public static readonly IReadOnlyCollection<string> KeyTipsConControl = ["S", "K", "M", "N", "F", "L", "A", "E"];
 }

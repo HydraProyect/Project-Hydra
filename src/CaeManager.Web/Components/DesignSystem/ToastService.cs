@@ -46,7 +46,8 @@ public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono, string? Text
 /// se autodescartan a los 5s salvo los de error, que exigen descarte manual
 /// (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, "Toasts"). Un toast con acción ("Deshacer", Fase D)
 /// vive 8s en vez de 5 — el usuario necesita un instante extra para leer el
-/// mensaje y decidir si actuar, no solo para leerlo y descartarlo.
+/// mensaje y decidir si actuar, no solo para leerlo y descartarlo — y enseña
+/// los segundos que le quedan (<see cref="SegundosRestantes"/>).
 /// La cuenta atrás se detiene mientras el puntero o el foco de teclado están sobre el toast
 /// (<see cref="PunteroSobre"/>, <see cref="FocoEn"/>) y sigue por donde iba al salir.
 /// </summary>
@@ -99,10 +100,34 @@ public class ToastService
 
         var toast = new ToastMensaje(Guid.NewGuid(), mensaje, tono, textoAccion, onAccion);
         _mensajes.Add(toast);
-        OnCambio?.Invoke();
 
+        // Antes de avisar a la interfaz: el primer pintado ya tiene que encontrar la cuenta atrás
+        // (SegundosRestantes), o el aviso nacería sin el número y no lo enseñaría hasta el primer tic.
         if (tono != TonoToast.Error)
-            Programar(toast.Id, onAccion is not null ? _duracionConAccion : _duracion);
+            Programar(toast.Id, onAccion is not null ? _duracionConAccion : _duracion, cuentaVisible: onAccion is not null);
+
+        OnCambio?.Invoke();
+    }
+
+    /// <summary>
+    /// Segundos que le quedan a un toast con acción antes de desaparecer, redondeados hacia arriba
+    /// (decisión del 2026-10-08: quien acaba de eliminar algo ve cuánto tiempo tiene para
+    /// «Deshacer»). <c>null</c> si el toast no tiene acción o no tiene cuenta atrás. Con el puntero o
+    /// el foco encima la cuenta está detenida y el número no baja.
+    /// </summary>
+    public int? SegundosRestantes(Guid id)
+    {
+        lock (_cuentas)
+        {
+            if (!_cuentas.TryGetValue(id, out var cuenta) || !cuenta.Visible)
+                return null;
+
+            var restante = cuenta.Pausada ? cuenta.Restante : cuenta.Restante - (DateTime.UtcNow - cuenta.Inicio);
+
+            // El margen absorbe la resolución del reloj: un tic que llega justo en el cambio de
+            // segundo no debe volver a pintar el segundo que acaba de terminar.
+            return Math.Max(0, (int)Math.Ceiling(restante.TotalSeconds - 0.05));
+        }
     }
 
     /// <summary>
@@ -162,9 +187,9 @@ public class ToastService
             await toast.OnAccion();
     }
 
-    private void Programar(Guid id, TimeSpan duracion)
+    private void Programar(Guid id, TimeSpan duracion, bool cuentaVisible)
     {
-        var cuenta = new CuentaAtras(duracion);
+        var cuenta = new CuentaAtras(duracion, cuentaVisible);
         lock (_cuentas)
         {
             _cuentas[id] = cuenta;
@@ -177,14 +202,26 @@ public class ToastService
         var cts = new CancellationTokenSource();
         cuenta.Cts = cts;
         cuenta.Inicio = DateTime.UtcNow;
-        _ = EsperarAsync(id, cuenta.Restante, cts.Token);
+        _ = EsperarAsync(id, cuenta.Restante, cuenta.Visible, cts.Token);
     }
 
-    private async Task EsperarAsync(Guid id, TimeSpan restante, CancellationToken ct)
+    /// <summary>
+    /// Espera lo que queda y descarta. Con la cuenta a la vista, la espera va por tramos que
+    /// terminan en cada cambio de segundo y avisa a la interfaz para que repinte el número.
+    /// </summary>
+    private async Task EsperarAsync(Guid id, TimeSpan restante, bool cuentaVisible, CancellationToken ct)
     {
         try
         {
-            await Task.Delay(restante, ct);
+            while (restante > TimeSpan.Zero)
+            {
+                var tramo = cuentaVisible ? HastaElCambioDeSegundo(restante) : restante;
+                await Task.Delay(tramo, ct);
+                restante -= tramo;
+
+                if (cuentaVisible && restante > TimeSpan.Zero)
+                    OnCambio?.Invoke();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -192,6 +229,12 @@ public class ToastService
         }
 
         Descartar(id);
+    }
+
+    private static TimeSpan HastaElCambioDeSegundo(TimeSpan restante)
+    {
+        var fraccion = TimeSpan.FromTicks(restante.Ticks % TimeSpan.TicksPerSecond);
+        return fraccion > TimeSpan.Zero ? fraccion : TimeSpan.FromSeconds(1);
     }
 
     private void Pausar(Guid id, Action<CuentaAtras> cambiar)
@@ -227,9 +270,12 @@ public class ToastService
         }
     }
 
-    private sealed class CuentaAtras(TimeSpan restante)
+    private sealed class CuentaAtras(TimeSpan restante, bool visible)
     {
         public TimeSpan Restante { get; set; } = restante;
+
+        /// <summary>El toast enseña los segundos que le quedan (los que tienen acción).</summary>
+        public bool Visible { get; } = visible;
         public DateTime Inicio { get; set; }
         public CancellationTokenSource? Cts { get; set; }
         public bool Puntero { get; set; }

@@ -87,7 +87,88 @@
   <data name="ListaAbrirFila" xml:space="preserve">
     <value>Abrir la fila enfocada</value>
   </data>
+  <data name="ListaEditarFila" xml:space="preserve">
+    <value>Editar la fila enfocada des de la seva vista ràpida</value>
+  </data>
   <data name="ListaFiltrarPantalla" xml:space="preserve">
     <value>Anar al filtre d'aquesta pantalla</value>
+  </data>
+  <data name="SeccionKeyTips" xml:space="preserve">
+    <value>Lletres sobre els controls (KeyTips)</value>
+  </data>
+  <data name="KeyTipsEncender" xml:space="preserve">
+    <value>Prémer i deixar anar: mostra una lletra sobre cada control</value>
+  </data>
+  <data name="KeyTipsLetra" xml:space="preserve">
+    <value>Executa el control d'aquesta lletra; en un grup o un menú, baixa un nivell</value>
+  </data>
+  <data name="KeyTipsSubir" xml:space="preserve">
+    <value>Torna al nivell anterior</value>
+  </data>
+  <data name="KeyTipsSalir" xml:space="preserve">
+    <value>Surt del mode (també una altra Alt o un clic)</value>
+  </data>
+  <data name="KeyTipSeleccionar" xml:space="preserve">
+    <value>Selecció múltiple</value>
+  </data>
+  <data name="KeyTipExportar" xml:space="preserve">
+    <value>Exportar</value>
+  </data>
+  <data name="KeyTipAtajos" xml:space="preserve">
+    <value>Dreceres de teclat</value>
+  </data>
+  <data name="KeyTipMasAcciones" xml:space="preserve">
+    <value>Més accions de la pantalla</value>
+  </data>
+  <data name="KeyTipNuevo" xml:space="preserve">
+    <value>Nou</value>
+  </data>
+  <data name="KeyTipFiltrar" xml:space="preserve">
+    <value>Filtrar aquesta pantalla</value>
+  </data>
+  <data name="KeyTipFranjaEstado" xml:space="preserve">
+    <value>Franja d'estat</value>
+  </data>
+  <data name="KeyTipMasFiltros" xml:space="preserve">
+    <value>Més filtres</value>
+  </data>
+  <data name="KeyTipFiltrosGuardados" xml:space="preserve">
+    <value>Filtres desats</value>
+  </data>
+  <data name="KeyTipAgrupar" xml:space="preserve">
+    <value>Agrupar</value>
+  </data>
+  <data name="KeyTipExpandir" xml:space="preserve">
+    <value>Expandir o contraure-ho tot</value>
+  </data>
+  <data name="KeyTipsMostrar" xml:space="preserve">
+    <value>Mostrar les lletres ara</value>
+  </data>
+  <data name="KeyTipsNotaDeducidas" xml:space="preserve">
+    <value>Les pastilles de filtre, les pestanyes i les opcions d'un menú reben la lletra en activar el mode.</value>
+  </data>
+  <data name="KeyTipsBarraRaiz" xml:space="preserve">
+    <value>KeyTips: prem una lletra</value>
+  </data>
+  <data name="KeyTipsBarraNivel" xml:space="preserve">
+    <value>KeyTips: tria una opció</value>
+  </data>
+  <data name="KeyTipsBarraSubir" xml:space="preserve">
+    <value>puja un nivell</value>
+  </data>
+  <data name="KeyTipsBarraSalir" xml:space="preserve">
+    <value>surt</value>
+  </data>
+  <data name="KeyTipsAnuncioEncendido" xml:space="preserve">
+    <value>KeyTips activat. Prem la lletra d'un control, o Escape per sortir.</value>
+  </data>
+  <data name="KeyTipsAnuncioApagado" xml:space="preserve">
+    <value>KeyTips desactivat.</value>
+  </data>
+  <data name="KeyTipsTeclaSubir" xml:space="preserve">
+    <value>Retrocés</value>
+  </data>
+  <data name="KeyTipsTeclaSalir" xml:space="preserve">
+    <value>Esc</value>
   </data>
 </root>

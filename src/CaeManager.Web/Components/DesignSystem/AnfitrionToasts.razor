@@ -35,6 +35,12 @@
             @if (toast.TextoAccion is not null)
             {
                 <button type="button" class="toast-accion" @onclick="() => ToastService.EjecutarAccionAsync(toast.Id)">@toast.TextoAccion</button>
+                @* Cuenta atrás a la vista (decisión del 2026-10-08). aria-hidden: la región es
+                   aria-live y un número que cambia cada segundo se anunciaría ocho veces. *@
+                @if (ToastService.SegundosRestantes(toast.Id) is { } segundos)
+                {
+                    <span class="toast-cuenta" aria-hidden="true">@segundos s</span>
+                }
             }
             <button type="button" class="toast-cerrar" aria-label="Cerrar" @onclick="() => ToastService.Descartar(toast.Id)"><Icono Nombre="cerrar" Tamano="TamanoIcono.Pequeno" /></button>
             @if (toast.Tono != TonoToast.Error)
