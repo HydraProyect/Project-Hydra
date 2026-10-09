@@ -23,7 +23,7 @@
 
 @if (HayFilas)
 {
-    <ul class="leyenda-atajos-lista" data-pieza="leyenda-atajos" aria-label="@Textos["LeyendaListaEtiqueta"]">
+    <ul class="leyenda-atajos-lista" data-pieza="leyenda-atajos" role="list" aria-label="@Textos["LeyendaListaEtiqueta"]">
         @foreach (var atajo in _entradas)
         {
             <li class="leyenda-atajos-lista-entrada" data-tecla="@atajo.Tecla" title="@Textos[ClaveTitulo(atajo)]">

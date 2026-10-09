@@ -171,6 +171,10 @@ public class LeyendaAtajosListaTests : BunitContext
 
             Entradas(cut).Select(e => e.Rotulo).Should().Equal("moure's", "obrir", "editar", "marcar", "filtrar", "KeyTips", "tots");
             cut.Find("[data-pieza=leyenda-atajos]").GetAttribute("aria-label").Should().Be("Dreceres de teclat d'aquesta llista");
+            cut.Find("[data-pieza=leyenda-atajos]").GetAttribute("role").Should().Be("list",
+                "con list-style: none hay lectores de pantalla que dejan de anunciarla como lista");
+            cut.Find("[data-pieza=leyenda-atajos] > li[data-tecla='?']").GetAttribute("title")
+                .Should().Be("Veure totes les dreceres de teclat", "el title propio de «?» también se traduce: sin clave en ca-ES caería al castellano sin avisar");
             TeclasPintadas(cut).Should().Equal("j", "k", "Enter", "e", "x", "f", "Alt", "?");
         }
         finally

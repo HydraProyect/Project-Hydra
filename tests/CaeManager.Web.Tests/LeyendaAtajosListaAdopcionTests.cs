@@ -29,6 +29,25 @@ public class LeyendaAtajosListaAdopcionTests
     }
 
     /// <summary>
+    /// En estas seis la rejilla sigue montada con la lista vacía, así que la leyenda cuelga del mismo recuento
+    /// que el paginador. Sin <c>HayFilas</c> se quedaría sola al pie de una lista sin filas que recorrer.
+    /// </summary>
+    [Theory]
+    [InlineData("Trabajadores")]
+    [InlineData("Clientes")]
+    [InlineData("Vehiculos")]
+    [InlineData("Documentos")]
+    [InlineData("Gestiones")]
+    [InlineData("Visitas")]
+    public void Con_la_rejilla_siempre_montada_la_leyenda_depende_de_que_haya_filas(string pagina)
+    {
+        var linea = Leer(pagina, ".razor").Split('\n').Single(l => l.Contains("<LeyendaAtajosLista", StringComparison.Ordinal));
+
+        linea.Should().Contain("HayFilas=\"@(_totalElementos > 0)\"",
+            $"{pagina}.razor no desmonta la rejilla al quedarse sin resultados: la leyenda se esconde con HayFilas");
+    }
+
+    /// <summary>
     /// Una leyenda que anuncia una tecla que la pantalla no maneja es peor que una que falta. Lo que la
     /// pantalla maneja se mide en su código, no se declara:
     /// <list type="bullet">
