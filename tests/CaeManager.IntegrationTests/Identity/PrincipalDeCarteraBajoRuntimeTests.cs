@@ -1,6 +1,8 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
+using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
+using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
@@ -18,6 +20,7 @@ using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Operaciones;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -64,6 +67,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
 
     private readonly Guid _administrador = Guid.NewGuid();
     private readonly Guid _administradorAjeno = Guid.NewGuid();
+    private readonly Guid _administradorDelPropietario = Guid.NewGuid(); // del Tenant propietario: desactiva y reactiva la delegación
     private readonly Guid _coordinador = Guid.NewGuid();
     private readonly Guid _otroCoordinador = Guid.NewGuid();
     private readonly Guid _coordinadorAjeno = Guid.NewGuid();
@@ -78,6 +82,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
 
     private Guid _operacion;
     private Guid _operacionSinPrincipal;
+    private Guid _delegacion;
     private Guid _operacionSinNadie;
     private Guid _operacionDelUnipersonal;
 
@@ -125,6 +130,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         Cuenta(_administradorUnipersonal, _operadorUnipersonal.Id, Roles.Administrador);
         Cuenta(_gestorDelUnipersonal, _operadorUnipersonal.Id, Roles.GestorCae);
         Cuenta(_administradorDelBeneficiario, _beneficiarioDelUnipersonal.Id, Roles.Administrador);
+        Cuenta(_administradorDelPropietario, _beneficiario.Id, Roles.Administrador);
 
         void Cartera(AsignacionOperacion operacion, DelegacionTenant vinculo, Guid gestor, bool principal)
         {
@@ -150,6 +156,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         Cartera(conPrincipal, vinculoConPrincipal, _gestorB, principal: false);
         Cartera(conPrincipal, vinculoConPrincipal, _gestorC, principal: false);
         _operacion = conPrincipal.Id;
+        _delegacion = vinculoConPrincipal.Id;
 
         // Estado que deja una retirada sin Coordinador CAE de relevo: carteras vivas y nadie marcado.
         var (sinPrincipal, vinculoSinPrincipal) = Operacion(_beneficiarioSinPrincipal);
@@ -621,7 +628,201 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         (await PrincipalesAsync(_operacionSinPrincipal)).Should().Equal(_gestorA);
     }
 
+    // ── D-9: reactivar la delegación devuelve la marca a quien la llevaba ──
+
+    [Fact]
+    public async Task Desactivar_y_reactivar_la_delegacion_devuelve_la_marca_al_mismo_Gestor_CAE_y_repone_los_apoyos_sin_ella()
+    {
+        (await DesactivarDelegacion()).EsExitoso.Should().BeTrue();
+
+        var cerradas = await CarterasAsync(_operacion);
+        cerradas.Should().OnlyContain(c => c.Estado == EstadoAsignacion.Cerrada && !c.EsPrincipal,
+            "control: la cascada cierra las tres carteras y una cartera cerrada no es principal de nada");
+        cerradas.Where(c => c.EraPrincipalAlCerrarsePorCascada).Select(c => c.UsuarioId).Should().Equal([_gestorA],
+            "control: la cascada deja escrito quién era el principal, y solo él");
+
+        var reactivar = await ReactivarDelegacion();
+        reactivar.EsExitoso.Should().BeTrue(reactivar.EsFallido ? reactivar.Error.Codigo : null);
+
+        var nueva = await OperacionVigenteAsync();
+        nueva.Should().NotBe(_operacion, "control: reactivar abre una operación nueva, no reabre la cerrada");
+        var repuestas = await CarterasAsync(nueva);
+        repuestas.Should().OnlyContain(c => c.Estado == EstadoAsignacion.Vigente && c.Rol == Roles.GestorCae && !c.EraPrincipalAlCerrarsePorCascada);
+        repuestas.Select(c => c.UsuarioId).Should().BeEquivalentTo([_gestorA, _gestorB, _gestorC]);
+        (await PrincipalesAsync(nueva)).Should().Equal([_gestorA], "vuelve a ser principal quien lo era antes; los apoyos vuelven sin marca");
+
+        (await Abre(_gestorA, Roles.GestorCae, _operador.Id, _beneficiario.Id)).Should().Be((true, Roles.GestorCae));
+    }
+
+    [Fact]
+    public async Task Un_Coordinador_CAE_principal_por_relevo_recupera_su_cartera_y_la_marca_al_reactivar()
+    {
+        // El relevo de I2: se retira la cartera del principal y su Coordinador CAE recibe una propia, marcada.
+        (await Retirar(_gestorA, _beneficiario)).EsExitoso.Should().BeTrue();
+        (await PrincipalesAsync(_operacion)).Should().Equal([_coordinador], "control");
+
+        (await DesactivarDelegacion()).EsExitoso.Should().BeTrue();
+        (await CarterasAsync(_operacion)).Where(c => c.EraPrincipalAlCerrarsePorCascada).Select(c => c.UsuarioId)
+            .Should().Equal([_coordinador], "control: la cascada trata la cartera del Coordinador CAE como a las demás");
+
+        var reactivar = await ReactivarDelegacion();
+        reactivar.EsExitoso.Should().BeTrue(reactivar.EsFallido ? reactivar.Error.Codigo : null);
+
+        var nueva = await OperacionVigenteAsync();
+        var repuestas = await CarterasAsync(nueva);
+        repuestas.Select(c => (c.UsuarioId, c.Rol)).Should().BeEquivalentTo(
+            [(_coordinador, (string?)Roles.CoordinadorCae), (_gestorB, Roles.GestorCae), (_gestorC, Roles.GestorCae)],
+            "la cartera propia del Coordinador CAE se repone con su rol; la que se retiró a _gestorA antes de desactivar, no");
+        (await PrincipalesAsync(nueva)).Should().Equal([_coordinador]);
+        (await Abre(_coordinador, Roles.CoordinadorCae, _operador.Id, _beneficiario.Id)).Should().Be((true, Roles.CoordinadorCae));
+    }
+
+    [Fact]
+    public async Task Si_el_principal_se_desactivo_entre_el_cierre_y_la_reactivacion_la_marca_va_a_su_Coordinador_CAE()
+    {
+        // El Coordinador CAE ya operaba sobre este Tenant: conserva su fila de operador delegado, que es
+        // lo que deja al Administrador del Tenant propietario leer su cuenta (política cuentas_lectura).
+        await using (var propietario = ContextoPropietario(_operador.Id))
+        {
+            propietario.AsignacionesOperadorDelegadoConRevocadas.Add(
+                new AsignacionOperadorDelegado(_delegacion, _coordinador, Roles.CoordinadorCae));
+            await propietario.SaveChangesAsync();
+        }
+
+        (await DesactivarDelegacion()).EsExitoso.Should().BeTrue();
+
+        // Con la delegación cerrada no hay marca viva que relevar: desactivar la cuenta no deja rastro en carteras.
+        await using (var propietario = ContextoPropietario(_operador.Id))
+            await propietario.Users.Where(u => u.Id == _gestorA)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.LockoutEnd, DateTimeOffset.UtcNow.AddYears(100)));
+
+        var reactivar = await ReactivarDelegacion();
+        reactivar.EsExitoso.Should().BeTrue(reactivar.EsFallido ? reactivar.Error.Codigo : null);
+
+        var nueva = await OperacionVigenteAsync();
+        var repuestas = await CarterasAsync(nueva);
+        repuestas.Single(c => c.UsuarioId == _gestorA).Should().Match<AsignacionCartera>(
+            c => c.Estado == EstadoAsignacion.Vigente && !c.EsPrincipal, "opción C: la cuenta desactivada conserva la cartera, no la marca");
+        repuestas.Single(c => c.UsuarioId == _coordinador).Should().Match<AsignacionCartera>(
+            c => c.EsPrincipal && c.Rol == Roles.CoordinadorCae && c.PropietarioTenantId == _beneficiario.Id);
+        (await PrincipalesAsync(nueva)).Should().Equal([_coordinador], "relevo de D-3: nunca a un Gestor CAE de apoyo");
+        repuestas.Where(c => c.UsuarioId == _gestorB || c.UsuarioId == _gestorC).Should().OnlyContain(c => !c.EsPrincipal);
+    }
+
+    /// <summary>
+    /// Quien reactiva es el Administrador del Tenant propietario, y RLS no le enseña el organigrama del
+    /// Operador CAE: de sus cuentas solo ve las que ya tienen un vínculo con su Tenant. Un Coordinador CAE
+    /// que nunca operó sobre él no se puede comprobar, así que no recibe la marca: la operación queda sin
+    /// principal, que es el desenlace cerrado, y nunca pasa a un Gestor CAE de apoyo.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_principal_se_desactivo_y_su_Coordinador_CAE_no_es_visible_desde_el_Tenant_propietario_queda_sin_principal()
+    {
+        (await DesactivarDelegacion()).EsExitoso.Should().BeTrue();
+
+        await using (var propietario = ContextoPropietario(_operador.Id))
+            await propietario.Users.Where(u => u.Id == _gestorA)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.LockoutEnd, DateTimeOffset.UtcNow.AddYears(100)));
+
+        (await ReactivarDelegacion()).EsExitoso.Should().BeTrue("quedar sin principal no impide reactivar");
+
+        var nueva = await OperacionVigenteAsync();
+        (await CarterasAsync(nueva)).Select(c => c.UsuarioId).Should().BeEquivalentTo([_gestorA, _gestorB, _gestorC],
+            "control: se reponen las tres carteras y no se emite ninguna para el Coordinador CAE");
+        (await PrincipalesAsync(nueva)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_delegacion_cerrada_antes_de_que_existiera_el_dato_se_reactiva_como_antes_sin_principal()
+    {
+        (await DesactivarDelegacion()).EsExitoso.Should().BeTrue();
+
+        // Lo que dejó una desactivación anterior a la columna: carteras cerradas que no dicen quién era el principal.
+        await using (var propietario = ContextoPropietario(_operador.Id))
+            (await propietario.AsignacionesCartera.Where(c => c.AsignacionOperacionId == _operacion && c.EraPrincipalAlCerrarsePorCascada)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.EraPrincipalAlCerrarsePorCascada, false)))
+                .Should().Be(1, "control: había un dato que borrar");
+
+        (await ReactivarDelegacion()).EsExitoso.Should().BeTrue();
+
+        var nueva = await OperacionVigenteAsync();
+        (await CarterasAsync(nueva)).Select(c => c.UsuarioId).Should().BeEquivalentTo([_gestorA, _gestorB, _gestorC]);
+        (await PrincipalesAsync(nueva)).Should().BeEmpty("con varias carteras repuestas y sin el dato no se inventa un responsable");
+    }
+
+    [Fact]
+    public async Task Dos_reactivaciones_a_la_vez_no_dejan_dos_principales_ni_dos_operaciones()
+    {
+        (await DesactivarDelegacion()).EsExitoso.Should().BeTrue();
+
+        // La primera ya repuso las carteras y encendió la marca; aún no ha confirmado.
+        var enPausa = new Pausa("despues:guardar");
+        var primera = ReactivarDelegacion(enPausa);
+        await enPausa.Alcanzada;
+
+        // La segunda decide sobre la delegación todavía desactivada y abre otra operación sobre el mismo par.
+        var segunda = ReactivarDelegacion();
+        (await Task.WhenAny(segunda, Task.Delay(TimeSpan.FromSeconds(3)))).Should().NotBeSameAs(segunda,
+            "la segunda choca con lo que la primera aún no ha confirmado y tiene que esperarla");
+
+        enPausa.Soltar();
+        (await primera).EsExitoso.Should().BeTrue();
+        // Pierde: como fallo del comando o como excepción de la base, pero no escribe nada.
+        var segundaGano = false;
+        try { segundaGano = (await segunda).EsExitoso; }
+        catch (Exception e) when (e is DbUpdateException or InvalidOperationException) { }
+        segundaGano.Should().BeFalse();
+
+        await using var propietario = ContextoPropietario(_operador.Id);
+        var vivas = await propietario.AsignacionesCartera.AsNoTracking()
+            .Where(c => c.PropietarioTenantId == _beneficiario.Id && c.Estado != EstadoAsignacion.Cerrada).ToListAsync();
+        vivas.Select(c => c.AsignacionOperacionId).Distinct().Should().ContainSingle("una sola operación reabierta");
+        vivas.Where(c => c.EsPrincipal).Select(c => c.UsuarioId).Should().Equal([_gestorA]);
+        vivas.Should().HaveCount(3);
+    }
+
     // ── Arnés ─────────────────────────────────────────────────────────────
+
+    private Task<Result> DesactivarDelegacion() =>
+        EnArnes(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id, (usuario, contexto, _, sp) =>
+            new DesactivarDelegacionTenantCommandHandler(
+                    new DelegacionTenantRepository(contexto), usuario,
+                    new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto)
+                .Handle(new DesactivarDelegacionTenantCommand(_delegacion), CancellationToken.None));
+
+    /// <summary>
+    /// Como la ejecuta el Administrador del Tenant propietario, que es quien puede reactivar: su Tenant de
+    /// origen es el propietario, no el del Operador CAE cuyas cuentas y carteras toca la restauración.
+    /// </summary>
+    private Task<Result> ReactivarDelegacion(Pausa? pausa = null) =>
+        EnArnes(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id, (usuario, contexto, directorio, sp) =>
+        {
+            ICatalogoIncorporacionCartera catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
+            return new ReactivarDelegacionTenantCommandHandler(
+                    new DelegacionTenantRepository(contexto), new AutorizaAlAdministradorDe(_beneficiario.Id), usuario,
+                    new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, contexto,
+                    new TransaccionDeComando(contexto), pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
+                    directorio, directorio, new BloqueoCarteraUsuario(contexto))
+                .Handle(new ReactivarDelegacionTenantCommand(_delegacion), CancellationToken.None);
+        });
+
+    /// <summary>La operación externa vigente del Operador CAE sobre el beneficiario con principal.</summary>
+    private async Task<Guid> OperacionVigenteAsync()
+    {
+        await using var propietario = ContextoPropietario(_operador.Id);
+        return await propietario.AsignacionesOperacion.AsNoTracking()
+            .Where(o => !o.EsRaiz && o.PropietarioTenantId == _beneficiario.Id && o.OperadorTenantId == _operador.Id
+                        && o.Estado == EstadoAsignacion.Vigente)
+            .Select(o => o.Id).SingleAsync();
+    }
+
+    /// <summary>La autoridad para reactivar no es lo que se mide aquí (lo hace <c>AutorizacionDeDelegacionTests</c>).</summary>
+    private sealed class AutorizaAlAdministradorDe(Guid tenant) : IAutorizacionDelegacionTenant
+    {
+        public Task<bool> PuedeGestionarDelegacionesAsync(
+            Guid usuarioId, Guid tenantClienteDeleganteId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(tenantClienteDeleganteId == tenant);
+    }
 
     private async Task<List<Guid>> PrincipalesAsync(Guid operacionId)
     {

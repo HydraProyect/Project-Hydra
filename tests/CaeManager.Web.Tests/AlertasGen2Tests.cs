@@ -141,7 +141,7 @@ public class AlertasGen2Tests : BunitContext
     private static IElement CabeceraDeGrupo(IRenderedComponent<Features.Alertas.Pages.Alertas> cut, string titulo) =>
         cut.FindAll(".alertas-grupo-cabecera").Single(b => b.QuerySelector(".alertas-grupo-titulo")!.TextContent.Trim() == titulo);
 
-    // ---------------------------------------------------------------- Procedencia de «Falta»
+    // ---------------------------------------------------------------- Procedencia de «Pendiente» (Faltante)
 
     private static void AbrirProcedencia(IRenderedComponent<Features.Alertas.Pages.Alertas> cut) =>
         cut.FindAll(".seccion-colapsable-cabecera")
@@ -192,7 +192,7 @@ public class AlertasGen2Tests : BunitContext
     {
         var cut = RenderizarLista(Alerta(EstadoDocumento.Faltante));
 
-        var meta = CabeceraDeGrupo(cut, "Falta").QuerySelector(".alertas-grupo-meta")!.TextContent;
+        var meta = CabeceraDeGrupo(cut, "Pendiente").QuerySelector(".alertas-grupo-meta")!.TextContent;
         meta.Should().Contain("porque ese centro lo tiene configurado")
             .And.Contain("si el centro no dice nada, porque el tipo de documento se pide siempre");
         meta.Should().NotContainEquivalentOf("obligatori", "es configuración, no una obligación legal");
@@ -207,8 +207,8 @@ public class AlertasGen2Tests : BunitContext
             Alerta(EstadoDocumento.Proximo), Alerta(EstadoDocumento.Faltante), Alerta(EstadoDocumento.Vencido),
             Alerta(EstadoDocumento.Urgente), Alerta(EstadoDocumento.Vencido));
 
-        TitulosDeGrupo(cut).Should().Equal(["Vencido", "Falta", "Urgente", "Próximo"],
-            "el orden es de gravedad, no el de la consulta (que pone Falta primero)");
+        TitulosDeGrupo(cut).Should().Equal(["Vencido", "Pendiente", "Por vencer (urgente)", "Por vencer"],
+            "el orden es de gravedad, no el de la consulta (que pone Faltante primero); Urgente y Próximo son dos grupos y no pueden titularse igual");
         InsigniasDeGrupo(cut).Should().Equal(["2", "1", "1", "1"]);
     }
 
@@ -226,13 +226,13 @@ public class AlertasGen2Tests : BunitContext
 
         TitulosDeGrupo(cut).Should().Equal(["Formación PRL", "Reconocimiento médico"],
             "un bloque por tipo, el que tiene algo vencido delante");
-        InsigniasDeGrupo(cut).Should().Equal(["Vencido", "Próximo"], "la insignia es la peor severidad del bloque");
+        InsigniasDeGrupo(cut).Should().Equal(["Vencido", "Por vencer"], "la insignia es la peor severidad del bloque");
 
         var formacion = cut.FindAll(".alertas-grupo")[0];
         formacion.QuerySelectorAll("thead th").Select(t => t.TextContent.Trim()).Should().Contain("Severidad");
         formacion.QuerySelectorAll("tbody tr").Select(f => f.TextContent).Should().SatisfyRespectively(
             f => f.Should().Contain("Diego Manrique").And.Contain("Vencido"),
-            f => f.Should().Contain("Lucía Bengoa").And.Contain("Próximo"));
+            f => f.Should().Contain("Lucía Bengoa").And.Contain("Por vencer"));
     }
 
     [Fact]

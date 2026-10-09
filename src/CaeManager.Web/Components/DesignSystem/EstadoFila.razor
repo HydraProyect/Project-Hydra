@@ -1,0 +1,56 @@
+@*
+    Celda de estado de un listado: la pastilla del estado y, debajo, el motivo en una línea.
+
+    - Lo que pide acción lleva pastilla de color (Badge). Lo correcto NO lleva pastilla: punto verde y texto
+      gris, para que el color quede reservado a lo que hay que atender.
+    - El motivo dice lo que la pastilla no dice («2 documentos», «Hace 12 días», «ITV»): nunca repite el
+      rótulo. Texto simple con Motivo, o contenido propio con MotivoContenido (p. ej. una VentanaContexto
+      con las incidencias).
+
+    La columna que la contiene lleva la clase global «col-estado» (ancho fijo, alineada a la izquierda), para
+    que el estado caiga en el mismo sitio en todas las pantallas.
+
+    Uso:
+
+        <EstadoFila Tono="EstadoDocumentoUi.Tono(d.Estado)" Texto="@EstadoDocumentoUi.Texto(d.Estado)"
+                    Correcto="EstadoDocumentoUi.EsCorrecto(d.Estado)" Motivo="@motivo" />
+*@
+<span class="estado-fila">
+    @if (Correcto)
+    {
+        <span class="estado-fila-correcto" data-pieza="estado-correcto" title="@Titulo">
+            <span class="estado-fila-punto" aria-hidden="true"></span>@Texto
+        </span>
+    }
+    else
+    {
+        <Badge Tono="Tono" title="@Titulo">@Texto</Badge>
+    }
+    @if (MotivoContenido is not null)
+    {
+        <span class="estado-fila-motivo">@MotivoContenido</span>
+    }
+    else if (!string.IsNullOrWhiteSpace(Motivo))
+    {
+        <span class="estado-fila-motivo">@Motivo</span>
+    }
+</span>
+
+@code {
+    /// <summary>Tono de la pastilla. No se usa si <see cref="Correcto"/>.</summary>
+    [Parameter] public TonoBadge Tono { get; set; } = TonoBadge.Neutro;
+
+    [Parameter, EditorRequired] public string Texto { get; set; } = string.Empty;
+
+    /// <summary>El estado no pide acción: se pinta con punto verde y texto gris, sin pastilla.</summary>
+    [Parameter] public bool Correcto { get; set; }
+
+    /// <summary>Motivo en una línea, bajo la pastilla. No debe repetir el rótulo.</summary>
+    [Parameter] public string? Motivo { get; set; }
+
+    /// <summary>Motivo con contenido propio; tiene preferencia sobre <see cref="Motivo"/>.</summary>
+    [Parameter] public RenderFragment? MotivoContenido { get; set; }
+
+    /// <summary>Explicación al pasar el cursor (atributo title).</summary>
+    [Parameter] public string? Titulo { get; set; }
+}

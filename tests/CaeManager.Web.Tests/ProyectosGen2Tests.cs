@@ -1144,6 +1144,36 @@ public partial class ProyectosGen2Tests : BunitContext
     /// la revisión de Codex sobre este mismo incremento, donde el foco
     /// escondido sobrevivía y reaparecía al levantar el filtro.
     /// </summary>
+    /// <summary>
+    /// La franja de estado de Proyectos: «Todos», «Abiertos» y «Cerrados» con cuántos hay de cada uno; marcar
+    /// los dos los enseña todos, y la selección viaja en la URL (<c>estado=abiertos,cerrados</c>).
+    /// </summary>
+    [Fact]
+    public async Task La_franja_de_estado_cuenta_abiertos_y_cerrados_filtra_y_viaja_en_la_url()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        cut.RotulosDeFranja().Should().Equal("Todos", "Abiertos", "Cerrados");
+        cut.BotonDeFranja("Todos").RecuentoDeFranja().Should().Be(2);
+        cut.BotonDeFranja("Abiertos").RecuentoDeFranja().Should().Be(1);
+        cut.BotonDeFranja("Cerrados").RecuentoDeFranja().Should().Be(1);
+
+        await cut.BotonDeFranja("Cerrados").ClickAsync(new MouseEventArgs());
+
+        NombresEnLaTabla(cut).Should().Equal(ProyectoCerrado.Nombre);
+        navegacion.Uri.Should().Contain("estado=cerrados");
+        cut.MarcadosEnFranja().Should().Equal("Cerrados");
+        cut.BotonDeFranja("Abiertos").RecuentoDeFranja().Should().Be(1, "las cifras no llevan el filtro de estado: dicen lo que habría al marcar ese botón");
+
+        await cut.BotonDeFranja("Abiertos").ClickAsync(new MouseEventArgs());
+
+        NombresEnLaTabla(cut).Should().HaveCount(2, "con los dos estados marcados pasa cualquiera");
+        System.Uri.UnescapeDataString(navegacion.Uri).Should().Contain("estado=cerrados,abiertos");
+        cut.MarcadosEnFranja().Should().Equal("Abiertos", "Cerrados");
+    }
+
     [Fact]
     public async Task El_foco_de_una_fila_que_el_filtro_esconde_no_sobrevive_ni_reaparece()
     {
@@ -1153,11 +1183,16 @@ public partial class ProyectosGen2Tests : BunitContext
         await Atajo(cut, "j");
         FilasEnfocadas(cut).Should().Equal([ProyectoCerrado.Nombre]);
 
-        await ElegirPastillaAsync(cut, "Estado", "Abiertos");
+        // El estado se filtra en la franja: «Abiertos» esconde la fila enfocada (la del Proyecto cerrado).
+        await cut.BotonDeFranja("Abiertos").ClickAsync(new MouseEventArgs());
 
+        cut.MarcadosEnFranja().Should().Equal("Abiertos");
+        NombresEnLaTabla(cut).Should().Equal([ProyectoAbierto.Nombre], "control: el filtro esconde de verdad la fila enfocada");
         FilasEnfocadas(cut).Should().BeEmpty();
 
-        await ElegirPastillaAsync(cut, "Estado", "Todos");
+        await cut.BotonDeFranja("Todos").ClickAsync(new MouseEventArgs());
+
+        cut.MarcadosEnFranja().Should().Equal("Todos");
 
         NombresEnLaTabla(cut).Should().HaveCount(2, "el filtro ya no esconde nada");
         FilasEnfocadas(cut).Should().BeEmpty("el foco se descartó al esconderse su fila, no se guardó");

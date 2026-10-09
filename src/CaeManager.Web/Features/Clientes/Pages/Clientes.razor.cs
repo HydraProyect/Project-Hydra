@@ -20,6 +20,7 @@ using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Documentos;
+using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Infrastructure.Autorizacion;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -100,6 +101,12 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private bool _soloCriticos;
     private string _ejecutivoFiltro = string.Empty;
     private string _estadoDocumentalFiltro = string.Empty;
+
+    /// <summary>Clientes empresariales por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
+
+    /// <summary>Cifra de «Todos» en la franja: aquí los recuentos por estado se solapan y no suman el total.</summary>
+    private int? _totalSinFiltroDeEstado;
     private IReadOnlyList<GestorCaeSelectorDto> _ejecutivosParaFiltro = [];
     private bool _cargando = true;
     private bool _errorCarga;
@@ -192,7 +199,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     [SupplyParameterFromQuery(Name = "gestor")]
     public string? GestorCaeInicial { get; set; }
 
-    /// <summary>Estado documental por el que se filtra, con el mismo nombre de parámetro que en Trabajadores y Empresas.</summary>
+    /// <summary>Estados marcados en la franja de estado: nombres de <see cref="EstadoDocumento"/> separados por coma.</summary>
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoDocumentalInicial { get; set; }
 
@@ -358,9 +365,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         var gestorDeLaUrl = Guid.TryParse(GestorCaeInicial, out var gestorId) && _ejecutivosParaFiltro.Any(g => g.Id == gestorId)
             ? gestorId.ToString()
             : string.Empty;
-        var estadoDeLaUrl = Enum.TryParse<EstadoDocumento>(EstadoDocumentalInicial, out var estadoUrl) && Enum.IsDefined(estadoUrl)
-            ? estadoUrl.ToString()
-            : string.Empty;
+        var estadoDeLaUrl = EstadosValidos(EstadoDocumentalInicial);
         var cambio = deLaUrl != _busqueda || soloCriticosDeLaUrl != _soloCriticos
             || gestorDeLaUrl != _ejecutivoFiltro || estadoDeLaUrl != _estadoDocumentalFiltro;
 
@@ -407,15 +412,18 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         var carga = ++_cargaVigente;
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
         (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
+        var estadosFiltro = SeleccionEstados.Separar<EstadoDocumento>(_estadoDocumentalFiltro);
         var consulta = new ObtenerClientesQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             SoloCriticos: _soloCriticos ? true : null,
             EjecutivoUsuarioId: Guid.TryParse(_ejecutivoFiltro, out var ejecutivoId) ? ejecutivoId : null,
-            EstadoDocumental: Enum.TryParse<EstadoDocumento>(_estadoDocumentalFiltro, out var estado) ? estado : null,
+            EstadoDocumental: null,
             Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
             TamanoPagina: _paginacion.ItemsPerPage,
             OrdenarPor: ordenarPor,
-            Descendente: descendente);
+            Descendente: descendente,
+            EstadosDocumentales: estadosFiltro.Count == 0 ? null : estadosFiltro,
+            ConRecuentosPorEstado: true);
 
         _cargando = true;
         _errorCarga = false;
@@ -428,6 +436,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
                 return GridItemsProviderResult.From(new List<ClienteListaDto>(), 0);
 
             _totalElementos = resultado.TotalElementos;
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
+            _totalSinFiltroDeEstado = resultado.TotalSinFiltroDeEstado;
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
@@ -479,9 +489,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         await RecargarAsync();
     }
 
-    private async Task CambiarEstadoDocumentalFiltroAsync(string valor)
+    private async Task CambiarEstadoDocumentalFiltroAsync(string? valor)
     {
-        _estadoDocumentalFiltro = valor;
+        _estadoDocumentalFiltro = valor ?? string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await RecargarAsync();
     }
@@ -497,8 +507,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private Task QuitarFiltroCriticosAsync() => CambiarSoloCriticosAsync(false);
 
     private Task QuitarFiltroEjecutivoAsync() => CambiarEjecutivoFiltroAsync(string.Empty);
-
-    private Task QuitarFiltroEstadoDocumentalAsync() => CambiarEstadoDocumentalFiltroAsync(string.Empty);
 
     private string EtiquetaFiltroBusqueda => "Búsqueda: \"" + _busqueda + "\"";
 
@@ -520,23 +528,30 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         _ejecutivosParaFiltro.Select(g => new OpcionEstado(g.Id.ToString(), g.NombreCompleto)).ToList();
 
     /// <summary>
-    /// Opciones de la pastilla «Estado». Viajan como nombre de <see cref="EstadoDocumento"/>;
-    /// «Al corriente» es el centinela <see cref="EstadoDocumentalFiltro.AlCorriente"/>.
+    /// Botones de la franja de estado, de peor a mejor. Viajan como nombre de <see cref="EstadoDocumento"/>;
+    /// «Sin incidencias» es el centinela <see cref="EstadoDocumentalFiltro.AlCorriente"/> (ninguna alerta abierta)
+    /// y «Por vencer» marca Urgente y Próximo, con la cifra conjunta de <see cref="ObtenerClientesQuery.ClavePorVencer"/>.
     /// </summary>
-    private IReadOnlyList<OpcionEstado> OpcionesEstadoDocumental =>
+    private static IReadOnlyList<OpcionFranjaEstado> FranjaEstadoDocumental =>
     [
-        new(nameof(EstadoDocumento.Vencido), Textos["ListaFiltroConVencidos"]),
-        new(nameof(EstadoDocumento.Urgente), Textos["ListaFiltroConUrgentes"]),
-        new(EstadoDocumentalFiltro.AlCorriente, Textos["ListaFiltroAlCorriente"]),
+        new(TextosVigenciaDocumento.Texto("FranjaVencidos"), TonoBadge.Peligro, nameof(EstadoDocumento.Vencido)),
+        new(TextosVigenciaDocumento.Texto("FranjaPendientes"), TonoBadge.Peligro, nameof(EstadoDocumento.Faltante)),
+        new(EstadoDocumentoUi.PorVencer, TonoBadge.Advertencia, nameof(EstadoDocumento.Urgente), nameof(EstadoDocumento.Proximo)),
+        new(EstadoDocumentoUi.SinIncidencias, TonoBadge.Exito, EstadoDocumentalFiltro.AlCorriente)
     ];
+
+    /// <summary>
+    /// La selección de estados que llega de fuera (la URL, un filtro guardado) reducida a los que algún botón
+    /// de la franja conoce; lo demás se descarta. Cadena vacía si no queda ninguno.
+    /// </summary>
+    private static string EstadosValidos(string? seleccion)
+    {
+        var conocidos = FranjaEstadoDocumental.SelectMany(o => o.Valores).ToHashSet(StringComparer.Ordinal);
+        return SeleccionEstados.Unir(SeleccionEstados.Separar(seleccion).Where(conocidos.Contains)) ?? string.Empty;
+    }
 
     /// <summary>Opciones de la pastilla «Criticidad» (sigue viajando en la URL como <c>critico</c>).</summary>
     private IReadOnlyList<OpcionEstado> OpcionesCriticidad => [new(ValorSoloCriticos, Textos["ListaFiltroSoloCriticos"])];
-
-    private string EtiquetaFiltroEstadoDocumental =>
-        "Estado: " + (Enum.TryParse<EstadoDocumento>(_estadoDocumentalFiltro, out var estado)
-            ? (estado == EstadoDocumento.Vigente ? "Al corriente" : EstadoDocumentoUi.Texto(estado))
-            : "—");
 
     /// <summary>
     /// Cuántos coinciden (mockup: «N clientes con el filtro actual»). Sin
@@ -564,23 +579,11 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     }
 
     /// <summary>
-    /// «12 vencidos», «1 vencido», «3 faltan»: el recuento de alertas en el
-    /// peor estado, con el calificativo concordado. Antes se pintaba
-    /// «12 vencido».
+    /// Motivo bajo la pastilla: cuántas alertas hay en el peor estado («12 documentos»), sin repetir el estado,
+    /// que ya lo dice la pastilla.
     /// </summary>
-    private static string TextoEstadoDocumental(EstadoDocumento peor, int cantidad)
-    {
-        var uno = cantidad == 1;
-        var calificativo = peor switch
-        {
-            EstadoDocumento.Vencido => uno ? "vencido" : "vencidos",
-            EstadoDocumento.Urgente => uno ? "urgente" : "urgentes",
-            EstadoDocumento.Proximo => uno ? "próximo" : "próximos",
-            EstadoDocumento.Faltante => uno ? "falta" : "faltan",
-            _ => EstadoDocumentoUi.Texto(peor).ToLowerInvariant()
-        };
-        return $"{cantidad} {calificativo}";
-    }
+    private string MotivoEstadoDocumental(int cantidad) =>
+        cantidad == 1 ? Textos["MotivoUnDocumento"].Value : Textos["MotivoDocumentos", cantidad].Value;
 
     /// <summary>
     /// Lo que de verdad cuenta el agregado de ObtenerClientesQuery: las
@@ -1210,9 +1213,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
                 ? valores.GestorCaeId.Valor!
                 : string.Empty;
         if (valores.EstadoDocumental.Declarado)
-            _estadoDocumentalFiltro = Enum.TryParse<EstadoDocumento>(valores.EstadoDocumental.Valor, out var estadoGuardado) && Enum.IsDefined(estadoGuardado)
-                ? estadoGuardado.ToString()
-                : string.Empty;
+            _estadoDocumentalFiltro = EstadosValidos(valores.EstadoDocumental.Valor);
 
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {

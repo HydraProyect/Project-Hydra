@@ -26,10 +26,19 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 /// Se combina con <paramref name="Estado"/> si ambos llegan, aunque en la
 /// práctica se usan por separado.
 /// </param>
+/// <param name="Estados">
+/// Varios estados a la vez (la franja de estado del listado deja marcar más de uno): pasa el Documento que esté
+/// en cualquiera. Se suma a <paramref name="Estado"/> si llegan los dos.
+/// </param>
+/// <param name="ConRecuentosPorEstado">
+/// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Documentos por estado con todos los demás filtros
+/// aplicados y sin el de estado. Solo lo pide el listado, que es quien pinta la franja: cuesta una consulta más.
+/// </param>
 public record ObtenerDocumentosQuery(
     Guid? TrabajadorId, AmbitoAplicacion? Ambito, string? Busqueda, EstadoDocumento? Estado = null,
     int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,
-    string? OrdenarPor = null, bool Descendente = false, DateOnly? FechaVencimientoHasta = null)
+    string? OrdenarPor = null, bool Descendente = false, DateOnly? FechaVencimientoHasta = null,
+    IReadOnlyCollection<EstadoDocumento>? Estados = null, bool ConRecuentosPorEstado = false)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>;
 
 /// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
@@ -203,29 +212,58 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         // para que SQL pueda hacerlo. Antes no se traducía, y eso obligaba a
         // materializar todos los Documentos del tenant en cada carga de la
         // pantalla para paginar en memoria.
-        if (request.Estado is not null)
-        {
-            // Si alguna vez cambia la calculadora, estas líneas cambian con
-            // ella — DocumentosPaginacionEnSqlTests compara ambas para que no
-            // se separen en silencio. «No caduca» y «sin confirmar» se
-            // distinguen por EstadoVigencia, nunca por una fecha nula.
-            consulta = request.Estado.Value switch
-            {
-                EstadoDocumento.SinCaducidad => consulta.Where(x => x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca),
-                EstadoDocumento.SinConfirmar => consulta.Where(x => x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar),
-                EstadoDocumento.Vencido => consulta.Where(x => x.FechaVencimiento != null && x.FechaVencimiento < hoy),
-                EstadoDocumento.Urgente => consulta.Where(x => x.FechaVencimiento >= hoy && x.FechaVencimiento <= limiteRojo),
-                EstadoDocumento.Proximo => consulta.Where(x => x.FechaVencimiento > limiteRojo && x.FechaVencimiento <= limiteAmbar),
-                EstadoDocumento.Vigente => consulta.Where(x => x.FechaVencimiento > limiteAmbar),
-                // «En tolerancia» es un estado de contexto de Centro (VigenciaEnCentro): esta lista, sin contexto, nunca lo
-                // produce, así que filtrar por él no devuelve nada (y no «todo», que sacaría los vencidos con otro rótulo).
-                EstadoDocumento.EnTolerancia => consulta.Where(_ => false),
-                _ => consulta
-            };
-        }
-
         if (request.FechaVencimientoHasta is { } hasta)
             consulta = consulta.Where(x => x.FechaVencimiento != null && x.FechaVencimiento >= hoy && x.FechaVencimiento <= hasta);
+
+        // La clave de estado es el mismo CASE de umbrales con el que se ordena más abajo (el orden de
+        // EstadoDocumentalFiltro.ClaveOrden: 0 Vencido, 1 Urgente, 2 Próximo, 3 Sin confirmar, 4 Vigente,
+        // 5 Sin caducidad). «No caduca» y «sin confirmar» se distinguen por EstadoVigencia, nunca por una fecha
+        // nula. Contar, filtrar y ordenar por la misma expresión garantiza que parten los Documentos igual.
+        //
+        // Los recuentos se toman ANTES de filtrar por estado y después de todos los demás filtros: cada cifra
+        // de la franja dice cuántos Documentos quedarían al marcar solo ese estado.
+        IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
+        if (request.ConRecuentosPorEstado)
+        {
+            recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await consulta
+                .GroupBy(x =>
+                    x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
+                : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
+                : x.FechaVencimiento < hoy ? 0
+                : x.FechaVencimiento <= limiteRojo ? 1
+                : x.FechaVencimiento <= limiteAmbar ? 2
+                : 4)
+                .Select(grupo => new { Clave = grupo.Key, Filas = grupo.Count() })
+                .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken));
+        }
+
+        // El Estado se sigue calculando con CalculadoraEstadoDocumento —
+        // fuente única de verdad, ver el comentario de clase—, pero el
+        // *filtro* por Estado se traduce a esa clave, equivalente a un rango
+        // de fechas, para que SQL pueda hacerlo. Antes no se traducía, y eso
+        // obligaba a materializar todos los Documentos del tenant en cada
+        // carga de la pantalla para paginar en memoria. Si alguna vez cambia
+        // la calculadora, la clave cambia con ella —
+        // DocumentosPaginacionEnSqlTests compara ambas para que no se separen
+        // en silencio.
+        var estadosPedidos = (request.Estados ?? []).ToList();
+        if (request.Estado is { } unEstado && !estadosPedidos.Contains(unEstado))
+            estadosPedidos.Add(unEstado);
+
+        if (estadosPedidos.Count > 0)
+        {
+            // «En tolerancia» es un estado de contexto de Centro (VigenciaEnCentro) y Faltante solo lo emiten las
+            // Alertas: esta lista nunca los produce, así que su clave (6) no coincide con ninguna fila. Filtrar
+            // solo por ellos no devuelve nada (y no «todo», que sacaría los vencidos con otro rótulo).
+            var clavesPedidas = estadosPedidos.Select(estado => EstadoDocumentalFiltro.ClaveOrden(estado)).Distinct().ToList();
+            consulta = consulta.Where(x => clavesPedidas.Contains(
+                x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
+                : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
+                : x.FechaVencimiento < hoy ? 0
+                : x.FechaVencimiento <= limiteRojo ? 1
+                : x.FechaVencimiento <= limiteAmbar ? 2
+                : 4));
+        }
 
         var total = await consulta.CountAsync(cancellationToken);
 
@@ -303,7 +341,10 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 acreditacionesPorDocumento.GetValueOrDefault(d.Id, [])))
             .ToList();
 
-        return new ResultadoPaginado<DocumentoListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
+        return new ResultadoPaginado<DocumentoListaDto>(elementos, total, request.Pagina, request.TamanoPagina)
+        {
+            RecuentosPorEstado = recuentosPorEstado
+        };
     }
 
     /// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — badges por plataforma. Solo sobre la página ya paginada, nunca sobre todo el tenant.</summary>

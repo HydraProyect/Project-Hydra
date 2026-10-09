@@ -248,20 +248,23 @@ public class CentrosListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// D-16: la baja de UN Centro desde el «⋯» de su fila, con confirmación y «Deshacer». Pide solo ese
-    /// centro, no toca la selección múltiple y el aviso restaura exactamente lo eliminado.
+    /// Patrón de listados sin menú «⋯» (2026-10-08): la baja de un Centro solo vive en la selección
+    /// múltiple. «Eliminar seleccionados» confirma, pide solo el Centro marcado y el aviso ofrece
+    /// «Deshacer», que restaura exactamente lo eliminado.
     /// </summary>
     [Fact]
-    public async Task Eliminar_un_centro_desde_su_menu_confirma_pide_solo_ese_y_ofrece_deshacer()
+    public async Task Eliminar_solo_esta_en_la_seleccion_multiple_pide_confirmacion_manda_esa_fila_y_ofrece_deshacer()
     {
         var elegido = Centro("Centro Logístico Norte");
         var otro = Centro("Centro Logístico Sur");
         var cut = Renderizar(elegido, otro);
-        var fila = cut.FindAll(".tarjeta-fila-acordeon").Single(f => f.TextContent.Contains("Centro Logístico Norte"));
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain(
+            ["Eliminar centro", "Eliminar seleccionados"], "la fila no ofrece la baja y aún no hay selección");
 
-        fila.QuerySelector(".menu-acciones-disparador")!.Click();
-        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Eliminar centro").ClickAsync(new MouseEventArgs());
-        cut.Find("[role=dialog]").TextContent.Should().Contain("¿Eliminar el centro «Centro Logístico Norte»?");
+        await cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label='Seleccionar el centro Centro Logístico Norte']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
+        cut.Find("[role=dialog]").TextContent.Should().Contain("¿Eliminar 1 centro(s)?");
         _mediador.Enviadas.OfType<EliminarCentrosCommand>().Should().BeEmpty("barrera: hasta confirmar no se elimina nada");
 
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());

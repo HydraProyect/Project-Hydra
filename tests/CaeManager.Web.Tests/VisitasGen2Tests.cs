@@ -1055,8 +1055,8 @@ public class VisitasGen2Tests : BunitContext
                 new SeccionDocumentacionDto(EstadoDocumento.Vigente, []),
                 [
                     Trabajador("Ana Loredo", EstadoDocumento.Vigente),
-                    Trabajador("Bruno Salas", EstadoDocumento.Vencido),
-                    Trabajador("Carla Vila", EstadoDocumento.Faltante),
+                    Trabajador("Bruno Salas", EstadoDocumento.Faltante),
+                    Trabajador("Carla Vila", EstadoDocumento.Vencido),
                 ]),
         };
         mediator.Visitas.Add(norte);
@@ -1078,7 +1078,7 @@ public class VisitasGen2Tests : BunitContext
             ["Carla Vila — Instalaciones Arbeko S.L.",
              "Bruno Salas — Instalaciones Arbeko S.L.",
              "Ana Loredo — Instalaciones Arbeko S.L."],
-            "Falta es el peor estado, quien está en regla va al final y el título no lleva el DNI");
+            "orden de gravedad (decisión del 2026-10-03): Vencido va antes que Faltante (antes era al revés), quien está en regla va al final y el título no lleva el DNI");
 
         static TrabajadorDocumentacionDto Trabajador(string nombre, EstadoDocumento peor) =>
             new(Guid.NewGuid(), nombre, "Instalaciones Arbeko S.L.", new SeccionDocumentacionDto(peor, []));

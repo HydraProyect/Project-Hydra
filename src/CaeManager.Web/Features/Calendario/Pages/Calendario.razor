@@ -86,7 +86,7 @@
                             <span class="@claseNumero">@dia.Day</span>
                             @if (peorEstado is not null)
                             {
-                                <Badge Tono="EstadoDocumentoUi.Tono(peorEstado.Value)">@vencimientosDelDia.Count</Badge>
+                                <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(peorEstado.Value)">@vencimientosDelDia.Count</Badge>
                             }
                             @if (visitasDelDia.Count > 0)
                             {

@@ -3,6 +3,7 @@ using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Calendario.Queries;
 using CaeManager.Application.Centros;
+using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Documentos;
@@ -484,6 +485,156 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
 
         fallos.Should().BeEmpty(
             "la misma vigencia tiene que dar el mismo estado en todas las superficies; cada fallo dice cuál discrepa y en qué caso");
+    }
+
+    /// <summary>
+    /// La franja de estado de un listado enseña, en cada botón, cuántas filas hay en ese estado, y deja marcar
+    /// varios a la vez. Las dos cosas se resuelven en SQL sobre la misma clave que el filtro de un solo estado, así
+    /// que se atan a él: la cifra de un estado es el total que devuelve su filtro, las cifras no dependen del
+    /// estado que esté marcado, suman el total sin filtro, y varios estados devuelven la unión.
+    /// </summary>
+    [Fact]
+    public async Task Los_recuentos_por_estado_coinciden_con_su_filtro_y_varios_estados_devuelven_la_union()
+    {
+        await using var c = CrearContexto();
+        var alcance = new AlcanceDatosServiceFalso();
+        var calculoDocumental = new CalculoEstadoDocumentalService(c, c);
+        var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c);
+        var trabajadores = new ObtenerTrabajadoresQueryHandler(c, c, c, c, alcance, calculoDocumental);
+        var empresas = new ObtenerEmpresasQueryHandler(c, alcance, calculoDocumental, c, c, c, c, calculoCentro);
+        var vehiculos = new ObtenerVehiculosQueryHandler(c, c, alcance, c, c, calculoDocumental);
+        var documentos = new ObtenerDocumentosQueryHandler(c, c, c, c, c, c, c, alcance, c, c);
+
+        var fallos = new List<string>();
+
+        await ComprobarAsync("Lista de Trabajadores", async filtro =>
+        {
+            var r = await trabajadores.Handle(
+                new ObtenerTrabajadoresQuery(null, TamanoPagina: 100, EstadoDocumental: filtro, ConRecuentosPorEstado: true),
+                CancellationToken.None);
+            return (r.TotalElementos, r.RecuentosPorEstado);
+        });
+        await ComprobarAsync("Lista de Empresas", async filtro =>
+        {
+            var r = await empresas.Handle(
+                new ObtenerEmpresasQuery(null, TamanoPagina: 100, EstadoDocumental: filtro, ConRecuentosPorEstado: true),
+                CancellationToken.None);
+            return (r.TotalElementos, r.RecuentosPorEstado);
+        });
+        await ComprobarAsync("Lista de Vehículos", async filtro =>
+        {
+            var r = await vehiculos.Handle(
+                new ObtenerVehiculosQuery(null, TamanoPagina: 100, EstadoDocumental: filtro, ConRecuentosPorEstado: true),
+                CancellationToken.None);
+            return (r.TotalElementos, r.RecuentosPorEstado);
+        });
+        await ComprobarAsync("Lista de Documentos", async filtro =>
+        {
+            IReadOnlyCollection<EstadoDocumento>? estados = filtro is null
+                ? null
+                : filtro.Split(',').Select(Enum.Parse<EstadoDocumento>).ToList();
+            var r = await documentos.Handle(
+                new ObtenerDocumentosQuery(null, null, null, Estado: null, TamanoPagina: 100, Estados: estados, ConRecuentosPorEstado: true),
+                CancellationToken.None);
+            return (r.TotalElementos, r.RecuentosPorEstado);
+        });
+
+        // Pedir los recuentos no cambia el orden de la página. La franja los pide siempre, y contar lleva la
+        // consulta por el camino que conoce el estado: si ese camino ordenase por estado sin que se le pida,
+        // elegir otra columna en la cabecera no haría nada (defecto que destapó un E2E de Vehículos).
+        async Task ComprobarOrdenAsync(string superficie, Func<bool, Task<IReadOnlyList<Guid>>> listarIds)
+        {
+            var sinRecuentos = await listarIds(false);
+            var conRecuentos = await listarIds(true);
+            if (sinRecuentos.Count < 2)
+                fallos.Add($"{superficie} · orden: se esperaban al menos dos filas y hay {sinRecuentos.Count}");
+            if (!conRecuentos.SequenceEqual(sinRecuentos))
+                fallos.Add($"{superficie} · orden: con recuentos la página sale en otro orden que sin ellos");
+        }
+
+        await ComprobarOrdenAsync("Lista de Trabajadores", async conRecuentos =>
+            (await trabajadores.Handle(
+                new ObtenerTrabajadoresQuery(null, TamanoPagina: 100, OrdenarPor: nameof(TrabajadorListaDto.Dni), Descendente: true, ConRecuentosPorEstado: conRecuentos),
+                CancellationToken.None)).Elementos.Select(x => x.Id).ToList());
+        await ComprobarOrdenAsync("Lista de Empresas", async conRecuentos =>
+            (await empresas.Handle(
+                new ObtenerEmpresasQuery(null, TamanoPagina: 100, OrdenarPor: nameof(EmpresaListaDto.Cif), Descendente: true, ConRecuentosPorEstado: conRecuentos),
+                CancellationToken.None)).Elementos.Select(x => x.Id).ToList());
+        await ComprobarOrdenAsync("Lista de Vehículos", async conRecuentos =>
+            (await vehiculos.Handle(
+                new ObtenerVehiculosQuery(null, TamanoPagina: 100, OrdenarPor: nameof(VehiculoListaDto.NumeroPlaca), Descendente: true, ConRecuentosPorEstado: conRecuentos),
+                CancellationToken.None)).Elementos.Select(x => x.Id).ToList());
+
+        // Lista de Centros: el escenario tiene un solo Centro, así que la franja lo cuenta en su estado y en
+        // ningún otro; marcar su estado junto a otro lo trae, y marcar dos que no son el suyo no trae nada.
+        var centros = new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro);
+        async Task<ResultadoPaginado<CentroListaDto>> ListarCentrosAsync(params EstadoCentro[] estados) =>
+            await centros.Handle(
+                new ObtenerCentrosQuery(null, null, Estados: estados.Length == 0 ? null : estados, ConRecuentosPorEstado: true),
+                CancellationToken.None);
+
+        var sinFiltro = await ListarCentrosAsync();
+        var estadoDelCentro = sinFiltro.Elementos.Single(x => x.Id == _centroId).Estado;
+        var otros = Enum.GetValues<EstadoCentro>().Where(e => e != estadoDelCentro).Take(2).ToArray();
+        if (sinFiltro.RecuentosPorEstado is not { } recuentosDeCentros)
+            fallos.Add("Lista de Centros: no devuelve recuentos aunque se piden");
+        else
+        {
+            if (recuentosDeCentros.Values.Sum() != sinFiltro.TotalElementos)
+                fallos.Add($"Lista de Centros: los recuentos suman {recuentosDeCentros.Values.Sum()} y la lista tiene {sinFiltro.TotalElementos}");
+            if (recuentosDeCentros.GetValueOrDefault(estadoDelCentro.ToString()) != sinFiltro.Elementos.Count(x => x.Estado == estadoDelCentro))
+                fallos.Add($"Lista de Centros · {estadoDelCentro}: el botón dice {recuentosDeCentros.GetValueOrDefault(estadoDelCentro.ToString())}");
+
+            var conSuEstado = await ListarCentrosAsync(otros[0], estadoDelCentro);
+            if (conSuEstado.Elementos.All(x => x.Id != _centroId))
+                fallos.Add($"Lista de Centros · {otros[0]},{estadoDelCentro}: no trae al Centro, que está en {estadoDelCentro}");
+            if (!(conSuEstado.RecuentosPorEstado ?? new Dictionary<string, int>()).OrderBy(par => par.Key).SequenceEqual(recuentosDeCentros.OrderBy(par => par.Key)))
+                fallos.Add("Lista de Centros: los recuentos cambian al marcar estados");
+
+            var sinSuEstado = await ListarCentrosAsync(otros);
+            if (sinSuEstado.Elementos.Any(x => x.Id == _centroId))
+                fallos.Add($"Lista de Centros · {string.Join(",", otros)}: trae al Centro, que está en {estadoDelCentro}");
+        }
+
+        fallos.Should().BeEmpty();
+
+        async Task ComprobarAsync(
+            string superficie, Func<string?, Task<(int Total, IReadOnlyDictionary<string, int>? Recuentos)>> listar)
+        {
+            var (totalSinFiltro, recuentos) = await listar(null);
+            if (recuentos is null)
+            {
+                fallos.Add($"{superficie}: no devuelve recuentos aunque se piden");
+                return;
+            }
+
+            // Control positivo: la tabla de casos siembra varios estados; una lista vacía pasaría todo lo de abajo.
+            if (recuentos.Count(par => par.Value > 0) < 3)
+                fallos.Add($"{superficie}: se esperaban filas en al menos tres estados y hay {string.Join(", ", recuentos)}");
+
+            if (recuentos.Values.Sum() != totalSinFiltro)
+                fallos.Add($"{superficie}: los recuentos suman {recuentos.Values.Sum()} y la lista sin filtro tiene {totalSinFiltro}");
+
+            foreach (var (estado, cifra) in recuentos)
+            {
+                var (totalDelFiltro, recuentosConFiltro) = await listar(estado);
+                if (totalDelFiltro != cifra)
+                    fallos.Add($"{superficie} · {estado}: el botón dice {cifra} y su filtro devuelve {totalDelFiltro}");
+                if (recuentosConFiltro is null || !recuentosConFiltro.OrderBy(par => par.Key).SequenceEqual(recuentos.OrderBy(par => par.Key)))
+                    fallos.Add($"{superficie} · {estado}: los recuentos cambian al marcar un estado");
+            }
+
+            // «Por vencer» marca Urgente y Próximo; con Vencido además, la unión de los tres.
+            const string porVencer = nameof(EstadoDocumento.Urgente) + "," + nameof(EstadoDocumento.Proximo);
+            var esperadoPorVencer = recuentos[nameof(EstadoDocumento.Urgente)] + recuentos[nameof(EstadoDocumento.Proximo)];
+            var (totalPorVencer, _) = await listar(porVencer);
+            if (totalPorVencer != esperadoPorVencer)
+                fallos.Add($"{superficie} · {porVencer}: se esperaban {esperadoPorVencer} filas y hay {totalPorVencer}");
+
+            var (totalDeTres, _) = await listar(nameof(EstadoDocumento.Vencido) + "," + porVencer);
+            if (totalDeTres != esperadoPorVencer + recuentos[nameof(EstadoDocumento.Vencido)])
+                fallos.Add($"{superficie} · Vencido,{porVencer}: se esperaban {esperadoPorVencer + recuentos[nameof(EstadoDocumento.Vencido)]} filas y hay {totalDeTres}");
+        }
     }
 
     private CaeManagerDbContext CrearContexto()

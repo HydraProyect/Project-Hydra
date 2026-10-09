@@ -195,6 +195,12 @@
                                     <ItemMenuAccion OnClick="() => ReenviarCredencialesAsync(usuario)">
                                         Reenviar correo de activación
                                     </ItemMenuAccion>
+                                    @* Solo mientras la cuenta sigue pendiente (H9): un alta con la
+                                       dirección mal escrita se corrige aquí; una cuenta ya activada
+                                       no cambia de correo por esta vía, y Application lo revalida. *@
+                                    <ItemMenuAccion OnClick="() => AbrirCorregirCorreo(usuario)">
+                                        @TextosUsuarios["CorregirCorreoAccion"]
+                                    </ItemMenuAccion>
                                     <ItemMenuAccion Destructivo="true" OnClick="() => PedirEliminacion(usuario)">
                                         Eliminar
                                     </ItemMenuAccion>
@@ -253,7 +259,7 @@
         <CampoTexto Etiqueta="Correo" Type="email" Placeholder="@("nombre@empresa.es")" Valor="@_email" ValorChanged="v => _email = v" Deshabilitado="@(_editandoId is not null)" />
         @if (_editandoId is not null)
         {
-            <p class="texto-ayuda-campo">El correo identifica la cuenta y no se puede cambiar.</p>
+            <p class="texto-ayuda-campo">@TextosUsuarios["EditarCorreoNoSeCambiaAqui"]</p>
         }
 
         <CampoTexto Etiqueta="Nombre completo" Valor="@_nombreCompleto" ValorChanged="v => _nombreCompleto = v" />
@@ -389,7 +395,7 @@
    perdido obligue a dar de alta a la persona otra vez. *@
 <Modal Visible="@(_enlaceActivacion is not null)"
        VisibleChanged="@(v => { if (!v) _enlaceActivacion = null; })"
-       Titulo="@(_reenvioEnCurso ? (_reenvioFallido ? "No pudimos reenviar el correo" : "Correo reenviado") : "Usuario creado")">
+       Titulo="@(_reenvioEnCurso ? (_reenvioFallido ? "No pudimos reenviar el correo" : _reenvioTrasCorregirCorreo ? TextosUsuarios["CorregirCorreoTituloHecho"].Value : "Correo reenviado") : "Usuario creado")">
     <ChildContent>
         @if (_reenvioEnCurso && _reenvioFallido)
         {
@@ -411,6 +417,19 @@
         <Boton Variante="VarianteBoton.Primario" OnClick="() => _enlaceActivacion = null">Hecho</Boton>
     </Pie>
 </Modal>
+
+@* Corregir el correo de una cuenta pendiente de activación (H9). Al guardar, los enlaces
+   enviados a la dirección anterior dejan de valer y sale uno nuevo a la corregida; el
+   resultado se enseña en el mismo diálogo del enlace que usa el reenvío. *@
+<ModalFormulario Visible="@(_usuarioACorregirCorreo is not null)" VisibleChanged="@(v => { if (!v) CerrarCorregirCorreo(); })"
+                 Titulo="@TextosUsuarios["CorregirCorreoTitulo", _usuarioACorregirCorreo?.NombreCompleto ?? string.Empty]"
+                 HayCambios="() => HayCambiosEnCorreoCorregido" Guardando="_corrigiendoCorreo" MensajeError="@_errorCorregirCorreo"
+                 MotivoGuardarDeshabilitado="@(HayCambiosEnCorreoCorregido ? null : TextosUsuarios["CorregirCorreoSinCambios"].Value)"
+                 OnGuardar="GuardarCorreoCorregidoAsync" TextoGuardar="@TextosUsuarios["CorregirCorreoGuardar"]" TextoCancelar="@TextosUsuarios["CorregirCorreoVolver"]">
+    <CampoTexto Etiqueta="@TextosUsuarios["CorregirCorreoCampo"]" Type="email" Placeholder="@("nombre@empresa.es")"
+                Valor="@_correoCorregido" ValorChanged="v => { _correoCorregido = v; _errorCorregirCorreo = null; }" Deshabilitado="_corrigiendoCorreo" />
+    <p class="texto-ayuda-campo">@TextosUsuarios["CorregirCorreoAyuda"]</p>
+</ModalFormulario>
 
 @* FS-25 (auditoría UX de flujos sin salida, 2026-09-24): desactivar actuaba al
    primer clic y dejaba la cartera del Gestor CAE sin decir nada. Ahora se confirma

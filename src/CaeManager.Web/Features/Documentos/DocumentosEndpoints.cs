@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
@@ -76,7 +77,9 @@ public static class DocumentosEndpoints
                         TrabajadorId: null,
                         Ambito: Enum.TryParse<AmbitoAplicacion>(ambito, out var ambitoFiltro) ? ambitoFiltro : null,
                         Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
-                        Estado: Enum.TryParse<EstadoDocumento>(estado, out var estadoFiltro) ? estadoFiltro : null,
+                        // La selección de la franja de estado: varios nombres separados por coma.
+                        Estado: null,
+                        Estados: SeleccionEstados.Separar<EstadoDocumento>(estado) is { Count: > 0 } estados ? estados : null,
                         Pagina: pagina,
                         TamanoPagina: tamanoPagina,
                         OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,

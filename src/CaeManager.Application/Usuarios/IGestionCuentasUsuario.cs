@@ -86,6 +86,23 @@ public interface IGestionCuentasUsuario
     /// </para>
     /// </summary>
     Task<Result<string>> GenerarTokenActivacionAsync(Guid usuarioId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cambia el correo (y el nombre de usuario, que es el mismo) de una cuenta <b>solo
+    /// si sigue pendiente de activación</b>, comprobado sobre la misma lectura que se
+    /// escribe, y devuelve un token de activación nuevo ya codificado para una URL; si
+    /// no, falla con <see cref="AutoridadSobreCuentas.YaNoPendiente"/>.
+    ///
+    /// <para>
+    /// <b>Una sola escritura</b>: correo nuevo y sello de seguridad nuevo se guardan
+    /// juntos, así que no existe un instante en que la cuenta tenga la dirección
+    /// corregida y un enlace anterior todavía válido. Queda en la auditoría de la cuenta
+    /// como <c>RegistroAuditoria.AccionCorreoCorregido</c>, con el correo anterior y el
+    /// nuevo y el Actor real de quien lo pide. La unicidad del correo la comprueba
+    /// Identity igual que en el alta, y su motivo vuelve en el mensaje.
+    /// </para>
+    /// </summary>
+    Task<Result<string>> CorregirCorreoPendienteAsync(Guid usuarioId, string correoNuevo, CancellationToken cancellationToken = default);
 }
 
 /// <param name="PendienteActivacion">Sin contraseña y sin login externo: la persona nunca entró.</param>

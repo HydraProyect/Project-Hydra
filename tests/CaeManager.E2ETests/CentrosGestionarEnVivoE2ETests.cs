@@ -196,9 +196,10 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         //   clase. Distinguir "no existe" de "existe y está vencido" es
         //   justamente lo que separa este badge, y sin la aserción de texto
         //   el test dejaría de observar esa distinción.
+        // Desde el 2026-10-08 el estado Faltante se rotula «Pendiente» en toda la interfaz.
         var badgeFalta = filaDocumento.Locator(".badge-peligro");
         await Expect(badgeFalta).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await Expect(badgeFalta).ToHaveTextAsync("Falta", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+        await Expect(badgeFalta).ToHaveTextAsync("Pendiente", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
         // --- Paso 5: Gestionar → subir el documento, sin salir de /centros ---
         await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();

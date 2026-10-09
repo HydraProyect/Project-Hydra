@@ -10,7 +10,7 @@ namespace CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 
 public record ObtenerGestionesQuery(
     string? Busqueda, EstadoGestion? Estado, Guid? TrabajadorId, int Pagina = 1, int TamanoPagina = 20,
-    string? OrdenarPor = null, bool Descendente = false)
+    string? OrdenarPor = null, bool Descendente = false, bool ConRecuentosPorEstado = false)
     : IRequest<ResultadoPaginado<GestionListaDto>>;
 
 public record GestionListaDto(
@@ -36,9 +36,6 @@ public class ObtenerGestionesQueryHandler(
         if (centroIdsVisibles is not null)
             consulta = consulta.Where(x => centroIdsVisibles.Contains(x.centro.Id));
 
-        if (request.Estado is not null)
-            consulta = consulta.Where(x => x.gestion.Estado == request.Estado);
-
         if (request.TrabajadorId is not null)
             consulta = consulta.Where(x => x.gestion.TrabajadorId == request.TrabajadorId);
 
@@ -50,6 +47,23 @@ public class ObtenerGestionesQueryHandler(
                 x.centro.Nombre.ToUpper().Contains(busqueda) ||
                 x.tipoDocumento.Nombre.ToUpper().Contains(busqueda));
         }
+
+        // Para la franja de estado del listado: gestiones por estado con los demás filtros aplicados y ANTES de
+        // filtrar por estado, de modo que cada cifra diga cuántas quedarían al marcar ese estado. Lleva los dos
+        // estados aunque uno no tenga ninguna (0): «no hay» no es «no se contó».
+        IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
+        if (request.ConRecuentosPorEstado)
+        {
+            var filasPorEstado = await consulta
+                .GroupBy(x => x.gestion.Estado)
+                .Select(grupo => new { Estado = grupo.Key, Filas = grupo.Count() })
+                .ToDictionaryAsync(grupo => grupo.Estado, grupo => grupo.Filas, cancellationToken);
+            recuentosPorEstado = Enum.GetValues<EstadoGestion>()
+                .ToDictionary(estado => estado.ToString(), estado => filasPorEstado.GetValueOrDefault(estado));
+        }
+
+        if (request.Estado is not null)
+            consulta = consulta.Where(x => x.gestion.Estado == request.Estado);
 
         var total = await consulta.CountAsync(cancellationToken);
 
@@ -83,6 +97,9 @@ public class ObtenerGestionesQueryHandler(
                 x.gestion.Estado, x.gestion.CreadoEnUtc))
             .ToListAsync(cancellationToken);
 
-        return new ResultadoPaginado<GestionListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
+        return new ResultadoPaginado<GestionListaDto>(elementos, total, request.Pagina, request.TamanoPagina)
+        {
+            RecuentosPorEstado = recuentosPorEstado
+        };
     }
 }

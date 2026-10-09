@@ -343,6 +343,9 @@
   <data name="ContraerTodo" xml:space="preserve">
     <value>Contraer todo</value>
   </data>
+  <data name="FranjaEstadoEtiqueta" xml:space="preserve">
+    <value>Filtrar por estado</value>
+  </data>
   <data name="SinBuzonMotivo" xml:space="preserve">
     <value>No se puede enviar desde aquí: no hay ningún buzón de Microsoft 365 conectado y habilitado para enviar correo.</value>
   </data>

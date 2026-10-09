@@ -57,20 +57,21 @@
                 <PastillaFiltro @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
                                 Valor="@(_clienteSeleccionadoId == Guid.Empty ? string.Empty : _clienteSeleccionadoId.ToString())"
                                 ValorChanged="OnClienteSeleccionadoAsync" Opciones="OpcionesClienteListado" OfrecerTodos="false" />
-                <PastillaFiltro Etiqueta="@Textos["EtiquetaEstado"]" Valor="@_estadoFiltro"
-                                ValorChanged="CambiarEstadoAsync" Opciones="OpcionesEstado" />
             </Pastillas>
             <Chips>
                 @if (!string.IsNullOrWhiteSpace(_busqueda))
                 {
                     <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["AriaQuitarBusqueda"]" OnQuitar="QuitarBusquedaAsync" />
                 }
-                @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
-                {
-                    <ChipFiltro Etiqueta="@Textos["ChipEstado", TextoEstadoFiltro]" EtiquetaAccesible="@Textos["AriaQuitarEstado"]" OnQuitar="QuitarEstadoAsync" />
-                }
             </Chips>
         </BarraFiltros>
+        @if (_clienteSeleccionadoId != Guid.Empty && _proyectos.Count > 0)
+        {
+            @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
+               cuántos Proyectos hay, con la búsqueda aplicada. Con los dos botones marcados se ven todos. *@
+            <FranjaEstado Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                          Recuentos="RecuentosPorEstado" />
+        }
         @if (_clienteSeleccionadoId == Guid.Empty)
         {
             @* CrearProyectoCommand exige un Cliente empresarial y un Centro vinculado
@@ -189,11 +190,11 @@
                                 <td>
                                     @if (proyecto.EstaAbierto)
                                     {
-                                        <Badge Tono="TonoBadge.Exito">@Textos["BadgeAbierto"]</Badge>
+                                        <EstadoFila Correcto="true" Texto="@Textos["BadgeAbierto"]" />
                                     }
                                     else
                                     {
-                                        <Badge Tono="TonoBadge.Neutro">@Textos["BadgeCerrado"]</Badge>
+                                        <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCerrado"]" />
                                     }
                                 </td>
                                 @* Dónde quedó cada acción del menú «⋯» que tenía la fila: «Detalles» es el clic en
