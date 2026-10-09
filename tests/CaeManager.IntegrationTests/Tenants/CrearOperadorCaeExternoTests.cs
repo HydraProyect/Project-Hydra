@@ -231,23 +231,34 @@ public class CrearOperadorCaeExternoTests : IAsyncLifetime
 
     // ── Validación ───────────────────────────────────────────────────────────
 
-    [Theory]
-    [InlineData("", NombreAdministrador)]
-    [InlineData("   ", NombreAdministrador)]
-    [InlineData(EmailAdministrador, "")]
-    [InlineData(EmailAdministrador, "   ")]
-    public async Task Sin_correo_o_sin_nombre_del_primer_Administrador_no_se_crea_nada(string email, string nombre)
+    /// <summary>
+    /// Los cuatro casos en una sola base (cada test de esta clase migra la suya): ninguno
+    /// escribe, así que no se contaminan entre sí, y la foto se compara tras cada uno.
+    /// </summary>
+    [Fact]
+    public async Task Sin_correo_o_sin_nombre_del_primer_Administrador_no_se_crea_nada()
     {
         var actor = await SembrarActorDePlataformaAsync();
         using var ambito = _servicios.CreateScope();
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var handler = CrearHandler(ambito.ServiceProvider, actor);
         var antes = await FotoAsync(contexto);
 
-        var resultado = await CrearHandler(ambito.ServiceProvider, actor).Handle(Alta(email: email, nombre: nombre), CancellationToken.None);
+        (string Email, string Nombre)[] casos =
+        [
+            ("", NombreAdministrador), ("   ", NombreAdministrador), (EmailAdministrador, ""), (EmailAdministrador, "   "),
+        ];
+        foreach (var (email, nombre) in casos)
+        {
+            var resultado = await handler.Handle(Alta(email: email, nombre: nombre), CancellationToken.None);
 
-        resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Should().Be(CrearOperadorCaeExternoCommandHandler.DatosPrimerAdministradorObligatorios);
-        (await FotoAsync(contexto)).Should().Be(antes, "un Operador CAE externo sin primer Administrador no nace");
+            resultado.EsFallido.Should().BeTrue($"correo «{email}», nombre «{nombre}»");
+            resultado.Error.Should().Be(CrearOperadorCaeExternoCommandHandler.DatosPrimerAdministradorObligatorios);
+            (await FotoAsync(contexto)).Should().Be(antes, "un Operador CAE externo sin primer Administrador no nace");
+        }
+
+        // Control positivo: con los dos datos, el mismo handler sí crea.
+        (await handler.Handle(Alta(), CancellationToken.None)).EsExitoso.Should().BeTrue();
     }
 
     // ── Atomicidad ───────────────────────────────────────────────────────────
@@ -308,24 +319,30 @@ public class CrearOperadorCaeExternoTests : IAsyncLifetime
         (await FotoAsync(contexto)).Should().Be(antes);
     }
 
-    [Theory]
-    [InlineData(PasoDeLaCuenta.Rol)]
-    [InlineData(PasoDeLaCuenta.Token)]
-    public async Task Si_el_rol_o_el_token_fallan_no_queda_ni_el_Tenant_ni_la_cuenta(PasoDeLaCuenta pasoQueFalla)
+    /// <summary>
+    /// Los dos pasos en una sola base (cada test de esta clase migra la suya): si la
+    /// transacción deshace de verdad, el primero no deja nada que el segundo pueda ver.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_rol_o_el_token_fallan_no_queda_ni_el_Tenant_ni_la_cuenta()
     {
         var actor = await SembrarActorDePlataformaAsync();
         using var ambito = _servicios.CreateScope();
         var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var antes = await FotoAsync(contexto);
-        var cuentas = new CuentasQueFallanEn(pasoQueFalla);
-        var handler = CrearHandler(ambito.ServiceProvider, actor, reales => cuentas.Sobre(reales));
 
-        var resultado = await handler.Handle(Alta(), CancellationToken.None);
+        foreach (var pasoQueFalla in new[] { PasoDeLaCuenta.Rol, PasoDeLaCuenta.Token })
+        {
+            var cuentas = new CuentasQueFallanEn(pasoQueFalla);
+            var handler = CrearHandler(ambito.ServiceProvider, actor, reales => cuentas.Sobre(reales));
 
-        cuentas.LlegoAlPaso.Should().BeTrue("control: si el alta no llegó a ese paso, el test no mide nada");
-        resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Should().Be(CrearOperadorCaeExternoCommandHandler.PrimerAdministradorNoCreado);
-        (await FotoAsync(contexto)).Should().Be(antes, "la cuenta ya escrita se deshace con el Tenant");
+            var resultado = await handler.Handle(Alta(), CancellationToken.None);
+
+            cuentas.LlegoAlPaso.Should().BeTrue($"control ({pasoQueFalla}): si el alta no llegó a ese paso, el test no mide nada");
+            resultado.EsFallido.Should().BeTrue($"falla el paso {pasoQueFalla}");
+            resultado.Error.Should().Be(CrearOperadorCaeExternoCommandHandler.PrimerAdministradorNoCreado);
+            (await FotoAsync(contexto)).Should().Be(antes, $"la cuenta ya escrita se deshace con el Tenant ({pasoQueFalla})");
+        }
     }
 
     // ── Montaje ──────────────────────────────────────────────────────────────
@@ -427,7 +444,7 @@ public class CrearOperadorCaeExternoTests : IAsyncLifetime
 
     private sealed record Foto(int Tenants, int ParametrosSistema, int Operaciones, int Cuentas, int AfiliacionesDeRol);
 
-    public enum PasoDeLaCuenta
+    private enum PasoDeLaCuenta
     {
         Rol,
         Token,
