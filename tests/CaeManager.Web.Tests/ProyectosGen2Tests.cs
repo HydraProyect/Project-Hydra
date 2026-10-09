@@ -1368,6 +1368,30 @@ public class ProyectosGen2Tests : BunitContext
         PanelDeDetalleAbierto(cut).Should().BeFalse("«Salir y descartar» cierra el panel");
     }
 
+    /// <summary>
+    /// Medido en CI (E2E <c>ProyectosFase1SelectorTests</c>): reescribir la URL al seguir editando
+    /// es una navegación con el panel sin guardar, y la pregunta volvía a salir sola.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_cambiar_de_Cliente_empresarial_y_seguir_editando_no_navega()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+        await EscribirEnElPanelAsync(cut, "Otro nombre");
+        var historial = ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History;
+        var navegacionesAntes = historial.Count;
+        var uriAntes = Uri;
+
+        var cambio = ElegirCliente(cut, Guid.Empty);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("cambiar de Cliente empresarial cierra el panel"));
+        await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
+        await cambio.WaitAsync(Paciencia);
+
+        historial.Count.Should().Be(navegacionesAntes, "la URL no ha cambiado: no hay nada que reescribir");
+        Uri.Should().Be(uriAntes);
+        PreguntaAbierta(cut).Should().BeFalse();
+        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre");
+    }
+
     [Fact]
     public async Task Aviso_abrir_otro_proyecto_con_la_edicion_a_medias_pregunta_y_descartar_abre_el_otro()
     {

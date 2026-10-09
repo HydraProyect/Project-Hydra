@@ -265,7 +265,12 @@ public static class RetiradaTenantDemoService
             if (idsUsuarios.Count > 0)
             {
                 dbContext.RemoveRange(await dbContext.AceptacionesTerminos.Where(a => idsUsuarios.Contains(a.UsuarioId)).ToListAsync(cancellationToken));
-                dbContext.RemoveRange(await dbContext.FiltrosGuardados.IgnoreQueryFilters().Where(f => idsUsuarios.Contains(f.UsuarioId)).ToListAsync(cancellationToken));
+                // Filtros guardados: los del propio Tenant caen en el barrido genérico de arriba. Los que
+                // un usuario de este Tenant guardó operando sobre OTRO Tenant llevan el TenantId ajeno:
+                // marcarlos con Remove los rechaza el sellado («entidad perteneciente a otro tenant») y
+                // abortaría la retirada entera, así que se borran con una sentencia directa, acotada por
+                // usuario. No tienen FK entrante ni saliente: no participan en el orden del guardado final.
+                await dbContext.FiltrosGuardados.IgnoreQueryFilters().Where(f => idsUsuarios.Contains(f.UsuarioId) && f.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);
                 dbContext.RemoveRange(await dbContext.PreferenciasDashboardUsuario.Where(p => idsUsuarios.Contains(p.UsuarioId)).ToListAsync(cancellationToken));
                 dbContext.RemoveRange(await dbContext.AsignacionesOperadorDelegadoConRevocadas.Where(a => idsUsuarios.Contains(a.UsuarioId)).ToListAsync(cancellationToken));
             }

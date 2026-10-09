@@ -180,14 +180,18 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             _versionSelectorCliente++;
             _focoSelectorClienteEmpresarialPendiente = true;
             // Si el cambio lo pedía la URL, vuelve a decir el Cliente empresarial que sigue en pantalla.
-            EscribirClienteEnUrl();
+            // Pedido desde el selector no se navega: la URL no ha cambiado, y una navegación con el
+            // panel todavía sin guardar volvería a preguntar «¿Salir sin guardar?».
+            if (pedidoPorLaUrl)
+                EscribirClienteEnUrl();
             return;
         }
 
         _clienteSeleccionadoId = nuevo;
+        // Primero se cierra el panel de detalle; la URL se escribe ya sin nada pendiente de guardar.
+        await OnClienteChangedAsync();
         if (!pedidoPorLaUrl)
             EscribirClienteEnUrl();
-        await OnClienteChangedAsync();
     }
 
     private int _versionSelectorCliente;
