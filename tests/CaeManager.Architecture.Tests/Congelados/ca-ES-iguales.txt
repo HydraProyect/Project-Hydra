@@ -1078,7 +1078,6 @@ src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: AriaSelec
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: AriaSeleccionarVehiculo = 1
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: BotonNuevoVehiculo = 1
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: BotonQuitarFiltros = 1
-src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: ColumnaEmpleador = 1
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: ConfirmarEliminarLoteMensaje = 1
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: ConfirmarEliminarLoteTitulo = 1
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: DrawerNuevoTitulo = 1
