@@ -6,17 +6,16 @@ namespace CaeManager.E2ETests;
 /// Ejecuta los módulos JS de producción en Chromium con eventos reales. Aísla
 /// la frontera DOM/interop: no sustituye los flujos E2E con Blazor y base de datos.
 /// </summary>
-public class AtajosSuperficiesTests : IAsyncLifetime
+public class AtajosSuperficiesTests(NavegadorSinAplicacionFixture navegador) : IClassFixture<NavegadorSinAplicacionFixture>, IAsyncLifetime
 {
-    private IPlaywright _playwright = null!;
-    private IBrowser _browser = null!;
+    // El navegador es de la clase; el contexto y la página, de cada test.
+    private IBrowserContext _context = null!;
     private IPage _page = null!;
 
     public async Task InitializeAsync()
     {
-        _playwright = await Playwright.CreateAsync();
-        _browser = await _playwright.Chromium.LaunchAsync(new() { Headless = true });
-        _page = await _browser.NewPageAsync();
+        _context = await navegador.Browser.NewContextAsync();
+        _page = await _context.NewPageAsync();
         var directorio = new DirectoryInfo(AppContext.BaseDirectory);
         while (directorio is not null && !File.Exists(Path.Combine(directorio.FullName, "CaeManager.slnx")))
             directorio = directorio.Parent;
@@ -264,7 +263,6 @@ public class AtajosSuperficiesTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        if (_browser is not null) await _browser.DisposeAsync();
-        _playwright?.Dispose();
+        if (_context is not null) await _context.DisposeAsync();
     }
 }
