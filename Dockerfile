@@ -9,7 +9,7 @@
 # blog) — Dependabot (ver .github/dependabot.yml, ecosistema "docker") sigue
 # proponiendo el salto cuando salga una versión nueva, con su propio PR,
 # CI y escaneo Trivy antes de fusionar.
-FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
+FROM mcr.microsoft.com/dotnet/sdk:10.0.401@sha256:e70cdb7f80b0348f5cb85f19a8f670fca061f033d57eed12fa003d58b0e06317 AS build
 WORKDIR /src
 
 # Copiar solo los .csproj primero para que `dotnet restore` se cachee entre
