@@ -445,9 +445,11 @@ public class GestionesListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Mientras viaja el cambio de A, el menú de la fila de A es un segundo
-    /// disparador de lo mismo: no puede mandar otro comando. El de B sí, porque
-    /// es otra gestión.
+    /// Mientras viaja el cambio de A, un segundo clic en su botón rápido y el botón del pie de su
+    /// vista rápida son más disparadores de lo mismo: no pueden mandar otro comando. Los dos se
+    /// pintan deshabilitados, pero un doble clic llega antes que el repintado: bUnit despacha el
+    /// clic igualmente, y es la guarda de CambiarEstadoAsync la que lo para. El de B sí manda el
+    /// suyo, porque es otra gestión.
     /// </summary>
     [Fact]
     public async Task Mientras_viaja_el_cambio_de_una_gestion_no_se_manda_otro_para_ella_pero_si_para_otra()
@@ -469,6 +471,7 @@ public class GestionesListaGen2Tests : BunitContext
             cut.WaitForAssertion(() => mediador.Enviadas.OfType<CompletarGestionCommand>().Should().ContainSingle());
             await NombreEnLaFila(cut, a.TrabajadorNombre).ClickAsync(new MouseEventArgs());
             tareas.Add(BotonDeLaVistaRapida(cut, "Marcar completada").ClickAsync(new MouseEventArgs()));
+            tareas.Add(BotonRapidoDeLaFila(cut, a.TrabajadorNombre, "Completar").ClickAsync(new MouseEventArgs()));
             tareas.Add(BotonRapidoDeLaFila(cut, b.TrabajadorNombre, "Completar").ClickAsync(new MouseEventArgs()));
             cut.WaitForAssertion(() => mediador.Enviadas.OfType<CompletarGestionCommand>().Select(c => c.Id).Should().Equal(a.Id, b.Id));
             mediador.Enviadas.OfType<CompletarGestionCommand>().Should().OnlyContain(c => c.Completada);

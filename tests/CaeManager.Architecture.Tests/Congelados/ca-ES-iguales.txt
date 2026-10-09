@@ -361,7 +361,6 @@ src/CaeManager.Web/Features/Documentos/Recursos/TextosSubidaMasiva.resx :: Salir
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.resx :: ToastLoteRestaurados = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.resx :: ToastLoteRestauradosConErrores = 1
 src/CaeManager.Web/Features/Gestiones/Recursos/TextosGestiones.resx :: AccionMarcarCompletada = 1
-src/CaeManager.Web/Features/Gestiones/Recursos/TextosGestiones.resx :: AccionVistaRapida = 1
 src/CaeManager.Web/Features/Gestiones/Recursos/TextosGestiones.resx :: AriaCerrarVistaRapida = 1
 src/CaeManager.Web/Features/Gestiones/Recursos/TextosGestiones.resx :: AriaQuitarBusqueda = 1
 src/CaeManager.Web/Features/Gestiones/Recursos/TextosGestiones.resx :: AriaQuitarFiltroEstado = 1
