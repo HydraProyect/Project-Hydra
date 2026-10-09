@@ -9,8 +9,8 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Contrato de las piezas que comparten las páginas 360 del 2026-10-08
 /// (Vehículo, Subcontrata, Tipo de documento, Proyecto y Visita):
-/// <see cref="CabeceraIdentidad"/>, <see cref="BandaAccion"/> con
-/// <see cref="IncidenciaBanda"/>, <see cref="FiltroEstadosMultiple"/>, y la
+/// <see cref="CabeceraIdentidad"/>, <see cref="BandaAccion"/>,
+/// <see cref="FiltroEstadosMultiple"/>, y la
 /// fila en rejilla de <see cref="FilaRelacion"/> dentro de una
 /// <see cref="ListaRelaciones"/> pintada como tarjeta.
 ///
@@ -70,7 +70,7 @@ public class Piezas360CompartidasTests : BunitContext
         titular.QuerySelector("#estado").Should().NotBeNull();
     }
 
-    // ── BandaAccion / IncidenciaBanda ──────────────────────────────────────
+    // ── BandaAccion ────────────────────────────────────────────────────────
 
     [Theory]
     [InlineData(TonoBanda.Peligro, "peligro")]
@@ -104,27 +104,10 @@ public class Piezas360CompartidasTests : BunitContext
     [Fact]
     public void Sin_accion_la_banda_no_pinta_enlace_aunque_tenga_rotulo()
     {
-        // Es el rol Consulta: conserva el texto de la banda y pierde los botones.
+        // Sin delegado no hay botón: la banda se queda en texto.
         var cut = Render<BandaAccion>(p => p.Add(x => x.TextoEnlace, "Renovar ITV").AddChildContent("ITV vencida"));
 
         cut.FindAll("button").Should().BeEmpty();
-    }
-
-    [Fact]
-    public void La_incidencia_con_accion_es_un_boton_y_sin_ella_es_texto()
-    {
-        var pulsado = 0;
-        var conAccion = Render<IncidenciaBanda>(p => p.Add(x => x.Texto, "ITV vencida").Add(x => x.OnClick, () => pulsado++));
-
-        var boton = conAccion.Find("button.incidencia-banda");
-        boton.TextContent.Should().Be("ITV vencida");
-        boton.Click();
-        pulsado.Should().Be(1);
-
-        var sinAccion = Render<IncidenciaBanda>(p => p.Add(x => x.Texto, "ITV vencida"));
-
-        sinAccion.FindAll("button").Should().BeEmpty();
-        sinAccion.Find("b").TextContent.Should().Be("ITV vencida");
     }
 
     // ── FiltroEstadosMultiple ──────────────────────────────────────────────

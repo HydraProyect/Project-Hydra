@@ -267,25 +267,13 @@
   <data name="FichaNotaEmpleador" xml:space="preserve">
     <value>L'empleador no es pot canviar.</value>
   </data>
-  <data name="FichaBandaRenovar" xml:space="preserve">
-    <value>Renova {0}</value>
-  </data>
-  <data name="FichaBandaVencido" xml:space="preserve">
-    <value>va vèncer.</value>
-  </data>
-  <data name="FichaBandaVencioHaceUnDia" xml:space="preserve">
-    <value>va vèncer el {0}, fa 1 dia.</value>
-  </data>
-  <data name="FichaBandaVencioHaceDias" xml:space="preserve">
-    <value>va vèncer el {0}, fa {1} dies.</value>
-  </data>
   <data name="FichaGlosaDocumentoUno" xml:space="preserve">
     <value>document</value>
   </data>
   <data name="FichaGlosaDocumentoVarios" xml:space="preserve">
     <value>documents</value>
   </data>
-  <data name="FichaBandaVencidosSinNombrar" xml:space="preserve">
+  <data name="FichaVencidosFueraDeLaLista" xml:space="preserve">
     <value>Hi ha documents vençuts que no caben en aquesta llista.</value>
   </data>
   <data name="AbrirVistaRapidaDe" xml:space="preserve">
