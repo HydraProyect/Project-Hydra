@@ -14,6 +14,7 @@ using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectosParaSelector;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Documentos.Queries.ObtenerPlataformasEnUso;
 using CaeManager.Application.Trabajadores.Commands.AsignarAliasTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
@@ -94,6 +95,15 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     /// <summary>Ámbito del filtro de la rejilla — mismo mecanismo que <see cref="Estado"/>, ver OnParametersSet.</summary>
     [SupplyParameterFromQuery] public string? Ambito { get; set; }
+
+    /// <summary>
+    /// Filtro «Tipo de documento» de la rejilla: el Id del tipo. No es <see cref="TipoDocumentoId"/>, que con
+    /// <see cref="TrabajadorId"/> o <see cref="EmpresaIdFaltante"/> abre el alta de un documento que falta.
+    /// </summary>
+    [SupplyParameterFromQuery] public string? Tipo { get; set; }
+
+    /// <summary>Filtro «Plataforma» de la rejilla: el Id de la plataforma CAE.</summary>
+    [SupplyParameterFromQuery] public string? Plataforma { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosDocumentos> Textos { get; set; } = default!;
@@ -359,7 +369,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Error del servidor al guardar el filtro: se ve en el aviso fijo del ModalFormulario (D-20), no en un toast que desaparece.</summary>
     private string? _mensajeErrorFiltro;
 
-    private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado);
+    private record FiltrosDocumentosJson(string? Busqueda, string? Ambito, string? Estado, string? Tipo = null, string? Plataforma = null);
 
     private DrawerGestionDocumento _drawerGestion = default!;
     private PlataformaTab? _plataformaTab;
@@ -399,6 +409,35 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             return;
 
         _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos), token);
+        await CargarOpcionesDeFiltroAsync(token);
+    }
+
+    /// <summary>
+    /// Opciones de los filtros «Tipo de documento» y «Plataforma». Si una falla, ese filtro se queda sin opciones
+    /// y el listado sigue: la rejilla no depende de ellas.
+    /// </summary>
+    private async Task CargarOpcionesDeFiltroAsync(CancellationToken token)
+    {
+        try
+        {
+            var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(), token);
+            _opcionesTipo = tipos.OrderBy(t => t.Nombre, StringComparer.CurrentCultureIgnoreCase)
+                .Select(t => new OpcionEstado(t.Id.ToString(), t.Nombre)).ToList();
+        }
+        catch (Exception) when (!token.IsCancellationRequested)
+        {
+            _opcionesTipo = [];
+        }
+
+        try
+        {
+            var plataformas = await Mediator.Send(new ObtenerPlataformasEnUsoQuery(), token);
+            _opcionesPlataforma = plataformas.Select(p => new OpcionEstado(p.Id.ToString(), p.Nombre)).ToList();
+        }
+        catch (Exception) when (!token.IsCancellationRequested)
+        {
+            _opcionesPlataforma = [];
+        }
     }
 
     /// <summary>
@@ -498,6 +537,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _estadoFiltro = EstadosValidos(Estado);
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _ambitoFiltro = Ambito ?? string.Empty;
+        _tipoFiltro = IdValido(Tipo);
+        _plataformaFiltro = IdValido(Plataforma);
 
         // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
         // desde el evento de reclamación enviada a su pestaña. Se ignora un
@@ -611,6 +652,14 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private string _busqueda = string.Empty;
     private string _ambitoFiltro = string.Empty;
+    private string _tipoFiltro = string.Empty;
+    private string _plataformaFiltro = string.Empty;
+    private IReadOnlyList<OpcionEstado> _opcionesTipo = [];
+    private IReadOnlyList<OpcionEstado> _opcionesPlataforma = [];
+
+    /// <summary>Un Id que llega de fuera (la URL, un filtro guardado): cadena vacía si no es un Guid.</summary>
+    private static string IdValido(string? valor) =>
+        Guid.TryParse(valor, out var id) ? id.ToString() : string.Empty;
     private string _estadoFiltro = string.Empty;
 
     /// <summary>Documentos por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
@@ -660,6 +709,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _ultimaColumnaOrden = request.SortByColumn;
             _ultimoOrdenAscendente = request.SortByAscending;
             var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+            // Orden de inicio: lo que más urge primero. En cuanto el usuario ordena por una columna, manda la suya.
+            ordenarPor ??= ObtenerDocumentosQuery.OrdenPorSeveridad;
             (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
 
             var ambitoFiltro = Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambito) ? ambito : (AmbitoAplicacion?)null;
@@ -675,7 +726,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 OrdenarPor: ordenarPor,
                 Descendente: descendente,
                 Estados: estadosFiltro.Count == 0 ? null : estadosFiltro,
-                ConRecuentosPorEstado: true), token);
+                ConRecuentosPorEstado: true,
+                TipoDocumentoId: Guid.TryParse(_tipoFiltro, out var tipoFiltro) ? tipoFiltro : null,
+                ProveedorPlataformaCaeId: Guid.TryParse(_plataformaFiltro, out var plataformaFiltro) ? plataformaFiltro : null), token);
 
             // La respuesta de un filtro ya abandonado no puede pisar el total,
             // las filas ni la selección de la pregunta que sí se está mirando.
@@ -737,6 +790,20 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         await RecargarAsync();
     }
 
+    private async Task CambiarTipoFiltroAsync(string valor)
+    {
+        _tipoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(Tipo), valor);
+        await RecargarAsync();
+    }
+
+    private async Task CambiarPlataformaFiltroAsync(string valor)
+    {
+        _plataformaFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl(nameof(Plataforma), valor);
+        await RecargarAsync();
+    }
+
     private async Task CambiarEstadoFiltroAsync(string? valor)
     {
         _estadoFiltro = valor ?? string.Empty;
@@ -746,10 +813,11 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
-        || !string.IsNullOrWhiteSpace(_ambitoFiltro);
+        || !string.IsNullOrWhiteSpace(_ambitoFiltro) || !string.IsNullOrWhiteSpace(_tipoFiltro)
+        || !string.IsNullOrWhiteSpace(_plataformaFiltro);
 
     /// <summary>
-    /// Quita los tres filtros, y los tres <b>también de la URL</b>. Hasta ahora
+    /// Quita todos los filtros, y todos <b>también de la URL</b>. Hasta ahora
     /// solo se borraba <c>q</c>: <c>Estado</c> y <c>Ambito</c> se quedaban
     /// puestos y <see cref="OnParametersSet"/>, que re-sincroniza desde la URL,
     /// los devolvía en la siguiente pasada de parámetros. Pulsar "Quitar los
@@ -767,11 +835,15 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _busqueda = string.Empty;
         _estadoFiltro = string.Empty;
         _ambitoFiltro = string.Empty;
+        _tipoFiltro = string.Empty;
+        _plataformaFiltro = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,
             [nameof(Estado)] = null,
             [nameof(Ambito)] = null,
+            [nameof(Tipo)] = null,
+            [nameof(Plataforma)] = null,
         });
         await RecargarAsync();
     }
@@ -1033,6 +1105,12 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;
 
+    private string EtiquetaFiltroTipo =>
+        Textos["ChipTipo", _opcionesTipo.FirstOrDefault(o => o.Valor == _tipoFiltro)?.Texto ?? Textos["ChipOpcionDesconocida"].Value].Value;
+
+    private string EtiquetaFiltroPlataforma =>
+        Textos["ChipPlataforma", _opcionesPlataforma.FirstOrDefault(o => o.Valor == _plataformaFiltro)?.Texto ?? Textos["ChipOpcionDesconocida"].Value].Value;
+
     private string EtiquetaFiltroAmbito =>
         Textos["ChipAmbito", _ambitoFiltro == nameof(AmbitoAplicacion.Cliente) ? Textos["ChipAmbitoCliente"].Value : _ambitoFiltro].Value;
 
@@ -1064,6 +1142,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _busqueda = valores.Busqueda ?? string.Empty;
         _ambitoFiltro = valores.Ambito ?? string.Empty;
         _estadoFiltro = EstadosValidos(valores.Estado);
+        _tipoFiltro = IdValido(valores.Tipo);
+        _plataformaFiltro = IdValido(valores.Plataforma);
 
         // Los tres van también a la URL, y en una sola llamada. Sin esto, el
         // filtro guardado duraba hasta la siguiente pasada de parámetros:
@@ -1075,6 +1155,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             ["q"] = valores.Busqueda,
             [nameof(Estado)] = valores.Estado,
             [nameof(Ambito)] = valores.Ambito,
+            [nameof(Tipo)] = _tipoFiltro,
+            [nameof(Plataforma)] = _plataformaFiltro,
         });
         await RecargarAsync();
     }
@@ -1111,7 +1193,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         var valoresJson = JsonSerializer.Serialize(new FiltrosDocumentosJson(
             string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             string.IsNullOrWhiteSpace(_ambitoFiltro) ? null : _ambitoFiltro,
-            string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
+            string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+            string.IsNullOrWhiteSpace(_tipoFiltro) ? null : _tipoFiltro,
+            string.IsNullOrWhiteSpace(_plataformaFiltro) ? null : _plataformaFiltro));
 
         _guardandoFiltro = true;
         _mensajeErrorFiltro = null;
@@ -1196,6 +1280,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         ["q"] = _busqueda,
         ["ambito"] = _ambitoFiltro,
         ["estado"] = _estadoFiltro,
+        ["tipo"] = _tipoFiltro,
+        ["plataforma"] = _plataformaFiltro,
         ["orden"] = _ordenExportar,
         ["desc"] = _descendenteExportar ? "true" : null,
     };
