@@ -64,7 +64,7 @@ public record VisitaListaDto(
     /// documentación ya gestionada. Depende del estado guardado en la Visita, no de
     /// si los documentos están vigentes (decisión del propietario, 2026-10-09): una
     /// Visita con todo vigente sigue por gestionar hasta que se envía el paquete o se
-    /// marca a mano, y vuelve a estarlo al añadir o quitar un Trabajador.
+    /// marca a mano, y vuelve a estarlo al añadir o quitar un Trabajador o al quitar la marca.
     /// Es lo que ordena <see cref="ObtenerVisitasQuery.OrdenarPor"/> =
     /// <c>PorGestionar</c>.
     /// </summary>

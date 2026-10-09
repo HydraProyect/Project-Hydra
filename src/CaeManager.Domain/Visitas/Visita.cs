@@ -63,7 +63,8 @@ public class Visita : EntidadBase
     /// del Centro: al enviar el paquete de acreditación desde la Visita o al marcarlo a mano
     /// (decisión del propietario, 2026-10-09). Null = «Por gestionar», aunque todos los
     /// documentos estén vigentes: es un estado guardado, no un cálculo sobre los documentos.
-    /// Añadir o quitar un Trabajador lo borra (<see cref="RegistrarCambioDeTrabajadores"/>);
+    /// Lo borran añadir o quitar un Trabajador (<see cref="RegistrarCambioDeTrabajadores"/>) y
+    /// deshacer la marca (<see cref="QuitarMarcaDocumentacionGestionada"/>);
     /// que un documento venza después, no. Independiente de <see cref="NotificadoCliente"/>
     /// («Avisada») y del sello <see cref="FechaHoraExpedienteCompletoUtc"/>.
     /// </summary>
