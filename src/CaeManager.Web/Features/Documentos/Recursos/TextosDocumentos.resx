@@ -206,7 +206,7 @@
   <data name="ListaTodas" xml:space="preserve"><value>Todas</value></data>
   <data name="ChipTipo" xml:space="preserve"><value>Tipo: {0}</value></data>
   <data name="ChipPlataforma" xml:space="preserve"><value>Plataforma: {0}</value></data>
-  <data name="ChipOpcionDesconocida" xml:space="preserve"><value>no disponible</value></data>
+  <data name="ChipOpcionDesconocida" xml:space="preserve"><value>ya no existe</value></data>
   <data name="QuitarFiltroTipo" xml:space="preserve"><value>Quitar filtro de tipo de documento</value></data>
   <data name="QuitarFiltroPlataforma" xml:space="preserve"><value>Quitar filtro de plataforma</value></data>
   <data name="ListaFiltroEstado" xml:space="preserve"><value>Estado</value></data>

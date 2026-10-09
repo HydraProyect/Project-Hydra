@@ -424,8 +424,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _opcionesTipo = tipos.OrderBy(t => t.Nombre, StringComparer.CurrentCultureIgnoreCase)
                 .Select(t => new OpcionEstado(t.Id.ToString(), t.Nombre)).ToList();
         }
-        catch (Exception) when (!token.IsCancellationRequested)
+        catch (Exception ex) when (!token.IsCancellationRequested)
         {
+            Logger.LogWarning(ex, "No se pudieron cargar las opciones del filtro «Tipo de documento» del listado de documentos.");
             _opcionesTipo = [];
         }
 
@@ -434,8 +435,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var plataformas = await Mediator.Send(new ObtenerPlataformasEnUsoQuery(), token);
             _opcionesPlataforma = plataformas.Select(p => new OpcionEstado(p.Id.ToString(), p.Nombre)).ToList();
         }
-        catch (Exception) when (!token.IsCancellationRequested)
+        catch (Exception ex) when (!token.IsCancellationRequested)
         {
+            Logger.LogWarning(ex, "No se pudieron cargar las opciones del filtro «Plataforma» del listado de documentos.");
             _opcionesPlataforma = [];
         }
     }
@@ -529,7 +531,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>
     /// Se re-ejecuta en cada navegación dentro de la propia página (recargar,
     /// compartir la URL, volver atrás) — no solo en el primer render — para
-    /// que la URL sea la fuente de verdad de los tres filtros de la rejilla,
+    /// que la URL sea la fuente de verdad de los filtros de la rejilla,
     /// no solo su semilla inicial (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
     protected override void OnParametersSet()
@@ -555,7 +557,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // El separador no es decorativo: concatenando a pelo, mover una letra
         // de un filtro al siguiente daría la misma firma y el cambio pasaría
         // por no-cambio.
-        var contexto = string.Join('\n', _pestanaActiva, _busqueda, _ambitoFiltro, _estadoFiltro);
+        var contexto = string.Join('\n', _pestanaActiva, _busqueda, _ambitoFiltro, _estadoFiltro, _tipoFiltro, _plataformaFiltro);
         if (_contextoEnPantalla is null)
             _contextoEnPantalla = contexto;
         else if (_contextoEnPantalla != contexto)
@@ -1145,7 +1147,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _tipoFiltro = IdValido(valores.Tipo);
         _plataformaFiltro = IdValido(valores.Plataforma);
 
-        // Los tres van también a la URL, y en una sola llamada. Sin esto, el
+        // Todos van también a la URL, y en una sola llamada. Sin esto, el
         // filtro guardado duraba hasta la siguiente pasada de parámetros:
         // OnParametersSet re-sincroniza desde la URL, que seguía con los
         // filtros de antes, y los devolvía encima de lo recién aplicado. Es el
