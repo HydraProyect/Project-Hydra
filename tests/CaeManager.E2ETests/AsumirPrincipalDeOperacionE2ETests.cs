@@ -26,6 +26,9 @@ public class AsumirPrincipalDeOperacionE2ETests(WebAppFixtureEscenariosDireccion
             """SELECT "Email" FROM "AspNetUsers" WHERE "Email" LIKE 'coordinador1.%@caemanager.local' """);
         var tenantPizza = await fixture.LeerValorSqlAsync(
             """SELECT "Id"::text FROM "Tenants" WHERE "Nombre" = @n""", ("n", PizzaPlanet));
+        var operacion = await fixture.LeerValorSqlAsync(
+            """SELECT "Id"::text FROM "AsignacionesOperacion" WHERE "PropietarioTenantId" = @t::uuid AND NOT "EsRaiz" """,
+            ("t", tenantPizza));
 
         // Premisa de la siembra: nadie lleva la marca de principal en esa empresa.
         Assert.Equal("0", await PrincipalesAsync(tenantPizza));
@@ -37,15 +40,14 @@ public class AsumirPrincipalDeOperacionE2ETests(WebAppFixtureEscenariosDireccion
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/cartera/solicitudes");
 
-        var sinPrincipal = page.Locator("table[data-sin-principal] tbody tr")
-            .Filter(new LocatorFilterOptions { HasText = PizzaPlanet });
+        var sinPrincipal = page.Locator($"table[data-sin-principal] tr[data-operacion='{operacion}']");
+        await Expect(sinPrincipal).ToContainTextAsync(PizzaPlanet, new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
         await Expect(sinPrincipal).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 30_000 });
 
         await sinPrincipal.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Asumir", Exact = true }).ClickAsync();
 
         // La fila sale de «sin principal» y pasa a la lista informativa, a nombre de quien mira.
-        var conCoordinador = page.Locator("table[data-coordinador-principal] tbody tr")
-            .Filter(new LocatorFilterOptions { HasText = PizzaPlanet });
+        var conCoordinador = page.Locator($"table[data-coordinador-principal] tr[data-operacion='{operacion}']");
         await Expect(conCoordinador).ToContainTextAsync("Tú", new LocatorAssertionsToContainTextOptions { Timeout = 30_000 });
         await Expect(sinPrincipal).ToHaveCountAsync(0);
         await Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
