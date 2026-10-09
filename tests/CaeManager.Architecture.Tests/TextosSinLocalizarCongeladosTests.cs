@@ -144,7 +144,7 @@ public class TextosSinLocalizarCongeladosTests
         // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
         ["Trabajadores"] = 12,
         // 147 → 146 el 2026-09-26 (P1-E2b): el toast de reenvío de activación fallido va a TextosUsuarios.resx.
-        ["Usuarios"] = 147, // 146 → 147 el 2026-10-02 (resto D-07/D-27) SIN migrar: «1 Cliente empresarial» (recuento de la cartera) antes «1 cliente».
+        ["Usuarios"] = 146, // 147 → 146 el 2026-10-09 (H9): «El correo identifica la cuenta…» del formulario de edición pasa a TextosUsuarios («EditarCorreoNoSeCambiaAqui»). Antes: 146 → 147 el 2026-10-02 (resto D-07/D-27) SIN migrar: «1 Cliente empresarial» (recuento de la cartera) antes «1 cliente».
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10
         // que quedan son las etiquetas estáticas de NivelUrgenciaVisitaUi y AntelacionVisitaUi,
         // que también pintan Dashboard (Inicio) y DashboardEjecutivo: migrarlas cambia la firma
