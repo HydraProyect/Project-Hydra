@@ -143,7 +143,7 @@ public class InicioGen2Tests : BunitContext
 
         cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("91% de cumplimiento documental");
         cut.Find(".dashboard-resumen-anillo-bloqueo").TextContent.Should()
-            .Be("2 Centros de Trabajo con bloqueo de la plataforma CAE del Cliente empresarial: el porcentaje cuenta documentos, no acceso.");
+            .Be("2 Centros de Trabajo con bloqueo de la plataforma CAE del Cliente: el porcentaje cuenta documentos, no acceso.");
     }
 
     /// <summary>
@@ -165,7 +165,7 @@ public class InicioGen2Tests : BunitContext
         var conAmbos = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { TrabajadoresBloqueados = 1, CentrosBloqueados = 1 } });
         conAmbos.FindAll(".dashboard-resumen-anillo-bloqueo").Select(e => e.TextContent).Should().Equal(
             "1 Trabajador bloqueado: el porcentaje cuenta documentos, no acceso.",
-            "1 Centro de Trabajo con bloqueo de la plataforma CAE del Cliente empresarial: el porcentaje cuenta documentos, no acceso.");
+            "1 Centro de Trabajo con bloqueo de la plataforma CAE del Cliente: el porcentaje cuenta documentos, no acceso.");
     }
 
     [Fact]
@@ -773,7 +773,7 @@ public class InicioGen2Tests : BunitContext
     }
 
     private static VisitaListaDto VisitaProxima(string centroNombre) =>
-        new(Guid.NewGuid(), Guid.NewGuid(), centroNombre, Guid.NewGuid(), "Cliente empresarial de prueba",
+        new(Guid.NewGuid(), Guid.NewGuid(), centroNombre, Guid.NewGuid(), "Cliente de prueba",
             Guid.NewGuid(), "Empresa de prueba", new DateOnly(2026, 8, 18), new DateOnly(2026, 8, 20), 6,
             DocumentacionCompleta: false, NotificadoCliente: false,
             CaeManager.Domain.Visitas.OrigenVisita.Plataforma, CaeManager.Domain.Visitas.NivelUrgenciaVisita.Critica);

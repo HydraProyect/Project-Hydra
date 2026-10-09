@@ -161,7 +161,7 @@
 
 /* Solo los dos conmutadores de ámbito (no los chips de filtro, que comparten la
    clase): se reparten el ancho de la columna y su rótulo puede ocupar dos líneas;
-   con height fija de 32px «Clientes empresariales» se salía del botón. */
+   con height fija de 32px «Clientes» se salía del botón. */
 .bandeja-vista-toggle .bandeja-toggle {
     flex: 1 1 0;
     min-width: 0;

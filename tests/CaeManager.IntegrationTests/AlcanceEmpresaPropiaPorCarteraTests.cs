@@ -48,7 +48,7 @@ public class AlcanceEmpresaPropiaPorCarteraTests : IAsyncLifetime
     private async Task<Escenario> SembrarEstructuraAsync(Guid tenant, string sufijo, string cifCliente, string cifPropia, string cifOtra)
     {
         await using var contexto = CrearContexto(tenant);
-        var cliente = Empresa.CrearComoCliente($"Cliente empresarial {sufijo}", cifCliente, false, null, null);
+        var cliente = Empresa.CrearComoCliente($"Cliente {sufijo}", cifCliente, false, null, null);
         var propia = new Empresa($"Empresa propia {sufijo}", cifPropia);
         var otra = Empresa.CrearComoCliente($"Otra empresa {sufijo}", cifOtra, false, null, null);
         contexto.Empresas.AddRange(cliente, propia, otra);
@@ -97,7 +97,7 @@ public class AlcanceEmpresaPropiaPorCarteraTests : IAsyncLifetime
         var visibles = await CrearServicio(contexto, gestor, "GestorCae", _tenant).ObtenerEmpresaIdsVisiblesAsync();
 
         visibles.Should().NotContain(e.Otra, "solo la Empresa propia entra por su condición de propia");
-        visibles.Should().NotContain(e.Cliente, "el Cliente empresarial no es una Empresa visible por sí mismo");
+        visibles.Should().NotContain(e.Cliente, "el Cliente no es una Empresa visible por sí mismo");
     }
 
     [Fact]

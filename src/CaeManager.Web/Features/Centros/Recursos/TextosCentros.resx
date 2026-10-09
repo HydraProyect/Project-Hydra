@@ -13,8 +13,8 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="CabeceraCliente" xml:space="preserve">
-    <value>Cliente empresarial:</value>
-    <comment>Rótulo en pantalla del Cliente empresarial del Centro (contrato Gen2 § 14: Cliente empresarial se rotula «Cliente empresarial», Gen2 § 14 enmendado el 2026-10-02).</comment>
+    <value>Cliente:</value>
+    <comment>Rótulo en pantalla del Cliente empresarial del Centro (contrato Gen2 § 14: Cliente empresarial se rotula «Cliente», decisión de rótulo del 2026-10-09).</comment>
   </data>
   <data name="CabeceraEmpresa" xml:space="preserve">
     <value>Empresa:</value>
@@ -174,7 +174,7 @@
     <value>Tolerancia tras vencer: {0} día(s), fijada en este Centro</value>
   </data>
   <data name="RequisitoToleranciaHeredada" xml:space="preserve">
-    <value>Tolerancia tras vencer: {0} día(s), la del Cliente empresarial</value>
+    <value>Tolerancia tras vencer: {0} día(s), la del Cliente</value>
   </data>
   <data name="PeriodicidadSinPropia" xml:space="preserve">
     <value>Sin periodo propio: vale el vencimiento del documento</value>
@@ -186,7 +186,7 @@
     <value>Tolerancia tras el vencimiento (días)</value>
   </data>
   <data name="ToleranciaOpcionHeredada" xml:space="preserve">
-    <value>Heredada del Cliente empresarial ({0} días)</value>
+    <value>Heredada del Cliente ({0} días)</value>
   </data>
   <data name="ToleranciaOpcionDias" xml:space="preserve">
     <value>{0} días</value>
@@ -198,7 +198,7 @@
     <value>Días de tolerancia (número entero)</value>
   </data>
   <data name="ToleranciaErrorPersonalizada" xml:space="preserve">
-    <value>Indica un número entero de días de tolerancia, o elige la heredada del Cliente empresarial.</value>
+    <value>Indica un número entero de días de tolerancia, o elige la heredada del Cliente.</value>
   </data>
   <data name="BloqueadosTrabajadoresUno" xml:space="preserve">
     <value>1 trabajador bloqueado</value>
@@ -252,10 +252,10 @@
     <value>Exportar a Excel</value>
   </data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve">
-    <value>Filtrar esta pantalla: centro, código, Cliente empresarial o empresa</value>
+    <value>Filtrar esta pantalla: centro, código, Cliente o empresa</value>
   </data>
   <data name="FiltroClienteEmpresarial" xml:space="preserve">
-    <value>Cliente empresarial</value>
+    <value>Cliente</value>
   </data>
   <data name="FiltroEstado" xml:space="preserve">
     <value>Estado</value>
@@ -270,13 +270,13 @@
     <value>Todas</value>
   </data>
   <data name="ChipClienteEmpresarial" xml:space="preserve">
-    <value>Cliente empresarial: {0}</value>
+    <value>Cliente: {0}</value>
   </data>
   <data name="ChipEmpresa" xml:space="preserve">
     <value>Empresa: {0}</value>
   </data>
   <data name="QuitarFiltroClienteEmpresarial" xml:space="preserve">
-    <value>Quitar filtro de Cliente empresarial</value>
+    <value>Quitar filtro de Cliente</value>
   </data>
   <data name="QuitarFiltroEmpresa" xml:space="preserve">
     <value>Quitar filtro de empresa</value>
@@ -288,7 +288,7 @@
     <value>Sin agrupar</value>
   </data>
   <data name="AgruparPorCliente" xml:space="preserve">
-    <value>Por Cliente empresarial</value>
+    <value>Por Cliente</value>
   </data>
   <data name="OrdenCumplimiento" xml:space="preserve">
     <value>Cumplimiento</value>

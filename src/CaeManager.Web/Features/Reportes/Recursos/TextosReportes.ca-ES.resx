@@ -40,13 +40,13 @@
     <value>Quién está autorizado en cada centro y desde cuándo.</value>
   </data>
   <data name="EtiquetaClienteEmpresarial" xml:space="preserve">
-    <value>Cliente empresarial</value>
+    <value>Client</value>
   </data>
   <data name="MarcadorBuscarClienteEmpresarial" xml:space="preserve">
-    <value>Buscar Cliente empresarial…</value>
+    <value>Buscar Cliente…</value>
   </data>
   <data name="AriaQuitarFiltroCliente" xml:space="preserve">
-    <value>Quitar el filtro de Cliente empresarial</value>
+    <value>Quitar el filtro de Cliente</value>
   </data>
   <data name="BotonQuitarFiltro" xml:space="preserve">
     <value>Quitar el filtro</value>
@@ -55,7 +55,7 @@
     <value>Centros incluidos</value>
   </data>
   <data name="OpcionTodosLosCentros" xml:space="preserve">
-    <value>Todos los centros del Cliente empresarial</value>
+    <value>Todos los centros del Cliente</value>
   </data>
   <data name="OpcionSoloCentro" xml:space="preserve">
     <value>Solo centro: {0}</value>
@@ -103,7 +103,7 @@
     <value>(usuario eliminado)</value>
   </data>
   <data name="AvisoSinClienteEmpresarial" xml:space="preserve">
-    <value>Sin filtrar por Cliente empresarial: la vista previa abarca toda tu cartera</value>
+    <value>Sin filtrar por Cliente: la vista previa abarca toda tu cartera</value>
   </data>
   <data name="ProgresoReuniendo" xml:space="preserve">
     <value>Reuniendo los documentos…</value>
@@ -124,7 +124,7 @@
     <value>No hay informe que mostrar para ese filtro</value>
   </data>
   <data name="SinInformeDescripcion" xml:space="preserve">
-    <value>El Cliente empresarial o el centro elegido ya no está en tu cartera. Recarga la página para actualizar la lista.</value>
+    <value>El Cliente o el centro elegido ya no está en tu cartera. Recarga la página para actualizar la lista.</value>
   </data>
   <data name="AriaVistaPrevia" xml:space="preserve">
     <value>Vista previa del informe</value>

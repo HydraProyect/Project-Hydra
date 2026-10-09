@@ -75,7 +75,7 @@
         Barra de filtros en modo pastillas (rediseño de listados, fase 1):
         - El buscador «Filtrar esta pantalla» (tecla f) busca en el nombre y el código del Centro,
           el Cliente empresarial y la Empresa (ObtenerCentrosQuery): la pista dice los cuatro.
-        - Pastillas primarias: «Cliente empresarial» y «Estado». «Empresa» va dentro de «Más filtros».
+        - Pastillas primarias: «Cliente» y «Estado». «Empresa» va dentro de «Más filtros».
           Las tres viajan en la URL (cliente, estado, empresa). «cliente» y «empresa» no son los
           parámetros del alta encadenada, que prefijan el formulario y no filtran.
         - En la misma fila: agrupar por Cliente empresarial (agrupación visual de la página, de serie),
@@ -505,7 +505,7 @@
         @if (_padresFijadosPorCadena)
         {
             <div class="campo">
-                <label>Cliente empresarial</label>
+                <label>Cliente</label>
                 <span>@_clienteNombreSoloLectura</span>
             </div>
             <div class="campo">
@@ -514,16 +514,16 @@
             </div>
 
             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="DesvincularPadresFijadosAsync">
-                Cambiar Cliente empresarial/empresa
+                Cambiar Cliente/empresa
             </Boton>
         }
         else
         {
-            <SelectorEntidad Etiqueta="Cliente empresarial" Placeholder="Busca o crea un Cliente empresarial…" Valor="@_clienteId"
+            <SelectorEntidad Etiqueta="Cliente" Placeholder="Busca o crea un Cliente…" Valor="@_clienteId"
                               ValorChanged="CambiarClienteCreacionAsync" Opciones="ClientesComoOpciones"
                               PermiteCrear="true" OnCrearSolicitado="AbrirCrearClienteInline" />
 
-            <SelectorEntidad Etiqueta="Empresa" Placeholder="@(string.IsNullOrEmpty(_clienteId) ? "Elige primero un Cliente empresarial…" : "Busca o crea una empresa…")"
+            <SelectorEntidad Etiqueta="Empresa" Placeholder="@(string.IsNullOrEmpty(_clienteId) ? "Elige primero un Cliente…" : "Busca o crea una empresa…")"
                               Valor="@_empresaId" ValorChanged="AlElegirEmpresa" Opciones="EmpresasComoOpciones"
                               Deshabilitado="@(string.IsNullOrEmpty(_clienteId))"
                               PermiteCrear="true" OnCrearSolicitado="AbrirCrearEmpresaInline" />

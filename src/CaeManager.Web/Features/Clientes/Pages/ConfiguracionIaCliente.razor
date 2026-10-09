@@ -12,17 +12,17 @@
 @inject ToastService ToastService
 
 <LimiteDeErrores Pagina="this">
-<PageTitle>Lectura IA — @(_cliente?.RazonSocial ?? "Cliente empresarial") — @Marca.Nombre</PageTitle>
+<PageTitle>Lectura IA — @(_cliente?.RazonSocial ?? "Cliente") — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina lectura-ia-cliente">
     <div class="lectura-ia-rastro">
-        <a href="/configuracion/lectura-ia" class="enlace-volver-configuracion">← Lectura IA por Cliente empresarial</a>
-        <span aria-hidden="true">Configuración → Catálogos y datos → Lectura IA por Cliente empresarial</span>
+        <a href="/configuracion/lectura-ia" class="enlace-volver-configuracion">← Lectura IA por Cliente</a>
+        <span aria-hidden="true">Configuración → Catálogos y datos → Lectura IA por Cliente</span>
     </div>
 
     <CabeceraPagina Titulo="@($"Lectura automática por IA — {_cliente?.RazonSocial ?? "…"}")">
         <Descripcion>
-            Activa o desactiva la extracción automática por IA para cada tipo de documento, solo para este Cliente empresarial.
+            Activa o desactiva la extracción automática por IA para cada tipo de documento, solo para este Cliente.
             Un tipo de documento desactivado en la configuración general (Nivel 1) no se puede reactivar aquí.
         </Descripcion>
     </CabeceraPagina>
@@ -40,11 +40,11 @@
             </div>
             <div class="lectura-ia-nivel">
                 <div class="lectura-ia-nivel-cabecera"><strong>Nivel 1 · Configuración general</strong><Badge Tono="TonoBadge.Neutro">@ResumenNivelUno</Badge></div>
-                <span>Por tipo de documento, para todos los Clientes empresariales.</span>
+                <span>Por tipo de documento, para todos los Clientes.</span>
                 <span>Lo que se desactiva aquí no se puede reactivar abajo.</span>
             </div>
             <div class="lectura-ia-nivel lectura-ia-nivel-actual">
-                <div class="lectura-ia-nivel-cabecera"><strong>Nivel 2 · Este Cliente empresarial</strong><Badge Tono="TonoBadge.Info">Estás aquí</Badge></div>
+                <div class="lectura-ia-nivel-cabecera"><strong>Nivel 2 · Este Cliente</strong><Badge Tono="TonoBadge.Info">Estás aquí</Badge></div>
                 <span>Solo puede restringir dentro de lo que permite el Nivel 1.</span>
             </div>
         </div>
@@ -52,7 +52,7 @@
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar la configuración" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a este Cliente empresarial.">
+        <EstadoVacio Titulo="No pudimos cargar la configuración" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a este Cliente.">
             <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton></Accion>
         </EstadoVacio>
     }
@@ -75,7 +75,7 @@
                 <thead><tr>
                     <th scope="col">Tipo de documento</th>
                     <th scope="col">Nivel 1 (configuración general)</th>
-                    <th scope="col">Nivel 2 (este Cliente empresarial)</th>
+                    <th scope="col">Nivel 2 (este Cliente)</th>
                     <th scope="col">De dónde sale el valor</th>
                     <th scope="col">Permiso de los niveles 1 y 2</th>
                 </tr></thead>
@@ -122,7 +122,7 @@
         </aside>
         <aside class="lectura-ia-aviso lectura-ia-aviso-informacion" aria-label="Consecuencia de la lectura por IA">
             <strong>Consecuencia que esta pantalla no muestra</strong>
-            <span>Cuando el tipo también detecta personal, la detección solo se detiene si todos los Clientes empresariales vinculados lo tienen desactivado.</span>
+            <span>Cuando el tipo también detecta personal, la detección solo se detiene si todos los Clientes vinculados lo tienen desactivado.</span>
         </aside>
         <aside class="lectura-ia-aviso lectura-ia-aviso-mejora" aria-label="Límite de la configuración">
             <strong>El umbral de confianza no se configura aquí</strong>

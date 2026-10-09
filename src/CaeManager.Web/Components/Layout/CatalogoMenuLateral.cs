@@ -221,7 +221,7 @@ public static class CatalogoMenuLateral
         // pestañas de Documentos (REC-062, DEC-28, DDL-080). Sus rutas siguen funcionando para
         // enlaces guardados y notificaciones.
         new("documentos", "negocio", "documentos", "documentos", "Documentos"),
-        new("clientes", "negocio", "clientes", "clientes", "Clientes empresariales"),
+        new("clientes", "negocio", "clientes", "clientes", "Clientes"),
         new("centros", "negocio", "centros", "centros", "Centros"),
         // Vehículos y Proyectos son de Negocio por mandato del propietario del 2026-09-29.
         // "Vehículos" y no "Vehículos y Maquinaria": Maquinaria es un tramo bloqueado

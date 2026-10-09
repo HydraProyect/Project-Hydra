@@ -19,7 +19,7 @@ namespace CaeManager.E2ETests;
 [Collection("AppCollection")]
 public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
 {
-    private const string Lapiz = "button[aria-label='Editar la identidad del Cliente empresarial']";
+    private const string Lapiz = "button[aria-label='Editar la identidad del Cliente']";
 
     /// <summary>
     /// Crea un Cliente empresarial propio del test y deja la lista acotada a él: el Tenant del
@@ -34,8 +34,8 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
         // Con la lista vacía el botón de alta se pinta dos veces (cabecera y estado vacío): vale cualquiera.
-        var drawer = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nuevo Cliente empresarial", Exact = true });
-        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente empresarial", Exact = true }).First.ClickAsync();
+        var drawer = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nuevo Cliente", Exact = true });
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocial);
         await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync(Ayudas.GenerarCifValido(semillaCif));
@@ -92,7 +92,7 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
         var (page, razonSocial) = await AbrirClientesConUnClienteAsync(contexto, 9_993_101);
         var fila = await FiltrarPorAsync(page, razonSocial);
         var panel = page.Locator(".workspace-panel");
-        var editar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Editar Cliente empresarial", Exact = true });
+        var editar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Editar Cliente", Exact = true });
 
         await Expect(page.Locator("tbody .menu-acciones-disparador")).ToHaveCountAsync(0);
 

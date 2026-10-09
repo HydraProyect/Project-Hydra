@@ -55,7 +55,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
 
         foreach (var razonSocial in new[] { razonSocialA, razonSocialB })
         {
-            await page.GetByText("+ Nuevo Cliente empresarial").First.ClickAsync();
+            await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
             await drawer.GetByLabel("Razón social").FillAsync(razonSocial);
             await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true })
                 .FillAsync(Ayudas.GenerarCifValido(razonSocial == razonSocialA ? 9_998_801 : 9_998_802));
@@ -267,7 +267,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // document.activeElement en el momento del keydown, no cuántos Tabs
         // hicieron falta para llegar ahí, y depender del orden de tabulación
         // real es frágil en Chromium headless.
-        var botonNuevoCliente = page.GetByText("+ Nuevo Cliente empresarial").First;
+        var botonNuevoCliente = page.GetByText("+ Nuevo Cliente").First;
         await botonNuevoCliente.FocusAsync();
         await Expect(botonNuevoCliente).ToBeFocusedAsync();
 
@@ -278,7 +278,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         // "j"/"k" tampoco habían fijado ninguna fila enfocada, así que
         // RecibirAtajo("Enter") no tenía nada que abrir.
         var drawer = page.Locator(".drawer-panel");
-        await Expect(drawer.GetByText("Nuevo Cliente empresarial", new LocatorGetByTextOptions { Exact = true }))
+        await Expect(drawer.GetByText("Nuevo Cliente", new LocatorGetByTextOptions { Exact = true }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
         // Ni la vista rápida de ninguna fila: Enter era del botón, no de la lista.
         await Expect(page.Locator(".workspace-panel")).Not.ToBeVisibleAsync();

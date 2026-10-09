@@ -97,7 +97,7 @@
 
     public sealed record NodoEmpresa(string Nombre, bool YaExiste, IReadOnlyList<NodoHijo> Hijos);
 
-    /// <param name="YaExiste"><c>null</c> en el grupo «Sin Cliente empresarial asociado», que no es un registro.</param>
+    /// <param name="YaExiste"><c>null</c> en el grupo «Sin Cliente asociado», que no es un registro.</param>
     public sealed record NodoCliente(string Nombre, string? Meta, bool? YaExiste, IReadOnlyList<NodoEmpresa> Empresas);
 
     private IReadOnlyList<NodoCliente> Nodos { get; set; } = [];

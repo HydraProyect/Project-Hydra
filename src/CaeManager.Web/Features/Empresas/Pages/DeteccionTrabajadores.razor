@@ -151,7 +151,7 @@
     else if (_detecciones.Count == 0)
     {
         <EstadoVacio Titulo="Sin cambios pendientes"
-                     Descripcion="No hay detecciones de personal pendientes de revisar para esta empresa. Eso no garantiza que se haya leído ningún documento: la detección solo se ejecuta si el tipo de documento tiene activas la lectura IA y la detección de trabajadores, y si no la han desactivado todos los Clientes empresariales a los que esta empresa presta servicio."
+                     Descripcion="No hay detecciones de personal pendientes de revisar para esta empresa. Eso no garantiza que se haya leído ningún documento: la detección solo se ejecuta si el tipo de documento tiene activas la lectura IA y la detección de trabajadores, y si no la han desactivado todos los Clientes a los que esta empresa presta servicio."
                      NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)">
             <Accion>
                 @* Las dos pantallas donde se activa la lectura son de Administrador:
@@ -159,7 +159,7 @@
                 <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                     <div class="deteccion-enlaces-configuracion">
                         <a href="/tipos-documento">Revisar la lectura IA de los tipos de documento →</a>
-                        <a href="/configuracion/lectura-ia">Revisar la lectura IA por Cliente empresarial →</a>
+                        <a href="/configuracion/lectura-ia">Revisar la lectura IA por Cliente →</a>
                     </div>
                 </AuthorizeView>
             </Accion>

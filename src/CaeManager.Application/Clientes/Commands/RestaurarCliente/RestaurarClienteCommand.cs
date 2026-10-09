@@ -39,12 +39,12 @@ public class RestaurarClienteCommandHandler(
             .FirstOrDefaultAsync(e => e.Id == request.Id && e.TenantId == tenantActual.TenantId, cancellationToken);
 
         if (empresa is null || !empresa.EstaEliminado)
-            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial eliminado."));
+            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente eliminado."));
 
         // Autoridad de cartera, no solo tenant (auditoría Módulo 5, hallazgo
         // crítico 8/9, mismo patrón que RestaurarCentro/RestaurarTrabajador).
         if (!await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial eliminado."));
+            return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente eliminado."));
 
         empresa.Restaurar();
         await unitOfWork.SaveChangesAsync(cancellationToken);

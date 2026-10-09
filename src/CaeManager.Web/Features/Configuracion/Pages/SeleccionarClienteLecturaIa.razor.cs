@@ -98,7 +98,7 @@ public partial class SeleccionarClienteLecturaIa : CaeManager.Web.Components.Pag
         {
             if (version != _versionCarga) return;
 
-            Logger.LogError(ex, "Error al cargar los Clientes empresariales para la lectura IA.");
+            Logger.LogError(ex, "Error al cargar los Clientes para la lectura IA.");
             _error = true;
         }
 

@@ -49,7 +49,7 @@ public class CrearSubcontrataCommandHandler(
         var empresaIds = request.EmpresaIds.Distinct().ToList();
 
         if (await empresasContext.Empresas.Where(e => clienteIds.Contains(e.Id)).CountAsync(cancellationToken) != clienteIds.Count)
-            return Result.Fallo<Guid>(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los Clientes empresariales seleccionados no existe."));
+            return Result.Fallo<Guid>(Error.Crear("Subcontrata.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
 
         if (await empresasContext.Empresas.Where(e => empresaIds.Contains(e.Id)).CountAsync(cancellationToken) != empresaIds.Count)
             return Result.Fallo<Guid>(Error.Crear("Subcontrata.EmpresaNoEncontrada", "Alguna de las empresas seleccionadas no existe."));

@@ -69,7 +69,7 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
     private async Task<(Guid Cliente, Guid Propia)> SembrarTenantAsync(Guid tenant, string cifCliente, string cifPropia)
     {
         await using var contexto = CrearContexto(tenant);
-        var cliente = Empresa.CrearComoCliente("Cliente empresarial", cifCliente, false, null, null);
+        var cliente = Empresa.CrearComoCliente("Cliente", cifCliente, false, null, null);
         var propia = new Empresa("Empresa propia", cifPropia);
         contexto.Empresas.AddRange(cliente, propia);
         await contexto.SaveChangesAsync();
@@ -207,7 +207,7 @@ public class RevocacionCarteraEnCircuitoVivoTests : IAsyncLifetime
         Guid otroCliente;
         await using (var contexto = CrearContexto(_tenant))
         {
-            var otro = Empresa.CrearComoCliente("Otro Cliente empresarial", "B10380236", false, null, null);
+            var otro = Empresa.CrearComoCliente("Otro Cliente", "B10380236", false, null, null);
             contexto.Empresas.Add(otro);
             await contexto.SaveChangesAsync();
             otroCliente = otro.Id;
