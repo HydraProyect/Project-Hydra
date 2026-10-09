@@ -65,7 +65,7 @@ namespace CaeManager.Web.Tests;
 /// y ningún Operador Delegado.
 /// </para>
 /// </summary>
-public class ClientesListaGen2Tests : BunitContext
+public partial class ClientesListaGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado y QuickGrid, que importan módulos JS.</summary>
     public ClientesListaGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
@@ -202,6 +202,7 @@ public class ClientesListaGen2Tests : BunitContext
         public ResultadoPaginado<ClienteListaDto> Filtrar(ObtenerClientesQuery q)
         {
             var sinEstado = Almacen
+                .Where(c => q.ClienteId is null || c.Id == q.ClienteId)
                 .Where(c => string.IsNullOrWhiteSpace(q.Busqueda)
                     || c.RazonSocial.ToUpperInvariant().Contains(q.Busqueda.ToUpperInvariant()))
                 .Where(c => q.SoloCriticos != true || c.EsCritico)

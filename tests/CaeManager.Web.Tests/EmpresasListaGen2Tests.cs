@@ -50,7 +50,7 @@ namespace CaeManager.Web.Tests;
 /// ellos dejaría en verde una pantalla que no los envía.
 /// </para>
 /// </summary>
-public class EmpresasListaGen2Tests : BunitContext
+public partial class EmpresasListaGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado, que importa un módulo JS.</summary>
     public EmpresasListaGen2Tests()
@@ -145,6 +145,7 @@ public class EmpresasListaGen2Tests : BunitContext
         public ResultadoPaginado<EmpresaListaDto> Filtrar(ObtenerEmpresasQuery q)
         {
             var coincidentes = Almacen
+                .Where(e => q.EmpresaId is null || e.Id == q.EmpresaId)
                 .Where(e => string.IsNullOrWhiteSpace(q.Busqueda)
                     || e.RazonSocial.ToUpperInvariant().Contains(q.Busqueda.ToUpperInvariant()))
                 .Where(e => EstadoDocumentalFiltro.Coincide(e.EstadoDocumental, q.EstadoDocumental))
