@@ -90,4 +90,82 @@
   <data name="ListaFiltrarPantalla" xml:space="preserve">
     <value>Ir al filtro de esta pantalla</value>
   </data>
+  <data name="SeccionKeyTips" xml:space="preserve">
+    <value>Letras sobre los controles (KeyTips)</value>
+  </data>
+  <data name="KeyTipsEncender" xml:space="preserve">
+    <value>Pulsar y soltar: enseña una letra sobre cada control</value>
+  </data>
+  <data name="KeyTipsLetra" xml:space="preserve">
+    <value>Ejecuta el control de esa letra; en un grupo o un menú, baja un nivel</value>
+  </data>
+  <data name="KeyTipsSubir" xml:space="preserve">
+    <value>Vuelve al nivel anterior</value>
+  </data>
+  <data name="KeyTipsSalir" xml:space="preserve">
+    <value>Sale del modo (también otra Alt o un clic)</value>
+  </data>
+  <data name="KeyTipSeleccionar" xml:space="preserve">
+    <value>Selección múltiple</value>
+  </data>
+  <data name="KeyTipExportar" xml:space="preserve">
+    <value>Exportar</value>
+  </data>
+  <data name="KeyTipAtajos" xml:space="preserve">
+    <value>Atajos de teclado</value>
+  </data>
+  <data name="KeyTipMasAcciones" xml:space="preserve">
+    <value>Más acciones de la pantalla</value>
+  </data>
+  <data name="KeyTipNuevo" xml:space="preserve">
+    <value>Nuevo</value>
+  </data>
+  <data name="KeyTipFiltrar" xml:space="preserve">
+    <value>Filtrar esta pantalla</value>
+  </data>
+  <data name="KeyTipFranjaEstado" xml:space="preserve">
+    <value>Franja de estado</value>
+  </data>
+  <data name="KeyTipMasFiltros" xml:space="preserve">
+    <value>Más filtros</value>
+  </data>
+  <data name="KeyTipFiltrosGuardados" xml:space="preserve">
+    <value>Filtros guardados</value>
+  </data>
+  <data name="KeyTipAgrupar" xml:space="preserve">
+    <value>Agrupar</value>
+  </data>
+  <data name="KeyTipExpandir" xml:space="preserve">
+    <value>Expandir o contraer todo</value>
+  </data>
+  <data name="KeyTipsMostrar" xml:space="preserve">
+    <value>Mostrar las letras ahora</value>
+  </data>
+  <data name="KeyTipsNotaDeducidas" xml:space="preserve">
+    <value>Las pastillas de filtro, las pestañas y las opciones de un menú reciben su letra al encender el modo.</value>
+  </data>
+  <data name="KeyTipsBarraRaiz" xml:space="preserve">
+    <value>KeyTips: pulsa una letra</value>
+  </data>
+  <data name="KeyTipsBarraNivel" xml:space="preserve">
+    <value>KeyTips: elige una opción</value>
+  </data>
+  <data name="KeyTipsBarraSubir" xml:space="preserve">
+    <value>sube un nivel</value>
+  </data>
+  <data name="KeyTipsBarraSalir" xml:space="preserve">
+    <value>sale</value>
+  </data>
+  <data name="KeyTipsAnuncioEncendido" xml:space="preserve">
+    <value>KeyTips activado. Pulsa la letra de un control, o Escape para salir.</value>
+  </data>
+  <data name="KeyTipsAnuncioApagado" xml:space="preserve">
+    <value>KeyTips desactivado.</value>
+  </data>
+  <data name="KeyTipsTeclaSubir" xml:space="preserve">
+    <value>Retroceso</value>
+  </data>
+  <data name="KeyTipsTeclaSalir" xml:space="preserve">
+    <value>Esc</value>
+  </data>
 </root>

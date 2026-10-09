@@ -376,3 +376,65 @@ button {
     transform: none;
   }
 }
+
+/*
+  KeyTips (js/keytips.js): una letra sobre cada control declarado con data-keytip mientras
+  el modo está encendido (Alt pulsada y soltada sola). La capa es aria-hidden y no recibe
+  ratón; lo que se anuncia a un lector de pantalla es el cambio de modo, en .keytips-anuncio.
+  Mismo esquema invertido que el tooltip propio (contraste alto en los dos temas) y por
+  encima de él: mientras hay letras, mandan las letras.
+*/
+.keytips-capa {
+  position: fixed;
+  inset: 0;
+  z-index: 1160;
+  pointer-events: none;
+}
+
+.keytip {
+  position: fixed;
+  padding: 3px 5px;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-text);
+  color: var(--color-surface);
+  box-shadow: 0 0 0 2px var(--color-surface);
+  font: 700 11px/1 ui-monospace, Consolas, monospace;
+}
+
+.keytips-barra {
+  position: fixed;
+  top: var(--space-2);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-1) var(--space-4);
+  border-radius: 9999px;
+  background-color: var(--color-text);
+  color: var(--color-surface);
+  font: var(--font-body-sm);
+  white-space: nowrap;
+}
+
+.keytips-barra kbd {
+  margin: 0 var(--space-1);
+  padding: 0 var(--space-1);
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  font: 700 11px ui-monospace, Consolas, monospace;
+}
+
+.keytips-anuncio {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* El envoltorio que da la letra N a la acción primaria no altera la fila de acciones. */
+.cabecera-listado-primaria {
+  display: contents;
+}
