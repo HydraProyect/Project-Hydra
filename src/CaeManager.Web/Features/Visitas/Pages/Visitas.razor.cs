@@ -9,6 +9,11 @@ using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisitas;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
+using CaeManager.Application.Visitas.Commands;
+using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
+using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
+using CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
 using CaeManager.Application.Visitas.Commands.QuitarTrabajadorDeVisita;
@@ -149,6 +154,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private VisitaListaDto? _filaDetalle;
 
     private bool _marcandoNotificadoDetalle;
+    private bool _marcandoDocumentacionGestionada;
     private readonly HashSet<Guid> _marcandoNotificado = [];
 
     // Contadores de carga vigente. Cada carga que escribe estado tras un
@@ -179,6 +185,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _preparandoEnvioPaquete;
     private bool _composerPaqueteVisible;
     private AdjuntoParaEnviarDto? _adjuntoPaquete;
+    private (Guid Id, Guid Version)? _visitaDelPaquete;
     private string? _avisoEnvioPaquete;
 
     private bool _visorVisible;
@@ -724,6 +731,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             }
 
             _adjuntoPaquete = new AdjuntoParaEnviarDto(paquete.NombreArchivo, "application/zip", paquete.Contenido);
+            _visitaDelPaquete = (detalle.Id, detalle.Version);
             _composerPaqueteVisible = true;
         }
         catch (Exception)
@@ -832,11 +840,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                 return;
             }
 
-            // Si mientras tanto se abrió otra visita, su detalle no se toca.
-            if (_detalle?.Id == detalle.Id)
-                _detalle = _detalle with { NotificadoCliente = notificado };
-
+            // El panel se vuelve a leer, no se retoca en memoria: marcar «Avisada» renueva la
+            // versión de la Visita, y con la anterior «Enviar por correo» y «Marcar documentación
+            // gestionada» chocarían como si otra persona la hubiera cambiado. Si mientras tanto
+            // se abrió otra visita, su detalle no se toca.
             await RecargarAsync();
+            if (_detalle?.Id == detalle.Id)
+                await AbrirDetalleAsync(detalle.Id, _pestanaDetalle);
         }
         catch (Exception)
         {
@@ -850,6 +860,111 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             _marcandoNotificadoDetalle = false;
         }
     }
+
+    /// <summary>
+    /// El compositor no envía un mensaje suelto: envía el paquete de ESTA Visita, y el comando de
+    /// Application la deja con la documentación gestionada. Viajan el Id y la versión de la Visita
+    /// para la que se preparó el paquete, no los de la que esté abierta al pulsar «Enviar».
+    /// </summary>
+    private async Task<Result<Guid>> EnviarPaqueteDeLaVisitaAsync(EnviarMensajeNuevoCommand mensaje)
+    {
+        if (_visitaDelPaquete is not { } visita)
+            return Result.Fallo<Guid>(AutorizacionCancelacionVisita.NoEncontrada);
+
+        var resultado = await Mediator.Send(new EnviarPaqueteAcreditacionVisitaCommand(
+            visita.Id, visita.Version, mensaje.ConexionIntegracionId, mensaje.Destinatarios, mensaje.Asunto, mensaje.CuerpoHtml,
+            mensaje.Adjuntos ?? []));
+
+        // La Visita cambió desde que se preparó el paquete: fila y panel se vuelven a leer para
+        // que el siguiente «Enviar por correo» prepare el paquete de la Visita como está ahora.
+        if (resultado.EsFallido && resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+        {
+            await RecargarAsync();
+            if (_detalle?.Id == visita.Id)
+                await AbrirDetalleAsync(visita.Id, _pestanaDetalle);
+        }
+
+        return resultado;
+    }
+
+    /// <summary>Enviado el paquete: la fila y el panel se vuelven a leer del servidor, que es quien sabe si quedó gestionada.</summary>
+    private async Task AlEnviarPaqueteAsync()
+    {
+        var visita = _visitaDelPaquete;
+        await RecargarAsync();
+        if (visita is { } enviada && _detalle?.Id == enviada.Id)
+            await AbrirDetalleAsync(enviada.Id, _pestanaDetalle);
+    }
+
+    /// <summary>
+    /// Salida manual de «Por gestionar». Lleva la versión del panel: si alguien añadió o quitó un
+    /// Trabajador mientras tanto, el servidor lo rechaza y aquí se vuelve a leer. Tanto si sale
+    /// bien como si falla, fila y panel salen de lo guardado.
+    /// </summary>
+    private async Task MarcarDocumentacionGestionadaAsync()
+    {
+        if (_detalle is not { } detalle || _marcandoDocumentacionGestionada)
+            return;
+
+        _marcandoDocumentacionGestionada = true;
+        try
+        {
+            var resultado = await Mediator.Send(new MarcarDocumentacionGestionadaCommand(detalle.Id, detalle.Version));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorDocumentacionGestionada"], TonoToast.Error);
+        }
+        finally
+        {
+            _marcandoDocumentacionGestionada = false;
+        }
+
+        await RecargarAsync();
+        if (_detalle?.Id == detalle.Id)
+            await AbrirDetalleAsync(detalle.Id, _pestanaDetalle);
+    }
+
+    /// <summary>
+    /// Deshace la marca. Mismo trato que al marcar: viaja la versión del panel y, salga bien o
+    /// mal, fila y panel se vuelven a leer de lo guardado.
+    /// </summary>
+    private async Task QuitarMarcaDocumentacionGestionadaAsync()
+    {
+        if (_detalle is not { } detalle || _marcandoDocumentacionGestionada)
+            return;
+
+        _marcandoDocumentacionGestionada = true;
+        try
+        {
+            var resultado = await Mediator.Send(new QuitarMarcaDocumentacionGestionadaCommand(detalle.Id, detalle.Version));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastMarcaDocumentacionGestionadaQuitada"], TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorQuitarMarcaDocumentacionGestionada"], TonoToast.Error);
+        }
+        finally
+        {
+            _marcandoDocumentacionGestionada = false;
+        }
+
+        await RecargarAsync();
+        if (_detalle?.Id == detalle.Id)
+            await AbrirDetalleAsync(detalle.Id, _pestanaDetalle);
+    }
+
+    private string TextoDocumentacionGestionada(DetalleVisitaDto detalle) =>
+        detalle.DocumentacionGestionadaEnUtc is { } gestionadaEn
+            ? Textos["DetalleDocumentacionGestionadaEl", DiaDeNegocio.De(gestionadaEn)].Value
+            : Textos["BadgeDocumentacionPorGestionar"].Value;
 
     // ---- Pestañas del panel y trabajadores de la Visita ----
 

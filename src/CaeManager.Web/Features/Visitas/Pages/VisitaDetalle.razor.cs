@@ -1,6 +1,11 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
+using CaeManager.Application.Visitas.Commands;
+using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
+using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
+using CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
@@ -86,6 +91,8 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     private AdjuntoParaEnviarDto? _adjuntoPaquete;
 
     private bool _marcandoNotificado;
+    private bool _marcandoDocumentacionGestionada;
+    private (Guid Id, Guid Version)? _visitaDelPaquete;
     private bool _editarVisible;
 
     private bool _visorVisible;
@@ -600,6 +607,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
             }
 
             _adjuntoPaquete = new AdjuntoParaEnviarDto(paquete.NombreArchivo, "application/zip", paquete.Contenido);
+            _visitaDelPaquete = (detalle.Id, detalle.Version);
             _composerPaqueteVisible = true;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -652,9 +660,10 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
                 return;
             }
 
-            // Si mientras tanto se abrió otra Visita, su detalle no se toca.
-            if (_detalle?.Id == detalle.Id)
-                _detalle = _detalle with { NotificadoCliente = notificado };
+            // La página se vuelve a leer, no se retoca en memoria: marcar «Avisada» renueva la
+            // versión de la Visita, y con la anterior «Enviar por correo» y «Marcar documentación
+            // gestionada» chocarían como si otra persona la hubiera cambiado.
+            await CargarAsync();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -666,6 +675,96 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
             _marcandoNotificado = false;
         }
     }
+
+    // ---------------------------------------------------------------- Documentación gestionada
+
+    /// <summary>
+    /// El compositor no envía un mensaje suelto: envía el paquete de ESTA Visita, y el comando de
+    /// Application la deja con la documentación gestionada. Viajan el Id y la versión de la Visita
+    /// para la que se preparó el paquete, no los de la que esté abierta al pulsar «Enviar».
+    /// </summary>
+    private async Task<Result<Guid>> EnviarPaqueteDeLaVisitaAsync(EnviarMensajeNuevoCommand mensaje)
+    {
+        if (_visitaDelPaquete is not { } visita)
+            return Result.Fallo<Guid>(AutorizacionCancelacionVisita.NoEncontrada);
+
+        var resultado = await Mediator.Send(new EnviarPaqueteAcreditacionVisitaCommand(
+            visita.Id, visita.Version, mensaje.ConexionIntegracionId, mensaje.Destinatarios, mensaje.Asunto, mensaje.CuerpoHtml,
+            mensaje.Adjuntos ?? []));
+
+        // La Visita cambió desde que se preparó el paquete: la página se vuelve a leer para que
+        // el siguiente «Enviar por correo» prepare el paquete de la Visita como está ahora.
+        if (resultado.EsFallido && resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+            await CargarAsync();
+
+        return resultado;
+    }
+
+    /// <summary>
+    /// Deshace la marca. Mismo trato que al marcar: viaja la versión de la página y, salga bien
+    /// o mal, la Visita se vuelve a leer.
+    /// </summary>
+    private async Task QuitarMarcaDocumentacionGestionadaAsync()
+    {
+        if (_detalle is not { EstaCancelada: false } detalle || _marcandoDocumentacionGestionada)
+            return;
+
+        _marcandoDocumentacionGestionada = true;
+        try
+        {
+            var resultado = await Mediator.Send(new QuitarMarcaDocumentacionGestionadaCommand(detalle.Id, detalle.Version));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastMarcaDocumentacionGestionadaQuitada"], TonoToast.Exito);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ToastService.Mostrar(Textos["ToastErrorQuitarMarcaDocumentacionGestionada"], TonoToast.Error);
+        }
+        finally
+        {
+            _marcandoDocumentacionGestionada = false;
+        }
+
+        await CargarAsync();
+    }
+
+    /// <summary>
+    /// Salida manual de «Por gestionar». Lleva la versión con la que se abrió la página: si
+    /// alguien añadió o quitó un Trabajador mientras tanto, el servidor lo rechaza. Tanto si sale
+    /// bien como si falla, la Visita se vuelve a leer.
+    /// </summary>
+    private async Task MarcarDocumentacionGestionadaAsync()
+    {
+        if (_detalle is not { EstaCancelada: false } detalle || _marcandoDocumentacionGestionada)
+            return;
+
+        _marcandoDocumentacionGestionada = true;
+        try
+        {
+            var resultado = await Mediator.Send(new MarcarDocumentacionGestionadaCommand(detalle.Id, detalle.Version));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ToastService.Mostrar(Textos["ToastErrorDocumentacionGestionada"], TonoToast.Error);
+        }
+        finally
+        {
+            _marcandoDocumentacionGestionada = false;
+        }
+
+        await CargarAsync();
+    }
+
+    private string TextoDocumentacionGestionada(DetalleVisitaDto detalle) =>
+        detalle.DocumentacionGestionadaEnUtc is { } gestionadaEn
+            ? Textos["DetalleDocumentacionGestionadaEl", DiaDeNegocio.De(gestionadaEn)].Value
+            : Textos["BadgeDocumentacionPorGestionar"].Value;
 
     // ---------------------------------------------------------------- Cancelar, deshacer y reactivar
 

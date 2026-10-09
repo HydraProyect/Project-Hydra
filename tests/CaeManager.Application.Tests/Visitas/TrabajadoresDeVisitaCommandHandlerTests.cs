@@ -1,6 +1,8 @@
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Visitas.Antelacion;
+using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
+using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.QuitarTrabajadorDeVisita;
 using CaeManager.Domain.Visitas;
 using FluentAssertions;
@@ -73,7 +75,71 @@ public class TrabajadoresDeVisitaCommandHandlerTests
                     Visitas, Union, null!, Evaluador, UnitOfWork, NullLogger<AnadirTrabajadorAVisitaCommandHandler>.Instance, Alcance)
                 .Handle(new AnadirTrabajadorAVisitaCommand(Visita.Id, trabajadorId, version), CancellationToken.None);
 
+        /// <summary>
+        /// «Editar visita» con la lista de Trabajadores que se indique. El contexto de Trabajadores
+        /// va vacío: vale para quitar o dejar igual, que no consultan a nadie nuevo.
+        /// </summary>
+        public Task<Domain.Common.Result> EditarAsync(IReadOnlyList<Guid> trabajadorIds, string? notas = null) =>
+            new EditarVisitaCommandHandler(
+                    Visitas, Union, new TrabajadoresQueryContextFalso(), Evaluador, UnitOfWork,
+                    NullLogger<EditarVisitaCommandHandler>.Instance, Alcance)
+                .Handle(new EditarVisitaCommand(Visita.Id, Visita.FechaInicio, Visita.FechaFin, trabajadorIds, notas), CancellationToken.None);
+
         public static AlcanceDatosServiceFalso FueraDeAlcance() => new(tieneAccesoTotal: false, centroIdsVisibles: [Guid.NewGuid()]);
+    }
+
+    // ---- Documentación gestionada: cambiar quién entra la devuelve a «Por gestionar»
+
+    private static readonly DateTime Gestionada = new(2025, 12, 20, 9, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public async Task Quitar_un_trabajador_borra_la_marca_de_documentacion_gestionada()
+    {
+        var (sale, queda) = (Guid.NewGuid(), Guid.NewGuid());
+        var escenario = new Escenario(sale, queda);
+        escenario.Visita.MarcarDocumentacionGestionada(Gestionada);
+
+        (await escenario.QuitarAsync(sale)).EsExitoso.Should().BeTrue();
+
+        escenario.Visita.DocumentacionGestionada.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Quitar_a_quien_ya_no_entra_no_borra_la_marca()
+    {
+        var escenario = new Escenario(Guid.NewGuid(), Guid.NewGuid());
+        escenario.Visita.MarcarDocumentacionGestionada(Gestionada);
+
+        (await escenario.QuitarAsync(Guid.NewGuid())).EsExitoso.Should().BeTrue();
+
+        escenario.Visita.DocumentacionGestionada.Should().BeTrue("no cambió quién entra");
+    }
+
+    [Fact]
+    public async Task Editar_la_visita_quitando_un_trabajador_borra_la_marca()
+    {
+        var (sale, queda) = (Guid.NewGuid(), Guid.NewGuid());
+        var escenario = new Escenario(sale, queda);
+        escenario.Visita.MarcarDocumentacionGestionada(Gestionada);
+
+        (await escenario.EditarAsync([queda])).EsExitoso.Should().BeTrue();
+
+        escenario.Union.Filas.Select(f => f.TrabajadorId).Should().BeEquivalentTo([queda]);
+        escenario.Visita.DocumentacionGestionada.Should().BeFalse(
+            "«Editar visita» cambia quién entra igual que el panel: la misma regla");
+    }
+
+    [Fact]
+    public async Task Editar_la_visita_sin_cambiar_los_trabajadores_conserva_la_marca()
+    {
+        var (uno, otro) = (Guid.NewGuid(), Guid.NewGuid());
+        var escenario = new Escenario(uno, otro);
+        escenario.Visita.MarcarDocumentacionGestionada(Gestionada);
+
+        (await escenario.EditarAsync([otro, uno], notas: "solo cambian las notas")).EsExitoso.Should().BeTrue();
+
+        escenario.Visita.Notas.Should().Be("solo cambian las notas");
+        escenario.Visita.DocumentacionGestionadaEnUtc.Should().Be(Gestionada);
     }
 
     [Fact]

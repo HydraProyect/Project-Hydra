@@ -135,4 +135,119 @@ public class VisitaTests
 
         accion.Should().Throw<ArgumentException>();
     }
+
+    // ---- Documentación gestionada (estado guardado, decisión del 2026-10-09)
+
+    [Fact]
+    public void Una_visita_nueva_esta_por_gestionar()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);
+
+        visita.DocumentacionGestionada.Should().BeFalse();
+        visita.DocumentacionGestionadaEnUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public void MarcarDocumentacionGestionada_guarda_la_fecha_y_un_segundo_envio_la_actualiza()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);
+        var primera = new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc);
+        var segunda = primera.AddDays(2);
+
+        visita.MarcarDocumentacionGestionada(primera);
+        visita.DocumentacionGestionadaEnUtc.Should().Be(primera);
+
+        visita.MarcarDocumentacionGestionada(segunda);
+        visita.DocumentacionGestionadaEnUtc.Should().Be(segunda);
+        visita.DocumentacionGestionada.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Cambiar_los_trabajadores_borra_la_marca_y_renueva_la_version()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);
+        visita.MarcarDocumentacionGestionada(new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc));
+        var versionAntes = visita.Version;
+
+        visita.RegistrarCambioDeTrabajadores();
+
+        visita.DocumentacionGestionada.Should().BeFalse("lo gestionado era para quienes entraban entonces");
+        visita.DocumentacionGestionadaEnUtc.Should().BeNull();
+        visita.Version.Should().NotBe(versionAntes);
+    }
+
+    [Fact]
+    public void Cambiar_fechas_o_notas_no_borra_la_marca()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);
+        visita.MarcarDocumentacionGestionada(new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc));
+
+        visita.Actualizar(new DateOnly(2026, 8, 2), new DateOnly(2026, 8, 6), "otra nota");
+        visita.MarcarNotificadoCliente(true);
+
+        visita.DocumentacionGestionada.Should().BeTrue("«Avisada» y la edición de fechas son independientes de la marca");
+    }
+
+    [Fact]
+    public void Quitar_la_marca_devuelve_la_visita_a_por_gestionar_y_se_puede_volver_a_marcar()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);
+        var otraVez = new DateTime(2026, 7, 22, 9, 0, 0, DateTimeKind.Utc);
+        visita.MarcarDocumentacionGestionada(new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc));
+
+        visita.QuitarMarcaDocumentacionGestionada();
+
+        visita.DocumentacionGestionada.Should().BeFalse();
+        visita.DocumentacionGestionadaEnUtc.Should().BeNull();
+
+        visita.MarcarDocumentacionGestionada(otraVez);
+        visita.DocumentacionGestionadaEnUtc.Should().Be(otraVez);
+    }
+
+    [Fact]
+    public void A_una_visita_cancelada_no_se_le_quita_la_marca()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);
+        visita.MarcarDocumentacionGestionada(DateTime.UtcNow);
+        visita.Cancelar(DateTime.UtcNow, null);
+
+        var accion = () => visita.QuitarMarcaDocumentacionGestionada();
+
+        accion.Should().Throw<InvalidOperationException>();
+        visita.DocumentacionGestionada.Should().BeTrue("cancelada no se modifica; primero se reactiva");
+    }
+
+    [Fact]
+    public void Una_visita_cancelada_no_se_marca_como_gestionada()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);
+        visita.Cancelar(DateTime.UtcNow, null);
+
+        var accion = () => visita.MarcarDocumentacionGestionada(DateTime.UtcNow);
+
+        accion.Should().Throw<InvalidOperationException>();
+        visita.DocumentacionGestionada.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// El sello del expediente mide la antelación y es de un solo sentido; la marca de
+    /// documentación gestionada es otro dato y sí se borra. Uno no arrastra al otro.
+    /// </summary>
+    [Fact]
+    public void El_sello_del_expediente_y_la_marca_de_gestionada_son_independientes()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);
+        var solicitud = new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc);
+        visita.RegistrarOrigenSolicitud(Guid.NewGuid(), solicitud);
+        visita.MarcarExpedienteCompleto(solicitud.AddHours(3), new ResultadoAntelacion(100m, 100m, 0m, TramoAntelacion.Estandar, AtribucionUrgencia.SinUrgencia))
+            .Should().BeTrue();
+
+        visita.DocumentacionGestionada.Should().BeFalse("que deje de faltar papel no es haberlo enviado");
+
+        visita.MarcarDocumentacionGestionada(solicitud.AddHours(4));
+        visita.RegistrarCambioDeTrabajadores();
+
+        visita.DocumentacionGestionada.Should().BeFalse();
+        visita.FechaHoraExpedienteCompletoUtc.Should().Be(solicitud.AddHours(3), "el sello no se retira");
+    }
 }
