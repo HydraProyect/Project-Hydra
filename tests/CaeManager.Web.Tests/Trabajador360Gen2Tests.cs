@@ -827,7 +827,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var asignaciones = cut.Find("[aria-label='Asignaciones activas']");
         asignaciones.TextContent.Should().Contain("Cliente",
             "la contraparte de una Relación Empresarial se rotula «Cliente» (decisión del 2026-10-09)")
-            .And.Contain("Centro Norte").And.Contain("02/07/2026");
+            .And.NotContain("Cliente empresarial").And.Contain("Centro Norte").And.Contain("02/07/2026");
         asignaciones.QuerySelectorAll(".columna-accion button").Select(b => b.TextContent.Trim())
             .Should().Equal(["Dar de baja", "Dar de baja"]);
 

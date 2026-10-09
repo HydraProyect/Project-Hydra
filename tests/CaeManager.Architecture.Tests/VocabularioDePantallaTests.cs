@@ -158,7 +158,7 @@ public class VocabularioDePantallaTests
         // Decisión de rótulo del 2026-10-09: la pantalla dice «Cliente»; el rótulo largo es lo que se caza.
         const string ruta = "src/CaeManager.Web/Features/Falsa/Recursos/TextosFalsa.resx";
         var textos = VocabularioDePantalla.TextosDeResx(ruta, Resx_(
-            ("EtiquetaCliente", "Cliente empresarial"), ("EtiquetaBuena", "Cliente"), ("EtiquetaRol", "Usuario de Cliente empresarial")));
+            ("EtiquetaCliente", "Cliente empresarial"), ("EtiquetaBuena", "Cliente"), ("EtiquetaRol", "Usuario de Cliente")));
 
         var deuda = VocabularioDePantalla.DeudaMedida(VocabularioDePantalla.Escanear(Vocabulario.Value, textos));
 

@@ -17,10 +17,10 @@
     },
     {
       "id": "usuario-de-cliente-empresarial",
-      "forma": "Usuario de Cliente empresarial",
-      "plural": "Usuarios de Cliente empresarial",
+      "forma": "Usuario de Cliente",
+      "plural": "Usuarios de Cliente",
       "formasCortasPermitidas": [],
-      "significado": "Rótulo en pantalla del rol de autorización Roles.Cliente: usuario externo que ve en solo lectura su propio Cliente empresarial. Es un rol, no una organización. Conserva el apellido mientras no se decida su rótulo (pregunta abierta del 2026-10-09).",
+      "significado": "Rótulo en pantalla del rol de autorización Roles.Cliente (decisión del propietario del 2026-10-09; antes, «Usuario de Cliente empresarial»): usuario externo que ve en solo lectura su propio Cliente empresarial. Es un rol, no una organización.",
       "contrato": "§ 3.2",
       "noConfundirCon": "Cliente (la organización, rótulo de interfaz del Cliente empresarial)"
     },
@@ -206,12 +206,12 @@
     {
       "id": "cliente-empresarial-en-pantalla",
       "termino": "Cliente empresarial",
-      "patron": "(?<!\\busuario de )(?<!\\busuarios de )(?<!\\busuari de )(?<!\\busuaris de )\\bclient(?:es?|s)?(?:\\(s\\))?\\s+empresarial(?:s|es)?\\b",
+      "patron": "\\bclient(?:es?|s)?(?:\\(s\\))?\\s+empresarial(?:s|es)?\\b",
       "ignorarMayusculas": true,
-      "sustitucion": "Cliente (Clientes); la ficha es «Cliente 360»",
+      "sustitucion": "Cliente (Clientes); la ficha es «Cliente 360»; Usuario de Cliente si es el rol",
       "motivo": "Decisión del propietario del 2026-10-09, que anula la de rótulo del 2026-10-02: «Cliente empresarial» es un nombre demasiado largo e innecesario para la interfaz. La pantalla dice «Cliente»; el apellido se queda en documentación, análisis y código.",
       "contrato": "§ 3.2",
-      "sentido": "El rótulo largo del Cliente empresarial en texto visible, en castellano y en catalán. Queda fuera «Usuario de Cliente empresarial», el rótulo del rol Roles.Cliente, que tiene su propia decisión pendiente.",
+      "sentido": "El rótulo largo del Cliente empresarial en texto visible, en castellano y en catalán, también dentro del rótulo del rol Roles.Cliente («Usuario de Cliente empresarial»), que desde el 2026-10-09 es «Usuario de Cliente».",
       "casa": [
         "Cliente empresarial",
         "Clientes empresariales",
@@ -220,15 +220,17 @@
         "Sin Cliente empresarial asignado",
         "Cliente empresarial 360",
         "Client empresarial",
-        "Clients empresarials"
+        "Clients empresarials",
+        "Usuario de Cliente empresarial",
+        "Usuaris de Client empresarial"
       ],
       "noCasa": [
         "Cliente",
         "Clientes",
         "Cliente 360",
-        "Usuario de Cliente empresarial",
-        "Usuarios de Cliente empresarial",
-        "Usuari de Client empresarial",
+        "Usuario de Cliente",
+        "Usuarios de Cliente",
+        "Usuari de Client",
         "Cliente comercial TALVEG",
         "Cliente de servicio CAE Inbound",
         "Relación Empresarial con el Cliente",

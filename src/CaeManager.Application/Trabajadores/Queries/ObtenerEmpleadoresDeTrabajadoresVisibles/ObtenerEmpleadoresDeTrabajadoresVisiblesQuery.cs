@@ -12,7 +12,7 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerEmpleadoresDeTrabaj
 /// emplea al menos un Trabajador legible por la identidad efectiva.
 ///
 /// No sirven los selectores del alta: <c>ObtenerEmpresasParaSelectorQuery</c> acota por alcance de
-/// <b>gestión</b> (vacío para un Usuario de Cliente empresarial, <c>Roles.Cliente</c>, que sí ve Trabajadores por Asignación) y
+/// <b>gestión</b> (vacío para un Usuario de Cliente, <c>Roles.Cliente</c>, que sí ve Trabajadores por Asignación) y
 /// <c>ObtenerSubcontratasParaSelectorQuery</c> devuelve el catálogo global del Tenant propietario a propósito (para reutilizar
 /// un registro al dar de alta): en un filtro le enseñaba al portal subcontratas que no tienen nada que ver con él.
 /// Estas opciones no autorizan altas. El filtro puede prellenar el drawer de alta únicamente tras comprobar

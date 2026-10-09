@@ -346,7 +346,7 @@
     <value>Ordenar no muestra ni oculta nada: cada usuario sigue viendo solo los enlaces que su rol le permite.</value>
   </data>
   <data name="OrdenMenuGlobalLimites" xml:space="preserve">
-    <value>Un enlace no puede cambiar de grupo. El menú del portal del rol «Usuario de Cliente empresarial» no se ordena aquí.</value>
+    <value>Un enlace no puede cambiar de grupo. El menú del portal del rol «Usuario de Cliente» no se ordena aquí.</value>
   </data>
   <data name="OrdenMenuChipPlano" xml:space="preserve">
     <value>Plano de Plataforma</value>

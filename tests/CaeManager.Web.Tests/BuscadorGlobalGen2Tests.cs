@@ -857,14 +857,15 @@ public class BuscadorGlobalGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// La neutralización terminológica solo alcanzaba a los resultados
-    /// directos. Un reciente guardado lleva el subtítulo tal y como lo emitió
-    /// el handler —para la contraparte de una Relación Empresarial, «Cliente» a
-    /// secas—, así que abrir un Cliente empresarial y reabrir el palette lo
-    /// devolvía escrito mal.
+    /// Un reciente guardado lleva el subtítulo tal y como lo emitió el handler
+    /// —para la contraparte de una Relación Empresarial, «Cliente»—, que desde
+    /// la decisión de rótulo del 2026-10-09 es justo lo que dice la pantalla. Lo
+    /// que este test vigila es que el reciente no vuelva al rótulo largo: con
+    /// el rótulo igual al literal del handler ya no puede distinguir si el
+    /// subtítulo pasa o no por la traducción de papeles (límite declarado).
     /// </summary>
     [Fact]
-    public async Task Un_reciente_de_contraparte_se_lee_como_Cliente_empresarial_y_no_como_cliente_a_secas()
+    public async Task Un_reciente_de_contraparte_se_lee_como_Cliente_y_no_con_el_rotulo_largo()
     {
         var mediador = new MediadorControlado
         {
@@ -877,6 +878,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
             "control del instrumento: sin filas, las aserciones de abajo se cumplirían solas"));
 
         SinEspaciosDeMas(cut.Find("a.buscador-item").TextContent).Should().Contain("Cliente",
-            "el literal «Cliente» que emite el handler no puede llegar tal cual a la pantalla");
+            "la contraparte de una Relación Empresarial se rotula «Cliente»")
+            .And.NotContain("Cliente empresarial", "el rótulo largo no vuelve a la pantalla (decisión del 2026-10-09)");
     }
 }

@@ -1519,7 +1519,7 @@ public class DocumentosGen2Tests : BunitContext
         filas.Should().HaveCount(3);
         cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
         var celda = filas[0].QuerySelectorAll("td").Single(td => td.TextContent.Contains(vencido.PropietarioNombre));
-        celda.TextContent.Should().Contain("Cliente");
+        celda.TextContent.Should().Contain("Cliente").And.NotContain("Cliente empresarial");
         filas[0].TextContent.Should().Contain(vencido.FechaEmision.ToString("dd/MM/yyyy"))
             .And.Contain(vencido.FechaVencimiento!.Value.ToString("dd/MM/yyyy"));
         filas[2].TextContent.Should().Contain("Emitido " + sinVence.FechaEmision.ToString("dd/MM/yyyy"));

@@ -291,7 +291,7 @@ public class Proyecto360PaginaTests : BunitContext
 
         lateral.QuerySelectorAll("[data-pieza=tarjeta] .tarjeta-titulo").Select(t => t.TextContent.Trim())
             .Should().Equal("Información", "Plazo", "Notas");
-        lateral.TextContent.Should().Contain("Cliente").And.Contain("Sede Sevilla")
+        lateral.TextContent.Should().Contain("Cliente").And.NotContain("Cliente empresarial").And.Contain("Sede Sevilla")
             .And.Contain("Acceso por muelle 3.").And.Contain("Los días abiertos son la base de la facturación del proyecto.");
         Botones(cut, "[data-pieza=lateral] button").Should().Equal("Editar →", "Editar →");
     }
