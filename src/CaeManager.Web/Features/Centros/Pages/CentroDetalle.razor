@@ -104,15 +104,37 @@
                             @* P1-X2: estado propio y tono neutro — nunca un verde falso. *@
                             <Badge Tono="EstadoCentroUi.Tono(EstadoCentro.SinGestionCae)">@EstadoCentroUi.Texto(EstadoCentro.SinGestionCae)</Badge>
                         }
-                        @if (_resumen.Recuentos.TotalVencidas > 0)
+                        @* LV-11: Recuentos.Vencidas funde Vencido y Faltante (ver Desglosar). Aquí la cifra se
+                           lee como texto, así que se separan: lo que falta no se rotula «vencido», y la
+                           cabecera dice lo mismo que el pie de totales del acordeón. *@
+                        @{
+                            var vencidos = SoloVencidas(_resumen.Recuentos.Vencidas);
+                            var faltantes = SoloFaltantes(_resumen.Recuentos.Vencidas);
+                        }
+                        @if (vencidos.Count > 0)
                         {
-                            <VentanaContexto Etiqueta="@DescribirRecuento(_resumen.Recuentos.Vencidas, "vencido")"
-                                             Titulo="@($"{_resumen.Recuentos.TotalVencidas} {(_resumen.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
+                            <VentanaContexto Etiqueta="@DescribirRecuento(vencidos, "vencido")"
+                                             Titulo="@($"{vencidos.Count} {(vencidos.Count == 1 ? "documento vencido" : "documentos vencidos")}")">
                                 <Disparador>
-                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@_resumen.Recuentos.TotalVencidas vencido@(_resumen.Recuentos.TotalVencidas == 1 ? "" : "s")</Badge>
+                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" data-recuento="vencidos">@vencidos.Count vencido@(vencidos.Count == 1 ? "" : "s")</Badge>
                                 </Disparador>
                                 <Detalle>
-                                    @foreach (var incidencia in _resumen.Recuentos.Vencidas)
+                                    @foreach (var incidencia in vencidos)
+                                    {
+                                        <span class="ventana-linea">@incidencia.Descripcion</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
+                        }
+                        @if (faltantes.Count > 0)
+                        {
+                            <VentanaContexto Etiqueta="@DescribirRecuento(faltantes, "faltante")"
+                                             Titulo="@($"{faltantes.Count} {(faltantes.Count == 1 ? "documento faltante" : "documentos faltantes")}")">
+                                <Disparador>
+                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" data-recuento="faltantes">@faltantes.Count faltante@(faltantes.Count == 1 ? "" : "s")</Badge>
+                                </Disparador>
+                                <Detalle>
+                                    @foreach (var incidencia in faltantes)
                                     {
                                         <span class="ventana-linea">@incidencia.Descripcion</span>
                                     }

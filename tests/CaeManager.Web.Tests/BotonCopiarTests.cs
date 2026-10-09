@@ -66,7 +66,9 @@ public class BotonCopiarTests : BunitContext
         var cut = Render<BotonCopiar>(p => p.Add(c => c.Valor, "clave-generada").Add(c => c.Etiqueta, "la clave API"));
         await cut.Find("button").ClickAsync(new MouseEventArgs());
 
-        Toasts().Should().ContainSingle().Which.Mensaje.Should().Contain("Selecciónalo y cópialo a mano");
+        // Sin pronombre: la etiqueta puede ser femenina («la clave API», «la solicitud de acceso») y
+        // «Selecciónalo» cruzaba el género (recorrido del piloto Outbound).
+        Toasts().Should().ContainSingle().Which.Mensaje.Should().Be("No se pudo copiar la clave API. Selecciona el texto y cópialo a mano.");
     }
 
     [Fact]
@@ -84,6 +86,6 @@ public class BotonCopiarTests : BunitContext
         await cut.Find("button").ClickAsync(new MouseEventArgs());
 
         var mensaje = Toasts().Should().ContainSingle().Which.Mensaje;
-        mensaje.Should().Contain("la contraseña").And.NotContain("Selecciónalo y cópialo a mano");
+        mensaje.Should().Contain("la contraseña").And.NotContain("Selecciona el texto y cópialo a mano");
     }
 }

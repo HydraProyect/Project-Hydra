@@ -44,6 +44,8 @@ public record ToastMensaje(Guid Id, string Mensaje, TonoToast Tono, string? Text
 ///
 /// Servicio scoped (una instancia por circuito de Blazor Server). Los toasts
 /// se autodescartan a los 5s salvo los de error, que exigen descarte manual
+/// mientras el usuario sigue en la pantalla donde ocurrieron: al pasar a otra
+/// pantalla caducan como los demás (<see cref="AlCambiarDePantalla"/>)
 /// (ver Project-Hydra-Negocio/tecnico/docs/archive/design/UX_PATTERNS.md, "Toasts"). Un toast con acción ("Deshacer", Fase D)
 /// vive 8s en vez de 5 — el usuario necesita un instante extra para leer el
 /// mensaje y decidir si actuar, no solo para leerlo y descartarlo — y enseña
@@ -68,7 +70,7 @@ public class ToastService
 
     private readonly List<ToastMensaje> _mensajes = [];
 
-    /// <summary>Cuenta atrás de autodescarte de cada toast que la tiene (los de error no).</summary>
+    /// <summary>Cuenta atrás de autodescarte de cada toast que la tiene (los de error, solo tras cambiar de pantalla).</summary>
     private readonly Dictionary<Guid, CuentaAtras> _cuentas = [];
 
     private readonly TimeSpan _duracion;
@@ -107,6 +109,24 @@ public class ToastService
             Programar(toast.Id, onAccion is not null ? _duracionConAccion : _duracion, cuentaVisible: onAccion is not null);
 
         OnCambio?.Invoke();
+    }
+
+    /// <summary>
+    /// El usuario ha pasado a otra pantalla (LV-10 del recorrido del piloto Outbound). Un error exige
+    /// descarte manual para que se lea donde ocurrió; fuera de esa pantalla ya no describe lo que el
+    /// usuario está haciendo, y antes se quedaba indefinidamente sobre altas correctas hechas después.
+    /// No se retira en el acto: una pantalla que avisa de un error y redirige (un detalle que ya no
+    /// existe) lo dejaría sin leer. Empieza la misma cuenta atrás que cualquier otro aviso, que el
+    /// puntero y el foco siguen deteniendo. Los avisos que ya tenían cuenta no se tocan.
+    /// </summary>
+    public void AlCambiarDePantalla()
+    {
+        List<Guid> erroresSinCuenta;
+        lock (_cuentas)
+            erroresSinCuenta = _mensajes.Where(m => m.Tono == TonoToast.Error && !_cuentas.ContainsKey(m.Id)).Select(m => m.Id).ToList();
+
+        foreach (var id in erroresSinCuenta)
+            Programar(id, _duracion, cuentaVisible: false);
     }
 
     /// <summary>

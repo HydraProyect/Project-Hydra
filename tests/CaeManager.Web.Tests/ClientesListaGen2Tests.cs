@@ -1363,6 +1363,16 @@ public class ClientesListaGen2Tests : BunitContext
         avatar.ParentElement!.TextContent.Should().Contain("Marta Ibarra");
     }
 
+    /// <summary>Recorrido del piloto Outbound: con un solo Centro el lector de pantalla oía «Ver los 1 centros de…».</summary>
+    [Fact]
+    public void El_enlace_de_centros_concuerda_en_numero_con_los_que_tiene_el_cliente()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Refrielectric S.A.", centros: 1), Cliente("Montajes Ebro S.L.", centros: 3) } });
+
+        cut.FindAll(".enlace-centros-cliente").Select(b => b.GetAttribute("aria-label")).Should().BeEquivalentTo(
+            "Ver el centro de Refrielectric S.A.", "Ver los 3 centros de Montajes Ebro S.L.");
+    }
+
     [Fact]
     public async Task El_numero_de_centros_abre_el_Cliente_360_en_su_pestana_de_centros()
     {

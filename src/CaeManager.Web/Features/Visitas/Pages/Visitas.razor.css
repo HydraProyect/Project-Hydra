@@ -259,3 +259,40 @@
     min-width: var(--space-8);
     padding-inline: var(--space-2);
 }
+
+/*
+  LV-13 (recorrido del piloto Outbound): con la barra lateral abierta el listado tiene unos 870 px y sus
+  nueve columnas no caben; la tabla se desplaza dentro de .contenido y «Más acciones» quedaba fuera de
+  pantalla. La columna de acciones se queda fija a la derecha, y los títulos de cabecera parten línea
+  (QuickGrid los pone en una sola: «Notificada al titular del Centro» medía 297 px ella sola).
+  El fondo repite los de la fila (reposo, puntero y foco de j/k) porque la celda fija tapa las que pasan
+  por debajo. La celda con el menú abierto sube de plano: si no, las celdas fijas de las filas siguientes
+  taparían el panel.
+*/
+.visitas-tabla ::deep .tabla-datos .col-title-text {
+    white-space: normal;
+}
+
+.visitas-tabla ::deep .tabla-datos th:last-child,
+.visitas-tabla ::deep .tabla-datos td:last-child {
+    position: sticky;
+    right: 0;
+    background-color: var(--color-surface);
+    box-shadow: -1px 0 0 var(--color-fila-divisor);
+}
+
+.visitas-tabla ::deep .tabla-datos thead th:last-child {
+    z-index: 2;
+}
+
+.visitas-tabla ::deep .tabla-datos tr:hover td:last-child {
+    background-color: var(--color-fila-hover);
+}
+
+.visitas-tabla ::deep .tabla-datos tr.fila-enfocada td:last-child {
+    background-color: var(--color-primary-50);
+}
+
+.visitas-tabla ::deep .tabla-datos td:last-child:has(.menu-acciones [aria-expanded="true"]) {
+    z-index: 3;
+}

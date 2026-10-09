@@ -48,6 +48,16 @@ public interface IAlcanceDatosService
     Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// El mismo alcance que <see cref="ObtenerClienteIdsVisiblesAsync"/>, para un Cliente empresarial
+    /// <b>eliminado</b>: bajo una Asignación de Cartera de ámbito universal esa lista se materializa
+    /// desde las Empresas vivas y nunca contiene la fila que <c>RestaurarClienteCommand</c> quiere
+    /// devolver. Decide por las mismas coordenadas —rol y cartera, que la baja no toca— sin pasar por
+    /// la Empresa. No comprueba que el id sea de un Cliente empresarial ni de este Tenant: eso es del
+    /// comando.
+    /// </summary>
+    Task<bool> ClienteEliminadoVisibleAsync(Guid clienteId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

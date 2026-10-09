@@ -38,12 +38,16 @@ public class RestaurarClienteCommandHandler(
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(e => e.Id == request.Id && e.TenantId == tenantActual.TenantId, cancellationToken);
 
-        if (empresa is null || !empresa.EstaEliminado)
+        // EsCritico es lo que hace de una Empresa un Cliente empresarial: sin comprobarlo aquí, este
+        // comando restauraría cualquier Empresa eliminada del Tenant con el alcance de Clientes.
+        if (empresa is null || !empresa.EstaEliminado || empresa.EsCritico is null)
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial eliminado."));
 
-        // Autoridad de cartera, no solo tenant (auditoría Módulo 5, hallazgo
-        // crítico 8/9, mismo patrón que RestaurarCentro/RestaurarTrabajador).
-        if (!await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
+        // Autoridad de cartera, no solo tenant (auditoría Módulo 5, hallazgo crítico 8/9). La misma
+        // que la baja, pero ClienteVisibleAsync no sirve aquí: bajo una cartera de ámbito universal
+        // su lista se materializa desde las Empresas con el filtro global de soft delete, que excluye
+        // justamente la fila que se está restaurando (LV-9: «Deshacer» respondía «No encontramos…»).
+        if (!await alcanceDatos.ClienteEliminadoVisibleAsync(empresa.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Cliente.NoEncontrado", "No encontramos este Cliente empresarial eliminado."));
 
         empresa.Restaurar();

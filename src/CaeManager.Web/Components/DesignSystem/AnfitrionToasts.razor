@@ -1,5 +1,6 @@
 @implements IDisposable
 @inject ToastService ToastService
+@inject NavigationManager Navegacion
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
 <LimiteDeErrores Islote="this">
@@ -69,9 +70,36 @@
         _ => null
     };
 
-    protected override void OnInitialized() => ToastService.OnCambio += ManejarCambio;
+    private string _ruta = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        ToastService.OnCambio += ManejarCambio;
+        _ruta = RutaDe(Navegacion.Uri);
+        Navegacion.LocationChanged += ManejarNavegacion;
+    }
 
     private void ManejarCambio() => InvokeAsync(StateHasChanged);
 
-    public void Dispose() => ToastService.OnCambio -= ManejarCambio;
+    /// <summary>
+    /// Otra pantalla es otra ruta. Un cambio de la cadena de consulta (filtros, panel de contexto,
+    /// pestaña) es la misma pantalla, y ahí un error sigue exigiendo descarte manual.
+    /// </summary>
+    private void ManejarNavegacion(object? emisor, LocationChangedEventArgs e)
+    {
+        var ruta = RutaDe(e.Location);
+        if (string.Equals(ruta, _ruta, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        _ruta = ruta;
+        ToastService.AlCambiarDePantalla();
+    }
+
+    private static string RutaDe(string uri) => new Uri(uri).AbsolutePath.TrimEnd('/');
+
+    public void Dispose()
+    {
+        ToastService.OnCambio -= ManejarCambio;
+        Navegacion.LocationChanged -= ManejarNavegacion;
+    }
 }

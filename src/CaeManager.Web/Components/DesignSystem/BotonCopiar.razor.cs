@@ -74,7 +74,7 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
             // para copiar a mano. Con Valor, en cambio, todo llamador actual
             // ya lo pinta en pantalla (un <code>, un <p>, un CampoTexto), así
             // que sí es honesto sugerir la selección manual.
-            var sugerencia = ValorAsync is null ? " Selecciónalo y cópialo a mano." : string.Empty;
+            var sugerencia = ValorAsync is null ? " Selecciona el texto y cópialo a mano." : string.Empty;
             ToastService.Mostrar($"No se pudo copiar {Etiqueta}.{sugerencia}", TonoToast.Error);
         }
     }

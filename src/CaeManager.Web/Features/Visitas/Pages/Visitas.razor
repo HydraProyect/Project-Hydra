@@ -108,7 +108,7 @@
             </Extra>
         </BarraHerramientasLista>
 
-        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+        <div class="visitas-tabla" style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {

@@ -156,6 +156,60 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
         boton.GetAttribute("title").Should().NotBeNullOrWhiteSpace();
     }
 
+    // ---------- LV-5: «Anotar vigencia…» sobre una fila que ya la tiene ----------
+
+    private static AngleSharp.Dom.IElement BotonAnotarDe(IRenderedComponent<PlataformaTab> cut, string tipoDocumento) =>
+        cut.FindAll(".plataforma-fila-documento").Single(f => f.TextContent.Contains(tipoDocumento))
+            .QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Anotar vigencia…");
+
+    [Fact]
+    public async Task Anotar_vigencia_sobre_una_fila_con_fecha_abre_con_esa_fecha_y_sin_cambios_que_perder()
+    {
+        var cut = Render<PlataformaTab>();
+        cut.Markup.Should().Contain("Vale hasta el 30/06/2027", "control: la fila enseña la vigencia que el modal debe traer");
+
+        await BotonAnotarDe(cut, "Documento D").ClickAsync(new MouseEventArgs());
+
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento").Instance.Valor.Should().Be("2027-06-30");
+        cut.FindComponent<ModalFormulario>().Instance.HayCambios!().Should().BeFalse("la fecha precargada no es un cambio hasta que se toca");
+    }
+
+    [Fact]
+    public async Task Tocar_la_fecha_precargada_si_es_un_cambio()
+    {
+        var cut = Render<PlataformaTab>();
+        await BotonAnotarDe(cut, "Documento D").ClickAsync(new MouseEventArgs());
+
+        var fecha = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento");
+        await cut.InvokeAsync(() => fecha.Instance.ValorChanged.InvokeAsync("2028-01-15"));
+
+        cut.FindComponent<ModalFormulario>().Instance.HayCambios!().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Anotar_vigencia_sobre_una_fila_que_no_caduca_abre_en_no_caduca()
+    {
+        var cut = Render<PlataformaTab>();
+
+        await BotonAnotarDe(cut, "Documento E").ClickAsync(new MouseEventArgs());
+
+        cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "¿Hasta cuándo vale en esta plataforma?")
+            .Instance.Valor.Should().Be(nameof(EstadoVigenciaEnPlataforma.NoVenceAqui));
+        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Etiqueta == "Fecha de vencimiento");
+    }
+
+    [Fact]
+    public async Task Anotar_vigencia_tras_una_fila_con_fecha_no_arrastra_esa_fecha_a_otra_sin_confirmar()
+    {
+        var cut = Render<PlataformaTab>();
+        await BotonAnotarDe(cut, "Documento D").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        await BotonAnotarDe(cut, "Documento A").ClickAsync(new MouseEventArgs());
+
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de vencimiento").Instance.Valor.Should().BeEmpty();
+    }
+
     private sealed class Mediador : IMediator
     {
         public List<object> Recibidas { get; } = [];
@@ -176,7 +230,14 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
                 new ProveedorAcreditacionesDto(Guid.NewGuid(), "Dokify", "dokify",
                 [
                     new ClienteAcreditacionesDto(Guid.NewGuid(), "Cliente Norte S.A.",
-                        [a, b, Fila("Documento C", EstadoAcreditacion.PendienteDeSubir)])
+                        [
+                            a, b, Fila("Documento C", EstadoAcreditacion.PendienteDeSubir),
+                            Fila("Documento D", EstadoAcreditacion.Aceptada) with
+                            {
+                                EstadoVigencia = EstadoVigenciaEnPlataforma.VenceEnFecha, FechaVencimientoEnPlataforma = new DateOnly(2027, 6, 30)
+                            },
+                            Fila("Documento E", EstadoAcreditacion.Aceptada) with { EstadoVigencia = EstadoVigenciaEnPlataforma.NoVenceAqui },
+                        ])
                 ])
             ];
         }

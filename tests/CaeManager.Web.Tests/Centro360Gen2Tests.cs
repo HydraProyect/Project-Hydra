@@ -253,6 +253,49 @@ public class Centro360Gen2Tests : BunitContext
     /// <c>window.opener</c>, la de TALVEG.
     /// </summary>
     /// <summary>
+    /// LV-11 (recorrido del piloto Outbound): la cabecera decía «6 vencidos» mientras el pie decía
+    /// «0 vencidos · 6 faltantes». El recuento del Centro trae juntos lo vencido y lo faltante; la
+    /// cabecera los escribe con palabras y por eso los separa.
+    /// </summary>
+    [Fact]
+    public void La_cabecera_no_llama_vencido_a_lo_que_falta()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Nave Norte");
+        mediador.Resumenes[id] = Resumen(id, "Nave Norte", vencidas:
+        [
+            Incidencia("Falta: Reconocimiento médico — Laura P.") with { Estado = EstadoDocumento.Faltante, DocumentoId = null },
+            Incidencia("Falta: Reconocimiento médico — Íñigo S.") with { Estado = EstadoDocumento.Faltante, DocumentoId = null },
+        ]);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.Find(".centro360-indicadores [data-recuento='faltantes']").TextContent.Trim().Should().Be("2 faltantes"));
+        cut.FindAll(".centro360-indicadores [data-recuento='vencidos']").Should().BeEmpty("ninguno de los dos tiene una fecha vencida");
+        cut.Find(".centro360-indicadores").TextContent.Should().NotContain("vencido");
+    }
+
+    [Fact]
+    public void La_cabecera_cuenta_por_separado_lo_vencido_y_lo_que_falta()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Nave Norte");
+        mediador.Resumenes[id] = Resumen(id, "Nave Norte", vencidas:
+        [
+            Incidencia("Vencido: Formación PRL — Laura P."),
+            Incidencia("Rechazado en la plataforma — Laura P.") with { Estado = null },
+            Incidencia("Falta: Reconocimiento médico — Íñigo S.") with { Estado = EstadoDocumento.Faltante, DocumentoId = null },
+        ]);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.Find(".centro360-indicadores [data-recuento='vencidos']").TextContent.Trim().Should().Be("2 vencidos"));
+        cut.Find(".centro360-indicadores [data-recuento='faltantes']").TextContent.Trim().Should().Be("1 faltante");
+    }
+
+    /// <summary>
     /// P1-X2: un Centro sin gestión CAE se rotula como tal, en tono neutro, sin
     /// anillo de cumplimiento (un 0 % o un 100 % afirmaría algo que no se
     /// mide) y con la explicación en lugar de los canales de gestión.

@@ -57,6 +57,9 @@ public class AlcanceDatosServiceFalso(
     public Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(subcontrataIdsParaGestion ?? subcontrataIds);
 
+    public async Task<bool> ClienteEliminadoVisibleAsync(Guid clienteId, CancellationToken cancellationToken = default) =>
+        await ObtenerClienteIdsVisiblesAsync(cancellationToken) is not { } ids || ids.Contains(clienteId);
+
     public async Task<bool> SubcontrataEliminadaParaGestionVisibleAsync(Guid subcontrataId, CancellationToken cancellationToken = default) =>
         await ObtenerSubcontrataIdsParaGestionAsync(cancellationToken) is not { } ids || ids.Contains(subcontrataId);
 

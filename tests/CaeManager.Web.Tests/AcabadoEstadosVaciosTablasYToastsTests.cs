@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -127,6 +128,68 @@ public class AcabadoEstadosVaciosTablasYToastsTests : BunitContext
         servicio.Mensajes.Should().BeEmpty();
     }
 
+    // ---------- LV-10: un error no sobrevive a la navegación a otra pantalla ----------
+
+    [Fact]
+    public async Task Un_error_sigue_exigiendo_descarte_manual_mientras_no_se_cambia_de_pantalla()
+    {
+        var servicio = new ToastService(Corto, Corto);
+
+        servicio.Mostrar("no se pudo", TonoToast.Error);
+        await Task.Delay(Corto * 4);
+
+        servicio.Mensajes.Should().ContainSingle("sin cambiar de pantalla, un error no se autodescarta");
+    }
+
+    [Fact]
+    public async Task Al_cambiar_de_pantalla_el_error_caduca_como_los_demas_avisos()
+    {
+        var servicio = new ToastService(Corto, Corto);
+        servicio.Mostrar("no se pudo", TonoToast.Error);
+
+        servicio.AlCambiarDePantalla();
+
+        servicio.Mensajes.Should().ContainSingle("no se retira en el acto: una pantalla que avisa y redirige lo dejaría sin leer");
+        await EsperarAsync(() => servicio.Mensajes.Count == 0);
+        servicio.Mensajes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Cambiar_de_pantalla_no_reinicia_la_cuenta_de_un_aviso_que_ya_la_tenia()
+    {
+        var largo = TimeSpan.FromSeconds(30);
+        var servicio = new ToastService(largo, DosSegundos);
+        servicio.Mostrar("Eliminado.", TonoToast.Exito, "Deshacer", () => Task.CompletedTask);
+        var id = servicio.Mensajes.Single().Id;
+
+        servicio.AlCambiarDePantalla();
+
+        servicio.SegundosRestantes(id).Should().Be(2, "el «Deshacer» conserva su cuenta visible, no pasa a la de 30 s sin número");
+        await EsperarAsync(() => servicio.Mensajes.Count == 0);
+        servicio.Mensajes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_anfitrion_avisa_al_servicio_cuando_cambia_la_ruta_y_no_cuando_cambia_solo_la_consulta()
+    {
+        var servicio = new ToastService(Corto, Corto);
+        Services.AddSingleton(servicio);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("/clientes");
+        var cut = Render<AnfitrionToasts>();
+
+        servicio.Mostrar("no se pudo", TonoToast.Error);
+        cut.WaitForState(() => cut.FindAll(".toast").Count == 1);
+
+        navegacion.NavigateTo("/clientes?panel=abc");
+        await Task.Delay(Corto * 4);
+        servicio.Mensajes.Should().ContainSingle("filtros y panel de contexto son la misma pantalla");
+
+        navegacion.NavigateTo("/centros");
+        await EsperarAsync(() => servicio.Mensajes.Count == 0);
+        servicio.Mensajes.Should().BeEmpty("el error de /clientes no se queda sobre /centros");
+    }
+
     // ---------- Listados 5/7: cuenta atrás visible de «Deshacer» (decisión del 2026-10-08) ----------
 
     private static readonly TimeSpan DosSegundos = TimeSpan.FromSeconds(2);
@@ -207,6 +270,25 @@ public class AcabadoEstadosVaciosTablasYToastsTests : BunitContext
         css.Should().MatchRegex(@"@keyframes\s+entrar-toast\s*\{\s*from\s*\{[^}]*translateX\(24px\)");
         css.Should().MatchRegex(@"\.toast:hover\s+\.toast-progreso,\s*\.toast:focus-within\s+\.toast-progreso\s*\{\s*animation-play-state:\s*paused");
         css.Should().MatchRegex(@"@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^@]*\.toast\s*\{\s*animation:\s*none");
+    }
+
+    // ---------- LV-13: en Visitas «Más acciones» no se pierde cuando la tabla es más ancha que la pantalla ----------
+
+    /// <summary>
+    /// La propiedad es de maquetación y se midió en el navegador (a 1.207 px la tabla medía 1.504 px en un
+    /// contenedor de 868 px). Esto solo fija que las reglas siguen en la hoja y colgadas de su contenedor.
+    /// </summary>
+    [Fact]
+    public void En_Visitas_la_columna_de_acciones_queda_fija_y_las_cabeceras_parten_linea()
+    {
+        Leer("Features", "Visitas", "Pages", "Visitas.razor").Should().Contain("<div class=\"visitas-tabla\"", "las reglas cuelgan de este contenedor");
+
+        var css = Leer("Features", "Visitas", "Pages", "Visitas.razor.css");
+
+        css.Should().MatchRegex(@"\.visitas-tabla ::deep \.tabla-datos \.col-title-text\s*\{\s*white-space:\s*normal");
+        css.Should().MatchRegex(@"\.visitas-tabla ::deep \.tabla-datos th:last-child,\s*\.visitas-tabla ::deep \.tabla-datos td:last-child\s*\{\s*position:\s*sticky;\s*right:\s*0;\s*background-color:\s*var\(--color-surface\)");
+        css.Should().MatchRegex(@"tr:hover td:last-child\s*\{\s*background-color:\s*var\(--color-fila-hover\)");
+        css.Should().MatchRegex(@"td:last-child:has\(\.menu-acciones \[aria-expanded=""true""\]\)\s*\{\s*z-index:\s*3");
     }
 
     // ---------- 12: estados vacíos ----------

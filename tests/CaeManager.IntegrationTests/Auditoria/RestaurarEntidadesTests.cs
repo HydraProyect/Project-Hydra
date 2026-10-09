@@ -102,6 +102,35 @@ public class RestaurarEntidadesTests : IAsyncLifetime
             .EstaEliminado.Should().BeTrue("sin autoridad sobre el cliente, la restauración no debe ejecutarse");
     }
 
+    /// <summary>
+    /// <c>EsCritico</c> es lo que hace de una Empresa un Cliente empresarial: el «Deshacer» de
+    /// Clientes no devuelve una Empresa eliminada que no lo sea, aunque el alcance la cubra.
+    /// </summary>
+    [Fact]
+    public async Task Una_empresa_eliminada_que_no_es_cliente_empresarial_no_se_restaura_como_cliente()
+    {
+        Guid empresaId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var empresa = new Empresa("No Es Cliente S.L.", "B87654323");
+            contexto.Empresas.Add(empresa);
+            await contexto.SaveChangesAsync();
+            empresa.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+            empresaId = empresa.Id;
+        }
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        var handler = new RestaurarClienteCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar);
+
+        var resultado = await handler.Handle(new RestaurarClienteCommand(empresaId), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        (await contextoRestaurar.Empresas.IgnoreQueryFilters().SingleAsync(e => e.Id == empresaId))
+            .EstaEliminado.Should().BeTrue();
+    }
+
     [Fact]
     public async Task Un_cliente_eliminado_de_otro_tenant_no_se_restaura()
     {

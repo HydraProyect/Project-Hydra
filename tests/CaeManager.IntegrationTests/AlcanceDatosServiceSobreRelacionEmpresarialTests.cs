@@ -1,4 +1,6 @@
+using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.Plataforma;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
@@ -174,6 +176,106 @@ public class AlcanceDatosServiceSobreRelacionEmpresarialTests : IAsyncLifetime
         (await VisibleParaAsync(Guid.NewGuid(), "GestorCae")).Should().BeFalse("un Gestor CAE sin cartera no la alcanza");
         (await VisibleParaAsync(gestorConCartera, "Cliente")).Should().BeFalse("el rol Cliente (portal) lee, no gestiona (REC-159)");
         (await VisibleParaAsync(Guid.NewGuid(), "Administrador")).Should().BeTrue("el Administrador del Tenant tiene alcance total");
+    }
+
+    /// <summary>
+    /// LV-9 (recorrido del piloto Outbound): «Deshacer» de la baja de un Cliente empresarial. Bajo una
+    /// Asignación de Cartera de ámbito universal la lista de Clientes visibles se materializa desde
+    /// las Empresas vivas, así que nunca contiene el eliminado y <c>RestaurarClienteCommand</c>
+    /// respondía «No encontramos este Cliente empresarial eliminado». <c>ClienteEliminadoVisibleAsync</c>
+    /// decide con las mismas coordenadas (rol y cartera) sin pasar por la Empresa. Quien lo alcanzaba
+    /// vivo lo alcanza eliminado, y nadie más.
+    /// </summary>
+    [Fact]
+    public async Task Un_cliente_eliminado_sigue_al_alcance_de_quien_lo_alcanzaba_vivo_y_de_nadie_mas()
+    {
+        Guid cliente, otroCliente;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cli = Empresa.CrearComoCliente("Cliente Deshacer Baja S.A.", "B10380202", false, null, null);
+            var otro = Empresa.CrearComoCliente("Cliente Vecino S.A.", "B10380210", false, null, null);
+            contexto.Empresas.AddRange(cli, otro);
+            await contexto.SaveChangesAsync();
+            cliente = cli.Id; otroCliente = otro.Id;
+
+            cli.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+        }
+
+        var gestorUniversal = await OtorgarCarteraUniversalAsync();
+        var gestorDeEseCliente = await OtorgarCarteraAsync(cliente);
+        var gestorDelVecino = await OtorgarCarteraAsync(otroCliente);
+
+        AlcanceDatosService ServicioPara(CaeManagerDbContext contexto, Guid usuarioId, string rol) =>
+            new(contexto, new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant),
+                new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
+
+        async Task<bool> VisibleParaAsync(Guid usuarioId, string rol)
+        {
+            await using var contexto = CrearContexto(_tenant);
+            return await ServicioPara(contexto, usuarioId, rol).ClienteEliminadoVisibleAsync(cliente);
+        }
+
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var vivos = await ServicioPara(contexto, gestorUniversal, "GestorCae").ObtenerClienteIdsVisiblesAsync();
+            vivos.Should().Contain(otroCliente).And.NotContain(cliente,
+                "control: la lista de vivos no trae el eliminado, por eso la restauración no puede decidir con ella");
+        }
+
+        (await VisibleParaAsync(gestorUniversal, "GestorCae")).Should().BeTrue("su cartera universal alcanza todos los Clientes empresariales del Tenant");
+        (await VisibleParaAsync(gestorDeEseCliente, "GestorCae")).Should().BeTrue("su operación está acotada justo a ese Cliente empresarial");
+        (await VisibleParaAsync(gestorDelVecino, "GestorCae")).Should().BeFalse("su operación está acotada a otro Cliente empresarial");
+        (await VisibleParaAsync(Guid.NewGuid(), "GestorCae")).Should().BeFalse("un Gestor CAE sin cartera no lo alcanza");
+        (await VisibleParaAsync(Guid.NewGuid(), "Administrador")).Should().BeTrue("el Administrador del Tenant tiene alcance total");
+    }
+
+    /// <summary>
+    /// LV-9, el camino entero con el servicio de alcance real (los tests de
+    /// <c>RestaurarEntidadesTests</c> usan un doble y por eso no lo cazaron): el Gestor CAE de cartera
+    /// universal restaura el Cliente empresarial que dio de baja; el de otra cartera, no.
+    /// </summary>
+    [Fact]
+    public async Task El_Gestor_CAE_de_cartera_universal_restaura_el_cliente_que_dio_de_baja_y_el_de_otra_cartera_no()
+    {
+        Guid cliente, otroCliente;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cli = Empresa.CrearComoCliente("Cliente Restaurado S.A.", "B10380202", false, null, null);
+            var otro = Empresa.CrearComoCliente("Cliente Vecino S.A.", "B10380210", false, null, null);
+            contexto.Empresas.AddRange(cli, otro);
+            await contexto.SaveChangesAsync();
+            cliente = cli.Id; otroCliente = otro.Id;
+
+            cli.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+        }
+
+        var gestorUniversal = await OtorgarCarteraUniversalAsync();
+        var gestorDelVecino = await OtorgarCarteraAsync(otroCliente);
+
+        async Task<Result> RestaurarComoAsync(Guid usuarioId)
+        {
+            await using var contexto = CrearContexto(_tenant);
+            var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
+            var alcance = new AlcanceDatosService(
+                contexto, new CurrentUserServiceFalso(usuarioId, "GestorCae", tenantOrigenId: _tenant),
+                tenantActual, new SesionPrivilegiadaAusente());
+            return await new RestaurarClienteCommandHandler(contexto, tenantActual, alcance, contexto)
+                .Handle(new RestaurarClienteCommand(cliente), CancellationToken.None);
+        }
+
+        async Task<bool> SigueEliminadoAsync()
+        {
+            await using var contexto = CrearContexto(_tenant);
+            return (await contexto.Empresas.IgnoreQueryFilters().SingleAsync(e => e.Id == cliente)).EstaEliminado;
+        }
+
+        (await RestaurarComoAsync(gestorDelVecino)).EsFallido.Should().BeTrue("ese Cliente empresarial no está en su cartera");
+        (await SigueEliminadoAsync()).Should().BeTrue();
+
+        (await RestaurarComoAsync(gestorUniversal)).EsExitoso.Should().BeTrue("es el «Deshacer» que el diálogo de baja promete");
+        (await SigueEliminadoAsync()).Should().BeFalse();
     }
 
     /// <summary>Escenario 4: los datos de otro tenant no se filtran al alcance de este.</summary>
@@ -485,6 +587,21 @@ public class AlcanceDatosServiceSobreRelacionEmpresarialTests : IAsyncLifetime
         contexto.AsignacionesOperacion.Add(acotada);
         contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
             acotada, usuarioId, AmbitoAsignacion.Universal, ahora, null, ahora));
+
+        await contexto.SaveChangesAsync();
+        return usuarioId;
+    }
+
+    private async Task<Guid> OtorgarCarteraUniversalAsync()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var usuarioId = Guid.NewGuid();
+        var ahora = DateTime.UtcNow;
+
+        var universal = AsignacionOperacion.Interna(_tenant, ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora, null, ahora);
+        contexto.AsignacionesOperacion.Add(universal);
+        contexto.AsignacionesCartera.Add(AsignacionCartera.Interna(
+            universal, usuarioId, AmbitoAsignacion.Universal, ahora, null, ahora));
 
         await contexto.SaveChangesAsync();
         return usuarioId;

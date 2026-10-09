@@ -222,7 +222,7 @@
                     @if (context.Centros > 0)
                     {
                         <button type="button" class="enlace-centros-cliente"
-                                aria-label="@($"Ver los {context.Centros} centros de {context.RazonSocial}")"
+                                aria-label="@(context.Centros == 1 ? $"Ver el centro de {context.RazonSocial}" : $"Ver los {context.Centros} centros de {context.RazonSocial}")"
                                 @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "centros")'>
                             @context.Centros
                         </button>

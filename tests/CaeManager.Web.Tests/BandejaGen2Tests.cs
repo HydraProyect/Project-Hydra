@@ -412,12 +412,18 @@ public class BandejaGen2Tests : BunitContext
         public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default) where TNotification : INotification => Task.CompletedTask;
     }
 
-    private (IRenderedComponent<Bandeja> Cut, IRenderedComponent<DrawerReclamacionLote> Drawer) RenderizarConUrl(string url, Guid trabajadorId, params ItemBandejaDto[] items)
+    private (IRenderedComponent<Bandeja> Cut, IRenderedComponent<DrawerReclamacionLote> Drawer) RenderizarConUrl(string url, Guid trabajadorId, params ItemBandejaDto[] items) =>
+        RenderizarConUrl(url, trabajadorId, new MediatorDeLaBandeja(items));
+
+    private (IRenderedComponent<Bandeja> Cut, IRenderedComponent<DrawerReclamacionLote> Drawer) RenderizarConUrl(
+        string url, Guid trabajadorId, MediatorDeLaBandeja bandeja, bool interactivo = true)
     {
-        Services.AddScoped<IMediator>(_ => new MediatorConCajon(new MediatorDeLaBandeja(items), trabajadorId));
+        Services.AddScoped<IMediator>(_ => new MediatorConCajon(bandeja, trabajadorId));
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
+        // La página pregunta por RendererInfo antes de abrir el cajón desde ?pedir=. Tras registrar: ya resuelve servicios.
+        SetRendererInfo(new RendererInfo("Server", isInteractive: interactivo));
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         var cut = Render<Bandeja>();
         return (cut, cut.FindComponent<DrawerReclamacionLote>());
@@ -434,6 +440,39 @@ public class BandejaGen2Tests : BunitContext
         drawer.Instance.AmbitoInicial.Should().Be(CaeManager.Domain.Documentos.AmbitoAplicacion.Trabajador);
         drawer.Instance.EntidadIdInicial.Should().Be(trabajador);
         drawer.Instance.IncluirPendientesSinFecha.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Recorrido del piloto Outbound («Continuar» demasiado pronto en «Reclamar en lote»): el cajón se abría al
+    /// terminar la carga de la cola, así que mientras esa carga esperaba no había cajón que usar —el que se veía era
+    /// el del prerender, sin circuito— y lo pulsado se perdía. El cajón no depende de la cola: abre antes.
+    /// </summary>
+    [Fact]
+    public void Con_pedir_en_la_url_el_cajon_esta_abierto_aunque_la_cola_siga_cargando()
+    {
+        var trabajador = Guid.NewGuid();
+        var bandeja = new MediatorDeLaBandeja(Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A."));
+        bandeja.Retenidas[1] = new TaskCompletionSource<IReadOnlyList<ItemBandejaDto>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var (cut, drawer) = RenderizarConUrl("bandeja?pedir=" + trabajador, trabajador, bandeja);
+
+        cut.FindAll(".esqueleto-lista").Should().ContainSingle("control: la carga de la cola sigue retenida");
+        drawer.Instance.Visible.Should().BeTrue();
+        drawer.Instance.EntidadIdInicial.Should().Be(trabajador);
+    }
+
+    /// <summary>
+    /// En el prerender no hay circuito: un cajón pintado ahí enseña un «Continuar» que no responde, y desaparece
+    /// cuando la página se monta de verdad.
+    /// </summary>
+    [Fact]
+    public void En_el_prerender_el_cajon_no_se_pinta_abierto()
+    {
+        var trabajador = Guid.NewGuid();
+        var (_, drawer) = RenderizarConUrl("bandeja?pedir=" + trabajador, trabajador,
+            new MediatorDeLaBandeja(Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A.")), interactivo: false);
+
+        drawer.Instance.Visible.Should().BeFalse();
     }
 
     [Fact]

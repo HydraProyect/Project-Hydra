@@ -10,6 +10,7 @@ using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendi
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -439,13 +440,24 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private void GenerarInformeDelCentro() =>
         NavigationManager.NavigateTo($"/reportes?clienteId={_detalle!.ClienteId}&centroId={CentroId}");
 
+    /// <summary>
+    /// <c>RecuentosCentroDto.Vencidas</c> trae juntos lo vencido, lo faltante y el rechazo en
+    /// plataforma. La cabecera los escribe con palabras, así que separa lo que falta: un requisito
+    /// sin documento no tiene fecha que haya vencido (LV-11).
+    /// </summary>
+    private static IReadOnlyList<IncidenciaCentroDto> SoloFaltantes(IReadOnlyList<IncidenciaCentroDto> vencidas) =>
+        vencidas.Where(i => i.Estado == EstadoDocumento.Faltante).ToList();
+
+    private static IReadOnlyList<IncidenciaCentroDto> SoloVencidas(IReadOnlyList<IncidenciaCentroDto> vencidas) =>
+        vencidas.Where(i => i.Estado != EstadoDocumento.Faltante).ToList();
+
     private static string DescribirRecuento(IReadOnlyList<IncidenciaCentroDto> incidencias, string calificativo)
     {
         var deEmpresa = incidencias.Count(i => i.Ambito == AmbitoCausa.Empresa);
         var deTrabajadores = incidencias.Count - deEmpresa;
         var cabeza = incidencias.Count == 1
             ? $"1 documento {calificativo}"
-            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
+            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') || calificativo.EndsWith('e') ? calificativo + "s" : calificativo)}";
 
         var partes = new List<string>();
         if (deEmpresa > 0) partes.Add(deEmpresa == 1 ? "1 de empresa" : $"{deEmpresa} de empresa");

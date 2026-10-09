@@ -153,7 +153,7 @@ else
                                         }
                                         <span class="plataforma-vigencia">@TextoVigencia(documento)</span>
                                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                               OnClick="() => AbrirVigencia(documento.AcreditacionId)">
+                                               OnClick="() => AbrirVigencia(documento)">
                                             Anotar vigencia…
                                         </Boton>
                                     }
@@ -262,9 +262,10 @@ else
     /// <summary>
     /// P1-E2: «hay cambios» de cada modal de la pestaña (el guardián de su kit): lo tecleado en el de vigencia (la fecha) o en el de
     /// rechazo (el detalle), o su confirmación en curso. La causa del rechazo y el estado de la vigencia vienen preseleccionados y
-    /// elegir otro valor sin escribir nada no se pierde de forma que cueste recuperarlo.
+    /// elegir otro valor sin escribir nada no se pierde de forma que cueste recuperarlo. La fecha se compara con la que traía el
+    /// modal al abrirse: una vigencia ya anotada llega precargada y no es un cambio hasta que se toca.
     /// </summary>
-    private bool HayCambiosVigencia => _vigenciaVisible && (_confirmandoVigencia || !string.IsNullOrWhiteSpace(_fechaVigencia));
+    private bool HayCambiosVigencia => _vigenciaVisible && (_confirmandoVigencia || (_fechaVigencia ?? string.Empty).Trim() != _fechaVigenciaInicial);
 
     private bool HayCambiosRechazo => _rechazoVisible && (_rechazando || !string.IsNullOrWhiteSpace(_motivoRechazo));
 
@@ -304,6 +305,7 @@ else
     private Guid _acreditacionIdVigencia;
     private string _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
     private string _fechaVigencia = string.Empty;
+    private string _fechaVigenciaInicial = string.Empty;
     private string? _errorVigencia;
 
     private bool _rechazoVisible;
@@ -471,7 +473,20 @@ else
 
     private void MarcarAceptadoAsync(Guid acreditacionId) => AbrirModalVigencia(acreditacionId, yaAceptada: false);
 
-    private void AbrirVigencia(Guid acreditacionId) => AbrirModalVigencia(acreditacionId, yaAceptada: true);
+    /// <summary>
+    /// «Anotar vigencia…» sobre una fila: si ya tiene vigencia anotada, el modal abre con ella (LV-5 del recorrido del piloto
+    /// Outbound: abría vacío sobre una acreditación que decía «Vale hasta el…», como si no hubiera nada que corregir). «Falta
+    /// confirmar» no es un dato que precargar: abre como siempre, pidiendo la fecha.
+    /// </summary>
+    private void AbrirVigencia(AcreditacionDrillDownDto documento)
+    {
+        AbrirModalVigencia(documento.AcreditacionId, yaAceptada: true);
+
+        if (documento.EstadoVigencia == EstadoVigenciaEnPlataforma.NoVenceAqui)
+            _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.NoVenceAqui);
+        else if (documento is { EstadoVigencia: EstadoVigenciaEnPlataforma.VenceEnFecha, FechaVencimientoEnPlataforma: { } fecha })
+            _fechaVigencia = _fechaVigenciaInicial = fecha.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     private void AbrirModalVigencia(Guid acreditacionId, bool yaAceptada)
     {
@@ -479,7 +494,7 @@ else
         _idsVigenciaEnBloque = [];
         _soloVigencia = yaAceptada;
         _estadoVigencia = nameof(EstadoVigenciaEnPlataforma.VenceEnFecha);
-        _fechaVigencia = string.Empty;
+        _fechaVigencia = _fechaVigenciaInicial = string.Empty;
         _errorVigencia = null;
         _errorServidorVigencia = null;
         _vigenciaVisible = true;

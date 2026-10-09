@@ -223,8 +223,9 @@ public class ObtenerCentrosQueryHandler(
     /// (una causa bloqueante del Centro que no aparecía en ningún recuento ni
     /// texto — D-7 del piloto Outbound). Va con "próximas", no con "vencidas":
     /// el documento aún no venció, y estos dos buckets no son solo un tono de
-    /// color — se leen literalmente como texto ("N vencido(s)", ver
-    /// CentroDetalle.razor) en Centro 360. Meter Urgente en "vencidas"
+    /// color — se leen literalmente como texto en Centro 360 ("N vencido(s)" y,
+    /// separando por <see cref="IncidenciaCentroDto.Estado"/> lo que falta,
+    /// "N faltante(s)": ver CentroDetalle.razor). Meter Urgente en "vencidas"
     /// afirmaría una fecha vencida que no lo está (hallazgo de Codex, oleada 3
     /// sobre esta misma PR). La severidad de color de Urgente se resuelve en
     /// el badge de cada incidencia (<c>EstadoDocumentoUi.Tono</c>), no en qué

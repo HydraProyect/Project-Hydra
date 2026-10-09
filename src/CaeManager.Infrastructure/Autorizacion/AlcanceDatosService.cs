@@ -266,6 +266,18 @@ public class AlcanceDatosService(
     }
 
     /// <summary>
+    /// Las mismas ramas, en el mismo orden, que <see cref="ObtenerClienteIdsVisiblesAsync"/>, sin
+    /// materializar la del Tenant entero desde <c>dbContext.Empresas</c> (su filtro global oculta la
+    /// eliminada): quien alcanza todos los Clientes empresariales del Tenant alcanza también el que
+    /// acaba de dar de baja. Sin memoizar: solo lo llama el «Deshacer» de una baja.
+    /// </summary>
+    public async Task<bool> ClienteEliminadoVisibleAsync(Guid clienteId, CancellationToken cancellationToken = default)
+    {
+        var alcance = await ObtenerAlcanceDeCarteraAsync(cancellationToken);
+        return alcance.SinRestriccion || alcance.TenantEntero || alcance.ClienteIds.Contains(clienteId);
+    }
+
+    /// <summary>
     /// Decisión del propietario 2026-09-23: una Asignación de Cartera de ámbito universal vigente
     /// da al Gestor CAE —y al Coordinador CAE de ese Gestor— TODAS las ramas operativas del Tenant
     /// actual, estén o no unidas a un Cliente empresarial por un Centro, una Relación Empresarial o

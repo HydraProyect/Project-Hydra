@@ -168,17 +168,24 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IDis
 
     protected override async Task OnInitializedAsync()
     {
-        await CargarAsync();
+        // Antes de cargar la cola, no después: el cajón no depende de ella. Abrirlo al terminar la carga dejaba una
+        // ventana de segundos (la carga hace cola tras los islotes del layout) en la que el cajón que había pintado
+        // el prerender desaparecía al conectar el circuito y un «Continuar» pulsado entonces se perdía
+        // (recorrido del piloto Outbound: «Continuar» demasiado pronto en «Reclamar en lote»).
         AbrirPedirDeLaUrl();
+        await CargarAsync();
     }
 
     /// <summary>
     /// <c>/bandeja?pedir={TrabajadorId}</c> abre el cajón una sola vez: el parámetro sigue en la URL mientras la pantalla
-    /// vive, y sin esta marca cada recarga de la cola lo reabriría tras cerrarlo.
+    /// vive, y sin esta marca cada recarga de la cola lo reabriría tras cerrarlo. Solo con el circuito conectado: en el
+    /// prerender el cajón saldría pintado con un «Continuar» que todavía no responde. <c>RendererInfo</c> va el último
+    /// para consultarlo solo cuando hay algo que abrir.
     /// </summary>
     private void AbrirPedirDeLaUrl()
     {
-        if (_pedirAplicado || PedirTrabajadorId is not { } trabajadorId || trabajadorId == Guid.Empty || _desechado)
+        if (_pedirAplicado || PedirTrabajadorId is not { } trabajadorId || trabajadorId == Guid.Empty || _desechado
+            || !RendererInfo.IsInteractive)
             return;
 
         _pedirAplicado = true;
