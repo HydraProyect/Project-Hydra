@@ -110,8 +110,10 @@ public class AnadeBusquedaSinAcentosEnListadosTests : IAsyncLifetime
     /// <summary>
     /// La consulta que emite EF compara la misma expresión que indexa la migración, con
     /// <c>LIKE</c> (lo único a lo que sirve un índice trigram, no <c>strpos</c>), y el
-    /// planificador puede resolverla con el índice. Se mide como propietario de la base: es una
-    /// propiedad de la expresión, no de quién consulta.
+    /// planificador puede resolverla con el índice. Se mide como propietario de la base, sin RLS:
+    /// lo que se fija es que la expresión indexada y la consultada son la misma. Bajo RLS, como
+    /// <c>cae_app_runtime</c>, el planificador no usa un índice trigram para un <c>LIKE</c> (no es
+    /// <c>LEAKPROOF</c>), ni estos ni los anteriores sobre <c>upper(columna)</c>.
     /// </summary>
     [Fact]
     public async Task La_consulta_de_EF_compara_la_expresion_indexada_y_el_indice_le_sirve()

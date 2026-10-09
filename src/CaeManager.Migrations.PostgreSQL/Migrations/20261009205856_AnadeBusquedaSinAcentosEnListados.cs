@@ -35,6 +35,16 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// Asignaciones e Incidencias y la comprobación de duplicados de Centro y de Empresa
     /// siguen comparando con <c>upper(columna)</c>.
     /// </para>
+    ///
+    /// <para>
+    /// <b>Lo que estos índices no hacen.</b> Medido en PostgreSQL 17.10 con una tabla bajo RLS
+    /// leída como <c>cae_app_runtime</c>: el planificador no usa un índice trigram para un
+    /// <c>LIKE</c>, ni los antiguos ni estos, porque <c>LIKE</c> no es <c>LEAKPROOF</c> y no
+    /// puede evaluarse antes que la política de la tabla. Sirven a quien consulta sin RLS; en
+    /// el tráfico de la aplicación la búsqueda filtra las filas que la política ya dejó pasar.
+    /// Marcar algo <c>LEAKPROOF</c> para cambiarlo es una decisión de seguridad, no un ajuste
+    /// de rendimiento.
+    /// </para>
     /// </summary>
     public partial class AnadeBusquedaSinAcentosEnListados : Migration
     {
