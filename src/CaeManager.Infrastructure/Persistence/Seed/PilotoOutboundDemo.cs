@@ -999,22 +999,14 @@ public static class CatalogoPilotoOutbound
     /// vencidos para forzar un 0 %).
     ///
     /// <para>
-    /// DIVERGENCIA CONOCIDA DE <c>main</c>: Inicio y Visión de cartera cuentan
-    /// documentos existentes, no pares exigidos (<c>ObtenerKpisDashboardQuery.cs</c>:
-    /// la fracción sale de los documentos de Trabajador y, sin ninguno, la tasa es
-    /// 100). Centros y Empresas cuentan pares exigidos y dan 0 %. La autoverificación
-    /// exige que lo medido en esas dos pantallas sea exactamente este número, y avisa
-    /// de la divergencia mientras no coincida con el de Empresas.
-    /// </para>
-    ///
-    /// <para>
-    /// Cuando la regla de Inicio cambie en otro incremento, la autoverificación
-    /// fallará en «T4 · Inicio · % de cumplimiento»: se corrige AQUÍ, con el número
-    /// nuevo (0 si Inicio pasa a contar pares exigidos), y la advertencia desaparece
-    /// sola.
+    /// Sin ningún Documento de Trabajador, Inicio y Visión de cartera miran los pares que
+    /// exigen los Centros (<c>KpisDashboardDto.SinDocumentos</c>; decisión del propietario,
+    /// 2026-10-09: «que no dé 100 %»): T4 exige diecinueve y no cumple ninguno, así que dan
+    /// 0 %, lo mismo que Centros y Empresas. La autoverificación exige que lo medido en esas
+    /// dos pantallas sea exactamente este número.
     /// </para>
     /// </summary>
-    public const int CumplimientoDeInicioYVisionDeCarteraEnT4 = 100;
+    public const int CumplimientoDeInicioYVisionDeCarteraEnT4 = 0;
 
     /// <summary>
     /// T4: qué exige cada Centro (entre dos y tres tipos, ninguno bloqueante) y
@@ -1195,11 +1187,7 @@ public static class CatalogoPilotoOutbound
                 CumplimientoVisionCartera: CumplimientoDeInicioYVisionDeCarteraEnT4,
                 CumplimientoEmpresa: 0,
                 Centros: [.. tenant.Centros.Select(c => new EsperadoCentroPilotoOutbound(c.Nombre, EstadoCentro.Faltante, 0))],
-                ParesExigidos: 19, ParesFaltantes: 19, Documentos: 0, TodoAlDia: false,
-                Divergencia:
-                    "sin ningún documento, Inicio y Visión de cartera no pintan 0 %: cuentan documentos existentes, no pares " +
-                    "exigidos. Inicio pinta el anillo con «0 de 0 documentos al día en cartera» y Visión de cartera pinta el " +
-                    "mismo porcentaje en su fila; Centros y Empresas sí dan 0 %."),
+                ParesExigidos: 19, ParesFaltantes: 19, Documentos: 0, TodoAlDia: false),
 
             // Mi trabajo: dos Trabajadores bloqueados en el Centro de la periodicidad especial (2), la Formación
             // vencida (1) y el EPI urgente (1). Documentos: 4 × 5, uno Vencido: 19 de 20 = 95 %. Pares: 44

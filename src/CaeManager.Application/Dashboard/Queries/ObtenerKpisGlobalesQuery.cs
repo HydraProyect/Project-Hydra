@@ -107,13 +107,14 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
     ///
     /// <para>
     /// La media de SLA documental pondera cada Cliente Delegante por su
-    /// volumen de documentos medidos (el denominador de
-    /// <see cref="KpisDashboardDto.Fraccion"/>: todos los estados, «Sin confirmar» y «Sin caducidad» incluidos) y excluye a los que no tienen ninguna cartera
+    /// volumen de documentos medidos (<see cref="KpisDashboardDto.DenominadorDeLaTasa"/>: el denominador de
+    /// <see cref="KpisDashboardDto.Fraccion"/>, todos los estados, «Sin confirmar» y «Sin caducidad» incluidos; o, sin
+    /// ningún documento, los pares que exigen sus Centros, cuya tasa es 0) y excluye a los que no tienen ninguna cartera
     /// asignada: su 100% es "no hay nada que evaluar para este usuario", no
     /// "está al día", y promediarlo igual que un Cliente con cartera completa
     /// inflaba el SLA agregado con alcance que en realidad no existe (defecto
     /// de fuga de alcance, hallazgo Codex 2026-09-11). Un Cliente CON cartera
-    /// pero sin ningún documento con vigencia (volumen cero) queda excluido
+    /// pero sin ningún documento ni par exigido (volumen cero, «sin datos») queda excluido
     /// por el mismo mecanismo de ponderación, sin necesitar una regla aparte:
     /// pesa cero en la suma igual que si no estuviera. Si nadie pesa, no hay
     /// media: <c>HayCumplimientoDocumentalQueMedir</c> sale false y el 100 que
@@ -137,7 +138,7 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
 
         var conPeso = porCliente
             .Where(p => !p.Kpis.SinCarteraAsignada)
-            .Select(p => (Tasa: p.Kpis.TasaCumplimientoDocumental, Peso: (double)p.Kpis.Fraccion.Requeridos))
+            .Select(p => (Tasa: p.Kpis.TasaCumplimientoDocumental, Peso: (double)p.Kpis.DenominadorDeLaTasa))
             .Where(p => p.Peso > 0)
             .ToList();
         var tasaPromedio = conPeso.Count == 0 ? 100 : (int)(conPeso.Sum(p => p.Tasa * p.Peso) / conPeso.Sum(p => p.Peso));
