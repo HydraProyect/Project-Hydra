@@ -57,7 +57,7 @@
      oscuro. -500 es solo para rellenos sin letra (el punto de una opción del
      selector): un token no puede hacer de texto y de fondo a la vez, y no se
      espeja porque #e0500a se distingue de la superficie a >= 3:1 en los dos
-     temas (3,95:1 sobre blanco, 4,12:1 sobre #17212c). No es un color decorativo. */
+     temas (3,95:1 sobre blanco, 4,07:1 sobre #18222e). No es un color decorativo. */
   --color-tolerancia-50: #ffe3d5;
   --color-tolerancia-500: #e0500a;
   --color-tolerancia-700: #b12c0c;
@@ -138,9 +138,9 @@
   --color-border-strong: #bcc7d4;
   /* Borde que identifica un control interactivo. Sujeto al 3:1 de 02 § 8
      (DDL-062); --color-border no lo alcanza (1,44:1) y es solo estructural.
-     Se define una sola vez: el valor es el mismo en ambos temas — 3,39:1 en
-     claro (sobre el lienzo, que desde el 2026-10-08 es el fondo más
-     restrictivo; 3,61:1 sobre Subtle) y 3,64:1 en oscuro (DDL-063). */
+     Claro: 3,39:1 sobre el lienzo, que desde el 2026-10-08 es el fondo más
+     restrictivo (3,61:1 sobre Subtle) (DDL-063). El oscuro lo redeclara desde
+     la paleta G (2026-10-09): ver el bloque oscuro. */
   --color-border-control: var(--color-neutral-500);
 
   /* Filas de listado y de ficha 360 (diseños aprobados el 2026-10-08). Tokens
@@ -168,7 +168,7 @@
      de fondo y --color-primary-700 de letra: en oscuro el 700 se remapea a
      #dcebff pero el 100 no se redefine, así que fondo y letra salían del mismo
      color (1,00:1, medido 2026-10-02 en staging: cuadrado liso sin iniciales).
-     Claro: 8,97:1. Oscuro: 13,86:1 (ver el bloque oscuro). El contrato lo fija
+     Claro: 8,97:1. Oscuro: 12,39:1 (ver el bloque oscuro). El contrato lo fija
      ContrasteDeAvataresPorTemaTests: >= 4,5:1 en los dos temas. */
   --color-avatar-fondo: var(--color-primary-100);
   --color-avatar-texto: var(--color-primary-700);
@@ -197,8 +197,8 @@
      Configuración → Organización). Blanco fijo en los dos temas: el mockup lo
      pinta #fff y un logo de tinta oscura sobre transparencia se perdería sobre
      --color-surface en oscuro. Es un valor de marca, no de superficie, por eso
-     NO se redeclara en los bloques de tema (mismo criterio que
-     --color-border-control). Sin texto encima: el logo no lleva letras. */
+     NO se redeclara en los bloques de tema. Sin texto encima: el logo no
+     lleva letras. */
   --color-logo-fondo: #ffffff;
 
   /* Botón primario y sus copias (Boton, Account, Reconnect, Asistente IA,
@@ -217,7 +217,7 @@
   /* Letra sobre un relleno sólido de --color-success-700 (círculo del paso
      completado de la revisión de sugerencia). El relleno se aclara en oscuro
      (#4ade80) y la letra era #fff fija: 1,74:1. Claro: sin cambios (#fff sobre
-     #15803d, 5,02:1). Oscuro: ver el bloque oscuro (10,6:1). */
+     #15803d, 5,02:1). Oscuro: ver el bloque oscuro (10,96:1). */
   --color-exito-solido-texto: var(--color-neutral-0);
 
   /* Cajas del editor de plantillas (ConfigurarPlantilla) sobre la página del
@@ -342,9 +342,8 @@
   usuario con el sistema operativo en oscuro no debe aterrizar ahí sin
   elegirlo. Mientras tanto se gestiona solo en modo claro por defecto; el
   oscuro sigue disponible como elección EXPLÍCITA desde SelectorTema (ver el
-  bloque :root[data-theme='oscuro'] más abajo, con los mismos valores que
-  tenía este @media) — no se ha borrado la identidad oscura, solo su
-  activación automática por preferencia del sistema.
+  bloque :root[data-theme='oscuro'] más abajo) — no se ha borrado la
+  identidad oscura, solo su activación automática por preferencia del sistema.
 */
 
 /*
@@ -352,37 +351,52 @@
   usuario lo enciende; apagado es la ausencia de preferencia ("sistema" en
   la cuenta), que —desde que se desactivó el @media (prefers-color-scheme:
   dark) de arriba— siempre resuelve en claro (los valores de :root de la
-  cabecera del archivo). El bloque de Oscuro conserva los mismos valores que tenía el
-  @media desactivado, listos para cuando se retome el auto-seguimiento del
-  sistema operativo tras el rediseño del modo oscuro.
+  cabecera del archivo). El bloque de Oscuro lleva desde el 2026-10-09 la
+  paleta G (ya no los valores del @media desactivado), lista para cuando se
+  retome el auto-seguimiento del sistema operativo.
 */
 :root[data-theme='oscuro'] {
-  --color-bg: #0e141b;
-  --color-surface: #17212c;
-  --color-surface-hover: #202b36;
-  --color-surface-subtle: #131b24;
+  /* Paleta G «Azul noche nítido» (decisión de Chris, 2026-10-09). Criterio:
+     en oscuro no se apagan los colores de estado ni se aclara el texto
+     secundario, porque resta nitidez; lo que cambia es la separación entre
+     lienzo, tarjeta y línea. Los contrastes de este bloque están calculados
+     con la fórmula WCAG, no medidos en pantalla.
+     · --color-text (#f0f3f7): 14,44:1 sobre Surface, 17,16:1 sobre el lienzo.
+     · --color-text-muted (#8c9aac): 5,61:1 sobre Surface, 6,67:1 sobre el
+       lienzo, 6,18:1 sobre Subtle; el peor fondo es Elevated/Overlay
+       (#202b36), 5,02:1.
+     · --color-border (#2e3c4d): 1,43:1 sobre Surface; estructural.
+     --color-elevated, --color-overlay y --color-border-strong conservan el
+     valor anterior a la paleta G, que no los nombra: Elevated y Overlay siguen
+     un escalón por encima de Surface (1,12:1) y Strong queda entre Border y el
+     divisor de fila, como en claro. */
+  --color-bg: #0a1017;
+  --color-surface: #18222e;
+  --color-surface-hover: #1e2936;
+  --color-surface-subtle: #111922;
   --color-elevated: #202b36;
   --color-overlay: #202b36;
-  --color-text: #e7eaee;
-  --color-text-muted: #8592a3;
-  --color-border: #293644;
+  --color-text: #f0f3f7;
+  --color-text-muted: #8c9aac;
+  --color-border: #2e3c4d;
   --color-border-strong: #3a4a5c;
-  /* El borde de control NO se redeclara aquí: #738196 es el mismo valor en
-     ambos temas, único token de color que lo hace. No es simetría buscada
-     sino consecuencia de que es el único escalón que cumple 3:1 en los dos
-     (3,39:1 en claro, 3,64:1 en oscuro contra el fondo más restrictivo). */
-  /* Filas (ver el grupo en :root). Divisor y pista del anillo: el valor de
-     --color-border-strong (#3a4a5c), 1,79:1 sobre Surface; la pista pintaba
-     antes --color-neutral-300 (#d5dce5), casi blanca sobre oscuro.
-     Hover y resaltado (decididos el 2026-10-08) dejan al texto secundario
-     (#8592a3) cumpliendo 4,5:1 encima:
-     · hover: --color-surface-hover (#202b36), 4,55:1. Un fondo más claro,
-       como #26323f, lo dejaría en 4,12:1.
-     · resaltado de búsqueda: #33280a, 4,58:1 (y 12,01:1 con --color-text). */
+  /* Borde de control (DDL-062, 3:1): #7c8a9e, un punto más claro que el
+     --color-neutral-500 de claro. 4,58:1 sobre Surface y 4,10:1 sobre
+     Elevated/Overlay (#202b36), el fondo más restrictivo. */
+  --color-border-control: #7c8a9e;
+  /* Filas (ver el grupo en :root).
+     · divisor: #41526a, 2,02:1 sobre Surface (2,10:1 en claro) y 1,85:1 sobre
+       la fila bajo el puntero. Estructural, no sujeto al 3:1.
+     · pista del anillo: #33414f, 1,54:1 sobre Surface. Antes de 2026-10-08
+       pintaba --color-neutral-300 (#d5dce5), casi blanca sobre oscuro.
+     · hover: --color-surface-hover (#1e2936); el texto secundario (#8c9aac)
+       da 5,14:1 encima.
+     · resaltado de búsqueda: #33280a, 5,06:1 con el texto secundario y
+       13,02:1 con --color-text. */
   --color-fila-hover: var(--color-surface-hover);
-  --color-fila-divisor: var(--color-border-strong);
+  --color-fila-divisor: #41526a;
   --color-resaltado-busqueda: #33280a;
-  --color-anillo-pista: var(--color-border-strong);
+  --color-anillo-pista: #33414f;
 
   /* Hydra Cyan — asimétrico por tema (DDL-027): el sistema brilla en oscuro
      y se contiene en claro. Aquí texto e indicador convergen en el mismo
@@ -390,22 +404,27 @@
   --color-system-text: #2bd4f0;
   --color-system-indicator: #2bd4f0;
 
-  --color-success-50: #052e1a;
-  --color-warning-50: #3a2405;
-  --color-danger-50: #3a0a0a;
-  --color-tolerancia-50: #3a1606;
-  --color-secondary-50: #1d2733;
-  /* Avatar de iniciales: en oscuro el fondo es el -50 oscuro (#0e1d39) y la
-     letra el -700 remapeado (#dcebff): 13,86:1 — ver el par en :root. */
-  --color-avatar-fondo: var(--color-primary-50);
+  /* Tintes de estado de la paleta G, con su -700 encima: éxito 8,84:1,
+     aviso 8,84:1, peligro 6,03:1, tolerancia 7,16:1. El texto secundario
+     (#8c9aac) cumple 4,5:1 sobre los cuatro (el peor, aviso: 5,15:1).
+     --color-secondary-50 es la punta de --color-info-50 (#1c2633 en la
+     paleta G). */
+  --color-success-50: #0c2a1b;
+  --color-warning-50: #33260c;
+  --color-danger-50: #341418;
+  --color-tolerancia-50: #341a0c;
+  --color-secondary-50: #1c2633;
+  /* Avatar de iniciales: fondo propio de la paleta G (#12264a) y la letra el
+     -700 remapeado (#dcebff): 12,39:1 — ver el par en :root. */
+  --color-avatar-fondo: #12264a;
   --color-avatar-texto: var(--color-primary-700);
   --color-avatar-fondo-neutro: #2a3441;
   /* Selección: fondo del azul brillante de la paleta (-300, #5ca2f4) y letra
-     --color-bg (#0e141b): 6,99:1 y visible sobre Surface (#17212c). */
+     --color-bg (#0a1017): 7,21:1 y visible sobre Surface (#18222e). */
   --color-seleccion-fondo: var(--color-primary-300);
   --color-seleccion-texto: var(--color-bg);
-  /* Hover del activo del menú: --color-surface-hover (#202b36) con la letra
-     --color-primary-500 remapeada (#5ca2f4): 5,43:1. El borde sigue siendo el
+  /* Hover del activo del menú: --color-surface-hover (#1e2936) con la letra
+     --color-primary-500 de oscuro (#60a5fa): 5,79:1. El borde sigue siendo el
      del activo (--color-primary-100), así que sigue leyéndose como activo. */
   --color-nav-activo-hover-fondo: var(--color-surface-hover);
   /* Botón primario: fondo --color-primary-400 (#2f6fdd), el escalón de la paleta
@@ -414,20 +433,21 @@
      claro y por eso no se puede referenciar): 8,31:1. */
   --color-primario-fondo: var(--color-primary-400);
   --color-primario-fondo-hover: #1e4a9e;
-  /* Relleno success-700 en oscuro = #4ade80: letra del fondo de página (#0e141b). */
+  /* Relleno success-700 en oscuro = #4ade80: letra del fondo de página
+     (#0a1017), 10,96:1. */
   --color-exito-solido-texto: var(--color-bg);
-  /* Único escalón -50 que se quedó sin redefinir aquí (medido 2026-09-18):
-     el resto de la familia -50 sí tiene variante oscura, esta no, así que
-     seguía pintando #eef5ff (fondo casi blanco) en tema oscuro mientras el
-     texto que va encima sí se remapea a claro (--color-primary-700 →
-     --color-primary-100 dos líneas más abajo). Resultado: texto casi blanco
-     sobre fondo casi blanco — el defecto reportado en Configuración → Acceso
-     e identidad → Roles, y el mismo patrón en los otros 36 usos de
-     --color-primary-50 como fondo. 13,9:1 con --color-text (#e7eaee),
-     6,3:1 con --color-primary-500 remapeado (#5ca2f4) — ambos superan 4.5:1. */
-  --color-primary-50: #0e1d39;
+  /* El -50 primario necesita variante oscura: sin ella pintaba #eef5ff (fondo
+     casi blanco) mientras el texto que va encima sí se remapea a claro
+     (--color-primary-700 → --color-primary-100 más abajo), el defecto de
+     Configuración → Acceso e identidad → Roles (medido 2026-09-18). Paleta G:
+     #0f2040, 14,50:1 con --color-text (#f0f3f7), 13,35:1 con el -700
+     (#dcebff) y 6,35:1 con --color-primary-500 de oscuro (#60a5fa). */
+  --color-primary-50: #0f2040;
 
-  --color-primary-500: var(--color-primary-300);
+  /* Enlace y acento en oscuro: #60a5fa (paleta G), 6,32:1 sobre Surface. Es
+     un valor propio y no --color-primary-300 (#5ca2f4), que sigue siendo el
+     fondo de la selección de texto. */
+  --color-primary-500: #60a5fa;
   --color-primary-600: var(--color-primary-200);
   --color-primary-700: var(--color-primary-100);
 
@@ -436,12 +456,12 @@
      el texto se quedaba fijo mientras el fondo sí cambiaba de tema, y el
      contraste se hundía en oscuro — .titulo-aviso-normativo 1,29:1,
      .badge-neutro 2,02:1, .descripcion-avisos-normativos 2,62:1 (medido
-     2026-09-18, continuación de #690 y #693). Con el espejo: 13,82:1,
-     12,56:1 y 7,75:1.
+     2026-09-18, continuación de #690 y #693). Con el espejo y la paleta G
+     (los dos extremos sobre Surface, el del medio sobre Subtle):
+     13,64:1, 12,81:1 y 7,65:1.
 
-     El eje es el -500 porque es el único escalón neutro que ya funcionaba en
-     los dos temas, y por eso --color-border-control no se redeclara (ver el
-     comentario de arriba): el espejo y esa excepción dicen lo mismo.
+     El eje es el -500 porque es el único escalón neutro que funciona en los
+     dos temas.
 
      Los tres se usan HOY exclusivamente como `color:` — medido por regla, no
      por línea. Si alguno pasara a usarse como fondo o borde, este espejo le
@@ -454,8 +474,8 @@
   /* --color-info-500 es alias de este, y sus 7 usos como texto (.badge-info,
      .badge-visita, .pendiente-rol-icono y cuatro reglas de Plataforma) daban
      1,99:1 y 2,15:1 en oscuro: el alias no cambiaba de tema porque su punta
-     era literal y no tenía variante. Espejado a -300, quedan en 7,60:1 y
-     8,19:1. Se redeclara el -500 y no el alias porque --color-secondary-500
+     era literal y no tenía variante. Espejado a -300, quedan en 7,69:1 y
+     8,08:1. Se redeclara el -500 y no el alias porque --color-secondary-500
      no tiene ningún otro consumidor (medido): arreglarlo en la punta evita
      dos declaraciones que puedan divergir. */
   --color-secondary-500: var(--color-secondary-300);

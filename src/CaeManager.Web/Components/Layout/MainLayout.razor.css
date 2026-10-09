@@ -85,7 +85,7 @@ html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav) {
 
 /*
   .barra-lateral usa --color-surface, que cambia de blanco (tema claro) a
-  #17212C (tema oscuro, ver tokens.css): un solo wordmark estático se
+  #18222E (tema oscuro, ver tokens.css): un solo wordmark estático se
   volvería invisible en uno de los dos fondos, así que se alterna entre
   lockup-claro.svg y lockup-oscuro.svg.
 
