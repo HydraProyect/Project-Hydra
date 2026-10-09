@@ -41,6 +41,60 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private readonly CancellationTokenSource _ciclo = new();
     private bool _desechado;
 
+    // ── La fila se refresca tras guardar en la vista rápida ─────────────────────────────────────
+    // El panel vive en MainLayout y guarda sin pasar por esta página: avisa por
+    // ContextWorkspaceService.OnEntidadGuardada. Se vuelve a pedir SOLO esa fila y se sustituye
+    // en sitio (mismo criterio que Centros.RefrescarCentroAsync): filtros, orden, página,
+    // selección, fila enfocada y desplazamiento no se tocan, y la fila permanece aunque el
+    // cambio la saque del filtro activo, hasta la siguiente carga. Los recuentos de la franja
+    // tampoco se recalculan hasta entonces.
+
+    /// <summary>
+    /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
+    /// QuickGrid solo repinta sus filas cuando su proveedor le entrega una página, y una carga
+    /// de verdad limpiaría la selección y la fila enfocada. El total no cambia, así que no hay
+    /// segunda petición (ver RecargarAsync).
+    /// </summary>
+    private bool _servirPaginaEnMemoria;
+
+    private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
+    {
+        if (tipo == EntidadWorkspace.Cliente)
+            _ = InvokeAsync(() => RefrescarFilaAsync(id));
+    }
+
+    private async Task RefrescarFilaAsync(Guid id)
+    {
+        // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
+        // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
+        // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
+        if (_desechado || _grid is null || _cargando || !_elementosPagina.Any(e => e.Id == id))
+            return;
+
+        var carga = _cargaVigente;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, Id: id), _ciclo.Token);
+            var indice = _elementosPagina.FindIndex(e => e.Id == id);
+            if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
+                || resultado.Elementos.FirstOrDefault() is not { } actualizada)
+                return;
+
+            _elementosPagina[indice] = actualizada;
+            _servirPaginaEnMemoria = true;
+            await _grid.RefreshDataAsync();
+        }
+        catch (Exception)
+        {
+            // El guardado ya es firme: que falle la relectura no es un error que enseñar. La
+            // fila conserva el dato anterior hasta la siguiente carga, como antes de este aviso.
+        }
+        finally
+        {
+            _servirPaginaEnMemoria = false;
+        }
+    }
+
     public void Dispose()
     {
         if (_desechado)
@@ -48,6 +102,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         _desechado = true;
         WorkspaceService.OnCambio -= AlCambiarWorkspace;
+        WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -334,6 +389,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     {
         // «e» sin fila enfocada edita la ficha abierta: la página se entera de cuál es.
         WorkspaceService.OnCambio += AlCambiarWorkspace;
+        WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
@@ -465,6 +521,13 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private async ValueTask<GridItemsProviderResult<ClienteListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<ClienteListaDto> request)
     {
+        if (_servirPaginaEnMemoria)
+        {
+            // Refresco de una fila tras guardar en la vista rápida (ver RefrescarFilaAsync).
+            _servirPaginaEnMemoria = false;
+            return GridItemsProviderResult.From(_elementosPagina.ToList(), _totalElementos);
+        }
+
         // Todo lo que define la pregunta se lee ANTES del await.
         var carga = ++_cargaVigente;
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);

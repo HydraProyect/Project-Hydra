@@ -27,7 +27,7 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 public record ObtenerTrabajadoresQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
-    bool ConRecuentosPorEstado = false)
+    bool ConRecuentosPorEstado = false, Guid? TrabajadorId = null)
     : IRequest<ResultadoPaginado<TrabajadorListaDto>>;
 
 public record TrabajadorListaDto(
@@ -59,6 +59,11 @@ public class ObtenerTrabajadoresQueryHandler(
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         if (trabajadorIdsVisibles is not null)
             consulta = consulta.Where(x => trabajadorIdsVisibles.Contains(x.trabajador.Id));
+
+        // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
+        // Va después del alcance: solo estrecha.
+        if (request.TrabajadorId is not null)
+            consulta = consulta.Where(x => x.trabajador.Id == request.TrabajadorId);
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {

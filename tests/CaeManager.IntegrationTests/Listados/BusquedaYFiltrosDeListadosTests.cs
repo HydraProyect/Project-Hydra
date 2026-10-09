@@ -164,6 +164,47 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         todas.Should().BeEquivalentTo("Subcontrata Gestionada S.L.", "Subcontrata Supervisada S.L.");
     }
 
+    /// <summary>
+    /// El filtro por id es el que usa el listado para sustituir en sitio la fila recién editada en
+    /// la vista rápida: con la misma pregunta que la carga de página, el filtro no altera ningún
+    /// campo de la fila. Que la página haga de verdad esa misma pregunta de estado
+    /// (<c>ConRecuentosPorEstado</c>) lo fija <c>EmpresasListaGen2Tests</c>, no este test.
+    /// </summary>
+    [Fact]
+    public async Task Empresas_la_fila_pedida_por_id_es_la_misma_que_la_de_la_pagina()
+    {
+        var pagina = await ObtenerEmpresasAsync(new ObtenerEmpresasQuery(null, TamanoPagina: 50, ConRecuentosPorEstado: true), new AlcanceDatosServiceFalso());
+        var porId = await ObtenerEmpresasAsync(new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: true, EmpresaId: _empresaNorteId), new AlcanceDatosServiceFalso());
+
+        pagina.Should().HaveCountGreaterThan(1);
+        porId.Should().ContainSingle().Which.Should().BeEquivalentTo(pagina.Single(e => e.Id == _empresaNorteId));
+    }
+
+    /// <summary>El filtro por id va después del alcance: solo estrecha, nunca enseña una Empresa que el usuario no ve.</summary>
+    [Fact]
+    public async Task Empresas_el_filtro_por_id_no_devuelve_una_Empresa_fuera_del_alcance()
+    {
+        var soloNorte = new AlcanceDatosServiceFalso(empresaIds: [_empresaNorteId]);
+
+        var fuera = await ObtenerEmpresasAsync(new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: true, EmpresaId: _empresaSurId), soloNorte);
+        var dentro = await ObtenerEmpresasAsync(new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: true, EmpresaId: _empresaNorteId), soloNorte);
+
+        fuera.Should().BeEmpty();
+        dentro.Should().ContainSingle().Which.RazonSocial.Should().Be("Montajes Norte S.L.");
+    }
+
+    private async Task<IReadOnlyList<EmpresaListaDto>> ObtenerEmpresasAsync(ObtenerEmpresasQuery consulta, AlcanceDatosServiceFalso alcance)
+    {
+        await using var contexto = CrearContexto();
+        var handler = new ObtenerEmpresasQueryHandler(
+            contexto, alcance,
+            new CalculoEstadoDocumentalService(contexto, contexto),
+            contexto, contexto, contexto, contexto,
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto));
+
+        return (await handler.Handle(consulta, CancellationToken.None)).Elementos.ToList();
+    }
+
     private async Task<IReadOnlyList<string>> ObtenerEmpresasAsync(string busqueda)
     {
         await using var contexto = CrearContexto();

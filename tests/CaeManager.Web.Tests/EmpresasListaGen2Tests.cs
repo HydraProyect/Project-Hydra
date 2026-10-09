@@ -145,6 +145,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         public ResultadoPaginado<EmpresaListaDto> Filtrar(ObtenerEmpresasQuery q)
         {
             var coincidentes = Almacen
+                .Where(e => q.EmpresaId is null || e.Id == q.EmpresaId)
                 .Where(e => string.IsNullOrWhiteSpace(q.Busqueda)
                     || e.RazonSocial.ToUpperInvariant().Contains(q.Busqueda.ToUpperInvariant()))
                 .Where(e => EstadoDocumentalFiltro.Coincide(e.EstadoDocumental, q.EstadoDocumental))
