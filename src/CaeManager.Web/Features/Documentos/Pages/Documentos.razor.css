@@ -43,3 +43,38 @@
     justify-content: flex-end;
     gap: var(--space-2);
 }
+
+/*
+  La tabla desplaza en horizontal dentro de su propio envoltorio, no con la página. Sus siete columnas
+  (ocho con la casilla de «Selección múltiple») no caben en el hueco a los anchos de escritorio
+  habituales, y lo que sobraba lo desplazaba .contenido: se iban con la tabla la cabecera de la página,
+  las pestañas y los filtros. No hay ancho de corte: si la tabla cabe, el envoltorio no desplaza; si
+  deja de caber porque crece una columna, sigue desplazando él.
+
+  Precio, decidido el 2026-10-09: un contenedor que desplaza en horizontal también lo hace en vertical
+  (overflow-y pasa a auto), así que la cabecera de la tabla (.tabla-datos thead th, position: sticky en
+  list-page.css) ya no se pega a .contenido al bajar por la lista.
+
+  De 767 px para abajo no se aplica: ahí la propia tabla es el contenedor (regla de móvil de
+  list-page.css). El envoltorio lleva tabindex para que el desplazamiento se alcance con el teclado
+  (flechas izquierda y derecha con el foco en él); por eso tiene su anillo de foco.
+  Lo fija DocumentosTablaDesplazableE2ETests.
+
+  Por lo mismo, lo que sobresale por debajo de la tabla desplaza el envoltorio en vertical. Dos casos:
+    · la entrada escalonada de las filas (revelar-escalonado, list-page.css) las baja 6 px mientras
+      dura, y sin sitio debajo asomaba una barra vertical durante la animación: de ahí el relleno
+      inferior de 6 px (medido: 5 px de desplazamiento vertical sin él, 0 con él);
+    · la ventana «Estado en plataformas» de la última fila se abre hacia abajo y sí lo desplaza
+      (unos 50 px con una plataforma); se alcanza desplazando el envoltorio. Sin resolver aquí.
+*/
+@media (min-width: 768px) {
+    .documentos-tabla-desplazable {
+        overflow-x: auto;
+        padding-bottom: 6px;
+    }
+}
+
+.documentos-tabla-desplazable:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}

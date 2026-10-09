@@ -230,6 +230,7 @@
     <value>No pudimos borrar el filtro guardado. Intenta nuevamente en unos segundos.</value>
   </data>
   <data name="VentanaPlataformasTitulo" xml:space="preserve"><value>Estado en plataformas</value></data>
+  <data name="TablaDesplazableEtiqueta" xml:space="preserve"><value>Listado de documentos, desplazable en horizontal</value></data>
   <data name="VentanaPlataformasEtiqueta" xml:space="preserve"><value>Estado en plataformas: {0}</value></data>
   <data name="VentanaPlataformasAyuda" xml:space="preserve"><value>Abrir la pestaña Validación del documento</value></data>
   <data name="AccionRapidaRenovar" xml:space="preserve"><value>Renovar</value></data>
