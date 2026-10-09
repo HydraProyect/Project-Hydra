@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    partial class CaeManagerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261008233804_AnadeEraPrincipalAlCerrarsePorCascada")]
+    partial class AnadeEraPrincipalAlCerrarsePorCascada
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -395,8 +398,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("ViaAcceso")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<Guid?>("ViaAccesoId")
                         .HasColumnType("uuid");
@@ -1371,9 +1374,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("UsuarioId")
                         .HasColumnType("uuid");
 
@@ -1383,8 +1383,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "UsuarioId", "Pantalla", "Nombre")
-                        .IsUnique();
+                    b.HasIndex("UsuarioId", "Pantalla");
 
                     b.ToTable("FiltrosGuardados", (string)null);
                 });
@@ -5472,72 +5471,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("AsignacionesOperacion", (string)null);
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Operaciones.PropuestaApoyoCartera", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("AsignacionCarteraId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AsignacionOperacionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("AsignacionOperadorDelegadoId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreadaEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("DestinatarioUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Estado")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<string>("MotivoAnulacion")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<Guid>("OperadorTenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PropietarioTenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ProponenteUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("ResueltaEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("VigenciaHastaPropuesta")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AsignacionCarteraId");
-
-                    b.HasIndex("AsignacionOperacionId", "PropietarioTenantId");
-
-                    b.HasIndex("OperadorTenantId", "DestinatarioUsuarioId", "Estado");
-
-                    b.HasIndex("OperadorTenantId", "ProponenteUsuarioId", "Estado");
-
-                    b.HasIndex(new[] { "AsignacionOperacionId", "DestinatarioUsuarioId" }, "IX_PropuestasApoyoCartera_PendienteUnica")
-                        .IsUnique()
-                        .HasFilter("\"Estado\" = 'Pendiente'");
-
-                    b.ToTable("PropuestasApoyoCartera", (string)null);
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Operaciones.SolicitudIncorporacionCartera", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7021,73 +6954,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("DelegacionesTenant", (string)null);
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Tenants.EncargoAdministracion", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AsignacionOperacionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("ClausulaContrato")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid>("OperadorTenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Origen")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("character varying(40)");
-
-                    b.Property<Guid>("PropietarioTenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("RegistradoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("RegistradoPorUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("RetiradoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("RetiradoPorUsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("VersionTexto")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime>("VigenciaDesde")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTime?>("VigenciaHasta")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OperadorTenantId");
-
-                    b.HasIndex("PropietarioTenantId");
-
-                    b.HasIndex("AsignacionOperacionId", "PropietarioTenantId");
-
-                    b.HasIndex(new[] { "AsignacionOperacionId" }, "IX_EncargosAdministracion_VigentePorOperacion")
-                        .IsUnique()
-                        .HasFilter("\"RetiradoEnUtc\" IS NULL");
-
-                    b.ToTable("EncargosAdministracion", (string)null);
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Tenants.Tenant", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8309,21 +8175,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Operaciones.PropuestaApoyoCartera", b =>
-                {
-                    b.HasOne("CaeManager.Domain.Operaciones.AsignacionCartera", null)
-                        .WithMany()
-                        .HasForeignKey("AsignacionCarteraId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("CaeManager.Domain.Operaciones.AsignacionOperacion", null)
-                        .WithMany()
-                        .HasForeignKey("AsignacionOperacionId", "PropietarioTenantId")
-                        .HasPrincipalKey("Id", "PropietarioTenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Operaciones.SolicitudIncorporacionCartera", b =>
                 {
                     b.HasOne("CaeManager.Domain.Operaciones.AsignacionCartera", null)
@@ -8535,16 +8386,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("TenantId", "TipoDocumentoId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Tenants.EncargoAdministracion", b =>
-                {
-                    b.HasOne("CaeManager.Domain.Operaciones.AsignacionOperacion", null)
-                        .WithMany()
-                        .HasForeignKey("AsignacionOperacionId", "PropietarioTenantId")
-                        .HasPrincipalKey("Id", "PropietarioTenantId")
-                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

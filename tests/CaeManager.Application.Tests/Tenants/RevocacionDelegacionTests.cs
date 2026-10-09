@@ -4,6 +4,7 @@ using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Operaciones;
+using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Domain.Tenants;
 using FluentAssertions;
 using Xunit;
@@ -108,7 +109,9 @@ public class RevocacionDelegacionTests
         var handler = new ReactivarDelegacionTenantCommandHandler(
             repositorio, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
             new CurrentUserServiceFalso(Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantsQueryContextFalso());
+            new TenantsQueryContextFalso(),
+            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
 
         var resultado = await handler.Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -131,7 +134,9 @@ public class RevocacionDelegacionTests
         var handler = new ReactivarDelegacionTenantCommandHandler(
             repositorio, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
             new CurrentUserServiceFalso(Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantsQueryContextFalso());
+            new TenantsQueryContextFalso(),
+            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
 
         var autorizado = await handler.Handle(new PuedeReactivarQuery(ClienteDelegante), CancellationToken.None);
         var noAutorizado = await handler.Handle(new PuedeReactivarQuery(Consultora), CancellationToken.None);
@@ -149,7 +154,9 @@ public class RevocacionDelegacionTests
         var handler = new ReactivarDelegacionTenantCommandHandler(
             repositorio, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
             new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantsQueryContextFalso());
+            new TenantsQueryContextFalso(),
+            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
 
         var resultado = await handler.Handle(new PuedeReactivarQuery(ClienteDelegante), CancellationToken.None);
 

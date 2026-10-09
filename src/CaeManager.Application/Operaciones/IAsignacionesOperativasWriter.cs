@@ -80,7 +80,9 @@ public interface IAsignacionesOperativasWriter
     /// <summary>
     /// Cierra la operación externa de una delegación que se desactiva, y con
     /// ella todas sus carteras: una cartera no puede sobrevivir a la operación
-    /// que la ampara.
+    /// que la ampara. Cada cartera recuerda si llevaba la marca de principal
+    /// (<see cref="AsignacionCartera.EraPrincipalAlCerrarsePorCascada"/>), para
+    /// que <see cref="ReabrirCarterasDeOperadoresAsync"/> sepa a quién devolvérsela.
     /// </summary>
     Task CerrarOperacionDelegadaAsync(
         Guid propietarioTenantId, Guid operadorTenantId, MotivoCierreAsignacion motivo,
@@ -131,18 +133,24 @@ public interface IAsignacionesOperativasWriter
     /// (P8) ni se leen, y las heredadas con un rol no delegable (Administrador,
     /// Dirección CAE) que aún no lo estén se omiten.
     ///
-    /// <b>Solo repone concesiones explícitas.</b> Un Gestor CAE recupera la cartera del Tenant
-    /// entero únicamente si la tenía vigente en la operación que esa misma desactivación cerró
-    /// (una Asignación de Cartera cerrada con motivo <see cref="MotivoCierreAsignacion.Revocada"/>
-    /// en el mismo instante que la última operación externa cerrada del mismo par, es decir, por la cascada
-    /// de esa desactivación y no por la revocación de un operador concreto): la fila de operador delegado por
-    /// sí sola no es una cartera, y <c>Empresa.EjecutivoUsuarioId</c> ya no reconstruye alcance.
+    /// <b>Solo repone concesiones explícitas.</b> Un Gestor CAE —o un Coordinador CAE con cartera
+    /// propia, como la que le emite el relevo del principal— recupera la cartera del Tenant entero
+    /// únicamente si la tenía vigente en la operación que esa misma desactivación cerró (una Asignación
+    /// de Cartera cerrada con motivo <see cref="MotivoCierreAsignacion.Revocada"/> en el mismo instante
+    /// que la última operación externa cerrada del mismo par, es decir, por la cascada de esa
+    /// desactivación y no por la revocación de un operador concreto), y con el mismo rol que su fila de
+    /// operador delegado: esa fila por sí sola no es una cartera, y <c>Empresa.EjecutivoUsuarioId</c> ya
+    /// no reconstruye alcance.
     ///
-    /// <b>Marca de principal</b>: el cierre la apagó y no queda rastro de quién la llevaba. Si se repone
-    /// una sola cartera de Gestor CAE, nace principal; si se reponen varias, ninguna, y la operación queda
-    /// sin Gestor CAE principal hasta que alguien lo designe.
+    /// <b>Marca de principal</b> (D-9, 2026-10-08: «al reactivar vuelve a ser principal quien lo era
+    /// antes»). Las carteras repuestas nacen sin marca y el método devuelve el usuario cuya cartera era
+    /// la principal cuando la cascada la cerró, para que quien llama se la devuelva o releve
+    /// (<see cref="RelevoDePrincipalDeCartera.RestaurarAlReactivarAsync"/>). Devuelve <c>null</c> si no
+    /// hay nadie a quien restaurar: la operación ya tiene principal vivo, o la fila cerrada no guarda el
+    /// dato (se cerró antes de que existiera, o no tenía principal). En ese último caso rige la regla
+    /// anterior: si se repone una sola cartera de Gestor CAE nace principal; si varias, ninguna.
     /// </summary>
-    Task ReabrirCarterasDeOperadoresAsync(
+    Task<Guid?> ReabrirCarterasDeOperadoresAsync(
         AsignacionOperacion operacion, Guid delegacionTenantId, CancellationToken cancellationToken = default);
 
     /// <summary>Cierra la cartera de un operador delegado al que se le revoca la asignación.</summary>
