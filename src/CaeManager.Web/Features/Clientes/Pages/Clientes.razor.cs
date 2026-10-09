@@ -1,10 +1,10 @@
 using System.Text.Json;
 using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Clientes.Commands.EditarCliente;
-using CaeManager.Application.Clientes.Commands.EliminarCliente;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Clientes.Commands.ReasignarEjecutivoCliente;
 using CaeManager.Application.Clientes.Commands.RestaurarCliente;
+using CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
@@ -47,6 +47,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             return;
 
         _desechado = true;
+        WorkspaceService.OnCambio -= AlCambiarWorkspace;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -142,42 +143,95 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _razonSocialAEliminar = string.Empty;
-    private bool _eliminando;
-
-    /// <summary>Restauraciones en vuelo, por Cliente: el «Deshacer» del aviso no manda dos veces la misma.</summary>
-    private readonly HashSet<Guid> _restaurando = [];
-
     /// <summary>Valor del select «Criticidad» que equivale a «Solo críticos».</summary>
     private const string ValorSoloCriticos = "critico";
 
-    private Guid? _previewClienteId;
-    private bool _previewVisible;
+    /// <summary>Cliente empresarial cuyo panel está abierto arriba de la pila del Context Workspace, si lo hay.</summary>
+    private Guid? FichaAbierta =>
+        WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Cliente } frame ? frame.EntidadId : null;
+
+    private void AlCambiarWorkspace() => InvokeAsync(StateHasChanged);
+
+    // El nombre de la fila, un clic en un punto sin controles de la fila (oyente delegado de
+    // atajos-lista.js) o Enter sobre la fila enfocada abren la vista rápida: el panel de 520 px
+    // del Context Workspace, el mismo que abren los botones 360 del resto de pantallas. A la
+    // página Cliente 360 (/clientes/{id}) se va con el icono 360 de la fila.
+    private Task AbrirVistaRapidaAsync(Guid id) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, id, NombreDe(id), "informacion");
 
     /// <summary>
-    /// Nombre de la fila y Enter sobre la fila enfocada: la vista previa
-    /// lateral (pieza 6 del patrón de lista, <c>ClientePreviewDrawer</c>).
-    /// Desde el contrato del 2026-09-28 el nombre ya no navega a la ficha
-    /// (decisión 2026-09-22): eso lo hacen «Ver ficha 360» del «⋯» y el pie de
-    /// la vista previa.
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
+    /// del panel). Si el rol no puede escribir, el panel se abre y se queda en lectura.
     /// </summary>
-    private void AbrirVistaPrevia(Guid id)
+    private Task AbrirVistaRapidaEnEdicionAsync(Guid id) =>
+        WorkspaceService.AbrirEnEdicionAsync(EntidadWorkspace.Cliente, id, NombreDe(id));
+
+    // El Cliente empresarial del panel puede no estar en la página (el filtro lo dejó fuera):
+    // su nombre es entonces el del frame abierto.
+    private string NombreDe(Guid id) =>
+        _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial
+        ?? (WorkspaceService.FrameActual is { } frame && frame.EntidadId == id ? frame.TituloVisible : string.Empty);
+
+    /// <summary>Cuántos centros enseña como mucho la ventana del recuento; el resto se ve en la pestaña «Centros» del panel.</summary>
+    private const int MaximoCentrosEnVentana = 8;
+
+    /// <summary>
+    /// Centros ya pedidos para la ventana de contexto del recuento de una fila. La fila solo trae
+    /// el número (<see cref="ClienteListaDto.Centros"/>): los nombres se piden por fila, la
+    /// primera vez que el puntero o el foco llegan a su recuento, y se olvidan con cada carga de
+    /// la lista para no enseñar centros de antes de un cambio.
+    /// </summary>
+    private readonly Dictionary<Guid, IReadOnlyList<CentroDeClienteDto>> _centrosDeFila = [];
+    private readonly HashSet<Guid> _centrosDeFilaEnVuelo = [];
+    private readonly HashSet<Guid> _centrosDeFilaConError = [];
+
+    /// <summary>Sube con cada carga de la lista: una respuesta de centros pedida antes no escribe en la página nueva.</summary>
+    private int _generacionCentrosDeFila;
+
+    private async Task CargarCentrosDeFilaAsync(Guid id)
     {
-        _previewClienteId = id;
-        _previewVisible = true;
+        if (_desechado || _centrosDeFila.ContainsKey(id) || !_centrosDeFilaEnVuelo.Add(id))
+            return;
+
+        var generacion = _generacionCentrosDeFila;
+        _centrosDeFilaConError.Remove(id);
+
+        try
+        {
+            var centros = await Mediator.Send(new ObtenerCentrosDeClienteQuery(id), _ciclo.Token);
+            if (generacion == _generacionCentrosDeFila)
+                _centrosDeFila[id] = centros;
+        }
+        catch (Exception)
+        {
+            // Un fallo se dice en la ventana y deja reintentar al volver a pasar por el recuento.
+            if (generacion == _generacionCentrosDeFila)
+                _centrosDeFilaConError.Add(id);
+        }
+        finally
+        {
+            if (generacion == _generacionCentrosDeFila)
+                _centrosDeFilaEnVuelo.Remove(id);
+        }
     }
 
-    /// <summary>«Abrir ficha 360» del pie de la vista previa: la página /clientes/{id}.</summary>
-    private void AbrirFichaDesdeVistaPrevia(Guid id) => NavigationManager.NavigateTo($"/clientes/{id}");
-
-    /// <summary>«Ver toda su documentación» de la vista previa: el panel de 520 px del Cliente empresarial (Context Workspace).</summary>
-    private Task AbrirDesdeVistaPreviaAsync((Guid Id, string Pestana) destino)
+    private void OlvidarCentrosDeFila()
     {
-        var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.RazonSocial ?? string.Empty;
-        return WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, destino.Id, nombre, destino.Pestana);
+        _generacionCentrosDeFila++;
+        _centrosDeFila.Clear();
+        _centrosDeFilaEnVuelo.Clear();
+        _centrosDeFilaConError.Clear();
     }
+
+    /// <summary>Pie de la ventana cuando no caben todos: cuántos centros quedan fuera y dónde se ven.</summary>
+    private string? PieDeCentrosDeFila(Guid id) =>
+        _centrosDeFila.TryGetValue(id, out var centros) && centros.Count > MaximoCentrosEnVentana
+            ? Textos["CentrosDeFilaPieMas", centros.Count - MaximoCentrosEnVentana].Value
+            : null;
+
+    /// <summary>Pulsar un centro de la ventana: el panel del Cliente empresarial en su pestaña «Centros».</summary>
+    private Task AbrirCentrosDeFilaAsync(Guid id) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, id, NombreDe(id), "centros");
 
     private void AbrirGuardarFiltro()
     {
@@ -278,6 +332,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     protected override async Task OnInitializedAsync()
     {
+        // «e» sin fila enfocada edita la ficha abierta: la página se entera de cuál es.
+        WorkspaceService.OnCambio += AlCambiarWorkspace;
+
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
         try
@@ -443,6 +500,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             _elementosPagina = elementos;
             _seleccionados.Clear();
             _idEnfocado = null;
+            OlvidarCentrosDeFila();
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
@@ -876,70 +934,6 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
     }
 
-    private void AbrirEliminar(Guid id, string razonSocial)
-    {
-        _idAEliminar = id;
-        _razonSocialAEliminar = razonSocial;
-        _confirmarEliminarVisible = true;
-    }
-
-    private async Task ConfirmarEliminarAsync()
-    {
-        if (_eliminando)
-            return;
-
-        _eliminando = true;
-        var idAEliminar = _idAEliminar;
-
-        try
-        {
-            var resultado = await Mediator.Send(new EliminarClienteCommand(idAEliminar));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.MostrarError(resultado.Error);
-            }
-            else
-            {
-                ToastService.Mostrar("Cliente empresarial dado de baja.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idAEliminar));
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, [idAEliminar]);
-                _confirmarEliminarVisible = false;
-                await RecargarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar("No pudimos dar de baja el Cliente empresarial. Intenta nuevamente en unos segundos.", TonoToast.Error);
-        }
-        finally
-        {
-            _eliminando = false;
-        }
-    }
-
-    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarClienteCommand.</summary>
-    private async Task DeshacerEliminarAsync(Guid id)
-    {
-        if (!_restaurando.Add(id))
-            return;
-
-        try
-        {
-            var resultado = await Mediator.Send(new RestaurarClienteCommand(id));
-
-            ToastService.Mostrar(
-                resultado.EsExitoso ? "Cliente empresarial restaurado." : resultado.Error.Mensaje,
-                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
-
-            if (resultado.EsExitoso)
-                await RecargarAsync();
-        }
-        finally
-        {
-            _restaurando.Remove(id);
-        }
-    }
-
     // --- P3-31: selección múltiple ---
 
     private bool TodosSeleccionados =>
@@ -1046,11 +1040,23 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             _ => null
         };
         var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
-        return string.Join(' ', new[] { foco, tinte }.Where(c => c is not null));
+        // «fila-pulsable»: contrato con el oyente delegado de atajos-lista.js (QuickGrid no
+        // expone el clic de la fila), que pulsa por ella el botón «nombre-abre-vista-rapida».
+        return string.Join(' ', new[] { "fila-pulsable", foco, tinte }.Where(c => c is not null));
     }
 
     private async Task ManejarAtajoAsync(string tecla)
     {
+        // «e» no depende de que haya filas: sin fila enfocada edita la ficha que esté abierta,
+        // aunque el filtro haya dejado la lista vacía.
+        if (tecla == "e")
+        {
+            // La fila enfocada siempre está en la página: cada carga de la lista la olvida.
+            if ((_idEnfocado ?? FichaAbierta) is { } idEditar)
+                await AbrirVistaRapidaEnEdicionAsync(idEditar);
+            return;
+        }
+
         if (_elementosPagina.Count == 0) return;
 
         switch (tecla)
@@ -1068,12 +1074,18 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
                     break;
                 }
             case "x":
+                // Marcar enciende la selección múltiple: una fila marcada sin casilla a la
+                // vista sería selección invisible justo antes de «Dar de baja seleccionados».
                 if (_idEnfocado is { } idAlternar)
+                {
+                    _seleccionMultiple = true;
                     AlternarSeleccion(idAlternar, !_seleccionados.Contains(idAlternar));
+                }
                 break;
             case "Enter":
+                // Enter hace lo mismo que pulsar el nombre de la fila: abrir la vista rápida.
                 if (_idEnfocado is { } idAbrir)
-                    AbrirVistaPrevia(idAbrir);
+                    await AbrirVistaRapidaAsync(idAbrir);
                 break;
         }
 

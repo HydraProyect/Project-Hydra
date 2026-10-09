@@ -59,6 +59,15 @@
       viven dentro de PestanaHistorial y PestanaDocumentacion, compartidas con
       los otros paneles; tocarlas se sale de esta ficha.
 
+    Este panel es además la vista rápida del listado de Clientes empresariales (patrón de
+    listados sin menú «⋯», 2026-10-09): sustituye a la vista previa lateral que tenía la
+    lista. De lo que aquella enseñaba, aquí está todo salvo la celda «Gestor CAE» (ver
+    arriba; el Gestor CAE sigue en la columna de la fila): CIF, Crítico y Alta en
+    «Información», centros y trabajadores en los recuentos de la cabecera, el contacto en
+    «Agenda», y «Documentación» y «Actividad» con los mismos componentes. Editar se hace
+    con el lápiz de la cabecera —también con la tecla «e» del listado— y a la página
+    Cliente 360 se va con su icono 360.
+
     Qué se conserva aunque el mockup no lo pinte: la píldora «Crítico», la
     celda «Crítico» de Información, los estados de error con «Reintentar» de
     cada carga, los vacíos distinguidos de cada pestaña, y las pestañas
@@ -120,6 +129,21 @@ else
                 }
             </div>
         </div>
+        @if (!_editandoIdentidad)
+        {
+            @* El lápiz vive en la cabecera en todas las pestañas (patrón de listados: la fila no
+               lleva menú y editar se hace desde el panel, también con la tecla «e»). Desde otra
+               pestaña lleva primero a «Información», que es donde está el formulario. Editar
+               acaba en EditarClienteCommand: solo roles con escritura. *@
+            <SoloConEscritura>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="EditarDesdeCabeceraAsync"
+                       aria-label="@Textos["AriaEditarIdentidad"]" title="@Textos["TituloEditarConAtajo"]">
+                    <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+                </Boton>
+            </SoloConEscritura>
+        }
+        @* Icono 360 del catálogo: lleva a la página completa de Cliente 360. *@
+        <Boton360 Nombre="@_detalle.RazonSocial" Href="@($"/clientes/{_detalle.Id}")" />
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
@@ -161,9 +185,12 @@ else
                         <div class="celda-info-cliente-360"><span>Alta</span><strong>@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</strong></div>
                     </div>
 
-                    <div class="acciones-cliente-360">
-                        <Boton Variante="VarianteBoton.Secundario" OnClick="IniciarEdicionIdentidad">Editar identidad</Boton>
-                    </div>
+                    @* Misma puerta que el lápiz de la cabecera: es la misma edición. *@
+                    <SoloConEscritura>
+                        <div class="acciones-cliente-360">
+                            <Boton Variante="VarianteBoton.Secundario" OnClick="IniciarEdicionIdentidad">Editar identidad</Boton>
+                        </div>
+                    </SoloConEscritura>
                 }
                 break;
 
@@ -353,7 +380,7 @@ else
     /// <summary>
     /// Recuentos de la cabecera. Va aparte de <see cref="_detalle"/> porque
     /// ClienteDetalleDto no los trae: los da ObtenerResumenClienteQuery, el
-    /// mismo DTO que ya alimenta ClientePreviewDrawer. Si su consulta falla se
+    /// mismo DTO que alimentaba la vista previa del listado. Si su consulta falla se
     /// queda en null y la cabecera no enseña recuentos — un fallo no se
     /// disfraza de «0 centros · 0 trabajadores».
     /// </summary>
@@ -446,7 +473,56 @@ else
         }
     }
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        WorkspaceService.OnEdicionSolicitada += AlSolicitarEdicion;
+    }
+
+    private void AlSolicitarEdicion() => InvokeAsync(async () =>
+    {
+        await AtenderEdicionSolicitadaAsync();
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Tecla «e» de un listado (<c>ContextWorkspaceService.AbrirEnEdicionAsync</c>): equivale
+    /// a pulsar el lápiz de la cabecera. Solo se consume con el detalle de ESTA ficha ya
+    /// cargado; si llega antes, la atiende el final de la carga de la cabecera. Aquí no se
+    /// espera al resto de la cadena de cargas porque entrar en edición no lanza ninguna
+    /// consulta: copia al formulario lo que el detalle ya trae. El lápiz va dentro de
+    /// <c>SoloConEscritura</c>, así que aquí se repite su misma condición: un rol de Consulta
+    /// consume la petición y no entra en edición.
+    /// </summary>
+    private async Task AtenderEdicionSolicitadaAsync()
+    {
+        if (_detalle is null || _detalle.Id != EntidadId)
+            return;
+        if (!WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Cliente, EntidadId))
+            return;
+        if (_editandoIdentidad || EstadoAutenticacion is null)
+            return;
+
+        var usuario = (await EstadoAutenticacion).User;
+        if (!CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole))
+            return;
+
+        // La identidad se pidió para una ficha: si mientras se leía el rol cambió, no es esta.
+        if (_detalle is null || _detalle.Id != EntidadId)
+            return;
+
+        IniciarEdicionIdentidad();
+    }
+
+    private async Task EditarDesdeCabeceraAsync()
+    {
+        if (PestanaActiva != "informacion")
+            await PestanaActivaChanged.InvokeAsync("informacion");
+
+        IniciarEdicionIdentidad();
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -516,6 +592,10 @@ else
         await CargarCabeceraAsync();
         if (generacion != _generacion || _detalle is null) return;
 
+        // Una petición de edición («e») que llegó antes que el detalle se atiende ahora.
+        await AtenderEdicionSolicitadaAsync();
+        if (generacion != _generacion) return;
+
         _cargandoEmpresas = true;
         _cargandoSubcontratas = true;
         _cargandoCentros = true;
@@ -546,11 +626,20 @@ else
             if (carga != _cargaCabecera) return;
             _detalle = detalle;
             _notaEditada = detalle?.Notas ?? string.Empty;
+            // Una petición de edición («e») no sobrevive a una ficha que no existe (o ya no se
+            // ve): mismo motivo que abajo.
+            if (detalle is null)
+                WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Cliente, id);
         }
         catch (Exception)
         {
             if (carga == _cargaCabecera)
+            {
                 _error = true;
+                // Tampoco a la carga fallida: si se quedara pendiente, un «Reintentar» con
+                // éxito entraría en edición sin que nadie lo pida.
+                WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Cliente, id);
+            }
         }
         finally
         {
@@ -835,6 +924,7 @@ else
     /// </summary>
     public void Dispose()
     {
+        WorkspaceService.OnEdicionSolicitada -= AlSolicitarEdicion;
         InvalidarCargas();
         _ciclo.Cancel();
         _ciclo.Dispose();

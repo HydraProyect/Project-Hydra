@@ -188,9 +188,6 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
         Services.AddCascadingAuthenticationState();
         Services.AddScoped<IValidator<CrearClienteCommand>>(_ => new InlineValidator<CrearClienteCommand>());
         Services.AddScoped(_ => CrearDirectorio());
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!));
-        Services.AddScoped<PuertaAccesoDatos>();
 
         Services.GetRequiredService<NavigationManager>().NavigateTo("clientes?accion=" + accion);
         var cut = Render<Clientes>();

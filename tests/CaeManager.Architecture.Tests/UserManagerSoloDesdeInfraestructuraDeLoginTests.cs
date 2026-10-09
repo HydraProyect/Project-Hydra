@@ -81,7 +81,6 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         "src/CaeManager.Web/Features/Extension/Pages/ConectarExtension.razor.cs",
         // Lecturas del nombre de otra cuenta para pintarlo.
         "src/CaeManager.Web/Components/Workspace/PestanaHistorial.razor",
-        "src/CaeManager.Web/Features/Clientes/Components/ClientePreviewDrawer.razor.cs",
         "src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor.cs",
         "src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor.cs",
         "src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor.cs",

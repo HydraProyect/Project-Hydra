@@ -208,13 +208,6 @@ public class ClientesVacioPorFiltroTests : BunitContext
         Services.AddScoped<IValidator<CrearClienteCommand>>(_ => new InlineValidator<CrearClienteCommand>());
         Services.AddScoped(_ => CrearDirectorio());
 
-        // ClientePreviewDrawer (pieza 6 del patrón de lista) inyecta el
-        // UserManager, pero solo lo toca al abrirse sobre una fila: aquí no
-        // hay filas, así que el almacén es de los que nadie debe tocar.
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(
-            new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!));
-        Services.AddScoped<PuertaAccesoDatos>();
-
         var partes = new List<string>();
         if (!string.IsNullOrWhiteSpace(busqueda)) partes.Add("q=" + Uri.EscapeDataString(busqueda));
         if (soloCriticos) partes.Add("critico=true");

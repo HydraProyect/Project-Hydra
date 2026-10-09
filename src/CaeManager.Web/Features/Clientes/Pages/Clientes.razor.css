@@ -20,9 +20,6 @@
 
 /* La barra de filtros (tarjeta, chips, «Limpiar todo») vive ahora en el
    componente BarraFiltros y en list-page.css: aquí ya no se copia. */
-.enlace-centros-cliente:focus-visible {
-    outline: var(--border-focus);
-}
 
 /* Resumen de la barra de filtros: «3 Clientes empresariales con estos filtros». */
 .conteo-clientes {
@@ -41,20 +38,39 @@
     font: var(--font-body-md);
 }
 
-/* Recuento de centros: abre la pestaña Centros del Cliente 360. Botón con
-   aspecto de enlace, como el número del mockup. */
+/* Recuento de centros: el disparador de su ventana de contexto (el botón lo pone
+   VentanaContexto en modo interactivo). Número con aspecto de enlace, como en el mockup. */
 .enlace-centros-cliente {
-    border: 0;
-    background: none;
-    padding: 0;
     font: var(--font-body-md);
     font-weight: 600;
     color: var(--color-primary-500);
+}
+
+.ranura-centros-cliente:hover .enlace-centros-cliente {
+    color: var(--color-primary-600);
+}
+
+/* Celda «Gestor CAE» para quien puede reasignar: toda la celda es el botón que abre el
+   formulario de edición con el selector de Gestor CAE. Sin caja: se lee como la celda de
+   texto que ven los demás roles, y solo el puntero y el foco dicen que se pulsa. */
+.celda-gestor-cae-pulsable {
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    padding: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
     cursor: pointer;
 }
 
-.enlace-centros-cliente:hover {
-    color: var(--color-primary-600);
+.celda-gestor-cae-pulsable:hover {
+    color: var(--color-primary-500);
+}
+
+.celda-gestor-cae-pulsable:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
 }
 
 /* «⚑ Crítico» junto al nombre (sustituye a la antigua columna «Crítico»). Badge es un

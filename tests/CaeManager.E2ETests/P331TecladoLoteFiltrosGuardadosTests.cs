@@ -117,30 +117,30 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         await Expect(filaA).ToBeFocusedAsync();
         await page.WaitForTimeoutAsync(300);
 
-        // "x" alterna la selección de la fila enfocada (Alfa) sin necesidad
-        // de activar antes "Selección múltiple" — AlternarSeleccion actúa
-        // sobre _seleccionados directamente (ver Clientes.razor.cs).
+        // "x" marca la fila enfocada (Alfa) y enciende ella sola la selección
+        // múltiple: una fila marcada sin casilla a la vista sería selección
+        // invisible justo antes de «Dar de baja seleccionados» (ver
+        // Clientes.razor.cs, ManejarAtajoAsync).
         await page.Keyboard.PressAsync("x");
         var barraLote = page.Locator(".barra-acciones-lote");
         await barraLote.WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("1 seleccionado en esta página");
+        await Expect(filaA.Locator("input[type=\"checkbox\"]")).ToBeCheckedAsync();
         await page.WaitForTimeoutAsync(300);
 
-        // --- Enter abre la vista previa lateral del Cliente enfocado
-        // (ClientePreviewDrawer, pieza 6 del patrón de lista), la misma que
-        // abre el nombre de la fila. Desde el patrón, el panel de 520 px del
-        // Context Workspace solo se abre con «Ver toda su documentación» de
-        // la vista previa. El drawer no maneja Escape: se cierra con su ✕. ---
+        // --- Enter abre la vista rápida del Cliente empresarial enfocado: el
+        // panel del Context Workspace, el mismo que abre el nombre de la fila
+        // (la lista ya no tiene drawer de vista previa). Se cierra con su ✕. ---
         await page.Keyboard.PressAsync("Enter");
-        var vistaPrevia = page.GetByRole(AriaRole.Complementary, new PageGetByRoleOptions { Name = "Vista previa del Cliente empresarial" });
-        await vistaPrevia.Locator(".nombre-cabecera-preview-cliente", new LocatorLocatorOptions { HasText = razonSocialA })
-            .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await vistaPrevia.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cerrar" }).ClickAsync();
-        await vistaPrevia.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+        var vistaRapida = page.Locator(".workspace-panel");
+        await Expect(vistaRapida.Locator(".workspace-titulo-entidad"))
+            .ToHaveTextAsync(razonSocialA, new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+        await vistaRapida.Locator(".workspace-cerrar").ClickAsync();
+        await vistaRapida.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        // --- Selección múltiple visible + segunda fila por checkbox, y borrado en lote ---
-        // El conmutador es el icono ☑ de la cabecera: sin texto visible, con el nombre accesible de siempre.
-        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
+        // --- Segunda fila por su casilla, y baja en lote ---
+        // La selección múltiple ya está encendida por la «x»: pulsar ahora su conmutador (el
+        // icono ☑ de la cabecera) la apagaría y vaciaría la selección.
         await filaB.Locator("input[type=\"checkbox\"]").CheckAsync();
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("2 seleccionados en esta página");
 
@@ -280,8 +280,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
         var drawer = page.Locator(".drawer-panel");
         await Expect(drawer.GetByText("Nuevo Cliente empresarial", new LocatorGetByTextOptions { Exact = true }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
-        // Ni la vista previa de ninguna fila: Enter era del botón, no de la lista.
-        await Expect(page.Locator(".drawer-preview-cliente")).Not.ToBeVisibleAsync();
+        // Ni la vista rápida de ninguna fila: Enter era del botón, no de la lista.
         await Expect(page.Locator(".workspace-panel")).Not.ToBeVisibleAsync();
     }
 
