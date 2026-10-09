@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
+using CaeManager.Application.Visitas.Commands;
 using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
@@ -682,7 +683,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private Task<Result<Guid>> EnviarPaqueteDeLaVisitaAsync(EnviarMensajeNuevoCommand mensaje) =>
         _visitaDelPaquete is not { } visita
-            ? Task.FromResult(Result.Fallo<Guid>(Error.Crear("Visita.NoEncontrada", "No encontramos esta visita.")))
+            ? Task.FromResult(Result.Fallo<Guid>(AutorizacionCancelacionVisita.NoEncontrada))
             : Mediator.Send(new EnviarPaqueteAcreditacionVisitaCommand(
                 visita.Id, visita.Version, mensaje.ConexionIntegracionId, mensaje.Destinatarios, mensaje.Asunto, mensaje.CuerpoHtml,
                 mensaje.Adjuntos ?? []));

@@ -643,6 +643,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.ObtenerSolicitudAccesoCorreoQueryHandler", "IEmpresasQueryContext"),
         ("Visitas.ObtenerSolicitudAccesoCorreoQueryHandler", "ITrabajadoresQueryContext"),
         ("Visitas.ObtenerPaqueteDocumentalVisitaQueryHandler", "ICentrosQueryContext"),
+        // La marca manual de «documentación gestionada» no se admite en un Centro sin
+        // gestión CAE (la columna no tendría dónde pintarla): lee Centro.GestionCae.
+        ("Visitas.MarcarDocumentacionGestionadaCommandHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "IConfiguracionQueryContext"),
         ("Visitas.ObtenerDocumentacionVisitaQueryHandler", "IDocumentosQueryContext"),

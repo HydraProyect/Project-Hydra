@@ -4,6 +4,7 @@ using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
+using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.QuitarTrabajadorDeVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerCandidatosTrabajadorVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
@@ -320,6 +321,61 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         (await TrabajadoresDeAsync(_visitaFuera)).Should().BeEquivalentTo([_trabajadorFuera]);
     }
 
+    // ── Documentación gestionada (estado guardado, decisión del 2026-10-09) ──
+
+    /// <summary>
+    /// La marca se guarda de verdad (columna de la Visita, leída por la conexión propietaria) y
+    /// la borra cambiar quién entra por cualquiera de los tres caminos: añadir, quitar y
+    /// «Editar visita». Editar sin cambiar los Trabajadores la conserva.
+    /// </summary>
+    [Fact]
+    public async Task Gestor_CAE_marca_gestionada_la_Visita_de_su_cartera_y_cambiar_los_Trabajadores_borra_la_marca()
+    {
+        (await GestionadaEnAsync(_visitaDentro)).Should().BeNull("control: nace por gestionar");
+
+        (await MarcarGestionadaAsync(_gestor, "GestorCae", _visitaDentro)).EsExitoso.Should().BeTrue();
+        (await GestionadaEnAsync(_visitaDentro)).Should().NotBeNull();
+
+        (await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+        (await GestionadaEnAsync(_visitaDentro)).Should().BeNull("añadir un Trabajador la devuelve a por gestionar");
+
+        (await MarcarGestionadaAsync(_gestor, "GestorCae", _visitaDentro)).EsExitoso.Should().BeTrue();
+        (await QuitarTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+        (await GestionadaEnAsync(_visitaDentro)).Should().BeNull("quitar un Trabajador también");
+
+        (await MarcarGestionadaAsync(_gestor, "GestorCae", _visitaDentro)).EsExitoso.Should().BeTrue();
+        (await EditarAsync(_gestor, "GestorCae", _visitaDentro, [_trabajadorDentro])).EsExitoso.Should().BeTrue();
+        (await GestionadaEnAsync(_visitaDentro)).Should().NotBeNull("editar fechas y notas con los mismos Trabajadores no la borra");
+
+        (await EditarAsync(_gestor, "GestorCae", _visitaDentro, [_trabajadorDentro, _trabajadorFuera])).EsExitoso.Should().BeTrue();
+        (await GestionadaEnAsync(_visitaDentro)).Should().BeNull("«Editar visita» cambiando quién entra, igual que el panel");
+    }
+
+    /// <summary>Quien tenía la Visita abierta antes de que cambiaran los Trabajadores no la da por gestionada.</summary>
+    [Fact]
+    public async Task Marcar_gestionada_con_la_version_anterior_a_un_cambio_de_Trabajadores_choca()
+    {
+        var vista = await VersionAsync(_visitaDentro);
+        (await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+
+        var resultado = await MarcarGestionadaAsync(_gestor, "GestorCae", _visitaDentro, version: vista);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Common.ConcurrenciaOptimista.CodigoConflicto);
+        (await GestionadaEnAsync(_visitaDentro)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Gestor_CAE_no_marca_gestionada_una_Visita_fuera_de_su_cartera_ni_de_otro_Tenant()
+    {
+        var fueraDeCartera = await MarcarGestionadaAsync(_gestor, "GestorCae", _visitaFuera);
+        var otroTenant = await MarcarGestionadaAsync(_gestor, "Administrador", _visitaDeOtroTenant);
+
+        fueraDeCartera.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        otroTenant.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        (await GestionadaEnAsync(_visitaFuera)).Should().BeNull();
+        (await GestionadaEnAsync(_visitaDeOtroTenant)).Should().BeNull();
+    }
+
     /// <summary>
     /// Aislamiento de Tenant bajo RLS, en los dos sentidos: ni se añade a la propia Visita un
     /// Trabajador de otro Tenant (no existe para la conexión de runtime), ni se toca la Visita de
@@ -509,6 +565,16 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         return await handler.Handle(new AnadirTrabajadorAVisitaCommand(visitaId, trabajadorId, version), CancellationToken.None);
     }
 
+    private async Task<Result> MarcarGestionadaAsync(Guid usuarioId, string rol, Guid visitaId, Guid version = default)
+    {
+        var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
+        await using var runtime = CrearContextoRuntime(usuario);
+        var handler = new MarcarDocumentacionGestionadaCommandHandler(
+            new VisitaRepository(runtime), runtime, runtime, CrearAlcance(runtime, usuario));
+
+        return await handler.Handle(new MarcarDocumentacionGestionadaCommand(visitaId, version), CancellationToken.None);
+    }
+
     private async Task<Result> QuitarTrabajadorAsync(Guid usuarioId, string rol, Guid visitaId, Guid trabajadorId)
     {
         var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
@@ -610,6 +676,10 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
     private async Task<Guid> VersionAsync(Guid visitaId) =>
         await _propietario.Visitas.IgnoreQueryFilters().AsNoTracking()
             .Where(v => v.Id == visitaId).Select(v => v.Version).SingleAsync();
+
+    private async Task<DateTime?> GestionadaEnAsync(Guid visitaId) =>
+        await _propietario.Visitas.IgnoreQueryFilters().AsNoTracking()
+            .Where(v => v.Id == visitaId).Select(v => v.DocumentacionGestionadaEnUtc).SingleAsync();
 
     private async Task<bool> EstaCanceladaAsync(Guid visitaId) =>
         await _propietario.Visitas.IgnoreQueryFilters().AsNoTracking()

@@ -1,3 +1,8 @@
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
+using CaeManager.Application.Integraciones;
+using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
+using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
+using Microsoft.AspNetCore.Components.Web;
 using Bunit;
 using Bunit.TestDoubles;
 using CaeManager.Application.Common;
@@ -81,6 +86,12 @@ public class Visita360PaginaTests : BunitContext
                     return Result.Exito(new AvisoVisitaDto("Aviso de visita — Sede Sevilla", "Mañana acuden dos técnicos."));
                 case ObtenerPaqueteDocumentalVisitaQuery:
                     return Result.Exito(new PaqueteDocumentalDescargaDto("paquete.zip", [1, 2, 3]));
+                case MarcarDocumentacionGestionadaCommand c:
+                    Detalles[c.Id] = Detalles[c.Id] with { DocumentacionGestionadaEnUtc = new DateTime(2026, 10, 9, 10, 0, 0, DateTimeKind.Utc), Version = Guid.NewGuid() };
+                    return Result.Exito();
+                case EnviarPaqueteAcreditacionVisitaCommand c:
+                    Detalles[c.VisitaId] = Detalles[c.VisitaId] with { DocumentacionGestionadaEnUtc = new DateTime(2026, 10, 9, 10, 0, 0, DateTimeKind.Utc), Version = Guid.NewGuid() };
+                    return Result.Exito(Guid.NewGuid());
                 case MarcarNotificadoClienteCommand c:
                     Detalles[c.Id] = Detalles[c.Id] with { NotificadoCliente = c.Notificado };
                     return Result.Exito();
@@ -378,6 +389,80 @@ public class Visita360PaginaTests : BunitContext
         compositor.Get(x => x.Visible).Should().BeTrue();
         compositor.Get(x => x.DestinatariosIniciales).Should().Be("accesos@centro.example");
         compositor.Get(x => x.Adjunto)!.NombreArchivo.Should().Be("paquete.zip");
+    }
+
+    // ── Documentación gestionada (estado guardado, decisión del 2026-10-09) ──
+
+    private static string Cabecera(IRenderedComponent<VisitaDetalle> cut) =>
+        cut.Find("[data-pieza=cabecera-identidad]").TextContent;
+
+    [Fact]
+    public void La_cabecera_dice_por_gestionar_hasta_que_la_visita_tiene_la_marca()
+    {
+        var (cut, _) = Montar(Detalle(), documentacion: DocumentacionConIncidencias());
+
+        Cabecera(cut).Should().Contain("Documentación por gestionar").And.NotContain("Documentación gestionada");
+    }
+
+    [Fact]
+    public void Con_la_marca_la_cabecera_dice_gestionada_y_el_menu_ya_no_ofrece_marcarla()
+    {
+        var gestionada = Detalle() with { DocumentacionGestionadaEnUtc = new DateTime(2026, 10, 9, 10, 0, 0, DateTimeKind.Utc) };
+        var (cut, _) = Montar(gestionada, documentacion: DocumentacionConIncidencias());
+
+        Cabecera(cut).Should().Contain("Documentación gestionada").And.NotContain("por gestionar");
+        cut.Markup.Should().NotContain("Marcar documentación gestionada");
+        cut.Markup.Should().Contain("Gestionada el");
+    }
+
+    [Fact]
+    public void En_un_Centro_sin_gestion_CAE_la_cabecera_no_habla_de_documentacion_por_gestionar()
+    {
+        var (cut, _) = Montar(Detalle(requiereGestion: false, porCorreo: false));
+
+        Cabecera(cut).Should().NotContain("por gestionar").And.NotContain("Documentación gestionada");
+        cut.Markup.Should().NotContain("Marcar documentación gestionada");
+    }
+
+    [Fact]
+    public async Task Marcar_desde_el_menu_manda_el_comando_con_la_version_y_la_cabecera_pasa_a_gestionada()
+    {
+        var detalle = Detalle();
+        var (cut, mediador) = Montar(detalle, documentacion: DocumentacionConIncidencias());
+
+        await cut.Find("[data-pieza=cabecera-identidad] .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Marcar documentación gestionada").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<MarcarDocumentacionGestionadaCommand>().Should().ContainSingle()
+            .Which.Should().Be(new MarcarDocumentacionGestionadaCommand(VisitaId, detalle.Version)));
+        cut.WaitForAssertion(() => Cabecera(cut).Should().Contain("Documentación gestionada"));
+    }
+
+    /// <summary>
+    /// El compositor no envía con el comando genérico de Comunicaciones: la página le pasa el
+    /// suyo, que lleva la Visita y la versión con la que se preparó el paquete.
+    /// </summary>
+    [Fact]
+    public async Task El_compositor_del_paquete_envia_por_el_comando_de_la_Visita_con_su_Id_y_su_version()
+    {
+        var detalle = Detalle();
+        var (cut, mediador) = Montar(detalle, documentacion: DocumentacionConIncidencias());
+        cut.FindAll("[data-pieza=cabecera-identidad] button").Single(b => b.TextContent.Contains("Enviar por correo")).Click();
+
+        var compositor = cut.FindComponent<Stub<RedactarMensajeDrawer>>().Instance.Parameters;
+        var enviarCon = compositor.Get(x => x.EnviarCon);
+        enviarCon.Should().NotBeNull("sin él, el paquete saldría por el envío genérico y la Visita seguiría por gestionar");
+
+        var adjunto = new AdjuntoParaEnviarDto("paquete.zip", "application/zip", [1, 2, 3]);
+        var conexion = Guid.NewGuid();
+        var resultado = await cut.InvokeAsync(() => enviarCon!(
+            new EnviarMensajeNuevoCommand(conexion, ["accesos@centro.example"], "Solicitud", "<p>Hola</p>", Adjuntos: [adjunto])));
+
+        resultado.EsExitoso.Should().BeTrue();
+        var enviado = mediador.Enviadas.OfType<EnviarPaqueteAcreditacionVisitaCommand>().Should().ContainSingle().Subject;
+        (enviado.VisitaId, enviado.VersionVisita, enviado.ConexionIntegracionId).Should().Be((VisitaId, detalle.Version, conexion));
+        enviado.Adjuntos.Should().ContainSingle().Which.Should().BeSameAs(adjunto);
+        mediador.Enviadas.OfType<EnviarMensajeNuevoCommand>().Should().BeEmpty();
     }
 
     [Fact]
