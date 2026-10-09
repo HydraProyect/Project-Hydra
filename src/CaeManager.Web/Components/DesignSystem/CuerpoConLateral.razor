@@ -3,9 +3,10 @@
     lateral de contexto fijo de 300 px con tarjetas, que se queda pegado al
     hacer scroll. Bajo 900 px el lateral pasa debajo y deja de ser fijo.
 
-    Es la maquetación de .centro360-cuerpo de Centro 360, sacada aquí para que
-    Cliente 360 y Empresa 360 no la copien: una clase de un .razor.css no
+    Nació como la maquetación de .centro360-cuerpo de Centro 360, sacada aquí
+    para que las demás fichas no la copiaran: una clase de un .razor.css no
     viaja a otro componente (ClasesDeCssAisladoNoViajanEntreComponentesTests).
+    Centro 360 también la usa ya.
     Las tarjetas del lateral son <Tarjeta Compacta="true">.
 *@
 <div class="cuerpo-con-lateral @(Lateral is null ? "cuerpo-con-lateral-sin-lateral" : null)">
