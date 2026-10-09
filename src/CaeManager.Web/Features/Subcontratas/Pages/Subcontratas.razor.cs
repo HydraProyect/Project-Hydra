@@ -404,6 +404,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _previewVisible = true;
     }
 
+    private void IrASubcontrata360(Guid id) => NavigationManager.NavigateTo($"/subcontratas/{id}");
+
     private Task AbrirDesdePreviewAsync((Guid Id, string Pestana) destino)
     {
         var nombre = _elementosPagina.FirstOrDefault(e => e.Id == destino.Id)?.RazonSocial ?? string.Empty;

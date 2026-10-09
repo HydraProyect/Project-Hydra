@@ -46,7 +46,7 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
             .a { width: {{h.Anillo}}; height: {{h.Anillo}}; border-radius: 50%; background: #d5dce5; flex: none; }
             .cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) {{h.AnchoLateral}}; gap: 20px; align-items: start; }
             .f { display: grid; grid-template-columns: minmax(0, 1fr) {{h.ColumnaEstado}}; gap: 12px; align-items: center; min-height: 50px; border-top: 1px solid {{h.Divisor}}; }
-            .f:first-child { border-top: 0; }
+            .lista > .f:first-child, .envoltorio:first-child > .f { border-top: 0; }
             .f.peligro, .f[data-tono="peligro"] { background-color: #fef3f2; background-image: {{h.DegradadoProblema}}; border-top-color: transparent; }
             .d { display: block; color: #46566c; }
             .p { display: inline-block; font: 600 {{h.TamanoPastilla}}/20px Inter, sans-serif; padding: 0 8px; border-radius: 999px; border: 1px solid transparent; }
@@ -179,6 +179,22 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
         var desalineada = await MedirAsync("ficha", new Hoja(FilasEnvueltas: true, ColumnaEstado: "auto"));
         var informe = ComparadorFidelidad360.Comparar("sintética", "claro", alineada, desalineada);
         Assert.Single(informe.Diferencias, d => d.Clave == "pastilla-de-fila.dispersion-izquierda");
+    }
+
+    [Fact]
+    public async Task El_divisor_de_las_filas_envueltas_una_a_una_tambien_se_mide()
+    {
+        // Sin esto el divisor de un mockup de filas desplegables salía «ausente en mockup»: ninguna fila tiene hermana.
+        var envueltas = await MedirAsync("mockup", new Hoja(FilasEnvueltas: true));
+        Assert.Equal("#a9b4c2ff", envueltas.Magnitudes["fila.border-top-color"].Valor);
+        Assert.Equal("1", envueltas.Magnitudes["fila.border-top-width"].Valor);
+
+        var sueltas = await MedirAsync("ficha", new Hoja());
+        Assert.True(ComparadorFidelidad360.Comparar("sintética", "claro", envueltas, sueltas).SinDiferencias);
+
+        var otroDivisor = await MedirAsync("ficha", new Hoja(FilasEnvueltas: true, Divisor: "#cfd8e3"));
+        var informe = ComparadorFidelidad360.Comparar("sintética", "claro", envueltas, otroDivisor);
+        Assert.Single(informe.Diferencias, d => d.Clave == "fila.border-top-color");
     }
 
     [Fact]
