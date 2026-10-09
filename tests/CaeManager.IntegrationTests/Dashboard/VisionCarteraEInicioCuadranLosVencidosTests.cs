@@ -307,7 +307,7 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
             new AuthenticationStateProviderFalso(new ClaimsPrincipal(identidad)),
             new HttpContextAccessorNulo(),
             seleccion,
-            servicios.BuildServiceProvider());
+            servicios.AddTechoDeRolSinEncargoSembrado().BuildServiceProvider());
     }
 
     private sealed class TenantActualPorAmbito : ITenantActual

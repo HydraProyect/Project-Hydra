@@ -29,6 +29,16 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontr
 /// ofrece los centros de los Clientes vinculados a la subcontrata — sin
 /// relación directa Subcontrata–Centro en el modelo (decisión explícita,
 /// ADR-005 § 2.4).
+///
+/// Las dos listas se acotan a los Centros visibles para quien pregunta
+/// (<see cref="IAlcanceDatosService.ObtenerCentroIdsVisiblesAsync"/>): que la
+/// Subcontrata sea visible no hace visibles todos los Centros donde trabaja o
+/// tiene verificaciones. Un Centro no visible no aporta fila, razón social ni
+/// verificación, y los recuentos que el panel deriva de este DTO (Centros,
+/// requisitos sin verificar, última verificación) cuentan solo lo visible.
+/// No es el mismo corte que el cumplimiento de la Subcontrata
+/// (<c>CalculoEstadoSubcontrataService</c>), que se acota por Trabajadores
+/// visibles y cuenta todos los Centros de cada uno de ellos.
 /// </summary>
 public record ObtenerSupervisionSubcontrataQuery(Guid SubcontrataId) : IRequest<SupervisionSubcontrataDto?>;
 
@@ -74,6 +84,14 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
         if (!await alcanceDatos.SubcontrataVisibleAsync(request.SubcontrataId, cancellationToken))
             return null;
 
+        // Toda lectura de Centros de esta consulta pasa por aquí: ni la
+        // actividad, ni una verificación ya registrada, ni una Relación
+        // Empresarial vigente hacen visible un Centro que quien pregunta no ve.
+        var centrosVisibles = centrosContext.Centros;
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        if (centroIdsVisibles is not null)
+            centrosVisibles = centrosVisibles.Where(c => centroIdsVisibles.Contains(c.Id));
+
         // Centros de los Clientes vinculados — candidatos para registrar la
         // primera verificación de un centro sin historial ni actividad.
         //
@@ -95,7 +113,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             where r.ProveedoraId == request.SubcontrataId && r.VigenciaHasta == null
             join clienteReal in empresasContext.Empresas.Where(e => e.EsCritico != null)
                 on r.ClienteId equals clienteReal.Id
-            join centro in centrosContext.Centros on clienteReal.Id equals centro.ClienteId
+            join centro in centrosVisibles on clienteReal.Id equals centro.ClienteId
             // P1-X2: un Centro sin gestión CAE no acredita nada: no se ofrece para verificar.
             where centro.GestionCae != ModalidadGestionCae.SinGestionCae
             select new CentroSeleccionableDto(centro.Id, centro.Nombre, clienteReal.RazonSocial))
@@ -136,7 +154,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             return new SupervisionSubcontrataDto([], OrdenarSeleccionables(centrosSeleccionables));
 
         var centros = await (
-            from centro in centrosContext.Centros
+            from centro in centrosVisibles
             where centroIds.Contains(centro.Id)
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new { centro.Id, centro.Nombre, ClienteRazonSocial = cliente.RazonSocial, centro.GestionCae })

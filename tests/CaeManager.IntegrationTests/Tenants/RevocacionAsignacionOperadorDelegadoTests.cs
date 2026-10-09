@@ -164,7 +164,7 @@ public class RevocacionAsignacionOperadorDelegadoTests : IAsyncLifetime
             new AuthenticationStateProviderFalso(new ClaimsPrincipal(identidad)),
             new HttpContextAccessorFalso(),
             new ClienteActivoSeleccionadoFalso(_propietario),
-            servicios.BuildServiceProvider());
+            servicios.AddTechoDeRolSinEncargoSembrado().BuildServiceProvider());
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenantSellado)

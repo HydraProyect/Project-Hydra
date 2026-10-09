@@ -22,7 +22,8 @@ public record EliminarUsuarioPendienteCommand(Guid UsuarioId) : ICommand;
 
 public class EliminarUsuarioPendienteCommandHandler(
     IGestionCuentasUsuario cuentas,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    ITenantActual tenantActual)
     : IRequestHandler<EliminarUsuarioPendienteCommand, Result>
 {
     public static readonly Error NoPendiente = Error.Crear(
@@ -44,6 +45,13 @@ public class EliminarUsuarioPendienteCommandHandler(
         var cuenta = await cuentas.ObtenerAsync(request.UsuarioId, cancellationToken);
         if (cuenta is null || !cuenta.EsPropiaDelTenantActual)
             return Result.Fallo(AutoridadSobreCuentas.NoEncontrado);
+
+        // La cuenta destino tiene rol de Propiedad: solo la toca quien actúa en su propio
+        // Tenant de origen (primer acto excluido del Encargo de administración, D-8).
+        var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+        if (destinoIntocable.EsFallido)
+            return destinoIntocable;
 
         if (!cuenta.PendienteActivacion)
             return Result.Fallo(NoPendiente);

@@ -1,0 +1,67 @@
+@* Encargo de administración del Tenant activo (decisión D-8, 2026-10-08): quien gobierna el encargo
+   —un Administrador propio del Tenant propietario, o Soporte TALVEG dentro de una Sesión Privilegiada
+   de aprovisionamiento— lo ve y lo retira aquí; con PermiteRegistrar también lo registra. La autoridad
+   real vive en los comandos: a quien no la tiene las dos consultas le devuelven vacío y el panel no se
+   pinta. Esto es presentación. *@
+@if (_error)
+{
+    <p class="encargo-administracion-error" role="alert">@Textos["ErrorCarga"]</p>
+}
+else if (!_cargando && HayAlgoQueMostrar)
+{
+    <section class="encargo-administracion" aria-label="@Textos["PanelTitulo"]" data-testid="encargo-administracion">
+        <Tarjeta Titulo="@Textos["PanelTitulo"]">
+            <p class="encargo-administracion-nota">@Textos["PanelDescripcion"]</p>
+            <p class="encargo-administracion-nota">@Textos["PanelExclusiones"]</p>
+
+            @foreach (var encargo in _encargos)
+            {
+                <div class="encargo-administracion-fila" data-testid="encargo-vigente">
+                    <div class="encargo-administracion-cabecera">
+                        <strong class="encargo-administracion-operador">@encargo.OperadorNombre</strong>
+                        <Badge Tono="@TonoDe(encargo)">@EstadoDe(encargo)</Badge>
+                        <Boton Variante="VarianteBoton.Destructivo" Tamano="TamanoBoton.Pequeno"
+                               OnClick="() => PedirRetirada(encargo)" data-testid="encargo-retirar">
+                            @Textos["AccionRetirar"]
+                        </Boton>
+                    </div>
+                    <RejillaDatos>
+                        <DatoRejilla Etiqueta="@Textos["CampoClausula"]" Valor="@encargo.ClausulaContrato" Ancho="true" />
+                        <DatoRejilla Etiqueta="@Textos["CampoRegistrado"]" Valor="@Dia(encargo.RegistradoEnUtc)" />
+                        <DatoRejilla Etiqueta="@Textos["CampoVigencia"]" Valor="@VigenciaDe(encargo)" />
+                        <DatoRejilla Etiqueta="@Textos["CampoOrigen"]" Valor="@OrigenDe(encargo)" />
+                    </RejillaDatos>
+                </div>
+            }
+
+            @if (PermiteRegistrar)
+            {
+                @foreach (var operacion in _encargables)
+                {
+                    <div class="encargo-administracion-fila encargo-administracion-cabecera" data-testid="encargo-encargable">
+                        <span class="encargo-administracion-operador">@Textos["EncargableNota", operacion.OperadorNombre]</span>
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno"
+                               OnClick="() => AbrirRegistro(operacion)" data-testid="encargo-registrar">
+                            @Textos["AccionRegistrar"]
+                        </Boton>
+                    </div>
+                }
+            }
+        </Tarjeta>
+    </section>
+}
+
+<DialogoConfirmacion Visible="@(_aRetirar is not null)" VisibleChanged="CerrarRetirada"
+                     Titulo="@TituloRetirada" Mensaje="@MensajeRetirada"
+                     TextoBotonConfirmar="@Textos["AccionRetirar"]" TextoBotonDescartar="@Textos["BotonCancelar"]"
+                     EnProgreso="_retirando" OnConfirmar="RetirarAsync" />
+
+<DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerTitulo"]"
+                 HayCambios="() => HayCambiosRegistro" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
+                 HayErroresDeCampo="@(_errorClausula is not null)" OnGuardar="GuardarAsync"
+                 TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <p class="encargo-administracion-nota">@Textos["DrawerExplicacion", _operacionARegistrar?.OperadorNombre ?? string.Empty]</p>
+    <CampoTextarea Etiqueta="@Textos["CampoClausula"]" Placeholder="@Textos["ClausulaPlaceholder"]"
+                   Valor="@_clausula" ValorChanged="AlCambiarClausula" Filas="4" MensajeError="@_errorClausula" />
+    <p class="encargo-administracion-nota">@Textos["PanelExclusiones"]</p>
+</DrawerFormulario>

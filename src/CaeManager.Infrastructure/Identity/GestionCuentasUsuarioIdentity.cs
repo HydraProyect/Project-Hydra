@@ -210,6 +210,34 @@ public class GestionCuentasUsuarioIdentity(
             return Result.Exito(WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token)));
         }, cancellationToken);
 
+    public Task<Result<string>> CorregirCorreoPendienteAsync(
+        Guid usuarioId, string correoNuevo, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            var usuario = await CargarEnFrescoAsync(usuarioId);
+            if (usuario is null) return Result.Fallo<string>(ErrorCuentaNoEncontrada);
+
+            // Sobre la MISMA instancia que se escribe, como en GenerarTokenActivacionAsync:
+            // si la persona fijó su contraseña entretanto —alguien usó el enlace—, el
+            // correo de una cuenta ya activada no se toca por esta vía.
+            if (!await EsPendienteAsync(usuario)) return Result.Fallo<string>(AutoridadSobreCuentas.YaNoPendiente);
+
+            // Correo y sello nuevos en un solo UpdateAsync (ver
+            // ApplicationUser.CorregirCorreoPendiente). Identity valida ahí la unicidad
+            // del correo, igual que en el alta; si falla, o si la cuenta cambió entre la
+            // lectura y la escritura, no se guarda nada ni se emite enlace.
+            usuario.CorregirCorreoPendiente(correoNuevo);
+            var corregido = await userManager.UpdateAsync(usuario);
+            if (!corregido.Succeeded)
+            {
+                DescartarEmisionFallida(usuarioId);
+                return Result.Fallo<string>(ErrorDeIdentity("Usuarios.FalloAlCorregirCorreo", corregido));
+            }
+
+            var token = await userManager.GeneratePasswordResetTokenAsync(usuario);
+            return Result.Exito(WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token)));
+        }, cancellationToken);
+
     /// <summary>Sin contraseña y sin login externo: la persona nunca entró.</summary>
     private async Task<bool> EsPendienteAsync(ApplicationUser usuario) =>
         string.IsNullOrEmpty(usuario.PasswordHash) && (await userManager.GetLoginsAsync(usuario)).Count == 0;
