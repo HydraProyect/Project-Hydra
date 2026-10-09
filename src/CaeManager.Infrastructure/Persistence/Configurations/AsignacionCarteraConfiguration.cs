@@ -16,6 +16,9 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
     /// <summary>Solo una cartera del Tenant entero, de Gestor CAE o Coordinador CAE, puede ser la principal.</summary>
     public const string RestriccionPrincipal = "CK_AsignacionesCartera_PrincipalSoloGestorCaeTenantEntero";
 
+    /// <summary>CHECK que solo deja «era principal al cerrarse por cascada» en una cartera cerrada (D-9).</summary>
+    public const string RestriccionEraPrincipal = "CK_AsignacionesCartera_EraPrincipalSoloCerrada";
+
     public void Configure(EntityTypeBuilder<AsignacionCartera> builder)
     {
         builder.HasKey(a => a.Id);
@@ -29,6 +32,7 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
         builder.Property(a => a.Estado).IsRequired().HasConversion<string>().HasMaxLength(20);
         builder.Property(a => a.MotivoCierre).HasConversion<string>().HasMaxLength(30);
         builder.Property(a => a.EsPrincipal).IsRequired().HasDefaultValue(false);
+        builder.Property(a => a.EraPrincipalAlCerrarsePorCascada).IsRequired().HasDefaultValue(false);
 
         // "¿Qué lleva este usuario?" — la pregunta que hace el servicio de
         // alcance de datos al principio de cada circuito.
@@ -61,6 +65,13 @@ public class AsignacionCarteraConfiguration : IEntityTypeConfiguration<Asignacio
                 $"AND \"{nameof(AsignacionCartera.AmbitoProyectoId)}\" IS NULL " +
                 $"AND (\"{nameof(AsignacionCartera.Rol)}\" IS NULL " +
                 $"OR \"{nameof(AsignacionCartera.Rol)}\" IN ('GestorCae', 'CoordinadorCae')))");
+            // Tercer CHECK (D-9, 2026-10-08): «era principal al cerrarse por cascada» es histórico de una
+            // cartera cerrada. En una cartera viva no significa nada, y dejarlo pasar permitiría que una
+            // reactivación leyera como anterior principal a quien nunca cerró la cascada.
+            t.HasCheckConstraint(
+                RestriccionEraPrincipal,
+                $"NOT \"{nameof(AsignacionCartera.EraPrincipalAlCerrarsePorCascada)}\" " +
+                $"OR \"{nameof(AsignacionCartera.Estado)}\" = 'Cerrada'");
         });
 
         // Como máximo un principal vivo por Asignación de Operación. «Vivo» es no cerrado: incluye Suspendida

@@ -564,6 +564,10 @@ public class CrearOperadorCaeExternoTests : IAsyncLifetime
 
         public virtual Task<Result<string>> GenerarTokenActivacionAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             reales.GenerarTokenActivacionAsync(usuarioId, cancellationToken);
+
+        public Task<Result<string>> CorregirCorreoPendienteAsync(
+            Guid usuarioId, string correoNuevo, CancellationToken cancellationToken = default) =>
+            reales.CorregirCorreoPendienteAsync(usuarioId, correoNuevo, cancellationToken);
     }
 
     private sealed class TenantActualDesdeAmbitoExplicito : ITenantActual

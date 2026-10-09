@@ -15,12 +15,90 @@ namespace CaeManager.Application.Operaciones;
 /// <see cref="EscaladoDePrincipalDeCartera"/>): recibe la marca la única cuenta activa del
 /// primer perfil del Operador CAE que tenga alguna. Con varias en ese perfil, o sin nadie en
 /// ninguno, <b>la operación queda sin principal</b> y la lista la alerta. El cierre en cascada
-/// de la operación entera no pasa por aquí.
+/// de la operación entera no pasa por aquí: ahí la cartera recuerda que era la principal y
+/// <see cref="RestaurarAlReactivarAsync"/> se la devuelve al reactivar.
 /// </para>
 /// </summary>
 public static class RelevoDePrincipalDeCartera
 {
     private const string CoordinadorCae = "CoordinadorCae";
+    private const string GestorCae = "GestorCae";
+
+    /// <summary>
+    /// Al reactivar una delegación vuelve a ser principal quien lo era cuando la cascada cerró la
+    /// operación (decisión del propietario, 2026-10-08, D-9). Se llama con las carteras repuestas
+    /// ya guardadas —todas sin marca— y dentro de la transacción del comando.
+    ///
+    /// <para>
+    /// La marca solo vuelve a quien <b>sigue pudiendo llevarla</b>: su cartera se repuso y hoy es
+    /// una cuenta activa del Operador CAE con rol Gestor CAE o Coordinador CAE, leído en Identity.
+    /// Si no, se aplica el relevo de siempre (<see cref="ResolverRelevoAsync"/>,
+    /// <see cref="RelevarAsync"/>): a su Coordinador CAE y, si no hay, por escalado a la única
+    /// cuenta del primer perfil con alguien; si tampoco, la operación queda sin principal y en la
+    /// alerta. Nunca se le da a otro Gestor CAE: nadie lo decidió.
+    /// </para>
+    ///
+    /// <para>
+    /// Antes de leer su cuenta toma el candado compartido de cartera sobre ella, por el mismo
+    /// motivo que <see cref="ResolverCoordinadorAsync"/>: una desactivación simultánea no vería
+    /// todavía esta marca para cederla, y la marca quedaría en una cuenta desactivada.
+    /// </para>
+    ///
+    /// <para>
+    /// Lo ejecuta el Administrador del Tenant propietario, dentro de su transacción: el ámbito de
+    /// Tenant explícito acota las consultas, pero RLS sigue siendo el de su sesión y de las cuentas
+    /// del Operador CAE solo le deja leer las que ya tienen un vínculo con su Tenant (fila de
+    /// operador delegado o cartera). El anterior principal siempre lo tiene; su Coordinador CAE
+    /// puede no tenerlo, y entonces no se le puede comprobar y no hay relevo. El escalado cuenta
+    /// con esa misma vista parcial, igual que al abrir una operación
+    /// (<see cref="IAsignacionAutomaticaDePrincipal.AlAbrirOperacionAsync"/>): si no ve a nadie, la
+    /// operación queda sin principal y en la alerta del Operador CAE, que la toma con «Asumir».
+    /// No se ensancha RLS para evitarlo.
+    /// </para>
+    ///
+    /// Devuelve <c>false</c> si un guardado perdió una carrera: el comando debe fallar para que la
+    /// transacción se deshaga entera.
+    /// </summary>
+    public static async Task<bool> RestaurarAlReactivarAsync(
+        ICatalogoIncorporacionCartera catalogo,
+        OperacionConPrincipal operacion,
+        Guid operadorTenantId,
+        Guid anteriorPrincipalUsuarioId,
+        IDirectorioDestinosCartera directorioDestinos,
+        IDirectorioUsuariosService directorioUsuarios,
+        IBloqueoCarteraUsuario bloqueoCartera,
+        CancellationToken cancellationToken)
+    {
+        await bloqueoCartera.BloquearCompartidoAsync([anteriorPrincipalUsuarioId], cancellationToken);
+
+        bool puedeSeguirSiendolo;
+        using (AmbitoTenantExplicito.Establecer(operadorTenantId))
+        {
+            puedeSeguirSiendolo =
+                await directorioUsuarios.EsCuentaActivaConRolAsync(
+                    anteriorPrincipalUsuarioId, operadorTenantId, GestorCae, cancellationToken)
+                || await directorioUsuarios.EsCuentaActivaConRolAsync(
+                    anteriorPrincipalUsuarioId, operadorTenantId, CoordinadorCae, cancellationToken);
+        }
+
+        if (puedeSeguirSiendolo)
+        {
+            using (AmbitoTenantExplicito.Establecer(operacion.PropietarioTenantId))
+            {
+                // Falso si su cartera no se repuso (ya no figura como operador delegado con ese rol):
+                // tampoco puede serlo, y se releva igual que si su cuenta no valiera.
+                if (await catalogo.EncenderPrincipalAsync(
+                        operadorTenantId, operacion.AsignacionOperacionId, anteriorPrincipalUsuarioId, cancellationToken))
+                    return await catalogo.GuardarDetectandoCarreraAsync(cancellationToken);
+            }
+        }
+
+        var relevo = await ResolverRelevoAsync(
+            anteriorPrincipalUsuarioId, operadorTenantId, directorioDestinos, directorioUsuarios, bloqueoCartera,
+            cancellationToken);
+
+        return await RelevarAsync(catalogo, [operacion], operadorTenantId, relevo, cancellationToken);
+    }
 
     /// <summary>
     /// El Coordinador CAE al que reporta <paramref name="usuarioId"/>, si hoy es una cuenta
