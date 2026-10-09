@@ -50,8 +50,26 @@ public class Visita : EntidadBase
     /// <summary>Instante del primer mensaje entrante que pidió esta visita — el momento que el cliente considera "yo avisé".</summary>
     public DateTime? FechaHoraSolicitudUtc { get; private set; }
 
-    /// <summary>Instante en que dejó de faltar documentación. Se sella una sola vez y no se reabre: es el punto de corte que decide la atribución.</summary>
+    /// <summary>
+    /// Instante en que dejó de faltar documentación por primera vez. Se sella una sola vez y no
+    /// se reabre: es el punto de corte que decide la atribución de la matriz de antelación, y
+    /// nada más. No es el estado de la columna «Documentación» ni dice que la Visita esté
+    /// gestionada: eso es <see cref="DocumentacionGestionadaEnUtc"/>, que sí se borra.
+    /// </summary>
     public DateTime? FechaHoraExpedienteCompletoUtc { get; private set; }
+
+    /// <summary>
+    /// Instante en que la documentación de esta Visita se dio por gestionada ante el titular
+    /// del Centro: al enviar el paquete de acreditación desde la Visita o al marcarlo a mano
+    /// (decisión del propietario, 2026-10-09). Null = «Por gestionar», aunque todos los
+    /// documentos estén vigentes: es un estado guardado, no un cálculo sobre los documentos.
+    /// Añadir o quitar un Trabajador lo borra (<see cref="RegistrarCambioDeTrabajadores"/>);
+    /// que un documento venza después, no. Independiente de <see cref="NotificadoCliente"/>
+    /// («Avisada») y del sello <see cref="FechaHoraExpedienteCompletoUtc"/>.
+    /// </summary>
+    public DateTime? DocumentacionGestionadaEnUtc { get; private set; }
+
+    public bool DocumentacionGestionada => DocumentacionGestionadaEnUtc is not null;
 
     public decimal? AntelacionNominalHoras { get; private set; }
     public decimal? AntelacionEfectivaHoras { get; private set; }
@@ -130,8 +148,30 @@ public class Visita : EntidadBase
     /// VisitaTrabajador: renueva la versión para que dos cambios simultáneos choquen (no se
     /// quedan sin Trabajadores entre los dos) y para que un «Editar visita» abierto antes no
     /// guarde encima sin enterarse.
+    /// <para>
+    /// Además borra la marca de documentación gestionada: lo que se envió o se dio por
+    /// gestionado era para quienes entraban entonces, así que la Visita vuelve a «Por
+    /// gestionar». El paquete ya enviado no se toca: sigue en su conversación.
+    /// </para>
     /// </summary>
-    public void RegistrarCambioDeTrabajadores() => RenovarVersion();
+    public void RegistrarCambioDeTrabajadores()
+    {
+        RenovarVersion();
+        DocumentacionGestionadaEnUtc = null;
+    }
+
+    /// <summary>
+    /// Da por gestionada la documentación de la Visita. Marcar otra vez (un segundo envío del
+    /// paquete) actualiza la fecha a la última gestión. Lanza si está cancelada: una Visita
+    /// cancelada no se modifica, primero se reactiva.
+    /// </summary>
+    public void MarcarDocumentacionGestionada(DateTime ahoraUtc)
+    {
+        if (EstaCancelada)
+            throw new InvalidOperationException("La visita está cancelada.");
+
+        DocumentacionGestionadaEnUtc = ahoraUtc;
+    }
 
     /// <summary>Ata la visita a la conversación que la pidió. Idempotente: una vez atada no se reasigna, para que el instante de solicitud no se mueva bajo los pies del cálculo ya sellado.</summary>
     public void RegistrarOrigenSolicitud(Guid conversacionId, DateTime fechaHoraSolicitudUtc)
@@ -145,9 +185,11 @@ public class Visita : EntidadBase
     /// <summary>
     /// Sella el momento en que dejó de faltar documentación y congela la atribución.
     /// De un solo sentido: si más adelante se añade un trabajador y vuelve a faltar
-    /// papel, el sello no se retira — el margen que tuvo el gestor para la solicitud
+    /// papel, el sello no se retira — el margen que tuvo el Gestor CAE para la solicitud
     /// original no deja de haber existido. Devuelve false si ya estaba sellado o si no
-    /// hay solicitud de origen que medir.
+    /// hay solicitud de origen que medir. Ese mismo cambio de Trabajadores sí devuelve la
+    /// Visita a «Por gestionar» (<see cref="RegistrarCambioDeTrabajadores"/>): el sello mide
+    /// la antelación, no el estado de la columna «Documentación».
     /// </summary>
     public bool MarcarExpedienteCompleto(DateTime fechaHoraUtc, ResultadoAntelacion antelacion)
     {

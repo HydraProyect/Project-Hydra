@@ -74,11 +74,17 @@ public class EditarVisitaCommandHandler(
         if (await trabajadoresContext.Trabajadores.Where(t => trabajadorIdsNuevos.Contains(t.Id)).CountAsync(cancellationToken) != trabajadorIdsNuevos.Count)
             return Result.Fallo(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
 
-        foreach (var vt in trabajadoresActuales.Where(vt => !trabajadorIdsDeseados.Contains(vt.TrabajadorId)))
+        var trabajadoresQueSalen = trabajadoresActuales.Where(vt => !trabajadorIdsDeseados.Contains(vt.TrabajadorId)).ToList();
+        foreach (var vt in trabajadoresQueSalen)
             visitaTrabajadorRepositorio.Eliminar(vt);
 
         foreach (var trabajadorId in trabajadorIdsNuevos)
             visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajadorId));
+
+        // La misma regla que añadir o quitar desde el panel: si cambia quién entra, la
+        // documentación deja de estar gestionada. Cambiar solo fechas, hora o notas no la borra.
+        if (trabajadoresQueSalen.Count > 0 || trabajadorIdsNuevos.Count > 0)
+            visita.RegistrarCambioDeTrabajadores();
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 

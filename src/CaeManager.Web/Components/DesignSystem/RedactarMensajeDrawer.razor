@@ -11,6 +11,7 @@
 @using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo
 @using CaeManager.Application.Integraciones
 @using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion
+@using CaeManager.Domain.Common
 @using CaeManager.Domain.Integraciones
 @using CaeManager.Web.Recursos
 @using MediatR
@@ -69,6 +70,14 @@
     /// <summary>De dónde se baja <see cref="Adjunto"/> con una petición normal, para ofrecerlo cuando no hay buzón desde el que enviarlo.</summary>
     [Parameter] public string? RutaDescargaAdjunto { get; set; }
     [Parameter] public EventCallback OnEnviado { get; set; }
+
+    /// <summary>
+    /// Envío alternativo: quien abre el compositor para algo más que un mensaje suelto (el
+    /// paquete de acreditación de una Visita, que además deja la Visita gestionada) manda el
+    /// mensaje ya compuesto por su propio comando de Application. Sin él, se envía con
+    /// <see cref="EnviarMensajeNuevoCommand"/> tal cual.
+    /// </summary>
+    [Parameter] public Func<EnviarMensajeNuevoCommand, Task<Result<Guid>>>? EnviarCon { get; set; }
 
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private Guid? _conexionId;
@@ -168,8 +177,9 @@
         try
         {
             var adjuntos = Adjunto is null ? null : new List<AdjuntoParaEnviarDto> { Adjunto };
-            var resultado = await Mediator.Send(new EnviarMensajeNuevoCommand(
-                _conexionId.Value, destinatarios, _asunto, TextoPlanoAHtml(_cuerpo), Adjuntos: adjuntos));
+            var mensaje = new EnviarMensajeNuevoCommand(
+                _conexionId.Value, destinatarios, _asunto, TextoPlanoAHtml(_cuerpo), Adjuntos: adjuntos);
+            var resultado = EnviarCon is null ? await Mediator.Send(mensaje) : await EnviarCon(mensaje);
 
             if (resultado.EsFallido)
             {

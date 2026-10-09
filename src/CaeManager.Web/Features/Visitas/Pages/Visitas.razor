@@ -199,13 +199,15 @@
                         @* P1-X2: ni «Completa» (verde falso) ni «Por gestionar» (pendiente que no existe). *@
                         <Badge Tono="TonoBadge.Neutro">@Textos["BadgeSinGestionCae"]</Badge>
                     }
-                    else if (context.DocumentacionCompleta)
+                    else if (context.DocumentacionGestionadaEnUtc is { } gestionadaEn)
                     {
-                        <Badge Tono="TonoBadge.Exito">@Textos["BadgeDocumentacionCompleta"]</Badge>
+                        @* Estado guardado en la Visita: se envió el paquete o se marcó a mano. *@
+                        <span title="@Textos["TituloDocumentacionGestionadaEl", CaeManager.Domain.Common.DiaDeNegocio.De(gestionadaEn)]"><Badge Tono="TonoBadge.Exito">@Textos["BadgeDocumentacionGestionada"]</Badge></span>
                     }
                     else
                     {
-                        <Badge Tono="TonoBadge.Peligro">@Textos["BadgeDocumentacionPorGestionar"]</Badge>
+                        @* «Por gestionar» aunque los documentos estén vigentes: el title dice si ya se puede enviar o falta papel. *@
+                        <span title="@(context.DocumentacionCompleta ? Textos["TituloPorGestionarDocumentosVigentes"] : Textos["TituloPorGestionarFaltanDocumentos"])"><Badge Tono="TonoBadge.Peligro">@Textos["BadgeDocumentacionPorGestionar"]</Badge></span>
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["EtiquetaNotificadaTitular"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
@@ -465,6 +467,13 @@
                     <dt>@Textos["EtiquetaNotificadaTitular"]</dt>
                     <dd>@(_detalle.NotificadoCliente ? Textos["OpcionSi"].Value : Textos["OpcionNo"].Value)</dd>
                 </div>
+                @if (_detalle is { CentroRequiereGestionCae: true, EstaCancelada: false })
+                {
+                    <div class="visitas-detalle-campo">
+                        <dt>@Textos["ColumnaDocumentacion"]</dt>
+                        <dd>@TextoDocumentacionGestionada(_detalle)</dd>
+                    </div>
+                }
             </dl>
 
             @if (_detalle.Tramo is { } tramo)
@@ -686,6 +695,11 @@
                     <Boton Variante="VarianteBoton.Primario" Cargando="_marcandoNotificadoDetalle" OnClick="AlternarNotificadoDesdeDetalleAsync">
                         @(_detalle.NotificadoCliente ? Textos["BotonQuitarMarcaNotificada"].Value : Textos["BotonMarcarNotificada"].Value)
                     </Boton>
+                    @* Salida manual de «Por gestionar»: lo gestionado fuera de TALVEG (portal del titular, otro correo). *@
+                    @if (_detalle is { CentroRequiereGestionCae: true, DocumentacionGestionadaEnUtc: null })
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" Cargando="_marcandoDocumentacionGestionada" OnClick="MarcarDocumentacionGestionadaAsync">@Textos["BotonMarcarDocumentacionGestionada"]</Boton>
+                    }
                     <Boton Variante="VarianteBoton.Secundario" OnClick="EditarDesdeDetalleAsync">@Textos["AccionEditar"]</Boton>
                 </Authorized>
                 <NotAuthorized>
@@ -770,6 +784,7 @@
 <RedactarMensajeDrawer Visible="_composerPaqueteVisible" VisibleChanged="v => _composerPaqueteVisible = v"
                        DestinatariosIniciales="@_solicitudCorreo?.Destinatarios" AsuntoInicial="@_solicitudCorreo?.Asunto"
                        CuerpoInicial="@_solicitudCorreo?.Cuerpo" Adjunto="_adjuntoPaquete"
-                       RutaDescargaAdjunto="@(_detalle is null ? null : RutaPaqueteDocumental(_detalle.Id))" />
+                       RutaDescargaAdjunto="@(_detalle is null ? null : RutaPaqueteDocumental(_detalle.Id))"
+                       EnviarCon="EnviarPaqueteDeLaVisitaAsync" OnEnviado="AlEnviarPaqueteAsync" />
 
 </LimiteDeErrores>

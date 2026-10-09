@@ -78,9 +78,6 @@
   <data name="ColumnaDocumentacion" xml:space="preserve">
     <value>Documentación</value>
   </data>
-  <data name="BadgeDocumentacionCompleta" xml:space="preserve">
-    <value>Completa</value>
-  </data>
   <data name="BadgeDocumentacionPorGestionar" xml:space="preserve">
     <value>Por gestionar</value>
   </data>
@@ -632,5 +629,35 @@
   </data>
   <data name="DetalleAbrirPagina" xml:space="preserve">
     <value>Obrir la pàgina de la visita →</value>
+  </data>
+  <data name="BadgeDocumentacionGestionada" xml:space="preserve">
+    <value>Gestionada</value>
+  </data>
+  <data name="TituloDocumentacionGestionadaEl" xml:space="preserve">
+    <value>Documentació gestionada el {0}</value>
+  </data>
+  <data name="TituloPorGestionarDocumentosVigentes" xml:space="preserve">
+    <value>Documents vigents: cal enviar el paquet o marcar-la com a gestionada</value>
+  </data>
+  <data name="TituloPorGestionarFaltanDocumentos" xml:space="preserve">
+    <value>Falten documents vigents</value>
+  </data>
+  <data name="DetalleDocumentacionGestionadaEl" xml:space="preserve">
+    <value>Gestionada el {0}</value>
+  </data>
+  <data name="BotonMarcarDocumentacionGestionada" xml:space="preserve">
+    <value>Marca la documentació com a gestionada</value>
+  </data>
+  <data name="ToastDocumentacionGestionada" xml:space="preserve">
+    <value>Documentació marcada com a gestionada.</value>
+  </data>
+  <data name="ToastErrorDocumentacionGestionada" xml:space="preserve">
+    <value>No hem pogut marcar la documentació com a gestionada. Torna-ho a provar.</value>
+  </data>
+  <data name="Visita360DocumentacionGestionada" xml:space="preserve">
+    <value>Documentació gestionada</value>
+  </data>
+  <data name="Visita360DocumentacionPorGestionar" xml:space="preserve">
+    <value>Documentació per gestionar</value>
   </data>
 </root>

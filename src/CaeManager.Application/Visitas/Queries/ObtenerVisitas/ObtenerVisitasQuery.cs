@@ -31,6 +31,9 @@ public record VisitaListaDto(
     DateOnly FechaInicio,
     DateOnly FechaFin,
     int TotalTrabajadores,
+    // Lo que dicen los documentos HOY (calculado): todos los exigidos están vigentes. Ya no
+    // decide la columna «Documentación» —eso es DocumentacionGestionadaEnUtc—; solo dice,
+    // en una Visita por gestionar, si el paquete se puede enviar ya o falta papel.
     bool DocumentacionCompleta,
     bool NotificadoCliente,
     OrigenVisita Origen,
@@ -50,18 +53,29 @@ public record VisitaListaDto(
     Guid Version = default,
     // Quién entra, «Nombre Apellidos» por apellidos: lo que abre el recuento de la columna
     // «Trabajadores». Sin DNI, igual que el detalle de la Visita.
-    IReadOnlyList<string>? Trabajadores = null)
+    IReadOnlyList<string>? Trabajadores = null,
+    // Estado GUARDADO en la Visita (Visita.DocumentacionGestionadaEnUtc): cuándo se envió el
+    // paquete de acreditación o se marcó a mano. Null = por gestionar.
+    DateTime? DocumentacionGestionadaEnUtc = null)
 {
     /// <summary>
     /// Lo que la columna «Documentación» pinta en rojo: ni cancelada, ni en un
-    /// Centro sin gestión CAE (no hay documentación que gestionar), ni completa.
+    /// Centro sin gestión CAE (no hay documentación que gestionar), ni con la
+    /// documentación ya gestionada. Depende del estado guardado en la Visita, no de
+    /// si los documentos están vigentes (decisión del propietario, 2026-10-09): una
+    /// Visita con todo vigente sigue por gestionar hasta que se envía el paquete o se
+    /// marca a mano, y vuelve a estarlo al añadir o quitar un Trabajador.
     /// Es lo que ordena <see cref="ObtenerVisitasQuery.OrdenarPor"/> =
     /// <c>PorGestionar</c>.
     /// </summary>
-    public bool PorGestionar => !EstaCancelada && CentroRequiereGestionCae && !DocumentacionCompleta;
+    public bool PorGestionar => !EstaCancelada && CentroRequiereGestionCae && DocumentacionGestionadaEnUtc is null;
 }
 
 /// <summary>
+/// «Por gestionar» sale del estado guardado en la Visita y se ordena y pagina en SQL.
+/// Lo que sigue describe solo <c>DocumentacionCompleta</c>, el dato calculado que acompaña
+/// a una Visita por gestionar.
+/// <para/>
 /// Igual que Dashboard/Alertas, el semáforo de cada Documento se calcula en
 /// memoria con CalculadoraEstadoDocumento — nunca en SQL — para que nunca
 /// pueda haber un resultado distinto entre pantallas. "Documentación
@@ -128,16 +142,19 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
 
         var total = await consulta.CountAsync(cancellationToken);
 
-        // PorGestionar depende de la documentación, que se calcula en memoria
-        // (más abajo) y no existe en SQL: ordenar por ello obliga a calcularla
-        // para TODAS las visitas del filtro —ya acotado por el alcance de
-        // cartera de arriba— y paginar después. El resto de órdenes pagina en SQL.
-        var ordenaPorGestionar = request.OrdenarPor == nameof(VisitaListaDto.PorGestionar);
-
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
-        // PorGestionar no se ordena aquí: ver ordenaPorGestionar.
+        // PorGestionar es la misma expresión que VisitaListaDto.PorGestionar, escrita sobre
+        // las columnas: desde que el estado se guarda en la Visita se ordena y pagina en SQL
+        // como las demás. «Por gestionar» primero en sentido descendente (true > false); a
+        // igual estado, la que entra antes.
         var ordenada = (request.OrdenarPor, request.Descendente) switch
         {
+            (nameof(VisitaListaDto.PorGestionar), false) => consulta
+                .OrderBy(x => !x.visita.EstaCancelada && x.centro.GestionCae != ModalidadGestionCae.SinGestionCae && x.visita.DocumentacionGestionadaEnUtc == null)
+                .ThenBy(x => x.visita.FechaInicio),
+            (nameof(VisitaListaDto.PorGestionar), true) => consulta
+                .OrderByDescending(x => !x.visita.EstaCancelada && x.centro.GestionCae != ModalidadGestionCae.SinGestionCae && x.visita.DocumentacionGestionadaEnUtc == null)
+                .ThenBy(x => x.visita.FechaInicio),
             (nameof(VisitaListaDto.CentroNombre), false) => consulta.OrderBy(x => x.centro.Nombre),
             (nameof(VisitaListaDto.CentroNombre), true) => consulta.OrderByDescending(x => x.centro.Nombre),
             (nameof(VisitaListaDto.ClienteRazonSocial), false) => consulta.OrderBy(x => x.cliente.RazonSocial).ThenBy(x => x.visita.FechaInicio),
@@ -180,15 +197,14 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 x.visita.Tramo,
                 x.visita.AntelacionNominalHoras,
                 x.visita.AntelacionEfectivaHoras,
-                x.visita.Version
+                x.visita.Version,
+                x.visita.DocumentacionGestionadaEnUtc
             });
 
-        var pagina = ordenaPorGestionar
-            ? await filas.ToListAsync(cancellationToken)
-            : await filas
-                .Skip((request.Pagina - 1) * request.TamanoPagina)
-                .Take(request.TamanoPagina)
-                .ToListAsync(cancellationToken);
+        var pagina = await filas
+            .Skip((request.Pagina - 1) * request.TamanoPagina)
+            .Take(request.TamanoPagina)
+            .ToListAsync(cancellationToken);
 
         if (pagina.Count == 0)
             return new ResultadoPaginado<VisitaListaDto>([], total, request.Pagina, request.TamanoPagina);
@@ -276,23 +292,9 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 Trabajadores: nombresTrabajadores
                     .Where(t => trabajadorIdsDeEstaVisita.Contains(t.Id))
                     .Select(t => t.NombreCompleto)
-                    .ToList());
+                    .ToList(),
+                DocumentacionGestionadaEnUtc: p.DocumentacionGestionadaEnUtc);
         }).ToList();
-
-        if (ordenaPorGestionar)
-        {
-            // «Por gestionar» primero en sentido descendente (true > false); a igual
-            // estado, la que entra antes. La lista llega ya por FechaInicio, Id.
-            var porEstado = request.Descendente
-                ? elementos.OrderByDescending(e => e.PorGestionar)
-                : elementos.OrderBy(e => e.PorGestionar);
-            elementos = porEstado
-                .ThenBy(e => e.FechaInicio)
-                .ThenBy(e => e.Id)
-                .Skip((request.Pagina - 1) * request.TamanoPagina)
-                .Take(request.TamanoPagina)
-                .ToList();
-        }
 
         return new ResultadoPaginado<VisitaListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
     }

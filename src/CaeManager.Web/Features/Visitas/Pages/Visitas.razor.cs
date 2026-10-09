@@ -9,6 +9,9 @@ using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisitas;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
+using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
+using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
+using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
 using CaeManager.Application.Visitas.Commands.QuitarTrabajadorDeVisita;
@@ -149,6 +152,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private VisitaListaDto? _filaDetalle;
 
     private bool _marcandoNotificadoDetalle;
+    private bool _marcandoDocumentacionGestionada;
     private readonly HashSet<Guid> _marcandoNotificado = [];
 
     // Contadores de carga vigente. Cada carga que escribe estado tras un
@@ -179,6 +183,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _preparandoEnvioPaquete;
     private bool _composerPaqueteVisible;
     private AdjuntoParaEnviarDto? _adjuntoPaquete;
+    private (Guid Id, Guid Version)? _visitaDelPaquete;
     private string? _avisoEnvioPaquete;
 
     private bool _visorVisible;
@@ -724,6 +729,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             }
 
             _adjuntoPaquete = new AdjuntoParaEnviarDto(paquete.NombreArchivo, "application/zip", paquete.Contenido);
+            _visitaDelPaquete = (detalle.Id, detalle.Version);
             _composerPaqueteVisible = true;
         }
         catch (Exception)
@@ -850,6 +856,65 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             _marcandoNotificadoDetalle = false;
         }
     }
+
+    /// <summary>
+    /// El compositor no envía un mensaje suelto: envía el paquete de ESTA Visita, y el comando de
+    /// Application la deja con la documentación gestionada. Viajan el Id y la versión de la Visita
+    /// para la que se preparó el paquete, no los de la que esté abierta al pulsar «Enviar».
+    /// </summary>
+    private Task<Result<Guid>> EnviarPaqueteDeLaVisitaAsync(EnviarMensajeNuevoCommand mensaje) =>
+        _visitaDelPaquete is not { } visita
+            ? Task.FromResult(Result.Fallo<Guid>(Error.Crear("Visita.NoEncontrada", "No encontramos esta visita.")))
+            : Mediator.Send(new EnviarPaqueteAcreditacionVisitaCommand(
+                visita.Id, visita.Version, mensaje.ConexionIntegracionId, mensaje.Destinatarios, mensaje.Asunto, mensaje.CuerpoHtml,
+                mensaje.Adjuntos ?? []));
+
+    /// <summary>Enviado el paquete: la fila y el panel se vuelven a leer del servidor, que es quien sabe si quedó gestionada.</summary>
+    private async Task AlEnviarPaqueteAsync()
+    {
+        var visita = _visitaDelPaquete;
+        await RecargarAsync();
+        if (visita is { } enviada && _detalle?.Id == enviada.Id)
+            await AbrirDetalleAsync(enviada.Id, _pestanaDetalle);
+    }
+
+    /// <summary>
+    /// Salida manual de «Por gestionar». Lleva la versión del panel: si alguien añadió o quitó un
+    /// Trabajador mientras tanto, el servidor lo rechaza y aquí se vuelve a leer. Tanto si sale
+    /// bien como si falla, fila y panel salen de lo guardado.
+    /// </summary>
+    private async Task MarcarDocumentacionGestionadaAsync()
+    {
+        if (_detalle is not { } detalle || _marcandoDocumentacionGestionada)
+            return;
+
+        _marcandoDocumentacionGestionada = true;
+        try
+        {
+            var resultado = await Mediator.Send(new MarcarDocumentacionGestionadaCommand(detalle.Id, detalle.Version));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorDocumentacionGestionada"], TonoToast.Error);
+        }
+        finally
+        {
+            _marcandoDocumentacionGestionada = false;
+        }
+
+        await RecargarAsync();
+        if (_detalle?.Id == detalle.Id)
+            await AbrirDetalleAsync(detalle.Id, _pestanaDetalle);
+    }
+
+    private string TextoDocumentacionGestionada(DetalleVisitaDto detalle) =>
+        detalle.DocumentacionGestionadaEnUtc is { } gestionadaEn
+            ? Textos["DetalleDocumentacionGestionadaEl", DiaDeNegocio.De(gestionadaEn)].Value
+            : Textos["BadgeDocumentacionPorGestionar"].Value;
 
     // ---- Pestañas del panel y trabajadores de la Visita ----
 
