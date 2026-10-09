@@ -67,6 +67,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
                 ObtenerAlcanceCeroQuery => (object)AlcanceCero,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)[],
+                CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant.ObtenerOperadoresCaeDeMiTenantQuery => (IReadOnlyList<CarterasDeOperacion>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 

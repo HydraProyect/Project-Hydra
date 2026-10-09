@@ -49,6 +49,7 @@ public class EmpresasAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerAlcanceCeroQuery => false,
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)[],
+                CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant.ObtenerOperadoresCaeDeMiTenantQuery => (IReadOnlyList<CarterasDeOperacion>)[],
                 ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[],
                 CrearEmpresaCommand => Result.Exito(EmpresaCreadaId),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
