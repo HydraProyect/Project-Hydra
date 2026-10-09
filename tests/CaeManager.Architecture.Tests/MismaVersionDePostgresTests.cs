@@ -21,6 +21,19 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
+/// <b>Registro de origen.</b> Los servicios de CI descargan esa misma imagen del
+/// espejo público de las imágenes oficiales de Docker en Amazon ECR Public
+/// (<c>public.ecr.aws/docker/library/</c>) porque Docker Hub limita las
+/// descargas sin autenticar desde las IP compartidas de los runners (2026-10-09:
+/// <c>toomanyrequests</c> en «Initialize containers», cola de fusión caída). El
+/// digest identifica el contenido con independencia del registro que lo sirva,
+/// así que ese prefijo —y solo ese— se retira antes de comparar: la etiqueta y
+/// el digest tienen que seguir siendo los de producción. Una referencia desde
+/// cualquier otro registro se ve y cuenta como divergente, y producción misma
+/// se sigue exigiendo sin prefijo.
+/// </para>
+///
+/// <para>
 /// Fuera de su alcance: el PostgreSQL local que no levanta el repositorio (un
 /// servicio instalado en la máquina del desarrollador). Ese no lo puede
 /// observar un test que lee ficheros.
@@ -30,10 +43,20 @@ public class MismaVersionDePostgresTests
 {
     private const string ComposeDeProduccion = "deploy/local/docker-compose.produccion.yml";
 
+    // Único origen distinto de Docker Hub que se da por equivalente: el espejo
+    // de las imágenes oficiales en Amazon ECR Public (ver el resumen de la clase).
+    private const string EspejoDeImagenesOficiales = "public.ecr.aws/docker/library/";
+
+    // Prefijo de registro y ruta delante del nombre (`docker.io/library/`,
+    // `public.ecr.aws/docker/library/`, `localhost:5000/`…). Se captura
+    // cualquiera, no solo los conocidos: un registro que la expresión no viera
+    // dejaría la referencia fuera del recorrido en vez de marcarla.
+    private const string PrefijoDeRegistro = @"(?:[\w.\-]+(?::\d+)?/)*";
+
     // Línea `image: postgres…` (con o sin prefijo de registro y con o sin
     // etiqueta: una imagen sin etiqueta es `latest` y también diverge).
     private static readonly Regex LineaDeImagen = new(
-        @"^\s*-?\s*image:\s*[""']?(?<ref>(?:docker\.io/)?(?:library/)?postgres(?:[:@][^\s""'}]*)?)[""']?\s*$",
+        @"^\s*-?\s*image:\s*[""']?(?<ref>" + PrefijoDeRegistro + @"postgres(?:[:@][^\s""'}]*)?)[""']?\s*$",
         RegexOptions.Compiled);
 
     // Cualquier otra referencia con etiqueta numérica fuera de `image:`, como el
@@ -41,7 +64,7 @@ public class MismaVersionDePostgresTests
     // guion delante solo cuenta como separador si es el de `:-`; `mi-postgres:1`
     // es otra imagen.
     private static readonly Regex ReferenciaSuelta = new(
-        @"(?<![\w./]|(?<!:)-)(?<ref>(?:docker\.io/)?(?:library/)?postgres:\d[^\s""'}]*)",
+        @"(?<![\w./]|(?<!:)-)(?<ref>" + PrefijoDeRegistro + @"postgres:\d[^\s""'}]*)",
         RegexOptions.Compiled);
 
     [Fact]
@@ -61,7 +84,7 @@ public class MismaVersionDePostgresTests
         // Control positivo: si el recorrido deja de ver estos sitios, un verde
         // no diría nada (un recorrido vacío también "coincide" con producción).
         referencias.Count(r => r.Fichero == ".github/workflows/ci.yml").Should().BeGreaterThanOrEqualTo(3,
-            "ci.yml tiene tres servicios de PostgreSQL (build-and-test, E2E y k6)");
+            "ci.yml tiene tres servicios de PostgreSQL (tests-integracion, E2E y k6)");
         referencias.Select(r => r.Fichero).Should().Contain(new[]
         {
             ".github/workflows/integraciones-con-clave.yml",
@@ -71,14 +94,27 @@ public class MismaVersionDePostgresTests
             ComposeDeProduccion,
         });
 
+        // Control positivo del espejo: la CI lo usa hoy, así que si ninguna
+        // referencia lo lleva es que el recorrido ha dejado de ver el prefijo y
+        // la equivalencia de abajo no se estaría ejerciendo.
+        referencias.Should().Contain(r => r.Imagen.StartsWith(EspejoDeImagenesOficiales, StringComparison.Ordinal),
+            "los servicios de PostgreSQL de la CI se descargan del espejo de ECR Public");
+
         var divergentes = referencias
-            .Where(r => r.Imagen != produccion)
+            .Where(r => SinEspejo(r.Imagen) != produccion)
             .Select(r => $"{r.Fichero}:{r.Linea}: {r.Imagen}")
             .ToList();
 
         divergentes.Should().BeEmpty(
             $"producción ({ComposeDeProduccion}) usa {produccion} y la CI se alinea con producción, nunca al revés");
     }
+
+    // Mismo nombre, etiqueta y digest servidos desde el espejo son la misma
+    // imagen; cualquier otro prefijo se conserva y hace divergir la referencia.
+    private static string SinEspejo(string imagen) =>
+        imagen.StartsWith(EspejoDeImagenesOficiales, StringComparison.Ordinal)
+            ? imagen[EspejoDeImagenesOficiales.Length..]
+            : imagen;
 
     private static string ImagenDeProduccion()
     {
