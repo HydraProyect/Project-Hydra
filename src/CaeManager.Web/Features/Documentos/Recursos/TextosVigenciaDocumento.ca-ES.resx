@@ -87,4 +87,40 @@
   <data name="Ficha360Desconocido" xml:space="preserve">
     <value>Estat desconegut</value>
   </data>
+  <data name="MotivoIncidenciasUnVencido" xml:space="preserve">
+    <value>1 vençut</value>
+  </data>
+  <data name="MotivoIncidenciasVencidos" xml:space="preserve">
+    <value>{0} vençuts</value>
+  </data>
+  <data name="MotivoIncidenciasUnoPorVencer" xml:space="preserve">
+    <value>1 per vèncer</value>
+  </data>
+  <data name="MotivoIncidenciasPorVencer" xml:space="preserve">
+    <value>{0} per vèncer</value>
+  </data>
+  <data name="MotivoIncidenciasUnoSinConfirmar" xml:space="preserve">
+    <value>1 sense confirmar</value>
+  </data>
+  <data name="MotivoIncidenciasSinConfirmar" xml:space="preserve">
+    <value>{0} sense confirmar</value>
+  </data>
+  <data name="VentanaIncidenciasTituloUna" xml:space="preserve">
+    <value>1 document demana atenció</value>
+  </data>
+  <data name="VentanaIncidenciasTitulo" xml:space="preserve">
+    <value>{0} documents demanen atenció</value>
+  </data>
+  <data name="IncidenciaSinTipo" xml:space="preserve">
+    <value>Document</value>
+  </data>
+  <data name="RegistradosVigentes" xml:space="preserve">
+    <value>{0}/{1}</value>
+  </data>
+  <data name="RegistradosVigentesAccesible" xml:space="preserve">
+    <value>{0} de {1} documents registrats al dia</value>
+  </data>
+  <data name="RegistradosVigentesSinDocumentos" xml:space="preserve">
+    <value>Sense documents registrats</value>
+  </data>
 </root>

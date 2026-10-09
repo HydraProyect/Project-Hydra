@@ -942,23 +942,21 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Pastillas «Documentación» y «Empresa», y «Más filtros». La maqueta dibuja también «Centro» y
-    /// «Cliente empresarial» como fase 2: ObtenerTrabajadoresQuery no sabe filtrar por ellos, y una
-    /// pastilla que no filtra nada no se pinta. Subcontrata no tiene pastilla propia: va dentro de
-    /// «Empresa».
+    /// Pastillas «Empresa» y «Centro», y «Más filtros»; la documentación va en la franja de estado. La maqueta
+    /// dibuja también «Cliente» como pastilla: ObtenerTrabajadoresQuery no sabe filtrar por él, y una pastilla
+    /// que no filtra nada no se pinta. Subcontrata no tiene pastilla propia: va dentro de «Empresa».
     /// </summary>
     [Fact]
-    public void La_pastilla_es_Empresa_seguida_de_Mas_filtros_y_la_documentacion_va_en_la_franja()
+    public void Las_pastillas_son_Empresa_y_Centro_seguidas_de_Mas_filtros_y_la_documentacion_va_en_la_franja()
     {
         var mediador = new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno") } };
         var cut = Renderizar(mediador);
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
-            .Should().Equal("Empresa", "Más filtros");
+            .Should().Equal("Empresa", "Centro", "Más filtros");
         cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
-        cut.Markup.Should().NotContain("Todos los centros");
     }
 
     /// <summary>
@@ -1452,25 +1450,29 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
     /// <summary>
     /// Una sola celda «Trabajador» con «Nombre Apellidos» (abre la vista rápida) y el DNI copiable debajo;
-    /// la columna Empresa; y Documentación solo con la pastilla de estado. Sin la documentación
-    /// base del listado («Al día en lo básico» y sus cuatro puntos), que ni siquiera se pide.
+    /// después Empresa, «Registrados vigentes» y «Estado documental» con la pastilla de estado. Sin incidencias
+    /// que desglosar, la celda de estado es solo la pastilla (el motivo y «vigentes/registrados» se prueban en
+    /// TrabajadoresListaGen2Tests.EstadoDocumental.cs). Sin la documentación base del listado («Al día en lo
+    /// básico» y sus cuatro puntos), que ni siquiera se pide.
     /// </summary>
     [Fact]
-    public void La_fila_lleva_la_celda_Trabajador_con_el_DNI_debajo_la_empresa_y_solo_el_estado()
+    public void La_fila_lleva_la_celda_Trabajador_con_el_DNI_debajo_la_empresa_los_vigentes_y_el_estado()
     {
         var javier = Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Urgente);
         var mediador = new MediatorFalso { Almacen = { javier } };
         var cut = Renderizar(mediador);
 
-        cut.FindAll("thead th").Select(th => th.TextContent.Trim()).Should().Equal("Trabajador", "Empresa", "Documentación", "");
+        cut.FindAll("thead th").Select(th => th.TextContent.Trim())
+            .Should().Equal("Trabajador", "Empresa", "Registrados vigentes", "Estado documental", "");
         var fila = FilasDeDatos(cut).Single();
         var celdas = fila.QuerySelectorAll("td");
         celdas[0].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Javier Salas Moreno");
         celdas[0].QuerySelector(".celda-trabajador-dni")!.TextContent.Should().Contain("DNI").And.Contain(javier.Dto.Dni);
         celdas[1].TextContent.Trim().Should().Be("Montajes Ebro S.L.");
-        celdas[2].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer", "Urgente y Próximo se rotulan igual");
-        celdas[2].QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia", "y con el mismo tono: lo urgente ya no va en rojo en la pastilla");
-        celdas[2].TextContent.Trim().Should().Be("Por vencer", "solo la pastilla: el documento causante y «vigentes/total» son fase 2");
+        celdas[2].ClassList.Should().Contain("col-registrados-vigentes");
+        celdas[3].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer", "Urgente y Próximo se rotulan igual");
+        celdas[3].QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia", "y con el mismo tono: lo urgente ya no va en rojo en la pastilla");
+        celdas[3].TextContent.Trim().Should().Be("Por vencer", "sin incidencias en el desglose no hay motivo que pintar: solo la pastilla");
         cut.Markup.Should().NotContain("Al día en lo básico").And.NotContain("Documentación base");
         cut.FindAll(".panel-doc-base").Should().BeEmpty();
         mediador.Enviadas.Should().NotContain(e => e.GetType().Name == "ObtenerDocumentacionBaseTrabajadoresQuery",

@@ -49,7 +49,7 @@ public static class TrabajadoresEndpoints
         IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion,
         CancellationToken cancellationToken,
         string? q = null, string? estado = null, string? empresa = null, string? subcontrata = null,
-        string? orden = null, bool desc = false)
+        string? orden = null, bool desc = false, string? centro = null)
     {
         // Estado 4a: la página no muestra los datos del Tenant de origen a quien tiene que
         // elegir una empresa de su cartera; el endpoint no los exporta tampoco. Misma
@@ -67,6 +67,9 @@ public static class TrabajadoresEndpoints
                     SubcontrataId: Guid.TryParse(subcontrata, out var subcontrataId) ? subcontrataId : null,
                     Pagina: pagina,
                     TamanoPagina: tamanoPagina,
+                    CentroId: Guid.TryParse(centro, out var centroId) ? centroId : null,
+                    // El libro no lleva incidencias ni «vigentes / registrados»: no se calculan.
+                    ConDesgloseDocumental: false,
                     OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
                     Descendente: desc,
                     EstadoDocumental: string.IsNullOrWhiteSpace(estado) ? null : estado),
@@ -79,9 +82,9 @@ public static class TrabajadoresEndpoints
         // rastro no se puede guardar, la excepción sube y el fichero no sale.
         // Al rastro va el criterio APLICADO, nunca el texto de la petición, que es
         // libre y puede ser un DNI o un nombre: de la búsqueda solo consta que la
-        // hubo; de los filtros de Empresa y Subcontrata, el Id ya leído (uno que no
-        // se pudo leer no filtró nada, así que no consta); el estado y el orden,
-        // solo si tienen forma de nombre.
+        // hubo; de los filtros de Empresa, Subcontrata y Centro, el Id ya leído (uno
+        // que no se pudo leer no filtró nada, así que no consta); el estado y el
+        // orden, solo si tienen forma de nombre.
         await registroExportacion.RegistrarAsync(
             nameof(Domain.Trabajadores.Trabajador), filas,
             CriteriosExportacion.Desde(
@@ -89,6 +92,7 @@ public static class TrabajadoresEndpoints
                 ("estado", CriteriosExportacion.SoloNombres(estado)),
                 ("empresa", Guid.TryParse(empresa, out var empresaAplicada) ? empresaAplicada.ToString() : null),
                 ("subcontrata", Guid.TryParse(subcontrata, out var subcontrataAplicada) ? subcontrataAplicada.ToString() : null),
+                ("centro", Guid.TryParse(centro, out var centroAplicado) ? centroAplicado.ToString() : null),
                 ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),
             cancellationToken);
 

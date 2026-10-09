@@ -1,0 +1,94 @@
+@*
+    Motivo bajo la pastilla de estado de un propietario en un listado (Trabajadores; Vehículos y Empresas lo
+    reutilizan), con su desglose: va dentro de MotivoContenido de EstadoFila.
+
+    Lo que se ve siempre es una línea (MotivoIncidenciasUi.Texto): el documento que causa el estado, o cuántos
+    hay de cada clase. Al pasar el cursor o enfocar se abre la ventana de contexto con una línea por
+    incidencia: la pastilla del estado del documento, el nombre del Tipo y su fecha de vencimiento. Es lo que
+    la maqueta resuelve con una fila desplegable, que QuickGrid no tiene.
+
+    Con Interactiva (quien puede escribir) cada línea es un botón que avisa por AlPulsar: la pantalla abre ahí
+    la corrección (CorreccionIncidenciaDocumental) sin salir del listado. Quien solo consulta ve las mismas
+    líneas, sin botones: no se le ofrece un formulario que el comando le va a denegar.
+
+    El clic de una incidencia no abre además la vista rápida de la fila: VentanaContexto corta la propagación
+    en Blazor y «pulsarFila» de atajos-lista.js excluye el panel y los botones.
+
+    Sin incidencias no pinta nada.
+*@
+@using CaeManager.Application.Documentos
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+@if (Incidencias.Count > 0)
+{
+    var texto = MotivoIncidenciasUi.Texto(Incidencias, HoyEfectivo) ?? string.Empty;
+    var titulo = MotivoIncidenciasUi.Titulo(Incidencias.Count);
+
+    <span class="motivo-incidencias">
+    <VentanaContexto Etiqueta="@($"{texto}. {titulo}")"
+                     Titulo="@titulo"
+                     Colocacion="VentanaContextoColocacion.AbajoCentro"
+                     Interactiva="EsInteractiva"
+                     Pie="@(EsInteractiva ? Comunes["VentanaIncidenciasPie"].Value : null)">
+        <Disparador>
+            <span class="motivo-incidencias-texto">@texto</span>
+        </Disparador>
+        <Detalle>
+            @foreach (var incidencia in Incidencias)
+            {
+                @* Un documento aparece una sola vez en el desglose de su propietario: su Id es clave única. *@
+                if (EsInteractiva)
+                {
+                    <VentanaContextoElemento @key="incidencia.DocumentoId"
+                                             Ayuda="@Comunes["VentanaIncidenciaAyuda"].Value"
+                                             Secundario="@Fecha(incidencia)"
+                                             AlPulsar="() => AlPulsar.InvokeAsync(incidencia)">
+                        <span class="motivo-incidencias-linea">
+                            <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                            <span class="motivo-incidencias-tipo">@MotivoIncidenciasUi.NombreDeTipo(incidencia)</span>
+                        </span>
+                    </VentanaContextoElemento>
+                }
+                else
+                {
+                    <span class="ventana-linea motivo-incidencias-linea" @key="incidencia.DocumentoId">
+                        <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                        <span class="motivo-incidencias-tipo">@MotivoIncidenciasUi.NombreDeTipo(incidencia)</span>
+                        @if (Fecha(incidencia) is { } fecha)
+                        {
+                            <span class="motivo-incidencias-fecha">@fecha</span>
+                        }
+                    </span>
+                }
+            }
+        </Detalle>
+    </VentanaContexto>
+    </span>
+}
+
+@code {
+    /// <summary>Las incidencias de la fila, ya ordenadas de la más grave a la menos (así las entrega la consulta).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; set; } = [];
+
+    /// <summary>
+    /// El rol puede escribir: las líneas del desglose son botones. Sin <see cref="AlPulsar"/> no hay nada que
+    /// abrir y se queda en lectura.
+    /// </summary>
+    [Parameter] public bool Interactiva { get; set; }
+
+    /// <summary>Se pulsó una incidencia: la pantalla abre su corrección.</summary>
+    [Parameter] public EventCallback<IncidenciaDocumentalDto> AlPulsar { get; set; }
+
+    /// <summary>Día contra el que se cuenta «caduca en N días». Por defecto, el día de negocio de hoy.</summary>
+    [Parameter] public DateOnly? Hoy { get; set; }
+
+    private DateOnly HoyEfectivo => Hoy ?? DiaDeNegocio.Hoy();
+
+    private bool EsInteractiva => Interactiva && AlPulsar.HasDelegate;
+
+    private static string? Fecha(IncidenciaDocumentalDto incidencia) =>
+        incidencia.FechaVencimiento?.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
+}

@@ -1478,6 +1478,34 @@
     font: var(--font-body-md);
 }
 
+/*
+  Relleno de las tablas que pinta QuickGrid. El tema por defecto del paquete trae sus propias reglas, sin
+  capa y con más especificidad que las de arriba, así que ganaban ellas:
+
+      .quickgrid[theme=default] > tbody > tr > td   { padding: 0.1rem calc(0.4rem + var(--col-gap)) 0.1rem 0.4rem }   (0,2,3)
+      .quickgrid[theme=default] .col-title          { padding: 0.1rem 0.4rem }                                        (0,3,0)
+      .quickgrid[theme=default] .col-header-content { padding-right: var(--col-gap) }                                 (0,3,0)
+
+  El resultado eran filas de 44 px con el contenido pegado al borde, y el rótulo de cada cabecera desplazado
+  respecto al contenido de su columna (la celda sangraba 0.4rem; la cabecera, los 16 px del <th> más los
+  0.4rem del título). Estas tres reglas añaden «.tabla-datos» al mismo selector para superarlas (0,3,3 y
+  0,4,0) sin !important, y dejan UNA sola sangría horizontal, la del <th> (--space-4), para celda y cabecera:
+  el rótulo cae sobre el contenido. Arriba y abajo, 7 px y un alto mínimo de 54 px: la fila de dos líneas
+  de la maqueta de listados (identidad y dato de apoyo). En una celda de tabla, «height» es un mínimo.
+*/
+.quickgrid[theme=default].tabla-datos > tbody > tr > td {
+    height: 54px;
+    padding: 7px var(--space-4);
+}
+
+.quickgrid[theme=default].tabla-datos .col-title {
+    padding: 0;
+}
+
+.quickgrid[theme=default].tabla-datos .col-header-content {
+    padding-right: 0;
+}
+
 .tabla-datos tr:last-child td {
     border-bottom: none;
 }
@@ -1819,4 +1847,23 @@
     min-width: 200px;
     max-width: 200px;
     text-align: left;
+}
+
+/*
+  Columna «Registrados vigentes» de un listado de propietarios (Trabajadores; Vehículos y Empresas la
+  reutilizan): ancho fijo, justo antes de la de estado, para que caiga en el mismo sitio de fila en fila y de
+  un listado a otro. Hoy lleva la fracción en texto («8/10»).
+*/
+.tabla-datos th.col-registrados-vigentes,
+.tabla-datos td.col-registrados-vigentes {
+    width: 160px;
+    min-width: 160px;
+    max-width: 160px;
+    text-align: left;
+}
+
+.celda-registrados-vigentes {
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }

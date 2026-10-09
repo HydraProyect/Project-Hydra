@@ -144,6 +144,16 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string _estadoFiltro = string.Empty;
     private string _filtroEmpresaId = string.Empty;
     private string _filtroSubcontrataId = string.Empty;
+
+    /// <summary>Centro elegido en la pastilla «Centro» (<c>?centro=</c>): Trabajadores con una Asignación activa en él.</summary>
+    private string _filtroCentroId = string.Empty;
+
+    /// <summary>
+    /// Opciones de la pastilla «Centro»: los Centros que el usuario ya puede ver (mismo alcance que comprueba la
+    /// consulta del listado). Si fallan, la lista se pinta igual y la pastilla solo ofrece «Todos».
+    /// </summary>
+    private IReadOnlyList<CentroSelectorDto> _centrosFiltro = [];
+
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -238,6 +248,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     [SupplyParameterFromQuery(Name = "subcontrata")]
     public string? SubcontrataInicial { get; set; }
 
+    /// <summary>Centro elegido en el filtro (<c>?centro=</c>). Se compone con el empleador: no se excluyen.</summary>
+    [SupplyParameterFromQuery(Name = "centro")]
+    public string? CentroInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
@@ -300,10 +314,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         .ToList();
 
     /// <summary>
-    /// Lo que guarda un filtro de esta pantalla. <c>Estado</c> (la pastilla «Documentación») llegó después:
-    /// es opcional para que los filtros ya guardados sin él se sigan leyendo, y entonces se aplican sin estado.
+    /// Lo que guarda un filtro de esta pantalla. <c>Estado</c> (la franja de estado) y <c>CentroId</c> (la pastilla
+    /// «Centro») llegaron después: son opcionales para que los filtros ya guardados sin ellos se sigan leyendo, y
+    /// entonces se aplican sin estado y sin Centro.
     /// </summary>
-    private record FiltrosTrabajadoresJson(string? Busqueda, string? EmpresaId, string? SubcontrataId, string? Estado = null);
+    private record FiltrosTrabajadoresJson(
+        string? Busqueda, string? EmpresaId, string? SubcontrataId, string? Estado = null, string? CentroId = null);
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -365,6 +381,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         if (_desechado)
             return;
 
+        await CargarCentrosFiltroAsync();
+        if (_desechado)
+            return;
+
         var primeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
         _tituloPagina = primeraPersona
             ? Textos["TituloPaginaClienteDirecto"].Value
@@ -412,12 +432,16 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         var subcontrataDeLaUrl = IdDesdeUrl(SubcontrataInicial);
         var empresaDeLaUrl = subcontrataDeLaUrl.Length > 0 ? string.Empty : IdDesdeUrl(EmpresaInicial);
 
+        var centroDeLaUrl = IdDesdeUrl(CentroInicial);
+
         var cambiaronLosFiltros = deLaUrl != _busqueda || estadoDeLaUrl != _estadoFiltro
-            || empresaDeLaUrl != _filtroEmpresaId || subcontrataDeLaUrl != _filtroSubcontrataId;
+            || empresaDeLaUrl != _filtroEmpresaId || subcontrataDeLaUrl != _filtroSubcontrataId
+            || centroDeLaUrl != _filtroCentroId;
         _busqueda = deLaUrl;
         _estadoFiltro = estadoDeLaUrl;
         _filtroEmpresaId = empresaDeLaUrl;
         _filtroSubcontrataId = subcontrataDeLaUrl;
+        _filtroCentroId = centroDeLaUrl;
 
         if (cambiaronLosFiltros && _grid is not null)
             await RecargarAsync();
@@ -476,10 +500,18 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
             Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
             TamanoPagina: _paginacion.ItemsPerPage,
+            CentroId: Guid.TryParse(_filtroCentroId, out var centroId) ? centroId : null,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
             ConRecuentosPorEstado: true);
+
+        // La misma pregunta que la carga anterior conserva la selección y la fila enfocada (es el refresco
+        // tras corregir una incidencia, ver RefrescarTrasCorreccionAsync); cualquier otra las limpia.
+        var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
+        if (!conservarSeleccion)
+            _consultaQueConservaSeleccion = null;
+        _ultimaConsulta = consulta;
 
         _cargando = true;
         _errorCarga = false;
@@ -499,8 +531,18 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
-            _seleccionados.Clear();
-            _idEnfocado = null;
+            if (conservarSeleccion)
+            {
+                // Lo que ya no está en la página (la corrección lo sacó del filtro) deja de estar seleccionado.
+                _seleccionados.IntersectWith(elementos.Select(t => t.Id));
+                if (_idEnfocado is { } enfocado && elementos.All(t => t.Id != enfocado))
+                    _idEnfocado = null;
+            }
+            else
+            {
+                _seleccionados.Clear();
+                _idEnfocado = null;
+            }
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
@@ -557,6 +599,50 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         await RecargarAsync();
     }
 
+    private async Task FiltrarPorCentroAsync(string valor)
+    {
+        _filtroCentroId = IdDesdeUrl(valor);
+        NavigationManager.ActualizarFiltroEnUrl("centro", _filtroCentroId);
+        await RecargarAsync();
+    }
+
+    private Task QuitarFiltroCentroAsync() => FiltrarPorCentroAsync(string.Empty);
+
+    /// <summary>
+    /// Opciones de la pastilla «Centro». Cada una dice de qué Cliente empresarial es el Centro: dos Clientes
+    /// pueden tener un Centro con el mismo nombre.
+    /// </summary>
+    private IReadOnlyList<OpcionEstado> OpcionesFiltroCentro =>
+        _centrosFiltro
+            .Select(c => new OpcionEstado(c.Id.ToString(), Textos["ListaOpcionCentroDeCliente", c.Nombre, c.ClienteRazonSocial].Value))
+            .ToList();
+
+    /// <summary>
+    /// Rótulo del chip de Centro. Si el Id filtrado no está entre los Centros cargados (fuera del alcance, dado de
+    /// baja), «Centro» a secas, como <see cref="EtiquetaFiltroEmpresa"/>.
+    /// </summary>
+    private string EtiquetaFiltroCentro =>
+        _centrosFiltro.FirstOrDefault(c => c.Id.ToString() == _filtroCentroId)?.Nombre ?? Textos["EtiquetaCentro"].Value;
+
+    private async Task CargarCentrosFiltroAsync()
+    {
+        try
+        {
+            var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(), _ciclo.Token);
+            if (!_desechado)
+                _centrosFiltro = centros;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
+        {
+            // La página retirada no conserva una respuesta del contexto anterior.
+        }
+        catch (Exception)
+        {
+            if (!_desechado)
+                _centrosFiltro = [];
+        }
+    }
+
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
@@ -566,7 +652,44 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
-        || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId);
+        || !string.IsNullOrWhiteSpace(_filtroEmpresaId) || !string.IsNullOrWhiteSpace(_filtroSubcontrataId)
+        || !string.IsNullOrWhiteSpace(_filtroCentroId);
+
+    // ── Corrección de una incidencia desde la ventana del motivo ────────────────────────────────
+
+    private CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental _correccion = default!;
+
+    /// <summary>La consulta de la última carga de la rejilla: la pregunta que hay en pantalla.</summary>
+    private ObtenerTrabajadoresQuery? _ultimaConsulta;
+
+    /// <summary>
+    /// Si la siguiente carga hace esta misma pregunta (mismos filtros, orden y página), conserva la selección y
+    /// la fila enfocada en vez de limpiarlas. La fija <see cref="RefrescarTrasCorreccionAsync"/>; una carga con
+    /// otra pregunta la suelta.
+    /// </summary>
+    private ObtenerTrabajadoresQuery? _consultaQueConservaSeleccion;
+
+    /// <summary>
+    /// Abre, sin salir del listado, el formulario del documento de la incidencia pulsada. Solo llega aquí quien
+    /// puede escribir (la ventana no ofrece botones a los demás); quién puede guardar lo decide el comando.
+    /// </summary>
+    private Task CorregirIncidenciaAsync(TrabajadorListaDto trabajador, CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
+        _correccion.AbrirAsync(incidencia.DocumentoId, incidencia.TipoDocumentoId, trabajador.Id, null);
+
+    /// <summary>
+    /// Tras corregir una incidencia: se vuelve a pedir la página tal como está (mismos filtros, orden y página)
+    /// para que la fila, su motivo, «vigentes/registrados» y los recuentos de la franja digan lo de ahora. La
+    /// selección y la fila enfocada se conservan (mismo criterio que Centros.RefrescarTrasCorreccionAsync).
+    /// </summary>
+    private async Task RefrescarTrasCorreccionAsync()
+    {
+        if (_desechado || _grid is null)
+            return;
+
+        _consultaQueConservaSeleccion = _ultimaConsulta;
+        await _grid.RefreshDataAsync();
+        StateHasChanged();
+    }
 
     /// <summary>
     /// Rótulo del chip de empresa. Si el id filtrado no está en el catálogo
@@ -626,9 +749,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private Task QuitarFiltroSubcontrataAsync() => FiltrarPorSubcontrataAsync(string.Empty);
 
     /// <summary>
-    /// Quita los cuatro filtros en una sola recarga. Encadenar los setters
-    /// lanzaría cuatro consultas y las tres primeras devolverían listas que ya
-    /// no se van a pintar. Los cuatro viven además en la URL y se
+    /// Quita los cinco filtros en una sola recarga. Encadenar los setters
+    /// lanzaría cinco consultas y las cuatro primeras devolverían listas que ya
+    /// no se van a pintar. Los cinco viven además en la URL y se
     /// limpian allí en UNA sola navegación (ver
     /// <see cref="NavigationManagerExtensions.ActualizarFiltrosEnUrl"/>): si no,
     /// <see cref="OnParametersSetAsync"/> los repondría desde la URL
@@ -640,12 +763,14 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _estadoFiltro = string.Empty;
         _filtroEmpresaId = string.Empty;
         _filtroSubcontrataId = string.Empty;
+        _filtroCentroId = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = null,
             ["estado"] = null,
             ["empresa"] = null,
             ["subcontrata"] = null,
+            ["centro"] = null,
         });
         await RecargarAsync();
     }
@@ -1254,8 +1379,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         // Un filtro guardado define el conjunto entero: sin estado guardado, el estado se quita. Un valor que
         // ya no es una opción (catálogo cambiado) se ignora, como uno de la URL.
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(valores.Estado);
+        _filtroCentroId = IdDesdeUrl(valores.CentroId);
 
-        // Los cuatro filtros del filtro guardado se escriben también en la URL, en una sola navegación.
+        // Los cinco filtros del filtro guardado se escriben también en la URL, en una sola navegación.
         // Si solo se aplicaran en memoria, la siguiente navegación dentro de la página haría que
         // OnParametersSetAsync los borrase leyendo una URL sin ellos.
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
@@ -1264,6 +1390,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             ["estado"] = _estadoFiltro,
             ["empresa"] = _filtroEmpresaId,
             ["subcontrata"] = _filtroSubcontrataId,
+            ["centro"] = _filtroCentroId,
         });
         await RecargarAsync();
     }
@@ -1281,7 +1408,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 string.IsNullOrWhiteSpace(_filtroEmpresaId) ? null : _filtroEmpresaId,
                 string.IsNullOrWhiteSpace(_filtroSubcontrataId) ? null : _filtroSubcontrataId,
-                string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro));
+                string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+                string.IsNullOrWhiteSpace(_filtroCentroId) ? null : _filtroCentroId));
 
             var resultado = await Mediator.Send(
                 new GuardarFiltroCommand(PantallasConFiltrosGuardados.Trabajadores, _nombreFiltroNuevo, valoresJson));
@@ -1350,6 +1478,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         ["estado"] = _estadoFiltro,
         ["empresa"] = _filtroEmpresaId,
         ["subcontrata"] = _filtroSubcontrataId,
+        ["centro"] = _filtroCentroId,
         ["orden"] = _ordenExportar,
         ["desc"] = _descendenteExportar ? "true" : null,
     };
