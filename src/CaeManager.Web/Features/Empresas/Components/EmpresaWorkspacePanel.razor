@@ -573,6 +573,9 @@ else
                 new EditarEmpresaCommand(
                     detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(),
                     cnae, convenioAplicable, _esActividadAnexoIInfo, detalle.Version));
+            // El guardado ya es firme aunque el panel haya pasado a otra ficha: el listado que
+            // tenga esta fila a la vista la vuelve a pedir y la sustituye en sitio.
+            if (!resultado.EsFallido) WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Empresa, detalle.Id);
             if (resultado.EsFallido)
             {
                 if (generacion == _generacion)

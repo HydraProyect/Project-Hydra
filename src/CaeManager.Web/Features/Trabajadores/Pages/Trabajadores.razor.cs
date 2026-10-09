@@ -45,12 +45,65 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private readonly CancellationTokenSource _ciclo = new();
     private bool _desechado;
 
+    // ── La fila se refresca tras guardar en la vista rápida ─────────────────────────────────────
+    // El panel vive en MainLayout y guarda sin pasar por esta página: avisa por
+    // ContextWorkspaceService.OnEntidadGuardada. Se vuelve a pedir SOLO esa fila y se sustituye
+    // en sitio (mismo criterio que Centros.RefrescarCentroAsync): filtros, orden, página,
+    // selección, fila enfocada y desplazamiento no se tocan, y la fila permanece aunque el
+    // cambio la saque del filtro activo, hasta la siguiente carga. Los recuentos de la franja
+    // tampoco se recalculan hasta entonces.
+
+    /// <summary>
+    /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
+    /// QuickGrid solo repinta sus filas cuando su proveedor le entrega una página, y una carga
+    /// de verdad limpiaría la selección y la fila enfocada. El total no cambia, así que no hay
+    /// segunda petición (ver RecargarAsync).
+    /// </summary>
+    private bool _servirPaginaEnMemoria;
+
+    private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
+    {
+        if (tipo == EntidadWorkspace.Trabajador)
+            _ = InvokeAsync(() => RefrescarFilaAsync(id));
+    }
+
+    private async Task RefrescarFilaAsync(Guid id)
+    {
+        // Con una carga en vuelo no se sustituye nada: esa carga trae la página entera.
+        if (_desechado || _grid is null || _cargando || !_elementosPagina.Any(e => e.Id == id))
+            return;
+
+        var carga = _cargaVigente;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(Busqueda: null, TrabajadorId: id), _ciclo.Token);
+            var indice = _elementosPagina.FindIndex(e => e.Id == id);
+            if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
+                || resultado.Elementos.FirstOrDefault() is not { } actualizada)
+                return;
+
+            _elementosPagina[indice] = actualizada;
+            _servirPaginaEnMemoria = true;
+            await _grid.RefreshDataAsync();
+        }
+        catch (Exception)
+        {
+            // El guardado ya es firme: que falle la relectura no es un error que enseñar. La
+            // fila conserva el dato anterior hasta la siguiente carga, como antes de este aviso.
+        }
+        finally
+        {
+            _servirPaginaEnMemoria = false;
+        }
+    }
+
     public void Dispose()
     {
         if (_desechado)
             return;
 
         _desechado = true;
+        WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -265,6 +318,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     protected override async Task OnInitializedAsync()
     {
+        WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
 
@@ -399,6 +453,13 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private async ValueTask<GridItemsProviderResult<TrabajadorListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<TrabajadorListaDto> request)
     {
+        if (_servirPaginaEnMemoria)
+        {
+            // Refresco de una fila tras guardar en la vista rápida (ver RefrescarFilaAsync).
+            _servirPaginaEnMemoria = false;
+            return GridItemsProviderResult.From(_elementosPagina.ToList(), _totalElementos);
+        }
+
         // Todo lo que define la pregunta se lee ANTES del await.
         var carga = ++_cargaVigente;
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);

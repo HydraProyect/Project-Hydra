@@ -38,7 +38,8 @@ public record ObtenerDocumentosQuery(
     Guid? TrabajadorId, AmbitoAplicacion? Ambito, string? Busqueda, EstadoDocumento? Estado = null,
     int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,
     string? OrdenarPor = null, bool Descendente = false, DateOnly? FechaVencimientoHasta = null,
-    IReadOnlyCollection<EstadoDocumento>? Estados = null, bool ConRecuentosPorEstado = false)
+    IReadOnlyCollection<EstadoDocumento>? Estados = null, bool ConRecuentosPorEstado = false,
+    Guid? DocumentoId = null)
     : IRequest<ResultadoPaginado<DocumentoListaDto>>;
 
 /// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
@@ -186,6 +187,11 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             };
 
         var consulta = deTrabajador.Concat(deCliente).Concat(deEmpresa).Concat(deVehiculo).Concat(deProyecto);
+
+        // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
+        // Las cinco ramas de arriba ya están acotadas al alcance: solo estrecha.
+        if (request.DocumentoId is not null)
+            consulta = consulta.Where(x => x.Id == request.DocumentoId);
 
         if (request.TrabajadorId is not null)
             consulta = consulta.Where(x => x.TrabajadorId == request.TrabajadorId);

@@ -30,7 +30,8 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientes;
 public record ObtenerClientesQuery(
     string? Busqueda, bool? SoloCriticos, Guid? EjecutivoUsuarioId = null, EstadoDocumento? EstadoDocumental = null,
     int Pagina = 1, int TamanoPagina = 20, string? OrdenarPor = null, bool Descendente = false,
-    IReadOnlyCollection<EstadoDocumento>? EstadosDocumentales = null, bool ConRecuentosPorEstado = false)
+    IReadOnlyCollection<EstadoDocumento>? EstadosDocumentales = null, bool ConRecuentosPorEstado = false,
+    Guid? ClienteId = null)
     : IRequest<ResultadoPaginado<ClienteListaDto>>
 {
     /// <summary>
@@ -87,6 +88,11 @@ public class ObtenerClientesQueryHandler(
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
         if (clienteIdsVisibles is not null)
             consulta = consulta.Where(c => clienteIdsVisibles.Contains(c.Id));
+
+        // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
+        // Va después del alcance: solo estrecha.
+        if (request.ClienteId is { } clienteId)
+            consulta = consulta.Where(c => c.Id == clienteId);
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
