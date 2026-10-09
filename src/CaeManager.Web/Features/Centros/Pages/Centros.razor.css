@@ -38,6 +38,20 @@
     flex-shrink: 0;
 }
 
+/*
+  Casilla de selección de la fila, con la misma caja que su hueco de la cabecera (16 px, regla de
+  arriba). Sin esto la casilla medía lo que diga el navegador —en Chromium, 13 px más 4 y 3 de
+  margen: 20 px—, y con la selección múltiple puesta «Centro» quedaba 4 px a la izquierda de sus
+  celdas y «Empresa» 1,6 px (medido a 1266 px, 2026-10-09; sin selección la cabecera y las filas ya
+  coincidían). Lo fija CentrosCabeceraAlineadaE2ETests.
+*/
+.tarjeta-fila-acordeon-cabecera > input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex-shrink: 0;
+}
+
 /* chevron (24 px); el aro de cumplimiento tiene ahora su propia columna */
 .cabecera-columnas-centros-inicio {
     width: 24px;
