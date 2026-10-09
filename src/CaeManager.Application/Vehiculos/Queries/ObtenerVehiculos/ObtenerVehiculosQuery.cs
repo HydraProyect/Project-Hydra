@@ -18,7 +18,7 @@ namespace CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 public record ObtenerVehiculosQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
-    bool ConRecuentosPorEstado = false)
+    bool ConRecuentosPorEstado = false, Guid? VehiculoId = null)
     : IRequest<ResultadoPaginado<VehiculoListaDto>>;
 
 public record VehiculoListaDto(
@@ -48,6 +48,11 @@ public class ObtenerVehiculosQueryHandler(
         var vehiculoIdsVisibles = await alcanceDatos.ObtenerVehiculoIdsVisiblesAsync(cancellationToken);
         if (vehiculoIdsVisibles is not null)
             consulta = consulta.Where(x => vehiculoIdsVisibles.Contains(x.vehiculo.Id));
+
+        // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
+        // Va después del alcance: solo estrecha.
+        if (request.VehiculoId is not null)
+            consulta = consulta.Where(x => x.vehiculo.Id == request.VehiculoId);
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
