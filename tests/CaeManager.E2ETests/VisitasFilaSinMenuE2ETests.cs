@@ -117,6 +117,9 @@ public class VisitasFilaSinMenuE2ETests(WebAppFixture fixture)
         // y el siguiente una vez de cada dos, sin relación con el oyente).
         await lista.Locator(".ventana-contexto-titulo").DispatchEventAsync("click");
         await lista.Locator(".ventana-contexto-pie").DispatchEventAsync("click");
+        // Barrera: si el oyente pulsara el botón de la fila, el panel llegaría tras la vuelta al
+        // servidor; sin esta espera, la ausencia se cumpliría antes de que pudiera aparecer.
+        await page.WaitForTimeoutAsync(1000);
         await Expect(panel).ToHaveCountAsync(0);
 
         // Un punto de la fila que no es ningún control: la celda de la documentación.

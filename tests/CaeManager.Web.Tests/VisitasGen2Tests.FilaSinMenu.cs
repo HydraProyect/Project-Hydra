@@ -172,6 +172,21 @@ public partial class VisitasGen2Tests
         cut.FindAll(".drawer-panel").Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task La_tecla_e_con_el_panel_abierto_no_apila_el_formulario_encima()
+    {
+        // En el navegador el panel es modal y la tecla no llega; la página no depende de eso.
+        var cut = await ConUnaVisitaAsync(Roles.GestorCae);
+        await AtajoAsync(cut, "j");
+        await AtajoAsync(cut, "Enter");
+        cut.WaitForAssertion(() => PanelAbierto(cut).Should().BeTrue("control positivo: el panel está abierto"));
+
+        await AtajoAsync(cut, "e");
+
+        FormularioDeEdicionAbierto(cut).Should().BeFalse();
+        PanelAbierto(cut).Should().BeTrue();
+    }
+
     [Theory]
     [InlineData(Roles.Consulta, false)]
     [InlineData(Roles.GestorCae, true)]

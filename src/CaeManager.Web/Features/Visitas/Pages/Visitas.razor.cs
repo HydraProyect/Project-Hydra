@@ -1561,7 +1561,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private async Task EditarFilaEnfocadaAsync()
     {
-        if (_drawerVisible) return;
+        // Con el formulario o el panel abiertos no se abre otro encima: desde el panel se edita con su lápiz.
+        if (_drawerVisible || _detalleVisible) return;
         if (_elementosPagina.FirstOrDefault(e => e.Id == _idEnfocado) is not { EstaCancelada: false } fila) return;
         if (!await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion)) return;
 
