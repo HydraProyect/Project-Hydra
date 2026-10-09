@@ -469,6 +469,135 @@ public class PaqueteDocumentalVisitaServiceTests
         (await ConstruirAsync()).Should().BeNull();
     }
 
+    // ── Nombres de las entradas (LV-27) ──
+    // Dentro del zip solo existen las carpetas que decide el servicio («Empresa», «Trabajadores») y
+    // cada documento es un fichero plano dentro de una de ellas. El nombre sale del Tipo de documento
+    // y del titular, que los escribe el usuario: una barra abría una subcarpeta, y el saneado dependía
+    // del sistema donde corre el servidor (en Linux dejaba pasar «:», «?», «*»…) aunque el zip se abre
+    // en Windows.
+
+    [Fact]
+    public async Task Un_nombre_sin_caracteres_especiales_sale_tal_cual()
+    {
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "ana-rm");
+        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "seguro");
+
+        (await NombresDeEntradaAsync()).Should().BeEquivalentTo(
+            "Trabajadores/Reconocimiento médico - Ana Garcia.pdf",
+            "Empresa/Seguro RC - Contratista Demo SL.pdf");
+    }
+
+    [Fact]
+    public async Task Una_barra_en_el_nombre_del_Tipo_de_documento_no_abre_una_subcarpeta()
+    {
+        // Los dos Tipos con barra que se exigen por defecto a toda Empresa.
+        DocumentoDeEmpresa(TipoNuevo("RLC/TC1 + Recibo de pago", AmbitoAplicacion.Empresa), Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "rlc");
+        DocumentoDeEmpresa(TipoNuevo("Recibo de pago RLC/TC1", AmbitoAplicacion.Empresa), Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "recibo");
+
+        (await NombresDeEntradaAsync()).Should().BeEquivalentTo(
+            "Empresa/RLC_TC1 + Recibo de pago - Contratista Demo SL.pdf",
+            "Empresa/Recibo de pago RLC_TC1 - Contratista Demo SL.pdf");
+    }
+
+    [Fact]
+    public async Task Una_barra_en_el_titular_no_abre_una_subcarpeta()
+    {
+        _empresa.Actualizar("Obras/Reformas Demo SL", "B12345674");
+        var eva = TrabajadorQueAcude("Eva", "Ruiz/Sanz");
+        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "seguro");
+        DocumentoDeTrabajador(eva, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "eva-epi");
+
+        (await NombresDeEntradaAsync()).Should().BeEquivalentTo(
+            "Empresa/Seguro RC - Obras_Reformas Demo SL.pdf",
+            "Trabajadores/Entrega de EPI - Eva Ruiz_Sanz.pdf");
+    }
+
+    [Theory]
+    [InlineData('/')]
+    [InlineData('\\')]
+    [InlineData(':')]
+    [InlineData('*')]
+    [InlineData('?')]
+    [InlineData('"')]
+    [InlineData('<')]
+    [InlineData('>')]
+    [InlineData('|')]
+    public async Task Cada_caracter_que_Windows_no_admite_se_sustituye_en_el_Tipo_y_en_el_titular(char caracter)
+    {
+        _empresa.Actualizar($"Demo{caracter}SL", "B12345674");
+        DocumentoDeEmpresa(TipoNuevo($"Certificado{caracter}corriente", AmbitoAplicacion.Empresa), Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "certificado");
+
+        (await NombresDeEntradaAsync()).Should().BeEquivalentTo("Empresa/Certificado_corriente - Demo_SL.pdf");
+    }
+
+    [Fact]
+    public async Task Un_caracter_de_control_tambien_se_sustituye()
+    {
+        // Fuera del [Theory] para que el carácter no viaje en el nombre visible del caso.
+        _empresa.Actualizar("Demo\tSL", "B12345674");
+        DocumentoDeEmpresa(TipoNuevo("Certificado\u001Fcorriente", AmbitoAplicacion.Empresa), Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "certificado");
+
+        (await NombresDeEntradaAsync()).Should().BeEquivalentTo("Empresa/Certificado_corriente - Demo_SL.pdf");
+    }
+
+    [Theory]
+    [InlineData("Contratista Demo S.A.")]
+    [InlineData("Contratista Demo S.A. ..")]
+    public async Task Un_titular_acabado_en_puntos_o_espacios_no_los_deja_pegados_a_la_extension(string razonSocial)
+    {
+        _empresa.Actualizar(razonSocial, "B12345674");
+        DocumentoDeEmpresa(_seguro, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "seguro");
+
+        (await NombresDeEntradaAsync()).Should().BeEquivalentTo("Empresa/Seguro RC - Contratista Demo S.A.pdf");
+    }
+
+    [Fact]
+    public async Task Dos_documentos_cuyo_nombre_coincide_tras_sanear_viajan_los_dos_y_el_segundo_lleva_un_2()
+    {
+        DocumentoDeEmpresa(TipoNuevo("RLC/TC1", AmbitoAplicacion.Empresa), Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "con-barra");
+        DocumentoDeEmpresa(TipoNuevo("RLC:TC1", AmbitoAplicacion.Empresa), Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "con-dos-puntos");
+
+        var zip = LeerZip((await ConstruirAsync())!.Contenido);
+
+        zip.Keys.Should().BeEquivalentTo(
+            "Empresa/RLC_TC1 - Contratista Demo SL.pdf",
+            "Empresa/RLC_TC1 - Contratista Demo SL (2).pdf");
+        zip.Values.Should().BeEquivalentTo("con-barra", "con-dos-puntos");
+    }
+
+    [Fact]
+    public async Task Dos_titulares_homonimos_con_el_mismo_Tipo_siguen_distinguiendose_con_un_2_antes_de_la_extension()
+    {
+        var otraAna = TrabajadorQueAcude("Ana", "Garcia");
+        DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "ana-epi");
+        DocumentoDeTrabajador(otraAna, _epi, Hoy.AddDays(-10), VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "otra-ana-epi");
+
+        var zip = LeerZip((await ConstruirAsync())!.Contenido);
+
+        zip.Keys.Should().BeEquivalentTo(
+            "Trabajadores/Entrega de EPI - Ana Garcia.pdf",
+            "Trabajadores/Entrega de EPI - Ana Garcia (2).pdf");
+        zip.Values.Should().BeEquivalentTo("ana-epi", "otra-ana-epi");
+    }
+
+    private async Task<IEnumerable<string>> NombresDeEntradaAsync() =>
+        LeerZip((await ConstruirAsync())!.Contenido).Keys;
+
+    private TipoDocumento TipoNuevo(string nombre, AmbitoAplicacion ambito)
+    {
+        var tipo = NuevoTipo(nombre, ambito);
+        _tipos.ListaTiposDocumento.Add(tipo);
+        return tipo;
+    }
+
+    private Trabajador TrabajadorQueAcude(string nombre, string apellidos)
+    {
+        var trabajador = Trabajador.DeEmpresa(_empresa.Id, nombre, apellidos, "00000000T");
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        _visitas.ListaVisitasTrabajadores.Add(new VisitaTrabajador(_visita.Id, trabajador.Id));
+        return trabajador;
+    }
+
     private Task<PaqueteDocumentalZip?> ConstruirAsync() =>
         new PaqueteDocumentalVisitaService(
                 _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _logger)
