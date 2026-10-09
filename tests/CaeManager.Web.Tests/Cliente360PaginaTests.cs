@@ -454,7 +454,11 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.WaitForAssertion(() => cut.Find(".pestanas").TextContent.Should().Contain("Empresas"));
+        // El contador de la pestaña solo existe con las Empresas ya cargadas: sin esperarlo, «no nombra ninguna» daría
+        // verde también con la lista sin llegar.
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerEmpresasDeClienteQuery>().Should().NotBeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll(".pestanas-boton").Select(b => b.TextContent)
+            .Should().Contain(t => t.Contains("Empresas") && t.Contains("1")));
         var filas = cut.FindAll("li.fila-relacion");
         filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("3 vencidos");
         filas[1].QuerySelector(".fila-relacion-detalle").Should().BeNull();
@@ -482,6 +486,33 @@ public class Cliente360PaginaTests : BunitContext
         Textos(cut.FindAll(".cliente360-indicadores .ventana-contexto")[0].QuerySelectorAll(".ventana-linea"))
             .Should().Equal(["Planta Barakaldo · Entra como contratista: Montajes Ebro S.L."]);
         cut.FindAll("li.fila-relacion").Select(f => f.TextContent).Should().NotContain(t => t.Contains("Empresa:"));
+    }
+
+    [Fact]
+    public void Al_pasar_de_un_Cliente_con_varias_Empresas_a_otro_con_una_no_queda_ningun_Entra_como_contratista()
+    {
+        var (idA, mediador) = ClienteBase();
+        mediador.CentrosPorCliente[idA] = [Centro("Planta Barakaldo", EstadoCentro.Vigente, empresa: "Montajes Ebro S.L.")];
+        mediador.EmpresasPorCliente[idA] = [
+            new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", null),
+            new EmpresaDeClienteDto(Guid.NewGuid(), "Montajes Ebro S.L.", null)];
+        var idB = Guid.NewGuid();
+        mediador.Detalles[idB] = new ClienteDetalleDto(idB, "Aislamientos Nervión S.L.", "B-99.000.111", false, null, Alta, null, Guid.NewGuid());
+        mediador.Resumenes[idB] = new ResumenClienteDto(idB, "Aislamientos Nervión S.L.", "B-99.000.111", false, Alta, null, 1, 7);
+        mediador.CentrosPorCliente[idB] = [Centro("Nave logística Tudela", EstadoCentro.Vigente, empresa: "Montajes Ebro S.L.")];
+        mediador.EmpresasPorCliente[idB] = [new EmpresaDeClienteDto(Guid.NewGuid(), "Montajes Ebro S.L.", null)];
+        Registrar(mediador);
+        var cut = Renderizar(idA);
+        cut.WaitForAssertion(() => cut.Find("li.fila-relacion .fila-relacion-detalle").TextContent
+            .Should().Be("Entra como contratista: Montajes Ebro S.L."));
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"clientes/{idB}");
+        cut.Render(p => p.Add(x => x.ClienteId, idB));
+
+        cut.WaitForAssertion(() => cut.Find("li.fila-relacion .fila-relacion-nombre").TextContent.Should().Contain("Nave logística Tudela"));
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerEmpresasDeClienteQuery>().Should().Contain(new ObtenerEmpresasDeClienteQuery(idB)));
+        cut.FindAll("li.fila-relacion .fila-relacion-detalle").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Entra como contratista");
     }
 
     // Una sola medida de pastilla en la ficha (13 px): la pequeña de 11 px convivía con la normal.
