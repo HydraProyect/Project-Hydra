@@ -22,6 +22,13 @@ namespace CaeManager.Architecture.Tests;
 /// <c>outline</c>, un estilo en línea) ni una regla que llegue a la fila sin nombrar
 /// <c>data-tono</c>. Que la línea se vea de verdad se comprueba en el navegador.
 /// </para>
+///
+/// <para>
+/// <b>Límite declarado.</b> Casa por texto del selector: no ve CSS anidado
+/// (<c>.fila-relacion { &amp;[data-tono] { … } }</c>) y daría rojo con una regla legítima que
+/// nombre el atributo para excluirlo (<c>.fila-relacion:not([data-tono])</c>). Hoy no existe
+/// ninguna de las dos formas.
+/// </para>
 /// </summary>
 public sealed partial class FilaConProblemaConservaDivisorTests
 {
