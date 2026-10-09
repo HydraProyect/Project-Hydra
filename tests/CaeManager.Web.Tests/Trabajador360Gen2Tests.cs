@@ -270,7 +270,7 @@ public class Trabajador360Gen2Tests : BunitContext
         // El desglose literal del centro peor parado, no solo un número.
         cabecera.TextContent.Should().Contain("2 incidencias — Centro Norte")
             .And.Contain("Formación PRL — 20 h — Vencido")
-            .And.Contain("Formación específica de centro — Falta");
+            .And.Contain("Formación específica de centro — Pendiente");
     }
 
     [Fact]
@@ -593,8 +593,8 @@ public class Trabajador360Gen2Tests : BunitContext
         franja.QuerySelectorAll(".trabajador360-por-vencer-fila")
             .Select(f => SinEspaciosDeMas(f.TextContent))
             .Should().Equal(
-                ["Reconocimiento médico Urgente Vence: 01/10/2026", "Entrega de EPI Próximo Vence: 20/10/2026"],
-                "la franja usa el umbral ámbar del sistema (Q3): Próximo y Urgente, lo más cercano primero; lo vencido ya es incidencia de Centro y lo vigente no apremia");
+                ["Reconocimiento médico Por vencer Vence: 01/10/2026", "Entrega de EPI Por vencer Vence: 20/10/2026"],
+                "la franja usa el umbral ámbar del sistema (Q3): Próximo y Urgente (los dos se rotulan «Por vencer»), lo más cercano primero; lo vencido ya es incidencia de Centro y lo vigente no apremia");
     }
 
     [Fact]
@@ -777,7 +777,7 @@ public class Trabajador360Gen2Tests : BunitContext
         Filas(cut, "Exigidos solo en algunos Centros de trabajo").Should().BeEquivalentTo(
             new[]
             {
-                new[] { "Formación específica de centro", "Centro Norte del Cliente empresarial Refrielectric S.A.", "Próximo", "15/10/2025", "15/10/2026" },
+                new[] { "Formación específica de centro", "Centro Norte del Cliente empresarial Refrielectric S.A.", "Por vencer", "15/10/2025", "15/10/2026" },
             },
             o => o.WithStrictOrdering(),
             "el tipo exigido a todo trabajador (Requerido = Sí) no es propio de ningún Centro (Q2); la renovación es la caducidad del documento (Q1)");
