@@ -74,7 +74,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         var carga = _cargaVigente;
         try
         {
-            var resultado = await Mediator.Send(new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, ClienteId: id), _ciclo.Token);
+            var resultado = await Mediator.Send(new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, Id: id), _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
             if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)

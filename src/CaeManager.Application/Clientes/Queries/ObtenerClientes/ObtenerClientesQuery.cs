@@ -31,7 +31,7 @@ public record ObtenerClientesQuery(
     string? Busqueda, bool? SoloCriticos, Guid? EjecutivoUsuarioId = null, EstadoDocumento? EstadoDocumental = null,
     int Pagina = 1, int TamanoPagina = 20, string? OrdenarPor = null, bool Descendente = false,
     IReadOnlyCollection<EstadoDocumento>? EstadosDocumentales = null, bool ConRecuentosPorEstado = false,
-    Guid? ClienteId = null)
+    Guid? Id = null)
     : IRequest<ResultadoPaginado<ClienteListaDto>>
 {
     /// <summary>
@@ -91,8 +91,8 @@ public class ObtenerClientesQueryHandler(
 
         // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
         // Va después del alcance: solo estrecha.
-        if (request.ClienteId is { } clienteId)
-            consulta = consulta.Where(c => c.Id == clienteId);
+        if (request.Id is { } id)
+            consulta = consulta.Where(c => c.Id == id);
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {

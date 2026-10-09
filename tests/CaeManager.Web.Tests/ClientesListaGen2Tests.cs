@@ -202,7 +202,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         public ResultadoPaginado<ClienteListaDto> Filtrar(ObtenerClientesQuery q)
         {
             var sinEstado = Almacen
-                .Where(c => q.ClienteId is null || c.Id == q.ClienteId)
+                .Where(c => q.Id is null || c.Id == q.Id)
                 .Where(c => string.IsNullOrWhiteSpace(q.Busqueda)
                     || c.RazonSocial.ToUpperInvariant().Contains(q.Busqueda.ToUpperInvariant()))
                 .Where(c => q.SoloCriticos != true || c.EsCritico)

@@ -69,10 +69,10 @@ public partial class ClientesListaGen2Tests
 
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Zeta Montajes S.L.", "Beta Talleres Coop."],
             "la fila enseña el dato nuevo y no cambia de sitio"));
-        UltimaConsulta(mediador).ClienteId.Should().Be(alfa.Id, "se pide solo esa fila");
+        UltimaConsulta(mediador).Id.Should().Be(alfa.Id, "se pide solo esa fila");
         UltimaConsulta(mediador).Busqueda.Should().BeNull();
         ConsultasDeLista(mediador).Should().Be(consultasAntes + 1, "la consulta por id y ninguna de página detrás");
-        mediador.Enviadas.OfType<ObtenerClientesQuery>().Count(q => q.ClienteId is null).Should().Be(consultasAntes,
+        mediador.Enviadas.OfType<ObtenerClientesQuery>().Count(q => q.Id is null).Should().Be(consultasAntes,
             "ninguna consulta de página nueva");
     }
 
@@ -101,7 +101,7 @@ public partial class ClientesListaGen2Tests
             [false, true, true, false, false], "la selección sigue marcada, también la de la fila sustituida");
         FilasConDatos(cut).Select(tr => (tr.ClassName ?? string.Empty).Contains("fila-enfocada")).Should().Equal(true, false, false, false, false);
         ConsultasDeLista(mediador).Should().Be(consultasAntes + 1, "una carga de página habría limpiado selección y foco");
-        UltimaConsulta(mediador).ClienteId.Should().Be(editado);
+        UltimaConsulta(mediador).Id.Should().Be(editado);
     }
 
     /// <summary>
@@ -121,7 +121,7 @@ public partial class ClientesListaGen2Tests
 
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal("Zeta Montajes S.L."));
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Alfa");
-        mediador.Enviadas.OfType<ObtenerClientesQuery>().Last(q => q.ClienteId is null).Busqueda.Should().Be("Alfa",
+        mediador.Enviadas.OfType<ObtenerClientesQuery>().Last(q => q.Id is null).Busqueda.Should().Be("Alfa",
             "la última consulta de página sigue siendo la del filtro");
     }
 
@@ -164,7 +164,7 @@ public partial class ClientesListaGen2Tests
         var mediador = new MediatorFalso { Almacen = { alfa, Cliente("Beta Talleres Coop.") } };
         var cut = Renderizar(mediador);
         var consultasAntes = ConsultasDeLista(mediador);
-        mediador.Retener = peticion => peticion is ObtenerClientesQuery { ClienteId: not null }
+        mediador.Retener = peticion => peticion is ObtenerClientesQuery { Id: not null }
             ? Task.FromException<object>(new InvalidOperationException("Fallo simulado de la relectura."))
             : null;
 

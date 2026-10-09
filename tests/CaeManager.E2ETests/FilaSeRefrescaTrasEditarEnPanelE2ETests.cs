@@ -31,7 +31,7 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixture fixture)
     {
         await panel.Locator(lapiz).ClickAsync();
         await panel.GetByLabel("Nombre", Exacto).FillAsync(nombre);
-        await panel.Locator(".workspace-acciones-edicion").GetByText("Guardar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        await panel.Locator(".workspace-acciones-edicion").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
         // El panel vuelve a la lectura: el lápiz reaparece cuando el guardado terminó.
         await Expect(panel.Locator(lapiz)).ToBeVisibleAsync();
     }
@@ -46,12 +46,13 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixture fixture)
         await Expect(filas).Not.ToHaveCountAsync(0);
 
         // Se aísla un trabajador sembrado por su DNI, que la edición no toca: la fila sigue
-        // cumpliendo el filtro y ningún localizador depende de qué más haya en la lista.
+        // cumpliendo el filtro y ningún localizador depende de qué más haya en la lista. Vale
+        // cualquier fila: se toma la primera (único localizador posicional del fichero).
         var dni = (await filas.First.Locator(".boton-copiar-en-linea").InnerTextAsync()).Trim();
         var filtro = page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias");
         await filtro.FillAsync(dni);
         await Expect(filas).ToHaveCountAsync(1);
-        var nombreEnFila = filas.First.Locator(".nombre-abre-vista-rapida");
+        var nombreEnFila = filas.Locator(".nombre-abre-vista-rapida");
         var nombreCompletoOriginal = (await nombreEnFila.InnerTextAsync()).Trim();
 
         await nombreEnFila.ClickAsync();
@@ -59,7 +60,7 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixture fixture)
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(nombreCompletoOriginal);
         await panel.Locator(lapiz).ClickAsync();
         var nombreOriginal = await panel.GetByLabel("Nombre", Exacto).InputValueAsync();
-        await panel.Locator(".workspace-acciones-edicion").GetByText("Cancelar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        await panel.Locator(".workspace-acciones-edicion").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar", Exact = true }).ClickAsync();
 
         var nombreEditado = $"{nombreOriginal} E2E{Guid.NewGuid().ToString("N")[..6]}";
         var restaurado = false;
@@ -89,7 +90,8 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixture fixture)
                 {
                     await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
                     await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(dni);
-                    await page.Locator("tbody tr.fila-pulsable .nombre-abre-vista-rapida").First.ClickAsync();
+                    await Expect(page.Locator("tbody tr.fila-pulsable")).ToHaveCountAsync(1);
+                    await page.Locator("tbody tr.fila-pulsable .nombre-abre-vista-rapida").ClickAsync();
                     await GuardarNombreEnElPanelAsync(page.Locator(".workspace-panel"), lapiz, nombreOriginal);
                 }
                 catch (Exception)
