@@ -36,7 +36,7 @@ public class AbrirSesionPrivilegiadaCommandValidator : AbstractValidator<AbrirSe
         // vinculante es la del agregado — este validador es cortesía, no
         // frontera de seguridad.
         RuleFor(c => c.Motivo)
-            .NotEmpty().WithMessage("Indica por qué necesitas entrar en los datos de este cliente.")
+            .NotEmpty().WithMessage("Indica por qué necesitas entrar en los datos de esta organización.")
             .MaximumLength(SesionPrivilegiada.LongitudMaximaMotivo);
 
         RuleFor(c => c.HorasDeVentana)
