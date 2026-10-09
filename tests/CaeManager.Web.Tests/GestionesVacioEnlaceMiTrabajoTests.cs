@@ -31,10 +31,10 @@ public class GestionesVacioEnlaceMiTrabajoTests : BunitContext
         Services.AddLocalization();
     }
 
-    private IRenderedComponent<Gestiones> Renderizar(string rol, int tenantsAutorizados)
+    private IRenderedComponent<Gestiones> Renderizar(string rol, int tenantsAutorizados, bool fallaLaPreguntaPorTenants = false)
     {
         this.ConRolDeEscritura(rol);
-        Services.AddScoped<IMediator>(_ => new MediatorFalso(tenantsAutorizados));
+        Services.AddScoped<IMediator>(_ => new MediatorFalso(tenantsAutorizados, fallaLaPreguntaPorTenants));
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.GetRequiredService<NavigationManager>().NavigateTo("gestiones");
@@ -68,12 +68,27 @@ public class GestionesVacioEnlaceMiTrabajoTests : BunitContext
         cut.FindAll(".estado-vacio [href]").Should().BeEmpty("al rol Consulta sus páginas de Mi trabajo le deniegan el acceso");
     }
 
-    private sealed class MediatorFalso(int tenantsAutorizados) : IMediator
+    /// <summary>
+    /// Revisión previa a la PR (2026-10-09). La pregunta por los Tenants autorizados es accesoria: solo
+    /// decide el destino de un botón. Si falla, la lista vacía sigue siendo una lista vacía —no un
+    /// error de carga— y el botón cae en <c>/bandeja</c>, que existe para cualquiera con Mi trabajo.
+    /// </summary>
+    [Fact]
+    public void Si_no_se_puede_saber_cuantos_Tenants_hay_el_vacio_sigue_siendo_un_vacio()
+    {
+        var cut = Renderizar(Roles.GestorCae, tenantsAutorizados: 2, fallaLaPreguntaPorTenants: true);
+
+        cut.Find(".estado-vacio [href]").GetAttribute("href").Should().Be("bandeja");
+    }
+
+    private sealed class MediatorFalso(int tenantsAutorizados, bool fallaLaPreguntaPorTenants) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerGestionesQuery q => new ResultadoPaginado<GestionListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerClientesAutorizadosQuery when fallaLaPreguntaPorTenants =>
+                    throw new InvalidOperationException("La base no contesta (fallo simulado de la consulta accesoria)."),
                 ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)
                     [.. Enumerable.Range(0, tenantsAutorizados).Select(i => new ClienteAutorizadoDto(Guid.NewGuid(), $"Organización {i}", EsOrigen: i == 0))],
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")

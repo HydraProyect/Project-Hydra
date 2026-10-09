@@ -173,11 +173,11 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             // no admite dos a un tiempo.
             if (resultado.TotalElementos == 0 && !HayFiltrosActivos && _rutaMiTrabajo is null)
             {
-                var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), request.CancellationToken);
+                var ruta = await ResolverRutaMiTrabajoAsync(request.CancellationToken);
                 if (_desechado || carga != _cargaVigente)
                     return GridItemsProviderResult.From(new List<GestionListaDto>(), 0);
 
-                _rutaMiTrabajo = CatalogoMenuLateral.RutaMiTrabajo(autorizados.Count > 1);
+                _rutaMiTrabajo = ruta;
             }
 
             _totalElementos = resultado.TotalElementos;
@@ -203,6 +203,25 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
                 _cargando = false;
                 StateHasChanged();
             }
+        }
+    }
+
+    /// <summary>
+    /// La pregunta es accesoria: solo decide adónde lleva un botón. Si falla, la lista vacía sigue
+    /// siendo una lista vacía y no un error de carga; el destino queda sin resolver (el botón cae en
+    /// <c>/bandeja</c>, que existe para cualquiera con Mi trabajo) y se vuelve a preguntar en la
+    /// siguiente carga vacía.
+    /// </summary>
+    private async Task<string?> ResolverRutaMiTrabajoAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+            return CatalogoMenuLateral.RutaMiTrabajo(autorizados.Count > 1);
+        }
+        catch (Exception)
+        {
+            return null;
         }
     }
 
