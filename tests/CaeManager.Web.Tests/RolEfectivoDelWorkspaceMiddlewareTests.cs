@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
 using FluentAssertions;
+using FluentAssertions.Execution;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
@@ -317,10 +318,162 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
         }
     }
 
+    /// <summary>
+    /// Hallazgo del 2026-10-09 (recorrido en vivo del piloto Outbound, LV-8):
+    /// el principal con el que nace el circuito ya trae el claim de rol
+    /// sustituido por el de la Asignación de Cartera del Tenant propietario
+    /// seleccionado, y ese principal vive lo que viva el circuito. Si dentro
+    /// del circuito la selección se retira —<c>RevalidacionCircuitoActivoHandler</c>
+    /// llama a <c>Invalidar()</c> cuando la Asignación de Cartera caduca o se
+    /// revoca—, <c>TenantActual</c> vuelve al Tenant de origen, y el rol
+    /// efectivo tiene que volver con él al de la sesión en origen. Devolver el
+    /// claim sustituido autorizaba escrituras en el Tenant de origen con el rol
+    /// que la Operación concedió en OTRO Tenant: una coordenada de contexto
+    /// convertida en autoridad.
+    ///
+    /// <para>
+    /// Se compone el middleware real con la selección real y el
+    /// <c>CurrentUserService</c> real sobre el mismo principal, que es el
+    /// estado que construye el producto. La tercera fila es el mismo defecto en
+    /// el sentido contrario: un Administrador de su Tenant de origen se quedaba
+    /// en él con el rol menor de la cartera.
+    /// </para>
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Consulta, Roles.GestorCae)]
+    [InlineData(Roles.GestorCae, Roles.CoordinadorCae)]
+    [InlineData(Roles.Administrador, Roles.Consulta)]
+    public async Task Retirada_la_seleccion_dentro_del_circuito_el_rol_efectivo_es_el_de_sesion_en_origen_no_el_de_la_cartera(
+        string rolDeSesionEnOrigen, string rolDeLaCartera)
+    {
+        var protector = ProtectorDePruebas();
+        var negociacion = await NegociarCircuitoAsync(protector, rolDeSesionEnOrigen, rolDeLaCartera);
+
+        // El circuito siembra la selección mientras el HttpContext de la
+        // negociación sigue disponible (OnCircuitOpenedAsync) y después la
+        // revalidación periódica la retira.
+        var accesor = new HttpContextAccessorFijoLocal(negociacion);
+        var seleccionDelCircuito = new ClienteActivoSeleccionado(accesor, protector);
+        seleccionDelCircuito.TenantIdSeleccionado.Should().Be(TenantVisitado,
+            "control positivo: el circuito nace operando el Tenant propietario seleccionado");
+        seleccionDelCircuito.Invalidar();
+
+        var servicio = new CurrentUserService(
+            new CircuitoDeBlazorCon(negociacion.User), accesor, seleccionDelCircuito,
+            new ServiceCollection().BuildServiceProvider());
+
+        (await servicio.ObtenerRolEfectivoAsync()).Should().Be(rolDeSesionEnOrigen,
+            "sin Tenant seleccionado se opera el Tenant de origen, y ahí el rol es el de la sesión en origen: el de "
+            + "la Asignación de Cartera solo vale en el Tenant propietario que la concede");
+    }
+
+    /// <summary>
+    /// El mismo estado por la otra vía: un circuito cuyo ámbito lee la
+    /// selección cuando ya no hay <c>HttpContext</c> la memoiza nula, con el
+    /// principal igualmente sustituido.
+    /// </summary>
+    [Fact]
+    public async Task Un_circuito_que_lee_la_seleccion_sin_HttpContext_no_conserva_el_rol_de_la_cartera_en_el_Tenant_de_origen()
+    {
+        var protector = ProtectorDePruebas();
+        var negociacion = await NegociarCircuitoAsync(protector, Roles.Consulta, Roles.GestorCae);
+
+        var sinHttpContext = new HttpContextAccessorAusente();
+        var seleccionDelCircuito = new ClienteActivoSeleccionado(sinHttpContext, protector);
+        seleccionDelCircuito.TenantIdSeleccionado.Should().BeNull(
+            "control positivo: sin HttpContext la selección se memoiza nula y el Tenant resuelto es el de origen");
+
+        var servicio = new CurrentUserService(
+            new CircuitoDeBlazorCon(negociacion.User), sinHttpContext, seleccionDelCircuito,
+            new ServiceCollection().BuildServiceProvider());
+
+        (await servicio.ObtenerRolEfectivoAsync()).Should().Be(Roles.Consulta);
+    }
+
+    /// <summary>
+    /// Una cuenta SIN rol en su Tenant de origen (estado que el producto
+    /// admite: se crea sin rol y se le asigna después) con una Asignación de
+    /// Cartera en otro Tenant. Tras la sustitución, el único claim de rol del
+    /// principal es el de la cartera; si el middleware no dejara constancia de
+    /// que en origen no había ninguno, «el rol de sesión en origen» se leería
+    /// del claim de rol y devolvería el de la cartera — el mismo defecto por
+    /// la rama que no guardaba nada. Vale para las dos lecturas del rol de
+    /// origen: sin selección y en el fan-out que visita el Tenant de origen.
+    /// </summary>
+    [Fact]
+    public async Task Sin_rol_de_sesion_en_origen_el_rol_de_la_cartera_no_se_lee_como_rol_de_origen()
+    {
+        var protector = ProtectorDePruebas();
+        var tenantOrigen = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var negociacion = await NegociarCircuitoAsync(protector, rolDeSesionEnOrigen: null, Roles.GestorCae);
+        ((ClaimsIdentity)negociacion.User.Identity!).AddClaim(
+            new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantOrigen.ToString()));
+
+        var accesor = new HttpContextAccessorFijoLocal(negociacion);
+        var seleccionDelCircuito = new ClienteActivoSeleccionado(accesor, protector);
+        var servicio = new CurrentUserService(
+            new CircuitoDeBlazorCon(negociacion.User), accesor, seleccionDelCircuito,
+            new ServiceCollection().BuildServiceProvider());
+
+        string? rolEnElFanOutAlOrigen;
+        using (AmbitoTenantExplicito.Establecer(tenantOrigen))
+            rolEnElFanOutAlOrigen = await servicio.ObtenerRolEfectivoAsync();
+
+        seleccionDelCircuito.Invalidar();
+        var rolSinSeleccion = await servicio.ObtenerRolEfectivoAsync();
+
+        // Las dos lecturas se afirman juntas: son dos ramas distintas del
+        // servicio y la primera en fallar no debe tapar a la otra.
+        using (new AssertionScope())
+        {
+            rolEnElFanOutAlOrigen.Should().BeNull(
+                "el fan-out que visita el Tenant de origen no puede dar ahí el rol de la cartera de otro Tenant");
+            rolSinSeleccion.Should().BeNull(
+                "quien no tiene rol en su Tenant de origen no lo gana por haber operado la cartera de otro Tenant");
+        }
+    }
+
+    /// <summary>
+    /// La petición que negocia el circuito (<c>/_blazor</c>) tal como la deja
+    /// el middleware real: claim de rol sustituido por el de la cartera.
+    /// </summary>
+    private static async Task<DefaultHttpContext> NegociarCircuitoAsync(
+        IDataProtectionProvider protector, string? rolDeSesionEnOrigen, string rolDeLaCartera)
+    {
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+
+        var contexto = ContextoCon(token, rolDeSesionEnOrigen);
+        contexto.Request.Path = "/_blazor/negotiate";
+
+        await EjecutarAsync(contexto, protector, rolEfectivo: rolDeLaCartera);
+        contexto.User.FindAll(ClaimTypes.Role).Should().ContainSingle(c => c.Value == rolDeLaCartera,
+            "control positivo: el principal con el que nace el circuito ya lleva el rol de la cartera, que es la "
+            + "condición del defecto");
+
+        return contexto;
+    }
+
     private sealed class SinCircuitoDeBlazor : AuthenticationStateProvider
     {
         public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
             throw new InvalidOperationException("sin circuito");
+    }
+
+    /// <summary>El circuito conserva el principal del instante en que se conectó.</summary>
+    private sealed class CircuitoDeBlazorCon(ClaimsPrincipal principal) : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(principal));
+    }
+
+    private sealed class HttpContextAccessorAusente : IHttpContextAccessor
+    {
+        public HttpContext? HttpContext
+        {
+            get => null;
+            set => throw new NotSupportedException();
+        }
     }
 
     private static Task EjecutarAsync(HttpContext contexto, IDataProtectionProvider protector, string? rolEfectivo) =>
@@ -348,13 +501,14 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
         siguienteFueLlamado.Should().BeTrue("el middleware nunca corta la petición: solo ajusta el principal");
     }
 
-    private static DefaultHttpContext ContextoCon(string? valorCookie, string rolDeSesion)
+    private static DefaultHttpContext ContextoCon(string? valorCookie, string? rolDeSesion)
     {
         var identidad = new ClaimsIdentity(
-        [
-            new Claim(ClaimTypes.NameIdentifier, Usuario.ToString()),
-            new Claim(ClaimTypes.Role, rolDeSesion),
-        ], "prueba");
+            [new Claim(ClaimTypes.NameIdentifier, Usuario.ToString())], "prueba");
+
+        // Null: una cuenta sin rol en su Tenant de origen.
+        if (rolDeSesion is not null)
+            identidad.AddClaim(new Claim(ClaimTypes.Role, rolDeSesion));
 
         var contexto = new DefaultHttpContext { User = new ClaimsPrincipal(identidad) };
 

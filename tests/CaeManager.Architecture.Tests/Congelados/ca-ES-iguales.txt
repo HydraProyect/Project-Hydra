@@ -1145,10 +1145,6 @@ src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: VacioDesc
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: VacioFiltrosDescripcion = 1
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: VacioFiltrosTitulo = 1
 src/CaeManager.Web/Features/Vehiculos/Recursos/TextosVehiculos.resx :: VacioTitulo = 1
-src/CaeManager.Web/Features/VigilanciaNormativa/Recursos/TextosVigilanciaNormativa.resx :: BotonMarcarRevisado = 1
-src/CaeManager.Web/Features/VigilanciaNormativa/Recursos/TextosVigilanciaNormativa.resx :: Descripcion = 1
-src/CaeManager.Web/Features/VigilanciaNormativa/Recursos/TextosVigilanciaNormativa.resx :: EstadoPendiente = 1
-src/CaeManager.Web/Features/VigilanciaNormativa/Recursos/TextosVigilanciaNormativa.resx :: TituloPanel = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: AmbitoRecalculado = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: AvisoSinCarteraUna = 1
 src/CaeManager.Web/Features/VisionCartera/Recursos/TextosVisionCartera.resx :: AvisoSinCarteraVarias = 1

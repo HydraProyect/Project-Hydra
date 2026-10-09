@@ -10,6 +10,7 @@ using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
 using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
+using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
@@ -167,6 +168,7 @@ public class ProyectosGen2Tests : BunitContext
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[new TrabajadorSelectorDto(Guid.NewGuid(), "Salas Moreno, Javier", null, null)],
                 DesasignarTecnicoProyectoCommand => Result.Exito(),
                 EliminarProyectoCommand => Result.Exito(),
+                RestaurarProyectoCommand => Result.Exito(),
                 CerrarProyectoCommand => Result.Exito(),
                 CrearProyectoCommand => Result.Exito(Guid.NewGuid()),
                 ReabrirProyectoCommand => Result.Exito(),
@@ -561,10 +563,10 @@ public class ProyectosGen2Tests : BunitContext
         var cut = await RenderizarConClienteAsync();
 
         await AbrirDetalle(cut, ProyectoCerrado);
-        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Reabrir proyecto");
+        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Reabrir proyecto", "Eliminar");
 
         await AbrirDetalle(cut, ProyectoAbierto);
-        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Cerrar proyecto");
+        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Cerrar proyecto", "Eliminar");
 
         await BotonConTexto(cut, ".pie-panel-proyecto button", "Cerrar proyecto").ClickAsync(new MouseEventArgs());
         cut.Find("[role=dialog] h2").TextContent.Should().Be("Cerrar proyecto");
@@ -1716,6 +1718,34 @@ public class ProyectosGen2Tests : BunitContext
 
         HayBoton(cut, "Eliminar").Should().BeTrue("descartar sigue con la confirmación de eliminar");
         _mediator.Enviados.OfType<EliminarProyectoCommand>().Should().BeEmpty("todavía no se ha confirmado");
+    }
+
+    /// <summary>
+    /// Listados 5/7 (decisiones D1 y D6, 2026-10-08): Proyectos no tiene selección múltiple, así que
+    /// «Eliminar» vive también en el pie del panel; y eliminar deja «Deshacer», que restaura ese Proyecto.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_desde_el_pie_del_panel_pide_confirmacion_y_ofrece_Deshacer_que_restaura_ese_proyecto()
+    {
+        _mediator.Proyectos = [ProyectoCerrado, ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await AbrirDetalle(cut, ProyectoAbierto);
+
+        await BotonConTexto(cut, ".pie-panel-proyecto button", "Eliminar").ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<EliminarProyectoCommand>().Should().BeEmpty("abrir el diálogo no borra nada");
+
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Eliminar").ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<EliminarProyectoCommand>().Should().Equal([new EliminarProyectoCommand(ProyectoAbierto.Id)]);
+        PanelDeDetalleAbierto(cut).Should().BeFalse("eliminar el proyecto abierto cierra su panel");
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        _mediator.Enviados.OfType<RestaurarProyectoCommand>().Should().Equal([new RestaurarProyectoCommand(ProyectoAbierto.Id)]);
     }
 
     [Fact]

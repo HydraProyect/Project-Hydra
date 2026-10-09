@@ -111,3 +111,41 @@
     font-weight: 600;
 }
 
+.campana-item-con-acciones {
+    cursor: default;
+}
+
+a.campana-item-texto {
+    color: inherit;
+    text-decoration: none;
+}
+
+a.campana-item-texto:hover strong {
+    text-decoration: underline;
+}
+
+a.campana-item-texto:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.campana-acciones {
+    display: flex;
+    flex-shrink: 0;
+    gap: var(--space-2);
+}
+
+.campana-pie {
+    padding: var(--space-2) var(--space-3);
+    border-top: var(--border-default);
+}
+
+.campana-ver-todas {
+    color: var(--color-primary-700);
+    font: var(--font-body-sm);
+}
+
+.campana-ver-todas:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}

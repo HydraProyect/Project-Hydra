@@ -971,7 +971,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
         acciones.QuerySelectorAll("a").Should().BeEmpty("«Exportar a Excel» vive ahora dentro del «⋯»");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Selección múltiple", "Más acciones", "+ Nuevo trabajador");
+            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo trabajador");
     }
 
     [Fact]
@@ -1279,7 +1279,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Alonso", "la lista es lectura: la fila se ve");
         cut.Find("header.cabecera-pagina .acciones-cabecera").QuerySelectorAll("button")
             .Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal(["Más acciones"], "sin ☑ ni alta: solo el «⋯» con la exportación, que es lectura");
+            .Should().Equal(["Atajos de teclado", "Más acciones"], "sin ☑ ni alta: solo el «⋯» con la exportación, que es lectura");
         Pastilla(cut, "Más filtros").Should().NotBeNull("la barra sigue ahí: solo falta el modo de selección");
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
         cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();

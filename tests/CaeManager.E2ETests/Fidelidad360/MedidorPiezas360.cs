@@ -203,9 +203,17 @@ public static class MedidorPiezas360
           // Columna fija: dentro de una misma lista, el borde izquierdo de la pastilla de
           // estado cae en la misma vertical en todas las filas.
           const porLista = new Map();
+          // La lista de una fila es su padre; si el padre solo la envuelve a ella (fila
+          // desplegable, envoltorio de plantilla), es el abuelo.
+          const listaDe = f => {
+            const padre = f.parentElement;
+            const hermanas = [...padre.children].filter(h => h.matches(selFila)).length;
+            return hermanas > 1 || !padre.parentElement ? padre : padre.parentElement;
+          };
           for (const [f, p] of deFila) {
-            if (!porLista.has(f.parentElement)) porLista.set(f.parentElement, []);
-            porLista.get(f.parentElement).push({ izq: p.getBoundingClientRect().left, borde: f.getBoundingClientRect().right });
+            const lista = listaDe(f);
+            if (!porLista.has(lista)) porLista.set(lista, []);
+            porLista.get(lista).push({ izq: p.getBoundingClientRect().left, borde: f.getBoundingClientRect().right });
           }
           const dispersiones = [], distancias = [];
           for (const grupo of porLista.values()) {

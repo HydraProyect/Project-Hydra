@@ -78,6 +78,9 @@ public class ClientesListaGen2Tests : BunitContext
         public List<string> ErroresDeLote { get; } = [];
         public int? EliminadosForzados { get; set; }
 
+        /// <summary>El lote devuelve qué ids cayeron, como el handler real (los tests anteriores a «Deshacer» solo fijan el recuento).</summary>
+        public bool LoteDevuelveIds { get; set; }
+
         /// <summary>
         /// Estados presentes por Cliente, para el filtro de estado documental:
         /// el handler pregunta si HAY alguno del estado pedido, no si es el peor.
@@ -167,8 +170,9 @@ public class ClientesListaGen2Tests : BunitContext
                     return Result.Exito();
 
                 case EliminarClientesCommand lote:
+                    var idsBorrados = Almacen.Where(c => lote.Ids.Contains(c.Id)).Select(c => c.Id).ToList();
                     var borrados = Almacen.RemoveAll(c => lote.Ids.Contains(c.Id));
-                    return Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? borrados, ErroresDeLote));
+                    return Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? borrados, ErroresDeLote, LoteDevuelveIds ? idsBorrados : null));
 
                 case RestaurarClienteCommand:
                     return Result.Exito();
@@ -605,7 +609,7 @@ public class ClientesListaGen2Tests : BunitContext
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
         acciones.QuerySelectorAll("a").Should().BeEmpty("Exportar a Excel vive ahora dentro del «⋯»");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Selección múltiple", "Más acciones", "+ Nuevo Cliente empresarial");
+            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo Cliente empresarial");
     }
 
     [Fact]
@@ -1397,6 +1401,32 @@ public class ClientesListaGen2Tests : BunitContext
             "Los 20 de esta página están seleccionados. Hay 25 en total: los de otras páginas no entran en la selección.");
         cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("20 seleccionados en esta página");
         cut.Markup.Should().NotContain("filtrados");
+    }
+
+    /// <summary>Listados 5/7 (decisión D6, 2026-10-08): la baja en lote deja un único «Deshacer» que restaura los que cayeron.</summary>
+    [Fact]
+    public async Task La_baja_en_lote_ofrece_un_unico_Deshacer_que_restaura_los_que_cayeron()
+    {
+        var a = Cliente("Aislamientos Nervión S.L.");
+        var b = Cliente("Montajes Ebro S.L.");
+        var c = Cliente("Refrielectric S.A.");
+        var mediador = new MediatorFalso { LoteDevuelveIds = true, Almacen = { a, b, c } };
+        var cut = Renderizar(mediador);
+
+        await AlternarSeleccionMultiple(cut);
+        await cut.FindAll("tbody input[type=checkbox]")[0].ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll("tbody input[type=checkbox]")[2].ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(x => x.TextContent.Trim() == "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        mediador.Enviadas.OfType<RestaurarClienteCommand>().Should().BeEmpty("ofrecer «Deshacer» no restaura nada");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<RestaurarClienteCommand>().Select(r => r.Id).Should().BeEquivalentTo([a.Id, c.Id]);
+        avisos.Mensajes.Should().Contain(m => m.Mensaje == "2 Cliente(s) empresarial(es) restaurado(s).");
     }
 
     [Fact]

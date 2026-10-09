@@ -79,7 +79,9 @@ public class CatalogoMenuLateralRepartoTests
     /// <summary>
     /// El reagrupado no da ni quita visibilidad: el conjunto de enlaces que ve cada rol es el de
     /// antes (lista literal, escrita a partir de las Condicion y las Visible previas al cambio),
-    /// con independencia de en qué grupo esté cada miTrabajo.
+    /// con independencia de en qué grupo esté cada miTrabajo. Decisión posterior (defecto C1 del
+    /// piloto Outbound, 2026-10-08): el rol Consulta deja de ver «Mi trabajo», porque las dos
+    /// páginas a las que lleva le deniegan el acceso.
     /// </summary>
     [Theory]
     [InlineData(Roles.Administrador, true)]
@@ -111,8 +113,9 @@ public class CatalogoMenuLateralRepartoTests
             "dashboard",
             "empresas", "subcontratas", "trabajadores", "clientes", "centros", "documentos", "conectar-extension",
             "comunicaciones", "gestiones", "incidencias", "visitas", "vehiculos", "proyectos",
-            "mi-trabajo", "alertas", "calendario", "reportes",
+            "alertas", "calendario", "reportes",
         };
+        if (rol != Roles.Consulta) comunes.Add("mi-trabajo");
         var administracionAmpliada = rol is Roles.Administrador or Roles.DireccionCae;
         if (administracionAmpliada) comunes.AddRange(["facturacion", "usuarios"]);
         // D-12: el Coordinador CAE llega a /usuarios (ya autorizado por rol) desde Control; no es un permiso nuevo.

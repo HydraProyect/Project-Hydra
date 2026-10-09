@@ -7,6 +7,7 @@ using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
+using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
@@ -25,6 +26,7 @@ using FluentAssertions;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -56,6 +58,9 @@ public class SubcontratasListaGen2Tests : BunitContext
     {
         public IReadOnlyList<SubcontrataListaDto> Subcontratas { get; init; } = [];
         public int? EliminadosForzados { get; set; }
+
+        /// <summary>El lote devuelve qué ids cayeron, como el handler real (los tests anteriores a «Deshacer» solo fijan el recuento).</summary>
+        public bool LoteDevuelveIds { get; set; }
         public SubcontrataDetalleDto? Detalle { get; init; }
 
         /// <summary>
@@ -83,6 +88,8 @@ public class SubcontratasListaGen2Tests : BunitContext
             return (TResponse)(request switch
             {
                 ObtenerPerfilVocabularioActualQuery => (object)PerfilVocabularioTenant.Consultora,
+                // Sin documento que devolver: basta para observar qué se pidió abrir.
+                CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery => null!,
                 ObtenerClientesAutorizadosQuery => Autorizados,
                 ObtenerSubcontratasQuery q => FiltrarPorBusqueda(q),
                 ObtenerSubcontrataPorIdQuery q => Detalle is not null && Detalle.Id == q.Id ? Detalle : null!,
@@ -91,7 +98,8 @@ public class SubcontratasListaGen2Tests : BunitContext
                 ObtenerEmpresasParaSelectorQuery => Empresas,
                 ObtenerClientesParaSelectorQuery => Clientes,
                 EliminarSubcontrataCommand => ResultadoEliminar,
-                EliminarSubcontratasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? lote.Ids.Count, [])),
+                EliminarSubcontratasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? lote.Ids.Count, [], LoteDevuelveIds ? lote.Ids : null)),
+                RestaurarSubcontrataCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             });
         }
@@ -204,7 +212,7 @@ public class SubcontratasListaGen2Tests : BunitContext
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
         acciones.QuerySelectorAll("a").Should().BeEmpty("Exportar a Excel vive ahora dentro del «⋯»");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Selección múltiple", "Más acciones", "+ Nueva subcontrata");
+            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nueva subcontrata");
 
         cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
         cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim()).Should().Equal("Exportar a Excel");
@@ -568,6 +576,53 @@ public class SubcontratasListaGen2Tests : BunitContext
             "se elimina la fila cuyo menú se abrió, y solo esa");
     }
 
+    /// <summary>Listados 5/7 (decisión D6, 2026-10-08): eliminar una Subcontrata deja «Deshacer», que restaura esa y solo esa.</summary>
+    [Fact]
+    public async Task Eliminar_ofrece_Deshacer_y_Deshacer_restaura_esa_subcontrata()
+    {
+        var id = Guid.NewGuid();
+        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] };
+        var cut = Renderizar(mediador);
+
+        AbrirMenuYPulsar(cut, "Eliminar");
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        mediador.Enviadas.OfType<RestaurarSubcontrataCommand>().Should().BeEmpty("ofrecer «Deshacer» no restaura nada");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<RestaurarSubcontrataCommand>().Should().Equal([new RestaurarSubcontrataCommand(id)]);
+        avisos.Mensajes.Should().Contain(m => m.Mensaje == "Subcontrata restaurada." && m.Tono == TonoToast.Exito);
+    }
+
+    /// <summary>En lote, un único «Deshacer» para todo el lote, y restaura solo las que el lote sí eliminó.</summary>
+    [Fact]
+    public async Task Eliminar_en_lote_ofrece_un_unico_Deshacer_que_restaura_las_que_cayeron()
+    {
+        var elegida = Guid.NewGuid();
+        var mediador = new MediatorFalso
+        {
+            LoteDevuelveIds = true,
+            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: elegida), Subcontrata("Pinturas Lauburu S.A.")]
+        };
+        var cut = Renderizar(mediador);
+
+        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").Click();
+        await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']")
+            .ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados").Click();
+        cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<RestaurarSubcontrataCommand>().Select(c => c.Id).Should().Equal([elegida]);
+    }
+
     [Fact]
     public void Si_el_comando_rechaza_la_eliminacion_se_ensena_su_motivo()
     {
@@ -901,5 +956,71 @@ public class SubcontratasListaGen2Tests : BunitContext
         await cut.PulsarCancelarDelPieAsync(".drawer-pie");
 
         await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
+    /// <summary>
+    /// Listados 3/7 (decisión del 2026-10-08): la incidencia de la ventana de contexto se pulsa y
+    /// abre su corrección sin salir del listado. Toda incidencia de una Subcontrata es de un
+    /// Trabajador: es pulsable si trae el Documento, o el Tipo junto con el Trabajador.
+    /// </summary>
+    [Fact]
+    public async Task La_incidencia_de_la_ventana_abre_la_correccion_de_su_documento()
+    {
+        this.ConServiciosDelFormularioDeDocumento();
+        var documentoId = Guid.NewGuid();
+        var vencida = new IncidenciaSubcontrataDto(
+            "Aptitud médica — Sonia Cano", EstadoDocumento.Vencido, documentoId, Guid.NewGuid(), null, Guid.NewGuid());
+        var urgente = new IncidenciaSubcontrataDto(
+            "Entrega de EPI — Carla Molina", EstadoDocumento.Urgente, Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
+        var mediador = new MediatorFalso
+        {
+            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 60, vencidas: [vencida], proximas: [urgente])]
+        };
+        var cut = Renderizar(mediador);
+
+        var ventanas = cut.FindAll(".celda-recuento-subcontrata .ventana-contexto");
+        ventanas.Should().HaveCount(2);
+        ventanas.Should().OnlyContain(v => v.ClassList.Contains("ventana-contexto-interactiva"));
+        // El panel abre hacia abajo (Subcontratas.razor.css): el puente del cursor va en ese lado.
+        ventanas.Should().OnlyContain(v => v.ClassList.Contains("ventana-contexto-abajo"));
+        // En «Próximos» el botón conserva el badge que distingue Urgente de Próximo.
+        ventanas[1].QuerySelector("button.ventana-contexto-elemento")!.TextContent.Should().Contain("Entrega de EPI — Carla Molina");
+        ventanas[1].QuerySelector("button.ventana-contexto-elemento .badge").Should().NotBeNull();
+
+        await ventanas[0].QuerySelector("button.ventana-contexto-elemento")!.ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery>()
+            .Should().ContainSingle().Which.Id.Should().Be(documentoId);
+    }
+
+    [Fact]
+    public void Una_incidencia_sin_trabajador_ni_documento_sigue_siendo_texto()
+    {
+        var mediador = new MediatorFalso
+        {
+            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 60,
+                vencidas: [Incidencia("Aptitud médica — Sonia Cano", EstadoDocumento.Vencido)])]
+        };
+
+        var cut = Renderizar(mediador);
+
+        var ventana = cut.Find(".celda-recuento-subcontrata .ventana-contexto");
+        ventana.ClassList.Should().NotContain("ventana-contexto-interactiva");
+        ventana.QuerySelectorAll("button").Should().BeEmpty();
+        ventana.QuerySelector(".ventana-linea")!.TextContent.Should().Be("Aptitud médica — Sonia Cano");
+    }
+
+    [Fact]
+    public async Task Tras_corregir_una_incidencia_la_lista_se_vuelve_a_pedir_sin_recargar_la_pagina()
+    {
+        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 60)] };
+        var cut = Renderizar(mediador);
+        var consultasDeListaAntes = mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Count();
+        var correccion = cut.FindComponent<CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental>();
+
+        await cut.InvokeAsync(() => correccion.Instance.OnCorregida.InvokeAsync());
+
+        mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Should().HaveCount(consultasDeListaAntes + 1,
+            "el recuento y el cumplimiento de la fila cambian al corregir: la lista se relee en sitio");
     }
 }

@@ -18,6 +18,12 @@
   <data name="Reintentar" xml:space="preserve">
     <value>Reintentar</value>
   </data>
+  <data name="VentanaIncidenciasPie" xml:space="preserve">
+    <value>Clic en una para corregirla aquí</value>
+  </data>
+  <data name="VentanaIncidenciaAyuda" xml:space="preserve">
+    <value>Corregir sin salir de esta pantalla</value>
+  </data>
   <data name="IdiomaEtiqueta" xml:space="preserve">
     <value>Idioma</value>
   </data>
@@ -225,6 +231,15 @@
   <data name="CabeceraCambiarAvatar" xml:space="preserve">
     <value>Cambiar mi avatar</value>
   </data>
+  <data name="CabeceraMiCuenta" xml:space="preserve">
+    <value>Mi cuenta</value>
+  </data>
+  <data name="CabeceraVerificacionDosPasos" xml:space="preserve">
+    <value>Verificación en dos pasos</value>
+  </data>
+  <data name="CabeceraCambiarContrasena" xml:space="preserve">
+    <value>Cambiar contraseña</value>
+  </data>
   <data name="CabeceraCerrarSesion" xml:space="preserve">
     <value>Cerrar sesión</value>
   </data>
@@ -311,5 +326,58 @@
   </data>
   <data name="ContraerTodo" xml:space="preserve">
     <value>Contraer todo</value>
+  </data>
+  <data name="SinBuzonMotivo" xml:space="preserve">
+    <value>No se puede enviar desde aquí: no hay ningún buzón de Microsoft 365 conectado y habilitado para enviar correo.</value>
+  </data>
+  <data name="SinBuzonConectar" xml:space="preserve">
+    <value>Conectar un buzón en Conexiones de integración</value>
+  </data>
+  <data name="SinBuzonPedirAdministrador" xml:space="preserve">
+    <value>Conectarlo corresponde a un usuario con rol Administrador de esta organización, desde Conexiones de integración: pídeselo.</value>
+    <comment>«Esta organización» es el Tenant propietario de los datos (el Tenant activo), no el Operador CAE externo al que pertenezca el Gestor CAE que lo lee, ni Soporte TALVEG.</comment>
+  </data>
+  <data name="SinBuzonAlternativa" xml:space="preserve">
+    <value>Mientras tanto puedes enviarlo desde tu propio correo: copia el texto y adjunta a mano los documentos.</value>
+  </data>
+  <data name="SinBuzonPara" xml:space="preserve">
+    <value>Para: {0}</value>
+  </data>
+  <data name="SinBuzonCopiarTexto" xml:space="preserve">
+    <value>Copiar el texto del correo</value>
+  </data>
+  <data name="SinBuzonEtiquetaCopiar" xml:space="preserve">
+    <value>el texto del correo</value>
+  </data>
+  <data name="SinBuzonDescargarAdjunto" xml:space="preserve">
+    <value>Descargar {0}</value>
+  </data>
+  <data name="SinBuzonEnviarDeshabilitado" xml:space="preserve">
+    <value>No hay ningún buzón conectado desde el que enviar.</value>
+  </data>
+  <data name="ExtensionInstalarTitulo" xml:space="preserve">
+    <value>Instalar la extensión</value>
+  </data>
+  <data name="ExtensionInstalarEnlace" xml:space="preserve">
+    <value>Abrir la página de instalación de la extensión</value>
+  </data>
+  <data name="ExtensionInstalarManualIntro" xml:space="preserve">
+    <value>La extensión todavía no se instala desde la tienda del navegador: se carga a mano en Chrome, con la carpeta de la extensión (versión {0} o posterior) que te facilita {1}.</value>
+    <comment>{0} = versión mínima con «Conectar a mano»; {1} = marca del producto. No hay URL de instalación decidida (Extension:UrlInstalacion vacío).</comment>
+  </data>
+  <data name="ExtensionInstalarPaso1" xml:space="preserve">
+    <value>Abre chrome://extensions en una pestaña nueva.</value>
+  </data>
+  <data name="ExtensionInstalarPaso2" xml:space="preserve">
+    <value>Activa «Modo de desarrollador», arriba a la derecha.</value>
+  </data>
+  <data name="ExtensionInstalarPaso3" xml:space="preserve">
+    <value>Pulsa «Cargar descomprimida» y elige la carpeta de la extensión.</value>
+  </data>
+  <data name="ExtensionInstalarPaso4" xml:space="preserve">
+    <value>Vuelve a esta página y genera el token.</value>
+  </data>
+  <data name="ExtensionInstalarPista" xml:space="preserve">
+    <value>Si todavía no la tienes instalada, mira «Instalar la extensión», más abajo.</value>
   </data>
 </root>

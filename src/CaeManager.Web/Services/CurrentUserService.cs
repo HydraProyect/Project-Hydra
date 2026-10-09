@@ -85,7 +85,6 @@ public class CurrentUserService(
     public async Task<string?> ObtenerRolEfectivoAsync()
     {
         var usuario = await ObtenerUsuarioAsync();
-        var rolDeSesion = usuario?.FindFirst(ClaimTypes.Role)?.Value;
 
         // Una sesión privilegiada de plataforma no tiene rol de negocio, y
         // decirlo aquí explícitamente es justamente el punto (ADR-011 § 4bis.3):
@@ -105,10 +104,19 @@ public class CurrentUserService(
         if (AmbitoTenantExplicito.TenantIdActual is { } tenantAmbito)
             return await ResolverRolParaAmbitoExplicitoAsync(tenantAmbito, RolDeSesionEnOrigen(usuario));
 
-        // Sin selección no hay delegación en juego: el caso de todo usuario
-        // que no es Operador Delegado de nadie, sin ninguna consulta extra.
+        // Sin Tenant seleccionado se opera el Tenant de origen (TenantActual), y
+        // ahí el rol es el de la sesión en origen, sin ninguna consulta extra.
+        // No es «el claim de rol tal cual»: el principal de un circuito puede
+        // llegar ya sustituido por RolEfectivoDelWorkspaceMiddleware y perder
+        // después la selección —RevalidacionCircuitoActivoHandler la retira al
+        // caducar o revocarse la Asignación de Cartera, y un ámbito que la lee
+        // sin HttpContext la memoiza nula—. Devolver entonces el claim
+        // autorizaba en el Tenant de origen con el rol que la cartera concede en
+        // OTRO Tenant (hallazgo del 2026-10-09). Para quien nunca seleccionó un
+        // Tenant no cambia nada: sin sustitución, el rol de sesión en origen es
+        // el propio claim.
         if (clienteActivoSeleccionado.TenantIdSeleccionado is not { } tenantSeleccionado)
-            return rolDeSesion;
+            return RolDeSesionEnOrigen(usuario);
 
         var usuarioId = await ObtenerUsuarioActualIdAsync();
         if (usuarioId is null) return null;
@@ -131,7 +139,9 @@ public class CurrentUserService(
     /// sustituyera por el rol de la cartera del Workspace operativo derivado
     /// seleccionado. El middleware lo conserva en
     /// <see cref="RolEfectivoDelWorkspaceMiddleware.TipoClaimRolDeSesionOrigen"/>;
-    /// sin sustitución, el claim de rol sigue siendo el de origen.
+    /// sin sustitución, el claim de rol sigue siendo el de origen. Si el claim
+    /// conservado existe, manda aunque esté vacío (la sesión no traía rol en
+    /// origen): caer entonces al claim de rol devolvería el de la cartera.
     ///
     /// <para>
     /// No es <see cref="ObtenerRolOrigenAsync"/> a propósito: aquí se decide
@@ -140,8 +150,9 @@ public class CurrentUserService(
     /// </para>
     /// </summary>
     private static string? RolDeSesionEnOrigen(ClaimsPrincipal? usuario) =>
-        usuario?.FindFirst(RolEfectivoDelWorkspaceMiddleware.TipoClaimRolDeSesionOrigen)?.Value
-        ?? usuario?.FindFirst(ClaimTypes.Role)?.Value;
+        usuario?.FindFirst(RolEfectivoDelWorkspaceMiddleware.TipoClaimRolDeSesionOrigen) is { } conservado
+            ? (conservado.Value.Length > 0 ? conservado.Value : null)
+            : usuario?.FindFirst(ClaimTypes.Role)?.Value;
 
     /// <summary>
     /// Rol de la organización de origen, de Identity. Ver el contrato en
