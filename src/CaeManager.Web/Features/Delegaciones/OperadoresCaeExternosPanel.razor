@@ -98,6 +98,7 @@
    contingencia decidida para el alta de un Tenant): quien da el alta lo copia y se lo hace llegar. Sin clic
    fuera: cerrarlo por descuido deja el enlace sin copiar, y esta pantalla no lo vuelve a enseñar. *@
 <Modal Visible="@(_activacion is not null)"
+       HayCambios="() => _activacion is not null"
        VisibleChanged="@(v => { if (!v) _activacion = null; })"
        Titulo="@TextosAutorizar["AltaCreadoTitulo"]"
        CerrarAlHacerClicFuera="false">

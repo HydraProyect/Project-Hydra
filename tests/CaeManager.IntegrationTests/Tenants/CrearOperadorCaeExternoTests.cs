@@ -20,6 +20,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Tenants;
@@ -317,6 +318,13 @@ public class CrearOperadorCaeExternoTests : IAsyncLifetime
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Should().Be(CrearOperadorCaeExternoCommandHandler.PrimerAdministradorNoCreado);
         (await FotoAsync(contexto)).Should().Be(antes);
+
+        // El mensaje a quien da el alta es neutro; la causa real queda en el registro, con
+        // la excepción de la base y sin el correo (revisión puente: sin esto, un rechazo de
+        // RLS se leería como «revisa el correo» y nadie lo vería).
+        var registrado = _registro.Errores.Should().ContainSingle().Subject;
+        registrado.Excepcion.Should().BeOfType<DbUpdateException>();
+        registrado.Mensaje.Should().NotContain(EmailAdministrador);
     }
 
     /// <summary>
@@ -370,7 +378,26 @@ public class CrearOperadorCaeExternoTests : IAsyncLifetime
             new AsignacionesOperativasWriter(contexto, _tenantActual, usuarioActual),
             contexto,
             sustituirCuentas?.Invoke(cuentas) ?? cuentas,
-            new TransaccionDeComando(contexto));
+            new TransaccionDeComando(contexto),
+            _registro);
+    }
+
+    private readonly RegistroDeErrores _registro = new();
+
+    /// <summary>Guarda las excepciones registradas con nivel Error y el texto de cada mensaje.</summary>
+    private sealed class RegistroDeErrores : ILogger<CrearOperadorCaeExternoCommandHandler>
+    {
+        public List<(Exception? Excepcion, string Mensaje)> Errores { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Error) Errores.Add((exception, formatter(state, exception)));
+        }
     }
 
     /// <summary>

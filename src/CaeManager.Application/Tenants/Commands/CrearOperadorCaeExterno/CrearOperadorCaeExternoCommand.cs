@@ -9,6 +9,7 @@ using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.Tenants.Commands.CrearOperadorCaeExterno;
 
@@ -102,7 +103,8 @@ public class CrearOperadorCaeExternoCommandHandler(
     IAsignacionesOperativasWriter asignacionesWriter,
     IUnitOfWork unitOfWork,
     IGestionCuentasUsuario cuentas,
-    ITransaccionDeComando transaccion)
+    ITransaccionDeComando transaccion,
+    ILogger<CrearOperadorCaeExternoCommandHandler> logger)
     : IRequestHandler<CrearOperadorCaeExternoCommand, Result<OperadorCaeExternoCreado>>
 {
     /// <summary>
@@ -235,13 +237,20 @@ public class CrearOperadorCaeExternoCommandHandler(
                     return Result.Exito();
                 }, cancellationToken);
             }
-            catch (DbUpdateException) when (escribiendoCuenta)
+            catch (DbUpdateException ex) when (escribiendoCuenta)
             {
                 // El índice único del nombre de usuario, cuando el validador de Identity
                 // no llegó a ver la otra cuenta. La transacción ya se deshizo y el
                 // contexto quedó vacío (ITransaccionDeComando): no existe ni el Tenant.
                 // Se captura fuera de la lambda a propósito: dentro le quitaría a la
                 // estrategia de ejecución los fallos transitorios que sí reintenta.
+                //
+                // Quien da el alta lee el mismo mensaje neutro sea cual sea la causa, para no
+                // revelar cuentas de otros Tenants; por eso la causa queda en el registro. Un
+                // rechazo de la RLS o de una clave foránea llega por aquí igual que el índice
+                // único, y sin esto nadie lo vería. Sin el correo: es un dato personal.
+                logger.LogError(
+                    ex, "El alta del Operador CAE externo no pudo escribir la cuenta de su primer Administrador; no se creó el Tenant.");
                 return Result.Fallo<OperadorCaeExternoCreado>(PrimerAdministradorNoCreado);
             }
         }

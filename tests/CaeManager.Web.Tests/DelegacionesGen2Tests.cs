@@ -550,6 +550,13 @@ public partial class DelegacionesGen2Tests : BunitContext
             "el botón copia el mismo enlace que se lee");
         cut.FindComponents<CampoTexto>().Should().BeEmpty("el formulario del alta ya se cerró");
 
+        // La X no lo cierra sin preguntar: esta pantalla no vuelve a enseñar el enlace y no hay
+        // otro camino para emitirlo (revisión puente).
+        await cut.Find("[role=dialog] .modal-cerrar").ClickAsync(new MouseEventArgs());
+        cut.Find(".operadores-cae-enlace").TextContent.Should().EndWith("code=TOKEN-123", "la X pide confirmación antes de perder el enlace");
+        cut.FindComponents<ConfirmarDescartarCambios>().Should().ContainSingle();
+        await cut.InvokeAsync(() => cut.FindComponent<ConfirmarDescartarCambios>().Instance.AlSeguir.InvokeAsync());
+
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Hecho").ClickAsync(new MouseEventArgs());
         cut.FindAll("[role=dialog]").Should().BeEmpty();
         cut.Markup.Should().NotContain("TOKEN-123", "cerrado el aviso, el token no queda en la pantalla");

@@ -200,7 +200,8 @@ public class CrearOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
                 servicios.GetRequiredService<PuertaAccesoDatos>(),
                 servicios.GetRequiredService<DirectorioUsuariosTenant>(),
                 contexto),
-            new TransaccionDeComando(contexto));
+            new TransaccionDeComando(contexto),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<CrearOperadorCaeExternoCommandHandler>.Instance);
 
         // Tenant activo = el de quien da el alta, como en producción.
         using (AmbitoTenantExplicito.Establecer(actor.TenantId))
