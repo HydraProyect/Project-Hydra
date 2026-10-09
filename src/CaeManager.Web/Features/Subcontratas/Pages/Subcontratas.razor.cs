@@ -14,6 +14,7 @@ using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Subcontratas.Recursos;
 using CaeManager.Web.Recursos;
 using FluentValidation;
@@ -38,6 +39,12 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>Filtro «Nivel de servicio»: nombre del enum (Gestionada / Supervisada) o vacío. Viaja en la URL como <c>nivel</c>.</summary>
     private string _nivelFiltro = string.Empty;
+
+    /// <summary>Selección de la franja de estado: estados de código separados por coma, tal como viajan en <c>?estado=</c>.</summary>
+    private string _estadoFiltro = string.Empty;
+
+    /// <summary>Subcontratas por estado documental con los demás filtros aplicados; <c>null</c> hasta la primera carga.</summary>
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -99,6 +106,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     [SupplyParameterFromQuery(Name = "nivel")]
     public string? NivelInicial { get; set; }
 
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
+
     /// <summary>Comando del palette "Crear subcontrata": /subcontratas?accion=crear abre el modal directamente — mismo patrón que Clientes/Empresas/Centros/Trabajadores/Documentos.</summary>
     [SupplyParameterFromQuery] public string? Accion { get; set; }
 
@@ -122,7 +132,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     // ContextWorkspaceService.OnEntidadGuardada. Se vuelve a pedir SOLO esa fila y se sustituye
     // en sitio (mismo criterio que Centros.RefrescarCentroAsync): filtros, orden, página,
     // selección, acordeones, fila enfocada y desplazamiento no se tocan, y la fila permanece
-    // aunque el cambio la saque del filtro activo, hasta la siguiente carga.
+    // aunque el cambio la saque del filtro activo, hasta la siguiente carga. La vista rápida edita
+    // datos de la Subcontrata, no documentos: el estado documental no cambia y la franja no recuenta.
     private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
     {
         if (tipo == EntidadWorkspace.Subcontrata)
@@ -139,7 +150,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
         try
         {
-            await RefrescarSubcontrataAsync(id);
+            await RefrescarSubcontrataAsync(id, recontarFranja: false);
         }
         catch (Exception)
         {
@@ -162,6 +173,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _nivelFiltro = NivelDesdeUrl();
+        _estadoFiltro = EstadoDesdeUrl();
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
@@ -198,11 +210,13 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var nivelDeLaUrl = NivelDesdeUrl();
-        if (deLaUrl == _busqueda && nivelDeLaUrl == _nivelFiltro)
+        var estadoDeLaUrl = EstadoDesdeUrl();
+        if (deLaUrl == _busqueda && nivelDeLaUrl == _nivelFiltro && estadoDeLaUrl == _estadoFiltro)
             return;
 
         _busqueda = deLaUrl;
         _nivelFiltro = nivelDeLaUrl;
+        _estadoFiltro = estadoDeLaUrl;
         await CargarAsync(resetPagina: true);
     }
 
@@ -216,6 +230,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private static string NivelValido(string? nivel) =>
         Enum.GetNames<NivelServicioSubcontrata>().Contains(nivel) ? nivel! : string.Empty;
 
+    /// <summary>Mismo criterio para el estado: solo los estados que la franja ofrece.</summary>
+    private string EstadoDesdeUrl() => EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
+
     private NivelServicioSubcontrata? NivelSeleccionado =>
         Enum.TryParse<NivelServicioSubcontrata>(_nivelFiltro, out var nivel) ? nivel : null;
 
@@ -224,13 +241,15 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
         Pagina: _pagina,
         TamanoPagina: _tamanoPagina,
-        NivelServicio: NivelSeleccionado);
+        NivelServicio: NivelSeleccionado,
+        EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+        ConRecuentosPorEstado: true);
 
     [CascadingParameter] private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? EstadoAutenticacion { get; set; }
 
     /// <summary>
     /// El rol efectivo puede escribir (misma pregunta que <see cref="SoloConEscritura"/>). Decide si
-    /// las incidencias de las ventanas de «Vencidos» y «Próximos» se ofrecen como pulsables.
+    /// las incidencias de las ventanas del motivo de la fila se ofrecen como pulsables.
     /// </summary>
     private bool _puedeEscribir;
 
@@ -272,6 +291,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
         _totalElementos = resultado.TotalElementos;
         _elementosPagina = resultado.Elementos.ToList();
+        _recuentosPorEstado = resultado.RecuentosPorEstado;
         _seleccionados.IntersectWith(_elementosPagina.Select(s => s.Id));
         _expandidos.Clear();
         StateHasChanged();
@@ -292,6 +312,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
             _seleccionados.Clear();
             _expandidos.Clear();
             _idEnfocado = null;
@@ -325,12 +346,20 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// completo colapsaría el acordeón que el usuario acaba de usar (mismo
     /// motivo que RefrescarCentroAsync en Centros.razor.cs).
     /// </summary>
-    private async Task RefrescarSubcontrataAsync(Guid subcontrataId)
+    private async Task RefrescarSubcontrataAsync(Guid subcontrataId, bool recontarFranja = true)
     {
-        var resultado = await Mediator.Send(new ObtenerSubcontratasQuery(Busqueda: null, SubcontrataId: subcontrataId));
-        var actualizada = resultado.Elementos.FirstOrDefault();
+        // Gestionar un documento puede cambiar el estado documental de la fila, y los recuentos de la
+        // franja dependen de todas las filas, no solo de esta: se piden con la consulta de la página y
+        // se sustituye en sitio la fila gestionada. Si con el cambio la fila ya no pasa el filtro de
+        // estado, sigue a la vista con sus datos nuevos hasta la próxima carga: quitarla cerraría el
+        // acordeón que se está usando. Sin recuento (guardado de la vista rápida) basta la fila por Id.
+        var resultado = recontarFranja ? await Mediator.Send(ConsultaDePaginaActual()) : null;
+        var actualizada = resultado?.Elementos.FirstOrDefault(s => s.Id == subcontrataId)
+            ?? (await Mediator.Send(new ObtenerSubcontratasQuery(Busqueda: null, SubcontrataId: subcontrataId))).Elementos.FirstOrDefault();
         if (actualizada is null) return;
 
+        if (resultado is not null)
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
         var indice = _elementosPagina.FindIndex(s => s.Id == subcontrataId);
         if (indice >= 0)
             _elementosPagina[indice] = actualizada;
@@ -352,7 +381,15 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         await CargarAsync(resetPagina: true);
     }
 
-    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_nivelFiltro);
+    private async Task CambiarEstadoAsync(string? valor)
+    {
+        _estadoFiltro = valor ?? string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        await CargarAsync(resetPagina: true);
+    }
+
+    private bool HayFiltrosActivos =>
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_nivelFiltro) || !string.IsNullOrWhiteSpace(_estadoFiltro);
 
     private IReadOnlyList<OpcionEstado> OpcionesNivel =>
     [
@@ -366,17 +403,18 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _tamanoPagina > TamanoPaginaMinimo);
 
     /// <summary>
-    /// Limpia la búsqueda y el nivel en memoria Y en la URL, con UNA navegación y UNA consulta:
-    /// los filtros vuelven por <see cref="OnParametersSetAsync"/> desde <c>?q=</c> y
-    /// <c>?nivel=</c>, así que limpiar solo los campos dejaría que la siguiente pasada de
-    /// parámetros los repusiera, y escribir la URL en dos pasos dejaría entre ellos una URL con
-    /// uno de los dos todavía puesto.
+    /// Limpia la búsqueda, el nivel y el estado en memoria Y en la URL, con UNA navegación y UNA
+    /// consulta: los filtros vuelven por <see cref="OnParametersSetAsync"/> desde <c>?q=</c>,
+    /// <c>?nivel=</c> y <c>?estado=</c>, así que limpiar solo los campos dejaría que la siguiente
+    /// pasada de parámetros los repusiera, y escribir la URL por pasos dejaría entre ellos una URL
+    /// con alguno todavía puesto.
     /// </summary>
     private async Task LimpiarFiltrosAsync()
     {
         _busqueda = string.Empty;
         _nivelFiltro = string.Empty;
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["nivel"] = null });
+        _estadoFiltro = string.Empty;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["nivel"] = null, ["estado"] = null });
         await CargarAsync(resetPagina: true);
     }
 
@@ -725,11 +763,26 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// Recuento con su plural: la clave <paramref name="claveUno"/> para 1 y
     /// <paramref name="claveVarios"/> (con el número en {0}) para el resto. Sirve
     /// al nombre accesible y al título de la ventana de contexto —mismo criterio
-    /// que Centros.razor.cs.DescribirRecuento— y al texto visible del badge
-    /// («1 vencido», «3 próximos»).
+    /// que Centros.razor.cs.DescribirRecuento— y al texto visible del motivo
+    /// («1 vencido», «3 por vencer»).
     /// </summary>
     private string DescribirRecuento(int total, string claveUno, string claveVarios) =>
         total == 1 ? Textos[claveUno] : Textos[claveVarios, total];
+
+    // Las cifras del motivo, bajo la pastilla de estado: lo que antes decían las columnas «Vencidos» y
+    // «Por vencer», más lo que está sin confirmar.
+    private string MotivoVencidos(int total) => DescribirRecuento(total, "BadgeVencidosUno", "BadgeVencidosVarios");
+
+    private string MotivoProximos(int total) => DescribirRecuento(total, "BadgeProximosUno", "BadgeProximosVarios");
+
+    private string MotivoSinConfirmar(int total) => DescribirRecuento(total, "MotivoSinConfirmarUno", "MotivoSinConfirmarVarios");
+
+    /// <summary>
+    /// Nombre accesible del disparador de una cifra del motivo. Empieza por el texto que se ve («2 vencidos»)
+    /// para que quien lo nombre de viva voz lo active (WCAG 2.5.3, el nombre contiene la etiqueta visible), y
+    /// sigue con la frase completa.
+    /// </summary>
+    private static string EtiquetaDeMotivo(string textoVisible, string fraseCompleta) => $"{textoVisible}. {fraseCompleta}";
 
     /// <summary>
     /// Nombre accesible de la ventana de Próximas. El badge visual ya
@@ -781,5 +834,6 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     {
         ["q"] = _busqueda,
         ["nivel"] = NivelSeleccionado?.ToString(),
+        ["estado"] = string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
     };
 }

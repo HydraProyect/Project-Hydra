@@ -98,6 +98,12 @@
     </BarraFiltros>
     <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    @* Franja de estado: filtra por el estado documental de la Subcontrata (el peor de sus incidencias).
+       Admite varios estados a la vez, viaja en la URL como «estado» (estados de código separados por
+       coma) y cada botón dice cuántas filas hay, con los demás filtros aplicados. «Por vencer» reúne
+       Urgente y Próximo. *@
+    <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["FiltroTodas"]" />
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -167,6 +173,9 @@
             </label>
         }
 
+        @* Marco de la lista: una sola tarjeta con la cabecera de columnas arriba y las filas pegadas,
+           separadas por una línea (regla compartida .marco-lista-acordeon de list-page.css). *@
+        <div class="marco-lista-acordeon">
         @* Cabecera de columnas. Sin roles de tabla a propósito, igual que en
            Empresas: la fila se despliega, y anunciarla como tabla prometería a
            un lector de pantalla una navegación por celdas que no existe. Sin
@@ -177,11 +186,10 @@
                 <span></span>
             }
             <span></span>
-            <span>@Textos["RotuloRazonSocial"]</span>
+            <span>@Textos["RotuloSubcontrata"]</span>
             <span>@Textos["RotuloNivelServicio"]</span>
             <span>@Textos["RotuloCumplimiento"]</span>
-            <span>@Textos["ColumnaVencidos"]</span>
-            <span>@Textos["ColumnaProximos"]</span>
+            <span>@Textos["RotuloEstadoDocumental"]</span>
             <span></span>
         </div>
 
@@ -242,88 +250,126 @@
                             <BarraCumplimiento Porcentaje="subcontrata.CumplimientoPorcentaje"
                                                Etiqueta="@EtiquetaCumplimiento(subcontrata.CumplimientoPorcentaje)" />
                         </span>
-                        @* Una ventana con incidencias corregibles es interactiva y corta ella misma la
-                           subida del clic (VentanaContexto); una pastilla solo informativa no tiene nada
-                           que pulsar, y el clic sobre ella abre la fila como en cualquier otro punto. *@
-                        <span class="celda-recuento-subcontrata">
-                            @if (subcontrata.Recuentos.TotalVencidas > 0)
+                        @* Estado documental: la pastilla siempre, y debajo el motivo con las cifras que antes
+                           eran las columnas «Vencidos» y «Por vencer». Cada cifra abre su ventana de contexto
+                           con las incidencias, que se corrigen ahí mismo. Una ventana con incidencias
+                           corregibles es interactiva y corta ella misma la subida del clic (VentanaContexto);
+                           el resto de la celda no tiene nada que pulsar y el clic abre la fila. *@
+                        <span class="celda-estado-subcontrata">
+                            @if (subcontrata.Recuentos.TotalVencidas > 0 || subcontrata.Recuentos.TotalProximas > 0 || subcontrata.Recuentos.TotalSinConfirmar > 0)
                             {
-                                <VentanaContexto Etiqueta="@DescribirRecuento(subcontrata.Recuentos.Vencidas.Count, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")"
-                                                 Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalVencidas, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")"
-                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                 Interactiva="HayCorregibles(subcontrata.Recuentos.Vencidas)"
-                                                 Pie="@PieDeIncidencias(subcontrata.Recuentos.Vencidas)">
-                                    <Disparador>
-                                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">
-                                            @DescribirRecuento(subcontrata.Recuentos.TotalVencidas, "BadgeVencidosUno", "BadgeVencidosVarios")
-                                        </Badge>
-                                    </Disparador>
-                                    <Detalle>
-                                        @foreach (var incidencia in subcontrata.Recuentos.Vencidas)
+                                <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(subcontrata.EstadoDocumental)"
+                                            Texto="@EstadoDocumentoUi.TextoDocumental(subcontrata.EstadoDocumental)"
+                                            Correcto="EstadoDocumentoUi.EsCorrecto(subcontrata.EstadoDocumental)">
+                                    <MotivoContenido>
+                                        @if (subcontrata.Recuentos.TotalVencidas > 0)
                                         {
-                                            @if (EsCorregible(incidencia))
-                                            {
-                                                <VentanaContextoElemento Ayuda="@Comunes["VentanaIncidenciaAyuda"]" AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
-                                                    @incidencia.Descripcion
-                                                </VentanaContextoElemento>
-                                            }
-                                            else
-                                            {
-                                                <span class="ventana-linea">@incidencia.Descripcion</span>
-                                            }
+                                            <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoVencidos(subcontrata.Recuentos.TotalVencidas), DescribirRecuento(subcontrata.Recuentos.TotalVencidas, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios"))"
+                                                             Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalVencidas, "RecuentoDocumentosVencidosUno", "RecuentoDocumentosVencidosVarios")"
+                                                             Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                             Interactiva="HayCorregibles(subcontrata.Recuentos.Vencidas)"
+                                                             Pie="@PieDeIncidencias(subcontrata.Recuentos.Vencidas)">
+                                                <Disparador>
+                                                    <span class="motivo-subcontrata motivo-subcontrata-vencidos">@MotivoVencidos(subcontrata.Recuentos.TotalVencidas)</span>
+                                                </Disparador>
+                                                <Detalle>
+                                                    @foreach (var incidencia in subcontrata.Recuentos.Vencidas)
+                                                    {
+                                                        @if (EsCorregible(incidencia))
+                                                        {
+                                                            <VentanaContextoElemento Ayuda="@Comunes["VentanaIncidenciaAyuda"]" AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
+                                                                @incidencia.Descripcion
+                                                            </VentanaContextoElemento>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="ventana-linea">@incidencia.Descripcion</span>
+                                                        }
+                                                    }
+                                                </Detalle>
+                                            </VentanaContexto>
                                         }
-                                    </Detalle>
-                                </VentanaContexto>
+                                        @if (subcontrata.Recuentos.TotalVencidas > 0 && subcontrata.Recuentos.TotalProximas > 0)
+                                        {
+                                            <span class="motivo-subcontrata-separador" aria-hidden="true">·</span>
+                                        }
+                                        @if (subcontrata.Recuentos.TotalProximas > 0)
+                                        {
+                                            <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoProximos(subcontrata.Recuentos.TotalProximas), EtiquetaProximos(subcontrata.Recuentos.Proximas))"
+                                                             Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalProximas, "RecuentoDocumentosProximosUno", "RecuentoDocumentosProximosVarios")"
+                                                             Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                             Interactiva="HayCorregibles(subcontrata.Recuentos.Proximas)"
+                                                             Pie="@PieDeIncidencias(subcontrata.Recuentos.Proximas)">
+                                                <Disparador>
+                                                    <span class="motivo-subcontrata motivo-subcontrata-proximos">@MotivoProximos(subcontrata.Recuentos.TotalProximas)</span>
+                                                </Disparador>
+                                                <Detalle>
+                                                    @foreach (var incidencia in subcontrata.Recuentos.Proximas)
+                                                    {
+                                                        @* Urgente y Proximo comparten rótulo («Por vencer») desde el
+                                                           2026-10-08: sin el tono por incidencia aquí, un documento
+                                                           urgente era indistinguible de uno próximo normal en esta
+                                                           lista (Codex, oleada 3). Por eso el desglose conserva el rojo
+                                                           para lo urgente y lo dice con palabras («Por vencer
+                                                           (urgente)»): el color no puede ser el único portador del
+                                                           significado. *@
+                                                        @if (EsCorregible(incidencia))
+                                                        {
+                                                            <VentanaContextoElemento Ayuda="@Comunes["VentanaIncidenciaAyuda"]" AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
+                                                                <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDeSeveridad(incidencia.Estado)</Badge>
+                                                                @incidencia.Descripcion
+                                                            </VentanaContextoElemento>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="ventana-linea">
+                                                                <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDeSeveridad(incidencia.Estado)</Badge>
+                                                                @incidencia.Descripcion
+                                                            </span>
+                                                        }
+                                                    }
+                                                </Detalle>
+                                            </VentanaContexto>
+                                        }
+                                        @if ((subcontrata.Recuentos.TotalVencidas > 0 || subcontrata.Recuentos.TotalProximas > 0) && subcontrata.Recuentos.TotalSinConfirmar > 0)
+                                        {
+                                            <span class="motivo-subcontrata-separador" aria-hidden="true">·</span>
+                                        }
+                                        @if (subcontrata.Recuentos.TotalSinConfirmar > 0)
+                                        {
+                                            <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoSinConfirmar(subcontrata.Recuentos.TotalSinConfirmar), DescribirRecuento(subcontrata.Recuentos.TotalSinConfirmar, "RecuentoDocumentosSinConfirmarUno", "RecuentoDocumentosSinConfirmarVarios"))"
+                                                             Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalSinConfirmar, "RecuentoDocumentosSinConfirmarUno", "RecuentoDocumentosSinConfirmarVarios")"
+                                                             Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                             Interactiva="HayCorregibles(subcontrata.Recuentos.SinConfirmar)"
+                                                             Pie="@PieDeIncidencias(subcontrata.Recuentos.SinConfirmar)">
+                                                <Disparador>
+                                                    <span class="motivo-subcontrata">@MotivoSinConfirmar(subcontrata.Recuentos.TotalSinConfirmar)</span>
+                                                </Disparador>
+                                                <Detalle>
+                                                    @foreach (var incidencia in subcontrata.Recuentos.SinConfirmar)
+                                                    {
+                                                        @if (EsCorregible(incidencia))
+                                                        {
+                                                            <VentanaContextoElemento Ayuda="@Comunes["VentanaIncidenciaAyuda"]" AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
+                                                                @incidencia.Descripcion
+                                                            </VentanaContextoElemento>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="ventana-linea">@incidencia.Descripcion</span>
+                                                        }
+                                                    }
+                                                </Detalle>
+                                            </VentanaContexto>
+                                        }
+                                    </MotivoContenido>
+                                </EstadoFila>
                             }
                             else
                             {
-                                <span class="celda-sin-recuento">—</span>
-                            }
-                        </span>
-                        <span class="celda-recuento-subcontrata">
-                            @if (subcontrata.Recuentos.TotalProximas > 0)
-                            {
-                                <VentanaContexto Etiqueta="@EtiquetaProximos(subcontrata.Recuentos.Proximas)"
-                                                 Titulo="@DescribirRecuento(subcontrata.Recuentos.TotalProximas, "RecuentoDocumentosProximosUno", "RecuentoDocumentosProximosVarios")"
-                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                 Interactiva="HayCorregibles(subcontrata.Recuentos.Proximas)"
-                                                 Pie="@PieDeIncidencias(subcontrata.Recuentos.Proximas)">
-                                    <Disparador>
-                                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">
-                                            @DescribirRecuento(subcontrata.Recuentos.TotalProximas, "BadgeProximosUno", "BadgeProximosVarios")
-                                        </Badge>
-                                    </Disparador>
-                                    <Detalle>
-                                        @foreach (var incidencia in subcontrata.Recuentos.Proximas)
-                                        {
-                                            @* Urgente y Proximo comparten badge Advertencia arriba (Codex,
-                                               oleada 3) y, desde el 2026-10-08, también rótulo («Por vencer»):
-                                               sin el tono por incidencia aquí, un documento urgente era
-                                               indistinguible de uno próximo normal en esta lista. Por eso el
-                                               desglose conserva el rojo para lo urgente y lo dice con palabras
-                                               («Por vencer (urgente)»): el color no puede ser el único portador
-                                               del significado. *@
-                                            @if (EsCorregible(incidencia))
-                                            {
-                                                <VentanaContextoElemento Ayuda="@Comunes["VentanaIncidenciaAyuda"]" AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
-                                                    <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDeSeveridad(incidencia.Estado)</Badge>
-                                                    @incidencia.Descripcion
-                                                </VentanaContextoElemento>
-                                            }
-                                            else
-                                            {
-                                                <span class="ventana-linea">
-                                                    <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDeSeveridad(incidencia.Estado)</Badge>
-                                                    @incidencia.Descripcion
-                                                </span>
-                                            }
-                                        }
-                                    </Detalle>
-                                </VentanaContexto>
-                            }
-                            else if (subcontrata.Recuentos.TotalVencidas == 0)
-                            {
-                                <EstadoFila Correcto="true" Texto="@Textos["BadgeAlCorriente"]" />
+                                <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(subcontrata.EstadoDocumental)"
+                                            Texto="@EstadoDocumentoUi.TextoDocumental(subcontrata.EstadoDocumental)"
+                                            Correcto="EstadoDocumentoUi.EsCorrecto(subcontrata.EstadoDocumental)" />
                             }
                         </span>
                         @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Detalles» es
@@ -341,6 +387,7 @@
                     }
                 </div>
             }
+        </div>
         </div>
 
         @* Solo con más de una página al tamaño mínimo (20), o si ya se eligió un tamaño mayor:
@@ -385,7 +432,7 @@
     }
 </DrawerFormulario>
 
-@* Corregir una incidencia desde la ventana de contexto de «Vencidos» o «Próximos», sin salir del listado. *@
+@* Corregir una incidencia desde la ventana de contexto del motivo («N vencidos», «M por vencer», «K sin confirmar»), sin salir del listado. *@
 <CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
 
 @* EliminarSubcontratasCommand es ICommand, denegado a Consulta. El ☑ de «Selección múltiple»
