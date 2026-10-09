@@ -669,8 +669,15 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>
     /// Si la siguiente carga hace esta misma pregunta (mismos filtros, orden y página), conserva la selección y
-    /// la fila enfocada en vez de limpiarlas. La fija <see cref="RefrescarTrasCorreccionAsync"/>; una carga con
-    /// otra pregunta la suelta.
+    /// la fila enfocada en vez de limpiarlas. La fija <see cref="RefrescarTrasCorreccionAsync"/> y vale solo para
+    /// ese refresco: la sueltan una carga con otra pregunta y toda recarga que pida la página
+    /// (<see cref="RecargarAsync"/>: alta, baja, reintento tras un error), aunque repita la pregunta.
+    ///
+    /// <para>
+    /// No se suelta al leerla: si la corrección cambia el total (la fila corregida sale del filtro activo),
+    /// QuickGrid vuelve a pedir la misma página por su cuenta en el render siguiente (ver
+    /// <see cref="RecargarAsync"/>), y esa segunda petición es el mismo refresco, no una recarga nueva.
+    /// </para>
     /// </summary>
     private ObtenerTrabajadoresQuery? _consultaQueConservaSeleccion;
 
@@ -798,6 +805,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// </summary>
     private async Task RecargarAsync()
     {
+        // Una recarga pedida por la página no es el refresco tras corregir una incidencia: aunque repita la
+        // pregunta, limpia la selección y la fila enfocada.
+        _consultaQueConservaSeleccion = null;
+
         if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
         else

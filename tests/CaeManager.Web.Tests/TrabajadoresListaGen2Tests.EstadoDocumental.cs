@@ -3,6 +3,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector;
@@ -179,6 +180,73 @@ public partial class TrabajadoresListaGen2Tests
         await ElegirEnLaPastilla(cut, "Empresa", "Montajes Ebro S.L.");
 
         cut.WaitForAssertion(() => cut.FindAll(".barra-acciones-lote").Should().BeEmpty());
+    }
+
+    /// <summary>
+    /// Conservar la selección vale para el refresco tras corregir y para nada más: una recarga posterior que
+    /// repite la misma pregunta sin venir de una corrección (aquí, la del alta de otro Trabajador) la suelta,
+    /// como la soltaba antes de que existiera la corrección en sitio.
+    /// </summary>
+    [Fact]
+    public async Task La_seleccion_conservada_tras_corregir_no_sobrevive_a_una_recarga_posterior_con_la_misma_pregunta()
+    {
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Bea", "Alonso"), Trabajador("Ana", "Moreno") } };
+        var cut = Renderizar(mediador);
+        await AlternarSeleccionMultiple(cut);
+        await cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").ChangeAsync(new ChangeEventArgs { Value = true });
+        var pregunta = UltimaConsulta(mediador);
+
+        var correccion = cut.FindComponent<CorreccionIncidenciaDocumental>();
+        await cut.InvokeAsync(() => correccion.Instance.OnCorregida.InvokeAsync());
+        cut.WaitForAssertion(() =>
+            cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").HasAttribute("checked").Should().BeTrue(
+                "control positivo: la recarga tras corregir conserva lo marcado"));
+        var consultasTrasCorregir = ConsultasDeLista(mediador);
+
+        // Segunda recarga, con la misma pregunta, que no viene de una corrección: el alta de otro Trabajador.
+        await AbrirAltaAsync(cut);
+        await SelectorDeEmpleadorDelAlta(cut).Find("select").ChangeAsync(new ChangeEventArgs { Value = EmpresaDexter.ToString() });
+        await EscribirDatosCompletosDelAltaAsync(cut);
+        await GuardarAlta(cut).ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().ContainSingle("control: el alta se guardó");
+        ConsultasDeLista(mediador).Should().BeGreaterThan(consultasTrasCorregir, "control: el alta recargó la lista");
+        UltimaConsulta(mediador).Should().Be(pregunta, "control: con la misma pregunta que el refresco tras corregir");
+        cut.WaitForAssertion(() => cut.FindAll(".barra-acciones-lote").Should().BeEmpty(
+            "una recarga que no viene de corregir limpia la selección aunque repita la pregunta"));
+        cut.Find("tbody input[aria-label='Seleccionar a Bea Alonso']").HasAttribute("checked").Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Si la corrección saca la fila corregida del filtro activo, el total cambia y QuickGrid vuelve a pedir la
+    /// misma página por su cuenta: esa segunda petición es el mismo refresco, y lo marcado en las demás filas
+    /// sigue marcado.
+    /// </summary>
+    [Fact]
+    public async Task Tras_corregir_la_seleccion_se_conserva_aunque_la_fila_corregida_salga_del_filtro_y_cambie_el_total()
+    {
+        var bea = Trabajador("Bea", "Alonso", estado: EstadoDocumento.Vencido);
+        var mediador = new MediatorFalso { Almacen = { bea, Trabajador("Ana", "Moreno", estado: EstadoDocumento.Vencido) } };
+        var cut = Renderizar(mediador, "trabajadores?estado=Vencido");
+        FilasDeDatos(cut).Should().HaveCount(2, "punto de partida: las dos filas están en el filtro");
+        await AlternarSeleccionMultiple(cut);
+        await cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").ChangeAsync(new ChangeEventArgs { Value = true });
+        var pregunta = UltimaConsulta(mediador);
+        var consultasAntes = ConsultasDeLista(mediador);
+
+        // Lo que deja la corrección: el documento vencido de Bea se renovó y Bea ya no está «Vencido».
+        mediador.Almacen[mediador.Almacen.FindIndex(f => f.Dto.Id == bea.Dto.Id)] =
+            bea with { Dto = bea.Dto with { EstadoDocumental = EstadoDocumento.Vigente } };
+        var correccion = cut.FindComponent<CorreccionIncidenciaDocumental>();
+        await cut.InvokeAsync(() => correccion.Instance.OnCorregida.InvokeAsync());
+
+        cut.WaitForAssertion(() => FilasDeDatos(cut).Should().ContainSingle("Bea salió del filtro"));
+        mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Skip(consultasAntes).Should().HaveCount(2,
+            "control del escenario: al cambiar el total, QuickGrid pide la página una segunda vez")
+            .And.OnlyContain(q => q == pregunta);
+        cut.Find("tbody input[aria-label='Seleccionar a Ana Moreno']").HasAttribute("checked").Should().BeTrue(
+            "la segunda petición es el mismo refresco: lo marcado sigue marcado");
+        cut.Find(".barra-acciones-lote-cantidad").TextContent.Trim().Should().Be("1 seleccionado en esta página");
     }
 
     /// <summary>
