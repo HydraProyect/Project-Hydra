@@ -403,4 +403,16 @@
   <data name="GestorCaeError" xml:space="preserve">
     <value>No pudimos cargarlo</value>
   </data>
+  <data name="GestorCaeOperador" xml:space="preserve">
+    <value>Operador CAE</value>
+    <comment>Antecede al nombre de la organización que gestiona el Tenant. Operador CAE = organización; Gestor CAE = persona.</comment>
+  </data>
+  <data name="GestorCaeTituloPropietario" xml:space="preserve">
+    <value>Operador CAE que gestiona esta organización y sus Gestores CAE con Asignación de Cartera</value>
+    <comment>Lo lee el Administrador del Tenant propietario.</comment>
+  </data>
+  <data name="GestorCaeOtraSinPrincipal" xml:space="preserve">
+    <value>Otra Asignación de Operación, sin principal</value>
+    <comment>Hay más de una Asignación de Operación viva y alguna no tiene Gestor CAE principal.</comment>
+  </data>
 </root>

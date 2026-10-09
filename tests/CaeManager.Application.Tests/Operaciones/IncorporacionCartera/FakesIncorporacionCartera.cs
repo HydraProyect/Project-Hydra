@@ -338,6 +338,22 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
     /// <summary>Carteras vivas por operación (marca de principal), con su Operador CAE.</summary>
     public List<(Guid OperadorTenantId, CarteraVivaDeOperacion Cartera)> CarterasVivas { get; } = [];
 
+    /// <summary>Operaciones externas vivas sobre cada Tenant propietario, vistas desde él.</summary>
+    public List<(Guid PropietarioTenantId, OperacionExternaSobreTenant Operacion)> OperacionesExternas { get; } = [];
+
+    /// <summary>Cada Tenant propietario por el que se preguntó: vacío si la Query no llegó a leer.</summary>
+    public List<Guid> ConsultasDeOperacionesExternas { get; } = [];
+
+    public Task<IReadOnlyList<OperacionExternaSobreTenant>> ObtenerOperacionesExternasSobreTenantAsync(
+        Guid propietarioTenantId, CancellationToken cancellationToken = default)
+    {
+        ConsultasDeOperacionesExternas.Add(propietarioTenantId);
+        return Task.FromResult<IReadOnlyList<OperacionExternaSobreTenant>>(OperacionesExternas
+            .Where(o => o.PropietarioTenantId == propietarioTenantId)
+            .Select(o => o.Operacion)
+            .ToList());
+    }
+
     /// <summary>Cada paso que toca la marca de principal, en orden, con el Tenant activo con que se pidió.</summary>
     public List<(string Paso, Guid AsignacionOperacionId, Guid UsuarioId, Guid? TenantActivo)> CambiosDeMarca { get; } = [];
 

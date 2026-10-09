@@ -1,5 +1,6 @@
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant;
 using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Features.Empresas.Components;
@@ -10,12 +11,13 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Dato de cabecera «Gestor CAE» de la pantalla Empresas (decisión 2026-10-08): quién gestiona
-/// el Tenant propietario activo — el Gestor CAE principal y los Gestores CAE de apoyo, que son
-/// personas (el Operador CAE es la organización). Solo lectura: dar acceso de apoyo,
-/// desasignarse, revocar y «Asumir» son otras líneas. Qué puede ver cada quien lo decide
-/// <c>ObtenerPersonasConCarteraQuery</c> y se prueba en Application; aquí, qué se pinta con lo
-/// que esa consulta devuelve.
+/// Dato de cabecera «Gestor CAE» de la pantalla Empresas (decisiones 2026-10-08 y 2026-10-09):
+/// quién gestiona el Tenant propietario activo — el Gestor CAE principal y los Gestores CAE de
+/// apoyo, que son personas (el Operador CAE es la organización). Solo lectura: dar acceso de
+/// apoyo, desasignarse, revocar y «Asumir» son otras líneas. Qué puede ver cada quien lo deciden
+/// <c>ObtenerPersonasConCarteraQuery</c> (cuenta de gestión CAE del Operador CAE externo) y
+/// <c>ObtenerOperadoresCaeDeMiTenantQuery</c> (Administrador del Tenant propietario), y se
+/// prueba en Application; aquí, qué se pinta con lo que esas consultas devuelven.
 /// </summary>
 public class CabeceraGestorCaeTests : BunitContext
 {
@@ -28,11 +30,17 @@ public class CabeceraGestorCaeTests : BunitContext
     }
 
     private IRenderedComponent<CabeceraGestorCae> Renderizar(
-        Func<ObtenerPersonasConCarteraQuery, IReadOnlyList<CarterasDeOperacion>> responder, Guid? tenant = null, bool sinTenant = false)
+        Func<ObtenerPersonasConCarteraQuery, IReadOnlyList<CarterasDeOperacion>> responder, Guid? tenant = null, bool sinTenant = false,
+        Func<IReadOnlyList<CarterasDeOperacion>>? comoPropietario = null)
     {
         Services.AddLocalization();
         Services.AddScoped<ITenantActual>(_ => new TenantFijo(sinTenant ? null : tenant ?? Tenant));
-        Services.AddScoped<IMediator>(_ => new MediadorPorFuncion(p => responder((ObtenerPersonasConCarteraQuery)p)));
+        Services.AddScoped<IMediator>(_ => new MediadorPorFuncion(p => p switch
+        {
+            ObtenerPersonasConCarteraQuery q => responder(q),
+            ObtenerOperadoresCaeDeMiTenantQuery => (comoPropietario ?? (() => []))(),
+            _ => throw new InvalidOperationException($"Consulta inesperada: {p.GetType().Name}")
+        }));
         return Render<CabeceraGestorCae>();
     }
 
@@ -41,6 +49,10 @@ public class CabeceraGestorCaeTests : BunitContext
 
     private static CarterasDeOperacion Operacion(PersonaConCartera? principal, params PersonaConCartera[] apoyos) =>
         new(Guid.NewGuid(), Tenant, "Talleres Norte", principal, apoyos);
+
+    /// <summary>Una operación como la devuelve la lectura del Administrador del Tenant propietario: con su Operador CAE.</summary>
+    private static CarterasDeOperacion OperacionDe(string operador, PersonaConCartera? principal, params PersonaConCartera[] apoyos) =>
+        new(Guid.NewGuid(), Tenant, string.Empty, principal, apoyos, operador);
 
     [Fact]
     public void Pinta_al_principal_y_a_los_de_apoyo_con_la_fecha_de_fin_de_quien_la_tiene()
@@ -104,6 +116,23 @@ public class CabeceraGestorCaeTests : BunitContext
         cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle()
             .Which.TextContent.Should().Contain("Ane Larrea");
         cut.FindAll("[data-gestor-cae='sin-principal']").Should().BeEmpty();
+        cut.FindAll("[data-gestor-cae='otra-sin-principal']").Should().BeEmpty("las dos tienen principal");
+    }
+
+    /// <summary>
+    /// Caso declarado en #1163: dos Asignaciones de Operación vivas y solo una con principal.
+    /// Pintar al principal de una y callar la otra haría creer que las dos lo tienen.
+    /// </summary>
+    [Fact]
+    public void Con_varias_Asignaciones_de_Operacion_y_una_sin_principal_lo_dice()
+    {
+        var cut = Renderizar(_ => [Operacion(Persona("Marta Ibarra")), Operacion(null, Persona("Ane Larrea"))]);
+
+        cut.FindAll("[data-gestor-cae='principal']").Should().ContainSingle();
+        cut.Find("[data-gestor-cae='otra-sin-principal']").TextContent.Trim()
+            .Should().Be("Otra Asignación de Operación, sin principal");
+        cut.FindAll("[data-gestor-cae='sin-principal']").Should().BeEmpty("hay un principal: «Sin principal» a secas sería falso");
+        cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle();
     }
 
     /// <summary>
@@ -129,15 +158,102 @@ public class CabeceraGestorCaeTests : BunitContext
         cut.Find("[data-gestor-cae='sin-principal']").TextContent.Trim().Should().Be("Sin principal");
         cut.FindAll("[data-gestor-cae='principal']").Should().BeEmpty();
         cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle();
+        cut.FindAll("[data-gestor-cae='operador']").Should().BeEmpty("a quien mira desde el Operador CAE no se le nombra su propia organización");
+    }
+
+    // ---------- Desde el Tenant propietario (decisión 2026-10-09) ----------
+
+    /// <summary>
+    /// El Administrador del Tenant propietario ve qué Operador CAE (organización) gestiona su
+    /// Tenant y qué Gestor CAE (persona) es el principal, más los de apoyo. Sigue siendo solo
+    /// lectura: no gana ninguna acción sobre la cartera.
+    /// </summary>
+    [Fact]
+    public void Al_Administrador_del_Tenant_propietario_le_pinta_el_Operador_CAE_su_principal_y_los_de_apoyo()
+    {
+        var preguntasComoPropietario = 0;
+        var cut = Renderizar(_ => [], comoPropietario: () =>
+        {
+            preguntasComoPropietario++;
+            return [OperacionDe("Prevención Levante", Persona("Marta Ibarra", avatar: "buho-ambar"), Persona("Ane Larrea"))];
+        });
+
+        preguntasComoPropietario.Should().Be(1);
+        var operador = cut.Find("[data-gestor-cae='operador']");
+        operador.TextContent.Should().Contain("Operador CAE");
+        operador.QuerySelector("strong")!.TextContent.Trim().Should().Be("Prevención Levante");
+
+        var principal = cut.Find("[data-gestor-cae='principal']");
+        principal.QuerySelector("strong")!.TextContent.Trim().Should().Be("Marta Ibarra");
+        principal.QuerySelector(".cabecera-gestor-cae-pastilla")!.TextContent.Trim().Should().Be("Principal");
+        principal.QuerySelectorAll(".avatar-usuario-glifo").Should().ContainSingle();
+        cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle().Which.TextContent.Should().Contain("Ane Larrea");
+
+        cut.Find(".cabecera-gestor-cae").GetAttribute("title")
+            .Should().Be("Operador CAE que gestiona esta organización y sus Gestores CAE con Asignación de Cartera");
+        cut.FindAll("button, a, input").Should().BeEmpty("leer la cartera no concede nada sobre ella");
     }
 
     /// <summary>
-    /// La consulta sale vacía para quien no es una cuenta de gestión CAE del Operador CAE sobre
-    /// este Tenant (un usuario del propio Tenant propietario, Soporte TALVEG): no se pinta nada,
-    /// ni siquiera el rótulo.
+    /// Con dos Operadores CAE externos, cada uno va con sus personas, y el que no tiene Gestor
+    /// CAE principal lo dice junto a su nombre: no se mezclan en una lista única.
     /// </summary>
     [Fact]
-    public void Si_la_consulta_sale_vacia_no_pinta_nada()
+    public void Al_Administrador_cada_Operador_CAE_va_con_los_suyos_y_el_que_no_tiene_principal_lo_dice()
+    {
+        var cut = Renderizar(_ => [], comoPropietario: () =>
+        [
+            OperacionDe("Gestoría Albor", Persona("Marta Ibarra")),
+            OperacionDe("Prevención Levante", null)
+        ]);
+
+        cut.FindAll("[data-gestor-cae]").Select(e => (e.GetAttribute("data-gestor-cae"), e.QuerySelector("strong")?.TextContent.Trim()))
+            .Should().Equal(
+            [
+                ("operador", "Gestoría Albor"), ("principal", "Marta Ibarra"),
+                ("operador", "Prevención Levante"), ("sin-principal", null)
+            ]);
+    }
+
+    /// <summary>
+    /// La misma persona puede ser principal de dos operaciones: aquí sale en las dos, cada vez
+    /// bajo su Operador CAE, sin claves repetidas que maten el circuito.
+    /// </summary>
+    [Fact]
+    public void Al_Administrador_la_misma_persona_en_dos_operaciones_sale_bajo_cada_una()
+    {
+        var marta = Persona("Marta Ibarra");
+        var cut = Renderizar(_ => [], comoPropietario: () => [OperacionDe("Gestoría Albor", marta), OperacionDe("Gestoría Albor", marta)]);
+
+        cut.FindAll("[data-gestor-cae='principal']").Should().HaveCount(2);
+    }
+
+    /// <summary>Quien ya recibe datos como cuenta del Operador CAE no pregunta además como propietario.</summary>
+    [Fact]
+    public void Si_la_lectura_del_Operador_CAE_trae_datos_no_se_hace_la_del_propietario()
+    {
+        var preguntasComoPropietario = 0;
+        var cut = Renderizar(_ => [Operacion(Persona("Marta Ibarra"))], comoPropietario: () => { preguntasComoPropietario++; return []; });
+
+        preguntasComoPropietario.Should().Be(0);
+        cut.FindAll("[data-gestor-cae='operador']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Si_la_lectura_del_propietario_falla_lo_dice_en_vez_de_callar()
+    {
+        var cut = Renderizar(_ => [], comoPropietario: () => throw new InvalidOperationException("Fallo simulado."));
+
+        cut.Find(".cabecera-gestor-cae [role=status]").TextContent.Trim().Should().Be("No pudimos cargarlo");
+    }
+
+    /// <summary>
+    /// Las dos consultas salen vacías para quien no es ni una cuenta de gestión CAE del Operador
+    /// CAE sobre este Tenant ni el Administrador del Tenant propietario (otro rol de ese Tenant,
+    /// Soporte TALVEG), y para un Tenant de operación interna: no se pinta nada, ni el rótulo.
+    /// </summary>
+    [Fact]
+    public void Si_las_dos_consultas_salen_vacias_no_pinta_nada()
     {
         var cut = Renderizar(_ => []);
 

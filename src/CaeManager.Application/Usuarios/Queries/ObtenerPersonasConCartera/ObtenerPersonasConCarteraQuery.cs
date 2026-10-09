@@ -17,11 +17,15 @@ public record PersonaConCartera(Guid UsuarioId, string Nombre, string Rol, DateT
 /// <summary>
 /// Quién responde de un Tenant propietario bajo una Asignación de Operación: el principal —o
 /// nadie, que es un estado válido— y las personas con cartera de apoyo. Principal y apoyo
-/// tienen el mismo ámbito efectivo.
+/// tienen el mismo ámbito efectivo. <paramref name="NombreOperador"/> es el Operador CAE externo
+/// (organización) de esa operación; solo lo lleva la lectura hecha desde el Tenant propietario
+/// (<c>ObtenerOperadoresCaeDeMiTenantQuery</c>): a quien pregunta desde el Operador CAE no hace
+/// falta decirle cuál es el suyo.
 /// </summary>
 public record CarterasDeOperacion(
     Guid AsignacionOperacionId, Guid TenantId, string NombreTenant,
-    PersonaConCartera? Principal, IReadOnlyList<PersonaConCartera> Apoyos);
+    PersonaConCartera? Principal, IReadOnlyList<PersonaConCartera> Apoyos,
+    string? NombreOperador = null);
 
 /// <summary>
 /// Las personas con cartera viva en los Tenants que opera el Operador CAE de quien pregunta,
@@ -29,8 +33,9 @@ public record CarterasDeOperacion(
 /// <paramref name="TenantId"/>, solo las de ese Tenant propietario. Acotada al propio Operador
 /// CAE: el Tenant de origen de la sesión, nunca un dato de la petición. Vacía si quien pregunta
 /// no es una cuenta activa del Operador CAE con rol de gestión CAE, leído en Identity sobre el
-/// Tenant de origen. Es lectura: quién puede cambiar el principal lo decide
-/// <c>DesignarGestorCaePrincipalCommand</c>.
+/// Tenant de origen; en particular, vacía para un usuario del propio Tenant propietario, cuya
+/// lectura es <c>ObtenerOperadoresCaeDeMiTenantQuery</c>. Es lectura: quién puede cambiar el
+/// principal lo decide <c>DesignarGestorCaePrincipalCommand</c>.
 /// </summary>
 public record ObtenerPersonasConCarteraQuery(Guid? TenantId = null) : IRequest<IReadOnlyList<CarterasDeOperacion>>;
 

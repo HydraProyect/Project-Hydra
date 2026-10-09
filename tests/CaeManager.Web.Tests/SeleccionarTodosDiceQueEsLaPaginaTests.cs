@@ -51,6 +51,8 @@ public class SeleccionarTodosDiceQueEsLaPaginaTests : BunitContext
                     Pagina, TotalFiltrado, q.Pagina, q.TamanoPagina),
                 CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.ObtenerPersonasConCarteraQuery =>
                     (object)(IReadOnlyList<CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.CarterasDeOperacion>)[],
+                CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant.ObtenerOperadoresCaeDeMiTenantQuery =>
+                    (object)(IReadOnlyList<CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.CarterasDeOperacion>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista: {request.GetType().Name}.")
             }));
 

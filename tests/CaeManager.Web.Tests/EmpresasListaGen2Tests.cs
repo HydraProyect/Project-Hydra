@@ -68,8 +68,14 @@ public class EmpresasListaGen2Tests : BunitContext
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> ClientesDe { get; } = [];
         public HashSet<Guid> ClientesQueFallan { get; } = [];
 
-        /// <summary>Lo que devuelve la consulta de la cabecera «Gestor CAE»; vacía = no se pinta.</summary>
+        /// <summary>Lo que devuelve la consulta de la cabecera «Gestor CAE» a una cuenta del Operador CAE.</summary>
         public List<CarterasDeOperacion> Carteras { get; } = [];
+
+        /// <summary>
+        /// Lo que devuelve la otra consulta de la cabecera, la del Administrador del Tenant
+        /// propietario. Con las dos vacías la cabecera no se pinta.
+        /// </summary>
+        public List<CarterasDeOperacion> CarterasComoPropietario { get; } = [];
 
         /// <summary>
         /// Empresas fuera del alcance de gestión: la consulta de la fila desplegada devuelve vacío aunque
@@ -124,6 +130,7 @@ public class EmpresasListaGen2Tests : BunitContext
                     : (ClientesDe.GetValueOrDefault(c.EmpresaId) ?? []).ToList()),
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Array.Empty<ClienteSelectorDto>(),
             ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)Carteras,
+            CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant.ObtenerOperadoresCaeDeMiTenantQuery => (IReadOnlyList<CarterasDeOperacion>)CarterasComoPropietario,
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
             EliminarEmpresaCommand => Result.Exito(),
             EliminarEmpresasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(
@@ -249,6 +256,34 @@ public class EmpresasListaGen2Tests : BunitContext
     /// ningún Cliente empresarial ni pregunta por ellos. Solo la fila desplegada los pide, una vez y por la
     /// consulta que aplica el alcance de gestión.
     /// </summary>
+    /// <summary>
+    /// La página monta la cabecera «Gestor CAE» con sus dos consultas. Sin datos en ninguna no
+    /// pinta nada, tampoco un aviso de error por una consulta que el doble no conozca.
+    /// </summary>
+    [Fact]
+    public void La_pagina_no_pinta_la_cabecera_Gestor_CAE_si_sus_dos_consultas_salen_vacias()
+    {
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(Guid.NewGuid()); // con Tenant activo, la cabecera pregunta
+        Renderizar(new MediatorFalso()).FindAll(".cabecera-gestor-cae").Should().BeEmpty();
+    }
+
+    /// <summary>Control positivo del anterior: con la lectura del Administrador del Tenant propietario, la página la pinta.</summary>
+    [Fact]
+    public void La_pagina_pinta_el_Operador_CAE_que_devuelve_la_lectura_del_Administrador_del_Tenant_propietario()
+    {
+        var tenant = Guid.NewGuid();
+        Seleccion = new SeleccionEmpresaGestionadaDePrueba(tenant);
+        var mediador = new MediatorFalso();
+        mediador.CarterasComoPropietario.Add(new CarterasDeOperacion(
+            Guid.NewGuid(), tenant, string.Empty,
+            new PersonaConCartera(Guid.NewGuid(), "Marta Ibarra", "GestorCae", null), [], "Prevención Levante"));
+
+        var cabecera = Renderizar(mediador).Find(".cabecera-gestor-cae");
+
+        cabecera.QuerySelector("[data-gestor-cae='operador'] strong")!.TextContent.Trim().Should().Be("Prevención Levante");
+        cabecera.QuerySelector("[data-gestor-cae='principal'] strong")!.TextContent.Trim().Should().Be("Marta Ibarra");
+    }
+
     [Fact]
     public async Task La_lista_plegada_no_nombra_ni_pide_Clientes_empresariales_y_el_chevron_los_pide_una_vez()
     {
