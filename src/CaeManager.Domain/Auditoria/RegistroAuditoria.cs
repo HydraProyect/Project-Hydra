@@ -39,6 +39,17 @@ public class RegistroAuditoria : EntidadConTenant
     /// </summary>
     public const string AccionActivacionEmitida = "ActivacionEmitida";
 
+    /// <summary>
+    /// Acción de la <b>corrección del correo</b> de una cuenta que sigue pendiente de
+    /// activación (un alta con la dirección mal escrita). <see cref="DatosAntes"/> y
+    /// <see cref="DatosDespues"/> llevan el correo anterior y el nuevo. La misma
+    /// escritura cambia el sello de seguridad —los enlaces enviados a la dirección
+    /// anterior dejan de valer— y va seguida de la emisión de un enlace nuevo a la
+    /// dirección corregida, así que esta fila es también el rastro de esa emisión.
+    /// La escribe el interceptor a petición de la cuenta, vía <see cref="IAccionAuditoriaPropia"/>.
+    /// </summary>
+    public const string AccionCorreoCorregido = "CorreoCorregido";
+
     public string EntidadTipo { get; private set; } = string.Empty;
     public Guid EntidadId { get; private set; }
     public string Accion { get; private set; } = string.Empty;

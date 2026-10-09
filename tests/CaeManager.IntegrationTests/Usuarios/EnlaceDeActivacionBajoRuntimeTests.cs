@@ -1,5 +1,7 @@
 using System.Text;
 using CaeManager.Application.Common;
+using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.CorregirCorreoCuentaPendiente;
 using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Infrastructure.Autorizacion;
@@ -155,6 +157,130 @@ public class EnlaceDeActivacionBajoRuntimeTests
             "el sello que se cambió en memoria no llega a la base en un guardado posterior");
     }
 
+    // ---------- Corregir el correo de una cuenta pendiente ----------
+
+    [Fact]
+    public async Task Corregir_el_correo_deja_sin_valor_el_enlace_enviado_al_correo_anterior()
+    {
+        var adminId = Guid.NewGuid();
+        var pendienteId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(ActorAuditoria.Normal(adminId), adminId);
+        await CrearCuentaAsync(arnes, adminId, "admin@caemanager.local", "Arnes#2026Seguro");
+        await CrearCuentaAsync(arnes, pendienteId, "mal-escrito@caemanager.local", contrasena: null);
+        var enviadoAlCorreoAnterior = await EmitirAsync(arnes, pendienteId);
+
+        var correccion = await CorregirAsync(arnes, pendienteId, "bien-escrito@caemanager.local");
+
+        correccion.EsExitoso.Should().BeTrue(correccion.EsFallido ? correccion.Error.Mensaje : "");
+        (await LeerCorreoAsync(arnes.CadenaPropietario, pendienteId)).Should().Be(new CorreoDeCuenta(
+            "bien-escrito@caemanager.local", "bien-escrito@caemanager.local",
+            "BIEN-ESCRITO@CAEMANAGER.LOCAL", "BIEN-ESCRITO@CAEMANAGER.LOCAL"),
+            "correo y nombre de usuario son el mismo dato, y por los normalizados se busca al iniciar sesión");
+
+        var conElAnterior = await CanjearAsync(arnes, pendienteId, enviadoAlCorreoAnterior);
+        conElAnterior.Succeeded.Should().BeFalse("quien recibió el enlace en el correo equivocado ya no puede usarlo");
+        conElAnterior.Errors.Should().ContainSingle(e => e.Code == "InvalidToken");
+        (await TieneContrasenaAsync(arnes.CadenaPropietario, pendienteId)).Should().BeFalse();
+
+        var conElNuevo = await CanjearAsync(arnes, pendienteId, correccion.Valor);
+        conElNuevo.Succeeded.Should().BeTrue(
+            "control positivo: el enlace emitido al corregir sí vale. Errores: "
+            + string.Join(", ", conElNuevo.Errors.Select(e => e.Code)));
+    }
+
+    [Fact]
+    public async Task La_correccion_queda_auditada_con_el_correo_anterior_y_el_nuevo()
+    {
+        var adminId = Guid.NewGuid();
+        var pendienteId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(ActorAuditoria.Normal(adminId), adminId);
+        await CrearCuentaAsync(arnes, adminId, "admin@caemanager.local", "Arnes#2026Seguro");
+        await CrearCuentaAsync(arnes, pendienteId, "mal-escrito@caemanager.local", contrasena: null);
+
+        (await CorregirAsync(arnes, pendienteId, "bien-escrito@caemanager.local")).EsExitoso.Should().BeTrue();
+
+        var fila = (await LeerEmisionesAsync(arnes.CadenaPropietario, pendienteId, RegistroAuditoria.AccionCorreoCorregido))
+            .Should().ContainSingle().Subject;
+        fila.TenantId.Should().Be(TenantA);
+        fila.UsuarioId.Should().Be(adminId, "quien corrige es el Administrador, no la cuenta afectada");
+        fila.ActorRealUsuarioId.Should().Be(adminId);
+        fila.DatosAntes.Should().Contain("\"Email\":\"mal-escrito@caemanager.local\"")
+            .And.NotContain("bien-escrito@caemanager.local");
+        fila.DatosDespues.Should().Contain("\"Email\":\"bien-escrito@caemanager.local\"")
+            .And.NotContain("mal-escrito@caemanager.local");
+        fila.DatosDespues.Should().Contain("\"SecurityStamp\":\"***\"", "la fila dice que el sello cambió, nunca cuál es");
+        (await LeerEmisionesAsync(arnes.CadenaPropietario, pendienteId)).Should().BeEmpty(
+            "la corrección es una sola fila con su acción propia, no además una emisión suelta");
+    }
+
+    [Fact]
+    public async Task Una_cuenta_ya_activada_no_cambia_de_correo_por_esta_via()
+    {
+        var adminId = Guid.NewGuid();
+        var activadaId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(ActorAuditoria.Normal(adminId), adminId);
+        await CrearCuentaAsync(arnes, adminId, "admin@caemanager.local", "Arnes#2026Seguro");
+        await CrearCuentaAsync(arnes, activadaId, "ya-activada@caemanager.local", "Arnes#2026Seguro");
+        var selloAntes = await LeerSelloAsync(arnes.CadenaPropietario, activadaId);
+
+        var correccion = await CorregirAsync(arnes, activadaId, "otro@caemanager.local");
+
+        correccion.EsFallido.Should().BeTrue();
+        correccion.Error.Should().Be(GenerarActivacionUsuarioCommandHandler.YaActivada);
+        (await LeerCorreoAsync(arnes.CadenaPropietario, activadaId)).Email.Should().Be("ya-activada@caemanager.local");
+        (await LeerSelloAsync(arnes.CadenaPropietario, activadaId)).Should().Be(selloAntes,
+            "una corrección rechazada no cierra las sesiones de una cuenta en uso");
+        (await LeerEmisionesAsync(arnes.CadenaPropietario, activadaId, RegistroAuditoria.AccionCorreoCorregido))
+            .Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El adaptador vuelve a comprobar «pendiente» sobre la instancia que escribe: el
+    /// Command lo comprobó en otra lectura. Se llama al puerto directamente, que es
+    /// donde vive esa segunda comprobación.
+    /// </summary>
+    [Fact]
+    public async Task El_adaptador_no_corrige_el_correo_de_una_cuenta_que_ya_se_activo()
+    {
+        var adminId = Guid.NewGuid();
+        var activadaId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(ActorAuditoria.Normal(adminId), adminId);
+        await CrearCuentaAsync(arnes, adminId, "admin@caemanager.local", "Arnes#2026Seguro");
+        await CrearCuentaAsync(arnes, activadaId, "ya-activada@caemanager.local", "Arnes#2026Seguro");
+
+        using var ambito = arnes.Servicios.CreateScope();
+        var resultado = await Puerto(ambito.ServiceProvider).CorregirCorreoPendienteAsync(activadaId, "otro@caemanager.local");
+
+        resultado.Error.Should().Be(AutoridadSobreCuentas.YaNoPendiente);
+        (await LeerCorreoAsync(arnes.CadenaPropietario, activadaId)).Email.Should().Be("ya-activada@caemanager.local");
+    }
+
+    [Fact]
+    public async Task Un_correo_que_ya_es_de_otra_cuenta_no_se_asigna_y_el_enlace_anterior_sigue_siendo_el_vigente()
+    {
+        var adminId = Guid.NewGuid();
+        var pendienteId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(ActorAuditoria.Normal(adminId), adminId);
+        await CrearCuentaAsync(arnes, adminId, "admin@caemanager.local", "Arnes#2026Seguro");
+        await CrearCuentaAsync(arnes, pendienteId, "mal-escrito@caemanager.local", contrasena: null);
+        var selloAntes = await LeerSelloAsync(arnes.CadenaPropietario, pendienteId);
+
+        using var circuito = arnes.Servicios.CreateScope();
+        var sp = circuito.ServiceProvider;
+        var correccion = await new CorregirCorreoCuentaPendienteCommandHandler(Puerto(sp), sp.GetRequiredService<ICurrentUserService>())
+            .Handle(new CorregirCorreoCuentaPendienteCommand(pendienteId, "admin@caemanager.local"), default);
+
+        correccion.EsFallido.Should().BeTrue("ese correo ya es el de otra cuenta");
+        correccion.Error.Codigo.Should().Be("Usuarios.FalloAlCorregirCorreo");
+        var siguienteGuardadoDelCircuito = () => sp.GetRequiredService<CaeManagerDbContext>().SaveChangesAsync();
+        await siguienteGuardadoDelCircuito.Should().NotThrowAsync();
+        (await LeerCorreoAsync(arnes.CadenaPropietario, pendienteId)).Email.Should().Be("mal-escrito@caemanager.local",
+            "ni la corrección rechazada ni un guardado posterior del circuito cambian el correo");
+        (await LeerSelloAsync(arnes.CadenaPropietario, pendienteId)).Should().Be(selloAntes);
+        (await LeerEmisionesAsync(arnes.CadenaPropietario, pendienteId, RegistroAuditoria.AccionCorreoCorregido))
+            .Should().BeEmpty("no hubo corrección que auditar");
+    }
+
     // ---------- Arnés ----------
 
     private static Task<ArnesDeArranqueRuntime> CrearArnesAsync(ActorAuditoria actor, Guid usuarioDeSesion) =>
@@ -185,6 +311,34 @@ public class EnlaceDeActivacionBajoRuntimeTests
             .Handle(new GenerarActivacionUsuarioCommand(usuarioId), default);
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
         return resultado.Valor;
+    }
+
+    private static async Task<CaeManager.Domain.Common.Result<string>> CorregirAsync(
+        ArnesDeArranqueRuntime arnes, Guid usuarioId, string correoNuevo)
+    {
+        using var ambito = arnes.Servicios.CreateScope();
+        var sp = ambito.ServiceProvider;
+        return await new CorregirCorreoCuentaPendienteCommandHandler(Puerto(sp), sp.GetRequiredService<ICurrentUserService>())
+            .Handle(new CorregirCorreoCuentaPendienteCommand(usuarioId, correoNuevo), default);
+    }
+
+    private sealed record CorreoDeCuenta(string? Email, string? UserName, string? NormalizedEmail, string? NormalizedUserName);
+
+    private static async Task<CorreoDeCuenta> LeerCorreoAsync(string cadena, Guid usuarioId)
+    {
+        await using var conexion = new NpgsqlConnection(cadena);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText =
+            @"SELECT ""Email"", ""UserName"", ""NormalizedEmail"", ""NormalizedUserName"" FROM ""AspNetUsers"" WHERE ""Id"" = @u;";
+        comando.Parameters.AddWithValue("u", usuarioId);
+        await using var lector = await comando.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue("premisa: la cuenta existe");
+        return new CorreoDeCuenta(
+            lector.IsDBNull(0) ? null : lector.GetString(0),
+            lector.IsDBNull(1) ? null : lector.GetString(1),
+            lector.IsDBNull(2) ? null : lector.GetString(2),
+            lector.IsDBNull(3) ? null : lector.GetString(3));
     }
 
     /// <summary>Lo que hace <c>RestablecerContrasena.razor.cs</c> con el <c>code</c> de la URL.</summary>
@@ -267,7 +421,8 @@ public class EnlaceDeActivacionBajoRuntimeTests
     private sealed record FilaDeEmision(
         Guid TenantId, string? DatosAntes, string? DatosDespues, Guid? UsuarioId, Guid? ActorRealUsuarioId, DateTime FechaUtc);
 
-    private static async Task<List<FilaDeEmision>> LeerEmisionesAsync(string cadena, Guid usuarioId)
+    private static async Task<List<FilaDeEmision>> LeerEmisionesAsync(
+        string cadena, Guid usuarioId, string accion = RegistroAuditoria.AccionActivacionEmitida)
     {
         await using var conexion = new NpgsqlConnection(cadena);
         await conexion.OpenAsync();
@@ -279,7 +434,7 @@ WHERE ""EntidadTipo"" = @entidadTipo AND ""EntidadId"" = @entidadId AND ""Accion
 ORDER BY ""FechaUtc"";";
         comando.Parameters.AddWithValue("entidadTipo", EntidadTipoAuditoria.Usuario);
         comando.Parameters.AddWithValue("entidadId", usuarioId);
-        comando.Parameters.AddWithValue("accion", RegistroAuditoria.AccionActivacionEmitida);
+        comando.Parameters.AddWithValue("accion", accion);
 
         var filas = new List<FilaDeEmision>();
         await using var lector = await comando.ExecuteReaderAsync();

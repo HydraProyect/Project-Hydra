@@ -7,6 +7,7 @@ using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.CorregirCorreoCuentaPendiente;
 using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Application.Usuarios.Commands.EditarUsuario;
 using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
@@ -1186,6 +1187,88 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         finally
         {
             _reenviandoCredencialesDe.Remove(usuarioLista.Id);
+        }
+    }
+
+    // ── Corregir el correo de una cuenta pendiente de activación (H9) ──
+
+    private UsuarioListaDto? _usuarioACorregirCorreo;
+    private string _correoCorregido = string.Empty;
+    private bool _corrigiendoCorreo;
+    private string? _errorCorregirCorreo;
+
+    private bool HayCambiosEnCorreoCorregido =>
+        _usuarioACorregirCorreo is { } usuario
+        && !string.Equals(_correoCorregido.Trim(), usuario.Email, StringComparison.OrdinalIgnoreCase);
+
+    private void AbrirCorregirCorreo(UsuarioListaDto usuario)
+    {
+        _usuarioACorregirCorreo = usuario;
+        _correoCorregido = usuario.Email;
+        _errorCorregirCorreo = null;
+    }
+
+    private void CerrarCorregirCorreo()
+    {
+        if (!_corrigiendoCorreo)
+            _usuarioACorregirCorreo = null;
+    }
+
+    /// <summary>
+    /// Cambia el correo de una cuenta que sigue pendiente y le envía un enlace nuevo a
+    /// la dirección corregida. La autoridad, que la cuenta siga pendiente y la unicidad
+    /// del correo las decide Application (<see cref="CorregirCorreoCuentaPendienteCommand"/>),
+    /// que en la misma escritura deja sin valor los enlaces enviados a la dirección
+    /// anterior y lo anota en la auditoría de la cuenta con ambos correos. Aquí solo se
+    /// envía el correo y se enseña el enlace, igual que en <see cref="ReenviarCredencialesAsync"/>.
+    /// </summary>
+    private async Task GuardarCorreoCorregidoAsync()
+    {
+        if (_usuarioACorregirCorreo is not { } usuario || _corrigiendoCorreo) return;
+        _corrigiendoCorreo = true;
+        _errorCorregirCorreo = null;
+
+        var token = _ciclo.Token;
+        try
+        {
+            var correo = _correoCorregido.Trim();
+            var correccion = await Mediator.Send(new CorregirCorreoCuentaPendienteCommand(usuario.Id, correo), token);
+            if (correccion.EsFallido)
+            {
+                // La persona se activó entretanto: el diálogo ya no tiene sentido y la
+                // fila debe dejar de ofrecer la acción.
+                if (correccion.Error.Codigo == GenerarActivacionUsuarioCommandHandler.YaActivada.Codigo)
+                {
+                    _usuarioACorregirCorreo = null;
+                    ToastService.MostrarError(correccion.Error);
+                    await CargarAsync();
+                    return;
+                }
+
+                _errorCorregirCorreo = correccion.Error.Mensaje;
+                return;
+            }
+
+            var enlace = EnlaceActivacion(usuario.Id, correccion.Valor);
+            var envio = await EnviarCorreoActivacionAsync(usuario.Id, correo, usuario.NombreCompleto, enlace);
+            if (envio.EsFallido)
+                ToastService.MostrarError(
+                    TextosUsuarios["ReenvioCorreoFallido"], envio.Error, TextosUsuarios["ReenvioCorreoFallidoEnlaceAbajo"]);
+            else
+                ToastService.Mostrar(TextosUsuarios["CorregirCorreoHecho", correo], TonoToast.Exito);
+
+            _usuarioACorregirCorreo = null;
+            _reenvioFallido = envio.EsFallido;
+            _reenvioEnCurso = true;
+            _enlaceActivacion = enlace;
+            await CargarAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _corrigiendoCorreo = false;
         }
     }
 

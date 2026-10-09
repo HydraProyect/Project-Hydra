@@ -120,6 +120,30 @@
   <data name="AsignarEmpresasErrorCarga" xml:space="preserve">
     <value>No hem pogut carregar les empreses de la seva cartera. Tanca i torna a obrir.</value>
   </data>
+  <data name="CorregirCorreoAccion" xml:space="preserve">
+    <value>Corregeix el correu</value>
+  </data>
+  <data name="CorregirCorreoTitulo" xml:space="preserve">
+    <value>Corregeix el correu de {0}</value>
+  </data>
+  <data name="CorregirCorreoCampo" xml:space="preserve">
+    <value>Correu</value>
+  </data>
+  <data name="CorregirCorreoAyuda" xml:space="preserve">
+    <value>Els enllaços d'activació enviats al correu anterior deixaran de valer i n'hi enviarem un de nou a aquesta adreça.</value>
+  </data>
+  <data name="CorregirCorreoSinCambios" xml:space="preserve">
+    <value>Escriu un correu diferent de l'actual.</value>
+  </data>
+  <data name="CorregirCorreoGuardar" xml:space="preserve">
+    <value>Corregeix i envia</value>
+  </data>
+  <data name="CorregirCorreoVolver" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="CorregirCorreoHecho" xml:space="preserve">
+    <value>Correu corregit. Hem enviat l'enllaç d'activació a {0}.</value>
+  </data>
   <data name="CarteraAltaErrorCarga" xml:space="preserve">
     <value>No hem pogut carregar les empreses per a la seva cartera. Pots desar sense cap i assignar-les-hi després.</value>
   </data>
