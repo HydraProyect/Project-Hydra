@@ -54,10 +54,36 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 #                              environment `produccion`).
 #   CI_STRIPE_TEST_API_KEY   — clave de Stripe en MODO PRUEBA (sk_test_/rk_test_).
 #                              Una clave de producción hace fallar el job.
+#
+# BANCO DE MODELOS DE IA (job `banco-modelos-ia`). Mide, con modelo real, las
+# siete rutas Anthropic del producto por niveles de complejidad
+# (tests/CaeManager.Web.Tests/BancoModelosIa). NO corre en cada fusión: solo
+# cuando este workflow se lanza A MANO con la entrada `banco_modelos`, porque
+# cada combinación de modelo y esfuerzo gasta dinero de la clave de CI. Una
+# sola orden mide un modelo nuevo:
+#   gh workflow run integraciones-con-clave.yml --ref main \
+#     -f banco_modelos=claude-haiku-5-5 -f banco_esfuerzos=low,medium
+# El resultado (JSON, CSV y tabla) queda como artefacto de la ejecución y en su
+# resumen. El banco MIDE y no vigila: la nota que saque un modelo no pone el
+# job en rojo; sí lo pone un instrumento que no midió lo pedido (la API rechaza
+# casos, o el modelo o el esfuerzo pedidos no viajan en la petición).
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      banco_modelos:
+        description: "Banco de modelos de IA: modelos a medir, separados por comas (p. ej. claude-sonnet-5,claude-haiku-5-5). Vacío = el banco no se ejecuta."
+        required: false
+        default: ""
+      banco_esfuerzos:
+        description: "Banco: esfuerzos a medir, separados por comas (low, medium, high, xhigh, max). Vacío = el que el producto envíe por defecto."
+        required: false
+        default: ""
+      banco_rutas:
+        description: "Banco: rutas a medir, nombres de RutaIa separados por comas. Vacío = las siete."
+        required: false
+        default: ""
 
 # Ninguna de las dos claves necesita escribir en el repositorio.
 permissions:
@@ -183,6 +209,146 @@ jobs:
           {
             echo "### ✅ Regresión de prompts de IA (Anthropic) — $pasados casos ejecutados, 0 omitidos"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Convierte las entradas en la matriz modelo × esfuerzo. No toca ningún
+  # secreto ni declara el environment: las entradas son texto de quien lanza el
+  # workflow y aquí solo se validan y se trocean, leídas siempre por `env:`.
+  banco-modelos-ia-matriz:
+    name: Banco de modelos de IA — matriz
+    if: github.event_name == 'workflow_dispatch' && inputs.banco_modelos != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matriz: ${{ steps.matriz.outputs.matriz }}
+    steps:
+      - name: Componer la matriz modelo × esfuerzo
+        id: matriz
+        env:
+          MODELOS: ${{ inputs.banco_modelos }}
+          ESFUERZOS: ${{ inputs.banco_esfuerzos }}
+          RUTAS: ${{ inputs.banco_rutas }}
+        run: |
+          set -euo pipefail
+          for valor in "$MODELOS" "$ESFUERZOS" "$RUTAS"; do
+            if ! printf '%s' "$valor" | grep -Eq '^[A-Za-z0-9._, -]*$'; then
+              echo "::error::Las entradas del banco solo admiten letras, cifras, punto, guion, coma y espacio."
+              exit 1
+            fi
+          done
+          lista() { printf '%s' "$1" | tr ',' '\n' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | jq -R -s -c 'split("\n") | map(select(length > 0))'; }
+          modelos=$(lista "$MODELOS")
+          esfuerzos=$(lista "$ESFUERZOS")
+          # Sin esfuerzos, una sola pasada por modelo con el esfuerzo por defecto del producto.
+          matriz=$(jq -c -n --argjson m "$modelos" --argjson e "$esfuerzos" \
+            '{include: [ $m[] as $modelo | (if ($e | length) == 0 then [""] else $e end)[] as $esfuerzo | {modelo: $modelo, esfuerzo: $esfuerzo} ]}')
+          if [ "$(jq '.include | length' <<<"$matriz")" -eq 0 ]; then
+            echo "::error::La entrada banco_modelos no contiene ningún modelo."
+            exit 1
+          fi
+          echo "matriz=$matriz" >> "$GITHUB_OUTPUT"
+          echo "Combinaciones: $matriz"
+
+  banco-modelos-ia:
+    name: Banco de modelos de IA — ${{ matrix.modelo }} / ${{ matrix.esfuerzo || 'esfuerzo por defecto' }}
+    needs: banco-modelos-ia-matriz
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ci-integraciones
+    strategy:
+      fail-fast: false
+      # De dos en dos: no dispara el límite de peticiones de la clave de CI y
+      # la latencia que se mide no compite con otras cinco pasadas a la vez.
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.banco-modelos-ia-matriz.outputs.matriz) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Comprobar la clave de Anthropic de CI
+        id: clave
+        env:
+          CLAVE: ${{ secrets.CI_ANTHROPIC_API_KEY }}
+          RAMA: ${{ github.ref_name }}
+        run: |
+          if [ -z "${CLAVE:-}" ]; then
+            echo "hay_clave=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Banco de modelos de IA NO ejecutado::El secreto CI_ANTHROPIC_API_KEY no llega a esta rama (${RAMA}): el banco solo puede lanzarse sobre main. No se ha medido nada."
+            {
+              echo "### 🟡 Banco de modelos de IA — NO ejecutado"
+              echo ""
+              echo "El secreto \`CI_ANTHROPIC_API_KEY\` del environment \`ci-integraciones\` no llega a la rama \`${RAMA}\`. **No se ha medido nada.**"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          case "$CLAVE" in
+            sk-ant-admin*)
+              echo "::error title=Clave de administración::CI_ANTHROPIC_API_KEY es una clave de ADMINISTRACIÓN de Anthropic. Usa una clave de la API de un workspace acotado."
+              exit 1
+              ;;
+            sk-ant-api*) ;;
+            *)
+              echo "::error title=Formato de clave inesperado::CI_ANTHROPIC_API_KEY no empieza por sk-ant-api. No se ejecuta nada con una clave que no se reconoce."
+              exit 1
+              ;;
+          esac
+          echo "hay_clave=true" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar .NET SDK
+        if: steps.clave.outputs.hay_clave == 'true'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar y compilar los tests de la Web
+        if: steps.clave.outputs.hay_clave == 'true'
+        run: |
+          dotnet restore CaeManager.slnx
+          dotnet build tests/CaeManager.Web.Tests --no-restore -warnaserror
+
+      # La clave entra con el nombre que espera la aplicación y solo en este paso.
+      - name: Medir las rutas con modelo real
+        if: steps.clave.outputs.hay_clave == 'true'
+        env:
+          Anthropic__ApiKey: ${{ secrets.CI_ANTHROPIC_API_KEY }}
+          BANCO_IA_MODELO: ${{ matrix.modelo }}
+          BANCO_IA_ESFUERZO: ${{ matrix.esfuerzo }}
+          BANCO_IA_RUTAS: ${{ inputs.banco_rutas }}
+          BANCO_IA_SALIDA: ${{ github.workspace }}/resultados-banco-ia
+        run: >
+          dotnet test tests/CaeManager.Web.Tests --no-build
+          --filter "FullyQualifiedName~BancoModelosIaTests.Mide_las_rutas_Anthropic"
+          --logger "trx;LogFileName=banco-ia.trx" --results-directory ./resultados-banco-ia
+
+      # Se publica aunque el paso anterior acabe en rojo: un instrumento que
+      # se declara inválido deja escrito por qué, y eso es lo que hay que leer.
+      - name: Publicar la tabla en el resumen
+        if: always() && steps.clave.outputs.hay_clave == 'true'
+        run: |
+          informe=$(find resultados-banco-ia -maxdepth 1 -name 'banco-ia-*.md' | head -1)
+          if [ -z "$informe" ]; then
+            echo "::error::El banco no escribió ningún informe: no hay medición."
+            exit 1
+          fi
+          cat "$informe" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comprobar que la medición se ejecutó de verdad
+        if: steps.clave.outputs.hay_clave == 'true'
+        run: |
+          trx=$(find resultados-banco-ia -name "banco-ia.trx" | head -1)
+          pasados=$(grep -o 'outcome="Passed"' "$trx" | wc -l)
+          omitidos=$(grep -o 'outcome="NotExecuted"' "$trx" | wc -l)
+          if [ "$omitidos" -gt 0 ] || [ "$pasados" -ne 1 ]; then
+            echo "::error::Con clave configurada, el test del banco debe ejecutarse y pasar (pasados=$pasados, omitidos=$omitidos). Verde falso descartado."
+            exit 1
+          fi
+
+      - name: Guardar el informe (JSON, CSV y Markdown)
+        if: always() && steps.clave.outputs.hay_clave == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: banco-ia-${{ matrix.modelo }}-${{ matrix.esfuerzo || 'por-defecto' }}
+          path: resultados-banco-ia/banco-ia-*
+          if-no-files-found: error
+          retention-days: 90
 
   stripe-modo-prueba:
     name: Stripe en modo prueba (clave de CI)
