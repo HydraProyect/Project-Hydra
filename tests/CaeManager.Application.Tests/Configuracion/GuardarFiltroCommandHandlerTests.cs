@@ -12,7 +12,8 @@ public class GuardarFiltroCommandHandlerTests
         var usuarioId = Guid.NewGuid();
         var repositorio = new FiltroGuardadoRepositorioFalso();
         var unitOfWork = new Clientes.UnitOfWorkFalso();
-        var handler = new GuardarFiltroCommandHandler(new CurrentUserServiceFalso(usuarioId), repositorio, unitOfWork);
+        var handler = new GuardarFiltroCommandHandler(
+            new CurrentUserServiceFalso(usuarioId), new TenantActualFijo(Guid.NewGuid()), repositorio, unitOfWork);
 
         var resultado = await handler.Handle(
             new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, "Críticos", "{\"soloCriticos\":true}"), CancellationToken.None);
@@ -26,7 +27,8 @@ public class GuardarFiltroCommandHandlerTests
     {
         var repositorio = new FiltroGuardadoRepositorioFalso();
         var unitOfWork = new Clientes.UnitOfWorkFalso();
-        var handler = new GuardarFiltroCommandHandler(new CurrentUserServiceFalso(), repositorio, unitOfWork);
+        var handler = new GuardarFiltroCommandHandler(
+            new CurrentUserServiceFalso(), new TenantActualFijo(Guid.NewGuid()), repositorio, unitOfWork);
 
         var resultado = await handler.Handle(
             new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, "Críticos", "{}"), CancellationToken.None);
@@ -35,12 +37,32 @@ public class GuardarFiltroCommandHandlerTests
         resultado.Error.Codigo.Should().Be("FiltroGuardado.SinUsuario");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Sin_Tenant_activo_no_se_guarda_y_el_fallo_es_legible(bool tenantVacio)
+    {
+        var repositorio = new FiltroGuardadoRepositorioFalso();
+        var handler = new GuardarFiltroCommandHandler(
+            new CurrentUserServiceFalso(Guid.NewGuid()), new TenantActualFijo(tenantVacio ? Guid.Empty : null),
+            repositorio, new Clientes.UnitOfWorkFalso());
+
+        var resultado = await handler.Handle(
+            new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, "Huérfano", "{}"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("FiltroGuardado.SinTenant");
+        resultado.Error.Mensaje.Should().NotBeNullOrWhiteSpace();
+        repositorio.Filtros.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task No_guarda_dos_filtros_con_el_mismo_nombre_en_la_misma_pantalla()
     {
         var usuarioId = Guid.NewGuid();
         var repositorio = new FiltroGuardadoRepositorioFalso();
-        var handler = new GuardarFiltroCommandHandler(new CurrentUserServiceFalso(usuarioId), repositorio, new Clientes.UnitOfWorkFalso());
+        var handler = new GuardarFiltroCommandHandler(
+            new CurrentUserServiceFalso(usuarioId), new TenantActualFijo(Guid.NewGuid()), repositorio, new Clientes.UnitOfWorkFalso());
         await handler.Handle(new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, "Críticos", "{}"), CancellationToken.None);
 
         var repetido = await handler.Handle(
@@ -59,10 +81,11 @@ public class GuardarFiltroCommandHandlerTests
     {
         var repositorio = new FiltroGuardadoRepositorioFalso();
         var unitOfWork = new Clientes.UnitOfWorkFalso();
-        await new GuardarFiltroCommandHandler(new CurrentUserServiceFalso(Guid.NewGuid()), repositorio, unitOfWork)
+        var tenant = new TenantActualFijo(Guid.NewGuid());
+        await new GuardarFiltroCommandHandler(new CurrentUserServiceFalso(Guid.NewGuid()), tenant, repositorio, unitOfWork)
             .Handle(new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, "Críticos", "{}"), CancellationToken.None);
 
-        var resultado = await new GuardarFiltroCommandHandler(new CurrentUserServiceFalso(Guid.NewGuid()), repositorio, unitOfWork)
+        var resultado = await new GuardarFiltroCommandHandler(new CurrentUserServiceFalso(Guid.NewGuid()), tenant, repositorio, unitOfWork)
             .Handle(new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, "Críticos", "{}"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();

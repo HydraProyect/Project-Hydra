@@ -82,7 +82,8 @@ public class BorradoEnLoteYFiltrosGuardadosTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             var handlerGuardar = new GuardarFiltroCommandHandler(
-                new CurrentUserServiceFalso(usuarioA), new FiltroGuardadoRepository(contexto), contexto);
+                new CurrentUserServiceFalso(usuarioA), new TenantActualAmbiental { TenantId = _tenantId },
+                new FiltroGuardadoRepository(contexto), contexto);
             var resultado = await handlerGuardar.Handle(
                 new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, "Filtro de A", "{}"), CancellationToken.None);
             filtroDeAId = resultado.Valor;

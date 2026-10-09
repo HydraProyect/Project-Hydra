@@ -190,8 +190,13 @@ services:
         condition: service_completed_successfully
 
   db:
-    # SIN mem_limit — mismo hueco declarado que en docker-compose.produccion.yml
-    # (REC-199/REC-198, valor pendiente de REC-196).
+    # Techo parametrizado y por defecto sin techo — ver el comentario de "db"
+    # en docker-compose.produccion.yml (REC-199/REC-198, valor pendiente de
+    # REC-196). Las variables tienen el mismo nombre en los dos entornos y
+    # cada uno lee su fichero (.env.staging aquí), así que staging puede
+    # llevar un techo distinto del de producción. Aquí un techo corto tumba
+    # la base de staging, no la de producción.
+    mem_limit: ${LIMITE_MEMORIA_DB:-0}
     #
     # Misma versión exacta + digest que docker-compose.produccion.yml (cadena
     # de suministro, auditoría Módulo 10, 2026-08-30) — ver el comentario de
@@ -217,8 +222,8 @@ services:
       retries: 10
 
   seq:
-    # SIN mem_limit — mismo hueco declarado que en docker-compose.produccion.yml
-    # (REC-199/REC-198, valor pendiente de REC-196).
+    # Techo parametrizado y por defecto sin techo, igual que "db" arriba.
+    mem_limit: ${LIMITE_MEMORIA_SEQ:-0}
     #
     # Misma versión exacta + digest que docker-compose.produccion.yml.
     image: datalust/seq:2026.1.17114@sha256:fa405502a3c57884c88477b78b55ca76c5a3fb1a4d20c6a185c24e750db34056

@@ -15,7 +15,7 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
         string TamanoPastilla = "13px", string BordeTarjeta = "#cfd8e3", string AnchoLateral = "300px", string Anillo = "84px",
         string ColumnaEstado = "138px", string DegradadoProblema = "linear-gradient(90deg, transparent 50%, #ffffff 100%)",
         string BordeVencido = "color-mix(in srgb, #b42318 35%, transparent)", string Divisor = "#a9b4c2",
-        string Sombra = "none", bool ConTarjetas = true, bool ConFilaProblema = true, bool ConClasesPropias = false);
+        string Sombra = "none", bool ConTarjetas = true, bool ConFilaProblema = true, bool ConClasesPropias = false, string Cabecera = "envuelta", bool FilasEnvueltas = false);
 
     private static string Html(Hoja h)
     {
@@ -24,11 +24,20 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
             ? $"class=\"{clase}{(tono is null ? null : " " + tono)}\""
             : $"class=\"{clase}\" data-pieza=\"{pieza}\"{(tono is null ? null : $" data-tono=\"{tono}\"")}";
 
-        string Fila(string nombre, string estado, string clase, string? tono = null) =>
+        string Fila(string nombre, string estado, string clase, string? tono = null) => h.FilasEnvueltas ? $"<div class=\"envoltorio\">{FilaSola(nombre, estado, clase, tono)}</div>" : FilaSola(nombre, estado, clase, tono);
+        string FilaSola(string nombre, string estado, string clase, string? tono = null) =>
             $"""<div {Marca("fila", "f", tono)}><span><b>{nombre}</b><small {Marca("fila-detalle", "d")}>detalle</small></span><span class="est"><span {Marca("pastilla", "p " + clase)}>{estado}</span></span></div>""";
 
         var tarjeta = h.ConTarjetas ? Marca("tarjeta", "t") : "class=\"caja\"";
         var lateral = h.ConTarjetas ? Marca("lateral", "l") : "class=\"caja\"";
+        var interior = $"""<span {Marca("anillo", "a")}></span><h1>Montajes Skynet S.L.</h1><span {Marca("pastilla", "p g")}>Activa</span>""";
+        var cabecera = h.Cabecera switch
+        {
+            // La cabecera ES la tarjeta: un solo elemento, sin data-pieza="tarjeta".
+            "es-tarjeta" => $"""<div class="t c" data-pieza="cabecera-identidad">{interior}</div>""",
+            "suelta" => $"""<div class="c" data-pieza="cabecera-identidad">{interior}</div>""",
+            _ => $"""<div {tarjeta}><div {Marca("cabecera-identidad", "c")}>{interior}</div></div>""",
+        };
         return $$"""
             <!doctype html><html><head><meta charset="utf-8"><style>
             body { margin: 0; padding: 24px; background: #e9eef4; font-family: Inter, sans-serif; }
@@ -44,7 +53,7 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
             .p.r { background: #fef3f2; color: #b42318; border-color: {{h.BordeVencido}}; }
             .p.g { background: #ecfdf3; color: #067647; border-color: color-mix(in srgb, #067647 35%, transparent); }
             </style></head><body>
-            <div {{tarjeta}}><div {{Marca("cabecera-identidad", "c")}}><span {{Marca("anillo", "a")}}></span><h1>Montajes Skynet S.L.</h1><span {{Marca("pastilla", "p g")}}>Activa</span></div></div>
+            {{cabecera}}
             <div class="cuerpo">
               <div {{tarjeta}}><div class="lista">
                 {{(h.ConFilaProblema ? Fila("Formación PRL", "Vencido", "r", "peligro") : null)}}
@@ -161,6 +170,18 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
     }
 
     [Fact]
+    public async Task Las_filas_envueltas_una_a_una_siguen_siendo_una_lista_para_medir_la_columna()
+    {
+        // Fila desplegable o envoltorio de plantilla: el padre de cada fila solo la contiene a ella.
+        var alineada = await MedirAsync("mockup", new Hoja(FilasEnvueltas: true));
+        Assert.Equal("0", alineada.Magnitudes["pastilla-de-fila.dispersion-izquierda"].Valor);
+
+        var desalineada = await MedirAsync("ficha", new Hoja(FilasEnvueltas: true, ColumnaEstado: "auto"));
+        var informe = ComparadorFidelidad360.Comparar("sintética", "claro", alineada, desalineada);
+        Assert.Single(informe.Diferencias, d => d.Clave == "pastilla-de-fila.dispersion-izquierda");
+    }
+
+    [Fact]
     public async Task Lo_que_cae_dentro_de_la_tolerancia_no_es_diferencia()
     {
         // Un píxel de lateral (tolerancia 1) y dos niveles de un canal (tolerancia 2).
@@ -207,6 +228,86 @@ public class ComparadorFidelidad360Tests(NavegadorFidelidadFixture navegador) : 
         // Y la convención no ve nada en una página que no la sigue: no hay «probar los dos selectores».
         var aCiegas = await MedirAsync("mockup", new Hoja(ConClasesPropias: true));
         Assert.All(aCiegas.PiezasVistas.Values, vistas => Assert.Equal(0, vistas));
+    }
+
+    [Fact]
+    public async Task Una_cabecera_que_es_la_tarjeta_mide_igual_que_una_cabecera_dentro_de_una_tarjeta()
+    {
+        var informe = await CompararAsync(new Hoja(Cabecera: "es-tarjeta"), new Hoja());
+
+        Assert.True(informe.SinDiferencias, informe.ATablaMarkdown());
+        Assert.Equal("sí", informe.Mockup.Magnitudes["cabecera-identidad.en-tarjeta"].Valor);
+        Assert.Equal(3, informe.Mockup.PiezasVistas["tarjeta"]);
+
+        // Y una cabecera sin caja, que es la del producto hoy, sigue saliendo como diferencia.
+        var suelta = await CompararAsync(new Hoja(Cabecera: "es-tarjeta"), new Hoja(Cabecera: "suelta"));
+        var fila = Assert.Single(suelta.Diferencias);
+        Assert.Equal(("cabecera-identidad.en-tarjeta", "sí", "no"), (fila.Clave, fila.Mockup, fila.Ficha));
+    }
+
+    /// <summary>Los mockups «… 360 página» que ya marcan sus piezas con <c>data-pieza</c>.</summary>
+    private static readonly string[] MockupsPorConvencion =
+    [
+        "Subcontrata 360 página TALVEG.dc.html",
+        "Vehiculo 360 página TALVEG.dc.html",
+        "Tipo Documento 360 página TALVEG.dc.html",
+        "Proyecto 360 página TALVEG.dc.html",
+        "Visita 360 página TALVEG.dc.html",
+    ];
+
+    public static TheoryData<string, string> MockupsPorTema()
+    {
+        var datos = new TheoryData<string, string>();
+        foreach (var fichero in MockupsPorConvencion)
+        {
+            foreach (var tema in Fidelidad360.Temas)
+                datos.Add(fichero, tema);
+        }
+
+        return datos;
+    }
+
+    /// <summary>
+    /// El mockup solo, sin ficha: ¿enseña las piezas del catálogo, tiene el tema pedido y
+    /// cumple los valores decididos? Sirve mientras la página aún no existe en el producto,
+    /// y para que un mockup no llegue a un constructor por detrás de la norma.
+    /// </summary>
+    [TeoriaConMockups]
+    [MemberData(nameof(MockupsPorTema))]
+    public async Task Un_mockup_por_convencion_ensena_sus_piezas_y_cumple_la_norma(string fichero, string tema)
+    {
+        var directorio = Mockup360.Directorio!;
+        Assert.True(File.Exists(Path.Combine(directorio, fichero)), $"No existe el mockup «{fichero}» en {directorio}.");
+        var mockup = Mockup360.PorConvencion(
+            fichero,
+            "[data-pieza=\"cabecera-identidad\"]",
+            t => t == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme");
+        var salida = Path.Combine(Mockup360.DirectorioSalida, "mockups", Path.GetFileNameWithoutExtension(fichero), tema);
+
+        await using var contexto = await Fidelidad360.NuevoContextoAsync(navegador.Browser);
+        var page = await contexto.NewPageAsync();
+        await mockup.AbrirAsync(page, directorio, "claro");
+        var enClaro = await Fidelidad360.MedirAsentadoAsync(page, "mockup", mockup.Selectores);
+        var medicion = enClaro;
+        if (tema != "claro")
+        {
+            await mockup.AbrirAsync(page, directorio, tema);
+            medicion = await Fidelidad360.MedirAsentadoAsync(page, "mockup", mockup.Selectores);
+        }
+
+        await Fidelidad360.CapturarAsync(page, Path.Combine(salida, "mockup.png"));
+        var norma = Norma360.Evaluar(medicion, tema);
+        var tabla = Norma360.ATablaMarkdown($"{fichero} ({tema})", norma);
+        var vistas = string.Join(", ", medicion.PiezasVistas.Select(p => $"{p.Key} {p.Value}"));
+        await File.WriteAllTextAsync(Path.Combine(salida, "informe.md"), $"Piezas vistas: {vistas}.\n\n{tabla}");
+
+        // Control positivo antes de leer la norma: sin piezas, «nada incumple» no dice nada.
+        foreach (var pieza in new[] { "tarjeta", "lateral", "anillo", "cabecera-identidad", "pastilla", "pastilla-de-fila", "fila", "fila-detalle" })
+            Assert.True(medicion.PiezasVistas[pieza] >= 1, $"«{fichero}» no enseña ninguna pieza «{pieza}». Piezas vistas: {vistas}.");
+        if (tema != "claro")
+            Assert.True(Fidelidad360.TemaAplicado(enClaro, medicion), $"«{fichero}» no tiene tema {tema}: pedirlo no cambió el fondo de página.");
+
+        Assert.True(norma.All(f => f.Cumple != false), $"Informe y captura en {salida}\n\nPiezas vistas: {vistas}.\n\n{tabla}");
     }
 
     [Fact]

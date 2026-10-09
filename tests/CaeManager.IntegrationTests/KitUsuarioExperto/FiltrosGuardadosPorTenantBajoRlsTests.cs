@@ -35,6 +35,7 @@ public class FiltrosGuardadosPorTenantBajoRlsTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _gestorCae = Guid.NewGuid();
+    private ITenantActual _tenantDeLaPeticion = null!;
     private CaeManagerDbContext _propietario = null!;
     private CaeManagerDbContext _runtime = null!;
     private Guid _tenantOrigen;
@@ -61,6 +62,7 @@ public class FiltrosGuardadosPorTenantBajoRlsTests : IAsyncLifetime
         _tenantB = b.Id;
 
         var tenantDeLaPeticion = new TenantActualDeLaPeticion(_tenantOrigen);
+        _tenantDeLaPeticion = tenantDeLaPeticion;
         var opcionesRuntime = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion))
             .AddInterceptors(
@@ -201,7 +203,7 @@ public class FiltrosGuardadosPorTenantBajoRlsTests : IAsyncLifetime
     }
 
     private GuardarFiltroCommandHandler CrearHandlerGuardar() =>
-        new(UsuarioActual(), new FiltroGuardadoRepository(_runtime), _runtime);
+        new(UsuarioActual(), _tenantDeLaPeticion, new FiltroGuardadoRepository(_runtime), _runtime);
 
     private EliminarFiltroGuardadoCommandHandler CrearHandlerEliminar() =>
         new(UsuarioActual(), new FiltroGuardadoRepository(_runtime), _runtime);

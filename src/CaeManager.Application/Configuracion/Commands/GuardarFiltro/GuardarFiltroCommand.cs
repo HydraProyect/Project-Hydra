@@ -37,7 +37,8 @@ public class GuardarFiltroCommandValidator : AbstractValidator<GuardarFiltroComm
 }
 
 public class GuardarFiltroCommandHandler(
-    ICurrentUserService currentUserService, IFiltroGuardadoRepository repositorio, IUnitOfWork unitOfWork)
+    ICurrentUserService currentUserService, ITenantActual tenantActual,
+    IFiltroGuardadoRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<GuardarFiltroCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(GuardarFiltroCommand request, CancellationToken cancellationToken)
@@ -45,6 +46,13 @@ public class GuardarFiltroCommandHandler(
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)
             return Result.Fallo<Guid>(Error.Crear("FiltroGuardado.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
+
+        // Sin Tenant activo no se guarda: el filtro lleva dentro identificadores de un Tenant
+        // y la fila se sella con él. Fallo legible aquí, antes de que lo rechace el sellado.
+        if (tenantActual.TenantId is not { } tenantId || tenantId == Guid.Empty)
+            return Result.Fallo<Guid>(Error.Crear(
+                "FiltroGuardado.SinTenant",
+                "No pudimos determinar en qué organización estás trabajando. Vuelve a iniciar sesión."));
 
         // El índice único (Tenant, Usuario, Pantalla, Nombre) es quien lo garantiza;
         // esta comprobación solo convierte el caso corriente en un mensaje legible.

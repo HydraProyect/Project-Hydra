@@ -113,10 +113,14 @@ public class DiaDeNegocioUnicaFuenteTests
     /// Formato único de fecha y hora en pantalla, dd/MM/yyyy HH:mm (decisión del
     /// 2026-09-29; D-19 del recorrido en staging: convivían «28/9/2026 14:50»,
     /// «01/10/26» y «01/10/2026»). Ni año de dos cifras ni el formato corto de la
-    /// cultura (<c>"g"</c>/<c>"G"</c>), que cambia con el idioma.
+    /// cultura (<c>"g"</c>/<c>"G"</c>), que cambia con el idioma. Tampoco el
+    /// <c>ToString()</c> sin formato sobre una fecha, que es ese mismo formato
+    /// corto: en es-ES sin ajustes regionales da «4/3/2026». El patrón no ve
+    /// tipos, así que solo reconoce esa forma por el nombre (<c>…fecha….ToString()</c>).
     /// </summary>
     private static readonly Regex PatronFormatoNoCanonico = new(
-        @"""dd/MM/yy(?:[\s""])|ToString\s*\(\s*""[gG]""|:[gG]\}|\bToShort(?:Date|Time)String\s*\(",
+        @"""dd/MM/yy(?:[\s""])|ToString\s*\(\s*""[gG]""|:[gG]\}|\bToShort(?:Date|Time)String\s*\(" +
+        @"|[Ff]echa\w*[?!]?(?:\.Value)?\??\.ToString\s*\(\s*\)",
         RegexOptions.Compiled);
 
     [Fact]
@@ -130,11 +134,50 @@ public class DiaDeNegocioUnicaFuenteTests
             .Should().BeTrue("control positivo: formato corto de la cultura en interpolación");
         EsCodigoQueCasa("        var texto = fecha.ToShortDateString();", PatronFormatoNoCanonico)
             .Should().BeTrue("control positivo: fecha corta de la cultura");
+        EsCodigoQueCasa("    Mensaje=\"@Textos[\"Clave\", _fechaCierre?.ToString() ?? string.Empty].Value\"", PatronFormatoNoCanonico)
+            .Should().BeTrue("control positivo: ToString() sin formato sobre una fecha anulable");
+        EsCodigoQueCasa("        var texto = proyecto.FechaCierreReal!.Value.ToString();", PatronFormatoNoCanonico)
+            .Should().BeTrue("control positivo: ToString() sin formato sobre el valor de una fecha");
+        EsCodigoQueCasa("        var texto = _fechaCierre?.ToString(\"dd/MM/yyyy\");", PatronFormatoNoCanonico)
+            .Should().BeFalse("control negativo: la fecha con el formato único");
         EsCodigoQueCasa("<span>@item.GeneradoEnUtc.EnHoraPeninsular().ToString(\"dd/MM/yyyy HH:mm\")</span>", PatronFormatoNoCanonico)
             .Should().BeFalse("control negativo: el formato único");
 
         ContarPorFichero(RaizDelRepositorio(), "src", PatronFormatoNoCanonico).Keys.Should().BeEmpty(
             "fecha y hora en pantalla: dd/MM/yyyy HH:mm, en hora peninsular");
+    }
+
+    /// <summary>
+    /// La cultura por defecto del proceso es estado global: asignarla desde un
+    /// test la cambia para todos los que corren en paralelo, y restaurarla al
+    /// final no cierra la ventana. Medido el 2026-10-08: un test la ponía a
+    /// <c>new CultureInfo("es-ES")</c>, que en Windows recoge los ajustes
+    /// regionales del usuario (fecha corta «dd/MM/yyyy»), y otro test que
+    /// renderizaba antes de la ventana y afirmaba dentro veía dos formatos.
+    /// Un test que necesite otra cultura la pone en su flujo con
+    /// <c>CultureInfo.CurrentCulture</c>, que no sale de él.
+    /// </summary>
+    private static readonly Regex PatronCulturaPorDefectoDelProceso = new(
+        @"\bDefaultThreadCurrent(?:UI)?Culture\s*=(?!=)", RegexOptions.Compiled);
+
+    private const string CulturaDeLaSuite = "tests/CaeManager.Web.Tests/CulturaDeLaSuite.cs";
+
+    [Fact]
+    public void La_cultura_por_defecto_del_proceso_solo_la_fija_el_inicializador_de_la_suite()
+    {
+        // Partida en dos para que este fichero no case con su propio patrón.
+        var asignacion = "        CultureInfo.DefaultThreadCurrent" + "Culture = new CultureInfo(\"es-ES\");";
+        EsCodigoQueCasa(asignacion, PatronCulturaPorDefectoDelProceso)
+            .Should().BeTrue("control positivo: asignación de la cultura por defecto");
+        EsCodigoQueCasa(asignacion.Replace("Culture =", "UICulture =", StringComparison.Ordinal), PatronCulturaPorDefectoDelProceso)
+            .Should().BeTrue("control positivo: asignación de la cultura de interfaz por defecto");
+        EsCodigoQueCasa("        var previa = CultureInfo.DefaultThreadCurrentCulture;", PatronCulturaPorDefectoDelProceso)
+            .Should().BeFalse("control negativo: leerla no la cambia");
+        EsCodigoQueCasa("        (CultureInfo.DefaultThreadCurrentCulture == previa).Should().BeTrue();", PatronCulturaPorDefectoDelProceso)
+            .Should().BeFalse("control negativo: compararla no la cambia");
+
+        ContarPorFichero(RaizDelRepositorio(), "tests", PatronCulturaPorDefectoDelProceso).Keys.Should().Equal([CulturaDeLaSuite],
+            "la cultura por defecto es del proceso entero: un test que la asigna la cambia para los que corren en paralelo");
     }
 
     [Fact]

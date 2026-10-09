@@ -284,7 +284,7 @@ public class ProyectosGen2Tests : BunitContext
         _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().BeEmpty("el primer clic solo pide confirmación");
         cut.Find("[role=dialog]").TextContent.Should()
             .Contain(ProyectoCerrado.Nombre)
-            .And.Contain(ProyectoCerrado.FechaCierreReal!.Value.ToString(), "la confirmación nombra la fecha de cierre que se pierde");
+            .And.Contain("(04/03/2026)", "la confirmación nombra la fecha de cierre que se pierde, en el formato único de la pantalla");
 
         await ConfirmarReapertura(cut);
 
