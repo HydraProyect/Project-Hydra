@@ -332,13 +332,16 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
             // El formulario del panel también edita los Clientes empresariales de la Empresa, que
             // son el contenido del acordeón de la fila: lo cargado ya no vale. Si está
-            // desplegado se vuelve a pedir; si no, se pedirá al desplegarlo.
+            // desplegado se vuelve a pedir; si no, se pedirá al desplegarlo. La fila se pinta
+            // antes de esa segunda consulta, para que no espere por ella.
             _clientesPorEmpresa.Remove(id);
             _clientesConError.Remove(id);
-            if (_expandidos.Contains(id))
-                await CargarClientesDeEmpresaAsync(id);
-
             StateHasChanged();
+            if (_expandidos.Contains(id))
+            {
+                await CargarClientesDeEmpresaAsync(id);
+                StateHasChanged();
+            }
         }
         catch (Exception)
         {

@@ -166,8 +166,9 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
 
     /// <summary>
     /// El filtro por id es el que usa el listado para sustituir en sitio la fila recién editada en
-    /// la vista rápida: con la misma pregunta de estado que la carga de página, la fila que
-    /// devuelve es la misma que la de la página.
+    /// la vista rápida: con la misma pregunta que la carga de página, el filtro no altera ningún
+    /// campo de la fila. Que la página haga de verdad esa misma pregunta de estado
+    /// (<c>ConRecuentosPorEstado</c>) lo fija <c>EmpresasListaGen2Tests</c>, no este test.
     /// </summary>
     [Fact]
     public async Task Empresas_la_fila_pedida_por_id_es_la_misma_que_la_de_la_pagina()
