@@ -51,36 +51,41 @@
         }
     }
 
-    <fieldset class="selector-lote-alcance">
-        <legend>¿A quién?</legend>
-        <label class="campo-checkbox">
-            <input type="radio" name="@_nombreGrupoAlcance" checked="@_alcanceTodas" @onchange="() => CambiarAlcanceAsync(true)" />
-            Todas las @EtiquetaAmbitoPlural(_ambito) visibles
-        </label>
-        <label class="campo-checkbox">
-            <input type="radio" name="@_nombreGrupoAlcance" checked="@(!_alcanceTodas)" @onchange="() => CambiarAlcanceAsync(false)" />
-            Una @EtiquetaAmbitoSingular(_ambito) en concreto
-        </label>
+    @* Grupo de opciones escrito como el de la pantalla de referencia del kit de formularios (alta de
+       Trabajador, Trabajadores.razor): un fieldset sin estilos propios se pinta con el recuadro del
+       navegador. role y aria-labelledby conservan lo que el fieldset y su legend anunciaban. *@
+    <div class="campo selector-lote-alcance" role="radiogroup" aria-labelledby="@IdEtiquetaAlcance">
+        <label id="@IdEtiquetaAlcance">¿A quién?</label>
+        <div class="lista-seleccion-multiple">
+            <label class="campo-checkbox">
+                <input type="radio" name="@_nombreGrupoAlcance" checked="@_alcanceTodas" @onchange="() => CambiarAlcanceAsync(true)" />
+                Todas las @EtiquetaAmbitoPlural(_ambito) visibles
+            </label>
+            <label class="campo-checkbox">
+                <input type="radio" name="@_nombreGrupoAlcance" checked="@(!_alcanceTodas)" @onchange="() => CambiarAlcanceAsync(false)" />
+                Una @EtiquetaAmbitoSingular(_ambito) en concreto
+            </label>
+        </div>
+    </div>
 
-        @if (!_alcanceTodas)
+    @if (!_alcanceTodas)
+    {
+        @if (_ambito == AmbitoAplicacion.Trabajador)
         {
-            @if (_ambito == AmbitoAplicacion.Trabajador)
-            {
-                <CampoBuscarSelect Etiqueta="Trabajador" Marcador="Escribe un nombre o alias para buscar…"
-                                   Valor="@_entidadId" ValorChanged="CambiarEntidadAsync" Opciones="@OpcionesTrabajadores" />
-            }
-            else if (_ambito == AmbitoAplicacion.Empresa)
-            {
-                <CampoSelect Etiqueta="Empresa" Valor="@_entidadId" ValorChanged="CambiarEntidadAsync">
-                    <option value="">Selecciona una empresa…</option>
-                    @foreach (var empresa in _empresasDisponibles)
-                    {
-                        <option value="@empresa.Id">@empresa.RazonSocial</option>
-                    }
-                </CampoSelect>
-            }
+            <CampoBuscarSelect Etiqueta="Trabajador" Marcador="Escribe un nombre o alias para buscar…"
+                               Valor="@_entidadId" ValorChanged="CambiarEntidadAsync" Opciones="@OpcionesTrabajadores" />
         }
-    </fieldset>
+        else if (_ambito == AmbitoAplicacion.Empresa)
+        {
+            <CampoSelect Etiqueta="Empresa" Valor="@_entidadId" ValorChanged="CambiarEntidadAsync">
+                <option value="">Selecciona una empresa…</option>
+                @foreach (var empresa in _empresasDisponibles)
+                {
+                    <option value="@empresa.Id">@empresa.RazonSocial</option>
+                }
+            </CampoSelect>
+        }
+    }
 
     @if (_errorValidacion is not null)
     {
@@ -95,6 +100,8 @@
 
 @code {
     private readonly string _nombreGrupoAlcance = $"selector-lote-alcance-{Guid.NewGuid():N}";
+
+    private string IdEtiquetaAlcance => $"{_nombreGrupoAlcance}-etiqueta";
 
     private AmbitoAplicacion? _ambito;
     private bool _cargandoTipos;
