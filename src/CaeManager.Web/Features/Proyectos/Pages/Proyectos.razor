@@ -165,6 +165,7 @@
                                 <td class="col-acciones">
                                     <MenuAcciones>
                                         <ItemMenuAccion OnClick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">@Textos["MenuDetalles"]</ItemMenuAccion>
+                                        <ItemMenuAccion Href="@($"/proyectos/{proyecto.Id}")">@Textos["MenuAbrirPagina"]</ItemMenuAccion>
                                         @if (proyecto.EstaAbierto)
                                         {
                                             <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirCerrarConfirmAsync(proyecto.Id)">@Textos["AccionCerrarProyecto"]</ItemMenuAccion></SoloConEscritura>
@@ -210,6 +211,8 @@
                         }
                         <span>@_detalle.CentroNombre · @TextoTecnicosActivos(_detalle.TecnicosActivos)</span>
                     </div>
+                    @* La página 360 del proyecto es el detalle completo; este panel queda como consulta rápida. *@
+                    <a class="enlace-pagina-proyecto" href="@($"/proyectos/{_detalle.Id}")">@Textos["EnlaceAbrirPagina"]</a>
                 }
             </div>
             <button type="button" class="cerrar-panel-proyecto" aria-label="@Textos["AriaCerrarPanel"]" @onclick="CerrarDetalleConAvisoAsync"><Icono Nombre="cerrar" /></button>
@@ -353,6 +356,8 @@
                     {
                         <Boton OnClick="() => AbrirReabrirConfirmAsync(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionReabrirProyecto"]</Boton>
                     }
+                    @* Proyectos no tiene selección múltiple: «Eliminar» vive en el pie del panel (D1, 2026-10-08). *@
+                    <Boton OnClick="() => AbrirEliminarAsync(_detalle.Id, _detalle.Nombre)" Variante="VarianteBoton.Destructivo">@Textos["MenuEliminar"]</Boton>
                 </div>
             </SoloConEscritura>
         }

@@ -6,7 +6,9 @@ namespace CaeManager.Web.Features.Delegaciones.Recursos;
 /// Operador CAE externo desde <c>/delegaciones</c>, y el enlace de preselección que
 /// copia el Actor de Plataforma TALVEG en el panel de Operadores CAE externos.
 /// También el diálogo que confirma retirar a una persona de ese acceso
-/// (<c>RevocarAsignacionOperadorDelegadoCommand</c>, claves <c>Retirar*</c>).
+/// (<c>RevocarAsignacionOperadorDelegadoCommand</c>, claves <c>Retirar*</c>), y los
+/// textos con que el Actor de Plataforma TALVEG da de alta un Operador CAE externo
+/// con su primer Administrador y recibe su enlace de activación (claves <c>Alta*</c>).
 /// <c>TextosAutorizarOperadorCaeExterno.resx</c> es el neutral (español) y
 /// <c>TextosAutorizarOperadorCaeExterno.ca-ES.resx</c> el catalán, con las mismas
 /// claves (<c>LocalizacionRecursosYRegistroTests</c>, Architecture.Tests).

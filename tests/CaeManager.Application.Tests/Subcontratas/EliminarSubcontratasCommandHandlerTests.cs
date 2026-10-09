@@ -10,6 +10,25 @@ public class EliminarSubcontratasCommandHandlerTests
 {
     private static Empresa CrearSubcontrata(string cif) => Empresa.CrearComoSubcontrata("Andamios del Sur S.L.", cif, "Gestionada");
 
+    /// <summary>Listados 5/7: el «Deshacer» del lote restaura exactamente estos ids, así que el DTO tiene que decir cuáles cayeron.</summary>
+    [Fact]
+    public async Task Devuelve_los_ids_de_las_que_si_se_eliminaron_y_no_los_de_las_rechazadas()
+    {
+        var sinTrabajadores = CrearSubcontrata("B10380210");
+        var conTrabajadores = CrearSubcontrata("B10380202");
+        var repositorio = new EmpresaRepositorioFalso();
+        repositorio.Agregar(sinTrabajadores);
+        repositorio.Agregar(conTrabajadores);
+        repositorio.IdsConTrabajadoresComoSubcontrata.Add(conTrabajadores.Id);
+        var handler = new EliminarSubcontratasCommandHandler(
+            repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CurrentUserServiceFalso(Guid.NewGuid()));
+
+        var resultado = await handler.Handle(
+            new EliminarSubcontratasCommand([sinTrabajadores.Id, conTrabajadores.Id, Guid.NewGuid()]), CancellationToken.None);
+
+        resultado.Valor.IdsEliminados.Should().Equal([sinTrabajadores.Id]);
+    }
+
     [Fact]
     public async Task Marca_todas_las_subcontratas_del_lote_como_eliminadas()
     {

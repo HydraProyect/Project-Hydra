@@ -32,3 +32,35 @@
     color: var(--color-text-muted);
     font: var(--font-body-sm);
 }
+
+.chuleta-atajos-letras {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-2) 0;
+}
+
+.chuleta-atajos-letra {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.chuleta-atajos-letra kbd {
+    min-width: 1.5rem;
+    text-align: center;
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface-subtle);
+    border: var(--border-default);
+    font-family: monospace;
+    font-size: 0.85em;
+}
+
+.chuleta-atajos-nota {
+    margin: 0 0 var(--space-3);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}

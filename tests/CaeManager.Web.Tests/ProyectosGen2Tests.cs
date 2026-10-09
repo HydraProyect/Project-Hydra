@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using CaeManager.Infrastructure.Identity;
 using Bunit;
+using Bunit.TestDoubles;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -10,6 +11,7 @@ using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
 using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
+using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
@@ -167,6 +169,7 @@ public class ProyectosGen2Tests : BunitContext
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[new TrabajadorSelectorDto(Guid.NewGuid(), "Salas Moreno, Javier", null, null)],
                 DesasignarTecnicoProyectoCommand => Result.Exito(),
                 EliminarProyectoCommand => Result.Exito(),
+                RestaurarProyectoCommand => Result.Exito(),
                 CerrarProyectoCommand => Result.Exito(),
                 CrearProyectoCommand => Result.Exito(Guid.NewGuid()),
                 ReabrirProyectoCommand => Result.Exito(),
@@ -481,6 +484,51 @@ public class ProyectosGen2Tests : BunitContext
         nombres.Should().Equal(ProyectoCerrado.Nombre);
     }
 
+    // ----------------------- El Cliente empresarial elegido viaja en la URL (T20)
+
+    [Fact]
+    public async Task Elegir_el_Cliente_empresarial_lo_escribe_en_la_url_y_volver_a_ninguno_lo_quita()
+    {
+        var cut = await RenderizarConClienteAsync();
+
+        Uri.Should().Contain($"cliente={ClienteId}");
+
+        await ElegirCliente(cut, Guid.Empty);
+
+        Uri.Should().NotContain("cliente=");
+    }
+
+    /// <summary>Recargar o compartir el enlace abre la lista de ese Cliente empresarial, sin volver a elegirlo.</summary>
+    [Fact]
+    public void Un_enlace_con_el_Cliente_empresarial_abre_su_lista()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+
+        var cut = Renderizar($"proyectos?cliente={ClienteId}");
+
+        cut.WaitForAssertion(() => cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim())
+            .Should().Equal(ProyectoAbierto.Nombre));
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.");
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().ContainSingle(q => q.ClienteId == ClienteId,
+            "la carga inicial y la primera pasada de parámetros no duplican la consulta");
+        ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History.Should().ContainSingle(
+            // bUnit sustituye la entrada cuando la página navega con replace: la única que queda
+            // tiene que ser la del arnés (sin replace), no una escrita por la página.
+            h => !h.Options.ReplaceHistoryEntry,
+            "abrir el enlace no navega: la URL ya dice el Cliente empresarial, y un NavigateTo en el prerender "
+            + "es una redirección HTTP a la misma dirección, en bucle");
+    }
+
+    /// <summary>La URL no puede abrir un Cliente empresarial que el selector no ofrece a este usuario.</summary>
+    [Fact]
+    public void Un_Cliente_empresarial_de_la_url_que_no_esta_en_el_selector_no_se_elige_ni_se_consulta()
+    {
+        var cut = Renderizar($"proyectos?cliente={Guid.NewGuid()}");
+
+        cut.WaitForAssertion(() => SelectorDeCliente(cut).GetAttribute("aria-label").Should().NotContain("Refrielectric"));
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Quitar_los_filtros_los_limpia_tambien_de_la_url_y_devuelve_la_lista()
     {
@@ -496,6 +544,7 @@ public class ProyectosGen2Tests : BunitContext
             .Should().BeEquivalentTo([ProyectoAbierto.Nombre, ProyectoCerrado.Nombre]);
         SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.",
             "el cliente es el maestro de la lista, no un filtro: quitar los filtros no lo toca");
+        Uri.Should().Contain($"cliente={ClienteId}", "y tampoco lo quita de la URL");
     }
 
     [Fact]
@@ -523,6 +572,22 @@ public class ProyectosGen2Tests : BunitContext
     /// 2026 son 55 días así contados (el mockup pintaba 54, cuenta exclusiva).
     /// </summary>
     [Fact]
+    public async Task La_pagina_360_se_alcanza_desde_el_menu_de_la_fila_y_desde_el_panel()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+        var cut = await RenderizarConClienteAsync();
+        var destino = $"/proyectos/{ProyectoCerrado.Id}";
+
+        var fila = cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == ProyectoCerrado.Nombre);
+        await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
+        cut.FindAll("a[role=menuitem]").Single(a => a.TextContent.Trim() == "Abrir página")
+            .GetAttribute("href").Should().Be(destino);
+
+        await AbrirDetalle(cut, ProyectoCerrado);
+        cut.Find("aside.panel-proyecto a.enlace-pagina-proyecto").GetAttribute("href").Should().Be(destino);
+    }
+
+    [Fact]
     public async Task El_detalle_se_abre_en_el_panel_lateral_con_los_dias_abiertos_de_facturacion()
     {
         _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
@@ -545,10 +610,10 @@ public class ProyectosGen2Tests : BunitContext
         var cut = await RenderizarConClienteAsync();
 
         await AbrirDetalle(cut, ProyectoCerrado);
-        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Reabrir proyecto");
+        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Reabrir proyecto", "Eliminar");
 
         await AbrirDetalle(cut, ProyectoAbierto);
-        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Cerrar proyecto");
+        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Cerrar proyecto", "Eliminar");
 
         await BotonConTexto(cut, ".pie-panel-proyecto button", "Cerrar proyecto").ClickAsync(new MouseEventArgs());
         cut.Find("[role=dialog] h2").TextContent.Should().Be("Cerrar proyecto");
@@ -1321,6 +1386,30 @@ public class ProyectosGen2Tests : BunitContext
         PanelDeDetalleAbierto(cut).Should().BeFalse("«Salir y descartar» cierra el panel");
     }
 
+    /// <summary>
+    /// Medido en CI (E2E <c>ProyectosFase1SelectorTests</c>): reescribir la URL al seguir editando
+    /// es una navegación con el panel sin guardar, y la pregunta volvía a salir sola.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_cambiar_de_Cliente_empresarial_y_seguir_editando_no_navega()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+        await EscribirEnElPanelAsync(cut, "Otro nombre");
+        var historial = ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History;
+        var navegacionesAntes = historial.Count;
+        var uriAntes = Uri;
+
+        var cambio = ElegirCliente(cut, Guid.Empty);
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("cambiar de Cliente empresarial cierra el panel"));
+        await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
+        await cambio.WaitAsync(Paciencia);
+
+        historial.Count.Should().Be(navegacionesAntes, "la URL no ha cambiado: no hay nada que reescribir");
+        Uri.Should().Be(uriAntes);
+        PreguntaAbierta(cut).Should().BeFalse();
+        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre");
+    }
+
     [Fact]
     public async Task Aviso_abrir_otro_proyecto_con_la_edicion_a_medias_pregunta_y_descartar_abre_el_otro()
     {
@@ -1700,6 +1789,34 @@ public class ProyectosGen2Tests : BunitContext
 
         HayBoton(cut, "Eliminar").Should().BeTrue("descartar sigue con la confirmación de eliminar");
         _mediator.Enviados.OfType<EliminarProyectoCommand>().Should().BeEmpty("todavía no se ha confirmado");
+    }
+
+    /// <summary>
+    /// Listados 5/7 (decisiones D1 y D6, 2026-10-08): Proyectos no tiene selección múltiple, así que
+    /// «Eliminar» vive también en el pie del panel; y eliminar deja «Deshacer», que restaura ese Proyecto.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_desde_el_pie_del_panel_pide_confirmacion_y_ofrece_Deshacer_que_restaura_ese_proyecto()
+    {
+        _mediator.Proyectos = [ProyectoCerrado, ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+        await AbrirDetalle(cut, ProyectoAbierto);
+
+        await BotonConTexto(cut, ".pie-panel-proyecto button", "Eliminar").ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<EliminarProyectoCommand>().Should().BeEmpty("abrir el diálogo no borra nada");
+
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Eliminar").ClickAsync(new MouseEventArgs());
+
+        _mediator.Enviados.OfType<EliminarProyectoCommand>().Should().Equal([new EliminarProyectoCommand(ProyectoAbierto.Id)]);
+        PanelDeDetalleAbierto(cut).Should().BeFalse("eliminar el proyecto abierto cierra su panel");
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        _mediator.Enviados.OfType<RestaurarProyectoCommand>().Should().Equal([new RestaurarProyectoCommand(ProyectoAbierto.Id)]);
     }
 
     [Fact]

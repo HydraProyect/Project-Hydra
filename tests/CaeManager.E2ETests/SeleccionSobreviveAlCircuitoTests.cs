@@ -46,7 +46,6 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
 
         await Ayudas.IniciarSesionAsync(
             page, fixture.BaseUrl, Ayudas.EmailOperadorConsultaConsultora, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         // ── Línea base, en el mismo fixture ────────────────────────────────────
         // El tenant de origen de este Operador Delegado es la Consultora, que no
@@ -258,7 +257,6 @@ public class SeleccionSobreviveAlCircuitoTests(WebAppFixture fixture)
 
         await Ayudas.IniciarSesionAsync(
             page, fixture.BaseUrl, Ayudas.EmailOperadorConsultaConsultora, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
         var peticiones = new List<string>();

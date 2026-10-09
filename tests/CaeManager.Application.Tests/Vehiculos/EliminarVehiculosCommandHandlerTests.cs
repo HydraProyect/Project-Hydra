@@ -11,6 +11,21 @@ public class EliminarVehiculosCommandHandlerTests
     private static Vehiculo CrearVehiculo() =>
         Vehiculo.DeEmpresa(Guid.NewGuid(), "Furgón 1", "Transit", Guid.NewGuid().ToString("N")[..8]);
 
+    /// <summary>Listados 5/7: el «Deshacer» del lote restaura exactamente estos ids, así que el DTO tiene que decir cuáles cayeron.</summary>
+    [Fact]
+    public async Task Devuelve_los_ids_de_los_que_si_se_eliminaron_y_no_los_de_los_que_no_existian()
+    {
+        var existente = CrearVehiculo();
+        var repositorio = new VehiculoRepositorioFalso();
+        repositorio.Agregar(existente);
+        var handler = new EliminarVehiculosCommandHandler(
+            repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CurrentUserServiceFalso(Guid.NewGuid()));
+
+        var resultado = await handler.Handle(new EliminarVehiculosCommand([existente.Id, Guid.NewGuid()]), CancellationToken.None);
+
+        resultado.Valor.IdsEliminados.Should().Equal([existente.Id]);
+    }
+
     [Fact]
     public async Task Marca_todos_los_vehiculos_del_lote_como_eliminados()
     {

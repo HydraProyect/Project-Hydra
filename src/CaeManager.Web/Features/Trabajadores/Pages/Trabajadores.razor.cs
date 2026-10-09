@@ -158,6 +158,17 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    /// <summary>
+    /// Empleador elegido en el filtro: una Empresa (<c>?empresa=</c>) o una
+    /// subcontrata (<c>?subcontrata=</c>), nunca las dos. Con ambas en la URL
+    /// gana la subcontrata, como en <see cref="ValorFiltroEmpleador"/>.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "empresa")]
+    public string? EmpresaInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "subcontrata")]
+    public string? SubcontrataInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
@@ -193,6 +204,13 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool _confirmarEliminarLoteVisible;
 
     private IReadOnlyList<FiltroGuardadoDto> _filtrosGuardados = [];
+    private FiltroGuardadoDto? _filtroGuardadoAEliminar;
+    private bool _eliminandoFiltroGuardado;
+
+    private void CambiarVisibilidadBorradoFiltroGuardado(bool visible)
+    {
+        if (!visible) _filtroGuardadoAEliminar = null;
+    }
     private bool _mostrarGuardarFiltro;
     private string _nombreFiltroNuevo = string.Empty;
     private bool _guardandoFiltro;
@@ -323,9 +341,15 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             ? EstadoInicial!
             : string.Empty;
 
-        var cambiaronLosFiltros = deLaUrl != _busqueda || estadoDeLaUrl != _estadoFiltro;
+        var subcontrataDeLaUrl = IdDesdeUrl(SubcontrataInicial);
+        var empresaDeLaUrl = subcontrataDeLaUrl.Length > 0 ? string.Empty : IdDesdeUrl(EmpresaInicial);
+
+        var cambiaronLosFiltros = deLaUrl != _busqueda || estadoDeLaUrl != _estadoFiltro
+            || empresaDeLaUrl != _filtroEmpresaId || subcontrataDeLaUrl != _filtroSubcontrataId;
         _busqueda = deLaUrl;
         _estadoFiltro = estadoDeLaUrl;
+        _filtroEmpresaId = empresaDeLaUrl;
+        _filtroSubcontrataId = subcontrataDeLaUrl;
 
         if (cambiaronLosFiltros && _grid is not null)
             await RecargarAsync();
@@ -423,10 +447,27 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         }
     }
 
+    /// <summary>Un Id de la URL solo vale si es un Guid; cualquier otra cosa es «sin filtro».</summary>
+    private static string IdDesdeUrl(string? valor) =>
+        Guid.TryParse(valor, out var id) ? id.ToString() : string.Empty;
+
+    /// <summary>
+    /// Los dos parámetros del empleador en una sola navegación: son excluyentes,
+    /// y dos navegaciones seguidas se pisarían (ver
+    /// <see cref="NavigationManagerExtensions.ActualizarFiltrosEnUrl"/>).
+    /// </summary>
+    private void EscribirEmpleadorEnUrl() =>
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["empresa"] = _filtroEmpresaId,
+            ["subcontrata"] = _filtroSubcontrataId,
+        });
+
     private async Task FiltrarPorEmpresaAsync(string valor)
     {
         _filtroEmpresaId = valor;
         _filtroSubcontrataId = string.Empty;
+        EscribirEmpleadorEnUrl();
         await RecargarAsync();
     }
 
@@ -434,6 +475,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     {
         _filtroSubcontrataId = valor;
         _filtroEmpresaId = string.Empty;
+        EscribirEmpleadorEnUrl();
         await RecargarAsync();
     }
 
@@ -525,11 +567,11 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// <summary>
     /// Quita los cuatro filtros en una sola recarga. Encadenar los setters
     /// lanzaría cuatro consultas y las tres primeras devolverían listas que ya
-    /// no se van a pintar. La búsqueda y el estado viven además en la URL y se
+    /// no se van a pintar. Los cuatro viven además en la URL y se
     /// limpian allí en UNA sola navegación (ver
     /// <see cref="NavigationManagerExtensions.ActualizarFiltrosEnUrl"/>): si no,
-    /// <see cref="OnParametersSetAsync"/> los repondría desde <c>?q=</c> y
-    /// <c>?estado=</c> en la siguiente pasada de parámetros.
+    /// <see cref="OnParametersSetAsync"/> los repondría desde la URL
+    /// en la siguiente pasada de parámetros.
     /// </summary>
     private async Task LimpiarFiltrosAsync()
     {
@@ -537,7 +579,13 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _estadoFiltro = string.Empty;
         _filtroEmpresaId = string.Empty;
         _filtroSubcontrataId = string.Empty;
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = null,
+            ["estado"] = null,
+            ["empresa"] = null,
+            ["subcontrata"] = null,
+        });
         await RecargarAsync();
     }
 
@@ -1200,19 +1248,21 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         if (valores is null) return;
 
         _busqueda = valores.Busqueda ?? string.Empty;
-        _filtroEmpresaId = valores.EmpresaId ?? string.Empty;
-        _filtroSubcontrataId = valores.SubcontrataId ?? string.Empty;
+        _filtroSubcontrataId = IdDesdeUrl(valores.SubcontrataId);
+        _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(valores.EmpresaId);
         // Un filtro guardado define el conjunto entero: sin estado guardado, el estado se quita. Un valor que
         // ya no es una opción (catálogo cambiado) se ignora, como uno de la URL.
         _estadoFiltro = EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == valores.Estado) ? valores.Estado! : string.Empty;
 
-        // La búsqueda y el estado del filtro guardado se escriben también en la URL (?q=, ?estado=), en una
-        // sola navegación. Si solo se aplicaran en memoria, la siguiente navegación dentro de la página
-        // haría que OnParametersSetAsync los borrase leyendo una URL sin ellos.
+        // Los cuatro filtros del filtro guardado se escriben también en la URL, en una sola navegación.
+        // Si solo se aplicaran en memoria, la siguiente navegación dentro de la página haría que
+        // OnParametersSetAsync los borrase leyendo una URL sin ellos.
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
-            ["q"] = string.IsNullOrEmpty(_busqueda) ? null : _busqueda,
-            ["estado"] = string.IsNullOrEmpty(_estadoFiltro) ? null : _estadoFiltro,
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro,
+            ["empresa"] = _filtroEmpresaId,
+            ["subcontrata"] = _filtroSubcontrataId,
         });
         await RecargarAsync();
     }
@@ -1252,15 +1302,36 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         }
     }
 
-    private async Task EliminarFiltroGuardadoAsync(Guid id)
-    {
-        var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(id));
-        if (resultado.EsFallido)
-        {
-            ToastService.MostrarError(resultado.Error);
-            return;
-        }
+    private void PedirEliminarFiltroGuardado(string idTexto) =>
+        _filtroGuardadoAEliminar = _filtrosGuardados.FirstOrDefault(f => f.Id.ToString() == idTexto);
 
-        _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Trabajadores));
+    private async Task ConfirmarEliminarFiltroGuardadoAsync()
+    {
+        if (_eliminandoFiltroGuardado || _filtroGuardadoAEliminar is not { } filtro)
+            return;
+
+        _eliminandoFiltroGuardado = true;
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(filtro.Id));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            // Ya está borrado: se cierra el diálogo y se quita de la lista sin releerla, para que
+            // un fallo de la relectura no deje la confirmación abierta sobre un filtro que no existe.
+            _filtroGuardadoAEliminar = null;
+            _filtrosGuardados = _filtrosGuardados.Where(f => f.Id != filtro.Id).ToList();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["FiltroGuardadoBorrarError"], TonoToast.Error);
+        }
+        finally
+        {
+            _eliminandoFiltroGuardado = false;
+        }
     }
 }

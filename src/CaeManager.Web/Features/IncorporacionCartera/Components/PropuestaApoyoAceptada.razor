@@ -1,0 +1,38 @@
+@*
+    Una propuesta de apoyo que quien mira acaba de aceptar en la campana de avisos: ya no hay nada
+    que decidir, solo abrir el Tenant propietario. La propuesta pendiente, con Aceptar y Rechazar,
+    la pinta la propia campana como un tipo más de aviso (CampanaAvisos).
+
+    Solo pinta. El enlace es el mismo POST con antiforgery a /cuenta/cliente-activo que usa el
+    selector de Tenant: el endpoint revalida la cartera recién emitida en cada envío, así que aquí
+    no se decide nada. Vive en esta Feature porque el rótulo del botón es de su recurso.
+*@
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.IncorporacionCartera.Recursos
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosApoyoCartera> Textos
+
+<div class="propuesta-aceptada" data-propuesta-aceptada="@PropuestaId">
+    <strong>@Textos["CampanaAceptada", NombreEmpresa]</strong>
+    <form method="post" action="/cuenta/cliente-activo" class="propuesta-aceptada-acciones">
+        @if (Token is not null)
+        {
+            <input type="hidden" name="@Token.FormFieldName" value="@Token.Value" />
+        }
+        <input type="hidden" name="tenantId" value="@TenantPropietarioId" />
+        <input type="hidden" name="returnUrl" value="/" />
+        <Boton Type="submit" Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno">@Textos["AbrirEmpresa", NombreEmpresa]</Boton>
+    </form>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public Guid PropuestaId { get; set; }
+
+    /// <summary>Nombre del Tenant propietario, tal como venía en la propuesta.</summary>
+    [Parameter, EditorRequired] public string NombreEmpresa { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired] public Guid TenantPropietarioId { get; set; }
+
+    [Parameter] public AntiforgeryRequestToken? Token { get; set; }
+}

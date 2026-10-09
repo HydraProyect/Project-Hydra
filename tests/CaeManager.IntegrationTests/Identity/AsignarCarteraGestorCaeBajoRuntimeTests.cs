@@ -521,6 +521,7 @@ public class AsignarCarteraGestorCaeBajoRuntimeTests : IAsyncLifetime
         public Task<IReadOnlyList<TenantCandidatoIncorporacion>> ObtenerAsignablesAsync(Guid o, CancellationToken c = default) => real.ObtenerAsignablesAsync(o, c);
         public Task<AsignacionOperacion?> ObtenerOperacionVigenteAsync(Guid id, CancellationToken c = default) => real.ObtenerOperacionVigenteAsync(id, c);
         public Task<ResultadoIncorporacionCartera> IncorporarAsync(SolicitudIncorporacionCartera s, CancellationToken c = default) => real.IncorporarAsync(s, c);
+        public Task<ResultadoApoyoCartera> IncorporarApoyoAsync(PropuestaApoyoCartera p, CancellationToken c = default) => real.IncorporarApoyoAsync(p, c);
 
         public async Task<ResultadoIncorporacionCartera> IncorporarAsync(Guid p, Guid o, Guid op, Guid u, CancellationToken c = default)
         {

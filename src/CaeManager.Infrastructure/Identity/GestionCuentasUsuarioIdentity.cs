@@ -1,6 +1,7 @@
 using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Persistence;
@@ -192,6 +193,19 @@ public class GestionCuentasUsuarioIdentity(
             // establece su contraseña después, el sello cambia y el token no vale.
             if (!await EsPendienteAsync(usuario)) return Result.Fallo<string>(AutoridadSobreCuentas.YaNoPendiente);
 
+            // Sello nuevo antes de generar: los enlaces emitidos hasta ahora dejan de
+            // valer y la emisión queda en la auditoría de la cuenta (ver
+            // ApplicationUser.PrepararEmisionDeEnlaceDeActivacion). Si la persona se
+            // activó entre la lectura y esta escritura, el ConcurrencyStamp la hace
+            // fallar y no se emite nada.
+            usuario.PrepararEmisionDeEnlaceDeActivacion();
+            var sellado = await userManager.UpdateAsync(usuario);
+            if (!sellado.Succeeded)
+            {
+                DescartarEmisionFallida(usuarioId);
+                return Result.Fallo<string>(ErrorDeIdentity("Usuarios.FalloAlEmitirActivacion", sellado));
+            }
+
             var token = await userManager.GeneratePasswordResetTokenAsync(usuario);
             return Result.Exito(WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token)));
         }, cancellationToken);
@@ -216,6 +230,21 @@ public class GestionCuentasUsuarioIdentity(
         foreach (var entrada in contexto.ChangeTracker.Entries<ApplicationUser>()
                      .Where(e => e.Entity.Id == usuarioId).ToList())
             entrada.State = EntityState.Detached;
+    }
+
+    /// <summary>
+    /// Una emisión que no llegó a guardarse no deja nada en el contexto del circuito:
+    /// ni la cuenta con el sello ya cambiado en memoria, ni la fila de auditoría que el
+    /// interceptor añadió antes de que la escritura fallara. Sin esto, el siguiente
+    /// guardado de cualquier pantalla del mismo circuito las arrastraría: una auditoría
+    /// de una emisión que no ocurrió, o un fallo de concurrencia ajeno a esa pantalla.
+    /// </summary>
+    private void DescartarEmisionFallida(Guid usuarioId)
+    {
+        DesengancharCuenta(usuarioId);
+        foreach (var fila in contexto.ChangeTracker.Entries<RegistroAuditoria>()
+                     .Where(e => e.State == EntityState.Added && e.Entity.EntidadId == usuarioId).ToList())
+            fila.State = EntityState.Detached;
     }
 
     /// <summary>El motivo que da Identity, en una sola línea legible.</summary>

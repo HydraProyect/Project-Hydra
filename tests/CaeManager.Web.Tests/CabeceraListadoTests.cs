@@ -64,7 +64,8 @@ public class CabeceraListadoTests : BunitContext
             .Add(c => c.Primaria, Primaria));
 
         cut.Find(".acciones-cabecera").Children.Select(e => e.ClassList[0])
-            .Should().Equal("cabecera-listado-icono", "menu-acciones", "primaria-de-prueba");
+            .Should().Equal("cabecera-listado-icono", "cabecera-listado-icono", "menu-acciones", "cabecera-listado-primaria");
+        cut.Find(".cabecera-listado-primaria > .primaria-de-prueba").TextContent.Should().Be("+ Nuevo");
         var menu = cut.Find(".menu-acciones-disparador");
         menu.GetAttribute("aria-label").Should().Be("Más acciones");
         menu.GetAttribute("title").Should().Be("Más acciones", "el «⋯» no tiene texto: el title lo explica al pasar el ratón");
@@ -98,9 +99,47 @@ public class CabeceraListadoTests : BunitContext
     {
         var cut = Render<CabeceraListado>(p => p.Add(c => c.Titulo, "Lista").Add(c => c.Primaria, Primaria));
 
-        cut.FindAll(".cabecera-listado-icono").Should().BeEmpty();
+        cut.FindAll(".cabecera-listado-icono[aria-pressed]").Should().BeEmpty();
         cut.FindAll(".menu-acciones").Should().BeEmpty();
         cut.Find(".primaria-de-prueba").TextContent.Should().Be("+ Nuevo");
+    }
+
+    [Fact]
+    public void El_boton_de_atajos_esta_siempre_y_lo_recoge_atajos_globales_js()
+    {
+        var cut = Render<CabeceraListado>(p => p.Add(c => c.Titulo, "Lista"));
+
+        // No lleva @onclick: la chuleta vive en el islote AtajosGlobales del layout, y
+        // atajos-globales.js la abre al ver un clic sobre data-abrir-atajos.
+        var atajos = cut.Find("button.cabecera-listado-icono[data-abrir-atajos]");
+        atajos.GetAttribute("aria-label").Should().Be("Atajos de teclado");
+        atajos.GetAttribute("title").Should().Be("Atajos de teclado");
+        atajos.HasAttribute("aria-pressed").Should().BeFalse("no es un conmutador: abre un diálogo");
+    }
+
+    [Fact]
+    public void Declara_las_letras_de_KeyTips_de_sus_cuatro_controles()
+    {
+        var cut = Render<CabeceraListado>(p => p
+            .Add(c => c.Titulo, "Lista")
+            .Add(c => c.SeleccionMultipleChanged, EventCallback.Factory.Create<bool>(this, _ => { }))
+            .Add(c => c.Menu, Menu)
+            .Add(c => c.Primaria, Primaria));
+
+        cut.Find("[data-keytip='S']").GetAttribute("aria-label").Should().Be("Selección múltiple");
+        cut.Find("[data-keytip='K']").GetAttribute("aria-label").Should().Be("Atajos de teclado");
+        cut.Find("[data-keytip='M']").GetAttribute("aria-label").Should().Be("Más acciones");
+        // La primaria es de la página: la letra va en el envoltorio y keytips.js se la da al
+        // primer control de dentro.
+        cut.Find("[data-keytip-contenedor='N'] .primaria-de-prueba").TextContent.Should().Be("+ Nuevo");
+    }
+
+    [Fact]
+    public void Sin_primaria_no_queda_un_envoltorio_vacio_pidiendo_la_letra_N()
+    {
+        var cut = Render<CabeceraListado>(p => p.Add(c => c.Titulo, "Lista"));
+
+        cut.FindAll("[data-keytip-contenedor]").Should().BeEmpty();
     }
 
     [Fact]

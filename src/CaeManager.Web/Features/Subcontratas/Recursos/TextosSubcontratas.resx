@@ -211,13 +211,13 @@
     <value>¿Eliminar a {0}?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas. No se puede recuperar desde la aplicación.</value>
+    <value>Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarla desde Auditoría.</value>
   </data>
   <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
     <value>¿Eliminar {0} subcontrata(s)?</value>
   </data>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas. No se pueden recuperar desde la aplicación.</value>
+    <value>Se ocultarán de las listas activas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlas desde Auditoría.</value>
   </data>
   <data name="ConteoUno" xml:space="preserve">
     <value>{0} de {1} subcontrata</value>
@@ -884,5 +884,20 @@
   </data>
   <data name="ExplicacionSupervisada360" xml:space="preserve">
     <value>Supervisada: la subcontrata sube su documentación a la plataforma del Cliente empresarial titular del Centro y tu equipo comprueba allí que es válida. La comprobación caduca y hay que repetirla.</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="ToastRestaurada" xml:space="preserve">
+    <value>Subcontrata restaurada.</value>
+  </data>
+  <data name="ToastLoteRestauradas" xml:space="preserve">
+    <value>{0} subcontrata(s) restaurada(s).</value>
+  </data>
+  <data name="ToastLoteRestauradasConErrores" xml:space="preserve">
+    <value>{0} restaurada(s). {1} no se pudieron restaurar: {2}</value>
+  </data>
+  <data name="ErrorRestaurar" xml:space="preserve">
+    <value>No se pudo deshacer la eliminación. Inténtalo de nuevo.</value>
   </data>
 </root>

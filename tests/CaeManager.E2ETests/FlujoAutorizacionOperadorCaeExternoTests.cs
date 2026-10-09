@@ -39,8 +39,21 @@ public class FlujoAutorizacionOperadorCaeExternoTests(WebAppFixtureConSegundoTen
         await plataforma.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Nuevo Operador CAE externo", Exact = true }).ClickAsync();
         var modalOperador = plataforma.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nuevo Operador CAE externo", Exact = true });
         await modalOperador.GetByLabel("Nombre del Operador CAE externo", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreOperador);
+        // FS-22: el primer Administrador se indica en el mismo acto. Correo nuevo por
+        // ejecución, como el nombre: el correo de una cuenta es único entre Tenants.
+        await modalOperador.GetByLabel("Correo del primer Administrador", new LocatorGetByLabelOptions { Exact = true })
+            .FillAsync($"primer-administrador-{Guid.NewGuid().ToString("N")[..8]}@operador-e2e.test");
+        await modalOperador.GetByLabel("Nombre del primer Administrador", new LocatorGetByLabelOptions { Exact = true }).FillAsync("Marta Ruiz");
         await modalOperador.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Crear", Exact = true }).ClickAsync();
         await modalOperador.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+
+        // El alta enseña el enlace de activación de esa cuenta (no se envía correo); hasta
+        // cerrarlo, su modal tapa las tarjetas.
+        var modalActivacion = plataforma.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Operador CAE externo creado", Exact = true });
+        await modalActivacion.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await Expect(modalActivacion.Locator(".operadores-cae-enlace")).ToContainTextAsync("/cuenta/restablecer-contrasena?userId=");
+        await modalActivacion.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Hecho", Exact = true }).ClickAsync();
+        await modalActivacion.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         var tarjetaOperador = plataforma.Locator(".operadores-cae-tarjeta", new PageLocatorOptions { HasText = nombreOperador });
         await tarjetaOperador.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Copiar enlace de autorización" }).ClickAsync();

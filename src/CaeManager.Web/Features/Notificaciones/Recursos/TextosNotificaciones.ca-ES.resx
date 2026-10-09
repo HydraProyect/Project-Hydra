@@ -12,10 +12,16 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="BotonOmitir" xml:space="preserve">
-    <value>Omitir</value>
-  </data>
   <data name="AccionPorDefecto" xml:space="preserve">
     <value>Gestionar</value>
+  </data>
+  <data name="BotonMarcarRevisado" xml:space="preserve">
+    <value>Marca com a revisat</value>
+  </data>
+  <data name="BotonAceptarSolicitud" xml:space="preserve">
+    <value>Acceptar</value>
+  </data>
+  <data name="BotonRechazarSolicitud" xml:space="preserve">
+    <value>Rebutjar</value>
   </data>
 </root>

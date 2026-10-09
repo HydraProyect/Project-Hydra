@@ -36,7 +36,6 @@ public class IdiomaConCatalanApagadoTests(WebAppFixture fixture)
         Assert.DoesNotContain("Català", await page.ContentAsync());
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         // La cookie que dejaría una cuenta en catalán (o una sesión de cuando el
         // catalán estaba encendido): se conserva, pero no decide nada.
@@ -67,7 +66,6 @@ public class IdiomaConCatalanApagadoTests(WebAppFixture fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         // El token antiforgery no va atado a un formulario: el de cerrar sesión
         // vale igual. Así el 400 es del interruptor, no de la falta de token
