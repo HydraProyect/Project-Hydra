@@ -87,7 +87,7 @@
                 {
                     @if (_puedeEscribir)
                     {
-                        <Boton Variante="VarianteBoton.Primario" OnClick="AbrirReactivar">@Textos["AccionReactivar"]</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirReactivar">@Textos["AccionReactivar"]</Boton>
                     }
                 }
                 else if (EsSinGestionCae)
@@ -113,7 +113,7 @@
                 @if (_puedeEscribir && !EsCancelada)
                 {
                     <MenuAcciones>
-                        <ItemMenuAccion OnClick="() => _editarVisible = true">@Textos["Visita360EditarVisita"]</ItemMenuAccion>
+                        <ItemMenuAccion OnClick="() => _editarVisible = true">@Textos["DrawerTituloEditar"]</ItemMenuAccion>
                         @if (EsPorCorreo)
                         {
                             <ItemMenuAccion Href="@RutaPaqueteDocumental(visita.Id)">@Textos["DescargarPaqueteDocumental"]</ItemMenuAccion>
@@ -142,7 +142,7 @@
                 <span>@TextoPlazoBanda(visita)</span>
                 @foreach (var (titular, documentos) in incidencias)
                 {
-                    <span class="visita360-banda-tramo">@Textos["Visita360BandaTitular", titular] @for (var i = 0; i < documentos.Count; i++) { var documento = documentos[i]; @(i > 0 ? ", " : "")<IncidenciaBanda Texto="@TextoIncidencia(documento)" OnClick="@AlPulsarIncidencia(documento)" /> }<text>.</text></span>
+                    <span class="visita360-banda-tramo">@(Textos["Visita360BandaTitular", titular].Value + " ")@foreach (var (separador, documento) in ConSeparador(documentos)) { @separador<IncidenciaBanda Texto="@TextoIncidencia(documento)" OnClick="@AlPulsarIncidencia(documento)" /> }@(".")</span>
                 }
             </BandaAccion>
         }
@@ -159,7 +159,100 @@
                             @PestanaDelPaquete
                             break;
                         default:
-                            @PestanaDeComprobacion
+                            @* En el marcado y no en un fragmento de @code: declara su fuente de claves. *@
+                            {
+                            @if (EsCancelada)
+                            {
+                                <Tarjeta>
+                                    <p class="visita360-texto">@Textos["Visita360CanceladaSinComprobacion"]</p>
+                                </Tarjeta>
+                            }
+                            else if (_cargandoDocumentacion)
+                            {
+                                <Tarjeta>
+                                    <EstadoCargando Filas="4" />
+                                </Tarjeta>
+                            }
+                            else if (_errorDocumentacion)
+                            {
+                                <Tarjeta>
+                                    <EstadoVacio Titulo="@Textos["ErrorDocumentacionTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
+                                        <Accion>
+                                            <Boton Variante="VarianteBoton.Secundario" OnClick="CargarDocumentacionAsync">@Comunes["Reintentar"]</Boton>
+                                        </Accion>
+                                    </EstadoVacio>
+                                </Tarjeta>
+                            }
+                            else if (_documentacion is { Trabajadores.Count: 0 })
+                            {
+                                <Tarjeta>
+                                    <EstadoVacio Titulo="@Textos["VacioTrabajadoresTitulo"]" Descripcion="@Textos["VacioTrabajadoresDescripcion"]">
+                                        <Accion>
+                                            @if (_puedeEscribir)
+                                            {
+                                                <Boton Variante="VarianteBoton.Secundario" OnClick="() => _editarVisible = true">@Textos["DrawerTituloEditar"]</Boton>
+                                            }
+                                        </Accion>
+                                    </EstadoVacio>
+                                </Tarjeta>
+                            }
+                            else if (_documentacion is { } documentacion)
+                            {
+                                var total = TodosLosDocumentos(documentacion).Count();
+                                var grupos = Grupos(documentacion);
+                                var visibles = ContarVisibles(grupos);
+
+                                <FiltroEstadosMultiple Opciones="OpcionesEstado(documentacion)" @bind-Seleccion="_estadosMarcados" Total="total" />
+
+                                <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SubtituloComprobacionPrevia"]">
+                                    <Encabezado>
+                                        @ResumenComprobacion(documentacion) @Textos["Visita360SoloLoExigido", _detalle!.CentroNombre]
+                                        @if (HayFiltrosActivos)
+                                        {
+                                            <text> @Textos["Visita360Mostrando", visibles, total]</text>
+                                        }
+                                    </Encabezado>
+                                    <ChildContent>
+                                        @* Cabeceras de grupo y filas son hermanas dentro de la lista: una sola fuente de claves. *@
+                                        @{ var claves = new ClavesDeHermanos(); }
+                                        @foreach (var grupo in grupos)
+                                        {
+                                            var abierto = !_gruposPlegados.Contains(grupo.Id);
+                                            <li class="visita360-grupo" @key="claves.De(grupo.Id)">
+                                                <button type="button" class="visita360-grupo-plegar" aria-expanded="@(abierto ? "true" : "false")"
+                                                        aria-label="@(abierto ? Textos["Visita360PlegarGrupo", grupo.Nombre] : Textos["Visita360DesplegarGrupo", grupo.Nombre])"
+                                                        @onclick="() => AlternarGrupo(grupo.Id, !abierto)">
+                                                    <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                                                </button>
+                                                <span>@grupo.Nombre</span>
+                                                <i>@grupo.Empleador</i>
+                                            </li>
+                                            @if (abierto)
+                                            {
+                                                @if (grupo.Documentos.Count == 0)
+                                                {
+                                                    <li class="visita360-grupo-vacio" @key="claves.De((grupo.Id, 0))">@Textos["Visita360GrupoSinExigencias"]</li>
+                                                }
+                                                @foreach (var documento in grupo.Visibles)
+                                                {
+                                                    <FilaRelacion @key="claves.De((grupo.Id, documento.TipoDocumentoId))" Nombre="@documento.TipoDocumentoNombre"
+                                                                  OnNombre="() => AbrirDocumento(documento)" Tono="EstadoDocumentoVisitaUi.TonoDeFila(documento.Estado)">
+                                                        <Detalle>@DetalleDocumento(documento)</Detalle>
+                                                        <Estado><Badge Tono="EstadoDocumentoVisitaUi.Tono(documento.Estado)">@EstadoDocumentoVisitaUi.Texto(documento.Estado, Textos)</Badge></Estado>
+                                                    </FilaRelacion>
+                                                }
+                                            }
+                                        }
+                                    </ChildContent>
+                                    <Pie>
+                                        @if (HayFiltrosActivos && visibles == 0)
+                                        {
+                                            @Textos["Visita360NingunoEnLosEstados"]
+                                        }
+                                    </Pie>
+                                </ListaRelaciones>
+                            }
+                            }
                             break;
                     }
                 </Pestanas>
@@ -284,104 +377,11 @@
                     @Textos["DetalleEntrada"] <b>@(visita.HoraEstimadaAcceso?.ToString("HH:mm") ?? Textos["DetalleSinHora"].Value)</b>
                     · @Textos["DetalleTitularCentro"]:
                 </span>
-                <a class="visita360-enlace" href="@($"/clientes/{visita.ClienteId}")" title="@Comunes["IrAPaginaDe", visita.ClienteRazonSocial]">@visita.ClienteRazonSocial</a>
+                <a class="visita360-enlace" href="@($"/clientes/{visita.EmpresaTitularId}")" title="@Comunes["IrAPaginaDe", visita.ClienteRazonSocial]">@visita.ClienteRazonSocial</a>
                 <span>· @Textos["DetalleEmpresa"]:</span>
                 <a class="visita360-enlace" href="@($"/empresas/{visita.EmpresaId}")" title="@Comunes["IrAPaginaDe", visita.EmpresaRazonSocial]">@visita.EmpresaRazonSocial</a>
                 <span>·</span>
                 <a class="visita360-enlace" href="@($"/centros/{visita.CentroId}")" title="@Comunes["IrAPaginaDe", visita.CentroNombre]">@Textos["Visita360VerCentro"]</a>
-    };
-
-    private RenderFragment PestanaDeComprobacion => __builder =>
-    {
-        @if (EsCancelada)
-        {
-            <Tarjeta>
-                <p class="visita360-texto">@Textos["Visita360CanceladaSinComprobacion"]</p>
-            </Tarjeta>
-        }
-        else if (_cargandoDocumentacion)
-        {
-            <Tarjeta>
-                <EstadoCargando Filas="4" />
-            </Tarjeta>
-        }
-        else if (_errorDocumentacion)
-        {
-            <Tarjeta>
-                <EstadoVacio Titulo="@Textos["ErrorDocumentacionTitulo"]" Descripcion="@Textos["ErrorCargaDescripcion"]">
-                    <Accion>
-                        <Boton Variante="VarianteBoton.Primario" OnClick="CargarDocumentacionAsync">@Comunes["Reintentar"]</Boton>
-                    </Accion>
-                </EstadoVacio>
-            </Tarjeta>
-        }
-        else if (_documentacion is { Trabajadores.Count: 0 })
-        {
-            <Tarjeta>
-                <EstadoVacio Titulo="@Textos["VacioTrabajadoresTitulo"]" Descripcion="@Textos["VacioTrabajadoresDescripcion"]">
-                    <Accion>
-                        @if (_puedeEscribir)
-                        {
-                            <Boton Variante="VarianteBoton.Primario" OnClick="() => _editarVisible = true">@Textos["Visita360EditarVisita"]</Boton>
-                        }
-                    </Accion>
-                </EstadoVacio>
-            </Tarjeta>
-        }
-        else if (_documentacion is { } documentacion)
-        {
-            var total = TodosLosDocumentos(documentacion).Count();
-            var grupos = Grupos(documentacion);
-            var visibles = grupos.Sum(g => g.Visibles.Count);
-
-            <FiltroEstadosMultiple Opciones="OpcionesEstado(documentacion)" @bind-Seleccion="_estadosMarcados" Total="total" />
-
-            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SubtituloComprobacionPrevia"]">
-                <Encabezado>
-                    @ResumenComprobacion(documentacion) @Textos["Visita360SoloLoExigido", _detalle!.CentroNombre]
-                    @if (_estadosMarcados.Count > 0)
-                    {
-                        <text> @Textos["Visita360Mostrando", visibles, total]</text>
-                    }
-                </Encabezado>
-                <ChildContent>
-                    @foreach (var grupo in grupos)
-                    {
-                        var abierto = !_gruposPlegados.Contains(grupo.Id);
-                        <li class="visita360-grupo" @key="grupo.Id">
-                            <button type="button" class="visita360-grupo-plegar" aria-expanded="@(abierto ? "true" : "false")"
-                                    aria-label="@(abierto ? Textos["Visita360PlegarGrupo", grupo.Nombre] : Textos["Visita360DesplegarGrupo", grupo.Nombre])"
-                                    @onclick="() => AlternarGrupo(grupo.Id, !abierto)">
-                                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-                            </button>
-                            <span>@grupo.Nombre</span>
-                            <i>@grupo.Empleador</i>
-                        </li>
-                        @if (abierto)
-                        {
-                            @if (grupo.Documentos.Count == 0)
-                            {
-                                <li class="visita360-grupo-vacio" @key="@($"{grupo.Id}-vacio")">@Textos["Visita360GrupoSinExigencias"]</li>
-                            }
-                            @foreach (var documento in grupo.Visibles)
-                            {
-                                <FilaRelacion @key="@($"{grupo.Id}-{documento.TipoDocumentoId}")" Nombre="@documento.TipoDocumentoNombre"
-                                              OnNombre="() => AbrirDocumento(documento)" Tono="EstadoDocumentoVisitaUi.TonoDeFila(documento.Estado)">
-                                    <Detalle>@DetalleDocumento(documento)</Detalle>
-                                    <Estado><Badge Tono="EstadoDocumentoVisitaUi.Tono(documento.Estado)">@EstadoDocumentoVisitaUi.Texto(documento.Estado, Textos)</Badge></Estado>
-                                </FilaRelacion>
-                            }
-                        }
-                    }
-                </ChildContent>
-                <Pie>
-                    @if (_estadosMarcados.Count > 0 && visibles == 0)
-                    {
-                        @Textos["Visita360NingunoEnLosEstados"]
-                    }
-                </Pie>
-            </ListaRelaciones>
-        }
     };
 
     private RenderFragment PestanaDelPaquete => __builder =>
@@ -408,7 +408,7 @@
                        Lo decide ObtenerPaqueteDocumentalVisitaQuery, no este @if. *@
                     @if (_puedeEscribir)
                     {
-                        <Boton Variante="VarianteBoton.Primario" Cargando="_preparandoEnvioPaquete" OnClick="AbrirEnviarPaquetePorCorreoAsync">@Textos["EnviarPaquetePorCorreo"]</Boton>
+                        <Boton Variante="VarianteBoton.Secundario" Cargando="_preparandoEnvioPaquete" OnClick="AbrirEnviarPaquetePorCorreoAsync">@Textos["EnviarPaquetePorCorreo"]</Boton>
                     }
                     <BotonCopiar Valor="@TextoSolicitudParaCopiar(_solicitudCorreo)" Etiqueta="@Textos["SolicitudAccesoCorreoEtiquetaCopiar"]" Texto="@Textos["SolicitudAccesoCorreoCopiar"]" />
                     @if (_puedeEscribir)

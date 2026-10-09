@@ -513,7 +513,7 @@
     <value>Visita a {0}</value>
   </data>
   <data name="Visita360EtiquetaMigas" xml:space="preserve">
-    <value>Ruta de Visita 360</value>
+    <value>Camí de navegació de la Visita 360</value>
   </data>
   <data name="Visita360ErrorTitulo" xml:space="preserve">
     <value>No hem pogut carregar aquesta visita</value>
@@ -538,9 +538,6 @@
   </data>
   <data name="Visita360VerCentro" xml:space="preserve">
     <value>Veure el centre</value>
-  </data>
-  <data name="Visita360EditarVisita" xml:space="preserve">
-    <value>Editar visita</value>
   </data>
   <data name="Visita360CancelarVisita" xml:space="preserve">
     <value>Cancel·lar visita…</value>

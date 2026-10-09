@@ -52,10 +52,10 @@ public record DetalleVisitaDto(
     Guid Version = default,
     // Visita 360: la página no parte de una fila del listado, así que el detalle trae lo que
     // el Drawer tomaba de ella (origen y urgencia) y los Id que enlazan a Centro 360 y a la
-    // página 360 del titular del Centro. ClienteId es deuda terminológica: es la Empresa
+    // página 360 del titular del Centro. EmpresaTitularId es la Empresa
     // titular del Centro (el Cliente empresarial), no un Cliente comercial TALVEG.
     Guid CentroId = default,
-    Guid ClienteId = default,
+    Guid EmpresaTitularId = default,
     OrigenVisita Origen = OrigenVisita.Manual,
     NivelUrgenciaVisita NivelUrgencia = NivelUrgenciaVisita.Normal);
 
@@ -81,7 +81,7 @@ public class ObtenerDetalleVisitaQueryHandler(
                 CentroId = centro.Id,
                 CentroNombre = centro.Nombre,
                 centro.GestionCae,
-                ClienteId = cliente.Id,
+                EmpresaTitularId = cliente.Id,
                 ClienteRazonSocial = cliente.RazonSocial,
                 EmpresaId = empresa.Id,
                 EmpresaRazonSocial = empresa.RazonSocial,
@@ -142,7 +142,7 @@ public class ObtenerDetalleVisitaQueryHandler(
             visita.MotivoCancelacion,
             visita.Version,
             visita.CentroId,
-            visita.ClienteId,
+            visita.EmpresaTitularId,
             visita.Origen,
             nivelUrgencia);
     }

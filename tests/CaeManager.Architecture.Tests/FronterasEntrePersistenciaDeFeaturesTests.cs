@@ -626,6 +626,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.AnadirTrabajadorAVisitaCommandHandler", "ITrabajadoresQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IClientesQueryContext"),
+        ("Visitas.ObtenerDetalleVisitaQueryHandler", "IConfiguracionQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IEmpresasQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "ITrabajadoresQueryContext"),
         // P1-X2: el aviso de visita de un Centro sin gestión CAE lee el Centro (nombre,

@@ -13,6 +13,7 @@ using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
+using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Autorizacion;
@@ -137,6 +138,23 @@ public class PaqueteDocumentalVisitaCorreoTests
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
     }
 
+    /// <summary>
+    /// La regla del rol no toca a una Sesión Privilegiada: con ella resuelta, el handler no mira
+    /// el rol. Se fija con el rol que sin sesión recibe <c>RolSinDescarga</c> (el test de
+    /// arriba), para que lo único que cambie entre los dos sea la sesión; el alcance de esta
+    /// prueba es el del usuario de negocio, no el de plataforma.
+    /// </summary>
+    [Fact]
+    public async Task Con_una_Sesion_Privilegiada_resuelta_la_regla_del_rol_no_se_aplica()
+    {
+        await using var arnes = await PrepararAsync();
+
+        var resultado = await DescargarAsync(
+            arnes, Guid.NewGuid(), "Consulta", _tenantA, _visitaDentro, new SesionPrivilegiadaResuelta());
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+    }
+
     [Fact]
     public async Task Consulta_fuera_de_alcance_recibe_lo_mismo_que_una_Visita_inexistente()
     {
@@ -167,8 +185,8 @@ public class PaqueteDocumentalVisitaCorreoTests
 
         detalle.Should().NotBeNull();
         detalle!.CentroId.Should().NotBeEmpty();
-        detalle.ClienteId.Should().NotBeEmpty();
-        detalle.ClienteId.Should().NotBe(detalle.EmpresaId, "el titular del Centro y la Empresa que entra son dos Empresas distintas en la siembra");
+        detalle.EmpresaTitularId.Should().NotBeEmpty();
+        detalle.EmpresaTitularId.Should().NotBe(detalle.EmpresaId, "el titular del Centro y la Empresa que entra son dos Empresas distintas en la siembra");
     }
 
     [Fact]
@@ -304,7 +322,8 @@ public class PaqueteDocumentalVisitaCorreoTests
     }
 
     private async Task<Result<PaqueteDocumentalDescargaDto>> DescargarAsync(
-        ArnesDeArranqueRuntime arnes, Guid usuarioId, string rol, Guid tenantId, Guid visitaId)
+        ArnesDeArranqueRuntime arnes, Guid usuarioId, string rol, Guid tenantId, Guid visitaId,
+        ISesionPrivilegiadaActual? sesionPrivilegiada = null)
     {
         Como(usuarioId, rol, tenantId);
         await using var scope = arnes.Servicios.CreateAsyncScope();
@@ -318,7 +337,7 @@ public class PaqueteDocumentalVisitaCorreoTests
             new RegistroAccesoDocumentoSensibleRepository(contexto, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance));
 
         var handler = new ObtenerPaqueteDocumentalVisitaQueryHandler(
-            contexto, contexto, Alcance(contexto), paquete, registro, _usuario, new SesionPrivilegiadaAusente());
+            contexto, contexto, Alcance(contexto), paquete, registro, _usuario, sesionPrivilegiada ?? new SesionPrivilegiadaAusente());
         return await handler.Handle(new ObtenerPaqueteDocumentalVisitaQuery(visitaId), CancellationToken.None);
     }
 
@@ -423,5 +442,17 @@ public class PaqueteDocumentalVisitaCorreoTests
             _archivos.Remove(identificador);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class SesionPrivilegiadaResuelta : ISesionPrivilegiadaActual
+    {
+        private static readonly SesionPrivilegiadaActiva Sesion =
+            new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), CapacidadPrivilegio.SoporteLectura, null);
+
+        public Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(Sesion);
+
+        public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<SesionPrivilegiadaActiva?>(Sesion);
     }
 }

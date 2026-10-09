@@ -38,6 +38,9 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 /// fuera de él la respuesta siga siendo la de una Visita inexistente. Una Sesión Privilegiada
 /// de plataforma queda como estaba: su rol efectivo es <c>null</c> y lo que ve lo decide su
 /// alcance, no esta regla.
+/// No es una frontera de contenido: quien lee la Visita sigue abriendo cada Documento por
+/// su propio endpoint, que registra el acceso si es sensible. Lo que esta regla retiene es
+/// el lote que sale de TALVEG.
 /// </para>
 ///
 /// <para>

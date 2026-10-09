@@ -372,14 +372,21 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Un Trabajador está «listo» cuando toda la documentación que el Centro le exige está al
-    /// día. «Al día» es la regla de los porcentajes de cumplimiento (decisión del 2026-10-03):
-    /// Próximo y Urgente cuentan, En tolerancia cuenta, Sin confirmar no. Cuenta solo la
+    /// día. «Al día» es la regla de los porcentajes (<see cref="CumplimientoDocumental.EsConforme(EstadoDocumento)"/>:
+    /// Próximo y Urgente cuentan, Sin confirmar no) más «En tolerancia», que aquí ya llega resuelto
+    /// con la tolerancia del Centro de la Visita (decisión del 2026-10-03). Cuenta solo la
     /// documentación del propio Trabajador, como el anillo del mockup.
     /// </summary>
     public static bool EstaListo(SeccionDocumentacionDto documentacion) =>
-        documentacion.Documentos.All(d => d.Estado
-            is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad
-            or EstadoDocumento.Proximo or EstadoDocumento.Urgente or EstadoDocumento.EnTolerancia);
+        documentacion.Documentos.All(d =>
+            CumplimientoDocumental.EsConforme(d.Estado) || d.Estado is EstadoDocumento.EnTolerancia);
+
+    private bool HayFiltrosActivos => _estadosMarcados.Count > 0;
+
+    /// <summary>Las incidencias de un titular con la coma que las separa en la banda.</summary>
+    private static IEnumerable<(string Separador, DocumentoVisitaItemDto Documento)> ConSeparador(
+        IReadOnlyList<DocumentoVisitaItemDto> documentos) =>
+        documentos.Select((documento, indice) => (indice > 0 ? ", " : string.Empty, documento));
 
     /// <summary>Algún documento exigido vencido o sin presentar: lo que la banda nombra y lo que pone en alerta el contador.</summary>
     public static bool NoPuedeAcreditarse(SeccionDocumentacionDto documentacion) =>
@@ -455,6 +462,8 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     private bool Visible(DocumentoVisitaItemDto documento) =>
         _estadosMarcados.Count == 0 || _estadosMarcados.Contains(ClaveEstado(documento.Estado));
 
+    private static int ContarVisibles(IReadOnlyList<GrupoComprobacion> grupos) => grupos.Sum(g => g.Visibles.Count);
+
     /// <summary>
     /// La Empresa y cada Trabajador, del peor estado al mejor; a igualdad, el orden por
     /// apellidos que trae la consulta (OrderBy es estable). Con un filtro marcado, el grupo
@@ -476,8 +485,8 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     }
 
     /// <summary>
-    /// Mismo resumen que el Drawer: tiene algo pendiente el Trabajador cuyo peor estado no es
-    /// Vigente. No dice «no puede entrar»: la pantalla sabe el estado de los documentos, no lo
+    /// Tiene algo pendiente el Trabajador que no está «listo» (<see cref="EstaListo"/>), para que
+    /// el resumen y el anillo de la cabecera cuenten lo mismo. No dice «no puede entrar»: la pantalla sabe el estado de los documentos, no lo
     /// que decide el control de acceso del Centro.
     /// </summary>
     private string? ResumenComprobacion(DocumentacionVisitaDto documentacion)
@@ -486,7 +495,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
         if (total == 0)
             return null;
 
-        var pendientes = documentacion.Trabajadores.Count(t => t.Documentacion.PeorEstado != EstadoDocumento.Vigente);
+        var pendientes = documentacion.Trabajadores.Count(t => !EstaListo(t.Documentacion));
 
         if (pendientes == 0)
             return total == 1

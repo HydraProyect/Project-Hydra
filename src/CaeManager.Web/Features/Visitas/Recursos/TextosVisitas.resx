@@ -539,9 +539,6 @@
   <data name="Visita360VerCentro" xml:space="preserve">
     <value>Ver el centro</value>
   </data>
-  <data name="Visita360EditarVisita" xml:space="preserve">
-    <value>Editar visita</value>
-  </data>
   <data name="Visita360CancelarVisita" xml:space="preserve">
     <value>Cancelar visita…</value>
   </data>
