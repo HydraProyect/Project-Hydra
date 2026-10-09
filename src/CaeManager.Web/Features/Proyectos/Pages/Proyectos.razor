@@ -18,7 +18,8 @@
 
 <div class="contenedor-pagina">
     <CabeceraListado Titulo="@Textos["TituloPagina"]"
-                     Contador="@(_resolviendoEmpresa || _sinEmpresaSeleccionada || _cargando || _errorCarga || _clienteSeleccionadoId == Guid.Empty || _cargandoProyectos || _errorProyectos ? null : (int?)ProyectosVisibles.Count)">
+                     Contador="@(_resolviendoEmpresa || _sinEmpresaSeleccionada || _cargando || _errorCarga || _clienteSeleccionadoId == Guid.Empty || _cargandoProyectos || _errorProyectos ? null : (int?)ProyectosVisibles.Count)"
+                     Menu="@(_clienteSeleccionadoId != Guid.Empty && !_cargando && !_errorCarga ? MenuCabecera : null)">
         <Primaria>
             @if (_clienteSeleccionadoId != Guid.Empty && !_cargando && !_errorCarga)
             {
@@ -474,6 +475,12 @@
 </LimiteDeErrores>
 
 @code {
+    /// <summary>
+    /// El «⋯» de la cabecera: las dos entradas de exportación. Sin Cliente empresarial elegido no
+    /// se pasa: no hay vista que exportar.
+    /// </summary>
+    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/proyectos/exportar.xlsx" Total="@(_cargandoProyectos || _errorProyectos ? null : (int?)ProyectosVisibles.Count)" Criterios="CriteriosExportar" />;
+
     private Drawer? _drawerProyecto;
     // De instancia, no static: las etiquetas salen del localizador inyectado.
     private IReadOnlyList<PestanaDefinicion>? _pestanasDetalle;
