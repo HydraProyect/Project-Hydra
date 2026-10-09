@@ -51,6 +51,14 @@ public class EntradasExportarTests : BunitContext
     }
 
     [Fact]
+    public void Sin_total_conocido_el_rotulo_no_dice_ningun_numero()
+    {
+        var cut = Render<EntradasExportar>(p => p.Add(c => c.Ruta, "/empresas/exportar.xlsx").Add(c => c.Total, (int?)null));
+
+        cut.FindAll("a[role=menuitem]").Select(e => e.TextContent.Trim()).Should().Equal("Exportar esta vista", "Exportar todo");
+    }
+
+    [Fact]
     public void Sin_ningun_criterio_esta_vista_apunta_a_lo_mismo_que_todo()
     {
         var cut = Render<EntradasExportar>(p => p.Add(c => c.Ruta, "/empresas/exportar.xlsx").Add(c => c.Total, 5));

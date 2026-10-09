@@ -177,12 +177,32 @@ public class TrabajadoresExportacionEstado4aTests
 
         await TrabajadoresEndpoints.ExportarAsync(
             new MediatorFalso([Propio()], DosTrabajadores), new TenantActualFalso(Origen), registro, default,
-            q: "prieto", estado: "Vencido");
+            q: "01234567Z", estado: "Vencido");
 
         var rastro = registro.Registros.Should().ContainSingle().Subject;
         rastro.EntidadTipo.Should().Be("Trabajador");
         rastro.Filas.Should().Be(DosTrabajadores.Length);
-        rastro.Criterios.Should().BeEquivalentTo(new Dictionary<string, string> { ["q"] = "prieto", ["estado"] = "Vencido" });
+        // La búsqueda era un DNI: el rastro dice que la hubo, no la copia.
+        rastro.Criterios.Should().BeEquivalentTo(new Dictionary<string, string> { ["busqueda"] = "true", ["estado"] = "Vencido" });
+    }
+
+    /// <summary>
+    /// Un parámetro de consulta es texto libre: quien teclea la URL puede poner un DNI donde la
+    /// página pondría un Id. Ese filtro no se aplica (no es un Guid) y tampoco llega al rastro.
+    /// </summary>
+    [Fact]
+    public async Task El_rastro_lleva_el_criterio_aplicado_y_no_el_texto_de_la_peticion()
+    {
+        var registro = new RegistroFalso();
+        var subcontrata = Guid.NewGuid();
+
+        await TrabajadoresEndpoints.ExportarAsync(
+            new MediatorFalso([Propio()], DosTrabajadores), new TenantActualFalso(Origen), registro, default,
+            estado: "01234567Z", empresa: "01234567Z", subcontrata: subcontrata.ToString(),
+            orden: "Apellidos; 01234567Z", desc: true);
+
+        registro.Registros.Should().ContainSingle().Which.Criterios.Should().BeEquivalentTo(
+            new Dictionary<string, string> { ["subcontrata"] = subcontrata.ToString(), ["desc"] = "true" });
     }
 
     [Fact]

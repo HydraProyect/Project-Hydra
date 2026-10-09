@@ -45,7 +45,7 @@
         <CabeceraListado Titulo="@_tituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
             <Menu>
-                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/empresas/exportar.xlsx" Total="_totalElementos" Criterios="CriteriosExportar" />
+                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/empresas/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
             </Menu>
             <Primaria>
                 @if (!_alcanceCero)

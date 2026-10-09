@@ -77,11 +77,19 @@ public static class TrabajadoresEndpoints
 
         // El libro lleva DNI: la descarga deja rastro ANTES de entregarse. Si el
         // rastro no se puede guardar, la excepción sube y el fichero no sale.
+        // Al rastro va el criterio APLICADO, nunca el texto de la petición, que es
+        // libre y puede ser un DNI o un nombre: de la búsqueda solo consta que la
+        // hubo; de los filtros de Empresa y Subcontrata, el Id ya leído (uno que no
+        // se pudo leer no filtró nada, así que no consta); el estado y el orden,
+        // solo si tienen forma de nombre.
         await registroExportacion.RegistrarAsync(
             nameof(Domain.Trabajadores.Trabajador), filas,
             CriteriosExportacion.Desde(
-                ("q", q), ("estado", estado), ("empresa", empresa), ("subcontrata", subcontrata),
-                ("orden", orden), ("desc", desc ? "true" : null)),
+                ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
+                ("estado", CriteriosExportacion.SoloNombre(estado)),
+                ("empresa", Guid.TryParse(empresa, out var empresaAplicada) ? empresaAplicada.ToString() : null),
+                ("subcontrata", Guid.TryParse(subcontrata, out var subcontrataAplicada) ? subcontrataAplicada.ToString() : null),
+                ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),
             cancellationToken);
 
         return Results.File(

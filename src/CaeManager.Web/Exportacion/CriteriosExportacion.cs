@@ -11,4 +11,11 @@ public static class CriteriosExportacion
         criterios
             .Where(c => !string.IsNullOrWhiteSpace(c.Valor))
             .ToDictionary(c => c.Nombre, c => c.Valor!);
+
+    /// <summary>
+    /// El valor, si tiene forma de nombre de estado o de columna (solo letras, hasta 40); si no,
+    /// nada. Un parámetro de consulta es texto libre: lo que no sea un nombre no llega al rastro.
+    /// </summary>
+    public static string? SoloNombre(string? valor) =>
+        valor is { Length: > 0 and <= 40 } && valor.All(char.IsAsciiLetter) ? valor : null;
 }

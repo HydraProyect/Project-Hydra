@@ -42,13 +42,12 @@ public class TrabajadoresExportacionConDniTests
     }
 
     [Fact]
-    public async Task Cada_fila_lleva_el_DNI_de_su_Trabajador_como_texto()
+    public async Task Cada_fila_lleva_el_DNI_de_su_Trabajador()
     {
         var celdas = await LeerHojaAsync();
 
         celdas.Should().HaveCount(1 + Trabajadores.Length);
 
-        // El primero empieza por cero: escrito como número lo perdería.
         celdas[1].Should().Equal("Prieto Ramos", "Lucía", DniMarcador, "Refrigeración Norte, S.L.", celdas[1][4]);
         celdas[2][2].Should().Be(DniMarcadorOtro);
     }

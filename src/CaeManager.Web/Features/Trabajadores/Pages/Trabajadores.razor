@@ -400,5 +400,5 @@
     /// navegación interna) y son lectura, así que las ve cualquier rol. Con alcance cero no se pasa
     /// (D-15: daría un fichero vacío) y la cabecera no pinta el menú.
     /// </summary>
-    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/trabajadores/exportar.xlsx" Total="_totalElementos" Criterios="CriteriosExportar" />;
+    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/trabajadores/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />;
 }

@@ -47,7 +47,7 @@
         <CabeceraListado Titulo="@Textos["ListaTitulo"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
             <Menu>
-                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/clientes/exportar.xlsx" Total="_totalElementos" Criterios="CriteriosExportar" />
+                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/clientes/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
                 <SoloConEscritura>
                     <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                         <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/importacion?plantilla=clientes")'>@Textos["ListaImportar"]</ItemMenuAccion>

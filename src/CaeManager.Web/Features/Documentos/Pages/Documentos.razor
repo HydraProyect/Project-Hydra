@@ -327,7 +327,7 @@
 @code {
     private RenderFragment MenuCabecera => __builder =>
     {
-        <CaeManager.Web.Exportacion.EntradasExportar Ruta="/documentos/exportar.xlsx" Total="_totalElementos" Criterios="CriteriosExportar" />
+        <CaeManager.Web.Exportacion.EntradasExportar Ruta="/documentos/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
         <SoloConEscritura>
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                 <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/documentos/importar")'>Importar documentos</ItemMenuAccion>

@@ -4,6 +4,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -52,6 +53,10 @@ public class ExportacionTrabajadoresTests : IAsyncLifetime
         {
             await contexto.Database.MigrateAsync();
 
+            // El estado documental de cada fila se calcula con los umbrales del Tenant.
+            if (!await contexto.ParametrosSistema.AnyAsync())
+                contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
+
             var empresa = new Empresa("Alfa Montajes S.L.", "B12345674");
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
@@ -66,6 +71,9 @@ public class ExportacionTrabajadoresTests : IAsyncLifetime
         // «Prieto» lo traería.
         await using (var contexto = CrearContexto(_otroTenant))
         {
+            if (!await contexto.ParametrosSistema.AnyAsync())
+                contexto.ParametrosSistema.Add(new ParametroSistema(30, 15));
+
             var empresa = new Empresa("Beta Servicios S.L.", "B87654331");
             contexto.Empresas.Add(empresa);
             await contexto.SaveChangesAsync();
@@ -107,15 +115,16 @@ public class ExportacionTrabajadoresTests : IAsyncLifetime
     [Fact]
     public async Task La_descarga_deja_una_fila_en_la_auditoria_del_Tenant_sin_los_datos()
     {
-        await ExportarAsync(_tenant, q: "Prieto");
+        // Se busca por DNI, que es lo que el buscador del listado admite.
+        (await ExportarAsync(_tenant, q: DniLucia)).Should().ContainSingle();
 
         var registro = (await ExportacionesAsync(_tenant)).Should().ContainSingle().Subject;
         registro.EntidadTipo.Should().Be(nameof(Trabajador));
         registro.TenantId.Should().Be(_tenant, "la fila va al Tenant propietario de los datos exportados");
         registro.UsuarioId.Should().Be(_usuario);
         registro.ActorRealUsuarioId.Should().Be(_usuario);
-        registro.DatosDespues.Should().Contain("\"filas\":1").And.Contain("\"q\":\"Prieto\"");
-        registro.DatosDespues.Should().NotContain(DniLucia, "el rastro dice qué salió, no lo copia");
+        registro.DatosDespues.Should().Contain("\"filas\":1").And.Contain("\"busqueda\"");
+        registro.DatosDespues.Should().NotContain(DniLucia, "el rastro dice qué salió, no lo copia: tampoco la búsqueda");
 
         (await ExportacionesAsync(_otroTenant)).Should().BeEmpty();
     }

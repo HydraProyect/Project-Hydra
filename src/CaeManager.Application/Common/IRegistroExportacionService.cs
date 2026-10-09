@@ -21,7 +21,10 @@ public interface IRegistroExportacionService
 {
     /// <param name="entidadTipo">Nombre simple de la entidad exportada, igual que en el resto de la auditoría.</param>
     /// <param name="filas">Cuántas filas lleva el fichero.</param>
-    /// <param name="criterios">Filtros, búsqueda y orden de la vista exportada; vacío si se exportó todo.</param>
+    /// <param name="criterios">
+    /// Filtros y orden de la vista exportada; vacío si se exportó todo. Quien llama no pasa aquí
+    /// texto libre del usuario (la búsqueda puede ser un DNI): solo que lo hubo.
+    /// </param>
     /// <param name="cancellationToken">Cancelación.</param>
     Task RegistrarAsync(
         string entidadTipo, int filas, IReadOnlyDictionary<string, string> criterios,

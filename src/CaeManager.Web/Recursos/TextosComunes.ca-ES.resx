@@ -127,6 +127,9 @@
   <data name="ExportarEstaVista" xml:space="preserve">
     <value>Exporta aquesta vista (files: {0})</value>
   </data>
+  <data name="ExportarEstaVistaSinRecuento" xml:space="preserve">
+    <value>Exporta aquesta vista</value>
+  </data>
   <data name="ExportarTodo" xml:space="preserve">
     <value>Exporta-ho tot</value>
   </data>
