@@ -5,7 +5,6 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
-using CaeManager.Application.Trabajadores.Commands.EliminarTrabajador;
 using CaeManager.Application.Trabajadores.Commands.EliminarTrabajadores;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
@@ -135,21 +134,29 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _nombreAEliminar = string.Empty;
-    private bool _eliminando;
+    // Un clic en la fila, su nombre o Enter sobre la fila enfocada abren la vista rápida: el
+    // panel de 520 px del Context Workspace (mismo patrón que Empresas). A la página
+    // Trabajador 360 (/trabajadores/{id}) se va con el icono 360 de la fila o con el del panel.
+    private Task AbrirVistaRapidaAsync(Guid id) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, id, NombreDe(id), "informacion");
 
-    // Drawer ligero (mismo patrón que ClientePreviewDrawer): nombre de fila
-    // y "Detalles" abren esto primero, no el Context Workspace directamente.
-    private Guid? _previewTrabajadorId;
-    private bool _previewVisible;
+    /// <summary>
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
+    /// del panel). Si el rol no puede escribir, el panel se abre y se queda en lectura.
+    /// </summary>
+    private Task AbrirVistaRapidaEnEdicionAsync(Guid id) =>
+        WorkspaceService.AbrirEnEdicionAsync(EntidadWorkspace.Trabajador, id, NombreDe(id));
 
-    private void AbrirPreview(Guid id)
-    {
-        _previewTrabajadorId = id;
-        _previewVisible = true;
-    }
+    // El Trabajador del panel puede no estar en la página (el filtro lo dejó fuera): su nombre
+    // es entonces el del frame abierto.
+    private string NombreDe(Guid id) =>
+        _elementosPagina.FirstOrDefault(t => t.Id == id) is { } trabajador
+            ? NombreCompleto(trabajador)
+            : WorkspaceService.FrameActual is { } frame && frame.EntidadId == id ? frame.TituloVisible : string.Empty;
+
+    /// <summary>Trabajador cuyo panel está abierto arriba de la pila del Context Workspace, si lo hay.</summary>
+    private Guid? TrabajadorEnVistaPrevia =>
+        WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Trabajador } frame ? frame.EntidadId : null;
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -489,18 +496,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
-
-    /// <summary>
-    /// Abre Trabajador 360 desde el menú de la fila, sin pasar por la vista
-    /// previa. <c>forceLoad: true</c> por el mismo motivo, ya medido, que
-    /// documenta <c>TrabajadorPreviewDrawer.AbrirTrabajador360</c>: el menú vive
-    /// anidado dentro de la propia página que la navegación va a reemplazar, y
-    /// una navegación mejorada dejaba a veces la URL cambiada con la lista
-    /// todavía en pantalla. Es una transición ocasional lista→ficha, no una
-    /// ruta caliente.
-    /// </summary>
-    private void AbrirTrabajador360(Guid id) =>
-        NavigationManager.NavigateTo($"/trabajadores/{id}", forceLoad: true);
 
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro)
@@ -905,76 +900,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private static string NombreCompleto(TrabajadorListaDto trabajador) => $"{trabajador.Nombre} {trabajador.Apellidos}";
 
-    /// <summary>Lo que dice la celda «Trabajador» de la fila: «Apellidos, Nombre», como la maqueta (fase 1).</summary>
-    private static string NombreDeFila(TrabajadorListaDto trabajador) => $"{trabajador.Apellidos}, {trabajador.Nombre}";
-
-    private void AbrirEliminar(Guid id, string nombre)
-    {
-        _idAEliminar = id;
-        _nombreAEliminar = nombre;
-        _confirmarEliminarVisible = true;
-    }
-
-    private async Task ConfirmarEliminarAsync()
-    {
-        // Guarda de doble clic sobre «Eliminar» del diálogo: mandaría el
-        // comando dos veces y el segundo fallaría con un error que no es real.
-        if (_eliminando) return;
-        _eliminando = true;
-        var idEliminado = _idAEliminar;
-
-        try
-        {
-            var resultado = await Mediator.Send(new EliminarTrabajadorCommand(idEliminado));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.MostrarError(resultado.Error);
-            }
-            else
-            {
-                ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(idEliminado));
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Trabajador, [idEliminado]);
-                _confirmarEliminarVisible = false;
-                await RecargarTrasEscrituraAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar(Textos["ErrorEliminar"], TonoToast.Error);
-        }
-        finally
-        {
-            _eliminando = false;
-        }
-    }
-
-    /// <summary>Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver RestaurarTrabajadorCommand.</summary>
-    private async Task DeshacerEliminarAsync(Guid id)
-    {
-        // Guarda por trabajador: dos pulsaciones en «Deshacer» del mismo aviso
-        // no mandan dos restauraciones.
-        if (!_restaurando.Add(id)) return;
-
-        try
-        {
-            var resultado = await Mediator.Send(new RestaurarTrabajadorCommand(id));
-
-            ToastService.Mostrar(
-                resultado.EsExitoso ? Textos["ToastRestaurado"].Value : resultado.Error.Mensaje,
-                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
-
-            if (resultado.EsExitoso)
-                await RecargarTrasEscrituraAsync();
-        }
-        finally
-        {
-            _restaurando.Remove(id);
-        }
-    }
-
-    private readonly HashSet<Guid> _restaurando = [];
-
     // --- P3-31: selección múltiple ---
 
     private bool TodosSeleccionados =>
@@ -1194,11 +1119,21 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             _ => null
         };
         var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
-        return string.Join(' ', new[] { foco, tinte }.Where(c => c is not null));
+        // «fila-pulsable»: el clic en la fila abre la vista rápida (atajos-lista.js).
+        return string.Join(' ', new[] { "fila-pulsable", foco, tinte }.Where(c => c is not null));
     }
 
     private async Task ManejarAtajoAsync(string tecla)
     {
+        // «e» no depende de que haya filas: sin fila enfocada edita la ficha que esté abierta,
+        // aunque el filtro haya dejado la lista vacía.
+        if (tecla == "e")
+        {
+            if ((_idEnfocado ?? TrabajadorEnVistaPrevia) is { } idEditar)
+                await AbrirVistaRapidaEnEdicionAsync(idEditar);
+            return;
+        }
+
         if (_elementosPagina.Count == 0) return;
 
         switch (tecla)
@@ -1227,7 +1162,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
-                    AbrirPreview(idAbrir);
+                    await AbrirVistaRapidaAsync(idAbrir);
                 break;
         }
 

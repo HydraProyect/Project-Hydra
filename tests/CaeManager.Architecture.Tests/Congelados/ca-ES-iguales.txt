@@ -964,14 +964,12 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Ari
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaSeccionesTrabajador360 = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaSeleccionarPagina = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaSeleccionarTrabajador = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaVistaPrevia = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BadgeIncidenciasCentroVarios = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonAsignarACentro = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonAsignarIgualmente = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonNuevoTrabajador = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonQuitarFiltros = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonSubirDocumento = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonVerTrabajador360 = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ColumnaClienteEmpresarial = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ConfirmarBajaAsignacionMensaje = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ConfirmarBajaAsignacionTitulo = 1
@@ -981,7 +979,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Det
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DetalleErrorTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DialogoEliminarLoteMensaje = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DialogoEliminarLoteTitulo = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DialogoEliminarMensaje = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DocumentosPendientesUno = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DocumentosPendientesVarios = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DrawerNuevoTitulo = 1
@@ -992,7 +989,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Err
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorCargaTrabajadorTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorCargaVehiculosTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorDarDeBaja = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorEliminar = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorEliminarLote = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorFechaAltaInvalida = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorGuardar = 1
@@ -1000,7 +996,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Err
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorSeleccionaEmpresa = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorSeleccionaSubcontrata = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaAliasOpcional = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaCabeceraPreview = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaCopiarCorreo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaCorreo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaDocumentacion = 1
@@ -1023,7 +1018,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Mod
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ModalGuardarFiltroTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ModalReclamarTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: NotaCrearGestion = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: NotaPiePreview = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: NotaReclamarVarios = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: NotaVehiculos = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: OpcionSeleccionaEmpresa = 1
@@ -1064,7 +1058,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Toa
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastBajaConAvisos = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastBajaDeshecha = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastCreado = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastEliminado = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastFiltroGuardado = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastGestionCreada = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastLoteEliminados = 1
@@ -1073,7 +1066,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Toa
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastLoteRestauradosConErrores = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastReclamacionEnviadaUno = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastReclamacionEnviadaVarios = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastRestaurado = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastSinPendientesReclamar = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioAsignacionesDescripcion = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: VacioAsignacionesTitulo = 1

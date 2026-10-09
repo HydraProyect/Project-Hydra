@@ -36,8 +36,8 @@ internal static class RecorridoFichas360
     }
 
     /// <summary>
-    /// Lista de Trabajadores → vista previa → «Ver Trabajador 360 →» (navegación con
-    /// recarga completa) → Trabajador 360, comprobando el Tenant activo en cada paso.
+    /// Lista de Trabajadores → icono 360 del final de la fila → Trabajador 360, comprobando
+    /// el Tenant activo en cada paso.
     /// </summary>
     public static async Task AbrirTrabajador360DesdeLaListaAsync(IPage page, string baseUrl, string tenantEsperado)
     {
@@ -47,10 +47,9 @@ internal static class RecorridoFichas360
         await page.WaitForTimeoutAsync(6_000);
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "la lista de Trabajadores tras la revalidación del circuito");
 
-        var enlace = page.Locator(".enlace-nombre-fila").First;
+        var enlace = page.Locator("tbody a.boton-360-pagina").First;
         await Expect(enlace).ToBeVisibleAsync(EsperaEnFrio);
         await enlace.ClickAsync();
-        await page.GetByText("Ver Trabajador 360 →").ClickAsync();
         await page.WaitForURLAsync(new Regex(@"/trabajadores/[0-9a-f-]{36}"));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         // Barrera de «la ficha cargó»: el contenedor de acciones de la cabecera, que se pinta con cualquier rol.

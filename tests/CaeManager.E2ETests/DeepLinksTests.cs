@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 
 namespace CaeManager.E2ETests;
@@ -47,22 +48,16 @@ public class DeepLinksTests(WebAppFixture fixture)
         // Abre el primer trabajador desde la propia interfaz (clic, no un
         // "ctx" escrito a mano) — así la URL que se prueba después es
         // exactamente la que ContextWorkspace.ActualizarUrlDesdeEstado genera
-        // de verdad, no una inventada por el test. El clic en el nombre de
-        // fila abre primero el drawer ligero de vista previa (TrabajadorPreviewDrawer);
-        // "Ver Trabajador 360 →" lleva a la ficha completa, y desde ahí
-        // "⋯ → Editar" es lo que de verdad abre el Context Workspace — el
-        // mismo camino que ya usa TrabajadorDetalle.razor.cs (AbrirInformacion).
-        await page.Locator(".enlace-nombre-fila").First.ClickAsync();
-        await page.GetByText("Ver Trabajador 360 →").ClickAsync();
-        // "Ver Trabajador 360 →" navega con forceLoad: true
-        // (TrabajadorPreviewDrawer.AbrirTrabajador360): recarga completa, no
-        // navegación mejorada — por eso este test no cubre el «Copiar enlace»
-        // tras navegación mejorada; lo cubre el test siguiente. La guarda es
-        // el resultado en el DOM: un único ".menu-acciones-disparador" (el de
-        // la cabecera de Trabajador 360, ver TrabajadorDetalle.razor) en vez
-        // de los 20 de cada fila de la lista. Tenía 60 s de margen, que se
-        // leían como indicio de una carga lenta; medido en local el
-        // 2026-09-23, esta recarga deja un solo disparador en menos de 1 s.
+        // de verdad, no una inventada por el test. El icono 360 del final de
+        // la fila (la fila no lleva menú «⋯») lleva a la ficha completa, y
+        // desde ahí "⋯ → Editar" abre el Context Workspace — el mismo camino
+        // que ya usa TrabajadorDetalle.razor.cs (AbrirInformacion).
+        await page.Locator("tbody a.boton-360-pagina").First.ClickAsync();
+        await page.WaitForURLAsync(new Regex(@"/trabajadores/[0-9a-f-]{36}$"));
+        // La guarda es el resultado en el DOM: un único
+        // ".menu-acciones-disparador" (el de la cabecera de Trabajador 360,
+        // ver TrabajadorDetalle.razor) en vez de los de la cabecera y los
+        // filtros de la lista.
         await Expect(page.Locator(".menu-acciones-disparador")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
         // Esa cuenta confirma que el DOM ya es el de Trabajador 360, pero NO
         // que el componente sea interactivo: el botón llega con el
@@ -109,9 +104,8 @@ public class DeepLinksTests(WebAppFixture fixture)
     /// <summary>
     /// Guarda de regresión del defecto registrado el 2026-08-24: «Copiar
     /// enlace» colgado sin aviso al llegar a <c>/trabajadores/{id}</c> por
-    /// navegación mejorada de Blazor. Hoy no se reproduce; el test anterior no
-    /// podía vigilarlo porque llega con <c>forceLoad: true</c>
-    /// (TrabajadorPreviewDrawer.AbrirTrabajador360), una recarga completa.
+    /// navegación mejorada de Blazor. Hoy no se reproduce. El test anterior llega
+    /// por el icono 360 de la fila y no comprueba que la navegación fuese mejorada.
     /// Mutación comprobada: si la copia no termina nunca, este test se pone
     /// en rojo esperando el aviso de éxito. Aquí se llega por el buscador global,
     /// que navega sin forzar la recarga (BuscadorGlobal.Seleccionar), y se
@@ -129,8 +123,7 @@ public class DeepLinksTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
 
-        // La celda «Trabajador» dice «Apellidos, Nombre»: se busca por la primera palabra de los
-        // apellidos, sin la coma que la separa del nombre cuando el apellido es uno solo.
+        // La celda «Trabajador» dice «Nombre Apellidos»: se busca por su primera palabra.
         var nombre = (await page.Locator(".enlace-nombre-fila").First.TextContentAsync())!.Trim().Split([' ', ','], StringSplitOptions.RemoveEmptyEntries)[0];
         await page.EvaluateAsync("() => { window.__sinRecarga = true; }");
         var pedidasPorFetch = new ConcurrentQueue<string>();

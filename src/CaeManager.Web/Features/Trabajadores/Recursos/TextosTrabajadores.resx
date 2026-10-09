@@ -87,18 +87,6 @@
   <data name="AriaSeleccionarPagina" xml:space="preserve">
     <value>Seleccionar los trabajadores de esta página</value>
   </data>
-  <data name="ColumnaAcciones" xml:space="preserve">
-    <value>Acciones</value>
-  </data>
-  <data name="AccionDetalles" xml:space="preserve">
-    <value>Vista rápida</value>
-  </data>
-  <data name="AccionAbrirTrabajador360" xml:space="preserve">
-    <value>Abrir ficha 360</value>
-  </data>
-  <data name="AccionEliminar" xml:space="preserve">
-    <value>Eliminar</value>
-  </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
     <value>trabajador(es)</value>
   </data>
@@ -141,9 +129,6 @@
   <data name="PlaceholderPuesto" xml:space="preserve">
     <value>p. ej. Soldador</value>
   </data>
-  <data name="DialogoEliminarMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá.</value>
-  </data>
   <data name="BotonAsignarACentro" xml:space="preserve">
     <value>Asignar a centro…</value>
   </data>
@@ -179,9 +164,6 @@
   </data>
   <data name="AriaSeleccionarTrabajador" xml:space="preserve">
     <value>Seleccionar a {0}</value>
-  </data>
-  <data name="DialogoEliminarTitulo" xml:space="preserve">
-    <value>¿Eliminar a {0}?</value>
   </data>
   <data name="DialogoEliminarLoteTitulo" xml:space="preserve">
     <value>¿Eliminar {0} trabajador(es)?</value>
@@ -240,17 +222,8 @@
   <data name="PistaDocumentoExtranjero" xml:space="preserve">
     <value>ℹ Documento no español (pasaporte u otro) — se acepta sin validar dígito de control.</value>
   </data>
-  <data name="ToastEliminado" xml:space="preserve">
-    <value>Trabajador eliminado correctamente.</value>
-  </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
-  </data>
-  <data name="ErrorEliminar" xml:space="preserve">
-    <value>No pudimos eliminar el trabajador. Intenta nuevamente en unos segundos.</value>
-  </data>
-  <data name="ToastRestaurado" xml:space="preserve">
-    <value>Trabajador restaurado.</value>
   </data>
   <data name="ToastLoteEliminados" xml:space="preserve">
     <value>{0} trabajador(es) eliminado(s).</value>
@@ -579,29 +552,8 @@
   <data name="MotivoReclamarSinCliente" xml:space="preserve">
     <value>Marca al menos un Cliente empresarial</value>
   </data>
-  <data name="AriaVistaPrevia" xml:space="preserve">
-    <value>Vista previa del trabajador</value>
-  </data>
-  <data name="EtiquetaCabeceraPreview" xml:space="preserve">
-    <value>Consulta · Trabajador</value>
-  </data>
-  <data name="AriaCerrar" xml:space="preserve">
-    <value>Cerrar</value>
-  </data>
   <data name="AriaSeccionesTrabajador" xml:space="preserve">
     <value>Secciones del trabajador</value>
-  </data>
-  <data name="EtiquetaPuesto" xml:space="preserve">
-    <value>Puesto</value>
-  </data>
-  <data name="BotonVerTrabajador360" xml:space="preserve">
-    <value>Ver Trabajador 360 →</value>
-  </data>
-  <data name="NotaPiePreview" xml:space="preserve">
-    <value>Ficha completa con cumplimiento por centro</value>
-  </data>
-  <data name="TextoCargando" xml:space="preserve">
-    <value>Cargando…</value>
   </data>
   <data name="PestanaInformacion" xml:space="preserve">
     <value>Información</value>
@@ -725,5 +677,14 @@
   </data>
   <data name="FiltroGuardadoBorrarError" xml:space="preserve">
     <value>No pudimos borrar el filtro guardado. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="AbrirVistaRapidaDe" xml:space="preserve">
+    <value>Abrir la vista rápida de {0}</value>
+  </data>
+  <data name="CopiarDni" xml:space="preserve">
+    <value>Copiar el DNI {0}</value>
+  </data>
+  <data name="TituloEditarConAtajo" xml:space="preserve">
+    <value>Editar (e)</value>
   </data>
 </root>
