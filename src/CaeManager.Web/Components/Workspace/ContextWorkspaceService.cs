@@ -64,6 +64,20 @@ public class ContextWorkspaceService
     }
 
     /// <summary>
+    /// La ficha guardó una edición de esa entidad (<see cref="NotificarEntidadGuardada"/>). El
+    /// listado que la tenga a la vista vuelve a pedir ESA fila y la sustituye en sitio: sin el
+    /// aviso, la fila seguía enseñando el dato anterior hasta la siguiente carga, porque el
+    /// panel vive en MainLayout y guarda sin pasar por la página.
+    /// </summary>
+    public event Action<EntidadWorkspace, Guid>? OnEntidadGuardada;
+
+    /// <summary>
+    /// Lo llama el panel de la entidad cuando el guardado ya terminó bien. No cambia la pila ni
+    /// la pestaña: el panel sigue abierto sobre la misma entidad.
+    /// </summary>
+    public void NotificarEntidadGuardada(EntidadWorkspace tipo, Guid id) => OnEntidadGuardada?.Invoke(tipo, id);
+
+    /// <summary>
     /// Empuja un nivel nuevo — o, si la entidad ya está en la pila (el
     /// usuario volvió a ella desde dos sitios distintos), trunca hasta ese
     /// nivel y lo reutiliza en vez de duplicarlo, para que el breadcrumb no
