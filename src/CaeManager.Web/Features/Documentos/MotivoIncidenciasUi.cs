@@ -6,10 +6,10 @@ using CaeManager.Web.Features.Documentos.Recursos;
 namespace CaeManager.Web.Features.Documentos;
 
 /// <summary>
-/// El motivo que va bajo la pastilla de estado de un propietario en un listado (Trabajador hoy; Vehículo y
-/// Empresa lo reutilizan): dice lo que la pastilla no dice, a partir de las incidencias de la fila
-/// (<see cref="IncidenciaDocumentalDto"/>). Un solo sitio para las tres pantallas, y siempre con el vocabulario
-/// de <see cref="EstadoDocumentoUi"/>.
+/// El motivo que va bajo la pastilla de estado de un propietario en un listado: dice lo que la pastilla no
+/// dice, a partir de las incidencias de la fila (<see cref="IncidenciaDocumentalDto"/>). Es una pieza
+/// compartida, no del listado de Trabajadores, que es el único que la usa hoy; siempre con el vocabulario de
+/// <see cref="EstadoDocumentoUi"/>.
 ///
 /// <list type="bullet">
 /// <item>Sin incidencias: no hay motivo.</item>

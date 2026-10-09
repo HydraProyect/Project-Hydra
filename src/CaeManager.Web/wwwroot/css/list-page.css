@@ -1850,9 +1850,9 @@
 }
 
 /*
-  Columna «Registrados vigentes» de un listado de propietarios (Trabajadores; Vehículos y Empresas la
-  reutilizan): ancho fijo, justo antes de la de estado, para que caiga en el mismo sitio de fila en fila y de
-  un listado a otro. Hoy lleva la fracción en texto («8/10»).
+  Columna «Registrados vigentes» de un listado de propietarios: ancho fijo, justo antes de la de estado, para
+  que caiga en el mismo sitio de fila en fila. La regla es compartida (vive aquí, no en el CSS de una
+  pantalla); hoy solo la usa el listado de Trabajadores. Lleva la fracción en texto («8/10»).
 */
 .tabla-datos th.col-registrados-vigentes,
 .tabla-datos td.col-registrados-vigentes {

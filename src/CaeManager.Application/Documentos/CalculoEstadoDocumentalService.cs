@@ -167,9 +167,9 @@ public class CalculoEstadoDocumentalService(
             AmbitoAplicacion.Vehiculo => documentos
                 .Where(d => d.VehiculoId != null && ids.Contains(d.VehiculoId!.Value))
                 .Select(d => new { PropietarioId = d.VehiculoId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento }),
-            // Solo los ámbitos cuyo listado pinta el desglose (Trabajadores; Empresas y Vehículos lo reutilizan).
-            // El de Cliente empresarial no lo pide nadie: no se añade aquí otro uso de la columna legacy de
-            // Documento que ClienteIdNoSeExtiendeTests congela.
+            // Hoy solo lo pide el listado de Trabajadores; los ámbitos de Empresa y Vehículo están admitidos, sin
+            // llamador todavía. El de Cliente empresarial no se admite: no se añade aquí otro uso de la columna
+            // legacy de Documento que ClienteIdNoSeExtiendeTests congela.
             _ => throw new ArgumentOutOfRangeException(
                 nameof(ambito), ambito, "Este ámbito no tiene desglose documental.")
         };
