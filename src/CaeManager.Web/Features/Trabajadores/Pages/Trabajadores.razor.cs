@@ -80,9 +80,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         {
             // Misma pregunta de estado que la carga de página (ConRecuentosPorEstado): sin ella el
             // handler toma el camino que deja sin estado a quien no tiene documentos, y la fila
-            // pasaría de «Sin incidencias» a «Sin documentos» al refrescarla.
+            // pasaría de «Sin incidencias» a «Sin documentos» al refrescarla. Y el desglose se pide
+            // igual que allí: sin él la fila refrescada perdería el motivo y «Registrados vigentes».
             var resultado = await Mediator.Send(
-                new ObtenerTrabajadoresQuery(Busqueda: null, ConRecuentosPorEstado: true, TrabajadorId: id), _ciclo.Token);
+                new ObtenerTrabajadoresQuery(
+                    Busqueda: null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true, TrabajadorId: id),
+                _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
             if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
@@ -501,6 +504,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
             TamanoPagina: _paginacion.ItemsPerPage,
             CentroId: Guid.TryParse(_filtroCentroId, out var centroId) ? centroId : null,
+            // Esta página pinta el motivo del estado y «Registrados vigentes»: es quien pide el desglose.
+            ConDesgloseDocumental: true,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,

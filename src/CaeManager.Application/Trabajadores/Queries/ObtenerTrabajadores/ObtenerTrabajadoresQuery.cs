@@ -33,13 +33,14 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 ///
 /// <para>
 /// <paramref name="ConDesgloseDocumental"/> rellena, para las filas de la página, las incidencias y la fracción
-/// «vigentes / registrados» de <see cref="TrabajadorListaDto"/>. Lo apaga quien recorre el listado entero sin
-/// pintarlo (la exportación) o no lo publica (la API v1): cuesta una consulta de documentos por página.
+/// «vigentes / registrados» de <see cref="TrabajadorListaDto"/>. Cuesta una consulta de documentos por página, así
+/// que hay que pedirlo: lo pide solo quien lo pinta (el listado de Trabajadores, en su carga de página y al
+/// refrescar una fila por id). Sin pedirlo, las filas llegan con las incidencias vacías y los contadores a cero.
 /// </para>
 /// </summary>
 public record ObtenerTrabajadoresQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
-    Guid? CentroId = null, bool ConDesgloseDocumental = true,
+    Guid? CentroId = null, bool ConDesgloseDocumental = false,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
     bool ConRecuentosPorEstado = false, Guid? TrabajadorId = null)
     : IRequest<ResultadoPaginado<TrabajadorListaDto>>;

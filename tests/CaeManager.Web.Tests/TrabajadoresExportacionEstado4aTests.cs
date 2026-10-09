@@ -152,7 +152,8 @@ public class TrabajadoresExportacionEstado4aTests
             q: "prieto", estado: "Vencido", empresa: empresa.ToString(), subcontrata: subcontrata.ToString(),
             orden: nameof(TrabajadorListaDto.Apellidos), desc: true, centro: centro.ToString());
 
-        // El Excel no lleva columnas del desglose documental: se pide sin él (ConDesgloseDocumental: false).
+        // El Excel no lleva columnas del desglose documental: se pide sin él. El «false» va escrito aquí aunque
+        // sea el valor por defecto de la consulta: así este test no depende de cuál sea ese valor.
         mediador.UltimaConsulta.Should().BeEquivalentTo(
             new ObtenerTrabajadoresQuery(
                 Busqueda: "prieto", EmpresaId: empresa, SubcontrataId: subcontrata,

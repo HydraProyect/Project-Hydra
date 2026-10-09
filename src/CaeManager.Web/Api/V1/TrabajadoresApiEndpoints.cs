@@ -39,9 +39,8 @@ public static class TrabajadoresApiEndpoints
             IMediator mediator = default!, CancellationToken cancellationToken = default) =>
             Results.Ok(TrabajadorApiListaDto.DesdeInterno(await mediator.Send(
                 new ObtenerTrabajadoresQuery(
-                    busqueda, empresaId, subcontrataId, ApiV1.Pagina(pagina), ApiV1.TamanoPagina(tamanoPagina),
-                    // El desglose documental no se publica (TrabajadorApiListaDto): no se calcula.
-                    ConDesgloseDocumental: false),
+                    // Sin ConDesgloseDocumental: el desglose no se publica (TrabajadorApiListaDto), así que no se pide.
+                    busqueda, empresaId, subcontrataId, ApiV1.Pagina(pagina), ApiV1.TamanoPagina(tamanoPagina)),
                 cancellationToken))));
 
         endpoints.MapGet("/trabajadores/{id:guid}", async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>

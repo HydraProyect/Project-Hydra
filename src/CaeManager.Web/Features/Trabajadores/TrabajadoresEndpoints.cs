@@ -68,8 +68,7 @@ public static class TrabajadoresEndpoints
                     Pagina: pagina,
                     TamanoPagina: tamanoPagina,
                     CentroId: Guid.TryParse(centro, out var centroId) ? centroId : null,
-                    // El libro no lleva incidencias ni «vigentes / registrados»: no se calculan.
-                    ConDesgloseDocumental: false,
+                    // Sin ConDesgloseDocumental: el libro no lleva incidencias ni «vigentes / registrados».
                     OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
                     Descendente: desc,
                     EstadoDocumental: string.IsNullOrWhiteSpace(estado) ? null : estado),

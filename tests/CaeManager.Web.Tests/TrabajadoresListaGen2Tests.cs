@@ -221,7 +221,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         /// <summary>
         /// Filtra, ordena y pagina como <c>ObtenerTrabajadoresQueryHandler</c>:
         /// el total es el de los coincidentes y las filas, solo las de la
-        /// página pedida.
+        /// página pedida. Y, como él, solo devuelve el desglose documental a quien lo pide
+        /// (<c>ConDesgloseDocumental</c>): una página que dejara de pedirlo se quedaría aquí sin motivo ni fracción.
         /// </summary>
         public ResultadoPaginado<TrabajadorListaDto> Filtrar(ObtenerTrabajadoresQuery q)
         {
@@ -231,7 +232,9 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
                 .Where(f => q.EmpresaId is null || f.EmpresaId == q.EmpresaId)
                 .Where(f => q.SubcontrataId is null || f.SubcontrataId == q.SubcontrataId)
                 .Where(f => EstadoDocumentalFiltro.Coincide(f.Dto.EstadoDocumental, q.EstadoDocumental))
-                .Select(f => f.Dto)
+                .Select(f => q.ConDesgloseDocumental
+                    ? f.Dto
+                    : f.Dto with { Incidencias = [], DocumentosRegistrados = 0, DocumentosVigentes = 0 })
                 .ToList();
 
             var pagina = Ordenar(coincidentes, q)

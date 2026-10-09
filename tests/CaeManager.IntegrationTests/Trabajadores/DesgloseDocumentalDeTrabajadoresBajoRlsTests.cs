@@ -123,7 +123,8 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     public async Task El_desglose_cuenta_solo_los_documentos_operativos_del_Tenant_de_la_sesion(bool conRecuentosPorEstado)
     {
         var resultado = await HandlerSinCartera().Handle(
-            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado), CancellationToken.None);
+            new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: conRecuentosPorEstado),
+            CancellationToken.None);
 
         resultado.Elementos.Select(t => t.Id).Should().BeEquivalentTo([_nora, _iker, _ana],
             "el gemelo del Tenant ajeno no es una fila de este listado");
@@ -213,7 +214,8 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     public async Task El_peor_estado_de_las_incidencias_coincide_con_el_estado_de_la_fila(bool conRecuentosPorEstado)
     {
         var resultado = await HandlerSinCartera().Handle(
-            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado), CancellationToken.None);
+            new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: conRecuentosPorEstado),
+            CancellationToken.None);
 
         resultado.Elementos.Should().HaveCount(3, "control positivo: hay filas con y sin incidencias");
         resultado.Elementos.Count(t => t.Incidencias.Count > 0).Should().Be(2, "Nora e Iker");
@@ -234,19 +236,35 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         }
     }
 
-    /// <summary>Sin pedirlo, el desglose no se calcula (exportación y API v1).</summary>
-    [Fact]
-    public async Task Sin_pedir_el_desglose_las_filas_llegan_sin_el_y_no_se_consulta()
+    /// <summary>
+    /// El desglose es de quien lo pide. Una consulta que no dice nada de él (la de la ficha de la Empresa, la de
+    /// la vista rápida de la Subcontrata, la exportación, la API v1) no paga la consulta de documentos y recibe
+    /// las filas sin incidencias y con los contadores a cero. Por los dos caminos del handler.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Sin_pedir_el_desglose_no_se_consulta_y_las_filas_llegan_sin_el(bool conRecuentosPorEstado)
     {
         _contador.Reiniciar();
 
+        // Sin ConDesgloseDocumental: lo que se mide es el valor por defecto de la consulta.
         var resultado = await HandlerSinCartera().Handle(
-            new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: false), CancellationToken.None);
+            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado), CancellationToken.None);
 
+        _contador.Consultas.Should().Be(0, "nadie pidió el desglose: no se lanza su consulta de documentos");
         resultado.Elementos.Should().HaveCount(3);
-        resultado.Elementos.Should().OnlyContain(t => t.Incidencias.Count == 0 && t.DocumentosRegistrados == 0);
+        resultado.Elementos.SelectMany(t => t.Incidencias).Should().BeEmpty();
+        resultado.Elementos.Sum(t => t.DocumentosRegistrados + t.DocumentosVigentes).Should().Be(0, "sin desglose, los contadores van a cero");
         resultado.Elementos.Single(t => t.Id == _nora).EstadoDocumental.Should().Be(EstadoDocumento.Vencido, "el estado de la fila no depende del desglose");
-        _contador.Consultas.Should().Be(0);
+
+        // Control positivo del contador y del escenario: la misma pregunta, pidiéndolo, sí lanza la consulta y
+        // sí trae desglose.
+        var pidiendolo = await HandlerSinCartera().Handle(
+            new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: conRecuentosPorEstado),
+            CancellationToken.None);
+        _contador.Consultas.Should().Be(1);
+        pidiendolo.Elementos.Single(t => t.Id == _nora).DocumentosRegistrados.Should().Be(4);
     }
 
     /// <summary>Una sola consulta de desglose para toda la página, no una por Trabajador.</summary>
@@ -256,7 +274,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         _contador.Reiniciar();
 
         var resultado = await HandlerSinCartera().Handle(
-            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: true), CancellationToken.None);
+            new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true), CancellationToken.None);
 
         resultado.Elementos.Count(t => t.DocumentosRegistrados > 0).Should().Be(2, "control positivo: dos Trabajadores con documentos en la página");
         _contador.Consultas.Should().Be(1, "el desglose se pide en lote para los Trabajadores de la página");
@@ -270,9 +288,10 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task La_consulta_por_id_devuelve_el_mismo_desglose_que_la_fila_de_la_pagina()
     {
-        var consultaDeFila = new ObtenerTrabajadoresQuery(Busqueda: null, ConRecuentosPorEstado: true, TrabajadorId: _nora);
+        var consultaDeFila = new ObtenerTrabajadoresQuery(
+            Busqueda: null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true, TrabajadorId: _nora);
         var pagina = await HandlerSinCartera().Handle(
-            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: true), CancellationToken.None);
+            new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true), CancellationToken.None);
         var enLaPagina = pagina.Elementos.Single(t => t.Id == _nora);
         enLaPagina.Incidencias.Should().HaveCount(3, "control positivo: la fila de la página lleva desglose que comparar");
 
@@ -284,7 +303,8 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         (fila.DocumentosRegistrados, fila.DocumentosVigentes).Should().Be((4, 2));
 
         var fueraDelAlcance = await HandlerDelGestor().Handle(
-            new ObtenerTrabajadoresQuery(Busqueda: null, ConRecuentosPorEstado: true, TrabajadorId: _iker), CancellationToken.None);
+            new ObtenerTrabajadoresQuery(Busqueda: null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true, TrabajadorId: _iker),
+            CancellationToken.None);
         fueraDelAlcance.Elementos.Should().BeEmpty("pedir por id no salta la cartera");
         var dentroDelAlcance = await HandlerDelGestor().Handle(consultaDeFila, CancellationToken.None);
         dentroDelAlcance.Elementos.Should().ContainSingle("control positivo: el mismo Gestor sí recibe a Nora por id")
@@ -296,7 +316,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     public async Task Un_Gestor_CAE_con_cartera_acotada_no_recibe_filas_ni_desglose_de_fuera_de_su_alcance()
     {
         var resultado = await HandlerDelGestor().Handle(
-            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: true), CancellationToken.None);
+            new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true), CancellationToken.None);
 
         resultado.Elementos.Select(t => t.Id).Should().BeEquivalentTo([_nora, _ana],
             "Iker solo trabaja en el Centro de un Cliente empresarial que la cartera no alcanza");
@@ -305,7 +325,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
 
         // Control positivo: sin cartera que acote, Iker y su vencido salen.
         var sinCartera = await HandlerSinCartera().Handle(
-            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: true), CancellationToken.None);
+            new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true), CancellationToken.None);
         sinCartera.Elementos.Single(t => t.Id == _iker).Incidencias.Should().ContainSingle()
             .Which.Estado.Should().Be(EstadoDocumento.Vencido);
     }
