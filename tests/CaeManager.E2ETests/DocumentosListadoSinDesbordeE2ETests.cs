@@ -93,7 +93,7 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
     /// <summary>
     /// Con un menú «⋯» abierto: cuánto desplazamiento VERTICAL propio le ha aparecido al listado (un
     /// contenedor que desplaza en horizontal también recorta en vertical, y el panel se abre hacia abajo),
-    /// cuánto sobresale el panel del envoltorio y qué opciones quedan tapadas una vez traído el panel a la vista.
+    /// cuánto sobresale el panel de ese contenedor y qué opciones quedan tapadas una vez traído el panel a la vista.
     /// </summary>
     private const string MedirMenuAbierto = """
         async () => {
@@ -103,11 +103,13 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
             // El panel entra con una transición que lo desplaza 8 px: se mide ya asentado.
             await Promise.all(panel.getAnimations().map(a => a.finished.catch(() => null)));
             const filas = Array.from(document.querySelectorAll('table.tabla-datos tbody tr')).filter(f => f.querySelector('.menu-acciones-disparador'));
-            const quienDesplaza = hueco.scrollHeight - hueco.clientHeight >= tabla.scrollHeight - tabla.clientHeight ? hueco : tabla;
-            const altoContenido = quienDesplaza.scrollHeight;
-            const altoVisible = quienDesplaza.clientHeight;
-            const vertical =Math.max(hueco.scrollHeight - hueco.clientHeight, tabla.scrollHeight - tabla.clientHeight);
-            const sobresale = panel.getBoundingClientRect().bottom - hueco.getBoundingClientRect().bottom;
+            // Solo cuenta el contenedor que desplaza: en un elemento que no recorta, scrollHeight también incluye
+            // lo que sobresale de él (el panel), sin que haya ninguna barra.
+            const contenedor = [hueco, tabla].find(e => ['auto', 'scroll'].includes(getComputedStyle(e).overflowX)) ?? hueco;
+            const altoContenido = contenedor.scrollHeight;
+            const altoVisible = contenedor.clientHeight;
+            const vertical = altoContenido - altoVisible;
+            const sobresale = panel.getBoundingClientRect().bottom - contenedor.getBoundingClientRect().bottom;
             panel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
             const opciones = Array.from(panel.querySelectorAll('[role=menuitem]'));
             const tapadas = opciones.filter(o => {
@@ -125,6 +127,7 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
                 altoVisible,
                 sobresale,
                 altoPanel: Math.round(panel.getBoundingClientRect().height),
+                contenedor: contenedor === tabla ? 'la tabla' : 'el envoltorio',
                 desplazaEnHorizontal: [hueco, tabla].some(e => ['auto', 'scroll'].includes(getComputedStyle(e).overflowX))
             };
         }
@@ -241,14 +244,14 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
         var tapadas = medicion.GetProperty("tapadas").EnumerateArray().Select(t => t.GetString()).ToList();
         var donde = $"[1100 px, {medicion.GetProperty("filas").GetInt32()} fila(s), panel de {medicion.GetProperty("altoPanel").GetInt32()} px de alto]";
         salida.WriteLine($"MEDIDA {donde} desplazamiento vertical propio: {vertical} px (contenido de {medicion.GetProperty("altoContenido").GetInt32()} px en {medicion.GetProperty("altoVisible").GetInt32()} px visibles); "
-            + $"el panel sobresale {sobresale:0.#} px del envoltorio; opciones tapadas: {tapadas.Count} de {medicion.GetProperty("opciones").GetInt32()}");
+            + $"el panel sobresale {sobresale:0.#} px del contenedor, que es {medicion.GetProperty("contenedor").GetString()}; opciones tapadas: {tapadas.Count} de {medicion.GetProperty("opciones").GetInt32()}");
 
         // Si a este ancho el listado no se desplazara por su cuenta, el caso no estaría midiendo lo que dice.
         Assert.True(medicion.GetProperty("desplazaEnHorizontal").GetBoolean(), $"{donde} el listado no es un contenedor de desplazamiento a este ancho.");
         Assert.True(medicion.GetProperty("esDeLaUltimaFila").GetBoolean(), $"{donde} el menú abierto no es el de la última fila.");
         Assert.True(medicion.GetProperty("opciones").GetInt32() > 0, $"{donde} el menú no tiene opciones.");
         Assert.True(vertical <= 0, $"{donde} el menú abierto mete {vertical} px de desplazamiento vertical dentro del listado.");
-        Assert.True(sobresale <= 0.5, $"{donde} el panel sobresale {sobresale:0.#} px por debajo del envoltorio del listado.");
+        Assert.True(sobresale <= 0.5, $"{donde} el panel sobresale {sobresale:0.#} px por debajo del contenedor que desplaza.");
         Assert.True(tapadas.Count == 0, $"{donde} opciones que no se pueden pulsar: {string.Join(", ", tapadas)}");
     }
 
