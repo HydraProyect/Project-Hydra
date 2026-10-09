@@ -360,13 +360,15 @@ public class GestionesListaGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Reabrir_desde_el_menu_de_la_fila_manda_el_comando_contrario()
+    public async Task Reabrir_desde_el_boton_rapido_de_la_fila_manda_el_comando_contrario()
     {
         var completada = Gestion("Nuria Salas Ortiz", EstadoGestion.Completada);
         var mediador = new MediatorFalso { Almacen = { completada } };
         var cut = Renderizar(mediador);
 
-        await PulsarEnElMenuDeLaFila(cut, completada.TrabajadorNombre, "Reabrir");
+        FilaGestionFase1(cut, completada.TrabajadorNombre).QuerySelectorAll("button.gestion-completar")
+            .Should().BeEmpty("una Gestión completada no se completa otra vez");
+        await BotonRapidoDeLaFila(cut, completada.TrabajadorNombre, "Reabrir").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<CompletarGestionCommand>().Should().Equal([new CompletarGestionCommand(completada.Id, false)]);
         cut.WaitForAssertion(() => cut.Find("tbody .badge").TextContent.Trim().Should().Be("Pendiente"));
@@ -443,9 +445,11 @@ public class GestionesListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Mientras viaja el cambio de A, el menú de la fila de A es un segundo
-    /// disparador de lo mismo: no puede mandar otro comando. El de B sí, porque
-    /// es otra gestión.
+    /// Mientras viaja el cambio de A, un segundo clic en su botón rápido y el botón del pie de su
+    /// vista rápida son más disparadores de lo mismo: no pueden mandar otro comando. Los dos se
+    /// pintan deshabilitados, pero un doble clic llega antes que el repintado: bUnit despacha el
+    /// clic igualmente, y es la guarda de CambiarEstadoAsync la que lo para. El de B sí manda el
+    /// suyo, porque es otra gestión.
     /// </summary>
     [Fact]
     public async Task Mientras_viaja_el_cambio_de_una_gestion_no_se_manda_otro_para_ella_pero_si_para_otra()
@@ -467,8 +471,8 @@ public class GestionesListaGen2Tests : BunitContext
             cut.WaitForAssertion(() => mediador.Enviadas.OfType<CompletarGestionCommand>().Should().ContainSingle());
             await NombreEnLaFila(cut, a.TrabajadorNombre).ClickAsync(new MouseEventArgs());
             tareas.Add(BotonDeLaVistaRapida(cut, "Marcar completada").ClickAsync(new MouseEventArgs()));
-            tareas.Add(PulsarEnElMenuDeLaFila(cut, a.TrabajadorNombre, "Marcar completada"));
-            tareas.Add(PulsarEnElMenuDeLaFila(cut, b.TrabajadorNombre, "Marcar completada"));
+            tareas.Add(BotonRapidoDeLaFila(cut, a.TrabajadorNombre, "Completar").ClickAsync(new MouseEventArgs()));
+            tareas.Add(BotonRapidoDeLaFila(cut, b.TrabajadorNombre, "Completar").ClickAsync(new MouseEventArgs()));
             cut.WaitForAssertion(() => mediador.Enviadas.OfType<CompletarGestionCommand>().Select(c => c.Id).Should().Equal(a.Id, b.Id));
             mediador.Enviadas.OfType<CompletarGestionCommand>().Should().OnlyContain(c => c.Completada);
         }
@@ -481,10 +485,50 @@ public class GestionesListaGen2Tests : BunitContext
         }
     }
 
-    private static async Task PulsarEnElMenuDeLaFila(IRenderedComponent<Gestiones> cut, string trabajador, string item)
+    /// <summary>Las filas con una Gestión: QuickGrid rellena la página con filas vacías hasta su tamaño.</summary>
+    private static List<IElement> FilasConGestion(IRenderedComponent<Gestiones> cut) =>
+        cut.FindAll("tbody tr").Where(tr => tr.QuerySelector(".gestion-trabajador-centro") is not null).ToList();
+
+    /// <summary>El hueco de acción rápida de la fila: «✓ Completar» si está pendiente, «Reabrir» si está completada.</summary>
+    private static IElement BotonRapidoDeLaFila(IRenderedComponent<Gestiones> cut, string trabajador, string texto) =>
+        FilaGestionFase1(cut, trabajador).QuerySelectorAll("button.gestion-completar, button.gestion-reabrir")
+            .Single(b => b.TextContent.Replace("✓", string.Empty).Trim() == texto);
+
+    /// <summary>
+    /// Patrón de listados (2026-10-08): la fila no lleva menú «⋯». Cada acción del menú retirado
+    /// conserva un sitio: completar y reabrir, el botón rápido de la fila y el pie de la vista
+    /// rápida; «Vista rápida», el clic en la fila o en el nombre; «Eliminar», el pie de la vista rápida.
+    /// </summary>
+    [Fact]
+    public async Task La_fila_no_lleva_menu_es_pulsable_y_cada_accion_del_menu_retirado_conserva_un_sitio()
     {
-        await FilaGestionFase1(cut, trabajador).QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
-        await cut.FindAll("tbody .menu-acciones-item").Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
+        var pendiente = Gestion("Nuria Salas Ortiz");
+        var completada = Gestion("Bruno Vidal Camps", EstadoGestion.Completada);
+        var cut = Renderizar(new MediatorFalso { Almacen = { pendiente, completada } });
+
+        cut.WaitForAssertion(() => FilasConGestion(cut).Should().HaveCount(2, "la lista está pintada"));
+        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        FilasConGestion(cut).Should().OnlyContain(f => f.ClassList.Contains("fila-pulsable"));
+        FilasConGestion(cut).Should().OnlyContain(f => f.QuerySelectorAll(".nombre-abre-vista-rapida").Length == 1,
+            "el clic de fila pulsa ese botón: tiene que haber uno, y solo uno, por fila");
+        cut.FindAll("tbody a.boton-360-pagina").Should().BeEmpty("una Gestión no tiene página 360");
+        BotonRapidoDeLaFila(cut, pendiente.TrabajadorNombre, "Completar").Should().NotBeNull();
+        BotonRapidoDeLaFila(cut, completada.TrabajadorNombre, "Reabrir").Should().NotBeNull();
+
+        await cut.Find("tbody tr .nombre-abre-vista-rapida").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("aside.vista-rapida-gestion .pie-vista-rapida-gestion button").Select(b => b.TextContent.Trim())
+            .Should().Contain("Eliminar", "sin menú de fila ni selección múltiple, eliminar vive en el pie de la vista rápida");
+    }
+
+    [Fact]
+    public void Consulta_no_ve_los_botones_rapidos_de_la_fila()
+    {
+        this.ConRolDeEscritura(Roles.Consulta);
+        var cut = Renderizar(new MediatorFalso { Almacen = { Gestion("Nuria Salas Ortiz"), Gestion("Bruno Vidal Camps", EstadoGestion.Completada) } });
+
+        cut.WaitForAssertion(() => FilasConGestion(cut).Should().HaveCount(2, "la lista está pintada"));
+        cut.FindAll("tbody button.gestion-completar, tbody button.gestion-reabrir").Should().BeEmpty();
     }
 
     /// <summary>Listados 5/7 (decisión D6, 2026-10-08): eliminar una Gestión deja «Deshacer», que la restaura.</summary>
@@ -534,23 +578,6 @@ public class GestionesListaGen2Tests : BunitContext
             "una vista rápida sobre la gestión borrada enseñaría algo que ya no está"));
         cut.WaitForAssertion(() => cut.FindAll("td .enlace-nombre-fila").Select(e => e.TextContent.Trim())
             .Should().NotContain("Nuria Salas Ortiz").And.Contain("Juan Pérez Ibarra"));
-    }
-
-    [Fact]
-    public async Task Eliminar_otra_gestion_desde_el_menu_no_cierra_la_vista_rapida_abierta()
-    {
-        var abierta = Gestion("Juan Pérez Ibarra");
-        var borrada = Gestion("Nuria Salas Ortiz");
-        var mediador = new MediatorFalso { Almacen = { abierta, borrada } };
-        var cut = Renderizar(mediador);
-
-        await NombreEnLaFila(cut, "Juan Pérez Ibarra").ClickAsync(new MouseEventArgs());
-        await PulsarEnElMenuDeLaFila(cut, borrada.TrabajadorNombre, "Eliminar");
-        await BotonDelDialogo(cut, "Eliminar").ClickAsync(new MouseEventArgs());
-
-        mediador.Enviadas.OfType<EliminarGestionCommand>().Should().Equal([new EliminarGestionCommand(borrada.Id)]);
-        cut.WaitForAssertion(() => cut.Find("aside.vista-rapida-gestion .nombre-vista-rapida-gestion")
-            .TextContent.Trim().Should().Be("Juan Pérez Ibarra"));
     }
 
     /// <summary>

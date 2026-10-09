@@ -96,9 +96,6 @@
   <data name="AccionMarcarCompletada" xml:space="preserve">
     <value>Marcar completada</value>
   </data>
-  <data name="AccionVistaRapida" xml:space="preserve">
-    <value>Vista rápida</value>
-  </data>
   <data name="AccionEliminar" xml:space="preserve">
     <value>Eliminar</value>
   </data>

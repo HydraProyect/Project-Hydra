@@ -229,4 +229,11 @@
   <data name="FiltroGuardadoBorrarError" xml:space="preserve">
     <value>No hem pogut esborrar el filtre desat. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
+  <data name="VentanaPlataformasTitulo" xml:space="preserve"><value>Estat a les plataformes</value></data>
+  <data name="VentanaPlataformasEtiqueta" xml:space="preserve"><value>Estat a les plataformes: {0}</value></data>
+  <data name="VentanaPlataformasAyuda" xml:space="preserve"><value>Obre la pestanya Validació del document</value></data>
+  <data name="AccionRapidaRenovar" xml:space="preserve"><value>Renova</value></data>
+  <data name="AccionRapidaSubir" xml:space="preserve"><value>Puja</value></data>
+  <data name="AccionRapidaRenovarAria" xml:space="preserve"><value>Renova {0} de {1}</value></data>
+  <data name="AccionRapidaSubirAria" xml:space="preserve"><value>Puja el fitxer de {0} de {1}</value></data>
 </root>

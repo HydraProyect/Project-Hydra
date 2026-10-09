@@ -4,7 +4,6 @@
 @attribute [Authorize]
 @using CaeManager.Web.Features.Documentos.Recursos
 @using CaeManager.Application.Documentos.Commands.CrearDocumento
-@using CaeManager.Application.Documentos.Commands.EliminarDocumento
 @using CaeManager.Application.Documentos.Commands.RenovarDocumento
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId
 @using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
@@ -178,7 +177,7 @@
                             </ColumnOptions>
                             <ChildContent>
                                 <span class="documentos-propietario">
-                                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick="() => AbrirPanelAsync(context.Id)">@context.PropietarioNombre</button>
+                                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" @onclick="() => AbrirPanelAsync(context.Id)">@context.PropietarioNombre</button>
                                     <span class="documentos-ambito">@EtiquetaAmbitoListado(context.Ambito)</span>
                                 </span>
                             </ChildContent>
@@ -202,8 +201,9 @@
                                     {
                                         <span>@context.FechaEmision.ToString("dd/MM/yyyy")</span>
                                         <span aria-hidden="true"> → </span>
-                                        @* P9: solo la fecha de vencimiento es copiable; emisión queda como texto. *@
-                                        <TextoFechaCopiable Fecha="context.FechaVencimiento">@context.FechaVencimiento.Value.ToString("dd/MM/yyyy")</TextoFechaCopiable>
+                                        @* Un clic copia el vencimiento; Alt + clic, la emisión (decisión del 2026-10-08).
+                                           La emisión se sigue pintando como texto: el botón es solo el vencimiento. *@
+                                        <TextoFechaCopiable Fecha="context.FechaVencimiento" FechaEmision="context.FechaEmision">@context.FechaVencimiento.Value.ToString("dd/MM/yyyy")</TextoFechaCopiable>
                                     }
                                 </span>
                             </ChildContent>
@@ -222,7 +222,24 @@
                             }
                             else
                             {
-                                <BadgesAcreditacion Acreditaciones="context.Acreditaciones" />
+                                @* La ventana repite lo que la celda ya dice (plataforma y estado), una línea por
+                                   plataforma; pulsar una abre la vista rápida del documento en «Validación». *@
+                                <VentanaContexto Interactiva="true"
+                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                 Etiqueta="@Textos["VentanaPlataformasEtiqueta", context.Acreditaciones.Count]"
+                                                 Titulo="@Textos["VentanaPlataformasTitulo"]"
+                                                 class="documentos-plataformas">
+                                    <Disparador><BadgesAcreditacion Acreditaciones="context.Acreditaciones" /></Disparador>
+                                    <Detalle>
+                                        @foreach (var acreditacion in context.Acreditaciones)
+                                        {
+                                            <VentanaContextoElemento @key="acreditacion.Id"
+                                                                     Secundario="@EstadoAcreditacionUi.Texto(acreditacion.Estado)"
+                                                                     Ayuda="@Textos["VentanaPlataformasAyuda"]"
+                                                                     AlPulsar="() => AbrirPanelAsync(context.Id, PestanaValidacion)">@acreditacion.NombrePlataforma</VentanaContextoElemento>
+                                        }
+                                    </Detalle>
+                                </VentanaContexto>
                             }
                         </TemplateColumn>
                         <TemplateColumn Title="Archivo">
@@ -235,18 +252,28 @@
                                 <span class="detalle-tecnico">Sin adjunto</span>
                             }
                         </TemplateColumn>
+                        @* Fila sin menú «⋯» (decisión 2026-10-08): «Ver» es la fila, el nombre o Enter; eliminar, la
+                           selección múltiple. «Renovar» conserva el drawer que abría el menú —el único camino de
+                           la lista que renueva CON archivo nuevo; el «Renovar» de la vista rápida solo cambia
+                           fechas y comentarios—. El icono 360 lleva a la página del TIPO de documento, y solo
+                           para los roles que pueden abrirla. *@
                         <TemplateColumn Title="Acciones" Align="Align.End">
-                            <MenuAcciones>
-                                <ItemMenuAccion OnClick="() => AbrirPanelAsync(context.Id)">
-                                    Ver
-                                </ItemMenuAccion>
-                                <SoloConEscritura><ItemMenuAccion OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
-                                    Renovar
-                                </ItemMenuAccion></SoloConEscritura>
-                                <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.PropietarioNombre, context.TipoDocumentoNombre)">
-                                    Eliminar
-                                </ItemMenuAccion></SoloConEscritura>
-                            </MenuAcciones>
+                            <span class="documentos-acciones-fila">
+                                <SoloConEscritura>
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                           class="documentos-accion-rapida"
+                                           aria-label="@Textos[context.ArchivoUrl is null ? "AccionRapidaSubirAria" : "AccionRapidaRenovarAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
+                                           OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
+                                        @Textos[context.ArchivoUrl is null ? "AccionRapidaSubir" : "AccionRapidaRenovar"]
+                                    </Boton>
+                                </SoloConEscritura>
+                                @if (context.TipoDocumentoId != Guid.Empty)
+                                {
+                                    <AuthorizeView Roles="@TipoDocumentoDetalle.RolesDeLaPagina" Context="autorizacion">
+                                        <Boton360 Nombre="@context.TipoDocumentoNombre" Href="@($"/documentos/tipos/{context.TipoDocumentoId}")" />
+                                    </AuthorizeView>
+                                }
+                            </span>
                         </TemplateColumn>
                     </QuickGrid>
 
@@ -293,14 +320,6 @@
 
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" OnCerrado="LimpiarEnlaceProfundoDeUrl" />
-
-<DialogoConfirmacion
-    Visible="_confirmarEliminarVisible"
-    VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@($"¿Eliminar este documento?")"
-    Mensaje="@($"{_tipoDocumentoAEliminar} de {_propietarioAEliminar} se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá.")"
-    EnProgreso="_eliminando"
-    OnConfirmar="ConfirmarEliminarAsync" />
 
 @* El lote solo elimina: tanto la selección múltiple como su barra requieren un rol con escritura. *@
 <SoloConEscritura>

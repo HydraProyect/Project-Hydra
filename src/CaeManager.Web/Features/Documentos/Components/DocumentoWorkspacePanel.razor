@@ -85,9 +85,9 @@ else
                         <div class="celda-info-documento-360"><span>Propietario</span><strong>@_detalle.PropietarioNombre</strong></div>
                         <div class="celda-info-documento-360"><span>Tipo de documento</span><strong>@_detalle.TipoDocumentoNombre</strong></div>
                         <div class="celda-info-documento-360"><span>Fecha de emisión</span><strong>@_detalle.FechaEmision.ToString("dd/MM/yyyy")</strong></div>
-                        @* Sin FechaEmision: fuera de Detección/Revisión IA solo la vigencia es
-                           copiable (P9, 2026-09-18); la emisión ya tiene su propia celda arriba,
-                           sin Alt+clic. *@
+                        @* Sin FechaEmision: en este panel solo la vigencia es copiable (P9,
+                           2026-09-18); la emisión ya tiene su propia celda arriba, sin Alt+clic.
+                           El listado sí lo ofrece desde la decisión del 2026-10-08. *@
                         <div class="celda-info-documento-360"><span>Fecha de vencimiento</span><strong><TextoFechaCopiable Fecha="_detalle.FechaVencimiento">@(_detalle.FechaVencimiento?.ToString("dd/MM/yyyy") ?? (_detalle.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? "Sin caducidad" : TextosVigenciaDocumento.Texto("SinConfirmar")))</TextoFechaCopiable></strong></div>
                         <div class="celda-info-documento-360 celda-info-documento-360-ancha"><span>Comentarios</span><strong>@(_detalle.Comentarios ?? "—")</strong></div>
                         <div class="celda-info-documento-360 celda-info-documento-360-ancha">

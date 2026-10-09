@@ -35,3 +35,11 @@
 .documentos-opciones-orden button:hover {
     background: var(--color-surface-hover);
 }
+
+/* Última celda de la fila: la acción rápida («Renovar» / «Subir») y el icono 360 del tipo. */
+.documentos-acciones-fila {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
