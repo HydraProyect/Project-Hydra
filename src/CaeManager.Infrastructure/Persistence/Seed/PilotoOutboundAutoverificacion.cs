@@ -140,23 +140,38 @@ public static class PilotoOutboundAutoverificacion
     }
 
     /// <summary>
+    /// Una discrepancia y el Tenant propietario al que se atribuye, por su nombre del
+    /// catálogo. Sin nombre es del lote entero: sale de comparar varios Tenants y no
+    /// se puede cargar a uno solo.
+    /// </summary>
+    internal sealed record Discrepancia(string? NombreDeTenant, string Texto);
+
+    /// <summary>
     /// Todas las discrepancias entre lo medido y la matriz, cada una con su Tenant
     /// y su contador. Vacía si la siembra está como la matriz dice.
     /// </summary>
-    public static IReadOnlyList<string> Discrepancias(Informe informe)
+    public static IReadOnlyList<string> Discrepancias(Informe informe) =>
+        [.. DiscrepanciasAtribuidas(informe).Select(d => d.Texto)];
+
+    /// <summary>
+    /// Las mismas discrepancias, cada una con el Tenant propietario al que se
+    /// atribuye. Todas son de un solo Tenant menos una, que es del lote entero: el
+    /// control positivo de «cero filas» de Mi trabajo, que mira los seis a la vez.
+    /// </summary>
+    internal static IReadOnlyList<Discrepancia> DiscrepanciasAtribuidas(Informe informe)
     {
-        var d = new List<string>();
+        var d = new List<Discrepancia>();
 
         foreach (var tenant in CatalogoPilotoOutbound.Tenants)
         {
             if (informe.Tenants.SingleOrDefault(t => t.Clave == tenant.Clave) is not { } m)
             {
-                d.Add($"{tenant.Clave} «{tenant.Nombre}»: el Tenant no existe o no se pudo medir.");
+                d.Add(new(tenant.Nombre, $"{tenant.Clave} «{tenant.Nombre}»: el Tenant no existe o no se pudo medir."));
                 continue;
             }
 
             void Discrepa(string contador, string medido, string esperado) =>
-                d.Add($"{tenant.Clave} «{tenant.Nombre}» · {contador}: medido {medido}, esperado {esperado}.");
+                d.Add(new(tenant.Nombre, $"{tenant.Clave} «{tenant.Nombre}» · {contador}: medido {medido}, esperado {esperado}."));
 
             void Exige<T>(string contador, T medido, T esperado)
             {
@@ -222,10 +237,34 @@ public static class PilotoOutboundAutoverificacion
         }
 
         // Control positivo de «cero filas»: en la MISMA lectura de Mi trabajo, otro Tenant sí trae filas.
+        // Es del lote entero: no se atribuye a ningún Tenant.
         if (informe.Tenants.All(t => t.MiTrabajoFilas == 0))
-            d.Add("Mi trabajo · control positivo: ningún Tenant del piloto trae filas, así que un cero no demuestra nada.");
+            d.Add(new(null, "Mi trabajo · control positivo: ningún Tenant del piloto trae filas, así que un cero no demuestra nada."));
 
         return d;
+    }
+
+    /// <summary>
+    /// Reparte las discrepancias de una ejecución que acaba de escribir entre las que
+    /// se exigen y las que solo se avisan.
+    ///
+    /// <para>
+    /// Sin ningún Tenant propietario con datos de otra versión de la siembra se exigen
+    /// todas. Si hay alguno, las suyas solo se avisan —esta ejecución no ha escrito en
+    /// él, así que no responde de lo que lleva—, y también las del lote entero, que
+    /// dependen de lo que lleve ese Tenant. Las de cualquier otro Tenant se exigen
+    /// igual que siempre.
+    /// </para>
+    /// </summary>
+    internal static (IReadOnlyList<Discrepancia> Exigidas, IReadOnlyList<Discrepancia> SoloAvisadas) Repartir(
+        IReadOnlyList<Discrepancia> discrepancias, IReadOnlyList<string> tenantsConDatosDeOtraVersion)
+    {
+        if (tenantsConDatosDeOtraVersion.Count == 0)
+            return (discrepancias, []);
+
+        bool SeExige(Discrepancia d) => d.NombreDeTenant is { } nombre && !tenantsConDatosDeOtraVersion.Contains(nombre);
+
+        return ([.. discrepancias.Where(SeExige)], [.. discrepancias.Where(d => !SeExige(d))]);
     }
 
     /// <summary>
@@ -328,9 +367,10 @@ public static class PilotoOutboundAutoverificacion
     ];
 
     /// <summary>Lanza con TODAS las discrepancias si lo medido no es lo que la matriz declara.</summary>
-    public static void Exigir(Informe informe)
+    public static void Exigir(Informe informe) => LanzarSiHay(Discrepancias(informe));
+
+    private static void LanzarSiHay(IReadOnlyList<string> discrepancias)
     {
-        var discrepancias = Discrepancias(informe);
         if (discrepancias.Count > 0)
             throw new InvalidOperationException(
                 $"La siembra del piloto Outbound no da los resultados de su matriz ({discrepancias.Count} discrepancias):" +
@@ -351,8 +391,19 @@ public static class PilotoOutboundAutoverificacion
     ///
     /// <para>
     /// <b>Si acaba de escribir</b>, lo medido tiene que ser la matriz: una discrepancia lanza
-    /// (<see cref="Exigir"/>) y no poder medir también, porque una siembra recién hecha que no
-    /// se deja medir está mal.
+    /// y no poder medir también, porque una siembra recién hecha que no se deja medir está mal.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Si acaba de escribir y hay un Tenant propietario con datos de otra versión de la
+    /// siembra</b> —la siembra lo dejó como estaba y escribió los que faltaban—, la matriz se
+    /// exige de lo que esta ejecución pudo escribir, no de ese Tenant: sus discrepancias quedan
+    /// como advertencias con su nombre, y las del lote entero, que dependen de lo que él lleve,
+    /// también (<see cref="Repartir"/>). Una discrepancia de cualquier otro Tenant sigue
+    /// lanzando, y no poder medir, también. Qué Tenants son de otra versión se lee aquí,
+    /// después de la siembra, con la misma pregunta que ella se hace antes de escribir
+    /// (<see cref="PilotoOutboundSeeder.TenantsConDatosDeOtraVersionAsync"/>): como en ellos no
+    /// se escribe, la respuesta es la misma.
     /// </para>
     ///
     /// <para>
@@ -376,7 +427,22 @@ public static class PilotoOutboundAutoverificacion
 
             if (escribio)
             {
-                Exigir(informe);
+                var deOtraVersion = await TenantsConDatosDeOtraVersionAsync(fabricaDeAmbitos, cancellationToken);
+                var (exigidas, soloAvisadas) = Repartir(DiscrepanciasAtribuidas(informe), deOtraVersion);
+
+                foreach (var discrepancia in soloAvisadas)
+                {
+                    if (discrepancia.NombreDeTenant is { } nombre)
+                        logger.LogWarning(
+                            "Piloto Outbound, discrepancia que no se exige porque el Tenant «{Tenant}» tiene datos de otra " +
+                            "versión de la siembra: {Discrepancia}", nombre, discrepancia.Texto);
+                    else
+                        logger.LogWarning(
+                            "Piloto Outbound, discrepancia del lote entero que no se exige porque hay datos de otra versión " +
+                            "de la siembra en «{Tenants}»: {Discrepancia}", string.Join("», «", deOtraVersion), discrepancia.Texto);
+                }
+
+                LanzarSiHay([.. exigidas.Select(d => d.Texto)]);
                 return;
             }
 
@@ -390,6 +456,20 @@ public static class PilotoOutboundAutoverificacion
                 ex, "Piloto Outbound, no se ha podido medir el lote ya sembrado y el arranque sigue sin esa comprobación: {Motivo}",
                 ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Los Tenants propietarios del lote con datos de otra versión de la siembra, por su
+    /// nombre, leídos en un ámbito de servicios nuevo y sin identidad de ninguna cuenta: la
+    /// misma lectura que hace la siembra del arranque. Solo lee.
+    /// </summary>
+    private static async Task<IReadOnlyList<string>> TenantsConDatosDeOtraVersionAsync(
+        IServiceScopeFactory fabricaDeAmbitos, CancellationToken cancellationToken)
+    {
+        await using var ambito = fabricaDeAmbitos.CreateAsyncScope();
+
+        return await PilotoOutboundSeeder.TenantsConDatosDeOtraVersionAsync(
+            ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>(), cancellationToken);
     }
 
     private static string Texto<T>(T valor) => valor is null ? "(nada)" : valor.ToString()!;

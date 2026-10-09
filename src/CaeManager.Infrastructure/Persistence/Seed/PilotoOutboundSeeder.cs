@@ -63,7 +63,9 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// arranque lo avisa en el registro y sigue con los demás Tenants; la vía
 /// administrativa se niega antes de escribir en ninguno
 /// (<see cref="RechazarDatosDeOtraVersionAsync"/>). Para volver a sembrarlo hay
-/// que retirar antes el lote.
+/// que retirar antes el lote. La autoverificación del arranque tampoco le exige
+/// la matriz, ni siquiera cuando esa ejecución ha escrito otros Tenants: de lo
+/// que mida en él solo avisa (<see cref="PilotoOutboundAutoverificacion.Repartir"/>).
 /// </para>
 ///
 /// <para>
@@ -137,7 +139,9 @@ public static class PilotoOutboundSeeder
     /// en el registro, con su nombre, y no se escribe nada en él —ni sus datos, ni
     /// su Asignación de Operación, ni sus cuentas—; los demás siguen su curso. Aquí
     /// no lanza, para no tumbar el arranque; la vía administrativa se niega antes
-    /// de llegar (<see cref="RechazarDatosDeOtraVersionAsync"/>).
+    /// de llegar (<see cref="RechazarDatosDeOtraVersionAsync"/>). Tampoco lo tumba
+    /// después la autoverificación: aunque esta ejecución escriba otros Tenants, de
+    /// lo que mida en ese solo avisa.
     /// </para>
     ///
     /// <para>
