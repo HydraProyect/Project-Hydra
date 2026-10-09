@@ -225,8 +225,17 @@ public static class MedidorPiezas360
           if (dispersiones.length) pon('pastilla-de-fila.dispersion-izquierda', 'px', [px(Math.max(...dispersiones))]);
           pon('pastilla-de-fila.distancia-al-borde-derecho', 'px', distancias);
 
-          // Divisor: borde superior de las filas que no abren lista ni llevan problema.
-          const conDivisor = filas.filter(f => !conProblema.has(f) && f.previousElementSibling && f.previousElementSibling.matches(selFila));
+          // Divisor: borde superior de las filas que no abren lista ni llevan problema. Una fila
+          // envuelta una a una (fila desplegable) no tiene hermana: su anterior es la fila del
+          // envoltorio de antes, que tiene que ser como el suyo y no una lista entera.
+          const tieneFilaAntes = f => {
+            if (f.previousElementSibling) return f.previousElementSibling.matches(selFila);
+            const padre = f.parentElement, antes = padre.previousElementSibling;
+            const filasDe = e => [...e.children].filter(h => h.matches(selFila)).length;
+            return !!antes && !/^(UL|OL|TBODY)$/.test(padre.tagName) && antes.tagName === padre.tagName
+              && antes.className === padre.className && filasDe(padre) === 1 && filasDe(antes) === 1;
+          };
+          const conDivisor = filas.filter(f => !conProblema.has(f) && tieneFilaAntes(f));
           estilo('fila.border-top-color', 'color', conDivisor, 'border-top-color', color);
           estilo('fila.border-top-width', 'px', conDivisor, 'border-top-width', px);
           estilo('fila-detalle.color', 'color', detalles, 'color', color);

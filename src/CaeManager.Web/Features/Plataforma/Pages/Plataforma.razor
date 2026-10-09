@@ -269,6 +269,14 @@
         </section>
     }
 
+    @* Decisión D-8 (2026-10-08): el Encargo de administración de la organización visitada se registra y
+       se retira desde aquí solo dentro de una Sesión Privilegiada de aprovisionamiento. La autoridad
+       real la deciden los comandos del encargo y la base. *@
+    @if (_identidad?.CapacidadActiva == CapacidadPrivilegio.Aprovisionamiento)
+    {
+        <CaeManager.Web.Features.EncargoDeAdministracion.EncargoAdministracionPanel PermiteRegistrar="true" />
+    }
+
     <section class="administracion-global-seccion" aria-labelledby="registro-global">
         <h2 id="registro-global">Qué queda registrado</h2>
         <div class="administracion-global-registro">

@@ -25,11 +25,20 @@ namespace CaeManager.Application.Common;
 /// El Id de la fila que ampara la vía —la <c>AsignacionOperacion</c> o la
 /// sesión privilegiada—, o <c>null</c> en la vía normal.
 /// </param>
+/// <param name="EncargoAdministracionId">
+/// El Encargo de administración que subía el techo del rol efectivo del actor en
+/// el momento del acto, o <c>null</c>. No sustituye a <paramref name="Via"/>: la
+/// vía de acceso sigue siendo la operación delegada (el encargo no concede
+/// acceso), y quien necesita la operación —el asistente, el rastro de acceso a
+/// documentos sensibles— la sigue encontrando ahí. La auditoría general sí lo
+/// registra como vía <see cref="TipoViaAcceso.EncargoAdministracion"/> con este Id.
+/// </param>
 public readonly record struct ActorAuditoria(
     Guid? ActorRealUsuarioId,
     Guid? UsuarioSimuladoId,
     TipoViaAcceso Via,
-    Guid? ViaAccesoId)
+    Guid? ViaAccesoId,
+    Guid? EncargoAdministracionId = null)
 {
     /// <summary>
     /// Sin identidad resuelta: jobs de fondo, seeders y el guardado síncrono

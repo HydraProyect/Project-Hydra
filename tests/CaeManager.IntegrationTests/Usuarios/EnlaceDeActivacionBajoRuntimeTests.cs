@@ -181,7 +181,8 @@ public class EnlaceDeActivacionBajoRuntimeTests
     {
         using var ambito = arnes.Servicios.CreateScope();
         var sp = ambito.ServiceProvider;
-        var resultado = await new GenerarActivacionUsuarioCommandHandler(Puerto(sp), sp.GetRequiredService<ICurrentUserService>())
+        var resultado = await new GenerarActivacionUsuarioCommandHandler(
+                Puerto(sp), sp.GetRequiredService<ICurrentUserService>(), sp.GetRequiredService<ITenantActual>())
             .Handle(new GenerarActivacionUsuarioCommand(usuarioId), default);
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
         return resultado.Valor;

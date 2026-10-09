@@ -703,13 +703,13 @@ public partial class UsuariosGen2Tests : BunitContext
                 usuarioActual, directorioCartera, directorioCartera, _catalogo).Handle(q, ct),
             EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, ct),
             CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
-                cuentas, usuarioActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera).Handle(c, ct),
+                cuentas, usuarioActual, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), _catalogo, directorioCartera, directorioCartera).Handle(c, ct),
             ObtenerPersonasConCarteraQuery q => await new ObtenerPersonasConCarteraQueryHandler(
                 usuarioActual, directorioCartera, _catalogo).Handle(q, ct),
             DesignarGestorCaePrincipalCommand c => await new DesignarGestorCaePrincipalCommandHandler(
                 usuarioActual, directorioCartera, directorioCartera, _catalogo, new TransaccionDirecta(), new SinBloqueoCartera()).Handle(c, ct),
-            EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, usuarioActual).Handle(c, ct),
-            GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual).Handle(c, ct),
+            EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
+            GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, usuarioActual, tenantActual).Handle(c, ct),
             ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, usuarioActual).Handle(q, ct),
             _ => throw new NotSupportedException(peticion.GetType().Name),
         };
@@ -1051,7 +1051,7 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task En_un_Context_Workspace_cruzado_editar_un_Administrador_conserva_su_rol_en_el_selector()
+    public async Task En_un_Context_Workspace_cruzado_no_se_edita_una_cuenta_con_rol_de_Propiedad()
     {
         Sembrar(
             (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
@@ -1068,7 +1068,10 @@ public partial class UsuariosGen2Tests : BunitContext
         await EscribirAsync(cut, "Nombre completo", "Ander Beitia Zabala");
         await GuardarAsync(cut);
 
-        _identidad.Cuentas[AnderId].NombreCompleto.Should().Be("Ander Beitia Zabala");
+        // Decisión D-8 (2026-10-08): quien actúa fuera de su Tenant de origen no toca una cuenta con
+        // rol de Propiedad, ni siquiera para cambiarle el nombre. Hasta entonces este guardado pasaba.
+        cut.Find(".alerta-formulario").TextContent.Should().Contain("solo las gestiona un Administrador propio");
+        _identidad.Cuentas[AnderId].NombreCompleto.Should().Be("Ander Beitia");
         _identidad.RolesPorCuenta[AnderId].Should().Equal(RolesIdentidad.Administrador);
     }
 

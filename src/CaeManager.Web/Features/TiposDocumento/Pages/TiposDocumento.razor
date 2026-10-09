@@ -190,9 +190,9 @@
                                     var claveOficial = new ClaveCambio(tipo.Id, CampoEnLinea.DocumentoOficial);
                                     <div class="celda-oficial">
                                         <select @key="GeneracionDe(claveOficial)" class="select-oficial"
-                                                title="@Textos["TooltipSelectOficial"]"
+                                                title="@AyudaIaGlobal(Textos["TooltipSelectOficial"])"
                                                 aria-label="@Textos["AriaSelectOficial", tipo.Nombre]"
-                                                value="@tipo.PerfilDocumentoOficial" disabled="@_pendientes.Contains(claveOficial)"
+                                                value="@tipo.PerfilDocumentoOficial" disabled="@(_pendientes.Contains(claveOficial) || _iaGlobalReservada)"
                                                 @onchange="e => CambiarPerfilDocumentoOficialAsync(tipo.Id, e.Value?.ToString())">
                                             <option value="@PerfilDocumentoOficial.Ninguno">—</option>
                                             <option value="@PerfilDocumentoOficial.CorrienteTgss">@Textos["OpcionOficialTgss"]</option>
@@ -392,10 +392,10 @@
         var clave = new ClaveCambio(tipo.Id, campo);
         var activa = ValorEnLinea(tipo, campo);
         var pendiente = _pendientes.Contains(clave);
-        <label class="celda-interruptor" title="@ayuda">
+        <label class="celda-interruptor" title="@AyudaIaGlobal(ayuda)">
             <input @key="GeneracionDe(clave)" type="checkbox" role="switch" class="interruptor-tipo"
                    aria-label="@Textos["AriaInterruptor", nombre, tipo.Nombre]"
-                   checked="@activa" disabled="@pendiente"
+                   checked="@activa" disabled="@(pendiente || _iaGlobalReservada)"
                    @onchange="() => AlternarAsync(tipo.Id, campo)" />
             <span class="@ClaseAvisoCambio(clave)">@(TextoAvisoCambio(clave) ?? (activa ? Textos["InterruptorActivo"].Value : Textos["InterruptorInactivo"].Value))</span>
         </label>

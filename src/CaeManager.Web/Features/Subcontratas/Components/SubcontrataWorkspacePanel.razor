@@ -11,11 +11,11 @@
     - «2.º nivel» (profundidad en la cadena de subcontratación): ningún DTO la
       trae. La cabecera enseña el nivel de servicio (Gestionada/Supervisada),
       que es lo que el código sí sabe.
-    - «Queda registrado en Auditoría quién la ha revelado y cuándo»: ni
-      ObtenerCredencialAccesoSubcontrataQuery ni ningún behavior de su
-      pipeline escriben un registro de auditoría (AutorizacionSecretosDeTenant
-      solo la corta en sesión privilegiada; AuditoriaInterceptor solo
-      intercepta SaveChanges, nunca una lectura). La tarjeta «Acceso al
+    - «Queda registrado en Auditoría quién la ha revelado y cuándo»: la
+      lectura SÍ se registra (las dos consultas de credenciales llaman a
+      IRegistroAccesoDatoSensibleService, y lo exige
+      ConsultasDeSecretosMarcadasTests), pero la tarjeta no lo anuncia con
+      ese texto. La tarjeta «Acceso al
       portal» no pide nada al abrir el panel: las credenciales llegan solo al
       pulsar «Ver credenciales» (DEC-53/DEC-62), «Revelar» solo desenmascara
       lo ya recibido y «Ocultar credenciales» lo suelta. El formulario de
