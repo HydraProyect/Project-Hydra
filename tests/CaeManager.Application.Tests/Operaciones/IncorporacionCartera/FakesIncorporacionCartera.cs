@@ -325,4 +325,35 @@ public class DirectorioRolesEnOrigen : IDirectorioUsuariosService
         Task.FromResult(_roles.TryGetValue((usuarioId, tenantId), out var suyo)
                         && suyo == rol
                         && !_desactivadas.Contains(usuarioId));
+
+    public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+        Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Guid>>(_roles
+            .Where(r => r.Key.Tenant == tenantId && r.Value == rol && !_desactivadas.Contains(r.Key.Usuario))
+            .Select(r => r.Key.Usuario)
+            .OrderBy(id => id)
+            .ToList());
+}
+
+/// <summary>
+/// Doble de <see cref="IAsignacionAutomaticaDePrincipal"/> que no asigna nada y anota lo que se le pidió:
+/// para los tests de comandos de delegaciones y de cuentas que no tratan de la cartera.
+/// </summary>
+public class AsignacionAutomaticaInerte : IAsignacionAutomaticaDePrincipal
+{
+    public List<AsignacionOperacion> OperacionesAbiertas { get; } = [];
+    public List<(Guid UsuarioId, Guid OperadorTenantId)> PrimerosElegibles { get; } = [];
+    public bool Resultado { get; set; } = true;
+
+    public Task<bool> AlAbrirOperacionAsync(AsignacionOperacion operacion, CancellationToken cancellationToken = default)
+    {
+        OperacionesAbiertas.Add(operacion);
+        return Task.FromResult(Resultado);
+    }
+
+    public Task<bool> AlPrimerElegibleAsync(Guid usuarioId, Guid operadorTenantId, CancellationToken cancellationToken = default)
+    {
+        PrimerosElegibles.Add((usuarioId, operadorTenantId));
+        return Task.FromResult(Resultado);
+    }
 }

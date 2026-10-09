@@ -293,7 +293,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             new AsignacionesOperativasWriter(contexto, servicios.GetRequiredService<ITenantActual>(), usuarioActual),
             new AutorizacionDelegacionPorAdministradorDelCliente(servicios.GetRequiredService<UserManager<ApplicationUser>>()),
             usuarioActual,
-            contexto);
+            contexto, new TransaccionDeComando(contexto), new AsignacionAutomaticaInerte());
 
         using (AmbitoTenantExplicito.Establecer(workspaceActivo ?? usuario.TenantId))
             return await handler.Handle(new CrearDelegacionTenantCommand(operador, propietario), CancellationToken.None);

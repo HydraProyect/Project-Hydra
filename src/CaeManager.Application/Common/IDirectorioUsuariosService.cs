@@ -56,4 +56,18 @@ public interface IDirectorioUsuariosService
     /// </summary>
     Task<bool> EsCuentaActivaConRolAsync(
         Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Las cuentas propias de <paramref name="tenantId"/> que tienen el rol de Identity
+    /// <paramref name="rol"/> y no están desactivadas; mismo predicado que
+    /// <see cref="EsCuentaActivaConRolAsync"/>, para todas a la vez.
+    ///
+    /// La usa el escalado del principal de una Asignación de Operación (ADR-011 § 2.7,
+    /// enmienda 2026-10-08, punto 4) para saber cuántas personas hay en cada perfil del
+    /// Operador CAE. Solo identificadores: quien llama decide con el número, no enseña la lista.
+    /// La política RLS de las cuentas la acota al Tenant activo, así que se llama con
+    /// <paramref name="tenantId"/> como Tenant activo (<c>AmbitoTenantExplicito</c>).
+    /// </summary>
+    Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+        Guid tenantId, string rol, CancellationToken cancellationToken = default);
 }

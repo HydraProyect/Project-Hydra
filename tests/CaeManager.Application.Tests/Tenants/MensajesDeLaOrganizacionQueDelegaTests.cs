@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Tenants.Commands.CrearAsignacionOperadorDelegado;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
 using CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
@@ -47,7 +48,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
     }
 
     private CrearDelegacionTenantCommandHandler HandlerDeDelegacion(AutorizacionDelegacionFalsa autorizacion) =>
-        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork);
+        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte());
 
     // ── CrearDelegacionTenant ───────────────────────────────────────────────
 

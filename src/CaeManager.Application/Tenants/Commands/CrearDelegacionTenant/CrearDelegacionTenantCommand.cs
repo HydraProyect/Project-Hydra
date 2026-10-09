@@ -53,9 +53,14 @@ public class CrearDelegacionTenantCommandHandler(
     IDelegacionTenantRepository repositorio, ITenantsQueryContext tenantsContext,
     IAsignacionesOperativasWriter asignacionesWriter,
     IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork, ITransaccionDeComando transaccion,
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
     : IRequestHandler<CrearDelegacionTenantCommand, Result<Guid>>
 {
+    public static readonly Error PrincipalNoAsignado = Error.Crear(
+        "DelegacionTenant.PrincipalNoAsignado",
+        "No pudimos completar la autorización: la organización autorizada cambió mientras tanto. No se ha guardado nada; vuelve a intentarlo.");
+
     public async Task<Result<Guid>> Handle(CrearDelegacionTenantCommand request, CancellationToken cancellationToken)
     {
         // La autoridad va primero, antes incluso de comprobar que los tenants
@@ -129,14 +134,24 @@ public class CrearDelegacionTenantCommandHandler(
                 "DelegacionTenant.OtroOperadorVigente",
                 "Tu organización ya tiene otro Operador CAE externo activo. Revoca su acceso antes de autorizar uno nuevo."));
 
+        // La delegación, su operación y el principal por escalado (ADR-011 § 2.7, enmienda
+        // 2026-10-08, punto 4) se confirman juntos: la operación nace sin carteras y, si el
+        // Operador CAE tiene una sola persona en el primer perfil con alguien (Coordinador CAE →
+        // Dirección CAE → Administrador), recibe la cartera principal aquí mismo. Con varias, o
+        // sin nadie, la operación queda en la alerta de ese Operador CAE. Todo lo que se añade
+        // al contexto se crea dentro: un reintento de la estrategia de ejecución empieza de cero.
+        Guid delegacionId = default;
+        var escrita = await transaccion.EjecutarAsync(async ct =>
+        {
         var delegacion = new DelegacionTenant(request.TenantConsultoraId, request.TenantClienteId);
         repositorio.Agregar(delegacion);
+        delegacionId = delegacion.Id;
 
         // Doble escritura. El propietario de los datos es el Cliente Delegante
         // y el operador es la Consultora — el orden importa y es justo el que
         // encarna "delegación de acceso, no de propiedad".
-        await asignacionesWriter.AbrirOperacionDelegadaAsync(
-            request.TenantClienteId, request.TenantConsultoraId, delegacion.CreadoEnUtc, vigenciaHasta: null, cancellationToken);
+        var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
+            request.TenantClienteId, request.TenantConsultoraId, delegacion.CreadoEnUtc, vigenciaHasta: null, ct);
 
         // La comprobación de OtroOperadorVigente de arriba no cierra la ventana
         // entre dos autorizaciones concurrentes sobre el mismo Tenant
@@ -152,9 +167,14 @@ public class CrearDelegacionTenantCommandHandler(
         // dejó de ver la excepción que RLS lanza aposta. Traducirlo bien exige
         // mover la comprobación de ConstraintName a Infrastructure (mismo
         // patrón que OperacionImportacionRepository/ExpiracionAsignacionesHostedService) —
-        // incremento aparte.
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        // incremento aparte. La transacción explícita no cambia esto: la excepción sale igual.
+        await unitOfWork.SaveChangesAsync(ct);
 
-        return Result.Exito(delegacion.Id);
+        return await asignacionAutomatica.AlAbrirOperacionAsync(operacion, ct)
+            ? Result.Exito()
+            : Result.Fallo(PrincipalNoAsignado);
+        }, cancellationToken);
+
+        return escrita.EsFallido ? Result.Fallo<Guid>(escrita.Error) : Result.Exito(delegacionId);
     }
 }
