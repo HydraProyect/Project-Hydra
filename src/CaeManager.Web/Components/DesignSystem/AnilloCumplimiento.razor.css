@@ -26,7 +26,6 @@
     height: 180px;
 }
 
-/* 84 px: la medida decidida para el anillo de la cabecera de identidad de las páginas 360. */
 .anillo-cumplimiento-cabecera {
     width: 84px;
     height: 84px;
@@ -80,23 +79,11 @@
 
 .anillo-cumplimiento-cabecera .anillo-cumplimiento-texto {
     flex-direction: column;
-<<<<<<< HEAD
-    gap: var(--space-1);
-=======
->>>>>>> origin/main
     font-size: 20px;
     line-height: 1;
     letter-spacing: -0.01em;
 }
 
-<<<<<<< HEAD
-/* La fracción bajo el porcentaje («18 de 23»): en la cabecera va en minúscula y pequeña, no como rótulo. */
-.anillo-cumplimiento-cabecera .anillo-cumplimiento-leyenda {
-    font: var(--font-caption);
-    font-size: 10px;
-    text-transform: none;
-    letter-spacing: 0;
-=======
 /* La fracción bajo la cifra («2 de 4»): pequeña y sin el color del tono. */
 .anillo-cumplimiento-detalle {
     margin-top: 3px;
@@ -111,7 +98,6 @@
 /* Sin universo pero con detalle («0 de 0»): la pista sola, sin color. */
 .anillo-cumplimiento-solo-pista .anillo-cumplimiento-texto {
     color: var(--color-text-muted);
->>>>>>> origin/main
 }
 
 .anillo-cumplimiento-leyenda {

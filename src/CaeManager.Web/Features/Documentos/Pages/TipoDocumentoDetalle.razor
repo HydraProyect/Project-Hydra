@@ -49,7 +49,7 @@
         <CabeceraIdentidad Kicker="@Textos["Kicker"]" Titulo="@estado.Nombre" Datos="@DatosDeCabecera(estado)">
             <Anillo>
                 <AnilloCumplimiento Porcentaje="cumplimiento.Porcentaje" Tamano="TamanoAnillo.Cabecera"
-                                    Leyenda="@(Textos["AnilloFraccion", cumplimiento.AlDia, cumplimiento.Requeridos])"
+                                    Detalle="@(Textos["AnilloFraccion", cumplimiento.AlDia, cumplimiento.Requeridos])"
                                     Etiqueta="@(cumplimiento.Requeridos > 0 ? Textos["AnilloEtiqueta", cumplimiento.AlDia, cumplimiento.Requeridos] : Textos["AnilloSinDato"])" />
             </Anillo>
             <Acciones>
