@@ -8,6 +8,9 @@
 @using CaeManager.Application.Visitas.Commands.CancelarVisitas
 @using CaeManager.Application.Visitas.Commands.ReactivarVisita
 @using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente
+@using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita
+@using CaeManager.Application.Visitas.Commands.QuitarTrabajadorDeVisita
+@using CaeManager.Application.Visitas.Queries.ObtenerCandidatosTrabajadorVisita
 @using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita
 @using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId
 @using CaeManager.Application.Visitas.Queries.ObtenerVisitas
@@ -20,6 +23,7 @@
 @using CaeManager.Web.Components.Workspace
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Visitas.Components
 @using CaeManager.Web.Features.Visitas
 @using FluentValidation
 @using MediatR
@@ -142,7 +146,27 @@
                     </span>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["EtiquetaTrabajadores"]" Align="Align.Center">
-                    @context.TotalTrabajadores
+                    @{
+                        var nombres = context.Trabajadores ?? [];
+                    }
+                    @* El recuento abre el desglose de quién entra; pulsar a uno lleva a la pestaña
+                       Trabajadores del panel, que es donde se añade o se quita. *@
+                    <VentanaContexto Interactiva="true"
+                                     Deshabilitada="@(nombres.Count == 0)"
+                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                     Etiqueta="@Textos["AriaTrabajadoresVisita", context.TotalTrabajadores]"
+                                     Titulo="@Textos["VentanaTrabajadoresTitulo"]"
+                                     Pie="@Textos["VentanaTrabajadoresPie"]"
+                                     class="visitas-recuento-trabajadores">
+                        <Disparador>@context.TotalTrabajadores</Disparador>
+                        <Detalle>
+                            @foreach (var nombre in nombres)
+                            {
+                                <VentanaContextoElemento Ayuda="@Textos["VentanaTrabajadoresAyuda"]"
+                                                         AlPulsar="() => AbrirDetalleAsync(context.Id, PestanaTrabajadores)">@nombre</VentanaContextoElemento>
+                            }
+                        </Detalle>
+                    </VentanaContexto>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaUrgencia"]" Align="Align.Center">
                     @* Los cuatro valores de NivelUrgenciaVisita, «Normal» incluido:
@@ -354,6 +378,63 @@
                 </div>
             </div>
 
+            @* Tres pestañas, como el resto de paneles de listado: la cabecera (Centro, urgencia y fechas) queda fija encima. *@
+            <Pestanas Definiciones="PestanasDetalle" PestanaActiva="@_pestanaDetalle" PestanaActivaChanged="CambiarPestanaDetalle"
+                      EtiquetaGrupo="@Textos["PestanasDetalleEtiqueta"]">
+            @if (_pestanaDetalle == PestanaTrabajadores)
+            {
+                @*
+                    Quién entra, con alta y baja sin abrir «Editar». Las dos escrituras son ICommand
+                    (AnadirTrabajadorAVisitaCommand / QuitarTrabajadorDeVisitaCommand) con la autorización y
+                    el alcance de EditarVisitaCommand; a Consulta y en una Visita cancelada la lista queda
+                    de solo lectura.
+                *@
+                @if (_detalle.Trabajadores.Count == 0)
+                {
+                    <p class="texto-vacio-seccion">@Textos["TrabajadoresPanelVacio"]</p>
+                }
+                else
+                {
+                    <ul class="visitas-trabajadores-lista" aria-label="@Textos["TrabajadoresPanelLista"]">
+                        @foreach (var trabajador in _detalle.Trabajadores)
+                        {
+                            <li @key="trabajador.Id" class="visitas-trabajador-fila">
+                                <span class="visitas-trabajador-nombre">@trabajador.NombreCompleto</span>
+                                @if (!_detalle.EstaCancelada)
+                                {
+                                    <SoloConEscritura>
+                                        <button type="button" class="visitas-trabajador-quitar"
+                                                aria-label="@Textos["AriaQuitarTrabajador", trabajador.NombreCompleto]"
+                                                title="@(_detalle.Trabajadores.Count == 1 ? Textos["AyudaQuitarUltimoTrabajador"].Value : Textos["AyudaQuitarTrabajador"].Value)"
+                                                disabled="@(_detalle.Trabajadores.Count == 1 || _cambiandoTrabajadores)"
+                                                @onclick="() => AbrirQuitarTrabajador(trabajador)">
+                                            <Icono Nombre="menos" Tamano="TamanoIcono.Pequeno" />
+                                        </button>
+                                    </SoloConEscritura>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+
+                @if (!_detalle.EstaCancelada)
+                {
+                    <SoloConEscritura>
+                        @if (_selectorCandidatosVisible)
+                        {
+                            <SelectorCandidatoTrabajador Candidatos="_candidatos" Deshabilitado="_cambiandoTrabajadores"
+                                                         AlElegir="AnadirTrabajadorAsync" AlVolver="CerrarSelectorCandidatos" />
+                        }
+                        else
+                        {
+                            <Boton Variante="VarianteBoton.Secundario" Cargando="_cargandoCandidatos" Deshabilitado="_cambiandoTrabajadores"
+                                   OnClick="AbrirAnadirTrabajadorAsync">@Textos["BotonAnadirTrabajador"]</Boton>
+                        }
+                    </SoloConEscritura>
+                }
+            }
+            else if (_pestanaDetalle == PestanaInformacion)
+            {
             <dl class="visitas-detalle-campos">
                 <div class="visitas-detalle-campo">
                     <dt>@Textos["DetalleTitularCentro"]</dt>
@@ -406,6 +487,12 @@
             }
 
             @if (_detalle.EstaCancelada)
+            {
+                @* Se dice también aquí, que es donde se abre el panel: en «Documentación» no hay nada que gestionar. *@
+                <p class="texto-vacio-seccion">@Textos["DetalleCanceladaSinAcciones"]</p>
+            }
+            }
+            else if (_detalle.EstaCancelada)
             {
                 @* FS-11: una Visita cancelada no pide acceso, ni se avisa, ni se comprueba su documentación. *@
                 <p class="texto-vacio-seccion">@Textos["DetalleCanceladaSinAcciones"]</p>
@@ -566,6 +653,7 @@
                 }
             }
             }
+            </Pestanas>
         }
     </ChildContent>
     <Pie>
@@ -619,6 +707,17 @@
     OnConfirmar="ConfirmarCancelarAsync">
     <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
 </DialogoConfirmacion>
+
+@* Quitar un Trabajador pregunta antes: el patrón «Deshacer» de los listados (Listados 5/7) aún no está en main. *@
+<DialogoConfirmacion
+    Visible="_confirmarQuitarTrabajadorVisible"
+    VisibleChanged="v => _confirmarQuitarTrabajadorVisible = v"
+    Titulo="@Textos["ConfirmarQuitarTrabajadorTitulo", _trabajadorAQuitar?.NombreCompleto ?? string.Empty]"
+    Mensaje="@Textos["ConfirmarQuitarTrabajadorMensaje"]"
+    TextoBotonConfirmar="@Textos["BotonQuitarTrabajador"]"
+    TextoBotonDescartar="@Textos["BotonVolver"]"
+    EnProgreso="_cambiandoTrabajadores"
+    OnConfirmar="ConfirmarQuitarTrabajadorAsync" />
 
 <DialogoConfirmacion
     Visible="_confirmarReactivarVisible"

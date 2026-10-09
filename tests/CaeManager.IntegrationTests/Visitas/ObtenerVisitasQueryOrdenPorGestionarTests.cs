@@ -82,7 +82,7 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
     private async Task<Lectura> LeerAsync(bool descendente, int pagina = 1, int tamano = 20, string? ordenarPor = nameof(VisitaListaDto.PorGestionar))
     {
         await using var lectura = CrearContexto();
-        var r = await new ObtenerVisitasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso())
+        var r = await new ObtenerVisitasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), lectura)
             .Handle(new ObtenerVisitasQuery(null, SoloActivas: false, NotificadoCliente: null, Pagina: pagina, TamanoPagina: tamano,
                 OrdenarPor: ordenarPor, Descendente: descendente), CancellationToken.None);
         return new Lectura(r.Elementos.ToList(), r.TotalElementos);

@@ -622,6 +622,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.CrearVisitaCommandHandler", "ISugerenciaVisitaCorreoRepository"),
         ("Visitas.CrearVisitaCommandHandler", "ITrabajadoresQueryContext"),
         ("Visitas.EditarVisitaCommandHandler", "ITrabajadoresQueryContext"),
+        // Añadir un Trabajador desde el panel comprueba que existe en el Tenant, igual que EditarVisita.
+        ("Visitas.AnadirTrabajadorAVisitaCommandHandler", "ITrabajadoresQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IClientesQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IEmpresasQueryContext"),
@@ -658,6 +660,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.ObtenerVisitasQueryHandler", "IDocumentosQueryContext"),
         ("Visitas.ObtenerVisitasQueryHandler", "IEmpresasQueryContext"),
         ("Visitas.ObtenerVisitasQueryHandler", "ITiposDocumentoQueryContext"),
+        // El recuento del listado abre quién entra: nombre y apellidos, como ObtenerDetalleVisita.
+        ("Visitas.ObtenerVisitasQueryHandler", "ITrabajadoresQueryContext"),
 
         // ── Doble escritura de F1 ──────────────────────────────────────────
         //
