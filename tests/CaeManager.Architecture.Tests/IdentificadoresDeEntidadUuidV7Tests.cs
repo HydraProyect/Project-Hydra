@@ -39,8 +39,8 @@ public class IdentificadoresDeEntidadUuidV7Tests
     /// </summary>
     private static readonly Dictionary<string, int> SecretosYTokens = new()
     {
-        // SecurityStamp de Identity: invalida sesiones abiertas; es un secreto.
-        ["src/CaeManager.Infrastructure/Identity/ApplicationUser.cs"] = 1,
+        // SecurityStamp de Identity: invalida sesiones abiertas y enlaces de activación emitidos; es un secreto.
+        ["src/CaeManager.Infrastructure/Identity/ApplicationUser.cs"] = 2,
         ["src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs"] = 1,
         // jti del aserto de cliente de Microsoft 365: nonce anti-repetición.
         ["src/CaeManager.Infrastructure/Integraciones/AsertoClienteMicrosoft365.cs"] = 1,
