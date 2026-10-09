@@ -12,14 +12,25 @@
 .rejilla-subcontratas {
     /* chevron · razón social · nivel de servicio · cumplimiento · vencidos · próximos · acciones */
     display: grid;
-    grid-template-columns: 28px minmax(0, 2fr) 120px 104px 112px 112px auto;
+    grid-template-columns: 28px minmax(0, 2fr) 120px 132px 112px 112px auto;
     gap: var(--space-2);
     align-items: center;
 }
 
 /* Con selección múltiple entra una casilla delante y las columnas se corren. */
 .rejilla-subcontratas-seleccion {
-    grid-template-columns: 24px 28px minmax(0, 2fr) 120px 104px 112px 112px auto;
+    grid-template-columns: 24px 28px minmax(0, 2fr) 120px 132px 112px 112px auto;
+}
+
+/* Estrecho: la barra oculta su pista y la columna de cumplimiento se queda en el ancho de la cifra. */
+@media (max-width: 767px) {
+    .rejilla-subcontratas {
+        grid-template-columns: 28px minmax(0, 2fr) 120px 48px 112px 112px auto;
+    }
+
+    .rejilla-subcontratas-seleccion {
+        grid-template-columns: 24px 28px minmax(0, 2fr) 120px 48px 112px 112px auto;
+    }
 }
 
 .cabecera-columnas-subcontratas {

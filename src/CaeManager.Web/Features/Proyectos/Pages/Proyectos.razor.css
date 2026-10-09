@@ -18,6 +18,12 @@
     text-align: right;
 }
 
+/* 132 px es el hueco del cumplimiento en los demás listados; el rótulo no parte en dos líneas. */
+.tabla-proyectos .col-plazo-transcurrido {
+    width: 132px;
+    white-space: nowrap;
+}
+
 .nombre-proyecto {
     font-weight: 600;
     color: var(--color-text);

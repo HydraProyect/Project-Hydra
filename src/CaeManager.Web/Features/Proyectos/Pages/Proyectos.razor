@@ -126,6 +126,7 @@
                             <th>@Textos["ListaProyecto"]</th>
                             <th>@Textos["ListaPlazo"]</th>
                             <th>@Textos["ColumnaTecnicos"]</th>
+                            <th class="col-plazo-transcurrido">@Textos["ListaPlazoTranscurrido"]</th>
                             <th>@Textos["EtiquetaEstado"]</th>
                             <th class="col-acciones"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
                         </tr>
@@ -186,6 +187,12 @@
                                     {
                                         <span class="celda-sin-recuento">0</span>
                                     }
+                                </td>
+                                @* La barra ocupa el hueco del cumplimiento de los demás listados, en azul de
+                                   marca: mide tiempo, no conformidad. Sin fin previsto no hay plazo que medir. *@
+                                <td class="col-plazo-transcurrido">
+                                    <BarraCumplimiento Porcentaje="PorcentajeDelPlazo(proyecto)" Marca="true"
+                                                       Etiqueta="@EtiquetaPlazoTranscurrido(proyecto)" />
                                 </td>
                                 <td>
                                     @if (proyecto.EstaAbierto)
