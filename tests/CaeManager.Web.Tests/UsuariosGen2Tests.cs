@@ -444,6 +444,15 @@ public partial class UsuariosGen2Tests : BunitContext
             return Task.FromResult(EnCartera.RemoveAll(t => t.PropietarioTenantId == propietarioTenantId) > 0);
         }
 
+        public Task<IReadOnlyList<ApoyoVivoDeCartera>> ObtenerApoyosVivosAsync(
+            Guid operadorTenantId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<ApoyoVivoDeCartera>>([]);
+
+        public Task<ResultadoRetiradaApoyo> RetirarCarteraDeApoyoAsync(
+            PropuestaApoyoCartera propuesta, Guid actorUsuarioId, bool exigirProponentePrincipal,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         /// <summary>Carteras vivas por operación (marca de principal), con su Operador CAE.</summary>
         public List<(Guid OperadorTenantId, CarteraVivaDeOperacion Cartera)> CarterasVivas { get; } = [];
 

@@ -169,7 +169,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
         });
 
         var fila = Fila(cut);
-        fila.QuerySelectorAll(".badge-exito").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Gestionada");
+        fila.QuerySelectorAll("[data-pieza=estado-correcto]").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Gestionada");
         fila.TextContent.Should().NotContain("Por gestionar");
         fila.QuerySelector("span[title^='Documentación gestionada el']").Should().NotBeNull();
     }
@@ -189,7 +189,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
             "viaja la versión que se vio: si alguien cambió los Trabajadores, el servidor lo rechaza");
         cut.WaitForAssertion(() =>
         {
-            Fila(cut).QuerySelectorAll(".badge-exito").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Gestionada");
+            Fila(cut).QuerySelectorAll("[data-pieza=estado-correcto]").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Gestionada");
             BotonesMarcar(cut).Should().BeEmpty("ya gestionada, no se ofrece marcarla otra vez");
             cut.Find(".drawer-panel").TextContent.Should().Contain("Gestionada el");
         });
@@ -214,7 +214,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
 
         cut.WaitForAssertion(() => mediator.Marcas.Should().ContainSingle());
         mediator.Marcas.Single().Version.Should().NotBe(versionAlAbrir);
-        cut.WaitForAssertion(() => Fila(cut).QuerySelectorAll(".badge-exito").Should().ContainSingle());
+        cut.WaitForAssertion(() => Fila(cut).QuerySelectorAll("[data-pieza=estado-correcto]").Should().ContainSingle());
     }
 
     [Fact]

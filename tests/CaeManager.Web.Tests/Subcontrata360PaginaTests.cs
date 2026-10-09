@@ -276,10 +276,11 @@ public class Subcontrata360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
-        NombresDeFila(cut).Should().Equal("Fabio Faltante", "Víctor Vencido", "Úrsula Urgente", "Pablo Próximo", "Vera Vigente");
+        // Vencido antes que Faltante: orden de severidad fijado el 2026-10-03 (SeveridadEstadoDocumento).
+        NombresDeFila(cut).Should().Equal("Víctor Vencido", "Fabio Faltante", "Úrsula Urgente", "Pablo Próximo", "Vera Vigente");
         var filas = cut.FindAll(".fila-relacion");
         filas.Select(f => f.QuerySelector(".fila-relacion-estado")!.TextContent.Trim())
-            .Should().Equal("Pendiente", "Vencido", "Por vencer", "Por vencer", "Vigente");
+            .Should().Equal("Vencido", "Pendiente", "Por vencer", "Por vencer", "Vigente");
         // Rojo lo que ya impide, ámbar lo urgente; «Por vencer» sin urgencia y «Vigente» no tiñen.
         filas.Select(f => f.GetAttribute("data-tono")).Should().Equal("peligro", "peligro", "advertencia", null, null);
         cut.Markup.Should().Contain("Mostrando 5 de 5 · del peor estado al mejor");
@@ -293,7 +294,7 @@ public class Subcontrata360PaginaTests : BunitContext
 
         // Próximo y Urgente comparten rótulo: un solo contador «Por vencer», con los dos.
         cut.FindAll(".filtro-estados-opcion").Select(b => b.TextContent.Trim())
-            .Should().Equal("Todos · 5", "Pendiente · 1", "Vencido · 1", "Por vencer · 2", "Vigente · 1");
+            .Should().Equal("Todos · 5", "Vencido · 1", "Pendiente · 1", "Por vencer · 2", "Vigente · 1");
 
         cut.FindAll(".filtro-estados-opcion").First(b => b.TextContent.StartsWith("Vencido")).Click();
         cut.FindAll(".filtro-estados-opcion").First(b => b.TextContent.StartsWith("Por vencer")).Click();
@@ -312,14 +313,14 @@ public class Subcontrata360PaginaTests : BunitContext
         Montar();
         var cut = Renderizar();
 
-        cut.FindAll(".fila-relacion-desplegar")[0].Click(); // Fabio Faltante
-        cut.FindAll(".fila-relacion-desplegar")[1].Click(); // Víctor Vencido
+        cut.FindAll(".fila-relacion-desplegar")[0].Click(); // Víctor Vencido
+        cut.FindAll(".fila-relacion-desplegar")[1].Click(); // Fabio Faltante
 
         var subfilas = cut.FindAll(".subcontrata360-subfila");
         subfilas.Should().HaveCount(2);
-        subfilas[1].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Renovar");
-        subfilas[0].TextContent.Should().Contain("Pendiente").And.Contain("Se exige y no hay documento");
-        subfilas[0].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Subir");
+        subfilas[0].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Renovar");
+        subfilas[1].TextContent.Should().Contain("Pendiente").And.Contain("Se exige y no hay documento");
+        subfilas[1].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Subir");
     }
 
     /// <summary>
@@ -356,7 +357,7 @@ public class Subcontrata360PaginaTests : BunitContext
 
         var banda = cut.Find("[data-pieza=banda]");
         banda.QuerySelectorAll("button.incidencia-banda").Select(b => b.TextContent.Trim())
-            .Should().Equal("Fabio Faltante", "Víctor Vencido");
+            .Should().Equal("Víctor Vencido", "Fabio Faltante");
         banda.TextContent.Should().Contain("1 centro sin verificar");
     }
 

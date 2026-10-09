@@ -51,6 +51,70 @@ public static class AutoridadSobreCarteraDeGestorCae
     public static readonly Error CuentaNoEsGestorCae = Error.Crear(
         "Cartera.CuentaNoEsGestorCae", "Solo un Gestor CAE tiene empresas en su cartera.");
 
+    /// <summary>
+    /// Quién puede <b>revocar un apoyo</b> (ADR-011 § 2.7, enmienda 2026-10-08, punto 6; D-4):
+    /// los mismos tres roles, leídos igual. Es la única ampliación de la regla de arriba, y
+    /// solo vale para la Asignación de Cartera de apoyo que nació de una propuesta de apoyo:
+    /// un Coordinador CAE la revoca si le reporta <b>el Gestor CAE de apoyo o quien propuso el
+    /// apoyo</b>, aunque el otro no sea de su equipo. Sin relación con ninguno de los dos, no.
+    /// Administrador y Dirección CAE, sobre cualquier apoyo del Operador CAE.
+    ///
+    /// <para>
+    /// La jerarquía se lee de las cuentas en el momento de revocar
+    /// (<see cref="IDirectorioDestinosCartera"/>), no lo que valía al proponer: quien propuso
+    /// pudo cambiar de equipo desde entonces. Se llama con el Tenant de origen del Operador
+    /// CAE como Tenant activo, que es desde donde se ven esas cuentas.
+    /// </para>
+    /// </summary>
+    public static async Task<bool> PuedeRevocarApoyoAsync(
+        string rolActor, Guid actorUsuarioId, Guid apoyoUsuarioId, Guid proponenteUsuarioId,
+        IDirectorioDestinosCartera directorioDestinos, CancellationToken cancellationToken)
+    {
+        if (rolActor is Administrador or DireccionCae)
+            return true;
+        if (rolActor != CoordinadorCae)
+            return false;
+
+        return await LeReportaAsync(apoyoUsuarioId) || await LeReportaAsync(proponenteUsuarioId);
+
+        async Task<bool> LeReportaAsync(Guid usuarioId)
+        {
+            var cuenta = await directorioDestinos.ObtenerAsync(usuarioId, cancellationToken);
+            return cuenta is { EsOperadorDelegado: false } && cuenta.CoordinadorUsuarioId == actorUsuarioId;
+        }
+    }
+
+    /// <summary>
+    /// El actor y su rol de autoridad sobre carteras —Administrador, Dirección CAE o
+    /// Coordinador CAE—, leído en Identity sobre su Tenant de origen. Falla con
+    /// <see cref="SinAutoridad"/> si no tiene ninguno o la sesión no tiene rol de negocio.
+    /// </summary>
+    public static async Task<Result<(Guid OperadorTenantId, Guid ActorUsuarioId, string Rol)>> ResolverActorAsync(
+        ICurrentUserService currentUserService,
+        IDirectorioUsuariosService directorioUsuarios,
+        CancellationToken cancellationToken)
+    {
+        var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        var origen = await currentUserService.ObtenerTenantOrigenIdAsync();
+        if (actorId is null || origen is null)
+            return Result.Fallo<(Guid, Guid, string)>(SinAutoridad);
+
+        using (AmbitoTenantExplicito.Establecer(origen.Value))
+        {
+            // Falla cerrado sin rol de negocio en la sesión, igual que ResolverAsync.
+            if (await currentUserService.ObtenerRolEfectivoAsync() is null)
+                return Result.Fallo<(Guid, Guid, string)>(SinAutoridad);
+
+            foreach (var rol in RolesAutorizados)
+            {
+                if (await directorioUsuarios.EsCuentaActivaConRolAsync(actorId.Value, origen.Value, rol, cancellationToken))
+                    return Result.Exito((origen.Value, actorId.Value, rol));
+            }
+
+            return Result.Fallo<(Guid, Guid, string)>(SinAutoridad);
+        }
+    }
+
     public static async Task<Result<ContextoCarteraDeGestorCae>> ResolverAsync(
         Guid gestorUsuarioId,
         ICurrentUserService currentUserService,

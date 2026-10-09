@@ -239,6 +239,53 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Decisión del propietario, 2026-10-09 («que no dé 100 %»): un Tenant con Centros de Trabajo y sin ningún Documento
+    /// de Trabajador no enseña 100 %. Si sus Centros exigen algún par (A: un Trabajador asignado y un tipo requerido) da
+    /// 0 %, como Centros y Empresas; si no exigen ninguno (B: tipo no requerido) no hay nada que medir. Se mide en Inicio
+    /// y en la fila de Visión de cartera, que reutiliza la misma consulta por Tenant.
+    /// </summary>
+    [Fact]
+    public async Task Sin_ningun_documento_de_Trabajador_Inicio_y_Vision_de_cartera_no_dan_cien_por_cien()
+    {
+        var mediador = _servicios.GetRequiredService<IMediator>();
+
+        async Task<KpisDashboardDto> InicioDeAsync(Guid tenantId)
+        {
+            using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+            return await mediador.Send(new ObtenerKpisDashboardQuery());
+        }
+
+        var antesA = await InicioDeAsync(_tenantA);
+        (antesA.TasaCumplimientoDocumental, antesA.SinDatos, antesA.ParesExigidosSinDocumento).Should().Be(
+            (100, false, 0), "control: con su documento vigente, A sigue dando la cifra de siempre");
+        var antesC = await InicioDeAsync(_tenantC);
+
+        await BorrarDocumentosDeTrabajadorAsync(_tenantA);
+        await BorrarDocumentosDeTrabajadorAsync(_tenantB);
+
+        var enA = await InicioDeAsync(_tenantA);
+        enA.Centros.Should().Be(1, "control: el Centro sigue en el alcance");
+        enA.Fraccion.Requeridos.Should().Be(0, "control: ya no queda ningún Documento de Trabajador");
+        (enA.TasaCumplimientoDocumental, enA.SinDatos, enA.ParesExigidosSinDocumento).Should().Be(
+            (0, false, 1), "un par exigido y ningún documento: 0 %, no 100 %");
+
+        var enB = await InicioDeAsync(_tenantB);
+        enB.Centros.Should().Be(1, "control: el Centro sigue en el alcance");
+        (enB.SinDatos, enB.ParesExigidosSinDocumento).Should().Be(
+            (true, 0), "nada exigido y ningún documento: sin datos, igual que el porcentaje null de Centros y Empresas");
+
+        var enC = await InicioDeAsync(_tenantC);
+        (enC.TasaCumplimientoDocumental, enC.SinDatos, enC.ParesExigidosSinDocumento).Should().Be(
+            (antesC.TasaCumplimientoDocumental, antesC.SinDatos, 0), "control: un Tenant con documentos no cambia");
+        antesC.Fraccion.Requeridos.Should().BeGreaterThan(0, "control: C tiene documentos de Trabajador");
+
+        var porTenant = (await mediador.Send(new ObtenerKpisGlobalesQuery())).ClientesConMasRiesgo.ToDictionary(c => c.TenantId);
+        (porTenant[_tenantA].TasaCumplimientoDocumental, porTenant[_tenantA].SinDatos).Should().Be((0, false));
+        porTenant[_tenantB].SinDatos.Should().BeTrue();
+        porTenant[_tenantB].AdmiteVeredictoVerde.Should().BeFalse("«sin datos» no es una organización en verde");
+    }
+
+    /// <summary>
     /// Coste: el recuento de bloqueos es una llamada por lotes a
     /// <c>ICalculoEstadoCentroService</c>, no una por Centro. Triplicar los
     /// Centros de Trabajo del Tenant no cambia el número de órdenes SQL.
@@ -295,6 +342,14 @@ public class KpisCentrosBloqueadosBajoRlsTests : IAsyncLifetime
         conTres.TrabajadoresBloqueados.Should().Be(1, "es el mismo Trabajador, bloqueado en tres Centros");
         consultasConUno.Should().BeGreaterThan(0, "control: el contador observa las órdenes de la lectura");
         consultasConTres.Should().Be(consultasConUno, "sin N+1: las mismas consultas para 1 que para 3 Centros");
+    }
+
+    /// <summary>Deja el Tenant sin ningún Documento (y sin las acreditaciones que cuelgan de ellos); Centros, Trabajadores, Asignaciones y tipos siguen.</summary>
+    private async Task BorrarDocumentosDeTrabajadorAsync(Guid tenantId)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+        await _propietario.AcreditacionesDocumentoPlataforma.ExecuteDeleteAsync();
+        (await _propietario.Documentos.ExecuteDeleteAsync()).Should().Be(1, "control: el Tenant tenía un Documento de Trabajador");
     }
 
     /// <summary>

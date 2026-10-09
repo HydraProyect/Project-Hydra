@@ -21,6 +21,7 @@ using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace CaeManager.Web.Features.Proyectos.Pages;
 
@@ -314,8 +315,26 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private const string EstadoCerrados = "cerrados";
 
     // De instancia, no static: las etiquetas salen del localizador inyectado.
-    private IReadOnlyList<OpcionEstado> OpcionesEstado =>
-        [new(EstadoAbiertos, Textos["FiltroAbiertos"]), new(EstadoCerrados, Textos["FiltroCerrados"])];
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesEstado =>
+        [new(Textos["FiltroAbiertos"], TonoBadge.Exito, EstadoAbiertos), new(Textos["FiltroCerrados"], TonoBadge.Neutro, EstadoCerrados)];
+
+    /// <summary>
+    /// La selección de estados que llega de la URL reducida a los dos que existen; lo demás se descarta.
+    /// Cadena vacía si no queda ninguno.
+    /// </summary>
+    private static string EstadosValidos(string? seleccion) =>
+        SeleccionEstados.Unir(SeleccionEstados.Separar(seleccion).Where(v => v is EstadoAbiertos or EstadoCerrados)) ?? string.Empty;
+
+    /// <summary>Proyectos por estado para la franja: con la búsqueda aplicada y sin el filtro de estado.</summary>
+    private IReadOnlyDictionary<string, int> RecuentosPorEstado
+    {
+        get
+        {
+            var conBusqueda = _proyectos.Where(CumpleBusqueda).ToList();
+            var abiertos = conBusqueda.Count(p => p.EstaAbierto);
+            return new Dictionary<string, int> { [EstadoAbiertos] = abiertos, [EstadoCerrados] = conBusqueda.Count - abiertos };
+        }
+    }
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
@@ -343,7 +362,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (busquedaDeLaUrl != _busqueda)
             _busqueda = busquedaDeLaUrl;
 
-        var estadoDeLaUrl = OpcionesEstado.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
+        var estadoDeLaUrl = EstadosValidos(EstadoInicial);
         if (estadoDeLaUrl != _estadoFiltro)
             _estadoFiltro = estadoDeLaUrl;
 
@@ -364,23 +383,21 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private bool CumpleFiltros(ProyectoListaDto proyecto)
     {
-        var cumpleEstado = _estadoFiltro switch
-        {
-            EstadoAbiertos => proyecto.EstaAbierto,
-            EstadoCerrados => !proyecto.EstaAbierto,
-            _ => true
-        };
+        // Varios estados marcados: pasa el Proyecto que esté en cualquiera. Sin ninguno, todos.
+        var marcados = SeleccionEstados.Separar(_estadoFiltro);
+        var cumpleEstado = marcados.Count == 0
+            || marcados.Contains(proyecto.EstaAbierto ? EstadoAbiertos : EstadoCerrados);
 
-        if (!cumpleEstado) return false;
+        return cumpleEstado && CumpleBusqueda(proyecto);
+    }
 
+    private bool CumpleBusqueda(ProyectoListaDto proyecto)
+    {
         var termino = _busqueda.Trim();
         return termino.Length == 0
             || proyecto.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase)
             || proyecto.CentroNombre.Contains(termino, StringComparison.OrdinalIgnoreCase);
     }
-
-    private string TextoEstadoFiltro =>
-        OpcionesEstado.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto.ToLowerInvariant() ?? string.Empty;
 
     private string TextoConteo => HayFiltrosActivos
         ? Textos["ConteoConFiltro", ProyectosVisibles.Count, _proyectos.Count].Value
@@ -393,16 +410,14 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         return Task.CompletedTask;
     }
 
-    private Task CambiarEstadoAsync(string valor)
+    private Task CambiarEstadoAsync(string? valor)
     {
-        _estadoFiltro = valor;
+        _estadoFiltro = valor ?? string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         return Task.CompletedTask;
     }
 
     private Task QuitarBusquedaAsync() => BuscarAsync(string.Empty);
-
-    private Task QuitarEstadoAsync() => CambiarEstadoAsync(string.Empty);
 
     /// <summary>
     /// Quita los dos filtros, y los dos TAMBIÉN de la URL en una sola
@@ -507,6 +522,56 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         await SeleccionarProyectoAsync(id);
     }
 
+    /// <summary>
+    /// Clic en cualquier punto de la fila. Sobre el proyecto que ya está abierto no hace nada: la
+    /// fila entera es una diana grande, y un clic de más no debe devolver el panel a «Información»
+    /// ni sacarlo de la edición.
+    /// </summary>
+    private Task AbrirDetalleDesdeLaFilaAsync(Guid id) =>
+        _proyectoSeleccionadoId == id && _detalle is not null ? Task.CompletedTask : AbrirDetalleConAvisoAsync(id);
+
+    /// <summary>
+    /// Un técnico de la ventana de contexto del recuento: abre el panel del proyecto en la pestaña
+    /// «Técnicos», que es donde se le da de baja o se asigna otro.
+    /// </summary>
+    private async Task AbrirDetalleEnTecnicosAsync(Guid id)
+    {
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync()) return;
+
+        if (_proyectoSeleccionadoId != id || _detalle is null)
+            await SeleccionarProyectoAsync(id);
+        if (_proyectoSeleccionadoId != id || _detalle is null) return;
+
+        CancelarEdicionInfo();
+        _mostrarFormularioTecnico = false;
+        await CambiarPestanaDetalleAsync("tecnicos");
+    }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// Tecla «e»: el panel del proyecto, ya en edición (lo mismo que su lápiz). A quien no puede
+    /// escribir se le abre en lectura: el lápiz tampoco se le ofrece. Si ese proyecto ya se está
+    /// editando, no se toca lo escrito; lo demás que haya a medias en el panel (otro proyecto en
+    /// edición, un alta de técnico) se pregunta antes de tirarlo.
+    /// </summary>
+    private async Task AbrirDetalleEnEdicionAsync(Guid id)
+    {
+        if (_proyectoSeleccionadoId == id && _editandoInfo) return;
+
+        var mismoProyecto = _proyectoSeleccionadoId == id && _detalle is not null;
+        if (mismoProyecto && !await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion)) return;
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync()) return;
+        if (!mismoProyecto)
+            await SeleccionarProyectoAsync(id);
+
+        if (_proyectoSeleccionadoId != id || _detalle is null) return;
+        if (!await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion)) return;
+
+        _mostrarFormularioTecnico = false;
+        IniciarEdicionInfo();
+    }
+
     private object?[] ValoresFormulario() => [_nuevoCentroId, _nuevoNombre, _nuevaFechaInicio, _nuevaFechaFinPrevista, _nuevasNotas];
 
     private void CerrarFormulariosDescartando()
@@ -594,7 +659,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             (true, false) => "fila-seleccionada",
             (false, true) => "fila-enfocada",
             _ => string.Empty
-        };
+        } + " fila-pulsable";
     }
 
     private int IndiceEnfocado(IReadOnlyList<ProyectoListaDto> visibles)
@@ -612,6 +677,17 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private async Task ManejarAtajoAsync(string tecla)
     {
         var visibles = ProyectosVisibles;
+
+        // «e»: el lápiz del panel sobre la fila enfocada; sin fila enfocada, sobre el proyecto
+        // cuyo panel está abierto.
+        if (tecla == "e")
+        {
+            var idEditar = _idEnfocado is not null && IndiceEnfocado(visibles) >= 0 ? _idEnfocado : _proyectoSeleccionadoId;
+            if (idEditar is { } id)
+                await AbrirDetalleEnEdicionAsync(id);
+            return;
+        }
+
         if (visibles.Count == 0) return;
 
         switch (tecla)
@@ -741,7 +817,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private Dictionary<string, string> _editErrores = new();
     private string? _editError;
 
-    /// <summary>"Editar" vive en el pie del panel: lleva a la pestaña Información, que es la que se edita.</summary>
+    /// <summary>El lápiz de la cabecera del panel (y la tecla «e»): lleva a la pestaña Información, que es la que se edita.</summary>
     private void IniciarEdicionInfo()
     {
         _pestanaDetalle = "informacion";

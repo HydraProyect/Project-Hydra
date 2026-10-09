@@ -531,7 +531,7 @@ public class VisitasGen2Tests : BunitContext
 
     /// <summary>
     /// P1-X2: la visita a un Centro sin gestión CAE no tiene documentación que
-    /// completar. La columna no dice «Completa» (verde falso) ni «Por
+    /// gestionar. La columna no dice «Gestionada» (verde falso) ni «Por
     /// gestionar» (pendiente que no existe): dice que no requiere gestión CAE.
     /// </summary>
     [Fact]
@@ -544,9 +544,10 @@ public class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         cut.WaitForAssertion(() => Fila(cut, "Almacén Sur").TextContent.Should().Contain("No requiere gestión CAE"));
-        Fila(cut, "Almacén Sur").TextContent.Should().NotContain("Completa").And.NotContain("Por gestionar");
+        Fila(cut, "Almacén Sur").TextContent.Should().NotContain("Gestionada").And.NotContain("Por gestionar");
         Fila(cut, "Almacén Sur").QuerySelectorAll(".badge").Should().NotContain(b => b.ClassList.Contains("badge-exito") || b.ClassList.Contains("badge-peligro"),
             "ni verde ni rojo: el Centro no está al día ni en falta, no se le exige nada");
+        Fila(cut, "Almacén Sur").QuerySelectorAll("[data-pieza=estado-correcto]").Should().BeEmpty("el verde de «Gestionada» ya no es una pastilla");
         Fila(cut, "Centro Norte").TextContent.Should().NotContain("No requiere gestión CAE", "control positivo: el Centro con gestión sigue igual");
     }
 
@@ -1062,8 +1063,8 @@ public class VisitasGen2Tests : BunitContext
                 new SeccionDocumentacionDto(EstadoDocumento.Vigente, []),
                 [
                     Trabajador("Ana Loredo", EstadoDocumento.Vigente),
-                    Trabajador("Bruno Salas", EstadoDocumento.Vencido),
-                    Trabajador("Carla Vila", EstadoDocumento.Faltante),
+                    Trabajador("Bruno Salas", EstadoDocumento.Faltante),
+                    Trabajador("Carla Vila", EstadoDocumento.Vencido),
                 ]),
         };
         mediator.Visitas.Add(norte);
@@ -1085,7 +1086,7 @@ public class VisitasGen2Tests : BunitContext
             ["Carla Vila — Instalaciones Arbeko S.L.",
              "Bruno Salas — Instalaciones Arbeko S.L.",
              "Ana Loredo — Instalaciones Arbeko S.L."],
-            "Falta es el peor estado, quien está en regla va al final y el título no lleva el DNI");
+            "orden de gravedad (decisión del 2026-10-03): Vencido va antes que Faltante (antes era al revés), quien está en regla va al final y el título no lleva el DNI");
 
         static TrabajadorDocumentacionDto Trabajador(string nombre, EstadoDocumento peor) =>
             new(Guid.NewGuid(), nombre, "Instalaciones Arbeko S.L.", new SeccionDocumentacionDto(peor, []));

@@ -107,7 +107,6 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor"] = 6,
         ["src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor"] = 2,
         ["src/CaeManager.Web/Features/Retencion/Pages/Retencion.razor"] = 2,
-        ["src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataPreviewDrawer.razor"] = 2,
         ["src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor"] = 6,
         ["src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor"] = 3,
         ["src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor"] = 3,

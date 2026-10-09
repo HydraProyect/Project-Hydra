@@ -188,7 +188,7 @@
                 <TemplateColumn Title="@Textos["EtiquetaOrigen"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
                     <Badge Tono="TonoOrigen(context.Origen)">@TextoOrigen(context.Origen)</Badge>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaDocumentacion"]" Align="Align.Center">
+                <TemplateColumn Title="@Textos["ColumnaDocumentacion"]" Class="col-estado">
                     @if (context.EstaCancelada)
                     {
                         @* FS-11: una Visita cancelada no tiene documentación que gestionar; el motivo va en el title. *@
@@ -202,7 +202,8 @@
                     else if (context.DocumentacionGestionadaEnUtc is { } gestionadaEn)
                     {
                         @* Estado guardado en la Visita: se envió el paquete o se marcó a mano. *@
-                        <span title="@Textos["TituloDocumentacionGestionadaEl", CaeManager.Domain.Common.DiaDeNegocio.De(gestionadaEn)]"><Badge Tono="TonoBadge.Exito">@Textos["BadgeDocumentacionGestionada"]</Badge></span>
+                        <EstadoFila Correcto="true" Texto="@Textos["BadgeDocumentacionGestionada"]"
+                                    Titulo="@Textos["TituloDocumentacionGestionadaEl", CaeManager.Domain.Common.DiaDeNegocio.De(gestionadaEn)]" />
                     }
                     else
                     {

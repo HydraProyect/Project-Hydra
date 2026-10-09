@@ -19,7 +19,8 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 /// </summary>
 public record ObtenerEmpresasQuery(
     string? Busqueda, int Pagina = 1, int TamanoPagina = 20,
-    string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null)
+    string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
+    bool ConRecuentosPorEstado = false)
     : IRequest<ResultadoPaginado<EmpresaListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -71,19 +72,11 @@ public class ObtenerEmpresasQueryHandler(
         // y que ObtenerDocumentosQuery traduce su filtro de Estado a fechas.
         var necesitaEstadoCompleto =
             !string.IsNullOrWhiteSpace(request.EstadoDocumental) ||
-            string.Equals(request.OrdenarPor, nameof(EmpresaListaDto.EstadoDocumental), StringComparison.Ordinal);
+            string.Equals(request.OrdenarPor, nameof(EmpresaListaDto.EstadoDocumental), StringComparison.Ordinal) ||
+            request.ConRecuentosPorEstado;
 
         if (necesitaEstadoCompleto)
         {
-            if (request.EstadoDocumental == EstadoDocumentalFiltro.SinDocumentos)
-            {
-                // Ninguna Empresa de este listado llega a EstadoDocumental
-                // null (CalculoEstadoDocumentalService.GetValueOrDefault cae a
-                // SinCaducidad, nunca a null) — "sin documentos" nunca
-                // coincide, igual que EstadoDocumentalFiltro.Coincide.
-                return new ResultadoPaginado<EmpresaListaDto>([], 0, request.Pagina, request.TamanoPagina);
-            }
-
             var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
             var hoy = DiaDeNegocio.Hoy();
             var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
@@ -106,31 +99,49 @@ public class ObtenerEmpresasQueryHandler(
                         .Any(d => d.EmpresaId == e.Id && d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 };
 
-            if (!string.IsNullOrWhiteSpace(request.EstadoDocumental))
+            // La clave de estado es la misma expresión con la que se ordena (EstadoDocumentalFiltro.ClaveOrden:
+            // 0 Vencido, 1 Urgente, 2 Próximo, 3 Sin confirmar, 4 Vigente, 5 Sin caducidad), escrita en línea
+            // porque tiene que traducirse a SQL. Contar y filtrar por ella garantiza que la franja de estado, el
+            // filtro y el orden parten las filas igual.
+            //
+            // Los recuentos se toman ANTES de filtrar por estado y después de todos los demás filtros: cada
+            // cifra de la franja dice cuántas filas quedarían al marcar solo ese estado.
+            IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
+            if (request.ConRecuentosPorEstado)
             {
-                // Si no parsea, no se filtra — igual que EstadoDocumentalFiltro.Coincide
-                // (su `: true` final). Pero si parsea a un valor que este
-                // listado nunca produce (p. ej. Faltante, que solo emiten las
-                // Alertas), el resultado tiene que ser "ninguna fila" — no
-                // "sin filtro" (hallazgo de Codex sobre el primer intento).
-                if (Enum.TryParse<EstadoDocumento>(request.EstadoDocumental, out var estadoFiltro))
-                {
-                    conFecha = estadoFiltro switch
-                    {
-                        EstadoDocumento.SinCaducidad => conFecha.Where(e => e.PeorFecha == null && !e.HaySinConfirmar),
-                        EstadoDocumento.SinConfirmar => conFecha.Where(e => e.HaySinConfirmar && (e.PeorFecha == null || e.PeorFecha > limiteAmbar)),
-                        EstadoDocumento.Vencido => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha < hoy),
-                        EstadoDocumento.Urgente => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha >= hoy && e.PeorFecha <= limiteRojo),
-                        EstadoDocumento.Proximo => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha > limiteRojo && e.PeorFecha <= limiteAmbar),
-                        EstadoDocumento.Vigente => conFecha.Where(e => e.PeorFecha != null && e.PeorFecha > limiteAmbar && !e.HaySinConfirmar),
-                        _ => conFecha.Where(e => false)
-                    };
-                }
+                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await conFecha
+                    .GroupBy(e =>
+                        e.PeorFecha != null && e.PeorFecha < hoy ? 0
+                    : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? 1
+                    : e.PeorFecha != null && e.PeorFecha <= limiteAmbar ? 2
+                    : e.HaySinConfirmar ? 3
+                    : e.PeorFecha != null ? 4
+                    : 5)
+                    .Select(grupo => new { Clave = grupo.Key, Filas = grupo.Count() })
+                    .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken));
+            }
+
+            // Varios estados a la vez (la franja deja marcar más de uno). null: el filtro no descarta nada
+            // (vacío o sin ningún valor conocido). Lista vacía: ninguna fila — «sin documentos» (este listado
+            // nunca produce un estado null: sin Documentos cae en Sin caducidad) o un estado que un propietario
+            // nunca tiene (Faltante, En tolerancia). Un filtro válido pero no aplicable devuelve nada, no todo.
+            if (EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental) is { } clavesPedidas)
+            {
+                conFecha = conFecha.Where(e => clavesPedidas.Contains(
+                    e.PeorFecha != null && e.PeorFecha < hoy ? 0
+                    : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? 1
+                    : e.PeorFecha != null && e.PeorFecha <= limiteAmbar ? 2
+                    : e.HaySinConfirmar ? 3
+                    : e.PeorFecha != null ? 4
+                    : 5));
             }
 
             var totalConEstado = await conFecha.CountAsync(cancellationToken);
 
-            var ordenadaConEstado = request.Descendente
+            // Este camino se toma también solo para contar por estado (la franja lo pide siempre), así que el
+            // orden no puede darse por supuesto: por estado si es la columna pedida, y si no por la misma lista
+            // blanca que el camino sin estado.
+            var porEstado = request.Descendente
                 ? conFecha.OrderByDescending(e =>
                     e.PeorFecha != null && e.PeorFecha < hoy ? 0
                     : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? 1
@@ -145,7 +156,20 @@ public class ObtenerEmpresasQueryHandler(
                     : e.HaySinConfirmar ? 3
                     : e.PeorFecha != null ? 4
                     : 5);
-            var ordenadaFinal = ordenadaConEstado.ThenBy(e => e.RazonSocial).ThenBy(e => e.Id);
+            var ordenaPorEstado = string.Equals(
+                request.OrdenarPor, nameof(EmpresaListaDto.EstadoDocumental), StringComparison.Ordinal);
+            var ordenadaConEstado = ordenaPorEstado
+                ? porEstado.ThenBy(e => e.RazonSocial)
+                : (request.OrdenarPor, request.Descendente) switch
+                {
+                    (nameof(EmpresaListaDto.RazonSocial), true) => conFecha.OrderByDescending(e => e.RazonSocial),
+                    (nameof(EmpresaListaDto.Cif), false) => conFecha.OrderBy(e => e.Cif),
+                    (nameof(EmpresaListaDto.Cif), true) => conFecha.OrderByDescending(e => e.Cif),
+                    (nameof(EmpresaListaDto.CreadoEnUtc), false) => conFecha.OrderBy(e => e.CreadoEnUtc),
+                    (nameof(EmpresaListaDto.CreadoEnUtc), true) => conFecha.OrderByDescending(e => e.CreadoEnUtc),
+                    _ => conFecha.OrderBy(e => e.RazonSocial)
+                };
+            var ordenadaFinal = ordenadaConEstado.ThenBy(e => e.Id);
 
             var paginaConEstado = await ordenadaFinal
                 .Skip((request.Pagina - 1) * request.TamanoPagina)
@@ -163,7 +187,10 @@ public class ObtenerEmpresasQueryHandler(
                     cumplimientoConEstado.GetValueOrDefault(e.Id),
                     deteccionesConEstado.GetValueOrDefault(e.Id)))
                     .ToList(),
-                totalConEstado, request.Pagina, request.TamanoPagina);
+                totalConEstado, request.Pagina, request.TamanoPagina)
+            {
+                RecuentosPorEstado = recuentosPorEstado
+            };
         }
 
         var total = await consulta.CountAsync(cancellationToken);

@@ -146,8 +146,11 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         var fila = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await fila.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        var insigniaEstado = fila.Locator(".badge-peligro");
+        // Desde el 2026-10-08 Urgente y Próximo comparten la pastilla «Por vencer» (ámbar); lo que
+        // dice que está a 10 días —dentro del umbral rojo— es el motivo de debajo.
+        var insigniaEstado = fila.Locator(".badge-advertencia");
         await insigniaEstado.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        Assert.Equal("Urgente", (await insigniaEstado.InnerTextAsync()).Trim());
+        Assert.Equal("Por vencer", (await insigniaEstado.InnerTextAsync()).Trim());
+        Assert.Matches("^Caduca en (9|10|11) días$", (await fila.Locator(".estado-fila-motivo").InnerTextAsync()).Trim());
     }
 }

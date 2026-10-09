@@ -35,6 +35,9 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
+
+    /// <summary>Filas por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
     private int _pagina = 1;
 
     /// <summary>
@@ -259,8 +262,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         }
     }
 
-    private string EstadoDesdeUrl() =>
-        EstadoDocumentoUi.OpcionesDocumentales.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
+    private string EstadoDesdeUrl() => EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
 
     private async Task AbrirCrearDesdeUrlAsync()
     {
@@ -320,7 +322,8 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             Pagina: _pagina,
             TamanoPagina: _tamanoPagina,
-            EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro);
+            EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+            ConRecuentosPorEstado: true);
 
         _cargando = true;
         _errorCarga = false;
@@ -333,6 +336,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
                 return;
 
             _totalElementos = resultado.TotalElementos;
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
             _elementosPagina = resultado.Elementos.ToList();
             _seleccionados.Clear();
             _expandidos.Clear();
@@ -379,9 +383,9 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         await CargarAsync(resetPagina: true);
     }
 
-    private async Task CambiarEstadoAsync(string valor)
+    private async Task CambiarEstadoAsync(string? valor)
     {
-        _estadoFiltro = valor;
+        _estadoFiltro = valor ?? string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await CargarAsync(resetPagina: true);
     }
@@ -389,17 +393,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro);
 
-    /// <summary>
-    /// Rótulo del chip del filtro documental. Si el valor de la URL no está en
-    /// el catálogo se cae al valor crudo en vez de romper: la coordenada viene
-    /// de fuera y no es autoridad sobre lo que existe.
-    /// </summary>
-    private string EtiquetaFiltroEstado =>
-        "Documentación: " + (EstadoDocumentoUi.OpcionesDocumentales.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto ?? _estadoFiltro);
-
     private Task QuitarFiltroBusquedaAsync() => BuscarAsync(string.Empty);
-
-    private Task QuitarFiltroEstadoAsync() => CambiarEstadoAsync(string.Empty);
 
     /// <summary>
     /// Quita los dos filtros en una sola recarga y una sola navegación.

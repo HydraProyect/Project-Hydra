@@ -3,6 +3,7 @@ using System.Security.Claims;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones.ApoyoCartera;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
@@ -1550,7 +1551,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         var apoyo = operacion.Apoyos.First(a => a.UsuarioId == usuario.Id);
         var rotulo = apoyo.VigenciaHasta is { } hasta
-            ? TextosUsuarios["PrincipalApoyoHasta", hasta.EnHoraPeninsular()].Value
+            ? TextosUsuarios["PrincipalApoyoHasta", VigenciaDeApoyo.UltimoDia(hasta)].Value
             : TextosUsuarios["PrincipalApoyo"].Value;
         var deOtra = operacion.Principal is { } otro
             ? TextosUsuarios["PrincipalDeOtraPersona", RotuloPrincipal(otro), otro.Nombre].Value

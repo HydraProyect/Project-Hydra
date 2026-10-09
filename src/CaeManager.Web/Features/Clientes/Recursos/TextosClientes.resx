@@ -455,6 +455,15 @@
   <data name="ToleranciaSinTiposDescripcion" xml:space="preserve">
     <value>Este Cliente empresarial no tiene tipos de documento de Trabajador o de Empresa a los que fijar tolerancia, o no tienes acceso a él.</value>
   </data>
+  <data name="MotivoUnDocumento" xml:space="preserve">
+    <value>1 documento</value>
+  </data>
+  <data name="MotivoDocumentos" xml:space="preserve">
+    <value>{0} documentos</value>
+  </data>
+  <data name="TituloSinIncidencias" xml:space="preserve">
+    <value>Sin alertas de vigencia abiertas entre sus trabajadores</value>
+  </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>

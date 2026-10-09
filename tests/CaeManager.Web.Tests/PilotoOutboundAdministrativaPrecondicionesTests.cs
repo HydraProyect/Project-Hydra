@@ -44,7 +44,7 @@ public class PilotoOutboundAdministrativaPrecondicionesTests
         opciones.Should().Be(new PilotoOutboundAdministrativa.Opciones(
             Dominio, Directorio, "Production", new DateOnly(2026, 10, 20),
             new ContactosPilotoOutbound("ensayo@destino.example", ContactosPilotoOutbound.DominioPorDefecto)));
-        opciones.Contactos.DireccionDe("t1-centro").Should().Be("ensayo+t1-centro@destino.example");
+        opciones.Contactos.DireccionDe("prevencion.gavrena").Should().Be("ensayo+prevencion.gavrena@destino.example");
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class PilotoOutboundAdministrativaPrecondicionesTests
         var opciones = PilotoOutboundAdministrativa.LeerOpciones(Configuracion(("PilotoOutbound:FechaDemostracion", "2026-10-20")));
 
         opciones.Contactos.Should().Be(ContactosPilotoOutbound.NoEntregables);
-        opciones.Contactos.DireccionDe("t1-centro").Should().EndWith("@caemanager.local");
+        opciones.Contactos.DireccionDe("prevencion.gavrena").Should().EndWith("@caemanager.local");
     }
 
     [Fact]
@@ -216,6 +216,23 @@ public class PilotoOutboundAdministrativaPrecondicionesTests
 
         mensaje.Should().StartWith("Siembra del piloto Outbound interrumpida: el motivo exacto")
             .And.Contain("se reanuda repitiendo la orden").And.Contain("--retirar-piloto-outbound");
+    }
+
+    [Fact]
+    public void Un_lote_de_otra_version_de_la_siembra_se_dice_con_el_nombre_del_Tenant_y_con_que_hay_que_retirarlo()
+    {
+        var deUno = PilotoOutboundSeeder.MensajeDeDatosDeOtraVersion(["Tenant de ejemplo, S.L."]);
+        var deDos = PilotoOutboundSeeder.MensajeDeDatosDeOtraVersion(["Tenant de ejemplo, S.L.", "Otro Tenant, S.A."]);
+
+        deUno.Should().StartWith("El Tenant «Tenant de ejemplo, S.L.» tiene datos sembrados por otra versión de la siembra del piloto")
+            .And.Contain("Hay que retirar el lote (--retirar-piloto-outbound) antes de volver a sembrar.");
+        deDos.Should().StartWith("Los Tenants «Tenant de ejemplo, S.L.», «Otro Tenant, S.A.» tienen datos sembrados por otra versión")
+            .And.Contain("--retirar-piloto-outbound");
+
+        // Por la vía administrativa la negativa es una excepción con ese motivo: el modo la escribe tal cual por la
+        // salida de error y sale con 1 (PilotoOutboundSoloDesdeElModoCliTests vigila ese catch de Program.cs).
+        PilotoOutboundAdministrativa.MensajeDeInterrupcion(new InvalidOperationException(deUno + " La siembra del piloto se niega y no escribe nada."))
+            .Should().StartWith("Siembra del piloto Outbound interrumpida: " + deUno + " La siembra del piloto se niega y no escribe nada.");
     }
 
     [Fact]

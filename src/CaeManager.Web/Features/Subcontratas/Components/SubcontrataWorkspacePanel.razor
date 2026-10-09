@@ -56,6 +56,7 @@
 @using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata
 @using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrataSinContrasena
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId
+@using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores
@@ -110,6 +111,28 @@ else
                 }
             </div>
         </div>
+        @* El cumplimiento es el de la fila del listado (misma consulta, acotada a esta
+           Subcontrata): lo enseñaba la vista previa que este panel sustituye. *@
+        @if (_fila is { CumplimientoPorcentaje: { } cumplimiento })
+        {
+            <AnilloCumplimiento Porcentaje="cumplimiento" Tamano="TamanoAnillo.Medio"
+                                 Etiqueta="@Textos["EtiquetaCumplimiento", cumplimiento]" />
+        }
+        @if (!_editandoInformacion)
+        {
+            @* El lápiz vive en la cabecera en todas las pestañas (patrón de listados: la fila no
+               lleva menú y editar se hace desde el panel, también con la tecla «e»). Desde otra
+               pestaña lleva primero a «Información», que es donde está el formulario. Editar
+               acaba en ICommand y toca las credenciales del portal: solo roles con escritura. *@
+            <SoloConEscritura>
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Cargando="_abriendoEdicion" OnClick="EditarDesdeCabeceraAsync"
+                       aria-label="@Textos["AriaEditarInformacion"]" title="@Textos["TituloEditarConAtajo"]">
+                    <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+                </Boton>
+            </SoloConEscritura>
+        }
+        @* Icono 360 del catálogo: lleva a la página completa de Subcontrata 360. *@
+        <Boton360 Nombre="@_detalle.RazonSocial" Href="@($"/subcontratas/{_detalle.Id}")" />
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
@@ -331,11 +354,42 @@ else
                 break;
 
             case "documentacion":
-                <EstadoVacio Titulo="@Textos["DocumentacionNoModeladaTitulo"]" Descripcion="@Textos["DocumentacionNoModeladaDescripcion"]">
-                    <Accion>
+                @* El modelo no asocia Documentos a una Subcontrata. Lo que sí existe son las
+                   incidencias de sus trabajadores, las mismas que la fila del listado cuenta en
+                   «Vencidos» y «Próximos»: vencidas primero —faltantes incluidas— y después las
+                   próximas. Sin incidencias queda el aviso de siempre; si no se pudieron leer,
+                   se dice: callarlo se leería como «no hay nada vencido». *@
+                @if (Incidencias.Count > 0)
+                {
+<ul class="lista-incidencias-subcontrata-360" aria-label="@Textos["AriaListaIncidencias"]">
+                        @foreach (var incidencia in Incidencias)
+                        {
+                            <li class="fila-incidencia-subcontrata-360">
+                                <span class="texto-incidencia-subcontrata-360">@incidencia.Descripcion</span>
+                                <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDeSeveridad(incidencia.Estado)</Badge>
+                            </li>
+                        }
+                    </ul>
+                    <div class="acciones-subcontrata-360">
                         <Boton Variante="VarianteBoton.Secundario" OnClick='() => PestanaActivaChanged.InvokeAsync("trabajadores")'>@Textos["BotonVerSusTrabajadores"]</Boton>
-                    </Accion>
-                </EstadoVacio>
+                    </div>
+                }
+                else if (_errorFila)
+                {
+                    <EstadoVacio Titulo="@Textos["ErrorCargaIncidenciasTitulo"]" Descripcion="@Textos["ErrorCargaIncidenciasDescripcion"]">
+                        <Accion>
+                            <Boton Variante="VarianteBoton.Secundario" OnClick='() => PestanaActivaChanged.InvokeAsync("trabajadores")'>@Textos["BotonVerSusTrabajadores"]</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
+                else
+                {
+                    <EstadoVacio Titulo="@Textos["DocumentacionNoModeladaTitulo"]" Descripcion="@Textos["DocumentacionNoModeladaDescripcion"]">
+                        <Accion>
+                            <Boton Variante="VarianteBoton.Secundario" OnClick='() => PestanaActivaChanged.InvokeAsync("trabajadores")'>@Textos["BotonVerSusTrabajadores"]</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                }
                 break;
 
             case "supervision":
@@ -555,6 +609,22 @@ else
     [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
 
     private SubcontrataDetalleDto? _detalle;
+
+    /// <summary>
+    /// La fila del listado de esta Subcontrata (cumplimiento e incidencias de sus
+    /// trabajadores), pedida con la misma consulta que el listado. Si no llega, el panel
+    /// sigue entero: solo faltan el anillo de la cabecera y la lista de «Documentación».
+    /// </summary>
+    private SubcontrataListaDto? _fila;
+    private int _cargaFila;
+    private bool _errorFila;
+
+    /// <summary>La cadena de cargas de <see cref="CargarTodoAsync"/> sigue en vuelo.</summary>
+    private bool _cadenaEnVuelo;
+
+    private IReadOnlyList<CaeManager.Application.Subcontratas.IncidenciaSubcontrataDto> Incidencias =>
+        _fila is null ? [] : [.. _fila.Recuentos.Vencidas, .. _fila.Recuentos.Proximas];
+
     private bool _cargando = true;
     private bool _error;
     private Guid _idCargado;
@@ -817,7 +887,51 @@ else
         };
     }
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        WorkspaceService.OnEdicionSolicitada += AlSolicitarEdicion;
+    }
+
+    private void AlSolicitarEdicion() => InvokeAsync(async () =>
+    {
+        await AtenderEdicionSolicitadaAsync();
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Tecla «e» de un listado (<c>ContextWorkspaceService.AbrirEnEdicionAsync</c>): equivale
+    /// a pulsar el lápiz de la cabecera. Solo se consume con el detalle ya cargado y la cadena
+    /// de cargas terminada (entrar en edición lanza sus propias consultas, y todas comparten
+    /// el DbContext del circuito); si llega antes, la atiende el final de la cadena. El lápiz
+    /// va dentro de <c>SoloConEscritura</c>, así que aquí se repite su misma condición: un
+    /// rol de Consulta no entra en edición.
+    /// </summary>
+    private async Task AtenderEdicionSolicitadaAsync()
+    {
+        if (_cadenaEnVuelo || _detalle is null || _detalle.Id != EntidadId)
+            return;
+        if (!WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Subcontrata, EntidadId))
+            return;
+        if (_editandoInformacion || EstadoAutenticacion is null)
+            return;
+
+        var usuario = (await EstadoAutenticacion).User;
+        if (!CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole))
+            return;
+
+        await IniciarEdicionInformacionAsync();
+    }
+
+    private async Task EditarDesdeCabeceraAsync()
+    {
+        if (PestanaActiva != "informacion")
+            await PestanaActivaChanged.InvokeAsync("informacion");
+
+        await IniciarEdicionInformacionAsync();
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -834,6 +948,7 @@ else
     {
         _generacion++;
         _cargaCabecera++;
+        _cargaFila++;
         _cargaNombres++;
         _cargaTrabajadores++;
         _cargaCentros++;
@@ -845,6 +960,8 @@ else
     {
         InvalidarCargas();
         _detalle = null;
+        _fila = null;
+        _errorFila = false;
         _error = false;
         _trabajadores = null;
         _totalTrabajadores = 0;
@@ -885,21 +1002,70 @@ else
     private async Task CargarTodoAsync()
     {
         var generacion = _generacion;
-        await CargarCabeceraAsync();
-        if (generacion != _generacion || _detalle is null) return;
+        _cadenaEnVuelo = true;
+        try
+        {
+            await CargarCabeceraAsync();
+            if (generacion != _generacion || _detalle is null) return;
 
-        _cargandoTrabajadores = true;
-        _cargandoCentros = true;
-        _cargandoSupervision = true;
-        StateHasChanged();
+            _cargandoTrabajadores = true;
+            _cargandoCentros = true;
+            _cargandoSupervision = true;
+            StateHasChanged();
 
-        await CargarNombresRelacionesAsync();
-        if (generacion != _generacion) return;
-        await CargarTrabajadoresAsync();
-        if (generacion != _generacion) return;
-        await CargarCentrosAsync();
-        if (generacion != _generacion) return;
-        await CargarSupervisionAsync();
+            await CargarFilaAsync();
+            if (generacion != _generacion) return;
+            await CargarNombresRelacionesAsync();
+            if (generacion != _generacion) return;
+            await CargarTrabajadoresAsync();
+            if (generacion != _generacion) return;
+            await CargarCentrosAsync();
+            if (generacion != _generacion) return;
+            await CargarSupervisionAsync();
+        }
+        finally
+        {
+            // Una cadena invalidada no apaga la marca de la que la sustituyó.
+            if (generacion == _generacion)
+                _cadenaEnVuelo = false;
+        }
+
+        // Fuera de la cadena: entrar en edición lanza sus propias consultas y gestiona sus
+        // propios fallos; uno de ellos no puede pintar la ficha entera como fallida.
+        if (generacion == _generacion)
+        {
+            await AtenderEdicionSolicitadaAsync();
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>
+    /// Cumplimiento e incidencias de esta Subcontrata, con la consulta del listado acotada a
+    /// su Id. Un fallo aquí no es un fallo de la ficha: se queda sin anillo y sin lista.
+    /// </summary>
+    private async Task CargarFilaAsync()
+    {
+        var carga = ++_cargaFila;
+        var id = EntidadId;
+
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerSubcontratasQuery(Busqueda: null, SubcontrataId: id), _cancelacion);
+            if (carga != _cargaFila) return;
+            _fila = resultado?.Elementos.FirstOrDefault(s => s.Id == id);
+            _errorFila = false;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaFila)
+            {
+                _fila = null;
+                _errorFila = true;
+            }
+        }
+
+        if (carga == _cargaFila)
+            StateHasChanged();
     }
 
     /// <summary>Un doble clic en «Reintentar» no lanza una segunda cadena: la primera ya puso _cargando.</summary>
@@ -917,11 +1083,19 @@ else
             var detalle = await Mediator.Send(new ObtenerSubcontrataPorIdQuery(id), _cancelacion);
             if (carga != _cargaCabecera) return;
             _detalle = detalle;
+            // Tampoco sobrevive a una ficha que no existe (o ya no se ve): mismo motivo que abajo.
+            if (detalle is null)
+                WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Subcontrata, id);
         }
         catch (Exception)
         {
             if (carga == _cargaCabecera)
+            {
                 _error = true;
+                // Una petición de edición («e») no sobrevive a la carga fallida: si se quedara
+                // pendiente, un reintento con éxito entraría en edición sin que nadie lo pida.
+                WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Subcontrata, id);
+            }
         }
         finally
         {
@@ -1582,6 +1756,7 @@ else
     /// </summary>
     public void Dispose()
     {
+        WorkspaceService.OnEdicionSolicitada -= AlSolicitarEdicion;
         InvalidarCargas();
         _ciclo.Cancel();
         _ciclo.Dispose();

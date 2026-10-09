@@ -2,8 +2,9 @@ namespace CaeManager.Domain.Documentos;
 
 /// <summary>
 /// Orden de gravedad de un <see cref="EstadoDocumento"/> cuando hay que quedarse con el peor de varios o
-/// listar primero lo que más urge. Es el ÚNICO sitio donde vive ese orden: lo que falta, antes que lo vencido,
-/// antes que lo vencido pero en tolerancia (<see cref="EstadoDocumento.EnTolerancia"/>: sigue valiendo para acceder, pero ya
+/// listar primero lo que más urge. Es el ÚNICO sitio donde vive ese orden: lo vencido, antes que lo que falta
+/// (orden fijado el 2026-10-03: Vencido antes que Faltante en todas las superficies; hasta el 2026-10-08 este
+/// rango los tenía al revés), antes que lo vencido pero en tolerancia (<see cref="EstadoDocumento.EnTolerancia"/>: sigue valiendo para acceder, pero ya
 /// venció), antes que lo urgente, lo próximo, lo que no se sabe (<see cref="EstadoDocumento.SinConfirmar"/>, detrás de lo
 /// malo conocido y delante de lo vigente), lo vigente y, al final, lo que no caduca.
 ///
@@ -25,8 +26,8 @@ public static class SeveridadEstadoDocumento
     /// <summary>Rango de gravedad: 0 es lo más grave. Ordena ascendente para tener lo peor primero.</summary>
     public static int Rango(EstadoDocumento estado) => estado switch
     {
-        EstadoDocumento.Faltante => 0,
-        EstadoDocumento.Vencido => 1,
+        EstadoDocumento.Vencido => 0,
+        EstadoDocumento.Faltante => 1,
         EstadoDocumento.EnTolerancia => 2,
         EstadoDocumento.Urgente => 3,
         EstadoDocumento.Proximo => 4,
