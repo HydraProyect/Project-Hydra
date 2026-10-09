@@ -117,8 +117,8 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         // sin consulta congelada), así que la verificación se reancla ahí.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialCliente);
-        // Por el enlace del nombre, no por la fila entera: desde «Presta servicio a» la fila de una Empresa
-        // también nombra a sus Clientes empresariales, y hasta que llega el filtro la lista las enseña todas.
+        // Por el enlace del nombre, no por la fila entera: es lo que identifica a la Empresa de la fila, y
+        // hasta que llega el filtro la lista las enseña todas.
         await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialCliente })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 

@@ -151,10 +151,6 @@ src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: TipoItemBandejaUi
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: _bandejaAgrupada = 9
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: bandeja = 9
 src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor :: Bandeja = 1
-src/CaeManager.Web/Features/IncorporacionCartera/Components/AvisoSolicitudesCartera.razor :: Bandeja = 1
-src/CaeManager.Web/Features/IncorporacionCartera/Components/AvisoSolicitudesCartera.razor :: EnLaBandeja = 1
-src/CaeManager.Web/Features/IncorporacionCartera/Components/AvisoSolicitudesCartera.razor.cs :: Bandeja = 1
-src/CaeManager.Web/Features/IncorporacionCartera/Components/AvisoSolicitudesCartera.razor.cs :: EnLaBandeja = 1
 src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor :: _bandeja = 9
 src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor.cs :: BandejaIncorporacionCarteraDto = 1
 src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor.cs :: _bandeja = 3

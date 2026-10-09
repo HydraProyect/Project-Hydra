@@ -130,6 +130,52 @@ public class AlcanceDatosServiceSobreRelacionEmpresarialTests : IAsyncLifetime
             "no tiene NivelServicio: es una Empresa propia con relación directa, no una subcontrata");
     }
 
+    /// <summary>
+    /// Listados 5/7: «Deshacer» de la baja de una Subcontrata. La lista de gestión se deriva de las
+    /// Empresas vivas, así que nunca contiene la eliminada; <c>SubcontrataEliminadaParaGestionVisibleAsync</c>
+    /// decide con las mismas coordenadas (rol, cartera y Relación Empresarial vigente) sin pasar por
+    /// la Empresa. Quien podía darla de baja puede restaurarla, y nadie más.
+    /// </summary>
+    [Fact]
+    public async Task Una_subcontrata_eliminada_sigue_al_alcance_de_gestion_de_quien_lleva_a_su_cliente_y_de_nadie_mas()
+    {
+        Guid cliente, subcontrata;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cli = Empresa.CrearComoCliente("Cliente Deshacer S.A.", "B10380202", false, null, null);
+            var sub = Empresa.CrearComoSubcontrata("Subcontrata Deshacer S.L.", "B10380210", NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(cli, sub);
+            await contexto.SaveChangesAsync();
+            cliente = cli.Id; subcontrata = sub.Id;
+
+            var ahora = DateTime.UtcNow;
+            contexto.RelacionesEmpresariales.Add(RelacionEmpresarial.Migrar(subcontrata, cliente, ahora, ahora));
+            await contexto.SaveChangesAsync();
+
+            sub.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+        }
+
+        var gestorConCartera = await OtorgarCarteraAsync(cliente);
+
+        async Task<bool> VisibleParaAsync(Guid usuarioId, string rol)
+        {
+            await using var contexto = CrearContexto(_tenant);
+            var servicio = new AlcanceDatosService(
+                contexto, new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant),
+                new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
+            return await servicio.SubcontrataEliminadaParaGestionVisibleAsync(subcontrata);
+        }
+
+        (await ResolverSubcontrataIdsParaUsuarioAsync(gestorConCartera)).Should().NotContain(subcontrata,
+            "control: la lista de vivas no la trae, por eso la restauración no puede decidir con ella");
+
+        (await VisibleParaAsync(gestorConCartera, "GestorCae")).Should().BeTrue("lleva al Cliente empresarial con el que la Subcontrata tiene Relación vigente");
+        (await VisibleParaAsync(Guid.NewGuid(), "GestorCae")).Should().BeFalse("un Gestor CAE sin cartera no la alcanza");
+        (await VisibleParaAsync(gestorConCartera, "Cliente")).Should().BeFalse("el rol Cliente (portal) lee, no gestiona (REC-159)");
+        (await VisibleParaAsync(Guid.NewGuid(), "Administrador")).Should().BeTrue("el Administrador del Tenant tiene alcance total");
+    }
+
     /// <summary>Escenario 4: los datos de otro tenant no se filtran al alcance de este.</summary>
     [Fact]
     public async Task Datos_de_otro_tenant_no_se_filtran_al_alcance()

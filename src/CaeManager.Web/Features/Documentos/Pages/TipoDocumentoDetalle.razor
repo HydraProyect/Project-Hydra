@@ -1,0 +1,260 @@
+@*
+    Tipo de documento 360 — página (mockup «Tipo Documento 360 página TALVEG»,
+    primer incremento). Ver el comentario de cabecera del .razor.cs: una sola
+    consulta, que también autoriza, y qué queda fuera de este incremento.
+*@
+@page "/documentos/tipos/{TipoDocumentoId:guid}"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize(Roles = RolesDeLaPagina)]
+@using CaeManager.Application.TiposDocumento.Queries.ObtenerEstadoTipoDocumento
+@using CaeManager.Domain.Documentos
+@using CaeManager.Infrastructure.Identity
+@using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Documentos.Recursos
+@using CaeManager.Web.Features.TiposDocumento
+@using CaeManager.Web.Features.TiposDocumento.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosTipoDocumento360> Textos
+@inject IStringLocalizer<TextosTiposDocumento> TextosTipos
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@(_estado?.Nombre ?? Textos["TituloPestanaNavegador"]) — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina">
+    <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />
+
+    @if (_error)
+    {
+        @* No encontrado y sin acceso se ven igual: la página no revela si el registro existe. *@
+        <Tarjeta>
+            <EstadoVacio Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorDescripcion"]"
+                         NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+                </Accion>
+            </EstadoVacio>
+        </Tarjeta>
+    }
+    else if (_cargando)
+    {
+        <Tarjeta>
+            <EstadoCargando Filas="5" />
+        </Tarjeta>
+    }
+    else if (_estado is { } estado)
+    {
+        var cumplimiento = estado.Cumplimiento;
+
+        <CabeceraIdentidad Kicker="@Textos["Kicker"]" Titulo="@estado.Nombre" Datos="@DatosDeCabecera(estado)">
+            <Anillo>
+                <AnilloCumplimiento Porcentaje="cumplimiento.Porcentaje" Tamano="TamanoAnillo.Cabecera"
+                                    Detalle="@(Textos["AnilloFraccion", cumplimiento.AlDia, cumplimiento.Requeridos])"
+                                    Etiqueta="@(cumplimiento.Requeridos > 0 ? Textos["AnilloEtiqueta", cumplimiento.AlDia, cumplimiento.Requeridos] : Textos["AnilloSinDato"])" />
+            </Anillo>
+            <Acciones>
+                @* Los dos ítems del menú son de escritura: sin escritura no hay menú. *@
+                <SoloConEscritura>
+                    <MenuAcciones EtiquetaAccesible="@Textos["MasAcciones"]">
+                        <ItemMenuAccion Href="/documentos/subida-masiva">@Textos["AccionSubidaMultiple"]</ItemMenuAccion>
+                        <AuthorizeView Roles="@Roles.Administrador">
+                            <ItemMenuAccion OnClick="IrAConfiguracionDelTipo">@Textos["AccionEditarTipo"]</ItemMenuAccion>
+                        </AuthorizeView>
+                    </MenuAcciones>
+                </SoloConEscritura>
+            </Acciones>
+        </CabeceraIdentidad>
+
+        @if (BandaDeCabecera(estado) is { } banda)
+        {
+            <BandaAccion Tono="banda.Tono" TextoEnlace="@banda.TextoEnlace" OnEnlace="() => VerDesdeLaBandaAsync(banda.Grupos)">
+                @foreach (var (parte, posicion) in banda.Partes.Select((parte, posicion) => (parte, posicion)))
+                {
+                    <span class="tipo360-banda-parte">
+                        @if (posicion > 0)
+                        {
+                            <span aria-hidden="true">·</span>
+                        }
+                        <span>@parte.Recuento</span>
+                        @foreach (var incidencia in parte.Nombradas)
+                        {
+                            <IncidenciaBanda Texto="@incidencia.Nombre" OnClick="() => CorregirAsync(incidencia)" />
+                        }
+                        @if (parte.Resto > 0)
+                        {
+                            <span>@Textos["BandaYMas", parte.Resto]</span>
+                        }
+                    </span>
+                }
+            </BandaAccion>
+        }
+
+        <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
+            <ChildContent>
+                <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaTrabajadores" PestanaActivaChanged="_ => { }" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]">
+                    @if (estado.Trabajadores == 0)
+                    {
+                        <Tarjeta>
+                            <EstadoVacio Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]" NombreIcono="documentos">
+                                <Accion>
+                                    <AuthorizeView Roles="@Roles.Administrador">
+                                        <Boton Variante="VarianteBoton.Primario" OnClick="IrAConfiguracionDelTipo">@Textos["AccionEditarTipo"]</Boton>
+                                    </AuthorizeView>
+                                </Accion>
+                            </EstadoVacio>
+                        </Tarjeta>
+                    }
+                    else
+                    {
+                        <FiltroEstadosMultiple Opciones="OpcionesDeEstado" Seleccion="_estadosMarcados" SeleccionChanged="CambiarEstadosAsync"
+                                               Total="estado.Trabajadores" TextoTodos="@Textos["Todos"]" Etiqueta="@Textos["EtiquetaFiltroEstado"]" />
+
+                        <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["EtiquetaLista"]">
+                            <Encabezado>@Textos["Mostrando", estado.Filas.Count, estado.TotalFiltradas]</Encabezado>
+                            <ChildContent>
+                                @foreach (var fila in estado.Filas)
+                                {
+                                    var trabajadorId = fila.TrabajadorId;
+                                    var accion = TextoAccion(fila.PeorEstado);
+                                    <FilaRelacion @key="trabajadorId" Nombre="@fila.Nombre" Iniciales="@Iniciales(fila.Nombre)"
+                                                  OnNombre="() => AbrirPanelAsync(fila)" OnAbrir360="() => IrAFichaDeTrabajador(trabajadorId)"
+                                                  Tono="TonoDeFila(fila.PeorEstado)"
+                                                  Desplegable="@(fila.Centros.Count > 1 ? EstadoPorCentro(fila) : null)"
+                                                  Desplegada="_desplegadas.Contains(trabajadorId)"
+                                                  DesplegadaChanged="desplegada => Desplegar(trabajadorId, desplegada)"
+                                                  EtiquetaDesplegar="@Textos["VerEstadoPorCentro", fila.Nombre]">
+                                        <Detalle>
+                                            <span class="tipo360-linea">
+                                                @if (!string.IsNullOrWhiteSpace(fila.Dni))
+                                                {
+                                                    <span>@Textos["FilaDni"]</span>
+                                                    <BotonCopiar Valor="@fila.Dni" Texto="@fila.Dni" Etiqueta="@Textos["CopiarElDni"]" />
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(fila.EmpresaNombre))
+                                                {
+                                                    <span>· @fila.EmpresaNombre</span>
+                                                }
+                                            </span>
+                                            <span class="tipo360-linea">
+                                                @if (fila.FechaEmision is not { } emision)
+                                                {
+                                                    <span>@Textos["FilaSinDocumento"]</span>
+                                                }
+                                                else if (fila.FechaVencimiento is { } vencimiento)
+                                                {
+                                                    <span>@Textos["FilaEmisionHasta", Fecha(emision)]</span>
+                                                    <TextoFechaCopiable Fecha="vencimiento" FechaEmision="emision">@Fecha(vencimiento)</TextoFechaCopiable>
+                                                }
+                                                else
+                                                {
+                                                    <span>@Textos["FilaEmitido", Fecha(emision)]</span>
+                                                }
+                                                @if (fila.Centros is [var unico])
+                                                {
+                                                    <span>· @unico.CentroNombre · @TextoEnCentro(fila, unico)</span>
+                                                }
+                                            </span>
+                                        </Detalle>
+                                        <Cifra>
+                                            <b>@Textos["CifraFraccion", fila.CentrosAlDia, fila.Centros.Count]</b>
+                                            @(Textos[fila.Centros.Count == 1 ? "CifraCentrosUno" : "CifraCentrosVarios"])
+                                        </Cifra>
+                                        <Estado>
+                                            <Badge Tono="TonoEstado(fila.PeorEstado)">@TextoEstado(fila.PeorEstado)</Badge>
+                                        </Estado>
+                                        <Acciones>
+                                            @if (accion is not null)
+                                            {
+                                                <SoloConEscritura>
+                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => CorregirAsync(fila)">@accion</Boton>
+                                                </SoloConEscritura>
+                                            }
+                                        </Acciones>
+                                    </FilaRelacion>
+                                }
+                            </ChildContent>
+                            <Pie>
+                                @if (estado.Filas.Count == 0 && HayFiltrosActivos)
+                                {
+                                    <p class="tipo360-nota">@Textos["FiltroSinResultados"]</p>
+                                }
+                            </Pie>
+                        </ListaRelaciones>
+
+                        <PaginadorSimple PaginaActual="estado.Pagina" PaginaActualChanged="CambiarPaginaAsync"
+                                         TotalPaginas="TotalPaginas(estado)" TotalElementos="estado.TotalFiltradas"
+                                         TamanoPagina="estado.TamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync"
+                                         Etiqueta="@Textos[estado.TotalFiltradas == 1 ? "MetaTrabajadoresUno" : "MetaTrabajadoresVarios"]" />
+                    }
+                </Pestanas>
+            </ChildContent>
+            <Lateral>
+                <Tarjeta Titulo="@Textos["InfoTitulo"]" Compacta="true">
+                    <AccionesHeader>
+                        <AuthorizeView Roles="@Roles.Administrador">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IrAConfiguracionDelTipo">@Textos["InfoEditar"]</Boton>
+                        </AuthorizeView>
+                    </AccionesHeader>
+                    <ChildContent>
+                        <RejillaDatos>
+                            <DatoRejilla Etiqueta="@Textos["InfoSePideA"]" Valor="@Textos["InfoSePideATrabajador"]" />
+                            <DatoRejilla Etiqueta="@Textos["InfoVigencia"]" Valor="@TextoVigencia(estado.VigenciaMeses)" />
+                            <DatoRejilla Etiqueta="@Textos["InfoVencimientoAutomatico"]" Valor="@Textos[estado.AplicaVencimientoAutomatico ? "Si" : "No"]" />
+                            <DatoRejilla Etiqueta="@Textos["InfoSePide"]" Valor="@TextoSePide(estado.Requerido)" />
+                            <DatoRejilla Etiqueta="@Textos["InfoAutoridad"]" Valor="@RequisitoDocumentalUi.TextoNaturaleza(TextosTipos, estado.Naturaleza)" Ancho="true" />
+                            <DatoRejilla Etiqueta="@Textos["InfoSeSolicitaA"]" Valor="@(string.IsNullOrWhiteSpace(estado.SeSolicitaA) ? Textos["SinDato"] : estado.SeSolicitaA)" Ancho="true" />
+                            <DatoRejilla Etiqueta="@Textos["InfoAlias"]" Valor="@(estado.Aliases.Count == 0 ? Textos["SinDato"] : string.Join(" · ", estado.Aliases))" Ancho="true" />
+                        </RejillaDatos>
+                    </ChildContent>
+                </Tarjeta>
+            </Lateral>
+        </CuerpoConLateral>
+    }
+</div>
+
+<DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="CargarAsync" />
+</LimiteDeErrores>
+
+@code {
+    // Línea de datos de la cabecera: vigencia, pastilla de exigencia, a cuántos Centros y Trabajadores alcanza y la
+    // frase que hace evidente la regla de recuento.
+    private RenderFragment DatosDeCabecera(EstadoTipoDocumentoDto estado) => @<text>
+        @{ var cumplimiento = estado.Cumplimiento; }
+        <span>@(Textos["MetaVigencia"]) <b>@TextoVigencia(estado.VigenciaMeses)</b></span>
+        <span aria-hidden="true">·</span>
+        <Badge Tono="TonoExigencia(estado)">@TextoExigencia(estado)</Badge>
+        @if (cumplimiento.Requeridos > 0)
+        {
+            <span aria-hidden="true">·</span>
+            <span>
+                @(Textos["MetaExigidoEn"]) <b>@estado.Centros</b> @(Textos[estado.Centros == 1 ? "MetaCentrosUno" : "MetaCentrosVarios"])
+                @(Textos["MetaA"]) <b>@estado.Trabajadores</b> @(Textos[estado.Trabajadores == 1 ? "MetaTrabajadoresUno" : "MetaTrabajadoresVarios"])
+            </span>
+            <span class="tipo360-regla">@(Textos["ReglaRecuento", cumplimiento.AlDia, cumplimiento.Requeridos])</span>
+        }
+    </text>;
+
+    // El estado en cada Centro que se lo exige, del peor al mejor: una línea por Centro con su frase, su pastilla y
+    // su acción. Solo se despliega en las filas con más de un Centro; con uno solo, la frase va en la propia fila.
+    private RenderFragment EstadoPorCentro(FilaTrabajadorTipoDocumentoDto fila) => @<text>
+        @foreach (var centro in fila.Centros)
+        {
+            var accion = TextoAccion(centro.Estado);
+            <div class="tipo360-subfila" data-pieza="fila" @key="centro.CentroId">
+                <div class="tipo360-subfila-identidad">
+                    <b>@centro.CentroNombre</b>
+                    <small data-pieza="fila-detalle">@TextoEnCentro(fila, centro)</small>
+                </div>
+                <span><Badge Tono="TonoEstado(centro.Estado)">@TextoEstado(centro.Estado)</Badge></span>
+                <span class="tipo360-subfila-accion">
+                    @if (accion is not null)
+                    {
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => CorregirAsync(fila)">@accion</Boton>
+                        </SoloConEscritura>
+                    }
+                </span>
+            </div>
+        }
+    </text>;
+}

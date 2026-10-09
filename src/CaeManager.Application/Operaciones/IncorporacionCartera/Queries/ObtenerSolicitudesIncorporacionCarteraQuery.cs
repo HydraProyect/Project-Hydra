@@ -17,11 +17,11 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 /// <item>un Gestor CAE ve las suyas, en cualquier estado, y puede revocar las
 /// aceptadas.</item>
 /// </list>
-/// Nadie más la ve. Las pendientes son la fuente del aviso emergente de los
-/// Coordinadores CAE: resolver una la quita de la bandeja y del aviso de
+/// Nadie más la ve. Las pendientes son la fuente de la campana de avisos de los
+/// Coordinadores CAE: resolver una la quita de la bandeja y de la campana de
 /// todos a la vez, porque no hay una notificación por destinatario que borrar.
 /// </summary>
-/// <param name="SoloPendientes">Para el aviso emergente: solo la lista de pendientes, sin las demás.</param>
+/// <param name="SoloPendientes">Para la campana de avisos: solo la lista de pendientes, sin las demás.</param>
 public record ObtenerSolicitudesIncorporacionCarteraQuery(bool SoloPendientes = false)
     : IRequest<Result<BandejaIncorporacionCarteraDto>>;
 

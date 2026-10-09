@@ -211,13 +211,13 @@
     <value>¿Eliminar a {0}?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>Se ocultará de las listas activas. No se puede recuperar desde la aplicación.</value>
+    <value>Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarla desde Auditoría.</value>
   </data>
   <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
     <value>¿Eliminar {0} subcontrata(s)?</value>
   </data>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Se ocultarán de las listas activas. No se pueden recuperar desde la aplicación.</value>
+    <value>Se ocultarán de las listas activas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlas desde Auditoría.</value>
   </data>
   <data name="ConteoUno" xml:space="preserve">
     <value>{0} de {1} subcontrata</value>
@@ -716,5 +716,20 @@
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
     <value>Treu els filtres</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="ToastRestaurada" xml:space="preserve">
+    <value>Subcontracta restaurada.</value>
+  </data>
+  <data name="ToastLoteRestauradas" xml:space="preserve">
+    <value>{0} subcontracta(es) restaurada(es).</value>
+  </data>
+  <data name="ToastLoteRestauradasConErrores" xml:space="preserve">
+    <value>{0} restaurada(es). {1} no s'han pogut restaurar: {2}</value>
+  </data>
+  <data name="ErrorRestaurar" xml:space="preserve">
+    <value>No s'ha pogut desfer l'eliminació. Torna-ho a provar.</value>
   </data>
 </root>

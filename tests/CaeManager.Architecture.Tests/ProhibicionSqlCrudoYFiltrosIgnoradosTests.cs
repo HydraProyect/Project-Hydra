@@ -73,6 +73,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Application/Empresas/Commands/RestaurarEmpresa/RestaurarEmpresaCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Trabajadores/Commands/RestaurarTrabajador/RestaurarTrabajadorCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Vehiculos/Commands/RestaurarVehiculo/RestaurarVehiculoCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Proyectos/Commands/RestaurarProyecto/RestaurarProyectoCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Gestiones/Commands/RestaurarGestion/RestaurarGestionCommand.cs", ".IgnoreQueryFilters()")] = 1,
 
         // ObtenerAuditoriaQuery (H1, defecto de Codex 2026-09-11): mismo
         // motivo que los cinco Restaurar*Command de arriba — PuedeRestaurar
@@ -82,7 +86,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Cuatro apariciones: una por tabla consultada en lote (Empresas
         // cubre tanto "Cliente" como "Empresa"; Centros; Trabajadores;
         // Documentos), siempre con el TenantId comprobado a mano.
-        [("src/CaeManager.Application/Auditoria/Queries/ObtenerAuditoriaQuery.cs", ".IgnoreQueryFilters()")] = 4,
+        [("src/CaeManager.Application/Auditoria/Queries/ObtenerAuditoriaQuery.cs", ".IgnoreQueryFilters()")] = 7,
 
         // Retención (purga de datos vencidos): tiene que alcanzar también los
         // registros ya borrados lógicamente, así que el filtro global se
@@ -270,6 +274,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // antes de llegar aquí — nunca se resuelve del ambiente.
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.Set<TEntidad>().IgnoreQueryFilters().Where(e => e.TenantId == tenantId).ToListAsync(cancellationToken);")] = 1,
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "var tenant = await dbContext.Tenants.IgnoreQueryFilters()")] = 1,
+        // Los filtros guardados son por Tenant desde el 2026-10-08, pero pertenecen a un
+        // usuario: al retirar el Tenant de demo se borran los de SUS usuarios, también los
+        // que hubieran guardado operando sobre otro Tenant. El Where() acota por UsuarioId.
+        [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.FiltrosGuardados.IgnoreQueryFilters().Where(f => idsUsuarios.Contains(f.UsuarioId) && f.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);")] = 1,
 
         // Siembra administrativa de la demo a dirección (modo de CLI, nunca el
         // arranque normal): las tres lecturas buscan Tenants por su nombre EXACTO

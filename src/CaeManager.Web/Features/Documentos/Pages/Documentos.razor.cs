@@ -351,6 +351,13 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _confirmarEliminarLoteVisible;
 
     private IReadOnlyList<FiltroGuardadoDto> _filtrosGuardados = [];
+    private FiltroGuardadoDto? _filtroGuardadoAEliminar;
+    private bool _eliminandoFiltroGuardado;
+
+    private void CambiarVisibilidadBorradoFiltroGuardado(bool visible)
+    {
+        if (!visible) _filtroGuardadoAEliminar = null;
+    }
     private bool _mostrarGuardarFiltro;
     private string _nombreFiltroNuevo = string.Empty;
     private bool _guardandoFiltro;
@@ -1226,19 +1233,37 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         }
     }
 
-    private async Task EliminarFiltroGuardadoAsync(Guid id)
+    private void PedirEliminarFiltroGuardado(string idTexto) =>
+        _filtroGuardadoAEliminar = _filtrosGuardados.FirstOrDefault(f => f.Id.ToString() == idTexto);
+
+    private async Task ConfirmarEliminarFiltroGuardadoAsync()
     {
-        if (_desechado) return;
+        if (_desechado || _eliminandoFiltroGuardado || _filtroGuardadoAEliminar is not { } filtro)
+            return;
 
         var token = _ciclo.Token;
-
-        var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(id), token);
-        if (resultado.EsFallido)
+        _eliminandoFiltroGuardado = true;
+        try
         {
-            ToastService.MostrarError(resultado.Error);
-            return;
-        }
+            var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(filtro.Id), token);
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
 
-        _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos), token);
+            // Ya está borrado: se cierra el diálogo y se quita de la lista sin releerla, para que
+            // un fallo de la relectura no deje la confirmación abierta sobre un filtro que no existe.
+            _filtroGuardadoAEliminar = null;
+            _filtrosGuardados = _filtrosGuardados.Where(f => f.Id != filtro.Id).ToList();
+        }
+        catch (Exception) when (!token.IsCancellationRequested)
+        {
+            ToastService.Mostrar(Textos["FiltroGuardadoBorrarError"], TonoToast.Error);
+        }
+        finally
+        {
+            _eliminandoFiltroGuardado = false;
+        }
     }
 }

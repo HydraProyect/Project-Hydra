@@ -11,7 +11,6 @@ using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
-using CaeManager.Application.Empresas.Queries.ObtenerResumenClientesDeEmpresas;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
@@ -68,12 +67,11 @@ public class EmpresasListaGen2Tests : BunitContext
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> ClientesDe { get; } = [];
         public HashSet<Guid> ClientesQueFallan { get; } = [];
 
-        /// <summary>La consulta del resumen de «Presta servicio a» falla.</summary>
-        public bool ResumenFalla { get; set; }
-
         /// <summary>
-        /// Empresas fuera del alcance de gestión: el resumen no las devuelve aunque tengan Clientes
-        /// empresariales (lo prueba ResumenClientesDeEmpresasTests contra Postgres).
+        /// Empresas fuera del alcance de gestión: la consulta de la fila desplegada devuelve vacío aunque
+        /// tengan Clientes empresariales, igual que <c>ObtenerClientesDeEmpresaQueryHandler</c> (REC-153). La
+        /// guarda real la prueban ObtenerClientesDeEmpresaQueryTests (Application) y
+        /// ClientesDeEmpresaBajoAlcanceDeGestionTests (Postgres); este doble solo la reproduce.
         /// </summary>
         public HashSet<Guid> FueraDeGestion { get; } = [];
         public PerfilVocabularioTenant Perfil { get; set; } = PerfilVocabularioTenant.Consultora;
@@ -117,16 +115,9 @@ public class EmpresasListaGen2Tests : BunitContext
             ObtenerEmpresasQuery q => Filtrar(q),
             ObtenerClientesDeEmpresaQuery c => ClientesQueFallan.Contains(c.EmpresaId)
                 ? throw new InvalidOperationException("Fallo simulado de la consulta de clientes de la empresa.")
-                : (IReadOnlyList<ClienteDeEmpresaDto>)(ClientesDe.GetValueOrDefault(c.EmpresaId) ?? []).ToList(),
-            ObtenerResumenClientesDeEmpresasQuery r => ResumenFalla
-                ? throw new InvalidOperationException("Fallo simulado del resumen de Clientes empresariales.")
-                : (IReadOnlyDictionary<Guid, ResumenClientesDeEmpresaDto>)r.EmpresaIds
-                    .Where(id => !FueraDeGestion.Contains(id) && ClientesDe.GetValueOrDefault(id) is { Count: > 0 })
-                    .ToDictionary(id => id, id =>
-                    {
-                        var clientes = ClientesDe[id].OrderBy(c => c.RazonSocial, StringComparer.Ordinal).ToList();
-                        return new ResumenClientesDeEmpresaDto(clientes.Count, clientes[0].RazonSocial);
-                    }),
+                : (IReadOnlyList<ClienteDeEmpresaDto>)(FueraDeGestion.Contains(c.EmpresaId)
+                    ? []
+                    : (ClientesDe.GetValueOrDefault(c.EmpresaId) ?? []).ToList()),
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Array.Empty<ClienteSelectorDto>(),
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
             EliminarEmpresaCommand => Result.Exito(),
@@ -242,82 +233,58 @@ public class EmpresasListaGen2Tests : BunitContext
     private static Task AlternarSeleccionMultiple(IRenderedComponent<Empresas> cut) =>
         cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
 
-    // ------------------------------------------------- columna «Presta servicio a» (maqueta aprobada)
+    // ------------------------------------- Clientes empresariales: solo en la fila desplegada (#810)
 
     /// <summary>
-    /// La columna dice el primer Cliente empresarial por razón social y «+N», con una sola consulta para toda la
-    /// página (no una por fila), y la pastilla abre el mismo desplegable que el chevron.
+    /// Sin columna «Presta servicio a» (decisión del propietario, 2026-10-08): la lista plegada no nombra a
+    /// ningún Cliente empresarial ni pregunta por ellos. Solo la fila desplegada los pide, una vez y por la
+    /// consulta que aplica el alcance de gestión.
     /// </summary>
     [Fact]
-    public async Task Presta_servicio_a_dice_el_primero_y_cuantos_mas_y_abre_el_desplegable()
+    public async Task La_lista_plegada_no_nombra_ni_pide_Clientes_empresariales_y_el_chevron_los_pide_una_vez()
     {
         var mediador = new MediatorFalso();
-        var norte = Empresa("Montajes Norte S.L.");
-        var sur = Empresa("Limpiezas Sur S.L.");
-        mediador.Almacen.AddRange([norte, sur]);
-        mediador.ClientesDe[norte.Id] = [ClienteEmpresarial("Pegaso Cliente S.L.", "B10000024"), ClienteEmpresarial("Orion Cliente S.L.", "B10000016")];
-        mediador.ClientesDe[sur.Id] = [ClienteEmpresarial("Pegaso Cliente S.L.", "B10000024")];
-        var cut = Renderizar(mediador);
-
-        cut.WaitForAssertion(() => cut.FindAll(".pastilla-presta-servicio").Should().HaveCount(2));
-        var textos = cut.FindAll(".tarjeta-fila-acordeon").ToDictionary(
-            f => f.QuerySelector(".enlace-nombre-fila")!.TextContent.Trim(),
-            f => f.QuerySelector(".pastilla-presta-servicio")!.TextContent.Trim());
-        textos.Should().Equal(new Dictionary<string, string>
-        {
-            ["Montajes Norte S.L."] = "Orion Cliente S.L. +1",
-            ["Limpiezas Sur S.L."] = "Pegaso Cliente S.L.",
-        });
-        var consulta = mediador.Enviadas.OfType<ObtenerResumenClientesDeEmpresasQuery>().Should().ContainSingle("una consulta por página, no una por fila").Subject;
-        consulta.EmpresaIds.Should().BeEquivalentTo([norte.Id, sur.Id]);
-        cut.FindAll(".pastilla-presta-servicio").Select(p => p.GetAttribute("aria-label")).Should().Contain(
-            "Orion Cliente S.L. +1: Clientes empresariales a los que presta servicio Montajes Norte S.L.",
-            "el nombre accesible empieza por el texto visible (WCAG 2.5.3)");
-
-        var filaNorte = cut.FindAll(".tarjeta-fila-acordeon").Single(f => f.TextContent.Contains("Montajes Norte S.L."));
-        await filaNorte.QuerySelector(".pastilla-presta-servicio")!.ClickAsync(new MouseEventArgs());
-
-        cut.WaitForAssertion(() => cut.FindAll(".tarjeta-fila-acordeon").Single(f => f.TextContent.Contains("Montajes Norte S.L."))
-            .QuerySelector(".pastilla-presta-servicio")!.GetAttribute("aria-expanded").Should().Be("true"));
-        mediador.Enviadas.OfType<ObtenerClientesDeEmpresaQuery>().Should().ContainSingle(q => q.EmpresaId == norte.Id);
-    }
-
-    /// <summary>
-    /// Sin Clientes empresariales o fuera del alcance de gestión, la celda dice «—» con el mismo título en los dos
-    /// casos: la pantalla no revela cuál es (#810).
-    /// </summary>
-    [Fact]
-    public void Sin_Clientes_empresariales_o_fuera_de_alcance_la_celda_es_una_raya_que_no_distingue_los_casos()
-    {
-        var mediador = new MediatorFalso();
-        var sinClientes = Empresa("Obras Este S.L.");
-        var fueraDeAlcance = Empresa("Montajes Norte S.L.");
-        mediador.Almacen.AddRange([sinClientes, fueraDeAlcance]);
-        mediador.ClientesDe[fueraDeAlcance.Id] = [ClienteEmpresarial("Orion Cliente S.L.", "B10000016")];
-        mediador.FueraDeGestion.Add(fueraDeAlcance.Id);
-        var cut = Renderizar(mediador);
-
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerResumenClientesDeEmpresasQuery>().Should().ContainSingle());
-        cut.FindAll(".pastilla-presta-servicio").Should().BeEmpty();
-        var titulos = cut.FindAll(".tarjeta-fila-acordeon-cabecera").Select(f => f.Children[2].QuerySelector("[title]")!.GetAttribute("title")).ToList();
-        titulos.Should().HaveCount(2).And.OnlyContain(t => t == "No presta servicio a Clientes empresariales, o no los gestionas tú.");
-    }
-
-    [Fact]
-    public void Si_falla_el_resumen_la_lista_se_ve_igual_y_la_columna_dice_raya()
-    {
-        var mediador = new MediatorFalso { ResumenFalla = true };
         var norte = Empresa("Montajes Norte S.L.");
         mediador.Almacen.Add(norte);
         mediador.ClientesDe[norte.Id] = [ClienteEmpresarial("Orion Cliente S.L.", "B10000016")];
         var cut = Renderizar(mediador);
 
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerResumenClientesDeEmpresasQuery>().Should().ContainSingle());
-        cut.FindAll(".tarjeta-fila-acordeon").Should().ContainSingle();
-        cut.FindAll(".pastilla-presta-servicio").Should().BeEmpty();
-        cut.Markup.Should().NotContain("No pudimos cargar las empresas");
-        cut.Find(".celda-sin-presta-servicio").GetAttribute("title").Should().Be("No pudimos cargar a quién presta servicio esta empresa.",
-            "un fallo no se pinta como «no presta servicio»: no sabemos nada");
+        cut.Find(".cabecera-columnas-empresas").TextContent.Should().NotContain("Presta servicio");
+        cut.Markup.Should().NotContain("Orion Cliente S.L.").And.NotContain("B10000016");
+        ConsultasDeClientes(mediador).Should().Be(0, "plegada, la lista no pregunta por los Clientes empresariales de nadie");
+
+        await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().Contain("Orion Cliente S.L."));
+        mediador.Enviadas.OfType<ObtenerClientesDeEmpresaQuery>().Should().ContainSingle(q => q.EmpresaId == norte.Id);
+    }
+
+    /// <summary>
+    /// No revelación (#810): una Empresa con una Relación Empresarial FUERA del alcance de gestión se despliega
+    /// igual, palabra por palabra, que una Empresa sin ninguna. Ni el nombre ni el CIF del Cliente empresarial
+    /// llegan al marcado, no hay rótulo ni lista que delaten que «hay algo», y el texto no afirma que no exista.
+    /// </summary>
+    [Fact]
+    public async Task Una_Relacion_Empresarial_fuera_del_alcance_de_gestion_no_se_revela_al_desplegar_la_fila()
+    {
+        const string textoNeutro = "Esta empresa no tiene Clientes empresariales asociados, o no están dentro de tu alcance de gestión.";
+        var mediador = new MediatorFalso();
+        var sinRelaciones = Empresa("Obras Este S.L.");
+        var fueraDeAlcance = Empresa("Montajes Norte S.L.");
+        mediador.Almacen.AddRange([sinRelaciones, fueraDeAlcance]);
+        mediador.ClientesDe[fueraDeAlcance.Id] = [ClienteEmpresarial("Orion Cliente S.L.", "B10000016")];
+        mediador.FueraDeGestion.Add(fueraDeAlcance.Id);
+        var cut = Renderizar(mediador);
+
+        await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Expandir todo").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".tarjeta-fila-acordeon-contenido").Select(c => c.TextContent.Trim())
+            .Should().Equal([textoNeutro, textoNeutro], "las dos filas dicen lo mismo: la pantalla no distingue «no tiene» de «no lo gestionas»"));
+        cut.Markup.Should().NotContain("Orion Cliente S.L.").And.NotContain("B10000016");
+        cut.FindAll(".titulo-clientes-empresa").Should().BeEmpty("un rótulo solo en una de las dos filas delataría que hay algo");
+        cut.FindAll(".tarjeta-fila-acordeon-contenido li").Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerClientesDeEmpresaQuery>().Select(q => q.EmpresaId)
+            .Should().BeEquivalentTo([sinRelaciones.Id, fueraDeAlcance.Id], "la página pregunta solo por la consulta que aplica el alcance de gestión");
     }
 
     // ------------------------------------------------------------------ Cabecera
@@ -341,7 +308,7 @@ public class EmpresasListaGen2Tests : BunitContext
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
         acciones.QuerySelectorAll("a").Should().BeEmpty("Exportar a Excel vive ahora dentro del «⋯»");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Selección múltiple", "Más acciones", "+ Nueva empresa");
+            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nueva empresa");
 
         await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
         cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim()).Should().Equal("Exportar a Excel");
@@ -726,7 +693,7 @@ public class EmpresasListaGen2Tests : BunitContext
     // ------------------------------------------------------- Fila desplegada
 
     [Fact]
-    public async Task La_fila_desplegada_dice_a_cuantos_clientes_presta_servicio_y_los_lista()
+    public async Task La_fila_desplegada_rotula_Clientes_empresariales_sin_recuento_y_los_lista()
     {
         var refrielectric = Empresa("Refrielectric S.A.");
         var montajes = Empresa("Montajes Ebro S.L.");
@@ -738,15 +705,16 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Trim() == "Expandir todo").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.FindAll(".titulo-clientes-empresa").Select(t => t.TextContent.Trim())
-            .Should().Equal(["Presta servicio a 1 Cliente empresarial", "Presta servicio a 2 Clientes empresariales"]));
+            .Should().Equal(["Clientes empresariales", "Clientes empresariales"], "el rótulo es neutro: ni «presta servicio a» ni recuento"));
         var contenidoRefrielectric = cut.FindAll(".tarjeta-fila-acordeon-contenido")[1];
         contenidoRefrielectric.TextContent.Should().Contain("Grupo Arbeko").And.Contain("Petronor Servicios");
+        cut.Markup.Should().NotContain("Presta servicio");
     }
 
     /// <summary>
     /// ObtenerClientesDeEmpresaQuery devuelve vacío también cuando el actor no
     /// tiene alcance de gestión sobre la Empresa: el texto no afirma que no
-    /// preste servicio a nadie, porque para quien no ve la cartera sería falso.
+    /// tenga Clientes empresariales, porque para quien no ve la cartera sería falso.
     /// </summary>
     [Fact]
     public async Task Sin_relaciones_visibles_la_fila_desplegada_no_afirma_que_no_haya_ninguna()
@@ -757,7 +725,7 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
         cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Trim()
-            .Should().Be("Esta empresa no presta servicio a Clientes empresariales, o no están dentro de tu alcance de gestión.");
+            .Should().Be("Esta empresa no tiene Clientes empresariales asociados, o no están dentro de tu alcance de gestión.");
         cut.FindAll(".titulo-clientes-empresa").Should().BeEmpty();
     }
 
@@ -776,14 +744,14 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
 
         var contenido = cut.Find(".tarjeta-fila-acordeon-contenido");
-        contenido.QuerySelectorAll("[role=alert]").Select(a => a.TextContent.Trim()).Should().Equal(["No pudimos cargar a quién presta servicio esta empresa."], "un fallo de la consulta se dice como fallo");
+        contenido.QuerySelectorAll("[role=alert]").Select(a => a.TextContent.Trim()).Should().Equal(["No pudimos cargar los Clientes empresariales"], "un fallo de la consulta se dice como fallo");
         contenido.TextContent.Should().NotContain("todavía no tiene", "no se sabe si tiene o no: la consulta falló");
 
         mediador.ClientesQueFallan.Clear();
         mediador.ClientesDe[empresa.Id] = [ClienteEmpresarial("Grupo Arbeko", "A-95.117.220")];
         await cut.Find(".tarjeta-fila-acordeon-contenido button").ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.Find(".titulo-clientes-empresa").TextContent.Trim().Should().Be("Presta servicio a 1 Cliente empresarial"));
+        cut.WaitForAssertion(() => cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().Contain("Grupo Arbeko"));
         cut.FindAll(".tarjeta-fila-acordeon-contenido [role=alert]").Should().BeEmpty();
     }
 
@@ -824,7 +792,7 @@ public class EmpresasListaGen2Tests : BunitContext
 
         ConsultasDeClientes(mediador).Should().Be(consultasAntes + 1,
             "la respuesta vieja era de antes de recargar la lista: no puede servir de caché a la fila");
-        cut.WaitForAssertion(() => cut.Find(".titulo-clientes-empresa").TextContent.Trim().Should().Be("Presta servicio a 1 Cliente empresarial"));
+        cut.WaitForAssertion(() => cut.Find(".tarjeta-fila-acordeon-contenido").TextContent.Should().Contain("Grupo Arbeko"));
     }
 
     // ------------------------------------------------------------- Carreras

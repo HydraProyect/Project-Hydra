@@ -150,23 +150,11 @@
   <data name="ConfirmarRevocarPropiaMensaje" xml:space="preserve">
     <value>Dejarás de tener {0} en tu cartera.</value>
   </data>
-  <data name="AvisoTitulo" xml:space="preserve">
-    <value>Solicitudes de cartera</value>
-  </data>
-  <data name="AvisoResumenUna" xml:space="preserve">
-    <value>{0} solicitud pendiente</value>
-  </data>
-  <data name="AvisoResumenVarias" xml:space="preserve">
-    <value>{0} solicitudes pendientes</value>
-  </data>
   <data name="AvisoPide" xml:space="preserve">
     <value>{0} pide incorporarse a {1}</value>
   </data>
   <data name="AvisoVerTodas" xml:space="preserve">
     <value>Ver todas</value>
-  </data>
-  <data name="AvisoMasTarde" xml:space="preserve">
-    <value>Más tarde</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
     <value>No se pudieron cargar las solicitudes</value>
