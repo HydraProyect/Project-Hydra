@@ -207,7 +207,10 @@ public class EnlaceDeActivacionBajoRuntimeTests
         fila.DatosAntes.Should().Contain("\"Email\":\"mal-escrito@caemanager.local\"")
             .And.NotContain("bien-escrito@caemanager.local");
         fila.DatosDespues.Should().Contain("\"Email\":\"bien-escrito@caemanager.local\"")
-            .And.NotContain("mal-escrito@caemanager.local");
+            .And.Contain("\"UserName\":\"bien-escrito@caemanager.local\"")
+            // Por campo y no por subcadena: el arnés da de alta la cuenta con el correo como nombre completo.
+            .And.NotContain("\"Email\":\"mal-escrito@caemanager.local\"")
+            .And.NotContain("\"UserName\":\"mal-escrito@caemanager.local\"");
         fila.DatosDespues.Should().Contain("\"SecurityStamp\":\"***\"", "la fila dice que el sello cambió, nunca cuál es");
         (await LeerEmisionesAsync(arnes.CadenaPropietario, pendienteId)).Should().BeEmpty(
             "la corrección es una sola fila con su acción propia, no además una emisión suelta");
