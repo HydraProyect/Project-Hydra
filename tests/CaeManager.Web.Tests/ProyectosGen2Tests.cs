@@ -53,7 +53,7 @@ namespace CaeManager.Web.Tests;
 /// delega en <c>PestanaDocumentacion</c>.
 /// </para>
 /// </summary>
-public class ProyectosGen2Tests : BunitContext
+public partial class ProyectosGen2Tests : BunitContext
 {
     /// <summary>Drawer y Modal importan dialogo-foco.js al abrirse; queda fuera de lo que se observa aquí.</summary>
     public ProyectosGen2Tests()
@@ -258,11 +258,25 @@ public class ProyectosGen2Tests : BunitContext
     private static Task AbrirDetalle(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto) =>
         BotonConTexto(cut, "tbody .nombre-proyecto", proyecto.Nombre).ClickAsync(new MouseEventArgs());
 
-    private static async Task CerrarDesdeLaFilaAsync(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto)
+    private static IElement FilaDe(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto) =>
+        cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == proyecto.Nombre);
+
+    private static bool PanelAbiertoEn(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto) =>
+        cut.FindAll("aside.panel-proyecto .nombre-cabecera-panel-proyecto").Any(n => n.TextContent.Trim() == proyecto.Nombre);
+
+    /// <summary>El lápiz de la cabecera del panel: la única entrada a la edición desde que la fila no lleva menú.</summary>
+    private static IElement Lapiz(IRenderedComponent<Proyectos> cut) =>
+        cut.Find("aside.panel-proyecto .cabecera-panel-proyecto button[aria-label='Editar la información del proyecto']");
+
+    /// <summary>
+    /// «Cerrar proyecto» vive en el pie del panel (la fila no lleva menú): abre el panel del
+    /// proyecto si no lo estaba y pulsa el botón; deja abierto el formulario de cierre.
+    /// </summary>
+    private static async Task CerrarDesdeElPanelAsync(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto)
     {
-        var fila = cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == proyecto.Nombre);
-        await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
-        await BotonConTexto(cut, "[role=menuitem]", "Cerrar proyecto").ClickAsync(new MouseEventArgs());
+        if (!PanelAbiertoEn(cut, proyecto))
+            await AbrirDetalle(cut, proyecto);
+        await BotonConTexto(cut, ".pie-panel-proyecto button", "Cerrar proyecto").ClickAsync(new MouseEventArgs());
     }
 
     // ------------------------------------------------------------------ reabrir (FS-12)
@@ -296,29 +310,58 @@ public class ProyectosGen2Tests : BunitContext
             .Which.Mensaje.Should().StartWith("Proyecto reabierto");
     }
 
+    /// <summary>
+    /// Patrón de listados (2026-10-08): la fila no lleva menú «⋯». Un clic en cualquier punto de
+    /// la fila abre la vista rápida, y cada acción del menú retirado conserva un sitio: cerrar,
+    /// reabrir y eliminar en el pie del panel; la página 360 en el icono del final de la fila.
+    /// </summary>
     [Fact]
-    public async Task Un_proyecto_cerrado_se_reabre_desde_el_menu_de_su_fila_y_uno_abierto_no_lo_ofrece()
+    public async Task La_fila_no_lleva_menu_y_un_clic_en_ella_abre_la_vista_rapida_de_ese_proyecto()
     {
         _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
         var cut = await RenderizarConClienteAsync();
 
-        async Task<List<string>> OpcionesDeLaFila(ProyectoListaDto proyecto)
-        {
-            var fila = cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == proyecto.Nombre);
-            await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
-            // Releer la fila tras el clic: el menú se pinta dentro de ella.
-            fila = cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == proyecto.Nombre);
-            return fila.QuerySelectorAll("[role=menuitem]").Select(m => m.TextContent.Trim()).ToList();
-        }
+        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        cut.FindAll("tbody tr").Should().OnlyContain(f => f.ClassList.Contains("fila-pulsable"));
+        PanelDeDetalleAbierto(cut).Should().BeFalse();
 
-        (await OpcionesDeLaFila(ProyectoAbierto)).Should().Contain("Cerrar proyecto").And.NotContain("Reabrir proyecto");
-        (await OpcionesDeLaFila(ProyectoCerrado)).Should().Contain("Reabrir proyecto").And.NotContain("Cerrar proyecto");
+        await FilaDe(cut, ProyectoCerrado).ClickAsync(new MouseEventArgs());
 
-        await cut.FindAll("[role=menuitem]").Single(m => m.TextContent.Trim() == "Reabrir proyecto").ClickAsync(new MouseEventArgs());
-        await ConfirmarReapertura(cut);
+        cut.WaitForAssertion(() => PanelAbiertoEn(cut, ProyectoCerrado).Should().BeTrue("el clic en la fila abre su vista rápida"));
+        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim())
+            .Should().Equal(["Reabrir proyecto", "Eliminar"], "las acciones del menú retirado viven en el pie del panel");
+    }
 
-        _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().ContainSingle()
-            .Which.Id.Should().Be(ProyectoCerrado.Id);
+    /// <summary>
+    /// El nombre es un botón dentro de la fila pulsable: corta su clic para que no llegue también a
+    /// la fila. Sin el corte, un solo clic pediría el detalle dos veces.
+    /// </summary>
+    [Fact]
+    public async Task El_clic_en_el_nombre_abre_la_vista_rapida_una_sola_vez()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+
+        await AbrirDetalle(cut, ProyectoAbierto);
+
+        cut.WaitForAssertion(() => PanelAbiertoEn(cut, ProyectoAbierto).Should().BeTrue());
+        _mediator.Enviados.OfType<ObtenerProyectoPorIdQuery>().Should().ContainSingle("el clic del nombre no sube a la fila");
+    }
+
+    /// <summary>El icono 360 del final de la fila es un enlace: no abre la vista rápida.</summary>
+    [Fact]
+    public async Task El_icono_360_de_la_fila_no_abre_la_vista_rapida()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+
+        // El enlace corta su clic y no tiene manejador propio: bUnit lo dice con esta excepción
+        // —«nadie recibe este clic»—, que es justo la propiedad. Sin el corte llegaría a la fila.
+        var clic = () => FilaDe(cut, ProyectoAbierto).QuerySelector("a.boton-360-pagina")!.ClickAsync(new MouseEventArgs());
+        await clic.Should().ThrowAsync<MissingEventHandlerException>();
+
+        PanelDeDetalleAbierto(cut).Should().BeFalse("el enlace 360 lleva a la página, no al panel");
+        _mediator.Enviados.OfType<ObtenerProyectoPorIdQuery>().Should().BeEmpty();
     }
 
     [Fact]
@@ -329,13 +372,8 @@ public class ProyectosGen2Tests : BunitContext
         var cut = await RenderizarConClienteAsync();
         await AbrirDetalle(cut, ProyectoCerrado);
 
+        cut.Find("aside.panel-proyecto .rejilla-info-proyecto").Should().NotBeNull("el panel tiene que estar pintado para que la ausencia signifique algo");
         cut.FindAll("aside.panel-proyecto button").Select(b => b.TextContent.Trim()).Should().NotContain("Reabrir proyecto");
-
-        var fila = cut.Find("tbody tr");
-        await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
-        var opciones = cut.Find("tbody tr").QuerySelectorAll("[role=menuitem]").Select(m => m.TextContent.Trim()).ToList();
-        opciones.Should().NotBeEmpty("el menú de la fila tiene que haberse abierto para que su ausencia signifique algo");
-        opciones.Should().NotContain("Reabrir proyecto");
     }
 
     private static Task ConfirmarReapertura(IRenderedComponent<Proyectos> cut) =>
@@ -572,19 +610,18 @@ public class ProyectosGen2Tests : BunitContext
     /// 2026 son 55 días así contados (el mockup pintaba 54, cuenta exclusiva).
     /// </summary>
     [Fact]
-    public async Task La_pagina_360_se_alcanza_desde_el_menu_de_la_fila_y_desde_el_panel()
+    public async Task La_pagina_360_se_alcanza_con_el_icono_360_de_la_fila_y_con_el_de_la_cabecera_del_panel()
     {
         _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
         var cut = await RenderizarConClienteAsync();
         var destino = $"/proyectos/{ProyectoCerrado.Id}";
 
-        var fila = cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == ProyectoCerrado.Nombre);
-        await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
-        cut.FindAll("a[role=menuitem]").Single(a => a.TextContent.Trim() == "Abrir página")
-            .GetAttribute("href").Should().Be(destino);
+        var enlaceDeLaFila = FilaDe(cut, ProyectoCerrado).QuerySelector("a.boton-360-pagina")!;
+        enlaceDeLaFila.GetAttribute("href").Should().Be(destino);
+        enlaceDeLaFila.GetAttribute("aria-label").Should().Contain(ProyectoCerrado.Nombre, "con un icono por fila, el nombre accesible dice cuál abre");
 
         await AbrirDetalle(cut, ProyectoCerrado);
-        cut.Find("aside.panel-proyecto a.enlace-pagina-proyecto").GetAttribute("href").Should().Be(destino);
+        cut.Find("aside.panel-proyecto .cabecera-panel-proyecto a.boton-360-pagina").GetAttribute("href").Should().Be(destino);
     }
 
     [Fact]
@@ -610,10 +647,10 @@ public class ProyectosGen2Tests : BunitContext
         var cut = await RenderizarConClienteAsync();
 
         await AbrirDetalle(cut, ProyectoCerrado);
-        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Reabrir proyecto", "Eliminar");
+        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Reabrir proyecto", "Eliminar");
 
         await AbrirDetalle(cut, ProyectoAbierto);
-        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Editar", "Cerrar proyecto", "Eliminar");
+        cut.FindAll(".pie-panel-proyecto button").Select(b => b.TextContent.Trim()).Should().Equal("Cerrar proyecto", "Eliminar");
 
         await BotonConTexto(cut, ".pie-panel-proyecto button", "Cerrar proyecto").ClickAsync(new MouseEventArgs());
         cut.Find("[role=dialog] h2").TextContent.Should().Be("Cerrar proyecto");
@@ -637,7 +674,7 @@ public class ProyectosGen2Tests : BunitContext
         var cut = await RenderizarConClienteAsync();
         await AbrirDetalle(cut, ProyectoAbierto2);
 
-        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        await CerrarDesdeElPanelAsync(cut, ProyectoAbierto);
         await ConfirmarCierre(cut);
 
         _mediator.Enviados.OfType<CerrarProyectoCommand>().Should().ContainSingle()
@@ -649,20 +686,6 @@ public class ProyectosGen2Tests : BunitContext
     /// desde el menú de una fila, sin detalle abierto, hacía aparecer el
     /// detalle vacío con «No pudimos cargar este proyecto».
     /// </summary>
-    [Fact]
-    public async Task Cerrar_desde_el_menu_de_la_fila_no_abre_un_detalle_vacio()
-    {
-        _mediator.Proyectos = [ProyectoAbierto];
-        var cut = await RenderizarConClienteAsync();
-
-        await cut.Find("tbody .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await BotonConTexto(cut, "[role=menuitem]", "Cerrar proyecto").ClickAsync(new MouseEventArgs());
-
-        cut.Find("[role=dialog] h2").TextContent.Should().Be("Cerrar proyecto", "el modal sí se abre");
-        cut.FindAll("aside.panel-proyecto").Should().BeEmpty();
-        cut.Markup.Should().NotContain("No pudimos cargar este proyecto");
-    }
-
     /// <summary>
     /// El mockup pinta los técnicos como una lista de solo lectura; el código
     /// ya permitía darlos de baja. Transcribir el mockup al pie de la letra
@@ -812,11 +835,7 @@ public class ProyectosGen2Tests : BunitContext
         await Resolver(cut, detalleA, DetalleDe(ProyectoAbierto));
         await clicA.WaitAsync(Paciencia);
 
-        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
-        await ConfirmarCierre(cut);
-
-        _mediator.Enviados.OfType<CerrarProyectoCommand>().Should().ContainSingle().Which.Id.Should().Be(AbiertoId);
-        cut.FindAll("aside.panel-proyecto").Should().BeEmpty("el panel se cerró a mano y nadie ha vuelto a abrirlo");
+        cut.FindAll("aside.panel-proyecto").Should().BeEmpty("el panel se cerró a mano y la respuesta tardía no lo reabre");
     }
 
     /// <summary>
@@ -831,7 +850,7 @@ public class ProyectosGen2Tests : BunitContext
         _mediator.Proyectos = [ProyectoAbierto, ProyectoAbierto2];
         var cut = await RenderizarConClienteAsync();
         await AbrirDetalle(cut, ProyectoAbierto);
-        await BotonConTexto(cut, ".pie-panel-proyecto button", "Editar").ClickAsync(new MouseEventArgs());
+        await Lapiz(cut).ClickAsync(new MouseEventArgs());
         var guardado = _mediator.Retener(r => r is ActualizarProyectoCommand c && c.Id == AbiertoId);
         var detalleB = _mediator.Retener(r => r is ObtenerProyectoPorIdQuery q && q.Id == Abierto2Id);
 
@@ -972,7 +991,7 @@ public class ProyectosGen2Tests : BunitContext
         var cut = await RenderizarConClienteAsync();
         var recargaA = _mediator.Retener(r => r is ObtenerProyectosQuery q && q.ClienteId == ClienteId);
 
-        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        await CerrarDesdeElPanelAsync(cut, ProyectoAbierto);
         var confirmacion = ConfirmarCierre(cut);
         await ElegirCliente(cut, ClienteBId).WaitAsync(Paciencia);
         await Resolver(cut, recargaA, (IReadOnlyList<ProyectoListaDto>)[ProyectoAbierto]);
@@ -1215,7 +1234,7 @@ public class ProyectosGen2Tests : BunitContext
     {
         _mediator.Proyectos = [ProyectoAbierto];
         var cut = await RenderizarConClienteAsync();
-        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        await CerrarDesdeElPanelAsync(cut, ProyectoAbierto);
         cut.FindAll("[role=dialog]").Should().NotBeEmpty("el test necesita el modal abierto");
 
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "la fecha de cierre de hoy viene puesta: no es un cambio");
@@ -1226,7 +1245,7 @@ public class ProyectosGen2Tests : BunitContext
     {
         _mediator.Proyectos = [ProyectoAbierto];
         var cut = await RenderizarConClienteAsync();
-        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        await CerrarDesdeElPanelAsync(cut, ProyectoAbierto);
         await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de cierre")
             .Find("input").InputAsync(new ChangeEventArgs { Value = "2020-01-01" });
 
@@ -1238,7 +1257,7 @@ public class ProyectosGen2Tests : BunitContext
     {
         _mediator.Proyectos = [ProyectoAbierto];
         var cut = await RenderizarConClienteAsync();
-        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        await CerrarDesdeElPanelAsync(cut, ProyectoAbierto);
         await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de cierre")
             .Find("input").InputAsync(new ChangeEventArgs { Value = "2020-01-01" });
 
@@ -1253,7 +1272,7 @@ public class ProyectosGen2Tests : BunitContext
     {
         _mediator.Proyectos = [ProyectoAbierto];
         var cut = await RenderizarConClienteAsync();
-        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        await CerrarDesdeElPanelAsync(cut, ProyectoAbierto);
         var campo = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de cierre");
         cut.Find("[role=dialog] .modal-cuerpo").QuerySelectorAll("[role=alert]").Should().BeEmpty("control positivo: sin intento no hay aviso");
 
@@ -1309,7 +1328,7 @@ public class ProyectosGen2Tests : BunitContext
         _mediator.Proyectos = [ProyectoAbierto, ProyectoAbierto2];
         var cut = await RenderizarConClienteAsync();
         await AbrirDetalle(cut, ProyectoAbierto);
-        await BotonConTexto(cut, ".pie-panel-proyecto button", "Editar").ClickAsync(new MouseEventArgs());
+        await Lapiz(cut).ClickAsync(new MouseEventArgs());
         ValorDelCampo(cut, "Nombre").Should().Be(ProyectoAbierto.Nombre, "el test necesita la edición abierta");
         return cut;
     }
@@ -1542,18 +1561,25 @@ public class ProyectosGen2Tests : BunitContext
 
     // ------------------------------------------------------------------ P1-E2b lote 2: revisión estática independiente
 
-    /// <summary>Abre el menú de la fila del proyecto y pulsa una de sus acciones (sin esperar a lo que ella dispare).</summary>
-    private static async Task<Task> PulsarAccionDeLaFilaAsync(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto, string accion)
+    /// <summary>
+    /// Pulsa una acción del proyecto donde vive desde que la fila no lleva menú, sin esperar a lo que
+    /// dispare: «Detalles» es el clic en la fila; cerrar, reabrir y eliminar, el pie de su panel
+    /// (que se abre antes si no lo estaba).
+    /// </summary>
+    private static async Task<Task> PulsarAccionDelProyectoAsync(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto, string accion)
     {
-        var fila = cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == proyecto.Nombre);
-        await fila.QuerySelector(".menu-acciones-disparador")!.ClickAsync(new MouseEventArgs());
-        return BotonConTexto(cut, "[role=menuitem]", accion).ClickAsync(new MouseEventArgs());
+        if (accion == "Detalles")
+            return FilaDe(cut, proyecto).ClickAsync(new MouseEventArgs());
+
+        if (!PanelAbiertoEn(cut, proyecto))
+            await AbrirDetalle(cut, proyecto);
+        return BotonConTexto(cut, ".pie-panel-proyecto button", accion).ClickAsync(new MouseEventArgs());
     }
 
-    /// <summary>Elimina desde el menú de la fila y confirma en el diálogo (su botón de confirmar dice «Eliminar»).</summary>
-    private async Task EliminarDesdeLaFilaAsync(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto, bool descartandoLoEscrito = false)
+    /// <summary>Elimina desde el pie del panel y confirma en el diálogo (su botón de confirmar dice «Eliminar»).</summary>
+    private async Task EliminarDesdeElPanelAsync(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto, bool descartandoLoEscrito = false)
     {
-        var accion = await PulsarAccionDeLaFilaAsync(cut, proyecto, "Eliminar");
+        var accion = await PulsarAccionDelProyectoAsync(cut, proyecto, "Eliminar");
         if (descartandoLoEscrito)
         {
             // Eliminar el proyecto abierto con algo a medias pregunta primero (M2); aquí se responde «descartar».
@@ -1575,7 +1601,7 @@ public class ProyectosGen2Tests : BunitContext
         var cut = await AbrirElAltaDeTecnicoAsync();
         await CambiarLaFechaDeAltaAsync(cut);
 
-        await EliminarDesdeLaFilaAsync(cut, ProyectoAbierto, descartandoLoEscrito: true);
+        await EliminarDesdeElPanelAsync(cut, ProyectoAbierto, descartandoLoEscrito: true);
 
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "el proyecto con el alta a medias ya no existe: no queda nada que perder");
     }
@@ -1586,13 +1612,13 @@ public class ProyectosGen2Tests : BunitContext
         var cut = await AbrirElAltaDeTecnicoAsync();
         await CambiarLaFechaDeAltaAsync(cut);
 
-        await EliminarDesdeLaFilaAsync(cut, ProyectoAbierto, descartandoLoEscrito: true);
+        await EliminarDesdeElPanelAsync(cut, ProyectoAbierto, descartandoLoEscrito: true);
 
         await ComprobarQueTerminaSinPreguntarAsync(cut, AbrirDetalle(cut, ProyectoAbierto2), "el alta a medias era del proyecto eliminado");
         cut.Find(".nombre-cabecera-panel-proyecto").TextContent.Should().Be(ProyectoAbierto2.Nombre);
     }
 
-    // ---- Enter y «Detalles» del menú de la fila con la edición de información sucia (ManejarAtajoAsync y menú → AbrirDetalleConAvisoAsync)
+    // ---- Enter y el clic en otra fila con la edición de información sucia (ManejarAtajoAsync y la fila → AbrirDetalleConAvisoAsync)
 
     [Fact]
     public async Task Aviso_Enter_sobre_otra_fila_con_la_edicion_a_medias_pregunta_seguir_conserva_y_descartar_abre_el_otro()
@@ -1630,18 +1656,18 @@ public class ProyectosGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Aviso_menu_Detalles_de_otra_fila_con_la_edicion_a_medias_pregunta_seguir_conserva_y_descartar_abre_el_otro()
+    public async Task Aviso_clic_en_otra_fila_con_la_edicion_a_medias_pregunta_seguir_conserva_y_descartar_abre_el_otro()
     {
         var cut = await AbrirLaEdicionDelDetalleAsync();
         await EscribirEnElPanelAsync(cut, "Otro nombre");
 
-        var apertura = await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto2, "Detalles");
-        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("«Detalles» de otra fila tira lo escrito"));
+        var apertura = await PulsarAccionDelProyectoAsync(cut, ProyectoAbierto2, "Detalles");
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("el clic en otra fila tira lo escrito"));
         await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
         await apertura.WaitAsync(Paciencia);
         ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "«Seguir editando» conserva la edición");
 
-        var segunda = await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto2, "Detalles");
+        var segunda = await PulsarAccionDelProyectoAsync(cut, ProyectoAbierto2, "Detalles");
         cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
         await PulsarEnLaPreguntaAsync(cut, "Salir y descartar");
         await segunda.WaitAsync(Paciencia);
@@ -1650,11 +1676,11 @@ public class ProyectosGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Aviso_menu_Detalles_con_la_edicion_sin_tocar_no_pregunta()
+    public async Task Aviso_clic_en_otra_fila_con_la_edicion_sin_tocar_no_pregunta()
     {
         var cut = await AbrirLaEdicionDelDetalleAsync();
 
-        var apertura = await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto2, "Detalles");
+        var apertura = await PulsarAccionDelProyectoAsync(cut, ProyectoAbierto2, "Detalles");
 
         await ComprobarQueTerminaSinPreguntarAsync(cut, apertura, "la edición está como se abrió");
         cut.Find(".nombre-cabecera-panel-proyecto").TextContent.Should().Be(ProyectoAbierto2.Nombre);
@@ -1715,28 +1741,11 @@ public class ProyectosGen2Tests : BunitContext
     // ---- El modal de cierre pregunta solo por lo suyo
 
     [Fact]
-    public async Task Aviso_el_modal_de_cierre_pregunta_solo_por_su_contenido_no_por_la_edicion_del_panel()
-    {
-        var cut = await AbrirLaEdicionDelDetalleAsync();
-        await EscribirEnElPanelAsync(cut, "Otro nombre");
-        // Se cierra OTRO proyecto: la edición es del abierto, así que abrir este modal no pierde nada y no pregunta.
-        await (await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto2, "Cerrar proyecto")).WaitAsync(Paciencia);
-        cut.FindAll("[role=dialog]").Should().NotBeEmpty("el test necesita el modal de cierre abierto");
-
-        await cut.Find("[role=dialog] .modal-cerrar").ClickAsync(new MouseEventArgs());
-
-        cut.FindAll(".modal-pie button").Should().NotContain(b => b.TextContent.Trim() == "Descartar cambios",
-            "el modal de cierre no tiene nada escrito: la edición del panel no es suya");
-        cut.FindAll("[role=dialog]").Should().BeEmpty("el modal se cerró sin preguntar");
-        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "y la edición del panel sigue intacta");
-    }
-
-    [Fact]
     public async Task Aviso_el_modal_de_cierre_con_otra_fecha_pregunta_al_cerrar_con_la_X()
     {
         _mediator.Proyectos = [ProyectoAbierto];
         var cut = await RenderizarConClienteAsync();
-        await CerrarDesdeLaFilaAsync(cut, ProyectoAbierto);
+        await CerrarDesdeElPanelAsync(cut, ProyectoAbierto);
         await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de cierre")
             .Find("input").InputAsync(new ChangeEventArgs { Value = "2020-01-01" });
 
@@ -1753,26 +1762,30 @@ public class ProyectosGen2Tests : BunitContext
     private static bool HayBoton(IRenderedComponent<Proyectos> cut, string texto) =>
         cut.FindAll("[role=dialog] .modal-pie button").Any(b => b.TextContent.Trim() == texto);
 
-    private async Task<IRenderedComponent<Proyectos>> AbrirLaEdicionDelDetalleCerradoAsync()
+    // Desde que la fila no lleva menú, cerrar, reabrir y eliminar solo se alcanzan en el pie del panel,
+    // que no se pinta mientras se edita la información. Lo que puede quedar a medias con el pie a la
+    // vista es el alta de técnico: es el caso que cubren estos tests.
+    private async Task<IRenderedComponent<Proyectos>> AbrirElAltaDeTecnicoDelCerradoAsync()
     {
         _mediator.Proyectos = [ProyectoCerrado, ProyectoAbierto2];
         var cut = await RenderizarConClienteAsync();
         await AbrirDetalle(cut, ProyectoCerrado);
-        await BotonConTexto(cut, ".pie-panel-proyecto button", "Editar").ClickAsync(new MouseEventArgs());
-        ValorDelCampo(cut, "Nombre").Should().Be(ProyectoCerrado.Nombre, "el test necesita la edición abierta");
+        await cut.FindAll("button[role=tab]").Single(b => b.TextContent.Trim() == "Técnicos").ClickAsync(new MouseEventArgs());
+        await BotonConTexto(cut, ".acciones-seccion button", "+ Asignar técnico").ClickAsync(new MouseEventArgs());
+        cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Fecha de alta", "el test necesita el alta de técnico abierta");
         return cut;
     }
 
     // ---- Eliminar el proyecto abierto
 
     [Fact]
-    public async Task Aviso_eliminar_el_proyecto_abierto_con_la_edicion_a_medias_pregunta_seguir_conserva_y_descartar_sigue_con_la_eliminacion()
+    public async Task Aviso_eliminar_el_proyecto_abierto_con_el_alta_de_tecnico_a_medias_pregunta_seguir_conserva_y_descartar_sigue_con_la_eliminacion()
     {
-        var cut = await AbrirLaEdicionDelDetalleAsync();
-        await EscribirEnElPanelAsync(cut, "Otro nombre");
+        var cut = await AbrirElAltaDeTecnicoAsync();
+        await CambiarLaFechaDeAltaAsync(cut);
 
         // Sin await: la acción queda pendiente de la respuesta del aviso; se afirma antes de esperarla.
-        var accion = await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto, "Eliminar");
+        var accion = await PulsarAccionDelProyectoAsync(cut, ProyectoAbierto, "Eliminar");
         cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("eliminar el proyecto abierto tira lo escrito"));
         HayBoton(cut, "Eliminar").Should().BeFalse("la confirmación de eliminar no se abre mientras pregunta");
 
@@ -1780,9 +1793,9 @@ public class ProyectosGen2Tests : BunitContext
         await accion.WaitAsync(Paciencia);
 
         DialogoAbierto(cut).Should().BeFalse("«Seguir editando» no abre la confirmación de eliminar");
-        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "y conserva lo escrito");
+        ValorDelCampo(cut, "Fecha de alta").Should().Be("2020-01-01", "y conserva lo escrito");
 
-        var segunda = await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto, "Eliminar");
+        var segunda = await PulsarAccionDelProyectoAsync(cut, ProyectoAbierto, "Eliminar");
         cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
         await PulsarEnLaPreguntaAsync(cut, "Salir y descartar");
         await segunda.WaitAsync(Paciencia);
@@ -1820,36 +1833,24 @@ public class ProyectosGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Aviso_eliminar_el_proyecto_abierto_con_la_edicion_sin_tocar_no_pregunta()
+    public async Task Aviso_eliminar_el_proyecto_abierto_con_el_alta_de_tecnico_sin_tocar_no_pregunta()
     {
-        var cut = await AbrirLaEdicionDelDetalleAsync();
+        var cut = await AbrirElAltaDeTecnicoAsync();
 
-        await ComprobarQueTerminaSinPreguntarAsync(cut, await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto, "Eliminar"), "no hay nada escrito");
+        await ComprobarQueTerminaSinPreguntarAsync(cut, await PulsarAccionDelProyectoAsync(cut, ProyectoAbierto, "Eliminar"), "no hay nada escrito");
 
         HayBoton(cut, "Eliminar").Should().BeTrue("la confirmación de eliminar se abre directamente");
     }
 
-    [Fact]
-    public async Task Aviso_eliminar_otro_proyecto_con_la_edicion_a_medias_no_pregunta()
-    {
-        var cut = await AbrirLaEdicionDelDetalleAsync();
-        await EscribirEnElPanelAsync(cut, "Otro nombre");
-
-        await ComprobarQueTerminaSinPreguntarAsync(cut, await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto2, "Eliminar"), "la edición es de otro proyecto");
-
-        HayBoton(cut, "Eliminar").Should().BeTrue();
-        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre");
-    }
-
-    // ---- Cerrar el proyecto abierto desde el menú de la fila
+    // ---- Cerrar el proyecto abierto desde el pie del panel
 
     [Fact]
-    public async Task Aviso_cerrar_el_proyecto_abierto_con_la_edicion_a_medias_pregunta_seguir_conserva_y_descartar_abre_el_modal_de_cierre()
+    public async Task Aviso_cerrar_el_proyecto_abierto_con_el_alta_de_tecnico_a_medias_pregunta_seguir_conserva_y_descartar_abre_el_modal_de_cierre()
     {
-        var cut = await AbrirLaEdicionDelDetalleAsync();
-        await EscribirEnElPanelAsync(cut, "Otro nombre");
+        var cut = await AbrirElAltaDeTecnicoAsync();
+        await CambiarLaFechaDeAltaAsync(cut);
 
-        var accion = await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto, "Cerrar proyecto");
+        var accion = await PulsarAccionDelProyectoAsync(cut, ProyectoAbierto, "Cerrar proyecto");
         cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("cerrar el proyecto abierto recarga el panel y tira lo escrito"));
         cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Etiqueta == "Fecha de cierre", "el modal de cierre no se abre mientras pregunta");
 
@@ -1857,9 +1858,9 @@ public class ProyectosGen2Tests : BunitContext
         await accion.WaitAsync(Paciencia);
 
         DialogoAbierto(cut).Should().BeFalse("«Seguir editando» no abre el modal de cierre");
-        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "y conserva lo escrito");
+        ValorDelCampo(cut, "Fecha de alta").Should().Be("2020-01-01", "y conserva lo escrito");
 
-        var segunda = await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto, "Cerrar proyecto");
+        var segunda = await PulsarAccionDelProyectoAsync(cut, ProyectoAbierto, "Cerrar proyecto");
         cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
         await PulsarEnLaPreguntaAsync(cut, "Salir y descartar");
         await segunda.WaitAsync(Paciencia);
@@ -1868,24 +1869,24 @@ public class ProyectosGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Aviso_cerrar_el_proyecto_abierto_con_la_edicion_sin_tocar_no_pregunta()
+    public async Task Aviso_cerrar_el_proyecto_abierto_con_el_alta_de_tecnico_sin_tocar_no_pregunta()
     {
-        var cut = await AbrirLaEdicionDelDetalleAsync();
+        var cut = await AbrirElAltaDeTecnicoAsync();
 
-        await ComprobarQueTerminaSinPreguntarAsync(cut, await PulsarAccionDeLaFilaAsync(cut, ProyectoAbierto, "Cerrar proyecto"), "no hay nada escrito");
+        await ComprobarQueTerminaSinPreguntarAsync(cut, await PulsarAccionDelProyectoAsync(cut, ProyectoAbierto, "Cerrar proyecto"), "no hay nada escrito");
 
         cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Etiqueta == "Fecha de cierre");
     }
 
-    // ---- Reabrir el proyecto abierto en el panel desde el menú de la fila
+    // ---- Reabrir el proyecto abierto desde el pie del panel
 
     [Fact]
-    public async Task Aviso_reabrir_el_proyecto_abierto_con_la_edicion_a_medias_pregunta_seguir_conserva_y_descartar_abre_la_confirmacion()
+    public async Task Aviso_reabrir_el_proyecto_abierto_con_el_alta_de_tecnico_a_medias_pregunta_seguir_conserva_y_descartar_abre_la_confirmacion()
     {
-        var cut = await AbrirLaEdicionDelDetalleCerradoAsync();
-        await EscribirEnElPanelAsync(cut, "Otro nombre");
+        var cut = await AbrirElAltaDeTecnicoDelCerradoAsync();
+        await CambiarLaFechaDeAltaAsync(cut);
 
-        var accion = await PulsarAccionDeLaFilaAsync(cut, ProyectoCerrado, "Reabrir proyecto");
+        var accion = await PulsarAccionDelProyectoAsync(cut, ProyectoCerrado, "Reabrir proyecto");
         cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("reabrir el proyecto abierto recarga el panel y tira lo escrito"));
         HayBoton(cut, "Reabrir proyecto").Should().BeFalse("la confirmación de reabrir no se abre mientras pregunta");
 
@@ -1893,9 +1894,9 @@ public class ProyectosGen2Tests : BunitContext
         await accion.WaitAsync(Paciencia);
 
         DialogoAbierto(cut).Should().BeFalse("«Seguir editando» no abre la confirmación de reabrir");
-        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "y conserva lo escrito");
+        ValorDelCampo(cut, "Fecha de alta").Should().Be("2020-01-01", "y conserva lo escrito");
 
-        var segunda = await PulsarAccionDeLaFilaAsync(cut, ProyectoCerrado, "Reabrir proyecto");
+        var segunda = await PulsarAccionDelProyectoAsync(cut, ProyectoCerrado, "Reabrir proyecto");
         cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
         await PulsarEnLaPreguntaAsync(cut, "Salir y descartar");
         await segunda.WaitAsync(Paciencia);
@@ -1905,11 +1906,11 @@ public class ProyectosGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Aviso_reabrir_el_proyecto_abierto_con_la_edicion_sin_tocar_no_pregunta()
+    public async Task Aviso_reabrir_el_proyecto_abierto_con_el_alta_de_tecnico_sin_tocar_no_pregunta()
     {
-        var cut = await AbrirLaEdicionDelDetalleCerradoAsync();
+        var cut = await AbrirElAltaDeTecnicoDelCerradoAsync();
 
-        await ComprobarQueTerminaSinPreguntarAsync(cut, await PulsarAccionDeLaFilaAsync(cut, ProyectoCerrado, "Reabrir proyecto"), "no hay nada escrito");
+        await ComprobarQueTerminaSinPreguntarAsync(cut, await PulsarAccionDelProyectoAsync(cut, ProyectoCerrado, "Reabrir proyecto"), "no hay nada escrito");
 
         HayBoton(cut, "Reabrir proyecto").Should().BeTrue("la confirmación de reabrir se abre directamente");
     }
