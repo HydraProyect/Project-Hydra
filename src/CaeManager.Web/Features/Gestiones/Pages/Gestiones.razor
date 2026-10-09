@@ -133,12 +133,22 @@
         }
         else if (_totalElementos == 0 && !_cargando)
         {
-            <EstadoVacio Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
-                <Accion>
-                    @* /bandeja es «Mi trabajo» en el menú (NavMenu.razor). *@
-                    <Boton Variante="VarianteBoton.Secundario" Href="bandeja">@Textos["BotonIrAMiTrabajo"]</Boton>
-                </Accion>
-            </EstadoVacio>
+            @* El botón lleva adonde lleva «Mi trabajo» en el menú, y se ofrece a quien el menú se lo
+               ofrece: las dos reglas se leen de CatalogoMenuLateral, no se repiten aquí. Gestiones
+               la ve también el rol Consulta, al que las páginas de Mi trabajo deniegan el acceso. *@
+            <AuthorizeView Roles="@CatalogoMenuLateral.RolesDeMiTrabajo">
+                <Authorized>
+                    <EstadoVacio Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
+                        <Accion>
+                            <Boton Variante="VarianteBoton.Secundario"
+                                   Href="@(_rutaMiTrabajo ?? CatalogoMenuLateral.RutaMiTrabajo(variosTenants: false))">@Textos["BotonIrAMiTrabajo"]</Boton>
+                        </Accion>
+                    </EstadoVacio>
+                </Authorized>
+                <NotAuthorized>
+                    <EstadoVacio Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]" />
+                </NotAuthorized>
+            </AuthorizeView>
         }
     }
 </div>

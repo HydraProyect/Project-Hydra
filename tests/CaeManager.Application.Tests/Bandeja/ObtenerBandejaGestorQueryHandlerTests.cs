@@ -159,12 +159,14 @@ public class ObtenerBandejaGestorQueryHandlerTests
             sugerenciasVisita: [Sugerencia(fechaInicioSugerida: null)],
             detecciones: [Deteccion()]);
 
+        // Decisiones 9 y 10 del propietario (2026-10-03): lo que bloquea el acceso va
+        // primero —también por delante de la sugerencia de visita— y Vencido precede a Faltante.
         resultado.Select(i => i.Tipo).Should().Equal(
-            TipoItemBandeja.SugerenciaVisitaUrgente,
-            TipoItemBandeja.Faltante,
-            TipoItemBandeja.Vencido,
-            TipoItemBandeja.VisitaUrgente,
             TipoItemBandeja.RequisitoPendiente,
+            TipoItemBandeja.SugerenciaVisitaUrgente,
+            TipoItemBandeja.Vencido,
+            TipoItemBandeja.Faltante,
+            TipoItemBandeja.VisitaUrgente,
             TipoItemBandeja.Urgente,
             TipoItemBandeja.DeteccionPendiente,
             TipoItemBandeja.RevisionIa);

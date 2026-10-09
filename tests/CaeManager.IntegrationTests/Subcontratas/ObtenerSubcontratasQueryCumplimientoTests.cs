@@ -191,6 +191,47 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
             "Urgente no es Vencido: el recuento de vencidas no debe mezclar severidad de color con vencimiento real");
     }
 
+    /// <summary>
+    /// Listados 3/7: la incidencia de la ventana de contexto se pulsa y abre su corrección. La que
+    /// tiene Documento lo renueva; la que no, da de alta el que falta, y para eso necesita saber de
+    /// qué Trabajador. Los dos caminos dependen de estos identificadores.
+    /// </summary>
+    [Fact]
+    public async Task Cada_incidencia_identifica_a_su_trabajador_y_la_que_tiene_documento_tambien_el_documento()
+    {
+        Guid conDocumentoId, sinDocumentoId, documentoId;
+        await using (var contexto = CrearContexto())
+        {
+            var conDocumento = Trabajador.DeSubcontrata(_subcontrataId, "Ines", "Urgente", "99887766P");
+            var sinDocumento = Trabajador.DeSubcontrata(_subcontrataId, "Sara", "Faltante", "12345678Z");
+            contexto.Trabajadores.AddRange(conDocumento, sinDocumento);
+            await contexto.SaveChangesAsync();
+
+            contexto.Asignaciones.Add(new Asignacion(conDocumento.Id, _centroId, DiaDeNegocio.Hoy()));
+            contexto.Asignaciones.Add(new Asignacion(sinDocumento.Id, _centroId, DiaDeNegocio.Hoy()));
+            var documento = Documento.DeTrabajador(
+                conDocumento.Id, _tipoObligatorioId,
+                DiaDeNegocio.Hoy().AddYears(-1), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(10)));
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+
+            (conDocumentoId, sinDocumentoId, documentoId) = (conDocumento.Id, sinDocumento.Id, documento.Id);
+        }
+
+        var resultado = await EjecutarAsync();
+
+        var fila = resultado.Elementos.Should().ContainSingle().Subject;
+        var proxima = fila.Recuentos.Proximas.Should().ContainSingle().Subject;
+        proxima.DocumentoId.Should().Be(documentoId);
+        proxima.TipoDocumentoId.Should().Be(_tipoObligatorioId);
+        proxima.TrabajadorId.Should().Be(conDocumentoId);
+
+        var faltante = fila.Recuentos.Vencidas.Should().ContainSingle().Subject;
+        faltante.DocumentoId.Should().BeNull("no hay Documento que renovar: se da de alta el que falta");
+        faltante.TipoDocumentoId.Should().Be(_tipoObligatorioId);
+        faltante.TrabajadorId.Should().Be(sinDocumentoId);
+    }
+
     [Fact]
     public async Task Un_documento_faltante_de_un_trabajador_fuera_de_cartera_no_cuenta_en_el_cumplimiento()
     {

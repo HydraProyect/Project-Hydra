@@ -575,6 +575,89 @@ public class Centro360Gen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Lo que la ficha ofrece para escribir acaba en un ICommand que AutorizacionEscrituraBehavior deniega al rol
+    /// Consulta (CrearVisita, EnviarReclamacion, CrearAsignaciones, DarDeBajaAsignaciones, CrearDocumento): a Consulta
+    /// no se le pinta, en vez de dejarle pulsar y fallar al guardar. Lo que es lectura se conserva, y eso hace de
+    /// barrera: la ausencia se afirma sobre una ficha que cargó entera. El control positivo es la misma ficha con un
+    /// rol de escritura.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("GestorCae", true)]
+    public async Task Las_escrituras_de_la_ficha_solo_se_ofrecen_a_los_roles_con_escritura(string rol, bool seOfrecen)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Faltante);
+        var bloqueado = Asignado("Juan Pérez", EstadoDocumento.Faltante, Documento("Formación PRL", EstadoDocumento.Faltante));
+        mediador.Asignaciones[id] = [bloqueado];
+        mediador.Bloqueos[id] =
+        [
+            new(id, "Centro Norte", bloqueado.TrabajadorId, "Juan Pérez", Guid.NewGuid(), "Formación PRL")
+        ];
+        mediador.PorReclamar[id] =
+        [
+            new(Guid.NewGuid(), Guid.NewGuid(), "Juan Pérez", Guid.NewGuid(), "Formación PRL", new DateOnly(2026, 8, 2), EstadoDocumento.Vencido)
+        ];
+
+        var cut = Renderizar(id);
+        await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
+
+        // Barrera: la lectura sigue ahí para los dos roles.
+        var menu = cut.FindAll("[role=menuitem]").Select(i => i.TextContent.Trim()).ToList();
+        menu.Should().Contain("Generar informe del centro");
+        cut.Find(".motivo-bloqueo-texto").TextContent.Should().Contain("Formación PRL");
+        cut.Find(".celda-documento-nombre").TextContent.Trim().Should().Be("Formación PRL");
+
+        var botones = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
+        var esperados = seOfrecen ? 1 : 0;
+        botones.Count(b => b == "Programar visita").Should().Be(esperados);
+        botones.Count(b => b == "+ Asignar trabajador").Should().Be(esperados);
+        botones.Count(b => b == "Dar de baja seleccionados").Should().Be(esperados);
+        menu.Count(i => i == "Reclamar documentación (1)").Should().Be(esperados);
+        cut.FindAll(".motivo-bloqueo-pedir").Should().HaveCount(esperados, "«Pedir» acaba en un envío de reclamación");
+        cut.FindAll(".celda-documento-nombre button").Should().HaveCount(esperados,
+            "el nombre del documento abre el Drawer que crea o renueva: a Consulta se le pinta como texto");
+    }
+
+    /// <summary>
+    /// Las otras dos escrituras del acordeón, que dependen de datos que la ficha no siempre trae: «Asignar» a quien
+    /// viene en la próxima Visita sin asignación (CrearAsignacionCommand) y el nombre de una incidencia de la Empresa,
+    /// que abre el mismo Drawer de gestión que su «Gestionar».
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", false)]
+    [InlineData("GestorCae", true)]
+    public void Asignar_desde_la_visita_y_el_nombre_de_la_incidencia_de_Empresa_solo_actuan_con_escritura(string rol, bool seOfrecen)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Asignaciones[id] = [];
+        mediador.SinAsignacion[id] = [new(Guid.NewGuid(), "Bea Alonso Ruiz")];
+
+        var cut = Render<AcordeonAsignacionesCentro>(p => p
+            .Add(a => a.CentroId, id)
+            .Add(a => a.CentroNombre, "Centro Norte")
+            .Add(a => a.VisitaId, Guid.NewGuid())
+            .Add(a => a.EmpresaId, Guid.NewGuid())
+            .Add(a => a.EmpresaNombre, "Ibertec GmbH")
+            .Add(a => a.IncidenciasEmpresa, [Incidencia("Seguro de responsabilidad civil", AmbitoCausa.Empresa)]));
+
+        // Barrera: el aviso de la Visita y la incidencia de la Empresa se leen con cualquier rol.
+        cut.Find(".alerta-info").TextContent.Should().Contain("Bea Alonso Ruiz");
+        cut.Find(".celda-documento-nombre").TextContent.Trim().Should().Be("Seguro de responsabilidad civil");
+
+        var esperados = seOfrecen ? 1 : 0;
+        cut.FindAll("button").Count(b => b.TextContent.Trim() == "Asignar").Should().Be(esperados);
+        cut.FindAll(".celda-documento-nombre button").Should().HaveCount(esperados);
+        cut.FindAll("button").Count(b => b.TextContent.Trim() == "Gestionar").Should().Be(esperados);
+    }
+
+    /// <summary>
     /// «Bloqueado» es un estado del Trabajador (2026-10-03): el Centro 360 dice cuántos Trabajadores están bloqueados EN ESE Centro y
     /// cuál es, pero no rotula al Centro «Acceso bloqueado» por un documento. La consulta lleva el Centro de la página.
     /// </summary>

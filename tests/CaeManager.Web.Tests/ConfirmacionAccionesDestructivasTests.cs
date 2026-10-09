@@ -125,6 +125,9 @@ public class ConfirmacionAccionesDestructivasTests : BunitContext
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
 
+        // Las acciones de fila van en SoloConEscritura: el test las pulsa con un rol que escribe.
+        this.ConRolDeEscritura();
+
         return (Render<DeteccionTrabajadores>(p => p.Add(c => c.EmpresaId, EmpresaId)), mediator);
     }
 

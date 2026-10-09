@@ -187,7 +187,7 @@
     <value>Ver toda su documentación →</value>
   </data>
   <data name="BotonOperar" xml:space="preserve">
-    <value>Operar →</value>
+    <value>Abrir ficha 360</value>
   </data>
   <data name="NotaPieOperar" xml:space="preserve">
     <value>Abre la ficha 360 del vehículo</value>
@@ -230,5 +230,92 @@
   </data>
   <data name="ListaColumnaVehiculoOrden" xml:space="preserve">
     <value>Vehículo · {0}</value>
+  </data>
+  <data name="FichaKicker" xml:space="preserve">
+    <value>Vehículo</value>
+  </data>
+  <data name="FichaRutaNavegacion" xml:space="preserve">
+    <value>Ruta de Vehículo 360</value>
+  </data>
+  <data name="FichaErrorDescripcion" xml:space="preserve">
+    <value>Puede que no exista o que no tengas acceso a él.</value>
+  </data>
+  <data name="FichaAnilloDetalle" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="FichaAnilloEtiqueta" xml:space="preserve">
+    <value>{0} de {1} documentos registrados al día</value>
+  </data>
+  <data name="FichaAnilloSinDocumentos" xml:space="preserve">
+    <value>Sin documentos registrados</value>
+  </data>
+  <data name="FichaCopiarLaMatricula" xml:space="preserve">
+    <value>la matrícula</value>
+  </data>
+  <data name="FichaCopiarMatricula" xml:space="preserve">
+    <value>Copiar la matrícula {0}</value>
+  </data>
+  <data name="FichaEmpleadorPrefijo" xml:space="preserve">
+    <value>Empleador:</value>
+  </data>
+  <data name="FichaSubirDocumento" xml:space="preserve">
+    <value>Subir documento</value>
+  </data>
+  <data name="FichaMasAcciones" xml:space="preserve">
+    <value>Más acciones</value>
+  </data>
+  <data name="FichaEditarVehiculo" xml:space="preserve">
+    <value>Editar vehículo</value>
+  </data>
+  <data name="FichaEtiquetaLateral" xml:space="preserve">
+    <value>Contexto</value>
+  </data>
+  <data name="FichaErrorDocumentosTitulo" xml:space="preserve">
+    <value>No pudimos cargar los documentos</value>
+  </data>
+  <data name="FichaVacioDocumentosTitulo" xml:space="preserve">
+    <value>Sin documentos</value>
+  </data>
+  <data name="FichaVacioDocumentosDescripcion" xml:space="preserve">
+    <value>Todavía no hay documentos registrados para este vehículo.</value>
+  </data>
+  <data name="FichaListaDocumentos" xml:space="preserve">
+    <value>Documentos del vehículo</value>
+  </data>
+  <data name="FichaMostrando" xml:space="preserve">
+    <value>Mostrando {0} de {1}</value>
+  </data>
+  <data name="FichaVence" xml:space="preserve">
+    <value>Vence: {0}</value>
+  </data>
+  <data name="FichaNotaRegistrados" xml:space="preserve">
+    <value>Solo aparecen documentos registrados. TALVEG no sabe todavía qué documentos se le exigen a un vehículo, así que aquí no verás «Pendiente».</value>
+  </data>
+  <data name="FichaEditarEnlace" xml:space="preserve">
+    <value>Editar →</value>
+  </data>
+  <data name="FichaNotaEmpleador" xml:space="preserve">
+    <value>El empleador no se puede cambiar.</value>
+  </data>
+  <data name="FichaBandaRenovar" xml:space="preserve">
+    <value>Renovar {0}</value>
+  </data>
+  <data name="FichaBandaVencido" xml:space="preserve">
+    <value>venció.</value>
+  </data>
+  <data name="FichaBandaVencioHaceUnDia" xml:space="preserve">
+    <value>venció el {0}, hace 1 día.</value>
+  </data>
+  <data name="FichaBandaVencioHaceDias" xml:space="preserve">
+    <value>venció el {0}, hace {1} días.</value>
+  </data>
+  <data name="FichaGlosaDocumentoUno" xml:space="preserve">
+    <value>documento</value>
+  </data>
+  <data name="FichaGlosaDocumentoVarios" xml:space="preserve">
+    <value>documentos</value>
+  </data>
+  <data name="FichaBandaVencidosSinNombrar" xml:space="preserve">
+    <value>Hay documentos vencidos que no caben en esta lista.</value>
   </data>
 </root>

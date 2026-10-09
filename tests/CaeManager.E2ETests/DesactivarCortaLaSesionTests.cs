@@ -122,7 +122,6 @@ public class DesactivarCortaLaSesionTests(WebAppFixtureConRevalidacionRapida fix
         var paginaVictima = await contextoVictima.NewPageAsync();
         await Ayudas.IniciarSesionAsync(paginaVictima, fixture.BaseUrl, emailVictima, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(paginaVictima, $"{fixture.BaseUrl}/clientes");
-        await Ayudas.DescartarNotificacionesPendientesAsync(paginaVictima);
 
         // Control positivo: antes de desactivar, la lista trae datos.
         var principal = paginaVictima.Locator("main");

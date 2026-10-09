@@ -15,6 +15,77 @@
     cursor: inherit;
 }
 
+/*
+    El disparador solo cambia de color al pasar el cursor o al recibir el foco
+    (decisión del 2026-10-08): sin subrayado punteado. Un disparador que trae
+    su propio color, como un Badge, lo conserva.
+*/
+.ventana-contexto:not(.ventana-contexto-inerte):hover,
+.ventana-contexto:not(.ventana-contexto-inerte):focus-within {
+    color: var(--color-primary-500);
+}
+
+/*
+    Interactiva: lo que se enfoca es el botón, no el contenedor. Hereda la
+    tipografía de la celda para que el disparador se lea igual que el texto
+    que sustituye. `default` y no `help`: aquí sí se pulsa lo de dentro.
+*/
+.ventana-contexto-interactiva {
+    cursor: default;
+}
+
+.ventana-contexto-disparador {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    cursor: default;
+}
+
+.ventana-contexto-disparador:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/*
+    Puente sobre la separación entre disparador y panel. Sin él, al cruzar esos
+    píxeles el cursor deja de estar sobre la ventana, `:hover` se pierde y el
+    panel se cierra antes de llegar a él (WCAG 1.4.13). Va en el contenedor y
+    no en el panel porque el panel recorta su desbordamiento. Solo existe
+    mientras la ventana está abierta, y es tan ancho como el panel para que el
+    cursor también llegue en diagonal.
+*/
+.ventana-contexto:not(.ventana-contexto-inerte):hover::after,
+.ventana-contexto:not(.ventana-contexto-inerte):focus-within::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    width: 260px;
+    height: var(--space-1);
+    transform: translateX(-50%);
+}
+
+.ventana-contexto-abajo:not(.ventana-contexto-inerte):hover::after,
+.ventana-contexto-abajo:not(.ventana-contexto-inerte):focus-within::after {
+    top: 100%;
+    bottom: auto;
+}
+
+.ventana-contexto-fin:not(.ventana-contexto-inerte):hover::after,
+.ventana-contexto-fin:not(.ventana-contexto-inerte):focus-within::after {
+    right: 0;
+    left: auto;
+    transform: none;
+}
+
 .ventana-contexto:focus-visible {
     outline: var(--border-focus);
     outline-offset: 2px;
@@ -87,6 +158,33 @@
     display: block;
 }
 
+/* Hacia abajo: filas de listado, donde hacia arriba taparía la fila anterior. */
+.ventana-contexto-abajo > .ventana-contexto-panel {
+    top: calc(100% + var(--space-1));
+    bottom: auto;
+}
+
+.ventana-contexto-fin > .ventana-contexto-panel {
+    right: 0;
+    left: auto;
+    transform: none;
+}
+
+/* Con elementos pulsables el panel necesita ancho para la línea entera. */
+.ventana-contexto-interactiva > .ventana-contexto-panel {
+    min-width: 220px;
+    max-width: 340px;
+}
+
+/*
+    Esc (ventana-contexto.js) marca la ventana como cerrada aunque el cursor
+    siga encima o el foco dentro. Doble clase para ganar a la regla de apertura
+    sin `!important`.
+*/
+.ventana-contexto.ventana-contexto[data-ventana-cerrada] > .ventana-contexto-panel {
+    display: none;
+}
+
 /* Entrada: al pasar de display:none a block, @starting-style da el estado de
    partida. Si el navegador no lo soporta se ignora y la ventana sigue
    apareciendo de golpe, que es el comportamiento de arriba (07 § 4). Conserva
@@ -98,6 +196,22 @@
         @starting-style {
             opacity: 0;
             transform: translateX(-50%) translateY(4px);
+        }
+    }
+
+    .ventana-contexto-abajo > .ventana-contexto-panel {
+        @starting-style {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-4px);
+        }
+    }
+
+    .ventana-contexto-fin > .ventana-contexto-panel {
+        transition-property: opacity;
+
+        @starting-style {
+            opacity: 0;
+            transform: none;
         }
     }
 }
@@ -121,3 +235,9 @@
     font-size: 0.6875rem;
 }
 
+.ventana-contexto-pie {
+    display: block;
+    margin-top: var(--space-1);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}

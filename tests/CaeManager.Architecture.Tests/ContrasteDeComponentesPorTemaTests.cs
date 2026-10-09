@@ -137,17 +137,15 @@ public class ContrasteDeComponentesPorTemaTests
             FondoSiFalta: "var(--color-surface-hover)"),
 
         // ---- Listados (rediseño fase 1): filas tintadas por estado, pastilla activa, cabecera ----
-        new("Fila tintada de peligro (vencido o bloqueo)", ListPage, [".tabla-datos tr.fila-tintada-peligro td"]),
-        new("Fila tintada de aviso (urgente)", ListPage, [".tabla-datos tr.fila-tintada-aviso td"]),
+        // La fila con problema es UNA regla (tabla, acordeón, cabecera de grupo y fichas 360) que termina en
+        // .fila-degradado-*: el tono plano es el peor caso; el degradado solo lo aclara hacia --color-surface.
+        new("Fila con problema, peligro (vencido, bloqueo o crítico)", ListPage, [".fila-degradado-peligro"]),
+        new("Fila con problema, aviso (urgente)", ListPage, [".fila-degradado-aviso"]),
         new("Pastilla de filtro aplicada", "Components/DesignSystem/MenuAcciones.razor.css", [".menu-acciones-disparador-activa"]),
         new("Conmutador de selección múltiple activo", ListPage, [".cabecera-listado-icono-activo"]),
         new("Contador junto al título del listado", ListPage, [".cabecera-listado-contador"]),
-        new("Fila de acordeón tintada de peligro", ListPage, [".tarjeta-fila-acordeon.fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera"]),
-        new("Fila de acordeón tintada de aviso", ListPage, [".tarjeta-fila-acordeon.fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera"]),
         new("Cabecera de grupo del listado", ListPage, [".grupo-lista-cabecera"]),
-        new("Contador de la cabecera de grupo", ListPage, [".grupo-lista-contador"], FondoSiFalta: "var(--color-surface-subtle)"),
-        new("Cabecera de grupo tintada de peligro", ListPage, [".grupo-lista.fila-tintada-peligro > .grupo-lista-cabecera"]),
-        new("Cabecera de grupo tintada de aviso", ListPage, [".grupo-lista.fila-tintada-aviso > .grupo-lista-cabecera"]),
+        new("Contador de la cabecera de grupo", ListPage, [".grupo-lista-contador"], FondoSiFalta: "var(--color-surface)"),
         new("Opción del control segmentado", ListPage, [".segmentado-lista-opcion"]),
         new("Opción vigente del control segmentado", ListPage,
             [".segmentado-lista-opcion", ".segmentado-lista-opcion[aria-pressed=\"true\"]"]),
@@ -250,8 +248,6 @@ public class ContrasteDeComponentesPorTemaTests
             (3.7, "banda de error del framework, mismo rojo --color-danger-500 con letra blanca (3,76:1)"),
         ["wwwroot/app.css|.blazor-error-boundary"] =
             (3.7, "pantalla de error del framework, mismo rojo --color-danger-500 con letra blanca (3,76:1)"),
-        ["Features/VigilanciaNormativa/PanelAvisosNormativos.razor.css|.badge-avisos-normativos"] =
-            (3.7, "contador rojo del botón de avisos, mismo --color-danger-500 con letra blanca (3,76:1)"),
         ["Features/Retencion/Pages/Retencion.razor.css|.flujo-retencion-flecha"] =
             (1.3, "flecha decorativa del flujo (--color-border-strong sobre --color-surface-subtle): no lleva texto, es un trazo"),
     };
