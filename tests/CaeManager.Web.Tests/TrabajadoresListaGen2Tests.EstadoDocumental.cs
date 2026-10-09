@@ -181,6 +181,38 @@ public partial class TrabajadoresListaGen2Tests
         cut.WaitForAssertion(() => cut.FindAll(".barra-acciones-lote").Should().BeEmpty());
     }
 
+    /// <summary>
+    /// La fila que se refresca en sitio tras guardar en la vista rápida (consulta por id, ver
+    /// TrabajadoresListaGen2Tests.FilaSeRefresca.cs) pide también el desglose y pinta el que vuelve: no pierde
+    /// el motivo ni «Registrados vigentes».
+    /// </summary>
+    [Fact]
+    public async Task La_fila_refrescada_tras_guardar_en_la_vista_rapida_conserva_el_motivo_y_los_registrados_vigentes()
+    {
+        var javier = ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido), 4, 2,
+            IncidenciaDe("Aptitud médica", EstadoDocumento.Vencido, -12),
+            IncidenciaDe("Entrega de EPI", EstadoDocumento.SinConfirmar));
+        var mediador = new MediatorFalso { Almacen = { javier, Trabajador("Zoe", "Zamora") } };
+        var cut = Renderizar(mediador);
+        TextoDelNombre(FilasDeDatos(cut)[0]).Should().Be("Javier Salas Moreno", "punto de partida: es la primera fila");
+        CeldaDeEstado(cut).QuerySelector(".motivo-incidencias-texto")!.TextContent.Trim()
+            .Should().Be("1 vencido · 1 sin confirmar", "punto de partida");
+
+        // Lo que deja el guardado: el vencido se renovó y queda solo el sin confirmar.
+        var indice = mediador.Almacen.FindIndex(f => f.Dto.Id == javier.Dto.Id);
+        mediador.Almacen[indice] = ConDesglose(
+            javier with { Dto = javier.Dto with { EstadoDocumental = EstadoDocumento.SinConfirmar } }, 4, 3,
+            IncidenciaDe("Entrega de EPI", EstadoDocumento.SinConfirmar));
+        await AvisarGuardadoAsync(cut, EntidadWorkspace.Trabajador, javier.Dto.Id);
+
+        cut.WaitForAssertion(() => CeldaDeEstado(cut).QuerySelector(".motivo-incidencias-texto")!.TextContent.Trim()
+            .Should().Be("Entrega de EPI", "la fila refrescada pinta el motivo que vuelve"));
+        CeldaDeEstado(cut).QuerySelector(".badge")!.TextContent.Trim().Should().Be("Sin confirmar");
+        FilasDeDatos(cut)[0].QuerySelector(".celda-registrados-vigentes")!.TextContent.Trim().Should().Be("3/4");
+        UltimaConsulta(mediador).TrabajadorId.Should().Be(javier.Dto.Id, "control: fue la consulta por id, no una recarga de página");
+        UltimaConsulta(mediador).ConDesgloseDocumental.Should().BeTrue("sin pedirlo, la fila refrescada volvería sin motivo ni fracción");
+    }
+
     // --- Registrados vigentes -----------------------------------------------------------------
 
     [Fact]

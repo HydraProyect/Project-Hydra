@@ -203,6 +203,35 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         _contador.Consultas.Should().Be(1, "el desglose se pide en lote para los Trabajadores de la página");
     }
 
+    /// <summary>
+    /// La consulta por id (la que la página usa para refrescar UNA fila tras guardar en la vista rápida) devuelve
+    /// los mismos campos del desglose que la consulta de página: la fila refrescada no pierde el motivo ni
+    /// «Registrados vigentes». Y sigue acotada por el alcance: el id de quien el usuario no ve no devuelve nada.
+    /// </summary>
+    [Fact]
+    public async Task La_consulta_por_id_devuelve_el_mismo_desglose_que_la_fila_de_la_pagina()
+    {
+        var consultaDeFila = new ObtenerTrabajadoresQuery(Busqueda: null, ConRecuentosPorEstado: true, TrabajadorId: _nora);
+        var pagina = await HandlerSinCartera().Handle(
+            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: true), CancellationToken.None);
+        var enLaPagina = pagina.Elementos.Single(t => t.Id == _nora);
+        enLaPagina.Incidencias.Should().HaveCount(3, "control positivo: la fila de la página lleva desglose que comparar");
+
+        var porId = await HandlerSinCartera().Handle(consultaDeFila, CancellationToken.None);
+
+        var fila = porId.Elementos.Should().ContainSingle().Subject;
+        fila.Should().BeEquivalentTo(enLaPagina, o => o.WithStrictOrdering(),
+            "la fila refrescada es la misma fila, con sus incidencias en el mismo orden y su fracción");
+        (fila.DocumentosRegistrados, fila.DocumentosVigentes).Should().Be((4, 2));
+
+        var fueraDelAlcance = await HandlerDelGestor().Handle(
+            new ObtenerTrabajadoresQuery(Busqueda: null, ConRecuentosPorEstado: true, TrabajadorId: _iker), CancellationToken.None);
+        fueraDelAlcance.Elementos.Should().BeEmpty("pedir por id no salta la cartera");
+        var dentroDelAlcance = await HandlerDelGestor().Handle(consultaDeFila, CancellationToken.None);
+        dentroDelAlcance.Elementos.Should().ContainSingle("control positivo: el mismo Gestor sí recibe a Nora por id")
+            .Which.Incidencias.Should().HaveCount(3);
+    }
+
     /// <summary>(b): un Gestor CAE con cartera sobre un solo Cliente empresarial no recibe a quien queda fuera, ni su desglose.</summary>
     [Fact]
     public async Task Un_Gestor_CAE_con_cartera_acotada_no_recibe_filas_ni_desglose_de_fuera_de_su_alcance()
