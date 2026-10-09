@@ -122,7 +122,8 @@ public partial class ProyectosGen2Tests
         await Atajo(cut, "j");
         FilasEnfocadas(cut).Should().Equal([ProyectoAbierto.Nombre], "el foco está en la fila del proyecto que se edita");
 
-        await Atajo(cut, "e");
+        // Con plazo: si «e» preguntara aquí, la tecla quedaría pendiente del aviso para siempre.
+        await Atajo(cut, "e").WaitAsync(Paciencia);
 
         PreguntaAbierta(cut).Should().BeFalse("no se abandona nada");
         ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre");
