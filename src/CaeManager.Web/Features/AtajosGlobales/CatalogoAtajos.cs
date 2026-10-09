@@ -96,7 +96,9 @@ public static class CatalogoAtajos
     /// <summary>
     /// Atajos dentro de una lista: las teclas que reparte <c>atajos-lista.js</c> (su array
     /// <c>TECLAS_ADMITIDAS</c> lleva exactamente estas; <c>CatalogoAtajosSincronizadoConJsTests</c>
-    /// lo vigila). <c>f</c> enfoca el buscador «Filtrar esta pantalla» del listado; no choca
+    /// lo vigila). <c>e</c> abre la vista rápida de la fila enfocada ya en edición (el lápiz de
+    /// la cabecera del panel); no choca con <c>g e</c>, que <c>atajos-lista.js</c> deja pasar.
+    /// <c>f</c> enfoca el buscador «Filtrar esta pantalla» del listado; no choca
     /// con Ctrl/Cmd+K (buscador universal de la cabecera). La búsqueda del menú lateral ya no tiene atajo
     /// de teclado: se abre con su lupa.
     /// </summary>
@@ -105,6 +107,7 @@ public static class CatalogoAtajos
         new("j / k", "ListaFilaSiguienteAnterior"),
         new("x", "ListaMarcarFila"),
         new("Enter", "ListaAbrirFila"),
+        new("e", "ListaEditarFila"),
         new("f", "ListaFiltrarPantalla")
     ];
 }

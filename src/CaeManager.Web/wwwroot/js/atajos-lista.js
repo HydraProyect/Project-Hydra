@@ -6,7 +6,14 @@
 import { hayDialogoModalAbierto } from './atajos-contexto.js';
 
 // Debe coincidir con CatalogoAtajos.Lista (CatalogoAtajosSincronizadoConJsTests).
-const TECLAS_ADMITIDAS = ['j', 'k', 'x', 'Enter', 'f'];
+const TECLAS_ADMITIDAS = ['j', 'k', 'x', 'Enter', 'f', 'e'];
+
+// «e» (editar la fila enfocada) es también un destino de «g + letra» (g e → /empresas, en
+// atajos-globales.js). Los dos módulos escuchan en document y el orden en que se registran
+// no está garantizado, así que este recuerda él mismo si la tecla anterior fue una «g»
+// suelta dentro de la misma ventana: entonces la «e» es del atajo global y aquí no se toca.
+// Debe coincidir con VENTANA_PREFIJO_MS de atajos-globales.js.
+const VENTANA_PREFIJO_GLOBAL_MS = 900;
 
 // Buscador «Filtrar esta pantalla» del listado (BarraFiltros con pastillas). "f" lo
 // enfoca aquí mismo, sin pasar por C#: no hay estado de la página que cambiar. Si la
@@ -79,8 +86,15 @@ function esVisibleYUsable(campo) {
 }
 
 export function registrarAtajosLista(dotNetRef) {
+    let ultimaGSuelta = 0;
+
     const manejador = async (evento) => {
+        const trasPrefijoGlobal = Date.now() - ultimaGSuelta < VENTANA_PREFIJO_GLOBAL_MS;
+        ultimaGSuelta = evento.key === 'g' && !trasPrefijoGlobal && !evento.ctrlKey && !evento.metaKey && !evento.altKey
+            ? Date.now() : 0;
+
         if (!TECLAS_ADMITIDAS.includes(evento.key)) return;
+        if (evento.key === 'e' && trasPrefijoGlobal) return;
         if (evento.defaultPrevented || evento.isComposing || evento.ctrlKey || evento.metaKey || evento.altKey) return;
         if (hayDialogoModalAbierto()) return;
 

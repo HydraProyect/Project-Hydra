@@ -30,6 +30,14 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     /// </summary>
     [Parameter] public string? NombreAccesible { get; set; }
 
+    /// <summary>
+    /// Identificador copiable dentro de una fila de listado (DNI, CIF, matrícula): el propio
+    /// dato es el botón —<see cref="Texto"/> lleva el valor—, sin borde ni relleno, con el
+    /// texto de apoyo de la fila. El clic copia y no sube a la fila, que al pulsarla abre la
+    /// vista rápida. Pide <see cref="NombreAccesible"/> («Copiar el CIF B70005012»).
+    /// </summary>
+    [Parameter] public bool EnLinea { get; set; }
+
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
 

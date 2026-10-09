@@ -1,0 +1,43 @@
+/* Dato de cabecera «Gestor CAE»: una línea de apoyo junto al título, separada por una raya. */
+.cabecera-gestor-cae {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-left: var(--space-2);
+    padding-left: var(--space-3);
+    border-left: var(--border-default);
+    font: var(--font-body-sm);
+    color: var(--color-text);
+}
+
+.cabecera-gestor-cae-rotulo {
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+
+.cabecera-gestor-cae-persona {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.cabecera-gestor-cae-separador,
+.cabecera-gestor-cae-sin-dato {
+    color: var(--color-text-muted);
+}
+
+.cabecera-gestor-cae-pastilla {
+    padding: 1px var(--space-2);
+    border: var(--border-default);
+    border-radius: var(--radius-full);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.cabecera-gestor-cae-principal {
+    border-color: transparent;
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-700);
+    font-weight: 700;
+}

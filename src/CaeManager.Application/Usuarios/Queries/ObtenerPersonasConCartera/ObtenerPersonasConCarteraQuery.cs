@@ -8,9 +8,11 @@ namespace CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 /// Una persona del Operador CAE con cartera viva bajo una Asignación de Operación.
 /// <paramref name="Rol"/> es el de su cartera (Gestor CAE o Coordinador CAE), que decide el
 /// rótulo: «Gestor CAE principal» o «Coordinador CAE principal». <paramref name="VigenciaHasta"/>
-/// solo la lleva una cartera de apoyo con fecha de fin.
+/// solo la lleva una cartera de apoyo con fecha de fin. <paramref name="Avatar"/> es la clave del
+/// avatar que eligió esa persona (<see cref="CatalogoAvatares"/>), o <c>null</c> si no eligió:
+/// quien la pinta muestra entonces sus iniciales.
 /// </summary>
-public record PersonaConCartera(Guid UsuarioId, string Nombre, string Rol, DateTime? VigenciaHasta);
+public record PersonaConCartera(Guid UsuarioId, string Nombre, string Rol, DateTime? VigenciaHasta, string? Avatar = null);
 
 /// <summary>
 /// Quién responde de un Tenant propietario bajo una Asignación de Operación: el principal —o
@@ -71,11 +73,13 @@ public class ObtenerPersonasConCarteraQueryHandler(
             if (carteras.Count == 0)
                 return [];
 
-            var nombres = await directorioUsuarios.ObtenerNombresVisiblesAsync(
-                carteras.Select(c => c.UsuarioId).Distinct().ToList(), cancellationToken);
+            var usuarioIds = carteras.Select(c => c.UsuarioId).Distinct().ToList();
+            var nombres = await directorioUsuarios.ObtenerNombresVisiblesAsync(usuarioIds, cancellationToken);
+            var avatares = await directorioUsuarios.ObtenerAvataresVisiblesAsync(usuarioIds, cancellationToken);
 
             PersonaConCartera Persona(CarteraVivaDeOperacion c) =>
-                new(c.UsuarioId, nombres.GetValueOrDefault(c.UsuarioId) ?? string.Empty, c.Rol, c.VigenciaHasta);
+                new(c.UsuarioId, nombres.GetValueOrDefault(c.UsuarioId) ?? string.Empty, c.Rol, c.VigenciaHasta,
+                    avatares.GetValueOrDefault(c.UsuarioId));
 
             return carteras
                 .GroupBy(c => c.AsignacionOperacionId)

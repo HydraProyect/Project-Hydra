@@ -19,3 +19,24 @@
     cursor: not-allowed;
     opacity: 0.6;
 }
+
+/* Identificador copiable en una fila de listado: el dato es el botón. */
+.boton-copiar-en-linea {
+    font: inherit;
+    color: inherit;
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: 0;
+    cursor: copy;
+}
+
+.boton-copiar-en-linea:hover:not(:disabled) {
+    background-color: transparent;
+    color: var(--color-primary-500);
+}
+
+.boton-copiar-en-linea:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 1px;
+    color: var(--color-primary-500);
+}

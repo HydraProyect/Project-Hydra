@@ -331,14 +331,6 @@
     <value>No hay ninguna contraseña guardada.</value>
     <comment>Aviso al pulsar Copiar contraseña sin contraseña guardada.</comment>
   </data>
-  <data name="VistaRapida" xml:space="preserve">
-    <value>Vista rápida</value>
-    <comment>Ítem del menú de fila de la lista Empresas: abre el panel de 520 px. Mismo rótulo que la lista Clientes.</comment>
-  </data>
-  <data name="AbrirEmpresa360" xml:space="preserve">
-    <value>Abrir ficha 360</value>
-    <comment>Ítem del menú de fila de la lista Empresas: navega a la página /empresas/{id}.</comment>
-  </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} empresa(s) restaurada(s).</value>
   </data>
@@ -366,6 +358,18 @@
   <data name="ListaFiltroTodas" xml:space="preserve">
     <value>Todas</value>
   </data>
+  <data name="AbrirVistaRapidaDe" xml:space="preserve">
+    <value>Abrir la vista rápida de {0}</value>
+    <comment>Nombre accesible del nombre de la fila de la lista Empresas: abre el panel de 520 px. {0}: razón social.</comment>
+  </data>
+  <data name="CopiarCif" xml:space="preserve">
+    <value>Copiar el CIF {0}</value>
+    <comment>Nombre accesible del CIF copiable de la fila. {0}: el CIF.</comment>
+  </data>
+  <data name="EtiquetaCif" xml:space="preserve">
+    <value>el CIF</value>
+    <comment>Complemento del aviso «Se copió {0} al portapapeles».</comment>
+  </data>
   <data name="ColEmpresa" xml:space="preserve">
     <value>Empresa</value>
   </data>
@@ -380,5 +384,35 @@
   </data>
   <data name="PrestaServicioError" xml:space="preserve">
     <value>No pudimos cargar a quién presta servicio esta empresa.</value>
+  </data>
+  <data name="GestorCaeRotulo" xml:space="preserve">
+    <value>Gestor CAE</value>
+    <comment>Rótulo del dato de cabecera de la pantalla Empresas. Gestor CAE = persona (el Operador CAE es la organización).</comment>
+  </data>
+  <data name="GestorCaeGrupo" xml:space="preserve">
+    <value>Gestor CAE de esta organización</value>
+  </data>
+  <data name="GestorCaeTitulo" xml:space="preserve">
+    <value>Gestores CAE con Asignación de Cartera sobre esta organización</value>
+  </data>
+  <data name="GestorCaePrincipal" xml:space="preserve">
+    <value>Principal</value>
+  </data>
+  <data name="GestorCaeCoordinadorPrincipal" xml:space="preserve">
+    <value>Coordinador CAE principal</value>
+    <comment>El principal gestiona el Tenant con cartera de rol Coordinador CAE.</comment>
+  </data>
+  <data name="GestorCaeApoyo" xml:space="preserve">
+    <value>Apoyo</value>
+  </data>
+  <data name="GestorCaeApoyoHasta" xml:space="preserve">
+    <value>Apoyo hasta el {0}</value>
+    <comment>{0}: fecha de fin de la cartera de apoyo, dd/MM/aaaa.</comment>
+  </data>
+  <data name="GestorCaeSinPrincipal" xml:space="preserve">
+    <value>Sin principal</value>
+  </data>
+  <data name="GestorCaeError" xml:space="preserve">
+    <value>No pudimos cargarlo</value>
   </data>
 </root>
