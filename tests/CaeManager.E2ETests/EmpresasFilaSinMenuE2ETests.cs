@@ -25,6 +25,12 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixture fixture)
     private const string Lapiz = "button[aria-label='Editar información de la empresa']";
     private static readonly Regex EntrarEnEdicion = new(@"/cuenta/configurar-2fa\?motivo=credenciales");
 
+    // La lista sembrada no tiene una Empresa de nombre estable que sirva de ancla: el recorrido
+    // vale para cualquier fila, así que se toma la primera, y su celda de cumplimiento (la
+    // tercera) como punto de la fila que no es ningún control.
+    private static ILocator PrimeraFila(IPage page) => page.Locator(".marco-lista-empresas .fila-pulsable").First;
+    private static ILocator CeldaSinControles(ILocator fila) => fila.Locator(":scope > :nth-child(3)");
+
     private async Task<IPage> AbrirEmpresasAsync(IBrowserContext contexto)
     {
         var page = await contexto.NewPageAsync();
@@ -41,7 +47,7 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixture fixture)
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await AbrirEmpresasAsync(contexto);
-        var fila = page.Locator(".marco-lista-empresas .fila-pulsable").First;
+        var fila = PrimeraFila(page);
         var nombre = (await fila.Locator(".enlace-nombre-fila").InnerTextAsync()).Trim();
         var panel = page.Locator(".workspace-panel");
 
@@ -64,7 +70,7 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
 
         // Un punto de la fila que no es ningún control: la celda de cumplimiento.
-        await fila.Locator(":scope > :nth-child(3)").ClickAsync();
+        await CeldaSinControles(fila).ClickAsync();
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToContainTextAsync(nombre);
 
         // El icono 360 de la cabecera del panel es un enlace a la página completa.
@@ -77,7 +83,7 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixture fixture)
         // De vuelta en la lista, el lápiz de la cabecera del panel entra en edición. Va el
         // último: en el usuario sembrado, editar saca de la lista a configurar la 2FA.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.Locator(".marco-lista-empresas .fila-pulsable").First.Locator(":scope > :nth-child(3)").ClickAsync();
+        await CeldaSinControles(fila).ClickAsync();
         await panel.Locator(Lapiz).ClickAsync();
         await page.WaitForURLAsync(EntrarEnEdicion);
     }
