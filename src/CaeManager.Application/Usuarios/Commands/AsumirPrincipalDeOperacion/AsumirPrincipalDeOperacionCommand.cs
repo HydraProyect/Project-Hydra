@@ -62,9 +62,14 @@ public class AsumirPrincipalDeOperacionCommandHandler(
         "AsumirPrincipal.YaTienePrincipal",
         "Esa empresa ya tiene principal. No se ha cambiado nada; recarga la lista y revisa.");
 
-    public static readonly Error AccesoDeOtroTipo = Error.Crear(
-        "AsumirPrincipal.AccesoDeOtroTipo",
-        "No se te puede asignar esta empresa: ya tienes en ella un acceso de otro tipo. Pide que te lo retiren y vuelve a intentarlo.");
+    /// <summary>
+    /// La escritura no encontró cartera suya que marcar ni pudo emitir una: ya tiene en la
+    /// operación un acceso de otro tipo, la operación conserva un principal sin cerrar (caducado
+    /// y aún no cerrado por el proceso de expiración) o la autorización del Operador CAE cayó.
+    /// </summary>
+    public static readonly Error NoSePudoAsignar = Error.Crear(
+        "AsumirPrincipal.NoSePudoAsignar",
+        "No se te ha podido asignar esta empresa: ya tienes en ella un acceso de otro tipo o su situación acaba de cambiar. No se ha cambiado nada; recarga la lista y, si sigue ahí, pide que revisen tu acceso.");
 
     public static readonly Error CambioMientrasDecidias = Error.Crear(
         "AsumirPrincipal.CambioMientrasDecidias",
@@ -96,7 +101,7 @@ public class AsumirPrincipalDeOperacionCommandHandler(
                         decision.PropietarioTenantId, decision.OperadorTenantId, request.AsignacionOperacionId,
                         decision.ActorUsuarioId, ct);
                     if (asumida == ResultadoRelevoPrincipal.SinRelevo)
-                        return Result.Fallo(AccesoDeOtroTipo);
+                        return Result.Fallo(NoSePudoAsignar);
 
                     if (!await catalogo.GuardarDetectandoCarreraAsync(ct))
                         return Result.Fallo(CambioMientrasDecidias);

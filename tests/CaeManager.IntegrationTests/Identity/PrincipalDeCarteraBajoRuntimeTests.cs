@@ -403,6 +403,33 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Asumir_contra_el_escalado_por_dos_conexiones_deja_un_solo_principal()
+    {
+        // «Asumir» ya guardó la cartera principal y aún no ha confirmado.
+        var enPausa = new Pausa("despues:guardar");
+        var asumir = Asumir(_administradorUnipersonal, Roles.Administrador, _operadorUnipersonal.Id, _operacionDelUnipersonal, enPausa);
+        await enPausa.Alcanzada;
+
+        // El escalado, por otra conexión, no ve esa cartera sin confirmar y emite la suya.
+        var escalado = EnArnes(_administradorUnipersonal, Roles.Administrador, _operadorUnipersonal.Id,
+            (usuario, contexto, directorio, _) => new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
+            {
+                var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionDelUnipersonal, ct);
+                var automatica = new AsignacionAutomaticaDePrincipal(
+                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto));
+                return await automatica.AlAbrirOperacionAsync(operacion, ct) ? Result.Exito() : Result.Fallo(Error.Crear("Test.Carrera", "carrera"));
+            }));
+        (await Task.WhenAny(escalado, Task.Delay(TimeSpan.FromSeconds(3)))).Should().NotBeSameAs(escalado,
+            "el escalado escribe el mismo hueco del índice único y tiene que esperar a «Asumir»");
+
+        enPausa.Soltar();
+        (await asumir).EsExitoso.Should().BeTrue();
+        (await escalado).Error.Codigo.Should().Be("Test.Carrera", "el hecho que disparó el escalado falla entero");
+        (await CarterasAsync(_operacionDelUnipersonal)).Should().ContainSingle()
+            .Which.Should().Match<AsignacionCartera>(c => c.UsuarioId == _administradorUnipersonal && c.EsPrincipal);
+    }
+
+    [Fact]
     public async Task Al_abrirse_la_operacion_desde_la_sesion_del_Operador_CAE_la_recibe_su_unico_elegible()
     {
         // Como CrearTenantPropietarioDeOperadorCaeExternoCommand: quien ejecuta es el Administrador

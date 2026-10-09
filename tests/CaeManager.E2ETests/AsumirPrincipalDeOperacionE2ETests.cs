@@ -30,7 +30,11 @@ public class AsumirPrincipalDeOperacionE2ETests(WebAppFixtureEscenariosDireccion
             """SELECT "Id"::text FROM "AsignacionesOperacion" WHERE "PropietarioTenantId" = @t::uuid AND NOT "EsRaiz" """,
             ("t", tenantPizza));
 
-        // Premisa de la siembra: nadie lleva la marca de principal en esa empresa.
+        // La siembra deja la empresa con principal: se le quita la marca para dejarla en la alerta.
+        // La cartera de quien la llevaba sigue viva, como apoyo.
+        await fixture.EjecutarSqlAsync(
+            """UPDATE "AsignacionesCartera" SET "EsPrincipal" = false WHERE "PropietarioTenantId" = @t::uuid AND "EsPrincipal" """,
+            ("t", tenantPizza));
         Assert.Equal("0", await PrincipalesAsync(tenantPizza));
 
         await using var contexto = await fixture.Browser.NewContextAsync();
@@ -52,11 +56,12 @@ public class AsumirPrincipalDeOperacionE2ETests(WebAppFixtureEscenariosDireccion
         await Expect(sinPrincipal).ToHaveCountAsync(0);
         await Expect(page.Locator("#blazor-error-ui")).Not.ToBeVisibleAsync();
 
-        // En la base: un solo principal, él, con cartera de rol Coordinador CAE.
+        // En la base: un solo principal, él. Que la cartera emitida sea siempre de rol
+        // Coordinador CAE lo prueba la integración; aquí pudo marcarse una que ya tenía.
         Assert.Equal("1", await PrincipalesAsync(tenantPizza));
-        Assert.Equal($"{email}|CoordinadorCae", await fixture.LeerValorSqlAsync(
+        Assert.Equal(email, await fixture.LeerValorSqlAsync(
             """
-            SELECT u."Email" || '|' || c."Rol"
+            SELECT u."Email"
             FROM "AsignacionesCartera" c JOIN "AspNetUsers" u ON u."Id" = c."UsuarioId"
             WHERE c."PropietarioTenantId" = @t::uuid AND c."EsPrincipal"
             """, ("t", tenantPizza)));

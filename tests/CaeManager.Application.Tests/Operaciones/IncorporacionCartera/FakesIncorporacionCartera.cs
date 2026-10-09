@@ -93,6 +93,9 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
     public MotivoAnulacionSolicitudCartera? AnularAlIncorporar { get; set; }
     public bool PierdeLaCarrera { get; set; }
 
+    /// <summary>La escritura real no encuentra cómo emitir ni qué marcar (otra cartera suya, delegación caída): <c>SinRelevo</c>.</summary>
+    public bool RelevoImposible { get; set; }
+
     public List<Guid?> TenantsAlIncorporar { get; } = [];
     public List<Guid?> TenantsAlRetirar { get; } = [];
     public List<Guid?> TenantsAlGuardar { get; } = [];
@@ -251,6 +254,8 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
         CancellationToken cancellationToken = default)
     {
         CambiosDeMarca.Add(("relevar", asignacionOperacionId, coordinadorUsuarioId, AmbitoTenantExplicito.TenantIdActual));
+        if (RelevoImposible)
+            return Task.FromResult(ResultadoRelevoPrincipal.SinRelevo);
         if (CarterasVivas.Any(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.EsPrincipal))
             return Task.FromResult(ResultadoRelevoPrincipal.SinRelevo);
         var i = CarterasVivas.FindIndex(c => c.Cartera.AsignacionOperacionId == asignacionOperacionId && c.Cartera.UsuarioId == coordinadorUsuarioId);

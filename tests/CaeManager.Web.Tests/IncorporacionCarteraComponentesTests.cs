@@ -452,6 +452,18 @@ public class IncorporacionCarteraComponentesTests : BunitContext
         _mediator.ConsultasDeAlerta.Should().Be(2);
     }
 
+    [Theory]
+    [InlineData("es-ES")]
+    [InlineData("ca-ES")]
+    public void El_aviso_de_exito_de_Asumir_no_afirma_un_rol(string cultura)
+    {
+        // Quien ya tenía cartera de Gestor CAE la conserva marcada: decirle «Coordinador CAE» sería falso.
+        System.Globalization.CultureInfo.CurrentUICulture = new System.Globalization.CultureInfo(cultura);
+
+        Textos["SinPrincipalAsumida", "Talleres Norte"].Value.Should().Contain("Talleres Norte")
+            .And.NotContain("Coordinador").And.NotContain("Gestor");
+    }
+
     [Fact]
     public void Cada_error_de_Asumir_tiene_su_texto_en_los_dos_idiomas()
     {
@@ -460,7 +472,7 @@ public class IncorporacionCarteraComponentesTests : BunitContext
             AsumirPrincipalDeOperacionCommandHandler.SinAutoridad,
             AsumirPrincipalDeOperacionCommandHandler.OperacionNoEncontrada,
             AsumirPrincipalDeOperacionCommandHandler.YaTienePrincipal,
-            AsumirPrincipalDeOperacionCommandHandler.AccesoDeOtroTipo,
+            AsumirPrincipalDeOperacionCommandHandler.NoSePudoAsignar,
             AsumirPrincipalDeOperacionCommandHandler.CambioMientrasDecidias,
         ];
 

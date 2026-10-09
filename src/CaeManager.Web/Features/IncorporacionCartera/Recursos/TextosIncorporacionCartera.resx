@@ -265,7 +265,7 @@
     <value>Asumir</value>
   </data>
   <data name="SinPrincipalAsumida" xml:space="preserve">
-    <value>Ahora eres el Coordinador CAE principal de {0}.</value>
+    <value>Ahora llevas {0} como principal.</value>
   </data>
   <data name="CoordinadorPrincipalSeccion" xml:space="preserve">
     <value>Empresas con un Coordinador CAE principal</value>
@@ -288,8 +288,8 @@
   <data name="ErrorAsumirYaTienePrincipal" xml:space="preserve">
     <value>Esa empresa ya tiene principal. No se ha cambiado nada.</value>
   </data>
-  <data name="ErrorAsumirAccesoDeOtroTipo" xml:space="preserve">
-    <value>No se te puede asignar esta empresa: ya tienes en ella un acceso de otro tipo. Pide que te lo retiren y vuelve a intentarlo.</value>
+  <data name="ErrorAsumirNoSePudoAsignar" xml:space="preserve">
+    <value>No se te ha podido asignar esta empresa: ya tienes en ella un acceso de otro tipo o su situación acaba de cambiar. Recarga la lista y, si sigue ahí, pide que revisen tu acceso.</value>
   </data>
   <data name="ErrorAsumirCambioMientrasDecidias" xml:space="preserve">
     <value>Otra persona recibió esta empresa mientras decidías. No se ha cambiado nada.</value>

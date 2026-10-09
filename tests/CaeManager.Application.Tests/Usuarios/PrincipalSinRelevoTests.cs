@@ -336,6 +336,20 @@ public class PrincipalSinRelevoTests
     }
 
     [Fact]
+    public async Task Si_la_escritura_no_puede_darle_la_cartera_Asumir_falla_y_no_guarda_nada()
+    {
+        var e = new Escenario();
+        e.Cuenta("DireccionCae", id: Actor);
+        e.Catalogo.RelevoImposible = true;
+
+        (await e.AsumirAsync()).Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.NoSePudoAsignar);
+
+        e.Principal().Should().BeNull();
+        e.Transaccion.Deshechas.Should().Be(1);
+        e.Transaccion.Confirmadas.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Si_otro_gana_la_carrera_quien_pierde_falla_sin_dejar_nada()
     {
         var e = new Escenario();
