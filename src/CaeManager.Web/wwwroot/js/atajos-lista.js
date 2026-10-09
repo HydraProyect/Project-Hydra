@@ -6,7 +6,14 @@
 import { hayDialogoModalAbierto } from './atajos-contexto.js';
 
 // Debe coincidir con CatalogoAtajos.Lista (CatalogoAtajosSincronizadoConJsTests).
-const TECLAS_ADMITIDAS = ['j', 'k', 'x', 'Enter', 'f'];
+const TECLAS_ADMITIDAS = ['j', 'k', 'x', 'Enter', 'f', 'e'];
+
+// «e» (editar la fila enfocada) es también un destino de «g + letra» (g e → /empresas, en
+// atajos-globales.js). Los dos módulos escuchan en document y el orden en que se registran
+// no está garantizado, así que este recuerda él mismo si la tecla anterior fue una «g»
+// suelta dentro de la misma ventana: entonces la «e» es del atajo global y aquí no se toca.
+// Debe coincidir con VENTANA_PREFIJO_MS de atajos-globales.js.
+const VENTANA_PREFIJO_GLOBAL_MS = 900;
 
 // Buscador «Filtrar esta pantalla» del listado (BarraFiltros con pastillas). "f" lo
 // enfoca aquí mismo, sin pasar por C#: no hay estado de la página que cambiar. Si la
@@ -79,9 +86,22 @@ function esVisibleYUsable(campo) {
 }
 
 export function registrarAtajosLista(dotNetRef) {
+    let ultimaGSuelta = 0;
+
     const manejador = async (evento) => {
-        if (!TECLAS_ADMITIDAS.includes(evento.key)) return;
-        if (evento.defaultPrevented || evento.isComposing || evento.ctrlKey || evento.metaKey || evento.altKey) return;
+        // Una tecla con modificador (o el modificador solo: Ctrl, AltGr) no es de nadie y no
+        // toca el prefijo: el módulo global tampoco lo limpia ahí, y «g, Ctrl, e» sigue
+        // siendo «ir a Empresas».
+        if (evento.ctrlKey || evento.metaKey || evento.altKey) return;
+
+        // Cualquier otra tecla consume el prefijo; solo lo vuelve a armar una «g» que el módulo
+        // global también trataría como prefijo (más abajo, pasadas sus mismas guardas).
+        const trasPrefijoGlobal = Date.now() - ultimaGSuelta < VENTANA_PREFIJO_GLOBAL_MS;
+        ultimaGSuelta = 0;
+
+        const esPrefijoGlobal = evento.key === 'g';
+        if (!esPrefijoGlobal && !TECLAS_ADMITIDAS.includes(evento.key)) return;
+        if (evento.defaultPrevented || evento.isComposing) return;
         if (hayDialogoModalAbierto()) return;
 
         const activo = document.activeElement;
@@ -90,6 +110,17 @@ export function registrarAtajosLista(dotNetRef) {
             (activo.tagName === 'INPUT' && !TIPOS_INPUT_NO_TEXTO.has(activo.type))
         );
         if (enCampoEditable) return;
+
+        // Una «g» tecleada dentro de un campo o con un diálogo abierto no
+        // arma nada (el módulo global tampoco): la «e» que venga después es la de editar.
+        // Con el prefijo ya armado, la segunda «g» lo consume, igual que allí.
+        if (esPrefijoGlobal) {
+            // Un botón o una casilla con el foco son INPUT/BUTTON: el global no arma el
+            // prefijo sobre un INPUT de ningún tipo.
+            if (!trasPrefijoGlobal && activo?.tagName !== 'INPUT') ultimaGSuelta = Date.now();
+            return;
+        }
+        if (evento.key === 'e' && trasPrefijoGlobal) return;
 
         const enElementoInteractivo = activo && activo !== document.body && activo.matches?.(SELECTOR_INTERACTIVO);
         if (evento.key === 'Enter' && enElementoInteractivo) return;

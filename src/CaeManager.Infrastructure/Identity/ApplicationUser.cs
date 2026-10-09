@@ -1,9 +1,10 @@
+using CaeManager.Domain.Auditoria;
 using Microsoft.AspNetCore.Identity;
 
 namespace CaeManager.Infrastructure.Identity;
 
 /// <summary>Usuario interno de CAE Manager. Extiende Identity solo con lo que ya se necesita en Fase 0.</summary>
-public class ApplicationUser : IdentityUser<Guid>
+public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
 {
     public string NombreCompleto { get; set; } = string.Empty;
     public TemaPreferido Tema { get; set; } = TemaPreferido.Sistema;
@@ -156,6 +157,31 @@ public class ApplicationUser : IdentityUser<Guid>
     {
         LockoutEnabled = true;
         LockoutEnd = null;
+    }
+
+    /// <summary>
+    /// Prepara la emisión de un enlace de activación: security stamp nuevo, en la
+    /// misma escritura que persista quien llame (un solo <c>UpdateAsync</c>), y fila
+    /// de auditoría con acción propia. El enlace lleva dentro el sello con el que se
+    /// generó, así que cambiarlo ANTES de generar el nuevo deja sin valor todos los
+    /// emitidos hasta entonces. Es una credencial al portador
+    /// —quien lo tiene fija la contraseña—, y un enlace anterior que siguiera vivo
+    /// en un buzón equivocado seguiría entregando la cuenta.
+    /// </summary>
+    public void PrepararEmisionDeEnlaceDeActivacion()
+    {
+        SecurityStamp = Guid.NewGuid().ToString();
+        _accionAuditoria = RegistroAuditoria.AccionActivacionEmitida;
+    }
+
+    // Solo campo: sin propiedad, EF no lo mapea y nunca llega a la base de datos.
+    private string? _accionAuditoria;
+
+    string? IAccionAuditoriaPropia.ConsumirAccionAuditoria()
+    {
+        var accion = _accionAuditoria;
+        _accionAuditoria = null;
+        return accion;
     }
 
     /// <summary>Un bloqueo más largo que esto no es un castigo temporal: es una desactivación.</summary>

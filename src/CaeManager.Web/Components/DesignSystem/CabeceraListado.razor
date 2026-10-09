@@ -6,6 +6,9 @@
 
     Es una CabeceraPagina: el contador va en JuntoAlTitulo y lo demás en Acciones.
 
+    DatoCabecera es un dato de la pantalla entera que va junto al título, detrás del contador
+    (p. ej. «Gestor CAE» en Empresas: es el mismo para todas las filas, así que no es columna).
+
     Uso:
 
         <CabeceraListado Titulo="Clientes empresariales" Contador="@_total"
@@ -33,7 +36,7 @@
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject IStringLocalizer<CaeManager.Web.Features.AtajosGlobales.Recursos.TextosAtajosGlobales> TextosAtajos
 
-<CabeceraPagina Titulo="@Titulo" JuntoAlTitulo="@(Contador is null ? null : ContadorFragment)">
+<CabeceraPagina Titulo="@Titulo" JuntoAlTitulo="@(Contador is null && DatoCabecera is null ? null : JuntoAlTituloFragment)">
     <Acciones>
         @if (SeleccionMultipleChanged.HasDelegate)
         {
@@ -77,8 +80,15 @@
     /// <summary>La acción primaria de la pantalla, a la derecha del todo.</summary>
     [Parameter] public RenderFragment? Primaria { get; set; }
 
-    private RenderFragment ContadorFragment => __builder =>
+    /// <summary>Dato de la pantalla entera, junto al título y detrás del contador.</summary>
+    [Parameter] public RenderFragment? DatoCabecera { get; set; }
+
+    private RenderFragment JuntoAlTituloFragment => __builder =>
     {
-        <span class="cabecera-listado-contador">@Contador</span>
+        @if (Contador is not null)
+        {
+            <span class="cabecera-listado-contador">@Contador</span>
+        }
+        @DatoCabecera
     };
 }

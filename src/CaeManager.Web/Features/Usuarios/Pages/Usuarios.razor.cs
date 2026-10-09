@@ -1137,10 +1137,9 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     }
 
     /// <summary>
-    /// Regenera el enlace (el anterior no se invalida en sí, pero uno nuevo lo
-    /// vuelve irrelevante en la práctica: <c>DataProtectorTokenProvider</c> no
-    /// tiene revocación explícita, así que no tiene sentido prometerla) y
-    /// reenvía el correo de alta. Solo tiene sentido para una cuenta
+    /// Regenera el enlace y reenvía el correo de alta. El enlace anterior deja de
+    /// valer: Application cambia el sello de seguridad de la cuenta al emitir el
+    /// nuevo, y la emisión queda en su auditoría. Solo tiene sentido para una cuenta
     /// <see cref="UsuarioListaDto.PendienteActivacion"/>: si ya tiene
     /// contraseña, esto no es el canal — es "olvidé mi contraseña".
     /// </summary>

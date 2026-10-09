@@ -29,6 +29,16 @@ public class RegistroAuditoria : EntidadConTenant
     /// </summary>
     public const string AccionRestaurado = "Restaurado";
 
+    /// <summary>
+    /// Acción de la <b>emisión de un enlace de activación</b> para una cuenta que sigue
+    /// pendiente de activación, sea el del alta o un reenvío. El enlace es una credencial
+    /// al portador, así que cada emisión deja fila propia sobre la cuenta afectada. La
+    /// escribe el interceptor a petición de la cuenta, vía <see cref="IAccionAuditoriaPropia"/>,
+    /// en la misma escritura que cambia su sello de seguridad —lo que deja sin valor los
+    /// enlaces anteriores—. La fila nunca lleva el enlace ni el sello.
+    /// </summary>
+    public const string AccionActivacionEmitida = "ActivacionEmitida";
+
     public string EntidadTipo { get; private set; } = string.Empty;
     public Guid EntidadId { get; private set; }
     public string Accion { get; private set; } = string.Empty;
