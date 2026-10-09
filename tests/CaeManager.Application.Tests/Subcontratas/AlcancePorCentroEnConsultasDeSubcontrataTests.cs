@@ -25,7 +25,8 @@ namespace CaeManager.Application.Tests.Subcontratas;
 /// Hallazgo 2026-10-09 (Project-Hydra-Negocio/seguridad/HALLAZGO-ALCANCE-USUARIO-CLIENTE-EMPRESARIAL-SUBCONTRATAS-2026-10-09.md):
 /// que una subcontrata sea visible no hace visibles todos los Centros donde trabaja. Quien solo
 /// alcanza algunos Centros del Tenant propietario —el usuario de un Cliente empresarial, o un
-/// Gestor CAE con una Asignación de Cartera que no cubre el Tenant entero— recibía, desde el panel
+/// Gestor CAE cuya Asignación de Cartera cuelga de una Asignación de Operación acotada a un
+/// Cliente empresarial (la cartera en sí es siempre el Tenant entero: D-7)— recibía, desde el panel
 /// de la subcontrata, el nombre de los Centros de OTROS Clientes empresariales y su razón social.
 ///
 /// Las consultas se cruzan con los Centros visibles para quien pregunta
@@ -112,7 +113,8 @@ public class AlcancePorCentroEnConsultasDeSubcontrataTests
 
     /// <summary>
     /// Alcance completo dado como lista EXPLÍCITA, que es como lo recibe un Gestor CAE con una
-    /// Asignación de Cartera universal (nunca null: ver <c>IAlcanceDatosService</c>).
+    /// Asignación de Cartera bajo una Asignación de Operación universal (nunca null: ver
+    /// <c>IAlcanceDatosService</c>).
     /// </summary>
     private AlcanceDatosServiceFalso AlcanceATodosLosCentrosComoLista() => new(
         tieneAccesoTotal: false,

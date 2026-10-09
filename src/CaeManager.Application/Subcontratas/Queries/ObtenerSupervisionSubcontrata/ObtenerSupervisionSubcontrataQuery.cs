@@ -35,9 +35,10 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontr
 /// Subcontrata sea visible no hace visibles todos los Centros donde trabaja o
 /// tiene verificaciones. Un Centro no visible no aporta fila, razón social ni
 /// verificación, y los recuentos que el panel deriva de este DTO (Centros,
-/// requisitos sin verificar, última verificación) cuentan solo lo visible —
-/// mismo criterio que el cumplimiento de <c>CalculoEstadoSubcontrataService</c>,
-/// acotado a los Trabajadores visibles.
+/// requisitos sin verificar, última verificación) cuentan solo lo visible.
+/// No es el mismo corte que el cumplimiento de la Subcontrata
+/// (<c>CalculoEstadoSubcontrataService</c>), que se acota por Trabajadores
+/// visibles y cuenta todos los Centros de cada uno de ellos.
 /// </summary>
 public record ObtenerSupervisionSubcontrataQuery(Guid SubcontrataId) : IRequest<SupervisionSubcontrataDto?>;
 
