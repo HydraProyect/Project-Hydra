@@ -78,7 +78,11 @@ div > ::deep .tabla-datos .col-title {
 
   No es una cifra fija: depende de qué documentos caen en la página. Lo que más la mueve es la
   insignia más ancha de «Plataformas» (esa columna midió 108 y 169 px en dos arranques con el mismo
-  CSS). El margen más justo medido en el corte es de 12 px (887 en 899).
+  CSS). El margen más justo medido en el corte era de 12 px (887 en 899).
+
+  Esas cifras son de cuando «Estado» medía 108 px. Desde que mide 200 fijos (.col-estado,
+  list-page.css) el mínimo medido es de 929 px, y de 978 con la casilla (E2E del 2026-10-09 con la
+  insignia de 169 px en la página).
 */
 div > ::deep .tabla-datos th,
 div > ::deep .tabla-datos td {
@@ -92,6 +96,10 @@ div > ::deep .tabla-datos td {
   Ahí el envoltorio del listado pasa a ser el contenedor de desplazamiento horizontal y la página no
   se mueve. Si el mínimo de la tabla crece (otra columna, rótulos o insignias más largos), el corte
   sube con él. De 767 px para abajo manda la regla de móvil de list-page.css y esto no se aplica.
+
+  PENDIENTE DE RECALIBRAR: el corte de 1240 se midió con «Estado» en 108 px. Con los 978 px de
+  ahora, entre 1240 y unos 1320 px de ventana la tabla no cabe y la página vuelve a desplazarse
+  (casos de 1240 y 1266 px de DocumentosListadoSinDesbordeE2ETests, en rojo).
 
   Un contenedor que desplaza en horizontal también recorta en vertical. Dos consecuencias en este
   tramo: la cabecera de la tabla no se pega al desplazar en vertical, y lo que se abre hacia abajo
