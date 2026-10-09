@@ -687,13 +687,18 @@ public class EmpresasListaGen2Tests : BunitContext
 
     /// <summary>
     /// Los controles de dentro de la fila hacen lo suyo y no dejan subir el clic: copiar el
-    /// CIF o desplegar la fila no abren además la vista rápida.
+    /// CIF no abre además la vista rápida.
+    /// <para>
+    /// El desplegable y la pastilla de detecciones NO se prueban aquí: su propio manejador
+    /// repinta la lista, bUnit pierde entonces el manejador de la fila y el test queda en
+    /// verde aunque se quite el corte (medido por mutación, 2026-10-09). Esa propiedad la
+    /// prueba <c>EmpresasFilaSinMenuE2ETests</c> en un navegador real.
+    /// </para>
     /// </summary>
-    [Theory]
-    [InlineData(".boton-copiar-en-linea")]
-    [InlineData(".boton-expandir-fila")]
-    public async Task Los_controles_de_la_fila_no_abren_la_vista_rapida(string selector)
+    [Fact]
+    public async Task Copiar_el_cif_no_abre_la_vista_rapida()
     {
+        const string selector = ".boton-copiar-en-linea";
         var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
         var cut = Renderizar(mediador);
 

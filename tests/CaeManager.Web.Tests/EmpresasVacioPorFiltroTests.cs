@@ -236,7 +236,7 @@ public class EmpresasVacioPorFiltroTests : BunitContext
     }
 
     [Fact]
-    public async Task Con_detecciones_pendientes_la_pastilla_lleva_a_la_deteccion_sin_abrir_la_vista_rapida()
+    public async Task Con_detecciones_pendientes_la_pastilla_lleva_a_la_deteccion()
     {
         var id = Guid.NewGuid();
         var cut = Renderizar(empresas: new EmpresaListaDto(
@@ -249,8 +249,6 @@ public class EmpresasVacioPorFiltroTests : BunitContext
 
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath
             .Should().Be($"/empresas/{id}/deteccion-trabajadores");
-        Services.GetRequiredService<ContextWorkspaceService>().FrameActual
-            .Should().BeNull("la pastilla navega; no abre además la vista rápida de la fila");
     }
 
     [Fact]
