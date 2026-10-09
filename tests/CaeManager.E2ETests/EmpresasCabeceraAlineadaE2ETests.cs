@@ -64,7 +64,6 @@ public class EmpresasCabeceraAlineadaE2ETests(WebAppFixture fixture)
         var page = await contexto.NewPageAsync();
         await page.SetViewportSizeAsync(1280, 800);
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Expect(page.Locator(".marco-lista-empresas .tarjeta-fila-acordeon-cabecera")).Not.ToHaveCountAsync(0);
 
@@ -74,15 +73,8 @@ public class EmpresasCabeceraAlineadaE2ETests(WebAppFixture fixture)
             await AfirmarAlineadoAsync(page, columnas: 6, $"tema {tema}");
         }
 
-        // El modal de notificaciones sin leer se abre cuando el circuito de la página nueva se vuelve
-        // interactivo, en un momento que el test no controla (medido: tapó este clic 30 s): el manejador lo
-        // descarta cada vez que estorba a una acción. Y el clic se repite hasta que el propio conmutador dice
-        // que está pulsado, porque llega con el prerender antes que el circuito (mismo patrón que
-        // Ayudas.MostrarCentrosSinAgruparAsync).
-        await page.AddLocatorHandlerAsync(
-            page.Locator(".modal-superposicion"),
-            _ => Ayudas.DescartarNotificacionesPendientesAsync(page),
-            new PageAddLocatorHandlerOptions { NoWaitAfter = true });
+        // El clic se repite hasta que el propio conmutador dice que está pulsado, porque llega con el
+        // prerender antes que el circuito (mismo patrón que Ayudas.MostrarCentrosSinAgruparAsync).
         var conmutador = page.Locator("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']");
         for (var intento = 1; await conmutador.GetAttributeAsync("aria-pressed") != "true"; intento++)
         {
