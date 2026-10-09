@@ -160,10 +160,15 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
     public Task<PilotoOutboundAutoverificacion.Informe> MedirAsync(IConfiguration configuracion) =>
         PilotoOutboundAutoverificacion.MedirAsync(FabricaDeAmbitos, OpcionesPilotoOutbound.Leer(configuracion));
 
-    /// <summary>Un registro que guarda los avisos, para afirmar que la siembra avisó en vez de lanzar.</summary>
+    /// <summary>
+    /// Un registro que guarda los avisos, para afirmar que la siembra avisó en vez de
+    /// lanzar, y las líneas informativas, para leer de la propia siembra cuánto tardó
+    /// y cuánta memoria llegó a ocupar el proceso.
+    /// </summary>
     internal sealed class RegistroDeAvisos : ILogger
     {
         public List<string> Avisos { get; } = [];
+        public List<string> Informativas { get; } = [];
 
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -173,6 +178,8 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
         {
             if (logLevel == LogLevel.Warning)
                 Avisos.Add(formatter(state, exception));
+            else if (logLevel == LogLevel.Information)
+                Informativas.Add(formatter(state, exception));
         }
     }
 

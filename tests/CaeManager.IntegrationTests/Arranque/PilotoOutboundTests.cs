@@ -48,6 +48,7 @@ public sealed class PilotoOutboundFixture : IAsyncLifetime
     internal IConfiguration Configuracion { get; private set; } = null!;
     internal PilotoOutboundSeeder.Resultado Resultado { get; private set; } = null!;
     internal Informe Informe { get; private set; } = null!;
+    internal ArnesPilotoOutbound.RegistroDeAvisos Registro { get; } = new();
 
     public async Task InitializeAsync()
     {
@@ -56,7 +57,7 @@ public sealed class PilotoOutboundFixture : IAsyncLifetime
             ArnesPilotoOutbound.FechaDemostracion(),
             extra: (OpcionesPilotoOutbound.ClaveCorreoContactos, ArnesPilotoOutbound.CorreoDePrueba));
 
-        Resultado = (await Arnes.SembrarAsync(Configuracion))!;
+        Resultado = (await Arnes.SembrarAsync(Configuracion, logger: Registro))!;
         await Arnes.BackfillAsync();
         Informe = await Arnes.MedirAsync(Configuracion);
     }
@@ -87,6 +88,14 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         fixture.Resultado.TenantsConDatosNuevos.Should().Equal(
             CatalogoPilotoOutbound.EnOrdenDeSiembra.Select(t => t.Nombre), "MEDIDO: los pequeños primero y T1 el último");
         fixture.Resultado.Pdf.Should().Be(fixture.Resultado.Documentos, "MEDIDO: un PDF por documento");
+        fixture.Resultado.Documentos.Should().Be(1164, "MEDIDO: 885 de T1, 77 de T2, 33 de T3, ninguno de T4, 33 de T5 y 136 de T6");
+
+        // La duración del lote y la memoria pico las dice la propia siembra, en su línea de registro.
+        var lineaDelLote = fixture.Registro.Informativas.Should()
+            .ContainSingle(l => l.StartsWith("Siembra del piloto Outbound:", StringComparison.Ordinal)).Subject;
+        salida.WriteLine($"MEDIDO {lineaDelLote}");
+        lineaDelLote.Should().Contain("memoria pico del proceso");
+        salida.WriteLine($"MEDIDO duración del lote según su resultado: {fixture.Resultado.Duracion.TotalSeconds:F1} s; avisos de la siembra: {fixture.Registro.Avisos.Count}");
 
         foreach (var m in fixture.Informe.Tenants)
             salida.WriteLine("MEDIDO " + PilotoOutboundTextos.Linea(m));
