@@ -17,11 +17,11 @@
 }
 
 /*
-  El listado cabe en su hueco. Con siete columnas, la tabla no podía bajar de 1210 px (medido
-  2026-10-09 con los datos sembrados), fuera cual fuera el ancho de la ventana, y a 1024, 1266 y
-  1440 px su hueco mide 700, 942 y 1116: lo que sobraba lo desplazaba .contenido, es decir, la página
-  entera (cabecera, pestañas y filtros incluidos). Ese mínimo no venía de los datos sino de las
-  cabeceras, por tres reglas del tema de serie de QuickGrid:
+  El listado cabe en su hueco. Con siete columnas, la tabla no podía bajar de unos 1200 px (1196 y
+  1210 en dos mediciones del 2026-10-09 con los datos sembrados), fuera cual fuera el ancho de la
+  ventana, y a 1024, 1266 y 1440 px su hueco mide 700, 942 y 1116: lo que sobraba lo desplazaba
+  .contenido, es decir, la página entera (cabecera, pestañas y filtros incluidos). Ese mínimo no venía
+  de los datos sino de las cabeceras, por tres reglas del tema de serie de QuickGrid:
 
     · el rótulo no se parte (.col-title-text, white-space: nowrap), así que «Vigencia · Vencimiento»
       o «Tipo de documento» fijaban el ancho de su columna;
@@ -30,10 +30,10 @@
     · .col-title lleva 0.4rem a cada lado, que además dejaba el rótulo 6,4 px a la derecha del
       contenido de sus celdas.
 
-  Aquí el rótulo se parte por palabras y esos dos rellenos se quitan (el del <th> se conserva). Va
-  con ::deep porque la tabla la pinta QuickGrid, un componente hijo; «div >» es el envoltorio del
-  listado en Documentos.razor, de modo que las tablas de las otras pestañas no cambian. Lo fija
-  DocumentosListadoSinDesbordeE2ETests.
+  Aquí el rótulo se parte por palabras y esos dos rellenos se quitan (el del <th> se conserva): el
+  mínimo de la tabla baja a 864 px con los mismos datos. Va con ::deep porque la tabla la pinta
+  QuickGrid, un componente hijo; «div >» es el envoltorio del listado en Documentos.razor, de modo que
+  las tablas de las otras pestañas no cambian. Lo fija DocumentosListadoSinDesbordeE2ETests.
 */
 div > ::deep .tabla-datos .col-title-text {
     white-space: normal;
@@ -49,12 +49,15 @@ div > ::deep .tabla-datos .col-title {
 }
 
 /*
-  Por debajo de 1200 px de ventana el hueco es más estrecho que el mínimo de la tabla incluso con las
-  cabeceras partidas: la tabla pasa a ser su propio contenedor de desplazamiento horizontal, como ya
-  hace .tabla-datos en móvil (list-page.css, donde se explica por qué display: block), y la página no
-  se mueve. Mismas consecuencias que allí: la cabecera deja de pegarse al desplazar en vertical.
+  Por debajo de 1240 px de ventana el hueco no llega a ese mínimo: mide la ventana menos 324 px de
+  barra lateral y márgenes, y menos lo que ocupe la barra de desplazamiento vertical (a 1200 px, 876
+  sin ella y 859 con una de 17). Ahí la tabla pasa a ser su propio contenedor de desplazamiento
+  horizontal, como ya hace .tabla-datos en móvil (list-page.css, donde se explica por qué
+  display: block), y la página no se mueve. Mismas consecuencias que allí: la cabecera deja de pegarse
+  al desplazar en vertical. Si el mínimo de la tabla crece (otra columna, rótulos más largos), el
+  corte sube con él.
 */
-@media (max-width: 1199px) {
+@media (max-width: 1239px) {
     div > ::deep .tabla-datos {
         display: block;
         overflow-x: auto;

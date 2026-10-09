@@ -67,13 +67,13 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture)
         """;
 
     /// <summary>
-    /// 1024, 1266 y 1440 son los anchos del encargo (1266 es el de la medición de staging). 1200 es el primer
+    /// 1024, 1266 y 1440 son los anchos del encargo (1266 es el de la medición de staging). 1240 es el primer
     /// ancho por encima del corte de Documentos.razor.css en el que la tabla deja de desplazarse por su
     /// cuenta: si a ese ancho no cupiera, entre el corte y el ancho en que sí cabe volvería a moverse la página.
     /// </summary>
     [Theory]
     [InlineData(1024, false)]
-    [InlineData(1200, true)]
+    [InlineData(1240, true)]
     [InlineData(1266, true)]
     [InlineData(1440, true)]
     public async Task El_listado_no_desplaza_la_pagina_en_horizontal_y_conserva_sus_columnas_y_acciones(int anchoVentana, bool debeCaberSinDesplazarse)

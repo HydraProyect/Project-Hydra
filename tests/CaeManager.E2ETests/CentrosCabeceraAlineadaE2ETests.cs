@@ -79,7 +79,8 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixture fixture)
             await conmutador.ClickAsync();
             await page.WaitForTimeoutAsync(1_000);
         }
-        await Expect(page.Locator(".cabecera-columnas-centros-seleccion")).ToBeVisibleAsync();
+        // El hueco de la casilla en la cabecera está vacío y no tiene alto: se afirma que existe, no que se ve.
+        await Expect(page.Locator(".cabecera-columnas-centros-seleccion")).ToHaveCountAsync(1);
 
         // casilla · chevron · Centro · Empresa · Cumplimiento · Venc. · Próx. · Estado / visita · acciones
         await AfirmarAlineadoEnLosDosTemasAsync(page, columnas: 9, "con selección múltiple");
