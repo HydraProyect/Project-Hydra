@@ -388,7 +388,7 @@ public class CentrosListaPatronTests : BunitContext
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
         acciones.QuerySelectorAll("a").Should().BeEmpty("las descargas viven dentro del «⋯»");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Selección múltiple", "Más acciones", "+ Nuevo centro");
+            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo centro");
 
         await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
 
@@ -792,6 +792,62 @@ public class CentrosListaPatronTests : BunitContext
         Orden(fila, columnas).Should().Equal(columnas);
         Orden(cabecera, columnas).Should().Equal(Orden(fila, columnas));
         cabecera.Children.Length.Should().Be(fila.Children.Length, "una celda de cabecera por cada celda de la fila");
+    }
+
+    // ----------------------------- Agrupación y orden viajan en la URL (D4, T20)
+
+    [Fact]
+    public void Quitar_la_agrupacion_lo_escribe_en_la_url_y_volver_a_agrupar_lo_quita()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Sin agrupar").Click();
+
+        navegacion.Uri.Should().Contain("agrupar=no");
+        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Sin agrupar",
+            "la pasada de parámetros que sigue a la navegación no puede devolver la agrupación");
+
+        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Por Cliente empresarial").Click();
+
+        navegacion.Uri.Should().NotContain("agrupar", "agrupada es la vista de fábrica: no deja rastro en la URL");
+    }
+
+    [Fact]
+    public void El_orden_por_cumplimiento_se_escribe_en_la_url_con_su_sentido()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
+        navegacion.Uri.Should().EndWith("orden=cumplimiento");
+
+        cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
+        navegacion.Uri.Should().EndWith("orden=cumplimiento-desc");
+    }
+
+    /// <summary>Recargar o compartir el enlace reproduce la vista: sin agrupar y con el orden pedido, en UNA consulta.</summary>
+    [Fact]
+    public void Un_enlace_con_agrupacion_y_orden_reproduce_la_vista_con_una_sola_consulta()
+    {
+        var mediador = ConDosClientes();
+
+        var cut = RenderizarConGruposContraidos(mediador, "centros?agrupar=no&orden=cumplimiento-desc");
+
+        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Sin agrupar");
+        var consultas = mediador.Enviadas.OfType<ObtenerCentrosQuery>().ToList();
+        consultas.Should().ContainSingle("la carga inicial ya lee el orden de la URL; la primera pasada de parámetros no la repite");
+        (consultas[0].OrdenarPor, consultas[0].Descendente).Should().Be((nameof(CentroListaDto.CumplimientoPorcentaje), true));
+    }
+
+    [Fact]
+    public void Un_orden_desconocido_en_la_url_deja_el_orden_de_catalogo()
+    {
+        var mediador = ConDosClientes();
+
+        RenderizarConGruposContraidos(mediador, "centros?orden=nombre");
+
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().OrdenarPor.Should().BeNull();
     }
 
     [Fact]

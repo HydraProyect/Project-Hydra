@@ -4,6 +4,7 @@ using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.EliminarGestion;
+using CaeManager.Application.Gestiones.Commands.RestaurarGestion;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Common;
@@ -104,6 +105,9 @@ public class GestionesListaGen2Tests : BunitContext
                     Almacen.RemoveAll(g => g.Id == e.Id);
                     return Result.Exito();
 
+                case RestaurarGestionCommand:
+                    return Result.Exito();
+
                 // El estado vacío sin filtros pregunta cuántos Tenants hay para decidir adónde
                 // lleva «Ir a Mi trabajo»: uno solo, /bandeja (GestionesVacioEnlaceMiTrabajoTests
                 // cubre el caso de varios).
@@ -190,14 +194,14 @@ public class GestionesListaGen2Tests : BunitContext
         Guid.NewGuid(), documento, estado, new DateTime(2026, 8, 14, 9, 0, 0, DateTimeKind.Utc));
 
     /// <param name="estado">Filtro de estado que llega por la URL (?estado=).</param>
-    private IRenderedComponent<Gestiones> Renderizar(MediatorFalso mediador, string? estado = null)
+    private IRenderedComponent<Gestiones> Renderizar(MediatorFalso mediador, string? estado = null, string? url = null)
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
 
         Services.GetRequiredService<NavigationManager>()
-            .NavigateTo(estado is null ? "gestiones" : "gestiones?estado=" + estado);
+            .NavigateTo(url ?? (estado is null ? "gestiones" : "gestiones?estado=" + estado));
 
         var cut = Render<Gestiones>();
         cut.WaitForAssertion(() => cut.Markup.Should().NotContain("aria-busy=\"true\""));
@@ -483,6 +487,32 @@ public class GestionesListaGen2Tests : BunitContext
         await cut.FindAll("tbody .menu-acciones-item").Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
     }
 
+    /// <summary>Listados 5/7 (decisión D6, 2026-10-08): eliminar una Gestión deja «Deshacer», que la restaura.</summary>
+    [Fact]
+    public async Task Eliminar_ofrece_Deshacer_y_Deshacer_restaura_esa_gestion()
+    {
+        var abierta = Gestion("Nuria Salas Ortiz");
+        var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra"), abierta } };
+        var cut = Renderizar(mediador);
+
+        await NombreEnLaFila(cut, "Nuria Salas Ortiz").ClickAsync(new MouseEventArgs());
+        await BotonDeLaVistaRapida(cut, "Eliminar").ClickAsync(new MouseEventArgs());
+
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Podrás deshacerlo desde el aviso que aparecerá",
+            "el diálogo ya no dice que no se puede recuperar: ahora hay «Deshacer» y restauración desde Auditoría");
+
+        await BotonDelDialogo(cut, "Eliminar").ClickAsync(new MouseEventArgs());
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        mediador.Enviadas.OfType<RestaurarGestionCommand>().Should().BeEmpty("ofrecer «Deshacer» no restaura nada");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<RestaurarGestionCommand>().Should().Equal([new RestaurarGestionCommand(abierta.Id)]);
+        avisos.Mensajes.Should().Contain(m => m.Mensaje == "Gestión restaurada." && m.Tono == TonoToast.Exito);
+    }
+
     [Fact]
     public async Task Eliminar_desde_la_vista_rapida_pide_confirmacion_manda_el_comando_de_esa_gestion_y_la_cierra()
     {
@@ -567,6 +597,40 @@ public class GestionesListaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Ninguna gestión con estos filtros",
             "la respuesta vieja era de «Pendientes», no de la pregunta vigente");
         cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("0", "no hay coincidencias con el filtro vigente");
+    }
+
+    // ------------------------------------- La búsqueda viaja en la URL (T20)
+
+    [Fact]
+    public void Un_enlace_con_la_busqueda_la_lleva_a_la_consulta_y_a_la_caja()
+    {
+        var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra"), Gestion("Nuria Salas Ortiz") } };
+        var cut = Renderizar(mediador, url: "gestiones?q=Salas");
+
+        mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().Busqueda.Should().Be("Salas");
+        cut.Find(".chip-filtro").TextContent.Should().Contain("Salas");
+    }
+
+    [Fact]
+    public async Task Limpiar_todo_quita_la_busqueda_y_el_estado_de_la_url_en_una_sola_navegacion()
+    {
+        var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra"), Gestion("Nuria Salas Ortiz", EstadoGestion.Completada) } };
+        var cut = Renderizar(mediador, url: "gestiones?q=Salas&estado=Completada");
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        // Un solo chip, el de la búsqueda: el estado se ve marcado en la franja, no en un chip.
+        cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().HaveCount(1));
+        cut.Find(".franja-estado-boton[data-estado='Completada']").GetAttribute("aria-pressed").Should().Be("true");
+        var navegaciones = 0;
+        navegacion.LocationChanged += (_, _) => navegaciones++;
+
+        await cut.Find("button.limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
+
+        navegacion.Uri.Should().NotContain("q=").And.NotContain("estado=");
+        navegaciones.Should().Be(1, "dos navegaciones seguidas se pisan: la segunda lee la URL sin el cambio de la primera");
+        var consulta = mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last();
+        consulta.Busqueda.Should().BeNull();
+        consulta.Estado.Should().BeNull();
+        cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().BeEmpty());
     }
 
     /// <summary>

@@ -217,4 +217,16 @@
   <data name="ListaOrdenarVencimiento" xml:space="preserve"><value>Ordenar per venciment</value></data>
   <data name="ListaEmitido" xml:space="preserve"><value>Emès {0}</value></data>
   <data name="ListaEntidadAsociada" xml:space="preserve"><value>Entitat associada</value></data>
+  <data name="FiltroGuardadoBorrarTitulo" xml:space="preserve">
+    <value>Vols esborrar el filtre desat «{0}»?</value>
+  </data>
+  <data name="FiltroGuardadoBorrarMensaje" xml:space="preserve">
+    <value>Desapareixerà dels teus filtres desats de Documents. No esborra cap document ni canvia el que la llista mostra ara.</value>
+  </data>
+  <data name="FiltroGuardadoBorrarBoton" xml:space="preserve">
+    <value>Esborra el filtre</value>
+  </data>
+  <data name="FiltroGuardadoBorrarError" xml:space="preserve">
+    <value>No hem pogut esborrar el filtre desat. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
 </root>

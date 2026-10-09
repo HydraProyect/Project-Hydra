@@ -50,6 +50,17 @@ public record ResultadoIncorporacionCartera(
 }
 
 /// <summary>
+/// Lo que hizo <see cref="ICatalogoIncorporacionCartera.IncorporarApoyoAsync"/>: o la cartera
+/// de apoyo emitida (y la fila heredada que la acompaña), o por qué la propuesta de apoyo ya
+/// no se sostenía.
+/// </summary>
+public record ResultadoApoyoCartera(
+    AsignacionCartera? Cartera, Guid? AsignacionOperadorDelegadoId, MotivoAnulacionPropuestaApoyo? MotivoAnulacion)
+{
+    public static ResultadoApoyoCartera Anulada(MotivoAnulacionPropuestaApoyo motivo) => new(null, null, motivo);
+}
+
+/// <summary>
 /// La parte de la solicitud de incorporación a cartera que toca los
 /// catálogos de asignación. Vive detrás de un puerto por la misma razón que
 /// <see cref="IAsignacionesOperativasWriter"/>: esos catálogos están fuera del
@@ -122,6 +133,32 @@ public interface ICatalogoIncorporacionCartera
     Task<ResultadoIncorporacionCartera> IncorporarAsync(
         Guid propietarioTenantId, Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Emite la Asignación de Cartera <b>de apoyo</b> del destinatario de una propuesta de apoyo
+    /// (ADR-011 § 2.7, enmienda 2026-10-08) y su fila heredada de Operador Delegado, sin guardar:
+    /// del Tenant entero, sin caducidad, con rol Gestor CAE y <b>nunca con la marca de
+    /// principal</b>. Ni el rol, ni el ámbito, ni la marca son parámetros: salen de aquí.
+    ///
+    /// <para>
+    /// Devuelve un motivo de anulación, sin emitir nada, si la operación ya no es la externa
+    /// vigente de ese Operador CAE sobre ese Tenant propietario o no queda delegación viva; si
+    /// <b>quien propuso ya no lleva la marca de principal en una cartera vigente</b> de esa
+    /// operación; o si el destinatario ya tiene el Tenant en su cartera. No lee Identity: que
+    /// las dos cuentas sigan activas y con su rol lo comprueba el Command.
+    /// </para>
+    ///
+    /// <para>
+    /// Al emitir <b>escribe también la cartera del principal</b> (renueva su versión, sin
+    /// cambiarle nada): toda designación, relevo o cierre empieza escribiendo esa misma fila,
+    /// así que si la marca cambia de manos entre esta lectura y el guardado, el guardado
+    /// pierde la carrera (<see cref="GuardarDetectandoCarreraAsync"/> devuelve <c>false</c>) en
+    /// vez de confirmar un apoyo que ya nadie con la marca propuso. Mismas exigencias de
+    /// Tenant activo que <see cref="IncorporarAsync(Guid, Guid, Guid, Guid, CancellationToken)"/>.
+    /// </para>
+    /// </summary>
+    Task<ResultadoApoyoCartera> IncorporarApoyoAsync(
+        PropuestaApoyoCartera propuesta, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Los Tenants propietarios que <paramref name="usuarioId"/> tiene <b>enteros</b> en su

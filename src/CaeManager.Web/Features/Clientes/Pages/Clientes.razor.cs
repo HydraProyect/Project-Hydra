@@ -195,9 +195,13 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     [SupplyParameterFromQuery(Name = "critico")]
     public bool? SoloCriticosInicial { get; set; }
 
+    /// <summary>Gestor CAE por el que se filtra la lista (Id de usuario). Viaja en la URL como el resto de filtros.</summary>
+    [SupplyParameterFromQuery(Name = "gestor")]
+    public string? GestorCaeInicial { get; set; }
+
     /// <summary>Estados marcados en la franja de estado: nombres de <see cref="EstadoDocumento"/> separados por coma.</summary>
     [SupplyParameterFromQuery(Name = "estado")]
-    public string? EstadoInicial { get; set; }
+    public string? EstadoDocumentalInicial { get; set; }
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -355,11 +359,19 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var soloCriticosDeLaUrl = SoloCriticosInicial ?? false;
-        var estadoDeLaUrl = EstadosValidos(EstadoInicial);
-        var cambio = deLaUrl != _busqueda || soloCriticosDeLaUrl != _soloCriticos || estadoDeLaUrl != _estadoDocumentalFiltro;
+        // Lo que no sea un estado conocido, o un Gestor CAE que el directorio visible de este
+        // usuario no ofrece, es «sin filtro»: un Id en la URL no es autoridad, y la pantalla
+        // no filtra por alguien a quien no puede nombrar (misma regla que el filtro guardado).
+        var gestorDeLaUrl = Guid.TryParse(GestorCaeInicial, out var gestorId) && _ejecutivosParaFiltro.Any(g => g.Id == gestorId)
+            ? gestorId.ToString()
+            : string.Empty;
+        var estadoDeLaUrl = EstadosValidos(EstadoDocumentalInicial);
+        var cambio = deLaUrl != _busqueda || soloCriticosDeLaUrl != _soloCriticos
+            || gestorDeLaUrl != _ejecutivoFiltro || estadoDeLaUrl != _estadoDocumentalFiltro;
 
         _busqueda = deLaUrl;
         _soloCriticos = soloCriticosDeLaUrl;
+        _ejecutivoFiltro = gestorDeLaUrl;
         _estadoDocumentalFiltro = estadoDeLaUrl;
 
         // Las dos acciones por URL se atienden aquí y no en OnInitializedAsync:
@@ -468,10 +480,11 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         await RecargarAsync();
     }
 
-    /// <summary>Filtros "Ejecutivo" y "Estado documental" del mockup "Lista Clientes TALVEG" — mismo patrón que SoloCriticos: estado local + recarga, sin URL propia porque no forman parte de ningún enlace compartido todavía.</summary>
+    /// <summary>Filtros «Gestor CAE» y «Estado documental» del mockup "Lista Clientes TALVEG" — mismo patrón que SoloCriticos: estado local, URL (<c>?gestor=</c>, <c>?estado=</c>) y recarga.</summary>
     private async Task CambiarEjecutivoFiltroAsync(string valor)
     {
         _ejecutivoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("gestor", valor);
         await RecargarAsync();
     }
 
@@ -587,7 +600,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// «Limpiar todo» de la tarjeta de filtros.
     ///
     /// <para>
-    /// <b>Los dos filtros que viajan por la URL se limpian TAMBIÉN allí.</b>
+    /// <b>Los cuatro filtros que viajan por la URL (<c>q</c>, <c>critico</c>, <c>gestor</c>, <c>estado</c>) se limpian TAMBIÉN allí.</b>
     /// Hasta ahora solo se borraba <c>q</c>: <c>critico</c> se quedaba puesto y
     /// <see cref="OnParametersSetAsync"/>, que re-sincroniza desde la URL, lo
     /// devolvía a true en la siguiente pasada de parámetros. El resultado era
@@ -614,6 +627,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         {
             ["q"] = null,
             ["critico"] = null,
+            ["gestor"] = null,
             ["estado"] = null,
         });
         await RecargarAsync();
@@ -944,6 +958,35 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         else _seleccionados.Remove(id);
     }
 
+    private bool _restaurandoLote;
+
+    /// <summary>«Deshacer» del aviso de una eliminación en lote: un único deshacer restaura todos los que el lote sí eliminó.</summary>
+    private async Task DeshacerEliminarLoteAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_restaurandoLote) return;
+        _restaurandoLote = true;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new RestaurarClienteCommand(id)));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0 ? Textos["ToastLoteRestaurados", r.Restaurados].Value : Textos["ToastLoteRestauradosConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurarLote"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurandoLote = false;
+        }
+    }
+
     private async Task ConfirmarEliminarLoteAsync()
     {
         if (_eliminandoLote)
@@ -956,18 +999,20 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             var idsPedidos = _seleccionados.ToList();
             var resultado = await Mediator.Send(new EliminarClientesCommand(idsPedidos));
             var dto = resultado.Valor;
+            IReadOnlyList<Guid> eliminados = dto.IdsEliminados ?? [];
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
                     ? $"{dto.Eliminados} Cliente(s) empresarial(es) dado(s) de baja."
                     : $"{dto.Eliminados} dado(s) de baja. {dto.Errores.Count} no se pudieron dar de baja: {string.Join(" ", dto.Errores)}",
-                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
+                eliminados.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
+                eliminados.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminados) : null);
 
-            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
-            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
-            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            // Se retiran solo las fichas de los que cayeron (IdsEliminados); un superviviente
+            // conserva la suya y su edición sin guardar.
             if (dto.Eliminados > 0)
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, idsPedidos);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, dto.IdsEliminados ?? idsPedidos);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
@@ -1173,7 +1218,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         {
             ["q"] = _busqueda,
             ["critico"] = _soloCriticos ? "true" : null,
-            ["estado"] = string.IsNullOrEmpty(_estadoDocumentalFiltro) ? null : _estadoDocumentalFiltro,
+            ["gestor"] = _ejecutivoFiltro,
+            ["estado"] = _estadoDocumentalFiltro,
         });
         await RecargarAsync();
     }

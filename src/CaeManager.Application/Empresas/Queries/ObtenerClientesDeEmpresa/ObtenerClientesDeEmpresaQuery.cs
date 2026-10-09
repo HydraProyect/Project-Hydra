@@ -55,13 +55,12 @@ internal sealed class ClienteVigenteDeEmpresa
 }
 
 /// <summary>
-/// Predicado ÚNICO de «a quién presta servicio esta Empresa»: Relación Empresarial vigente en la que la
+/// Predicado de «a quién presta servicio esta Empresa»: Relación Empresarial vigente en la que la
 /// Empresa es la proveedora y la contraparte es un Cliente empresarial real (<c>EsCritico != null</c>; ver
-/// el comentario del handler de arriba). Lo comparten la consulta de una Empresa y la de una página
-/// (<c>ObtenerResumenClientesDeEmpresasQuery</c>), para que la columna «Presta servicio a» de /empresas y su
-/// desplegable no puedan contar cosas distintas. NO aplica alcance: cada llamador acota antes los Ids con
-/// el alcance de GESTIÓN (REC-153). Proyecta a una clase con inicializador, no a un record con constructor,
-/// para que EF pueda ordenar después de la proyección.
+/// el comentario del handler de arriba). Hoy su único llamador es el handler de arriba (la fila desplegada
+/// de /empresas y la pestaña «Clientes empresariales» de Empresa 360). NO aplica alcance: el llamador acota
+/// antes los Ids con el alcance de GESTIÓN (REC-153). Proyecta a una clase con inicializador, no a un record
+/// con constructor, para que EF pueda ordenar después de la proyección.
 /// </summary>
 internal static class ClientesVigentesDeEmpresas
 {

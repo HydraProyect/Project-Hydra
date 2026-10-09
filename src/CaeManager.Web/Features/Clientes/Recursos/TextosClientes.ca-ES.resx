@@ -441,4 +441,16 @@
   <data name="TituloSinIncidencias" xml:space="preserve">
     <value>Sense alertes de vigència obertes entre els seus treballadors</value>
   </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="ToastLoteRestaurados" xml:space="preserve">
+    <value>{0} Client(s) empresarial(s) restaurat(s).</value>
+  </data>
+  <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
+    <value>{0} restaurat(s). {1} no s'han pogut restaurar: {2}</value>
+  </data>
+  <data name="ErrorRestaurarLote" xml:space="preserve">
+    <value>No s'ha pogut desfer la baixa. Torna-ho a provar.</value>
+  </data>
 </root>

@@ -39,7 +39,7 @@ public class EliminarClientesCommandHandler(
         if (usuarioId is null)
             return Result.Fallo<ResultadoEliminacionLoteDto>(Error.Crear("Cliente.SinIdentidad", "No se pudo confirmar tu identidad. Vuelve a iniciar sesión e inténtalo de nuevo."));
 
-        var eliminados = 0;
+        var eliminados = new List<Guid>();
         var errores = new List<string>();
 
         foreach (var id in request.Ids)
@@ -58,11 +58,11 @@ public class EliminarClientesCommandHandler(
             }
 
             empresa.MarcarComoEliminado(usuarioId.Value);
-            eliminados++;
+            eliminados.Add(id);
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result.Exito(new ResultadoEliminacionLoteDto(eliminados, errores));
+        return Result.Exito(new ResultadoEliminacionLoteDto(eliminados.Count, errores, eliminados));
     }
 }

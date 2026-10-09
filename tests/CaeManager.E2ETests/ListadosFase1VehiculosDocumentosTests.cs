@@ -19,7 +19,6 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixture fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/vehiculos");
         var sufijo = Guid.NewGuid().ToString("N")[..8];
         var prefijo = $"F1-{sufijo}";
@@ -68,7 +67,6 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixture fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
         await page.Locator("table.tabla-datos").WaitForAsync();
         // Las dos direcciones hacen visibles los extremos de la unión, aunque una página
@@ -98,7 +96,6 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixture fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         var paginaFria = await contexto.NewPageAsync();
         await Ayudas.NavegarYEsperarAsync(paginaFria, $"{fixture.BaseUrl}/documentos?Pestana=plantillas");
         await Expect(paginaFria.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "Plantillas", Exact = true }))

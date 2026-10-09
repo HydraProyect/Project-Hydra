@@ -3,6 +3,7 @@ using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -196,6 +197,44 @@ public class DocumentosGen2Tests : BunitContext
         Guid.NewGuid(), AmbitoAplicacion.Trabajador, "Salas Moreno, Javier", tipoDocumento,
         new DateOnly(2026, 1, 15), new DateOnly(2027, 1, 15), EstadoDocumento.Vigente,
         ArchivoUrl: null, Acreditaciones: []);
+
+    // ------------------------------------- Borrar un filtro guardado (T9)
+
+    [Fact]
+    public async Task Borrar_un_filtro_guardado_pide_confirmacion_y_solo_entonces_lo_borra()
+    {
+        var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Vencidos", "{\"Estado\":\"Vencido\"}", DateTime.UtcNow);
+        var guardados = new List<FiltroGuardadoDto> { filtro };
+        var mediador = new MediadorControlado();
+        mediador.Interceptar = p => p switch
+        {
+            ObtenerFiltrosGuardadosQuery => Task.FromResult<object?>(guardados.ToArray()),
+            EliminarFiltroGuardadoCommand e => Task.FromResult<object?>(BorrarDe(guardados, e.Id)),
+            _ => null,
+        };
+        var (cut, _) = Renderizar(mediador);
+        cut.WaitForAssertion(() => PastillaDocumentoFase1(cut, "Más filtros"));
+
+        await PastillaDocumentoFase1(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await cut.Find("[aria-label='Borrar filtro guardado Vencidos']").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().BeEmpty("pulsar el aspa solo pide confirmación");
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.QuerySelector("h2")!.TextContent.Should().Be("¿Borrar el filtro guardado «Vencidos»?");
+        dialogo.TextContent.Should().Contain("No borra ningún documento");
+
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Borrar filtro").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().Equal([new EliminarFiltroGuardadoCommand(filtro.Id)]);
+        cut.WaitForAssertion(() => cut.FindAll("[role=dialog]").Should().BeEmpty());
+        cut.FindAll("[aria-label='Borrar filtro guardado Vencidos']").Should().BeEmpty();
+    }
+
+    private static Result BorrarDe(List<FiltroGuardadoDto> guardados, Guid id)
+    {
+        guardados.RemoveAll(f => f.Id == id);
+        return Result.Exito();
+    }
 
     // ---------------------------------------------------------------- arnés
 

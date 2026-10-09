@@ -154,6 +154,59 @@ public class CatalogoIncorporacionCartera(
         return new ResultadoIncorporacionCartera(cartera, filaHeredada.Id, null);
     }
 
+    public async Task<ResultadoApoyoCartera> IncorporarApoyoAsync(
+        PropuestaApoyoCartera propuesta, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(propuesta);
+
+        var operacion = await ObtenerOperacionVigenteAsync(propuesta.AsignacionOperacionId, cancellationToken);
+        if (operacion is null
+            || operacion.EsRaiz
+            || operacion.PropietarioTenantId != propuesta.PropietarioTenantId
+            || operacion.OperadorTenantId != propuesta.OperadorTenantId)
+            return ResultadoApoyoCartera.Anulada(MotivoAnulacionPropuestaApoyo.OperacionNoVigente);
+
+        var ahora = DateTime.UtcNow;
+        var vinculoId = await VinculoVivoConElOperadorAsync(
+            propuesta.PropietarioTenantId, propuesta.OperadorTenantId, ahora, cancellationToken);
+        if (vinculoId is null)
+            return ResultadoApoyoCartera.Anulada(MotivoAnulacionPropuestaApoyo.OperacionNoVigente);
+
+        // El apoyo lo propone el principal: si quien propuso ya no lleva la marca en una
+        // cartera vigente de esta operación, la propuesta no se sostiene. Se lee seguida por
+        // el contexto para poder escribirla abajo.
+        var principal = await CarterasVivasDelOperador(propuesta.OperadorTenantId)
+            .FirstOrDefaultAsync(c => c.AsignacionOperacionId == propuesta.AsignacionOperacionId && c.EsPrincipal, cancellationToken);
+        if (principal is null || principal.UsuarioId != propuesta.ProponenteUsuarioId)
+            return ResultadoApoyoCartera.Anulada(MotivoAnulacionPropuestaApoyo.ProponenteYaNoEsPrincipal);
+
+        var yaEnCartera = await PropietariosEnCarteraAsync(
+            [propuesta.PropietarioTenantId], propuesta.OperadorTenantId, propuesta.DestinatarioUsuarioId, cancellationToken);
+        if (yaEnCartera.Count > 0)
+            return ResultadoApoyoCartera.Anulada(MotivoAnulacionPropuestaApoyo.YaEnCartera);
+
+        // Candado optimista sobre la marca: se renueva la versión de la cartera del principal
+        // sin cambiarle nada más. Una designación, un relevo o un cierre que le quiten la marca
+        // a la vez escriben esta misma fila, y uno de los dos guardados pierde por la versión.
+        dbContext.Entry(principal).Property(c => c.Version).IsModified = true;
+
+        var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
+
+        // Cartera de apoyo: rol fijo Gestor CAE, Tenant entero, sin caducidad. Aquí no se marca
+        // principal nunca, haya o no principal vivo: esa regla es de IncorporarAsync, que
+        // decide un Coordinador CAE o superior; un apoyo lo origina un igual.
+        var cartera = AsignacionCartera.Externa(
+            operacion, propuesta.DestinatarioUsuarioId, RolIncorporado, AmbitoAsignacion.Universal,
+            ahora, vigenciaHasta: null, ahora, actorId);
+        dbContext.AsignacionesCartera.Add(cartera);
+
+        // Misma doble escritura de F1 que IncorporarAsync.
+        var filaHeredada = new AsignacionOperadorDelegado(vinculoId.Value, propuesta.DestinatarioUsuarioId, RolIncorporado);
+        dbContext.AsignacionesOperadorDelegadoConRevocadas.Add(filaHeredada);
+
+        return new ResultadoApoyoCartera(cartera, filaHeredada.Id, null);
+    }
+
     public async Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(solicitud);
@@ -438,6 +491,8 @@ public class CatalogoIncorporacionCartera(
     private static readonly HashSet<string> RestriccionesDeCarrera =
     [
         SolicitudIncorporacionCarteraConfiguration.IndicePendienteUnica,
+        // Dos propuestas de apoyo a la vez al mismo destinatario sobre la misma operación.
+        PropuestaApoyoCarteraConfiguration.IndicePendienteUnica,
         "IX_AsignacionesCartera_UsuarioUniversalVigente",
         // Dos emisiones simultáneas a Gestores CAE distintos sobre una operación sin principal:
         // las dos nacen marcadas y el índice deja pasar una. La que pierde se reintenta y nace

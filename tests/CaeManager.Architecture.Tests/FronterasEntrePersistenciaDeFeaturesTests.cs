@@ -103,7 +103,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Auditoria.ObtenerAuditoriaQueryHandler", "ICentrosQueryContext"),
         ("Auditoria.ObtenerAuditoriaQueryHandler", "IDocumentosQueryContext"),
         ("Auditoria.ObtenerAuditoriaQueryHandler", "IEmpresasQueryContext"),
+        ("Auditoria.ObtenerAuditoriaQueryHandler", "IGestionesQueryContext"),
+        ("Auditoria.ObtenerAuditoriaQueryHandler", "IProyectosQueryContext"),
         ("Auditoria.ObtenerAuditoriaQueryHandler", "ITrabajadoresQueryContext"),
+        ("Auditoria.ObtenerAuditoriaQueryHandler", "IVehiculosQueryContext"),
         // La pantalla de accesos a documentos sensibles enseña el nombre del Tipo
         // de documento en vez del GUID (revisión UX pre-piloto 2026-09-28, D.1):
         // una lectura en lote por página, con los filtros normales de Documentos
@@ -205,6 +208,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.EditarSubcontrataCommandHandler", "IEmpresaRepository"),
         ("Subcontratas.EliminarSubcontrataCommandHandler", "IEmpresaRepository"),
         ("Subcontratas.EliminarSubcontratasCommandHandler", "IEmpresaRepository"),
+        ("Subcontratas.RestaurarSubcontrataCommandHandler", "IEmpresasQueryContext"),
         ("Subcontratas.CambiarNivelServicioSubcontrataCommandHandler", "IEmpresaRepository"),
         ("Subcontratas.GuardarCredencialAccesoSubcontrataCommandHandler", "IEmpresaRepository"),
         ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "IEmpresaRepository"),
@@ -564,6 +568,11 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("TiposDocumento.ActualizarLecturaIaClienteCommandHandler", "IClientesQueryContext"),
         ("TiposDocumento.ActualizarLecturaIaClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("TiposDocumento.ActualizarLecturaIaGlobalCommandHandler", "ITipoDocumentoRepository"),
+        // Tipo de documento 360: el estado de un tipo se pinta por Trabajador y Centro, con el nombre de su Empresa y las fechas de su documento.
+        ("TiposDocumento.ObtenerEstadoTipoDocumentoQueryHandler", "ICentrosQueryContext"),
+        ("TiposDocumento.ObtenerEstadoTipoDocumentoQueryHandler", "IDocumentosQueryContext"),
+        ("TiposDocumento.ObtenerEstadoTipoDocumentoQueryHandler", "IEmpresasQueryContext"),
+        ("TiposDocumento.ObtenerEstadoTipoDocumentoQueryHandler", "ITrabajadoresQueryContext"),
         // La tolerancia por defecto del Cliente empresarial (Empresa contraparte) vive junto a los Tipos; se comprueba el alcance como en la lectura por IA.
         ("TiposDocumento.EstablecerToleranciaClienteEmpresarialCommandHandler", "IToleranciaDocumentoClienteEmpresarialRepository"),
         ("TiposDocumento.ActualizarPerfilDocumentoOficialGlobalCommandHandler", "ITipoDocumentoRepository"),
@@ -744,6 +753,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Operaciones.RechazarSolicitudIncorporacionCarteraCommandHandler", "ITenantsQueryContext"),
         ("Operaciones.RevocarIncorporacionCarteraCommandHandler", "INotificacionUsuarioRepository"),
         ("Operaciones.RevocarIncorporacionCarteraCommandHandler", "ITenantsQueryContext"),
+
+        // Propuesta de apoyo (2026-10-08): el destinatario y quien la propone ven
+        // el Tenant propietario rotulado «Empresa» por su nombre, igual que en la
+        // solicitud de incorporación. Solo lee el nombre de los Tenants de las
+        // propuestas que el repositorio ya acotó al Operador CAE de origen.
+        ("Operaciones.ObtenerPropuestasApoyoPendientesQueryHandler", "ITenantsQueryContext"),
     };
 
     [Fact]

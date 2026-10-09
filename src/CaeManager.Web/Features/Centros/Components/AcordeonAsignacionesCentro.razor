@@ -41,12 +41,15 @@ else if (_cargando)
 }
 else
 {
-    <div class="acordeon-asignaciones-cabecera">
-        <Boton Variante="@(AsignarEsPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
-        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
-            Dar de baja seleccionados
-        </Boton>
-    </div>
+    @* Asignar y dar de baja son ICommand denegados a Consulta: la barra entera se le oculta, sin dejar el hueco. *@
+    <SoloConEscritura>
+        <div class="acordeon-asignaciones-cabecera">
+            <Boton Variante="@(AsignarEsPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
+                Dar de baja seleccionados
+            </Boton>
+        </div>
+    </SoloConEscritura>
 
     @*
         Ámbito EMPRESA (OD-13, blueprint § 3.3). Aparece solo cuando la empresa
@@ -107,9 +110,16 @@ else
             {
                 <div class="fila-documento-requerido" role="row" @key="incidencia.TipoDocumentoId">
                     <span class="celda-documento-nombre" role="cell">
-                        <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresaAsync(incidencia)">
-                            @incidencia.Descripcion
-                        </button>
+                        @* El nombre abre el mismo drawer de gestión que la columna de acción, que Consulta no puede usar:
+                           a Consulta se le pinta como texto (igual que en Trabajador 360). *@
+                        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombreEmpresa">
+                            <Authorized>
+                                <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarEmpresaAsync(incidencia)">
+                                    @incidencia.Descripcion
+                                </button>
+                            </Authorized>
+                            <NotAuthorized>@incidencia.Descripcion</NotAuthorized>
+                        </AuthorizeView>
                     </span>
                     @* Estado null: un rechazo en plataforma no tiene vigencia documental que describir (CalculoEstadoCentroService). *@
                     <span role="cell">
@@ -155,10 +165,13 @@ else
             {
                 <div class="fila-documento-requerido" @key="trabajador.TrabajadorId">
                     <span class="fila-documento-requerido-nombre">@trabajador.TrabajadorNombre</span>
-                    <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_asignandoDesdeVisita.Contains(trabajador.TrabajadorId)"
-                           OnClick="() => AsignarDesdeVisitaAsync(trabajador)">
-                        Asignar
-                    </Boton>
+                    @* CrearAsignacionCommand, denegado a Consulta: el aviso se le deja, la acción no. *@
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_asignandoDesdeVisita.Contains(trabajador.TrabajadorId)"
+                               OnClick="() => AsignarDesdeVisitaAsync(trabajador)">
+                            Asignar
+                        </Boton>
+                    </SoloConEscritura>
                 </div>
             }
         </div>
@@ -359,9 +372,15 @@ else
                                     {
                                         <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
                                             <span class="celda-documento-nombre" role="cell">
-                                                <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
-                                                    @documento.TipoDocumentoNombre
-                                                </button>
+                                                @* Mismo criterio que el nombre de la incidencia de Empresa, arriba: a Consulta, texto. *@
+                                                <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombre">
+                                                    <Authorized>
+                                                        <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarAsync(trabajador.TrabajadorId, documento)">
+                                                            @documento.TipoDocumentoNombre
+                                                        </button>
+                                                    </Authorized>
+                                                    <NotAuthorized>@documento.TipoDocumentoNombre</NotAuthorized>
+                                                </AuthorizeView>
                                             </span>
                                             <span role="cell">
                                                 @if (documento.DocumentoId is null)

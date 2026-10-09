@@ -117,7 +117,8 @@
                           HayFiltrosActivos="HayFiltrosActivos"
                           OnLimpiarTodo="LimpiarFiltrosAsync"
                           OnGuardarFiltro="AbrirGuardarFiltro"
-                          FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync">
+                          FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
+                          OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado">
                 <Pastillas>
                     <PastillaFiltro Etiqueta="@Textos["ListaFiltroAmbito"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_ambitoFiltro"
                                     ValorChanged="CambiarAmbitoFiltroAsync" Opciones="OpcionesAmbitoListado" />
@@ -314,6 +315,16 @@
     Mensaje="@Textos["ConfirmarEliminarLoteMensaje"]"
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+
+@* Borrar un filtro guardado pregunta antes: no se puede deshacer. Mismo patrón que Clientes empresariales. *@
+<DialogoConfirmacion
+    Visible="_filtroGuardadoAEliminar is not null"
+    VisibleChanged="CambiarVisibilidadBorradoFiltroGuardado"
+    Titulo="@Textos["FiltroGuardadoBorrarTitulo", _filtroGuardadoAEliminar?.Nombre ?? string.Empty]"
+    Mensaje="@Textos["FiltroGuardadoBorrarMensaje"]"
+    TextoBotonConfirmar="@Textos["FiltroGuardadoBorrarBoton"]"
+    EnProgreso="_eliminandoFiltroGuardado"
+    OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />
 
 @* «Guardar filtro» es un formulario de un campo: ModalFormulario (guardián, «Cancelar», «Guardar» único con su motivo y estado, aviso
    del formulario y aviso de navegación vienen del kit). Fuera de <Pestanas>, a nivel de página: el nombre del filtro no es de

@@ -11,6 +11,7 @@ using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
 using CaeManager.Application.Proyectos.Commands.CrearProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
+using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
@@ -128,12 +129,50 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         {
             _cargando = false;
         }
+
+        // Un enlace o una recarga con ?cliente= abre la lista de ese Cliente empresarial.
+        await AplicarClienteDeLaUrlAsync();
     }
 
-    private async Task OnClienteSeleccionadoAsync(string valor)
-    {
-        var nuevo = Guid.TryParse(valor, out var id) ? id : Guid.Empty;
+    /// <summary>
+    /// Cliente empresarial elegido, en la URL (<c>?cliente=</c>) como en Centros:
+    /// es el maestro de la lista, y sin él recargar o compartir el enlace
+    /// volvía a «Elige un Cliente empresarial».
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "cliente")]
+    public string? ClienteInicial { get; set; }
 
+    /// <summary>
+    /// Elige el Cliente empresarial que pide la URL si es uno de los que este
+    /// usuario puede elegir y no es ya el elegido. Un Id ajeno a la lista, o la
+    /// ausencia del parámetro, no cambian nada: la URL no puede abrir un Cliente
+    /// empresarial que el selector no ofrece. Pasa por
+    /// <see cref="OnClienteSeleccionadoAsync"/>, así que pregunta antes de
+    /// perder lo escrito en el panel de detalle.
+    ///
+    /// <para>
+    /// <b>No escribe en la URL</b>: ya dice ese Cliente empresarial, y esta ruta
+    /// corre también en <c>OnInitializedAsync</c> durante el prerender, donde un
+    /// <c>NavigateTo</c> es una redirección HTTP — a la misma dirección, en bucle.
+    /// </para>
+    /// </summary>
+    private async Task AplicarClienteDeLaUrlAsync()
+    {
+        if (_cargando || _errorCarga)
+            return;
+        if (Guid.TryParse(ClienteInicial, out var id) && id != _clienteSeleccionadoId && _clientes.Any(c => c.Id == id))
+            await SeleccionarClienteAsync(id, pedidoPorLaUrl: true);
+    }
+
+    private void EscribirClienteEnUrl() =>
+        NavigationManager.ActualizarFiltroEnUrl(
+            "cliente", _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString());
+
+    private Task OnClienteSeleccionadoAsync(string valor) =>
+        SeleccionarClienteAsync(Guid.TryParse(valor, out var id) ? id : Guid.Empty, pedidoPorLaUrl: false);
+
+    private async Task SeleccionarClienteAsync(Guid nuevo, bool pedidoPorLaUrl)
+    {
         // Cambiar de Cliente empresarial cierra el panel de detalle (OnClienteChangedAsync): si
         // tenía algo escrito, se pregunta antes y, si se sigue editando, la selección vuelve
         // al Cliente empresarial anterior y se renueva el selector.
@@ -141,11 +180,19 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         {
             _versionSelectorCliente++;
             _focoSelectorClienteEmpresarialPendiente = true;
+            // Si el cambio lo pedía la URL, vuelve a decir el Cliente empresarial que sigue en pantalla.
+            // Pedido desde el selector no se navega: la URL no ha cambiado, y una navegación con el
+            // panel todavía sin guardar volvería a preguntar «¿Salir sin guardar?».
+            if (pedidoPorLaUrl)
+                EscribirClienteEnUrl();
             return;
         }
 
         _clienteSeleccionadoId = nuevo;
+        // Primero se cierra el panel de detalle; la URL se escribe ya sin nada pendiente de guardar.
         await OnClienteChangedAsync();
+        if (!pedidoPorLaUrl)
+            EscribirClienteEnUrl();
     }
 
     private int _versionSelectorCliente;
@@ -303,7 +350,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// que Vehiculos.razor.cs). Mientras se resuelve la empresa activa, en el
     /// estado 4a y con la página retirada la URL no se sincroniza.
     /// </summary>
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         // Retirada la página con la resolución en vuelo, ComponentBase aún invoca esto: no se procesan
         // parámetros de la URL de un componente que ya no existe, ni en el estado 4a.
@@ -324,6 +371,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         // quitar el filtro, sobre una fila que el usuario ya no tenía delante.
         if (_idEnfocado is { } idEnfocado && !_proyectos.Any(p => p.Id == idEnfocado && CumpleFiltros(p)))
             _idEnfocado = null;
+
+        await AplicarClienteDeLaUrlAsync();
     }
 
     private bool HayFiltrosActivos =>
@@ -371,7 +420,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     /// <summary>
     /// Quita los dos filtros, y los dos TAMBIÉN de la URL en una sola
-    /// navegación: <see cref="OnParametersSet"/> re-sincroniza desde la URL,
+    /// navegación: <see cref="OnParametersSetAsync"/> re-sincroniza desde la URL,
     /// así que dejarlos allí los devolvería en cuanto el router volviera a
     /// pasar. El cliente elegido no es un filtro: es el maestro de la lista y
     /// se queda como está.
@@ -680,20 +729,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Días del periodo abierto del proyecto: de <paramref name="inicio"/> al
-    /// cierre real o, si sigue abierto, a <paramref name="hoy"/>. Cuenta
-    /// INCLUSIVA —el día de inicio y el de cierre cuentan los dos—, la misma
-    /// que usa la facturación por días de proyecto abierto
-    /// (ObtenerResumenFacturacionQuery, <c>hasta - desde + 1</c>): dos cifras
-    /// de "días abiertos" que no cuadrasen entre sí serían peor que ninguna.
-    /// Sin valor si el proyecto todavía no ha empezado.
-    /// </summary>
-    private static int? DiasAbiertos(DateOnly inicio, DateOnly? cierre, DateOnly hoy)
-    {
-        var fin = cierre ?? hoy;
-        return fin < inicio ? null : fin.DayNumber - inicio.DayNumber + 1;
-    }
+    private static int? DiasAbiertos(DateOnly inicio, DateOnly? cierre, DateOnly hoy) =>
+        PlazoProyecto.DiasAbiertos(inicio, cierre, hoy);
 
     private string TextoTecnicosActivos(int tecnicosActivos) =>
         tecnicosActivos == 1
@@ -929,7 +966,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
         try
         {
-            var resultado = await Mediator.Send(new EliminarProyectoCommand(_idAEliminar));
+            var idEliminado = _idAEliminar;
+            var resultado = await Mediator.Send(new EliminarProyectoCommand(idEliminado));
 
             if (resultado.EsFallido)
             {
@@ -937,10 +975,10 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
                 return;
             }
 
-            ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(idEliminado));
             _confirmarEliminarVisible = false;
 
-            if (_proyectoSeleccionadoId == _idAEliminar)
+            if (_proyectoSeleccionadoId == idEliminado)
                 CerrarDetalle();
 
             await CargarProyectosAsync();
@@ -954,6 +992,35 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             _eliminando = false;
         }
     }
+
+    /// <summary>«Deshacer» del aviso tras eliminar — ver RestaurarProyectoCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        // Guarda por elemento: dos pulsaciones en «Deshacer» del mismo aviso no mandan dos restauraciones.
+        if (!_restaurando.Add(id)) return;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarProyectoCommand(id));
+
+            ToastService.Mostrar(
+                resultado.EsExitoso ? Textos["ToastRestaurado"].Value : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                await CargarProyectosAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurando.Remove(id);
+        }
+    }
+
+    private readonly HashSet<Guid> _restaurando = [];
 
     // ---- Técnicos ----
 

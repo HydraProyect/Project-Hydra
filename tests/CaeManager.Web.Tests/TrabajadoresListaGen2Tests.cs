@@ -7,6 +7,7 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesPara
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Documentos;
@@ -185,6 +186,9 @@ public class TrabajadoresListaGen2Tests : BunitContext
                     return Result.Exito(Guid.NewGuid());
                 case GuardarFiltroCommand:
                     return ResultadoGuardarFiltro ?? Result.Exito(Guid.NewGuid());
+                case EliminarFiltroGuardadoCommand e:
+                    FiltrosGuardados.RemoveAll(f => f.Id == e.Id);
+                    return Result.Exito();
                 case EliminarTrabajadorCommand c:
                     _papelera.AddRange(Almacen.Where(f => f.Dto.Id == c.Id));
                     Almacen.RemoveAll(f => f.Dto.Id == c.Id);
@@ -978,7 +982,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
         acciones.QuerySelectorAll("a").Should().BeEmpty("«Exportar a Excel» vive ahora dentro del «⋯»");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Selección múltiple", "Más acciones", "+ Nuevo trabajador");
+            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo trabajador");
     }
 
     [Fact]
@@ -1298,7 +1302,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         await cut.Find(".barra-filtros-pastillas .limpiar-filtros-barra").ClickAsync(new MouseEventArgs());
 
         var uri = Services.GetRequiredService<NavigationManager>().Uri;
-        uri.Should().NotContain("q=").And.NotContain("estado=");
+        uri.Should().NotContain("q=").And.NotContain("estado=").And.NotContain("empresa=");
         UltimaConsulta(mediador).Busqueda.Should().BeNull();
         UltimaConsulta(mediador).EstadoDocumental.Should().BeNull();
         UltimaConsulta(mediador).EmpresaId.Should().BeNull();
@@ -1324,9 +1328,118 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Todos"));
     }
 
+    // ------------------------------------- El empleador viaja en la URL (T20)
+
+    [Fact]
+    public async Task Elegir_la_Empresa_la_escribe_en_la_url_y_elegir_una_subcontrata_la_sustituye()
+    {
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno", EmpresaEbro) } };
+        var cut = Renderizar(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await ElegirEnLaPastilla(cut, "Empresa", "Montajes Ebro S.L.");
+
+        navegacion.Uri.Should().Contain($"empresa={EmpresaEbro}").And.NotContain("subcontrata=");
+        UltimaConsulta(mediador).EmpresaId.Should().Be(EmpresaEbro);
+
+        await ElegirEnLaPastilla(cut, "Empresa", "Aislamientos Nervión S.L. (subcontrata)");
+
+        navegacion.Uri.Should().Contain($"subcontrata={SubcontrataNervion}").And.NotContain("empresa=",
+            "son excluyentes y viajan en una sola navegación");
+        UltimaConsulta(mediador).SubcontrataId.Should().Be(SubcontrataNervion);
+        UltimaConsulta(mediador).EmpresaId.Should().BeNull();
+    }
+
+    /// <summary>Recargar o compartir el enlace reproduce la vista: el filtro sale de la URL, no de la memoria.</summary>
+    [Fact]
+    public void Un_enlace_con_la_Empresa_filtra_la_consulta_y_pinta_su_chip()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Trabajador("Javier", "Salas Moreno", EmpresaEbro), Trabajador("Nuria", "Vega Ortiz", EmpresaDexter) }
+        };
+        var cut = Renderizar(mediador, $"trabajadores?empresa={EmpresaDexter}");
+
+        UltimaConsulta(mediador).EmpresaId.Should().Be(EmpresaDexter);
+        cut.WaitForAssertion(() => TextosDeLosChips(cut).Should().Equal("Dexter Industrial S.A."));
+    }
+
+    [Fact]
+    public void Un_valor_de_Empresa_en_la_url_que_no_es_un_Id_no_filtra()
+    {
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno", EmpresaEbro) } };
+        var cut = Renderizar(mediador, "trabajadores?empresa=no-es-un-id");
+
+        UltimaConsulta(mediador).EmpresaId.Should().BeNull();
+        TextosDeLosChips(cut).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Aplicar_un_filtro_guardado_con_Empresa_la_escribe_en_la_url()
+    {
+        var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Solo Dexter", "{\"EmpresaId\":\"" + EmpresaDexter + "\"}", DateTime.UtcNow);
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Nuria", "Vega Ortiz", EmpresaDexter) }, FiltrosGuardados = { filtro } };
+        var cut = Renderizar(mediador, $"trabajadores?subcontrata={SubcontrataNervion}");
+
+        await PulsarEnMasFiltros(cut, "Solo Dexter");
+
+        var uri = Services.GetRequiredService<NavigationManager>().Uri;
+        uri.Should().Contain($"empresa={EmpresaDexter}").And.NotContain("subcontrata=",
+            "si la Empresa quedara solo en memoria, la siguiente pasada de parámetros repondría la subcontrata de la URL");
+        UltimaConsulta(mediador).EmpresaId.Should().Be(EmpresaDexter);
+    }
+
+    // ------------------------------------- Borrar un filtro guardado (T9)
+
+    [Fact]
+    public async Task Borrar_un_filtro_guardado_pide_confirmacion_y_solo_entonces_lo_borra()
+    {
+        var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Solo Vega", "{\"Busqueda\":\"Vega\"}", DateTime.UtcNow);
+        var mediador = new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno") }, FiltrosGuardados = { filtro } };
+        var cut = Renderizar(mediador);
+
+        await PulsarBorrarFiltroGuardado(cut, "Solo Vega");
+
+        mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().BeEmpty("pulsar el aspa solo pide confirmación");
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.QuerySelector("h2")!.TextContent.Should().Be("¿Borrar el filtro guardado «Solo Vega»?");
+        dialogo.TextContent.Should().Contain("No borra ningún trabajador");
+
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Borrar filtro").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().Equal([new EliminarFiltroGuardadoCommand(filtro.Id)]);
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().ContainSingle(
+            "borrado el filtro no se relee la lista: si esa relectura fallara, la confirmación quedaría abierta sobre un filtro que ya no existe");
+        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado").Should().BeEmpty());
+    }
+
+    [Fact]
+    public async Task Cancelar_el_borrado_de_un_filtro_guardado_no_lo_borra()
+    {
+        var filtro = new FiltroGuardadoDto(Guid.NewGuid(), "Solo Vega", "{\"Busqueda\":\"Vega\"}", DateTime.UtcNow);
+        var mediador = new MediatorFalso { FiltrosGuardados = { filtro } };
+        var cut = Renderizar(mediador);
+
+        await PulsarBorrarFiltroGuardado(cut, "Solo Vega");
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().BeEmpty();
+        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado").Should().ContainSingle(c => c.TextContent.Contains("Solo Vega"));
+    }
+
+    private static async Task PulsarBorrarFiltroGuardado(IRenderedComponent<Trabajadores> cut, string nombre)
+    {
+        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await cut.Find($".barra-filtros-pastillas [aria-label='Borrar filtro guardado {nombre}']").ClickAsync(new MouseEventArgs());
+    }
+
     /// <summary>
-    /// Los filtros guardados viven dentro de «Más filtros», con «Guardar filtro» al final: se ve
-    /// pero está deshabilitado mientras no haya ningún filtro aplicado (no hay nada que guardar).
+    /// Los filtros guardados viven dentro de «Más filtros», uno por línea con su ✕, y «Guardar
+    /// filtro» al final: se ve pero está deshabilitado mientras no haya ningún filtro aplicado
+    /// (no hay nada que guardar).
     /// </summary>
     [Fact]
     public async Task Mas_filtros_lleva_los_filtros_guardados_y_Guardar_filtro_deshabilitado_sin_filtros()
@@ -1341,7 +1454,8 @@ public class TrabajadoresListaGen2Tests : BunitContext
         await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
 
         var items = cut.FindAll(".barra-filtros-pastillas [role=menuitem]");
-        items.Select(i => i.TextContent.Trim()).Should().Equal("Solo Vega", "Guardar filtro");
+        items.Select(i => i.TextContent.Trim()).Should().Equal("Solo Vega", "", "Guardar filtro");
+        items[1].GetAttribute("aria-label").Should().Be("Borrar filtro guardado Solo Vega");
         items.Single(i => i.TextContent.Trim() == "Guardar filtro").HasAttribute("disabled").Should().BeTrue();
     }
 
@@ -1357,7 +1471,7 @@ public class TrabajadoresListaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Alonso", "la lista es lectura: la fila se ve");
         cut.Find("header.cabecera-pagina .acciones-cabecera").QuerySelectorAll("button")
             .Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal(["Más acciones"], "sin ☑ ni alta: solo el «⋯» con la exportación, que es lectura");
+            .Should().Equal(["Atajos de teclado", "Más acciones"], "sin ☑ ni alta: solo el «⋯» con la exportación, que es lectura");
         Pastilla(cut, "Más filtros").Should().NotBeNull("la barra sigue ahí: solo falta el modo de selección");
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
         cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();

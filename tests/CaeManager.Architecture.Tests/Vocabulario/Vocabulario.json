@@ -115,6 +115,24 @@
       "noConfundirCon": "Gestor CAE principal"
     },
     {
+      "id": "propuesta-de-apoyo",
+      "forma": "Propuesta de apoyo",
+      "plural": "Propuestas de apoyo",
+      "formasCortasPermitidas": [],
+      "significado": "El ofrecimiento que el Gestor CAE principal (o el Coordinador CAE principal) de un Tenant hace a otro Gestor CAE de su mismo Operador CAE para que le apoye en ese Tenant. No da acceso por sí sola: solo cuando el destinatario la acepta nace su Asignación de Cartera, sin la marca de principal y con rol Gestor CAE. El destinatario puede rechazarla y quien la hizo, retirarla.",
+      "contrato": "§ 3.5",
+      "noConfundirCon": "Solicitud de incorporación a cartera (la pide quien quiere entrar y la resuelve el Coordinador CAE); Gestor CAE de apoyo (el resultado de aceptarla)"
+    },
+    {
+      "id": "dar-acceso",
+      "forma": "Dar acceso",
+      "plural": "Dar acceso",
+      "formasCortasPermitidas": [],
+      "significado": "La acción con la que el Gestor CAE principal de un Tenant inicia una Propuesta de apoyo a otro Gestor CAE de su mismo Operador CAE. El acceso no se concede al pulsarla: llega cuando el destinatario acepta.",
+      "contrato": "§ 3.5",
+      "noConfundirCon": "Asignar cartera (lo hace el Coordinador CAE, sin aceptación); Solicitar incorporación (la inicia quien quiere entrar)"
+    },
+    {
       "id": "mi-trabajo",
       "forma": "Mi trabajo",
       "plural": null,

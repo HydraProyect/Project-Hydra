@@ -16,7 +16,6 @@ public class SeleccionTenantDelegadoFichas360Tests(WebAppFixtureVentanaSoporte f
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailOperadorConsultaConsultora, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         var tenantBeneficiario = await fixture.LeerValorSqlAsync(
             """SELECT "Id"::text FROM "Tenants" WHERE "Nombre" = @n""", ("n", Ayudas.NombreClienteDelegadoDemo));

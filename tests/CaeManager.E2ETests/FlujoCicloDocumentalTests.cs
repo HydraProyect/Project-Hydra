@@ -205,13 +205,6 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await Expect(detalleRevision.Locator(".revision-ia-motivo"))
             .ToContainTextAsync("Confianza baja (50%)");
 
-        // Segunda comprobación: TrabajoAnalisisDocumento.MarcarCompletado() y
-        // la NotificacionUsuario se guardan en un SaveChangesAsync posterior
-        // al que ya creó la RevisionIaDocumento (ver
-        // ProcesadorAnalisisDocumentoHostedService.ProcesarPendientesDelTenantAsync)
-        // — el botón de la cola de arriba puede encontrarse un instante antes de que la
-        // notificación exista todavía.
-        await DescartarNotificacionPendienteSiApareceAsync(page);
         await detalleRevision.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Descartar la lectura" }).ClickAsync();
 
         // El detalle y DialogoConfirmacion comparten el texto del botón de
@@ -391,7 +384,6 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         while (true)
         {
             await Ayudas.NavegarYEsperarAsync(page, $"{baseUrl}/documentos/revision-ia");
-            await DescartarNotificacionPendienteSiApareceAsync(page);
             var boton = page.Locator(".revision-ia-cola").GetByRole(
                 AriaRole.Button,
                 new LocatorGetByRoleOptions { Name = apellidosTrabajador });
@@ -405,41 +397,6 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
             await page.WaitForTimeoutAsync(2_000);
         }
-    }
-
-    /// <summary>
-    /// NotificacionesPopup (ver MainLayout.razor) es un modal bloqueante
-    /// (CerrarAlHacerClicFuera=false) que aparece en CUALQUIER navegación
-    /// completa mientras el Administrador tenga una <c>NotificacionUsuario</c>
-    /// sin leer — y la verificación IA de este test genera una al completar
-    /// (ver ProcesadorAnalisisDocumentoHostedService.AvisarSiCorrespondeAsync).
-    /// Descubierto en CI (no una hipótesis): sin este descarte, el "Marcar
-    /// como revisado" de más abajo fallaba con "modal-superposicion
-    /// intercepts pointer events" — y peor, al quedar sin leer, la MISMA
-    /// notificación volvía a bloquear el primer clic de cualquier otro test
-    /// de "AppCollection" que iniciara sesión después con el mismo
-    /// Administrador (la cuenta la comparte toda la suite). Se descarta con
-    /// "Omitir" (solo marca MarcarNotificacionLeidaCommand, sin navegar) en
-    /// cuanto aparece — la marca queda persistida, así que basta una vez
-    /// para el resto de este test y para toda la suite.
-    ///
-    /// Espera explícitamente a que la superposición desaparezca del DOM
-    /// tras el clic: ClickAsync solo confirma que el evento llegó al
-    /// navegador, no que el viaje de ida y vuelta al servidor
-    /// (MarcarNotificacionLeidaCommand) ya terminó y Blazor ya desmontó el
-    /// modal — visto en CI, una llamada posterior a este mismo método podía
-    /// resolver el MISMO botón a medio desmontar y fallar con "element was
-    /// detached from the DOM" en vez de simplemente no encontrar nada.
-    /// </summary>
-    private static async Task DescartarNotificacionPendienteSiApareceAsync(IPage page)
-    {
-        var boton = page.GetByText("Omitir");
-        if (await boton.CountAsync() == 0)
-            return;
-
-        await boton.ClickAsync();
-        await page.Locator(".modal-superposicion").WaitForAsync(
-            new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

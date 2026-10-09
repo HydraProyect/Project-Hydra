@@ -862,6 +862,8 @@ public class Trabajador360Gen2Tests : BunitContext
             "Subir, Renovar, Ver, Dar de baja y Completar son las únicas acciones de fila y todas escriben");
         cut.FindAll(".trabajador360-centro-detalle button.enlace-nombre-fila").Should().BeEmpty(
             "el nombre del documento abre el mismo drawer de gestión: a Consulta se le pinta como texto");
+        cut.FindAll(".menu-acciones-disparador").Should().BeEmpty(
+            "Editar, Reclamar faltantes y Crear gestión son escrituras: sin ellas el «⋯» abriría un menú vacío");
     }
 
     /// <summary>

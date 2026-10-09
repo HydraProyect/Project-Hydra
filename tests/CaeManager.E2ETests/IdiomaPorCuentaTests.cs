@@ -58,7 +58,6 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
         var setCookieLogin = await IniciarSesionLocalAsync(
             page, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
         Assert.Contains(setCookieLogin, c => c.StartsWith($"{NombreCookie}={ValorEspanol};"));
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         Assert.Equal("es-ES", await CulturaServidaAsync(contexto));
 
         try
@@ -87,7 +86,6 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
             var setCookieRelogin = await IniciarSesionLocalAsync(
                 page, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
             Assert.Contains(setCookieRelogin, c => c.StartsWith($"{NombreCookie}={ValorCatalan};"));
-            await Ayudas.DescartarNotificacionesPendientesAsync(page);
             Assert.Equal("ca-ES", await CulturaServidaAsync(contexto));
         }
         finally
@@ -111,7 +109,6 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await IniciarSesionLocalAsync(page, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         try
         {
@@ -150,7 +147,6 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
         var page = await contexto.NewPageAsync();
 
         await IniciarSesionLocalAsync(page, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         try
         {
@@ -164,7 +160,6 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
             // estuviera en ca-ES.
             var setCookieB = await IniciarSesionLocalAsync(page, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
             Assert.Contains(setCookieB, c => c.StartsWith($"{NombreCookie}={ValorEspanol};"));
-            await Ayudas.DescartarNotificacionesPendientesAsync(page);
             Assert.Equal("es-ES", await CulturaServidaAsync(contexto));
 
             await CerrarSesionAsync(page);
@@ -298,7 +293,6 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
             await CerrarSesionAsync(page);
 
         await IniciarSesionLocalAsync(page, email, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         if (await page.Locator("html").GetAttributeAsync("lang") is "ca-ES")
             await CambiarIdiomaAsync(page, "es-ES");

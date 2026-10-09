@@ -7,6 +7,25 @@ namespace CaeManager.Application.Tests.Clientes;
 
 public class EliminarClientesCommandHandlerTests
 {
+    /// <summary>Listados 5/7: el «Deshacer» del lote restaura exactamente estos ids, así que el DTO tiene que decir cuáles cayeron.</summary>
+    [Fact]
+    public async Task Devuelve_los_ids_de_los_que_si_se_dieron_de_baja_y_no_los_de_los_rechazados()
+    {
+        var sinCentros = Empresa.CrearComoCliente("Sin centros", "B12345674", false, null, null);
+        var conCentros = Empresa.CrearComoCliente("Con centros", "B12345674", false, null, null);
+        var repositorio = new EmpresaRepositorioFalso();
+        repositorio.Agregar(sinCentros);
+        repositorio.Agregar(conCentros);
+        repositorio.IdsConCentrosActivos.Add(conCentros.Id);
+        var handler = new EliminarClientesCommandHandler(
+            repositorio, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new CurrentUserServiceFalso(Guid.NewGuid()));
+
+        var resultado = await handler.Handle(
+            new EliminarClientesCommand([sinCentros.Id, conCentros.Id, Guid.NewGuid()]), CancellationToken.None);
+
+        resultado.Valor.IdsEliminados.Should().Equal([sinCentros.Id]);
+    }
+
     [Fact]
     public async Task Elimina_todos_los_clientes_sin_centros_activos()
     {

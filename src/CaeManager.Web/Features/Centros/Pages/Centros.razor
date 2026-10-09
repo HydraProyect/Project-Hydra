@@ -102,7 +102,7 @@
         <Herramientas>
             @if (_elementosPagina.Count > 0)
             {
-                <span class="segmentado-lista" role="group" aria-label="@Textos["AgruparEtiqueta"]">
+                <span class="segmentado-lista" role="group" aria-label="@Textos["AgruparEtiqueta"]" data-keytip="A" data-keytip-grupo="">
                     <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "false" : "true")"
                             @onclick="() => CambiarAgrupacion(false)">@Textos["AgruparNo"]</button>
                     <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "true" : "false")"

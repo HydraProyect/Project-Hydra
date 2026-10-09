@@ -69,10 +69,13 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
 {
     /// <summary>
     /// Claim en memoria (nunca se emite en la cookie) con el rol de la sesión
-    /// en el Tenant de origen tal como estaba ANTES de sustituirlo. Lo lee
-    /// <c>CurrentUserService</c> cuando el fan-out multi-Tenant visita el
-    /// Tenant de origen: ahí el rol efectivo es el de la sesión, no el de la
-    /// cartera del Tenant propietario seleccionado (decisión P7, 2026-09-23).
+    /// en el Tenant de origen tal como estaba ANTES de sustituirlo; vacío si
+    /// la sesión no traía ninguno. Lo lee <c>CurrentUserService</c> siempre que
+    /// el Tenant que se opera es el de origen: cuando el fan-out multi-Tenant
+    /// lo visita (decisión P7, 2026-09-23) y cuando no hay Tenant seleccionado
+    /// —la selección se retiró o no llegó al circuito— (hallazgo del
+    /// 2026-10-09). Ahí el rol efectivo es el de la sesión, nunca el de la
+    /// cartera del Tenant propietario que estuvo seleccionado.
     /// No es un rol: <c>IsInRole</c> y <c>[Authorize(Roles = …)]</c> no lo ven.
     /// </summary>
     public const string TipoClaimRolDeSesionOrigen = "hydra:rol_sesion_origen";
@@ -182,14 +185,21 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
     /// Idempotente: si el principal ya pasó por aquí (no debería, es uno por
     /// petición), se conserva el primero, que es el único que es de origen:
     /// en una segunda pasada el claim de rol ya sería el de la cartera.
+    ///
+    /// <para>
+    /// Se anota SIEMPRE que hay sustitución, también cuando la sesión no traía
+    /// rol en origen (valor vacío): el claim es además la marca de «este
+    /// principal está sustituido». Sin ella, quien busca el rol de sesión en
+    /// origen caería al claim de rol y leería el de la cartera como si fuera
+    /// de origen.
+    /// </para>
     /// </summary>
     private static void ConservarRolDeSesionOrigen(ClaimsPrincipal principal, string? rolDeSesion)
     {
         if (principal.HasClaim(c => c.Type == TipoClaimRolDeSesionOrigen)) return;
-        if (rolDeSesion is null) return;
 
         if (principal.Identity is ClaimsIdentity identidadPrincipal)
-            identidadPrincipal.AddClaim(new Claim(TipoClaimRolDeSesionOrigen, rolDeSesion));
+            identidadPrincipal.AddClaim(new Claim(TipoClaimRolDeSesionOrigen, rolDeSesion ?? string.Empty));
     }
 
     /// <summary>

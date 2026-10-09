@@ -464,4 +464,16 @@
   <data name="TituloSinIncidencias" xml:space="preserve">
     <value>Sin alertas de vigencia abiertas entre sus trabajadores</value>
   </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="ToastLoteRestaurados" xml:space="preserve">
+    <value>{0} Cliente(s) empresarial(es) restaurado(s).</value>
+  </data>
+  <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
+    <value>{0} restaurado(s). {1} no se pudieron restaurar: {2}</value>
+  </data>
+  <data name="ErrorRestaurarLote" xml:space="preserve">
+    <value>No se pudo deshacer la baja. Inténtalo de nuevo.</value>
+  </data>
 </root>
