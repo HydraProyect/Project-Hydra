@@ -105,14 +105,8 @@ public class VehiculosConcurrenciaTests : BunitContext
         Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
         Services.GetRequiredService<NavigationManager>().NavigateTo("vehiculos");
         var cut = Render<Vehiculos>();
-        cut.WaitForState(() => cut.FindAll("tbody .menu-acciones-disparador").Count > 0);
+        cut.WaitForState(() => cut.FindAll("tbody a.boton-360-pagina").Count > 0);
         return (cut, m);
-    }
-
-    private static async Task PulsarEnElMenuDeLaFila(IRenderedComponent<Vehiculos> cut, int fila, string item)
-    {
-        await cut.FindAll("tbody .menu-acciones-disparador")[fila].ClickAsync(new MouseEventArgs());
-        await cut.FindAll("tbody .menu-acciones-item").Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
     }
 
     private static IElement Boton(IRenderedComponent<Vehiculos> cut, string texto) =>
@@ -120,9 +114,6 @@ public class VehiculosConcurrenciaTests : BunitContext
 
     private static VehiculoListaDto Vehiculo(string nombre) =>
         new(Guid.NewGuid(), nombre, "Transit", "1234-ABC", "Montajes Ebro S.L.");
-
-    private static DialogoConfirmacion DialogoEliminar(IRenderedComponent<Vehiculos> cut) =>
-        cut.FindComponents<DialogoConfirmacion>().Single(x => x.Instance.Titulo.StartsWith("¿Eliminar el vehículo")).Instance;
 
     private static DialogoConfirmacion DialogoEliminarLote(IRenderedComponent<Vehiculos> cut) =>
         cut.FindComponents<DialogoConfirmacion>().Single(x => x.Instance.Titulo.Contains("vehículo(s)?")).Instance;
@@ -142,24 +133,122 @@ public class VehiculosConcurrenciaTests : BunitContext
         cut.FindAll("input[type=checkbox]").Should().BeEmpty();
     }
 
-    /// <summary>Listados 5/7 (decisión D6, 2026-10-08): eliminar un Vehículo deja «Deshacer», que restaura ese y solo ese.</summary>
+    // --- Fila sin menú «⋯» (patrón de listados, 2026-10-08) --------------------------------------
+
+    /// <summary>
+    /// La fila no lleva menú. El nombre es el botón que abre la vista rápida —el panel del
+    /// Context Workspace, ya no un drawer propio—, y la fila lleva «fila-pulsable», la marca con
+    /// la que atajos-lista.js pulsa ese botón al hacer clic en cualquier otro punto (QuickGrid no
+    /// ofrece clic de fila: esa mitad solo la prueba el E2E). A la página Vehículo 360 se va con
+    /// el icono 360 del final de la fila, que es un enlace real.
+    /// </summary>
     [Fact]
-    public async Task Eliminar_ofrece_Deshacer_y_Deshacer_restaura_ese_vehiculo()
+    public async Task La_fila_no_lleva_menu_su_nombre_abre_la_vista_rapida_y_el_icono_360_enlaza_a_la_pagina()
     {
         var furgoneta = Vehiculo("Furgoneta de obra");
-        var (cut, m) = Renderizar(furgoneta);
+        var (cut, _) = Renderizar(furgoneta);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
-        await PulsarEnElMenuDeLaFila(cut, 0, "Eliminar");
-        var dialogo = DialogoEliminar(cut);
-        await cut.InvokeAsync(() => dialogo.OnConfirmar.InvokeAsync());
+        cut.FindAll("tbody .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        cut.Find("tbody tr").ClassList.Should().Contain("fila-pulsable");
+        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/vehiculos/{furgoneta.Id}");
+        workspace.FrameActual.Should().BeNull("punto de partida: ningún panel abierto");
 
-        var avisos = Services.GetRequiredService<ToastService>();
-        var aviso = avisos.Mensajes.Single(x => x.TextoAccion == "Deshacer");
-        m.Enviadas.OfType<RestaurarVehiculoCommand>().Should().BeEmpty("ofrecer «Deshacer» no restaura nada");
+        var nombre = cut.Find("tbody button.nombre-abre-vista-rapida");
+        nombre.GetAttribute("aria-label").Should().Be("Abrir la vista rápida de Furgoneta de obra");
+        await nombre.ClickAsync(new MouseEventArgs());
 
-        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Vehiculo, furgoneta.Id, "Furgoneta de obra", "informacion"));
+    }
 
-        m.Enviadas.OfType<RestaurarVehiculoCommand>().Should().Equal([new RestaurarVehiculoCommand(furgoneta.Id)]);
+    /// <summary>La matrícula se copia con un clic desde la fila, con nombre accesible que dice qué copia.</summary>
+    [Fact]
+    public void La_matricula_de_la_fila_es_copiable()
+    {
+        var (cut, _) = Renderizar(Vehiculo("Furgoneta de obra"));
+
+        var copiable = cut.FindAll("tbody .boton-copiar-en-linea").Should().ContainSingle().Subject;
+        copiable.TextContent.Trim().Should().Be("1234-ABC");
+        copiable.GetAttribute("aria-label").Should().Be("Copiar la matrícula 1234-ABC");
+    }
+
+    /// <summary>
+    /// La baja de un vehículo solo existe en la selección múltiple: ni la fila ni la página
+    /// conservan un diálogo de baja individual.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_solo_existe_en_la_seleccion_multiple()
+    {
+        var furgoneta = Vehiculo("Furgoneta de obra");
+        var (cut, m) = Renderizar(furgoneta, Vehiculo("Camión grúa"));
+        m.BajaLote = Result.Exito(new ResultadoEliminacionLoteDto(1, [], [furgoneta.Id]));
+        cut.FindAll("tbody button").Select(b => b.TextContent.Trim()).Should().NotContain("Eliminar");
+        cut.FindComponents<DialogoConfirmacion>().Should().ContainSingle("solo queda el diálogo del lote");
+
+        await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        await cut.Find("input[aria-label^='Seleccionar el vehículo Furgoneta de obra']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await Boton(cut, "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        m.Enviadas.OfType<EliminarVehiculoCommand>().Should().BeEmpty("la baja individual ya no tiene productor en la lista");
+        m.Enviadas.OfType<EliminarVehiculosCommand>().Single().Ids.Should().Equal([furgoneta.Id]);
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(x => x.TextoAccion == "Deshacer");
+    }
+
+    [Fact]
+    public async Task Enter_abre_la_vista_rapida_de_la_fila_enfocada()
+    {
+        var camion = Vehiculo("Camión grúa");
+        var (cut, _) = Renderizar(Vehiculo("Furgoneta de obra"), camion);
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("Enter"));
+
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual
+            .Should().Be(new WorkspaceFrame(EntidadWorkspace.Vehiculo, camion.Id, "Camión grúa", "informacion"));
+    }
+
+    /// <summary>
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición. La petición queda en el
+    /// servicio para que el panel la atienda (y solo para esa ficha).
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_abre_la_vista_rapida_de_la_fila_enfocada_pidiendo_edicion()
+    {
+        var furgoneta = Vehiculo("Furgoneta de obra");
+        var (cut, _) = Renderizar(furgoneta);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var atajos = cut.FindComponent<AtajosListaTeclado>();
+
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("e"));
+        workspace.FrameActual.Should().BeNull("sin fila enfocada ni panel abierto, «e» no tiene qué editar");
+
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
+        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("e"));
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Vehiculo, furgoneta.Id, "Furgoneta de obra", "informacion"));
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Vehiculo, Guid.NewGuid()).Should().BeFalse("la petición es de esa ficha");
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Vehiculo, furgoneta.Id).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Sin fila enfocada, «e» edita la ficha que esté abierta, aunque su vehículo no esté en la
+    /// página (el filtro lo dejó fuera): el nombre sale del frame abierto.
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_sin_fila_enfocada_edita_la_ficha_abierta_aunque_no_este_en_la_lista()
+    {
+        var fueraDeLaLista = Guid.NewGuid();
+        var (cut, _) = Renderizar(Vehiculo("Furgoneta de obra"));
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Vehiculo, fueraDeLaLista, "Camión grúa", "documentacion"));
+
+        await cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.OnAtajo.InvokeAsync("e"));
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Vehiculo, fueraDeLaLista, "Camión grúa", "informacion"));
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Vehiculo, fueraDeLaLista).Should().BeTrue();
     }
 
     /// <summary>En lote, un único «Deshacer» para todo el lote, y restaura solo los que el lote sí eliminó.</summary>
@@ -182,25 +271,6 @@ public class VehiculosConcurrenciaTests : BunitContext
         await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
 
         m.Enviadas.OfType<RestaurarVehiculoCommand>().Select(c => c.Id).Should().Equal([furgoneta.Id]);
-    }
-
-    [Fact]
-    public async Task Dos_invocaciones_del_OnConfirmar_del_dialogo_individual_mandan_un_solo_borrado()
-    {
-        var espera = new TaskCompletionSource();
-        var (cut, m) = Renderizar(Vehiculo("Furgoneta de obra"));
-        m.Retener = x => x is EliminarVehiculoCommand ? espera.Task : null;
-
-        await PulsarEnElMenuDeLaFila(cut, 0, "Eliminar");
-        var dialogo = DialogoEliminar(cut);
-
-        var primero = cut.InvokeAsync(() => dialogo.OnConfirmar.InvokeAsync());
-        var segundo = cut.InvokeAsync(() => dialogo.OnConfirmar.InvokeAsync());
-
-        m.Enviadas.OfType<EliminarVehiculoCommand>().Should().ContainSingle(
-            "la guarda de la página también cubre llamadores que no son el botón del diálogo");
-        await cut.InvokeAsync(espera.SetResult); await primero; await segundo;
-        m.Enviadas.OfType<EliminarVehiculoCommand>().Should().ContainSingle();
     }
 
     [Fact]
@@ -257,26 +327,6 @@ public class VehiculosConcurrenciaTests : BunitContext
 
         cut.Find(".paginador-texto").TextContent.Should().Contain("1 vehículo(s)", "el total vigente es el de 'camion'")
             .And.NotContain("99 vehículo(s)", "la respuesta tardía de 'furgo' ya no es la carga vigente");
-    }
-
-    /// <summary>
-    /// El Workspace no es modal: con la ficha del vehículo abierta, la baja se
-    /// confirma desde la fila que queda detrás, y la lista es quien la retira.
-    /// </summary>
-    [Fact]
-    public async Task Eliminar_el_vehiculo_cuya_ficha_esta_abierta_retira_la_ficha()
-    {
-        var furgoneta = Vehiculo("Furgoneta de obra");
-        var (cut, m) = Renderizar(furgoneta);
-        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Vehiculo, furgoneta.Id, "Furgoneta de obra", "informacion"));
-        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
-
-        await PulsarEnElMenuDeLaFila(cut, 0, "Eliminar");
-        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
-
-        m.Enviadas.OfType<EliminarVehiculoCommand>().Should().ContainSingle("la baja se ejecutó");
-        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de un vehículo ya dado de baja no puede seguir editable");
     }
 
     /// <summary>

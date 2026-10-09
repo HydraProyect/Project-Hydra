@@ -5,19 +5,20 @@ using CaeManager.Application.Vehiculos.Commands.EditarVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Vehiculos.Components;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Carreras A→B y guardas de reentrada de <see cref="VehiculoWorkspacePanel"/> y
-/// <see cref="VehiculoPreviewDrawer"/> — mismo patrón que
-/// <c>Empresa360Gen2Tests</c>. Las esperas retenidas se liberan desde
+/// Carreras A→B y guardas de reentrada de <see cref="VehiculoWorkspacePanel"/> — mismo patrón
+/// que <c>Empresa360Gen2Tests</c>. Las esperas retenidas se liberan desde
 /// InvokeAsync para observar su continuación.
 /// </summary>
 public partial class Vehiculo360Gen2Tests : BunitContext
@@ -72,6 +73,7 @@ public partial class Vehiculo360Gen2Tests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => m);
         Services.AddScoped<ToastService>();
+        Services.TryAddScoped<ContextWorkspaceService>();
         return m;
     }
 
@@ -216,43 +218,5 @@ public partial class Vehiculo360Gen2Tests : BunitContext
             cut.FindAll(".alerta-formulario[role=alert]").Should().BeEmpty();
             Toasts.Should().ContainSingle(x => x.Tono == TonoToast.Error && x.Mensaje.Contains(aNombre) && x.Mensaje.Contains(motivo));
         }
-    }
-
-    // --- VehiculoPreviewDrawer -------------------------------------------------------------------
-
-    private IRenderedComponent<VehiculoPreviewDrawer> RenderizarDrawer() =>
-        Render<VehiculoPreviewDrawer>(p => p.Add(x => x.Visible, false));
-
-    [Fact]
-    public async Task Reabrir_el_drawer_sobre_otro_vehiculo_no_deja_pintarse_la_respuesta_tardia_de_A()
-    {
-        var a = Guid.NewGuid(); var b = Guid.NewGuid(); var espera = new TaskCompletionSource();
-        var m = Registrar(new MediadorFalso { Retener = x => x is ObtenerVehiculoPorIdQuery q && q.Id == a ? espera.Task : null });
-        m.Detalles[a] = Detalle(a, "Furgoneta de obra"); m.Detalles[b] = Detalle(b, "Camión grúa");
-        var cut = RenderizarDrawer();
-
-        cut.Render(p => p.Add(x => x.VehiculoId, a).Add(x => x.Visible, true));
-        cut.Markup.Should().NotContain("Furgoneta de obra", "la información de A sigue en vuelo");
-
-        cut.Render(p => p.Add(x => x.VehiculoId, b).Add(x => x.Visible, true));
-        cut.Markup.Should().Contain("Camión grúa");
-
-        await cut.InvokeAsync(espera.SetResult);
-        cut.Markup.Should().NotContain("Furgoneta de obra", "la generación de A ya no es vigente");
-        cut.Markup.Should().Contain("Camión grúa", "B sigue en pantalla tras resolverse la respuesta tardía de A");
-    }
-
-    [Fact]
-    public async Task Retirar_el_drawer_cancela_la_consulta_en_vuelo()
-    {
-        var id = Guid.NewGuid();
-        var m = Registrar(new MediadorFalso());
-        m.Detalles[id] = Detalle(id, "Furgoneta de obra");
-        var cut = RenderizarDrawer();
-        cut.Render(p => p.Add(x => x.VehiculoId, id).Add(x => x.Visible, true));
-
-        m.Tokens.Should().ContainSingle(x => x.CanBeCanceled && !x.IsCancellationRequested);
-        await DisposeComponentsAsync();
-        m.Tokens.Should().OnlyContain(x => x.IsCancellationRequested, "DisposeComponentsAsync retira el drawer y cancela su ciclo");
     }
 }

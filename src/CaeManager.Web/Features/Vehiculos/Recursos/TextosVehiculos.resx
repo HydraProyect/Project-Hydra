@@ -69,15 +69,6 @@
   <data name="ColumnaEmpleador" xml:space="preserve">
     <value>Empresa / Subcontrata</value>
   </data>
-  <data name="ColumnaAcciones" xml:space="preserve">
-    <value>Acciones</value>
-  </data>
-  <data name="AccionVer" xml:space="preserve">
-    <value>Ver</value>
-  </data>
-  <data name="AccionEliminar" xml:space="preserve">
-    <value>Eliminar</value>
-  </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
     <value>vehículo(s)</value>
   </data>
@@ -111,12 +102,6 @@
   <data name="BotonGuardar" xml:space="preserve">
     <value>Guardar</value>
   </data>
-  <data name="ConfirmarEliminarTitulo" xml:space="preserve">
-    <value>¿Eliminar el vehículo {0}?</value>
-  </data>
-  <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>Dejará de aparecer en las listas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlo desde Auditoría.</value>
-  </data>
   <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
     <value>¿Eliminar {0} vehículo(s)?</value>
   </data>
@@ -134,12 +119,6 @@
   </data>
   <data name="ErrorGuardar" xml:space="preserve">
     <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
-  </data>
-  <data name="ToastEliminado" xml:space="preserve">
-    <value>Vehículo eliminado correctamente.</value>
-  </data>
-  <data name="ErrorEliminar" xml:space="preserve">
-    <value>No pudimos eliminar el vehículo. Intenta nuevamente en unos segundos.</value>
   </data>
   <data name="ToastLoteEliminados" xml:space="preserve">
     <value>{0} vehículo(s) eliminado(s).</value>
@@ -170,27 +149,6 @@
   </data>
   <data name="ErrorGuardarDe" xml:space="preserve">
     <value>No pudimos guardar los cambios de {0}. Intenta nuevamente en unos segundos.</value>
-  </data>
-  <data name="AriaVistaPrevia" xml:space="preserve">
-    <value>Vista previa del vehículo</value>
-  </data>
-  <data name="EtiquetaCabeceraPreview" xml:space="preserve">
-    <value>Consulta · Vehículo</value>
-  </data>
-  <data name="Cargando" xml:space="preserve">
-    <value>Cargando…</value>
-  </data>
-  <data name="AriaCerrar" xml:space="preserve">
-    <value>Cerrar</value>
-  </data>
-  <data name="EnlaceVerDocumentacion" xml:space="preserve">
-    <value>Ver toda su documentación →</value>
-  </data>
-  <data name="BotonOperar" xml:space="preserve">
-    <value>Abrir ficha 360</value>
-  </data>
-  <data name="NotaPieOperar" xml:space="preserve">
-    <value>Abre la ficha 360 del vehículo</value>
   </data>
   <data name="SinEmpresaTitulo" xml:space="preserve">
     <value>Selecciona una empresa de tu cartera</value>
@@ -233,9 +191,6 @@
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
-  </data>
-  <data name="ToastRestaurado" xml:space="preserve">
-    <value>Vehículo restaurado.</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} vehículo(s) restaurado(s).</value>
@@ -332,5 +287,11 @@
   </data>
   <data name="FichaBandaVencidosSinNombrar" xml:space="preserve">
     <value>Hay documentos vencidos que no caben en esta lista.</value>
+  </data>
+  <data name="AbrirVistaRapidaDe" xml:space="preserve">
+    <value>Abrir la vista rápida de {0}</value>
+  </data>
+  <data name="TituloEditarConAtajo" xml:space="preserve">
+    <value>Editar (e)</value>
   </data>
 </root>

@@ -1,7 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
-using CaeManager.Application.Vehiculos.Commands.EliminarVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EliminarVehiculos;
 using CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
@@ -102,34 +101,29 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _nombreAEliminar = string.Empty;
-    private bool _eliminando;
-
-    // Drawer ligero (Vehiculos TALVEG.dc.html, mismo patrón que
-    // ClientePreviewDrawer/EmpresaPreviewDrawer): nombre de fila y "Ver" del
-    // menú abren esto primero, no el Context Workspace directamente.
-    private Guid? _previewVehiculoId;
-    private bool _previewVisible;
-
-    private void AbrirPreview(Guid id)
-    {
-        _previewVehiculoId = id;
-        _previewVisible = true;
-    }
+    // Vista rápida (patrón de listados): clic en la fila, su nombre o Enter abren el panel de
+    // 520 px del Context Workspace (mismo patrón que Empresas y Trabajadores). A la página
+    // Vehículo 360 (/vehiculos/{id}) se va con el icono 360 de la fila o con el del panel.
+    private Task AbrirVistaRapidaAsync(Guid id) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, id, NombreDe(id), "informacion");
 
     /// <summary>
-    /// «Abrir ficha 360» y «Ver toda su documentación» de la vista previa: la
-    /// página /vehiculos/{id}, en la pestaña pedida. Editar sigue en el panel,
-    /// que la ficha abre desde su «Editar».
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
+    /// del panel). Si el rol no puede escribir, el panel se abre y se queda en lectura.
     /// </summary>
-    private Task AbrirDesdePreviewAsync((Guid Id, string Pestana) destino)
-    {
-        var pestana = destino.Pestana == "historial" ? "?pestana=historial" : string.Empty;
-        NavigationManager.NavigateTo($"/vehiculos/{destino.Id}{pestana}");
-        return Task.CompletedTask;
-    }
+    private Task AbrirVistaRapidaEnEdicionAsync(Guid id) =>
+        WorkspaceService.AbrirEnEdicionAsync(EntidadWorkspace.Vehiculo, id, NombreDe(id));
+
+    // El Vehículo del panel puede no estar en la página (el filtro lo dejó fuera): su nombre
+    // es entonces el del frame abierto.
+    private string NombreDe(Guid id) =>
+        _elementosPagina.FirstOrDefault(v => v.Id == id) is { } vehiculo
+            ? vehiculo.Nombre
+            : WorkspaceService.FrameActual is { } frame && frame.EntidadId == id ? frame.TituloVisible : string.Empty;
+
+    /// <summary>Vehículo cuyo panel está abierto arriba de la pila del Context Workspace, si lo hay.</summary>
+    private Guid? VehiculoEnVistaPrevia =>
+        WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Vehiculo } frame ? frame.EntidadId : null;
 
     private readonly HashSet<Guid> _seleccionados = [];
 
@@ -655,47 +649,6 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             _erroresCampo[campo] = resultado.Errors[0].ErrorMessage;
     }
 
-    private void AbrirEliminar(Guid id, string nombre)
-    {
-        _idAEliminar = id;
-        _nombreAEliminar = nombre;
-        _confirmarEliminarVisible = true;
-    }
-
-    private async Task ConfirmarEliminarAsync()
-    {
-        // Guarda de doble clic sobre «Eliminar» del diálogo: mandaría el
-        // comando dos veces y el segundo fallaría con un error que no es real.
-        if (_eliminando) return;
-        _eliminando = true;
-
-        try
-        {
-            var idEliminado = _idAEliminar;
-            var resultado = await Mediator.Send(new EliminarVehiculoCommand(idEliminado));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.MostrarError(resultado.Error);
-            }
-            else
-            {
-                ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(idEliminado));
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Vehiculo, [idEliminado]);
-                _confirmarEliminarVisible = false;
-                await RecargarAsync();
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar(Textos["ErrorEliminar"], TonoToast.Error);
-        }
-        finally
-        {
-            _eliminando = false;
-        }
-    }
-
     private bool TodosSeleccionados =>
         _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
 
@@ -712,35 +665,6 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (marcado) _seleccionados.Add(id);
         else _seleccionados.Remove(id);
     }
-
-    /// <summary>«Deshacer» del aviso tras eliminar — ver RestaurarVehiculoCommand.</summary>
-    private async Task DeshacerEliminarAsync(Guid id)
-    {
-        // Guarda por elemento: dos pulsaciones en «Deshacer» del mismo aviso no mandan dos restauraciones.
-        if (!_restaurando.Add(id)) return;
-
-        try
-        {
-            var resultado = await Mediator.Send(new RestaurarVehiculoCommand(id));
-
-            ToastService.Mostrar(
-                resultado.EsExitoso ? Textos["ToastRestaurado"].Value : resultado.Error.Mensaje,
-                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
-
-            if (resultado.EsExitoso)
-                await RecargarAsync();
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
-        }
-        finally
-        {
-            _restaurando.Remove(id);
-        }
-    }
-
-    private readonly HashSet<Guid> _restaurando = [];
 
     private bool _restaurandoLote;
 
@@ -819,11 +743,22 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             _ => null
         };
         var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
-        return string.Join(' ', new[] { foco, tinte }.Where(c => c is not null));
+        // «fila-pulsable»: QuickGrid no ofrece clic de fila, así que es atajos-lista.js quien, al
+        // hacer clic en cualquier punto de la fila que no sea un control, pulsa su nombre.
+        return string.Join(' ', new[] { "fila-pulsable", foco, tinte }.Where(c => c is not null));
     }
 
     private async Task ManejarAtajoAsync(string tecla)
     {
+        // «e» no depende de que haya filas: sin fila enfocada edita la ficha que esté abierta,
+        // aunque el filtro haya dejado la lista vacía.
+        if (tecla == "e")
+        {
+            if ((_idEnfocado ?? VehiculoEnVistaPrevia) is { } idEditar)
+                await AbrirVistaRapidaEnEdicionAsync(idEditar);
+            return;
+        }
+
         if (_elementosPagina.Count == 0) return;
 
         switch (tecla)
@@ -846,7 +781,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
                 break;
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
-                    AbrirPreview(idAbrir);
+                    await AbrirVistaRapidaAsync(idAbrir);
                 break;
         }
 
