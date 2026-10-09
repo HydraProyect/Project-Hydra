@@ -139,6 +139,10 @@ public class NacimientoConEncargoDeAdministracionTests
             Guid asignacionOperacionId, Guid propietarioTenantId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<IReadOnlyList<AsignacionOperacion>> ListarOperacionesEncargablesAsync(
+            Guid propietarioTenantId, DateTime ahora, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<bool> ExisteSinRetirarAsync(Guid asignacionOperacionId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 

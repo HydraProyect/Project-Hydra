@@ -393,6 +393,48 @@ public class EncargoAdministracionCommandsTests
         (await ListarAsync(AdministradorDelOperadorCaePorEncargo(), tenants)).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Se_ofrece_encargar_al_Operador_CAE_externo_que_opera_el_Tenant_entero_y_aun_no_tiene_encargo()
+    {
+        var tenants = new TenantsQueryContextFalso();
+        tenants.ListaTenants.AddRange([_propietario, _operador]);
+        // Ruido que no se ofrece: la raíz, una operación interna y una externa acotada a un Cliente empresarial.
+        _repositorio.Operaciones.Add(AsignacionOperacion.Raiz(Propietario, ServicioCae.Outbound, Ahora.AddDays(-30), Ahora.AddDays(-30)));
+        _repositorio.Operaciones.Add(AsignacionOperacion.Interna(
+            Propietario, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()), Ahora.AddDays(-30), null, Ahora.AddDays(-30)));
+        _repositorio.Operaciones.Add(AsignacionOperacion.Externa(
+            Propietario, Guid.NewGuid(), ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(Guid.NewGuid()),
+            Ahora.AddDays(-30), null, Ahora.AddDays(-30)));
+
+        var encargables = await EncargablesAsync(AdministradorPropio(), tenants);
+
+        var fila = encargables.Should().ContainSingle().Subject;
+        fila.AsignacionOperacionId.Should().Be(_operacion.Id);
+        fila.OperadorTenantId.Should().Be(Operador);
+        fila.OperadorNombre.Should().Be(_operador.Nombre);
+
+        // Con un encargo sin retirar ya no se ofrece; al retirarlo, vuelve.
+        var encargo = EncargoYaRegistrado();
+        (await EncargablesAsync(AdministradorPropio(), tenants)).Should().BeEmpty();
+        encargo.Retirar(Guid.NewGuid(), Ahora.AddMinutes(-1));
+        (await EncargablesAsync(AdministradorPropio(), tenants)).Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Quien_administra_por_encargo_no_ve_a_quien_se_puede_encargar_y_no_se_lee_ninguna_operacion()
+    {
+        var tenants = new TenantsQueryContextFalso();
+        tenants.ListaTenants.AddRange([_propietario, _operador]);
+
+        (await EncargablesAsync(AdministradorDelOperadorCaePorEncargo(), tenants)).Should().BeEmpty();
+        _repositorio.VecesQueSeLeyoUnaOperacion.Should().Be(0, "la autoridad va antes que cualquier lectura");
+    }
+
+    private Task<IReadOnlyList<OperacionEncargableDto>> EncargablesAsync(Actor actor, TenantsQueryContextFalso tenants) =>
+        new ObtenerOperacionesEncargablesQueryHandler(
+                new TenantFijo(Propietario), Autoridad(actor), _repositorio, tenants, new RelojFijo(Ahora))
+            .Handle(new ObtenerOperacionesEncargablesQuery(), default);
+
     private Task<IReadOnlyList<EncargoAdministracionDto>> ListarAsync(Actor actor, TenantsQueryContextFalso tenants) =>
         new ObtenerEncargosAdministracionQueryHandler(
                 new TenantFijo(Propietario), Autoridad(actor), _repositorio, tenants, new RelojFijo(Ahora))
@@ -421,6 +463,17 @@ public class EncargoAdministracionCommandsTests
             VecesQueSeLeyoUnaOperacion++;
             return Task.FromResult(Operaciones.SingleOrDefault(
                 o => o.Id == asignacionOperacionId && o.PropietarioTenantId == propietarioTenantId));
+        }
+
+        public Task<IReadOnlyList<AsignacionOperacion>> ListarOperacionesEncargablesAsync(
+            Guid propietarioTenantId, DateTime ahora, CancellationToken cancellationToken = default)
+        {
+            VecesQueSeLeyoUnaOperacion++;
+            return Task.FromResult<IReadOnlyList<AsignacionOperacion>>(Operaciones
+                .Where(o => o.PropietarioTenantId == propietarioTenantId
+                            && !o.EsRaiz && !o.EsOperacionInterna && o.Ambito.EsUniversal && o.EstaVigenteEn(ahora)
+                            && !Encargos.Any(e => e.AsignacionOperacionId == o.Id && e.RetiradoEnUtc is null))
+                .ToList());
         }
 
         public Task<bool> ExisteSinRetirarAsync(Guid asignacionOperacionId, CancellationToken cancellationToken = default) =>

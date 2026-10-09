@@ -21,6 +21,14 @@ public interface IEncargoAdministracionRepository
     Task<AsignacionOperacion?> ObtenerOperacionAsync(
         Guid asignacionOperacionId, Guid propietarioTenantId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Las operaciones de ese Tenant propietario sobre las que hoy se puede
+    /// registrar un encargo: externas, del Tenant entero, vigentes en
+    /// <paramref name="ahora"/> y sin un encargo sin retirar. Sin seguimiento.
+    /// </summary>
+    Task<IReadOnlyList<AsignacionOperacion>> ListarOperacionesEncargablesAsync(
+        Guid propietarioTenantId, DateTime ahora, CancellationToken cancellationToken = default);
+
     /// <summary>Si la operación ya tiene un encargo sin retirar (el índice único parcial lo impide igualmente).</summary>
     Task<bool> ExisteSinRetirarAsync(Guid asignacionOperacionId, CancellationToken cancellationToken = default);
 
