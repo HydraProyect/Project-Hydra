@@ -59,7 +59,7 @@ public static class ProyectosEndpoints
             "Proyectos",
             [
                 textos["EtiquetaCliente"].Value, textos["ListaProyecto"].Value, textos["EtiquetaCentro"].Value,
-                textos["EtiquetaInicio"].Value, textos["EtiquetaFinPrevisto"].Value, textos["EtiquetaFechaCierre"].Value,
+                textos["EtiquetaInicio"].Value, textos["EtiquetaFinPrevisto"].Value,
                 textos["ColumnaTecnicos"].Value, textos["VentanaTecnicosTitulo"].Value, textos["EtiquetaEstado"].Value
             ],
             FilasAsync(), cancellationToken);
@@ -90,7 +90,7 @@ public static class ProyectosEndpoints
                     [
                         clienteEmpresarial.RazonSocial, proyecto.Nombre, proyecto.CentroNombre,
                         LibroDeListado.Fecha(proyecto.FechaInicio), LibroDeListado.Fecha(proyecto.FechaFinPrevista),
-                        LibroDeListado.Fecha(proyecto.FechaCierreReal), proyecto.TecnicosActivos.Count,
+                        proyecto.TecnicosActivos.Count,
                         string.Join("; ", proyecto.TecnicosActivos.Select(t => t.NombreCompleto)),
                         textos[proyecto.EstaAbierto ? "BadgeAbierto" : "BadgeCerrado"].Value
                     ];

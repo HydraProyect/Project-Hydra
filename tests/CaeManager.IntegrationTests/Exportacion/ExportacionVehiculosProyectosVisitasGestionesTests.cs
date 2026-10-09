@@ -70,6 +70,7 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
     private Guid _clienteSur;
     private Guid _centroNorte;
     private Guid _furgon;
+    private Guid _gamma;
 
     public async Task InitializeAsync()
     {
@@ -82,7 +83,8 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
             var sur = Empresa.CrearComoCliente("Cliente Sur S.L.", "B87654323", false, null, null);
             var alfa = new Empresa("Alfa Montajes S.L.", "B10000016");
             var tipo = new TipoDocumento("Reconocimiento médico", 12, true, 1, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
-            c.Empresas.AddRange(norte, sur, alfa);
+            var gamma = new Empresa("Gamma Grúas S.L.", "B10380186");
+            c.Empresas.AddRange(norte, sur, alfa, gamma);
             c.TiposDocumento.Add(tipo);
             await c.SaveChangesAsync();
 
@@ -91,7 +93,7 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
             var lucia = Trabajador.DeEmpresa(alfa.Id, "Lucía", "Prieto Ramos", "12345678Z");
             var iker = Trabajador.DeEmpresa(alfa.Id, "Iker", "Sanz Olmo", "00000000T");
             var furgon = Vehiculo.DeEmpresa(alfa.Id, "Furgón Uno", "Transit", "1111AAA");
-            var grua = Vehiculo.DeEmpresa(alfa.Id, "Grúa Dos", "Liebherr", "2222BBB");
+            var grua = Vehiculo.DeEmpresa(gamma.Id, "Grúa Dos", "Liebherr", "2222BBB");
             c.Centros.AddRange(centroNorte, centroSur);
             c.Trabajadores.AddRange(lucia, iker);
             c.Vehiculos.AddRange(furgon, grua);
@@ -102,6 +104,7 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
             var ampliacion = Proyecto.Crear(sur.Id, centroSur.Id, "Ampliación almacén", _hoy.AddDays(-10), null, null);
             var visitaNorte = new Visita(centroNorte.Id, _hoy.AddDays(2), _hoy.AddDays(2), null);
             var visitaSur = new Visita(centroSur.Id, _hoy.AddDays(3), _hoy.AddDays(3), null);
+            visitaSur.MarcarNotificadoCliente(true);
             var visitaPasada = new Visita(centroNorte.Id, _hoy.AddDays(-9), _hoy.AddDays(-9), null);
             c.Proyectos.AddRange(reforma, cubierta, ampliacion);
             c.Visitas.AddRange(visitaNorte, visitaSur, visitaPasada);
@@ -112,7 +115,7 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
             c.VisitasTrabajadores.AddRange(new VisitaTrabajador(visitaNorte.Id, lucia.Id), new VisitaTrabajador(visitaSur.Id, iker.Id));
             await c.SaveChangesAsync();
 
-            (_clienteNorte, _clienteSur, _centroNorte, _furgon) = (norte.Id, sur.Id, centroNorte.Id, furgon.Id);
+            (_clienteNorte, _clienteSur, _centroNorte, _furgon, _gamma) = (norte.Id, sur.Id, centroNorte.Id, furgon.Id, gamma.Id);
         }
 
         // Los mismos nombres que busca cada test («Furgón», «Reforma», «Planta», «Prieto»): si el
@@ -193,7 +196,35 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
         (await ExportacionesAsync(_tenant)).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Vehiculos_esta_vista_respeta_el_filtro_de_Empresa_y_el_orden_de_la_rejilla()
+    {
+        var deGamma = await ExportarAsync("TituloPagina",
+            (m, t, r) => VehiculosEndpoints.ExportarAsync(m, t, r, Eco<TextosVehiculos>(), default, empresa: _gamma.ToString()));
+        var ascendente = await ExportarAsync("TituloPagina",
+            (m, t, r) => VehiculosEndpoints.ExportarAsync(m, t, r, Eco<TextosVehiculos>(), default, orden: "Nombre"));
+        var descendente = await ExportarAsync("TituloPagina",
+            (m, t, r) => VehiculosEndpoints.ExportarAsync(m, t, r, Eco<TextosVehiculos>(), default, orden: "Nombre", desc: true));
+
+        deGamma.Should().ContainSingle().Which[2].Should().Be("2222BBB");
+        ascendente.Select(f => f[0]).Should().Equal("Furgón Uno", "Grúa Dos");
+        descendente.Select(f => f[0]).Should().Equal("Grúa Dos", "Furgón Uno");
+    }
+
     // ---- Proyectos ----
+
+    [Fact]
+    public async Task Proyectos_quien_tiene_que_elegir_empresa_no_exporta_ni_deja_rastro()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var mediador = new MediadorDeListados(contexto, new AlcanceDatosServiceFalso(), _tenant, pideElegirEmpresa: true);
+
+        var resultado = await ProyectosEndpoints.ExportarAsync(
+            mediador, new TenantActualAmbiental { TenantId = _tenant }, Registro(contexto), Eco<TextosProyectos>(), default);
+
+        resultado.Should().BeOfType<RedirectHttpResult>().Which.Url.Should().Be("/proyectos");
+        (await ExportacionesAsync(_tenant)).Should().BeEmpty();
+    }
 
     [Fact]
     public async Task Proyectos_todo_recorre_los_Clientes_empresariales_del_Tenant_y_ninguno_de_otro()
@@ -205,8 +236,8 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
         // Técnicos: el recuento de la fila y los nombres de su ventana de contexto, sin DNI.
         var reforma = filas.Single(f => f[1] == "Reforma nave");
         reforma[0].Should().Be("Cliente Norte S.L.");
-        reforma[6].Should().Be("1");
-        reforma[7].Should().Be("Lucía Prieto Ramos");
+        reforma[5].Should().Be("1");
+        reforma[6].Should().Be("Lucía Prieto Ramos");
         filas.SelectMany(f => f).Should().NotContain(celda => celda.Contains("12345678Z"));
     }
 
@@ -285,7 +316,37 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
         filas.Should().HaveCount(2).And.OnlyContain(f => f[0] == "Planta Norte");
     }
 
+    [Fact]
+    public async Task Visitas_esta_vista_respeta_el_filtro_de_notificada_y_el_orden_de_la_rejilla()
+    {
+        var notificadas = await ExportarAsync("Visitas",
+            (m, r) => VisitasEndpoints.ExportarAsync(m, r, Eco<TextosVisitas>(), default, notificado: "si"));
+        var sinNotificar = await ExportarAsync("Visitas",
+            (m, r) => VisitasEndpoints.ExportarAsync(m, r, Eco<TextosVisitas>(), default, notificado: "no"));
+        var ascendente = await ExportarAsync("Visitas",
+            (m, r) => VisitasEndpoints.ExportarAsync(m, r, Eco<TextosVisitas>(), default, activas: "true", orden: "CentroNombre"));
+        var descendente = await ExportarAsync("Visitas",
+            (m, r) => VisitasEndpoints.ExportarAsync(m, r, Eco<TextosVisitas>(), default, activas: "true", orden: "CentroNombre", desc: true));
+
+        notificadas.Should().ContainSingle().Which[0].Should().Be("Planta Sur");
+        sinNotificar.Select(f => f[0]).Should().Equal("Planta Norte", "Planta Norte");
+        ascendente.Select(f => f[0]).Should().Equal("Planta Norte", "Planta Sur");
+        descendente.Select(f => f[0]).Should().Equal("Planta Sur", "Planta Norte");
+    }
+
     // ---- Gestiones ----
+
+    [Fact]
+    public async Task Gestiones_esta_vista_respeta_el_orden_de_la_rejilla()
+    {
+        var ascendente = await ExportarAsync("Gestiones",
+            (m, r) => GestionesEndpoints.ExportarAsync(m, r, Eco<TextosGestiones>(), default, orden: "CentroNombre"));
+        var descendente = await ExportarAsync("Gestiones",
+            (m, r) => GestionesEndpoints.ExportarAsync(m, r, Eco<TextosGestiones>(), default, orden: "CentroNombre", desc: true));
+
+        ascendente.Select(f => f[1]).Should().Equal("Planta Norte", "Planta Sur");
+        descendente.Select(f => f[1]).Should().Equal("Planta Sur", "Planta Norte");
+    }
 
     [Fact]
     public async Task Gestiones_todo_lleva_las_del_Tenant_y_ninguna_de_otro()
