@@ -56,6 +56,9 @@
     <value>Abrir el panel de {0}</value>
     <comment>Título del nombre que abre el panel en una fila de relación sin página 360 (FilaRelacion). {0}: nombre de la entidad.</comment>
   </data>
+  <data name="PestanaFicha" xml:space="preserve">
+    <value>Ficha</value>
+  </data>
   <data name="Consultar360" xml:space="preserve">
     <value>Consultar de un vistazo</value>
   </data>

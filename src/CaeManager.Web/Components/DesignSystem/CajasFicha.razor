@@ -1,0 +1,91 @@
+@*
+    Cajas de la pestaña «Ficha» de una página 360 (decisión del 2026-10-09: el
+    lateral lleva dos o tres cajas como mucho y el resto vive en «Ficha»;
+    .ficha-cols de la maqueta «Páginas 360 nuevas»).
+
+    Las cajas van en un solo flujo de dos columnas, de la más alta a la más
+    baja, para que no queden huecos. La altura solo se conoce una vez pintadas:
+    tras el primer pintado se miden en el navegador y se vuelven a pintar en ese
+    orden. Con una sola caja no hay nada que ordenar y no se mide. El orden se
+    calcula una vez por conjunto de cajas: no se recoloca cada vez que cambia el
+    contenido de una, para que nada salte bajo el cursor.
+
+    Cada caja lleva una clave estable (<see cref="CajaFicha.Clave"/>): es lo que
+    identifica a la caja entre pintados y lo que nombrará el orden propio del
+    usuario cuando exista.
+*@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="cajas-ficha" data-pieza="cajas-ficha" @ref="_raiz">
+    @{ var claves = new ClavesDeHermanos(); }
+    @foreach (var caja in EnOrden)
+    {
+        <div class="cajas-ficha-caja" data-caja="@caja.Clave" @key="claves.De(caja.Clave)">@caja.Contenido</div>
+    }
+</div>
+
+@code {
+    /// <summary>Las cajas de la pestaña, en cualquier orden: el componente las ordena por altura.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<CajaFicha> Cajas { get; set; } = [];
+
+    private ElementReference _raiz;
+    private IJSObjectReference? _modulo;
+    private Dictionary<string, int> _posicion = [];
+    private string _clavesMedidas = string.Empty;
+
+    /// <summary>Las cajas medidas, por su posición; una caja aún sin medir va al final, en su orden de llegada.</summary>
+    private IEnumerable<CajaFicha> EnOrden =>
+        Cajas.OrderBy(c => _posicion.GetValueOrDefault(c.Clave, int.MaxValue));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Cajas.Count < 2)
+            return;
+
+        var pintadas = EnOrden.Select(c => c.Clave).ToList();
+        var claves = string.Join('|', pintadas.Order(StringComparer.Ordinal));
+        if (claves == _clavesMedidas)
+            return;
+
+        try
+        {
+            _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/cajas-ficha.js");
+            var alturas = await _modulo.InvokeAsync<double[]>("medirAlturas", _raiz);
+            if (alturas.Length != pintadas.Count)
+                return;
+
+            _clavesMedidas = claves;
+            var porAltura = pintadas
+                .Select((clave, indice) => (clave, altura: alturas[indice], indice))
+                .OrderByDescending(c => c.altura)
+                .ThenBy(c => c.indice)
+                .Select(c => c.clave)
+                .ToList();
+
+            // Por índice y no con ToDictionary: dos cajas con la misma clave no deben tirar el circuito.
+            _posicion = [];
+            for (var posicion = 0; posicion < porAltura.Count; posicion++)
+                _posicion[porAltura[posicion]] = posicion;
+            StateHasChanged();
+        }
+        catch (JSDisconnectedException)
+        {
+            // El circuito se cerró mientras se medía: no queda nadie a quien ordenarle las cajas.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_modulo is null)
+            return;
+
+        try
+        {
+            await _modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+    }
+}
