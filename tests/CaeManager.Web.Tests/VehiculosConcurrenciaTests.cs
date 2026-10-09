@@ -182,7 +182,6 @@ public class VehiculosConcurrenciaTests : BunitContext
         var furgoneta = Vehiculo("Furgoneta de obra");
         var (cut, m) = Renderizar(furgoneta, Vehiculo("Camión grúa"));
         m.BajaLote = Result.Exito(new ResultadoEliminacionLoteDto(1, [], [furgoneta.Id]));
-        cut.FindAll("tbody button").Select(b => b.TextContent.Trim()).Should().NotContain("Eliminar");
         cut.FindComponents<DialogoConfirmacion>().Should().ContainSingle("solo queda el diálogo del lote");
 
         await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());

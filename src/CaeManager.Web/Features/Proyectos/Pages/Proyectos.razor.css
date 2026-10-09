@@ -49,7 +49,7 @@
 
 /*
     Panel lateral de detalle. Mismo apilamiento que los PreviewDrawer de
-    Clientes/Empresas/Trabajadores/Vehículos (VehiculoPreviewDrawer.razor.css):
+    Clientes/Empresas (ClientePreviewDrawer.razor.css):
     sin scrim —role="complementary", la lista sigue usable detrás— y 400px de
     ancho según el mockup. Las reglas se repiten aquí porque el CSS aislado no
     viaja entre componentes.
