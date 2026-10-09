@@ -141,7 +141,8 @@ comprobar "si la clave acaba en un fichero de la salida: se borra y sale con 1" 
 
 nuevo_caso tabla-de-otra-ejecucion
 echo "Anthropic__ApiKey=$CANARIO" > "$HOME/.talveg/banco-ia.env"
-echo "TABLA VIEJA" > "$CASO/salida/banco-ia-de-ayer.md"
+extension=md
+echo "TABLA VIEJA" > "$CASO/salida/banco-ia-de-ayer.$extension"
 sleep 1
 bash "$GUION" --sin-compilar --salida "$CASO/salida" > "$CASO/o" 2>&1
 comprobar "no enseña la tabla de una ejecución anterior" "no" "$(contiene "$CASO/o" "TABLA VIEJA")"
