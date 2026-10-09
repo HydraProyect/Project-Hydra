@@ -42,18 +42,6 @@
     outline-offset: 2px;
 }
 
-/* Visita cancelada: se dice, sin pedir nada. */
-.visita360-banda-neutra {
-    margin: 0;
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    background: var(--color-info-50);
-    color: var(--color-neutral-700);
-    font: var(--font-body-md);
-    font-weight: 500;
-}
-
 /* Cabecera de grupo de la comprobación previa: la Empresa o un Trabajador. */
 .visita360-grupo {
     display: flex;

@@ -127,10 +127,10 @@
 
         @if (EsCancelada)
         {
-            <p class="visita360-banda-neutra" role="status">
+            <BandaAccion Tono="TonoBanda.Neutro">
                 <b>@(string.IsNullOrWhiteSpace(visita.MotivoCancelacion) ? Textos["DetalleCancelada"] : Textos["DetalleCanceladaMotivo", visita.MotivoCancelacion])</b>
-                @Textos["DetalleCanceladaSinAcciones"]
-            </p>
+                <span>@Textos["DetalleCanceladaSinAcciones"]</span>
+            </BandaAccion>
         }
         else if (incidencias.Count > 0)
         {
