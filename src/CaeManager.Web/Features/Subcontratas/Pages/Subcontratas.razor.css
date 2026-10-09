@@ -22,6 +22,17 @@
     grid-template-columns: 24px 28px minmax(0, 2fr) 120px 132px 112px 112px auto;
 }
 
+/* Estrecho: la barra oculta su pista y la columna de cumplimiento se queda en el ancho de la cifra. */
+@media (max-width: 767px) {
+    .rejilla-subcontratas {
+        grid-template-columns: 28px minmax(0, 2fr) 120px 48px 112px 112px auto;
+    }
+
+    .rejilla-subcontratas-seleccion {
+        grid-template-columns: 24px 28px minmax(0, 2fr) 120px 48px 112px 112px auto;
+    }
+}
+
 .cabecera-columnas-subcontratas {
     padding: var(--space-2) var(--space-4);
     font: var(--font-label);

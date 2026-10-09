@@ -751,7 +751,25 @@ public class CentrosListaPatronTests : BunitContext
     }
 
     /// <summary>
-    /// Columnas de la maqueta aprobada: la Empresa tiene su columna y el anillo de cumplimiento la suya, bajo
+    /// Un Centro sin requisitos no tiene porcentaje: la barra pinta «—» y su nombre accesible no puede decir
+    /// «% de cumplimiento» sin número (antes la etiqueta interpolaba el valor sin mirarlo).
+    /// </summary>
+    [Fact]
+    public void Sin_requisitos_la_barra_del_Centro_no_anuncia_un_porcentaje()
+    {
+        var datos = ConDosClientes();
+        datos.Centros[0] = datos.Centros[0] with { CumplimientoPorcentaje = null };
+
+        var cut = Renderizar(datos);
+
+        var etiquetas = cut.FindAll(".columna-cumplimiento-centro [data-pieza=barra-cumplimiento]")
+            .Select(b => b.GetAttribute("aria-label")).ToList();
+        etiquetas.Should().ContainSingle(e => e == "Sin requisitos");
+        etiquetas.Where(e => e != "Sin requisitos").Should().OnlyContain(e => e!.StartsWith("87% de cumplimiento"));
+    }
+
+    /// <summary>
+    /// Columnas de la maqueta aprobada: la Empresa tiene su columna y la barra de cumplimiento la suya, bajo
     /// sus rótulos; la segunda línea de la identidad es el código (agrupado, el Cliente empresarial ya lo dice
     /// la cabecera del grupo).
     /// </summary>

@@ -38,7 +38,7 @@
     flex-shrink: 0;
 }
 
-/* chevron (24 px); el aro de cumplimiento tiene ahora su propia columna */
+/* chevron (24 px); la barra de cumplimiento tiene su propia columna */
 .cabecera-columnas-centros-inicio {
     width: 24px;
     flex-shrink: 0;
@@ -103,7 +103,7 @@
 
 /*
   En pantallas estrechas solo caben los anchos fijos imprescindibles: la columna Empresa se oculta
-  y la de Cumplimiento se queda en el ancho del aro, con su rótulo recortado (el nombre accesible
+  y la de Cumplimiento se queda en el ancho de la cifra (la barra oculta su pista), con su rótulo recortado (el nombre accesible
   del botón no cambia). Sin esto la fila desbordaba ~100 px en un móvil de 375 px y la identidad
   quedaba sin sitio.
 */

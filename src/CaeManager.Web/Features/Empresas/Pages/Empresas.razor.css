@@ -42,6 +42,17 @@
     grid-template-columns: 24px 28px minmax(0, 1fr) 132px 132px 116px 44px;
 }
 
+/* Estrecho: la barra oculta su pista y la columna de cumplimiento se queda en el ancho de la cifra. */
+@media (max-width: 767px) {
+    .rejilla-empresas {
+        grid-template-columns: 28px minmax(0, 1fr) 48px 132px 116px 44px;
+    }
+
+    .rejilla-empresas-seleccion {
+        grid-template-columns: 24px 28px minmax(0, 1fr) 48px 132px 116px 44px;
+    }
+}
+
 /*
   Marco de la lista (mockup): una tarjeta con la cabecera de columnas en una
   banda blanca y las filas pegadas, separadas por una línea. Las reglas de

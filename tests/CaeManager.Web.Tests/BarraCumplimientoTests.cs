@@ -96,6 +96,14 @@ public class BarraCumplimientoTests : BunitContext
     }
 
     [Fact]
+    public void Un_valor_fuera_de_rango_no_escribe_una_cifra_imposible()
+    {
+        var cut = Render<BarraCumplimiento>(p => p.Add(c => c.Porcentaje, 140));
+
+        cut.Find(".barra-cumplimiento-cifra").TextContent.Should().Be("100 %");
+    }
+
+    [Fact]
     public void El_texto_propio_sustituye_a_la_cifra_y_un_valor_fuera_de_rango_no_desborda_la_pista()
     {
         var cut = Render<BarraCumplimiento>(p => p.Add(c => c.Porcentaje, 140).Add(c => c.Texto, "8/10"));
