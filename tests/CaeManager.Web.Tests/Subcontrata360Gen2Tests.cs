@@ -264,6 +264,30 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         Boton(cut, "Ver sus trabajadores").Should().NotBeNull("el camino a sus trabajadores se conserva");
     }
 
+    /// <summary>
+    /// Si los vencidos y próximos no se pudieron leer, «Documentación» lo dice: el aviso de
+    /// «sin incidencias» se leería como «no hay nada vencido».
+    /// </summary>
+    [Fact]
+    public void Documentacion_dice_que_no_pudo_leer_las_incidencias_en_vez_de_callarlo()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso
+        {
+            Retener = p => p is ObtenerSubcontratasQuery ? Task.FromException(new InvalidOperationException("Fallo simulado.")) : null
+        });
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+        mediador.Filas[id] = Fila(id, cumplimiento: 58,
+            vencidas: [new("Formación PRL — Iñaki Otaegi", EstadoDocumento.Vencido, null, null, null)]);
+
+        var cut = Renderizar(id, "documentacion");
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No se pudieron leer los vencidos y próximos de sus trabajadores"));
+        cut.Markup.Should().NotContain("Documentación no modelada a nivel de Subcontrata");
+        cut.Find(".cabecera-subcontrata-360 a.boton-360-pagina").Should().NotBeNull("un fallo de la fila no es un fallo de la ficha");
+        Boton(cut, "Ver sus trabajadores").Should().NotBeNull("el camino a sus trabajadores se conserva");
+    }
+
     [Fact]
     public void Documentacion_sin_incidencias_conserva_el_aviso_y_el_camino_a_sus_trabajadores()
     {

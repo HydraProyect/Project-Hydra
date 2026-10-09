@@ -856,9 +856,15 @@
     <value>Copia el CIF {0}</value>
   </data>
   <data name="AriaEditarInformacion" xml:space="preserve">
-    <value>Edita la informació de la subcontractista</value>
+    <value>Edita la informació de la subcontrata</value>
   </data>
   <data name="TituloEditarConAtajo" xml:space="preserve">
     <value>Edita (e)</value>
+  </data>
+  <data name="ErrorCargaIncidenciasTitulo" xml:space="preserve">
+    <value>No s'han pogut llegir els vençuts i pròxims dels seus treballadors</value>
+  </data>
+  <data name="ErrorCargaIncidenciasDescripcion" xml:space="preserve">
+    <value>No vol dir que no n'hi hagi cap. Consulta la pestanya Treballadors o torna a obrir la fitxa.</value>
   </data>
 </root>

@@ -861,4 +861,10 @@
   <data name="TituloEditarConAtajo" xml:space="preserve">
     <value>Editar (e)</value>
   </data>
+  <data name="ErrorCargaIncidenciasTitulo" xml:space="preserve">
+    <value>No se pudieron leer los vencidos y próximos de sus trabajadores</value>
+  </data>
+  <data name="ErrorCargaIncidenciasDescripcion" xml:space="preserve">
+    <value>No significa que no haya ninguno. Consulta la pestaña Trabajadores o vuelve a abrir la ficha.</value>
+  </data>
 </root>

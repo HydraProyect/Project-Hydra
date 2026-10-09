@@ -37,6 +37,7 @@ public class SubcontrataWorkspacePanelLapizTests : BunitContext
 
     private MediadorPorFuncion _mediador = null!;
     private int _cargasQueFallan;
+    private int _cargasSinFicha;
 
     private readonly List<string> _pestanasPedidas = [];
 
@@ -48,6 +49,7 @@ public class SubcontrataWorkspacePanelLapizTests : BunitContext
         _mediador = new MediadorPorFuncion(p => p switch
         {
             ObtenerSubcontrataPorIdQuery when _cargasQueFallan-- > 0 => throw new InvalidOperationException("Fallo simulado de la carga."),
+            ObtenerSubcontrataPorIdQuery when _cargasSinFicha-- > 0 => null,
             ObtenerSubcontrataPorIdQuery => new SubcontrataDetalleDto(
                 Id, "Pinturas Lauburu S.A.", "A-48.007.615", DateTime.UtcNow, [], [], Guid.NewGuid(), NivelServicioSubcontrata.Gestionada),
             ObtenerSubcontratasQuery q => new ResultadoPaginado<SubcontrataListaDto>([], 0, q.Pagina, q.TamanoPagina),
@@ -152,6 +154,25 @@ public class SubcontrataWorkspacePanelLapizTests : BunitContext
             "control positivo: la carga se intentó y falló"));
         cut.FindAll(Lapiz).Should().BeEmpty("control positivo: sin detalle no hay cabecera");
         workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Subcontrata, Id).Should().BeFalse("la carga fallida la descartó");
+        EntroEnEdicion.Should().BeFalse();
+    }
+
+    /// <summary>Lo mismo si la ficha no existe (o ya no se ve): la consulta no falla, devuelve vacío.</summary>
+    [Fact]
+    public async Task Si_la_ficha_no_existe_la_peticion_de_edicion_se_descarta()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var workspace = new ContextWorkspaceService();
+        Services.AddScoped(_ => workspace);
+        await workspace.AbrirEnEdicionAsync(EntidadWorkspace.Subcontrata, Id, "Pinturas Lauburu S.A.");
+        _cargasSinFicha = 1;
+
+        var cut = Renderizar("informacion");
+
+        cut.WaitForAssertion(() => _mediador.Enviadas.OfType<ObtenerSubcontrataPorIdQuery>().Should().ContainSingle(
+            "control positivo: la carga se intentó"));
+        cut.FindAll(Lapiz).Should().BeEmpty("control positivo: sin detalle no hay cabecera");
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Subcontrata, Id).Should().BeFalse("la ficha inexistente la descartó");
         EntroEnEdicion.Should().BeFalse();
     }
 

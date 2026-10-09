@@ -357,7 +357,8 @@ else
                 @* El modelo no asocia Documentos a una Subcontrata. Lo que sí existe son las
                    incidencias de sus trabajadores, las mismas que la fila del listado cuenta en
                    «Vencidos» y «Próximos»: vencidas primero —faltantes incluidas— y después las
-                   próximas. Sin incidencias (o si no se pudieron leer) queda el aviso de siempre. *@
+                   próximas. Sin incidencias queda el aviso de siempre; si no se pudieron leer,
+                   se dice: callarlo se leería como «no hay nada vencido». *@
                 @if (Incidencias.Count > 0)
                 {
 <ul class="lista-incidencias-subcontrata-360" aria-label="@Textos["AriaListaIncidencias"]">
@@ -372,6 +373,14 @@ else
                     <div class="acciones-subcontrata-360">
                         <Boton Variante="VarianteBoton.Secundario" OnClick='() => PestanaActivaChanged.InvokeAsync("trabajadores")'>@Textos["BotonVerSusTrabajadores"]</Boton>
                     </div>
+                }
+                else if (_errorFila)
+                {
+                    <EstadoVacio Titulo="@Textos["ErrorCargaIncidenciasTitulo"]" Descripcion="@Textos["ErrorCargaIncidenciasDescripcion"]">
+                        <Accion>
+                            <Boton Variante="VarianteBoton.Secundario" OnClick='() => PestanaActivaChanged.InvokeAsync("trabajadores")'>@Textos["BotonVerSusTrabajadores"]</Boton>
+                        </Accion>
+                    </EstadoVacio>
                 }
                 else
                 {
@@ -608,6 +617,7 @@ else
     /// </summary>
     private SubcontrataListaDto? _fila;
     private int _cargaFila;
+    private bool _errorFila;
 
     /// <summary>La cadena de cargas de <see cref="CargarTodoAsync"/> sigue en vuelo.</summary>
     private bool _cadenaEnVuelo;
@@ -951,6 +961,7 @@ else
         InvalidarCargas();
         _detalle = null;
         _fila = null;
+        _errorFila = false;
         _error = false;
         _trabajadores = null;
         _totalTrabajadores = 0;
@@ -1042,11 +1053,15 @@ else
             var resultado = await Mediator.Send(new ObtenerSubcontratasQuery(Busqueda: null, SubcontrataId: id), _cancelacion);
             if (carga != _cargaFila) return;
             _fila = resultado?.Elementos.FirstOrDefault(s => s.Id == id);
+            _errorFila = false;
         }
         catch (Exception)
         {
             if (carga == _cargaFila)
+            {
                 _fila = null;
+                _errorFila = true;
+            }
         }
 
         if (carga == _cargaFila)
@@ -1068,6 +1083,9 @@ else
             var detalle = await Mediator.Send(new ObtenerSubcontrataPorIdQuery(id), _cancelacion);
             if (carga != _cargaCabecera) return;
             _detalle = detalle;
+            // Tampoco sobrevive a una ficha que no existe (o ya no se ve): mismo motivo que abajo.
+            if (detalle is null)
+                WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Subcontrata, id);
         }
         catch (Exception)
         {
