@@ -466,11 +466,12 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
     }
 
     private Task<Result> Terminar(
-        Guid usuarioId, string rolDeSesion, Guid origen, object comando, Guid? tenantActivo = null) =>
+        Guid usuarioId, string rolDeSesion, Guid origen, object comando, Guid? tenantActivo = null, Pausa? pausa = null) =>
         EnArnes(usuarioId, rolDeSesion, origen, (usuario, contexto, directorio, _) =>
         {
+            ICatalogoIncorporacionCartera catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
             var handler = new TerminarApoyoCarteraCommandHandler(
-                usuario, directorio, directorio, new CatalogoIncorporacionCartera(contexto, usuario),
+                usuario, directorio, directorio, pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
                 new PropuestaApoyoCarteraRepository(contexto), new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
                 new NotificacionUsuarioRepository(contexto), contexto, contexto,
                 NullLogger<TerminarApoyoCarteraCommandHandler>.Instance);
@@ -618,6 +619,99 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
         var avisos = (await AvisosAsync()).Where(a => a.Titulo.StartsWith("Acceso de apoyo", StringComparison.Ordinal)).ToList();
         avisos.Select(a => a.Destinatario).Should().BeEquivalentTo([_direccion, _gestorB]);
         avisos.Should().OnlyContain(a => a.TenantId == _operador.Id);
+    }
+
+    [Fact]
+    public async Task Si_el_principal_pierde_la_marca_despues_de_que_el_catalogo_decidiera_su_retirada_pierde_la_carrera_y_el_apoyo_sigue()
+    {
+        var propuestaId = await ApoyoAceptadoAsync();
+
+        // El catálogo ya leyó que quien retira era el principal y dejó la cartera cerrada sin guardar.
+        var enPausa = new Pausa("despues:retirarApoyo");
+        var retirar = Terminar(_gestorA, Roles.GestorCae, _operador.Id, new RetirarApoyoConcedidoCommand(propuestaId), pausa: enPausa);
+        await enPausa.Alcanzada;
+
+        // Por otra conexión: la marca pasa a otro Gestor CAE.
+        (await Designar(_gestorC)).EsExitoso.Should().BeTrue();
+
+        enPausa.Soltar();
+        (await retirar).Error.Should().Be(ErroresPropuestaApoyo.CambioMientrasDecidias,
+            "la retirada renueva la versión de la cartera del principal: si la marca cambió de manos a la vez, no guarda");
+
+        (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Vigente, "la transacción se deshizo entera");
+        (await PropuestaAsync(propuestaId)).Estado.Should().Be(EstadoPropuestaApoyoCartera.Aceptada);
+        (await FilasHeredadasAsync(_vinculoBeneficiario)).Should().Contain(_gestorB);
+
+        // Al reintentar, ya decide sobre el estado nuevo.
+        (await Terminar(_gestorA, Roles.GestorCae, _operador.Id, new RetirarApoyoConcedidoCommand(propuestaId)))
+            .Error.Should().Be(ErroresPropuestaApoyo.YaNoEresElPrincipal);
+        (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Vigente);
+    }
+
+    [Fact]
+    public async Task Si_la_cartera_de_apoyo_cambia_despues_de_que_el_catalogo_decidiera_la_revocacion_no_guarda()
+    {
+        var propuestaId = await ApoyoAceptadoAsync();
+        var cartera = await CarteraDeAsync(_gestorB);
+
+        var enPausa = new Pausa("despues:retirarApoyo");
+        var revocar = Terminar(_coordinador, Roles.CoordinadorCae, _operador.Id, new RevocarApoyoCarteraCommand(propuestaId), pausa: enPausa);
+        await enPausa.Alcanzada;
+
+        // Otro escritor toca esa cartera a la vez (lo que haría una designación de principal que
+        // no pasara por el candado del usuario): su versión cambia bajo los pies del comando.
+        await using (var propietario = ContextoPropietario(_operador.Id))
+        {
+            (await propietario.AsignacionesCartera.Where(c => c.Id == cartera.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.Version, Guid.NewGuid()))).Should().Be(1);
+        }
+
+        enPausa.Soltar();
+        (await revocar).Error.Should().Be(ErroresPropuestaApoyo.CambioMientrasDecidias,
+            "la cartera de apoyo se lee seguida por el contexto: su versión detecta el cambio simultáneo");
+
+        (await CarteraDeAsync(_gestorB)).Estado.Should().Be(EstadoAsignacion.Vigente);
+        (await PropuestaAsync(propuestaId)).Estado.Should().Be(EstadoPropuestaApoyoCartera.Aceptada);
+        (await FilasHeredadasAsync(_vinculoBeneficiario)).Should().Contain(_gestorB);
+    }
+
+    [Fact]
+    public async Task Revocar_un_apoyo_cuya_cartera_ya_se_cerro_no_toca_la_cartera_que_esa_persona_recibio_despues_por_otra_via()
+    {
+        var propuestaId = await ApoyoAceptadoAsync();
+        var deApoyo = await CarteraDeAsync(_gestorB);
+
+        // La cartera de apoyo se cierra sin pasar por la retirada (como al caducar): la propuesta
+        // se queda en «aceptada».
+        await using (var propietario = ContextoPropietario(_operador.Id))
+        {
+            var cartera = await propietario.AsignacionesCartera.SingleAsync(c => c.Id == deApoyo.Id);
+            cartera.Cerrar(MotivoCierreAsignacion.Expirada, DateTime.UtcNow);
+            await propietario.SaveChangesAsync();
+        }
+
+        // Y su Coordinador CAE le da la empresa por «Asignar empresas»: otra cartera, de otro origen.
+        await EnArnes(_coordinador, Roles.CoordinadorCae, _operador.Id, async (usuario, contexto, _, _) =>
+        {
+            using (AmbitoTenantExplicito.Establecer(_beneficiario.Id))
+            {
+                var catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
+                await catalogo.IncorporarAsync(_beneficiario.Id, _operador.Id, _operacion, _gestorB);
+                (await catalogo.GuardarDetectandoCarreraAsync()).Should().BeTrue();
+            }
+
+            return true;
+        });
+        var nueva = (await CarterasAsync()).Single(c => c.UsuarioId == _gestorB && c.Estado == EstadoAsignacion.Vigente);
+        nueva.Id.Should().NotBe(deApoyo.Id, "control: es otra cartera");
+
+        (await Terminar(_coordinador, Roles.CoordinadorCae, _operador.Id, new RevocarApoyoCarteraCommand(propuestaId)))
+            .EsExitoso.Should().BeTrue("el apoyo ya había terminado: solo queda poner la propuesta al día");
+
+        (await PropuestaAsync(propuestaId)).Estado.Should().Be(EstadoPropuestaApoyoCartera.Terminada);
+        (await CarterasAsync()).Single(c => c.Id == nueva.Id).Estado.Should().Be(EstadoAsignacion.Vigente,
+            "la revocación busca la cartera que emitió la propuesta, no «la cartera viva de esa persona»");
+        (await Abre(_gestorB, _beneficiario.Id)).Abre.Should().BeTrue();
     }
 
     [Fact]
@@ -855,7 +949,12 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
         public Task<IReadOnlyList<TenantEnCarteraDeGestor>> ObtenerCarteraUniversalAsync(Guid o, Guid u, CancellationToken c = default) => real.ObtenerCarteraUniversalAsync(o, u, c);
         public Task<bool> RetirarCarteraUniversalAsync(Guid p, Guid o, Guid u, Guid a, CancellationToken c = default) => real.RetirarCarteraUniversalAsync(p, o, u, a, c);
         public Task<IReadOnlyList<ApoyoVivoDeCartera>> ObtenerApoyosVivosAsync(Guid o, CancellationToken c = default) => real.ObtenerApoyosVivosAsync(o, c);
-        public Task<ResultadoRetiradaApoyo> RetirarCarteraDeApoyoAsync(PropuestaApoyoCartera pr, Guid a, bool e, CancellationToken c = default) => real.RetirarCarteraDeApoyoAsync(pr, a, e, c);
+        public async Task<ResultadoRetiradaApoyo> RetirarCarteraDeApoyoAsync(PropuestaApoyoCartera pr, Guid a, bool e, CancellationToken c = default)
+        {
+            var resultado = await real.RetirarCarteraDeApoyoAsync(pr, a, e, c);
+            await pausa.EnAsync("despues:retirarApoyo");
+            return resultado;
+        }
         public Task<IReadOnlyList<CarteraVivaDeOperacion>> ObtenerCarterasVivasAsync(Guid o, Guid? p, CancellationToken c = default) => real.ObtenerCarterasVivasAsync(o, p, c);
         public Task<IReadOnlyList<OperacionConPrincipal>> ObtenerOperacionesDondeEsPrincipalAsync(Guid o, Guid u, CancellationToken c = default) => real.ObtenerOperacionesDondeEsPrincipalAsync(o, u, c);
         public Task<bool> ApagarPrincipalAsync(Guid o, Guid op, Guid u, CancellationToken c = default) => real.ApagarPrincipalAsync(o, op, u, c);

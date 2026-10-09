@@ -55,7 +55,6 @@ public static class ErroresPropuestaApoyo
         "PropuestaApoyo.AnuladaYaEnCartera",
         "Ya tienes esa empresa en tu cartera; la propuesta de apoyo se ha anulado.");
 
-    /// <summary>El error con que el destinatario se entera de que su aceptación anuló la propuesta.</summary>
     public static readonly Error AnuladaFechaDeFinPasada = Error.Crear(
         "PropuestaApoyo.AnuladaFechaDeFinPasada",
         "La fecha de fin de ese apoyo ya ha pasado; la propuesta se ha anulado.");
@@ -85,6 +84,7 @@ public static class ErroresPropuestaApoyo
         "PropuestaApoyo.ApoyoFueraDeTuEquipo",
         "Ni esa persona ni quien le dio el acceso están en tu equipo: no puedes revocar ese apoyo.");
 
+    /// <summary>El error con que el destinatario se entera de que su aceptación anuló la propuesta.</summary>
     public static Error DeAnulacion(MotivoAnulacionPropuestaApoyo motivo) => motivo switch
     {
         MotivoAnulacionPropuestaApoyo.FechaDeFinPasada => AnuladaFechaDeFinPasada,
