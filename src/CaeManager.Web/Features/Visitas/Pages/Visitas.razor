@@ -376,6 +376,8 @@
                     }
                     <span class="visitas-detalle-fechas">@TextoFechas(_detalle.FechaInicio, _detalle.FechaFin)</span>
                 </div>
+                @* El Drawer es la consulta rápida; la Visita tiene además su página 360. *@
+                <a class="visitas-detalle-pagina" href="@($"/visitas/{_detalle.Id}")">@Textos["DetalleAbrirPagina"]</a>
             </div>
 
             @* Tres pestañas, como el resto de paneles de listado: la cabecera (Centro, urgencia y fechas) queda fija encima. *@
@@ -556,8 +558,13 @@
                         <pre class="visitas-aviso-cuerpo">@_solicitudCorreo.Cuerpo</pre>
                         <div class="visitas-aviso-acciones">
                             <BotonCopiar Valor="@TextoSolicitudParaCopiar(_solicitudCorreo)" Etiqueta="@Textos["SolicitudAccesoCorreoEtiquetaCopiar"]" Texto="@Textos["SolicitudAccesoCorreoCopiar"]" />
-                            <Boton Variante="VarianteBoton.Secundario" Cargando="_preparandoEnvioPaquete" OnClick="AbrirEnviarPaquetePorCorreoAsync">@Textos["EnviarPaquetePorCorreo"]</Boton>
-                            <Boton Variante="VarianteBoton.Secundario" Href="@RutaPaqueteDocumental(_detalle.Id)" download data-enhance-nav="false">@Textos["DescargarPaqueteDocumental"]</Boton>
+                            @* Decisión del 2026-10-08: el rol Consulta conserva «Copiar solicitud»; enviar y
+                               descargar el ZIP son de quien escribe. Aquí solo se dejan de pintar: quien lo
+                               decide es ObtenerPaqueteDocumentalVisitaQuery, que le niega el paquete. *@
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Secundario" Cargando="_preparandoEnvioPaquete" OnClick="AbrirEnviarPaquetePorCorreoAsync">@Textos["EnviarPaquetePorCorreo"]</Boton>
+                                <Boton Variante="VarianteBoton.Secundario" Href="@RutaPaqueteDocumental(_detalle.Id)" download data-enhance-nav="false">@Textos["DescargarPaqueteDocumental"]</Boton>
+                            </SoloConEscritura>
                         </div>
                         @if (_avisoEnvioPaquete is not null)
                         {

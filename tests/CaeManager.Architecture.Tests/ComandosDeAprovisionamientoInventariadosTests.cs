@@ -34,6 +34,11 @@ public class ComandosDeAprovisionamientoInventariadosTests
         // Aprovisionamiento sobre ese Tenant; el rol elevado solo actualiza las columnas del logo.
         "GuardarLogoTenantCommand",
         "RetirarLogoTenantCommand",
+        // Encargo de administración (decisión D-8, 2026-10-08): Soporte TALVEG lo registra y lo retira con
+        // Aprovisionamiento sobre ese Tenant; el rol elevado solo inserta el encargo y actualiza las columnas
+        // de la retirada. Quién puede lo decide AutoridadSobreElEncargo, nunca el rol efectivo.
+        "RegistrarEncargoAdministracionCommand",
+        "RetirarEncargoAdministracionCommand",
     ];
 
     [Fact]

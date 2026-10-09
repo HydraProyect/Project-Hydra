@@ -329,6 +329,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IAsignacionOperadorDelegadoRepository, AsignacionOperadorDelegadoRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.ISolicitudIncorporacionCarteraRepository, SolicitudIncorporacionCarteraRepository>();
+        services.AddScoped<CaeManager.Domain.Tenants.IEncargoAdministracionRepository, EncargoAdministracionRepository>();
         services.AddScoped<CaeManager.Domain.Operaciones.IPropuestaApoyoCarteraRepository, PropuestaApoyoCarteraRepository>();
         services.AddScoped<IPreferenciaDashboardUsuarioRepository, PreferenciaDashboardUsuarioRepository>();
         services.AddScoped<IFiltroGuardadoRepository, FiltroGuardadoRepository>();
@@ -425,6 +426,7 @@ public static class InfrastructureServiceCollectionExtensions
         // autoridad para MODIFICAR. Ver IAutoridadAsignacionesService.
         services.AddScoped<IAutoridadAsignacionesService, AutoridadAsignacionesService>();
         services.AddScoped<CaeManager.Application.Operaciones.IOperacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Tenants.IEncargosAdministracionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Plataforma.IPlataformaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         // Revalida contra la base la sesión privilegiada que el token nombre —
         // sesión abierta y en ventana, concesión vigente, tenant en alcance —
@@ -502,6 +504,16 @@ public static class InfrastructureServiceCollectionExtensions
             AdministradorDelTenantPropietarioEnBase>();
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
+        // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de
+        // origen, leído de Identity. Su único consumidor es TechoDeRolPorEncargo (trinquete
+        // RolDeOrigenFueraDeAutorizacionTests).
+        services.AddScoped<CaeManager.Application.Tenants.IPerfilDePropiedadEnOrigen,
+            PerfilDePropiedadEnOrigenEnBase>();
+        // Se registra aquí y no en AddApplication porque depende del puerto de arriba y de los
+        // contextos de consulta: un contenedor que solo componga Application no lo necesita.
+        services.AddScoped<CaeManager.Application.Tenants.TechoDeRolPorEncargo>();
+        // Quién registra, retira y lee el encargo: nunca el rol efectivo (ver la clase).
+        services.AddScoped<CaeManager.Application.Tenants.Encargo.AutoridadSobreElEncargo>();
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
 

@@ -72,4 +72,19 @@
   <data name="PorVencerUrgente" xml:space="preserve">
     <value>Per vèncer (urgent)</value>
   </data>
+  <data name="Ficha360Vencido" xml:space="preserve">
+    <value>Vençut</value>
+  </data>
+  <data name="Ficha360Pendiente" xml:space="preserve">
+    <value>Pendent</value>
+  </data>
+  <data name="Ficha360PorVencer" xml:space="preserve">
+    <value>A punt de vèncer</value>
+  </data>
+  <data name="Ficha360Vigente" xml:space="preserve">
+    <value>Vigent</value>
+  </data>
+  <data name="Ficha360Desconocido" xml:space="preserve">
+    <value>Estat desconegut</value>
+  </data>
 </root>
