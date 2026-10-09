@@ -4,6 +4,7 @@ using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
+using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
@@ -242,6 +243,39 @@ public class DocumentacionGestionadaVisitaTests
         resultado.Error.Should().Be(fallo);
         escenario.Visita.DocumentacionGestionada.Should().BeFalse();
         escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    // ---------------------------------------------------------------- Lo que lee la lista
+
+    private static VisitaListaDto Fila(
+        bool documentosVigentes, DateTime? gestionadaEn, bool requiereGestionCae = true, bool cancelada = false) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), "Nave Norte", Guid.NewGuid(), "Cliente empresarial", Guid.NewGuid(), "Empresa",
+            Fecha, Fecha.AddDays(1), TotalTrabajadores: 1, DocumentacionCompleta: documentosVigentes, NotificadoCliente: false,
+            OrigenVisita.Correo, NivelUrgenciaVisita.Urgente, CentroRequiereGestionCae: requiereGestionCae,
+            EstaCancelada: cancelada, DocumentacionGestionadaEnUtc: gestionadaEn);
+
+    /// <summary>
+    /// «Por gestionar» sale del estado guardado y no de los documentos: las dos combinaciones
+    /// que distinguen una regla de la otra (vigentes sin marca, y con marca aunque falten).
+    /// </summary>
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(false, false, true)]
+    [InlineData(true, true, false)]
+    [InlineData(false, true, false)]
+    public void Por_gestionar_depende_de_la_marca_guardada_y_no_de_que_los_documentos_esten_vigentes(
+        bool documentosVigentes, bool marcada, bool porGestionar)
+    {
+        var fila = Fila(documentosVigentes, marcada ? new DateTime(2026, 10, 9, 10, 0, 0, DateTimeKind.Utc) : null);
+
+        fila.PorGestionar.Should().Be(porGestionar);
+    }
+
+    [Fact]
+    public void Ni_una_visita_cancelada_ni_un_Centro_sin_gestion_CAE_estan_por_gestionar()
+    {
+        Fila(documentosVigentes: false, gestionadaEn: null, cancelada: true).PorGestionar.Should().BeFalse();
+        Fila(documentosVigentes: false, gestionadaEn: null, requiereGestionCae: false).PorGestionar.Should().BeFalse();
     }
 
     [Fact]
