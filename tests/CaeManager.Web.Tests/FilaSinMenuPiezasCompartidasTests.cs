@@ -72,6 +72,28 @@ public class FilaSinMenuPiezasCompartidasTests : BunitContext
         pulsado.Should().Be(1);
     }
 
+    // Lo que observa: que el giro del icono se declara sobre .boton-360, la clase que llevan las
+    // dos variantes (botón del panel y enlace a la página), y que se anula con movimiento
+    // reducido. Lo que NO observa: el giro pintado; eso se mide en el navegador.
+    [Fact]
+    public void El_icono_360_gira_en_las_dos_variantes_y_no_gira_con_movimiento_reducido()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        var hoja = File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", "Components", "DesignSystem", "Boton360.razor.css"));
+        var partes = hoja.Split("@media (prefers-reduced-motion: reduce)");
+
+        partes.Should().HaveCount(2);
+        System.Text.RegularExpressions.Regex.IsMatch(partes[0],
+            @"\.boton-360:hover ::deep svg,\s*\.boton-360:focus-visible ::deep svg\s*\{\s*transform:\s*rotate\(180deg\);").Should().BeTrue();
+        System.Text.RegularExpressions.Regex.IsMatch(partes[1],
+            @"\.boton-360:hover ::deep svg,\s*\.boton-360:focus-visible ::deep svg\s*\{\s*transform:\s*none;").Should().BeTrue();
+
+        Render<Boton360>(p => p.Add(c => c.Nombre, "Refrielectric S.A.")).Find("button.boton-360").Should().NotBeNull();
+        Render<Boton360>(p => p.Add(c => c.Nombre, "Refrielectric S.A.").Add(c => c.Href, "/empresas/42")).Find("a.boton-360").Should().NotBeNull();
+    }
+
     [Fact]
     public async Task El_clic_en_el_icono_360_de_pagina_no_sube_a_la_fila()
     {
