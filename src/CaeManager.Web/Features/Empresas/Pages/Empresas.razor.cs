@@ -807,8 +807,8 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         // aunque el filtro haya dejado la lista vacía.
         if (tecla == "e")
         {
-            var idEnfocadoVisible = _idEnfocado is { } enfocado && _elementosPagina.Any(e => e.Id == enfocado) ? _idEnfocado : null;
-            if ((idEnfocadoVisible ?? EmpresaEnVistaPrevia) is { } idEditar)
+            // La fila enfocada siempre está en la página: cada recarga de la lista la olvida.
+            if ((_idEnfocado ?? EmpresaEnVistaPrevia) is { } idEditar)
                 await AbrirVistaRapidaEnEdicionAsync(idEditar);
             return;
         }
