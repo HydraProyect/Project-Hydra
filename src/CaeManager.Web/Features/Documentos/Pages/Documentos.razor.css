@@ -30,10 +30,10 @@
     · .col-title lleva 0.4rem a cada lado, que además dejaba el rótulo 6,4 px a la derecha del
       contenido de sus celdas.
 
-  Aquí el rótulo se parte por palabras y esos dos rellenos se quitan (el del <th> se conserva): el
-  mínimo de la tabla baja a 864 px con los mismos datos. Va con ::deep porque la tabla la pinta
-  QuickGrid, un componente hijo; «div >» es el envoltorio del listado en Documentos.razor, de modo que
-  las tablas de las otras pestañas no cambian. Lo fija DocumentosListadoSinDesbordeE2ETests.
+  Aquí el rótulo se parte por palabras y esos dos rellenos se quitan: el mínimo de la tabla baja a
+  864 px con los mismos datos. Va con ::deep porque la tabla la pinta QuickGrid, un componente hijo;
+  «div >» es el envoltorio del listado en Documentos.razor, de modo que las tablas de las otras
+  pestañas no cambian. Lo fija DocumentosListadoSinDesbordeE2ETests.
 */
 div > ::deep .tabla-datos .col-title-text {
     white-space: normal;
@@ -49,38 +49,38 @@ div > ::deep .tabla-datos .col-title {
 }
 
 /*
-  Por debajo de 1240 px de ventana el hueco no llega a ese mínimo: mide la ventana menos 324 px de
-  barra lateral y márgenes, y menos lo que ocupe la barra de desplazamiento vertical (a 1200 px, 876
-  sin ella y 859 con una de 17). Ahí la tabla pasa a ser su propio contenedor de desplazamiento
-  horizontal, como ya hace .tabla-datos en móvil (list-page.css, donde se explica por qué
-  display: block), y la página no se mueve. Mismas consecuencias que allí: la cabecera deja de pegarse
-  al desplazar en vertical. Si el mínimo de la tabla crece (otra columna, rótulos más largos), el
-  corte sube con él.
+  Con «Selección múltiple» la tabla gana una octava columna (la casilla) y esos 864 px no bastaban: a
+  1240 px de ventana el hueco mide 916, y 899 si la barra de desplazamiento vertical ocupa 17. El
+  relleno lateral de las celdas baja de --space-4 a --space-3 en esta tabla, que es lo que deja
+  margen también con la casilla.
 */
-@media (max-width: 1239px) {
-    div > ::deep .tabla-datos {
-        display: block;
+div > ::deep .tabla-datos th,
+div > ::deep .tabla-datos td {
+    padding-left: var(--space-3);
+    padding-right: var(--space-3);
+}
+
+/*
+  Por debajo de 1240 px de ventana el hueco no llega al mínimo de la tabla: mide la ventana menos
+  324 px de barra lateral y márgenes, y menos lo que ocupe la barra de desplazamiento vertical. Ahí el
+  envoltorio del listado pasa a ser el contenedor de desplazamiento horizontal y la página no se
+  mueve. Si el mínimo de la tabla crece (otra columna, rótulos más largos), el corte sube con él.
+
+  Es el envoltorio y no la tabla (lo que hace .tabla-datos en móvil, list-page.css) por el menú «⋯»
+  de la fila: su panel se abre hacia abajo, y un contenedor que desplaza en horizontal también recorta
+  en vertical. En la última fila el panel metía una barra vertical dentro de la tabla. Mientras hay un
+  panel abierto —el menú de una fila o las opciones de orden de una cabecera— el envoltorio se alarga
+  10rem hacia abajo sin mover lo que le sigue (el margen negativo lo compensa), y el panel cabe
+  entero. Consecuencia que queda: en este tramo la cabecera de la tabla no se pega al desplazar en
+  vertical. De 767 px para abajo manda la regla de móvil de list-page.css y esto no se aplica.
+*/
+@media (min-width: 768px) and (max-width: 1239px) {
+    div:has(> .tabla-datos) {
         overflow-x: auto;
     }
-}
 
-.documentos-opciones-orden {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.documentos-opciones-orden button {
-    border: 0;
-    border-radius: 0.25rem;
-    padding: 0.375rem 0.5rem;
-    background: transparent;
-    color: var(--color-text);
-    font: inherit;
-    text-align: start;
-    cursor: pointer;
-}
-
-.documentos-opciones-orden button:hover {
-    background: var(--color-surface-hover);
+    div:has(> .tabla-datos):has(.menu-acciones-panel, .col-options) {
+        padding-bottom: 10rem;
+        margin-bottom: -10rem;
+    }
 }
