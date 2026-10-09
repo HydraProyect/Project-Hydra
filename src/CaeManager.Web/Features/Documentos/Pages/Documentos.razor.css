@@ -38,11 +38,11 @@
 }
 
 /*
-  El listado cabe en su hueco. Con siete columnas, la tabla no podía bajar de unos 1200 px (1196 y
-  1210 en dos mediciones del 2026-10-09 con los datos sembrados), fuera cual fuera el ancho de la
-  ventana, y a 1024, 1266 y 1440 px su hueco mide 700, 942 y 1116: lo que sobraba lo desplazaba
-  .contenido, es decir, la página entera (cabecera, pestañas y filtros incluidos). Ese mínimo no venía
-  de los datos sino de las cabeceras, por tres reglas del tema de serie de QuickGrid:
+  El listado cabe en su hueco. Con siete columnas, la tabla no bajaba de unos 1190 px (1185 y 1196 en
+  dos rondas E2E del 2026-10-09; 1253 y 1264 con la casilla de «Selección múltiple»), fuera cual fuera
+  el ancho de la ventana, y a 1024, 1266 y 1440 px su hueco mide 700, 942 y 1116: lo que sobraba lo
+  desplazaba .contenido, es decir, la página entera (cabecera, pestañas y filtros incluidos). Ese
+  mínimo venía sobre todo de las cabeceras, por tres reglas del tema de serie de QuickGrid:
 
     · el rótulo no se parte (.col-title-text, white-space: nowrap), así que «Vigencia · Vencimiento»
       o «Tipo de documento» fijaban el ancho de su columna;
@@ -51,10 +51,10 @@
     · .col-title lleva 0.4rem a cada lado, que además dejaba el rótulo 6,4 px a la derecha del
       contenido de sus celdas.
 
-  Aquí el rótulo se parte por palabras y esos dos rellenos se quitan: el mínimo de la tabla baja a
-  864 px con los mismos datos. Va con ::deep porque la tabla la pinta QuickGrid, un componente hijo;
-  «div >» es el envoltorio del listado en Documentos.razor, de modo que las tablas de las otras
-  pestañas no cambian. Lo fija DocumentosListadoSinDesbordeE2ETests.
+  Aquí el rótulo se parte por palabras y esos dos rellenos se quitan. Va con ::deep porque la tabla
+  la pinta QuickGrid, un componente hijo; «div >» es el envoltorio del listado en Documentos.razor,
+  de modo que las tablas de las otras pestañas no cambian. Lo fija
+  DocumentosListadoSinDesbordeE2ETests.
 */
 div > ::deep .tabla-datos .col-title-text {
     white-space: normal;
@@ -70,10 +70,15 @@ div > ::deep .tabla-datos .col-title {
 }
 
 /*
-  Con «Selección múltiple» la tabla gana una octava columna (la casilla) y esos 864 px no bastaban: a
-  1240 px de ventana el hueco mide 916, y 899 si la barra de desplazamiento vertical ocupa 17. El
-  relleno lateral de las celdas baja de --space-4 a --space-3 en esta tabla, que es lo que deja
-  margen también con la casilla.
+  Además, el relleno lateral de las celdas baja de --space-4 a --space-3 en esta tabla. Solo con las
+  reglas de arriba el mínimo de la tabla llegó a 864 px, y a 916 con la casilla de «Selección
+  múltiple», que es una octava columna; a 1240 px de ventana el hueco mide 916, y 899 si la barra de
+  desplazamiento vertical ocupa 17, así que con la casilla no cabía. Con --space-3 el mínimo medido
+  va de 777 a 838 px, y de 825 a 887 con la casilla.
+
+  No es una cifra fija: depende de qué documentos caen en la página. Lo que más la mueve es la
+  insignia más ancha de «Plataformas» (esa columna midió 108 y 169 px en dos arranques con el mismo
+  CSS). El margen más justo medido en el corte es de 12 px (887 en 899).
 */
 div > ::deep .tabla-datos th,
 div > ::deep .tabla-datos td {
@@ -82,26 +87,34 @@ div > ::deep .tabla-datos td {
 }
 
 /*
-  Por debajo de 1240 px de ventana el hueco no llega al mínimo de la tabla: mide la ventana menos
-  324 px de barra lateral y márgenes, y menos lo que ocupe la barra de desplazamiento vertical. Ahí el
-  envoltorio del listado pasa a ser el contenedor de desplazamiento horizontal y la página no se
-  mueve. Si el mínimo de la tabla crece (otra columna, rótulos más largos), el corte sube con él.
+  Por debajo de 1240 px de ventana el hueco puede no llegar al mínimo de la tabla: mide la ventana
+  menos 324 px de barra lateral y márgenes, y menos lo que ocupe la barra de desplazamiento vertical.
+  Ahí el envoltorio del listado pasa a ser el contenedor de desplazamiento horizontal y la página no
+  se mueve. Si el mínimo de la tabla crece (otra columna, rótulos o insignias más largos), el corte
+  sube con él.
 
-  Es el envoltorio y no la tabla (lo que hace .tabla-datos en móvil, list-page.css) por el menú «⋯»
-  de la fila: su panel se abre hacia abajo, y un contenedor que desplaza en horizontal también recorta
-  en vertical. En la última fila el panel metía una barra vertical dentro de la tabla. Mientras hay un
-  panel abierto —el menú de una fila o las opciones de orden de una cabecera— el envoltorio se alarga
-  10rem hacia abajo sin mover lo que le sigue (el margen negativo lo compensa), y el panel cabe
-  entero. Consecuencia que queda: en este tramo la cabecera de la tabla no se pega al desplazar en
-  vertical. De 767 px para abajo manda la regla de móvil de list-page.css y esto no se aplica.
+  Es el envoltorio y no la tabla (lo que hace .tabla-datos en móvil, list-page.css). Un contenedor
+  que desplaza en horizontal también recorta en vertical, y el panel del menú «⋯» se abre hacia
+  abajo: en la última fila, sin paginador debajo, el panel de tres opciones (121 px de alto) asoma
+  unos 88 px por debajo del contenedor y le metía entre 91 y 100 px de desplazamiento vertical
+  propio (E2E a 1100 px del 2026-10-09, igual con la tabla que con el envoltorio como contenedor).
+  Mientras hay un panel abierto, el envoltorio termina en un bloque vacío de 8rem, y el panel cabe
+  en él. Tiene que ser contenido y no padding-bottom: con un relleno de 10rem el desplazamiento
+  vertical seguía en 100 px, porque el relleno final se añade por debajo de lo que desborda. Si el
+  menú gana opciones, el bloque crece con él. La regla alcanza también a las opciones de orden de
+  una cabecera (.col-options), que se abren igual; ese caso no tiene test propio.
+
+  Consecuencia que queda: en este tramo la cabecera de la tabla no se pega al desplazar en vertical.
+  De 767 px para abajo manda la regla de móvil de list-page.css y esto no se aplica.
 */
 @media (min-width: 768px) and (max-width: 1239px) {
     div:has(> .tabla-datos) {
         overflow-x: auto;
     }
 
-    div:has(> .tabla-datos):has(.menu-acciones-panel, .col-options) {
-        padding-bottom: 10rem;
-        margin-bottom: -10rem;
+    div:has(> .tabla-datos):has(.menu-acciones-panel, .col-options)::after {
+        content: "";
+        display: block;
+        height: 8rem;
     }
 }
