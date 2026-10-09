@@ -29,6 +29,8 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var nombreCentro = $"PorCorreo Centro {sufijo}";
         var nombreTrabajador = "PorCorreo";
         var apellidosTrabajador = $"E2E {sufijo}";
+        var nombreSegundo = "Segundo";
+        var apellidosSegundo = $"Apoyo {sufijo}";
         var correoCentro = $"acceso.{sufijo}@correo-simulado.local";
 
         await using var contexto = await fixture.Browser.NewContextAsync(new BrowserNewContextOptions { AcceptDownloads = true });
@@ -66,18 +68,26 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
 
         // --- Trabajador asignado al Centro ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
-        var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
-        await page.WaitForTimeoutAsync(300);
-        if (await comboEmpresa.IsVisibleAsync())
-            await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
-        else
-            await drawer.GetByText(razonSocialEmpresa).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(Ayudas.GenerarDniValido(88_100_971));
-        await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
-        await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
-        await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+        async Task CrearTrabajadorAsync(string nombre, string apellidos, int semillaDni)
+        {
+            await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
+            var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
+            await page.WaitForTimeoutAsync(300);
+            if (await comboEmpresa.IsVisibleAsync())
+                await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
+            else
+                await drawer.GetByText(razonSocialEmpresa).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+            await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(Ayudas.GenerarDniValido(semillaDni));
+            await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombre);
+            await drawer.GetByLabel("Apellidos").FillAsync(apellidos);
+            await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+            await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+        }
+
+        // El segundo no se asigna al Centro: basta con que esté en la base general del Tenant para
+        // ser candidato en la pestaña «Trabajadores» de la visita (misma regla que «Editar visita»).
+        await CrearTrabajadorAsync(nombreSegundo, apellidosSegundo, 88_100_972);
+        await CrearTrabajadorAsync(nombreTrabajador, apellidosTrabajador, 88_100_971);
 
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(apellidosTrabajador);
         var filaTrabajador = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
@@ -216,13 +226,14 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
             var buscador = candidatos.GetByPlaceholder("Buscar trabajador");
             await buscador.FillAsync("zzzz-nadie-se-llama-asi");
             await Expect(candidatos).ToContainTextAsync("Ningún trabajador coincide.");
-            await buscador.FillAsync(string.Empty);
-            // Las etiquetas de los candidatos son únicas: se pulsa por su nombre accesible, no por posición.
-            var nombresCandidatos = await candidatos.Locator(".visitas-candidato").AllInnerTextsAsync();
-            await candidatos.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = nombresCandidatos[0].Trim(), Exact = true }).ClickAsync();
+            // Sin mayúsculas: el buscador deja un único candidato, el que este test acaba de crear.
+            await buscador.FillAsync(apellidosSegundo.ToLowerInvariant());
+            await Expect(candidatos.Locator(".visitas-candidato")).ToHaveCountAsync(1);
+            await candidatos.Locator(".visitas-candidato").ClickAsync();
         }
 
         await Expect(filasTrabajador).ToHaveCountAsync(2, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+        await Expect(listaTrabajadores).ToContainTextAsync($"{nombreSegundo} {apellidosSegundo}");
 
         // Con dos, el primero ya se puede quitar: pregunta antes y, al confirmar, sale de la visita.
         await quitarAlPrimero.ClickAsync();
