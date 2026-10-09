@@ -28,6 +28,7 @@ src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTra
 src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs :: ObtenerBandejaGestor = 1
 src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs :: ObtenerBandejaGestorQueryHandler = 2
 src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs :: TipoItemBandeja = 8
+src/CaeManager.Application/Operaciones/ApoyoCartera/AvisoDeApoyoDeCartera.cs :: Bandeja = 2
 src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/AceptarSolicitudIncorporacionCarteraCommand.cs :: Bandeja = 1
 src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/RechazarSolicitudIncorporacionCarteraCommand.cs :: Bandeja = 1
 src/CaeManager.Application/Operaciones/IncorporacionCartera/Commands/RevocarIncorporacionCarteraCommand.cs :: Bandeja = 1

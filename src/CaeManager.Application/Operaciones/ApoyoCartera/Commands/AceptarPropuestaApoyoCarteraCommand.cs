@@ -1,7 +1,9 @@
 using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
+using CaeManager.Application.Tenants;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Operaciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +14,8 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 /// <summary>
 /// El destinatario de una propuesta de apoyo la acepta, y solo él (ADR-011 § 2.7, enmienda
 /// 2026-10-08). Emite su Asignación de Cartera de apoyo: del Tenant entero, rol Gestor CAE,
-/// sin caducidad y <b>sin la marca de principal</b>. Ninguna de las tres cosas es parámetro.
+/// <b>sin la marca de principal</b> y con la fecha de fin que llevara la propuesta, si llevaba
+/// alguna. Nada de eso es parámetro de quien acepta.
 ///
 /// <para>
 /// <b>Todo se vuelve a decidir al aceptar</b>, porque la propuesta pudo esperar días: que el
@@ -33,6 +36,12 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 /// la marca por designación, relevo o retirada la detiene la versión de la cartera del
 /// principal, que el catálogo escribe al emitir.
 /// </para>
+///
+/// <para>
+/// <b>Aviso</b>: con el apoyo ya concedido se avisa a los Coordinadores CAE de quien propuso y
+/// de quien acepta, y a la Dirección CAE si a alguno le falta (<see cref="AvisoDeApoyoDeCartera"/>).
+/// Es el control posterior que sustituye a la aprobación previa del Coordinador CAE.
+/// </para>
 /// </summary>
 public record AceptarPropuestaApoyoCarteraCommand(Guid PropuestaId) : ICommand;
 
@@ -43,6 +52,10 @@ public class AceptarPropuestaApoyoCarteraCommandHandler(
     IPropuestaApoyoCarteraRepository repositorio,
     ITransaccionDeComando transaccion,
     IBloqueoCarteraUsuario bloqueoCartera,
+    IDirectorioDestinosCartera directorioDestinos,
+    INotificacionUsuarioRepository notificaciones,
+    ITenantsQueryContext tenants,
+    IUnitOfWork unitOfWork,
     ILogger<AceptarPropuestaApoyoCarteraCommandHandler> logger)
     : IRequestHandler<AceptarPropuestaApoyoCarteraCommand, Result>
 {
@@ -56,6 +69,7 @@ public class AceptarPropuestaApoyoCarteraCommandHandler(
         // Una anulación tiene que quedar escrita, y la transacción deshace todo lo que acabe
         // en un Result fallido: se confirma como éxito y el motivo viaja aparte.
         MotivoAnulacionPropuestaApoyo? anulada = null;
+        PropuestaApoyoCartera? aceptada = null;
 
         Result resultado;
         try
@@ -63,6 +77,7 @@ public class AceptarPropuestaApoyoCarteraCommandHandler(
             resultado = await transaccion.EjecutarAsync(async ct =>
             {
                 anulada = null;
+                aceptada = null;
 
                 using (ctx.EnOrigen())
                 {
@@ -109,6 +124,7 @@ public class AceptarPropuestaApoyoCarteraCommandHandler(
                             return Result.Fallo(ErroresPropuestaApoyo.CambioMientrasDecidias);
                     }
 
+                    aceptada = propuesta;
                     return Result.Exito();
                 }
             }, cancellationToken);
@@ -127,6 +143,13 @@ public class AceptarPropuestaApoyoCarteraCommandHandler(
 
         if (resultado.EsExitoso && anulada is { } motivoAnulacion)
             return Result.Fallo(ErroresPropuestaApoyo.DeAnulacion(motivoAnulacion));
+
+        if (resultado.EsExitoso && aceptada is { } concedida)
+            await AvisoDeApoyoDeCartera.AvisarAceptadoAsync(
+                concedida, ctx.UsuarioId,
+                new AvisoDeApoyoDeCartera.Dependencias(
+                    directorioDestinos, directorioUsuarios, tenants, notificaciones, unitOfWork, catalogo, logger),
+                cancellationToken);
 
         return resultado;
 
