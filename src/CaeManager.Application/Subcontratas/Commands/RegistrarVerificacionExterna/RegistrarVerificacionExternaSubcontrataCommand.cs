@@ -78,9 +78,11 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandler(
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         // Ids ajenos bajo el filtro de tenant = no encontrados (regla global del repo).
-        // Mismo criterio que CentrosSeleccionables de ObtenerSupervisionSubcontrataQuery:
+        // Mismo criterio de pertenencia que CentrosSeleccionables de ObtenerSupervisionSubcontrataQuery:
         // el Centro tiene que estar bajo un Cliente con una RelacionEmpresarial vigente
         // con ESTA Subcontrata — si no, es un Centro ajeno aunque exista en el tenant.
+        // El selector, además, solo ofrece los Centros visibles para quien pregunta; este
+        // comando no repite ese cruce: comprueba la gestión sobre la Subcontrata, no sobre el Centro.
         var centroEnRelacionVigente = await empresasContext.RelacionesEmpresariales
             .Where(r => r.ProveedoraId == request.SubcontrataId && r.VigenciaHasta == null)
             .Join(centrosContext.Centros, r => r.ClienteId, c => c.ClienteId, (r, c) => c.Id)

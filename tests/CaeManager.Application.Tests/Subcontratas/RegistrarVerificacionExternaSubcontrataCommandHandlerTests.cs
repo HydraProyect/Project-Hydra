@@ -22,10 +22,11 @@ namespace CaeManager.Application.Tests.Subcontratas;
 /// perteneciera a una <see cref="RelacionEmpresarial"/> vigente de ESTA
 /// Subcontrata — un usuario con gestión sobre una Subcontrata y el id de
 /// cualquier otro Centro del tenant podía registrar una verificación ajena.
-/// Mismo criterio que <c>CentrosSeleccionables</c> de
+/// Mismo criterio de pertenencia que <c>CentrosSeleccionables</c> de
 /// <c>ObtenerSupervisionSubcontrataQuery</c> (única fuente del selector de
-/// Centro del drawer) y que <c>_tiposVerificables</c> del drawer para el
-/// tipo documental.
+/// Centro del drawer; desde 2026-10-09 además acotada a los Centros visibles
+/// para quien pregunta, cruce que el comando no repite) y que
+/// <c>_tiposVerificables</c> del drawer para el tipo documental.
 /// </summary>
 public class RegistrarVerificacionExternaSubcontrataCommandHandlerTests
 {
