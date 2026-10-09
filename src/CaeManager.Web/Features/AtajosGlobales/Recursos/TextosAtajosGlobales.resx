@@ -162,4 +162,10 @@
   <data name="KeyTipsAnuncioApagado" xml:space="preserve">
     <value>KeyTips desactivado.</value>
   </data>
+  <data name="KeyTipsTeclaSubir" xml:space="preserve">
+    <value>Retroceso</value>
+  </data>
+  <data name="KeyTipsTeclaSalir" xml:space="preserve">
+    <value>Esc</value>
+  </data>
 </root>

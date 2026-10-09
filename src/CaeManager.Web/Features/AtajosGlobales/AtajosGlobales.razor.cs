@@ -35,6 +35,8 @@ public partial class AtajosGlobales : IAsyncDisposable
             nivel = Textos["KeyTipsBarraNivel"].Value,
             subir = Textos["KeyTipsBarraSubir"].Value,
             salir = Textos["KeyTipsBarraSalir"].Value,
+            teclaSubir = Textos["KeyTipsTeclaSubir"].Value,
+            teclaSalir = Textos["KeyTipsTeclaSalir"].Value,
             encendido = Textos["KeyTipsAnuncioEncendido"].Value,
             apagado = Textos["KeyTipsAnuncioApagado"].Value
         });

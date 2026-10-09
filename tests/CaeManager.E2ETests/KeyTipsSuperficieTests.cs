@@ -60,10 +60,12 @@ public class KeyTipsSuperficieTests : IAsyncLifetime
                         <button id="por-cliente" aria-pressed="false" onclick="registrar('cliente')">Por Cliente empresarial</button>
                     </span>
                     <button id="oculto" data-keytip="X" style="display:none" onclick="registrar('X')">Exportar</button>
+                    <select id="tamano" data-keytip="" aria-label="Mostrar"><option>20</option><option>50</option></select>
                     <button id="fecha" onclick="registrar(event.altKey ? 'emision' : 'vencimiento')">12/03/2027</button>
                     <div id="fila" class="fila-enfocada" tabindex="-1">Centro de prueba</div>
                     <script>
                         window.pulsados = [];
+                        window.aperturas = 0;
                         function registrar(que) { window.pulsados.push(que); }
                         function alternarMenu() {
                             const disparador = document.getElementById('pastilla');
@@ -72,6 +74,7 @@ public class KeyTipsSuperficieTests : IAsyncLifetime
                                 document.getElementById('panel')?.remove();
                                 disparador.setAttribute('aria-expanded', abierto ? 'false' : 'true');
                                 if (abierto) return;
+                                window.aperturas++;
                                 const panel = document.createElement('div');
                                 panel.id = 'panel';
                                 panel.setAttribute('role', 'menu');
@@ -99,7 +102,7 @@ public class KeyTipsSuperficieTests : IAsyncLifetime
                 const keytips = await import('/keytips.js');
                 window.keytips = keytips;
                 window.suscripciones = [lista.registrarAtajosLista(ref), globales.registrarAtajosGlobales(ref),
-                    keytips.registrarKeyTips({ raiz: 'raíz', nivel: 'nivel', subir: 'sube', salir: 'sale', encendido: 'encendido', apagado: 'apagado' })];
+                    keytips.registrarKeyTips({ raiz: 'raíz', nivel: 'nivel', subir: 'sube', salir: 'sale', teclaSubir: 'Atrás', teclaSalir: 'Fuera', encendido: 'encendido', apagado: 'apagado' })];
             }
             """);
         await _page.Locator("#inicio").FocusAsync();
@@ -113,7 +116,8 @@ public class KeyTipsSuperficieTests : IAsyncLifetime
         Assert.Equal("raiz", await NivelAsync());
         // S, N (por el contenedor), F y A declaradas. «Estado» no puede ser E, S, T ni A (estables
         // o tomadas): le toca D. «Subcontrata» no puede ser S: le toca U. X está oculto: sin letra.
-        Assert.Equal(new SortedSet<string> { "A", "D", "F", "N", "S", "U" }, await LetrasAsync());
+        // «Mostrar» (el desplegable) no puede ser M: le toca O.
+        Assert.Equal(new SortedSet<string> { "A", "D", "F", "N", "O", "S", "U" }, await LetrasAsync());
 
         // Las letras son ayuda visual: la capa entera está fuera del árbol de accesibilidad, y el
         // cambio de modo se anuncia en una región de estado aparte.
@@ -301,6 +305,77 @@ public class KeyTipsSuperficieTests : IAsyncLifetime
 
         await _page.Keyboard.PressAsync("Alt");
         await _page.Keyboard.PressAsync("Control+k");
+        Assert.Equal("apagado", await NivelAsync());
+    }
+
+    [Theory]
+    [InlineData("Escape", "apagado")]
+    [InlineData("Backspace", "raiz")]
+    public async Task Salir_o_subir_antes_de_que_llegue_el_panel_lo_cierra_cuando_llega(string tecla, string nivelEsperado)
+    {
+        await _page.Keyboard.PressAsync("Alt");
+        // Las dos teclas van seguidas: el panel tarda 80 ms y todavía no ha anunciado nada.
+        await _page.Keyboard.PressAsync("d");
+        await _page.Keyboard.PressAsync(tecla);
+        Assert.Equal(nivelEsperado, await NivelAsync());
+
+        // Control positivo: el panel llega a abrirse (si no, «cerrado» sería el estado de partida)…
+        await _page.WaitForFunctionAsync("window.aperturas >= 1");
+        // …y el módulo lo cierra en cuanto lo ve, en vez de dejarlo abierto sin modo.
+        await Assertions.Expect(_page.Locator("#pastilla")).ToHaveAttributeAsync("aria-expanded", "false");
+        await Assertions.Expect(_page.Locator("#panel")).ToHaveCountAsync(0);
+        Assert.Equal(nivelEsperado, await NivelAsync());
+        Assert.Empty(await PulsadosAsync());
+    }
+
+    [Fact]
+    public async Task Con_el_foco_en_un_desplegable_Alt_enciende_y_su_letra_le_da_el_foco()
+    {
+        await _page.Locator("#tamano").FocusAsync();
+        await _page.Keyboard.PressAsync("Alt");
+        Assert.Equal("raiz", await NivelAsync());
+
+        // «Mostrar» no puede ser M (estable): le toca O.
+        await _page.Keyboard.PressAsync("o");
+        await Assertions.Expect(_page.Locator("#tamano")).ToBeFocusedAsync();
+        Assert.Equal("apagado", await NivelAsync());
+    }
+
+    [Fact]
+    public async Task La_region_de_estado_existe_vacia_desde_el_registro_y_no_anuncia_un_apagado_sin_encendido()
+    {
+        var anuncio = _page.Locator(".keytips-anuncio[role=status]");
+        await Assertions.Expect(anuncio).ToHaveCountAsync(1);
+        await Assertions.Expect(anuncio).ToHaveTextAsync(string.Empty);
+
+        // Sin nada que etiquetar, Alt enciende y apaga en el acto: no hay nada que anunciar.
+        await _page.EvaluateAsync("document.querySelectorAll('[data-keytip], [data-keytip-contenedor]').forEach(e => e.remove())");
+        await _page.Keyboard.PressAsync("Alt");
+        Assert.Equal("apagado", await NivelAsync());
+        await Assertions.Expect(anuncio).ToHaveTextAsync(string.Empty);
+    }
+
+    [Fact]
+    public async Task La_barra_usa_los_nombres_de_tecla_que_recibe_ya_localizados()
+    {
+        await _page.Keyboard.PressAsync("Alt");
+
+        Assert.Equal(["Atrás", "Fuera"], await _page.EvaluateAsync<string[]>("Array.from(document.querySelectorAll('.keytips-barra kbd')).map(k => k.textContent)"));
+    }
+
+    [Fact]
+    public async Task El_dispose_de_un_registro_viejo_no_desmonta_el_registro_nuevo()
+    {
+        // El islote se recrea: el registro nuevo llega antes que el Dispose del viejo.
+        await _page.EvaluateAsync("window.nueva = window.keytips.registrarKeyTips({}); window.suscripciones[2].dispose()");
+
+        await _page.Keyboard.PressAsync("Alt");
+        Assert.Equal("raiz", await NivelAsync());
+
+        // Control positivo: el dispose del registro vigente sí desmonta.
+        await _page.Keyboard.PressAsync("Escape");
+        await _page.EvaluateAsync("window.nueva.dispose()");
+        await _page.Keyboard.PressAsync("Alt");
         Assert.Equal("apagado", await NivelAsync());
     }
 

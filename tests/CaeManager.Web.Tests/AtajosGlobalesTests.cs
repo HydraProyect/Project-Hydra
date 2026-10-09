@@ -232,4 +232,46 @@ public class AtajosGlobalesTests : BunitContext
         await cut.InvokeAsync(cut.Instance.AlternarAyuda);
         cut.Markup.Should().NotContain("Atajos de teclado");
     }
+
+    /// <summary>
+    /// KeyTips: el islote registra el módulo con sus ocho textos ya localizados. Un texto que
+    /// falte en los recursos llegaría al navegador como su clave («KeyTipsTeclaSubir») y se
+    /// pintaría tal cual en la barra.
+    /// </summary>
+    [Fact]
+    public void El_islote_registra_KeyTips_con_todos_sus_textos_localizados()
+    {
+        var modulo = JSInterop.SetupModule("./js/keytips.js");
+        modulo.Mode = JSRuntimeMode.Loose;
+
+        Render<AtajosGlobales>();
+
+        var registro = modulo.Invocations["registrarKeyTips"].Should().ContainSingle().Subject;
+        var textos = System.Text.Json.JsonSerializer.SerializeToElement(registro.Arguments.Single());
+        string[] esperados = ["raiz", "nivel", "subir", "salir", "teclaSubir", "teclaSalir", "encendido", "apagado"];
+        textos.EnumerateObject().Select(t => t.Name).Should().BeEquivalentTo(esperados,
+            "keytips.js lee exactamente estos nombres de su objeto de textos");
+        foreach (var texto in textos.EnumerateObject())
+        {
+            texto.Value.GetString().Should().NotBeNullOrWhiteSpace($"falta el texto «{texto.Name}»");
+            texto.Value.GetString().Should().NotMatchRegex(@"^KeyTips\w+$", $"«{texto.Name}» llega como clave, no como texto");
+        }
+        textos.GetProperty("teclaSubir").GetString().Should().Be("Retroceso");
+    }
+
+    /// <summary>Alternativa sin teclado: el botón de la chuleta la cierra y enciende el modo.</summary>
+    [Fact]
+    public async Task El_boton_de_la_chuleta_enciende_KeyTips_y_la_cierra()
+    {
+        var modulo = JSInterop.SetupModule("./js/keytips.js");
+        modulo.Mode = JSRuntimeMode.Loose;
+        var cut = Render<AtajosGlobales>();
+        await cut.InvokeAsync(cut.Instance.AlternarAyuda);
+        modulo.Invocations["encenderKeyTips"].Should().BeEmpty("abrir la chuleta no enciende nada");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Mostrar las letras ahora").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        modulo.Invocations["encenderKeyTips"].Should().ContainSingle();
+        cut.Markup.Should().NotContain("Atajos de teclado", "las letras se pintan sobre la pantalla, no sobre la chuleta");
+    }
 }

@@ -22,7 +22,9 @@ public class KeyTipsEnListadoTests(WebAppFixture fixture)
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
-        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        // El Gestor CAE de la demo tiene Asignación de Cartera y centros sembrados: «Agrupar» solo
+        // se pinta con centros en la página, y el Administrador inicial no tiene ninguno propio.
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
 
         var html = page.Locator("html");

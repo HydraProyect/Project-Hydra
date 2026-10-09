@@ -40,12 +40,19 @@ const estado = {
     observador: null,
     repintadoPendiente: false,
     esperaMenu: null,
-    textos: { raiz: '', nivel: '', subir: '', salir: '', encendido: '', apagado: '' }
+    // Cada registrarKeyTips() abre una generación: el dispose de un registro viejo (el islote
+    // se recreó y su Dispose llega tarde) no desmonta los manejadores del nuevo.
+    generacion: 0,
+    // Solo se anuncia «desactivado» si antes se anunció «activado».
+    anunciado: false,
+    textos: { raiz: '', nivel: '', subir: '', salir: '', teclaSubir: 'Retroceso', teclaSalir: 'Esc', encendido: '', apagado: '' }
 };
 
+// Un <select> no cuenta: Alt sola no escribe nada en él (Alt + ↓, que lo abre, lleva otra
+// tecla y no enciende), y tratarlo como campo impediría encender el modo con el foco en «Mostrar 20».
 function esCampoDeTexto(elemento) {
     if (!elemento) return false;
-    return elemento.tagName === 'TEXTAREA' || elemento.tagName === 'SELECT' || elemento.isContentEditable ||
+    return elemento.tagName === 'TEXTAREA' || elemento.isContentEditable ||
         (elemento.tagName === 'INPUT' && !TIPOS_INPUT_NO_TEXTO.has(elemento.type));
 }
 
@@ -165,19 +172,24 @@ export function asignarLetras(lista, esRaiz) {
 }
 
 function asegurarCapa() {
-    if (estado.capa?.isConnected) return;
-    // aria-hidden: las letras son una ayuda visual, no contenido. Lo que se anuncia es el
-    // cambio de modo, en la región de estado de abajo.
-    estado.capa = document.createElement('div');
-    estado.capa.className = 'keytips-capa';
-    estado.capa.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(estado.capa);
+    if (!estado.capa?.isConnected) {
+        // aria-hidden: las letras son una ayuda visual, no contenido. Lo que se anuncia es el
+        // cambio de modo, en la región de estado de abajo.
+        estado.capa = document.createElement('div');
+        estado.capa.className = 'keytips-capa';
+        estado.capa.setAttribute('aria-hidden', 'true');
+        document.body.appendChild(estado.capa);
+    }
 
-    estado.anuncio = document.createElement('div');
-    estado.anuncio.className = 'keytips-anuncio';
-    estado.anuncio.setAttribute('role', 'status');
-    estado.anuncio.setAttribute('aria-live', 'polite');
-    document.body.appendChild(estado.anuncio);
+    // La región viva se crea VACÍA al registrar, no junto con su primer texto: un lector de
+    // pantalla no suele anunciar una región que nace ya con contenido.
+    if (!estado.anuncio?.isConnected) {
+        estado.anuncio = document.createElement('div');
+        estado.anuncio.className = 'keytips-anuncio';
+        estado.anuncio.setAttribute('role', 'status');
+        estado.anuncio.setAttribute('aria-live', 'polite');
+        document.body.appendChild(estado.anuncio);
+    }
 }
 
 function pintar() {
@@ -225,7 +237,7 @@ function pintar() {
     const texto = document.createElement('span');
     texto.textContent = estado.nivel.tipo === 'raiz' ? estado.textos.raiz : estado.textos.nivel;
     barra.appendChild(texto);
-    for (const [tecla, descripcion] of [['Retroceso', estado.textos.subir], ['Esc', estado.textos.salir]]) {
+    for (const [tecla, descripcion] of [[estado.textos.teclaSubir, estado.textos.subir], [estado.textos.teclaSalir, estado.textos.salir]]) {
         const kbd = document.createElement('kbd');
         kbd.textContent = tecla;
         barra.append(' · ', kbd, ` ${descripcion}`);
@@ -264,6 +276,7 @@ function encender() {
         }
     });
     estado.observador.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-expanded', 'aria-pressed', 'disabled', 'class', 'hidden'] });
+    estado.anunciado = true;
     anunciar(estado.textos.encendido);
 }
 
@@ -277,7 +290,9 @@ function apagar() {
     estado.observador = null;
     estado.capa?.replaceChildren();
     delete document.documentElement.dataset.keytips;
-    anunciar(estado.textos.apagado);
+    // Una Alt en una pantalla sin nada que etiquetar enciende y apaga en el acto: no se anuncia.
+    if (estado.anunciado) anunciar(estado.textos.apagado);
+    estado.anunciado = false;
 }
 
 function cancelarEsperaMenu() {
@@ -287,10 +302,29 @@ function cancelarEsperaMenu() {
     }
 }
 
+// Si el panel todavía no ha llegado (el clic que lo abre va de camino al servidor), cerrarlo
+// ahora no haría nada y el menú se abriría después, ya sin modo: se espera a que anuncie
+// aria-expanded="true" y se cierra entonces.
 function cerrarMenuDelNivel() {
     if (estado.nivel.tipo !== 'menu') return;
     const disparador = estado.nivel.disparador;
-    if (disparador.getAttribute('aria-expanded') === 'true') disparador.click();
+    if (disparador.getAttribute('aria-expanded') === 'true') {
+        disparador.click();
+        return;
+    }
+    if (estado.nivel.visto || !disparador.isConnected) return;
+
+    const vigia = new MutationObserver(() => {
+        if (disparador.getAttribute('aria-expanded') !== 'true') return;
+        terminar();
+        disparador.click();
+    });
+    const caducidad = setTimeout(() => terminar(), ESPERA_MENU_MS);
+    function terminar() {
+        vigia.disconnect();
+        clearTimeout(caducidad);
+    }
+    vigia.observe(disparador, { attributes: true, attributeFilter: ['aria-expanded'] });
 }
 
 function ejecutar(elemento) {
@@ -300,7 +334,8 @@ function ejecutar(elemento) {
         return;
     }
 
-    if (esCampoDeTexto(elemento)) {
+    // Un campo o un desplegable no se «pulsan»: su letra les da el foco.
+    if (esCampoDeTexto(elemento) || elemento.tagName === 'SELECT') {
         apagar();
         elemento.focus();
         elemento.select?.();
@@ -415,6 +450,8 @@ export function encenderKeyTips(intentos = 30) {
 
 export function registrarKeyTips(textos) {
     Object.assign(estado.textos, textos);
+    const generacion = ++estado.generacion;
+    asegurarCapa();
 
     document.addEventListener('keydown', alPulsar, true);
     document.addEventListener('keyup', alSoltar, true);
@@ -425,6 +462,7 @@ export function registrarKeyTips(textos) {
 
     return {
         dispose: () => {
+            if (generacion !== estado.generacion) return;
             apagar();
             document.removeEventListener('keydown', alPulsar, true);
             document.removeEventListener('keyup', alSoltar, true);

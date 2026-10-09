@@ -126,7 +126,7 @@ public static class CatalogoAtajos
     /// mismas en <c>LETRAS_ESTABLES</c> y nunca las da a un control que deduce su letra
     /// (pastillas de filtro, pestañas, opciones de un menú), aunque el control estable no esté
     /// en la pantalla; <c>CatalogoAtajosSincronizadoConJsTests</c> vigila el emparejamiento y
-    /// <c>KeyTipsDeclaradosTests</c>, que cada <c>data-keytip</c> del código salga de aquí.
+    /// que cada <c>data-keytip</c> del código salga de aquí.
     /// </summary>
     /// <remarks>
     /// <c>X</c> (exportar) y <c>T</c> (franja de estado) están reservadas por la propuesta de
