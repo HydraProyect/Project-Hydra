@@ -40,6 +40,7 @@ public class DocumentosFiltrosYOrdenDeInicioTests : IAsyncLifetime
     private Guid _tipoHaciendaId;
     private Guid _plataformaCompartidaId;
     private Guid _plataformaSoloAjenaId;
+    private Guid _plataformaOtraVisibleId;
 
     // Documentos del Cliente empresarial visible, en el orden de inicio esperado.
     private readonly List<Guid> _ordenDeInicioEsperado = [];
@@ -68,11 +69,14 @@ public class DocumentosFiltrosYOrdenDeInicioTests : IAsyncLifetime
 
         var compartida = new ProveedorPlataformaCae($"PLAT-{Guid.NewGuid():N}"[..14], "Plataforma compartida");
         var soloAjena = new ProveedorPlataformaCae($"PLAT-{Guid.NewGuid():N}"[..14], "Plataforma solo del ajeno");
-        contexto.ProveedoresPlataformaCae.AddRange(compartida, soloAjena);
+        // Segunda plataforma del Cliente empresarial visible: sin ella, «cualquier Documento acreditado» y
+        // «acreditado en ESTA plataforma» darían la misma lista y el test del filtro no distinguiría una de otra.
+        var otraVisible = new ProveedorPlataformaCae($"PLAT-{Guid.NewGuid():N}"[..14], "Plataforma otra del visible");
+        contexto.ProveedoresPlataformaCae.AddRange(compartida, soloAjena, otraVisible);
         await contexto.SaveChangesAsync();
 
         (_clienteVisibleId, _tipoSeguroId, _tipoHaciendaId) = (visible.Id, seguro.Id, hacienda.Id);
-        (_plataformaCompartidaId, _plataformaSoloAjenaId) = (compartida.Id, soloAjena.Id);
+        (_plataformaCompartidaId, _plataformaSoloAjenaId, _plataformaOtraVisibleId) = (compartida.Id, soloAjena.Id, otraVisible.Id);
 
         var centroVisible = new Centro(visible.Id, propia.Id, "Centro visible");
         var centroAjeno = new Centro(ajeno.Id, propia.Id, "Centro ajeno");
@@ -83,7 +87,8 @@ public class DocumentosFiltrosYOrdenDeInicioTests : IAsyncLifetime
         var canalVisible = CanalGestionDocumental.DePlataforma(centroVisible.Id, "Acceso", compartida.Id, null, null, null);
         var canalAjenoCompartida = CanalGestionDocumental.DePlataforma(centroAjeno.Id, "Acceso", compartida.Id, null, null, null);
         var canalAjenoSolo = CanalGestionDocumental.DePlataforma(centroAjeno.Id, "Otro acceso", soloAjena.Id, null, null, null);
-        contexto.CanalesGestionDocumental.AddRange(canalVisible, canalAjenoCompartida, canalAjenoSolo);
+        var canalVisibleOtra = CanalGestionDocumental.DePlataforma(centroVisible.Id, "Otro acceso", otraVisible.Id, null, null, null);
+        contexto.CanalesGestionDocumental.AddRange(canalVisible, canalAjenoCompartida, canalAjenoSolo, canalVisibleOtra);
 
         // Cliente empresarial visible. Se siembran desordenados respecto al orden de inicio y con la emisión al
         // revés que la urgencia: el vigente es el emitido más recientemente, así que el orden por emisión
@@ -105,6 +110,7 @@ public class DocumentosFiltrosYOrdenDeInicioTests : IAsyncLifetime
 
         contexto.AcreditacionesDocumentoPlataforma.AddRange(
             new AcreditacionDocumentoPlataforma(vencidoReciente.Id, canalVisible.Id),
+            new AcreditacionDocumentoPlataforma(urgente.Id, canalVisibleOtra.Id),
             new AcreditacionDocumentoPlataforma(ajenoVencido.Id, canalAjenoCompartida.Id),
             new AcreditacionDocumentoPlataforma(ajenoVigente.Id, canalAjenoSolo.Id));
         await contexto.SaveChangesAsync();
@@ -219,8 +225,10 @@ public class DocumentosFiltrosYOrdenDeInicioTests : IAsyncLifetime
         var sinRestriccion = await new ObtenerPlataformasEnUsoQueryHandler(contexto, contexto, new AlcanceDatosServiceFalso())
             .Handle(new ObtenerPlataformasEnUsoQuery(), CancellationToken.None);
 
-        conCartera.Select(p => p.Id).Should().Equal(_plataformaCompartidaId);
-        sinRestriccion.Select(p => p.Id).Should().BeEquivalentTo([_plataformaCompartidaId, _plataformaSoloAjenaId]);
+        conCartera.Select(p => p.Id).Should().BeEquivalentTo([_plataformaCompartidaId, _plataformaOtraVisibleId]);
+        conCartera.Select(p => p.Nombre).Should().BeInAscendingOrder();
+        sinRestriccion.Select(p => p.Id).Should().BeEquivalentTo(
+            [_plataformaCompartidaId, _plataformaSoloAjenaId, _plataformaOtraVisibleId]);
     }
 
     private AlcanceDatosServiceFalso SoloElClienteVisible() =>
