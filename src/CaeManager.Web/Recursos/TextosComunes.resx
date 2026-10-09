@@ -399,4 +399,11 @@
   <data name="ExtensionInstalarPista" xml:space="preserve">
     <value>Si todavía no la tienes instalada, mira «Instalar la extensión», más abajo.</value>
   </data>
+  <data name="CumplimientoEtiqueta" xml:space="preserve">
+    <value>{0} % de cumplimiento</value>
+    <comment>{0}: porcentaje de 0 a 100. Nombre accesible por defecto de BarraCumplimiento.</comment>
+  </data>
+  <data name="CumplimientoSinRequisitos" xml:space="preserve">
+    <value>Sin requisitos</value>
+  </data>
 </root>

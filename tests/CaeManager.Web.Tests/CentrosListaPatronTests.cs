@@ -762,8 +762,10 @@ public class CentrosListaPatronTests : BunitContext
 
         var fila = cut.FindAll(".tarjeta-fila-acordeon").First(f => f.TextContent.Contains("Planta Bilbao"));
         fila.QuerySelector(".columna-empresa-centro")!.TextContent.Trim().Should().Be("Limpiezas Sur S.L.");
-        fila.QuerySelector(".columna-cumplimiento-centro [role=img]")
-            .Should().NotBeNull("el anillo vive en su columna");
+        fila.QuerySelector(".columna-cumplimiento-centro [data-pieza=barra-cumplimiento]")
+            .Should().NotBeNull("la barra de cumplimiento vive en su columna");
+        fila.QuerySelector(".tarjeta-fila-acordeon-cabecera [data-pieza=anillo]")
+            .Should().BeNull("en los listados el cumplimiento es barra con cifra, no anillo");
         var meta = fila.QuerySelector(".tarjeta-fila-acordeon-meta")!;
         meta.ChildNodes.First().TextContent.Should().Be("C-001", "agrupado, la segunda línea es solo el código");
         meta.QuerySelector(".meta-empresa-movil")!.TextContent.Should().Be(" · Limpiezas Sur S.L.");

@@ -395,4 +395,11 @@
   <data name="ExtensionInstalarPista" xml:space="preserve">
     <value>Si encara no la tens instal·lada, mira «Instal·la l'extensió», més avall.</value>
   </data>
+  <data name="CumplimientoEtiqueta" xml:space="preserve">
+    <value>{0} % de compliment</value>
+    <comment>{0}: percentatge de 0 a 100. Nom accessible per defecte de BarraCumplimiento.</comment>
+  </data>
+  <data name="CumplimientoSinRequisitos" xml:space="preserve">
+    <value>Sense requisits</value>
+  </data>
 </root>

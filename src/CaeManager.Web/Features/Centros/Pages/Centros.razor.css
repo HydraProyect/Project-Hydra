@@ -65,7 +65,7 @@
 .columna-cumplimiento-centro {
     display: flex;
     align-items: center;
-    width: 112px;
+    width: 132px;
     flex-shrink: 0;
 }
 
@@ -113,7 +113,7 @@
     }
 
     .columna-cumplimiento-centro {
-        width: 28px;
+        width: 44px;
     }
 
     .cabecera-columna-orden {
