@@ -5,15 +5,12 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
-using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
 using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 using CaeManager.Application.Clientes.Commands.EliminarClientes;
-using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
-using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Subcontratas;
@@ -38,9 +35,10 @@ namespace CaeManager.Web.Tests;
 /// <see cref="SubcontratasVacioPorFiltroTests"/>.
 ///
 /// <para>
-/// El cambio de más peso es de navegación: el nombre de la fila y «Detalles»
-/// abren ahora una vista previa, y Subcontrata 360 queda detrás de «Operar →»
-/// y del menú de la fila — mismo patrón que Empresas y Vehículos.
+/// Patrón de listados sin menú «⋯» (2026-10-08): un clic en la fila, su nombre o Enter abren
+/// la vista rápida —el panel del Context Workspace—, el icono 360 del final de la fila lleva
+/// a la página Subcontrata 360 y la baja solo vive en la selección múltiple. Lo que enseñaba
+/// la vista previa antigua lo prueba ahora <see cref="Subcontrata360Gen2Tests"/> en el panel.
 /// </para>
 /// </summary>
 public class SubcontratasListaGen2Tests : BunitContext
@@ -61,18 +59,8 @@ public class SubcontratasListaGen2Tests : BunitContext
 
         /// <summary>El lote devuelve qué ids cayeron, como el handler real (los tests anteriores a «Deshacer» solo fijan el recuento).</summary>
         public bool LoteDevuelveIds { get; set; }
-        public SubcontrataDetalleDto? Detalle { get; init; }
-
-        /// <summary>
-        /// Solo la consulta de trabajadores filtrada por ESTA subcontrata devuelve
-        /// el recuento: si la vista previa filtrara por otro campo, recibiría 0.
-        /// </summary>
-        public Guid SubcontrataConTrabajadores { get; init; }
-        public int TrabajadoresDeEsaSubcontrata { get; init; }
-
         public IReadOnlyList<EmpresaSelectorDto> Empresas { get; init; } = [];
         public IReadOnlyList<ClienteSelectorDto> Clientes { get; init; } = [];
-        public Result ResultadoEliminar { get; init; } = Result.Exito();
 
         public List<object> Enviadas { get; } = [];
         /// <summary>Por defecto, un usuario mono-Tenant: sin selector ni cabecera de empresa gestionada.</summary>
@@ -92,12 +80,8 @@ public class SubcontratasListaGen2Tests : BunitContext
                 CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery => null!,
                 ObtenerClientesAutorizadosQuery => Autorizados,
                 ObtenerSubcontratasQuery q => FiltrarPorBusqueda(q),
-                ObtenerSubcontrataPorIdQuery q => Detalle is not null && Detalle.Id == q.Id ? Detalle : null!,
-                ObtenerTrabajadoresQuery q => new ResultadoPaginado<TrabajadorListaDto>(
-                    [], q.SubcontrataId == SubcontrataConTrabajadores ? TrabajadoresDeEsaSubcontrata : 0, 1, 1),
                 ObtenerEmpresasParaSelectorQuery => Empresas,
                 ObtenerClientesParaSelectorQuery => Clientes,
-                EliminarSubcontrataCommand => ResultadoEliminar,
                 EliminarSubcontratasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(EliminadosForzados ?? lote.Ids.Count, [], LoteDevuelveIds ? lote.Ids : null)),
                 RestaurarSubcontrataCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
@@ -156,10 +140,6 @@ public class SubcontratasListaGen2Tests : BunitContext
         id ?? Guid.NewGuid(), razonSocial, "B-20.774.115", new DateTime(2021, 4, 10, 0, 0, 0, DateTimeKind.Utc),
         nivel, cumplimiento, new RecuentosSubcontrataDto(vencidas ?? [], proximas ?? []));
 
-    private static SubcontrataDetalleDto Detalle(Guid id, params Guid[] empresaIds) => new(
-        id, "Andamios Bidasoa S.L.", "B-20.774.115", new DateTime(2021, 4, 10, 0, 0, 0, DateTimeKind.Utc),
-        ClienteIds: [], EmpresaIds: empresaIds, Guid.NewGuid(), NivelServicioSubcontrata.Gestionada);
-
     private SeleccionEmpresaGestionadaDePrueba Seleccion { get; set; } = new();
 
     /// <param name="busqueda">Valor del filtro de texto que llega por la URL (?q=).</param>
@@ -180,19 +160,8 @@ public class SubcontratasListaGen2Tests : BunitContext
         return Render<Subcontratas>();
     }
 
-    /// <summary>Valor de una celda de la rejilla de Información de la vista previa, por su rótulo.</summary>
-    private static string Celda(IElement panel, string rotulo) =>
-        panel.QuerySelectorAll(".celda-info-preview-subcontrata")
-            .Where(c => c.QuerySelector("span")?.TextContent.Trim() == rotulo)
-            .Select(c => c.QuerySelector("strong")?.TextContent.Trim() ?? string.Empty)
-            .Should().ContainSingle($"la rejilla tiene que tener exactamente una celda «{rotulo}»").Subject;
-
-    private static void AbrirMenuYPulsar(IRenderedComponent<Subcontratas> cut, string item)
-    {
-        // MenuAcciones no pinta sus ítems hasta que se abre.
-        cut.Find(".lista-filas-acordeon .menu-acciones-disparador").Click();
-        cut.FindAll(".lista-filas-acordeon .menu-acciones-item").Single(b => b.TextContent.Trim() == item).Click();
-    }
+    private Task EncenderSeleccionMultiple(IRenderedComponent<Subcontratas> cut) =>
+        cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
 
     /// <summary>
     /// Rediseño de listados, fase 1: cabecera de una línea con el contador, el ☑, el «⋯» con
@@ -473,136 +442,149 @@ public class SubcontratasListaGen2Tests : BunitContext
         explicacion.Should().NotContain("TALVEG");
     }
 
+    /// <summary>
+    /// Patrón de listados sin menú «⋯» (2026-10-08): un clic en la fila abre la vista rápida
+    /// —el panel del Context Workspace, no la vista previa antigua— y a la página Subcontrata
+    /// 360 se va con el icono 360 del final de la fila, que es un enlace real.
+    /// </summary>
     [Fact]
-    public void El_nombre_de_la_fila_abre_la_vista_previa_y_no_Subcontrata_360()
+    public async Task El_clic_en_la_fila_abre_la_vista_rapida_y_el_icono_360_enlaza_a_la_pagina()
     {
         var id = Guid.NewGuid();
-        var cut = Renderizar(new MediatorFalso
-        {
-            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)],
-            Detalle = Detalle(id)
-        });
+        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] });
 
-        cut.Find(".celda-identidad-subcontrata .enlace-nombre-fila").Click();
+        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+        cut.Find(".lista-filas-acordeon a.boton-360-pagina").GetAttribute("href").Should().Be($"/subcontratas/{id}");
 
-        cut.Find("aside.drawer-preview-subcontrata").TextContent.Should().Contain("Consulta · Subcontrata");
-        Services.GetRequiredService<ContextWorkspaceService>().EstaAbierto.Should().BeFalse(
-            "Subcontrata 360 se abre desde «Operar →» o desde el menú, no desde el nombre");
-    }
+        await cut.Find(".fila-pulsable").ClickAsync(new MouseEventArgs());
 
-    [Fact]
-    public void La_vista_previa_cuenta_los_trabajadores_de_esa_subcontrata_y_reutiliza_los_datos_de_la_fila()
-    {
-        var id = Guid.NewGuid();
-        var refrielectric = Guid.NewGuid();
-        var cut = Renderizar(new MediatorFalso
-        {
-            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id, cumplimiento: 58)],
-            Detalle = Detalle(id, refrielectric),
-            SubcontrataConTrabajadores = id,
-            TrabajadoresDeEsaSubcontrata = 3,
-            Empresas = [new EmpresaSelectorDto(refrielectric, "Refrielectric S.A.")]
-        });
-
-        cut.Find(".celda-identidad-subcontrata .enlace-nombre-fila").Click();
-        var panel = cut.Find("aside.drawer-preview-subcontrata");
-
-        Celda(panel, "Trabajadores").Should().Be("3", "el recuento sale de los trabajadores filtrados por ESTA subcontrata");
-        Celda(panel, "CIF").Should().Be("B-20.774.115");
-        Celda(panel, "Cumplimiento").Should().Be("58%", "es el mismo dato que enseña la fila");
-        Celda(panel, "Presta servicio a").Should().Be("Refrielectric S.A.");
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual
+            .Should().Be(new WorkspaceFrame(EntidadWorkspace.Subcontrata, id, "Andamios Bidasoa S.L.", "informacion"));
+        cut.FindAll("aside.drawer-preview-subcontrata").Should().BeEmpty("la vista previa antigua ya no existe");
+        cut.Find(".tarjeta-fila-acordeon").ClassList.Should().Contain("fila-en-vista-previa", "la fila del panel abierto queda marcada");
     }
 
     /// <summary>
-    /// Prueba solo presentación, contra un doble del mediador: si la relación
-    /// trae un Id cuyo nombre no llega en las listas de los selectores, se
-    /// cuenta como «y N más» en vez de omitirse — omitirlo haría parecer
-    /// completa una lista que no lo es.
+    /// El nombre es el destino de teclado del clic en la fila (la fila entera no se alcanza
+    /// con Tab): un botón con nombre accesible propio, no un enlace a la página.
+    /// </summary>
+    [Fact]
+    public async Task El_nombre_de_la_fila_es_un_boton_que_abre_la_vista_rapida()
+    {
+        var id = Guid.NewGuid();
+        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] });
+
+        var nombre = cut.Find(".celda-identidad-subcontrata .enlace-nombre-fila");
+        nombre.TagName.Should().Be("BUTTON");
+        nombre.ClassList.Should().Contain("nombre-abre-vista-rapida");
+        nombre.GetAttribute("aria-label").Should().Be("Abrir la vista rápida de Andamios Bidasoa S.L.");
+
+        await nombre.ClickAsync(new MouseEventArgs());
+
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual
+            .Should().Be(new WorkspaceFrame(EntidadWorkspace.Subcontrata, id, "Andamios Bidasoa S.L.", "informacion"));
+    }
+
+    /// <summary>
+    /// Los controles de dentro de la fila hacen lo suyo y no dejan subir el clic: copiar el
+    /// CIF no abre además la vista rápida.
     /// <para>
-    /// NO prueba ninguna garantía de alcance: qué nombres llegan lo deciden los
-    /// handlers de los selectores, y aquí los sustituye el doble. (Hoy el de
-    /// Empresas ni siquiera acota por cartera; ver el comentario de
-    /// <c>SubcontrataPreviewDrawer.ResolverPrestaServicioAAsync</c>.)
+    /// El desplegable NO se prueba aquí: su manejador repinta la lista, bUnit pierde entonces
+    /// el manejador de la fila y el test quedaría en verde aunque se quitara el corte (medido
+    /// por mutación en Empresas, 2026-10-09). Esa propiedad la prueba
+    /// <c>SubcontratasFilaSinMenuE2ETests</c> en un navegador real.
     /// </para>
     /// </summary>
     [Fact]
-    public void Presta_servicio_a_cuenta_como_y_N_mas_las_relaciones_cuyo_nombre_no_llega_en_vez_de_omitirlas()
+    public async Task Copiar_el_cif_no_abre_la_vista_rapida()
     {
-        var id = Guid.NewGuid();
-        var refrielectric = Guid.NewGuid();
-        var sinNombreEnLaLista = Guid.NewGuid();
-        var cut = Renderizar(new MediatorFalso
-        {
-            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)],
-            Detalle = Detalle(id, refrielectric, sinNombreEnLaLista),
-            Empresas = [new EmpresaSelectorDto(refrielectric, "Refrielectric S.A.")]
-        });
+        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] });
 
-        cut.Find(".celda-identidad-subcontrata .enlace-nombre-fila").Click();
+        await cut.Find(".lista-filas-acordeon .boton-copiar-en-linea").ClickAsync(new MouseEventArgs());
 
-        Celda(cut.Find("aside.drawer-preview-subcontrata"), "Presta servicio a").Should().Be("Refrielectric S.A. y 1 más");
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual
+            .Should().BeNull("el clic se queda en el control; solo el resto de la fila abre el panel");
     }
 
-    [Fact]
-    public void La_documentacion_de_la_vista_previa_lista_vencidos_y_proximos_de_sus_trabajadores()
+    /// <summary>
+    /// La casilla (que reacciona al cambio, no al clic) y el icono 360 (que navega el
+    /// navegador) no tienen manejador de clic propio y cortan la subida: bUnit lo dice con
+    /// «nadie recibe este clic». Sin el corte, el clic llegaría a la fila —que sí lo
+    /// atiende— y no habría excepción.
+    /// </summary>
+    [Theory]
+    [InlineData("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']")]
+    [InlineData("a.boton-360-pagina")]
+    public async Task La_casilla_y_el_icono_360_cortan_el_clic_antes_de_la_fila(string selector)
     {
-        var id = Guid.NewGuid();
-        var cut = Renderizar(new MediatorFalso
-        {
-            Subcontratas =
-            [
-                Subcontrata("Andamios Bidasoa S.L.", id: id,
-                    vencidas: [Incidencia("Formación PRL — Iñaki Otaegi", EstadoDocumento.Vencido)],
-                    proximas: [Incidencia("Reconocimiento médico — Miguel Sanz", EstadoDocumento.Proximo)])
-            ],
-            Detalle = Detalle(id)
-        });
+        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] });
+        await EncenderSeleccionMultiple(cut);
 
-        cut.Find(".celda-identidad-subcontrata .enlace-nombre-fila").Click();
-        cut.FindAll("aside.drawer-preview-subcontrata [role=tab]").Single(t => t.TextContent.Trim() == "Documentación").Click();
+        var clic = () => cut.Find(".lista-filas-acordeon " + selector).ClickAsync(new MouseEventArgs());
 
-        cut.FindAll(".fila-incidencia-preview-subcontrata").Select(f => f.TextContent).Should().HaveCount(2)
-            .And.Contain(t => t.Contains("Formación PRL — Iñaki Otaegi"))
-            .And.Contain(t => t.Contains("Reconocimiento médico — Miguel Sanz"));
+        await clic.Should().ThrowAsync<MissingEventHandlerException>();
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull();
     }
 
+    /// <summary>
+    /// Una incidencia corregible de la ventana de «Vencidos» abre su corrección y nada más:
+    /// la ventana interactiva corta la subida del clic, así que la fila no abre además su panel.
+    /// </summary>
     [Fact]
-    public void Eliminar_desde_el_menu_pide_confirmacion_y_despues_manda_el_comando_de_esa_fila()
+    public async Task Pulsar_una_incidencia_de_la_ventana_no_abre_la_vista_rapida()
     {
-        var id = Guid.NewGuid();
-        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] };
+        this.ConServiciosDelFormularioDeDocumento();
+        var vencida = new IncidenciaSubcontrataDto(
+            "Aptitud médica — Sonia Cano", EstadoDocumento.Vencido, Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
+        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", cumplimiento: 60, vencidas: [vencida])] };
         var cut = Renderizar(mediador);
 
-        AbrirMenuYPulsar(cut, "Eliminar");
+        await cut.Find(".celda-recuento-subcontrata button.ventana-contexto-elemento").ClickAsync(new MouseEventArgs());
 
-        cut.Markup.Should().Contain("¿Eliminar a Andamios Bidasoa S.L.?", "el diálogo de confirmación es la barrera");
-        mediador.Enviadas.OfType<EliminarSubcontrataCommand>().Should().BeEmpty("pulsar el menú no puede borrar sin confirmar");
-
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
-
-        mediador.Enviadas.OfType<EliminarSubcontrataCommand>().Select(c => c.Id).Should().Equal([id],
-            "se elimina la fila cuyo menú se abrió, y solo esa");
+        mediador.Enviadas.OfType<CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery>()
+            .Should().ContainSingle("control positivo: el clic llegó a la incidencia");
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull();
     }
 
-    /// <summary>Listados 5/7 (decisión D6, 2026-10-08): eliminar una Subcontrata deja «Deshacer», que restaura esa y solo esa.</summary>
+    /// <summary>El CIF se copia con un clic desde la fila, con nombre accesible que dice qué copia.</summary>
     [Fact]
-    public async Task Eliminar_ofrece_Deshacer_y_Deshacer_restaura_esa_subcontrata()
+    public void El_cif_de_la_fila_es_copiable_y_una_subcontrata_sin_cif_no_ofrece_copiar_nada()
+    {
+        var conCif = Subcontrata("Andamios Bidasoa S.L.");
+        var sinCif = Subcontrata("Pinturas Lauburu S.A.") with { Cif = null };
+        var cut = Renderizar(new MediatorFalso { Subcontratas = [conCif, sinCif] });
+
+        var copiables = cut.FindAll(".lista-filas-acordeon .boton-copiar-en-linea");
+        copiables.Should().ContainSingle("solo hay un CIF que copiar");
+        copiables[0].TextContent.Trim().Should().Be(conCif.Cif);
+        copiables[0].GetAttribute("aria-label").Should().Be($"Copiar el CIF {conCif.Cif}");
+    }
+
+    /// <summary>
+    /// La baja solo vive en la selección múltiple (patrón de listados sin menú «⋯»): la fila no
+    /// la ofrece. Pide confirmación y manda el lote con ESA fila, no el comando individual.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_solo_esta_en_la_seleccion_multiple_pide_confirmacion_y_manda_esa_fila()
     {
         var id = Guid.NewGuid();
-        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] };
+        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id), Subcontrata("Pinturas Lauburu S.A.")] };
         var cut = Renderizar(mediador);
 
-        AbrirMenuYPulsar(cut, "Eliminar");
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
+        cut.FindAll(".lista-filas-acordeon button").Select(b => b.TextContent.Trim())
+            .Should().NotContain("Eliminar", "la fila no ofrece la baja");
 
-        var avisos = Services.GetRequiredService<ToastService>();
-        var aviso = avisos.Mensajes.Single(m => m.TextoAccion == "Deshacer");
-        mediador.Enviadas.OfType<RestaurarSubcontrataCommand>().Should().BeEmpty("ofrecer «Deshacer» no restaura nada");
+        await EncenderSeleccionMultiple(cut);
+        await cut.Find("input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
 
-        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("el diálogo de confirmación es la barrera");
+        mediador.Enviadas.OfType<EliminarSubcontratasCommand>().Should().BeEmpty("pulsar «Eliminar seleccionados» no puede borrar sin confirmar");
 
-        mediador.Enviadas.OfType<RestaurarSubcontrataCommand>().Should().Equal([new RestaurarSubcontrataCommand(id)]);
-        avisos.Mensajes.Should().Contain(m => m.Mensaje == "Subcontrata restaurada." && m.Tono == TonoToast.Exito);
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarSubcontratasCommand>().Single().Ids.Should().Equal([id], "se elimina la fila marcada, y solo esa");
     }
 
     /// <summary>En lote, un único «Deshacer» para todo el lote, y restaura solo las que el lote sí eliminó.</summary>
@@ -629,37 +611,6 @@ public class SubcontratasListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
 
         mediador.Enviadas.OfType<RestaurarSubcontrataCommand>().Select(c => c.Id).Should().Equal([elegida]);
-    }
-
-    [Fact]
-    public void Si_el_comando_rechaza_la_eliminacion_se_ensena_su_motivo()
-    {
-        const string motivo = "No puedes eliminar una subcontrata con trabajadores. Da de baja a sus trabajadores primero.";
-        var mediador = new MediatorFalso
-        {
-            Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")],
-            ResultadoEliminar = Result.Fallo(Error.Crear("Subcontrata.TieneTrabajadores", motivo))
-        };
-        var cut = Renderizar(mediador);
-
-        AbrirMenuYPulsar(cut, "Eliminar");
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
-
-        Services.GetRequiredService<ToastService>().Mensajes.Should()
-            .ContainSingle(m => m.Mensaje == motivo && m.Tono == TonoToast.Error,
-                "el motivo lo da el comando, y es lo único que le dice al usuario qué hacer");
-    }
-
-    [Fact]
-    public void Abrir_Subcontrata_360_desde_el_menu_lleva_a_la_pagina_de_esa_fila()
-    {
-        var id = Guid.NewGuid();
-        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] });
-
-        AbrirMenuYPulsar(cut, "Abrir Subcontrata 360");
-
-        new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be($"/subcontratas/{id}");
-        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull("el menú lleva a la página, no al panel");
     }
 
     /// <summary>
@@ -729,43 +680,83 @@ public class SubcontratasListaGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Enter_sobre_la_fila_enfocada_abre_la_vista_previa_como_el_nombre()
+    public async Task Enter_sobre_la_fila_enfocada_abre_la_vista_rapida_como_el_clic()
     {
         var id = Guid.NewGuid();
-        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)], Detalle = Detalle(id) });
-        var atajos = cut.FindComponent<AtajosListaTeclado>();
+        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] });
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
 
-        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("j"));
-        await cut.InvokeAsync(() => atajos.Instance.OnAtajo.InvokeAsync("Enter"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("j"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("Enter"));
 
-        cut.FindAll("aside.drawer-preview-subcontrata").Should().ContainSingle(
-            "Enter hace lo mismo que pulsar el nombre de la fila enfocada");
-        Services.GetRequiredService<ContextWorkspaceService>().EstaAbierto.Should().BeFalse();
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual
+            .Should().Be(new WorkspaceFrame(EntidadWorkspace.Subcontrata, id, "Andamios Bidasoa S.L.", "informacion"));
     }
 
     /// <summary>
-    /// El Workspace no es modal: con la ficha de la subcontrata abierta, la baja
-    /// se confirma desde la fila que queda detrás. La ficha ya no tiene baja
-    /// propia (P41b), así que la lista es quien la retira.
+    /// Tecla «x»: marcar una fila enciende la selección múltiple. Una fila marcada sin casilla
+    /// a la vista sería selección invisible justo antes de «Eliminar seleccionados».
     /// </summary>
     [Fact]
-    public async Task Eliminar_la_subcontrata_cuya_ficha_esta_abierta_retira_la_ficha()
+    public async Task La_tecla_x_enciende_la_seleccion_multiple_y_marca_la_fila_enfocada()
     {
-        var id = Guid.NewGuid();
-        var mediador = new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] };
-        var cut = Renderizar(mediador);
-        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Subcontrata, id, "Andamios Bidasoa S.L.", "informacion"));
-        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+        const string casilla = "input[aria-label='Seleccionar la empresa Andamios Bidasoa S.L.']";
+        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.")] });
+        cut.FindAll(casilla).Should().BeEmpty("punto de partida: sin casillas");
 
-        AbrirMenuYPulsar(cut, "Eliminar");
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar").Click();
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("j"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("x"));
 
-        mediador.Enviadas.OfType<EliminarSubcontrataCommand>().Should().ContainSingle("la baja se ejecutó");
-        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de una subcontrata ya dada de baja no puede seguir editable");
+        cut.Find(casilla).HasAttribute("checked").Should().BeTrue();
+        cut.FindAll(".barra-acciones-lote button").Select(b => b.TextContent.Trim()).Should().Contain("Eliminar seleccionados");
     }
 
-    /// <summary>Lo mismo con la baja en lote: solo se retira la ficha si su subcontrata iba en el lote.</summary>
+    /// <summary>
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición. La petición queda en el
+    /// servicio para que el panel la atienda (y solo para esa ficha).
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_abre_la_vista_rapida_de_la_fila_enfocada_pidiendo_edicion()
+    {
+        var id = Guid.NewGuid();
+        var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L.", id: id)] });
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("e"));
+        workspace.FrameActual.Should().BeNull("sin fila enfocada ni panel abierto, «e» no tiene qué editar");
+
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("j"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("e"));
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Subcontrata, id, "Andamios Bidasoa S.L.", "informacion"));
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Subcontrata, id).Should().BeTrue("la edición quedó pedida para esa ficha");
+    }
+
+    /// <summary>
+    /// Sin fila enfocada, «e» edita la ficha que esté abierta, aunque su Subcontrata no esté en
+    /// la página (el filtro la dejó fuera o la lista está vacía): el nombre sale del frame abierto.
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_sin_fila_enfocada_edita_la_ficha_abierta_aunque_no_este_en_la_lista()
+    {
+        var fueraDeLaLista = Guid.NewGuid();
+        var cut = Renderizar(new MediatorFalso());
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Subcontrata, fueraDeLaLista, "Pinturas Lauburu S.A.", "supervision"));
+
+        await cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo("e"));
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Subcontrata, fueraDeLaLista, "Pinturas Lauburu S.A.", "informacion"));
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Subcontrata, fueraDeLaLista).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// El Workspace no es modal: con la ficha de la subcontrata abierta, la baja se confirma
+    /// desde la lista que queda detrás, y es la lista quien retira la ficha. Solo se retira si
+    /// su subcontrata iba en el lote.
+    /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

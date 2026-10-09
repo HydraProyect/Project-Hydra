@@ -165,12 +165,6 @@
   <data name="BadgeAlCorriente" xml:space="preserve">
     <value>Sense incidències</value>
   </data>
-  <data name="MenuDetalles" xml:space="preserve">
-    <value>Detalles</value>
-  </data>
-  <data name="MenuAbrirSubcontrata360" xml:space="preserve">
-    <value>Abrir Subcontrata 360</value>
-  </data>
   <data name="MenuEliminar" xml:space="preserve">
     <value>Eliminar</value>
   </data>
@@ -264,15 +258,6 @@
   <data name="DescripcionNivelGestionadaLista" xml:space="preserve">
     <value>Gestionada: su documentación se sube y se valida en esta plataforma.</value>
   </data>
-  <data name="AriaVistaPrevia" xml:space="preserve">
-    <value>Vista previa de la subcontrata</value>
-  </data>
-  <data name="EtiquetaCabeceraVistaPrevia" xml:space="preserve">
-    <value>Consulta · Subcontrata</value>
-  </data>
-  <data name="AriaCerrarVistaPrevia" xml:space="preserve">
-    <value>Cerrar la vista previa</value>
-  </data>
   <data name="AriaSeccionesSubcontrata" xml:space="preserve">
     <value>Secciones de la subcontrata</value>
   </data>
@@ -285,35 +270,14 @@
   <data name="NoEncontradaDescripcion" xml:space="preserve">
     <value>Puede que se haya eliminado o que ya no esté en tu cartera.</value>
   </data>
-  <data name="RotuloCif" xml:space="preserve">
-    <value>CIF</value>
-  </data>
   <data name="RotuloTrabajadores" xml:space="preserve">
     <value>Trabajadores</value>
-  </data>
-  <data name="RotuloProximosAVencer" xml:space="preserve">
-    <value>Próximos a vencer</value>
   </data>
   <data name="RotuloAlta" xml:space="preserve">
     <value>Alta</value>
   </data>
-  <data name="RotuloPrestaServicioA" xml:space="preserve">
-    <value>Presta servicio a</value>
-  </data>
-  <data name="DocumentacionSinIncidencias" xml:space="preserve">
-    <value>Ningún documento exigido a sus trabajadores está vencido ni próximo a vencer.</value>
-  </data>
   <data name="AriaListaIncidencias" xml:space="preserve">
     <value>Documentos vencidos y próximos a vencer de sus trabajadores</value>
-  </data>
-  <data name="EnlaceVerTrabajadoresYDocumentacion" xml:space="preserve">
-    <value>Ver sus trabajadores y su documentación →</value>
-  </data>
-  <data name="BotonOperar" xml:space="preserve">
-    <value>Operar →</value>
-  </data>
-  <data name="NotaAbreSubcontrata360" xml:space="preserve">
-    <value>Abre Subcontrata 360</value>
   </data>
   <data name="PestanaInformacion" xml:space="preserve">
     <value>Información</value>
@@ -324,29 +288,14 @@
   <data name="PestanaHistorial" xml:space="preserve">
     <value>Historial</value>
   </data>
-  <data name="EmpresasFueraDeCarteraUno" xml:space="preserve">
-    <value>1 empresa fuera de tu cartera</value>
-  </data>
-  <data name="EmpresasFueraDeCarteraVarios" xml:space="preserve">
-    <value>{0} empresas fuera de tu cartera</value>
-  </data>
   <data name="ListaYMas" xml:space="preserve">
     <value>{0} y {1} más</value>
-  </data>
-  <data name="MetaCumplimiento" xml:space="preserve">
-    <value>{0}% de cumplimiento</value>
-  </data>
-  <data name="MetaSinCumplimiento" xml:space="preserve">
-    <value>sin cumplimiento calculable</value>
   </data>
   <data name="MetaTrabajadoresUno" xml:space="preserve">
     <value>1 trabajador</value>
   </data>
   <data name="MetaTrabajadoresVarios" xml:space="preserve">
     <value>{0} trabajadores</value>
-  </data>
-  <data name="MetaTrabajadoresYCumplimiento" xml:space="preserve">
-    <value>{0} · {1}</value>
   </data>
   <data name="ErrorCargaTrabajadoresTitulo" xml:space="preserve">
     <value>No pudimos cargar los trabajadores</value>
@@ -888,9 +837,6 @@
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>
-  <data name="ToastRestaurada" xml:space="preserve">
-    <value>Subcontracta restaurada.</value>
-  </data>
   <data name="ToastLoteRestauradas" xml:space="preserve">
     <value>{0} subcontracta(es) restaurada(es).</value>
   </data>
@@ -899,5 +845,26 @@
   </data>
   <data name="ErrorRestaurar" xml:space="preserve">
     <value>No s'ha pogut desfer l'eliminació. Torna-ho a provar.</value>
+  </data>
+  <data name="AbrirVistaRapidaDe" xml:space="preserve">
+    <value>Obre la vista ràpida de {0}</value>
+  </data>
+  <data name="EtiquetaCif" xml:space="preserve">
+    <value>el CIF</value>
+  </data>
+  <data name="CopiarCif" xml:space="preserve">
+    <value>Copia el CIF {0}</value>
+  </data>
+  <data name="AriaEditarInformacion" xml:space="preserve">
+    <value>Edita la informació de la subcontrata</value>
+  </data>
+  <data name="TituloEditarConAtajo" xml:space="preserve">
+    <value>Edita (e)</value>
+  </data>
+  <data name="ErrorCargaIncidenciasTitulo" xml:space="preserve">
+    <value>No s'han pogut llegir els vençuts i pròxims dels seus treballadors</value>
+  </data>
+  <data name="ErrorCargaIncidenciasDescripcion" xml:space="preserve">
+    <value>No vol dir que no n'hi hagi cap. Consulta la pestanya Treballadors o torna a obrir la fitxa.</value>
   </data>
 </root>

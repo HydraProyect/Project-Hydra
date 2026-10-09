@@ -472,7 +472,6 @@ src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs :: ClienteIdActual 
 src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs :: ClienteIdQuery = 2
 src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs :: _clienteId = 6
 src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs :: clienteId = 19
-src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataPreviewDrawer.razor.cs :: ClienteIds = 1
 src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor :: ClienteIds = 4
 src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor :: _clienteIdsInfo = 7
 src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor :: clienteId = 3
