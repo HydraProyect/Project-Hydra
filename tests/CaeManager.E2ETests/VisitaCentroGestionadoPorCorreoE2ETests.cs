@@ -164,6 +164,8 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         var filaVisita = page.Locator("tr", new PageLocatorOptions { HasText = nombreCentro });
         await filaVisita.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Ayudas.PulsarAccionDeMenuAsync(filaVisita.Locator(".menu-acciones-disparador"), "Ver");
+        // El panel se abre en «Información»; la solicitud y el zip viven en «Documentación».
+        await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Documentación", Exact = true }).ClickAsync();
 
         var solicitud = drawer.Locator(".visitas-aviso");
         await Expect(drawer.Locator(".visitas-aviso-destinatarios")).ToContainTextAsync(correoCentro, new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
@@ -194,6 +196,45 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
             Assert.Contains(nombreTipoDocumento, entrada.FullName);
             Assert.True(entrada.Length > 0, "el zip lleva el archivo subido, no una entrada vacía");
         }
+
+        // --- Pestaña «Trabajadores»: quién entra, añadir desde la lista y quitar con el «menos» ---
+        await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
+        var filasTrabajador = drawer.Locator(".visitas-trabajador-fila");
+        await Expect(filasTrabajador).ToHaveCountAsync(1);
+        await Expect(filasTrabajador.First).ToContainTextAsync($"{nombreTrabajador} {apellidosTrabajador}");
+        var quitarAlPrimero = drawer.GetByRole(AriaRole.Button,
+            new LocatorGetByRoleOptions { Name = $"Quitar a {nombreTrabajador} {apellidosTrabajador} de la visita", Exact = true });
+        await Expect(quitarAlPrimero).ToBeDisabledAsync();
+
+        await drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Añadir trabajador", Exact = true }).ClickAsync();
+        var candidatos = drawer.Locator(".visitas-candidatos");
+        // Con un único candidato en el Tenant se añade sin lista; con varios hay que elegirlo.
+        await Expect(candidatos.Or(filasTrabajador.Nth(1)).First).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        if (await candidatos.IsVisibleAsync())
+        {
+            var buscador = candidatos.GetByPlaceholder("Buscar trabajador");
+            await buscador.FillAsync("zzzz-nadie-se-llama-asi");
+            await Expect(candidatos).ToContainTextAsync("Ningún trabajador coincide.");
+            await buscador.FillAsync(string.Empty);
+            await candidatos.Locator(".visitas-candidato").First.ClickAsync();
+        }
+
+        await Expect(filasTrabajador).ToHaveCountAsync(2, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+
+        // Con dos, el primero ya se puede quitar: pregunta antes y, al confirmar, sale de la visita.
+        await quitarAlPrimero.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Quitar de la visita", Exact = true }).ClickAsync();
+        await Expect(filasTrabajador).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+        await Expect(filasTrabajador.First).Not.ToContainTextAsync(apellidosTrabajador);
+
+        // Lo guardado, no lo pintado: tras recargar la página la visita sigue con un solo trabajador y no es el primero.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas");
+        await page.GetByPlaceholder("Buscar por centro, titular o empresa…").FillAsync(nombreCentro);
+        await filaVisita.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await Ayudas.PulsarAccionDeMenuAsync(filaVisita.Locator(".menu-acciones-disparador"), "Ver");
+        await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
+        await Expect(filasTrabajador).ToHaveCountAsync(1);
+        await Expect(filasTrabajador.First).Not.ToContainTextAsync(apellidosTrabajador);
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
