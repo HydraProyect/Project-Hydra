@@ -168,6 +168,20 @@ public class ObtenerOperadoresCaeDeMiTenantQueryTests
     }
 
     /// <summary>
+    /// Manda el rol efectivo, no el de Identity: un Administrador con la sesión restringida a
+    /// menos (inicio de sesión local) no lee como Administrador.
+    /// </summary>
+    [Fact]
+    public async Task Un_Administrador_con_la_sesion_restringida_a_otro_rol_no_recibe_nada()
+    {
+        var e = new Escenario { RolEfectivo = "Consulta", RolEnIdentity = "Administrador" }
+            .ConOperacion(Cartera(GestoraPrincipal, principal: true));
+
+        (await e.LeerAsync()).Should().BeEmpty();
+        e.Catalogo.ConsultasDeOperacionesExternas.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// El rol de la sesión no basta: se vuelve a leer en Identity, que es donde se ve una cuenta
     /// desactivada o degradada después de iniciar sesión.
     /// </summary>
