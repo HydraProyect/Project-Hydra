@@ -12,13 +12,18 @@
 @using CaeManager.Application.Integraciones
 @using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion
 @using CaeManager.Domain.Integraciones
+@using CaeManager.Web.Recursos
 @using MediatR
+@using Microsoft.Extensions.Localization
 @inject IMediator Mediator
 @inject ToastService ToastService
+@inject IStringLocalizer<TextosComunes> Comunes
 
 <DrawerFormulario Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Redactar mensaje"
                  HayCambios="() => HayCambiosSinGuardar" Guardando="_enviando" MensajeError="@_error"
-                 OnGuardar="EnviarAsync" TextoGuardar="Enviar" TextoCancelar="Cancelar">
+                 OnGuardar="EnviarAsync" TextoGuardar="Enviar" TextoCancelar="Cancelar"
+                 SinContenido="@(_sinBuzon ? ContenidoSinBuzon : null)"
+                 MotivoGuardarDeshabilitado="@(_sinBuzon ? Comunes["SinBuzonEnviarDeshabilitado"].Value : null)">
     @if (_conexiones.Count > 1)
     {
         <CampoSelect Etiqueta="Enviar desde" Valor="@(_conexionId?.ToString() ?? string.Empty)" ValorChanged="v => _conexionId = Guid.TryParse(v, out var id) ? id : null">
@@ -41,6 +46,19 @@
 </DrawerFormulario>
 
 @code {
+    /// <summary>
+    /// FS-15: sin buzón conectado el compositor no se cierra con un aviso que se va solo. Dice por qué no se puede enviar,
+    /// quién lo arregla, y deja a mano lo que el llamador ya había preparado: el texto para copiarlo y, si dio de dónde
+    /// bajarlo (<see cref="RutaDescargaAdjunto"/>), el adjunto.
+    /// </summary>
+    private RenderFragment ContenidoSinBuzon => @<AvisoSinBuzonCorreo TextoParaCopiar="@AvisoSinBuzonCorreo.TextoDeCorreo(AsuntoInicial, CuerpoInicial)"
+                                                                      Destinatarios="@DestinatariosIniciales">
+        @if (Adjunto is not null && !string.IsNullOrWhiteSpace(RutaDescargaAdjunto))
+        {
+            <a class="aviso-sin-buzon-descargar" href="@RutaDescargaAdjunto" download data-enhance-nav="false">@Comunes["SinBuzonDescargarAdjunto", Adjunto.NombreArchivo]</a>
+        }
+    </AvisoSinBuzonCorreo>;
+
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
     /// <summary>Destinatarios con los que se abre, separados por coma; quien redacta los revisa y puede cambiarlos.</summary>
@@ -48,6 +66,8 @@
     [Parameter] public string? AsuntoInicial { get; set; }
     [Parameter] public string? CuerpoInicial { get; set; }
     [Parameter] public AdjuntoParaEnviarDto? Adjunto { get; set; }
+    /// <summary>De dónde se baja <see cref="Adjunto"/> con una petición normal, para ofrecerlo cuando no hay buzón desde el que enviarlo.</summary>
+    [Parameter] public string? RutaDescargaAdjunto { get; set; }
     [Parameter] public EventCallback OnEnviado { get; set; }
 
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
@@ -58,6 +78,7 @@
     private string? _error;
     private bool _enviando;
     private bool _preparado;
+    private bool _sinBuzon;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -79,6 +100,7 @@
         _cuerpo = CuerpoInicial ?? string.Empty;
         _error = null;
         _conexionId = null;
+        _sinBuzon = false;
         FijarInstantaneaFormulario();
 
         var conexiones = await Mediator.Send(new ObtenerConexionesIntegracionQuery(SoloPropiasYGenerales: true));
@@ -89,11 +111,7 @@
         // sí es un cambio, así que los demás siguen siendo los de la apertura.
         _instantanea.Fijar(_conexionId, DestinatariosIniciales ?? string.Empty, AsuntoInicial ?? string.Empty, CuerpoInicial ?? string.Empty);
 
-        if (_conexiones.Count == 0)
-        {
-            ToastService.Mostrar("No hay ningún buzón de Microsoft 365 conectado para enviar correo.", TonoToast.Error);
-            await CerrarAsync(false);
-        }
+        _sinBuzon = _conexiones.Count == 0;
     }
 
     private readonly InstantaneaFormulario _instantanea = new();
@@ -125,6 +143,8 @@
 
     private async Task EnviarAsync()
     {
+        if (_sinBuzon) return;
+
         if (_conexionId is null)
         {
             _error = "Selecciona desde qué buzón enviarlo.";

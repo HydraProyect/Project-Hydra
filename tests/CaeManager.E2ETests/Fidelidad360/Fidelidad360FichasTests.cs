@@ -22,14 +22,26 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     private const string TenantPizzaPlanet = "Pizza Planet S.L.";
     private const string EmpresaDeLaMaqueta = "Montajes Skynet S.L.";
     private const string ClienteEmpresarialDeLaMaqueta = "Cyberdyne Ibérica S.A.";
+    private const string VehiculoDeLaMaqueta = "Camión grúa";
 
-    /// <summary>Pareja ficha ↔ mockup. La ruta se resuelve por la razón social sembrada.</summary>
-    private sealed record Pareja(string Clave, string Ruta, string RazonSocial, Mockup360 Mockup);
+    /// <summary>Tabla y columna por las que se resuelve el id de la ficha cuando no es una Empresa.</summary>
+    private const string VehiculosPorNombre = "\"Vehiculos\".\"Nombre\"";
+
+    /// <summary>
+    /// Pareja ficha ↔ mockup. La ruta se resuelve por el nombre sembrado: la razón social de una
+    /// Empresa, salvo que <paramref name="BuscarEn"/> nombre otra tabla y columna.
+    /// </summary>
+    private sealed record Pareja(string Clave, string Ruta, string RazonSocial, Mockup360 Mockup, string? BuscarEn = null);
 
     private static readonly Pareja[] Parejas =
     [
         new("empresa-360", "/empresas/", EmpresaDeLaMaqueta, Mockup360.PaginaDc("Empresa 360 página TALVEG.dc.html")),
         new("cliente-empresarial-360", "/clientes/", ClienteEmpresarialDeLaMaqueta, Mockup360.PaginaDc("Cliente 360 página TALVEG.dc.html")),
+        new("vehiculo-360", "/vehiculos/", VehiculoDeLaMaqueta,
+            Mockup360.PorConvencion(
+                "Vehiculo 360 página TALVEG.dc.html", "[data-pieza=\"cabecera-identidad\"]",
+                tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme"),
+            BuscarEn: VehiculosPorNombre),
     ];
 
     public static TheoryData<string, string> ParejasPorTema()
@@ -44,14 +56,18 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         return datos;
     }
 
-    private async Task<IPage> AbrirFichaAsync(IBrowserContext contexto, string ruta, string razonSocial, string tema)
+    private async Task<IPage> AbrirFichaAsync(IBrowserContext contexto, string ruta, string razonSocial, string tema, string? buscarEn = null)
     {
         var email = await fixture.LeerValorSqlAsync(
             """SELECT "Email" FROM "AspNetUsers" WHERE "Email" LIKE 'coordinador1.%@caemanager.local' """);
+        // «buscarEn» solo llega de las constantes de esta clase ("Tabla"."Columna"): no es entrada externa.
+        var (tabla, columna) = (buscarEn ?? "\"Empresas\".\"RazonSocial\"").Split('.') is [var t, var c]
+            ? (t, c)
+            : throw new ArgumentException($"Se esperaba \"Tabla\".\"Columna\" y llegó «{buscarEn}».", nameof(buscarEn));
         var id = await fixture.LeerValorSqlAsync(
-            """
-            SELECT e."Id"::text FROM "Empresas" e JOIN "Tenants" t ON t."Id" = e."TenantId"
-            WHERE e."RazonSocial" = @razon AND t."Nombre" = @tenant
+            $"""
+            SELECT e."Id"::text FROM {tabla} e JOIN "Tenants" t ON t."Id" = e."TenantId"
+            WHERE e.{columna} = @razon AND t."Nombre" = @tenant
             """, ("razon", razonSocial), ("tenant", TenantPizzaPlanet));
 
         var page = await contexto.NewPageAsync();
@@ -147,7 +163,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
 
         await Fidelidad360.CapturarAsync(paginaMockup, Path.Combine(salida, "mockup.png"));
 
-        var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.RazonSocial, tema);
+        var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.RazonSocial, tema, pareja.BuscarEn);
         var ficha = await Fidelidad360.MedirAsentadoAsync(paginaFicha, "ficha", SelectoresDeLado.Convencion());
         await Fidelidad360.CapturarAsync(paginaFicha, Path.Combine(salida, "ficha.png"));
 

@@ -33,6 +33,15 @@ public interface ICalculoEstadoDocumentalService
 {
     Task<IReadOnlyDictionary<Guid, EstadoDocumento>> CalcularPeorEstadoAsync(
         AmbitoAplicacion ambito, IReadOnlyList<Guid> propietarioIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// El estado de cada documento operativo de un Vehículo, uno por documento y sin orden. Es lo que
+    /// necesita la ficha 360 del Vehículo para decir cuántos de sus documentos registrados están al día
+    /// (<see cref="CumplimientoDocumental.Evaluar(IEnumerable{EstadoDocumento})"/>): el peor estado de
+    /// <see cref="CalcularPeorEstadoAsync"/> no alcanza para una fracción. Sin documentos, lista vacía.
+    /// </summary>
+    Task<IReadOnlyList<EstadoDocumento>> CalcularEstadosDeDocumentosDeVehiculoAsync(
+        Guid vehiculoId, CancellationToken cancellationToken);
 }
 
 public class CalculoEstadoDocumentalService(
@@ -91,6 +100,26 @@ public class CalculoEstadoDocumentalService(
         return agregadoPorPropietario.ToDictionary(
             a => a.PropietarioId,
             a => PeorEstado(a.PeorFecha, a.SinConfirmar > 0, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+    }
+
+    public async Task<IReadOnlyList<EstadoDocumento>> CalcularEstadosDeDocumentosDeVehiculoAsync(
+        Guid vehiculoId, CancellationToken cancellationToken)
+    {
+        var vigencias = await documentosContext.Documentos.Operativos()
+            .Where(d => d.VehiculoId == vehiculoId)
+            .Select(d => new { d.EstadoVigencia, d.FechaVencimiento })
+            .ToListAsync(cancellationToken);
+
+        if (vigencias.Count == 0)
+            return [];
+
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var hoy = DiaDeNegocio.Hoy();
+
+        return vigencias
+            .Select(v => CalculadoraEstadoDocumento.Calcular(
+                v.EstadoVigencia, v.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
+            .ToList();
     }
 
     /// <summary>

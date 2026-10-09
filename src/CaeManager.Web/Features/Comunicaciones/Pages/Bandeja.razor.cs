@@ -1449,12 +1449,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _conexionRedactarId = _conexionesRedactar.Count == 1 ? _conexionesRedactar[0].Id : null;
         _instantaneaRedactar.Fijar(ValoresRedactar());
 
-        if (_conexionesRedactar.Count == 0)
-        {
-            ToastService.Mostrar("No hay ningún buzón de Microsoft 365 conectado para enviar correo.", TonoToast.Error);
-            return;
-        }
-
+        // FS-15: sin buzón el Drawer se abre igualmente, con el aviso que dice por qué y quién lo conecta
+        // (AvisoSinBuzonCorreo) en lugar del formulario. Antes era un toast que se iba solo.
         _redactarVisible = true;
     }
 

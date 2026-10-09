@@ -128,9 +128,9 @@ public partial class DelegacionesGen2Tests : BunitContext
         public void Dispose() { }
     }
 
-    private sealed class Seleccion : IClienteActivoSeleccionado
+    private sealed class Seleccion(Guid? tenantIdSeleccionado) : IClienteActivoSeleccionado
     {
-        public Guid? TenantIdSeleccionado => null;
+        public Guid? TenantIdSeleccionado => tenantIdSeleccionado;
         public Guid? AsignacionOperacionIdSeleccionada => null;
         public Guid? SesionPrivilegiadaIdSeleccionada => null;
     }
@@ -138,6 +138,9 @@ public partial class DelegacionesGen2Tests : BunitContext
     private IReadOnlyList<OperadorCaeExternoDto> _operadoresIniciales = [];
     private Action<Mediador>? _configurarMediador;
     private string? _urlInicial;
+
+    /// <summary>Tenant propietario seleccionado por la vía de Operación; <c>null</c> = la organización propia.</summary>
+    private Guid? _tenantSeleccionado;
 
     private static DelegacionDto Delegacion(
         bool soporte = false, bool activa = true, string rol = "GestorCae", bool somosLaConsultora = true, Guid? tenantClienteId = null) => new(
@@ -180,7 +183,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped(_ => toasts);
         Services.AddScoped<PuertaAccesoDatos>();
-        Services.AddScoped<IClienteActivoSeleccionado, Seleccion>();
+        Services.AddScoped<IClienteActivoSeleccionado>(_ => new Seleccion(_tenantSeleccionado));
         Services.AddScoped(_ => new UserManager<ApplicationUser>(new AlmacenUsuarios(), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddLocalization();
         // BotonCopiar («Copiar enlace de autorización») importa clipboard.js al pintarse.

@@ -18,21 +18,52 @@
 
     Movimiento: la apertura es feedback causal de Tier A (07 § 6), con
     --motion-base. No hay Tier B aquí: no es un cambio de contexto.
+
+    Dos modos (decisión del 2026-10-08, Listados 3/7):
+
+      · Solo lectura (por defecto): el desglose explica y no se pulsa. El
+        contenedor es focusable y lleva role="note".
+      · Interactiva: el detalle lleva botones (VentanaContextoElemento) que
+        abren la superficie donde se corrige lo que la ventana enseña. Deja de
+        ser un tooltip: el disparador es un <button> de verdad, el panel es un
+        role="group" con nombre y el tabulador entra en sus botones, porque
+        :focus-within lo mantiene abierto. El clic no burbujea a la fila que
+        la contiene: pulsar una incidencia no abre además el panel de la fila.
+
+    En ambos modos el cursor puede cruzar del disparador al panel sin que se
+    cierre (puente transparente sobre la separación) y Esc la cierra sin mover
+    el cursor ni perder el foco (WCAG 1.4.13) — eso lo hace
+    wwwroot/js/ventana-contexto.js, delegado en window, porque el estado
+    abierto vive en CSS y Blazor no lo conoce.
 *@
-<span class="ventana-contexto @(Deshabilitada ? "ventana-contexto-inerte" : null) @ClaseLlamador"
-      tabindex="@(Deshabilitada ? null : "0")"
-      role="note"
-      aria-label="@Etiqueta"
+<span class="ventana-contexto @(Deshabilitada ? "ventana-contexto-inerte" : null) @(EsInteractiva ? "ventana-contexto-interactiva" : null) @ClaseColocacion @ClaseLlamador"
+      tabindex="@(Deshabilitada || EsInteractiva ? null : "0")"
+      role="@(EsInteractiva ? null : "note")"
+      aria-label="@(EsInteractiva ? null : Etiqueta)"
+      @onclick:stopPropagation="EsInteractiva"
       @attributes="AtributosSinClase">
-    @Disparador
+    @if (EsInteractiva)
+    {
+        <button type="button" class="ventana-contexto-disparador" aria-label="@Etiqueta">@Disparador</button>
+    }
+    else
+    {
+        @Disparador
+    }
     @if (!Deshabilitada)
     {
-        <span class="ventana-contexto-panel" role="presentation">
+        <span class="ventana-contexto-panel"
+              role="@(EsInteractiva ? "group" : "presentation")"
+              aria-label="@(EsInteractiva ? (string.IsNullOrWhiteSpace(Titulo) ? Etiqueta : Titulo) : null)">
             @if (!string.IsNullOrWhiteSpace(Titulo))
             {
                 <b class="ventana-contexto-titulo @(TituloDeSistema ? "ventana-contexto-titulo-sistema" : null)">@Titulo</b>
             }
             @Detalle
+            @if (!string.IsNullOrWhiteSpace(Pie))
+            {
+                <small class="ventana-contexto-pie">@Pie</small>
+            }
         </span>
     }
 </span>
@@ -66,6 +97,22 @@
     /// </summary>
     [Parameter] public bool Deshabilitada { get; set; }
 
+    /// <summary>
+    /// El detalle lleva elementos pulsables (<see cref="VentanaContextoElemento"/>).
+    /// Cambia la semántica: el disparador pasa a ser un botón y el panel un
+    /// grupo con nombre al que se llega con el tabulador.
+    /// </summary>
+    [Parameter] public bool Interactiva { get; set; }
+
+    /// <summary>Línea de ayuda al pie del panel («Clic en una para corregirla aquí»).</summary>
+    [Parameter] public string? Pie { get; set; }
+
+    /// <summary>
+    /// Hacia dónde se abre el panel. Arriba y centrado por defecto, que es lo
+    /// que hacían los usos anteriores a este parámetro.
+    /// </summary>
+    [Parameter] public VentanaContextoColocacion Colocacion { get; set; } = VentanaContextoColocacion.ArribaCentro;
+
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? AtributosAdicionales { get; set; }
 
@@ -81,6 +128,15 @@
                 + "queda con el color como único portador de significado (02 § 8, DDL-033).");
         }
     }
+
+    private bool EsInteractiva => Interactiva && !Deshabilitada;
+
+    private string? ClaseColocacion => Colocacion switch
+    {
+        VentanaContextoColocacion.AbajoCentro => "ventana-contexto-abajo",
+        VentanaContextoColocacion.AbajoFin => "ventana-contexto-abajo ventana-contexto-fin",
+        _ => null,
+    };
 
     private string? ClaseLlamador =>
         AtributosAdicionales is not null

@@ -99,24 +99,18 @@ public class LocalizacionInfraestructuraTests
     [Fact]
     public async Task El_default_global_es_ES_no_impide_que_una_peticion_ca_ES_se_ejecute_en_ca_ES()
     {
-        var culturaPrevia = CultureInfo.DefaultThreadCurrentCulture;
-        var culturaUiPrevia = CultureInfo.DefaultThreadCurrentUICulture;
-        try
-        {
-            CultureInfo.DefaultThreadCurrentCulture = new CultureInfo("es-ES");
-            CultureInfo.DefaultThreadCurrentUICulture = new CultureInfo("es-ES");
+        // El default global ya es es-ES: lo fija CulturaDeLaSuite para todo el
+        // proceso. Se comprueba, no se vuelve a asignar: es estado del proceso
+        // entero, y cambiarlo aquí —aunque se restaure— lo cambia para los tests
+        // que corren en paralelo.
+        CultureInfo.DefaultThreadCurrentCulture?.Name.Should().Be("es-ES", "precondición: el default global del proceso");
+        CultureInfo.DefaultThreadCurrentUICulture?.Name.Should().Be("es-ES", "precondición: el default global del proceso");
 
-            var (cultura, culturaUi, _) = await ResolverAsync(peticion =>
-                peticion.Headers.Cookie = CabeceraCookie("ca-ES"));
+        var (cultura, culturaUi, _) = await ResolverAsync(peticion =>
+            peticion.Headers.Cookie = CabeceraCookie("ca-ES"));
 
-            cultura.Should().Be("ca-ES");
-            culturaUi.Should().Be("ca-ES");
-        }
-        finally
-        {
-            CultureInfo.DefaultThreadCurrentCulture = culturaPrevia;
-            CultureInfo.DefaultThreadCurrentUICulture = culturaUiPrevia;
-        }
+        cultura.Should().Be("ca-ES");
+        culturaUi.Should().Be("ca-ES");
     }
 
     // ── Catalán apagado (Localizacion:CatalanHabilitado = false) ──────────

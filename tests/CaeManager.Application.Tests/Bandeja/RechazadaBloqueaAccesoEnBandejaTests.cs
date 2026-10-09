@@ -149,7 +149,7 @@ public class RechazadaBloqueaAccesoEnBandejaTests
     [Fact]
     public void El_grupo_que_bloquea_por_un_rechazo_va_antes_que_uno_con_un_vencido_que_no_bloquea()
     {
-        // Sin el marcado, el Vencido (prioridad 2) adelantaría a la Rechazada
+        // Sin el marcado, el Vencido (prioridad 1) adelantaría a la Rechazada
         // (prioridad 3): el grupo que de verdad cierra un Centro quedaría detrás.
         var documento = Guid.NewGuid();
         var items = ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloquean(

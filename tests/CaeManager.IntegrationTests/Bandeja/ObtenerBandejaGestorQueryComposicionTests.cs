@@ -142,11 +142,14 @@ public class ObtenerBandejaGestorQueryComposicionTests : IAsyncLifetime
         // El tipo bloqueante (PSS firmado) es también Faltante en Alertas — no
         // obligatorio globalmente, pero Incluido=true en este Centro lo hace
         // aplicar igual (ResolucionTipoDocumentoCentro) — de ahí dos Faltante.
+        // El requisito bloqueante pendiente va el primero: lo que bloquea el
+        // acceso precede a todo lo demás (decisión 9 del propietario, 2026-10-03).
         resultado.Select(i => i.Tipo).Should().ContainInOrder(
+            TipoItemBandeja.RequisitoPendiente,
             TipoItemBandeja.SugerenciaVisitaUrgente,
             TipoItemBandeja.Faltante,
-            TipoItemBandeja.VisitaUrgente,
-            TipoItemBandeja.RequisitoPendiente);
+            TipoItemBandeja.VisitaUrgente);
+        resultado[0].Tipo.Should().Be(TipoItemBandeja.RequisitoPendiente);
 
         resultado.Should().HaveCount(5);
         resultado.Count(i => i.Tipo == TipoItemBandeja.Faltante).Should().Be(2);

@@ -26,12 +26,15 @@
 @using CaeManager.Web.Features.Documentos.Recursos
 @using MediatR
 @using Microsoft.Extensions.Localization
+@using CaeManager.Infrastructure.Comunicaciones
+@using Microsoft.Extensions.Options
 @implements IDisposable
 @inject IStringLocalizer<TextosDocumentos> Textos
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationState
+@inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
 
 <Pestanas Definiciones="Subvistas" PestanaActiva="@_vista" PestanaActivaChanged="CambiarVistaAsync" EtiquetaGrupo="Reclamaciones">
 @if (_vista == "historial")
@@ -92,7 +95,9 @@
                                 Reclamar de nuevo
                             </Boton>
                         </SoloConEscritura>
-                        @if (reclamacion.ConversacionId is not null)
+                        @* Con el módulo apagado (Comunicaciones:Activo) /comunicaciones redirige a
+                           «no encontrado»: no se ofrece, igual que el menú oculta su entrada. *@
+                        @if (reclamacion.ConversacionId is not null && OpcionesComunicaciones.Value.Activo)
                         {
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
                                    OnClick='() => NavigationManager.NavigateTo($"/comunicaciones?conversacion={reclamacion.ConversacionId}")'>
@@ -150,8 +155,8 @@ else
                        concreto: el deep-link a una conversación no existe todavía
                        (hueco declarado en Project-Hydra-Negocio/tecnico/05_WORKSPACE_PATTERNS.md § 3.6) y no se
                        finge aquí. Solo se ofrece si la última reclamación llegó a
-                       tener conversación. *@
-                    @if (lote.UltimaReclamacionConversacionId is not null)
+                       tener conversación y el módulo de Comunicaciones está activo. *@
+                    @if (lote.UltimaReclamacionConversacionId is not null && OpcionesComunicaciones.Value.Activo)
                     {
                         <a href="@($"/comunicaciones?cliente={lote.ClienteId}")">Ver en Comunicaciones</a>
                     }

@@ -1,0 +1,19 @@
+@*
+    Incidencia nombrada dentro de una <BandaAccion> («ITV vencida»): un botón
+    que abre su corrección en la misma ficha. Sin delegado se pinta como
+    texto en negrita: es lo que ve el rol Consulta.
+*@
+@if (OnClick.HasDelegate)
+{
+    <button type="button" class="incidencia-banda" @onclick="OnClick">@Texto</button>
+}
+else
+{
+    <b class="incidencia-banda-texto">@Texto</b>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Texto { get; set; } = string.Empty;
+
+    [Parameter] public EventCallback OnClick { get; set; }
+}
