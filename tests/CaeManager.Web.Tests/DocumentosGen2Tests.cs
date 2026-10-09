@@ -56,7 +56,7 @@ using EstadoAcreditacionUi = CaeManager.Web.Features.Documentos.EstadoAcreditaci
 /// ni el aislamiento por tenant.
 /// </para>
 /// </summary>
-public class DocumentosGen2Tests : BunitContext
+public partial class DocumentosGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado y Modal, que importan sus módulos JS.</summary>
     public DocumentosGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
