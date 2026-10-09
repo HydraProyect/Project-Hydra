@@ -48,6 +48,16 @@
     margin: 0;
 }
 
+/* El enlace de activación, legible entero: se parte por cualquier carácter porque el token no lleva espacios. */
+.operadores-cae-enlace {
+    background: var(--color-surface-subtle);
+    border-radius: var(--radius-sm);
+    font: var(--font-body-sm);
+    margin: 0;
+    padding: var(--space-2) var(--space-3);
+    word-break: break-all;
+}
+
 .operadores-cae-acciones {
     align-items: center;
     display: flex;

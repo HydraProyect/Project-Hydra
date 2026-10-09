@@ -75,6 +75,13 @@ public partial class DelegacionesGen2Tests : BunitContext
         /// <summary>Lo que responde «Nueva delegación» (<see cref="CrearClienteDeleganteCommand"/>); por defecto, éxito.</summary>
         public Result<Guid> ResultadoCreacion { get; set; } = Result.Exito(Guid.NewGuid());
 
+        /// <summary>
+        /// Lo que responde «Nuevo Operador CAE externo» (<see cref="CrearOperadorCaeExternoCommand"/>):
+        /// por defecto, el Tenant creado con su primer Administrador y el token de activación.
+        /// </summary>
+        public Result<OperadorCaeExternoCreado> ResultadoAltaOperador { get; set; } =
+            Result.Exito(new OperadorCaeExternoCreado(Guid.NewGuid(), Guid.NewGuid(), "token-de-activacion"));
+
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add((request, cancellationToken));
@@ -92,7 +99,7 @@ public partial class DelegacionesGen2Tests : BunitContext
                 RevocarAsignacionOperadorDelegadoCommand => Result.Exito(),
                 CrearClienteDeleganteCommand => ResultadoCreacion,
                 ObtenerOperadoresCaeExternosQuery => Operadores,
-                CrearOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),
+                CrearOperadorCaeExternoCommand => ResultadoAltaOperador,
                 CrearTenantPropietarioDeOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),
                 PuedeReactivarQuery q => PuedeReactivar(q.TenantClienteId),
                 ObtenerTenantPropietarioAutorizanteQuery => TenantPropietarioAutorizante,
@@ -458,19 +465,123 @@ public partial class DelegacionesGen2Tests : BunitContext
             "sin concesión ni siquiera se lanza la consulta transversal");
     }
 
+    /// <summary>
+    /// Escribe en el campo del modal con esa etiqueta. Por etiqueta y no por posición: el
+    /// modal del Operador CAE externo tiene tres campos, y «el primer input» seguiría
+    /// encontrando uno aunque el correo o el nombre del primer Administrador desaparecieran.
+    /// </summary>
+    private static async Task EscribirEnElCampoAsync(IRenderedComponent<Delegaciones> cut, string etiqueta, string valor)
+    {
+        var campo = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == etiqueta).Find("input");
+        await campo.InputAsync(new ChangeEventArgs { Value = valor });
+        await campo.BlurAsync(new FocusEventArgs());
+    }
+
+    private static async Task RellenarAltaDeOperadorAsync(IRenderedComponent<Delegaciones> cut)
+    {
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo Operador CAE externo").ClickAsync(new MouseEventArgs());
+        await EscribirEnElCampoAsync(cut, "Nombre del Operador CAE externo", "Operador Sur");
+        await EscribirEnElCampoAsync(cut, "Correo del primer Administrador", "marta@operador-sur.test");
+        await EscribirEnElCampoAsync(cut, "Nombre del primer Administrador", "Marta Ruiz");
+    }
+
+    /// <summary>
+    /// FS-22: el Actor de Plataforma TALVEG indica al primer Administrador en el mismo acto
+    /// del alta. El modal envía los tres datos en un solo Command, y ninguno más.
+    /// </summary>
     [Fact]
-    public async Task Nuevo_Operador_CAE_externo_envia_el_comando_de_alta_del_Operador_con_el_nombre_tecleado()
+    public async Task Nuevo_Operador_CAE_externo_envia_en_un_solo_comando_el_nombre_y_el_primer_Administrador()
     {
         var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: true);
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo Operador CAE externo").ClickAsync(new MouseEventArgs());
-        var campo = cut.Find("input");
-        await campo.InputAsync(new ChangeEventArgs { Value = "ArcoSPA" });
-        await campo.BlurAsync(new FocusEventArgs());
+        await RellenarAltaDeOperadorAsync(cut);
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.Select(x => x.Peticion).OfType<CrearOperadorCaeExternoCommand>().Should().ContainSingle()
-            .Which.NombreTenantOperador.Should().Be("ArcoSPA");
+            .Which.Should().Be(new CrearOperadorCaeExternoCommand("Operador Sur", "marta@operador-sur.test", "Marta Ruiz"));
         mediador.Enviadas.Should().NotContain(x => x.Peticion is CrearTenantPropietarioDeOperadorCaeExternoCommand);
+    }
+
+    /// <summary>
+    /// El modal de «Nuevo Tenant propietario» no cambia: sigue pidiendo solo el nombre. Control
+    /// de que los campos del primer Administrador son del alta del Operador CAE externo y no
+    /// de cualquier modal del panel.
+    /// </summary>
+    [Fact]
+    public async Task El_modal_de_Nuevo_Tenant_propietario_no_pide_un_primer_Administrador()
+    {
+        _operadoresIniciales = [new(Guid.NewGuid(), "Operador Sur", DateTime.UtcNow, [])];
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: true);
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear Tenant propietario").ClickAsync(new MouseEventArgs());
+        cut.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta).Should().Equal("Nombre del Tenant propietario");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo Operador CAE externo").ClickAsync(new MouseEventArgs());
+        cut.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta).Should().Equal(
+            ["Nombre del Operador CAE externo", "Correo del primer Administrador", "Nombre del primer Administrador"],
+            "control positivo: con el otro modal sí aparecen");
+    }
+
+    /// <summary>
+    /// Tras crear, el panel enseña el enlace de activación de la cuenta —con el Id y el token
+    /// que devuelve el Command, sobre la misma página que el de /usuarios— y dice que hay que
+    /// hacérselo llegar a esa persona: este flujo no envía correo.
+    /// </summary>
+    [Fact]
+    public async Task Tras_crear_el_Operador_CAE_externo_se_ve_el_enlace_de_activacion_de_su_primer_Administrador()
+    {
+        var administradorId = Guid.NewGuid();
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: true);
+        mediador.ResultadoAltaOperador = Result.Exito(new OperadorCaeExternoCreado(Guid.NewGuid(), administradorId, "TOKEN-123"));
+        await RellenarAltaDeOperadorAsync(cut);
+        cut.FindAll(".operadores-cae-enlace").Should().BeEmpty("control negativo: antes de crear no hay enlace");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".operadores-cae-enlace").TextContent.Trim().Should().Be(
+            Services.GetRequiredService<NavigationManager>()
+                .ToAbsoluteUri($"/cuenta/restablecer-contrasena?userId={administradorId}&code=TOKEN-123").ToString());
+        var dialogo = cut.Find("[role=dialog]");
+        dialogo.TextContent.Should().Contain("Operador CAE externo creado")
+            .And.Contain("Marta Ruiz").And.Contain("marta@operador-sur.test")
+            .And.Contain("tienes que hacerle llegar tú este enlace de activación")
+            .And.Contain("No le hemos enviado ningún correo");
+        cut.FindComponents<BotonCopiar>().Should().Contain(b => b.Instance.Valor != null && b.Instance.Valor.EndsWith("code=TOKEN-123"),
+            "el botón copia el mismo enlace que se lee");
+        cut.FindComponents<CampoTexto>().Should().BeEmpty("el formulario del alta ya se cerró");
+
+        // La X no lo cierra sin preguntar: esta pantalla no vuelve a enseñar el enlace y no hay
+        // otro camino para emitirlo (revisión puente).
+        await cut.Find("[role=dialog] .modal-cerrar").ClickAsync(new MouseEventArgs());
+        cut.Find(".operadores-cae-enlace").TextContent.Should().EndWith("code=TOKEN-123", "la X pide confirmación antes de perder el enlace");
+        cut.FindComponents<ConfirmarDescartarCambios>().Should().ContainSingle();
+        await cut.InvokeAsync(() => cut.FindComponent<ConfirmarDescartarCambios>().Instance.AlSeguir.InvokeAsync());
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Hecho").ClickAsync(new MouseEventArgs());
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        cut.Markup.Should().NotContain("TOKEN-123", "cerrado el aviso, el token no queda en la pantalla");
+    }
+
+    /// <summary>
+    /// Un fallo del alta (aquí, el de la cuenta del primer Administrador) no cierra el modal ni
+    /// tira lo escrito, no enseña ningún enlace y dice el motivo que devuelve el Command.
+    /// </summary>
+    [Fact]
+    public async Task Un_fallo_al_crear_el_Operador_CAE_externo_no_cierra_el_modal_ni_ensena_un_enlace()
+    {
+        var (cut, mediador, toasts) = Renderizar(esAdministradorPlataforma: true);
+        mediador.ResultadoAltaOperador = Result.Fallo<OperadorCaeExternoCreado>(
+            CrearOperadorCaeExternoCommandHandler.PrimerAdministradorNoCreado);
+        await RellenarAltaDeOperadorAsync(cut);
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.Should().Contain(x => x.Peticion is CrearOperadorCaeExternoCommand, "si no se envió, el test no mide nada");
+        cut.Find("[role=dialog] [role=alert]").TextContent.Should().Contain("No se ha creado el Operador CAE externo.");
+        cut.FindAll(".operadores-cae-enlace").Should().BeEmpty();
+        cut.FindComponents<CampoTexto>().Select(c => c.Instance.Valor).Should().Equal(
+            ["Operador Sur", "marta@operador-sur.test", "Marta Ruiz"], "el rechazo no tira lo escrito");
+        toasts.Mensajes.Should().NotContain(t => t.Mensaje.Contains("creado"));
     }
 
     /// <summary>
