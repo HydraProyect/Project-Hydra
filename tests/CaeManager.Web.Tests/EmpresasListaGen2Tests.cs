@@ -1057,6 +1057,29 @@ public class EmpresasListaGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Sin fila enfocada, «e» edita la ficha que esté abierta, aunque su Empresa no esté en la
+    /// página (el filtro la dejó fuera o la lista está vacía): el nombre sale del frame abierto
+    /// (hallazgo de la revisión puente).
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_sin_fila_enfocada_edita_la_ficha_abierta_aunque_no_este_en_la_lista()
+    {
+        var fueraDeLaLista = Guid.NewGuid();
+        var mediador = new MediatorFalso
+        {
+            Retener = p => p is ObtenerEmpresaPorIdQuery ? new TaskCompletionSource<object>().Task : null
+        };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Empresa, fueraDeLaLista, "Montajes Ebro S.L.", "documentacion"));
+
+        await cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo("e"));
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, fueraDeLaLista, "Montajes Ebro S.L.", "informacion"));
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, fueraDeLaLista).Should().BeTrue();
+    }
+
+    /// <summary>
     /// P41b (2026-09-19): la baja de la empresa solo vive aquí, en la lista; la ficha 360 ya no
     /// la ofrece. Y dentro de la lista, solo en la selección múltiple (patrón de listados sin
     /// menú «⋯», 2026-10-08): la fila no la ofrece. Lo que se pierda aquí se pierde en todo el

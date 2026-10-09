@@ -80,8 +80,11 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private Task AbrirVistaRapidaEnEdicionAsync(Guid id) =>
         WorkspaceService.AbrirEnEdicionAsync(EntidadWorkspace.Empresa, id, NombreDe(id));
 
+    // La Empresa del panel puede no estar en la página (el filtro la dejó fuera): su nombre
+    // es entonces el del frame abierto.
     private string NombreDe(Guid id) =>
-        _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial ?? string.Empty;
+        _elementosPagina.FirstOrDefault(e => e.Id == id)?.RazonSocial
+        ?? (WorkspaceService.FrameActual is { } frame && frame.EntidadId == id ? frame.TituloVisible : string.Empty);
 
     /// <summary>Empresa cuyo panel está abierto arriba de la pila del Context Workspace, si la hay.</summary>
     private Guid? EmpresaEnVistaPrevia =>
@@ -800,6 +803,16 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     private async Task ManejarAtajoAsync(string tecla)
     {
+        // «e» no depende de que haya filas: sin fila enfocada edita la ficha que esté abierta,
+        // aunque el filtro haya dejado la lista vacía.
+        if (tecla == "e")
+        {
+            var idEnfocadoVisible = _idEnfocado is { } enfocado && _elementosPagina.Any(e => e.Id == enfocado) ? _idEnfocado : null;
+            if ((idEnfocadoVisible ?? EmpresaEnVistaPrevia) is { } idEditar)
+                await AbrirVistaRapidaEnEdicionAsync(idEditar);
+            return;
+        }
+
         if (_elementosPagina.Count == 0) return;
 
         switch (tecla)
@@ -828,11 +841,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             case "Enter":
                 if (_idEnfocado is { } idAbrir)
                     await AbrirVistaRapidaAsync(idAbrir);
-                break;
-            case "e":
-                // Sin fila enfocada, la del panel abierto: «e» edita lo que se está mirando.
-                if ((_idEnfocado ?? EmpresaEnVistaPrevia) is { } idEditar)
-                    await AbrirVistaRapidaEnEdicionAsync(idEditar);
                 break;
         }
 

@@ -90,6 +90,65 @@ public class AtajosSuperficiesTests : IAsyncLifetime
         Assert.Equal(["RecibirAtajo:x"], await LlamadasAsync());
     }
 
+    /// <summary>
+    /// «e» edita la fila enfocada (patrón de fila sin menú), pero la «e» de «g e» es del atajo
+    /// global «ir a Empresas»: los dos módulos escuchan la misma tecla y solo uno la atiende.
+    /// </summary>
+    [Fact]
+    public async Task La_e_suelta_es_de_la_lista_y_la_de_g_e_es_del_atajo_global()
+    {
+        await _page.Keyboard.PressAsync("e");
+        Assert.Equal(["RecibirAtajo:e"], await LlamadasAsync());
+
+        await _page.Keyboard.PressAsync("g");
+        await _page.Keyboard.PressAsync("e");
+        Assert.Equal(["RecibirAtajo:e", "IrA:e"], await LlamadasAsync());
+
+        // El prefijo se consumió: la siguiente «e» vuelve a ser la de editar.
+        await _page.Keyboard.PressAsync("e");
+        Assert.Equal(["RecibirAtajo:e", "IrA:e", "RecibirAtajo:e"], await LlamadasAsync());
+    }
+
+    /// <summary>
+    /// La lista arma el prefijo solo donde lo arma el módulo global. Una «g» tecleada en un
+    /// campo o sobre una casilla no es prefijo de nada: si la lista la recordara, se tragaría
+    /// la «e» siguiente sin que el global navegara (hallazgo de la revisión puente).
+    /// </summary>
+    [Theory]
+    [InlineData("#texto")]
+    [InlineData("#casilla")]
+    [InlineData("#editor")]
+    public async Task Una_g_tecleada_donde_el_global_no_arma_prefijo_no_se_come_la_e_siguiente(string selector)
+    {
+        await _page.Locator(selector).FocusAsync();
+        await _page.Keyboard.PressAsync("g");
+        await _page.Locator("#inicio").FocusAsync();
+        await _page.Keyboard.PressAsync("e");
+
+        Assert.Equal(["RecibirAtajo:e"], await LlamadasAsync());
+    }
+
+    /// <summary>La segunda «g» consume el prefijo en los dos módulos: nadie navega y la «e» edita.</summary>
+    [Fact]
+    public async Task Tras_g_g_el_prefijo_esta_consumido_en_los_dos_modulos()
+    {
+        await _page.Keyboard.PressAsync("g");
+        await _page.Keyboard.PressAsync("g");
+        await _page.Keyboard.PressAsync("e");
+
+        Assert.Equal(["RecibirAtajo:e"], await LlamadasAsync());
+    }
+
+    [Fact]
+    public async Task La_e_no_edita_mientras_se_escribe_en_un_campo()
+    {
+        await _page.Locator("#texto").FocusAsync();
+        await _page.Keyboard.PressAsync("e");
+
+        Assert.Empty(await LlamadasAsync());
+        await Assertions.Expect(_page.Locator("#texto")).ToHaveValueAsync("e");
+    }
+
     [Theory]
     [InlineData("dialog", false)]
     [InlineData("dialog", true)]
@@ -99,7 +158,7 @@ public class AtajosSuperficiesTests : IAsyncLifetime
     {
         await AbrirDialogoAsync(tipo);
         if (focoFuera) await _page.Locator("#inicio").FocusAsync();
-        foreach (var tecla in new[] { "j", "k", "x", "g", "c", "n", "?", "Control+k" })
+        foreach (var tecla in new[] { "j", "k", "x", "e", "g", "c", "n", "?", "Control+k" })
             await _page.Keyboard.PressAsync(tecla);
         Assert.Empty(await LlamadasAsync());
 
@@ -132,7 +191,7 @@ public class AtajosSuperficiesTests : IAsyncLifetime
     public async Task La_edicion_y_los_selectores_conservan_sus_teclas(string selector)
     {
         await _page.Locator(selector).FocusAsync();
-        foreach (var tecla in new[] { "j", "k", "x", "g", "c", "n", "?" })
+        foreach (var tecla in new[] { "j", "k", "x", "e", "g", "c", "n", "?" })
             await _page.Keyboard.PressAsync(tecla);
         Assert.Empty(await LlamadasAsync());
         await _page.Keyboard.PressAsync("Control+k");

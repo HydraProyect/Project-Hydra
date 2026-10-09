@@ -421,6 +421,7 @@ else
         var generacion = _generacion;
         var carga = ++_cargaCabecera;
         var id = EntidadId;
+        var cargada = false;
         _cargando = true;
         _error = false;
 
@@ -432,19 +433,29 @@ else
             if (generacion != _generacion || carga != _cargaCabecera) return;
             _detalle = detalle;
             _cumplimiento = cumplimiento;
-            await AtenderEdicionSolicitadaAsync();
+            cargada = true;
         }
         catch (OperationCanceledException) when (cancelacion.IsCancellationRequested) { }
         catch (Exception)
         {
             if (generacion == _generacion && carga == _cargaCabecera)
+            {
                 _error = true;
+                // Una petición de edición («e») no sobrevive a la carga fallida: si se quedara
+                // pendiente, un reintento con éxito entraría en edición sin que nadie lo pida.
+                WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, id);
+            }
         }
         finally
         {
             if (generacion == _generacion && carga == _cargaCabecera)
                 _cargando = false;
         }
+
+        // Fuera de la carga: entrar en edición lanza sus propias consultas y gestiona sus
+        // propios fallos; uno de ellos no puede pintar la ficha entera como fallida.
+        if (cargada && generacion == _generacion && carga == _cargaCabecera)
+            await AtenderEdicionSolicitadaAsync();
     }
 
     private async Task CargarClientesAsync()

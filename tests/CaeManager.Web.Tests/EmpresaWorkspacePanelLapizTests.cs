@@ -30,6 +30,7 @@ public class EmpresaWorkspacePanelLapizTests : BunitContext
     private static readonly Guid Id = Guid.NewGuid();
 
     private MediadorPorFuncion _mediador = null!;
+    private int _cargasQueFallan;
     private readonly List<string> _pestanasPedidas = [];
 
     private IRenderedComponent<EmpresaWorkspacePanel> Renderizar(string pestana, string rol = Roles.GestorCae)
@@ -39,6 +40,7 @@ public class EmpresaWorkspacePanelLapizTests : BunitContext
         Services.AddLocalization();
         _mediador = new MediadorPorFuncion(p => p switch
         {
+            ObtenerEmpresaPorIdQuery when _cargasQueFallan-- > 0 => throw new InvalidOperationException("Fallo simulado de la carga."),
             ObtenerEmpresaPorIdQuery => new EmpresaDetalleDto(Id, "Montajes Ebro S.L.", "B-50.123.456", DateTime.UtcNow, [], Guid.NewGuid()),
             ObtenerCumplimientoEmpresaQuery => 80,
             ObtenerClientesDeEmpresaQuery => (IReadOnlyList<ClienteDeEmpresaDto>)[],
@@ -118,6 +120,29 @@ public class EmpresaWorkspacePanelLapizTests : BunitContext
 
         cut.WaitForAssertion(() => cut.FindAll(Lapiz).Should().BeEmpty("entró en edición al terminar de cargar"));
         EntroEnEdicion.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Una petición de edición no sobrevive a la carga fallida de su ficha: si se quedara
+    /// pendiente, un reintento con éxito entraría en edición sin que nadie lo pidiera
+    /// (hallazgo de la revisión puente).
+    /// </summary>
+    [Fact]
+    public async Task Si_la_ficha_no_carga_la_peticion_de_edicion_se_descarta()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var workspace = new ContextWorkspaceService();
+        Services.AddScoped(_ => workspace);
+        await workspace.AbrirEnEdicionAsync(EntidadWorkspace.Empresa, Id, "Montajes Ebro S.L.");
+        _cargasQueFallan = 1;
+
+        var cut = Renderizar("informacion");
+
+        cut.WaitForAssertion(() => _mediador.Enviadas.OfType<ObtenerEmpresaPorIdQuery>().Should().ContainSingle(
+            "control positivo: la carga se intentó y falló"));
+        cut.FindAll(Lapiz).Should().BeEmpty("control positivo: sin detalle no hay cabecera");
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, Id).Should().BeFalse("la carga fallida la descartó");
+        EntroEnEdicion.Should().BeFalse();
     }
 
     [Fact]

@@ -89,12 +89,13 @@ export function registrarAtajosLista(dotNetRef) {
     let ultimaGSuelta = 0;
 
     const manejador = async (evento) => {
+        // Cualquier tecla consume el prefijo; solo lo vuelve a armar una «g» que el módulo
+        // global también trataría como prefijo (más abajo, pasadas sus mismas guardas).
         const trasPrefijoGlobal = Date.now() - ultimaGSuelta < VENTANA_PREFIJO_GLOBAL_MS;
-        ultimaGSuelta = evento.key === 'g' && !trasPrefijoGlobal && !evento.ctrlKey && !evento.metaKey && !evento.altKey
-            ? Date.now() : 0;
+        ultimaGSuelta = 0;
 
-        if (!TECLAS_ADMITIDAS.includes(evento.key)) return;
-        if (evento.key === 'e' && trasPrefijoGlobal) return;
+        const esPrefijoGlobal = evento.key === 'g';
+        if (!esPrefijoGlobal && !TECLAS_ADMITIDAS.includes(evento.key)) return;
         if (evento.defaultPrevented || evento.isComposing || evento.ctrlKey || evento.metaKey || evento.altKey) return;
         if (hayDialogoModalAbierto()) return;
 
@@ -104,6 +105,17 @@ export function registrarAtajosLista(dotNetRef) {
             (activo.tagName === 'INPUT' && !TIPOS_INPUT_NO_TEXTO.has(activo.type))
         );
         if (enCampoEditable) return;
+
+        // Una «g» tecleada dentro de un campo, con un diálogo abierto o con modificador no
+        // arma nada (el módulo global tampoco): la «e» que venga después es la de editar.
+        // Con el prefijo ya armado, la segunda «g» lo consume, igual que allí.
+        if (esPrefijoGlobal) {
+            // Un botón o una casilla con el foco son INPUT/BUTTON: el global no arma el
+            // prefijo sobre un INPUT de ningún tipo.
+            if (!trasPrefijoGlobal && activo?.tagName !== 'INPUT') ultimaGSuelta = Date.now();
+            return;
+        }
+        if (evento.key === 'e' && trasPrefijoGlobal) return;
 
         const enElementoInteractivo = activo && activo !== document.body && activo.matches?.(SELECTOR_INTERACTIVO);
         if (evento.key === 'Enter' && enElementoInteractivo) return;

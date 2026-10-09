@@ -82,6 +82,30 @@ public class CabeceraGestorCaeTests : BunitContext
             .Should().Be("Coordinador CAE principal");
     }
 
+    /// <summary>
+    /// Con más de una Asignación de Operación viva sobre el Tenant, cada principal se rotula
+    /// como principal (llamar «apoyo» al de la segunda sería falso) y nadie sale dos veces:
+    /// quien es principal de una no se repite como apoyo de otra.
+    /// </summary>
+    [Fact]
+    public void Con_varias_Asignaciones_de_Operacion_cada_principal_lo_es_y_nadie_se_repite()
+    {
+        var marta = Persona("Marta Ibarra");
+        var iker = Persona("Iker Sola", Roles.CoordinadorCae);
+        var ane = Persona("Ane Larrea");
+        var cut = Renderizar(_ =>
+        [
+            Operacion(marta, ane, iker with { Rol = Roles.GestorCae }),
+            Operacion(iker, ane, marta)
+        ]);
+
+        cut.FindAll("[data-gestor-cae='principal']").Select(p => p.QuerySelector("strong")!.TextContent.Trim())
+            .Should().Equal(["Iker Sola", "Marta Ibarra"], "los dos principales, por nombre");
+        cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle()
+            .Which.TextContent.Should().Contain("Ane Larrea");
+        cut.FindAll("[data-gestor-cae='sin-principal']").Should().BeEmpty();
+    }
+
     /// <summary>Sin principal es un estado válido: se dice, y los de apoyo siguen saliendo.</summary>
     [Fact]
     public void Sin_principal_lo_dice_y_sigue_pintando_a_los_de_apoyo()

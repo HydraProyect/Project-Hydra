@@ -35,19 +35,23 @@
         <span class="cabecera-gestor-cae-sin-dato" role="status">@Textos["GestorCaeError"]</span>
     </span>
 }
-else if (_principal is not null || _apoyos.Count > 0)
+else if (_principales.Count > 0 || _apoyos.Count > 0)
 {
     <span class="cabecera-gestor-cae" role="group" aria-label="@Textos["GestorCaeGrupo"]" title="@Textos["GestorCaeTitulo"]">
         <span class="cabecera-gestor-cae-rotulo">@Textos["GestorCaeRotulo"]</span>
-        @if (_principal is { } principal)
+        @foreach (var principal in _principales)
         {
-            <span class="cabecera-gestor-cae-persona" data-gestor-cae="principal">
+            @if (principal != _principales[0])
+            {
+                <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
+            }
+            <span class="cabecera-gestor-cae-persona" data-gestor-cae="principal" @key="principal.UsuarioId">
                 <AvatarUsuario Nombre="@principal.Nombre" Avatar="@principal.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
                 <strong>@principal.Nombre</strong>
                 <span class="cabecera-gestor-cae-pastilla cabecera-gestor-cae-principal">@RotuloPrincipal(principal)</span>
             </span>
         }
-        else
+        @if (_principales.Count == 0)
         {
             @* Sin principal es un estado válido (el relevo automático no encontró a quién pasar
                la marca). «Asumir» es la línea I5: aquí solo se dice. *@
@@ -67,7 +71,7 @@ else if (_principal is not null || _apoyos.Count > 0)
 
 @code {
     private readonly CancellationTokenSource _ciclo = new();
-    private PersonaConCartera? _principal;
+    private IReadOnlyList<PersonaConCartera> _principales = [];
     private IReadOnlyList<PersonaConCartera> _apoyos = [];
     private bool _error;
 
@@ -80,22 +84,27 @@ else if (_principal is not null || _apoyos.Count > 0)
         {
             // Una Asignación de Operación por Operador CAE y Tenant propietario es lo normal; si
             // hubiera más de una viva, se muestran juntas: la pregunta es quién gestiona el Tenant.
+            // Cada una tiene su principal, y todos se rotulan como tales: llamar «apoyo» al
+            // principal de la segunda sería falso. Quien es principal de una no se repite como
+            // apoyo de otra.
             var operaciones = (await Mediator.Send(new ObtenerPersonasConCarteraQuery(tenantId), _ciclo.Token))
                 .Where(o => o.TenantId == tenantId)
                 .ToList();
             if (operaciones.Count == 0)
                 return;
 
-            var principal = operaciones.Select(o => o.Principal).FirstOrDefault(p => p is not null);
-            var apoyos = operaciones.SelectMany(o => o.Apoyos)
-                .Concat(operaciones.Select(o => o.Principal).Where(p => p is not null && p != principal)!)
-                .Where(p => p!.UsuarioId != principal?.UsuarioId)
-                .DistinctBy(p => p!.UsuarioId)
-                .OrderBy(p => p!.Nombre)
+            var principales = operaciones.Select(o => o.Principal).OfType<PersonaConCartera>()
+                .DistinctBy(p => p.UsuarioId)
+                .OrderBy(p => p.Nombre)
                 .ToList();
+            var idsPrincipales = principales.Select(p => p.UsuarioId).ToHashSet();
 
-            _principal = principal;
-            _apoyos = apoyos!;
+            _principales = principales;
+            _apoyos = operaciones.SelectMany(o => o.Apoyos)
+                .Where(p => !idsPrincipales.Contains(p.UsuarioId))
+                .DistinctBy(p => p.UsuarioId)
+                .OrderBy(p => p.Nombre)
+                .ToList();
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
         catch (Exception)
