@@ -57,9 +57,23 @@
     grid-template-columns: minmax(0, 1fr) 152px 160px;
     align-items: center;
     gap: var(--space-3);
-    padding: var(--space-2) 0;
+    margin-inline: calc(-1 * var(--space-3));
+    padding: var(--space-2) var(--space-3);
     border-top: 1px solid var(--color-fila-divisor);
     font: var(--font-small);
+    transition: background-color 120ms;
+}
+
+/* La subfila responde al cursor como la fila (FilaRelacion): el resaltado
+   sobresale lo que mide su relleno lateral y el texto no se mueve. */
+.subcontrata360-subfila:hover {
+    background-color: var(--color-surface-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .subcontrata360-subfila {
+        transition: none;
+    }
 }
 
 .subcontrata360-subfila:first-child {
