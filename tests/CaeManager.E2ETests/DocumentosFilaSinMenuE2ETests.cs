@@ -11,8 +11,9 @@ namespace CaeManager.E2ETests;
 /// se ve en un navegador: Alt + clic sobre el vencimiento copia la fecha de emisión sin encender las
 /// letras de KeyTips, que se encienden con Alt pulsada y soltada sola.
 /// <para>
-/// El clic en cualquier punto de la fila no se prueba aquí: en una tabla QuickGrid lo atiende el
-/// oyente delegado de <c>atajos-lista.js</c>, que llega con la adopción de Trabajadores.
+/// El clic en cualquier punto de la fila lo atiende el oyente delegado de <c>atajos-lista.js</c>
+/// (la tabla es un QuickGrid): se prueba aquí junto con su excepción, la ventana de contexto de
+/// «Plataformas».
 /// </para>
 /// </summary>
 [Collection("AppCollection")]
@@ -56,8 +57,9 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixture fixture)
         await Expect(page.Locator(".toast").Filter(new() { HasText = "Fecha copiada" })).Not.ToHaveCountAsync(0);
         Assert.Equal(emision, await page.EvaluateAsync<string>("navigator.clipboard.readText()"));
         await Expect(html).Not.ToHaveAttributeAsync("data-keytips", encendido);
-        // Ni abre la vista rápida: la fecha es un control de dentro de la fila (y el oyente de la
-        // fila ignora además cualquier clic con modificador). El aviso de arriba es la barrera.
+        // Ni abre la vista rápida. La protegen dos defensas del oyente de la fila a la vez —la fecha
+        // es un control y el clic lleva modificador—: este aserto solo cae si faltan las dos.
+        // El aviso de arriba es la barrera.
         await Expect(page.Locator(".workspace-panel")).ToHaveCountAsync(0);
 
         // Y un clic sin Alt sigue copiando el vencimiento.
@@ -113,7 +115,14 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixture fixture)
         if (await tamano.CountAsync() == 1)
         {
             var mayor = await tamano.EvaluateAsync<string>("s => String(Math.max(...[...s.options].map(o => Number(o.value))))");
-            await tamano.SelectOptionAsync(mayor);
+            if (await tamano.InputValueAsync() != mayor)
+            {
+                // Barrera de la recarga: con más filas por página, el «Página 1 de N» cambia.
+                var textoPaginador = page.Locator(".paginador-texto");
+                var antes = await textoPaginador.InnerTextAsync();
+                await tamano.SelectOptionAsync(mayor);
+                await Expect(textoPaginador).Not.ToHaveTextAsync(antes);
+            }
         }
 
         var filas = page.Locator("table tbody tr.fila-pulsable")
@@ -122,18 +131,27 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixture fixture)
         var fila = filas.First;
         var titulo = fila.Locator(".ventana-contexto.documentos-plataformas .ventana-contexto-panel .ventana-contexto-titulo");
 
+        // Cuenta, en el propio navegador y sin viaje al servidor, las pulsaciones que recibe el
+        // nombre de una fila: es lo que hace el oyente cuando decide que el clic era de la fila.
+        await page.EvaluateAsync(@"() => {
+            window.__pulsacionesDelNombre = 0;
+            document.addEventListener('click', e => {
+                if (e.target.closest?.('.nombre-abre-vista-rapida')) window.__pulsacionesDelNombre++;
+            }, true);
+        }");
+
         // El clic se despacha: lo que se mide es que el oyente de la fila descarta lo que nace
         // dentro de la ventana, no que la ventana esté a la vista (se sostiene por :hover y
-        // :focus-within). La espera es la barrera: si el oyente pulsara el nombre de la fila, el
-        // panel llegaría tras la vuelta al servidor.
+        // :focus-within). El oyente es síncrono: al volver del despacho, o pulsó el nombre o no.
         await Expect(titulo).ToHaveCountAsync(1);
         await titulo.DispatchEventAsync("click");
-        await page.WaitForTimeoutAsync(1000);
+        Assert.Equal(0, await page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre"));
         await Expect(panel).ToHaveCountAsync(0);
 
         // Y en esa misma fila, con el ratón de verdad, un punto sin controles —la celda del
-        // estado— sí abre la vista rápida.
+        // estado— sí pulsa el nombre y abre la vista rápida.
         await fila.Locator("td.col-estado").ClickAsync();
+        Assert.Equal(1, await page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre"));
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToBeVisibleAsync();
     }
 }

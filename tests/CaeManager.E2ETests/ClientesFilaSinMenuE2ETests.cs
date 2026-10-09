@@ -156,7 +156,7 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
     /// El recuento de Centros abre una ventana de contexto; su título no es un botón, pero quien
     /// pulsa ahí está usando la ventana, no la fila: el oyente <c>pulsarFila</c> excluye el panel
     /// entero. Entra como Gestor CAE porque su cartera sembrada trae Clientes empresariales con
-    /// Centros (el Tenant del Administrador arranca vacío).
+    /// Centros (el Tenant propietario del Administrador de pruebas arranca vacío).
     /// </summary>
     [Fact]
     public async Task El_clic_dentro_de_la_ventana_de_Centros_no_abre_la_vista_rapida()
@@ -175,18 +175,28 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
         var razonSocial = (await fila.Locator(".nombre-abre-vista-rapida").InnerTextAsync()).Trim();
         var titulo = fila.Locator(".ranura-centros-cliente .ventana-contexto-panel .ventana-contexto-titulo");
 
+        // Cuenta, en el propio navegador y sin viaje al servidor, las pulsaciones que recibe el
+        // nombre de una fila: es lo que hace el oyente cuando decide que el clic era de la fila.
+        await page.EvaluateAsync(@"() => {
+            window.__pulsacionesDelNombre = 0;
+            document.addEventListener('click', e => {
+                if (e.target.closest?.('.nombre-abre-vista-rapida')) window.__pulsacionesDelNombre++;
+            }, true);
+        }");
+
         // El clic se despacha: se mide el oyente de la fila, no que la ventana esté a la vista (se
-        // sostiene por :hover y :focus-within). La espera es la barrera: si el oyente pulsara el
-        // nombre, el panel llegaría tras la vuelta al servidor.
+        // sostiene por :hover y :focus-within). El oyente es síncrono: al volver del despacho, o
+        // pulsó el nombre o no lo pulsó.
         await Expect(titulo).ToHaveCountAsync(1);
         await titulo.DispatchEventAsync("click");
-        await page.WaitForTimeoutAsync(1000);
+        Assert.Equal(0, await page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre"));
         await Expect(panel).ToHaveCountAsync(0);
 
         // Control positivo, por el mismo camino: el mismo clic despachado sobre la celda que
-        // contiene la ventana —un punto de la fila sin control— sí abre la vista rápida.
+        // contiene la ventana —un punto de la fila sin control— sí pulsa el nombre y abre la vista rápida.
         await fila.Locator("td").Filter(new LocatorFilterOptions { Has = page.Locator(".ranura-centros-cliente") })
             .DispatchEventAsync("click");
+        Assert.Equal(1, await page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre"));
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(razonSocial);
     }
 
