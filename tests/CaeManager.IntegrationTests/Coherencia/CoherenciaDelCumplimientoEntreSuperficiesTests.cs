@@ -221,7 +221,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         await using var c = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso();
         var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c);
-        var calculoDocumental = new CalculoEstadoDocumentalService(c, c);
+        var calculoDocumental = new CalculoEstadoDocumentalService(c, c, c);
         var calculoSubcontrata = new CalculoEstadoSubcontrataService(c, c, c, c, c, c, alcance);
 
         // Oráculos escritos a mano a partir del escenario (ver el resumen de la clase).
