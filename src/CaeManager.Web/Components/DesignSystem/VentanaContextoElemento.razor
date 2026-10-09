@@ -1,0 +1,39 @@
+@*
+    Elemento pulsable de una VentanaContexto interactiva: una incidencia, una
+    persona, un centro. Pulsarlo abre la superficie donde se gestiona —el
+    formulario que corrige la incidencia o el panel lateral en su pestaña—
+    sin salir de la pantalla.
+
+    Es un <button> y no un enlace: no navega. Qué abre lo decide el llamador
+    en AlPulsar; este componente no conoce comandos ni permisos.
+*@
+<button type="button"
+        class="ventana-contexto-elemento"
+        title="@Ayuda"
+        disabled="@Deshabilitado"
+        @onclick="AlPulsar"
+        @attributes="AtributosAdicionales">
+    <span class="ventana-contexto-elemento-texto">@ChildContent</span>
+    @if (!string.IsNullOrWhiteSpace(Secundario))
+    {
+        <span class="ventana-contexto-elemento-secundario">@Secundario</span>
+    }
+    <span class="ventana-contexto-elemento-flecha" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+</button>
+
+@code {
+    [Parameter, EditorRequired] public RenderFragment? ChildContent { get; set; }
+
+    [Parameter] public EventCallback AlPulsar { get; set; }
+
+    /// <summary>Dato de apoyo alineado al final («Aceptado», «3/5»).</summary>
+    [Parameter] public string? Secundario { get; set; }
+
+    /// <summary>Qué va a pasar al pulsar («Corregir sin salir de esta pantalla»).</summary>
+    [Parameter] public string? Ayuda { get; set; }
+
+    [Parameter] public bool Deshabilitado { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AtributosAdicionales { get; set; }
+}

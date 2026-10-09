@@ -234,6 +234,31 @@ public partial class DrawerGestionDocumento : ComponentBase
         StateHasChanged();
     }
 
+    /// <summary>
+    /// ¿Hay algo que este drawer pueda abrir para una incidencia documental? Hace falta el
+    /// Documento, o el Tipo de documento junto con de quién falta (Trabajador o Empresa). Los
+    /// listados lo preguntan antes de ofrecer la incidencia como pulsable: una fila que no abre
+    /// nada no se pinta como botón.
+    /// </summary>
+    public static bool PuedeCorregirIncidencia(Guid? documentoId, Guid? tipoDocumentoId, Guid? trabajadorId, Guid? empresaId) =>
+        documentoId is not null || (tipoDocumentoId is not null && (trabajadorId is not null || empresaId is not null));
+
+    /// <summary>
+    /// Corregir una incidencia documental desde donde se ve (ventana de contexto de un listado),
+    /// sin navegar: con Documento abre su renovación —que también confirma una vigencia sin
+    /// confirmar—; sin él, el alta del que falta con el propietario y el tipo ya elegidos. Un
+    /// único punto de entrada para que cada listado no repita esta bifurcación. No decide
+    /// permisos: lo que se guarde pasa por el comando, con su autorización y su alcance.
+    /// </summary>
+    public Task AbrirParaIncidenciaAsync(Guid? documentoId, Guid? tipoDocumentoId, Guid? trabajadorId, Guid? empresaId) =>
+        (documentoId, tipoDocumentoId, trabajadorId, empresaId) switch
+        {
+            ({ } documento, _, _, _) => AbrirEditarAsync(documento),
+            (null, { } tipo, { } trabajador, _) => AbrirCrearParaFaltanteAsync(trabajador, tipo),
+            (null, { } tipo, null, { } empresa) => AbrirCrearParaFaltanteEmpresaAsync(empresa, tipo),
+            _ => Task.CompletedTask,
+        };
+
     public async Task AbrirEditarAsync(Guid id, int saltosAlVigente = 0)
     {
         // Mismo motivo que en AbrirCrearAsync — y aquí importa más, porque a
