@@ -154,10 +154,13 @@ a.fila-relacion-nombre:focus-visible,
   Fila con problema: ÚNICO sitio donde se define. El tinte lleva encima una
   capa en degradado que lo funde con la superficie hacia la derecha; al pasar
   el cursor la capa se desplaza y la fila queda teñida entera.
+
+  La fila teñida conserva su línea divisoria y no redondea las esquinas: dos
+  filas con problema seguidas tienen que leerse como dos elementos, no como
+  una sola franja de color (defecto del 2026-10-09). Lo fija
+  FilaConProblemaConservaDivisorTests.
 */
 .fila-relacion[data-tono] {
-    border-radius: var(--radius-md);
-    border-top-color: transparent;
     background-image: linear-gradient(90deg, transparent 0, transparent 50%, var(--color-surface) 87.5%, var(--color-surface) 100%);
     background-size: 200% 100%;
     background-position: 100% 0;
