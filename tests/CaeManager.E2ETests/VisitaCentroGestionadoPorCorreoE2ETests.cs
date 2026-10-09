@@ -219,6 +219,14 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await Expect(filaVisita).Not.ToContainTextAsync("Por gestionar");
         await Expect(marcarGestionada).ToHaveCountAsync(0);
 
+        // Deshacer: la marca puesta por error se quita y la Visita vuelve a «Por gestionar»;
+        // se marca otra vez para seguir con el borrado al cambiar los Trabajadores.
+        await drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Quitar la marca de gestionada", Exact = true }).ClickAsync();
+        await Expect(filaVisita).ToContainTextAsync("Por gestionar", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await marcarGestionada.ClickAsync();
+        await Expect(filaVisita).ToContainTextAsync("Gestionada", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await Expect(filaVisita).Not.ToContainTextAsync("Por gestionar");
+
         // --- Pestaña «Trabajadores»: quién entra, añadir desde la lista y quitar con el «menos» ---
         await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
         var filasTrabajador = drawer.Locator(".visitas-trabajador-fila");
