@@ -176,8 +176,10 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.Valor, tema, pareja.ConsultaId);
         if (pareja.ClicAntesDeMedir is { } selector)
         {
-            await paginaFicha.Locator(selector).First.ClickAsync();
-            await paginaFicha.Locator("[data-pieza=\"fila\"] button[aria-expanded=\"true\"]").First.WaitForAsync();
+            // Vale cualquiera de las que casen (la maqueta abre una fila, no una concreta): se pulsa la que encuentre el
+            // documento, sin localizador posicional.
+            await paginaFicha.EvalOnSelectorAsync(selector, "elemento => elemento.click()");
+            await paginaFicha.WaitForSelectorAsync("[data-pieza=\"fila\"] button[aria-expanded=\"true\"]");
         }
 
         var ficha = await Fidelidad360.MedirAsentadoAsync(paginaFicha, "ficha", SelectoresDeLado.Convencion());
