@@ -4,6 +4,7 @@ using System.Text.Json;
 using CaeManager.Application.Common;
 using CaeManager.Infrastructure.AsistenteIa;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -16,7 +17,7 @@ namespace CaeManager.Web.Tests.Integraciones;
 /// <c>"max_tokens"</c> si la respuesta se corta. Estas pruebas fijan que las
 /// rutas de extracción no dan por buena una respuesta así —una transcripción a
 /// medias pasaría por el documento entero— y la forma de la solicitud que sale
-/// (modelo, tope y esfuerzo).
+/// (modelo, tope y esfuerzo, con el ajuste propio de cada ruta).
 /// </summary>
 public sealed class AnthropicParadaRespuestaTests
 {
@@ -95,7 +96,7 @@ public sealed class AnthropicParadaRespuestaTests
     }
 
     [Fact]
-    public async Task La_solicitud_de_clasificacion_lleva_el_modelo_el_tope_y_el_esfuerzo_configurados()
+    public async Task Sin_ajuste_propio_la_ruta_envia_el_modelo_el_tope_y_el_esfuerzo_generales()
     {
         var manejador = new ManejadorFijo(Respuesta("end_turn", """{"esAccionableCae": false, "resumen": "Sin gestión", "confianza": 90}"""));
         var servicio = new AnthropicDeteccionRelevanciaCaeService(new HttpClient(manejador), Opciones, NullLogger<AnthropicDeteccionRelevanciaCaeService>.Instance);
@@ -103,21 +104,23 @@ public sealed class AnthropicParadaRespuestaTests
         await servicio.DetectarAsync("Conversación de prueba");
 
         using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
-        solicitud.RootElement.GetProperty("model").GetString().Should().Be("claude-haiku-5-5");
+        solicitud.RootElement.GetProperty("model").GetString().Should().Be("claude-sonnet-5");
         solicitud.RootElement.GetProperty("max_tokens").GetInt32().Should().Be(16000);
-        solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("low");
+        solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("high");
     }
 
     [Fact]
-    public async Task La_solicitud_del_chat_lleva_su_propio_esfuerzo()
+    public async Task El_chat_envia_el_modelo_y_el_esfuerzo_de_su_ruta()
     {
+        var opciones = OpcionesConRutaPropia(RutasAnthropic.Asistente);
         var manejador = new ManejadorFijo(Respuesta("end_turn", "Respuesta"));
-        var servicio = new AnthropicAsistenteIaService(new HttpClient(manejador), Opciones, NullLogger<AnthropicAsistenteIaService>.Instance);
+        var servicio = new AnthropicAsistenteIaService(new HttpClient(manejador), opciones, NullLogger<AnthropicAsistenteIaService>.Instance);
 
         await servicio.PreguntarAsync([new MensajeChatDto(RolMensajeChat.Usuario, "Pregunta")], CancellationToken.None);
 
         using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
-        solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("medium");
+        solicitud.RootElement.GetProperty("model").GetString().Should().Be("modelo-de-la-ruta");
+        solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("max");
     }
 
     /// <summary>
@@ -127,12 +130,12 @@ public sealed class AnthropicParadaRespuestaTests
     /// </summary>
     public static TheoryData<string, string> RutasDeExtraccion => new()
     {
-        { "relevancia", "DeteccionRelevanciaCae.RespuestaIncompleta" },
-        { "visita", "DeteccionVisitaCorreo.RespuestaIncompleta" },
-        { "gestion", "DeteccionGestionCorreo.RespuestaIncompleta" },
-        { "trabajadores", "ExtraccionTrabajadores.RespuestaIncompleta" },
-        { "ocr", "DocumentAIProvider.RespuestaIncompleta" },
-        { "estructurado", "DocumentAIProvider.RespuestaIncompleta" },
+        { RutasAnthropic.RelevanciaCae, "DeteccionRelevanciaCae.RespuestaIncompleta" },
+        { RutasAnthropic.VisitaCorreo, "DeteccionVisitaCorreo.RespuestaIncompleta" },
+        { RutasAnthropic.GestionCorreo, "DeteccionGestionCorreo.RespuestaIncompleta" },
+        { RutasAnthropic.Trabajadores, "ExtraccionTrabajadores.RespuestaIncompleta" },
+        { RutasAnthropic.Ocr, "DocumentAIProvider.RespuestaIncompleta" },
+        { RutasAnthropic.ExtraccionEstructurada, "DocumentAIProvider.RespuestaIncompleta" },
     };
 
     [Theory]
@@ -159,16 +162,65 @@ public sealed class AnthropicParadaRespuestaTests
 
     [Theory]
     [MemberData(nameof(RutasDeExtraccion))]
-    public async Task Cada_ruta_de_extraccion_envia_el_esfuerzo_de_extraccion_y_no_el_del_chat(string ruta, string codigoEsperado)
+    public async Task Cada_ruta_de_extraccion_envia_el_modelo_y_el_esfuerzo_de_su_propia_clave(string ruta, string codigoEsperado)
     {
         _ = codigoEsperado;
-        var opciones = Options.Create(new AnthropicOptions { ApiKey = "sk-ant-de-prueba", Esfuerzo = "high", EsfuerzoAsistente = "max" });
         var manejador = new ManejadorFijo(Respuesta("end_turn", "{}"));
 
-        await LlamarAsync(ruta, manejador, opciones);
+        await LlamarAsync(ruta, manejador, OpcionesConRutaPropia(ruta));
 
         using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
-        solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("high");
+        solicitud.RootElement.GetProperty("model").GetString().Should().Be("modelo-de-la-ruta");
+        solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("max");
+    }
+
+    [Theory]
+    [MemberData(nameof(RutasDeExtraccion))]
+    public async Task El_ajuste_de_otra_ruta_no_alcanza_a_esta(string ruta, string codigoEsperado)
+    {
+        _ = codigoEsperado;
+        var manejador = new ManejadorFijo(Respuesta("end_turn", "{}"));
+
+        await LlamarAsync(ruta, manejador, OpcionesConRutaPropia(RutasAnthropic.Asistente));
+
+        using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
+        solicitud.RootElement.GetProperty("model").GetString().Should().Be("modelo-general");
+        solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("low");
+    }
+
+    [Fact]
+    public void Una_ruta_que_solo_fija_el_modelo_hereda_el_esfuerzo_general()
+    {
+        var opciones = new AnthropicOptions { Esfuerzo = "low" };
+        opciones.Rutas[RutasAnthropic.Ocr] = new RutaAnthropicOptions { Modelo = "modelo-de-la-ruta" };
+
+        opciones.Para(RutasAnthropic.Ocr).Should().Be(("modelo-de-la-ruta", "low"));
+    }
+
+    [Fact]
+    public void El_ajuste_de_una_ruta_se_lee_de_la_configuracion_sin_distinguir_mayusculas_en_la_clave()
+    {
+        var configuracion = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Anthropic:Modelo"] = "modelo-general",
+                ["Anthropic:Rutas:ocr:Modelo"] = "modelo-de-la-ruta",
+                ["Anthropic:Rutas:ocr:Esfuerzo"] = "low",
+            })
+            .Build();
+
+        var opciones = new AnthropicOptions();
+        configuracion.GetSection(AnthropicOptions.SeccionConfiguracion).Bind(opciones);
+
+        opciones.Para(RutasAnthropic.Ocr).Should().Be(("modelo-de-la-ruta", "low"));
+        opciones.Para(RutasAnthropic.Trabajadores).Should().Be(("modelo-general", "high"));
+    }
+
+    private static IOptions<AnthropicOptions> OpcionesConRutaPropia(string ruta)
+    {
+        var opciones = new AnthropicOptions { ApiKey = "sk-ant-de-prueba", Modelo = "modelo-general", Esfuerzo = "low" };
+        opciones.Rutas[ruta] = new RutaAnthropicOptions { Modelo = "modelo-de-la-ruta", Esfuerzo = "max" };
+        return Options.Create(opciones);
     }
 
     [Theory]
@@ -178,7 +230,7 @@ public sealed class AnthropicParadaRespuestaTests
     {
         var manejador = new ManejadorFijo(Respuesta(motivoParada, """{"esAccionableCae": false, "resumen": "Sin gestión", "confianza": 90}"""));
 
-        var error = await LlamarAsync("relevancia", manejador);
+        var error = await LlamarAsync(RutasAnthropic.RelevanciaCae, manejador);
 
         error.Should().BeNull();
     }
@@ -192,37 +244,37 @@ public sealed class AnthropicParadaRespuestaTests
 
         switch (ruta)
         {
-            case "relevancia":
+            case RutasAnthropic.RelevanciaCae:
                 {
                     var r = await new AnthropicDeteccionRelevanciaCaeService(http, opciones, NullLogger<AnthropicDeteccionRelevanciaCaeService>.Instance)
                         .DetectarAsync("Conversación de prueba");
                     return r.EsFallido ? r.Error : null;
                 }
-            case "visita":
+            case RutasAnthropic.VisitaCorreo:
                 {
                     var r = await new AnthropicDeteccionVisitaCorreoService(http, opciones, NullLogger<AnthropicDeteccionVisitaCorreoService>.Instance)
                         .DetectarAsync("Correo de prueba", [], new DateOnly(2026, 10, 9));
                     return r.EsFallido ? r.Error : null;
                 }
-            case "gestion":
+            case RutasAnthropic.GestionCorreo:
                 {
                     var r = await new AnthropicDeteccionGestionCorreoService(http, opciones, NullLogger<AnthropicDeteccionGestionCorreoService>.Instance)
                         .DetectarAsync("Correo de prueba", [], []);
                     return r.EsFallido ? r.Error : null;
                 }
-            case "trabajadores":
+            case RutasAnthropic.Trabajadores:
                 {
                     var r = await new AnthropicExtraccionTrabajadoresIaService(http, opciones, NullLogger<AnthropicExtraccionTrabajadoresIaService>.Instance)
                         .ExtraerAsync([1, 2, 3]);
                     return r.EsFallido ? r.Error : null;
                 }
-            case "ocr":
+            case RutasAnthropic.Ocr:
                 {
                     var r = await new AnthropicDocumentAIProvider(http, opciones, NullLogger<AnthropicDocumentAIProvider>.Instance)
                         .ExtraerTextoAsync([1, 2, 3], "documento.pdf");
                     return r.EsFallido ? r.Error : null;
                 }
-            case "estructurado":
+            case RutasAnthropic.ExtraccionEstructurada:
                 {
                     var r = await new AnthropicDocumentAIProvider(http, opciones, NullLogger<AnthropicDocumentAIProvider>.Instance)
                         .ExtraerEstructuradoAsync("Texto del documento", "Formación");

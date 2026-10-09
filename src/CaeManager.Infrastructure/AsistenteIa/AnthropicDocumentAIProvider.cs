@@ -122,9 +122,9 @@ public class AnthropicDocumentAIProvider(
             : new BloqueContenido("image", new FuenteArchivo("base64", DetectarTipoImagen(contenidoArchivo), Convert.ToBase64String(contenidoArchivo)), null);
 
         var solicitud = new SolicitudAnthropic(
-            config.Modelo,
+            config.Para(RutasAnthropic.Ocr).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Esfuerzo),
+            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.Ocr).Esfuerzo),
             SystemPromptOcr,
             [
                 new MensajeAnthropic("user",
@@ -156,9 +156,9 @@ public class AnthropicDocumentAIProvider(
         }
 
         var solicitud = new SolicitudAnthropic(
-            config.Modelo,
+            config.Para(RutasAnthropic.ExtraccionEstructurada).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Esfuerzo),
+            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.ExtraccionEstructurada).Esfuerzo),
             SystemPromptEstructurado + PromptDocumental.ReglasDeAislamiento,
             [
                 new MensajeAnthropic("user",

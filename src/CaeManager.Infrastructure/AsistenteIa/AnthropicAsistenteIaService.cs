@@ -96,9 +96,9 @@ public class AnthropicAsistenteIaService(
         }
 
         var solicitud = new SolicitudAnthropic(
-            config.Modelo,
+            config.Para(RutasAnthropic.Asistente).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.EsfuerzoAsistente),
+            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.Asistente).Esfuerzo),
             SystemPrompt,
             [.. historial.Select(m => new MensajeAnthropic(m.Rol == RolMensajeChat.Usuario ? "user" : "assistant", m.Texto))]);
 

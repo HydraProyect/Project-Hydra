@@ -60,9 +60,9 @@ public class AnthropicExtraccionTrabajadoresIaService(
         }
 
         var solicitud = new SolicitudAnthropic(
-            config.Modelo,
+            config.Para(RutasAnthropic.Trabajadores).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Esfuerzo),
+            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.Trabajadores).Esfuerzo),
             SystemPrompt,
             [
                 new MensajeAnthropic("user",

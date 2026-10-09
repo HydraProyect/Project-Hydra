@@ -129,9 +129,9 @@ public class AnthropicDeteccionGestionCorreoService(
             """;
 
         var solicitud = new SolicitudAnthropic(
-            config.Modelo,
+            config.Para(RutasAnthropic.GestionCorreo).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Esfuerzo),
+            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.GestionCorreo).Esfuerzo),
             SystemPrompt,
             [new MensajeAnthropic("user", textoUsuario)]);
 

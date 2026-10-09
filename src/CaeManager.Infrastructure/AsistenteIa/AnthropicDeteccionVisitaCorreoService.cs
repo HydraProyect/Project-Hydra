@@ -100,9 +100,9 @@ public class AnthropicDeteccionVisitaCorreoService(
             """;
 
         var solicitud = new SolicitudAnthropic(
-            config.Modelo,
+            config.Para(RutasAnthropic.VisitaCorreo).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Esfuerzo),
+            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.VisitaCorreo).Esfuerzo),
             SystemPrompt,
             [new MensajeAnthropic("user", textoUsuario)]);
 

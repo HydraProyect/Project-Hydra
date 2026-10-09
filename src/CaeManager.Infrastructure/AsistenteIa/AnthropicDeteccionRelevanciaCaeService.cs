@@ -65,9 +65,9 @@ public class AnthropicDeteccionRelevanciaCaeService(
         }
 
         var solicitud = new SolicitudAnthropic(
-            config.Modelo,
+            config.Para(RutasAnthropic.RelevanciaCae).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Esfuerzo),
+            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.RelevanciaCae).Esfuerzo),
             SystemPrompt,
             [new MensajeAnthropic("user", $"Transcripción de la conversación:\n\n{cuerpoConversacion}")]);
 
