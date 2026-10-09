@@ -117,15 +117,19 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
 
         // ── B se desasigna, desde dentro del propio Tenant ──
         // Control positivo: el Tenant está en su selector antes de desasignarse.
+        // Por el Id del Tenant (el value de la opción), no por su texto.
+        var opcionDelTenant = pagina.Locator($".selector-tenant-panel [role=option][value='{tenantPropuesto}']");
         await Ayudas.AbrirSelectorTenantAsync(pagina);
-        await Expect(Ayudas.OpcionesSelectorTenant(pagina).Filter(new() { HasText = TenantPropuesto })).ToHaveCountAsync(1);
+        await Expect(opcionDelTenant).ToHaveCountAsync(1);
         await Ayudas.CerrarSelectorTenantAsync(pagina);
 
         await Ayudas.NavegarYEsperarAsync(pagina, $"{fixture.BaseUrl}/cartera/solicitudes");
-        var miApoyo = pagina.Locator("[data-mi-apoyo]").Filter(new() { HasText = TenantPropuesto });
+        // Por nombre accesible: el botón de cada acceso lleva el del Tenant propietario.
+        var desasignarme = pagina.GetByRole(AriaRole.Button, new() { Name = $"Desasignarme de {TenantPropuesto}", Exact = true });
+        var miApoyo = pagina.Locator("[data-mi-apoyo]").Filter(new() { Has = desasignarme });
         await Expect(miApoyo).ToBeVisibleAsync(EsperaEnFrio);
         await Expect(miApoyo).ToContainTextAsync("Apoyo, a propuesta de", new() { Timeout = 30_000 });
-        await miApoyo.GetByRole(AriaRole.Button, new() { Name = $"Desasignarme de {TenantPropuesto}", Exact = true }).ClickAsync();
+        await desasignarme.ClickAsync();
 
         var confirmacion = pagina.GetByRole(AriaRole.Dialog, new() { Name = "¿Desasignarte de esta Empresa?", Exact = true });
         await Expect(confirmacion).ToBeVisibleAsync(EsperaEnFrio);
@@ -162,8 +166,8 @@ public class PropuestaApoyoCarteraE2ETests(WebAppFixtureGestorCaeCarteraMultiTen
         await Expect(FilaDeTrabajador(pagina, TrabajadorDelTenantPropuesto)).ToHaveCountAsync(0);
         await Ayudas.AbrirSelectorTenantAsync(pagina);
         // Control positivo de la lista: sigue teniendo opciones (si estuviera vacía, la ausencia no diría nada).
-        await Expect(Ayudas.OpcionesSelectorTenant(pagina).First).ToBeVisibleAsync(EsperaEnFrio);
-        await Expect(Ayudas.OpcionesSelectorTenant(pagina).Filter(new() { HasText = TenantPropuesto })).ToHaveCountAsync(0);
+        await Expect(Ayudas.OpcionesSelectorTenant(pagina)).Not.ToHaveCountAsync(0, new() { Timeout = 30_000 });
+        await Expect(opcionDelTenant).ToHaveCountAsync(0);
         await Ayudas.CerrarSelectorTenantAsync(pagina);
     }
 

@@ -869,7 +869,9 @@ public class CabeceraRedisenadaTests : BunitContext
         typeof(ProponerApoyoCarteraCommand).GetProperties().Select(p => p.Name)
             .Should().BeEquivalentTo(
                 nameof(ProponerApoyoCarteraCommand.AsignacionOperacionId),
-                nameof(ProponerApoyoCarteraCommand.DestinatarioUsuarioId));
+                nameof(ProponerApoyoCarteraCommand.DestinatarioUsuarioId),
+                // D-5: quien propone puede fijar el último día del apoyo; el rol y la marca siguen sin viajar.
+                nameof(ProponerApoyoCarteraCommand.UltimoDia));
     }
 
     [Fact]

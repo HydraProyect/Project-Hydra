@@ -309,6 +309,10 @@ public class IncorporacionCarteraComponentesTests : BunitContext
                 case CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerPropuestasApoyoPendientesQuery:
                     respuesta = CaeManager.Application.Operaciones.ApoyoCartera.Queries.PropuestasApoyoPendientesDto.Vacia;
                     break;
+                // Y por los apoyos que quien mira puede terminar; vacío, tampoco pinta nada.
+                case CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerApoyosDeCarteraQuery:
+                    respuesta = CaeManager.Application.Operaciones.ApoyoCartera.Queries.ApoyosDeCarteraDto.Vacio;
+                    break;
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
             }
