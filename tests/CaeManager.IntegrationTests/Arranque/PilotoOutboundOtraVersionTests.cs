@@ -144,6 +144,9 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
 
     private static string Prefijo(TenantPilotoOutbound tenant) => $"{tenant.Clave} «{tenant.Nombre}»";
 
+    /// <summary>Lo que la autoverificación dice cuando el informe no trae la comprobación de cartera del Asistente IA.</summary>
+    private const string AsistenteIaSinMedir = "Asistente IA · instrucción de tratamiento de IA de la cartera: no se midió.";
+
     /// <summary>
     /// Aparta de la matriz un documento del Tenant: a uno de un Tipo que vence solo se le mueve la emisión y se le
     /// deja el vencimiento, con la corrección del dominio. Deja de tener las fechas que el producto le habría dado,
@@ -374,6 +377,53 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
     private static string SinMedir(TenantPilotoOutbound tenant) => $"{Prefijo(tenant)}: el Tenant no existe o no se pudo medir.";
 
     /// <summary>
+    /// En un Tenant con datos de otra versión la siembra no escribe nada, tampoco su instrucción de tratamiento
+    /// de IA. Mientras siga en la cartera, el asistente falla cerrado: el arranque que escribe otros Tenants lo
+    /// avisa sin caerse, y quien exige el lote entero —la vía administrativa— lo tiene entre las discrepancias.
+    /// </summary>
+    [Fact]
+    public async Task A_un_Tenant_con_datos_de_otra_version_no_se_le_escribe_la_instruccion_de_tratamiento_de_IA_y_el_arranque_lo_avisa()
+    {
+        await using var arnes = await ArnesPilotoOutbound.CrearAsync();
+        var configuracion = ArnesPilotoOutbound.Configurar(ArnesPilotoOutbound.FechaDemostracion());
+
+        var cortada = () => arnes.SembrarAsync(configuracion, logger: CorteJustoDespuesDeAprovisionarElPendiente());
+        await cortada.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Fallo inyectado por la prueba*");
+
+        var idDeOtraVersion = await arnes.TenantIdAsync(ConDatosDeOtraVersion.Nombre);
+        Task<int> InstruccionesDeAsync(Guid tenantId) => arnes.ComoBootstrapAsync(
+            b => b.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters().CountAsync(i => i.TenantId == tenantId));
+
+        // Un lote de otra versión no lleva instrucción: se le quita la que esta versión le acaba de poner.
+        await CambiarElIdentificadorFiscalDeLaEmpresaPropiaAsync(arnes, idDeOtraVersion);
+        (await arnes.ComoBootstrapAsync(b => b.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters()
+            .Where(i => i.TenantId == idDeOtraVersion).ExecuteDeleteAsync())).Should().Be(1, "control: tenía una, y se le ha quitado");
+
+        var resultado = await arnes.SembrarAsync(configuracion);
+        resultado!.Escribio.Should().BeTrue("control: esta ejecución escribe los Tenants que faltaban");
+        resultado.TenantsConDatosDeOtraVersion.Should().Equal([ConDatosDeOtraVersion.Nombre], "control: la siembra lo reconoce como de otra versión");
+        await arnes.BackfillAsync();
+
+        (await InstruccionesDeAsync(idDeOtraVersion)).Should().Be(0, "MEDIDO: en el Tenant con datos de otra versión no se escribe la instrucción");
+        (await InstruccionesDeAsync(await arnes.TenantIdAsync(NombreDelPendiente))).Should().Be(
+            1, "control positivo: en la misma ejecución, el Tenant recién escrito sí recibe la suya");
+
+        string Linea(string cuenta) =>
+            $"Asistente IA · cartera de la {cuenta} · «{ConDatosDeOtraVersion.Nombre}»: medido sin instrucción de tratamiento de IA vigente, " +
+            "esperado con instrucción de tratamiento de IA vigente.";
+        PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion)).Should().Equal(
+            [Linea("Gestora CAE"), Linea("Coordinadora CAE")], "MEDIDO: quien exige el lote entero tiene al Asistente IA entre las discrepancias, y solo eso");
+
+        var avisos = new ArnesPilotoOutbound.RegistroDeAvisos();
+        var arranque = () => PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync(
+            arnes.FabricaDeAmbitos, OpcionesPilotoOutbound.Leer(configuracion), escribio: true, resultado.TenantsConDatosDeOtraVersion, avisos);
+        await arranque.Should().NotThrowAsync("MEDIDO: el arranque no se cae por la instrucción que falta en un Tenant en el que no ha escrito");
+        foreach (var aviso in avisos.Avisos) salida.WriteLine("MEDIDO " + aviso);
+        avisos.Avisos.Where(a => a.Contains("Asistente IA · ")).Should().HaveCount(2, "MEDIDO: lo avisa, una vez por cuenta")
+            .And.OnlyContain(a => a.Contains($"«{ConDatosDeOtraVersion.Nombre}»: está en la cartera sin instrucción de tratamiento de IA vigente"));
+    }
+
+    /// <summary>
     /// Sin base de datos: el reparto que decide qué se exige. Lo que no es de un solo Tenant —el control positivo
     /// de «cero filas», que mira a la vez todos los medidos— no se puede exigir cuando alguno se ha dejado sin
     /// medir; sin ninguno sin medir se exige todo, como siempre.
@@ -385,7 +435,8 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
 
         var (todas, ninguna) = PilotoOutboundAutoverificacion.Repartir(nadaMedido, []);
         todas.Where(l => !l.StartsWith(ControlPositivoDeCeroFilas)).Should().Equal(
-            CatalogoPilotoOutbound.Tenants.Select(SinMedir), "control: sin nada medido, cada Tenant propietario tiene su discrepancia");
+            [.. CatalogoPilotoOutbound.Tenants.Select(SinMedir), AsistenteIaSinMedir],
+            "control: sin nada medido, cada Tenant propietario tiene su discrepancia, y el Asistente IA la suya: no haber medido no es haber pasado");
         todas.Should().ContainSingle(
             l => l.StartsWith(ControlPositivoDeCeroFilas), "MEDIDO: sin ningún Tenant sin medir se exige todo, también lo del lote entero");
         ninguna.Should().BeEmpty("MEDIDO: y no queda nada solo avisado");
@@ -411,7 +462,7 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
 
         exigidas.Should().NotContain(SinMedir(CatalogoPilotoOutbound.T2), "MEDIDO: del Tenant de la lista no sale ninguna discrepancia, tampoco la de «no se pudo medir»");
         exigidas.Should().Equal(
-            CatalogoPilotoOutbound.Tenants.Where(t => t.Nombre != NombreDelPendiente).Select(SinMedir),
+            [.. CatalogoPilotoOutbound.Tenants.Where(t => t.Nombre != NombreDelPendiente).Select(SinMedir), AsistenteIaSinMedir],
             "MEDIDO: los que no están en la lista se exigen todos, también el que este fichero usa como Tenant de otra versión");
         exigidas.Should().Contain(SinMedir(ConDatosDeOtraVersion), "control: ese Tenant está entre los exigidos");
     }
