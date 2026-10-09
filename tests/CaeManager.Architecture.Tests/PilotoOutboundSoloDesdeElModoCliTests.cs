@@ -124,6 +124,29 @@ public class PilotoOutboundSoloDesdeElModoCliTests
             "si Program.cs vuelve a medir por su cuenta, un fallo de la medición en un re-arranque vuelve a tumbar el arranque sin test que lo vea");
     }
 
+    /// <summary>
+    /// El resultado de la siembra lleva dos listas de Tenants propietarios del mismo tipo —los recién escritos y los
+    /// que tienen datos de otra versión—, así que el compilador no distingue una de otra. Con la de los recién
+    /// escritos, lo que la ejecución acaba de sembrar dejaría de medirse y de exigirse; con una lista vacía, un
+    /// Tenant con datos de otra versión volvería a tumbar el arranque.
+    /// </summary>
+    [Fact]
+    public void El_arranque_local_pasa_a_la_autoverificacion_la_lista_de_Tenants_con_datos_de_otra_version_que_calculo_la_siembra()
+    {
+        var llamada = LlamadaA(Program(), "PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync(");
+
+        llamada.Should().Contain("siembraPilotoOutbound.Escribio",
+            "control positivo: el instrumento ve los argumentos de la llamada, no solo su nombre");
+        llamada.Should().NotContain("TenantsConDatosNuevos",
+            "los Tenants que esta ejecución acaba de escribir son justo los que hay que medir y exigir: pasarlos como «de otra versión» los eximiría");
+        // La coma de delante ancla también «escribió»: sin ella, «!siembraPilotoOutbound.Escribio» casaría igual
+        // y la ejecución que acaba de escribir pasaría por un re-arranque, del que todo solo se avisa.
+        llamada.Should().MatchRegex(@",\s*siembraPilotoOutbound\.Escribio,\s*siembraPilotoOutbound\.TenantsConDatosDeOtraVersion,\s*logger\)",
+            "«escribió» va tal cual lo entrega la siembra, y el argumento que le sigue es, entero, la lista que calculó antes de escribir: " +
+            "con «escribió» negado, con otra lista o con una vacía, la autoverificación exime a quien no debe o vuelve a medir un Tenant " +
+            "en el que esta ejecución no ha escrito");
+    }
+
     [Fact]
     public void Los_argumentos_y_las_claves_de_los_modos_de_CLI_son_los_que_documenta_el_runbook()
     {
@@ -154,6 +177,18 @@ public class PilotoOutboundSoloDesdeElModoCliTests
 
         cierre.Should().BeGreaterThan(apertura, "el bloque del modo de CLI está delimitado por llaves balanceadas");
         return (program[(apertura + 1)..cierre], cierre);
+    }
+
+    /// <summary>El texto de la llamada de <c>Program.cs</c> a <paramref name="metodo"/>: desde su nombre hasta su punto y coma.</summary>
+    private static string LlamadaA(string program, string metodo)
+    {
+        var inicio = program.IndexOf(metodo, StringComparison.Ordinal);
+        inicio.Should().BeGreaterThan(-1, $"control positivo: Program.cs llama a {metodo}");
+
+        var fin = program.IndexOf(';', inicio);
+        fin.Should().BeGreaterThan(inicio, "control positivo: la llamada termina en punto y coma");
+
+        return program[inicio..(fin + 1)];
     }
 
     private static string Program() => Texto(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Program.cs"));

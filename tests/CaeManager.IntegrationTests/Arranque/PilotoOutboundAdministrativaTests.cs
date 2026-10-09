@@ -497,7 +497,7 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
                 ArnesPilotoOutbound.FechaDemostracion(), ContactosPilotoOutbound.Crear(ArnesPilotoOutbound.CorreoDePrueba, dominio: null));
 
             Task MedirAsync(bool escribio, ILogger registro) => PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync(
-                arnes.FabricaDeAmbitos, cuentas, opciones, escribio, registro, CancellationToken.None);
+                arnes.FabricaDeAmbitos, cuentas, opciones, escribio, tenantsConDatosDeOtraVersion: [], registro, CancellationToken.None);
 
             var sinCambios = () => MedirAsync(escribio: true, NullLogger.Instance);
             await sinCambios.Should().NotThrowAsync("control: sin tocar nada, ni siquiera el camino que exige lanza");
