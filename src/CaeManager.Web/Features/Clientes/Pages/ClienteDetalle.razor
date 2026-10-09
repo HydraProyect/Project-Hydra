@@ -215,7 +215,7 @@
                                     @foreach (var subcontrata in _subcontratas)
                                     {
                                         <FilaRelacion @key="subcontrata.Id" Nombre="@subcontrata.RazonSocial" NombreIcono="subcontratas"
-                                                      OnNombre="() => AbrirSubcontrataAsync(subcontrata)"
+                                                      Href="@($"/subcontratas/{subcontrata.Id}")"
                                                       OnAbrir360="() => AbrirSubcontrataAsync(subcontrata)" />
                                     }
                                 </ListaRelaciones>

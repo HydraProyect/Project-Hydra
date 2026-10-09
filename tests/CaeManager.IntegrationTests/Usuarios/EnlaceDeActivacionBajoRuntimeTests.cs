@@ -270,7 +270,7 @@ public class EnlaceDeActivacionBajoRuntimeTests
 
         using var circuito = arnes.Servicios.CreateScope();
         var sp = circuito.ServiceProvider;
-        var correccion = await new CorregirCorreoCuentaPendienteCommandHandler(Puerto(sp), sp.GetRequiredService<ICurrentUserService>())
+        var correccion = await new CorregirCorreoCuentaPendienteCommandHandler(Puerto(sp), sp.GetRequiredService<ICurrentUserService>(), sp.GetRequiredService<ITenantActual>())
             .Handle(new CorregirCorreoCuentaPendienteCommand(pendienteId, "admin@caemanager.local"), default);
 
         correccion.EsFallido.Should().BeTrue("ese correo ya es el de otra cuenta");
@@ -310,7 +310,8 @@ public class EnlaceDeActivacionBajoRuntimeTests
     {
         using var ambito = arnes.Servicios.CreateScope();
         var sp = ambito.ServiceProvider;
-        var resultado = await new GenerarActivacionUsuarioCommandHandler(Puerto(sp), sp.GetRequiredService<ICurrentUserService>())
+        var resultado = await new GenerarActivacionUsuarioCommandHandler(
+                Puerto(sp), sp.GetRequiredService<ICurrentUserService>(), sp.GetRequiredService<ITenantActual>())
             .Handle(new GenerarActivacionUsuarioCommand(usuarioId), default);
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
         return resultado.Valor;
@@ -321,7 +322,7 @@ public class EnlaceDeActivacionBajoRuntimeTests
     {
         using var ambito = arnes.Servicios.CreateScope();
         var sp = ambito.ServiceProvider;
-        return await new CorregirCorreoCuentaPendienteCommandHandler(Puerto(sp), sp.GetRequiredService<ICurrentUserService>())
+        return await new CorregirCorreoCuentaPendienteCommandHandler(Puerto(sp), sp.GetRequiredService<ICurrentUserService>(), sp.GetRequiredService<ITenantActual>())
             .Handle(new CorregirCorreoCuentaPendienteCommand(usuarioId, correoNuevo), default);
     }
 

@@ -6,6 +6,7 @@
 @using CaeManager.Application.Operaciones.IncorporacionCartera.Commands
 @using CaeManager.Application.Operaciones.IncorporacionCartera.Queries
 @using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma
+@using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal
 @using CaeManager.Application.VigilanciaNormativa.Commands.MarcarAvisoRevisionNormativaRevisado
 @using CaeManager.Application.VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa
 @using CaeManager.Domain.Common
@@ -160,6 +161,16 @@
                                         </span>
                                     </div>
                                     break;
+
+                                case TipoAviso.SinPrincipal:
+                                    <a class="campana-item" href="@item.Url">
+                                        <span class="campana-item-texto">
+                                            <strong>@item.Titulo</strong>
+                                            <small>@item.Detalle</small>
+                                        </span>
+                                        <span class="campana-nuevo">@TextosNotificacion["AccionPorDefecto"]</span>
+                                    </a>
+                                    break;
                             }
                         </li>
                     }
@@ -168,7 +179,7 @@
                 @if (_items.Any(i => i.Tipo == TipoAviso.Solicitud))
                 {
                     <div class="campana-pie">
-                        <a class="campana-ver-todas" href="@RutasIncorporacionCartera.Bandeja">@TextosCartera["AvisoVerTodas"]</a>
+                        <a class="campana-ver-todas" href="@RutaDeCartera">@TextosCartera["AvisoVerTodas"]</a>
                     </div>
                 }
             }
@@ -198,7 +209,9 @@
     /// <summary>Único intervalo de refresco del contador y del panel (ver el comentario de arriba).</summary>
     private static readonly TimeSpan IntervaloRefresco = TimeSpan.FromSeconds(60);
 
-    private enum TipoAviso { Notificacion, Normativa, Solicitud, PropuestaApoyo }
+    private enum TipoAviso { Notificacion, Normativa, Solicitud, PropuestaApoyo, SinPrincipal }
+
+    private static string RutaDeCartera => RutasIncorporacionCartera.Bandeja;
 
     /// <param name="Id">Id de la notificación, del aviso normativo, de la solicitud o de la propuesta de apoyo, según <paramref name="Tipo"/>.</param>
     /// <param name="Clave">Identifica el elemento entre las cuatro fuentes; no se muestra.</param>
@@ -310,6 +323,18 @@
                     TenantId: propuesta.TenantPropietarioId,
                     EtiquetaAceptar: TextosApoyo["AceptarEtiqueta", propuesta.NombreEmpresa],
                     EtiquetaRechazar: TextosApoyo["RechazarEtiqueta", propuesta.NombreEmpresa]));
+            }
+
+            // Empresas del Operador CAE sin principal: un solo elemento resumen que lleva a la lista
+            // donde se asumen. La Query devuelve vacío a quien no es Coordinador CAE, Dirección CAE
+            // ni Administrador del Operador CAE.
+            var sinPrincipal = (await Mediator.Send(new ObtenerOperacionesSinPrincipalQuery())).SinPrincipal.Count();
+            if (sinPrincipal > 0)
+            {
+                items.Add(new ItemAviso(TipoAviso.SinPrincipal, Guid.Empty, "cartera-sin-principal",
+                    TextosCartera["SinPrincipalAvisoTitulo"],
+                    sinPrincipal == 1 ? TextosCartera["SinPrincipalAvisoResumenUna", 1] : TextosCartera["SinPrincipalAvisoResumenVarias", sinPrincipal],
+                    RutaDeCartera));
             }
 
             _items = items;

@@ -753,7 +753,7 @@ public static class DelegacionDemoSeeder
 
     internal static async Task<Guid> AprovisionarTenantAsync(
         CaeManagerDbContext dbContext, string nombreTenant, PerfilVocabularioTenant perfil, ILogger logger, CancellationToken cancellationToken,
-        bool esOperadorCaeExterno)
+        bool esOperadorCaeExterno, bool marcarComoDemo = false)
     {
         var tenantExistente = await dbContext.Tenants
             .FirstOrDefaultAsync(t => t.Nombre == nombreTenant, cancellationToken);
@@ -787,6 +787,15 @@ public static class DelegacionDemoSeeder
         // Consultora, cada llamada la declara explícitamente.
         if (esOperadorCaeExterno)
             tenant.HabilitarComoOperadorCaeExterno();
+
+        // El marcador de datos de demo, cuando el llamador lo pide, viaja en el MISMO
+        // guardado que crea el Tenant: no hay instante en que el Tenant exista sin él.
+        // Marcarlo en un guardado posterior dejaba una ventana —un corte entre los dos—
+        // tras la que quedaba un Tenant con nombre de demo y sin marcador, que ni la
+        // siembra ni la retirada del piloto Outbound aceptan (podría ser uno real). Solo
+        // afecta al Tenant que se crea aquí; al que ya existía no se le toca el marcador.
+        if (marcarComoDemo)
+            tenant.MarcarDatosDemoCompletados();
 
         // Mismo motivo que SegundoTenantSeeder: hace falta un tenant
         // resuelto ya para este primer guardado (el interceptor de

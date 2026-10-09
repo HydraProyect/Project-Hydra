@@ -61,6 +61,13 @@
     <value>Consultar {0} d’un cop d’ull</value>
     <comment>{0}: nom de l’entitat (Centre, Empresa, Client…) que obre el panell 360.</comment>
   </data>
+  <data name="Abrir360Pagina" xml:space="preserve">
+    <value>Obrir la fitxa 360</value>
+  </data>
+  <data name="Abrir360PaginaEntidad" xml:space="preserve">
+    <value>Obrir la fitxa 360 de {0}</value>
+    <comment>{0}: nom de l’entitat la pàgina 360 completa de la qual obre l’enllaç.</comment>
+  </data>
   <data name="LimiteErroresTitulo" xml:space="preserve">
     <value>Alguna cosa ha fallat; torna-ho a provar</value>
   </data>
@@ -141,6 +148,15 @@
   </data>
   <data name="SelectorTenantOrigen" xml:space="preserve">
     <value>La teva organització</value>
+  </data>
+  <data name="ExportarEstaVista" xml:space="preserve">
+    <value>Exporta aquesta vista (files: {0})</value>
+  </data>
+  <data name="ExportarEstaVistaSinRecuento" xml:space="preserve">
+    <value>Exporta aquesta vista</value>
+  </data>
+  <data name="ExportarTodo" xml:space="preserve">
+    <value>Exporta-ho tot</value>
   </data>
   <data name="SelectorTenantSinResultados" xml:space="preserve">
     <value>Cap empresa coincideix amb la cerca.</value>

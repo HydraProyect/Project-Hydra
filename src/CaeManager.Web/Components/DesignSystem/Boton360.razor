@@ -8,17 +8,35 @@
     mockups). El nombre accesible nombra la entidad («Consultar Refrielectric
     S.A. de un vistazo»): con dos o más botones iguales en la misma pantalla,
     un «360» a secas no dice cuál abre qué. Los textos salen de TextosComunes.
+
+    Con Href es el icono 360 de los listados (decisión 2026-10-08): al final de la
+    fila y en la cabecera de la vista rápida lleva a la PÁGINA 360 completa, no al
+    panel. Entonces es un enlace real —se puede abrir en otra pestaña— y su nombre
+    accesible lo dice («Abrir la ficha 360 de …»). Solo se pinta donde esa ruta
+    existe. El clic no sube a la fila, que al pulsarla abre la vista rápida.
 *@
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<button type="button" class="boton-360"
-        aria-label="@(Comunes["Consultar360Entidad", Nombre])"
-        data-tooltip="@(Comunes["Consultar360"])"
-        @onclick="OnClick">
-    <Icono Nombre="360" Tamano="TamanoIcono.Pequeno" />
-</button>
+@if (Href is not null)
+{
+    <a class="boton-360 boton-360-pagina" href="@Href"
+       aria-label="@(Comunes["Abrir360PaginaEntidad", Nombre])"
+       data-tooltip="@(Comunes["Abrir360Pagina"])"
+       @onclick:stopPropagation="true">
+        <Icono Nombre="360" Tamano="TamanoIcono.Pequeno" />
+    </a>
+}
+else
+{
+    <button type="button" class="boton-360"
+            aria-label="@(Comunes["Consultar360Entidad", Nombre])"
+            data-tooltip="@(Comunes["Consultar360"])"
+            @onclick="OnClick">
+        <Icono Nombre="360" Tamano="TamanoIcono.Pequeno" />
+    </button>
+}
 
 @code {
     /// <summary>Nombre visible de la entidad que abre el panel; entra en el nombre accesible.</summary>
@@ -26,4 +44,10 @@
 
     /// <summary>Abre el panel de la entidad (normalmente <c>ContextWorkspaceService.AbrirAsync</c>).</summary>
     [Parameter] public EventCallback OnClick { get; set; }
+
+    /// <summary>
+    /// Ruta de la página 360 completa de la entidad. Con valor, el botón es un enlace a esa
+    /// página y <see cref="OnClick"/> no se usa.
+    /// </summary>
+    [Parameter] public string? Href { get; set; }
 }

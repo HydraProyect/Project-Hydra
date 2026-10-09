@@ -388,6 +388,8 @@ src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs :: Cliente
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs :: clienteId = 1
 src/CaeManager.Infrastructure/Persistence/Seed/IdentityRoleSeedData.cs :: ClienteId = 2
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: ClienteId = 2
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs :: TenantClienteId = 1
 src/CaeManager.Web/Api/V1/CentrosApiEndpoints.cs :: clienteId = 2
 src/CaeManager.Web/Features/Blindaje42/Components/DrawerBlindaje42.razor :: ClienteId = 3
 src/CaeManager.Web/Features/Blindaje42/Components/PestanaBlindaje42.razor :: ClienteId = 1
@@ -474,6 +476,8 @@ src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataPreviewDrawer.raz
 src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor :: ClienteIds = 4
 src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor :: _clienteIdsInfo = 7
 src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor :: clienteId = 3
+src/CaeManager.Web/Features/Subcontratas/Pages/SubcontrataDetalle.razor :: ClienteIds = 1
+src/CaeManager.Web/Features/Subcontratas/Pages/SubcontrataDetalle.razor.cs :: ClienteIds = 2
 src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor :: _clienteIdsSeleccionados = 1
 src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor.cs :: _clienteIdsSeleccionados = 7
 src/CaeManager.Web/Features/Subcontratas/Pages/Subcontratas.razor.cs :: clienteId = 3

@@ -32,6 +32,16 @@ public interface IDirectorioUsuariosService
         IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Clave del avatar elegido (<c>CatalogoAvatares</c>) de los usuarios pedidos que tengan
+    /// uno, con el mismo acotado que <see cref="ObtenerNombresVisiblesAsync"/>: quien no es
+    /// visible desde el Tenant activo no aparece, y quien no eligió avatar tampoco (se pintan
+    /// sus iniciales). Por defecto, ninguno: un directorio que no sabe de avatares no inventa.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, string>> ObtenerAvataresVisiblesAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, string>>(new Dictionary<Guid, string>());
+
+    /// <summary>
     /// El tenant al que pertenece un usuario, o <c>null</c> si no existe.
     ///
     /// Existe para poder imponer el invariante de la cadena de autorización —
@@ -56,4 +66,18 @@ public interface IDirectorioUsuariosService
     /// </summary>
     Task<bool> EsCuentaActivaConRolAsync(
         Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Las cuentas propias de <paramref name="tenantId"/> que tienen el rol de Identity
+    /// <paramref name="rol"/> y no están desactivadas; mismo predicado que
+    /// <see cref="EsCuentaActivaConRolAsync"/>, para todas a la vez.
+    ///
+    /// La usa el escalado del principal de una Asignación de Operación (ADR-011 § 2.7,
+    /// enmienda 2026-10-08, punto 4) para saber cuántas personas hay en cada perfil del
+    /// Operador CAE. Solo identificadores: quien llama decide con el número, no enseña la lista.
+    /// La política RLS de las cuentas la acota al Tenant activo, así que se llama con
+    /// <paramref name="tenantId"/> como Tenant activo (<c>AmbitoTenantExplicito</c>).
+    /// </summary>
+    Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+        Guid tenantId, string rol, CancellationToken cancellationToken = default);
 }

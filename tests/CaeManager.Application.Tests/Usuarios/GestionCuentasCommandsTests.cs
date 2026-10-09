@@ -67,13 +67,13 @@ public class GestionCuentasCommandsTests
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
         var actor = ActorCon(rol);
 
-        (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(Edicion("GestorCae"), default))
+        (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte()).Handle(Edicion("GestorCae"), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
-        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen()).Handle(new(Cuenta, false), default))
+        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen()).Handle(new(Cuenta, false), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
-        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
-        (await new GenerarActivacionUsuarioCommandHandler(puerto, actor).Handle(new(Cuenta), default))
+        (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
         (await new ObtenerCuentaUsuarioQueryHandler(puerto, actor).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
@@ -88,7 +88,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia(null) };
 
-        var resultado = await new AsignarRolACuentaCommandHandler(puerto, ActorCon(rol), EnSuTenant)
+        var resultado = await new AsignarRolACuentaCommandHandler(puerto, ActorCon(rol), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
             .Handle(new AsignarRolACuentaCommand(Cuenta, "Consulta"), default);
 
         resultado.Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
@@ -173,13 +173,13 @@ public class GestionCuentasCommandsTests
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) with { EsPropiaDelTenantActual = false } };
         var actor = ActorCon("Administrador");
 
-        (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(Edicion("GestorCae"), default))
+        (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte()).Handle(Edicion("GestorCae"), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
-        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen()).Handle(new(Cuenta, false), default))
+        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen()).Handle(new(Cuenta, false), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
-        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
-        (await new GenerarActivacionUsuarioCommandHandler(puerto, actor).Handle(new(Cuenta), default))
+        (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
         (await new ObtenerCuentaUsuarioQueryHandler(puerto, actor).Handle(new(Cuenta), default))
             .Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
@@ -192,7 +192,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia(null) with { EsPropiaDelTenantActual = false } };
 
-        var resultado = await new AsignarRolACuentaCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+        var resultado = await new AsignarRolACuentaCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
             .Handle(new AsignarRolACuentaCommand(Cuenta, "Consulta"), default);
 
         resultado.Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
@@ -205,7 +205,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
 
-        var resultado = await new AsignarRolACuentaCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+        var resultado = await new AsignarRolACuentaCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
             .Handle(new AsignarRolACuentaCommand(Cuenta, "Consulta"), default);
 
         resultado.Error.Should().Be(AsignarRolACuentaCommandHandler.CuentaConRol,
@@ -220,7 +220,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Actor] = CuentaPropia("Administrador", id: Actor) };
 
-        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
             .Handle(new EditarUsuarioCommand(Actor, "Yo", "Administrador", null, null, true), default);
 
         resultado.Error.Should().Be(EditarUsuarioCommandHandler.AutogestionPermisoSensible);
@@ -235,7 +235,7 @@ public class GestionCuentasCommandsTests
             [Cuenta] = CuentaPropia("GestorCae") with { PermisoConsultarAccesoDocumentosSensibles = true },
         };
 
-        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("DireccionCae"), EnSuTenant)
+        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("DireccionCae"), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
             .Handle(Edicion("Administrador", permiso: true), default);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
@@ -250,7 +250,7 @@ public class GestionCuentasCommandsTests
             [Cuenta] = CuentaPropia("Administrador") with { PermisoConsultarAccesoDocumentosSensibles = true },
         };
 
-        await new EditarUsuarioCommandHandler(puerto, ActorCon("DireccionCae"), EnSuTenant)
+        await new EditarUsuarioCommandHandler(puerto, ActorCon("DireccionCae"), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
             .Handle(Edicion("Administrador", permiso: false), default);
 
         puerto.Datos.Should().ContainSingle().Which.PermisoConsultarAccesoDocumentosSensibles.Should().BeTrue();
@@ -258,14 +258,17 @@ public class GestionCuentasCommandsTests
     }
 
     [Fact]
-    public async Task Conservar_un_rol_reservado_desde_un_Context_Workspace_ajeno_no_se_bloquea()
+    public async Task Editar_una_cuenta_con_rol_reservado_desde_un_Context_Workspace_ajeno_ya_no_se_permite_ni_conservando_el_rol()
     {
+        // Hasta la decisión D-8 (2026-10-08) esto pasaba: «conservar no es conceder». La regla sobre el
+        // destino lo cierra: desde fuera de su Tenant de origen nadie gestiona una cuenta de Propiedad.
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("Administrador") };
 
-        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("Administrador", OtroTenant), EnSuTenant)
+        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("Administrador", OtroTenant), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
             .Handle(Edicion("Administrador"), default);
 
-        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        resultado.Error.Should().Be(CuentasConRolDePropiedad.SoloElTenantPropietario);
+        puerto.Escrituras.Should().BeEmpty();
     }
 
     [Fact]
@@ -273,7 +276,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
 
-        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("Administrador", OtroTenant), EnSuTenant)
+        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("Administrador", OtroTenant), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
             .Handle(Edicion("DireccionCae"), default);
 
         resultado.Error.Codigo.Should().Be("Usuarios.RolReservadoAlTenantDeOrigen");
@@ -288,9 +291,9 @@ public class GestionCuentasCommandsTests
         var puerto = new GestionCuentasFalsa { [Actor] = CuentaPropia("Administrador", pendiente: true, id: Actor) };
         var actor = ActorCon("Administrador");
 
-        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen()).Handle(new(Actor, false), default))
+        (await new CambiarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen()).Handle(new(Actor, false), default))
             .Error.Codigo.Should().Be("Usuarios.PropiaCuenta");
-        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor).Handle(new(Actor), default))
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant).Handle(new(Actor), default))
             .Error.Codigo.Should().Be("Usuarios.PropiaCuenta");
 
         puerto.Escrituras.Should().BeEmpty();
@@ -306,7 +309,7 @@ public class GestionCuentasCommandsTests
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
         var transaccion = new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa();
         var bloqueo = new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso();
-        var handler = new CambiarActivacionUsuarioCommandHandler(puerto, ActorCon("Administrador"), transaccion, bloqueo, new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen());
+        var handler = new CambiarActivacionUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, transaccion, bloqueo, new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen());
 
         (await handler.Handle(new(Cuenta, false), default)).EsExitoso.Should().BeTrue();
         (await handler.Handle(new(Cuenta, true), default)).EsExitoso.Should().BeTrue();
@@ -336,7 +339,7 @@ public class GestionCuentasCommandsTests
         if (!coordinadorActivo) roles.Desactivar(Coordinador);
         var transaccion = new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa();
         var handler = new CambiarActivacionUsuarioCommandHandler(
-            new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") }, ActorCon("Administrador"), transaccion,
+            new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") }, ActorCon("Administrador"), EnSuTenant, transaccion,
             _bloqueoDelRelevo, catalogo,
             new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", coordinador, EsOperadorDelegado: false)), roles);
         return (handler, catalogo, transaccion);
@@ -364,18 +367,29 @@ public class GestionCuentasCommandsTests
         _bloqueoDelRelevo.Compartidos.Should().Equal([Coordinador], "quien recibe la marca no puede estar desactivándose a la vez");
     }
 
-    [Theory]
-    [InlineData(false, true)]  // no tiene Coordinador CAE
-    [InlineData(true, false)]  // su Coordinador CAE está desactivado
-    public async Task Desactivar_al_principal_sin_Coordinador_CAE_util_deja_la_operacion_sin_principal(bool tieneCoordinador, bool activo)
+    [Fact]
+    public async Task Desactivar_al_principal_cuyo_Coordinador_CAE_esta_desactivado_y_sin_nadie_mas_deja_la_operacion_sin_principal()
     {
-        var (handler, catalogo, _) = DesactivacionDelPrincipal(tieneCoordinador ? Coordinador : null, activo);
+        var (handler, catalogo, _) = DesactivacionDelPrincipal(Coordinador, coordinadorActivo: false);
 
         (await handler.Handle(new(Cuenta, false), default)).EsExitoso.Should().BeTrue();
 
         PrincipalDe(catalogo).Should().BeNull();
         catalogo.CarterasVivas.Select(c => c.Cartera.UsuarioId).Should().BeEquivalentTo([Cuenta, Apoyo]);
         catalogo.CambiosDeMarca.Select(c => c.Paso).Should().Equal("apagar", "guardar");
+    }
+
+    [Fact]
+    public async Task Desactivar_al_principal_sin_Coordinador_CAE_propio_escala_al_unico_Coordinador_CAE_del_Operador_CAE()
+    {
+        var (handler, catalogo, transaccion) = DesactivacionDelPrincipal(coordinador: null);
+
+        (await handler.Handle(new(Cuenta, false), default)).EsExitoso.Should().BeTrue();
+
+        PrincipalDe(catalogo).Should().Be(Coordinador, "D-7: sin a quién relevar, el único del primer perfil con alguien recibe la cartera principal");
+        catalogo.CarterasVivas.Single(c => c.Cartera.UsuarioId == Coordinador).Cartera.Rol.Should().Be("CoordinadorCae");
+        transaccion.Confirmadas.Should().Be(1, "en la misma transacción de la desactivación");
+        _bloqueoDelRelevo.Compartidos.Should().Equal([Coordinador], "quien recibe la marca no puede estar desactivándose a la vez");
     }
 
     [Fact]
@@ -394,7 +408,7 @@ public class GestionCuentasCommandsTests
     {
         var (handler, catalogo, _) = DesactivacionDelPrincipal(Coordinador);
         var apoyo = new CambiarActivacionUsuarioCommandHandler(
-            new GestionCuentasFalsa { [Apoyo] = CuentaPropia("GestorCae", id: Apoyo) }, ActorCon("Administrador"),
+            new GestionCuentasFalsa { [Apoyo] = CuentaPropia("GestorCae", id: Apoyo) }, ActorCon("Administrador"), EnSuTenant,
             new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(),
             catalogo, new DirectorioDestinosCarteraFalso(new DestinoCartera(false, "GestorCae", Coordinador, EsOperadorDelegado: false)), new DirectorioRolesEnOrigen());
         _ = handler;
@@ -422,7 +436,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa();
 
-        (await new CambiarActivacionUsuarioCommandHandler(puerto, ActorCon("Administrador"), new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen()).Handle(new(Cuenta, false), default))
+        (await new CambiarActivacionUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(), new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen()).Handle(new(Cuenta, false), default))
             .Error.Should().Be(AutoridadSobreCuentas.CuentaInexistente);
     }
 
@@ -430,18 +444,18 @@ public class GestionCuentasCommandsTests
     public async Task Solo_se_elimina_una_cuenta_pendiente_de_activacion_y_sin_cartera_vigente()
     {
         var activada = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: false) };
-        (await new EliminarUsuarioPendienteCommandHandler(activada, ActorCon("Administrador")).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(activada, ActorCon("Administrador"), EnSuTenant).Handle(new(Cuenta), default))
             .Error.Should().Be(EliminarUsuarioPendienteCommandHandler.NoPendiente);
 
         var conCartera = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true), ConVinculoOperativo = true };
-        (await new EliminarUsuarioPendienteCommandHandler(conCartera, ActorCon("Administrador")).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(conCartera, ActorCon("Administrador"), EnSuTenant).Handle(new(Cuenta), default))
             .Error.Should().Be(EliminarUsuarioPendienteCommandHandler.CarteraVigente);
 
         activada.Escrituras.Should().BeEmpty();
         conCartera.Escrituras.Should().BeEmpty();
 
         var pendiente = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
-        (await new EliminarUsuarioPendienteCommandHandler(pendiente, ActorCon("DireccionCae")).Handle(new(Cuenta), default))
+        (await new EliminarUsuarioPendienteCommandHandler(pendiente, ActorCon("DireccionCae"), EnSuTenant).Handle(new(Cuenta), default))
             .EsExitoso.Should().BeTrue("control positivo");
         pendiente.Escrituras.Should().Equal($"eliminar:{Cuenta}");
     }
@@ -451,7 +465,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: false) };
 
-        var resultado = await new GenerarActivacionUsuarioCommandHandler(puerto, ActorCon("Administrador"))
+        var resultado = await new GenerarActivacionUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
             .Handle(new GenerarActivacionUsuarioCommand(Cuenta), default);
 
         resultado.Error.Should().Be(GenerarActivacionUsuarioCommandHandler.YaActivada);
@@ -467,7 +481,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
 
-        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon(rol))
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon(rol), EnSuTenant)
             .Handle(new(Cuenta, "  corregida@x.test "), default);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -485,7 +499,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
 
-        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon(rol))
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon(rol), EnSuTenant)
             .Handle(new(Cuenta, "corregida@x.test"), default);
 
         resultado.Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
@@ -501,7 +515,7 @@ public class GestionCuentasCommandsTests
             [Cuenta] = CuentaPropia("GestorCae", pendiente: true) with { EsPropiaDelTenantActual = false },
         };
 
-        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"))
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
             .Handle(new(Cuenta, "corregida@x.test"), default);
 
         resultado.Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
@@ -513,7 +527,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: false) };
 
-        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"))
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
             .Handle(new(Cuenta, "corregida@x.test"), default);
 
         resultado.Error.Should().Be(GenerarActivacionUsuarioCommandHandler.YaActivada);
@@ -529,7 +543,7 @@ public class GestionCuentasCommandsTests
             SeActivaAntesDeCorregir = true,
         };
 
-        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"))
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
             .Handle(new(Cuenta, "corregida@x.test"), default);
 
         resultado.Error.Should().Be(GenerarActivacionUsuarioCommandHandler.YaActivada);
@@ -542,7 +556,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
 
-        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"))
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
             .Handle(new(Cuenta, correo), default);
 
         resultado.Error.Should().Be(CorregirCorreoCuentaPendienteCommandHandler.CorreoObligatorio);
@@ -558,7 +572,7 @@ public class GestionCuentasCommandsTests
     {
         var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
 
-        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"))
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
             .Handle(new(Cuenta, "C@X.test"), default);
 
         resultado.Error.Should().Be(CorregirCorreoCuentaPendienteCommandHandler.MismoCorreo);
@@ -750,12 +764,208 @@ public class GestionCuentasCommandsTests
             .Should().BeEmpty("en el Context Workspace de otro Tenant");
     }
 
+    // ---------- Encargo de administración: cuentas con rol de Propiedad (decisión D-8, 2026-10-08) ----------
+
+    /// <summary>
+    /// Quien administra por Encargo de administración: una persona del Operador CAE externo
+    /// (Tenant de origen distinto del que opera) cuyo rol efectivo en el Tenant propietario es
+    /// Administrador o Dirección CAE.
+    /// </summary>
+    private static CurrentUserServiceFalso QuienAdministraPorEncargo(string rolElevado = "Administrador") =>
+        ActorCon(rolElevado, OtroTenant);
+
+    private static CambiarActivacionUsuarioCommandHandler NuevoCambioDeActivacion(
+        IGestionCuentasUsuario puerto, ICurrentUserService actor) =>
+        new(puerto, actor, EnSuTenant, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa(),
+            new CaeManager.Application.Tests.Clientes.BloqueoCarteraUsuarioFalso(), new CatalogoIncorporacionCarteraFalso(),
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen());
+
+    [Theory]
+    [InlineData("Administrador", "Administrador")]
+    [InlineData("Administrador", "DireccionCae")]
+    [InlineData("DireccionCae", "Administrador")]
+    [InlineData("DireccionCae", "DireccionCae")]
+    public async Task Quien_administra_por_encargo_no_actua_sobre_una_cuenta_con_rol_de_Propiedad(
+        string rolElevado, string rolDeLaCuenta)
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia(rolDeLaCuenta, pendiente: true) };
+        var actor = QuienAdministraPorEncargo(rolElevado);
+        var esperado = CuentasConRolDePropiedad.SoloElTenantPropietario;
+
+        (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte()).Handle(Edicion(rolDeLaCuenta), default))
+            .Error.Should().Be(esperado, "ni siquiera conservando su rol: cambiarle el nombre ya es gestionarla");
+        (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte()).Handle(Edicion("GestorCae"), default))
+            .Error.Should().Be(esperado, "degradarla tampoco");
+        // Asignar un rol suelto es solo del Administrador: a Dirección CAE la para antes su falta de autoridad.
+        (await new AsignarRolACuentaCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
+                .Handle(new AsignarRolACuentaCommand(Cuenta, "Consulta"), default))
+            .Error.Should().Be(rolElevado == "Administrador" ? esperado : AutoridadSobreCuentas.SinAutoridad);
+        (await NuevoCambioDeActivacion(puerto, actor).Handle(new(Cuenta, false), default)).Error.Should().Be(esperado);
+        (await NuevoCambioDeActivacion(puerto, actor).Handle(new(Cuenta, true), default)).Error.Should().Be(esperado);
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
+            .Error.Should().Be(esperado);
+        (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
+            .Error.Should().Be(esperado);
+        (await new CorregirCorreoCuentaPendienteCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta, "desviado@x.test"), default))
+            .Error.Should().Be(esperado, "corregirle el correo desviaría su enlace de activación a quien lo pide");
+
+        puerto.Escrituras.Should().BeEmpty("ninguno de los seis comandos llega a escribir");
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    public async Task Quien_administra_por_encargo_no_concede_un_rol_de_Propiedad(string rolDePropiedad)
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
+        var actor = QuienAdministraPorEncargo();
+
+        (await NuevoAlta(puerto, actor, EnSuTenant).Handle(Alta(rolDePropiedad), default))
+            .Error.Codigo.Should().Be("Usuarios.RolReservadoAlTenantDeOrigen");
+        (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte()).Handle(Edicion(rolDePropiedad), default))
+            .Error.Codigo.Should().Be("Usuarios.RolReservadoAlTenantDeOrigen");
+        (await new AsignarRolACuentaCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
+                .Handle(new AsignarRolACuentaCommand(Cuenta, rolDePropiedad), default))
+            .Error.Codigo.Should().Be("Usuarios.RolReservadoAlTenantDeOrigen");
+
+        puerto.Escrituras.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Quien_administra_por_encargo_si_gestiona_las_cuentas_con_rol_de_Operacion()
+    {
+        // Control positivo: la regla del destino no cierra de más. El encargo existe justo para esto.
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
+        var actor = QuienAdministraPorEncargo();
+
+        (await NuevoAlta(puerto, actor, EnSuTenant).Handle(Alta("GestorCae"), default)).EsExitoso.Should().BeTrue();
+        (await new EditarUsuarioCommandHandler(puerto, actor, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte()).Handle(Edicion("CoordinadorCae"), default))
+            .EsExitoso.Should().BeTrue();
+        (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
+            .EsExitoso.Should().BeTrue();
+        (await new EliminarUsuarioPendienteCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
+            .EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Un_Administrador_propio_si_edita_otra_cuenta_Administrador_de_su_Tenant()
+    {
+        // Control positivo: la regla mira la posición de quien actúa, no el rol de la cuenta a secas.
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("Administrador", pendiente: true) };
+        var administradorPropio = ActorCon("Administrador");
+
+        (await new EditarUsuarioCommandHandler(puerto, administradorPropio, EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte()).Handle(Edicion("Administrador"), default))
+            .EsExitoso.Should().BeTrue();
+        (await new GenerarActivacionUsuarioCommandHandler(puerto, administradorPropio, EnSuTenant).Handle(new(Cuenta), default))
+            .EsExitoso.Should().BeTrue();
+    }
+
+    [Fact]
+    public void La_regla_del_destino_falla_cerrada_sin_Tenant_de_origen_o_sin_Tenant_activo()
+    {
+        CuentasConRolDePropiedad.VerificarDestino(["Administrador"], null, Tenant).Error
+            .Should().Be(CuentasConRolDePropiedad.SoloElTenantPropietario);
+        CuentasConRolDePropiedad.VerificarDestino(["DireccionCae"], OtroTenant, null).Error
+            .Should().Be(CuentasConRolDePropiedad.SoloElTenantPropietario);
+        CuentasConRolDePropiedad.VerificarDestino(["GestorCae"], null, Tenant).EsExitoso.Should().BeTrue();
+        CuentasConRolDePropiedad.VerificarDestino(["Administrador"], Tenant, Tenant).EsExitoso.Should().BeTrue();
+    }
+
+    // ---------- Primer usuario elegible (ADR-011 § 2.7, enmienda 2026-10-08, punto 4) ----------
+    // Qué hace el puerto con la cuenta lo prueba PrincipalSinRelevoTests; aquí, que cada hecho
+    // lo dispara dentro de su transacción, solo para los tres perfiles y solo en el propio Tenant.
+
+    [Theory]
+    [InlineData("CoordinadorCae", true)]
+    [InlineData("DireccionCae", true)]
+    [InlineData("Administrador", true)]
+    [InlineData("GestorCae", false)]
+    [InlineData("Consulta", false)]
+    public async Task El_alta_de_una_cuenta_avisa_de_un_posible_primer_elegible_solo_con_perfil_que_puede_serlo(string rol, bool avisa)
+    {
+        var puerto = new GestionCuentasFalsa();
+        var automatica = new AsignacionAutomaticaInerte();
+        var transaccion = new TransaccionDeComandoFalsa();
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant, transaccion: transaccion, automatica: automatica)
+            .Handle(Alta(rol, permiso: true), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        automatica.PrimerosElegibles.Select(p => p.OperadorTenantId).Should().Equal(avisa ? [Tenant] : Array.Empty<Guid>());
+        if (avisa)
+            automatica.PrimerosElegibles.Single().UsuarioId.Should().Be(resultado.Valor.UsuarioId);
+        transaccion.Confirmadas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Si_la_asignacion_al_primer_elegible_pierde_la_carrera_el_alta_no_se_confirma()
+    {
+        var transaccion = new TransaccionDeComandoFalsa();
+
+        var resultado = await NuevoAlta(new GestionCuentasFalsa(), ActorCon("Administrador"), EnSuTenant,
+                transaccion: transaccion, automatica: new AsignacionAutomaticaInerte { Resultado = false })
+            .Handle(Alta("CoordinadorCae"), default);
+
+        resultado.EsFallido.Should().BeTrue();
+        transaccion.Confirmadas.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("CoordinadorCae", true)]
+    [InlineData("DireccionCae", true)]
+    [InlineData("GestorCae", false)]
+    public async Task Cambiar_el_rol_de_una_cuenta_avisa_de_un_posible_primer_elegible(string rol, bool avisa)
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("Consulta") };
+        var automatica = new AsignacionAutomaticaInerte();
+        var transaccion = new TransaccionDeComandoFalsa();
+
+        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, transaccion, automatica)
+            .Handle(Edicion(rol), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        automatica.PrimerosElegibles.Should().Equal(avisa ? [(Cuenta, Tenant)] : []);
+        transaccion.Confirmadas.Should().Be(1, "el cambio de rol y la cartera se confirman juntos");
+    }
+
+    [Fact]
+    public async Task Si_la_asignacion_pierde_la_carrera_el_cambio_de_rol_se_deshace()
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("Consulta") };
+        var transaccion = new TransaccionDeComandoFalsa();
+
+        var resultado = await new EditarUsuarioCommandHandler(
+                puerto, ActorCon("Administrador"), EnSuTenant, transaccion, new AsignacionAutomaticaInerte { Resultado = false })
+            .Handle(Edicion("CoordinadorCae"), default);
+
+        resultado.Error.Should().Be(EditarUsuarioCommandHandler.RolNoCambiado);
+        transaccion.Deshechas.Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData("Administrador", true)]
+    [InlineData("GestorCae", false)]
+    public async Task Asignar_rol_a_una_cuenta_pendiente_avisa_de_un_posible_primer_elegible(string rol, bool avisa)
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia(null, pendiente: true) };
+        var automatica = new AsignacionAutomaticaInerte();
+
+        var resultado = await new AsignarRolACuentaCommandHandler(
+                puerto, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), automatica)
+            .Handle(new AsignarRolACuentaCommand(Cuenta, rol), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        automatica.PrimerosElegibles.Should().Equal(avisa ? [(Cuenta, Tenant)] : []);
+    }
+
     // ---------- Dobles ----------
 
     private static CrearUsuarioCommandHandler NuevoAlta(
         IGestionCuentasUsuario puerto, ICurrentUserService actor, ITenantActual tenant,
-        CatalogoIncorporacionCarteraFalso? catalogo = null, TransaccionDeComandoFalsa? transaccion = null) =>
-        new(puerto, actor, tenant, catalogo ?? new CatalogoIncorporacionCarteraFalso(), transaccion ?? new TransaccionDeComandoFalsa());
+        CatalogoIncorporacionCarteraFalso? catalogo = null, TransaccionDeComandoFalsa? transaccion = null,
+        AsignacionAutomaticaInerte? automatica = null) =>
+        new(puerto, actor, tenant, catalogo ?? new CatalogoIncorporacionCarteraFalso(), transaccion ?? new TransaccionDeComandoFalsa(),
+            automatica ?? new AsignacionAutomaticaInerte());
 
     private static CrearUsuarioCommand Alta(string rol, bool permiso = false, IReadOnlyCollection<Guid>? tenantsCartera = null) =>
         new("nueva@x.test", "Nueva", rol, null, null, permiso, tenantsCartera);

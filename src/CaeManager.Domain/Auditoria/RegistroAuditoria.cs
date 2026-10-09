@@ -21,6 +21,15 @@ public class RegistroAuditoria : EntidadConTenant
     public const string AccionAccesoDatoSensible = "AccesoDatoSensible";
 
     /// <summary>
+    /// Acción de una <b>exportación</b> a Excel de un listado con datos personales
+    /// (hoy, el de Trabajadores, que lleva el DNI): una fila por descarga, no por
+    /// Trabajador. <see cref="EntidadId"/> va vacío —no hay una fila concreta— y
+    /// <see cref="DatosDespues"/> lleva cuántas filas salieron y con qué criterios,
+    /// nunca los datos exportados. La escribe <c>IRegistroExportacionService</c>.
+    /// </summary>
+    public const string AccionExportacion = "Exportacion";
+
+    /// <summary>
     /// Acción de una <b>restauración</b>: deshacer una acción reciente devolviendo los
     /// valores exactos previos. La escribe el interceptor (no un servicio aparte) a
     /// petición de la entidad, vía <see cref="IAccionAuditoriaPropia"/>, así que es

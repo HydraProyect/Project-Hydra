@@ -1,5 +1,6 @@
 using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Components;
@@ -38,11 +39,26 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private readonly HashSet<string> _politicasConcedidas = [];
 
+    /// <summary>
+    /// Quien administra por Encargo de administración (decisión D-8, 2026-10-08)
+    /// no ve ni resuelve las entradas de <see cref="PaginasExcluidasDelEncargo"/>.
+    /// A diferencia de las políticas de arriba, aquí el filtro <b>sí es la
+    /// barrera</b> de pantalla: un panel embebido con <c>DynamicComponent</c> no
+    /// pasa por la autorización de su propia página. <c>null</c> mientras no se
+    /// conoce al usuario, y entonces se trata como si actuara por encargo: el
+    /// primer render no puede enseñar un panel excluido.
+    /// </summary>
+    private bool? _actuaPorEncargo;
+
     protected override async Task OnInitializedAsync()
     {
+        // El principal va antes que cualquier espera real: el estado de autenticación del circuito
+        // ya está resuelto, así que esto se asigna antes del primer render.
+        var usuario = (await EstadoAutenticacion.GetAuthenticationStateAsync()).User;
+        _actuaPorEncargo = PaginasExcluidasDelEncargo.ActuaPorEncargo(usuario);
+
         _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
 
-        var usuario = (await EstadoAutenticacion.GetAuthenticationStateAsync()).User;
         foreach (var politica in ConstruirGrupos().SelectMany(g => g.Entradas).Select(e => e.Politica).OfType<string>().Distinct())
             if ((await Autorizacion.AuthorizeAsync(usuario, politica)).Succeeded)
                 _politicasConcedidas.Add(politica);
@@ -125,6 +141,7 @@ public partial class Configuracion : CaeManager.Web.Components.PaginaInteractiva
             Entradas = g.Entradas
                 .Where(e => !e.SoloActorPlataforma || _esAdministradorPlataforma)
                 .Where(e => e.Politica is null || _politicasConcedidas.Contains(e.Politica))
+                .Where(e => _actuaPorEncargo == false || !PaginasExcluidasDelEncargo.Contiene(e.TipoPanel))
                 .ToList()
         })
         .ToList();

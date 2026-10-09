@@ -1,9 +1,11 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas.GestionPorCorreo;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Visitas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -47,11 +49,20 @@ public record DetalleVisitaDto(
     bool EstaCancelada = false,
     string? MotivoCancelacion = null,
     // Versión de la Visita tal como se abrió la ficha: «Reactivar» la devuelve en el Command.
-    Guid Version = default);
+    Guid Version = default,
+    // Visita 360: la página no parte de una fila del listado, así que el detalle trae lo que
+    // el Drawer tomaba de ella (origen y urgencia) y los Id que enlazan a Centro 360 y a la
+    // página 360 del titular del Centro. EmpresaTitularId es la Empresa
+    // titular del Centro (el Cliente empresarial), no un Cliente comercial TALVEG.
+    Guid CentroId = default,
+    Guid EmpresaTitularId = default,
+    OrigenVisita Origen = OrigenVisita.Manual,
+    NivelUrgenciaVisita NivelUrgencia = NivelUrgenciaVisita.Normal);
 
 public class ObtenerDetalleVisitaQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
-    ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
+    ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos,
+    IConfiguracionQueryContext configuracionContext)
     : IRequestHandler<ObtenerDetalleVisitaQuery, DetalleVisitaDto?>
 {
     public async Task<DetalleVisitaDto?> Handle(ObtenerDetalleVisitaQuery request, CancellationToken cancellationToken)
@@ -70,6 +81,7 @@ public class ObtenerDetalleVisitaQueryHandler(
                 CentroId = centro.Id,
                 CentroNombre = centro.Nombre,
                 centro.GestionCae,
+                EmpresaTitularId = cliente.Id,
                 ClienteRazonSocial = cliente.RazonSocial,
                 EmpresaId = empresa.Id,
                 EmpresaRazonSocial = empresa.RazonSocial,
@@ -77,6 +89,7 @@ public class ObtenerDetalleVisitaQueryHandler(
                 v.FechaFin,
                 v.Notas,
                 v.NotificadoCliente,
+                v.Origen,
                 v.HoraEstimadaAcceso,
                 v.FechaHoraSolicitudUtc,
                 v.FechaHoraExpedienteCompletoUtc,
@@ -110,6 +123,14 @@ public class ObtenerDetalleVisitaQueryHandler(
             .Select(t => new TrabajadorVisitaDto(t.Id, t.Nombre + " " + t.Apellidos))
             .ToListAsync(cancellationToken);
 
+        // Misma regla que el listado (ObtenerVisitasQuery): una cancelada no es urgente,
+        // aunque sus fechas lo fueran.
+        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
+        var nivelUrgencia = visita.EstaCancelada
+            ? NivelUrgenciaVisita.Normal
+            : CalculadoraUrgenciaVisita.Calcular(
+                visita.FechaInicio, visita.FechaFin, DiaDeNegocio.Hoy(), parametros.HorasAvisoVisita, parametros.HorasCriticasVisita);
+
         return new DetalleVisitaDto(
             visita.Id, visita.CentroNombre, visita.ClienteRazonSocial, visita.EmpresaId, visita.EmpresaRazonSocial,
             visita.FechaInicio, visita.FechaFin, visita.Notas, visita.NotificadoCliente, trabajadores,
@@ -119,6 +140,10 @@ public class ObtenerDetalleVisitaQueryHandler(
             gestionadoPorCorreo,
             visita.EstaCancelada,
             visita.MotivoCancelacion,
-            visita.Version);
+            visita.Version,
+            visita.CentroId,
+            visita.EmpresaTitularId,
+            visita.Origen,
+            nivelUrgencia);
     }
 }

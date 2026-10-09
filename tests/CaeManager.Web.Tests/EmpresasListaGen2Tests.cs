@@ -14,6 +14,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
+using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Tenants;
@@ -67,6 +68,9 @@ public class EmpresasListaGen2Tests : BunitContext
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> ClientesDe { get; } = [];
         public HashSet<Guid> ClientesQueFallan { get; } = [];
 
+        /// <summary>Lo que devuelve la consulta de la cabecera «Gestor CAE»; vacía = no se pinta.</summary>
+        public List<CarterasDeOperacion> Carteras { get; } = [];
+
         /// <summary>
         /// Empresas fuera del alcance de gestión: la consulta de la fila desplegada devuelve vacío aunque
         /// tengan Clientes empresariales, igual que <c>ObtenerClientesDeEmpresaQueryHandler</c> (REC-153). La
@@ -119,6 +123,7 @@ public class EmpresasListaGen2Tests : BunitContext
                     ? []
                     : (ClientesDe.GetValueOrDefault(c.EmpresaId) ?? []).ToList()),
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Array.Empty<ClienteSelectorDto>(),
+            ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)Carteras,
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
             EliminarEmpresaCommand => Result.Exito(),
             EliminarEmpresasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(
@@ -311,8 +316,11 @@ public class EmpresasListaGen2Tests : BunitContext
             .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nueva empresa");
 
         await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
-        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim()).Should().Equal("Exportar a Excel");
-        cut.Find("header.cabecera-pagina a.menu-acciones-item").GetAttribute("href").Should().Be("/empresas/exportar.xlsx");
+        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim()).Should().SatisfyRespectively(
+                vista => vista.Should().StartWith("Exportar esta vista (filas: "),
+                todo => todo.Should().Be("Exportar todo"));
+        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
+            .Should().Equal("/empresas/exportar.xlsx", "/empresas/exportar.xlsx");
     }
 
     [Fact]
@@ -617,20 +625,22 @@ public class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         cut.FindAll(".fila-empresa-en-vista-previa").Should().BeEmpty("sin vista previa abierta no se marca ninguna");
 
-        // La vista previa es el panel del Context Workspace, que se abre desde
-        // «Vista rápida» del menú de fila (el nombre navega a Empresa 360).
-        var fila = cut.FindAll(".tarjeta-fila-acordeon")[1];
-        fila.QuerySelector(".menu-acciones-disparador")!.Click();
-        await cut.FindAll(".tarjeta-fila-acordeon")[1].QuerySelectorAll("button")
-            .Single(b => b.TextContent.Trim() == "Vista rápida").ClickAsync(new MouseEventArgs());
+        // La vista previa es el panel del Context Workspace, que se abre con un clic
+        // en cualquier punto de la fila.
+        await cut.FindAll(".fila-pulsable")[1].ClickAsync(new MouseEventArgs());
 
         var marcadas = cut.FindAll(".fila-empresa-en-vista-previa");
         marcadas.Should().ContainSingle();
         marcadas[0].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Montajes Ebro S.L.");
     }
 
+    /// <summary>
+    /// Patrón de listados sin menú «⋯» (2026-10-08): un clic en la fila abre la vista rápida y
+    /// a la página Empresa 360 (decisión 2026-09-22: cada 360 tiene página propia) se va con el
+    /// icono 360 del final de la fila, que es un enlace real y se puede abrir en otra pestaña.
+    /// </summary>
     [Fact]
-    public async Task El_nombre_de_la_fila_enlaza_a_Empresa_360_y_Vista_rapida_abre_el_panel()
+    public async Task El_clic_en_la_fila_abre_la_vista_rapida_y_el_icono_360_enlaza_a_la_pagina()
     {
         var empresa = Empresa("Refrielectric S.A.");
         var mediador = new MediatorFalso
@@ -640,28 +650,145 @@ public class EmpresasListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        // Decisión del propietario 2026-09-22: el nombre es un enlace real a la
-        // página, que se puede abrir en otra pestaña; ya no abre un drawer.
-        var enlace = cut.Find(".enlace-nombre-fila");
-        enlace.TagName.Should().Be("A");
-        enlace.GetAttribute("href").Should().Be($"/empresas/{empresa.Id}");
+        cut.FindAll(".lista-filas-acordeon .menu-acciones-disparador").Should().BeEmpty("la fila no lleva menú «⋯»");
+
+        var icono360 = cut.Find(".lista-filas-acordeon a.boton-360-pagina");
+        icono360.GetAttribute("href").Should().Be($"/empresas/{empresa.Id}");
 
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
         workspace.FrameActual.Should().BeNull("punto de partida: ningún panel abierto");
 
-        // Mismo menú que la lista Clientes: «Vista rápida» abre el panel y
-        // «Abrir ficha 360» navega a la página. «Detalles» (el drawer) ya no existe.
-        cut.Find(".lista-filas-acordeon .menu-acciones-disparador").Click();
-        cut.FindAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
-            .Should().Contain(["Vista rápida", "Abrir ficha 360"]).And.NotContain("Detalles");
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Vista rápida").ClickAsync(new MouseEventArgs());
+        await cut.Find(".fila-pulsable").ClickAsync(new MouseEventArgs());
 
         workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresa.Id, "Refrielectric S.A.", "informacion"));
+    }
 
-        var navegacion = Services.GetRequiredService<NavigationManager>();
-        cut.Find(".lista-filas-acordeon .menu-acciones-disparador").Click();
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Abrir ficha 360").ClickAsync(new MouseEventArgs());
-        new Uri(navegacion.Uri).AbsolutePath.Should().Be($"/empresas/{empresa.Id}");
+    /// <summary>
+    /// El nombre es el destino de teclado del clic en la fila (la fila entera no se alcanza
+    /// con Tab): un botón con nombre accesible propio, no un enlace a la página.
+    /// </summary>
+    [Fact]
+    public async Task El_nombre_de_la_fila_es_un_boton_que_abre_la_vista_rapida()
+    {
+        var empresa = Empresa("Refrielectric S.A.");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { empresa },
+            Retener = p => p is ObtenerEmpresaPorIdQuery ? new TaskCompletionSource<object>().Task : null
+        };
+        var cut = Renderizar(mediador);
+
+        var nombre = cut.Find(".enlace-nombre-fila");
+        nombre.TagName.Should().Be("BUTTON");
+        nombre.GetAttribute("aria-label").Should().Be("Abrir la vista rápida de Refrielectric S.A.");
+
+        await nombre.ClickAsync(new MouseEventArgs());
+
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual
+            .Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresa.Id, "Refrielectric S.A.", "informacion"));
+    }
+
+    /// <summary>
+    /// Los controles de dentro de la fila hacen lo suyo y no dejan subir el clic: copiar el
+    /// CIF no abre además la vista rápida.
+    /// <para>
+    /// El desplegable y la pastilla de detecciones NO se prueban aquí: su propio manejador
+    /// repinta la lista, bUnit pierde entonces el manejador de la fila y el test queda en
+    /// verde aunque se quite el corte (medido por mutación, 2026-10-09). Esa propiedad la
+    /// prueba <c>EmpresasFilaSinMenuE2ETests</c> en un navegador real.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task Copiar_el_cif_no_abre_la_vista_rapida()
+    {
+        const string selector = ".boton-copiar-en-linea";
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
+        var cut = Renderizar(mediador);
+
+        await cut.Find(".lista-filas-acordeon " + selector).ClickAsync(new MouseEventArgs());
+
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual
+            .Should().BeNull("el clic se queda en el control; solo el resto de la fila abre el panel");
+    }
+
+    /// <summary>
+    /// La casilla (que reacciona al cambio, no al clic) y el icono 360 (que navega el
+    /// navegador) no tienen manejador de clic propio y cortan la subida: bUnit lo dice con
+    /// «nadie recibe este clic». Sin el corte, el clic llegaría a la fila —que sí lo
+    /// atiende— y no habría excepción.
+    /// </summary>
+    [Theory]
+    [InlineData("input[aria-label='Seleccionar Refrielectric S.A.']")]
+    [InlineData("a.boton-360-pagina")]
+    public async Task La_casilla_y_el_icono_360_cortan_el_clic_antes_de_la_fila(string selector)
+    {
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
+        var cut = Renderizar(mediador);
+        await AlternarSeleccionMultiple(cut);
+
+        var clic = () => cut.Find(".lista-filas-acordeon " + selector).ClickAsync(new MouseEventArgs());
+
+        await clic.Should().ThrowAsync<MissingEventHandlerException>();
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull();
+    }
+
+    /// <summary>El CIF se copia con un clic desde la fila, con nombre accesible que dice qué copia.</summary>
+    [Fact]
+    public void El_cif_de_la_fila_es_copiable_y_una_empresa_sin_cif_no_ofrece_copiar_nada()
+    {
+        var conCif = Empresa("Refrielectric S.A.");
+        var sinCif = Empresa("Montajes Ebro S.L.", cif: null);
+        var cut = Renderizar(new MediatorFalso { Almacen = { conCif, sinCif } });
+
+        var copiables = cut.FindAll(".lista-filas-acordeon .boton-copiar-en-linea");
+        copiables.Should().ContainSingle("solo hay un CIF que copiar");
+        copiables[0].TextContent.Trim().Should().Be(conCif.Cif);
+        copiables[0].GetAttribute("aria-label").Should().Be($"Copiar el CIF {conCif.Cif}");
+    }
+
+    /// <summary>
+    /// Tecla «x»: marcar una fila enciende la selección múltiple. Una fila marcada sin casilla
+    /// a la vista sería selección invisible justo antes de «Eliminar seleccionados».
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_x_enciende_la_seleccion_multiple_y_marca_la_fila_enfocada()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } });
+        cut.FindAll("input[aria-label='Seleccionar Refrielectric S.A.']").Should().BeEmpty("punto de partida: sin casillas");
+
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("j"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("x"));
+
+        cut.Find("input[aria-label='Seleccionar Refrielectric S.A.']").HasAttribute("checked").Should().BeTrue();
+        cut.FindAll(".barra-acciones-lote button").Select(b => b.TextContent.Trim()).Should().Contain("Eliminar seleccionados");
+    }
+
+    /// <summary>
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición. La petición queda en el
+    /// servicio para que el panel la atienda (y solo para esa ficha).
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_abre_la_vista_rapida_de_la_fila_enfocada_pidiendo_edicion()
+    {
+        var empresa = Empresa("Refrielectric S.A.");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { empresa },
+            Retener = p => p is ObtenerEmpresaPorIdQuery ? new TaskCompletionSource<object>().Task : null
+        };
+        var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("e"));
+        workspace.FrameActual.Should().BeNull("sin fila enfocada ni panel abierto, «e» no tiene qué editar");
+
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("j"));
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("e"));
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresa.Id, "Refrielectric S.A.", "informacion"));
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, empresa.Id).Should().BeTrue("la edición quedó pedida para esa ficha");
     }
 
     /// <summary>
@@ -938,55 +1065,90 @@ public class EmpresasListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// P41b (2026-09-19): la baja de la empresa solo vive aquí, en la lista; la
-    /// ficha 360 ya no la ofrece. Lo que se pierda en este menú, se pierde en
-    /// todo el producto: pide confirmación y manda el comando de ESA fila.
+    /// Sin fila enfocada, «e» edita la ficha que esté abierta, aunque su Empresa no esté en la
+    /// página (el filtro la dejó fuera o la lista está vacía): el nombre sale del frame abierto
+    /// (hallazgo de la revisión puente).
     /// </summary>
     [Fact]
-    public async Task Eliminar_desde_el_menu_pide_confirmacion_y_despues_manda_el_comando_de_esa_fila()
+    public async Task La_tecla_e_sin_fila_enfocada_edita_la_ficha_abierta_aunque_no_este_en_la_lista()
     {
-        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
-        var id = mediador.Almacen[0].Id;
+        var fueraDeLaLista = Guid.NewGuid();
+        var mediador = new MediatorFalso
+        {
+            Retener = p => p is ObtenerEmpresaPorIdQuery ? new TaskCompletionSource<object>().Task : null
+        };
         var cut = Renderizar(mediador);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Empresa, fueraDeLaLista, "Montajes Ebro S.L.", "documentacion"));
 
-        // MenuAcciones no pinta sus ítems hasta que se abre.
-        await cut.Find(".lista-filas-acordeon .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar")
-            .ClickAsync(new MouseEventArgs());
+        await cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo("e"));
 
-        cut.Markup.Should().Contain("¿Eliminar a Refrielectric S.A.?", "el diálogo de confirmación es la barrera");
-        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Should().BeEmpty("pulsar el menú no puede borrar sin confirmar");
-
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar")
-            .ClickAsync(new MouseEventArgs());
-
-        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Select(c => c.Id).Should().Equal([id],
-            "se elimina la fila cuyo menú se abrió, y solo esa");
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Empresa, fueraDeLaLista, "Montajes Ebro S.L.", "informacion"));
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, fueraDeLaLista).Should().BeTrue();
     }
 
     /// <summary>
-    /// El Workspace no es modal: con la ficha de la empresa abierta, la baja se
-    /// confirma desde la fila que queda detrás. La ficha ya no tiene baja
-    /// propia (P41b), así que la lista es quien la retira.
+    /// Una fila que se enfocó y ya no está en la página (cambió el filtro o la página) no es
+    /// «la fila enfocada»: «e» edita entonces la ficha abierta, que es lo que el usuario ve.
     /// </summary>
     [Fact]
-    public async Task Eliminar_la_empresa_cuya_ficha_esta_abierta_retira_la_ficha()
+    public async Task La_tecla_e_no_edita_una_fila_enfocada_que_ya_no_esta_en_la_pagina()
     {
-        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A.") } };
-        var id = mediador.Almacen[0].Id;
+        var enfocada = Empresa("Aislamientos Nervión S.L.");
+        var delPanel = Empresa("Refrielectric S.A.");
+        var mediador = new MediatorFalso
+        {
+            Almacen = { enfocada, delPanel },
+            Retener = p => p is ObtenerEmpresaPorIdQuery ? new TaskCompletionSource<object>().Task : null
+        };
         var cut = Renderizar(mediador);
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Empresa, id, "Refrielectric S.A.", "informacion"));
-        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("j"));
+        cut.Find(".fila-enfocada .enlace-nombre-fila").TextContent.Trim().Should().Be("Aislamientos Nervión S.L.", "control positivo");
 
-        await cut.Find(".lista-filas-acordeon .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar")
-            .ClickAsync(new MouseEventArgs());
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar")
+        mediador.Almacen.Remove(enfocada);
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("empresas?q=Refrielectric"));
+        cut.WaitForAssertion(() => cut.FindAll(".enlace-nombre-fila").Select(n => n.TextContent.Trim())
+            .Should().Equal(["Refrielectric S.A."], "control positivo: la fila enfocada salió de la página"));
+        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Empresa, delPanel.Id, delPanel.RazonSocial, "documentacion"));
+
+        await cut.InvokeAsync(() => atajos.RecibirAtajo("e"));
+
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, enfocada.Id).Should().BeFalse();
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, delPanel.Id).Should().BeTrue("se edita la ficha que se está viendo");
+    }
+
+    /// <summary>
+    /// P41b (2026-09-19): la baja de la empresa solo vive aquí, en la lista; la ficha 360 ya no
+    /// la ofrece. Y dentro de la lista, solo en la selección múltiple (patrón de listados sin
+    /// menú «⋯», 2026-10-08): la fila no la ofrece. Lo que se pierda aquí se pierde en todo el
+    /// producto: pide confirmación y manda el lote con ESA fila.
+    /// </summary>
+    [Fact]
+    public async Task Eliminar_solo_esta_en_la_seleccion_multiple_pide_confirmacion_y_manda_esa_fila()
+    {
+        var mediador = new MediatorFalso { Almacen = { Empresa("Refrielectric S.A."), Empresa("Montajes Ebro S.L.") } };
+        var id = mediador.Almacen[0].Id;
+        var cut = Renderizar(mediador);
+
+        cut.FindAll(".lista-filas-acordeon button").Select(b => b.TextContent.Trim())
+            .Should().NotContain("Eliminar", "la fila no ofrece la baja");
+
+        await AlternarSeleccionMultiple(cut);
+        await cut.Find("input[aria-label='Seleccionar Refrielectric S.A.']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
             .ClickAsync(new MouseEventArgs());
 
-        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Should().ContainSingle("la baja se ejecutó");
-        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de una entidad ya dada de baja no puede seguir editable");
+        cut.FindAll("[role=dialog]").Should().NotBeEmpty("el diálogo de confirmación es la barrera");
+        mediador.Enviadas.OfType<EliminarEmpresasCommand>().Should().BeEmpty("pulsar «Eliminar seleccionados» no puede borrar sin confirmar");
+
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar")
+            .ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<EliminarEmpresasCommand>().Single().Ids.Should().Equal([id],
+            "se elimina la fila marcada, y solo esa");
+        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Should().BeEmpty("la baja individual ya no tiene entrada en la lista");
     }
 
     /// <summary>
@@ -1060,11 +1222,13 @@ public class EmpresasListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Cliente, empresa.Id, empresa.RazonSocial, "informacion"));
         workspace.FrameActual!.Tipo.Should().Be(EntidadWorkspace.Cliente, "control positivo: el frame es de tipo Cliente");
 
-        await cut.Find(".lista-filas-acordeon .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
-        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
+        await AlternarSeleccionMultiple(cut);
+        await cut.Find("input[aria-label='Seleccionar Refrielectric S.A.']").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Eliminar seleccionados")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new MouseEventArgs());
 
-        mediador.Enviadas.OfType<EliminarEmpresaCommand>().Should().ContainSingle("la baja se ejecutó");
+        mediador.Enviadas.OfType<EliminarEmpresasCommand>().Should().ContainSingle("la baja se ejecutó");
         workspace.EstaAbierto.Should().BeFalse("es la misma fila: la ficha del Cliente empresarial quedaría viva sobre algo eliminado");
     }
 

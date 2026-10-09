@@ -1,6 +1,8 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Importacion;
+using CaeManager.Domain.Documentos;
 using CaeManager.Web.Exportacion;
+using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
 
@@ -16,7 +18,10 @@ public static class ClientesEndpoints
 {
     public static IEndpointRouteBuilder MapClientesEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/clientes/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/clientes/exportar.xlsx", async (
+            IMediator mediator, CancellationToken cancellationToken,
+            string? q = null, bool critico = false, string? ejecutivo = null, string? estado = null,
+            string? orden = null, bool desc = false) =>
         {
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Clientes");
@@ -32,7 +37,17 @@ public static class ClientesEndpoints
             var fila = 2;
             await foreach (var cliente in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
                 mediator.Send(
-                    new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    new ObtenerClientesQuery(
+                        // Posicionales, en el orden del record: búsqueda, solo críticos,
+                        // Gestor CAE de referencia y estado documental.
+                        string.IsNullOrWhiteSpace(q) ? null : q,
+                        critico ? true : null,
+                        Guid.TryParse(ejecutivo, out var ejecutivoId) ? ejecutivoId : null,
+                        Enum.TryParse<EstadoDocumento>(estado, out var estadoDocumental) ? estadoDocumental : null,
+                        Pagina: pagina,
+                        TamanoPagina: tamanoPagina,
+                        OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
+                        Descendente: desc),
                     cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = cliente.RazonSocial;
@@ -80,14 +95,16 @@ public static class ClientesEndpoints
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "plantilla-clientes.xlsx"))
-        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador));
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         endpoints.MapGet("/clientes/plantilla-combinada.xlsx", (IPlantillaCombinadaService servicio) =>
             Results.File(
                 servicio.GenerarPlantilla(),
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "plantilla-combinada.xlsx"))
-        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador));
+        .RequireAuthorization(policy => policy.RequireRole(CaeManager.Infrastructure.Identity.Roles.Administrador))
+        .ExcluidoDelEncargoDeAdministracion();
 
         return endpoints;
     }

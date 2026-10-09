@@ -45,6 +45,8 @@ public static class ApplicationServiceCollectionExtensions
         // Esqueleto común de los Commands que cambian una tarea del asistente de flujos.
         services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
         services.AddScoped<CaeManager.Application.Clientes.ReasignadorCarteraCliente>();
+        services.AddScoped<CaeManager.Application.Operaciones.IAsignacionAutomaticaDePrincipal,
+            CaeManager.Application.Operaciones.AsignacionAutomaticaDePrincipal>();
         // Quién puede restablecer la 2FA de otra cuenta, separado del acto: el
         // Administrador del Tenant (P0-8) o Soporte TALVEG con Sesión Privilegiada
         // (ADR-011 § 8.7, punto 3). La compuesta elige por la sesión, nunca prueba los dos.
@@ -77,6 +79,33 @@ public static class ApplicationServiceCollectionExtensions
         // Valor por defecto: la implementación real (Infrastructure) es la misma instancia scoped de
         // AlcanceDatosService, que es quien memoiza.
         services.TryAddScoped<IInvalidadorAlcance, InvalidadorAlcanceInerte>();
+        // Señal «actúa por Encargo de administración» (decisión D-8, 2026-10-08): la da LA MISMA
+        // instancia que resuelve el rol efectivo, porque es la misma función. Se reenvía aquí, y no
+        // en cada composición, para que no exista un contenedor donde las dos se resuelvan a
+        // objetos distintos.
+        //
+        // Un ICurrentUserService registrado que NO da la señal es un error de composición, y falla
+        // al resolver: degradarlo en silencio a «sin encargo» dejaría el rol elevado sin
+        // exclusiones, sin vía de auditoría y sin corte del circuito el día que alguien envuelva o
+        // sustituya CurrentUserService (revisión previa a PR, 2026-10-09). Un doble de prueba que
+        // entre en un contenedor con AddApplication() declara la señal él mismo (los compartidos
+        // dicen «sin encargo») o registra IEncargoDeAdministracionActual a mano.
+        //
+        // Sin ningún ICurrentUserService registrado no hay sesión de usuario, y «sin encargo» es
+        // la respuesta exacta. Medido el 2026-10-09: en src/ solo la aplicación web llama a
+        // AddApplication(), y siempre registra CurrentUserService; ese caso solo se da en
+        // contenedores de prueba.
+        services.TryAddScoped<IEncargoDeAdministracionActual>(sp =>
+            sp.GetService<ICurrentUserService>() switch
+            {
+                null => SinEncargoDeAdministracion.Instancia,
+                IEncargoDeAdministracionActual senal => senal,
+                var otro => throw new InvalidOperationException(
+                    $"{otro.GetType().FullName} está registrado como {nameof(ICurrentUserService)} y no implementa "
+                    + $"{nameof(IEncargoDeAdministracionActual)}: el rol efectivo podría elevarse por Encargo de "
+                    + "administración sin que lo supieran ni las exclusiones ni la auditoría. La señal la da la misma "
+                    + "clase que resuelve el rol efectivo."),
+            });
         // Orden importa. LoggingBehavior va el primero de todos: mide lo que
         // el usuario espera de verdad, incluido el tiempo en la cola de
         // acceso a datos, y su ámbito de log correlaciona todo lo que
@@ -104,6 +133,10 @@ public static class ApplicationServiceCollectionExtensions
         // bloqueado por rol ni siquiera necesita la consulta a Tenants que
         // hace este behavior (Horizonte 1.7, "Billing mínimo viable").
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(GateComercialTenantBehavior<,>));
+        // Después de la autorización de escritura: lo que el rol elevado por un Encargo de
+        // administración abriría y el encargo no cubre (decisión D-8, 2026-10-08). Se aplica
+        // a Commands y a Queries: varias de las áreas excluidas son de solo lectura.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ExclusionesDelEncargoBehavior<,>));
         // Aparte de AutorizacionEscritura porque responde a otra pregunta: no
         // "¿puede escribir?" sino "¿puede ver ESTE recurso?" — y se aplica a
         // Queries, que aquel deja pasar por definición.
@@ -143,6 +176,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IValidacionDocumentoOficialService, ValidacionDocumentoOficialService>();
         services.AddScoped<IRegistroAccesoDocumentoSensibleService, RegistroAccesoDocumentoSensibleService>();
         services.AddScoped<IRegistroAccesoDatoSensibleService, RegistroAccesoDatoSensibleService>();
+        services.AddScoped<IRegistroExportacionService, RegistroExportacionService>();
 
         // Parsers de documento oficial: lógica pura (regex sobre texto),
         // singletons sin estado; el registry los indexa por perfil.

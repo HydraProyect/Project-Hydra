@@ -305,7 +305,7 @@ public class RolesGen2Tests : BunitContext
 
         var cuentas = new GestionCuentasControlada(_usuarios, CrearDirectorio(), _fuente);
         var administrador = new AdministradorFalso(() => _mediador.RolesNoAsignables.Count > 0);
-        _mediador.Asignar = c => new AsignarRolACuentaCommandHandler(cuentas, administrador, ContextWorkspaceDelArnes.Instancia)
+        _mediador.Asignar = c => new AsignarRolACuentaCommandHandler(cuentas, administrador, ContextWorkspaceDelArnes.Instancia, new TransaccionSinBaseDeDatos(), new AsignacionAutomaticaInerte())
             .Handle(c, CancellationToken.None);
 
         return Render<RolesControlados>(p => p.Add(c => c.IntegradaEnConfiguracion, integrada));

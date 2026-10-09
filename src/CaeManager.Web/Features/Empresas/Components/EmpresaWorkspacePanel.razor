@@ -57,16 +57,22 @@ else
             <AnilloCumplimiento Porcentaje="_cumplimiento" Tamano="TamanoAnillo.Medio"
                                  Etiqueta="@($"{_cumplimiento}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad")" />
         }
-        @if (PestanaActiva == "informacion" && !_editandoInformacion)
+        @if (!_editandoInformacion)
         {
-            @* La edición es también la única entrada a las credenciales de la Plataforma
+            @* El lápiz vive en la cabecera en todas las pestañas (patrón de listados: la fila no
+               lleva menú y editar se hace desde el panel, también con la tecla «e»). Desde otra
+               pestaña lleva primero a «Información», que es donde está el formulario.
+               La edición es también la única entrada a las credenciales de la Plataforma
                CAE («Copiar contraseña»): solo roles con escritura (decisión 2026-09-23). *@
             <SoloConEscritura>
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacionAsync" aria-label="Editar información de la empresa">
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="EditarDesdeCabeceraAsync"
+                       aria-label="Editar información de la empresa" title="Editar (e)">
                     <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
                 </Boton>
             </SoloConEscritura>
         }
+        @* Icono 360 del catálogo: lleva a la página completa de Empresa 360. *@
+        <Boton360 Nombre="@_detalle.RazonSocial" Href="@($"/empresas/{_detalle.Id}")" />
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
@@ -344,7 +350,49 @@ else
             ? p with { Etiqueta = $"{p.Etiqueta} ({_clientes.Count})" }
             : p).ToList();
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        WorkspaceService.OnEdicionSolicitada += AlSolicitarEdicion;
+    }
+
+    private void AlSolicitarEdicion() => InvokeAsync(async () =>
+    {
+        await AtenderEdicionSolicitadaAsync();
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Tecla «e» de un listado (<c>ContextWorkspaceService.AbrirEnEdicionAsync</c>): equivale
+    /// a pulsar el lápiz de la cabecera. Solo se consume con el detalle ya cargado; si llega
+    /// antes, la atiende el final de la carga. El lápiz va dentro de <c>SoloConEscritura</c>,
+    /// así que aquí se repite su misma condición: un rol de Consulta no entra en edición.
+    /// </summary>
+    private async Task AtenderEdicionSolicitadaAsync()
+    {
+        if (_detalle is null || _detalle.Id != EntidadId)
+            return;
+        if (!WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, EntidadId))
+            return;
+        if (_editandoInformacion || EstadoAutenticacion is null)
+            return;
+
+        var usuario = (await EstadoAutenticacion).User;
+        if (!CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole))
+            return;
+
+        await IniciarEdicionInformacionAsync();
+    }
+
+    private async Task EditarDesdeCabeceraAsync()
+    {
+        if (PestanaActiva != "informacion")
+            await PestanaActivaChanged.InvokeAsync("informacion");
+
+        await IniciarEdicionInformacionAsync();
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -373,6 +421,7 @@ else
         var generacion = _generacion;
         var carga = ++_cargaCabecera;
         var id = EntidadId;
+        var cargada = false;
         _cargando = true;
         _error = false;
 
@@ -384,18 +433,29 @@ else
             if (generacion != _generacion || carga != _cargaCabecera) return;
             _detalle = detalle;
             _cumplimiento = cumplimiento;
+            cargada = true;
         }
         catch (OperationCanceledException) when (cancelacion.IsCancellationRequested) { }
         catch (Exception)
         {
             if (generacion == _generacion && carga == _cargaCabecera)
+            {
                 _error = true;
+                // Una petición de edición («e») no sobrevive a la carga fallida: si se quedara
+                // pendiente, un reintento con éxito entraría en edición sin que nadie lo pida.
+                WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Empresa, id);
+            }
         }
         finally
         {
             if (generacion == _generacion && carga == _cargaCabecera)
                 _cargando = false;
         }
+
+        // Fuera de la carga: entrar en edición lanza sus propias consultas y gestiona sus
+        // propios fallos; uno de ellos no puede pintar la ficha entera como fallida.
+        if (cargada && generacion == _generacion && carga == _cargaCabecera)
+            await AtenderEdicionSolicitadaAsync();
     }
 
     private async Task CargarClientesAsync()
@@ -686,6 +746,7 @@ else
 
     public void Dispose()
     {
+        WorkspaceService.OnEdicionSolicitada -= AlSolicitarEdicion;
         _generacion++;
         _ciclo.Cancel();
         _ciclo.Dispose();

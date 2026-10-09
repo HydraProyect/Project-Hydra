@@ -1,0 +1,248 @@
+/*
+    Visita 360 — lo propio de esta página. La maquetación compartida de las
+    páginas 360 (cabecera de identidad, banda, cuerpo con lateral, tarjetas,
+    contadores de estado y filas en rejilla) vive en Components/DesignSystem;
+    aquí solo lo que no tiene primitiva.
+*/
+
+/* El anillo y, debajo, cuántos trabajadores están listos. */
+.visita360-anillo {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.visita360-anillo-fraccion {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.visita360-enlace {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: var(--color-primary-500);
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.visita360-enlace:hover {
+    text-decoration: underline;
+}
+
+.visita360-enlace:focus-visible,
+.visita360-grupo-plegar:focus-visible,
+.visita360-interruptor:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+/* Cabecera de grupo de la comprobación previa: la Empresa o un Trabajador. */
+.visita360-grupo {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4) 0 var(--space-1);
+    font: var(--font-label);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    list-style: none;
+}
+
+.visita360-grupo i {
+    font-style: normal;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.visita360-grupo-plegar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: var(--space-6);
+    height: var(--space-6);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.visita360-grupo-plegar[aria-expanded="false"] {
+    transform: rotate(-90deg);
+}
+
+.visita360-grupo-vacio {
+    padding: var(--space-2) 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    list-style: none;
+}
+
+/* Datos de la tarjeta «Información»: dos columnas, etiqueta sobre valor. */
+.visita360-datos {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+    margin: 0;
+}
+
+.visita360-datos > div {
+    min-width: 0;
+}
+
+.visita360-dato-ancho {
+    grid-column: 1 / -1;
+}
+
+.visita360-datos dt {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.visita360-datos dd {
+    margin: 0;
+    font: var(--font-body-md);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.visita360-linea {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-fila-divisor);
+}
+
+.visita360-linea-texto {
+    flex: 1;
+    min-width: 0;
+}
+
+.visita360-linea-texto b {
+    display: block;
+    font: var(--font-body-md);
+    font-weight: 600;
+}
+
+.visita360-linea-texto small {
+    display: block;
+    margin-top: var(--space-1);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/* Interruptor «Notificada al titular del Centro»: mismo dibujo que el del listado de Visitas. */
+.visita360-interruptor {
+    appearance: none;
+    position: relative;
+    flex: none;
+    width: calc(var(--space-8) + var(--space-1));
+    height: var(--space-5);
+    margin: 0;
+    border: 1px solid var(--color-border-control);
+    border-radius: var(--radius-full);
+    background: var(--color-surface-subtle);
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.visita360-interruptor::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: calc(var(--space-4) - 2px);
+    height: calc(var(--space-4) - 2px);
+    border-radius: var(--radius-full);
+    background: var(--color-text-muted);
+    transition: left 0.15s ease, background-color 0.15s ease;
+}
+
+.visita360-interruptor:checked {
+    background: var(--color-primary-500);
+    border-color: var(--color-primary-500);
+}
+
+/* --color-surface y no blanco fijo: sobre la pista de oscuro el blanco no llega a 3:1. */
+.visita360-interruptor:checked::before {
+    left: calc(var(--space-4) + 2px);
+    background: var(--color-surface);
+}
+
+.visita360-interruptor:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.visita360-pastillas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-2);
+}
+
+.visita360-texto {
+    margin: 0;
+    font: var(--font-body-md);
+}
+
+.visita360-notas {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.visita360-nota {
+    margin: 0 0 var(--space-3);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-wrap: pretty;
+}
+
+/* Asunto y cuerpo de la solicitud o del aviso, tal como se copian. */
+.visita360-caja {
+    padding: var(--space-3);
+    border: 1px solid var(--color-fila-divisor);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+    font: var(--font-body-md);
+}
+
+.visita360-caja p {
+    margin: 0;
+}
+
+.visita360-caja p + p {
+    margin-top: var(--space-2);
+}
+
+.visita360-caja-cuerpo {
+    color: var(--color-text-muted);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.visita360-botones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+/* Un tramo de la banda por titular: separados entre sí, sin partirse por dentro más que entre palabras. */
+.visita360-banda-tramo {
+    margin-left: var(--space-1);
+}

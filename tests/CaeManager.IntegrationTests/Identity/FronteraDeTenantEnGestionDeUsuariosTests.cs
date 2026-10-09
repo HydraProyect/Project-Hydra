@@ -318,7 +318,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             sp.GetRequiredService<CaeManagerDbContext>());
         var administrador = new AdministradorEnSuTenant(_actorAdministrador, sp.GetRequiredService<ITenantActual>());
         var resultado = await new CambiarActivacionUsuarioCommandHandler(
-                cuentas, administrador,
+                cuentas, administrador, sp.GetRequiredService<ITenantActual>(),
                 new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()),
                 new CaeManager.Infrastructure.Persistence.BloqueoCarteraUsuario(sp.GetRequiredService<CaeManagerDbContext>()),
                 new CaeManager.Infrastructure.Operaciones.CatalogoIncorporacionCartera(sp.GetRequiredService<CaeManagerDbContext>(), administrador),
@@ -514,12 +514,12 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             object respuesta = request switch
             {
                 ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, actor).Handle(q, cancellationToken),
-                EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
+                EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, cancellationToken),
                 CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
-                    cuentas, actor, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio).Handle(c, cancellationToken),
-                EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, actor).Handle(c, cancellationToken),
-                GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor).Handle(c, cancellationToken),
-                CorregirCorreoCuentaPendienteCommand c => await new CorregirCorreoCuentaPendienteCommandHandler(cuentas, actor).Handle(c, cancellationToken),
+                    cuentas, actor, tenantActual, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio).Handle(c, cancellationToken),
+                EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
+                GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
+                CorregirCorreoCuentaPendienteCommand c => await new CorregirCorreoCuentaPendienteCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
             };
             return (TResponse)respuesta;

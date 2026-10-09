@@ -122,7 +122,7 @@ public class ObtenerVisitasQueryUrgenciaTests : IAsyncLifetime
     }
 
     private static ObtenerVisitasQueryHandler CrearHandler(CaeManagerDbContext contexto) =>
-        new(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso());
+        new(contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(), contexto);
 
     private CaeManagerDbContext CrearContexto()
     {

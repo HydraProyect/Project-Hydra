@@ -35,7 +35,8 @@ public record CorregirCorreoCuentaPendienteCommand(Guid UsuarioId, string Correo
 
 public class CorregirCorreoCuentaPendienteCommandHandler(
     IGestionCuentasUsuario cuentas,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    ITenantActual tenantActual)
     : IRequestHandler<CorregirCorreoCuentaPendienteCommand, Result<string>>
 {
     public static readonly Error CorreoObligatorio = Error.Crear(
@@ -59,6 +60,15 @@ public class CorregirCorreoCuentaPendienteCommandHandler(
             return Result.Fallo<string>(AutoridadSobreCuentas.CuentaInexistente);
         if (!cuenta.EsPropiaDelTenantActual)
             return Result.Fallo<string>(AutoridadSobreCuentas.NoEncontrado);
+
+        // Misma regla que el reenvío: corregirle el correo a un Administrador pendiente
+        // equivale a quedarse con su cuenta —el enlace nuevo sale hacia la dirección que
+        // elige quien lo pide—, así que una cuenta con rol de Propiedad solo la toca quien
+        // actúa en su propio Tenant de origen (acto excluido del Encargo de administración, D-8).
+        var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+        if (destinoIntocable.EsFallido)
+            return Result.Fallo<string>(destinoIntocable.Error);
 
         if (!cuenta.PendienteActivacion)
             return Result.Fallo<string>(GenerarActivacionUsuarioCommandHandler.YaActivada);

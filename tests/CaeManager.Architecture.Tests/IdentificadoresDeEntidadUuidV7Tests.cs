@@ -63,7 +63,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Infrastructure/Identity/AvatarDeCuentasIdentity.cs"] = 1,
         // Token de concurrencia Version (IVersionable) y quien lo renueva.
         ["src/CaeManager.Domain/AsistenteIa/TareaAsistente.cs"] = 1,
-        ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 1,
+        ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 2,
         ["src/CaeManager.Domain/Integraciones/CredencialIntegracion.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/PropuestaApoyoCartera.cs"] = 1,
@@ -74,6 +74,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Domain/Plataforma/OrdenMenuLateral.cs"] = 1,
         ["src/CaeManager.Domain/Plataforma/SesionPrivilegiada.cs"] = 1,
         ["src/CaeManager.Domain/Proyectos/ProyectoTecnico.cs"] = 1,
+        ["src/CaeManager.Domain/Tenants/EncargoAdministracion.cs"] = 1,
         ["src/CaeManager.Domain/VigilanciaNormativa/AvisoRevisionNormativa.cs"] = 1,
         ["src/CaeManager.Infrastructure/Persistence/Interceptors/ConcurrenciaOptimistaInterceptor.cs"] = 1,
         // Id del plan de importación en memoria (no se persiste como clave).

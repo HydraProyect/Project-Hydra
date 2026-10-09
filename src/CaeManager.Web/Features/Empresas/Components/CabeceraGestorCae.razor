@@ -1,0 +1,130 @@
+@*
+    Dato de cabecera «Gestor CAE» de la pantalla Empresas (decisión 2026-10-08): quién gestiona
+    el Tenant propietario activo desde el Operador CAE de quien mira. No es una columna porque la
+    Asignación de Cartera es sobre el Tenant entero (ADR-011 § 2.7, enmienda 2026-10-08): es el
+    mismo dato para todas las filas.
+
+    Operador CAE = organización; Gestor CAE = persona. Aquí salen personas: el Gestor CAE
+    principal —«Coordinador CAE principal» si quien lleva la marca gestiona el Tenant con ese
+    rol— y los Gestores CAE de apoyo, con la fecha de fin si su cartera la tiene.
+
+    SOLO LECTURA. Dar acceso de apoyo, desasignarse, revocar y «Asumir» cuando no hay principal
+    son otras líneas (I3–I5): sus controles irán detrás de las pastillas, en esta misma franja.
+
+    Los datos salen de ObtenerPersonasConCarteraQuery, que ya acota la lectura al Operador CAE de
+    la sesión: para quien no es una cuenta de gestión CAE de un Operador CAE externo sobre este
+    Tenant (un usuario del propio Tenant propietario, Soporte TALVEG) devuelve vacío, y entonces
+    no se pinta nada.
+*@
+@using CaeManager.Application.Common
+@using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera
+@using CaeManager.Domain.Common
+@using CaeManager.Infrastructure.Identity
+@using CaeManager.Web.Features.Empresas.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject ITenantActual TenantActual
+@inject IStringLocalizer<TextosEmpresas> Textos
+
+@if (_error)
+{
+    <span class="cabecera-gestor-cae" role="group" aria-label="@Textos["GestorCaeGrupo"]">
+        <span class="cabecera-gestor-cae-rotulo">@Textos["GestorCaeRotulo"]</span>
+        <span class="cabecera-gestor-cae-sin-dato" role="status">@Textos["GestorCaeError"]</span>
+    </span>
+}
+else if (_principales.Count > 0 || _apoyos.Count > 0)
+{
+    <span class="cabecera-gestor-cae" role="group" aria-label="@Textos["GestorCaeGrupo"]" title="@Textos["GestorCaeTitulo"]">
+        <span class="cabecera-gestor-cae-rotulo">@Textos["GestorCaeRotulo"]</span>
+        @foreach (var principal in _principales)
+        {
+            @if (principal != _principales[0])
+            {
+                <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
+            }
+            <span class="cabecera-gestor-cae-persona" data-gestor-cae="principal" @key="principal.UsuarioId">
+                <AvatarUsuario Nombre="@principal.Nombre" Avatar="@principal.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
+                <strong>@principal.Nombre</strong>
+                <span class="cabecera-gestor-cae-pastilla cabecera-gestor-cae-principal">@RotuloPrincipal(principal)</span>
+            </span>
+        }
+        @if (_principales.Count == 0)
+        {
+            @* Sin principal es un estado válido (el relevo automático no encontró a quién pasar
+               la marca). «Asumir» es la línea I5: aquí solo se dice. *@
+            <span class="cabecera-gestor-cae-sin-dato" data-gestor-cae="sin-principal">@Textos["GestorCaeSinPrincipal"]</span>
+        }
+        @foreach (var apoyo in _apoyos)
+        {
+            <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
+            <span class="cabecera-gestor-cae-persona" data-gestor-cae="apoyo" @key="apoyo.UsuarioId">
+                <AvatarUsuario Nombre="@apoyo.Nombre" Avatar="@apoyo.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
+                @apoyo.Nombre
+                <span class="cabecera-gestor-cae-pastilla">@RotuloApoyo(apoyo)</span>
+            </span>
+        }
+    </span>
+}
+
+@code {
+    private readonly CancellationTokenSource _ciclo = new();
+    private IReadOnlyList<PersonaConCartera> _principales = [];
+    private IReadOnlyList<PersonaConCartera> _apoyos = [];
+    private bool _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (TenantActual.TenantId is not { } tenantId)
+            return;
+
+        try
+        {
+            // Una Asignación de Operación por Operador CAE y Tenant propietario es lo normal; si
+            // hubiera más de una viva, se muestran juntas: la pregunta es quién gestiona el Tenant.
+            // Cada una tiene su principal, y todos se rotulan como tales: llamar «apoyo» al
+            // principal de la segunda sería falso. Quien es principal de una no se repite como
+            // apoyo de otra.
+            var operaciones = (await Mediator.Send(new ObtenerPersonasConCarteraQuery(tenantId), _ciclo.Token))
+                .Where(o => o.TenantId == tenantId)
+                .ToList();
+            if (operaciones.Count == 0)
+                return;
+
+            var principales = operaciones.Select(o => o.Principal).OfType<PersonaConCartera>()
+                .DistinctBy(p => p.UsuarioId)
+                .OrderBy(p => p.Nombre)
+                .ToList();
+            var idsPrincipales = principales.Select(p => p.UsuarioId).ToHashSet();
+
+            _principales = principales;
+            _apoyos = operaciones.SelectMany(o => o.Apoyos)
+                .Where(p => !idsPrincipales.Contains(p.UsuarioId))
+                .DistinctBy(p => p.UsuarioId)
+                .OrderBy(p => p.Nombre)
+                .ToList();
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            // Un fallo no es «nadie lo gestiona»: se dice, en vez de dejar la cabecera muda.
+            _error = true;
+        }
+    }
+
+    private string RotuloPrincipal(PersonaConCartera principal) =>
+        principal.Rol == Roles.CoordinadorCae ? Textos["GestorCaeCoordinadorPrincipal"] : Textos["GestorCaePrincipal"];
+
+    private string RotuloApoyo(PersonaConCartera apoyo) =>
+        apoyo.VigenciaHasta is { } hasta
+            ? Textos["GestorCaeApoyoHasta", DiaDeNegocio.De(hasta).ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)]
+            : Textos["GestorCaeApoyo"];
+
+    public void Dispose()
+    {
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

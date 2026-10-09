@@ -1,7 +1,11 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Visitas.Antelacion;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
+using CaeManager.Application.Visitas.Commands.QuitarTrabajadorDeVisita;
+using CaeManager.Application.Visitas.Queries.ObtenerCandidatosTrabajadorVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisitas;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
@@ -19,6 +23,7 @@ using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
+using MediatR;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -63,6 +68,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
     private Guid _trabajadorDentro;
     private Guid _trabajadorFuera;
     private Guid _visitaDeOtroTenant;
+    private Guid _trabajadorDeOtroTenant;
 
     public async Task InitializeAsync()
     {
@@ -127,8 +133,11 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
             _propietario.Centros.Add(centro);
             var visita = new Visita(centro.Id, FechaOriginal, FechaOriginal.AddDays(1), null);
             _propietario.Visitas.Add(visita);
+            var trabajador = Trabajador.DeEmpresa(propia.Id, "Otro", "Tenant", "12345678Z");
+            _propietario.Trabajadores.Add(trabajador);
             await _propietario.SaveChangesAsync();
             _visitaDeOtroTenant = visita.Id;
+            _trabajadorDeOtroTenant = trabajador.Id;
         }
     }
 
@@ -233,6 +242,120 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         cancelacion.Error.Codigo.Should().Be("Visita.NoEncontrada");
         (await FechaInicioAsync(_visitaDentro)).Should().Be(FechaOriginal);
         (await EstaCanceladaAsync(_visitaDentro)).Should().BeFalse();
+    }
+
+    // ── Añadir y quitar un Trabajador desde el panel ─────────────────────
+
+    /// <summary>
+    /// Control positivo: el Gestor CAE añade a la Visita de su cartera un Trabajador de la base
+    /// general del Tenant (fuera de su cartera, como admite «Editar visita») y después quita al
+    /// que ya entraba. Quitar es una baja física de la unión, igual que al editar.
+    /// </summary>
+    [Fact]
+    public async Task Gestor_CAE_anade_y_quita_un_Trabajador_de_la_Visita_de_su_cartera()
+    {
+        var alta = await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera);
+
+        alta.EsExitoso.Should().BeTrue(alta.EsFallido ? alta.Error.Codigo : "");
+        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro, _trabajadorFuera]);
+
+        var baja = await QuitarTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorDentro);
+
+        baja.EsExitoso.Should().BeTrue(baja.EsFallido ? baja.Error.Codigo : "");
+        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorFuera]);
+    }
+
+    /// <summary>
+    /// Añadir y quitar solo escriben la unión, pero renuevan la versión de la Visita: quien abrió
+    /// «Editar visita» antes del cambio recibe conflicto en vez de guardar encima su lista vieja.
+    /// </summary>
+    [Fact]
+    public async Task Anadir_y_quitar_renuevan_la_version_de_la_Visita()
+    {
+        var inicial = await VersionAsync(_visitaDentro);
+
+        (await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+        var trasAnadir = await VersionAsync(_visitaDentro);
+        (await QuitarTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorDentro)).EsExitoso.Should().BeTrue();
+        var trasQuitar = await VersionAsync(_visitaDentro);
+
+        trasAnadir.Should().NotBe(inicial);
+        trasQuitar.Should().NotBe(trasAnadir);
+
+        var conVersionVieja = await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorDentro, version: inicial);
+        conVersionVieja.Error.Codigo.Should().Be(CaeManager.Application.Common.ConcurrenciaOptimista.CodigoConflicto);
+    }
+
+    /// <summary>
+    /// Dos cambios simultáneos: el segundo leyó la Visita antes de que el primero guardara. Su
+    /// UPDATE lleva la versión leída en el WHERE y PostgreSQL no encuentra la fila: no se cuela.
+    /// (En la aplicación, ConcurrenciaBehavior convierte esta excepción en el conflicto que ve el usuario.)
+    /// </summary>
+    [Fact]
+    public async Task Un_cambio_de_Trabajadores_sobre_una_Visita_leida_antes_de_otro_cambio_choca()
+    {
+        var usuario = new CurrentUserServiceFalso(_gestor, "Administrador", tenantOrigenId: _tenant);
+        await using var rezagado = CrearContextoRuntime(usuario);
+        _ = await rezagado.Visitas.SingleAsync(v => v.Id == _visitaDentro);
+
+        (await AnadirTrabajadorAsync(_gestor, "Administrador", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+
+        var handler = new QuitarTrabajadorDeVisitaCommandHandler(
+            new VisitaRepository(rezagado), new VisitaTrabajadorRepository(rezagado), new EvaluadorExpedienteNulo(), rezagado,
+            NullLogger<QuitarTrabajadorDeVisitaCommandHandler>.Instance, CrearAlcance(rezagado, usuario));
+        var quitar = () => handler.Handle(new QuitarTrabajadorDeVisitaCommand(_visitaDentro, _trabajadorDentro), CancellationToken.None);
+
+        await quitar.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro, _trabajadorFuera]);
+    }
+
+    [Fact]
+    public async Task Gestor_CAE_no_anade_ni_quita_Trabajadores_de_una_Visita_fuera_de_su_cartera()
+    {
+        var alta = await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaFuera, _trabajadorDentro);
+        var baja = await QuitarTrabajadorAsync(_gestor, "GestorCae", _visitaFuera, _trabajadorFuera);
+
+        alta.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        baja.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        (await TrabajadoresDeAsync(_visitaFuera)).Should().BeEquivalentTo([_trabajadorFuera]);
+    }
+
+    /// <summary>
+    /// Aislamiento de Tenant bajo RLS, en los dos sentidos: ni se añade a la propia Visita un
+    /// Trabajador de otro Tenant (no existe para la conexión de runtime), ni se toca la Visita de
+    /// otro Tenant conociendo su Id.
+    /// </summary>
+    [Fact]
+    public async Task No_se_cruzan_Tenants_al_anadir_un_Trabajador()
+    {
+        var trabajadorAjeno = await AnadirTrabajadorAsync(_gestor, "Administrador", _visitaDentro, _trabajadorDeOtroTenant);
+        var visitaAjena = await AnadirTrabajadorAsync(_gestor, "Administrador", _visitaDeOtroTenant, _trabajadorDentro);
+
+        trabajadorAjeno.Error.Codigo.Should().Be("Visita.TrabajadorNoEncontrado");
+        visitaAjena.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro]);
+        (await TrabajadoresDeAsync(_visitaDeOtroTenant)).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Candidatos: la base general del Tenant (la regla del selector de «Editar visita») menos
+    /// quien ya entra; nunca un Trabajador de otro Tenant.
+    /// </summary>
+    [Fact]
+    public async Task Los_candidatos_son_la_base_general_del_Tenant_menos_quien_ya_entra()
+    {
+        var candidatos = await CandidatosAsync(_gestor, "GestorCae", _visitaDentro);
+
+        candidatos.Select(c => c.Id).Should().BeEquivalentTo([_trabajadorFuera],
+            "Nora ya entra; Iker está fuera de la cartera pero en la base general; el de otro Tenant no existe aquí");
+    }
+
+    [Fact]
+    public async Task Quien_no_puede_anadir_no_ve_candidatos()
+    {
+        (await CandidatosAsync(_gestor, "GestorCae", _visitaFuera)).Should().BeEmpty("la Visita está fuera de su Asignación de Cartera");
+        (await CandidatosAsync(_gestor, "Administrador", _visitaDeOtroTenant)).Should().BeEmpty("la Visita es de otro Tenant");
+        (await CandidatosAsync(Guid.NewGuid(), "GestorCae", _visitaDentro)).Should().BeEmpty("sin cartera el alcance es cero");
     }
 
     // ── Cancelar (FS-11: estado reversible, ya no borrado lógico) ────────
@@ -373,6 +496,56 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         return await handler.Handle(
             new EditarVisitaCommand(visitaId, FechaOriginal.AddDays(7), FechaOriginal.AddDays(8), trabajadorIds, "editada"),
             CancellationToken.None);
+    }
+
+    private async Task<Result> AnadirTrabajadorAsync(Guid usuarioId, string rol, Guid visitaId, Guid trabajadorId, Guid version = default)
+    {
+        var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
+        await using var runtime = CrearContextoRuntime(usuario);
+        var handler = new AnadirTrabajadorAVisitaCommandHandler(
+            new VisitaRepository(runtime), new VisitaTrabajadorRepository(runtime), runtime, new EvaluadorExpedienteNulo(), runtime,
+            NullLogger<AnadirTrabajadorAVisitaCommandHandler>.Instance, CrearAlcance(runtime, usuario));
+
+        return await handler.Handle(new AnadirTrabajadorAVisitaCommand(visitaId, trabajadorId, version), CancellationToken.None);
+    }
+
+    private async Task<Result> QuitarTrabajadorAsync(Guid usuarioId, string rol, Guid visitaId, Guid trabajadorId)
+    {
+        var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
+        await using var runtime = CrearContextoRuntime(usuario);
+        var handler = new QuitarTrabajadorDeVisitaCommandHandler(
+            new VisitaRepository(runtime), new VisitaTrabajadorRepository(runtime), new EvaluadorExpedienteNulo(), runtime,
+            NullLogger<QuitarTrabajadorDeVisitaCommandHandler>.Instance, CrearAlcance(runtime, usuario));
+
+        return await handler.Handle(new QuitarTrabajadorDeVisitaCommand(visitaId, trabajadorId), CancellationToken.None);
+    }
+
+    private async Task<IReadOnlyList<TrabajadorSelectorDto>> CandidatosAsync(Guid usuarioId, string rol, Guid visitaId)
+    {
+        var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
+        await using var runtime = CrearContextoRuntime(usuario);
+        var alcance = CrearAlcance(runtime, usuario);
+        var handler = new ObtenerCandidatosTrabajadorVisitaQueryHandler(
+            runtime, alcance, new SelectorReal(new ObtenerTrabajadoresParaSelectorQueryHandler(runtime, runtime, alcance)));
+
+        return await handler.Handle(new ObtenerCandidatosTrabajadorVisitaQuery(visitaId), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// La consulta de candidatos pide la lista al selector de «Editar visita» por <see cref="ISender"/>:
+    /// aquí se le entrega el handler real de ese selector, sobre la misma conexión de runtime.
+    /// </summary>
+    private sealed class SelectorReal(ObtenerTrabajadoresParaSelectorQueryHandler selector) : ISender
+    {
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            request is ObtenerTrabajadoresParaSelectorQuery consulta
+                ? (TResponse)await selector.Handle(consulta, cancellationToken)
+                : throw new NotSupportedException(request.GetType().Name);
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => throw new NotSupportedException();
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private async Task<Result> CancelarAsync(Guid usuarioId, string rol, Guid visitaId)

@@ -30,7 +30,8 @@ namespace CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 /// <para>
 /// Si la cartera retirada era la principal de su Asignación de Operación, la marca pasa en la
 /// misma transacción al Coordinador CAE de esa persona (<see cref="RelevoDePrincipalDeCartera"/>);
-/// sin Coordinador CAE, la operación queda sin principal.
+/// sin Coordinador CAE a quien relevar se escala (<see cref="EscaladoDePrincipalDeCartera"/>) y,
+/// si no hay una sola persona a quien asignarla, la operación queda sin principal.
 /// </para>
 /// </summary>
 public record RevocarIncorporacionCarteraCommand(Guid SolicitudId) : ICommand;
@@ -82,7 +83,7 @@ public class RevocarIncorporacionCarteraCommandHandler(
                     .ToList();
                 var coordinadorDeRelevo = sinPrincipal.Count == 0
                     ? null
-                    : await RelevoDePrincipalDeCartera.ResolverCoordinadorAsync(
+                    : await RelevoDePrincipalDeCartera.ResolverRelevoAsync(
                         solicitud.SolicitanteUsuarioId, ctx.OperadorTenantId, directorioDestinos, directorioUsuarios, bloqueoCartera, ct);
 
                 // Mismo motivo que al aceptar: la cartera se cierra en el Tenant

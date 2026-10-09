@@ -278,6 +278,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // usuario: al retirar el Tenant de demo se borran los de SUS usuarios, también los
         // que hubieran guardado operando sobre otro Tenant. El Where() acota por UsuarioId.
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.FiltrosGuardados.IgnoreQueryFilters().Where(f => idsUsuarios.Contains(f.UsuarioId) && f.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);")] = 1,
+        // Retirada del piloto Outbound: antes de borrar las filas de un Tenant borra del almacén los PDF
+        // de sus documentos, y tiene que alcanzar también los DESCARTADOS (borrado lógico), cuyo fichero
+        // sigue en disco. Lectura con la identidad no privilegiada, dentro del ámbito del Tenant (RLS), y
+        // con el TenantId del Tenant ya validado en el Where() de la línea siguiente.
+        [("src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundRetirada.cs", "var deDocumentos = await dbContextNoPrivilegiado.Documentos.IgnoreQueryFilters()")] = 1,
 
         // Siembra administrativa de la demo a dirección (modo de CLI, nunca el
         // arranque normal): las tres lecturas buscan Tenants por su nombre EXACTO

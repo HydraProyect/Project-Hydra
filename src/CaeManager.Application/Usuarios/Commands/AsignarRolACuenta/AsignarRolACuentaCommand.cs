@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -39,9 +40,15 @@ public record CuentaConRolAsignado(Guid UsuarioId, string NombreCompleto, string
 public class AsignarRolACuentaCommandHandler(
     IGestionCuentasUsuario cuentas,
     ICurrentUserService currentUserService,
-    ITenantActual tenantActual)
+    ITenantActual tenantActual,
+    ITransaccionDeComando transaccion,
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
     : IRequestHandler<AsignarRolACuentaCommand, Result<CuentaConRolAsignado>>
 {
+    public static readonly Error RolNoAsignado = Error.Crear(
+        "Usuarios.RolNoAsignado",
+        "No pudimos asignar el rol: la cartera de tu organización cambió mientras tanto. Vuelve a intentarlo.");
+
     public static readonly Error CuentaConRol = Error.Crear(
         "Usuarios.CuentaConRol", "Esta cuenta ya tiene un rol asignado; recargamos la lista.");
 
@@ -55,8 +62,8 @@ public class AsignarRolACuentaCommandHandler(
         if (!AutoridadSobreCuentas.RolesExistentes.Contains(request.Rol))
             return Result.Fallo<CuentaConRolAsignado>(AutoridadSobreCuentas.RolDesconocido);
 
-        var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(
-            request.Rol, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+        var origen = await currentUserService.ObtenerTenantOrigenIdAsync();
+        var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(request.Rol, origen, tenantActual.TenantId);
         if (rolAsignable.EsFallido)
             return Result.Fallo<CuentaConRolAsignado>(rolAsignable.Error);
 
@@ -67,10 +74,33 @@ public class AsignarRolACuentaCommandHandler(
         if (cuenta is null)
             return Result.Fallo<CuentaConRolAsignado>(AutoridadSobreCuentas.NoEncontrado);
 
+        // La cuenta destino tiene rol de Propiedad: solo la toca quien actúa en su propio
+        // Tenant de origen (primer acto excluido del Encargo de administración, D-8).
+        var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+        if (destinoIntocable.EsFallido)
+            return Result.Fallo<CuentaConRolAsignado>(destinoIntocable.Error);
+
         if (cuenta.Roles.Count > 0)
             return Result.Fallo<CuentaConRolAsignado>(CuentaConRol);
 
-        var resultado = await cuentas.AsignarRolAsync(request.UsuarioId, request.Rol, cancellationToken);
+        // Primer usuario elegible (ADR-011 § 2.7, enmienda 2026-10-08, punto 4): si con este rol
+        // la cuenta es la única elegible de su Operador CAE, recibe en la misma transacción las
+        // operaciones sin principal.
+        var puedeSerElegible = origen is not null
+            && origen == tenantActual.TenantId
+            && EscaladoDePrincipalDeCartera.Niveles.Contains(request.Rol);
+
+        var resultado = await transaccion.EjecutarAsync(async ct =>
+        {
+            var asignado = await cuentas.AsignarRolAsync(request.UsuarioId, request.Rol, ct);
+            if (asignado.EsFallido || !puedeSerElegible)
+                return asignado;
+
+            return await asignacionAutomatica.AlPrimerElegibleAsync(request.UsuarioId, origen!.Value, ct)
+                ? Result.Exito()
+                : Result.Fallo(RolNoAsignado);
+        }, cancellationToken);
         return resultado.EsFallido
             ? Result.Fallo<CuentaConRolAsignado>(resultado.Error)
             : Result.Exito(new CuentaConRolAsignado(cuenta.Id, cuenta.NombreCompleto, cuenta.Email));
