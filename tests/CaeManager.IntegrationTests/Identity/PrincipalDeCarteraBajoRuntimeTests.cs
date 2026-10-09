@@ -2,8 +2,10 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
+using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
+using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal;
 using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
@@ -39,6 +41,14 @@ namespace CaeManager.IntegrationTests.Identity;
 /// conexiones, no dejan dos principales ni ninguno por error. No hay candado por operación: lo
 /// que serializa es la versión de la cartera del principal actual y el índice único.
 /// </para>
+///
+/// <para>
+/// También la alerta «sin principal», el escalado y «Asumir» (punto 4 de la misma enmienda): que la
+/// alerta solo enseña operaciones del propio Operador CAE; que la cartera que emiten el escalado y
+/// «Asumir» lleva rol Coordinador CAE y el Tenant propietario como ámbito, aunque quien la reciba
+/// sea Dirección CAE o Administrador; que quien asume abre el Tenant y antes no podía; y que dos
+/// «Asumir» a la vez, por dos conexiones, dejan un solo principal.
+/// </para>
 /// </summary>
 public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
 {
@@ -48,6 +58,9 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     private readonly Tenant _otroOperador = new("Otro Operador CAE de prueba");
     private readonly Tenant _beneficiario = new("Beneficiario con principal");
     private readonly Tenant _beneficiarioSinPrincipal = new("Beneficiario sin principal");
+    private readonly Tenant _beneficiarioSinNadie = new("Beneficiario sin nadie asignado");
+    private readonly Tenant _operadorUnipersonal = new("Operador CAE con un solo Administrador");
+    private readonly Tenant _beneficiarioDelUnipersonal = new("Beneficiario del Operador CAE unipersonal");
 
     private readonly Guid _administrador = Guid.NewGuid();
     private readonly Guid _administradorAjeno = Guid.NewGuid();
@@ -58,9 +71,15 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _gestorB = Guid.NewGuid(); // equipo de _coordinador; apoyo
     private readonly Guid _gestorC = Guid.NewGuid(); // equipo de _otroCoordinador; apoyo
     private readonly Guid _gestorSinCoordinador = Guid.NewGuid();
+    private readonly Guid _direccion = Guid.NewGuid();
+    private readonly Guid _administradorUnipersonal = Guid.NewGuid();
+    private readonly Guid _gestorDelUnipersonal = Guid.NewGuid();
+    private readonly Guid _administradorDelBeneficiario = Guid.NewGuid();
 
     private Guid _operacion;
     private Guid _operacionSinPrincipal;
+    private Guid _operacionSinNadie;
+    private Guid _operacionDelUnipersonal;
 
     public async Task InitializeAsync()
     {
@@ -68,7 +87,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         await contexto.Database.MigrateAsync();
 
         var ahora = DateTime.UtcNow;
-        contexto.Tenants.AddRange(_operador, _otroOperador, _beneficiario, _beneficiarioSinPrincipal);
+        contexto.Tenants.AddRange(_operador, _otroOperador, _beneficiario, _beneficiarioSinPrincipal,
+            _beneficiarioSinNadie, _operadorUnipersonal, _beneficiarioDelUnipersonal);
         contexto.AsignacionesOperacion.Add(AsignacionOperacion.Raiz(_operador.Id, ServicioCae.Outbound, ahora.AddDays(-30), ahora));
 
         var roles = await contexto.Roles.AsNoTracking().ToDictionaryAsync(r => r.Name!, r => r.Id);
@@ -101,6 +121,10 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         Cuenta(_gestorSinCoordinador, _operador.Id, Roles.GestorCae);
         Cuenta(_administradorAjeno, _otroOperador.Id, Roles.Administrador);
         Cuenta(_coordinadorAjeno, _otroOperador.Id, Roles.CoordinadorCae);
+        Cuenta(_direccion, _operador.Id, Roles.DireccionCae);
+        Cuenta(_administradorUnipersonal, _operadorUnipersonal.Id, Roles.Administrador);
+        Cuenta(_gestorDelUnipersonal, _operadorUnipersonal.Id, Roles.GestorCae);
+        Cuenta(_administradorDelBeneficiario, _beneficiarioDelUnipersonal.Id, Roles.Administrador);
 
         void Cartera(AsignacionOperacion operacion, DelegacionTenant vinculo, Guid gestor, bool principal)
         {
@@ -110,12 +134,12 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             contexto.AsignacionesOperadorDelegadoConRevocadas.Add(new AsignacionOperadorDelegado(vinculo.Id, gestor, Roles.GestorCae));
         }
 
-        (AsignacionOperacion, DelegacionTenant) Operacion(Tenant beneficiario)
+        (AsignacionOperacion, DelegacionTenant) Operacion(Tenant beneficiario, Tenant? operador = null)
         {
             var operacion = AsignacionOperacion.Externa(
-                beneficiario.Id, _operador.Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+                beneficiario.Id, (operador ?? _operador).Id, ServicioCae.Outbound, AmbitoAsignacion.Universal,
                 vigenciaDesde: ahora.AddDays(-30), vigenciaHasta: null, ahora);
-            var vinculo = new DelegacionTenant(_operador.Id, beneficiario.Id);
+            var vinculo = new DelegacionTenant((operador ?? _operador).Id, beneficiario.Id);
             contexto.AsignacionesOperacion.Add(operacion);
             contexto.DelegacionesTenant.Add(vinculo);
             return (operacion, vinculo);
@@ -132,6 +156,11 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         Cartera(sinPrincipal, vinculoSinPrincipal, _gestorB, principal: false);
         Cartera(sinPrincipal, vinculoSinPrincipal, _gestorSinCoordinador, principal: false);
         _operacionSinPrincipal = sinPrincipal.Id;
+
+        // Operación recién abierta: vigente y sin ninguna cartera. En _operador hay dos Coordinadores
+        // CAE (nadie la recibe sola); en el unipersonal, un único Administrador y ningún otro elegible.
+        _operacionSinNadie = Operacion(_beneficiarioSinNadie).Item1.Id;
+        _operacionDelUnipersonal = Operacion(_beneficiarioDelUnipersonal, _operadorUnipersonal).Item1.Id;
 
         await contexto.SaveChangesAsync();
     }
@@ -263,6 +292,209 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         (await PrincipalesAsync(_operacionSinPrincipal)).Should().BeEmpty("donde no era el principal no hay nada que relevar");
     }
 
+    // ── Alerta, escalado y «Asumir» (I5) ────────────────────────────────────
+
+    [Fact]
+    public async Task La_alerta_sin_principal_solo_ensena_operaciones_del_propio_Operador_CAE()
+    {
+        var alerta = await Alerta(_direccion, Roles.DireccionCae, _operador.Id);
+
+        alerta.LaVe.Should().BeTrue();
+        alerta.Operaciones.Select(o => (o.AsignacionOperacionId, o.Situacion, o.PersonasAsignadas)).Should().BeEquivalentTo(new[]
+        {
+            (_operacionSinNadie, SituacionDePrincipal.SinNadieAsignado, 0),
+            (_operacionSinPrincipal, SituacionDePrincipal.ConPersonasSinPrincipal, 2),
+        }, "la operación con un Gestor CAE principal no está en la alerta, ni la del otro Operador CAE");
+
+        // El Administrador de otro Operador CAE la ve, vacía: RLS no le enseña estas operaciones.
+        var ajena = await Alerta(_administradorAjeno, Roles.Administrador, _otroOperador.Id);
+        ajena.LaVe.Should().BeTrue();
+        ajena.Operaciones.Should().BeEmpty();
+
+        // El claim dice Administrador; en Identity es Gestor CAE: no la ve.
+        (await Alerta(_gestorB, Roles.Administrador, _operador.Id)).LaVe.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Quien_asume_recibe_una_cartera_de_Coordinador_CAE_con_el_Tenant_propietario_como_ambito_y_abre_el_Tenant()
+    {
+        (await Abre(_direccion, Roles.DireccionCae, _operador.Id, _beneficiarioSinNadie.Id)).Should().Be((false, null),
+            "premisa: sin cartera vigente, alcance cero, aunque sea Dirección CAE de su Operador CAE");
+
+        var resultado = await Asumir(_direccion, Roles.DireccionCae, _operador.Id, _operacionSinNadie);
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : null);
+
+        var emitida = (await CarterasAsync(_operacionSinNadie)).Should().ContainSingle().Subject;
+        emitida.UsuarioId.Should().Be(_direccion);
+        emitida.EsPrincipal.Should().BeTrue();
+        emitida.Rol.Should().Be(Roles.CoordinadorCae, "la Operación nunca concede roles de Propiedad, aunque quien asume sea Dirección CAE");
+        emitida.PropietarioTenantId.Should().Be(_beneficiarioSinNadie.Id, "se escribe con el Tenant propietario como ámbito");
+        emitida.OperadorTenantId.Should().Be(_operador.Id);
+        emitida.Estado.Should().Be(EstadoAsignacion.Vigente);
+        emitida.AmbitoRelacionClienteId.Should().BeNull("cartera del Tenant entero");
+
+        await using (var propietario = ContextoPropietario(_operador.Id))
+        {
+            (await propietario.AsignacionesOperadorDelegado.Where(a => a.UsuarioId == _direccion).Select(a => a.Rol).ToListAsync())
+                .Should().Equal(Roles.CoordinadorCae);
+            (await RolesDeAsync(propietario, _direccion)).Should().Equal([Roles.DireccionCae], "su rol en su organización no cambia");
+        }
+
+        (await Abre(_direccion, Roles.DireccionCae, _operador.Id, _beneficiarioSinNadie.Id)).Should().Be((true, Roles.CoordinadorCae));
+        // No abre nada más, ni lo abre nadie más.
+        (await Abre(_direccion, Roles.DireccionCae, _operador.Id, _beneficiarioSinPrincipal.Id)).Should().Be((false, null));
+        (await Abre(_coordinador, Roles.CoordinadorCae, _operador.Id, _beneficiarioSinNadie.Id)).Should().Be((false, null));
+        (await Abre(_administradorAjeno, Roles.Administrador, _otroOperador.Id, _beneficiarioSinNadie.Id)).Should().Be((false, null));
+
+        (await Alerta(_direccion, Roles.DireccionCae, _operador.Id)).Operaciones
+            .Single(o => o.AsignacionOperacionId == _operacionSinNadie)
+            .Should().Match<OperacionEnAlertaDePrincipal>(o => o.Situacion == SituacionDePrincipal.CoordinadorCaePrincipal
+                                                               && o.EsDeQuienConsulta && !o.SePuedeAsumir);
+    }
+
+    [Fact]
+    public async Task Asumir_con_carteras_de_apoyo_vivas_no_las_toca()
+    {
+        var apoyosAntes = (await CarterasAsync(_operacionSinPrincipal)).ToDictionary(c => c.Id, c => c.Version);
+
+        (await Asumir(_coordinador, Roles.CoordinadorCae, _operador.Id, _operacionSinPrincipal)).EsExitoso.Should().BeTrue();
+
+        (await PrincipalesAsync(_operacionSinPrincipal)).Should().Equal(_coordinador);
+        (await CarterasAsync(_operacionSinPrincipal)).Where(c => apoyosAntes.ContainsKey(c.Id)).ToDictionary(c => c.Id, c => c.Version)
+            .Should().BeEquivalentTo(apoyosAntes, "las carteras de apoyo no se escriben");
+    }
+
+    [Fact]
+    public async Task No_asumen_un_Gestor_CAE_ni_otro_Operador_CAE_ni_nadie_sobre_una_operacion_con_principal()
+    {
+        // El claim dice Administrador; en Identity, sobre su Tenant de origen, es Gestor CAE.
+        (await Asumir(_gestorB, Roles.Administrador, _operador.Id, _operacionSinNadie))
+            .Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.SinAutoridad);
+
+        // El Administrador de otro Operador CAE: esa operación no está entre las suyas.
+        (await Asumir(_administradorAjeno, Roles.Administrador, _otroOperador.Id, _operacionSinNadie))
+            .Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.OperacionNoEncontrada);
+
+        (await Asumir(_administrador, Roles.Administrador, _operador.Id, _operacion))
+            .Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.YaTienePrincipal);
+
+        (await CarterasAsync(_operacionSinNadie)).Should().BeEmpty();
+        (await PrincipalesAsync(_operacion)).Should().Equal(_gestorA);
+    }
+
+    [Fact]
+    public async Task Dos_Asumir_a_la_vez_por_dos_conexiones_dejan_un_solo_principal()
+    {
+        // La primera ya guardó su cartera principal y aún no ha confirmado.
+        var enPausa = new Pausa("despues:guardar");
+        var primera = Asumir(_coordinador, Roles.CoordinadorCae, _operador.Id, _operacionSinNadie, enPausa);
+        await enPausa.Alcanzada;
+
+        // La segunda no ve esa cartera sin confirmar: solo el índice único la detiene.
+        var segunda = Asumir(_direccion, Roles.DireccionCae, _operador.Id, _operacionSinNadie);
+        (await Task.WhenAny(segunda, Task.Delay(TimeSpan.FromSeconds(3)))).Should().NotBeSameAs(segunda,
+            "la segunda escribe el mismo hueco del índice único y tiene que esperar a la primera");
+
+        enPausa.Soltar();
+        (await primera).EsExitoso.Should().BeTrue();
+        (await segunda).Error.Should().Be(AsumirPrincipalDeOperacionCommandHandler.CambioMientrasDecidias);
+        (await PrincipalesAsync(_operacionSinNadie)).Should().Equal(_coordinador);
+        (await CarterasAsync(_operacionSinNadie)).Select(c => c.UsuarioId).Should().Equal([_coordinador], "quien pierde no deja cartera");
+    }
+
+    [Fact]
+    public async Task Al_abrirse_la_operacion_desde_la_sesion_del_Operador_CAE_la_recibe_su_unico_elegible()
+    {
+        // Como CrearTenantPropietarioDeOperadorCaeExternoCommand: quien ejecuta es el Administrador
+        // del Operador CAE, con su Tenant como activo y como origen.
+        var asignada = await EnArnes(_administradorUnipersonal, Roles.Administrador, _operadorUnipersonal.Id,
+            (usuario, contexto, directorio, _) => new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
+            {
+                var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionDelUnipersonal, ct);
+                var automatica = new AsignacionAutomaticaDePrincipal(
+                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto));
+                return await automatica.AlAbrirOperacionAsync(operacion, ct) ? Result.Exito() : Result.Fallo(Error.Crear("Test.Carrera", "carrera"));
+            }));
+        asignada.EsExitoso.Should().BeTrue(asignada.EsFallido ? asignada.Error.Codigo : null);
+
+        var emitida = (await CarterasAsync(_operacionDelUnipersonal)).Should().ContainSingle().Subject;
+        emitida.Should().Match<AsignacionCartera>(c => c.UsuarioId == _administradorUnipersonal && c.EsPrincipal
+            && c.Rol == Roles.CoordinadorCae && c.PropietarioTenantId == _beneficiarioDelUnipersonal.Id
+            && c.OperadorTenantId == _operadorUnipersonal.Id && c.Estado == EstadoAsignacion.Vigente);
+        (await Abre(_administradorUnipersonal, Roles.Administrador, _operadorUnipersonal.Id, _beneficiarioDelUnipersonal.Id))
+            .Should().Be((true, Roles.CoordinadorCae));
+    }
+
+    [Fact]
+    public async Task Desde_la_sesion_del_Tenant_propietario_las_cuentas_del_Operador_CAE_no_se_leen_y_la_operacion_abierta_queda_sin_asignar()
+    {
+        // Como CrearDelegacionTenantCommand: quien ejecuta es el Administrador del Tenant propietario,
+        // con su Tenant como activo y como origen; el Operador CAE es otro Tenant. La RLS de cuentas
+        // no le deja ver las del Operador CAE, así que el escalado no encuentra a nadie y no asigna:
+        // la operación queda en la alerta del Operador CAE, cuyo único elegible la toma con «Asumir».
+        IReadOnlyList<Guid> cuentasVistas = [];
+        var asignada = await EnArnes(_administradorDelBeneficiario, Roles.Administrador, _beneficiarioDelUnipersonal.Id,
+            (usuario, contexto, directorio, _) => new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
+            {
+                var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionDelUnipersonal, ct);
+                using (AmbitoTenantExplicito.Establecer(_operadorUnipersonal.Id))
+                    cuentasVistas = await directorio.ObtenerCuentasActivasConRolAsync(_operadorUnipersonal.Id, Roles.Administrador, ct);
+                var automatica = new AsignacionAutomaticaDePrincipal(
+                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto));
+                return await automatica.AlAbrirOperacionAsync(operacion, ct) ? Result.Exito() : Result.Fallo(Error.Crear("Test.Carrera", "carrera"));
+            }));
+
+        asignada.EsExitoso.Should().BeTrue(asignada.EsFallido ? asignada.Error.Codigo : null);
+        cuentasVistas.Should().BeEmpty("el Tenant propietario no lee las cuentas de su Operador CAE");
+        (await CarterasAsync(_operacionDelUnipersonal)).Should().BeEmpty();
+
+        // El único elegible del Operador CAE la ve en su alerta y la asume.
+        (await Alerta(_administradorUnipersonal, Roles.Administrador, _operadorUnipersonal.Id)).SinPrincipal
+            .Should().Contain(o => o.AsignacionOperacionId == _operacionDelUnipersonal);
+        (await Asumir(_administradorUnipersonal, Roles.Administrador, _operadorUnipersonal.Id, _operacionDelUnipersonal))
+            .EsExitoso.Should().BeTrue();
+        (await PrincipalesAsync(_operacionDelUnipersonal)).Should().Equal(_administradorUnipersonal);
+    }
+
+    [Fact]
+    public async Task Con_varios_Coordinadores_CAE_la_operacion_abierta_no_se_asigna_a_nadie()
+    {
+        var asignada = await EnArnes(_administrador, Roles.Administrador, _operador.Id,
+            (usuario, contexto, directorio, _) => new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
+            {
+                var operacion = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionSinNadie, ct);
+                var automatica = new AsignacionAutomaticaDePrincipal(
+                    new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto));
+                return await automatica.AlAbrirOperacionAsync(operacion, ct) ? Result.Exito() : Result.Fallo(Error.Crear("Test.Carrera", "carrera"));
+            }));
+
+        asignada.EsExitoso.Should().BeTrue();
+        (await CarterasAsync(_operacionSinNadie)).Should().BeEmpty("con varias personas en el primer perfil decide una con «Asumir»");
+    }
+
+    [Fact]
+    public async Task El_primer_usuario_elegible_recibe_las_operaciones_sin_principal_de_su_Operador_CAE_y_un_Gestor_CAE_no()
+    {
+        Task<Result> AlPrimerElegible(Guid cuenta) =>
+            EnArnes(_administradorUnipersonal, Roles.Administrador, _operadorUnipersonal.Id,
+                (usuario, contexto, directorio, _) => new TransaccionDeComando(contexto).EjecutarAsync(async ct =>
+                {
+                    var automatica = new AsignacionAutomaticaDePrincipal(
+                        new CatalogoIncorporacionCartera(contexto, usuario), directorio, new BloqueoCarteraUsuario(contexto));
+                    return await automatica.AlPrimerElegibleAsync(cuenta, _operadorUnipersonal.Id, ct)
+                        ? Result.Exito()
+                        : Result.Fallo(Error.Crear("Test.Carrera", "carrera"));
+                }));
+
+        (await AlPrimerElegible(_gestorDelUnipersonal)).EsExitoso.Should().BeTrue();
+        (await CarterasAsync(_operacionDelUnipersonal)).Should().BeEmpty("un Gestor CAE no es elegible");
+
+        (await AlPrimerElegible(_administradorUnipersonal)).EsExitoso.Should().BeTrue();
+        (await CarterasAsync(_operacionDelUnipersonal)).Should().ContainSingle()
+            .Which.Should().Match<AsignacionCartera>(c => c.UsuarioId == _administradorUnipersonal && c.EsPrincipal
+                && c.Rol == Roles.CoordinadorCae && c.PropietarioTenantId == _beneficiarioDelUnipersonal.Id);
+    }
+
     // ── Dos conexiones ────────────────────────────────────────────────────
 
     [Fact]
@@ -283,7 +515,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         await desactivacion.CommitAsync();
 
         (await retirar).EsExitoso.Should().BeTrue();
-        (await PrincipalesAsync(_operacion)).Should().BeEmpty("la marca no va a una cuenta desactivada: la operación queda sin principal");
+        // La marca no va a una cuenta desactivada. Sin relevo se escala (D-7): queda un solo Coordinador CAE activo.
+        (await PrincipalesAsync(_operacion)).Should().Equal(_otroCoordinador);
         (await CarterasAsync(_operacion)).Select(c => c.UsuarioId).Should().NotContain(_coordinador);
     }
 
@@ -400,6 +633,21 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                     usuario, directorio, directorio, new CatalogoIncorporacionCartera(contexto, usuario),
                     new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto))
                 .Handle(new AsignarCarteraGestorCaeCommand(gestor, null, [beneficiario.Id]), CancellationToken.None));
+
+    private Task<Result> Asumir(Guid usuarioId, string rolDeSesion, Guid origen, Guid operacionId, Pausa? pausa = null) =>
+        EnArnes(usuarioId, rolDeSesion, origen, (usuario, contexto, directorio, _) =>
+        {
+            ICatalogoIncorporacionCartera catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
+            return new AsumirPrincipalDeOperacionCommandHandler(
+                    usuario, directorio, pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
+                    new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto))
+                .Handle(new AsumirPrincipalDeOperacionCommand(operacionId), CancellationToken.None);
+        });
+
+    private Task<AlertaDePrincipal> Alerta(Guid usuarioId, string rolDeSesion, Guid origen) =>
+        EnArnes(usuarioId, rolDeSesion, origen, (usuario, contexto, directorio, _) =>
+            new ObtenerOperacionesSinPrincipalQueryHandler(usuario, directorio, new CatalogoIncorporacionCartera(contexto, usuario))
+                .Handle(new ObtenerOperacionesSinPrincipalQuery(), CancellationToken.None));
 
     private Task<IReadOnlyList<CarterasDeOperacion>> Personas(Guid usuarioId, string rolDeSesion, Guid origen, Guid? tenantId) =>
         EnArnes(usuarioId, rolDeSesion, origen, (usuario, contexto, directorio, _) =>

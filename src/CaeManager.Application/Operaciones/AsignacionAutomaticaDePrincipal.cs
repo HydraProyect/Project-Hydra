@@ -21,6 +21,14 @@ public interface IAsignacionAutomaticaDePrincipal
     /// <summary>
     /// La operación recién abierta pasa a la única cuenta activa del primer perfil del Operador
     /// CAE que tenga alguna. Con varias, o sin nadie, no hace nada: la operación queda en la alerta.
+    ///
+    /// <para>
+    /// Las cuentas del Operador CAE se leen con la sesión de quien abre la operación. Si la abre
+    /// el propio Operador CAE, las ve y asigna. Si la abre el Administrador del Tenant propietario
+    /// (autoriza a su Operador CAE externo), la RLS de cuentas no le enseña las de otro Tenant:
+    /// no se encuentra a nadie, no se asigna y la operación queda en la alerta del Operador CAE,
+    /// donde la toma con «Asumir» quien corresponda. No se abre esa lectura para evitarlo.
+    /// </para>
     /// </summary>
     Task<bool> AlAbrirOperacionAsync(AsignacionOperacion operacion, CancellationToken cancellationToken = default);
 

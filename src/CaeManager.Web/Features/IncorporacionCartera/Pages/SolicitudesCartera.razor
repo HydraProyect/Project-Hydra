@@ -25,12 +25,12 @@
     </CabeceraPagina>
 
     @* Alerta «sin principal»: la ven también Dirección CAE y Administrador del Operador CAE, que
-       no tienen bandeja de solicitudes; por eso va antes y fuera del «sin acceso». *@
+       no tienen lista de solicitudes; por eso va antes y fuera del «sin acceso». *@
     <PanelOperacionesSinPrincipal AlCargar="AlCargarAlertaSinPrincipal" />
 
     @if (_sinAcceso && _alertaSinPrincipal is { LaVe: true })
     {
-        @* Dirección CAE o Administrador: su contenido es el panel de arriba, no la bandeja. *@
+        @* Dirección CAE o Administrador: su contenido es el panel de arriba, no las solicitudes. *@
         @if (_alertaSinPrincipal.Operaciones.Count == 0)
         {
             <EstadoVacio Titulo="@Textos["SinPrincipalVacioTitulo"]" Descripcion="@Textos["SinPrincipalVacioDetalle"]" />

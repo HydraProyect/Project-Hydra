@@ -134,21 +134,21 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
             // Con varias, o sin nadie, la operación queda en la alerta de ese Operador CAE.
             var escrita = await transaccion.EjecutarAsync(async ct =>
             {
-            tenantRepositorio.Agregar(tenantPropietario);
-            parametroSistemaRepositorio.Agregar(new ParametroSistema(UmbralAmbarDiasPorDefecto, UmbralRojoDiasPorDefecto));
-            await asignacionesWriter.AsegurarOperacionRaizAsync(
-                tenantPropietario.Id, tenantPropietario.CreadoEnUtc, ct);
+                tenantRepositorio.Agregar(tenantPropietario);
+                parametroSistemaRepositorio.Agregar(new ParametroSistema(UmbralAmbarDiasPorDefecto, UmbralRojoDiasPorDefecto));
+                await asignacionesWriter.AsegurarOperacionRaizAsync(
+                    tenantPropietario.Id, tenantPropietario.CreadoEnUtc, ct);
 
-            var vinculo = new DelegacionTenant(request.TenantOperadorId, tenantPropietario.Id);
-            vinculosRepositorio.Agregar(vinculo);
-            var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
-                tenantPropietario.Id, request.TenantOperadorId, vinculo.CreadoEnUtc, vigenciaHasta: null, ct);
+                var vinculo = new DelegacionTenant(request.TenantOperadorId, tenantPropietario.Id);
+                vinculosRepositorio.Agregar(vinculo);
+                var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
+                    tenantPropietario.Id, request.TenantOperadorId, vinculo.CreadoEnUtc, vigenciaHasta: null, ct);
 
-            await unitOfWork.SaveChangesAsync(ct);
+                await unitOfWork.SaveChangesAsync(ct);
 
-            return await asignacionAutomatica.AlAbrirOperacionAsync(operacion, ct)
-                ? Result.Exito()
-                : Result.Fallo(PrincipalNoAsignado);
+                return await asignacionAutomatica.AlAbrirOperacionAsync(operacion, ct)
+                    ? Result.Exito()
+                    : Result.Fallo(PrincipalNoAsignado);
             }, cancellationToken);
             if (escrita.EsFallido)
                 return Result.Fallo<Guid>(escrita.Error);
