@@ -163,7 +163,10 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
             .AddUserStore<CaeManager.Infrastructure.Identity.AlmacenUsuarios>()
             // Y la unicidad entre Tenants que la RLS de AspNetUsers (P1-M1)
             // ya no deja comprobar al validador de serie.
-            .AddUserValidator<CaeManager.Infrastructure.Identity.ValidadorUnicidadGlobalCuenta>();
+            .AddUserValidator<CaeManager.Infrastructure.Identity.ValidadorUnicidadGlobalCuenta>()
+            // El enlace de activación es un token del proveedor "Default": sin él,
+            // GeneratePasswordResetTokenAsync lanza NotSupportedException.
+            .AddDefaultTokenProviders();
 
         return new ArnesDeArranqueRuntime(servicios.BuildServiceProvider(), cadenaPropietario);
     }

@@ -192,6 +192,16 @@ public class GestionCuentasUsuarioIdentity(
             // establece su contraseña después, el sello cambia y el token no vale.
             if (!await EsPendienteAsync(usuario)) return Result.Fallo<string>(AutoridadSobreCuentas.YaNoPendiente);
 
+            // Sello nuevo antes de generar: los enlaces emitidos hasta ahora dejan de
+            // valer y la emisión queda en la auditoría de la cuenta (ver
+            // ApplicationUser.PrepararEmisionDeEnlaceDeActivacion). Si la persona se
+            // activó entre la lectura y esta escritura, el ConcurrencyStamp la hace
+            // fallar y no se emite nada.
+            usuario.PrepararEmisionDeEnlaceDeActivacion();
+            var sellado = await userManager.UpdateAsync(usuario);
+            if (!sellado.Succeeded)
+                return Result.Fallo<string>(ErrorDeIdentity("Usuarios.FalloAlEmitirActivacion", sellado));
+
             var token = await userManager.GeneratePasswordResetTokenAsync(usuario);
             return Result.Exito(WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token)));
         }, cancellationToken);
