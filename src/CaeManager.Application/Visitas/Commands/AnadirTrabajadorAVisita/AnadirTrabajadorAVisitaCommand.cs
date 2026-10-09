@@ -59,6 +59,7 @@ public class AnadirTrabajadorAVisitaCommandHandler(
             return Result.Fallo(Error.Crear("Visita.TrabajadorNoEncontrado", "No encontramos este trabajador."));
 
         visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, request.TrabajadorId));
+        visita.RegistrarCambioDeTrabajadores();
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Cambiar quién entra puede dejar el expediente completo.

@@ -125,6 +125,14 @@ public class Visita : EntidadBase
 
     public void MarcarNotificadoCliente(bool notificado) => NotificadoCliente = notificado;
 
+    /// <summary>
+    /// Añadir o quitar un Trabajador cambia la Visita aunque solo se escriba la unión
+    /// VisitaTrabajador: renueva la versión para que dos cambios simultáneos choquen (no se
+    /// quedan sin Trabajadores entre los dos) y para que un «Editar visita» abierto antes no
+    /// guarde encima sin enterarse.
+    /// </summary>
+    public void RegistrarCambioDeTrabajadores() => RenovarVersion();
+
     /// <summary>Ata la visita a la conversación que la pidió. Idempotente: una vez atada no se reasigna, para que el instante de solicitud no se mueva bajo los pies del cálculo ya sellado.</summary>
     public void RegistrarOrigenSolicitud(Guid conversacionId, DateTime fechaHoraSolicitudUtc)
     {

@@ -16,7 +16,7 @@ namespace CaeManager.Application.Tests.Visitas;
 /// solo lo que se decide antes de consultar la base general del Tenant (el contexto de
 /// Trabajadores va a null: si el handler pasara la barrera, el test reventaría en vez de dar un
 /// falso verde). El alta real, con Trabajadores y RLS, se prueba en Integration
-/// (<c>TrabajadoresDeVisitaDesdePanelBajoRlsTests</c>).
+/// (<c>EditarCancelarVisitaAlcanceCarteraBajoRlsTests</c>).
 /// </summary>
 public class TrabajadoresDeVisitaCommandHandlerTests
 {
@@ -81,10 +81,13 @@ public class TrabajadoresDeVisitaCommandHandlerTests
     {
         var (sale, queda) = (Guid.NewGuid(), Guid.NewGuid());
         var escenario = new Escenario(sale, queda);
+        var versionAntes = escenario.Visita.Version;
 
         var resultado = await escenario.QuitarAsync(sale);
 
         resultado.EsExitoso.Should().BeTrue();
+        escenario.Visita.Version.Should().NotBe(versionAntes,
+            "quitar cambia la Visita: sin versión nueva, un «Editar visita» abierto antes guardaría encima sin conflicto");
         escenario.Union.Filas.Select(f => f.TrabajadorId).Should().BeEquivalentTo([queda]);
         escenario.UnitOfWork.VecesGuardado.Should().Be(1);
         escenario.Evaluador.Evaluadas.Should().BeEquivalentTo([escenario.Visita.Id]);
@@ -109,12 +112,14 @@ public class TrabajadoresDeVisitaCommandHandlerTests
     public async Task Quitar_a_quien_ya_no_entra_es_exito_sin_guardar()
     {
         var escenario = new Escenario(Guid.NewGuid(), Guid.NewGuid());
+        var versionAntes = escenario.Visita.Version;
 
         var resultado = await escenario.QuitarAsync(Guid.NewGuid());
 
         resultado.EsExitoso.Should().BeTrue();
         escenario.Union.Filas.Should().HaveCount(2);
         escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+        escenario.Visita.Version.Should().Be(versionAntes, "sin cambio no hay versión nueva");
     }
 
     [Fact]

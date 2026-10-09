@@ -57,6 +57,7 @@ public class QuitarTrabajadorDeVisitaCommandHandler(
             return Result.Fallo(Error.Crear(CodigoUltimoTrabajador, "La visita debe incluir al menos un trabajador."));
 
         visitaTrabajadorRepositorio.Eliminar(aQuitar);
+        visita.RegistrarCambioDeTrabajadores();
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Con un Trabajador menos puede dejar de faltar documentación.

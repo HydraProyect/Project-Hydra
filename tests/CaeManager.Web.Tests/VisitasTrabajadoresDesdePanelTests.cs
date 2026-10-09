@@ -344,6 +344,8 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
         var disparador = cut.Find("tr .ventana-contexto-disparador");
         disparador.TextContent.Trim().Should().Be("2");
         disparador.GetAttribute("aria-label").Should().Be("Trabajadores asignados: 2");
+        cut.Find("tr .ventana-contexto-pie").TextContent.Trim().Should().Be("Clic en uno para abrir la pestaña Trabajadores",
+            "el listado lo ve también quien solo consulta: el pie no promete añadir ni quitar");
         var elementos = cut.FindAll("tr .ventana-contexto-elemento");
         elementos.Select(e => e.QuerySelector(".ventana-contexto-elemento-texto")!.TextContent.Trim())
             .Should().Equal(["Ana García Ruiz", "Óscar Bravo Nieto"]);

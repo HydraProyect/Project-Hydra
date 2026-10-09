@@ -265,6 +265,50 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorFuera]);
     }
 
+    /// <summary>
+    /// Añadir y quitar solo escriben la unión, pero renuevan la versión de la Visita: quien abrió
+    /// «Editar visita» antes del cambio recibe conflicto en vez de guardar encima su lista vieja.
+    /// </summary>
+    [Fact]
+    public async Task Anadir_y_quitar_renuevan_la_version_de_la_Visita()
+    {
+        var inicial = await VersionAsync(_visitaDentro);
+
+        (await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+        var trasAnadir = await VersionAsync(_visitaDentro);
+        (await QuitarTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorDentro)).EsExitoso.Should().BeTrue();
+        var trasQuitar = await VersionAsync(_visitaDentro);
+
+        trasAnadir.Should().NotBe(inicial);
+        trasQuitar.Should().NotBe(trasAnadir);
+
+        var conVersionVieja = await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorDentro, version: inicial);
+        conVersionVieja.Error.Codigo.Should().Be(CaeManager.Application.Common.ConcurrenciaOptimista.CodigoConflicto);
+    }
+
+    /// <summary>
+    /// Dos cambios simultáneos: el segundo leyó la Visita antes de que el primero guardara. Su
+    /// UPDATE lleva la versión leída en el WHERE y PostgreSQL no encuentra la fila: no se cuela.
+    /// (En la aplicación, ConcurrenciaBehavior convierte esta excepción en el conflicto que ve el usuario.)
+    /// </summary>
+    [Fact]
+    public async Task Un_cambio_de_Trabajadores_sobre_una_Visita_leida_antes_de_otro_cambio_choca()
+    {
+        var usuario = new CurrentUserServiceFalso(_gestor, "Administrador", tenantOrigenId: _tenant);
+        await using var rezagado = CrearContextoRuntime(usuario);
+        _ = await rezagado.Visitas.SingleAsync(v => v.Id == _visitaDentro);
+
+        (await AnadirTrabajadorAsync(_gestor, "Administrador", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+
+        var handler = new QuitarTrabajadorDeVisitaCommandHandler(
+            new VisitaRepository(rezagado), new VisitaTrabajadorRepository(rezagado), new EvaluadorExpedienteNulo(), rezagado,
+            NullLogger<QuitarTrabajadorDeVisitaCommandHandler>.Instance, CrearAlcance(rezagado, usuario));
+        var quitar = () => handler.Handle(new QuitarTrabajadorDeVisitaCommand(_visitaDentro, _trabajadorDentro), CancellationToken.None);
+
+        await quitar.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro, _trabajadorFuera]);
+    }
+
     [Fact]
     public async Task Gestor_CAE_no_anade_ni_quita_Trabajadores_de_una_Visita_fuera_de_su_cartera()
     {
@@ -454,7 +498,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
             CancellationToken.None);
     }
 
-    private async Task<Result> AnadirTrabajadorAsync(Guid usuarioId, string rol, Guid visitaId, Guid trabajadorId)
+    private async Task<Result> AnadirTrabajadorAsync(Guid usuarioId, string rol, Guid visitaId, Guid trabajadorId, Guid version = default)
     {
         var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
         await using var runtime = CrearContextoRuntime(usuario);
@@ -462,7 +506,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
             new VisitaRepository(runtime), new VisitaTrabajadorRepository(runtime), runtime, new EvaluadorExpedienteNulo(), runtime,
             NullLogger<AnadirTrabajadorAVisitaCommandHandler>.Instance, CrearAlcance(runtime, usuario));
 
-        return await handler.Handle(new AnadirTrabajadorAVisitaCommand(visitaId, trabajadorId), CancellationToken.None);
+        return await handler.Handle(new AnadirTrabajadorAVisitaCommand(visitaId, trabajadorId, version), CancellationToken.None);
     }
 
     private async Task<Result> QuitarTrabajadorAsync(Guid usuarioId, string rol, Guid visitaId, Guid trabajadorId)
