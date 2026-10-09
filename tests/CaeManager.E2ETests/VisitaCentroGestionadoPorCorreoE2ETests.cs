@@ -173,7 +173,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await page.GetByPlaceholder("Buscar por centro, titular o empresa…").FillAsync(nombreCentro);
         var filaVisita = page.Locator("tr", new PageLocatorOptions { HasText = nombreCentro });
         await filaVisita.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await Ayudas.PulsarAccionDeMenuAsync(filaVisita.Locator(".menu-acciones-disparador"), "Ver");
+        await filaVisita.Locator("button.nombre-abre-vista-rapida").ClickAsync();
         // El panel se abre en «Información»; la solicitud y el zip viven en «Documentación».
         await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Documentación", Exact = true }).ClickAsync();
 
@@ -268,7 +268,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await page.GetByPlaceholder("Buscar por centro, titular o empresa…").FillAsync(nombreCentro);
         await filaVisita.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(filaVisita).ToContainTextAsync("Por gestionar");
-        await Ayudas.PulsarAccionDeMenuAsync(filaVisita.Locator(".menu-acciones-disparador"), "Ver");
+        await filaVisita.Locator("button.nombre-abre-vista-rapida").ClickAsync();
         await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
         await Expect(filasTrabajador).ToHaveCountAsync(1);
         await Expect(listaTrabajadores).Not.ToContainTextAsync(apellidosTrabajador);

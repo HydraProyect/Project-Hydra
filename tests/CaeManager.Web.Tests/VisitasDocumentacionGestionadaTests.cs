@@ -128,15 +128,14 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         var cut = Render<Visitas>();
-        cut.WaitForAssertion(() => cut.Find("tr .menu-acciones-disparador"));
+        cut.WaitForAssertion(() => cut.Find("tr button.nombre-abre-vista-rapida"));
         return cut;
     }
 
     private async Task<IRenderedComponent<Visitas>> AbrirPanelAsync(MediatorPanel mediator)
     {
         var cut = Renderizar(mediator);
-        await cut.Find("tr .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").First(i => i.TextContent.Trim() == "Ver").ClickAsync(new MouseEventArgs());
+        await cut.Find("tr button.nombre-abre-vista-rapida").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel [role=tab]").Should().NotBeEmpty());
         return cut;
     }

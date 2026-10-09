@@ -137,8 +137,16 @@
                     </span>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaFechas"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
+                    @* Patrón de listados (2026-10-08): la fila no lleva menú «⋯» y se pulsa entera. QuickGrid no
+                       ofrece clic de fila: «fila-pulsable» (RowClass) y «nombre-abre-vista-rapida» son el contrato
+                       con el oyente de atajos-lista.js, que pulsa este botón cuando el clic cae en un punto de la
+                       fila sin control. Una Visita no tiene nombre: la identifican el Centro y sus fechas, y los
+                       nombres del Centro, del titular y de la Empresa ya abren cada uno su panel, así que el botón
+                       de la vista rápida (destino de teclado) son las fechas. *@
                     <span class="visitas-celda-apilada">
-                        @TextoFechas(context.FechaInicio, context.FechaFin)
+                        <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida"
+                                aria-label="@Textos["AriaAbrirVistaRapidaVisita", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
+                                @onclick="() => AbrirDetalleAsync(context.Id)">@TextoFechas(context.FechaInicio, context.FechaFin)</button>
                         @if (!context.EstaCancelada)
                         {
                             <span class="visitas-celda-secundaria">@TextoPlazo(context)</span>
@@ -231,29 +239,25 @@
                         </NotAuthorized>
                     </AuthorizeView>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
-                    <MenuAcciones>
-                        <ItemMenuAccion OnClick="() => AbrirDetalleAsync(context.Id)">
-                            @Textos["AccionVer"]
-                        </ItemMenuAccion>
+                @* Sin menú «⋯». Lo que hacía ese menú: «Ver» es el clic en la fila, sus fechas o Enter;
+                   «Editar», el lápiz de la cabecera del panel y la tecla «e»; «Cancelar visita», la selección
+                   múltiple (☑ de la barra o tecla «x»), con su pregunta, su motivo y su «Deshacer»; «Reactivar»
+                   es la acción rápida de la fila cancelada y sigue en el pie del panel. El icono lleva a la
+                   página Visita 360 (/visitas/{id}). *@
+                <TemplateColumn Title="" Align="Align.End">
+                    <span class="visitas-celda-acciones">
                         @if (context.EstaCancelada)
                         {
                             @* FS-11: reactivar se ofrece a los mismos roles que cancelar; la autorización
                                real, con el alcance de cartera, está en AutorizacionCancelacionVisita. *@
-                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReactivar(context.Id, context.Version, context.CentroNombre)">
-                                @Textos["AccionReactivar"]
-                            </ItemMenuAccion></SoloConEscritura>
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                       aria-label="@Textos["AriaReactivarVisita", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
+                                       OnClick="() => AbrirReactivar(context.Id, context.Version, context.CentroNombre)">@Textos["AccionReactivar"]</Boton>
+                            </SoloConEscritura>
                         }
-                        else
-                        {
-                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
-                                @Textos["AccionEditar"]
-                            </ItemMenuAccion></SoloConEscritura>
-                            <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirCancelar(context.Id, context.CentroNombre)">
-                                @Textos["AccionCancelar"]
-                            </ItemMenuAccion></SoloConEscritura>
-                        }
-                    </MenuAcciones>
+                        <Boton360 Nombre="@Textos["NombreVisitaPara360", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" Href="@($"/visitas/{context.Id}")" />
+                    </span>
                 </TemplateColumn>
             </QuickGrid>
 
@@ -371,7 +375,22 @@
         else if (_detalle is not null)
         {
             <div class="visitas-detalle-cabecera">
-                <span class="visitas-detalle-centro">@_detalle.CentroNombre</span>
+                <div class="visitas-detalle-titulo">
+                    <span class="visitas-detalle-centro">@_detalle.CentroNombre</span>
+                    @if (!_detalle.EstaCancelada)
+                    {
+                        @* El lápiz vive en la cabecera, a la vista en las tres pestañas (patrón de listados: la fila
+                           no lleva menú). Abre el mismo formulario que «Editar» del pie y que la tecla «e» sobre la
+                           fila enfocada. EditarVisitaCommand es un ICommand denegado a Consulta: no se le ofrece.
+                           Una Visita cancelada no se edita; se reactiva. *@
+                        <SoloConEscritura>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="EditarDesdeDetalleAsync"
+                                   aria-label="@Textos["AriaEditarVisita"]" title="@Textos["AccionEditar"]">
+                                <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+                            </Boton>
+                        </SoloConEscritura>
+                    }
+                </div>
                 <div class="visitas-detalle-marcas">
                     @if (_filaDetalle is { } filaUrgencia)
                     {
@@ -728,19 +747,6 @@
 
 <VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
 
-<DialogoConfirmacion
-    Visible="_confirmarCancelarVisible"
-    VisibleChanged="v => _confirmarCancelarVisible = v"
-    HayCambios="() => HayMotivoSinConfirmar(_confirmarCancelarVisible, _motivoCancelacion)"
-    Titulo="@Textos["ConfirmarCancelarTitulo", _centroACancelar]"
-    Mensaje="@Textos["ConfirmarCancelarMensaje"]"
-    TextoBotonConfirmar="@Textos["AccionCancelar"]"
-    TextoBotonDescartar="@Textos["BotonVolver"]"
-    EnProgreso="_cancelando"
-    OnConfirmar="ConfirmarCancelarAsync">
-    <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
-</DialogoConfirmacion>
-
 @* Quitar un Trabajador pregunta antes: el patrón «Deshacer» de los listados (Listados 5/7) aún no está en main. *@
 <DialogoConfirmacion
     Visible="_confirmarQuitarTrabajadorVisible"
@@ -766,7 +772,8 @@
     <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoReactivacion" ValorChanged="v => _motivoReactivacion = v" Filas="2" />
 </DialogoConfirmacion>
 
-@* La única acción del lote es cancelar (ICommand que AutorizacionEscrituraBehavior deniega a
+@* Cancelar una Visita solo se hace desde aquí, también cuando es una sola (la fila no lleva menú): pregunta, admite
+   motivo y ofrece «Deshacer». La única acción del lote es cancelar (ICommand que AutorizacionEscrituraBehavior deniega a
    Consulta): la barra no se le ofrece. La palanca de selección múltiple sigue visible porque
    vive en BarraHerramientasLista, compartida y con contenido de lectura, y seleccionar no escribe. *@
 <SoloConEscritura>
@@ -787,7 +794,7 @@
     <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
 </DialogoConfirmacion>
 
-@* Salir de la pantalla con un «Motivo (opcional)» escrito en alguno de los tres diálogos de confirmación pregunta; el cierre
+@* Salir de la pantalla con un «Motivo (opcional)» escrito en alguno de los dos diálogos de confirmación pregunta; el cierre
    del propio diálogo (X, Escape, fondo, «Volver») lo pregunta el DialogoConfirmacion con ese mismo HayCambios. *@
 <AvisoCambiosSinGuardar HayCambios="HayMotivoEnAlgunDialogo" AlDescartar="CerrarDialogosDescartando" />
 

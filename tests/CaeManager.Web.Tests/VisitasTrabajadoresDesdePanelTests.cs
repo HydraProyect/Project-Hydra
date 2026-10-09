@@ -134,9 +134,8 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
                 .ChangeAsync(new ChangeEventArgs { Value = false });
         }
 
-        cut.WaitForAssertion(() => cut.Find("tr .menu-acciones-disparador"));
-        await cut.Find("tr .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").First(i => i.TextContent.Trim() == "Ver").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Find("tr button.nombre-abre-vista-rapida"));
+        await cut.Find("tr button.nombre-abre-vista-rapida").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel [role=tab]").Should().HaveCount(3));
         await cut.FindAll(".drawer-panel [role=tab]").First(t => t.TextContent.Trim() == "Trabajadores").ClickAsync(new MouseEventArgs());
@@ -162,9 +161,8 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         var cut = Render<Visitas>();
-        cut.WaitForAssertion(() => cut.Find("tr .menu-acciones-disparador"));
-        await cut.Find("tr .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").First(i => i.TextContent.Trim() == "Ver").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Find("tr button.nombre-abre-vista-rapida"));
+        await cut.Find("tr button.nombre-abre-vista-rapida").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel [role=tab]").Select(t => t.TextContent.Trim())
             .Should().Equal(["Información", "Trabajadores", "Documentación"]));
