@@ -73,8 +73,13 @@ public class AlcancePorIdTests : IAsyncLifetime
 
         // Documento de vigilancia de la salud — el caso más sensible del Issue #18:
         // un DNI/Id de Trabajador fuera de cartera no debe poder leerse por Id.
+        // El tipo se elige por nombre, nunca «el primero que devuelva la base»: sin ORDER BY
+        // PostgreSQL puede devolver «Certificado de aptitud médica», que comparte nombre
+        // canónico de fichero e indicador de documentación base con los tipos médicos que
+        // crean los tests de abajo, y este documento pasaría a contar como uno anterior
+        // del mismo día (fallo intermitente en la cola de fusión, 2026-10-09).
         var tipoDocumentoTrabajador = await _dbContext.TiposDocumento
-            .FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador);
+            .SingleAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && t.Nombre == "Primeros auxilios");
 
         _documentoDeTrabajadorVisible = Documento.DeTrabajador(
             trabajadorVisible.Id, tipoDocumentoTrabajador.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
