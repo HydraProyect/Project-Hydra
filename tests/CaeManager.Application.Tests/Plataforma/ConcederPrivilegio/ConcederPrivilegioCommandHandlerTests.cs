@@ -33,6 +33,10 @@ public class DirectorioTenantDeCuenta(IReadOnlyDictionary<Guid, Guid> tenantPorC
     public Task<bool> EsCuentaActivaConRolAsync(
         Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+        Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 }
 
 public class ConcederPrivilegioCommandHandlerTests

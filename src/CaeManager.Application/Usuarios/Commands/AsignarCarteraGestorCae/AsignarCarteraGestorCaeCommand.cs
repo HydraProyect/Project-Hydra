@@ -38,8 +38,9 @@ namespace CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 /// <b>Relevo del principal</b>: si una cartera retirada era la principal de su Asignación de
 /// Operación, la marca pasa en la misma transacción al Coordinador CAE de ese Gestor CAE
 /// (<see cref="RelevoDePrincipalDeCartera"/>): se marca su cartera viva o se le emite una de
-/// Coordinador CAE. Las carteras de apoyo no se tocan. Sin Coordinador CAE, la operación
-/// queda sin principal.
+/// Coordinador CAE. Las carteras de apoyo no se tocan. Sin Coordinador CAE a quien relevar se
+/// escala al único Coordinador CAE, Dirección CAE o Administrador del Operador CAE
+/// (<see cref="EscaladoDePrincipalDeCartera"/>); si no hay uno solo, la operación queda sin principal.
 /// </para>
 /// </summary>
 public record AsignarCarteraGestorCaeCommand(
@@ -159,7 +160,7 @@ public class AsignarCarteraGestorCaeCommandHandler(
                         .ToList();
                 var coordinadorDeRelevo = sinPrincipal.Count == 0
                     ? null
-                    : await RelevoDePrincipalDeCartera.ResolverCoordinadorAsync(
+                    : await RelevoDePrincipalDeCartera.ResolverRelevoAsync(
                         ctx.GestorUsuarioId, ctx.OperadorTenantId, directorioDestinos, directorioUsuarios, bloqueoCartera, ct);
 
                 foreach (var propietarioTenantId in aRetirar)

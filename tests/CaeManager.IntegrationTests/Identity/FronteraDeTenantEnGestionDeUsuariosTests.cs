@@ -480,7 +480,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             object respuesta = request switch
             {
                 ObtenerCuentaUsuarioQuery q => await new ObtenerCuentaUsuarioQueryHandler(cuentas, actor).Handle(q, cancellationToken),
-                EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual).Handle(c, cancellationToken),
+                EditarUsuarioCommand c => await new EditarUsuarioCommandHandler(cuentas, actor, tenantActual, new TransaccionDirecta(), new AsignacionAutomaticaInerte()).Handle(c, cancellationToken),
                 CambiarActivacionUsuarioCommand c => await new CambiarActivacionUsuarioCommandHandler(
                     cuentas, actor, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio).Handle(c, cancellationToken),
                 EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, actor).Handle(c, cancellationToken),

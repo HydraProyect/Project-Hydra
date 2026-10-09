@@ -146,6 +146,29 @@ public class DirectorioUsuariosTenant(
                 .AnyAsync(cancellationToken);
         }, cancellationToken);
 
+    /// <inheritdoc />
+    public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+        Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyList<Guid>>(async () =>
+        {
+            // Sin rastreo, como EsCuentaActivaConRolAsync: tiene que ver el bloqueo y el rol de ahora.
+            var cuentas = await (
+                from u in identidad.Users.AsNoTracking()
+                join ur in identidad.UserRoles.AsNoTracking() on u.Id equals ur.UserId
+                join r in identidad.Roles.AsNoTracking() on ur.RoleId equals r.Id
+                where u.TenantId == tenantId && r.Name == rol
+                select u)
+                .ToListAsync(cancellationToken);
+
+            var ahora = DateTimeOffset.UtcNow;
+            return cuentas
+                .Where(u => !u.EstaDesactivada(ahora))
+                .Select(u => u.Id)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+        }, cancellationToken);
+
     /// <summary>
     /// Los Gestores CAE propios del Tenant activo cuyo <c>CoordinadorUsuarioId</c> es el indicado.
     /// Sin rastreo, como <see cref="ObtenerAsync"/>: la lista tiene que ver el bloqueo de ahora.
