@@ -295,15 +295,20 @@
                     @{ var visitas = _visitasPorCentro.GetValueOrDefault(centro.Id) ?? []; }
                     @{ var visita = visitas.FirstOrDefault(); }
                     @{ var expandido = _expandidos.Contains(centro.Id); }
-                    <div class="tarjeta-fila-acordeon-cabecera">
+                    @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
+                       fila abre la vista rápida (el panel del Context Workspace), igual que Enter
+                       sobre la fila enfocada; los controles de dentro —casilla, desplegable, ventanas
+                       de contexto con incidencias corregibles, visitas, icono 360— hacen lo suyo y no
+                       dejan subir el clic. *@
+                    <div class="tarjeta-fila-acordeon-cabecera fila-pulsable" @onclick="() => AbrirPanelAsync(centro.Id)">
                         @if (_seleccionMultiple)
                         {
-                            <input type="checkbox" aria-label="@($"Seleccionar el centro {centro.Nombre}")" checked="@_seleccionados.Contains(centro.Id)" @onchange="e => AlternarSeleccion(centro.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@($"Seleccionar el centro {centro.Nombre}")" checked="@_seleccionados.Contains(centro.Id)" @onchange="e => AlternarSeleccion(centro.Id, (bool)e.Value!)" @onclick:stopPropagation="true" />
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
                                 aria-label="@($"Asignaciones de {centro.Nombre}")"
-                                @onclick="() => AlternarExpansion(centro.Id)">
+                                @onclick="() => AlternarExpansion(centro.Id)" @onclick:stopPropagation="true">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
                         @*
@@ -315,7 +320,11 @@
                             segunda línea (.meta-empresa-movil, Centros.razor.css).
                         *@
                         <span class="tarjeta-fila-acordeon-identidad">
-                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirPanelAsync(centro.Id)">
+                            @* El nombre es un botón que abre la vista rápida: es el destino de teclado del
+                               clic en la fila (la fila entera no es focable con Tab). A la página Centro 360
+                               se va con el icono 360 del final de la fila y con el del panel. *@
+                            <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida"
+                                    @onclick="() => AbrirPanelAsync(centro.Id)" @onclick:stopPropagation="true">
                                 @centro.Nombre
                             </button>
                             @{ var meta = MetaCentro(centro); }
@@ -398,7 +407,8 @@
                                                      Titulo="1 visita programada">
                                         <Disparador>
                                             <button type="button" class="badge-visita"
-                                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
+                                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'
+                                                    @onclick:stopPropagation="true">
                                                 Visita @visita!.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
                                             </button>
                                         </Disparador>
@@ -413,7 +423,8 @@
                                                      Titulo="@($"{visitas.Count} visitas programadas")">
                                         <Disparador>
                                             <button type="button" class="badge-visita"
-                                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'>
+                                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'
+                                                    @onclick:stopPropagation="true">
                                                 @visitas.Count visitas
                                             </button>
                                         </Disparador>
@@ -433,21 +444,11 @@
                                 }
                             </span>
                         </span>
-                        @* Pieza 5: la última columna es siempre el menú «⋯» (MenuAcciones). Antes era el enlace
-                           suelto «Detalles». Orden del contrato: «Abrir ficha 360» primero. «Eliminar centro» (baja lógica con «Deshacer»,
-                           D-16) está aquí y en lote, activando «Selección múltiple». *@
+                        @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Vista rápida» es el
+                           clic en la fila; «Abrir ficha 360», este icono; «Eliminar centro», la selección
+                           múltiple (☑ de la cabecera o tecla «x») con «Eliminar seleccionados» y su «Deshacer». *@
                         <div class="tarjeta-fila-acordeon-acciones">
-                            <MenuAcciones EtiquetaAccesible="@Textos["MenuFilaEtiqueta", centro.Nombre]">
-                                <ItemMenuAccion OnClick="() => AbrirFichaCentro(centro.Id)">
-                                    @Textos["MenuVerFicha360"]
-                                </ItemMenuAccion>
-                                <ItemMenuAccion OnClick="() => AbrirPanelAsync(centro.Id)">
-                                    @Textos["MenuVistaPrevia"]
-                                </ItemMenuAccion>
-                                <SoloConEscritura>
-                                    <ItemMenuAccion Destructivo="true" OnClick="() => PedirEliminarCentro(centro)">@Textos["MenuEliminarCentro"]</ItemMenuAccion>
-                                </SoloConEscritura>
-                            </MenuAcciones>
+                            <Boton360 Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" />
                         </div>
                     </div>
                     @if (expandido)
@@ -467,17 +468,14 @@
                                                           MostrarEnlacesCentro360="false"
                                                           AsignarEsPrimaria="false"
                                                           OnCambio="() => RefrescarCentroAsync(centro.Id)" />
-                            @* Camino a Centro 360 ÚNICO y SIEMPRE presente (Lista
-                               Centros TALVEG.dc.html). Los enlaces que el acordeón
-                               pinta por su cuenta son condicionales —solo con
-                               trabajadores al día ocultos o con el estado «Todos
-                               al día»—, así que un centro con pendientes y sin
-                               ocultos no ofrecía camino alguno a /centros/{id}; y
-                               cuando sí aparecían, se sumaban a este y la fila
-                               ofrecía dos caminos al mismo destino. Por eso aquí
-                               se apagan (MostrarEnlacesCentro360="false") y el
-                               camino vive solo en la página: el acordeón también
-                               lo monta CentroDetalle, donde apuntaría a sí mismo. *@
+                            @* Camino a Centro 360 SIEMPRE presente en la fila desplegada, y uno solo dentro
+                               de ella (Lista Centros TALVEG.dc.html). Los enlaces que el acordeón pinta por
+                               su cuenta son condicionales —solo con trabajadores al día ocultos o con el
+                               estado «Todos al día»—, así que un centro con pendientes y sin ocultos no
+                               ofrecía camino alguno a /centros/{id}; y cuando sí aparecían, se sumaban a
+                               este. Por eso aquí se apagan (MostrarEnlacesCentro360="false"): el acordeón
+                               también lo monta CentroDetalle, donde apuntaría a sí mismo. La fila lleva
+                               además su icono 360 (patrón de listados), que está con o sin desplegar. *@
                             <div class="acordeon-centro-pie">
                                 <a class="acordeon-centro-enlace-360" href="@($"/centros/{centro.Id}")">Ver el centro completo →</a>
                             </div>
@@ -577,8 +575,8 @@
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
-    VisibleChanged="CambiarVisibilidadConfirmarEliminar"
-    Titulo="@(_centroAEliminarId is { } ? Textos["EliminarCentroTitulo", _centroAEliminarNombre].Value : $"¿Eliminar {_seleccionados.Count} centro(s)?")"
+    VisibleChanged="v => _confirmarEliminarLoteVisible = v"
+    Titulo="@($"¿Eliminar {_seleccionados.Count} centro(s)?")"
     Mensaje="Se ocultará(n) de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />

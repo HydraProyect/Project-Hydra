@@ -112,24 +112,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private List<CentroListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
-    // D-16: baja de un solo Centro desde el «⋯» de su fila. Reutiliza el diálogo y el camino de la
-    // baja en lote (EliminarCentrosCommand con un id, «Deshacer» incluido) sin tocar la selección.
-    private Guid? _centroAEliminarId;
-    private string _centroAEliminarNombre = string.Empty;
-
-    private void PedirEliminarCentro(CentroListaDto centro)
-    {
-        _centroAEliminarId = centro.Id;
-        _centroAEliminarNombre = centro.Nombre;
-        _confirmarEliminarLoteVisible = true;
-    }
-
-    private void CambiarVisibilidadConfirmarEliminar(bool visible)
-    {
-        _confirmarEliminarLoteVisible = visible;
-        if (!visible)
-            _centroAEliminarId = null;
-    }
+    // La baja de un Centro se hace solo desde la selección múltiple (patrón de listados: la fila
+    // no lleva menú «⋯»): ☑ de la cabecera o tecla «x», «Eliminar seleccionados» y su «Deshacer».
     private bool _confirmarEliminarLoteVisible;
 
     // Crear inline desde el propio selector (Fase A4): si el Cliente o la
@@ -791,8 +775,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     // --- Patrón único de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md) ---
 
     /// <summary>
-    /// Nombre de la fila, «Vista previa» del «⋯» y Enter sobre la fila enfocada: la vista previa (pieza 6). En
+    /// Un clic en la fila, su nombre o Enter sobre la fila enfocada: la vista rápida (pieza 6). En
     /// Centros es el panel del Context Workspace, que ya existe; el contrato prohíbe sumarle un drawer.
+    /// A la página Centro 360 (/centros/{id}) se va con el icono 360 de la fila y con el del panel.
     /// </summary>
     private Task AbrirPanelAsync(Guid id)
     {
@@ -802,8 +787,22 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             : WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, centro.Id, centro.Nombre, "informacion");
     }
 
-    /// <summary>«Abrir ficha 360» del «⋯»: la página /centros/{id}.</summary>
-    private void AbrirFichaCentro(Guid id) => NavigationManager.NavigateTo($"/centros/{id}");
+    /// <summary>
+    /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
+    /// del panel). Si el rol no puede escribir, el panel se abre y se queda en lectura.
+    /// </summary>
+    private Task AbrirPanelEnEdicionAsync(Guid id) =>
+        WorkspaceService.AbrirEnEdicionAsync(EntidadWorkspace.Centro, id, NombreDe(id));
+
+    // El Centro del panel puede no estar en la página (el filtro lo dejó fuera): su nombre es
+    // entonces el del frame abierto.
+    private string NombreDe(Guid id) =>
+        _elementosPagina.FirstOrDefault(e => e.Id == id)?.Nombre
+        ?? (WorkspaceService.FrameActual is { } frame && frame.EntidadId == id ? frame.TituloVisible : string.Empty);
+
+    /// <summary>Centro cuyo panel está abierto arriba de la pila del Context Workspace, si lo hay.</summary>
+    private Guid? CentroEnVistaRapida =>
+        WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Centro } frame ? frame.EntidadId : null;
 
     private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;
 
@@ -1116,8 +1115,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         try
         {
-            var individual = _centroAEliminarId;
-            var idsPedidos = individual is { } uno ? [uno] : _seleccionados.ToList();
+            var idsPedidos = _seleccionados.ToList();
             var resultado = await Mediator.Send(new EliminarCentrosCommand(idsPedidos));
             var dto = resultado.Valor;
 
@@ -1138,11 +1136,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             if (dto.Eliminados > 0)
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Centro, dto.IdsEliminados ?? idsPedidos);
 
-            if (individual is null)
-                _seleccionados.Clear();
-            else
-                _seleccionados.Remove(individual.Value);
-            _centroAEliminarId = null;
+            _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;
             await CargarAsync();
             await CargarOpcionesDeFiltroAsync();
@@ -1194,6 +1188,16 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     private async Task ManejarAtajoAsync(string tecla)
     {
+        // «e» no depende de que haya filas a la vista: sin fila enfocada edita la ficha que esté
+        // abierta, aunque el filtro haya dejado la lista vacía. La fila enfocada siempre se ve:
+        // contraer su grupo o recargar la lista la olvida (DesenfocarSiOculta).
+        if (tecla == "e")
+        {
+            if ((_idEnfocado ?? CentroEnVistaRapida) is { } idEditar)
+                await AbrirPanelEnEdicionAsync(idEditar);
+            return;
+        }
+
         // j/k recorren las filas que se ven, en el orden en que se pintan (los grupos contraídos no cuentan).
         var filas = FilasVisibles();
         if (filas.Count == 0) return;

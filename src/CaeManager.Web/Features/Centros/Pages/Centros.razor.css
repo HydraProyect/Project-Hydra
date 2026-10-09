@@ -10,7 +10,7 @@
 /*
   Cabecera de columnas (pieza 4). Mismo esqueleto que la cabecera de la fila
   (.tarjeta-fila-acordeon-cabecera, list-page.css): huecos fijos para lo de
-  tamaño fijo (casilla, chevron, cumplimiento, indicadores de 200 px, menú «⋯»)
+  tamaño fijo (casilla, chevron, cumplimiento, indicadores de 200 px, icono 360)
   y dos columnas elásticas, la identidad y la Empresa (en Centros la identidad
   deja de ser la única zona elástica de la fila). Versalitas, como el resto de
   listas del patrón. Los anchos de casilla y chevron son los de sus

@@ -24,8 +24,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Un solo camino a la ficha del centro (<c>/centros/{id}</c>) por fila
-/// expandida de la lista de Centros — con el acordeón de asignaciones REAL.
+/// Un solo camino a la ficha del centro (<c>/centros/{id}</c>) dentro del
+/// desplegable de cada fila de la lista de Centros — con el acordeón de
+/// asignaciones REAL. La cabecera de la fila lleva aparte su icono 360 (patrón
+/// de listados), que está con o sin desplegar y aquí no se cuenta.
 ///
 /// <para>
 /// <see cref="CentrosListaGen2Tests"/> sustituye el acordeón por un stub, así
