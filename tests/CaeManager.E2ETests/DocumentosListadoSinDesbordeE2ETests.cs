@@ -185,7 +185,7 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
         var entidad = await page.EvaluateAsync<string>("() => document.querySelector('table.tabla-datos tbody .nombre-fila-entidad').textContent.trim()");
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?q={Uri.EscapeDataString(entidad)}");
         await Expect(page.Locator("table.tabla-datos tbody tr .menu-acciones-disparador")).Not.ToHaveCountAsync(0);
-        await page.EvaluateAsync("() => document.querySelector('table.tabla-datos tbody tr:last-child').setAttribute('data-ultima-fila', '')");
+        await page.EvaluateAsync("() => { const filas = document.querySelectorAll('table.tabla-datos tbody tr'); filas[filas.length - 1].setAttribute('data-ultima-fila', ''); }");
 
         await Ayudas.AbrirMenuAccionesAsync(page.Locator("tr[data-ultima-fila] .menu-acciones-disparador"));
         var medicion = await page.EvaluateAsync<JsonElement>(MedirMenuAbierto);
