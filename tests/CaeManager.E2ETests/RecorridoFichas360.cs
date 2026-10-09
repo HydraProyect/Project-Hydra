@@ -94,13 +94,14 @@ internal static class RecorridoFichas360
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "Centro 360 recargada");
     }
 
-    /// <summary>Lista de Empresas → nombre de la primera → Empresa 360, y recarga.</summary>
+    /// <summary>Lista de Empresas → icono 360 de la primera fila → Empresa 360, y recarga.</summary>
     public static async Task AbrirEmpresa360DesdeLaListaAsync(IPage page, string baseUrl, string tenantEsperado)
     {
         await Ayudas.NavegarYEsperarAsync(page, $"{baseUrl}/empresas");
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "la lista de Empresas");
 
-        var enlace = page.Locator("a.enlace-nombre-fila.celda-empresa").First;
+        // El nombre de la fila abre la vista rápida; a la página se va con el icono 360.
+        var enlace = page.Locator(".lista-filas-acordeon a.boton-360-pagina").First;
         await Expect(enlace).ToBeVisibleAsync(EsperaEnFrio);
         await enlace.ClickAsync();
         await page.WaitForURLAsync(new Regex(@"/empresas/[0-9a-f-]{36}$"));
