@@ -167,7 +167,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     [Fact]
     public async Task T3_ningun_Centro_ensena_un_documento_que_no_exige_ni_de_un_Trabajador_que_no_es_suyo()
     {
-        var (centros, asignaciones, filas, tipos, previa, centroDeLaVisita) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(T3.Nombre, async sp =>
+        var (centros, asignaciones, filas, tipos, previa, centroDeLaVisita, mensuales) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(T3.Nombre, async sp =>
         {
             var db = sp.GetRequiredService<CaeManager.Infrastructure.Persistence.CaeManagerDbContext>();
             var sender = sp.GetRequiredService<ISender>();
@@ -180,8 +180,12 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                 await db.TiposDocumento.Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
                     .Select(t => new { t.Id, t.Nombre, PorDefecto = t.Requerido == RequisitoDocumental.Si }).ToListAsync(),
                 await sender.Send(new CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita.ObtenerDocumentacionVisitaQuery(visita.Id)),
-                visita.CentroId);
+                visita.CentroId,
+                await db.TiposDocumento.Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa && CertificadosMensuales.Contains(t.Nombre))
+                    .Select(t => new { t.Id, t.Nombre }).ToListAsync());
         });
+
+        mensuales.Select(t => t.Nombre).Should().BeEquivalentTo(CertificadosMensuales, "control: el instrumento sabe cuáles son los dos Tipos mensuales de Empresa");
 
         string NombreDelTipo(Guid? id) => tipos.SingleOrDefault(t => t.Id == id)?.Nombre ?? "(tipo de otro ámbito)";
         string[] loQueExigeCadaCentro = [CatalogoPilotoOutbound.AptitudMedica, CatalogoPilotoOutbound.FormacionArt19];
@@ -211,6 +215,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             // «Próximo», que llegan a todos los Centros de la Empresa propia.
             var deLaEmpresa = incidencias.Where(i => i.Ambito == CaeManager.Application.Centros.AmbitoCausa.Empresa).ToList();
             deLaEmpresa.Should().HaveCount(2).And.OnlyContain(i => i.Estado == EstadoDocumento.Proximo && i.TrabajadorId == null);
+            deLaEmpresa.Select(i => i.TipoDocumentoId).Should().BeEquivalentTo(
+                mensuales.Select(t => (Guid?)t.Id), "MEDIDO: las dos incidencias de Empresa son las de los dos certificados mensuales, una de cada Tipo");
             centro.Recuentos.Proximas.Should().BeEquivalentTo(deLaEmpresa);
             incidencias.Except(deLaEmpresa).Should().OnlyContain(
                 i => i.TipoDocumentoId != null && exigidos.Contains(i.TipoDocumentoId.Value) && i.TrabajadorId != null && suyos.Contains(i.TrabajadorId.Value),
@@ -844,6 +850,50 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         (reclamacion.RazonSocialTitular, reclamacion.AmbitoTitular, reclamacion.TotalDocumentos).Should().Be((T1.Nombre, AmbitoAplicacion.Empresa, 1));
         DateOnly.FromDateTime(reclamacion.FechaEnvioUtc).Should().Be(d.AddDays(-20), "MEDIDO: es un registro histórico, anclado a la demostración");
         reclamacion.DiasTranscurridos.Should().BeGreaterThanOrEqualTo(7);
+
+        // Solo medida, sin afirmación: qué filas de la cola de T1 son de un documento de ámbito Empresa, cuántas nombran el
+        // «Mutua» vencido de la Empresa propia, y si ese documento entra en el contador de vencidos de Inicio. Es un hecho
+        // del producto, que la siembra no fija. La cola es la plana (ObtenerBandejaGestorQuery), la que Mi trabajo agrupa:
+        // el KPI de Inicio es un recuento y no dice qué documentos cuenta, así que se compara con los de la base.
+        string medida;
+        try
+        {
+            medida = await fixture.Arnes.ComoGestoraPrimeraEnAsync(T1.Nombre, async sp =>
+            {
+                var db = sp.GetRequiredService<CaeManager.Infrastructure.Persistence.CaeManagerDbContext>();
+                var sender = sp.GetRequiredService<ISender>();
+                var hoy = DiaDeNegocio.Hoy();
+                var mutuaId = await db.TiposDocumento.Where(t => t.Nombre == DisenoT1PilotoOutbound.TipoDeEmpresaVencido).Select(t => t.Id).SingleAsync();
+                var documentos = await db.Documentos.Select(x => new { x.Id, x.TipoDocumentoId, x.EmpresaId, x.TrabajadorId, x.FechaVencimiento }).ToListAsync();
+                var deEmpresa = documentos.Where(x => x.EmpresaId != null).Select(x => x.Id).ToHashSet();
+                var mutuas = documentos.Where(x => x.TipoDocumentoId == mutuaId).Select(x => x.Id).ToHashSet();
+
+                var cola = await sender.Send(new CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor.ObtenerBandejaGestorQuery());
+                var kpis = await sender.Send(new CaeManager.Application.Dashboard.Queries.ObtenerKpisDashboardQuery());
+
+                var deDocumentoDeEmpresa = cola.Where(i => i.DocumentoId is { } id && deEmpresa.Contains(id)).ToList();
+                var deEmpresaSinDocumento = cola.Where(i => i.DocumentoId == null && i.TrabajadorId == null && i.EmpresaId != null).ToList();
+                var queNombranMutua = cola.Where(i => i.TipoDocumentoId == mutuaId || (i.DocumentoId is { } id && mutuas.Contains(id))).ToList();
+                var vencidosDeTrabajador = documentos.Count(x => x.TrabajadorId != null && x.FechaVencimiento < hoy);
+                var vencidosDeEmpresa = documentos.Count(x => x.EmpresaId != null && x.FechaVencimiento < hoy);
+
+                return
+                    $"MEDIDO T1 cola plana: {cola.Count} filas (Mi trabajo, agrupada: {fixture.Informe.De(T1).MiTrabajoFilas}); de un documento de ámbito Empresa " +
+                    $"{deDocumentoDeEmpresa.Count} [{string.Join("; ", deDocumentoDeEmpresa.Select(i => $"{i.Tipo} · {i.Titulo}"))}]; de Empresa sin documento " +
+                    $"{deEmpresaSinDocumento.Count}; nombran «{DisenoT1PilotoOutbound.TipoDeEmpresaVencido}» {queNombranMutua.Count} " +
+                    $"[{string.Join("; ", queNombranMutua.Select(i => $"{i.Tipo} · {i.Titulo}"))}]\n" +
+                    $"MEDIDO T1 Inicio: DocumentosVencidos {kpis.DocumentosVencidos}; en la base, con fecha vencida: {vencidosDeTrabajador} de Trabajador y " +
+                    $"{vencidosDeEmpresa} de Empresa ({mutuas.Count} «{DisenoT1PilotoOutbound.TipoDeEmpresaVencido}»). El contador coincide con solo los de " +
+                    $"Trabajador: {kpis.DocumentosVencidos == vencidosDeTrabajador}; con los de Trabajador más los de Empresa: " +
+                    $"{kpis.DocumentosVencidos == vencidosDeTrabajador + vencidosDeEmpresa}";
+            });
+        }
+        catch (Exception ex)
+        {
+            medida = $"MEDIDO T1 cola plana e Inicio: no se pudo medir ({ex.GetType().Name}: {ex.Message})";
+        }
+
+        salida.WriteLine(medida);
     }
 
     /// <summary>
