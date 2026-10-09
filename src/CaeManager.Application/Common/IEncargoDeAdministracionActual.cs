@@ -12,7 +12,10 @@ namespace CaeManager.Application.Common;
 /// cuyo rol sí. Es una interfaz aparte, y no un miembro más de
 /// <see cref="ICurrentUserService"/>, solo para no obligar a sus decenas de
 /// dobles de prueba a implementarla; la implementa la misma clase y el
-/// contenedor la resuelve a la misma instancia.
+/// contenedor la resuelve a la misma instancia. Un
+/// <see cref="ICurrentUserService"/> registrado junto a <c>AddApplication()</c>
+/// que no la implemente no degrada a «sin encargo»: el contenedor falla al
+/// resolverla.
 /// </para>
 ///
 /// <para>
@@ -42,10 +45,11 @@ public interface IEncargoDeAdministracionActual
 }
 
 /// <summary>
-/// Sin sesión de usuario real no hay encargo que eleve: servicios de fondo,
-/// siembra y los dobles de <see cref="ICurrentUserService"/> que no modelan el
-/// encargo. Nunca es la implementación de la aplicación web: ahí la señal la da
-/// <c>CurrentUserService</c> (lo fija <c>EncargoDeAdministracionEnElContenedorTests</c>).
+/// Sin sesión de usuario no hay encargo que eleve: es lo que resuelve el
+/// contenedor cuando no hay ningún <see cref="ICurrentUserService"/> registrado.
+/// Nunca es la implementación de la aplicación web: ahí la señal la da
+/// <c>CurrentUserService</c>, y si lo que hay registrado no la da el contenedor
+/// falla en vez de caer aquí (lo fija <c>EncargoDeAdministracionEnElContenedorTests</c>).
 /// </summary>
 public sealed class SinEncargoDeAdministracion : IEncargoDeAdministracionActual
 {

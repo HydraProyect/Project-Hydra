@@ -41,10 +41,49 @@ public class EncargoDeAdministracionEnElContenedorTests
             .Should().BeSameAs(ambito.ServiceProvider.GetRequiredService<ICurrentUserService>());
     }
 
+    /// <summary>
+    /// Corrección C5 (2026-10-09). Antes caía en silencio a <see cref="SinEncargoDeAdministracion"/>:
+    /// envolver o sustituir <c>CurrentUserService</c> por algo que no diera la señal dejaba el rol
+    /// elevado sin exclusiones, sin vía de auditoría y sin corte del circuito, y nada lo avisaba.
+    /// </summary>
     [Fact]
-    public void Un_usuario_actual_que_no_modela_el_encargo_no_eleva_nunca()
+    public void Un_usuario_actual_registrado_que_no_da_la_senal_hace_fallar_la_resolucion()
     {
         var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        servicios.AddScoped<ICurrentUserService, UsuarioQueNoModelaElEncargo>();
+        using var proveedor = servicios.BuildServiceProvider();
+        using var ambito = proveedor.CreateScope();
+
+        var resolver = () => ambito.ServiceProvider.GetRequiredService<IEncargoDeAdministracionActual>();
+
+        resolver.Should().Throw<InvalidOperationException>()
+            .WithMessage($"*{nameof(UsuarioQueNoModelaElEncargo)}*{nameof(IEncargoDeAdministracionActual)}*");
+    }
+
+    [Fact]
+    public void Sin_ningun_usuario_actual_registrado_no_hay_encargo_que_eleve()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        using var proveedor = servicios.BuildServiceProvider();
+        using var ambito = proveedor.CreateScope();
+
+        ambito.ServiceProvider.GetRequiredService<IEncargoDeAdministracionActual>()
+            .Should().BeSameAs(SinEncargoDeAdministracion.Instancia,
+                "sin sesión de usuario no hay rol efectivo que elevar; en src/ este caso no se da (solo la "
+                + "aplicación web llama a AddApplication, y registra CurrentUserService)");
+    }
+
+    /// <summary>
+    /// Quien componga un contenedor con un doble que no modela el encargo lo dice a mano: la
+    /// degradación deja de ser silenciosa, no deja de ser posible.
+    /// </summary>
+    [Fact]
+    public void Un_registro_explicito_de_la_senal_manda_sobre_el_reenvio()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddScoped<IEncargoDeAdministracionActual>(_ => SinEncargoDeAdministracion.Instancia);
         servicios.AddApplication();
         servicios.AddScoped<ICurrentUserService, UsuarioQueNoModelaElEncargo>();
         using var proveedor = servicios.BuildServiceProvider();

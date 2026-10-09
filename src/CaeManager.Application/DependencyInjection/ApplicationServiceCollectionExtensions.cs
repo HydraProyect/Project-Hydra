@@ -80,13 +80,30 @@ public static class ApplicationServiceCollectionExtensions
         // Señal «actúa por Encargo de administración» (decisión D-8, 2026-10-08): la da LA MISMA
         // instancia que resuelve el rol efectivo, porque es la misma función. Se reenvía aquí, y no
         // en cada composición, para que no exista un contenedor donde las dos se resuelvan a
-        // objetos distintos. Los dobles de ICurrentUserService que no modelan el encargo (los
-        // fixtures mínimos de CaeManager.IntegrationTests, la siembra) no elevan nunca, así que
-        // para ellos «sin encargo» es la respuesta exacta. Que la implementación de la aplicación
-        // web SÍ la dé lo fija EncargoDeAdministracionEnElContenedorTests.
+        // objetos distintos.
+        //
+        // Un ICurrentUserService registrado que NO da la señal es un error de composición, y falla
+        // al resolver: degradarlo en silencio a «sin encargo» dejaría el rol elevado sin
+        // exclusiones, sin vía de auditoría y sin corte del circuito el día que alguien envuelva o
+        // sustituya CurrentUserService (revisión previa a PR, 2026-10-09). Un doble de prueba que
+        // entre en un contenedor con AddApplication() declara la señal él mismo (los compartidos
+        // dicen «sin encargo») o registra IEncargoDeAdministracionActual a mano.
+        //
+        // Sin ningún ICurrentUserService registrado no hay sesión de usuario, y «sin encargo» es
+        // la respuesta exacta. Medido el 2026-10-09: en src/ solo la aplicación web llama a
+        // AddApplication(), y siempre registra CurrentUserService; ese caso solo se da en
+        // contenedores de prueba.
         services.TryAddScoped<IEncargoDeAdministracionActual>(sp =>
-            sp.GetService<ICurrentUserService>() as IEncargoDeAdministracionActual
-            ?? SinEncargoDeAdministracion.Instancia);
+            sp.GetService<ICurrentUserService>() switch
+            {
+                null => SinEncargoDeAdministracion.Instancia,
+                IEncargoDeAdministracionActual senal => senal,
+                var otro => throw new InvalidOperationException(
+                    $"{otro.GetType().FullName} está registrado como {nameof(ICurrentUserService)} y no implementa "
+                    + $"{nameof(IEncargoDeAdministracionActual)}: el rol efectivo podría elevarse por Encargo de "
+                    + "administración sin que lo supieran ni las exclusiones ni la auditoría. La señal la da la misma "
+                    + "clase que resuelve el rol efectivo."),
+            });
         // Orden importa. LoggingBehavior va el primero de todos: mide lo que
         // el usuario espera de verdad, incluido el tiempo en la cola de
         // acceso a datos, y su ámbito de log correlaciona todo lo que
