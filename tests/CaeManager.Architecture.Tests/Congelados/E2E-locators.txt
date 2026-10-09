@@ -70,6 +70,7 @@ tests/CaeManager.E2ETests/Rendimiento/ConsultasPorNavegacionTests.cs :: Posicion
 tests/CaeManager.E2ETests/SeleccionSobreviveAlCircuitoTests.cs :: GetByText = 6
 tests/CaeManager.E2ETests/SeleccionSobreviveAlCircuitoTests.cs :: Posicional = 2
 tests/CaeManager.E2ETests/SelectorTemaTests.cs :: Posicional = 2
+tests/CaeManager.E2ETests/SubcontratasFilaSinMenuE2ETests.cs :: Posicional = 2
 tests/CaeManager.E2ETests/SubidaMasivaDelegadaTests.cs :: GetByText = 2
 tests/CaeManager.E2ETests/SubidaMasivaTests.cs :: FiltroPorTexto = 3
 tests/CaeManager.E2ETests/SubidaMasivaTests.cs :: GetByText = 10

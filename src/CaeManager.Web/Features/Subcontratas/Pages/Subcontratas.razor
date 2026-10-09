@@ -3,7 +3,6 @@
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata
-@using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata
 @using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas
 @using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector
@@ -25,8 +24,8 @@
 
 <div class="contenedor-pagina">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
-       conmutador ☑ de selección múltiple, el menú «⋯» con «Exportar a Excel» (lectura: cualquier
-       rol) y UNA acción primaria. Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo
+       conmutador ☑ de selección múltiple —la única vía para eliminar: la fila no lleva menú—,
+       el menú «⋯» con «Exportar a Excel» (lectura: cualquier rol) y UNA acción primaria. Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo
        de la empresa gestionada: el selector de la barra lateral ya dice cuál es. El estado vacío
        sin empresa elegida (4a) sigue más abajo. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
@@ -190,22 +189,44 @@
                     @* Cada celda va envuelta para que la rejilla tenga SIEMPRE el
                        mismo número de columnas que la cabecera: un componente que
                        no se pinta desalinearía la fila. *@
-                    <div class="@ClaseRejilla("tarjeta-fila-acordeon-cabecera")">
+                    @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
+                       fila abre la vista rápida (el panel del Context Workspace), igual que Enter
+                       sobre la fila enfocada; los controles de dentro —casilla, desplegable, CIF
+                       copiable, ventanas con incidencias corregibles, icono 360— hacen lo suyo y
+                       no dejan subir el clic. *@
+                    <div class="@(ClaseRejilla("tarjeta-fila-acordeon-cabecera") + " fila-pulsable")"
+                         @onclick="() => AbrirVistaRapidaAsync(subcontrata.Id)">
                         @if (_seleccionMultiple)
                         {
-                            <input type="checkbox" aria-label="@Textos["AriaSeleccionarSubcontrata", subcontrata.RazonSocial]" checked="@_seleccionados.Contains(subcontrata.Id)" @onchange="e => AlternarSeleccion(subcontrata.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@Textos["AriaSeleccionarSubcontrata", subcontrata.RazonSocial]" checked="@_seleccionados.Contains(subcontrata.Id)" @onchange="e => AlternarSeleccion(subcontrata.Id, (bool)e.Value!)" @onclick:stopPropagation="true" />
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
                                 aria-label="@Textos["AriaTrabajadoresDe", subcontrata.RazonSocial]"
-                                @onclick="() => AlternarExpansion(subcontrata.Id)">
+                                @onclick="() => AlternarExpansion(subcontrata.Id)" @onclick:stopPropagation="true">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
                         <span class="celda-identidad-subcontrata">
-                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirPreview(subcontrata.Id)">
+                            @* El nombre es un botón que abre la vista rápida: es el destino de teclado
+                               del clic en la fila (la fila entera no es focable con Tab). A la página
+                               Subcontrata 360 se va con el icono 360 del final de la fila y con el del
+                               panel. El CIF se copia con un clic, sin abrir la fila. *@
+                            <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida"
+                                    aria-label="@Textos["AbrirVistaRapidaDe", subcontrata.RazonSocial]"
+                                    @onclick="() => AbrirVistaRapidaAsync(subcontrata.Id)" @onclick:stopPropagation="true">
                                 @subcontrata.RazonSocial
                             </button>
-                            <span class="tarjeta-fila-acordeon-meta">@(string.IsNullOrEmpty(subcontrata.Cif) ? Textos["SinCif"] : subcontrata.Cif)</span>
+                            <span class="tarjeta-fila-acordeon-meta">
+                                @if (string.IsNullOrWhiteSpace(subcontrata.Cif))
+                                {
+                                    @Textos["SinCif"]
+                                }
+                                else
+                                {
+                                    <BotonCopiar EnLinea="true" Valor="@subcontrata.Cif" Texto="@subcontrata.Cif" Etiqueta="@Textos["EtiquetaCif"]"
+                                                 NombreAccesible="@Textos["CopiarCif", subcontrata.Cif]" />
+                                }
+                            </span>
                         </span>
                         <span>
                             <Badge Tono="EstadoSupervisionUi.TonoNivel(subcontrata.NivelServicio)" Tamano="TamanoBadge.Pequeno"
@@ -217,6 +238,9 @@
                             <AnilloCumplimiento Porcentaje="subcontrata.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
                                                  Etiqueta="@EtiquetaCumplimiento(subcontrata.CumplimientoPorcentaje)" />
                         </span>
+                        @* Una ventana con incidencias corregibles es interactiva y corta ella misma la
+                           subida del clic (VentanaContexto); una pastilla solo informativa no tiene nada
+                           que pulsar, y el clic sobre ella abre la fila como en cualquier otro punto. *@
                         <span class="celda-recuento-subcontrata">
                             @if (subcontrata.Recuentos.TotalVencidas > 0)
                             {
@@ -294,22 +318,11 @@
                                 <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">@Textos["BadgeAlCorriente"]</Badge>
                             }
                         </span>
-                        @* Acciones tras "⋯", mismo criterio que Empresas. "Detalles"
-                           abre la vista previa y "Abrir Subcontrata 360" lleva a su
-                           página (/subcontratas/{id}): son dos profundidades
-                           distintas, y el mockup ofrece las dos. *@
+                        @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Detalles» es
+                           el clic en la fila; «Abrir Subcontrata 360», este icono; «Eliminar», la
+                           selección múltiple (☑ de la cabecera o tecla «x»), con su «Deshacer». *@
                         <div class="tarjeta-fila-acordeon-acciones">
-                            <MenuAcciones>
-                                <ItemMenuAccion OnClick="() => AbrirPreview(subcontrata.Id)">
-                                    @Textos["MenuDetalles"]
-                                </ItemMenuAccion>
-                                <ItemMenuAccion OnClick="() => IrASubcontrata360(subcontrata.Id)">
-                                    @Textos["MenuAbrirSubcontrata360"]
-                                </ItemMenuAccion>
-                                <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(subcontrata.Id, subcontrata.RazonSocial)">
-                                    @Textos["MenuEliminar"]
-                                </ItemMenuAccion></SoloConEscritura>
-                            </MenuAcciones>
+                            <Boton360 Nombre="@subcontrata.RazonSocial" Href="@($"/subcontratas/{subcontrata.Id}")" />
                         </div>
                     </div>
                     @if (expandido)
@@ -364,14 +377,6 @@
     }
 </DrawerFormulario>
 
-<DialogoConfirmacion
-    Visible="_confirmarEliminarVisible"
-    VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@Textos["ConfirmarEliminarTitulo", _razonSocialAEliminar]"
-    Mensaje="@Textos["ConfirmarEliminarMensaje"]"
-    EnProgreso="_eliminando"
-    OnConfirmar="ConfirmarEliminarAsync" />
-
 @* Corregir una incidencia desde la ventana de contexto de «Vencidos» o «Próximos», sin salir del listado. *@
 <CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
 
@@ -391,5 +396,4 @@
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
-<SubcontrataPreviewDrawer Fila="FilaEnVistaPrevia" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" OnOperar="AbrirDesdePreviewAsync" />
 </LimiteDeErrores>

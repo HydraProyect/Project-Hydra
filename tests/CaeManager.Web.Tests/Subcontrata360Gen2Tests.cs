@@ -13,7 +13,9 @@ using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrataSinContrasena;
+using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
@@ -69,6 +71,9 @@ public partial class Subcontrata360Gen2Tests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public Dictionary<Guid, SubcontrataDetalleDto> Detalles { get; } = [];
+
+        /// <summary>La fila del listado de cada Subcontrata (cumplimiento e incidencias); sin fila, la consulta sale vacía.</summary>
+        public Dictionary<Guid, SubcontrataListaDto> Filas { get; } = [];
         public Dictionary<Guid, List<TrabajadorListaDto>> Trabajadores { get; } = [];
         public Dictionary<Guid, List<CentroConActividadDto>> Centros { get; } = [];
         public Dictionary<Guid, SupervisionSubcontrataDto> Supervisiones { get; } = [];
@@ -108,6 +113,8 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerSubcontrataPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
+            ObtenerSubcontratasQuery q => new ResultadoPaginado<SubcontrataListaDto>(
+                q.SubcontrataId is { } idFila && Filas.TryGetValue(idFila, out var fila) ? [fila] : [], 0, q.Pagina, q.TamanoPagina),
             ObtenerTrabajadoresQuery q => Paginar(q),
             ObtenerCentrosConActividadDeSubcontrataQuery q => Centros.GetValueOrDefault(q.SubcontrataId) ?? [],
             ObtenerSupervisionSubcontrataQuery q => Supervisiones.GetValueOrDefault(q.SubcontrataId),
@@ -195,6 +202,117 @@ public partial class Subcontrata360Gen2Tests : BunitContext
             .Where(c => c.QuerySelector("span")?.TextContent.Trim() == rotulo)
             .Select(c => c.QuerySelector("strong")?.TextContent.Trim() ?? string.Empty)
             .Should().ContainSingle($"la rejilla tiene que tener exactamente una celda «{rotulo}»").Subject;
+
+    /// <summary>
+    /// El panel sustituye a la vista previa de la lista (patrón de listados sin menú «⋯»), así
+    /// que enseña lo que aquella sacaba de la fila: el cumplimiento, pedido con la consulta del
+    /// listado acotada a ESTA Subcontrata.
+    /// </summary>
+    [Fact]
+    public void La_cabecera_ensena_el_cumplimiento_de_la_fila_del_listado_de_esa_subcontrata()
+    {
+        var id = Guid.NewGuid();
+        var otra = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+        mediador.Filas[id] = Fila(id, cumplimiento: 58);
+        mediador.Filas[otra] = Fila(otra, cumplimiento: 91);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-subcontrata-360 [data-pieza='anillo']").GetAttribute("aria-label")
+            .Should().StartWith("58%", "es el dato de la fila de esta Subcontrata, no el de otra");
+        mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Should().ContainSingle().Which.SubcontrataId.Should().Be(id);
+    }
+
+    /// <summary>Sin universo de requisitos (o si la fila no llega) no hay anillo: no se inventa un porcentaje.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Sin_cumplimiento_que_ensenar_la_cabecera_no_pinta_anillo(bool filaSinUniverso)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+        if (filaSinUniverso)
+            mediador.Filas[id] = Fila(id, cumplimiento: null);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-subcontrata-360 a.boton-360-pagina").Should().NotBeNull("control positivo: la cabecera está pintada");
+        cut.FindAll(".cabecera-subcontrata-360 [data-pieza='anillo']").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// «Documentación» lista las incidencias de sus trabajadores que la fila del listado
+    /// cuenta en «Vencidos» y «Próximos» —vencidas primero—, como hacía la vista previa.
+    /// </summary>
+    [Fact]
+    public void Documentacion_lista_vencidos_y_proximos_de_sus_trabajadores()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+        mediador.Filas[id] = Fila(id, cumplimiento: 58,
+            vencidas: [new("Formación PRL — Iñaki Otaegi", EstadoDocumento.Vencido, null, null, null)],
+            proximas: [new("Reconocimiento médico — Miguel Sanz", EstadoDocumento.Proximo, null, null, null)]);
+
+        var cut = Renderizar(id, "documentacion");
+
+        cut.FindAll(".fila-incidencia-subcontrata-360").Select(f => f.QuerySelector(".texto-incidencia-subcontrata-360")!.TextContent.Trim())
+            .Should().Equal(["Formación PRL — Iñaki Otaegi", "Reconocimiento médico — Miguel Sanz"]);
+        Boton(cut, "Ver sus trabajadores").Should().NotBeNull("el camino a sus trabajadores se conserva");
+    }
+
+    [Fact]
+    public void Documentacion_sin_incidencias_conserva_el_aviso_y_el_camino_a_sus_trabajadores()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+        mediador.Filas[id] = Fila(id, cumplimiento: 100);
+
+        var cut = Renderizar(id, "documentacion");
+
+        cut.FindAll(".fila-incidencia-subcontrata-360").Should().BeEmpty();
+        Boton(cut, "Ver sus trabajadores").Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Tecla «e» del listado: entrar en edición lanza sus propias consultas, y todas las del
+    /// panel comparten el DbContext del circuito. Una petición que llega con la cadena de
+    /// cargas en vuelo no se atiende en paralelo, sino cuando la cadena termina.
+    /// </summary>
+    [Fact]
+    public async Task Una_peticion_de_edicion_con_la_cadena_de_cargas_en_vuelo_espera_a_que_termine()
+    {
+        var id = Guid.NewGuid();
+        var finDeCadena = new TaskCompletionSource();
+        var mediador = Registrar(new MediatorFalso { Retener = p => p is ObtenerSupervisionSubcontrataQuery ? finDeCadena.Task : null });
+        mediador.Detalles[id] = Detalle(id, "Pinturas Lauburu S.A.");
+        var cut = Renderizar(id);
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Should().ContainSingle(
+            "control positivo: la cadena está en su última consulta, con la cabecera ya pintada"));
+        Boton(cut, "Editar identidad").Should().NotBeNull("control positivo: el panel está en lectura");
+
+        await cut.InvokeAsync(() => workspace.AbrirEnEdicionAsync(EntidadWorkspace.Subcontrata, id, "Pinturas Lauburu S.A."));
+
+        mediador.Enviadas.OfType<ObtenerCredencialAccesoSubcontrataSinContrasenaQuery>().Should().BeEmpty(
+            "la cadena sigue en vuelo: no se lanzan consultas en paralelo");
+
+        finDeCadena.SetResult();
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerCredencialAccesoSubcontrataSinContrasenaQuery>().Should().ContainSingle(
+            "terminada la cadena, se atiende la petición"));
+        cut.WaitForAssertion(() => cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Editar identidad"));
+    }
+
+    private static SubcontrataListaDto Fila(
+        Guid id, int? cumplimiento,
+        IReadOnlyList<IncidenciaSubcontrataDto>? vencidas = null, IReadOnlyList<IncidenciaSubcontrataDto>? proximas = null) => new(
+        id, "Pinturas Lauburu S.A.", "A-48.007.615", new DateTime(2026, 7, 2, 0, 0, 0, DateTimeKind.Utc),
+        NivelServicioSubcontrata.Gestionada, cumplimiento, new RecuentosSubcontrataDto(vencidas ?? [], proximas ?? []));
 
     [Fact]
     public void La_cabecera_dice_quien_es_su_nivel_y_cuantos_centros_quedan_con_un_requisito_exigido_sin_verificar()
@@ -1204,8 +1322,8 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         var consultas = escena.Mediador.Tokens.Where(t => t.Peticion.GetType().Name.EndsWith("Query", StringComparison.Ordinal)).ToList();
         consultas.Select(t => t.Peticion.GetType().Name).Distinct().Should().BeEquivalentTo(
             [
-                nameof(ObtenerSubcontrataPorIdQuery), nameof(ObtenerClientesParaSelectorQuery), nameof(ObtenerEmpresasParaSelectorQuery),
-                nameof(ObtenerTrabajadoresQuery), nameof(ObtenerCentrosConActividadDeSubcontrataQuery), nameof(ObtenerSupervisionSubcontrataQuery),
+                nameof(ObtenerSubcontrataPorIdQuery), nameof(ObtenerSubcontratasQuery), nameof(ObtenerClientesParaSelectorQuery),
+                nameof(ObtenerEmpresasParaSelectorQuery), nameof(ObtenerTrabajadoresQuery), nameof(ObtenerCentrosConActividadDeSubcontrataQuery), nameof(ObtenerSupervisionSubcontrataQuery),
                 nameof(ObtenerCredencialAccesoSubcontrataQuery), nameof(ObtenerCredencialAccesoSubcontrataSinContrasenaQuery), nameof(ObtenerTiposDocumentoQuery),
             ],
             "el recorrido tiene que haber pasado por todas las consultas que lanza el panel, o la comprobación no las mira");

@@ -709,7 +709,6 @@ src/CaeManager.Web/Features/Reportes/Recursos/TextosReportes.resx :: VacioInicia
 src/CaeManager.Web/Features/Reportes/Recursos/TextosReportes.resx :: VacioInicialTitulo = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AcordeonVacioDescripcion = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AcordeonVacioTitulo = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaCerrarVistaPrevia = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaDocumentacionExigidaA = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaDocumentosExigidosA = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaEliminarVerificacion = 1
@@ -720,7 +719,6 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Ari
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaSeccionesSubcontrata = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaSeleccionarSubcontrata = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaTrabajadoresDe = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: AriaVistaPrevia = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: BadgeAlCorriente = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: BadgeCredencialesTerceros = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: BotonEditarIdentidad = 1
@@ -752,12 +750,8 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Des
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: DescripcionNivelSupervisadaLista = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: DocumentacionNoModeladaDescripcion = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: DocumentacionNoModeladaTitulo = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: DocumentacionSinIncidencias = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EmpresasFueraDeCarteraUno = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EmpresasFueraDeCarteraVarios = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EnlaceExportarExcel = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EnlaceVerEvidencia = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EnlaceVerTrabajadoresYDocumentacion = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ErrorCargaCentrosTitulo = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ErrorCargaSubcontrataTitulo = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ErrorCargaSupervisionTitulo = 1
@@ -774,7 +768,6 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Err
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ErrorSeleccionaCentro = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ErrorSeleccionaTipoDocumento = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EstadoSupervisionSinVerificar = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EtiquetaCabeceraVistaPrevia = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EtiquetaClientesQueLaContrataron = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EtiquetaCumplimiento = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EtiquetaCumplimientoSinUniverso = 1
@@ -790,14 +783,10 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Exp
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ExplicacionFaltaDocumento = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ExplicacionSupervision = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: KickerSubcontrata360 = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: MenuAbrirSubcontrata360 = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: MetaCumplimiento = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: MetaSinCumplimiento = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: MetaTrabajadoresVarios = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: NivelServicioSupervisada = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: NoEncontradaDescripcion = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: NoEncontradaTitulo = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: NotaAbreSubcontrata360 = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: OpcionSeleccionaCentro = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: OpcionSeleccionaTipo = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: PestanaDocumentacion = 1
@@ -828,8 +817,6 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Rot
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RotuloIdentificacionFiscal = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RotuloNivelServicio = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RotuloObservaciones = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RotuloPrestaServicioA = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RotuloProximosAVencer = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RotuloRazonSocial = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RotuloTipoDocumento = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: RotuloTrabajadores = 1
