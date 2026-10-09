@@ -2102,7 +2102,28 @@ public partial class UsuariosGen2Tests : BunitContext
         _correo.Enviados.Should().ContainSingle().Which.Destinatario.Should().Be("ander.beitia@talveg.es",
             "el enlace nuevo va a la dirección corregida, nunca a la anterior");
         cut.WaitForAssertion(() => cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty());
+        cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Correo corregido",
+            "el diálogo del enlace es el del reenvío, pero aquí lo que pasó es una corrección");
         cut.WaitForAssertion(() => Fila(cut, "ander.beitia@talveg.es").Should().NotBeNull());
+    }
+
+    /// <summary>
+    /// Revisión puente de H9 (2/2): con la corrección de correo, la fila de una lista
+    /// abierta puede enseñar una dirección que otra persona ya corrigió. El reenvío
+    /// emite un enlace válido; si saliera hacia el correo de la fila, iría justo a la
+    /// dirección equivocada.
+    /// </summary>
+    [Fact]
+    public async Task Reenviar_envia_al_correo_que_la_cuenta_tiene_ahora_y_no_al_de_la_fila()
+    {
+        SembrarAdministradoraYPendiente();
+        var cut = Renderizar(actorId: MartaId);
+
+        // Otra sesión corrige el correo con la lista ya pintada.
+        _identidad.Cuentas[AnderId].Email = "ander.beitia@talveg.es";
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Reenviar correo de activación");
+
+        _correo.Enviados.Should().ContainSingle().Which.Destinatario.Should().Be("ander.beitia@talveg.es");
     }
 
     [Fact]

@@ -4,6 +4,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.CorregirCorreoCuentaPendiente;
 using CaeManager.Application.Usuarios.Commands.EditarUsuario;
 using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 using CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
@@ -226,6 +227,35 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
 
         espia.Llamadas.Should().Be(0,
             "reenviar el correo de activación de un Operador Delegado desde el tenant que opera filtraría un enlace de un solo uso a la cuenta de otra organización");
+    }
+
+    /// <summary>
+    /// Revisión puente de H9 (2/2): la cuenta del Gestor CAE del Operador CAE externo
+    /// sigue pendiente —no tiene contraseña—, así que lo único que impide corregirle el
+    /// correo desde el Tenant que opera es la regla de propiedad sobre la cuenta real.
+    /// Cambiárselo desviaría su enlace de activación a una dirección elegida por otro.
+    /// </summary>
+    [Fact]
+    public async Task GuardarCorreoCorregidoAsync_no_cambia_el_correo_de_la_cuenta_de_un_operador_delegado()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        using var ambito = _servicios.CreateScope();
+        var espia = new EmailServiceEspia();
+        var pagina = CrearPagina(ambito.ServiceProvider, _actorAdministrador, esAdministrador: true, espia);
+
+        var filaDelegada = new UsuarioListaDto(
+            _usuarioAjenoDelegado, "gestor-ajeno@x.test", "Gestor Ajeno", Roles.GestorCae,
+            Activo: true, EsOperadorDelegado: true, PendienteActivacion: true, Alcance: null!);
+        EscribirCampoPrivado(pagina, "_usuarioACorregirCorreo", filaDelegada);
+        EscribirCampoPrivado(pagina, "_correoCorregido", "desviado@x.test");
+
+        await InvocarToleraRecargaSinRendererAsync(pagina, "GuardarCorreoCorregidoAsync");
+
+        var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var cuentaTrasElAtaque = await userManager.FindByIdAsync(_usuarioAjenoDelegado.ToString());
+        cuentaTrasElAtaque!.Email.Should().Be("gestor-ajeno@x.test",
+            "corregir el correo de la cuenta de un Operador Delegado desde el tenant que opera desviaría su activación a una dirección de otra organización");
+        espia.Llamadas.Should().Be(0);
     }
 
     [Fact]
@@ -485,6 +515,7 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
                     cuentas, actor, new TransaccionDirecta(), new SinBloqueoCartera(), catalogo, directorio, directorio).Handle(c, cancellationToken),
                 EliminarUsuarioPendienteCommand c => await new EliminarUsuarioPendienteCommandHandler(cuentas, actor).Handle(c, cancellationToken),
                 GenerarActivacionUsuarioCommand c => await new GenerarActivacionUsuarioCommandHandler(cuentas, actor).Handle(c, cancellationToken),
+                CorregirCorreoCuentaPendienteCommand c => await new CorregirCorreoCuentaPendienteCommandHandler(cuentas, actor).Handle(c, cancellationToken),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}."),
             };
             return (TResponse)respuesta;

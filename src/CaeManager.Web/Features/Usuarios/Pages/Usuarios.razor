@@ -259,7 +259,7 @@
         <CampoTexto Etiqueta="Correo" Type="email" Placeholder="@("nombre@empresa.es")" Valor="@_email" ValorChanged="v => _email = v" Deshabilitado="@(_editandoId is not null)" />
         @if (_editandoId is not null)
         {
-            <p class="texto-ayuda-campo">El correo identifica la cuenta y no se puede cambiar.</p>
+            <p class="texto-ayuda-campo">@TextosUsuarios["EditarCorreoNoSeCambiaAqui"]</p>
         }
 
         <CampoTexto Etiqueta="Nombre completo" Valor="@_nombreCompleto" ValorChanged="v => _nombreCompleto = v" />
@@ -395,7 +395,7 @@
    perdido obligue a dar de alta a la persona otra vez. *@
 <Modal Visible="@(_enlaceActivacion is not null)"
        VisibleChanged="@(v => { if (!v) _enlaceActivacion = null; })"
-       Titulo="@(_reenvioEnCurso ? (_reenvioFallido ? "No pudimos reenviar el correo" : "Correo reenviado") : "Usuario creado")">
+       Titulo="@(_reenvioEnCurso ? (_reenvioFallido ? "No pudimos reenviar el correo" : _reenvioTrasCorregirCorreo ? TextosUsuarios["CorregirCorreoTituloHecho"].Value : "Correo reenviado") : "Usuario creado")">
     <ChildContent>
         @if (_reenvioEnCurso && _reenvioFallido)
         {

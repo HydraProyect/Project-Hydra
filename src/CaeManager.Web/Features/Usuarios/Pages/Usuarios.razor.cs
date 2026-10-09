@@ -1163,8 +1163,22 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 return;
             }
 
+            // El destino es el correo que la cuenta tiene AHORA, leído después de emitir
+            // el enlace, no el de la fila con la que se pulsó el menú: si otra persona
+            // corrigió el correo entretanto, la fila aún enseña la dirección equivocada
+            // y el enlace recién emitido —válido— saldría hacia ella. Leerlo después y no
+            // antes cierra la carrera: una corrección posterior a esta lectura cambia el
+            // sello y deja sin valor el enlace que aquí se envía.
+            var cuenta = await Mediator.Send(new ObtenerCuentaUsuarioQuery(usuarioLista.Id), token);
+            if (cuenta.EsFallido)
+            {
+                ToastService.MostrarError(cuenta.Error);
+                await CargarAsync();
+                return;
+            }
+
             var enlace = EnlaceActivacion(usuarioLista.Id, activacion.Valor);
-            var resultado = await EnviarCorreoActivacionAsync(usuarioLista.Id, usuarioLista.Email, usuarioLista.NombreCompleto, enlace);
+            var resultado = await EnviarCorreoActivacionAsync(usuarioLista.Id, cuenta.Valor.Email, cuenta.Valor.NombreCompleto, enlace);
 
             if (resultado.EsFallido)
             {
@@ -1179,6 +1193,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             }
 
             _reenvioEnCurso = true;
+            _reenvioTrasCorregirCorreo = false;
             _enlaceActivacion = enlace;
         }
         catch (OperationCanceledException)
@@ -1196,6 +1211,12 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private string _correoCorregido = string.Empty;
     private bool _corrigiendoCorreo;
     private string? _errorCorregirCorreo;
+
+    /// <summary>
+    /// El diálogo del enlace viene de una corrección de correo, no de un reenvío a
+    /// secas: su título dice que el correo se corrigió.
+    /// </summary>
+    private bool _reenvioTrasCorregirCorreo;
 
     private bool HayCambiosEnCorreoCorregido =>
         _usuarioACorregirCorreo is { } usuario
@@ -1259,6 +1280,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
             _usuarioACorregirCorreo = null;
             _reenvioFallido = envio.EsFallido;
+            _reenvioTrasCorregirCorreo = true;
             _reenvioEnCurso = true;
             _enlaceActivacion = enlace;
             await CargarAsync();

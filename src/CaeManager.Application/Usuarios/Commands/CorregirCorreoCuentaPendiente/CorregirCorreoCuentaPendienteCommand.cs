@@ -22,8 +22,7 @@ namespace CaeManager.Application.Usuarios.Commands.CorregirCorreoCuentaPendiente
 /// <para>
 /// <b>Solo mientras la cuenta está pendiente.</b> Si ya se activó, alguien usó el
 /// enlace: la operación falla y lo dice, y no cambia nada. Cambiar el correo de una
-/// cuenta activada es otra operación —exige que su titular lo confirme desde la
-/// dirección nueva— y no pasa por aquí.
+/// cuenta activada es otra operación, que hoy no existe, y no pasa por aquí.
 /// </para>
 ///
 /// <para>
