@@ -91,10 +91,13 @@ function esVisibleYUsable(campo) {
 // la fila pulsa ese botón. Los controles de dentro (casilla, identificador copiable, icono
 // 360, pastillas con acción) conservan su clic: aquí no se tocan. Tampoco el clic que
 // termina una selección de texto, ni el de una fila cuyo marcado ya trae su propio @onclick
-// (Empresas: su fila no es un <tr>).
+// (Empresas: su fila no es un <tr>). El panel de una ventana de contexto cuenta entero como
+// control: su título, su pie y los huecos entre sus elementos no son botones, pero quien pulsa
+// ahí está usando la ventana, no la fila. El «stopPropagation» que la ventana interactiva
+// declara en Blazor no sirve aquí: corta el reparto de Blazor, no el burbujeo del DOM.
 const SELECTOR_FILA_PULSABLE = 'tr.fila-pulsable';
 const SELECTOR_ABRE_VISTA_RAPIDA = '.nombre-abre-vista-rapida';
-const SELECTOR_CONTROL_DE_FILA = SELECTOR_INTERACTIVO + ', label, textarea';
+const SELECTOR_CONTROL_DE_FILA = SELECTOR_INTERACTIVO + ', label, textarea, .ventana-contexto-panel';
 
 function pulsarFila(evento) {
     if (evento.defaultPrevented || evento.button !== 0) return;

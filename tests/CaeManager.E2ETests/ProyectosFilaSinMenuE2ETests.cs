@@ -75,6 +75,9 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixture fixture)
         return menu;
     }
 
+    private static Task<int> PulsacionesDelNombreAsync(IPage page) =>
+        page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre");
+
     [Fact]
     public async Task El_clic_en_la_fila_abre_la_vista_rapida_un_tecnico_abre_su_pestana_y_el_icono_360_navega()
     {
@@ -86,8 +89,19 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixture fixture)
 
         await Expect(page.Locator("table.tabla-proyectos .menu-acciones-disparador")).ToHaveCountAsync(0);
 
+        // El oyente «pulsarFila» de atajos-lista.js pulsa el botón del nombre dentro del mismo
+        // clic: contar esas pulsaciones en el documento dice, sin esperas, si un clic llegó a la
+        // fila. La cuenta vive en window y aguanta los repintados (aquí no hay navegación).
+        await page.EvaluateAsync(@"() => {
+            window.__pulsacionesDelNombre = 0;
+            document.addEventListener('click', e => {
+                if (e.target.closest?.('.nombre-abre-vista-rapida')) window.__pulsacionesDelNombre++;
+            }, true);
+        }");
+
         // Un punto de la fila que no es ningún control: la celda de fechas.
         await fila.Locator("td.celda-fecha-proyecto").ClickAsync();
+        Assert.Equal(1, await PulsacionesDelNombreAsync(page));
         await Expect(panel.Locator(".nombre-cabecera-panel-proyecto")).ToHaveTextAsync(nombre);
         await Expect(panel.Locator(".rejilla-info-proyecto")).ToBeVisibleAsync();
 
@@ -100,6 +114,14 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixture fixture)
         var ventana = fila.Locator(".celda-tecnicos-proyecto .ventana-contexto");
         await ventana.Locator(".ventana-contexto-disparador").ClickAsync();
         var lista = ventana.GetByRole(AriaRole.Group, new LocatorGetByRoleOptions { Name = "Técnicos activos", Exact = true });
+        await Expect(lista).ToBeVisibleAsync();
+        await Expect(panel).ToHaveCountAsync(0);
+
+        // El título y el pie de la ventana no son botones, pero quien pulsa ahí está usando la
+        // ventana: tampoco abren la vista rápida.
+        await lista.Locator(".ventana-contexto-titulo").ClickAsync();
+        await lista.Locator(".ventana-contexto-pie").ClickAsync();
+        Assert.Equal(1, await PulsacionesDelNombreAsync(page));
         await Expect(lista).ToBeVisibleAsync();
         await Expect(panel).ToHaveCountAsync(0);
 
