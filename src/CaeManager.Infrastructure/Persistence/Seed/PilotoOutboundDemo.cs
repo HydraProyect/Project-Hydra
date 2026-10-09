@@ -1048,7 +1048,9 @@ public static class CatalogoPilotoOutbound
                 FilasMiTrabajo: 19, CumplimientoInicio: 96, CumplimientoVisionCartera: 96, CumplimientoEmpresa: 92,
                 Centros:
                 [
-                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[0].Nombre, EstadoCentro.Faltante, 83),
+                    // El del desplazamiento: dos documentos vencidos de sus Trabajadores y el tipo propio que le
+                    // falta al desplazado. Vencido precede a Faltante.
+                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[0].Nombre, EstadoCentro.Vencido, 83),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[1].Nombre, EstadoCentro.Vencido, 80),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[2].Nombre, EstadoCentro.Faltante, 80),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[3].Nombre, EstadoCentro.Faltante, 87),

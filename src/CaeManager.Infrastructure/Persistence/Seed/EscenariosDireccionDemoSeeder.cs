@@ -332,7 +332,7 @@ public static class EscenariosDireccionDemoSeeder
     /// <summary>
     /// La única fuente de qué documento está en qué estado en cada escenario.
     /// Solo lista las excepciones; todo lo demás está <see cref="VigenciaDemo.AlDia"/>.
-    /// El estado de cada centro que de aquí sale (Faltante &gt; Vencido &gt;
+    /// El estado de cada centro que de aquí sale (Vencido &gt; Faltante &gt;
     /// Urgente &gt; Próximo &gt; Vigente, y Bloqueado solo si la plataforma del
     /// Cliente empresarial lo bloquea: Rechazada o vencida allí) lo mide <c>EscenariosDireccionDemoTests</c> con el servicio
     /// real, no con esta tabla.

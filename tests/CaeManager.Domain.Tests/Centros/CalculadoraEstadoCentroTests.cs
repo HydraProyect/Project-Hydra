@@ -54,13 +54,49 @@ public class CalculadoraEstadoCentroTests
         estado.Should().Be(esperado);
     }
 
-    [Fact]
-    public void Faltante_prevalece_sobre_vencido_cuando_ambos_estan_presentes()
+    // Orden único en todas las superficies (decisión del propietario, 2026-10-03): Bloqueante → Vencido → Faltante.
+    // Las dos filas dan los mismos estados en distinto orden: el resultado no depende de cuál llegue primero.
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, EstadoDocumento.Faltante)]
+    [InlineData(EstadoDocumento.Faltante, EstadoDocumento.Vencido)]
+    public void Un_Centro_con_un_documento_vencido_y_otro_faltante_esta_Vencido(EstadoDocumento primero, EstadoDocumento segundo)
     {
         var estado = CalculadoraEstadoCentro.Calcular(
-            [EstadoDocumento.Vencido, EstadoDocumento.Faltante], tieneRequisitoBloqueanteSinCumplir: false);
+            [EstadoDocumento.Vigente, primero, segundo, EstadoDocumento.Urgente], tieneRequisitoBloqueanteSinCumplir: false);
+
+        estado.Should().Be(EstadoCentro.Vencido);
+    }
+
+    [Fact]
+    public void El_bloqueo_de_la_plataforma_del_Cliente_empresarial_prevalece_sobre_lo_vencido_y_lo_faltante()
+    {
+        var estado = CalculadoraEstadoCentro.Calcular(
+            [EstadoDocumento.Faltante, EstadoDocumento.Vencido], tieneRequisitoBloqueanteSinCumplir: true);
+
+        estado.Should().Be(EstadoCentro.Bloqueado);
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Urgente)]
+    [InlineData(EstadoDocumento.Proximo)]
+    public void Un_documento_faltante_prevalece_sobre_lo_que_esta_por_vencer(EstadoDocumento porVencer)
+    {
+        var estado = CalculadoraEstadoCentro.Calcular(
+            [porVencer, EstadoDocumento.Faltante], tieneRequisitoBloqueanteSinCumplir: false);
 
         estado.Should().Be(EstadoCentro.Faltante);
+    }
+
+    [Fact]
+    public void La_gravedad_ordena_los_Centros_con_el_mismo_orden_que_decide_su_estado()
+    {
+        // El valor numérico del enum está congelado (API v1) y tiene Faltante por encima de Vencido: la clave de
+        // orden no puede ser ese número. SinGestionCae no es un grado de incumplimiento y va detrás de Vigente.
+        var dePeorAMejor = Enum.GetValues<EstadoCentro>().OrderByDescending(CalculadoraEstadoCentro.Gravedad);
+
+        dePeorAMejor.Should().Equal(
+            EstadoCentro.Bloqueado, EstadoCentro.Vencido, EstadoCentro.Faltante, EstadoCentro.Urgente,
+            EstadoCentro.Proximo, EstadoCentro.Vigente, EstadoCentro.SinGestionCae);
     }
 
     [Fact]
