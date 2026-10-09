@@ -681,13 +681,16 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
         var propuestaId = await ApoyoAceptadoAsync();
         var deApoyo = await CarteraDeAsync(_gestorB);
 
-        // La cartera de apoyo se cierra sin pasar por la retirada (como al caducar): la propuesta
-        // se queda en «aceptada».
+        // La cartera de apoyo se cierra sin pasar por la retirada (como al caducar, que se lleva
+        // la fila heredada): la propuesta se queda en «aceptada».
         await using (var propietario = ContextoPropietario(_operador.Id))
         {
             var cartera = await propietario.AsignacionesCartera.SingleAsync(c => c.Id == deApoyo.Id);
             cartera.Cerrar(MotivoCierreAsignacion.Expirada, DateTime.UtcNow);
             await propietario.SaveChangesAsync();
+            (await propietario.AsignacionesOperadorDelegadoConRevocadas.IgnoreQueryFilters()
+                .Where(f => f.DelegacionTenantId == _vinculoBeneficiario && f.UsuarioId == _gestorB)
+                .ExecuteDeleteAsync()).Should().Be(1);
         }
 
         // Y su Coordinador CAE le da la empresa por «Asignar empresas»: otra cartera, de otro origen.
@@ -696,7 +699,8 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
             using (AmbitoTenantExplicito.Establecer(_beneficiario.Id))
             {
                 var catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
-                await catalogo.IncorporarAsync(_beneficiario.Id, _operador.Id, _operacion, _gestorB);
+                (await catalogo.IncorporarAsync(_beneficiario.Id, _operador.Id, _operacion, _gestorB))
+                    .MotivoAnulacion.Should().BeNull("control: la cartera nueva se emite");
                 (await catalogo.GuardarDetectandoCarreraAsync()).Should().BeTrue();
             }
 
@@ -715,24 +719,27 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Otro_Operador_CAE_no_revoca_el_apoyo_ni_por_el_comando_ni_escribiendo_por_el_catalogo()
+    public async Task Otro_Operador_CAE_no_revoca_el_apoyo_ni_por_el_comando_ni_por_el_catalogo_desde_su_propia_posicion()
     {
         var propuestaId = await ApoyoAceptadoAsync();
 
         (await Terminar(_coordinadorDeOtroOperador, Roles.CoordinadorCae, _otroOperador.Id, new RevocarApoyoCarteraCommand(propuestaId)))
             .Error.Should().Be(ErroresPropuestaApoyo.ApoyoNoEncontrado, "la política RLS de la propuesta no se la deja ver");
 
-        // Aunque se saltara el comando y llamara al catálogo con la propuesta en la mano y el
-        // Tenant propietario como ámbito, la política de las carteras no le deja tocarla.
+        // Aunque se saltara el comando y llamara al catálogo con la propuesta en la mano, desde
+        // su propia posición (su Tenant de origen, sin ámbito del Tenant propietario) la política
+        // de las carteras no le deja ver la de apoyo: no hay nada que cerrar.
+        //
+        // Lo que esto NO prueba, porque no es cierto: con el Tenant propietario como ámbito
+        // explícito la política sí deja escribir (aísla por Tenant propietario, no por Operador
+        // CAE). Ese ámbito es autoridad, y solo lo fija Application tras cargar la propuesta
+        // filtrada por el Operador CAE de origen del actor: es la primera mitad de este test.
         var propuesta = await PropuestaAsync(propuestaId);
         var colarse = () => EnArnes(_coordinadorDeOtroOperador, Roles.CoordinadorCae, _otroOperador.Id, async (usuario, contexto, _, _) =>
         {
-            using (AmbitoTenantExplicito.Establecer(_beneficiario.Id))
-            {
-                var catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
-                await catalogo.RetirarCarteraDeApoyoAsync(propuesta, _coordinadorDeOtroOperador, exigirProponentePrincipal: false);
-                return await catalogo.GuardarDetectandoCarreraAsync();
-            }
+            var catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
+            await catalogo.RetirarCarteraDeApoyoAsync(propuesta, _coordinadorDeOtroOperador, exigirProponentePrincipal: false);
+            return await catalogo.GuardarDetectandoCarreraAsync();
         });
         try
         {
