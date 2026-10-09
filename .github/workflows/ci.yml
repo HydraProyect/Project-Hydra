@@ -1,0 +1,1514 @@
+name: CI
+
+on:
+  # Las ramas de trabajo (`claude/**`) quedan fuera a propósito: cuando tienen un PR
+  # abierto, el disparador `pull_request` de abajo ya verifica exactamente el mismo
+  # commit. Tenerlas aquí duplicaba cada verificación — dos runs completos (~27 min
+  # facturables cada uno) para el mismo código, y el doble de espera por PR.
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # La cola de merge construye cada PR sobre una referencia temporal
+  # (`gh-readonly-queue/main/...`) que incluye los que van delante, y espera ahí
+  # los mismos checks obligatorios. Sin este disparador esos checks no se
+  # ejecutan nunca y la cola se queda colgada en silencio — no falla, espera.
+  merge_group:
+
+# Cancela ejecuciones anteriores del mismo PR/rama cuando llega un push nuevo
+# — evita gastar minutos de CI en un estado ya obsoleto. La cola de merge queda
+# fuera a propósito: cada entrada tiene su propia referencia, y cancelar una
+# construcción de la cola la retiraría de la fila.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # SUELO del reparto de tests de integracion (scripts/repartir-clases-de-test.sh).
+  #
+  # La comprobacion "el reparto cubrio todas las clases" compara dos numeros que
+  # salen de la MISMA deteccion: eso la protege de que los bloques deriven entre
+  # si, pero no de que la deteccion entera se rompa. Si `--list-tests` devolviera
+  # 3 clases en vez de 145, los dos lados dirian 3, coincidirian, y 142 clases no
+  # se ejecutarian en ningun bloque con el gate en verde. La igualdad no distingue
+  # "coinciden porque esta bien" de "coinciden porque los dos estan vacios".
+  #
+  # 145 clases el 2026-08-29; suelo en 120, con holgura para que no salte al
+  # crecer o menguar de forma normal. Es un ratchet: se sube cuando el numero real
+  # crezca de forma sostenida, nunca se baja para que pase un PR concreto.
+  MINIMO_CLASES: "120"
+
+jobs:
+  # Los tests de integración eran el camino crítico del CI: medido el
+  # 2026-08-29, 1138 s de los 1354 s que duraba "Build, format y tests" —el
+  # 84%— y el job más largo del workflow con diferencia, así que marcaba el
+  # ritmo de toda la cola de merge. Aquí se reparten en cuatro bloques que
+  # corren a la vez.
+  #
+  # El reparto se CALCULA, no se escribe: cada bloque lista las clases de
+  # test, las ordena y se queda con las que le tocan por posición. Una clase
+  # nueva cae en un bloque sola, sin que nadie mantenga una lista que se
+  # desincronice.
+  #
+  # Los minutos de Actions son gratis en un repositorio público, así que
+  # comprar tiempo de reloj con paralelismo aquí no cuesta dinero — al revés
+  # que apilar PRs, que sí multiplica ejecuciones completas (§ 22).
+  tests-integracion:
+    name: Tests de integración (bloque ${{ matrix.bloque }} de 4)
+    runs-on: ubuntu-latest
+    strategy:
+      # Un bloque que falla no cancela a los demás: de una ejecución interesa
+      # ver TODOS los fallos, no solo el primero que aparezca.
+      fail-fast: false
+      matrix:
+        bloque: [1, 2, 3, 4]
+    # Cada bloque levanta su propio PostgreSQL: son procesos distintos en
+    # máquinas distintas, así que no comparten clúster y no pueden pisarse.
+    services:
+      postgres:
+        # Misma etiqueta y digest que el servicio db de
+        # deploy/local/docker-compose.produccion.yml (P1-C1): un test que pasa
+        # aquí debe describir el motor que corre en producción. Lo vigila
+        # MismaVersionDePostgresTests (Architecture) en los tres servicios de
+        # este fichero y en el resto de sitios del repositorio.
+        #
+        # Se sirve desde el espejo público de las imágenes oficiales de Docker
+        # en Amazon ECR Public (public.ecr.aws/docker/library/), no desde
+        # Docker Hub: los runners comparten IP de salida y Docker Hub limita
+        # las descargas sin autenticar, así que «Initialize containers» fallaba
+        # con `toomanyrequests` antes de arrancar un solo test y tiraba la cola
+        # de fusión entera (2026-10-09). El digest es el mismo que el de
+        # producción, y es el digest —no el registro ni la etiqueta— lo que
+        # identifica el contenido: cambia de dónde se descarga, no qué se
+        # ejecuta. Los tres servicios de este fichero y el de
+        # integraciones-con-clave.yml usan el mismo origen.
+        image: public.ecr.aws/docker/library/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # "10.0.x" (comodín de banda de features, no solo de parche) resolvió
+      # hoy el SDK 10.0.400 nada más publicarse, cuyas referencias implícitas
+      # exigen paquetes Microsoft.Extensions.* >= 10.0.12 que nuget.org
+      # todavía no publica en estable (solo hasta 10.0.11) — NU1103 en los 10
+      # jobs que restauran, transversal a cualquier PR, no causado por ningún
+      # cambio de código. Acotado a "10.0.3xx" (banda de features fija, parche
+      # libre) siguiendo la regla de la § 23: fijar la versión libre cuando
+      # una herramienta cambia de condiciones sin avisar.
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      # Solo lo necesita CaeManager.IntegrationTests, en
+      # Conversion/LibreOfficeConversorWordPdfServiceTests. Por eso se instala
+      # aquí y ya no en el job de build, que se ahorra los ~25 s.
+      - name: Instalar LibreOffice (Entorno de conversión)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libreoffice-writer
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Compilar los tests de integración
+        run: dotnet build tests/CaeManager.IntegrationTests --no-restore -warnaserror
+
+      # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
+      #
+      # Los roles son objetos de clúster (pg_authid es catálogo compartido) y
+      # ninguna migración los crea: crearlos desde la migración de una base
+      # ponía a seis migradores a competir y tres de seis fallaban con 42704.
+      # deploy/bootstrap/roles-de-cluster.sql es la especificación normativa y
+      # este paso es su adaptador de CI; el guion trae dentro su propia
+      # verificación post-bootstrap.
+      #
+      # P1-M3: la línea base compactada crea el esquema entero en UNA
+      # transacción (unas 120 tablas, 280 índices y 450 ALTER TABLE, más sus
+      # TOAST), así que cada migración de una base nueva retiene cientos de
+      # cerrojos hasta el COMMIT. Con las 185 migraciones previas cada una los
+      # soltaba al terminar. MigracionesConcurrentesTrasBootstrapTests lanza
+      # seis a la vez sobre seis bases nuevas, y con el valor por defecto
+      # (max_locks_per_transaction=64 × max_connections=100 = 6400 huecos en la
+      # tabla de cerrojos compartida) el bloque que le toca caía con
+      # 53200 «out of shared memory», arrastrando a las clases que corrían en
+      # paralelo (medido en #962, bloque 2, HEAD bcd77750). No afecta al
+      # despliegue: allí un solo migrador toca una base existente y solo
+      # reescribe el historial. Es capacidad del clúster de pruebas, no un
+      # cambio de lo que se prueba. Los contenedores de servicio no admiten
+      # argumentos de arranque, así que se fija con ALTER SYSTEM y se
+      # reinicia; el SHOW final falla el paso si no quedó aplicado.
+      - name: Ampliar la tabla de cerrojos del clúster de pruebas
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET max_locks_per_transaction = 256"
+          docker restart ${{ job.services.postgres.id }}
+          for i in $(seq 1 30); do
+            pg_isready -h localhost -U postgres && break
+            sleep 2
+          done
+          valor=$(psql -h localhost -U postgres -d postgres -At -c "SHOW max_locks_per_transaction")
+          echo "max_locks_per_transaction=$valor"
+          [ "$valor" = "256" ] || { echo "::error::max_locks_per_transaction no quedó en 256 (vale '$valor')"; exit 1; }
+
+      # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el
+      # bloque arrancaría contra un clúster fuera de contrato.
+      - name: Bootstrap de roles de clúster
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
+      # El reparto vive en scripts/repartir-clases-de-test.sh, no aqui: asi
+      # tiene sus propios tests (repartir-clases-de-test.tests.sh) y no hay
+      # que escapar una expresion regular dentro de YAML dentro de shell.
+      #
+      # Ese guion falla si el bloque quedase vacio, en vez de dejar correr un
+      # `dotnet test` con un filtro que no casa con nada — que termina en
+      # VERDE sin ejecutar un solo test.
+      # El listado se saca AQUI y se guarda, porque este job es el unico que
+      # tiene PostgreSQL delante — y el descubrimiento lo necesita.
+      #
+      # Medido el 2026-08-29: sin base de datos alcanzable, `--list-tests`
+      # devuelve 773 entradas en vez de 783, con codigo de salida 0 y sin un
+      # solo aviso. Las 15 que faltan son los casos de las cinco [Theory] con
+      # MemberData de AislamientoRlsCentroYSatelitesTests: el inicializador de
+      # modulo del bootstrap de cluster toca la base al cargar el ensamblado, y
+      # sin ella xUnit no puede expandir los datos, asi que las lista sin
+      # expandir. Son los tests de aislamiento RLS.
+      #
+      # Calcular el denominador donde no hay base de datos comparaba un
+      # descubrimiento degradado contra una ejecucion completa.
+      - name: Repartir las clases de test en este bloque
+        id: reparto
+        run: |
+          mkdir -p reparto
+          dotnet test tests/CaeManager.IntegrationTests --no-build --list-tests > reparto/listado-bloque-${{ matrix.bloque }}.txt
+          filtro=$(LISTADO_DE_TESTS=reparto/listado-bloque-${{ matrix.bloque }}.txt bash scripts/repartir-clases-de-test.sh sin-compilar 4 ${{ matrix.bloque }})
+          echo "filtro=$filtro" >> "$GITHUB_OUTPUT"
+          LISTADO_DE_TESTS=reparto/listado-bloque-${{ matrix.bloque }}.txt REPARTO_SALIDA=reparto/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-clases-de-test.sh sin-compilar 4 ${{ matrix.bloque }} > /dev/null
+
+      # PARALELISMO DENTRO DEL BLOQUE, solo en CI.
+      #
+      # xunit.runner.json fija 6 hilos, y ese numero NO viene de ahorrar
+      # minutos: viene de la maquina de desarrollo. Ahi hay UN solo PostgreSQL
+      # compartido entre worktrees y con max_connections=100, y el limite se
+      # puso el 2026-08-13 tras una inestabilidad real —fallos de handshake al
+      # arrancar una clase— porque 16 hilos x 10 conexiones de pool por clase
+      # se comian el cupo del servidor.
+      #
+      # Aqui cada bloque levanta SU PROPIO PostgreSQL, asi que ese cupo no se
+      # comparte con nadie: 8 x 10 = 80 conexiones, con 20 de holgura bajo el
+      # max_connections por defecto. Se sube solo aqui, por RunSettings, y el
+      # fichero sigue diciendo 6: en local el cluster SI es compartido y
+      # subirlo alli romperia a otras sesiones.
+      #
+      # 8 y no mas porque el siguiente escalon exige tocar max_connections del
+      # servicio, que es otro cambio y merece su propia medicion.
+      - name: Ejecutar el bloque
+        run: >
+          dotnet test tests/CaeManager.IntegrationTests --no-build --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=bloque-${{ matrix.bloque }}.trx"
+          --filter "${{ steps.reparto.outputs.filtro }}"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/integration
+          --settings tests/CaeManager.IntegrationTests/coverlet.runsettings
+          -- xUnit.MaxParallelThreads=8
+
+      # Diagnostico para la PROXIMA vez que un bloque falle con algo raro
+      # dentro de InitializeAsync/MigrateAsync.
+      #
+      # El 2026-09-06 un NullReferenceException opaco ahi dentro costo
+      # reconstruir a mano, desde los logs crudos de un job ya terminado
+      # (`gh api .../jobs/<id>/logs`), que la causa NO era agotamiento de
+      # `max_connections` — ese FATAL de PostgreSQL no aparecio ni una vez en
+      # todo el log — sino una rafaga de CHECKPOINTs forzados: `DROP DATABASE
+      # ... WITH (FORCE)` (el teardown de cada clase, ver
+      # BaseDatosPostgresDePruebas.EliminarAsync) obliga a PostgreSQL a un
+      # checkpoint inmediato y sincrono (comportamiento documentado de
+      # `dropdb()`), y con hasta 8 clases terminando a la vez eso satura la
+      # E/O del runner compartido. Ese dia el fallo cayo un segundo justo
+      # despues de uno de esos checkpoints.
+      #
+      # El log del servicio no sobrevive al job por si solo, asi que se saca
+      # aqui y las dos senales se cuentan por separado en vez de dejar que la
+      # proxima investigacion tenga que releer el log entero para distinguir
+      # "no quedan conexiones" (agotamiento real) de "PostgreSQL esta ocupado
+      # haciendo fsync de la ultima base borrada" (contencion de E/O).
+      - name: Guardar el log de PostgreSQL de este bloque
+        if: failure()
+        run: docker logs ${{ job.services.postgres.id }} > postgres-bloque-${{ matrix.bloque }}.log 2>&1
+
+      - name: Diagnosticar el log de PostgreSQL si el bloque fallo
+        if: failure()
+        run: |
+          log="postgres-bloque-${{ matrix.bloque }}.log"
+          if [ ! -f "$log" ]; then
+            echo "::warning::No se pudo capturar el log de PostgreSQL de este bloque."
+            exit 0
+          fi
+          agotamiento=$(grep -c -iE "too many clients|remaining connection slots" "$log" || true)
+          checkpoints=$(grep -c "checkpoint starting: immediate force wait" "$log" || true)
+          echo "Checkpoints forzados por DROP DATABASE ... WITH (FORCE) durante el bloque: ${checkpoints:-0}"
+          if [ "${agotamiento:-0}" -gt 0 ]; then
+            echo "::error::PostgreSQL rechazo conexiones por limite de max_connections (${agotamiento} mensaje(s) de 'too many clients'/'remaining connection slots'). Esto SI es agotamiento de capacidad de conexiones: bajar el pool por clase o subir max_connections del servicio."
+          else
+            echo "::notice::PostgreSQL no rechazo ninguna conexion por max_connections en este bloque. Si el fallo fue una excepcion rara dentro de InitializeAsync/MigrateAsync, sospechar primero de los ${checkpoints:-0} checkpoints forzados de este log (contencion de E/O) antes que de un fallo de producto — ver postgres-bloque-${{ matrix.bloque }}.log."
+          fi
+
+      - name: Publicar el log de PostgreSQL del bloque
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: postgres-log-bloque-${{ matrix.bloque }}
+          path: postgres-bloque-${{ matrix.bloque }}.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # El paso de reparto garantiza que el FILTRO no este vacio, pero no que
+      # el filtro haya CASADO con algo: `dotnet test` con un patron que no
+      # encuentra tests termina en 0, sin fallar. Con cuatro bloques hay cuatro
+      # sitios donde un bloque mudo se leeria como un bloque que pasa, y la
+      # suma seguiria pareciendo verde.
+      #
+      # Se cuenta sobre el .trx, que es el recuento que produjo la propia
+      # ejecucion, en vez de fiarse del codigo de salida.
+      - name: Comprobar que el bloque ejecuto tests de verdad
+        run: |
+          trx=$(find coverage/integration -name "bloque-*.trx" | head -1)
+          if [ -z "$trx" ]; then
+            echo "::error::No se genero ningun .trx: no hay prueba de que este bloque ejecutara nada."
+            exit 1
+          fi
+          ejecutados=$(grep -o "total=\"[0-9]*\"" "$trx" | head -1 | grep -o "[0-9]*")
+          echo "Tests ejecutados en el bloque ${{ matrix.bloque }}: ${ejecutados:-0}"
+          if [ "${ejecutados:-0}" -eq 0 ]; then
+            echo "::error::El bloque ${{ matrix.bloque }} no ejecuto ningun test. El filtro no caso con nada y dotnet test habria salido en verde."
+            exit 1
+          fi
+
+      # El ratchet de cobertura se aplica en "Build, format y tests", que es
+      # el check obligatorio de la protección de rama. Necesita la cobertura
+      # de los CUATRO bloques: sin esto mediría solo Domain y Application y
+      # caería muy por debajo del umbral, que es justo lo que un gate no debe
+      # hacer — cambiar de significado sin que nadie lo decida.
+      - name: Publicar la cobertura del bloque
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cobertura-integracion-${{ matrix.bloque }}
+          path: coverage/integration
+          retention-days: 1
+
+      # La lista de clases que ESTE bloque dijo suyas. "Build, format y tests"
+      # junta las cuatro y comprueba que suman la suite entera: sin eso, una
+      # clase podria caerse del reparto y no ejecutarse en NINGUN bloque, con
+      # los cuatro en verde y nadie mirando. Es una perdida parcial y muda,
+      # peor que un bloque entero vacio porque no se nota.
+      - name: Publicar el reparto del bloque
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reparto-bloque-${{ matrix.bloque }}
+          path: reparto
+          retention-days: 1
+
+  compilacion-y-unitarios:
+    name: Compilación y tests unitarios
+    runs-on: ubuntu-latest
+    # Ya no espera a los bloques: la agregacion vive en su propio job, asi
+    # que este corre en paralelo con ellos en vez de detras. No necesita
+    # PostgreSQL ni LibreOffice.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      # reportgenerator (para el informe de cobertura de abajo) — mismo
+      # manifiesto que dotnet-ef, ver .config/dotnet-tools.json.
+      - name: Restaurar herramientas locales
+        run: dotnet tool restore
+
+      # -warnaserror: ningún warning nuevo pasa desapercibido — coherente con
+      # el nivel de rigor que ya pide Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md, ahora ejecutable.
+      - name: Compilar (warnings como errores)
+        run: dotnet build CaeManager.slnx --no-restore -warnaserror
+
+      - name: Tests de Domain
+        run: >
+          dotnet test tests/CaeManager.Domain.Tests --no-restore --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/domain
+
+      - name: Tests de Application
+        run: >
+          dotnet test tests/CaeManager.Application.Tests --no-restore --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/application
+
+      - name: Tests de arquitectura
+        run: dotnet test tests/CaeManager.Architecture.Tests --no-restore --logger "console;verbosity=normal"
+
+
+      - name: Publicar la cobertura de Domain y Application
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cobertura-unitarios
+          path: coverage
+          retention-days: 1
+
+  # EL GATE FINAL. Conserva el nombre "Build, format y tests" a proposito.
+  #
+  # Aqui viven el ratchet de cobertura y las tres comprobaciones del reparto, y
+  # ese nombre es uno de los ocho required status checks de la proteccion de
+  # rama. Manteniendolo pegado al job que TIENE los gates —en vez de al que
+  # compila— la optimizacion no baja el nivel de control ni por un instante: no
+  # hace falta dar de alta ningun check nuevo, no hay ventana entre el merge y
+  # el alta, y no depende de que nadie se acuerde de un paso manual.
+  #
+  # Lo que se gana igual: la compilacion y los tests unitarios se fueron a
+  # `compilacion-y-unitarios`, que ya no espera a los bloques y corre en
+  # paralelo con ellos. Antes sus ~4,5 min se sumaban a los ~12,5 de los
+  # bloques; ahora solo queda detras esta agregacion, que no compila nada.
+  #
+  # Si falla cualquiera de los dos jobs de los que depende, este se queda sin
+  # ejecutar, el check obligatorio no reporta exito y la rama sigue bloqueada.
+  # Cierra en fallo, no en silencio.
+  # `dotnet format` no depende de los tests ni de la cobertura: solo necesita
+  # restaurar y mirar el codigo. Estaba dentro de compilacion-y-unitarios, en
+  # serie, y sus ~100 s se sumaban a los de esa cadena en vez de solaparse.
+  #
+  # No es required status check por si mismo — lo exige "Build, format y tests",
+  # que si lo es, en su comprobacion explicita de dependencias. Un fallo de
+  # formato sigue bloqueando la rama exactamente igual que antes.
+  formato:
+    name: Verificar formato
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Verificar formato (dotnet format)
+        run: dotnet format CaeManager.slnx --no-restore --verify-no-changes
+
+
+  extension-arneses:
+    name: Arneses de la extensión de navegador
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Se usa el Node que ya trae el runner en vez de instalar uno: estos
+      # guiones no tienen dependencias, solo leen el fuente de la extensión y
+      # simulan lo justo del DOM. La versión queda en el log para que un fallo
+      # por cambio de runtime sea legible.
+      - name: Versión de Node del runner
+        run: node --version
+
+      # Cada guion lleva su propio control positivo, porque un arnés roto da
+      # todo verde: el de content.js comprueba que es capaz de ver una
+      # inyección de verdad, y el de background.js que el decodificador no
+      # devuelve null siempre.
+      - name: content.js — el documento va al campo que se pulsó
+        run: node extension/pruebas/comprobar-content-extension.mjs extension/content.js
+
+      - name: background.js — la subida se entrega a la pestaña que la pidió
+        run: node extension/pruebas/comprobar-enrutado-subida.mjs extension/background.js
+
+      - name: background.js — el código de conexión que empaqueta el C# se lee aquí
+        run: node extension/pruebas/comprobar-codigo-conexion.mjs extension/background.js
+
+  build-and-test:
+    name: Build, format y tests
+    runs-on: ubuntu-latest
+    needs: [compilacion-y-unitarios, formato, tests-integracion, bunit-tests, extension-arneses]
+    # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
+    # un job que se salta reporta su check como "skipped", y la proteccion de
+    # rama trata un check obligatorio omitido como aprobado. Sin esto, un bloque
+    # de integracion en rojo dejaria este job sin correr y la rama quedaria
+    # MERGEABLE — el gate desaparece justo cuando hace falta.
+    #
+    # Con `always()` el job siempre reporta, y el primer paso exige explicitamente
+    # que las dependencias hayan salido en success. Cierra en fallo, no en
+    # silencio, y no depende de como interprete GitHub un check omitido.
+    if: always()
+    steps:
+      - name: Exigir que las dependencias hayan pasado
+        run: |
+          compilacion="${{ needs.compilacion-y-unitarios.result }}"
+          integracion="${{ needs.tests-integracion.result }}"
+          formato="${{ needs.formato.result }}"
+          extension="${{ needs.extension-arneses.result }}"
+          echo "Compilación y tests unitarios: $compilacion"
+          echo "Tests de integración (4 bloques): $integracion"
+          echo "Verificar formato: $formato"
+          echo "Arneses de la extensión: $extension"
+          if [ "$compilacion" != "success" ] || [ "$formato" != "success" ] || [ "$integracion" != "success" ] || [ "$extension" != "success" ]; then
+            echo "::error::Una dependencia no termino en success. Este check obligatorio falla a proposito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado."
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      # Solo para reportgenerator; no se compila nada en este job.
+      - name: Restaurar herramientas locales
+        run: dotnet tool restore
+
+      - name: Recoger la cobertura de Domain y Application
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cobertura-unitarios
+          path: coverage
+
+      # En coverage-web y NO bajo coverage/: el informe del núcleo recoge
+      # coverage/**, y la Web tiene su propio universo y su propio trinquete.
+      - name: Recoger la cobertura de la Web (bUnit)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: cobertura-web
+          path: coverage-web
+
+      - name: Recoger el reparto de los bloques
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: reparto-bloque-*
+          path: reparto
+          merge-multiple: true
+
+      # Los cuatro bloques descubren por separado. Si discreparan, el
+      # denominador dependeria de cual se mirase, asi que se exige que los
+      # cuatro listados sean identicos antes de usar el del bloque 1.
+      - name: Comprobar que los cuatro bloques descubrieron lo mismo
+        run: |
+          for b in 2 3 4; do
+            if ! diff -q reparto/listado-bloque-1.txt "reparto/listado-bloque-$b.txt" > /dev/null; then
+              echo "::error::El bloque $b descubrio una lista distinta a la del bloque 1. El denominador no seria fiable."
+              diff reparto/listado-bloque-1.txt "reparto/listado-bloque-$b.txt" | head -20
+              exit 1
+            fi
+          done
+          echo "Los cuatro bloques descubrieron la misma lista."
+
+      # EL REPARTO CUBRIO LA SUITE ENTERA.
+      #
+      # Que cada bloque ejecutara algo no implica que entre los cuatro las
+      # ejecutaran TODAS: cuatro bloques con recuento no nulo pueden dejarse una
+      # clase fuera, y esa clase no falla porque no corre. Perdida parcial, en
+      # verde y sin ruido — peor que un bloque mudo, que al menos es entero.
+      #
+      # El denominador se calcula con el MISMO guion del reparto pidiendole un
+      # solo bloque de uno. Eso protege de que los bloques deriven entre si; del
+      # colapso conjunto protege el suelo MINIMO_CLASES, no esta igualdad.
+      #
+      # Se compara a nivel de CLASE. Una version anterior de este comentario
+      # justificaba esa eleccion diciendo que --list-tests y la ejecucion no
+      # cuentan lo mismo (212 frente a 210). ERA FALSO, y el error era de
+      # medicion: aquella ejecucion uso un filtro contaminado con la salida de
+      # error del guion, porque se capturo 2>&1 en la variable. Con el filtro
+      # limpio el bloque 1 da 212 listadas y 212 ejecutadas — sin discrepancia.
+      #
+      # Vale la pena conservar el incidente porque es el modo de fallo que este
+      # job vigila, mordiendo a quien lo estaba construyendo: un filtro que no
+      # es el que crees ejecuta MENOS tests, en verde y sin decir nada. De ahi
+      # que el paso de ejecucion tome el recuento del .trx.
+      - name: Comprobar que el reparto cubrio todas las clases
+        run: |
+          LISTADO_DE_TESTS=reparto/listado-bloque-1.txt REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh sin-compilar 1 1 > /dev/null
+          sort /tmp/esperadas-sin-ordenar.txt > /tmp/esperadas.txt
+          cat reparto/bloque-*.txt | sort > /tmp/repartidas.txt
+          esperadas=$(wc -l < /tmp/esperadas.txt)
+          repartidas=$(wc -l < /tmp/repartidas.txt)
+          unicas=$(sort -u /tmp/repartidas.txt | wc -l)
+          echo "Clases de la suite: $esperadas — repartidas: $repartidas — distintas: $unicas"
+          if [ "$esperadas" -ne "$unicas" ] || [ "$repartidas" -ne "$unicas" ]; then
+            echo "::error::El reparto no cubre la suite exactamente una vez. Alguna clase no se ejecuto en ningun bloque, o se ejecuto en dos."
+            diff /tmp/esperadas.txt /tmp/repartidas.txt || true
+            exit 1
+          fi
+
+
+      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
+      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
+      # suite bajo ./coverage — P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md:
+      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
+      # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
+      # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
+      # después de él es el gate real (ratchet, ver su comentario).
+      # Los cuatro bloques de tests-integracion publican su cobertura; aqui se
+      # recogen para que el informe y el ratchet de abajo midan exactamente el
+      # mismo conjunto que antes: Domain + Application + Integration.
+      #
+      # Sin este paso el ratchet seguiria ejecutandose, pero sobre dos suites
+      # en vez de tres: caeria por debajo del umbral y el fallo se leeria como
+      # una perdida de cobertura del producto. Un gate que cambia de
+      # significado sin que nadie lo decida es peor que no tenerlo.
+      - name: Recoger la cobertura de los bloques de integración
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: cobertura-integracion-*
+          path: coverage/integration
+          merge-multiple: true
+      # SE EJECUTARON TODOS LOS TESTS, no solo todas las clases.
+      #
+      # La comprobacion de clases detecta que un bloque se deje una clase
+      # entera fuera. No detecta que una clase corra A MEDIAS — que es lo que
+      # ocurrio el 2026-08-29 construyendo esto: un filtro contaminado ejecuto
+      # 210 de 212 tests de un bloque, en verde, con todas sus clases
+      # presentes. Esta comprobacion si lo habria visto.
+      #
+      # `total` del .trx es el contador correcto: incluye los omitidos
+      # (medido — un bloque con 4 omitidos da total=206 y executed=202).
+      # Contra `executed` faltarian los 4 omitidos de la suite y el gate
+      # fallaria solo. Y el atributo `notExecuted` de <Counters> es una trampa:
+      # vale 0 aunque haya omitidos, asi que no sirve para contarlos.
+      #
+      # Los dos lados se miden en ESTE run, nunca contra un numero escrito a
+      # mano: un numero fijo envejece con cada test nuevo y acaba bajandose
+      # para que pase un PR, que es como mueren estas guardas. El descubrimiento
+      # se hace ademas sobre el arbol recien compilado — listar con --no-build
+      # sobre un ensamblado rancio devolvio una vez un test fantasma que ya no
+      # existia en el codigo.
+      - name: Comprobar que se ejecutaron todos los tests
+        run: |
+          esperados=$(grep -cE "^[[:space:]]+CaeManager\.IntegrationTests\." reparto/listado-bloque-1.txt)
+          sumados=0
+          for f in $(find coverage/integration -name "bloque-*.trx"); do
+            n=$(grep -o "total=\"[0-9]*\"" "$f" | head -1 | grep -o "[0-9]*")
+            echo "  $(basename "$f"): ${n:-0}"
+            sumados=$((sumados + ${n:-0}))
+          done
+          echo "Tests descubiertos: $esperados — ejecutados entre los bloques: $sumados"
+          if [ "$esperados" -ne "$sumados" ]; then
+            echo "::error::Los bloques ejecutaron $sumados tests de $esperados. Si faltan, alguna clase corrio a medias o un filtro no caso con todo lo suyo; si sobran, algun test se ejecuto en dos bloques."
+            exit 1
+          fi
+
+
+      # MarkdownSummaryGithub: pensado por ReportGenerator específicamente
+      # para $GITHUB_STEP_SUMMARY — aparece en la pestaña Summary del run,
+      # no hace falta abrir un artefacto para ver el número. JsonSummary es
+      # para el paso siguiente (el gate) — el mismo run de reportgenerator
+      # produce los dos formatos, sin repetir el cálculo.
+      # continue-on-error: un fallo en este informe (p. ej. ningún
+      # .cobertura.xml si algo cambia en coverlet) no debe tumbar un job
+      # cuyos tests ya pasaron por esta parte — es visibilidad. El gate de
+      # verdad es el paso siguiente, que si no encuentra Summary.json falla
+      # por su cuenta (ver su comentario) — el fallo del informe no queda
+      # silenciado, solo no duplica el mensaje de error.
+      # XmlSummary (ademas de MarkdownSummaryGithub y JsonSummary) porque es
+      # el unico reporttype de reportgenerator que trae el desglose POR CLASE
+      # en un fichero unico y manejable (515 KB en la muestra del
+      # 2026-09-16, frente a un fichero por clase con -reporttypes:Xml).
+      # JsonSummary solo da el agregado por ensamblado (el campo "classes" de
+      # cada ensamblado es un CONTADOR, no una lista) — no sirve para el
+      # informe de zonas de riesgo de mas abajo. No sustituye a JsonSummary:
+      # el gate de "Umbral de cobertura" de este mismo job sigue leyendo
+      # coveragereport/Summary.json y coveragereport-web/Summary.json, sin
+      # tocar.
+      - name: Informe de cobertura
+        if: always()
+        continue-on-error: true
+        run: |
+          dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:"MarkdownSummaryGithub;JsonSummary;XmlSummary"
+          echo "## Núcleo (Domain + Application + Infrastructure)" >> "$GITHUB_STEP_SUMMARY"
+          cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+          dotnet reportgenerator -reports:"coverage-web/**/coverage.cobertura.xml" -targetdir:coveragereport-web -reporttypes:"MarkdownSummaryGithub;JsonSummary;XmlSummary"
+          echo "## Web (bUnit, CaeManager.Web)" >> "$GITHUB_STEP_SUMMARY"
+          cat coveragereport-web/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Informe de cobertura por capas y por zona de riesgo (REC-210,
+      # Project-Hydra-Negocio/tecnico/reconciliacion/REGISTRO-REC.md en el repositorio de negocio):
+      # el agregado de arriba (37,0 % -> hoy dos trinquetes) nunca dijo QUE
+      # capas ni QUE riesgo hay detras del numero. Este paso lee los dos
+      # Summary.xml de arriba y desglosa por ensamblado y por zona de riesgo
+      # (autorizacion, aislamiento de tenant/RLS, importacion) — ver la
+      # cabecera de scripts/informe-cobertura-por-capas.py para el metodo
+      # (heuristica por nombre de clase, declarada como tal) y sus limites.
+      #
+      # if: always() + continue-on-error: true, mismo motivo que el paso de
+      # arriba: es visibilidad nueva, no reemplaza ningun gate existente, y
+      # un fallo aqui no debe tumbar un job cuyos tests ya pasaron.
+      - name: Informe de cobertura por capas y por zona de riesgo (REC-210)
+        if: always()
+        continue-on-error: true
+        run: |
+          python3 scripts/informe-cobertura-por-capas.py \
+            --nucleo coveragereport/Summary.xml \
+            --web coveragereport-web/Summary.xml \
+            > informe-cobertura-por-capas.md
+          cat informe-cobertura-por-capas.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Artefacto aparte del step summary: el summary de un run desaparece de
+      # la vista principal en cuanto hay uno mas reciente y no es diffable
+      # entre commits. El artefacto sí lo es (descargar dos runs y `diff`).
+      # 90 dias (el maximo por defecto de GitHub, y el unico de este fichero
+      # con ese valor — el resto son 1 o 7) a proposito: sirve para comparar
+      # varias ejecuciones sobre el MISMO commit antes de activar un
+      # trinquete por capa (REC-210), y eso exige que el artefacto de una
+      # ejecucion de hace semanas siga descargable cuando llegue la segunda.
+      - name: Publicar el informe de cobertura por capas
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: informe-cobertura-por-capas
+          path: informe-cobertura-por-capas.md
+          retention-days: 90
+          if-no-files-found: warn
+
+      # Ratchet de cobertura (§ 8 del plan de negocio, Horizonte transversal):
+      #
+      # REBASELINE del 2026-09-09 (PR #511), por corrección del universo
+      # medido — no por que la cobertura real haya caído:
+      #
+      # El umbral de 90.0% (fijado el 2026-08-15 sobre un 91.6% medido) se
+      # calculaba sobre un universo donde CaeManager.Migrations.PostgreSQL
+      # (codigo generado de EF, ~355.000 lineas — 15x el tamano de
+      # Domain+Application+Infrastructure+Web juntos) se instrumentaba por
+      # transitividad en cada bloque de integracion, sin que el ratchet
+      # quisiera medir cuanto de esas migraciones esta cubierto. Al excluirlo
+      # (ver tests/CaeManager.IntegrationTests/coverlet.runsettings) la
+      # cobertura de linea real de Domain+Application+Infrestructure+Web bajo
+      # a 37.2%, medida en 3 ejecuciones de CI independientes sobre el mismo
+      # commit: 37.2% / 37.2% / 37.2% — sin variacion detectada a la
+      # resolucion de una decima que reporta el instrumento.
+      #
+      # No hay evidencia de que la calidad efectiva del sistema haya
+      # empeorado: ningun test se quito ni se modifico, solo cambio que se
+      # instrumenta. El umbral se fija en 37.0%, no en 37.2% exacto — 0.2
+      # puntos de margen, proporcionales al ruido REAL observado (no
+      # detectado, no "pequeno por convencion") en vez de los 1.6 puntos del
+      # ratchet anterior, que respondian a un ruido de otra magnitud sobre
+      # otro universo.
+      #
+      # El 90% historico NO se conserva como objetivo implicito: pertenecia a
+      # un universo de medicion distinto y no hay evidencia de que sea el
+      # nivel correcto para este. Este 37.0% es ahora el suelo real: sube
+      # solo cuando la cobertura real mejore de forma sostenida sobre ESTE
+      # universo, y no puede bajarse para hacer pasar un PR sin una nueva
+      # decision explicita del propietario sustentada en un cambio del
+      # instrumento o del universo medido — igual que este mismo rebaseline.
+      #
+      # Caracterizacion pendiente (que capas y que riesgo hay detras del
+      # 37.2%, y que objetivo fijar): REC-210, Negocio
+      # Project-Hydra-Negocio/tecnico/reconciliacion/REGISTRO-REC.md. No convertir este REC en
+      # "subir a 90%" sin haberlo hecho primero.
+      #
+      # Vive dentro de "Build, format y tests" — ya es required status check
+      # de la protección de la rama main — en vez de un job nuevo: así el
+      # gate hereda ese estado "required" sin tocar la configuración de
+      # protección de rama, y no hay forma de que este paso corra y su
+      # resultado se ignore (a diferencia del job de k6 de más abajo, que es
+      # informativo a propósito y por eso está fuera de los required checks).
+      #
+      # SEGUNDO CAMBIO DE UNIVERSO (2026-09-11, decisión explícita del
+      # propietario, en los términos que exige el párrafo de arriba): el
+      # trinquete se parte en DOS, uno por universo, porque el anterior
+      # mezclaba en su denominador el ensamblado Web entero sin medirlo donde
+      # se ejecuta. Los componentes Razor de las pantallas solo los ejercita
+      # la suite bUnit, cuya cobertura no entraba en el informe: cada pantalla
+      # del programa Gen 2 añadía líneas que ningún test contable podía
+      # cubrir, y el número bajaba aunque la pantalla viniera con sus tests y
+      # sus mutaciones (37,0 % → 36,9 % con Mi Firma; la cola expulsó a
+      # Proyectos por lo mismo). Fusionarlo todo en una cifra se descartó: una
+      # mejora de la Web podría tapar una regresión del núcleo.
+      #
+      #   - NÚCLEO: Domain + Application + Infrastructure, medido por las
+      #     suites unitarias y de integración (Include en
+      #     tests/CaeManager.IntegrationTests/coverlet.runsettings).
+      #   - WEB: [CaeManager.Web]*, medido solo por bUnit (Include en
+      #     tests/CaeManager.Web.Tests/coverlet.runsettings).
+      #
+      # Umbrales: se fijan tras remedir cada universo en varias ejecuciones
+      # sobre el mismo commit, con el mismo patrón que el rebaseline de
+      # arriba (lo medido menos 0,2). Ninguno se relaja por el camino.
+      #
+      # TERCER CAMBIO — SUBIDA DEL UMBRAL WEB (2026-09-17, decisión explícita
+      # del propietario): el informe por capas de REC-210 (ver DEC 2026-09-11,
+      # actualización 2026-09-16) midió la Web al 61,4 % con el umbral aún en
+      # 21,4 % — 40 puntos de margen, consecuencia prevista de que cada
+      # pantalla Gen 2 trae sus bUnit. Antes de subir, se tomaron cuatro
+      # muestras más sobre cuatro commits sucesivos y ordinarios de main (no
+      # instrumentados para esta medición; dos de ellos sí tocan ficheros de
+      # test, como cualquier commit normal con bUnit): 61,3 % (049ca346),
+      # 61,3 % (4bff7ecb), 61,4 % (9ab89928), 61,4 % (bc9dfa3a, run
+      # 35169698302) — descargando el artefacto cobertura-web ya generado por
+      # CI y regenerando Summary.json en local con la misma versión de
+      # reportgenerator fijada en .config/dotnet-tools.json (5.5.11), sin
+      # re-ejecutar CI. Mismo patrón que el rebaseline del núcleo del
+      # 2026-09-09 (varias ejecuciones antes de fijar). El 61,4 % no es ruido
+      # de una muestra: es una tendencia sostenida de crecimiento real (el
+      # campo linecoverage de reportgenerator trunca a un decimal, no
+      # redondea — de ahí que 21035/34266 salga 61,3 % aquí y se citara como
+      # 61,4 % en el DEC original; incidencia del instrumento, no del dato).
+      # Umbral nuevo: 61,2 % (61,4 % del último commit medido, main@bc9dfa3a
+      # — menos 0,2, igual criterio que el resto de este fichero). El núcleo
+      # no se toca en este cambio.
+      - name: Umbral de cobertura del núcleo (ratchet)
+        run: |
+          cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
+          umbral="64.8"  # núcleo: 65 % medido (run 34547527082) − 0,2
+          echo "Cobertura de línea del NÚCLEO (Domain+Application+Infrastructure): ${cobertura}% — umbral ratchet: ${umbral}%"
+          if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
+            echo "::error::La cobertura de línea del núcleo (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
+            exit 1
+          fi
+
+      - name: Umbral de cobertura de la Web (ratchet)
+        if: always()
+        run: |
+          cobertura=$(jq -r '.summary.linecoverage' coveragereport-web/Summary.json)
+          umbral="61.2"  # Web: 61,4 % medido (run 35169698302, main@bc9dfa3a) − 0,2
+          echo "Cobertura de línea de la WEB (bUnit sobre CaeManager.Web): ${cobertura}% — umbral ratchet: ${umbral}%"
+          if ! python3 -c "import sys; sys.exit(0 if float('${cobertura}') >= float('${umbral}') else 1)"; then
+            echo "::error::La cobertura de línea de la Web (${cobertura}%) cayó por debajo del umbral ratchet (${umbral}%). Sube el umbral solo cuando la cobertura real mejore de forma sostenida — nunca lo bajes para que pase este PR."
+            exit 1
+          fi
+
+  migraciones-pendientes:
+    name: Detectar migraciones EF olvidadas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Restaurar herramientas locales (dotnet-ef)
+        run: dotnet tool restore
+
+      # Falla si alguien cambió el modelo (una entidad, una propiedad) sin
+      # generar la migración correspondiente — el tipo de olvido que solo se
+      # descubre hoy al desplegar y ver crashear la app contra la base real.
+      # Las migraciones viven en su propio ensamblado, no en Infrastructure
+      # (ver CaeManager.Migrations.PostgreSQL).
+      - name: dotnet ef migrations has-pending-model-changes
+        run: dotnet ef migrations has-pending-model-changes --project src/CaeManager.Migrations.PostgreSQL --startup-project src/CaeManager.Web
+
+  docker-build:
+    name: Build de la imagen de despliegue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Reconstruye exactamente la imagen que se despliega en el VPS (mismo
+      # Dockerfile, mismo -r linux-x64 --self-contained false de la Fase 22)
+      # — así un SDK band distinto o un asset de framework faltante se
+      # detecta aquí, no en producción como pasó esa vez.
+      #
+      # load: true (además de push: false) mete la imagen en el daemon local
+      # de este runner — sin esto, Trivy no tendría qué escanear en el paso
+      # siguiente.
+      - name: Construir imagen Docker
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          load: true
+          tags: caemanager:ci
+
+      # P2 #25 de Project-Hydra-Negocio/MATURITY_REVIEW.md: escaneo de la imagen de
+      # despliegue en busca de vulnerabilidades conocidas (SO + paquetes del
+      # framework de .NET). Bloqueante desde la auditoría de madurez
+      # 2026-08-16: el primer triage real (los tres runs previos de este
+      # mismo workflow, 2026-08-15) dio 0 hallazgos CRITICAL/HIGH — no había
+      # nada pendiente que este cambio convirtiera en bloqueante de golpe.
+      # Si una vulnerabilidad nueva aparece y se decide que es aceptable
+      # (falso positivo, sin parche disponible todavía), se documenta con
+      # un .trivyignore en vez de volver a exit-code 0 para todo el escaneo.
+      - name: Escanear vulnerabilidades de la imagen (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: caemanager:ci
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+  bunit-tests:
+    name: Tests de componentes (bUnit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Restaurar herramientas locales
+        run: dotnet tool restore
+
+      # --settings acota la instrumentación a [CaeManager.Web]*: sin él,
+      # coverlet instrumentaba todo el árbol de dependencias de la suite y la
+      # cifra era «cuánto del código TOTAL toca bUnit de refilón» (0,4 % en
+      # local), que no significaba nada. Acotada, alimenta el trinquete de la
+      # Web del gate "Build, format y tests" (ver el comentario de ese paso).
+      - name: Tests de componentes Blazor
+        run: >
+          dotnet test tests/CaeManager.Web.Tests --logger "console;verbosity=normal"
+          --collect "XPlat Code Coverage" --results-directory ./coverage/web
+          --settings tests/CaeManager.Web.Tests/coverlet.runsettings
+
+      - name: Publicar la cobertura de la Web
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cobertura-web
+          path: coverage/web
+          retention-days: 1
+
+      # continue-on-error: un fallo en el informe no debe tumbar un job cuyos
+      # tests ya pasaron — aquí es visibilidad; el gate de la Web vive en
+      # "Build, format y tests", que recoge el artefacto de arriba.
+      - name: Informe de cobertura
+        if: always()
+        continue-on-error: true
+        run: |
+          dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
+          cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
+
+  e2e-tests:
+    name: Tests E2E (Playwright)
+    runs-on: ubuntu-latest
+    # WebAppFixture arranca la app real contra una base PostgreSQL propia
+    # (creada y borrada por test, ver BaseDatosPostgresDePruebas) — mismo
+    # servicio que usa el job tests-integracion.
+    services:
+      postgres:
+        # Espejo de ECR Public, mismo digest que producción: ver el comentario
+        # del servicio postgres del job tests-integracion.
+        image: public.ecr.aws/docker/library/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      # Arranca la propia app (WebAppFixture) como subproceso real contra
+      # PostgreSQL — necesita el .dll ya compilado antes de correr los
+      # tests, y el propio proyecto Web (CaeManager.Web.dll) también.
+      - name: Compilar
+        run: dotnet build CaeManager.slnx --no-restore
+
+      # El paquete Microsoft.Playwright genera un playwright.ps1 en el output
+      # del proyecto que lo referencia — se usa ese, no una instalación
+      # global, para no acoplar la versión de los navegadores a nada fuera
+      # del propio csproj (ver CaeManager.E2ETests.csproj).
+      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
+      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
+      # suite bajo ./coverage — P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md:
+      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
+      # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
+      # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
+      # después de él es el gate real (ratchet, ver su comentario).
+      # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
+      #
+      # Los roles son objetos de clúster (pg_authid es catálogo compartido) y
+      # desde este incremento NINGUNA migración los crea: crearlos desde la
+      # migración de una base ponía a seis migradores a competir y tres de seis
+      # fallaban con 42704. deploy/bootstrap/roles-de-cluster.sql es la
+      # especificación normativa y este paso es su adaptador de CI; el guion
+      # trae dentro su propia verificación post-bootstrap.
+      #
+      # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el job
+      # arrancaría contra un clúster fuera de contrato.
+      - name: Bootstrap de roles de clúster
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
+      - name: Instalar navegadores de Playwright
+        run: pwsh tests/CaeManager.E2ETests/bin/Debug/net10.0/playwright.ps1 install --with-deps chromium
+
+      # El logger "trx" no cambia qué se ejecuta ni qué hace fallar al job:
+      # solo añade, junto al log de consola, un fichero con el nombre, el
+      # startTime y el endTime ABSOLUTOS (con zona) de cada test — medido en
+      # este repositorio antes de escribirlo. Es lo que faltaba para leer el
+      # log de Serilog del paso de abajo: ese fichero lo escriben CUATRO
+      # procesos de CaeManager.Web a la vez (una fixture por colección de
+      # xUnit, ver WebAppFixture) sobre el mismo content root, sin puerto ni
+      # identificador de test en ninguna línea, así que hasta ahora una
+      # excepción registrada ahí no se podía atribuir a ningún test — medido
+      # en el run 35402030148: 4 arranques de servidor solapados en un único
+      # log-20260918.txt. Con las ventanas del .trx, cada línea del log cae
+      # dentro del intervalo de un test conocido. La otra mitad (REC-216):
+      # cada fixture escribe ya en su propio fichero,
+      # App_Data/logs/log-{TipoDeFixture}-AAAAMMDD.txt (ver WebAppFixture),
+      # así que las líneas de un fichero salen de un solo proceso y, dentro de
+      # una colección, los tests son secuenciales — cada línea cae en la
+      # ventana de UN test, no de hasta cuatro simultáneos.
+      - name: Tests E2E
+        run: >
+          dotnet test tests/CaeManager.E2ETests --no-build --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=e2e.trx"
+
+      # WebAppFixture no reenvía stdout del proceso de CaeManager.Web (ver su
+      # comentario) porque Serilog ya escribe lo mismo en su sink de fichero,
+      # bajo el content root de estos tests
+      # (src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/ — confirmado por
+      # el Módulo 1 en los dos ejes que podían vaciarlo en silencio:
+      # WorkingDirectory del proceso, y que el job compila en Debug sin -c).
+      # Ese fichero es donde queda la única traza de una excepción no
+      # controlada mientras la app ya estaba sirviendo — así se encontró en
+      # su día la causa del fallo del Paso 0 de FlujoCicloDocumentalTests, en
+      # local, leyendo el fichero a mano. Sin este paso, el runner de CI se
+      # destruye al acabar el job y esa misma evidencia desaparece justo
+      # cuando más hace falta: en un fallo intermitente que no se reproduce
+      # en la siguiente ejecución (CLAUDE.md § 3 — mirar primero lo que el
+      # sistema ya escribe, antes de instrumentar de nuevo para
+      # redescubrirlo).
+      #
+      # El manifiesto de abajo es lo que distingue "no hubo logs" de "miré
+      # donde no era" — con if-no-files-found: warn a secas, un artefacto
+      # vacío y una ruta equivocada producen el mismo resultado observable
+      # (nada), y el primer fallo real que lo disparara podría leerse como
+      # "el sink no escribió nada" cuando en realidad la ruta cambió (p. ej.
+      # si algún día el build pasa a -c Release). El manifiesto sale de /tmp,
+      # así que existe siempre, y su contenido dice cuál de los dos casos es.
+      - name: Comprobar el directorio de logs si el E2E falla
+        if: failure()
+        run: |
+          mkdir -p /tmp/diagnostico-e2e
+          find src/CaeManager.Web/bin/Debug/net10.0/App_Data -maxdepth 3 \
+            > /tmp/diagnostico-e2e/manifiesto.txt 2>&1 \
+            || echo "App_Data no existe en la ruta esperada (src/CaeManager.Web/bin/Debug/net10.0/App_Data)" \
+            > /tmp/diagnostico-e2e/manifiesto.txt
+          # Mismo criterio que la línea de arriba, aplicado al .trx: sin esto,
+          # "el logger no escribió nada" y "el .trx salió en otra ruta" se ven
+          # igual desde el artefacto (ausencia), y el .trx es justo lo que
+          # permite atribuir cada línea del log a un test.
+          find tests/CaeManager.E2ETests/TestResults -maxdepth 2 \
+            >> /tmp/diagnostico-e2e/manifiesto.txt 2>&1 \
+            || echo "TestResults no existe en tests/CaeManager.E2ETests (¿el logger trx no llegó a escribir?)" \
+            >> /tmp/diagnostico-e2e/manifiesto.txt
+
+      - name: Publicar logs de CaeManager.Web si el E2E falla
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: logs-caemanager-web-e2e
+          path: |
+            src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/
+            tests/CaeManager.E2ETests/TestResults/e2e.trx
+            /tmp/diagnostico-e2e/manifiesto.txt
+          retention-days: 7
+          if-no-files-found: warn
+
+  load-test:
+    name: Prueba de carga base (k6)
+    runs-on: ubuntu-latest
+    # No bloqueante a propósito (P1-5 de la revisión de madurez): es la
+    # primera cifra real de carga que existe en el repo (P1-19 de
+    # Project-Hydra-Negocio/MATURITY_REVIEW.md, antes no había ninguna) — sin un
+    # historial de resultados todavía no hay umbral defendible que hacer
+    # fallar el build, solo visibilidad. A diferencia del escaneo de Trivy
+    # de "Build de la imagen de despliegue" (que solo afecta a su propio
+    # paso vía exit-code: "0", sin tocar el resultado del job), este
+    # continue-on-error es a nivel de job — por eso "Prueba de carga base
+    # (k6)" está deliberadamente fuera de los required status checks de la
+    # protección de rama de main: un gate marcado "informativo" en el
+    # código no debe poder bloquear un merge en GitHub.
+    continue-on-error: true
+    services:
+      postgres:
+        # Espejo de ECR Public, mismo digest que producción: ver el comentario
+        # del servicio postgres del job tests-integracion.
+        image: public.ecr.aws/docker/library/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Compilar
+        run: dotnet build CaeManager.slnx --no-restore
+
+      - name: Instalar k6
+        uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1 # v1
+
+      # Arranca el mismo binario que se despliega en el VPS, en segundo plano,
+      # contra el Postgres del job — mismo patrón que WebAppFixture en los
+      # tests E2E (ver esa clase), pero como proceso de shell porque este
+      # job no es un proyecto de test .NET.
+      # --collect "XPlat Code Coverage" (coverlet.collector, ya referenciado
+      # en los tres proyectos de test) escribe un coverage.cobertura.xml por
+      # suite bajo ./coverage — P1-19 de Project-Hydra-Negocio/MATURITY_REVIEW.md:
+      # "cobertura en CI" no tenía ninguna señal hasta ahora, ni de
+      # visibilidad ni de gate. Ahora tiene las dos: el informe de más abajo
+      # sigue siendo solo visibilidad, y el paso "Umbral de cobertura"
+      # después de él es el gate real (ratchet, ver su comentario).
+      # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
+      #
+      # Los roles son objetos de clúster (pg_authid es catálogo compartido) y
+      # desde este incremento NINGUNA migración los crea: crearlos desde la
+      # migración de una base ponía a seis migradores a competir y tres de seis
+      # fallaban con 42704. deploy/bootstrap/roles-de-cluster.sql es la
+      # especificación normativa y este paso es su adaptador de CI; el guion
+      # trae dentro su propia verificación post-bootstrap.
+      #
+      # ON_ERROR_STOP=1: sin esto psql seguiría adelante tras un error y el job
+      # arrancaría contra un clúster fuera de contrato.
+      - name: Bootstrap de roles de clúster
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
+      - name: Arrancar la app
+        run: |
+          ASPNETCORE_ENVIRONMENT=Development \
+          ASPNETCORE_URLS=http://127.0.0.1:5000 \
+          ConnectionStrings__CaeManagerDb="Host=localhost;Port=5432;Database=caemanager_carga;Username=postgres;Password=postgres" \
+          DatosPrueba__Activo=true \
+          nohup dotnet src/CaeManager.Web/bin/Debug/net10.0/CaeManager.Web.dll > app.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:5000/salud > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          echo "La app no respondió /salud a tiempo:"
+          cat app.log
+          exit 1
+
+      # scripts/carga-basica.js explica por qué k6 y no un paquete NuGet
+      # (NBomber exige suscripción comercial para uso organizacional —
+      # mismo motivo por el que Project-Hydra-Negocio/tecnico/ARCHITECTURE.md ya había descartado
+      # QuestPDF). Sin --scenario-thresholds: el resumen es la primera
+      # cifra real, no hay una anterior con la que decidir un umbral.
+      - name: Prueba de carga (k6)
+        run: k6 run scripts/carga-basica.js | tee k6-resumen.txt
+        env:
+          BASE_URL: http://127.0.0.1:5000
+
+      - name: Publicar resumen
+        if: always()
+        run: |
+          {
+            echo "## Prueba de carga base (k6)"
+            echo '```'
+            cat k6-resumen.txt 2>/dev/null || echo "Sin resumen — revisa el log del paso anterior."
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  gitleaks:
+    name: Escaneo de secretos (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    # Ya NO se salta en merge_group. Se saltaba porque gitleaks-action abortaba
+    # con «The [merge_group] event is not yet supported», y un job saltado
+    # reporta "skipped", que la proteccion de rama da por aprobado. El binario
+    # no tiene esa limitacion, asi que la cola tambien se escanea.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # BINARIO MIT FIJADO, en vez de la Action.
+      #
+      # La deuda estaba declarada en este mismo fichero: la Action arrastra tres
+      # limitaciones que el binario no tiene —licencia segun el tipo de cuenta
+      # propietaria, validacion remota, y el evento merge_group sin soportar—.
+      #
+      # SHA-256 comprobado contra gitleaks_8.22.1_checksums.txt de la release
+      # oficial, no copiado de un documento.
+      - name: Instalar gitleaks verificado
+        env:
+          VERSION: "8.22.1"
+          SHA256: "2f92ab3b8e08319ac30836c32b90818e01519c3a4982771e4f45a7f5607872f7"
+        run: |
+          set -euo pipefail
+          archivo="gitleaks_${VERSION}_linux_x64.tar.gz"
+          curl --proto '=https' --tlsv1.2 --location --fail --silent --show-error \
+            --output "/tmp/$archivo" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/${archivo}"
+          echo "${SHA256}  /tmp/$archivo" | sha256sum -c -
+          tar -xzf "/tmp/$archivo" -C /tmp gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      # PRUEBA DE SENSIBILIDAD: que el escaner detecte un secreto de control
+      # ANTES de creerle un verde.
+      #
+      # Se asierta sobre el INFORME, no sobre el codigo de salida. Es
+      # deliberado: si la configuracion estuviera rota, gitleaks saldria con
+      # codigo distinto de cero, y un `if gitleaks ...; then fallar; fi` leeria
+      # ese error como "detecto el secreto". El fichero de hallazgos no se
+      # presta a esa confusion — o hay uno dentro, o no lo hay.
+      #
+      # El token se construye en tiempo de ejecucion para que este fichero no
+      # contenga nunca algo que parezca una credencial.
+      - name: Comprobar que gitleaks detecta un secreto de control
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sensibilidad
+          printf 'token = "ghp_%s"\n' 'aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789' \
+            > /tmp/sensibilidad/control.txt
+          gitleaks detect --no-git --no-banner --redact \
+            --config .gitleaks.toml --source /tmp/sensibilidad \
+            --report-format json --report-path /tmp/sensibilidad.json || true
+          if [ ! -f /tmp/sensibilidad.json ]; then
+            echo "::error::gitleaks no genero informe: la configuracion o el binario fallaron. Un verde de este job no significaria nada."
+            exit 1
+          fi
+          hallazgos=$(jq 'length' /tmp/sensibilidad.json)
+          echo "Hallazgos sobre el secreto de control: $hallazgos"
+          if [ "${hallazgos:-0}" -lt 1 ]; then
+            echo "::error::gitleaks NO detecto un token canonico de control. El escaner esta ciego; no se puede confiar en su verde."
+            exit 1
+          fi
+
+      # El escaneo real. Tambien por informe: un fallo del binario no puede
+      # parecerse a "no hay secretos".
+      - name: Escanear el arbol
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/arbol
+          git archive --format=tar HEAD | tar -xf - -C /tmp/arbol
+          gitleaks detect --no-git --no-banner --redact \
+            --config .gitleaks.toml --source /tmp/arbol \
+            --report-format json --report-path /tmp/arbol.json || true
+          if [ ! -f /tmp/arbol.json ]; then
+            echo "::error::gitleaks no genero informe del arbol."
+            exit 1
+          fi
+          hallazgos=$(jq 'length' /tmp/arbol.json)
+          echo "Hallazgos en el arbol: $hallazgos"
+          if [ "${hallazgos:-0}" -gt 0 ]; then
+            jq -r '.[] | "  \(.File):\(.StartLine)  \(.RuleID)"' /tmp/arbol.json
+            echo "::error::gitleaks encontro $hallazgos secreto(s) en el arbol."
+            exit 1
+          fi
+
+      # HISTORIAL INTRODUCIDO. Escanear solo el arbol final dejaria pasar un
+      # secreto commiteado y borrado despues dentro del mismo PR: el fichero ya
+      # no esta, pero el objeto sigue en la historia y es recuperable.
+      #
+      # La guarda del final es la que importa: un rango mal resuelto no
+      # contendria commits, gitleaks no encontraria nada y el job saldria VERDE
+      # habiendo escaneado el vacio. Por eso se cuenta el rango y se falla si
+      # sale cero — un universo vacio no es una ausencia de secretos.
+      - name: Escanear el historial introducido
+        env:
+          EVENTO: ${{ github.event_name }}
+          PUSH_BASE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          MERGE_BASE: ${{ github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$EVENTO" in
+            pull_request) base="$PR_BASE";   head="$PR_HEAD"  ;;
+            merge_group)  base="$MERGE_BASE"; head="$HEAD_SHA" ;;
+            push)         base="$PUSH_BASE";  head="$HEAD_SHA" ;;
+            *) echo "::error::Evento no soportado: $EVENTO"; exit 1 ;;
+          esac
+          git cat-file -e "${head}^{commit}"
+          if [[ "$base" =~ ^0+$ ]] || [ -z "$base" ]; then
+            rango="-1 $head"
+            commits=1
+          else
+            git cat-file -e "${base}^{commit}"
+            rango="${base}..${head}"
+            commits=$(git rev-list --count "$rango")
+          fi
+          echo "Rango: $rango — commits: $commits"
+          if [ "$commits" -lt 1 ]; then
+            echo "::error::El rango no contiene ningun commit. Escanear el vacio saldria verde sin haber mirado nada."
+            exit 1
+          fi
+          gitleaks detect --no-banner --redact --config .gitleaks.toml \
+            --source . --log-opts="$rango" \
+            --report-format json --report-path /tmp/historial.json || true
+          if [ ! -f /tmp/historial.json ]; then
+            echo "::error::gitleaks no genero informe del historial."
+            exit 1
+          fi
+          hallazgos=$(jq 'length' /tmp/historial.json)
+          echo "Hallazgos en el historial introducido: $hallazgos"
+          if [ "${hallazgos:-0}" -gt 0 ]; then
+            jq -r '.[] | "  \(.File):\(.StartLine)  \(.RuleID)  commit \(.Commit[0:8])"' /tmp/historial.json
+            echo "::error::gitleaks encontro $hallazgos secreto(s) en los commits introducidos."
+            exit 1
+          fi
+
+
+  deploy-script-tests:
+    name: Prueba de mutación — SHA determinista en el despliegue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: deploy/resolve-deploy-sha.tests.sh
+        run: bash deploy/resolve-deploy-sha.tests.sh
+
+      - name: deploy/liberar-disco.tests.sh
+        run: bash deploy/liberar-disco.tests.sh
+
+      - name: deploy/vigilar-host.tests.sh
+        run: bash deploy/vigilar-host.tests.sh
+
+      # P1-F1: vuelta atrás a una imagen caemanager:<sha> retenida, sin
+      # reconstruir ni deshacer esquema, con docker falso. Incluye su prueba de
+      # sensibilidad (mutaciones sobre /salud, la imagen en marcha y el
+      # esquema) y lee las migraciones reales del repositorio.
+      - name: deploy/volver-atras.tests.sh
+        run: bash deploy/volver-atras.tests.sh
+
+      # P1-F2: relevo sin corte de la app (ranuras azul/verde, conmutación de
+      # Caddy y drenaje), con docker falso. Incluye el contrato con el Caddyfile
+      # y los compose y sus propias mutaciones.
+      - name: deploy/relevo-app.tests.sh
+        run: bash deploy/relevo-app.tests.sh
+
+      - name: deploy/ci-deploy-secretos.tests.sh
+        run: bash deploy/ci-deploy-secretos.tests.sh
+
+      # D6: capacidad por clave SSH (`--clave staging|produccion`) y su
+      # prueba de sensibilidad (una mutación por guarda, en rojo por el caso
+      # esperado). Necesita que /opt/talveg NO exista: es el runner.
+      - name: deploy/ci-deploy-claves.tests.sh
+        run: bash deploy/ci-deploy-claves.tests.sh
+
+      - name: deploy/ci-deploy-diagnostico-memoria.tests.sh
+        run: bash deploy/ci-deploy-diagnostico-memoria.tests.sh
+
+      # Imagen construida y firmada en CI (incidente 2026-09-22): recepción por
+      # stdin, identidad exigida a cosign, hash firmado y orden en main(), con
+      # cosign y docker falsos.
+      - name: deploy/ci-deploy-imagen.tests.sh
+        run: bash deploy/ci-deploy-imagen.tests.sh
+
+      # Modo "muestreo-memoria" (REC-196/P33, D2): validación de la orden
+      # entera, techos duros, sin cerrojo, solo lectura. Necesita flock
+      # (util-linux, presente en el runner).
+      - name: deploy/ci-deploy-muestreo-memoria.tests.sh
+        run: bash deploy/ci-deploy-muestreo-memoria.tests.sh
+
+      # Techo de memoria parametrizado de db, caddy y seq: sin variables no
+      # hay techo ni cambia el hash (desplegar no recrea la base); con ellas
+      # llega solo al servicio nombrado. Mide con `docker compose config`.
+      - name: deploy/compose-techos-memoria.tests.sh
+        run: bash deploy/compose-techos-memoria.tests.sh
+
+      # Vigía de producción y orquestación de la carga contra staging, con
+      # curl/ssh/k6/gh falsos: nada sale del runner.
+      - name: scripts/carga-staging-vigia.tests.sh
+        run: bash scripts/carga-staging-vigia.tests.sh
+
+      # No corria en ningun sitio hasta ahora: el guion se probaba a mano.
+      #
+      # MINIMO_CLASES a vacio: el `env:` de nivel de workflow lo fija en 120
+      # para el paso REAL de reparto (mas abajo), pero aqui el propio test del
+      # guion usa un listado fijo de 4 clases para probar el reparto en si, y
+      # hereda ese mismo valor si no se anula — el suelo salta antes de que el
+      # test llegue a comprobar nada, y las 4 comprobaciones que dependen del
+      # reparto fallan con "obtenido: 0" (medido: sin este override, este paso
+      # falla incluso con el guion correcto).
+      - name: scripts/repartir-clases-de-test.tests.sh
+        env:
+          MINIMO_CLASES: ""
+        run: bash scripts/repartir-clases-de-test.tests.sh
+
+      - name: scripts/informe-cobertura-por-capas.tests.sh
+        run: bash scripts/informe-cobertura-por-capas.tests.sh
+
+      # Turno de uso del clúster PostgreSQL local compartido entre worktrees
+      # (exclusión mutua + cola + huérfanos). Es arnés de sesión local, no se
+      # ejecuta en CI, pero su prueba sí: dos invocaciones concurrentes, la
+      # segunda espera y se ejecuta; sin turno, salida 75 inconfundible.
+      - name: scripts/turno-postgres.tests.sh
+        run: bash scripts/turno-postgres.tests.sh
+
+      # Gate local único (S8, 2026-10-02) y gancho pre-push: con un `dotnet` falso y un repositorio
+      # git temporal. Fija que el formato corre con --verify-no-changes, que la compilación lleva
+      # -warnaserror, que 0 pruebas es rojo y que Web solo se omite si el diff no la toca; cada una
+      # con su mutación. No ejecuta .NET real: el gate real corre en la máquina de quien programa.
+      - name: scripts/gate.tests.sh
+        run: bash scripts/gate.tests.sh
+
+      # Métricas de proceso M1..M22 (S15): cifras exactas sobre datos sintéticos, fuente ausente =
+      # NO_MEDIDA (nunca 0) y once mutantes del propio guion que deben poner en rojo su prueba.
+      - name: scripts/metricas-proceso.tests.sh
+        run: bash scripts/metricas-proceso.tests.sh
+
+      # Generador de la tabla del vocabulario de pantalla del contrato de terminología (S1): la tabla
+      # sale de Vocabulario.json y de nada más. Cifras exactas sobre un vocabulario sintético, los
+      # ejemplos de cada patrón del real con el motor de Python (los patrones valen en .NET y en
+      # Python) y doce mutantes del propio guion que deben poner en rojo su prueba.
+      - name: scripts/vocabulario-tabla.tests.sh
+        run: bash scripts/vocabulario-tabla.tests.sh
+
+      # Guarda de los secretos de CI con clave de proveedor externo (P13/P18,
+      # 2026-09-19): la prueba del guion Y el guion contra los workflows reales
+      # de este árbol. La segunda línea es la que falla el día que alguien
+      # enchufe CI_ANTHROPIC_API_KEY / CI_STRIPE_TEST_API_KEY a `pull_request`,
+      # o pegue una clave sk_live_ en un workflow.
+      - name: scripts/verificar-secretos-de-ci.tests.sh
+        run: bash scripts/verificar-secretos-de-ci.tests.sh
+
+      - name: scripts/verificar-secretos-de-ci.sh (workflows reales)
+        run: bash scripts/verificar-secretos-de-ci.sh
+
+      # Latido del backup (P36): sin Docker ni Borg ni red, con dobles en el PATH.
+      - name: scripts/backup-borg.tests.sh
+        run: bash scripts/backup-borg.tests.sh
+
+      # Ensayo de restauración: la guarda de producción (sale con 3 si existe
+      # caemanager-app/db) y un trinquete estático sobre la contraseña de login.
+      # El ensayo completo necesita Docker + Borg + una imagen de la app y no
+      # corre en CI (lo ejecuta el propietario, ver RUNBOOK-CONTINUIDAD).
+      - name: scripts/ensayo-restauracion-borg.tests.sh
+        run: bash scripts/ensayo-restauracion-borg.tests.sh
+
+      # Copia cifrada de las claves de Data Protection (P38): esta prueba usa
+      # `age` REAL (el cifrado no se puede simular) y NO da verde sin él.
+      - name: scripts/dataprotection-copia-cifrada.tests.sh
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age
+          bash scripts/dataprotection-copia-cifrada.tests.sh
+
+  licencias-dependencias:
+    name: Licencias de dependencias
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # El guion se prueba a sí mismo primero, sin red: si el verificador no
+      # sabe distinguir MediatR 12.5.0 de 13.0.0, su veredicto sobre el árbol
+      # real tampoco vale nada.
+      - name: Probar el verificador (sin red)
+        run: bash scripts/verificar-licencias-nuget.tests.sh
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      # Las versiones se toman RESUELTAS, no del csproj: los comodines de
+      # versión (`12.*`) no dicen qué se instaló de verdad, y es justamente lo
+      # instalado lo que tiene licencia.
+      - name: Listar dependencias de primer nivel
+        run: |
+          dotnet list package --format json > paquetes.json
+          jq -r '[.projects[].frameworks[]?.topLevelPackages[]?
+                  | "\(.id) \(.resolvedVersion)"] | unique | .[]' \
+            paquetes.json > lista-paquetes.txt
+          echo "Dependencias de primer nivel: $(wc -l < lista-paquetes.txt)"
+
+      # Falla si un paquete cambia a una licencia no permitida o la declara
+      # como fichero sin estar en scripts/licencias-revisadas.txt. Es el gate
+      # que habría cazado FluentAssertions 8.x y MediatR 13.x cuando llegaron
+      # como PRs de dependabot indistinguibles de una actualización rutinaria.
+      - name: Verificar licencias
+        run: bash scripts/verificar-licencias-nuget.sh lista-paquetes.txt
+
+  paquetes-vulnerables:
+    name: Paquetes NuGet vulnerables
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      # --format json omite la clave "frameworks" en un proyecto cuando no
+      # tiene paquetes vulnerables, y solo la añade —con el paquete y su
+      # advisoryurl— cuando hay algo que reportar (comprobado contra el árbol
+      # real y contra un JSON sintético con una vulnerabilidad inventada). Un
+      # grep sobre el texto en lenguaje natural ("no tiene paquetes
+      # vulnerables" / "has no vulnerable packages") depende del locale del
+      # runner; la forma del JSON no.
+      - name: Comprobar vulnerabilidades conocidas (NuGet Advisory Database)
+        run: |
+          dotnet list CaeManager.slnx package --vulnerable --include-transitive --format json > vulnerables.json
+          jq '.' vulnerables.json
+          if jq -e '.projects[] | select(.frameworks != null)' vulnerables.json > /dev/null; then
+            echo "::error::Hay paquetes NuGet con vulnerabilidades conocidas. Ver el JSON de arriba (advisoryurl por paquete)."
+            exit 1
+          fi
+          echo "Sin vulnerabilidades conocidas en las fuentes actuales."
+
+  # El job "Gobernanza — metadatos de PR" vivió aquí hasta REC-140/REC-162
+  # (DEC-66): se mudó a su propio workflow, .github/workflows/gobernanza-pr.yml,
+  # con su propio `on:`, para poder revalidarse ante `labeled`/`milestoned`
+  # sin heredar el disparador de este fichero y despertar los otros 17 jobs
+  # ante cada cambio administrativo. Ver el comentario de ese fichero para el
+  # porqué completo, incluida la reversión deliberada de REC-162 (milestone y
+  # etiquetas por API en vez del payload del evento).
+
