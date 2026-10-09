@@ -164,7 +164,7 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// misma escritura que persista quien llame (un solo <c>UpdateAsync</c>), y fila
     /// de auditoría con acción propia. El enlace lleva dentro el sello con el que se
     /// generó, así que cambiarlo ANTES de generar el nuevo deja sin valor todos los
-    /// emitidos hasta entonces: solo vale el último. Es una credencial al portador
+    /// emitidos hasta entonces. Es una credencial al portador
     /// —quien lo tiene fija la contraseña—, y un enlace anterior que siguiera vivo
     /// en un buzón equivocado seguiría entregando la cuenta.
     /// </summary>

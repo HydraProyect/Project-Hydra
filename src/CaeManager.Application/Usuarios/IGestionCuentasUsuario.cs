@@ -78,8 +78,9 @@ public interface IGestionCuentasUsuario
     ///
     /// <para>
     /// <b>Escribe</b>: cada emisión cambia el sello de seguridad de la cuenta antes de
-    /// generar el token, así que deja sin valor los enlaces emitidos antes —solo vale el
-    /// último— y queda en la auditoría de la cuenta como
+    /// generar el token, así que deja sin valor todos los enlaces emitidos antes —también
+    /// los de «olvidé mi contraseña», que comparten proveedor y sello pero no lo cambian
+    /// al emitirse— y queda en la auditoría de la cuenta como
     /// <c>RegistroAuditoria.AccionActivacionEmitida</c>, con el Actor real de
     /// quien la pide. Vale igual para el enlace del alta y para un reenvío.
     /// </para>

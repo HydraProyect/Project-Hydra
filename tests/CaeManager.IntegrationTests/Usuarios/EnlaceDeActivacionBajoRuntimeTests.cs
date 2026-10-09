@@ -11,6 +11,8 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Xunit;
 
@@ -108,6 +110,51 @@ public class EnlaceDeActivacionBajoRuntimeTests
         fila.ActorRealUsuarioId.Should().Be(actorReal);
     }
 
+    /// <summary>
+    /// Revisión puente de la PR: si la persona fija su contraseña entre la lectura de la
+    /// cuenta y la escritura del sello, el <c>UpdateAsync</c> falla por concurrencia
+    /// cuando el interceptor ya había añadido la fila de auditoría al contexto. Ni esa
+    /// fila ni la cuenta con el sello cambiado en memoria pueden quedarse en el
+    /// <c>DbContext</c> del circuito: el siguiente guardado de cualquier pantalla las
+    /// arrastraría. La carrera se provoca de verdad, con un validador que activa la
+    /// cuenta por otra conexión en mitad del <c>UpdateAsync</c>.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_persona_se_activa_durante_la_emision_no_queda_auditoria_ni_restos_en_el_contexto()
+    {
+        var adminId = Guid.NewGuid();
+        var pendienteId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(ActorAuditoria.Normal(adminId), adminId);
+        await CrearCuentaAsync(arnes, adminId, "admin@caemanager.local", "Arnes#2026Seguro");
+        await CrearCuentaAsync(arnes, pendienteId, "pendiente@caemanager.local", contrasena: null);
+
+        using var circuito = arnes.Servicios.CreateScope();
+        var sp = circuito.ServiceProvider;
+        var contexto = sp.GetRequiredService<CaeManagerDbContext>();
+        var usuarios = UserManagerQueSufreLaCarrera(
+            sp, () => ActivarPorOtraConexionAsync(arnes.CadenaPropietario, pendienteId));
+        var puerta = new PuertaAccesoDatos();
+        var puerto = new GestionCuentasUsuarioIdentity(
+            usuarios, puerta,
+            new DirectorioUsuariosTenant(usuarios, contexto, sp.GetRequiredService<ITenantActual>(), puerta, contexto),
+            contexto);
+
+        var emision = await puerto.GenerarTokenActivacionAsync(pendienteId);
+
+        emision.EsFallido.Should().BeTrue("la cuenta dejó de estar pendiente en mitad de la emisión");
+        emision.Error.Codigo.Should().Be("Usuarios.FalloAlEmitirActivacion",
+            "control positivo: el fallo es el de la escritura del sello, no otro anterior");
+        var selloTrasLaCarrera = await LeerSelloAsync(arnes.CadenaPropietario, pendienteId);
+
+        var siguienteGuardadoDelCircuito = () => contexto.SaveChangesAsync();
+        await siguienteGuardadoDelCircuito.Should().NotThrowAsync(
+            "la cuenta que no se pudo guardar no se queda modificada en el contexto");
+        (await LeerEmisionesAsync(arnes.CadenaPropietario, pendienteId)).Should().BeEmpty(
+            "no se emitió ningún enlace, así que no hay emisión que auditar");
+        (await LeerSelloAsync(arnes.CadenaPropietario, pendienteId)).Should().Be(selloTrasLaCarrera,
+            "el sello que se cambió en memoria no llega a la base en un guardado posterior");
+    }
+
     // ---------- Arnés ----------
 
     private static Task<ArnesDeArranqueRuntime> CrearArnesAsync(ActorAuditoria actor, Guid usuarioDeSesion) =>
@@ -167,6 +214,52 @@ public class EnlaceDeActivacionBajoRuntimeTests
         var resultado = contrasena is null ? await um.CreateAsync(usuario) : await um.CreateAsync(usuario, contrasena);
         resultado.Succeeded.Should().BeTrue(
             "errores: " + string.Join(", ", resultado.Errors.Select(e => e.Code + ":" + e.Description)));
+    }
+
+    /// <summary>
+    /// El <c>UserManager</c> del arnés más un validador que, la primera vez que valida
+    /// una actualización, ejecuta <paramref name="enMitadDeLaEscritura"/>: lo que otra
+    /// conexión haría entre la lectura de la cuenta y su <c>UpdateAsync</c>.
+    /// </summary>
+    private static UserManager<ApplicationUser> UserManagerQueSufreLaCarrera(
+        IServiceProvider sp, Func<Task> enMitadDeLaEscritura) => new(
+        sp.GetRequiredService<IUserStore<ApplicationUser>>(),
+        sp.GetRequiredService<IOptions<IdentityOptions>>(),
+        sp.GetRequiredService<IPasswordHasher<ApplicationUser>>(),
+        [.. sp.GetServices<IUserValidator<ApplicationUser>>(), new ValidadorQueDejaPasarLaCarrera(enMitadDeLaEscritura)],
+        sp.GetServices<IPasswordValidator<ApplicationUser>>(),
+        sp.GetRequiredService<ILookupNormalizer>(),
+        sp.GetRequiredService<IdentityErrorDescriber>(),
+        sp,
+        sp.GetRequiredService<ILogger<UserManager<ApplicationUser>>>());
+
+    private sealed class ValidadorQueDejaPasarLaCarrera(Func<Task> enMitadDeLaEscritura) : IUserValidator<ApplicationUser>
+    {
+        private bool _yaOcurrio;
+
+        public async Task<IdentityResult> ValidateAsync(UserManager<ApplicationUser> manager, ApplicationUser user)
+        {
+            if (!_yaOcurrio)
+            {
+                _yaOcurrio = true;
+                await enMitadDeLaEscritura();
+            }
+
+            return IdentityResult.Success;
+        }
+    }
+
+    /// <summary>Lo que deja en la fila fijar la contraseña desde el enlace: hash y sello de concurrencia nuevos.</summary>
+    private static async Task ActivarPorOtraConexionAsync(string cadena, Guid usuarioId)
+    {
+        await using var conexion = new NpgsqlConnection(cadena);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText =
+            @"UPDATE ""AspNetUsers"" SET ""PasswordHash"" = 'fijada-por-otra-conexion', ""ConcurrencyStamp"" = @c WHERE ""Id"" = @u;";
+        comando.Parameters.AddWithValue("c", Guid.NewGuid().ToString());
+        comando.Parameters.AddWithValue("u", usuarioId);
+        (await comando.ExecuteNonQueryAsync()).Should().Be(1, "premisa: la otra conexión llega a escribir la cuenta");
     }
 
     // ---------- Lecturas como PROPIETARIO (sin RLS): lo que de verdad quedó escrito ----------
