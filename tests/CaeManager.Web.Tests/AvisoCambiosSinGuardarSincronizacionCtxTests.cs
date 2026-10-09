@@ -114,6 +114,26 @@ public class AvisoCambiosSinGuardarSincronizacionCtxTests : BunitContext
         cut.FindAll(".modal-contenido").Should().BeEmpty();
     }
 
+    /// <summary>Revisión puente: el formulario dentro de una pestaña del panel (ámbito de pestañas y de ficha a la vez) tampoco se desmonta.</summary>
+    [Fact]
+    public async Task El_filtro_de_la_pagina_con_un_formulario_de_pestana_del_panel_a_medio_editar_no_pregunta()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo($"centros?q=norte&ctx=Centro:{Centro}:informacion");
+        var ficha = new AmbitoCambiosSinGuardar();
+        var cut = Render<AvisoCambiosSinGuardar>(p => p
+            .Add(x => x.HayCambios, () => true)
+            .AddCascadingValue(new AmbitoCambiosSinGuardar(ficha))
+            .AddCascadingValue(AmbitoCambiosSinGuardar.NombreAmbitoFicha, ficha));
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo($"centros?q=sur&ctx=Centro:{Centro}:informacion", replace: true));
+
+        navegacion.Uri.Should().Contain("q=sur");
+        cut.FindAll(".modal-contenido").Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Cerrar_la_ficha_a_medio_editar_sigue_preguntando_aunque_la_pagina_cambie_de_pestana()
     {
