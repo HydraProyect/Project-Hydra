@@ -207,6 +207,16 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
             Assert.True(entrada.Length > 0, "el zip lleva el archivo subido, no una entrada vacía");
         }
 
+        // --- Documentación gestionada: estado guardado, no cálculo sobre los documentos ---
+        // El documento exigido está vigente y el ZIP ya se descargó: aun así la Visita sigue
+        // «Por gestionar» hasta que se envía el paquete o se marca a mano.
+        await Expect(filaVisita).ToContainTextAsync("Por gestionar");
+        var marcarGestionada = drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Marcar documentación gestionada", Exact = true });
+        await marcarGestionada.ClickAsync();
+        await Expect(filaVisita).ToContainTextAsync("Gestionada", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await Expect(filaVisita).Not.ToContainTextAsync("Por gestionar");
+        await Expect(marcarGestionada).ToHaveCountAsync(0);
+
         // --- Pestaña «Trabajadores»: quién entra, añadir desde la lista y quitar con el «menos» ---
         await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
         var filasTrabajador = drawer.Locator(".visitas-trabajador-fila");
@@ -234,6 +244,9 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
 
         await Expect(filasTrabajador).ToHaveCountAsync(2, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
         await Expect(listaTrabajadores).ToContainTextAsync($"{nombreSegundo} {apellidosSegundo}");
+        // Cambió quién entra: lo gestionado era para los de antes, la Visita vuelve a «Por gestionar».
+        await Expect(filaVisita).ToContainTextAsync("Por gestionar", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+        await Expect(marcarGestionada).ToBeVisibleAsync();
 
         // Con dos, el primero ya se puede quitar: pregunta antes y, al confirmar, sale de la visita.
         await quitarAlPrimero.ClickAsync();
@@ -245,6 +258,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas");
         await page.GetByPlaceholder("Buscar por centro, titular o empresa…").FillAsync(nombreCentro);
         await filaVisita.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await Expect(filaVisita).ToContainTextAsync("Por gestionar");
         await Ayudas.PulsarAccionDeMenuAsync(filaVisita.Locator(".menu-acciones-disparador"), "Ver");
         await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
         await Expect(filasTrabajador).ToHaveCountAsync(1);

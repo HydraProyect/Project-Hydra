@@ -11,6 +11,7 @@ using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisitas;
+using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
@@ -179,7 +180,10 @@ public class VisitasGen2Tests : BunitContext
                     return Respuesta<TResponse>((IReadOnlyList<ConexionIntegracionListaDto>)
                         [new(Guid.NewGuid(), "cae@example.invalid", "CAE Norte", null, null, EstadoConexionIntegracion.Habilitada, DateTime.UtcNow, null, null)]);
 
-                case EnviarMensajeNuevoCommand envio:
+                // El paquete sale por el comando de la Visita (que además la marca gestionada),
+                // nunca por el envío genérico de Comunicaciones: si la página volviera a él, este
+                // mediador no lo conoce y el test lo dice.
+                case EnviarPaqueteAcreditacionVisitaCommand envio:
                     Comandos.Add(envio);
                     return Respuesta<TResponse>(Result.Exito(Guid.NewGuid()));
 
@@ -635,7 +639,7 @@ public class VisitasGen2Tests : BunitContext
         cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == mediator.Solicitud.Cuerpo);
         cut.Markup.Should().Contain("paquete-centro-norte.zip");
         mediator.ConsultasPaquete.Should().Be(1, "el paquete sale de ObtenerPaqueteDocumentalVisitaQuery, sin reimplementar qué viaja");
-        mediator.Comandos.OfType<EnviarMensajeNuevoCommand>().Should().BeEmpty("el correo lo envía el Gestor CAE tras revisar: abrir el compositor no envía nada");
+        mediator.Comandos.OfType<EnviarPaqueteAcreditacionVisitaCommand>().Should().BeEmpty("el correo lo envía el Gestor CAE tras revisar: abrir el compositor no envía nada");
     }
 
     [Fact]
@@ -647,7 +651,10 @@ public class VisitasGen2Tests : BunitContext
 
         await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
 
-        var envio = mediator.Comandos.OfType<EnviarMensajeNuevoCommand>().Should().ContainSingle().Subject;
+        var envio = mediator.Comandos.OfType<EnviarPaqueteAcreditacionVisitaCommand>().Should().ContainSingle().Subject;
+        var norte = mediator.Visitas.Single();
+        envio.VisitaId.Should().Be(norte.Id);
+        envio.VersionVisita.Should().Be(norte.Version, "la versión con la que se preparó el paquete");
         envio.Destinatarios.Should().Equal("acceso@centronorte.es");
         var adjunto = envio.Adjuntos.Should().ContainSingle().Subject;
         adjunto.NombreArchivo.Should().Be("paquete-centro-norte.zip");
@@ -714,7 +721,7 @@ public class VisitasGen2Tests : BunitContext
         cut.Find(".aviso-sin-buzon").TextContent.Should().Contain("acceso@centronorte.es");
         cut.FindComponent<AvisoSinBuzonCorreo>().FindComponent<BotonCopiar>().Instance.Valor.Should().StartWith(mediator.Solicitud.Asunto + "\n\n");
         cut.Find("a.aviso-sin-buzon-descargar").GetAttribute("href").Should().EndWith("/paquete-documental.zip");
-        mediator.Comandos.OfType<EnviarMensajeNuevoCommand>().Should().BeEmpty();
+        mediator.Comandos.OfType<EnviarPaqueteAcreditacionVisitaCommand>().Should().BeEmpty();
     }
 
     [Fact]
