@@ -1,22 +1,27 @@
 @*
-    Dato de cabecera «Gestor CAE» de la pantalla Empresas (decisión 2026-10-08): quién gestiona
-    el Tenant propietario activo desde el Operador CAE de quien mira. No es una columna porque la
-    Asignación de Cartera es sobre el Tenant entero (ADR-011 § 2.7, enmienda 2026-10-08): es el
-    mismo dato para todas las filas.
+    Dato de cabecera «Gestor CAE» de la pantalla Empresas (decisiones 2026-10-08 y 2026-10-09):
+    quién gestiona el Tenant propietario activo. No es una columna porque la Asignación de
+    Cartera es sobre el Tenant entero (ADR-011 § 2.7, enmienda 2026-10-08): es el mismo dato para
+    todas las filas.
 
-    Operador CAE = organización; Gestor CAE = persona. Aquí salen personas: el Gestor CAE
-    principal —«Coordinador CAE principal» si quien lleva la marca gestiona el Tenant con ese
-    rol— y los Gestores CAE de apoyo, con la fecha de fin si su cartera la tiene.
+    Operador CAE = organización; Gestor CAE = persona. Salen personas: el Gestor CAE principal
+    —«Coordinador CAE principal» si quien lleva la marca gestiona el Tenant con ese rol— y los
+    Gestores CAE de apoyo, con la fecha de fin si su cartera la tiene.
 
-    SOLO LECTURA. Dar acceso de apoyo, desasignarse, revocar y «Asumir» cuando no hay principal
-    son otras líneas (I3–I5): sus controles irán detrás de las pastillas, en esta misma franja.
+    SOLO LECTURA, para las dos miradas. Dar acceso de apoyo, desasignarse, revocar y «Asumir»
+    viven en sus pantallas y son del Gestor CAE principal y del Coordinador CAE.
 
-    Los datos salen de ObtenerPersonasConCarteraQuery, que ya acota la lectura al Operador CAE de
-    la sesión: para quien no es una cuenta de gestión CAE de un Operador CAE externo sobre este
-    Tenant (un usuario del propio Tenant propietario, Soporte TALVEG) devuelve vacío, y entonces
-    no se pinta nada.
+    Quién recibe datos lo deciden las consultas, no este componente:
+    - ObtenerPersonasConCarteraQuery responde a una cuenta de gestión CAE del Operador CAE
+      externo que gestiona este Tenant: ve a los suyos, sin nombrarle su propia organización.
+    - ObtenerOperadoresCaeDeMiTenantQuery responde al Administrador del Tenant propietario: ve,
+      por cada Asignación de Operación, qué Operador CAE lo gestiona y quién es el principal. Una
+      operación sin principal se dice junto a su organización.
+    Si las dos vuelven vacías (otro rol del Tenant propietario, un Tenant de operación interna,
+    Soporte TALVEG) no se pinta nada.
 *@
 @using CaeManager.Application.Common
+@using CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant
 @using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera
 @using CaeManager.Domain.Common
 @using CaeManager.Infrastructure.Identity
@@ -35,45 +40,78 @@
         <span class="cabecera-gestor-cae-sin-dato" role="status">@Textos["GestorCaeError"]</span>
     </span>
 }
-else if (_principales.Count > 0 || _apoyos.Count > 0)
+else if (_grupos.Count > 0)
 {
-    <span class="cabecera-gestor-cae" role="group" aria-label="@Textos["GestorCaeGrupo"]" title="@Textos["GestorCaeTitulo"]">
+    <span class="cabecera-gestor-cae" role="group" aria-label="@Textos["GestorCaeGrupo"]" title="@Textos[_desdeElPropietario ? "GestorCaeTituloPropietario" : "GestorCaeTitulo"]">
         <span class="cabecera-gestor-cae-rotulo">@Textos["GestorCaeRotulo"]</span>
-        @foreach (var principal in _principales)
+        @foreach (var grupo in _grupos)
         {
-            @if (principal != _principales[0])
+            @if (grupo != _grupos[0])
+            {
+                <span class="cabecera-gestor-cae-separador" aria-hidden="true">|</span>
+            }
+            @if (grupo.Operador is { } operador)
+            {
+                <span class="cabecera-gestor-cae-operador" data-gestor-cae="operador">
+                    <span class="cabecera-gestor-cae-sin-dato">@Textos["GestorCaeOperador"]</span>
+                    <strong>@operador</strong>
+                </span>
+            }
+            @foreach (var principal in grupo.Principales)
+            {
+                @if (principal != grupo.Principales[0] || grupo.Operador is not null)
+                {
+                    <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
+                }
+                <span class="cabecera-gestor-cae-persona" data-gestor-cae="principal" @key="(grupo.Clave, principal.UsuarioId)">
+                    <AvatarUsuario Nombre="@principal.Nombre" Avatar="@principal.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
+                    <strong>@principal.Nombre</strong>
+                    <span class="cabecera-gestor-cae-pastilla cabecera-gestor-cae-principal">@RotuloPrincipal(principal)</span>
+                </span>
+            }
+            @if (grupo.Principales.Count == 0)
+            {
+                @* Sin principal es un estado válido (el relevo automático no encontró a quién pasar
+                   la marca). «Asumir» vive en su panel: aquí solo se dice. *@
+                @if (grupo.Operador is not null)
+                {
+                    <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
+                }
+                <span class="cabecera-gestor-cae-sin-dato" data-gestor-cae="sin-principal">@Textos["GestorCaeSinPrincipal"]</span>
+            }
+            else if (grupo.OtraSinPrincipal)
+            {
+                @* Varias Asignaciones de Operación del mismo Operador CAE y solo alguna con
+                   principal: callarlo haría creer que todas lo tienen. *@
+                <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
+                <span class="cabecera-gestor-cae-sin-dato" data-gestor-cae="otra-sin-principal">@Textos["GestorCaeOtraSinPrincipal"]</span>
+            }
+            @foreach (var apoyo in grupo.Apoyos)
             {
                 <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
+                <span class="cabecera-gestor-cae-persona" data-gestor-cae="apoyo" @key="(grupo.Clave, apoyo.UsuarioId)">
+                    <AvatarUsuario Nombre="@apoyo.Nombre" Avatar="@apoyo.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
+                    @apoyo.Nombre
+                    <span class="cabecera-gestor-cae-pastilla">@RotuloApoyo(apoyo)</span>
+                </span>
             }
-            <span class="cabecera-gestor-cae-persona" data-gestor-cae="principal" @key="principal.UsuarioId">
-                <AvatarUsuario Nombre="@principal.Nombre" Avatar="@principal.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
-                <strong>@principal.Nombre</strong>
-                <span class="cabecera-gestor-cae-pastilla cabecera-gestor-cae-principal">@RotuloPrincipal(principal)</span>
-            </span>
-        }
-        @if (_principales.Count == 0)
-        {
-            @* Sin principal es un estado válido (el relevo automático no encontró a quién pasar
-               la marca). «Asumir» es la línea I5: aquí solo se dice. *@
-            <span class="cabecera-gestor-cae-sin-dato" data-gestor-cae="sin-principal">@Textos["GestorCaeSinPrincipal"]</span>
-        }
-        @foreach (var apoyo in _apoyos)
-        {
-            <span class="cabecera-gestor-cae-separador" aria-hidden="true">·</span>
-            <span class="cabecera-gestor-cae-persona" data-gestor-cae="apoyo" @key="apoyo.UsuarioId">
-                <AvatarUsuario Nombre="@apoyo.Nombre" Avatar="@apoyo.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />
-                @apoyo.Nombre
-                <span class="cabecera-gestor-cae-pastilla">@RotuloApoyo(apoyo)</span>
-            </span>
         }
     </span>
 }
 
 @code {
     private readonly CancellationTokenSource _ciclo = new();
-    private IReadOnlyList<PersonaConCartera> _principales = [];
-    private IReadOnlyList<PersonaConCartera> _apoyos = [];
+    private IReadOnlyList<Grupo> _grupos = [];
+    private bool _desdeElPropietario;
     private bool _error;
+
+    /// <summary>
+    /// Un tramo de la cabecera. Desde el Operador CAE hay uno solo, sin nombre de organización;
+    /// desde el Tenant propietario, uno por Asignación de Operación, con su Operador CAE.
+    /// </summary>
+    private sealed record Grupo(
+        Guid Clave, string? Operador, IReadOnlyList<PersonaConCartera> Principales,
+        IReadOnlyList<PersonaConCartera> Apoyos, bool OtraSinPrincipal);
 
     protected override async Task OnInitializedAsync()
     {
@@ -82,28 +120,24 @@ else if (_principales.Count > 0 || _apoyos.Count > 0)
 
         try
         {
-            // Una Asignación de Operación por Operador CAE y Tenant propietario es lo normal; si
-            // hubiera más de una viva, se muestran juntas: la pregunta es quién gestiona el Tenant.
-            // Cada una tiene su principal, y todos se rotulan como tales: llamar «apoyo» al
-            // principal de la segunda sería falso. Quien es principal de una no se repite como
-            // apoyo de otra.
             var operaciones = (await Mediator.Send(new ObtenerPersonasConCarteraQuery(tenantId), _ciclo.Token))
                 .Where(o => o.TenantId == tenantId)
                 .ToList();
-            if (operaciones.Count == 0)
+            if (operaciones.Count > 0)
+            {
+                _grupos = [DesdeElOperador(operaciones)];
                 return;
+            }
 
-            var principales = operaciones.Select(o => o.Principal).OfType<PersonaConCartera>()
-                .DistinctBy(p => p.UsuarioId)
-                .OrderBy(p => p.Nombre)
+            var propias = (await Mediator.Send(new ObtenerOperadoresCaeDeMiTenantQuery(), _ciclo.Token))
+                .Where(o => o.TenantId == tenantId)
                 .ToList();
-            var idsPrincipales = principales.Select(p => p.UsuarioId).ToHashSet();
-
-            _principales = principales;
-            _apoyos = operaciones.SelectMany(o => o.Apoyos)
-                .Where(p => !idsPrincipales.Contains(p.UsuarioId))
-                .DistinctBy(p => p.UsuarioId)
-                .OrderBy(p => p.Nombre)
+            _desdeElPropietario = propias.Count > 0;
+            _grupos = propias
+                .Select(o => new Grupo(
+                    o.AsignacionOperacionId, o.NombreOperador ?? string.Empty,
+                    o.Principal is { } principal ? [principal] : [],
+                    o.Apoyos, OtraSinPrincipal: false))
                 .ToList();
         }
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
@@ -112,6 +146,27 @@ else if (_principales.Count > 0 || _apoyos.Count > 0)
             // Un fallo no es «nadie lo gestiona»: se dice, en vez de dejar la cabecera muda.
             _error = true;
         }
+    }
+
+    // Una Asignación de Operación por Operador CAE y Tenant propietario es lo normal; si hubiera
+    // más de una viva, se muestran juntas: la pregunta es quién gestiona el Tenant. Cada una
+    // tiene su principal, y todos se rotulan como tales: llamar «apoyo» al principal de la
+    // segunda sería falso. Quien es principal de una no se repite como apoyo de otra. Y si
+    // alguna no tiene principal mientras otra sí, se dice.
+    private static Grupo DesdeElOperador(IReadOnlyList<CarterasDeOperacion> operaciones)
+    {
+        var principales = operaciones.Select(o => o.Principal).OfType<PersonaConCartera>()
+            .DistinctBy(p => p.UsuarioId)
+            .OrderBy(p => p.Nombre)
+            .ToList();
+        var idsPrincipales = principales.Select(p => p.UsuarioId).ToHashSet();
+        var apoyos = operaciones.SelectMany(o => o.Apoyos)
+            .Where(p => !idsPrincipales.Contains(p.UsuarioId))
+            .DistinctBy(p => p.UsuarioId)
+            .OrderBy(p => p.Nombre)
+            .ToList();
+
+        return new Grupo(Guid.Empty, null, principales, apoyos, operaciones.Any(o => o.Principal is null));
     }
 
     private string RotuloPrincipal(PersonaConCartera principal) =>

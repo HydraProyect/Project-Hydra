@@ -22,6 +22,16 @@ public record CarteraVivaDeOperacion(
     Guid AsignacionOperacionId, Guid PropietarioTenantId, string NombreTenant,
     Guid UsuarioId, string Rol, bool EsPrincipal, DateTime? VigenciaHasta);
 
+/// <summary>
+/// Una Asignación de Operación externa viva sobre un Tenant propietario, vista desde él: qué
+/// Operador CAE externo (organización) lo gestiona y qué carteras vivas cuelgan de ella.
+/// <paramref name="Carteras"/> puede venir vacía: una operación sin nadie asignado existe y no
+/// tiene Gestor CAE principal.
+/// </summary>
+public record OperacionExternaSobreTenant(
+    Guid AsignacionOperacionId, Guid OperadorTenantId, string NombreOperador,
+    IReadOnlyList<CarteraVivaDeOperacion> Carteras);
+
 /// <summary>Una Asignación de Operación en la que un usuario lleva la marca de principal en una cartera no cerrada.</summary>
 public record OperacionConPrincipal(Guid PropietarioTenantId, Guid AsignacionOperacionId);
 
@@ -262,6 +272,19 @@ public interface ICatalogoIncorporacionCartera
     /// </summary>
     Task<IReadOnlyList<CarteraVivaDeOperacion>> ObtenerCarterasVivasAsync(
         Guid operadorTenantId, Guid? propietarioTenantId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// La misma lectura desde el otro lado: las Asignaciones de Operación externas vivas, no
+    /// raíz, que cualquier Operador CAE externo tiene sobre <paramref name="propietarioTenantId"/>,
+    /// cada una con sus carteras vivas de Gestor CAE y de Coordinador CAE (ninguna, si nadie la
+    /// lleva). Es una lectura del plano de Operación hecha desde el plano de Propiedad: no
+    /// concede nada sobre la cartera. Quién puede pedirla lo decide la Query. Exige el Tenant
+    /// propietario como Tenant activo: la política RLS de operaciones y carteras solo deja leer
+    /// desde ahí las que son sobre él.
+    /// </summary>
+    Task<IReadOnlyList<OperacionExternaSobreTenant>> ObtenerOperacionesExternasSobreTenantAsync(
+        Guid propietarioTenantId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<OperacionExternaSobreTenant>>([]);
 
     /// <summary>
     /// Las operaciones externas de <paramref name="operadorTenantId"/> en las que

@@ -286,6 +286,64 @@ public class CatalogoIncorporacionCartera(
             .ToList();
     }
 
+    public async Task<IReadOnlyList<OperacionExternaSobreTenant>> ObtenerOperacionesExternasSobreTenantAsync(
+        Guid propietarioTenantId, CancellationToken cancellationToken = default)
+    {
+        var ahora = DateTime.UtcNow;
+
+        // Mismo predicado de «operación externa viva» que ObtenerAsignablesAsync, mirado desde el
+        // Tenant propietario: cualquier Operador CAE externo, con su delegación vigente.
+        var operaciones = await (
+            from operacion in dbContext.AsignacionesOperacion
+            join operador in dbContext.Tenants on operacion.OperadorTenantId equals operador.Id
+            where !operacion.EsRaiz
+                  && operacion.PropietarioTenantId == propietarioTenantId
+                  && operacion.OperadorTenantId != propietarioTenantId
+                  && operacion.Servicio == ServicioCae.Outbound
+                  && operacion.AmbitoRelacionClienteId == null
+                  && operacion.AmbitoCentroId == null
+                  && operacion.AmbitoTrabajadorId == null
+                  && operacion.AmbitoProyectoId == null
+                  && operacion.Estado == EstadoAsignacion.Vigente
+                  && operacion.VigenciaDesde <= ahora
+                  && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
+                  && dbContext.DelegacionesTenant.Any(d =>
+                      d.TenantClienteId == propietarioTenantId
+                      && d.TenantConsultoraId == operacion.OperadorTenantId
+                      && d.Proposito == PropositoDelegacion.OperadorExterno
+                      && d.Activa
+                      && (d.ExpiraEnUtc == null || d.ExpiraEnUtc > ahora))
+            select new { operacion.Id, operacion.OperadorTenantId, NombreOperador = operador.Nombre })
+            .ToListAsync(cancellationToken);
+        if (operaciones.Count == 0) return [];
+
+        var operacionIds = operaciones.Select(o => o.Id).ToList();
+
+        // Mismo predicado de «cartera viva» que CarterasVivasDelOperador.
+        var carteras = await dbContext.AsignacionesCartera
+            .Where(c => operacionIds.Contains(c.AsignacionOperacionId)
+                        && c.PropietarioTenantId == propietarioTenantId
+                        && (c.Rol == RolIncorporado || c.Rol == RolDeRelevo)
+                        && c.Estado == EstadoAsignacion.Vigente
+                        && (c.VigenciaHasta == null || ahora < c.VigenciaHasta)
+                        && c.AmbitoRelacionClienteId == null
+                        && c.AmbitoCentroId == null
+                        && c.AmbitoTrabajadorId == null
+                        && c.AmbitoProyectoId == null)
+            .Select(c => new CarteraVivaDeOperacion(
+                c.AsignacionOperacionId, c.PropietarioTenantId, string.Empty, c.UsuarioId, c.Rol!, c.EsPrincipal, c.VigenciaHasta))
+            .ToListAsync(cancellationToken);
+        var porOperacion = carteras.ToLookup(c => c.AsignacionOperacionId);
+
+        return operaciones
+            .OrderBy(o => o.NombreOperador)
+            .ThenBy(o => o.Id)
+            .Select(o => new OperacionExternaSobreTenant(
+                o.Id, o.OperadorTenantId, o.NombreOperador,
+                porOperacion[o.Id].OrderByDescending(c => c.EsPrincipal).ToList()))
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<OperacionConPrincipal>> ObtenerOperacionesDondeEsPrincipalAsync(
         Guid operadorTenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
         await (

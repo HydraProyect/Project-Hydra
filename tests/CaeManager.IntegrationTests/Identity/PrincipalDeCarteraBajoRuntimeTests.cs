@@ -8,6 +8,7 @@ using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
 using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal;
+using CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant;
 using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
@@ -220,6 +221,154 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         operacion.Apoyos.Select(a => a.UsuarioId).Should().BeEquivalentTo([_gestorB, _gestorC]);
 
         (await Personas(_administradorAjeno, Roles.Administrador, _otroOperador.Id, null)).Should().BeEmpty();
+    }
+
+    // ── Lectura desde el Tenant propietario (decisión 2026-10-09) ─────────
+
+    /// <summary>
+    /// El Administrador del Tenant propietario lee, bajo RLS y con su Tenant como activo, qué
+    /// Operador CAE (organización) lo gestiona y qué Gestores CAE (personas) tienen Asignación de
+    /// Cartera sobre SU Tenant, con nombre y avatar. De las demás carteras de ese mismo Operador
+    /// CAE —sobre otros Tenants propietarios— no recibe nada.
+    /// </summary>
+    [Fact]
+    public async Task El_Administrador_del_Tenant_propietario_lee_su_Operador_CAE_y_solo_los_Gestores_CAE_con_cartera_sobre_su_Tenant()
+    {
+        await PonerAvatarAsync(_gestorA, "buho-ambar");
+        await PonerAvatarAsync(_gestorSinCoordinador, "zorro-azul"); // cartera solo sobre otro Tenant propietario
+
+        // La lectura del Operador CAE le sale vacía (es el hueco que tenía la cabecera)...
+        (await Personas(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id, _beneficiario.Id))
+            .Should().BeEmpty("control: por la consulta del Operador CAE este usuario no recibe nada");
+
+        // ...y la del plano de Propiedad le responde.
+        var operacion = (await OperadoresDeMiTenant(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id))
+            .Should().ContainSingle().Subject;
+
+        operacion.AsignacionOperacionId.Should().Be(_operacion);
+        operacion.TenantId.Should().Be(_beneficiario.Id);
+        operacion.NombreOperador.Should().Be(_operador.Nombre);
+        operacion.Principal!.UsuarioId.Should().Be(_gestorA);
+        operacion.Principal.Nombre.Should().Be(Roles.GestorCae, "el fixture pone el rol como nombre: la cuenta de la otra organización se lee");
+        operacion.Principal.Avatar.Should().Be("buho-ambar");
+        operacion.Apoyos.Select(a => a.UsuarioId).Should().BeEquivalentTo([_gestorB, _gestorC]);
+        operacion.Apoyos.Should().OnlyContain(a => a.Nombre == Roles.GestorCae && a.Avatar == null);
+    }
+
+    /// <summary>
+    /// Una operación viva sin nadie asignado no desaparece: sale con su Operador CAE y sin Gestor
+    /// CAE principal. Y cada Administrador lee solo lo de su Tenant propietario.
+    /// </summary>
+    [Fact]
+    public async Task El_Administrador_de_otro_Tenant_propietario_lee_lo_suyo_y_nada_de_este()
+    {
+        var suya = (await OperadoresDeMiTenant(_administradorDelBeneficiario, Roles.Administrador, _beneficiarioDelUnipersonal.Id))
+            .Should().ContainSingle().Subject;
+
+        suya.AsignacionOperacionId.Should().Be(_operacionDelUnipersonal);
+        suya.NombreOperador.Should().Be(_operadorUnipersonal.Nombre);
+        suya.Principal.Should().BeNull();
+        suya.Apoyos.Should().BeEmpty();
+
+        // El Administrador de un Tenant sobre el que no opera nadie: vacío.
+        (await OperadoresDeMiTenant(_administradorAjeno, Roles.Administrador, _otroOperador.Id)).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// La frontera no es solo el filtro de la Query: desde la sesión de otro Tenant, la RLS de
+    /// operaciones y carteras no deja leer las de este aunque se pregunte por él a propósito, y
+    /// el directorio no resuelve ni el nombre ni el avatar de sus Gestores CAE.
+    /// </summary>
+    [Fact]
+    public async Task Desde_la_sesion_de_otro_Tenant_ni_el_catalogo_ni_el_directorio_entregan_los_Gestores_CAE_de_este()
+    {
+        await PonerAvatarAsync(_gestorA, "buho-ambar");
+
+        var (operaciones, nombres, avatares) = await EnArnes(
+            _administradorDelBeneficiario, Roles.Administrador, _beneficiarioDelUnipersonal.Id,
+            async (usuario, contexto, directorio, _) => (
+                await new CatalogoIncorporacionCartera(contexto, usuario)
+                    .ObtenerOperacionesExternasSobreTenantAsync(_beneficiario.Id, CancellationToken.None),
+                await directorio.ObtenerNombresVisiblesAsync([_gestorA, _gestorB], CancellationToken.None),
+                await directorio.ObtenerAvataresVisiblesAsync([_gestorA, _gestorB], CancellationToken.None)));
+
+        operaciones.Should().BeEmpty();
+        nombres.Should().BeEmpty();
+        avatares.Should().BeEmpty();
+
+        // Control positivo: lo mismo, desde la sesión del Tenant propietario, sí se lee.
+        var (propias, nombresPropios, avataresPropios) = await EnArnes(
+            _administradorDelPropietario, Roles.Administrador, _beneficiario.Id,
+            async (usuario, contexto, directorio, _) => (
+                await new CatalogoIncorporacionCartera(contexto, usuario)
+                    .ObtenerOperacionesExternasSobreTenantAsync(_beneficiario.Id, CancellationToken.None),
+                await directorio.ObtenerNombresVisiblesAsync([_gestorA, _gestorB], CancellationToken.None),
+                await directorio.ObtenerAvataresVisiblesAsync([_gestorA, _gestorB], CancellationToken.None)));
+
+        propias.Should().ContainSingle().Which.Carteras.Should().HaveCount(3);
+        nombresPropios.Keys.Should().BeEquivalentTo([_gestorA, _gestorB]);
+        avataresPropios.Should().ContainSingle().Which.Should().Be(new KeyValuePair<Guid, string>(_gestorA, "buho-ambar"));
+    }
+
+    /// <summary>
+    /// El acotado por Tenant de <c>DirectorioUsuariosTenant.ObtenerAvataresVisiblesAsync</c>: del
+    /// lote pedido solo vuelven las cuentas del Tenant activo y las de un Operador CAE externo
+    /// asignadas a él. Un Gestor CAE del mismo Operador CAE con cartera solo sobre OTRO Tenant
+    /// propietario, y una cuenta sin relación, no aparecen aunque tengan avatar.
+    /// </summary>
+    [Fact]
+    public async Task Los_avatares_visibles_se_acotan_al_Tenant_activo_y_a_quien_tiene_cartera_sobre_el()
+    {
+        await PonerAvatarAsync(_administradorDelPropietario, "gato-verde");
+        await PonerAvatarAsync(_gestorA, "buho-ambar");
+        await PonerAvatarAsync(_gestorSinCoordinador, "zorro-azul");
+        await PonerAvatarAsync(_administradorAjeno, "oso-rojo");
+        Guid[] lote = [_administradorDelPropietario, _gestorA, _gestorB, _gestorSinCoordinador, _administradorAjeno];
+
+        var desdeElPropietario = await EnArnes(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id,
+            (_, _, directorio, _) => directorio.ObtenerAvataresVisiblesAsync(lote, CancellationToken.None));
+
+        desdeElPropietario.Should().BeEquivalentTo(new Dictionary<Guid, string>
+        {
+            [_administradorDelPropietario] = "gato-verde", // cuenta propia del Tenant activo
+            [_gestorA] = "buho-ambar",                     // cartera viva sobre este Tenant
+        }, "_gestorB no eligió avatar; _gestorSinCoordinador y _administradorAjeno no son visibles desde aquí");
+
+        // El mismo lote desde el otro Tenant propietario de ese Operador CAE: cambia quién se ve.
+        var desdeElOtro = await EnArnes(_administradorDelBeneficiario, Roles.Administrador, _beneficiarioDelUnipersonal.Id,
+            (_, _, directorio, _) => directorio.ObtenerAvataresVisiblesAsync(lote, CancellationToken.None));
+
+        desdeElOtro.Should().BeEmpty("ninguna de esas cuentas es de ese Tenant ni tiene cartera sobre él");
+
+        // Y donde la RLS no basta: un Gestor CAE operando este Tenant tiene su Operador CAE como
+        // Tenant de origen, así que la política de cuentas le deja leer a TODOS sus compañeros.
+        // El acotado del directorio es lo único que deja fuera al que no tiene cartera aquí.
+        var desdeElGestor = await EnArnes(_gestorB, Roles.GestorCae, _operador.Id, async (_, contexto, directorio, _) =>
+        {
+            using (AmbitoTenantExplicito.Establecer(_beneficiario.Id))
+            {
+                (await contexto.Users.AsNoTracking().AnyAsync(u => u.Id == _gestorSinCoordinador && u.Avatar != null))
+                    .Should().BeTrue("control: la RLS sí le deja leer esa cuenta de su propio Operador CAE");
+                return await directorio.ObtenerAvataresVisiblesAsync(lote, CancellationToken.None);
+            }
+        });
+
+        desdeElGestor.Keys.Should().BeEquivalentTo([_administradorDelPropietario, _gestorA]);
+    }
+
+    /// <summary>
+    /// Leer no concede: con la lectura concedida, el Administrador del Tenant propietario sigue
+    /// sin poder designar principal sobre la cartera que acaba de ver.
+    /// </summary>
+    [Fact]
+    public async Task Leer_la_cartera_desde_el_Tenant_propietario_no_deja_designar_principal()
+    {
+        (await OperadoresDeMiTenant(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id))
+            .Should().ContainSingle("control: la lectura sí le responde");
+
+        (await Designar(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id, _operacion, _gestorB))
+            .EsFallido.Should().BeTrue();
+        (await PrincipalesAsync(_operacion)).Should().Equal(_gestorA);
     }
 
     // ── Relevo ────────────────────────────────────────────────────────────
@@ -882,6 +1031,20 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
         EnArnes(usuarioId, rolDeSesion, origen, (usuario, contexto, directorio, _) =>
             new ObtenerPersonasConCarteraQueryHandler(usuario, directorio, new CatalogoIncorporacionCartera(contexto, usuario))
                 .Handle(new ObtenerPersonasConCarteraQuery(tenantId), CancellationToken.None));
+
+    private Task<IReadOnlyList<CarterasDeOperacion>> OperadoresDeMiTenant(Guid usuarioId, string rolDeSesion, Guid origen) =>
+        EnArnes(usuarioId, rolDeSesion, origen, (usuario, contexto, directorio, servicios) =>
+            new ObtenerOperadoresCaeDeMiTenantQueryHandler(
+                    usuario, servicios.GetRequiredService<ITenantActual>(), directorio, new CatalogoIncorporacionCartera(contexto, usuario))
+                .Handle(new ObtenerOperadoresCaeDeMiTenantQuery(), CancellationToken.None));
+
+    private async Task PonerAvatarAsync(Guid usuarioId, string clave)
+    {
+        await using var contexto = ContextoPropietario(_operador.Id);
+        var cuenta = await contexto.Users.IgnoreQueryFilters().SingleAsync(u => u.Id == usuarioId);
+        cuenta.Avatar = clave;
+        await contexto.SaveChangesAsync();
+    }
 
     /// <summary>Si la sesión de ese usuario puede abrir el Tenant, y con qué rol efectivo por la vía de Operación.</summary>
     private Task<(bool Abre, string? Rol)> Abre(Guid usuarioId, string rolDeSesion, Guid origen, Guid tenantId) =>

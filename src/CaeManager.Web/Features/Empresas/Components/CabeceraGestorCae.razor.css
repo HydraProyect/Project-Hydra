@@ -41,3 +41,10 @@
     color: var(--color-primary-700);
     font-weight: 700;
 }
+
+/* Desde el Tenant propietario: el Operador CAE (organización) antecede a sus personas. */
+.cabecera-gestor-cae-operador {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+}

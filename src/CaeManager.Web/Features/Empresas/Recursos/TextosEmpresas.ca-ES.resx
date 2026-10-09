@@ -318,4 +318,13 @@
   <data name="GestorCaeError" xml:space="preserve">
     <value>No l’hem pogut carregar</value>
   </data>
+  <data name="GestorCaeOperador" xml:space="preserve">
+    <value>Operador CAE</value>
+  </data>
+  <data name="GestorCaeTituloPropietario" xml:space="preserve">
+    <value>Operador CAE que gestiona aquesta organització i els seus Gestors CAE amb Assignació de Cartera</value>
+  </data>
+  <data name="GestorCaeOtraSinPrincipal" xml:space="preserve">
+    <value>Una altra Assignació d’Operació, sense principal</value>
+  </data>
 </root>
