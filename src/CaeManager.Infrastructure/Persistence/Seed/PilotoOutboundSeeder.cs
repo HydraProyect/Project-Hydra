@@ -267,7 +267,7 @@ public static class PilotoOutboundSeeder
 
     /// <summary>El identificador fiscal de una Empresa del piloto: el ordinal 0 es la Empresa propia del Tenant.</summary>
     private static string CifDe(TenantPilotoOutbound tenant, int ordinal) =>
-        DatosPruebaSeeder.GenerarCifValido(8_100_000 + CatalogoPilotoOutbound.Tenants.ToList().IndexOf(tenant) * 100 + ordinal);
+        IdentidadesPilotoOutbound.Cif(tenant, ordinal);
 
     /// <summary>
     /// Aprovisiona el Tenant ya marcado como demo, en un único guardado: lo que quede
@@ -499,10 +499,10 @@ public static class PilotoOutboundSeeder
             var propia = new Empresa(tenant.Nombre, CifEmpresaPropia);
             dbContext.Empresas.Add(propia);
             AnadirContacto(ContactoAgenda.DeEmpresa(
-                propia.Id, Persona(40), parametros.Contactos.DireccionDe(Etiqueta("propia")),
+                propia.Id, Persona(40), parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDePrevencion(tenant.Nombre)),
                 cargo: "Responsable de prevención", esPredeterminado: true), RolContacto.ResponsablePrl);
             AnadirContacto(ContactoAgenda.DeEmpresa(
-                propia.Id, Persona(41), parametros.Contactos.DireccionDe(Etiqueta("administracion")),
+                propia.Id, Persona(41), parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDeAdministracion(tenant.Nombre)),
                 cargo: "Administración", recibeFacturacion: true), RolContacto.RepresentanteLegal);
 
             if (tenant.Escenario == EscenarioPilotoOutbound.Esqueleto)
@@ -572,20 +572,22 @@ public static class PilotoOutboundSeeder
                 dbContext.Empresas.Add(clienteEmpresarial);
                 dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(propia.Id, clienteEmpresarial.Id, ahora));
                 AnadirContacto(ContactoDelClienteEmpresarial(
-                    clienteEmpresarial.Id, Persona(50 + i), parametros.Contactos.DireccionDe(Etiqueta($"cliente{i + 1}"))), RolContacto.ContactoCae);
+                    clienteEmpresarial.Id, Persona(50 + i),
+                    parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDeCoordinacionCae(especificacion.RazonSocial))), RolContacto.ContactoCae);
 
                 foreach (var especificacionCentro in especificacion.Centros)
                 {
                     var numero = centros.Count + 1;
                     var centro = new Centro(
                         clienteEmpresarial.Id, propia.Id, especificacionCentro.Nombre, tenant.CodigoDe(especificacionCentro),
-                        $"Avenida de la Industria, {numero * 7}, {especificacionCentro.Localidad}",
+                        IdentidadesPilotoOutbound.Direccion(numero, especificacionCentro.Localidad),
                         contratoVigenteHasta: D.AddDays(300 + numero * 20));
                     dbContext.Centros.Add(centro);
                     centros.Add(centro);
 
                     AnadirContacto(ContactoAgenda.DeCentro(
-                        centro.Id, Persona(60 + numero), parametros.Contactos.DireccionDe(Etiqueta($"centro{numero}")),
+                        centro.Id, Persona(OrdinalDelContactoDeCentro(numero)),
+                        parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDeCoordinacionDeAccesos(especificacionCentro)),
                         cargo: "Coordinación de accesos", esPredeterminado: true, recibeProgramacionVisitas: true), RolContacto.ResponsablePrl);
                 }
             }
@@ -610,7 +612,9 @@ public static class PilotoOutboundSeeder
             var trabajadores = new List<Trabajador>();
             for (var i = 0; i < tenant.Trabajadores; i++)
             {
-                var trabajador = Trabajador.DeEmpresa(propia.Id, NombreDePilaDe(i), ApellidosDe(i), DniDe(i), fechaNacimiento: NacimientoDe(i));
+                var (nombre, apellidos) = IdentidadesPilotoOutbound.Trabajador(tenant, i);
+                var trabajador = Trabajador.DeEmpresa(
+                    propia.Id, nombre, apellidos, DniDe(i), fechaNacimiento: NacimientoDe(i), puesto: IdentidadesPilotoOutbound.Puesto(tenant, i));
                 dbContext.Trabajadores.Add(trabajador);
                 trabajadores.Add(trabajador);
             }
@@ -618,14 +622,7 @@ public static class PilotoOutboundSeeder
             return trabajadores;
         }
 
-        private string NombreDePilaDe(int i) =>
-            CatalogoPilotoOutbound.NombresDePila[(i + _indiceTenant * 3) % CatalogoPilotoOutbound.NombresDePila.Length];
-
-        /// <summary>El sumando de la vuelta: con más de dieciséis Trabajadores, el 17.º no repite el nombre completo del 1.º.</summary>
-        private string ApellidosDe(int i) =>
-            CatalogoPilotoOutbound.Apellidos[(i * 5 + _indiceTenant * 7 + i / 16 * 3) % CatalogoPilotoOutbound.Apellidos.Length];
-
-        private string DniDe(int i) => DatosPruebaSeeder.GenerarDniValido(71_000_000 + _indiceTenant * 1_000 + i);
+        private string DniDe(int i) => IdentidadesPilotoOutbound.Dni(tenant, i);
 
         private DateOnly NacimientoDe(int i) => D.AddYears(-(25 + i * 7 % 30)).AddDays(-i * 13);
 
@@ -688,7 +685,7 @@ public static class PilotoOutboundSeeder
             // Cliente empresarial ficticio, no una credencial de TALVEG.
             var canal = CanalGestionDocumental.DePlataforma(
                 centroConPlataforma.Id, "Gestión general", proveedor.Id,
-                $"https://portal-demo-{proveedor.Codigo}.local", $"gestion.{tenant.Clave.ToLowerInvariant()}", "sin-credencial-real");
+                $"https://portal-demo-{proveedor.Codigo}.local", IdentidadesPilotoOutbound.UsuarioDePortal(tenant.Nombre), "sin-credencial-real");
             canal.MarcarComoPrincipal();
             dbContext.CanalesGestionDocumental.Add(canal);
 
@@ -823,7 +820,7 @@ public static class PilotoOutboundSeeder
             {
                 var zona = DisenoT6PilotoOutbound.Zonas[z];
                 AnadirContacto(ContactoAgenda.DeEmpresa(
-                    propia.Id, Persona(42 + z), parametros.Contactos.DireccionDe(Etiqueta($"coordinacion-{zona.Codigo.ToLowerInvariant()}")),
+                    propia.Id, Persona(42 + z), parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDeCoordinacionDeZona(zona, tenant.Nombre)),
                     cargo: DisenoT6PilotoOutbound.CargoDeCoordinacion(zona)), RolContacto.ContactoCae);
             }
 
@@ -878,8 +875,10 @@ public static class PilotoOutboundSeeder
             var subcontratas = await CrearSubcontratasAsync(propia);
             for (var i = DisenoT1PilotoOutbound.TrabajadoresPropios; i < DisenoT1PilotoOutbound.Trabajadores; i++)
             {
+                var (nombre, apellidos) = IdentidadesPilotoOutbound.Trabajador(tenant, i);
                 var trabajador = Trabajador.DeSubcontrata(
-                    subcontratas[DisenoT1PilotoOutbound.SubcontrataDe(i)].Id, NombreDePilaDe(i), ApellidosDe(i), DniDe(i), fechaNacimiento: NacimientoDe(i));
+                    subcontratas[DisenoT1PilotoOutbound.SubcontrataDe(i)].Id, nombre, apellidos, DniDe(i),
+                    fechaNacimiento: NacimientoDe(i), puesto: IdentidadesPilotoOutbound.Puesto(tenant, i));
                 dbContext.Trabajadores.Add(trabajador);
                 trabajadores.Add(trabajador);
             }
@@ -927,7 +926,7 @@ public static class PilotoOutboundSeeder
             // La reclamación es un REGISTRO histórico: se añade la fila, con su hilo y su entrada en la cronología, tal
             // como quedan después de un envío. Aquí no se envía ni se encola nada: la siembra no llama a IEmailService.
             var enviada = D.AddDays(-DisenoT1PilotoOutbound.DiasDesdeLaReclamacion).ToDateTime(new TimeOnly(10, 0), DateTimeKind.Utc);
-            var destinatario = parametros.Contactos.DireccionDe(Etiqueta("propia"));
+            var destinatario = parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDePrevencion(tenant.Nombre));
             var conversacion = new Conversacion($"Documentación pendiente de {tenant.Nombre}", empresaId: propia.Id);
             conversacion.AgregarMensaje(
                 DireccionMensaje.Saliente, CanalConversacion.Correo, $"gestion-cae@{ContactosPilotoOutbound.DominioPorDefecto}",
@@ -1086,13 +1085,15 @@ public static class PilotoOutboundSeeder
         /// <see cref="DisenoT1PilotoOutbound.CentrosConPlataforma"/>, y una acreditación
         /// externa por cada documento exigido de cada Trabajador asignado: Aceptada salvo
         /// las que el diseño deja Pendientes de subir, Subidas, Rechazada o vencida en
-        /// la plataforma.
+        /// la plataforma. Las plataformas son las dos primeras del catálogo, por código,
+        /// que siguen en uso: ninguna acreditación ni caso de estado depende de cuáles
+        /// sean, solo del canal del Centro.
         /// </summary>
         private async Task AcreditacionesExternasDelGrandeAsync(
             List<Centro> centros, List<Trabajador> trabajadores, Dictionary<(int Trabajador, string Tipo), Documento> documentos)
         {
             var proveedores = await dbContext.ProveedoresPlataformaCae
-                .Where(p => p.Activo).OrderBy(p => p.Codigo).Take(2).ToListAsync(cancellationToken);
+                .Where(p => p.Activo && !p.Codigo.EndsWith(SufijoDePlataformaRetirada)).OrderBy(p => p.Codigo).Take(2).ToListAsync(cancellationToken);
             if (proveedores.Count == 0)
                 throw new InvalidOperationException(
                     $"No hay ningún proveedor de plataforma CAE activo: {tenant.Clave} necesita Centros con canal de plataforma.");
@@ -1107,7 +1108,7 @@ public static class PilotoOutboundSeeder
                 // Cliente empresarial ficticio, no una credencial de TALVEG.
                 var canal = CanalGestionDocumental.DePlataforma(
                     centros[c].Id, "Gestión general", proveedor.Id, $"https://portal-demo-{proveedor.Codigo}.local",
-                    $"gestion.{tenant.Clave.ToLowerInvariant()}.centro{c + 1}", "sin-credencial-real");
+                    IdentidadesPilotoOutbound.UsuarioDePortal(tenant.Nombre), "sin-credencial-real");
                 canal.MarcarComoPrincipal();
                 dbContext.CanalesGestionDocumental.Add(canal);
 
@@ -1174,12 +1175,13 @@ public static class PilotoOutboundSeeder
                     $"{tenant.Clave}: el Trabajador {ajeno} de la Visita por correo no está asignado a ese Centro o no tiene todo en regla.");
 
             var canal = CanalGestionDocumental.PorEmail(
-                centros[c].Id, "Solicitudes de acceso", parametros.Contactos.DireccionDe(Etiqueta($"accesos-centro{c + 1}")), Persona(60 + c + 1));
+                centros[c].Id, "Solicitudes de acceso",
+                parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDeSolicitudesDeAcceso(tenant.Centros[c])), Persona(OrdinalDelContactoDeCentro(c + 1)));
             canal.MarcarComoPrincipal();
             dbContext.CanalesGestionDocumental.Add(canal);
 
             var dia = D.AddDays(DisenoT1PilotoOutbound.DiasHastaLaVisita);
-            var visita = new Visita(centros[c].Id, dia, dia, "Revisión de inversores y cuadros de protección", OrigenVisita.Plataforma);
+            var visita = new Visita(centros[c].Id, dia, dia, "Revisión de inversores y cuadros de protección", OrigenVisita.Correo);
             dbContext.Visitas.Add(visita);
             foreach (var t in DisenoT1PilotoOutbound.TrabajadoresDeLaVisita)
                 dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[t].Id));
@@ -1200,12 +1202,13 @@ public static class PilotoOutboundSeeder
 
             for (var i = 0; i < razonesSociales.Count; i++)
             {
-                var subcontrata = Empresa.CrearComoSubcontrata(razonesSociales[i], Cif(20 + i), NivelServicioSubcontrata.Gestionada.ToString());
+                var subcontrata = Empresa.CrearComoSubcontrata(
+                    razonesSociales[i], Cif(IdentidadesPilotoOutbound.OrdinalDeLaPrimeraSubcontrata + i), NivelServicioSubcontrata.Gestionada.ToString());
                 dbContext.Empresas.Add(subcontrata);
                 subcontratas.Add(subcontrata);
                 dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrata.Id, propia.Id, ahora));
                 AnadirContacto(ContactoAgenda.DeSubcontrata(
-                    subcontrata.Id, Persona(45 + i), parametros.Contactos.DireccionDe(Etiqueta($"subcontrata{i + 1}")),
+                    subcontrata.Id, Persona(45 + i), parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDePrevencion(razonesSociales[i])),
                     cargo: "Responsable de prevención", esPredeterminado: true), RolContacto.ResponsablePrl);
 
                 foreach (var nombreTipo in DisenoT6PilotoOutbound.TiposDeDocumentoDeSubcontrata)
@@ -1353,13 +1356,19 @@ public static class PilotoOutboundSeeder
         /// <summary>Un entero creciente para repartir las fechas dentro de sus márgenes sin azar.</summary>
         private int Siguiente() => _semilla++ * 37 + _indiceTenant * 11;
 
+        /// <summary>Con lo que acaba el código de una plataforma que el catálogo conserva solo por sus accesos antiguos: la demostración no abre canales en ella.</summary>
+        private const string SufijoDePlataformaRetirada = "-legacy";
+
         private string Cif(int ordinal) => CifDe(tenant, ordinal);
 
-        private string Etiqueta(string papel) => $"{tenant.Clave.ToLowerInvariant()}-{papel}";
+        /// <summary>
+        /// El nombre de un contacto de agenda. Cada uso tiene su tramo de ordinales —40 y 41 la Empresa propia, desde 42 sus
+        /// zonas, desde 45 las subcontratas, desde 50 los Clientes empresariales y desde 71 los Centros— para que dos
+        /// contactos de un mismo Tenant no sean la misma persona.
+        /// </summary>
+        private string Persona(int ordinal) => IdentidadesPilotoOutbound.Contacto(tenant, ordinal);
 
-        /// <summary>Un nombre de contacto. El sumando de la vuelta evita que dos ordinales separados por dieciséis den el mismo.</summary>
-        private string Persona(int ordinal) =>
-            $"{CatalogoPilotoOutbound.NombresDePila[(ordinal + _indiceTenant * 5) % CatalogoPilotoOutbound.NombresDePila.Length]} " +
-            $"{CatalogoPilotoOutbound.Apellidos[(ordinal * 3 + _indiceTenant + ordinal / 16 * 7) % CatalogoPilotoOutbound.Apellidos.Length]}";
+        /// <summary>El contacto del Centro número <paramref name="numero"/> (desde 1), que es también la persona de su canal por correo.</summary>
+        private static int OrdinalDelContactoDeCentro(int numero) => 70 + numero;
     }
 }

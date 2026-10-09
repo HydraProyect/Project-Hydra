@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using Microsoft.Extensions.Configuration;
@@ -61,7 +62,7 @@ public enum SituacionDocumentoPilotoOutbound
 /// <summary>Un documento que se aparta de «todo en regla»: de quién (por índice en el Tenant), de qué tipo y cómo está.</summary>
 public sealed record DesviacionDocumentoPilotoOutbound(int Trabajador, string Tipo, SituacionDocumentoPilotoOutbound Situacion);
 
-/// <param name="Clave">Identificador corto de la matriz (T1..T6): va en los mensajes de la autoverificación, en las etiquetas de correo y en los códigos de Centro.</param>
+/// <param name="Clave">Identificador corto de la matriz (T1..T6): va en los mensajes de la autoverificación y de la siembra, nunca en un dato que se vea en pantalla.</param>
 /// <param name="Nombre">Nombre del Tenant propietario y razón social de su Empresa propia.</param>
 /// <param name="EnCarteraDelGestorSegundo">La Gestora CAE primera lleva los seis; el segundo Gestor CAE, solo los marcados.</param>
 /// <param name="Subcontratas">Razones sociales de las Empresas subcontratistas de la Empresa propia; <c>null</c> = ninguna.</param>
@@ -76,15 +77,22 @@ public sealed record TenantPilotoOutbound(
     public IReadOnlyList<CentroPilotoOutbound> CentrosDe(ZonaPilotoOutbound zona) => [.. Centros.Where(c => c.Zona == zona)];
 
     /// <summary>
-    /// El código del Centro: «T2-C03» por orden en el Tenant o, si el Centro tiene
-    /// zona, «T6-BCN-02» por orden dentro de su zona.
+    /// El código del Centro, como lo escribiría la Empresa propia: tres letras y un
+    /// número de orden, sin la clave de la matriz. Si el Centro tiene zona, las
+    /// letras son las de la zona y el número, su orden dentro de ella («BCN-02»:
+    /// buscando «BCN» salen los Centros de esa zona); si no, las tres primeras de
+    /// su localidad, y el número cuenta los Centros del Tenant que las comparten
+    /// («ZAR-01», «ZAR-02»). El modelo no exige que sea único; aquí no se repite
+    /// dentro de un Tenant.
     /// </summary>
     public string CodigoDe(CentroPilotoOutbound centro)
     {
-        if (centro.Zona is not { } zona)
-            return $"{Clave}-C{Centros.ToList().IndexOf(centro) + 1:D2}";
+        if (centro.Zona is { } zona)
+            return $"{zona.Codigo}-{CentrosDe(zona).ToList().IndexOf(centro) + 1:D2}";
 
-        return $"{Clave}-{zona.Codigo}-{CentrosDe(zona).ToList().IndexOf(centro) + 1:D2}";
+        var letras = IdentidadesPilotoOutbound.LetrasDeLaLocalidad(centro.Localidad);
+        var conEsasLetras = Centros.Where(c => c.Zona is null && IdentidadesPilotoOutbound.LetrasDeLaLocalidad(c.Localidad) == letras).ToList();
+        return $"{letras}-{conEsasLetras.IndexOf(centro) + 1:D2}";
     }
 }
 
@@ -1146,14 +1154,9 @@ public static class CatalogoPilotoOutbound
     /// <summary>Los siete Tenants, con el del Operador CAE externo al final: es el orden de retirada.</summary>
     public static IReadOnlyList<string> NombresTenants { get; } = [.. Tenants.Select(t => t.Nombre), NombreTenantOperador];
 
-    public static readonly string[] NombresDePila =
-        ["Lucía", "Andrés", "Noelia", "Rubén", "Paula", "Héctor", "Irene", "Óscar", "Carla", "Mateo", "Sonia", "Adrián", "Elena", "Javier", "Nuria", "Sergio"];
-
-    public static readonly string[] Apellidos =
-    [
-        "Navarro Gil", "Ferrer Pons", "Molina Ríos", "Soler Vidal", "Cano Prieto", "Ibarra Sanz", "Lozano Marín", "Vega Ortiz",
-        "Campos Lara", "Pastor Rey", "Salas Duque", "Bravo Nieto", "Herrero Luna", "Gallego Mora", "Santos Peña", "Crespo Vidal"
-    ];
+    /// <summary>Cuántos Trabajadores siembra el Tenant: los de su Empresa propia y, en T1, a continuación, los de sus subcontratas.</summary>
+    public static int TrabajadoresSembrados(TenantPilotoOutbound tenant) =>
+        tenant.Escenario == EscenarioPilotoOutbound.Grande ? DisenoT1PilotoOutbound.Trabajadores : tenant.Trabajadores;
 
     /// <summary>
     /// Los valores de la matriz que la autoverificación exige de cada Tenant
@@ -1293,4 +1296,224 @@ public static class CatalogoPilotoOutbound
                 CumplimientoEmpresa: new(82, 88), CumplimientoInicioYVisionDeCartera: new(87, 91), FilasMiTrabajo: new(100, 250),
                 CasosDeEstado: CasosDeEstadoPilotoOutbound.Todos,
                 DiasHastaLaVisita: 1, TrabajadoresDeLaVisita: 2, ExigidosDeTrabajadorEnElPaquete: 10, ExigidosDeEmpresaEnElPaquete: 13);
+}
+
+/// <summary>
+/// Con qué nombres, identificadores y direcciones rotula la siembra a las personas,
+/// las Empresas y los Centros de Trabajo del piloto. Solo es texto: ningún estado,
+/// porcentaje ni fila de la matriz depende de lo que hay aquí. Todo es inventado y
+/// sale del catálogo y de un índice, sin azar ni reloj, de modo que dos siembras
+/// escriben lo mismo.
+///
+/// <para>
+/// <b>Personas.</b> El primer apellido y el segundo se eligen por separado, de dos
+/// listas de tamaños primos entre sí (31 y 29): un ordinal menor que 31 × 29 = 899
+/// tiene una pareja de apellidos que no tiene ningún otro. Los Trabajadores del
+/// lote ocupan los ordinales desde cero, seguidos y en el orden de la matriz
+/// (<see cref="Trabajador"/>); los contactos de agenda, los que quedan a partir de
+/// <see cref="OrdinalesDeTrabajador"/> (<see cref="Contacto"/>). Así ningún
+/// Trabajador comparte los dos apellidos con otro Trabajador ni con un contacto,
+/// en ninguno de los seis Tenants.
+/// </para>
+/// </summary>
+public static class IdentidadesPilotoOutbound
+{
+    public static readonly string[] NombresDePila =
+    [
+        "Lucía", "Andrés", "Noelia", "Rubén", "Paula", "Héctor", "Irene", "Óscar", "Carla", "Mateo", "Sonia", "Adrián",
+        "Elena", "Javier", "Nuria", "Sergio", "Marta", "Iván", "Rocío", "Tomás", "Silvia", "Gonzalo", "Alicia", "Víctor"
+    ];
+
+    public static readonly string[] PrimerosApellidos =
+    [
+        "Navarro", "Ferrer", "Molina", "Soler", "Cano", "Ibarra", "Lozano", "Vega", "Campos", "Pastor", "Salas", "Bravo",
+        "Herrero", "Gallego", "Santos", "Crespo", "Aguilar", "Blanco", "Calvo", "Delgado", "Esteban", "Fuentes", "Guerrero",
+        "Hidalgo", "Iglesias", "Montero", "Pascual", "Redondo", "Sáez", "Trujillo", "Vicente"
+    ];
+
+    public static readonly string[] SegundosApellidos =
+    [
+        "Gil", "Pons", "Ríos", "Vidal", "Sanz", "Marín", "Ortiz", "Lara", "Rey", "Duque", "Nieto", "Luna", "Mora", "Peña",
+        "Arias", "Bermejo", "Cordero", "Durán", "Espinosa", "Franco", "Gallardo", "Herranz", "Izquierdo", "Lorenzo", "Medina",
+        "Olmos", "Paredes", "Roldán", "Tejero"
+    ];
+
+    /// <summary>Los ordinales reservados a los Trabajadores del lote. Hoy son 233; con más de estos, la siembra falla y lo dice.</summary>
+    public const int OrdinalesDeTrabajador = 400;
+
+    /// <summary>El ordinal, en <see cref="Cif"/>, de la primera subcontrata de un Tenant: por debajo van su Empresa propia (0) y sus Clientes empresariales (1, 2…).</summary>
+    public const int OrdinalDeLaPrimeraSubcontrata = 20;
+
+    private static int Parejas => PrimerosApellidos.Length * SegundosApellidos.Length;
+
+    /// <summary>
+    /// El nombre de pila y los dos apellidos del Trabajador <paramref name="i"/> del
+    /// Tenant (en T1, los de sus subcontratas siguen a los propios). El nombre
+    /// completo no se repite en todo el lote.
+    /// </summary>
+    public static (string Nombre, string Apellidos) Trabajador(TenantPilotoOutbound tenant, int i) => Persona(OrdinalEnElLote(tenant, i));
+
+    /// <summary>
+    /// El nombre completo de un contacto de agenda. Dentro de un Tenant, dos
+    /// ordinales distintos dan dos personas distintas; entre Tenants puede repetirse
+    /// la pareja de apellidos, nunca con la de un Trabajador.
+    /// </summary>
+    public static string Contacto(TenantPilotoOutbound tenant, int ordinal)
+    {
+        var (nombre, apellidos) = Persona(OrdinalesDeTrabajador + (IndiceDe(tenant) * 83 + ordinal) % (Parejas - OrdinalesDeTrabajador));
+        return $"{nombre} {apellidos}";
+    }
+
+    // Los multiplicadores no son múltiplos del tamaño de su lista: recorren cada una entera antes de repetir, y dos
+    // ordinales seguidos no dan apellidos vecinos.
+    private static (string Nombre, string Apellidos) Persona(int ordinal) => (
+        NombresDePila[ordinal * 5 % NombresDePila.Length],
+        $"{PrimerosApellidos[ordinal * 7 % PrimerosApellidos.Length]} {SegundosApellidos[(ordinal * 5 + 3) % SegundosApellidos.Length]}");
+
+    /// <summary>
+    /// El documento de identidad del Trabajador <paramref name="i"/> del Tenant, con
+    /// su letra de control. El multiplicador es impar y no acaba en cinco, así que no
+    /// comparte factor con los ochenta millones del módulo: dos Trabajadores del lote
+    /// no reciben el mismo número, y los de dos Trabajadores seguidos distan millones.
+    /// </summary>
+    public static string Dni(TenantPilotoOutbound tenant, int i) =>
+        DatosPruebaSeeder.GenerarDniValido(10_000_000 + (int)((OrdinalEnElLote(tenant, i) + 1L) * 37_139_213 % 80_000_000));
+
+    private static int OrdinalEnElLote(TenantPilotoOutbound tenant, int i)
+    {
+        var ordinal = CatalogoPilotoOutbound.Tenants.Take(IndiceDe(tenant)).Sum(CatalogoPilotoOutbound.TrabajadoresSembrados) + i;
+        if (i < 0 || i >= CatalogoPilotoOutbound.TrabajadoresSembrados(tenant) || ordinal >= OrdinalesDeTrabajador)
+            throw new InvalidOperationException(
+                $"{tenant.Clave}: el Trabajador {i} queda fuera de los {OrdinalesDeTrabajador} ordinales que la siembra del piloto reserva a los " +
+                "Trabajadores del lote, o fuera de los que su Tenant declara: su nombre y su documento de identidad podrían repetirse.");
+
+        return ordinal;
+    }
+
+    private static int IndiceDe(TenantPilotoOutbound tenant) => CatalogoPilotoOutbound.Tenants.ToList().IndexOf(tenant);
+
+    // Códigos de provincia con que empieza un identificador fiscal de sociedad: es solo verosimilitud, no la sede de nadie.
+    private static readonly int[] Provincias = [28, 8, 46, 41, 48, 50, 39, 15, 29, 33, 3, 47, 45];
+
+    /// <summary>
+    /// El identificador fiscal de una Empresa del piloto: el ordinal 0 es la Empresa
+    /// propia del Tenant; del 1 en adelante, sus Clientes empresariales, y desde
+    /// <see cref="OrdinalDeLaPrimeraSubcontrata"/>, sus subcontratas. La letra es la
+    /// de la forma jurídica que dice la razón social, y el dígito de control, el que
+    /// le corresponde. Las cinco últimas cifras no se repiten en todo el lote: 7919
+    /// no comparte factor con cien mil.
+    /// </summary>
+    public static string Cif(TenantPilotoOutbound tenant, int ordinal)
+    {
+        var razonSocial = ordinal == 0
+            ? tenant.Nombre
+            : ordinal < OrdinalDeLaPrimeraSubcontrata
+                ? tenant.ClientesEmpresariales[ordinal - 1].RazonSocial
+                : (tenant.Subcontratas ?? [])[ordinal - OrdinalDeLaPrimeraSubcontrata];
+
+        var k = IndiceDe(tenant) * 100 + ordinal;
+        var numero = Provincias[k * 3 % Provincias.Length] * 100_000 + (k * 7_919 + 4_621) % 100_000;
+        return LetraDeLaFormaJuridica(razonSocial) + DatosPruebaSeeder.GenerarCifValido(numero)[1..];
+    }
+
+    /// <summary>La letra con que empieza el identificador fiscal de una sociedad anónima (A) o limitada (B), que son las dos formas del catálogo.</summary>
+    public static char LetraDeLaFormaJuridica(string razonSocial) =>
+        razonSocial.EndsWith(", S.A.", StringComparison.Ordinal) ? 'A'
+        : razonSocial.EndsWith(", S.L.", StringComparison.Ordinal) ? 'B'
+        : throw new InvalidOperationException(
+            $"«{razonSocial}» no acaba en «, S.A.» ni en «, S.L.»: la siembra del piloto no sabe con qué letra empieza su identificador fiscal.");
+
+    private static readonly string[] Vias =
+    [
+        "Avenida de la Industria", "Calle de la Estación", "Carretera de Circunvalación", "Calle del Comercio",
+        "Camino de la Vega", "Avenida de la Constitución", "Calle Mayor", "Ronda del Polígono"
+    ];
+
+    /// <summary>La dirección postal del Centro número <paramref name="numero"/> (desde 1) de su Tenant.</summary>
+    public static string Direccion(int numero, string localidad) => $"{Vias[(numero - 1) * 3 % Vias.Length]}, {numero * 7}, {localidad}";
+
+    /// <summary>
+    /// El puesto u oficio del Trabajador <paramref name="i"/>, de un repertorio corto
+    /// acorde con la actividad que dice el nombre de su Empresa. Es el dato de la
+    /// ficha; no decide ningún requisito documental.
+    /// </summary>
+    public static string Puesto(TenantPilotoOutbound tenant, int i)
+    {
+        if (tenant.Escenario == EscenarioPilotoOutbound.Grande && i >= DisenoT1PilotoOutbound.TrabajadoresPropios)
+            return PuestosDeLasSubcontratasDeT1[DisenoT1PilotoOutbound.SubcontrataDe(i)];
+
+        string[] puestos = tenant.Escenario switch
+        {
+            EscenarioPilotoOutbound.Grande =>
+                ["Oficial electricista", "Instalador de baja tensión", "Montador de estructuras", "Técnico de puesta en marcha", "Encargado de obra", "Ayudante de instalaciones"],
+            EscenarioPilotoOutbound.TodoAlDia => ["Técnico frigorista", "Instalador de climatización", "Oficial de mantenimiento", "Ayudante de climatización"],
+            EscenarioPilotoOutbound.Mitad => ["Mecánico industrial", "Electromecánico", "Soldador", "Tubero", "Oficial de mantenimiento"],
+            EscenarioPilotoOutbound.TodoPendiente => ["Montador", "Soldador", "Calderero", "Encargado de montaje"],
+            EscenarioPilotoOutbound.PocosTrabajadoresMuchosCentros =>
+                ["Inspector técnico", "Técnico de ensayos no destructivos", "Inspector de instalaciones", "Técnico de calidad"],
+            _ => ["Técnico de mantenimiento", "Oficial electricista", "Fontanero", "Operario de servicios", "Encargado de zona"]
+        };
+
+        return puestos[i * 7 % puestos.Length];
+    }
+
+    // En el orden de las subcontratas de T1 en el catálogo: electricidad, andamios y soldadura.
+    private static readonly string[] PuestosDeLasSubcontratasDeT1 = ["Oficial electricista", "Montador de andamios", "Soldador"];
+
+    /// <summary>Las tres letras, en mayúsculas y sin acentos, con que empieza el código de un Centro sin zona: las de la primera palabra con significado de su localidad.</summary>
+    public static string LetrasDeLaLocalidad(string localidad)
+    {
+        var palabra = Palabras(localidad).First();
+        return palabra[..Math.Min(3, palabra.Length)].ToUpperInvariant();
+    }
+
+    /// <summary>La parte local de la dirección del responsable de prevención de una Empresa: «prevencion.gavrena».</summary>
+    public static string EtiquetaDePrevencion(string razonSocial) => $"prevencion.{NombreCortoDe(razonSocial)}";
+
+    public static string EtiquetaDeAdministracion(string razonSocial) => $"administracion.{NombreCortoDe(razonSocial)}";
+
+    /// <summary>La del contacto interno de una zona de la Empresa propia: «coordinacion.barcelona.anfelor».</summary>
+    public static string EtiquetaDeCoordinacionDeZona(ZonaPilotoOutbound zona, string razonSocial) =>
+        $"coordinacion.{string.Join('-', Palabras(zona.Nombre))}.{NombreCortoDe(razonSocial)}";
+
+    /// <summary>La del técnico de coordinación CAE de un Cliente empresarial: «cae.gorsenta».</summary>
+    public static string EtiquetaDeCoordinacionCae(string razonSocial) => $"cae.{NombreCortoDe(razonSocial)}";
+
+    /// <summary>La del contacto de un Centro de Trabajo: «coordinacion.plataforma-logistica-illescas».</summary>
+    public static string EtiquetaDeCoordinacionDeAccesos(CentroPilotoOutbound centro) => $"coordinacion.{NombreCortoDe(centro)}";
+
+    /// <summary>La del canal por correo de un Centro de Trabajo, distinta de la de su contacto: «accesos.parque-fotovoltaico-almansa».</summary>
+    public static string EtiquetaDeSolicitudesDeAcceso(CentroPilotoOutbound centro) => $"accesos.{NombreCortoDe(centro)}";
+
+    /// <summary>El usuario de la Empresa propia en el portal de un Cliente empresarial: «gestion.kedrobal».</summary>
+    public static string UsuarioDePortal(string razonSocial) => $"gestion.{NombreCortoDe(razonSocial)}";
+
+    /// <summary>La palabra que distingue a una Empresa del catálogo: la última antes de la forma jurídica.</summary>
+    private static string NombreCortoDe(string razonSocial)
+    {
+        var coma = razonSocial.LastIndexOf(',');
+        return Palabras(coma < 0 ? razonSocial : razonSocial[..coma]).Last();
+    }
+
+    /// <summary>El nombre del Centro sin su zona, en minúsculas y con guiones. Los nombres de Centro no se repiten dentro de un Tenant.</summary>
+    private static string NombreCortoDe(CentroPilotoOutbound centro)
+    {
+        var prefijoDeZona = centro.Zona is { } zona ? $"{zona.Nombre} · " : null;
+        var nombre = prefijoDeZona is not null && centro.Nombre.StartsWith(prefijoDeZona, StringComparison.Ordinal)
+            ? centro.Nombre[prefijoDeZona.Length..]
+            : centro.Nombre;
+        return string.Join('-', Palabras(nombre));
+    }
+
+    private static readonly string[] PalabrasSinSignificado = ["de", "del", "el", "la", "los", "las", "y"];
+
+    /// <summary>Las palabras con significado de un texto, en minúsculas, sin acentos y solo con letras y cifras.</summary>
+    private static IEnumerable<string> Palabras(string texto)
+    {
+        var llano = string.Concat(texto.Normalize(NormalizationForm.FormD)
+            .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+            .Select(c => char.IsAsciiLetterOrDigit(c) ? char.ToLowerInvariant(c) : ' '));
+
+        return llano.Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(p => !PalabrasSinSignificado.Contains(p));
+    }
 }

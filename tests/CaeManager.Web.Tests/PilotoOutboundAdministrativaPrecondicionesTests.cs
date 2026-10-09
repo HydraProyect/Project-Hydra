@@ -44,7 +44,7 @@ public class PilotoOutboundAdministrativaPrecondicionesTests
         opciones.Should().Be(new PilotoOutboundAdministrativa.Opciones(
             Dominio, Directorio, "Production", new DateOnly(2026, 10, 20),
             new ContactosPilotoOutbound("ensayo@destino.example", ContactosPilotoOutbound.DominioPorDefecto)));
-        opciones.Contactos.DireccionDe("t1-centro").Should().Be("ensayo+t1-centro@destino.example");
+        opciones.Contactos.DireccionDe("prevencion.gavrena").Should().Be("ensayo+prevencion.gavrena@destino.example");
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class PilotoOutboundAdministrativaPrecondicionesTests
         var opciones = PilotoOutboundAdministrativa.LeerOpciones(Configuracion(("PilotoOutbound:FechaDemostracion", "2026-10-20")));
 
         opciones.Contactos.Should().Be(ContactosPilotoOutbound.NoEntregables);
-        opciones.Contactos.DireccionDe("t1-centro").Should().EndWith("@caemanager.local");
+        opciones.Contactos.DireccionDe("prevencion.gavrena").Should().EndWith("@caemanager.local");
     }
 
     [Fact]

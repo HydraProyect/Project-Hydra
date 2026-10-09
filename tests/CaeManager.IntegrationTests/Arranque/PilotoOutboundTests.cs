@@ -478,7 +478,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         {
             var deLaZona = centros.Where(c => c.Nombre.StartsWith(zona + " · ", StringComparison.Ordinal)).ToList();
             deLaZona.Select(c => c.CodigoCentro).Should().BeEquivalentTo(
-                [$"T6-{codigo}-01", $"T6-{codigo}-02", $"T6-{codigo}-03", $"T6-{codigo}-04"], $"MEDIDO: los cuatro Centros de {zona} llevan su zona en el código");
+                [$"{codigo}-01", $"{codigo}-02", $"{codigo}-03", $"{codigo}-04"], $"MEDIDO: los cuatro Centros de {zona} llevan su zona en el código, sin la clave del Tenant");
         }
 
         cargosDeLaEmpresaPropia.Where(c => c!.StartsWith("Coordinación documental", StringComparison.Ordinal)).Should().BeEquivalentTo(
@@ -557,6 +557,27 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
 
         subcontratas.Select(s => s.RazonSocial).Should().BeEquivalentTo(T6.Subcontratas);
         subcontratas.Should().HaveCount(2).And.OnlyContain(s => s.Documentos == 3 && s.Contactos == 1 && s.Trabajadores == 0);
+    }
+
+    [Fact]
+    public async Task Ningun_nombre_completo_de_Trabajador_se_repite_en_los_seis_Tenants()
+    {
+        var escritos = new List<(string Tenant, string NombreCompleto)>();
+        foreach (var tenant in CatalogoPilotoOutbound.Tenants)
+        {
+            var delTenant = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, _) =>
+                await db.Trabajadores.Select(t => t.Nombre + " " + t.Apellidos).ToListAsync());
+
+            // Los que la base enseña son de los que el catálogo reparte: los de las subcontratas de T1 también.
+            var delCatalogo = Enumerable.Range(0, CatalogoPilotoOutbound.TrabajadoresSembrados(tenant))
+                .Select(i => IdentidadesPilotoOutbound.Trabajador(tenant, i)).Select(p => $"{p.Nombre} {p.Apellidos}").ToList();
+            delTenant.Should().NotBeEmpty().And.BeSubsetOf(delCatalogo, $"MEDIDO: los Trabajadores de {tenant.Clave} llevan los nombres del catálogo");
+
+            escritos.AddRange(delTenant.Select(n => (tenant.Clave, n)));
+        }
+
+        escritos.GroupBy(e => e.NombreCompleto).Where(g => g.Count() > 1).Select(g => $"{g.Key}: {string.Join(", ", g.Select(e => e.Tenant))}")
+            .Should().BeEmpty("MEDIDO: ningún nombre completo se repite entre los Trabajadores de los seis Tenants");
     }
 
     [Fact]
@@ -856,7 +877,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         // La solicitud de acceso sale hacia el canal principal del Centro, que es un correo de la misma regla que la agenda.
         solicitud.EsExitoso.Should().BeTrue();
         salida.WriteLine($"MEDIDO T1 solicitud de acceso por correo: a {solicitud.Valor.Destinatarios} · {solicitud.Valor.Asunto}");
-        solicitud.Valor.Destinatarios.Should().StartWith("ensayo+t1-accesos-").And.EndWith("@destino.example");
+        solicitud.Valor.Destinatarios.Should().Be("ensayo+accesos.parque-fotovoltaico-almansa@destino.example");
 
         // La comprobación previa: dos Trabajadores con todo en regla, y de la Empresa propia nada que falte. La
         // pantalla pone una fila «Faltante» por cada tipo exigido sin documento, y no lista lo que está confirmado
@@ -1623,16 +1644,16 @@ public class PilotoOutboundNoEscribeTests(PilotoOutboundSinSiembraFixture fixtur
     public void La_regla_de_correo_de_los_contactos_distingue_el_buzon_configurado_del_dominio_no_entregable()
     {
         var conCorreo = ContactosPilotoOutbound.Crear(ArnesPilotoOutbound.CorreoDePrueba, null);
-        conCorreo.DireccionDe("t2-centro1").Should().Be("ensayo+t2-centro1@destino.example");
-        conCorreo.Cumple("ensayo+t2-centro1@destino.example").Should().BeTrue();
+        conCorreo.DireccionDe("cae.aldrevia").Should().Be("ensayo+cae.aldrevia@destino.example");
+        conCorreo.Cumple("ensayo+cae.aldrevia@destino.example").Should().BeTrue();
         conCorreo.Cumple("ensayo@destino.example").Should().BeFalse("sin etiqueta no se sabe a qué contacto se escribió");
-        conCorreo.Cumple("otra+t2-centro1@destino.example").Should().BeFalse();
-        conCorreo.Cumple("t2-centro1@caemanager.local").Should().BeFalse();
+        conCorreo.Cumple("otra+cae.aldrevia@destino.example").Should().BeFalse();
+        conCorreo.Cumple("cae.aldrevia@caemanager.local").Should().BeFalse();
 
         var sinCorreo = ContactosPilotoOutbound.Crear(" ", null);
         sinCorreo.Should().Be(ContactosPilotoOutbound.NoEntregables);
-        sinCorreo.DireccionDe("t2-centro1").Should().Be("t2-centro1@caemanager.local");
-        sinCorreo.Cumple("ensayo+t2-centro1@destino.example").Should().BeFalse();
+        sinCorreo.DireccionDe("cae.aldrevia").Should().Be("cae.aldrevia@caemanager.local");
+        sinCorreo.Cumple("ensayo+cae.aldrevia@destino.example").Should().BeFalse();
     }
 }
 
