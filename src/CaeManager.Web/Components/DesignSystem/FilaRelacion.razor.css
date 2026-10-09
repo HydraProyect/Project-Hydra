@@ -7,10 +7,31 @@
     gap: var(--space-3);
     padding: var(--space-2) var(--space-4);
     border-top: var(--border-default);
+    transition: background-color 120ms;
 }
 
 .fila-relacion:first-child {
     border-top: none;
+}
+
+/*
+  Toda fila responde al cursor, también la que no lleva tinte (defecto del
+  2026-10-09: solo reaccionaba la fila con problema). Va ANTES de las reglas
+  del tinte a propósito: con la misma especificidad, el color del tinte gana
+  al pasar el cursor y la fila con problema conserva su receta.
+
+  Con el cursor dentro del bloque desplegado responde la subfila, no la fila
+  que lo contiene. La exclusión va en :where() para que no sume especificidad
+  y el tinte siga ganando.
+*/
+.fila-relacion:hover:where(:not(:has(.fila-relacion-desplegado:hover))) {
+    background-color: var(--color-surface-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fila-relacion {
+        transition: none;
+    }
 }
 
 .fila-relacion-icono {
@@ -123,7 +144,11 @@ a.fila-relacion-nombre:focus-visible,
     grid-template-columns: minmax(0, 1fr) 104px 152px 128px;
     align-items: center;
     min-height: 50px;
-    padding: 10px 0;
+    /* El resaltado y el tinte sobresalen del contenido de la tarjeta lo que
+       mide este relleno lateral, en TODAS las filas: así el texto no cambia
+       de columna entre una fila teñida y una sin teñir. */
+    margin-inline: calc(-1 * var(--space-3));
+    padding: 10px var(--space-3);
     border-top: 1px solid var(--color-fila-divisor);
 }
 
@@ -174,14 +199,6 @@ a.fila-relacion-nombre:focus-visible,
 
 .fila-relacion[data-tono]:hover {
     background-position: 0 0;
-}
-
-/* En rejilla el tinte sobresale del contenido de la tarjeta lo que mide su
-   relleno lateral, para que el texto no cambie de columna respecto a las
-   filas sin teñir. */
-.fila-relacion-rejilla[data-tono] {
-    margin-inline: calc(-1 * var(--space-3));
-    padding-inline: var(--space-3);
 }
 
 @media (prefers-reduced-motion: reduce) {
