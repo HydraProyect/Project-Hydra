@@ -176,7 +176,7 @@ public partial class Calendario : CaeManager.Web.Components.PaginaInteractiva
         if (peorEstado is not null)
             partes.Add(Textos["EtiquetaDiaPeorEstado",
                 Contar(vencimientosDelDia.Count, "VencimientoUno", "VencimientoVarios"),
-                EstadoDocumentoUi.Texto(peorEstado.Value).ToLower(Cultura)]);
+                EstadoDocumentoUi.TextoDeSeveridad(peorEstado.Value).ToLower(Cultura)]);
         if (visitasDelDia.Count > 0)
             partes.Add(Contar(visitasDelDia.Count, "VisitaProgramadaUna", "VisitaProgramadaVarias"));
 

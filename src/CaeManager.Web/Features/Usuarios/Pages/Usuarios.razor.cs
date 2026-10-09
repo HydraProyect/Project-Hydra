@@ -3,10 +3,12 @@ using System.Security.Claims;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones.ApoyoCartera;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
 using CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.CorregirCorreoCuentaPendiente;
 using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Application.Usuarios.Commands.EditarUsuario;
 using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
@@ -1162,8 +1164,22 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 return;
             }
 
+            // El destino es el correo que la cuenta tiene AHORA, leído después de emitir
+            // el enlace, no el de la fila con la que se pulsó el menú: si otra persona
+            // corrigió el correo entretanto, la fila aún enseña la dirección equivocada
+            // y el enlace recién emitido —válido— saldría hacia ella. Leerlo después y no
+            // antes cierra la carrera: una corrección posterior a esta lectura cambia el
+            // sello y deja sin valor el enlace que aquí se envía.
+            var cuenta = await Mediator.Send(new ObtenerCuentaUsuarioQuery(usuarioLista.Id), token);
+            if (cuenta.EsFallido)
+            {
+                ToastService.MostrarError(cuenta.Error);
+                await CargarAsync();
+                return;
+            }
+
             var enlace = EnlaceActivacion(usuarioLista.Id, activacion.Valor);
-            var resultado = await EnviarCorreoActivacionAsync(usuarioLista.Id, usuarioLista.Email, usuarioLista.NombreCompleto, enlace);
+            var resultado = await EnviarCorreoActivacionAsync(usuarioLista.Id, cuenta.Valor.Email, cuenta.Valor.NombreCompleto, enlace);
 
             if (resultado.EsFallido)
             {
@@ -1178,6 +1194,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             }
 
             _reenvioEnCurso = true;
+            _reenvioTrasCorregirCorreo = false;
             _enlaceActivacion = enlace;
         }
         catch (OperationCanceledException)
@@ -1186,6 +1203,95 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         finally
         {
             _reenviandoCredencialesDe.Remove(usuarioLista.Id);
+        }
+    }
+
+    // ── Corregir el correo de una cuenta pendiente de activación (H9) ──
+
+    private UsuarioListaDto? _usuarioACorregirCorreo;
+    private string _correoCorregido = string.Empty;
+    private bool _corrigiendoCorreo;
+    private string? _errorCorregirCorreo;
+
+    /// <summary>
+    /// El diálogo del enlace viene de una corrección de correo, no de un reenvío a
+    /// secas: su título dice que el correo se corrigió.
+    /// </summary>
+    private bool _reenvioTrasCorregirCorreo;
+
+    private bool HayCambiosEnCorreoCorregido =>
+        _usuarioACorregirCorreo is { } usuario
+        && !string.Equals(_correoCorregido.Trim(), usuario.Email, StringComparison.OrdinalIgnoreCase);
+
+    private void AbrirCorregirCorreo(UsuarioListaDto usuario)
+    {
+        _usuarioACorregirCorreo = usuario;
+        _correoCorregido = usuario.Email;
+        _errorCorregirCorreo = null;
+    }
+
+    private void CerrarCorregirCorreo()
+    {
+        if (!_corrigiendoCorreo)
+            _usuarioACorregirCorreo = null;
+    }
+
+    /// <summary>
+    /// Cambia el correo de una cuenta que sigue pendiente y le envía un enlace nuevo a
+    /// la dirección corregida. La autoridad, que la cuenta siga pendiente y la unicidad
+    /// del correo las decide Application (<see cref="CorregirCorreoCuentaPendienteCommand"/>),
+    /// que en la misma escritura deja sin valor los enlaces enviados a la dirección
+    /// anterior y lo anota en la auditoría de la cuenta con ambos correos. Aquí solo se
+    /// envía el correo y se enseña el enlace, igual que en <see cref="ReenviarCredencialesAsync"/>.
+    /// </summary>
+    private async Task GuardarCorreoCorregidoAsync()
+    {
+        if (_usuarioACorregirCorreo is not { } usuario || _corrigiendoCorreo) return;
+        _corrigiendoCorreo = true;
+        _errorCorregirCorreo = null;
+
+        var token = _ciclo.Token;
+        try
+        {
+            var correo = _correoCorregido.Trim();
+            var correccion = await Mediator.Send(new CorregirCorreoCuentaPendienteCommand(usuario.Id, correo), token);
+            if (correccion.EsFallido)
+            {
+                // La persona se activó entretanto: el diálogo ya no tiene sentido y la
+                // fila debe dejar de ofrecer la acción.
+                if (correccion.Error.Codigo == GenerarActivacionUsuarioCommandHandler.YaActivada.Codigo)
+                {
+                    _usuarioACorregirCorreo = null;
+                    ToastService.MostrarError(correccion.Error);
+                    await CargarAsync();
+                    return;
+                }
+
+                _errorCorregirCorreo = correccion.Error.Mensaje;
+                return;
+            }
+
+            var enlace = EnlaceActivacion(usuario.Id, correccion.Valor);
+            var envio = await EnviarCorreoActivacionAsync(usuario.Id, correo, usuario.NombreCompleto, enlace);
+            if (envio.EsFallido)
+                ToastService.MostrarError(
+                    TextosUsuarios["ReenvioCorreoFallido"], envio.Error, TextosUsuarios["ReenvioCorreoFallidoEnlaceAbajo"]);
+            else
+                ToastService.Mostrar(TextosUsuarios["CorregirCorreoHecho", correo], TonoToast.Exito);
+
+            _usuarioACorregirCorreo = null;
+            _reenvioFallido = envio.EsFallido;
+            _reenvioTrasCorregirCorreo = true;
+            _reenvioEnCurso = true;
+            _enlaceActivacion = enlace;
+            await CargarAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _corrigiendoCorreo = false;
         }
     }
 
@@ -1445,7 +1551,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         var apoyo = operacion.Apoyos.First(a => a.UsuarioId == usuario.Id);
         var rotulo = apoyo.VigenciaHasta is { } hasta
-            ? TextosUsuarios["PrincipalApoyoHasta", hasta.EnHoraPeninsular()].Value
+            ? TextosUsuarios["PrincipalApoyoHasta", VigenciaDeApoyo.UltimoDia(hasta)].Value
             : TextosUsuarios["PrincipalApoyo"].Value;
         var deOtra = operacion.Principal is { } otro
             ? TextosUsuarios["PrincipalDeOtraPersona", RotuloPrincipal(otro), otro.Nombre].Value

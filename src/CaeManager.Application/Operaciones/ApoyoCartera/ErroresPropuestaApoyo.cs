@@ -55,9 +55,39 @@ public static class ErroresPropuestaApoyo
         "PropuestaApoyo.AnuladaYaEnCartera",
         "Ya tienes esa empresa en tu cartera; la propuesta de apoyo se ha anulado.");
 
+    public static readonly Error AnuladaFechaDeFinPasada = Error.Crear(
+        "PropuestaApoyo.AnuladaFechaDeFinPasada",
+        "La fecha de fin de ese apoyo ya ha pasado; la propuesta se ha anulado.");
+
+    public static readonly Error FechaDeFinNoValida = Error.Crear(
+        "PropuestaApoyo.FechaDeFinNoValida", "La fecha de fin del apoyo no puede ser anterior a hoy.");
+
+    public static readonly Error ApoyoNoEncontrado = Error.Crear(
+        "PropuestaApoyo.ApoyoNoEncontrado", "No encontramos ese acceso de apoyo.");
+
+    public static readonly Error EresElPrincipal = Error.Crear(
+        "PropuestaApoyo.EresElPrincipal",
+        "Ahora eres el principal de esa empresa: ya no puedes desasignarte. Pide a tu Coordinador CAE que designe a otra persona.");
+
+    public static readonly Error ApoyoEsAhoraPrincipal = Error.Crear(
+        "PropuestaApoyo.ApoyoEsAhoraPrincipal",
+        "Esa persona es ahora el principal de la empresa: su cartera ya no es de apoyo y no se retira desde aquí.");
+
+    public static readonly Error SoloRetirasLoQueConcediste = Error.Crear(
+        "PropuestaApoyo.SoloRetirasLoQueConcediste", "Solo puedes retirar el acceso de apoyo que diste tú.");
+
+    public static readonly Error YaNoEresElPrincipal = Error.Crear(
+        "PropuestaApoyo.YaNoEresElPrincipal",
+        "Ya no eres el principal de esa empresa: ese acceso de apoyo lo puede retirar un Coordinador CAE.");
+
+    public static readonly Error ApoyoFueraDeTuEquipo = Error.Crear(
+        "PropuestaApoyo.ApoyoFueraDeTuEquipo",
+        "Ni esa persona ni quien le dio el acceso están en tu equipo: no puedes revocar ese apoyo.");
+
     /// <summary>El error con que el destinatario se entera de que su aceptación anuló la propuesta.</summary>
     public static Error DeAnulacion(MotivoAnulacionPropuestaApoyo motivo) => motivo switch
     {
+        MotivoAnulacionPropuestaApoyo.FechaDeFinPasada => AnuladaFechaDeFinPasada,
         MotivoAnulacionPropuestaApoyo.YaEnCartera => AnuladaYaEnCartera,
         MotivoAnulacionPropuestaApoyo.OperacionNoVigente => AnuladaOperacionNoVigente,
         MotivoAnulacionPropuestaApoyo.DestinatarioNoDisponible => AnuladaDestinatarioNoDisponible,

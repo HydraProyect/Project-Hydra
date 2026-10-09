@@ -198,10 +198,10 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
                 .OrderBy(g => RangoSeveridad(g.Key))
                 .Select(g => new GrupoAlertas(
                     Clave: $"estado:{g.Key}",
-                    Titulo: EstadoDocumentoUi.Texto(g.Key),
+                    Titulo: EstadoDocumentoUi.TextoDeSeveridad(g.Key),
                     Insignia: g.Count().ToString(),
-                    TituloInsignia: Textos["InsigniaSeveridadTitulo", g.Count(), EstadoDocumentoUi.Texto(g.Key)],
-                    Tono: EstadoDocumentoUi.Tono(g.Key),
+                    TituloInsignia: Textos["InsigniaSeveridadTitulo", g.Count(), EstadoDocumentoUi.TextoDeSeveridad(g.Key)],
+                    Tono: EstadoDocumentoUi.TonoDeSeveridad(g.Key),
                     Critico: g.Key is EstadoDocumento.Vencido or EstadoDocumento.Faltante,
                     Descripcion: DescripcionSeveridad(g.Key),
                     Alertas: g.ToList()))

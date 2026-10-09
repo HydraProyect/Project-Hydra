@@ -1,0 +1,110 @@
+@*
+    Franja de estado de un listado: una fila de botones sobre la tabla, uno por estado, con cuántas filas
+    hay en cada uno. Sustituye a la pastilla de filtro «Estado» / «Documentación».
+
+    - Admite varios estados a la vez: cada botón se marca y se desmarca por separado (aria-pressed).
+    - «Todos» borra la selección y enseña el total.
+    - Un botón puede agrupar varios estados de código: «Por vencer» cuenta y filtra Urgente y Próximo.
+    - El recuento es el de la lista con los demás filtros aplicados y SIN el de estado: así cada cifra dice
+      cuántas filas quedarían al marcar solo ese botón. Sin recuentos (null) los botones filtran igual, sin cifra.
+
+    El valor es el de la URL (estados de código separados por coma, ver SeleccionEstados).
+
+    Uso:
+
+        <FranjaEstado Opciones="_opcionesEstado" Valor="@Estado" ValorChanged="CambiarEstadoAsync"
+                      Recuentos="_recuentos" />
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<div class="franja-estado" role="group" aria-label="@(EtiquetaAccesible ?? Comunes["FranjaEstadoEtiqueta"].Value)">
+    <button type="button" class="franja-estado-boton" aria-pressed="@AriaPulsado(_seleccion.Count == 0)" @onclick="LimpiarAsync">
+        @(TextoTodos ?? Comunes["OpcionTodos"].Value)
+        @if (Total is { } total)
+        {
+            <b class="franja-estado-recuento">@total</b>
+        }
+    </button>
+    @foreach (var opcion in Opciones)
+    {
+        var recuento = RecuentoDe(opcion);
+        var pulsado = EstaMarcada(opcion);
+        @* data-estado: los estados de código del botón, para localizarlo sin depender del rótulo ni de la cifra. *@
+        <button type="button" class="@ClaseBoton(recuento)" aria-pressed="@AriaPulsado(pulsado)" data-estado="@string.Join(SeleccionEstados.Separador, opcion.Valores)"
+                @onclick="() => AlternarAsync(opcion)">
+            <span class="franja-estado-punto franja-estado-punto-@opcion.Tono.ToString().ToLowerInvariant()" aria-hidden="true"></span>
+            @if (recuento is { } n)
+            {
+                <b class="franja-estado-recuento">@n</b>
+            }
+            @opcion.Texto
+        </button>
+    }
+</div>
+
+@code {
+    private IReadOnlyList<string> _seleccion = [];
+
+    /// <summary>Botones de estado, de peor a mejor. «Todos» lo añade la franja.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<OpcionFranjaEstado> Opciones { get; set; } = [];
+
+    /// <summary>Selección vigente, como en la URL: estados de código separados por coma. Vacío o null: todos.</summary>
+    [Parameter] public string? Valor { get; set; }
+
+    /// <summary>La selección nueva; <c>null</c> cuando no queda ningún estado marcado.</summary>
+    [Parameter] public EventCallback<string?> ValorChanged { get; set; }
+
+    /// <summary>Filas por estado de código, sin el filtro de estado aplicado. <c>null</c>: la franja no enseña cifras.</summary>
+    [Parameter] public IReadOnlyDictionary<string, int>? Recuentos { get; set; }
+
+    /// <summary>Cifra de «Todos». Sin valor, la suma de <see cref="Recuentos"/>.</summary>
+    [Parameter] public int? TotalTodos { get; set; }
+
+    [Parameter] public string? TextoTodos { get; set; }
+
+    [Parameter] public string? EtiquetaAccesible { get; set; }
+
+    protected override void OnParametersSet() => _seleccion = SeleccionEstados.Separar(Valor);
+
+    private int? Total => TotalTodos ?? Recuentos?.Values.Sum();
+
+    /// <summary>
+    /// La cifra de un botón que agrupa varios estados es la suma de las de cada uno, salvo que la consulta dé una
+    /// cifra propia para el conjunto (clave «Urgente,Proximo»): hace falta donde una misma fila puede estar en
+    /// los dos a la vez y sumarlas la contaría dos veces.
+    /// </summary>
+    private int? RecuentoDe(OpcionFranjaEstado opcion)
+    {
+        if (Recuentos is null)
+            return null;
+
+        return Recuentos.TryGetValue(string.Join(SeleccionEstados.Separador, opcion.Valores), out var delConjunto)
+            ? delConjunto
+            : opcion.Valores.Sum(valor => Recuentos.GetValueOrDefault(valor));
+    }
+
+    private bool EstaMarcada(OpcionFranjaEstado opcion) => opcion.Valores.Any(_seleccion.Contains);
+
+    private static string AriaPulsado(bool pulsado) => pulsado ? "true" : "false";
+
+    private static string ClaseBoton(int? recuento) =>
+        recuento == 0 ? "franja-estado-boton franja-estado-boton-vacio" : "franja-estado-boton";
+
+    private Task LimpiarAsync() =>
+        _seleccion.Count == 0 ? Task.CompletedTask : ValorChanged.InvokeAsync(null);
+
+    /// <summary>
+    /// Marcar un botón añade todos sus estados; desmarcarlo los quita todos, también cuando solo había uno
+    /// (un enlace antiguo con <c>?estado=Urgente</c> deja «Por vencer» marcado: un clic lo limpia entero).
+    /// Lo que la URL traiga y ningún botón conozca se conserva tal cual.
+    /// </summary>
+    private Task AlternarAsync(OpcionFranjaEstado opcion)
+    {
+        var nueva = EstaMarcada(opcion)
+            ? _seleccion.Where(v => !opcion.Valores.Contains(v))
+            : _seleccion.Concat(opcion.Valores);
+        return ValorChanged.InvokeAsync(SeleccionEstados.Unir(nueva));
+    }
+}

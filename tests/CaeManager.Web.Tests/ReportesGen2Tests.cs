@@ -330,7 +330,7 @@ public class ReportesGen2Tests : BunitContext
 
         mediador.Enviados.OfType<GenerarInformeVigenciaQuery>().Single().IncluirVigentes.Should().BeFalse();
         Texto(cut.Find(".titulo-hoja-informe")).Should().Be($"Informe de incidencias — {NombreA}");
-        FilasHoja(cut).Select(f => Celdas(f)[4]).Should().Equal("Vencido", "Urgente");
+        FilasHoja(cut).Select(f => Celdas(f)[4]).Should().Equal("Vencido", "Por vencer");
     }
 
     [Fact]

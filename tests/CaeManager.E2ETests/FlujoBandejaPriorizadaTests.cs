@@ -116,7 +116,8 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // accesible puede contener "Vencido"/"Urgente" como sustring (p. ej.
         // un recuento por tipo dentro del propio grupo), lo que rompía la
         // coincidencia única que este chip sí garantiza por clase.
-        var chipUrgente = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Urgente" });
+        // El tipo Urgente se rotula «Por vencer» desde el 2026-10-08 (el tipo de código no cambia).
+        var chipUrgente = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Por vencer" });
         var chipVencido = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Vencido" });
 
         await chipUrgente.ClickAsync();

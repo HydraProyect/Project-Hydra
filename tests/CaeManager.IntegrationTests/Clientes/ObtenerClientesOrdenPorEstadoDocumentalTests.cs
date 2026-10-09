@@ -122,43 +122,44 @@ public class ObtenerClientesOrdenPorEstadoDocumentalTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Dentro de un filtro, el orden por estado contradice a la razón social: «Con vencidos» deja
-    /// pasar a los dos, pero el que además tiene un Faltante («Z…») va antes que el que solo tiene
-    /// Vencidos («A…»). Sin el orden por estado saldrían por nombre, al revés.
+    /// Dentro de un filtro, el orden por estado contradice a la razón social: «Con pendientes» deja
+    /// pasar a los dos, pero el que además tiene un Vencido («Z…») va antes que el que solo tiene
+    /// Faltantes («A…»). Sin el orden por estado saldrían por nombre, al revés. Vencido pesa más que
+    /// Faltante desde el 2026-10-09 (orden fijado el 2026-10-03: Bloqueante, Vencido, Faltante).
     /// </summary>
     [Fact]
-    public async Task Con_filtro_de_vencidos_el_que_ademas_tiene_un_faltante_va_primero_aunque_su_nombre_vaya_detras()
+    public async Task Con_filtro_de_faltantes_el_que_ademas_tiene_un_vencido_va_primero_aunque_su_nombre_vaya_detras()
     {
-        var soloVencido = Empresa.CrearComoCliente("Aaa Solo Vencido S.L.", "", false, null, null);
+        var soloFaltante = Empresa.CrearComoCliente("Aaa Solo Faltante S.L.", "", false, null, null);
         var faltanteYVencido = Empresa.CrearComoCliente("Zzz Faltante y Vencido S.L.", "", false, null, null);
-        _dbContext.Empresas.AddRange(soloVencido, faltanteYVencido);
+        _dbContext.Empresas.AddRange(soloFaltante, faltanteYVencido);
         await _dbContext.SaveChangesAsync();
-        _alertas.Add(Alerta(soloVencido.Id, EstadoDocumento.Vencido));
+        _alertas.Add(Alerta(soloFaltante.Id, EstadoDocumento.Faltante));
         _alertas.Add(Alerta(faltanteYVencido.Id, EstadoDocumento.Vencido));
         _alertas.Add(Alerta(faltanteYVencido.Id, EstadoDocumento.Faltante));
 
         var resultado = await _servicios.GetRequiredService<IMediator>().Send(new ObtenerClientesQuery(
-            Busqueda: null, SoloCriticos: null, EstadoDocumental: EstadoDocumento.Vencido,
+            Busqueda: null, SoloCriticos: null, EstadoDocumental: EstadoDocumento.Faltante,
             OrdenarPor: nameof(ClienteListaDto.EstadoDocumentalPeor)));
 
         resultado.TotalElementos.Should().Be(2);
-        resultado.Elementos.Select(c => c.Id).Should().Equal([faltanteYVencido.Id, soloVencido.Id],
-            "Faltante pesa más que Vencido, aunque por razón social «Z…» vaya detrás de «A…»");
-        resultado.Elementos[0].EstadoDocumentalPeor.Should().Be(EstadoDocumento.Faltante);
+        resultado.Elementos.Select(c => c.Id).Should().Equal([faltanteYVencido.Id, soloFaltante.Id],
+            "Vencido pesa más que Faltante, aunque por razón social «Z…» vaya detrás de «A…»");
+        resultado.Elementos[0].EstadoDocumentalPeor.Should().Be(EstadoDocumento.Vencido);
     }
 
     /// <summary>
     /// Los cinco estados, sembrados con nombres en orden alfabético inverso a su prioridad:
-    /// la lista sale Faltante → Vencido → Urgente → Próximo → Al corriente.
+    /// la lista sale Vencido → Faltante → Urgente → Próximo → Al corriente.
     /// </summary>
     [Fact]
-    public async Task El_orden_por_estado_es_Faltante_Vencido_Urgente_Proximo_y_Al_corriente()
+    public async Task El_orden_por_estado_es_Vencido_Faltante_Urgente_Proximo_y_Al_corriente()
     {
         var alCorriente = Empresa.CrearComoCliente("A Al Corriente S.L.", "", false, null, null);
         var proximo = Empresa.CrearComoCliente("B Próximo S.L.", "", false, null, null);
         var urgente = Empresa.CrearComoCliente("C Urgente S.L.", "", false, null, null);
-        var vencido = Empresa.CrearComoCliente("D Vencido S.L.", "", false, null, null);
-        var faltante = Empresa.CrearComoCliente("E Faltante S.L.", "", false, null, null);
+        var faltante = Empresa.CrearComoCliente("D Faltante S.L.", "", false, null, null);
+        var vencido = Empresa.CrearComoCliente("E Vencido S.L.", "", false, null, null);
         _dbContext.Empresas.AddRange(alCorriente, proximo, urgente, vencido, faltante);
         await _dbContext.SaveChangesAsync();
         _alertas.Add(Alerta(proximo.Id, EstadoDocumento.Proximo));
@@ -168,7 +169,7 @@ public class ObtenerClientesOrdenPorEstadoDocumentalTests : IAsyncLifetime
 
         var resultado = await EjecutarAsync(pagina: 1, tamano: 20);
 
-        resultado.Elementos.Select(c => c.Id).Should().Equal(faltante.Id, vencido.Id, urgente.Id, proximo.Id, alCorriente.Id);
+        resultado.Elementos.Select(c => c.Id).Should().Equal(vencido.Id, faltante.Id, urgente.Id, proximo.Id, alCorriente.Id);
     }
 
     /// <summary>

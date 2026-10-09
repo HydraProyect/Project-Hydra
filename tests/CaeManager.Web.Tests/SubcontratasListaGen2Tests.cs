@@ -359,7 +359,7 @@ public class SubcontratasListaGen2Tests : BunitContext
 
         var cabecera = cut.Find(".cabecera-columnas-subcontratas");
         cabecera.TextContent.Should().Contain("Razón social").And.Contain("Nivel de servicio")
-            .And.Contain("Cumplimiento").And.Contain("Vencidos").And.Contain("Próximos");
+            .And.Contain("Cumplimiento").And.Contain("Vencidos").And.Contain("Por vencer").And.NotContain("Próximos");
         cut.Find(".tarjeta-fila-acordeon-cabecera").Children.Length.Should().Be(cabecera.Children.Length,
             "sin selección múltiple");
 
@@ -385,25 +385,30 @@ public class SubcontratasListaGen2Tests : BunitContext
             ]
         });
 
-        var badges = cut.FindAll(".celda-recuento-subcontrata .badge").Select(b => b.TextContent.Trim()).ToList();
+        // Las pastillas de recuento son las de los disparadores; las del desglose (una por incidencia) van aparte.
+        var badges = cut.FindAll(".celda-recuento-subcontrata .badge")
+            .Where(b => b.Closest(".ventana-linea") is null).Select(b => b.TextContent.Trim()).ToList();
 
-        badges.Should().Contain("2 vencidos").And.Contain("1 próximo").And.Contain("1 vencido")
-            .And.Contain("Al corriente", "sin vencidos ni próximos la subcontrata está al corriente");
+        badges.Should().BeEquivalentTo(["2 vencidos", "1 por vencer", "1 vencido"]);
+        cut.FindAll(".celda-recuento-subcontrata [data-pieza=estado-correcto]").Select(e => e.TextContent.Trim())
+            .Should().Equal(["Sin incidencias"], "sin vencidos ni por vencer, Transportes Argia no tiene nada que reclamar: sin pastilla");
         cut.FindAll(".celda-sin-recuento").Should().HaveCount(1,
             "solo Transportes Argia no tiene vencidos, y su celda se reserva con un guion");
     }
 
     /// <summary>
-    /// Vencidas y Próximas se leen como texto literal ("N vencido(s)"/"N
-    /// próximo(s)"): por eso Urgente vive en Próximas, no en Vencidas
+    /// Vencidas y Próximas se leen como texto literal ("N vencido(s)"/"N por
+    /// vencer"): por eso Urgente vive en Próximas, no en Vencidas
     /// (ObtenerSubcontratasQuery.Desglosar). Pero el badge agregado de
     /// Próximas es siempre Advertencia (ámbar), así que sin un badge por
-    /// incidencia dentro del detalle, un documento Urgente (severidad Peligro
-    /// en el resto de la aplicación) sería indistinguible de uno Próximo
-    /// normal en esta lista (hallazgo de Codex, oleada 3 sobre esta PR).
+    /// incidencia dentro del detalle, un documento Urgente sería
+    /// indistinguible de uno Próximo normal en esta lista (hallazgo de Codex,
+    /// oleada 3 sobre esta PR). Desde el vocabulario único (2026-10-08) los dos
+    /// se rotulan «Por vencer»: lo que los separa en el desglose es el tono de
+    /// gravedad (<c>TonoDeSeveridad</c>), que conserva el rojo para lo urgente.
     /// </summary>
     [Fact]
-    public void El_detalle_de_Proximas_distingue_Urgente_de_Proximo_por_su_propio_badge()
+    public void El_detalle_de_Por_vencer_distingue_Urgente_de_Proximo_por_el_tono_de_su_propio_badge()
     {
         var cut = Renderizar(new MediatorFalso
         {
@@ -420,13 +425,13 @@ public class SubcontratasListaGen2Tests : BunitContext
         var lineas = cut.FindAll(".ventana-contexto-panel .ventana-linea").ToList();
 
         var lineaUrgente = lineas.Should().ContainSingle(l => l.TextContent.Contains("EPIs — Iñaki Otaegi")).Subject;
-        lineaUrgente.TextContent.Should().Contain("Urgente");
+        lineaUrgente.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer (urgente)");
         lineaUrgente.QuerySelector(".badge")!.ClassList.Should().Contain("badge-peligro",
-            "Urgente es severidad Peligro en el resto de la aplicación, no Advertencia");
+            "donde se colorea por gravedad, lo urgente sigue en rojo: es lo único que lo separa de lo próximo");
 
         var lineaProxima = lineas.Should().ContainSingle(l => l.TextContent.Contains("Reconocimiento médico — Miguel Sanz")).Subject;
-        lineaProxima.TextContent.Should().Contain("Próximo");
-        lineaProxima.QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia");
+        lineaProxima.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer");
+        lineaProxima.QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia").And.NotContain("badge-peligro");
     }
 
     /// <summary>

@@ -5310,6 +5310,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("CreadoPorUsuarioId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("EraPrincipalAlCerrarsePorCascada")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("EsPrincipal")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -5371,6 +5376,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.ToTable("AsignacionesCartera", null, t =>
                         {
+                            t.HasCheckConstraint("CK_AsignacionesCartera_EraPrincipalSoloCerrada", "NOT \"EraPrincipalAlCerrarsePorCascada\" OR \"Estado\" = 'Cerrada'");
+
                             t.HasCheckConstraint("CK_AsignacionesCartera_PrincipalSoloGestorCaeTenantEntero", "NOT \"EsPrincipal\" OR (\"AmbitoRelacionClienteId\" IS NULL AND \"AmbitoCentroId\" IS NULL AND \"AmbitoTrabajadorId\" IS NULL AND \"AmbitoProyectoId\" IS NULL AND (\"Rol\" IS NULL OR \"Rol\" IN ('GestorCae', 'CoordinadorCae')))");
 
                             t.HasCheckConstraint("CK_AsignacionesCartera_TenantEnteroSalvoCerrada", "\"AmbitoRelacionClienteId\" IS NULL OR \"Estado\" = 'Cerrada'");

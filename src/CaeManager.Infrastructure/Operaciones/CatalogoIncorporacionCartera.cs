@@ -185,6 +185,11 @@ public class CatalogoIncorporacionCartera(
         if (yaEnCartera.Count > 0)
             return ResultadoApoyoCartera.Anulada(MotivoAnulacionPropuestaApoyo.YaEnCartera);
 
+        // Fecha de fin opcional del apoyo: la que puso quien propuso. Si ya pasó, aceptar
+        // emitiría una cartera que nace caducada; la propuesta ya no ofrece nada.
+        if (propuesta.VigenciaHastaPropuesta is { } hasta && hasta <= ahora)
+            return ResultadoApoyoCartera.Anulada(MotivoAnulacionPropuestaApoyo.FechaDeFinPasada);
+
         // Candado optimista sobre la marca: se renueva la versión de la cartera del principal
         // sin cambiarle nada más. Una designación, un relevo o un cierre que le quiten la marca
         // a la vez escriben esta misma fila, y uno de los dos guardados pierde por la versión.
@@ -192,12 +197,13 @@ public class CatalogoIncorporacionCartera(
 
         var actorId = await currentUserService.ObtenerUsuarioActualIdAsync();
 
-        // Cartera de apoyo: rol fijo Gestor CAE, Tenant entero, sin caducidad. Aquí no se marca
-        // principal nunca, haya o no principal vivo: esa regla es de IncorporarAsync, que
-        // decide un Coordinador CAE o superior; un apoyo lo origina un igual.
+        // Cartera de apoyo: rol fijo Gestor CAE, Tenant entero, con la fecha de fin de la
+        // propuesta si la lleva. Aquí no se marca principal nunca, haya o no principal vivo:
+        // esa regla es de IncorporarAsync, que decide un Coordinador CAE o superior; un apoyo
+        // lo origina un igual.
         var cartera = AsignacionCartera.Externa(
             operacion, propuesta.DestinatarioUsuarioId, RolIncorporado, AmbitoAsignacion.Universal,
-            ahora, vigenciaHasta: null, ahora, actorId);
+            ahora, propuesta.VigenciaHastaPropuesta, ahora, actorId);
         dbContext.AsignacionesCartera.Add(cartera);
 
         // Misma doble escritura de F1 que IncorporarAsync.
@@ -444,6 +450,84 @@ public class CatalogoIncorporacionCartera(
             .ToListAsync(cancellationToken);
         if (carteras.Count == 0) return false;
 
+        await CerrarPorRetiradaAsync(carteras, propietarioTenantId, operadorTenantId, usuarioId, actorUsuarioId, cancellationToken);
+        return true;
+    }
+
+    public async Task<IReadOnlyList<ApoyoVivoDeCartera>> ObtenerApoyosVivosAsync(
+        Guid operadorTenantId, CancellationToken cancellationToken = default)
+    {
+        var apoyos = await (
+            from p in dbContext.PropuestasApoyoCartera
+            join c in CarterasVivasDelOperador(operadorTenantId) on p.AsignacionCarteraId equals (Guid?)c.Id
+            join t in dbContext.Tenants on c.PropietarioTenantId equals t.Id
+            where p.OperadorTenantId == operadorTenantId
+                  && p.Estado == EstadoPropuestaApoyoCartera.Aceptada
+                  && c.UsuarioId == p.DestinatarioUsuarioId
+                  && c.Rol == RolIncorporado
+                  && !c.EsPrincipal
+            select new ApoyoVivoDeCartera(
+                p.Id, c.AsignacionOperacionId, c.PropietarioTenantId, t.Nombre,
+                p.DestinatarioUsuarioId, p.ProponenteUsuarioId, c.VigenciaHasta))
+            .ToListAsync(cancellationToken);
+
+        return apoyos.OrderBy(a => a.NombreTenant).ThenBy(a => a.PropuestaId).ToList();
+    }
+
+    public async Task<ResultadoRetiradaApoyo> RetirarCarteraDeApoyoAsync(
+        PropuestaApoyoCartera propuesta, Guid actorUsuarioId, bool exigirProponentePrincipal,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(propuesta);
+        if (propuesta.Estado != EstadoPropuestaApoyoCartera.Aceptada || propuesta.AsignacionCarteraId is not { } carteraId)
+            throw new InvalidOperationException("Solo se retira el apoyo de una propuesta aceptada.");
+
+        // Seguida por el contexto: su versión es la que detecta que alguien le puso la marca
+        // de principal, o la cerró, entre esta lectura y el guardado.
+        var cartera = await dbContext.AsignacionesCartera.FirstOrDefaultAsync(
+            c => c.Id == carteraId
+                 && c.OperadorTenantId == propuesta.OperadorTenantId
+                 && c.PropietarioTenantId == propuesta.PropietarioTenantId
+                 && c.UsuarioId == propuesta.DestinatarioUsuarioId, cancellationToken);
+
+        // Cerrada (caducó, cayó con la operación, otro la retiró): ya no hay apoyo que retirar.
+        // Solo queda poner la propuesta al día.
+        if (cartera is null || cartera.Estado == EstadoAsignacion.Cerrada)
+        {
+            propuesta.Terminar();
+            return ResultadoRetiradaApoyo.YaEstabaCerrada;
+        }
+
+        if (cartera.EsPrincipal)
+            return ResultadoRetiradaApoyo.YaNoEsDeApoyo;
+
+        if (exigirProponentePrincipal)
+        {
+            var principal = await CarterasVivasDelOperador(propuesta.OperadorTenantId)
+                .FirstOrDefaultAsync(c => c.AsignacionOperacionId == propuesta.AsignacionOperacionId && c.EsPrincipal, cancellationToken);
+            if (principal is null || principal.UsuarioId != propuesta.ProponenteUsuarioId)
+                return ResultadoRetiradaApoyo.ProponenteYaNoEsPrincipal;
+
+            // Mismo candado optimista que IncorporarApoyoAsync: si la marca cambia de manos a
+            // la vez, uno de los dos guardados pierde por la versión de esta fila.
+            dbContext.Entry(principal).Property(c => c.Version).IsModified = true;
+        }
+
+        await CerrarPorRetiradaAsync(
+            [cartera], propuesta.PropietarioTenantId, propuesta.OperadorTenantId, propuesta.DestinatarioUsuarioId,
+            actorUsuarioId, cancellationToken);
+        return ResultadoRetiradaApoyo.Retirada;
+    }
+
+    /// <summary>
+    /// El camino único de la retirada de una cartera del Tenant entero: cierra las carteras
+    /// dadas, pone al día la solicitud de incorporación o la propuesta de apoyo que las creó y
+    /// borra la fila heredada de Operador Delegado si ya no la sostiene ninguna otra cartera.
+    /// </summary>
+    private async Task CerrarPorRetiradaAsync(
+        IReadOnlyCollection<AsignacionCartera> carteras, Guid propietarioTenantId, Guid operadorTenantId,
+        Guid usuarioId, Guid actorUsuarioId, CancellationToken cancellationToken)
+    {
         var ahora = DateTime.UtcNow;
         foreach (var cartera in carteras)
             cartera.Cerrar(MotivoCierreAsignacion.RetiradaPorElOperador, ahora);
@@ -459,32 +543,52 @@ public class CatalogoIncorporacionCartera(
         foreach (var solicitud in solicitudes)
             solicitud.Revocar(actorUsuarioId, ahora);
 
-        // La fila heredada solo sobra si no queda otra cartera vigente del usuario en ese Tenant:
-        // otra cartera vigente suya en ese Tenant (de otro rol, o bajo otra operación) sigue necesitando que el
-        // Tenant le aparezca.
-        var vigenteAhora = DateTime.UtcNow;
+        // Y la propuesta de apoyo que la emitió, igual: el apoyo terminó.
+        var propuestas = await dbContext.PropuestasApoyoCartera
+            .Where(p => p.OperadorTenantId == operadorTenantId
+                        && p.DestinatarioUsuarioId == usuarioId
+                        && p.Estado == EstadoPropuestaApoyoCartera.Aceptada
+                        && p.AsignacionCarteraId != null && cerradas.Contains(p.AsignacionCarteraId.Value))
+            .ToListAsync(cancellationToken);
+        foreach (var propuesta in propuestas)
+            propuesta.Terminar();
+
+        await RetirarFilaHeredadaSiSobraAsync(
+            dbContext, propietarioTenantId, operadorTenantId, usuarioId, cerradas, ahora, cancellationToken);
+    }
+
+    /// <summary>
+    /// Borra la fila heredada de Operador Delegado del usuario sobre ese Tenant propietario
+    /// <b>solo si no le queda otra cartera vigente</b> en él (de otro rol, o bajo otra
+    /// operación): esa otra sigue necesitando que el Tenant le aparezca. La fila heredada
+    /// autoriza el Tenant por sí sola (vía heredada de <c>TenantsBeneficiariosAutorizados</c>),
+    /// así que <b>todo cierre de una cartera externa del Tenant entero tiene que pasar por
+    /// aquí</b>: sin ello la cartera quedaría cerrada y el acceso, intacto. Lo usan la retirada
+    /// y el cierre por caducidad (<see cref="ExpiracionAsignacionesHostedService"/>). Sin guardar.
+    /// </summary>
+    internal static async Task RetirarFilaHeredadaSiSobraAsync(
+        CaeManagerDbContext dbContext, Guid propietarioTenantId, Guid operadorTenantId, Guid usuarioId,
+        IReadOnlyCollection<Guid> carterasCerradas, DateTime ahora, CancellationToken cancellationToken)
+    {
         var leQuedaOtra = await dbContext.AsignacionesCartera.AnyAsync(c =>
             c.UsuarioId == usuarioId
             && c.PropietarioTenantId == propietarioTenantId
-            && !cerradas.Contains(c.Id)
+            && !carterasCerradas.Contains(c.Id)
             && c.Estado == EstadoAsignacion.Vigente
-            && (c.VigenciaHasta == null || vigenteAhora < c.VigenciaHasta), cancellationToken);
+            && (c.VigenciaHasta == null || ahora < c.VigenciaHasta), cancellationToken);
+        if (leQuedaOtra)
+            return;
 
-        if (!leQuedaOtra)
-        {
-            var filas = await (
-                from fila in dbContext.AsignacionesOperadorDelegado
-                join vinculo in dbContext.DelegacionesTenant on fila.DelegacionTenantId equals vinculo.Id
-                where fila.UsuarioId == usuarioId
-                      && vinculo.TenantClienteId == propietarioTenantId
-                      && vinculo.TenantConsultoraId == operadorTenantId
-                      && vinculo.Proposito == PropositoDelegacion.OperadorExterno
-                select fila)
-                .ToListAsync(cancellationToken);
-            dbContext.AsignacionesOperadorDelegadoConRevocadas.RemoveRange(filas);
-        }
-
-        return true;
+        var filas = await (
+            from fila in dbContext.AsignacionesOperadorDelegado
+            join vinculo in dbContext.DelegacionesTenant on fila.DelegacionTenantId equals vinculo.Id
+            where fila.UsuarioId == usuarioId
+                  && vinculo.TenantClienteId == propietarioTenantId
+                  && vinculo.TenantConsultoraId == operadorTenantId
+                  && vinculo.Proposito == PropositoDelegacion.OperadorExterno
+            select fila)
+            .ToListAsync(cancellationToken);
+        dbContext.AsignacionesOperadorDelegadoConRevocadas.RemoveRange(filas);
     }
 
     /// <summary>Las restricciones únicas cuya violación es la carrera esperada, no un defecto.</summary>

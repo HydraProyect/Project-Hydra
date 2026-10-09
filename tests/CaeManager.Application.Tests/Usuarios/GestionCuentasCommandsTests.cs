@@ -6,6 +6,7 @@ using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.AsignarRolACuenta;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
+using CaeManager.Application.Usuarios.Commands.CorregirCorreoCuentaPendiente;
 using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Application.Usuarios.Commands.EditarUsuario;
 using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
@@ -471,6 +472,113 @@ public class GestionCuentasCommandsTests
         puerto.Escrituras.Should().BeEmpty();
     }
 
+    // ---------- Corregir el correo de una cuenta pendiente (H9) ----------
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    public async Task Quien_puede_crear_la_cuenta_corrige_su_correo_mientras_sigue_pendiente(string rol)
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
+
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon(rol), EnSuTenant)
+            .Handle(new(Cuenta, "  corregida@x.test "), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().Be("token-nuevo");
+        puerto.Escrituras.Should().Equal($"corregirCorreo:{Cuenta}:corregida@x.test");
+    }
+
+    [Theory]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    [InlineData(null)]
+    public async Task Sin_autoridad_sobre_cuentas_no_se_corrige_el_correo(string? rol)
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
+
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon(rol), EnSuTenant)
+            .Handle(new(Cuenta, "corregida@x.test"), default);
+
+        resultado.Error.Should().Be(AutoridadSobreCuentas.SinAutoridad);
+        puerto.Escrituras.Should().BeEmpty();
+        puerto.Lecturas.Should().BeEmpty("sin autoridad ni siquiera se lee la cuenta");
+    }
+
+    [Fact]
+    public async Task No_se_corrige_el_correo_de_una_cuenta_que_no_es_del_Tenant_activo()
+    {
+        var puerto = new GestionCuentasFalsa
+        {
+            [Cuenta] = CuentaPropia("GestorCae", pendiente: true) with { EsPropiaDelTenantActual = false },
+        };
+
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+            .Handle(new(Cuenta, "corregida@x.test"), default);
+
+        resultado.Error.Should().Be(AutoridadSobreCuentas.NoEncontrado);
+        puerto.Escrituras.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task No_se_corrige_el_correo_de_una_cuenta_ya_activada()
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: false) };
+
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+            .Handle(new(Cuenta, "corregida@x.test"), default);
+
+        resultado.Error.Should().Be(GenerarActivacionUsuarioCommandHandler.YaActivada);
+        puerto.Escrituras.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_la_cuenta_se_activa_entre_la_comprobacion_y_la_escritura_el_desenlace_es_el_mismo()
+    {
+        var puerto = new GestionCuentasFalsa
+        {
+            [Cuenta] = CuentaPropia("GestorCae", pendiente: true),
+            SeActivaAntesDeCorregir = true,
+        };
+
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+            .Handle(new(Cuenta, "corregida@x.test"), default);
+
+        resultado.Error.Should().Be(GenerarActivacionUsuarioCommandHandler.YaActivada);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task Sin_correo_nuevo_no_se_corrige_nada(string correo)
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
+
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+            .Handle(new(Cuenta, correo), default);
+
+        resultado.Error.Should().Be(CorregirCorreoCuentaPendienteCommandHandler.CorreoObligatorio);
+        puerto.Escrituras.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El mismo correo no es una corrección: sería un reenvío disfrazado, auditado como
+    /// si la dirección hubiera cambiado. Para eso está «Reenviar correo de activación».
+    /// </summary>
+    [Fact]
+    public async Task El_mismo_correo_no_es_una_correccion()
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
+
+        var resultado = await new CorregirCorreoCuentaPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant)
+            .Handle(new(Cuenta, "C@X.test"), default);
+
+        resultado.Error.Should().Be(CorregirCorreoCuentaPendienteCommandHandler.MismoCorreo);
+        puerto.Escrituras.Should().BeEmpty();
+    }
+
     // ---------- Cartera en el alta (2026-09-28) ----------
 
     private static readonly Guid Beneficiario1 = Guid.NewGuid();
@@ -698,8 +806,10 @@ public class GestionCuentasCommandsTests
             .Error.Should().Be(esperado);
         (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))
             .Error.Should().Be(esperado);
+        (await new CorregirCorreoCuentaPendienteCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta, "desviado@x.test"), default))
+            .Error.Should().Be(esperado, "corregirle el correo desviaría su enlace de activación a quien lo pide");
 
-        puerto.Escrituras.Should().BeEmpty("ninguno de los cinco comandos llega a escribir");
+        puerto.Escrituras.Should().BeEmpty("ninguno de los seis comandos llega a escribir");
     }
 
     [Theory]
@@ -942,5 +1052,18 @@ public class GestionCuentasCommandsTests
 
         public Task<Result<string>> GenerarTokenActivacionAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result.Exito("token"));
+
+        /// <summary>Simula que la persona se activó entre la comprobación del Command y la escritura.</summary>
+        public bool SeActivaAntesDeCorregir { get; init; }
+
+        public Task<Result<string>> CorregirCorreoPendienteAsync(
+            Guid usuarioId, string correoNuevo, CancellationToken cancellationToken = default)
+        {
+            if (SeActivaAntesDeCorregir)
+                return Task.FromResult(Result.Fallo<string>(AutoridadSobreCuentas.YaNoPendiente));
+
+            Escrituras.Add($"corregirCorreo:{usuarioId}:{correoNuevo}");
+            return Task.FromResult(Result.Exito("token-nuevo"));
+        }
     }
 }

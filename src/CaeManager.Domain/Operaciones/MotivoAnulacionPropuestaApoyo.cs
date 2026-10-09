@@ -17,4 +17,7 @@ public enum MotivoAnulacionPropuestaApoyo
     /// marca, su cartera se cerró o su cuenta dejó de ser de gestión CAE activa.
     /// </summary>
     ProponenteYaNoEsPrincipal = 3,
+
+    /// <summary>La fecha de fin que proponía el apoyo ya había pasado cuando se fue a aceptar.</summary>
+    FechaDeFinPasada = 4,
 }

@@ -87,20 +87,14 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Los centros se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
   </data>
-  <data name="MenuVistaPrevia" xml:space="preserve">
-    <value>Vista rápida</value>
-  </data>
   <data name="CabeceraMas" xml:space="preserve">
     <value>Más</value>
   </data>
   <data name="ExportarAsignaciones" xml:space="preserve">
     <value>Exportar asignaciones</value>
   </data>
-  <data name="MenuVerFicha360" xml:space="preserve">
-    <value>Abrir ficha 360</value>
-  </data>
-  <data name="MenuFilaEtiqueta" xml:space="preserve">
-    <value>Acciones de {0}</value>
+  <data name="EditarConAtajo" xml:space="preserve">
+    <value>Editar (e)</value>
   </data>
   <data name="QuitarFiltroBusqueda" xml:space="preserve">
     <value>Quitar filtro de búsqueda</value>

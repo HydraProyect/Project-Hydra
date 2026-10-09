@@ -27,6 +27,8 @@ namespace CaeManager.Domain.Operaciones;
 /// 2026-10-08): la marca del Gestor CAE principal —o Coordinador CAE principal—
 /// de la Asignación de Operación. La marca <b>no concede nada en datos</b>: una
 /// cartera principal y una de apoyo tienen el mismo ámbito efectivo.
+/// <see cref="EraPrincipalAlCerrarsePorCascada"/> no es mutable en ese sentido: se
+/// escribe una sola vez, con el cierre.
 /// </summary>
 public class AsignacionCartera : AsignacionResponsabilidad
 {
@@ -149,11 +151,37 @@ public class AsignacionCartera : AsignacionResponsabilidad
     /// <summary>Apaga la marca de principal. Idempotente; la cartera sigue viva y con el mismo ámbito efectivo.</summary>
     public void DejarDeSerPrincipal() => EsPrincipal = false;
 
+    /// <summary>
+    /// Si esta cartera llevaba la marca de principal en el instante en que la cerró la cascada
+    /// de su Asignación de Operación (la delegación se desactivó). Es <b>histórico</b>, no la
+    /// marca: una cartera cerrada sigue sin ser la principal de nada y no ocupa el índice
+    /// único. Sirve para que, al reactivar la delegación, vuelva a ser principal quien lo era
+    /// (decisión del propietario, 2026-10-08, D-9).
+    ///
+    /// Solo lo escribe <see cref="CerrarPorCascadaDeLaOperacion"/>. La retirada individual, la
+    /// expiración por fecha y cualquier otro cierre lo dejan en <c>false</c>: ahí el principal
+    /// se releva en el acto y no hay nada que restaurar. Lo repite la base de datos con el
+    /// CHECK <c>CK_AsignacionesCartera_EraPrincipalSoloCerrada</c>.
+    /// </summary>
+    public bool EraPrincipalAlCerrarsePorCascada { get; private set; }
+
     /// <summary>Una cartera cerrada no es la principal de nada: el cierre apaga la marca.</summary>
     public override void Cerrar(MotivoCierreAsignacion motivo, DateTime ahora)
     {
         base.Cerrar(motivo, ahora);
         EsPrincipal = false;
+    }
+
+    /// <summary>
+    /// El cierre que arrastra la cascada de la Asignación de Operación entera. Cierra igual que
+    /// <see cref="Cerrar"/> —la marca se apaga— y además recuerda si la llevaba
+    /// (<see cref="EraPrincipalAlCerrarsePorCascada"/>).
+    /// </summary>
+    public void CerrarPorCascadaDeLaOperacion(MotivoCierreAsignacion motivo, DateTime ahora)
+    {
+        var eraPrincipal = EsPrincipal;
+        Cerrar(motivo, ahora);
+        EraPrincipalAlCerrarsePorCascada = eraPrincipal;
     }
 
     /// <summary>

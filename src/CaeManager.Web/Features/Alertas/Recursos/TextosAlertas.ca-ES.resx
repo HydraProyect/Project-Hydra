@@ -121,7 +121,7 @@
     <value>Todos</value>
   </data>
   <data name="FiltroEstadoFaltante" xml:space="preserve">
-    <value>Falta</value>
+    <value>Pendent</value>
   </data>
   <data name="FiltroEstadoVencido" xml:space="preserve">
     <value>Vencido</value>

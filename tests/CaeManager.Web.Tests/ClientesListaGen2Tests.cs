@@ -217,9 +217,15 @@ public class ClientesListaGen2Tests : BunitContext
             // listados, fase 1): como el handler, con OrderBy estable (la razón social queda como
             // desempate) y sobre la cartera entera; solo con filtro de estado hereda su tope.
             var ordenarPorEstado = q.OrdenarPor == nameof(ClienteListaDto.EstadoDocumentalPeor);
+            // Como el handler: los estados de la franja (EstadosDocumentales) y el de un solo valor se suman en
+            // un mismo conjunto, y pasa el Cliente empresarial que cumpla CUALQUIERA de ellos.
+            var estadosPedidos = (q.EstadosDocumentales ?? []).ToHashSet();
+            if (q.EstadoDocumental is { } unEstado)
+                estadosPedidos.Add(unEstado);
+
             if (ordenarPorEstado)
             {
-                var candidatos = q.EstadoDocumental is null
+                var candidatos = estadosPedidos.Count == 0
                     ? ordenados.ToList()
                     : ordenados.Take(LimiteCandidatosConFiltroDeEstado).ToList();
                 ordenados = q.Descendente
@@ -227,13 +233,14 @@ public class ClientesListaGen2Tests : BunitContext
                     : candidatos.OrderBy(Prioridad).ToList();
             }
 
-            var coincidentes = q.EstadoDocumental is null
+            // Vigente es el centinela de «sin ninguna alerta abierta» (botón «Sin incidencias»).
+            var coincidentes = estadosPedidos.Count == 0
                 ? ordenados.ToList()
                 : ordenados
                     .Take(LimiteCandidatosConFiltroDeEstado)
-                    .Where(c => q.EstadoDocumental == EstadoDocumento.Vigente
-                        ? c.EstadoDocumentalPeor is null
-                        : Presentes(c).Contains(q.EstadoDocumental.Value))
+                    .Where(c => c.EstadoDocumentalPeor is null
+                        ? estadosPedidos.Contains(EstadoDocumento.Vigente)
+                        : Presentes(c).Overlaps(estadosPedidos))
                     .ToList();
 
             var pagina = coincidentes
@@ -241,13 +248,37 @@ public class ClientesListaGen2Tests : BunitContext
                 .Take(q.TamanoPagina)
                 .ToList();
 
-            return new ResultadoPaginado<ClienteListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina);
+            return new ResultadoPaginado<ClienteListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina)
+            {
+                RecuentosPorEstado = q.ConRecuentosPorEstado ? ContarPorEstado(sinEstado) : null,
+                TotalSinFiltroDeEstado = q.ConRecuentosPorEstado ? sinEstado.Count : null
+            };
         }
 
+        /// <summary>
+        /// Las cifras de la franja, como <c>ContarPorEstadoAsync</c> del handler: con los demás filtros y SIN el
+        /// de estado; un estado cuenta a quien tiene ALGUNA alerta en él (por eso no suman el total) y la clave
+        /// conjunta de «Por vencer» cuenta una vez a quien tiene urgentes y próximos.
+        /// </summary>
+        private Dictionary<string, int> ContarPorEstado(List<ClienteListaDto> sinEstado)
+        {
+            var presentes = sinEstado.Where(c => c.EstadoDocumentalPeor is not null).Select(Presentes).ToList();
+            return new Dictionary<string, int>
+            {
+                [nameof(EstadoDocumento.Vencido)] = presentes.Count(p => p.Contains(EstadoDocumento.Vencido)),
+                [nameof(EstadoDocumento.Faltante)] = presentes.Count(p => p.Contains(EstadoDocumento.Faltante)),
+                [nameof(EstadoDocumento.Urgente)] = presentes.Count(p => p.Contains(EstadoDocumento.Urgente)),
+                [nameof(EstadoDocumento.Proximo)] = presentes.Count(p => p.Contains(EstadoDocumento.Proximo)),
+                [ObtenerClientesQuery.ClavePorVencer] = presentes.Count(p => p.Contains(EstadoDocumento.Urgente) || p.Contains(EstadoDocumento.Proximo)),
+                [nameof(EstadoDocumento.Vigente)] = sinEstado.Count - presentes.Count
+            };
+        }
+
+        /// <summary>Orden de gravedad del handler (decisión del 2026-10-03): Vencido antes que Faltante.</summary>
         private static int Prioridad(ClienteListaDto c) => (c.EstadoDocumentalPeor ?? EstadoDocumento.Vigente) switch
         {
-            EstadoDocumento.Faltante => 0,
-            EstadoDocumento.Vencido => 1,
+            EstadoDocumento.Vencido => 0,
+            EstadoDocumento.Faltante => 1,
             EstadoDocumento.Urgente => 2,
             EstadoDocumento.Proximo => 3,
             _ => 4
@@ -552,6 +583,13 @@ public class ClientesListaGen2Tests : BunitContext
             .Single(i => i.TextContent.Trim() == opcion).ClickAsync(new MouseEventArgs());
     }
 
+    /// <summary>
+    /// Marca (o desmarca) un botón de la franja de estado por su rótulo. El estado ya no es una pastilla:
+    /// «Vencidos», «Pendientes», «Por vencer» y «Sin incidencias» se marcan por separado y se suman.
+    /// </summary>
+    private static Task AlternarEnLaFranja(IRenderedComponent<Clientes> cut, string rotulo) =>
+        cut.BotonDeFranja(rotulo).ClickAsync(new MouseEventArgs());
+
     /// <summary>Abre «Más filtros» y pulsa el ítem con ese texto (un filtro guardado o «Guardar filtro»).</summary>
     private static async Task PulsarEnMasFiltros(IRenderedComponent<Clientes> cut, string item)
     {
@@ -690,12 +728,43 @@ public class ClientesListaGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Las_pastillas_son_Gestor_CAE_Estado_y_Criticidad_seguidas_de_Mas_filtros()
+    public void Las_pastillas_son_Gestor_CAE_y_Criticidad_seguidas_de_Mas_filtros_y_el_Estado_va_en_la_franja()
     {
         var cut = Renderizar(new MediatorFalso());
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(b => b.GetAttribute("aria-label"))
-            .Should().Equal("Gestor CAE", "Estado", "Criticidad", "Más filtros");
+            .Should().Equal("Gestor CAE", "Criticidad", "Más filtros");
+        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Pendientes", "Por vencer", "Sin incidencias");
+        cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
+    }
+
+    /// <summary>
+    /// Cada botón de la franja dice cuántos Clientes empresariales quedarían al marcarlo solo. Como el filtro
+    /// pregunta «hay alguna alerta», uno con vencidos y urgentes cuenta en los dos botones y las cifras no suman
+    /// el total: «Todos» enseña el total de la consulta y no la suma. «Por vencer» cuenta una vez a quien tiene
+    /// urgentes Y próximos (clave conjunta), no dos.
+    /// </summary>
+    [Fact]
+    public void La_franja_cuenta_por_estado_sin_sumar_dos_veces_y_Todos_dice_el_total()
+    {
+        var conDeTodo = Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 2);
+        var porVencer = Cliente("Montajes Ebro S.L.", peor: EstadoDocumento.Urgente, cantidad: 1);
+        var mediador = new MediatorFalso
+        {
+            Almacen = { conDeTodo, porVencer, Cliente("Grúas Aldapa S.L."), Cliente("Talleres Berriz Coop.") }
+        };
+        mediador.EstadosPresentes[conDeTodo.Id] = [EstadoDocumento.Vencido, EstadoDocumento.Urgente];
+        mediador.EstadosPresentes[porVencer.Id] = [EstadoDocumento.Urgente, EstadoDocumento.Proximo];
+        var cut = Renderizar(mediador);
+
+        UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
+        cut.WaitForAssertion(() => cut.BotonDeFranja("Todos").RecuentoDeFranja().Should().Be(4));
+        cut.BotonDeFranja("Vencidos").RecuentoDeFranja().Should().Be(1);
+        cut.BotonDeFranja("Pendientes").RecuentoDeFranja().Should().Be(0);
+        cut.BotonDeFranja("Pendientes").ClassList.Should().Contain("franja-estado-boton-vacio");
+        cut.BotonDeFranja("Por vencer").RecuentoDeFranja().Should().Be(2,
+            "Montajes tiene urgentes y próximos: sumar las dos claves daría 3");
+        cut.BotonDeFranja("Sin incidencias").RecuentoDeFranja().Should().Be(2);
     }
 
     /// <summary>
@@ -731,25 +800,86 @@ public class ClientesListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// «Con vencidos» pregunta si HAY algún vencido, no si el peor es vencido:
-    /// Montajes tiene un faltante (peor) y además vencidos, y tiene que salir.
+    /// «Pendientes» pregunta si HAY algún pendiente (Faltante), no si el peor estado es ese: Montajes tiene
+    /// vencidos (peor) y además un faltante, y tiene que salir. El estado viaja en la consulta como lista y en
+    /// la URL como <c>estado=</c>, y se ve marcado en la franja: ya no pinta chip.
     /// </summary>
     [Fact]
-    public async Task El_filtro_de_estado_documental_viaja_en_la_consulta_y_se_ve_como_chip()
+    public async Task El_filtro_de_estado_documental_viaja_en_la_consulta_y_en_la_url_y_se_ve_marcado_en_la_franja()
     {
-        var montajes = Cliente("Montajes Ebro S.L.", peor: EstadoDocumento.Faltante, cantidad: 1);
+        var montajes = Cliente("Montajes Ebro S.L.", peor: EstadoDocumento.Vencido, cantidad: 1);
         var mediador = new MediatorFalso
         {
-            Almacen = { Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 12), montajes, Cliente("Grúas Aldapa S.L.") }
+            Almacen = { Cliente("Refrielectric S.A.", peor: EstadoDocumento.Faltante, cantidad: 12), montajes, Cliente("Grúas Aldapa S.L.") }
         };
         mediador.EstadosPresentes[montajes.Id] = [EstadoDocumento.Faltante, EstadoDocumento.Vencido];
         var cut = Renderizar(mediador);
 
-        await ElegirEnLaPastilla(cut, "Estado", "Con vencidos");
+        await AlternarEnLaFranja(cut, "Pendientes");
 
-        UltimaConsulta(mediador).EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        UltimaConsulta(mediador).EstadosDocumentales.Should().Equal(EstadoDocumento.Faltante);
+        UltimaConsulta(mediador).EstadoDocumental.Should().BeNull("la página manda la lista, no el filtro de un solo estado");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("estado=Faltante");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Montajes Ebro S.L.", "Refrielectric S.A."]));
-        cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().ContainSingle(t => t.StartsWith("Estado: Vencido"));
+        cut.MarcadosEnFranja().Should().Equal("Pendientes");
+        TextosDeLosChips(cut).Should().BeEmpty("el estado se ve en la franja, no como chip");
+    }
+
+    /// <summary>
+    /// La franja admite varios estados: marcar un segundo botón lo SUMA al primero (pasa quien cumpla
+    /// cualquiera), «Por vencer» manda Urgente y Próximo a la vez, y «Todos» borra la selección de la consulta
+    /// y de la URL.
+    /// </summary>
+    [Fact]
+    public async Task Marcar_dos_botones_de_la_franja_suma_sus_estados_y_Todos_los_borra()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen =
+            {
+                Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 12),
+                Cliente("Montajes Ebro S.L.", peor: EstadoDocumento.Proximo, cantidad: 1),
+                Cliente("Grúas Aldapa S.L.", peor: EstadoDocumento.Faltante, cantidad: 1),
+                Cliente("Talleres Berriz Coop.")
+            }
+        };
+        var cut = Renderizar(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await AlternarEnLaFranja(cut, "Vencidos");
+        await AlternarEnLaFranja(cut, "Por vencer");
+
+        UltimaConsulta(mediador).EstadosDocumentales
+            .Should().Equal(EstadoDocumento.Vencido, EstadoDocumento.Urgente, EstadoDocumento.Proximo);
+        Uri.UnescapeDataString(navegacion.Uri).Should().EndWith("estado=Vencido,Urgente,Proximo");
+        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A.", "Montajes Ebro S.L."]));
+        cut.MarcadosEnFranja().Should().Equal("Vencidos", "Por vencer");
+
+        await AlternarEnLaFranja(cut, "Todos");
+
+        UltimaConsulta(mediador).EstadosDocumentales.Should().BeNull();
+        navegacion.Uri.Should().NotContain("estado=");
+        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(4));
+        cut.MarcadosEnFranja().Should().Equal("Todos");
+    }
+
+    /// <summary>
+    /// El estado llega también de la URL (enlace compartido, vuelta atrás): se marca en la franja y filtra la
+    /// primera consulta. Un valor que ningún botón conoce se descarta en vez de filtrar por algo invisible.
+    /// </summary>
+    [Fact]
+    public void El_estado_de_la_url_marca_la_franja_y_filtra_y_lo_desconocido_se_descarta()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 12), Cliente("Montajes Ebro S.L.") }
+        };
+
+        var cut = Renderizar(mediador, "clientes?estado=Vencido,Inventado");
+
+        UltimaConsulta(mediador).EstadosDocumentales.Should().Equal(EstadoDocumento.Vencido);
+        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
+        cut.MarcadosEnFranja().Should().Equal("Vencidos");
     }
 
     [Fact]
@@ -808,17 +938,18 @@ public class ClientesListaGen2Tests : BunitContext
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
         await ElegirEnLaPastilla(cut, "Gestor CAE", "Marta Ibarra");
-        await ElegirEnLaPastilla(cut, "Estado", "Con vencidos");
+        // El estado se marca en la franja, que sustituyó a la pastilla «Estado».
+        await AlternarEnLaFranja(cut, "Vencidos");
 
         navegacion.Uri.Should().Contain($"gestor={marta.Id}").And.Contain("estado=Vencido");
         var consulta = UltimaConsulta(mediador);
         consulta.EjecutivoUsuarioId.Should().Be(marta.Id, "escribir el segundo filtro en la URL no puede devolver el primero a vacío");
-        consulta.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        consulta.EstadosDocumentales.Should().Equal(EstadoDocumento.Vencido);
     }
 
     /// <summary>Recargar o compartir el enlace reproduce la vista: los dos filtros salen de la URL.</summary>
     [Fact]
-    public void Un_enlace_con_Gestor_CAE_y_estado_documental_filtra_la_consulta_y_pinta_sus_chips()
+    public void Un_enlace_con_Gestor_CAE_y_estado_documental_filtra_la_consulta_y_los_deja_a_la_vista()
     {
         var marta = GestorCae("Marta Ibarra");
         var mediador = new MediatorFalso
@@ -829,9 +960,10 @@ public class ClientesListaGen2Tests : BunitContext
 
         var consulta = UltimaConsulta(mediador);
         consulta.EjecutivoUsuarioId.Should().Be(marta.Id);
-        consulta.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
-        cut.WaitForAssertion(() => TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Gestor CAE: Marta Ibarra"))
-            .And.Contain(t => t.StartsWith("Estado: Vencido")));
+        consulta.EstadosDocumentales.Should().Equal(EstadoDocumento.Vencido);
+        // El Gestor CAE se ve en su chip; el estado, marcado en la franja (ya no tiene chip).
+        cut.WaitForAssertion(() => TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Gestor CAE: Marta Ibarra")));
+        cut.MarcadosEnFranja().Should().Equal("Vencidos");
     }
 
     [Fact]
@@ -842,7 +974,7 @@ public class ClientesListaGen2Tests : BunitContext
 
         var consulta = UltimaConsulta(mediador);
         consulta.EjecutivoUsuarioId.Should().BeNull();
-        consulta.EstadoDocumental.Should().BeNull("999 se convierte a un número de enum que no existe: no es un estado");
+        consulta.EstadosDocumentales.Should().BeNull("999 se convierte a un número de enum que no existe: no es un estado");
         TextosDeLosChips(cut).Should().BeEmpty();
     }
 
@@ -986,10 +1118,12 @@ public class ClientesListaGen2Tests : BunitContext
 
     /// <summary>
     /// Cambiar un filtro recarga la lista UNA vez. El primer cambio solo sirve
-    /// para asentar el total en 1: se mide el SEGUNDO, de «Vencido» a «Vigente»,
-    /// con el total quieto — si cambiara, QuickGrid volvería a pedir la misma
-    /// página por su cuenta y el recuento mezclaría esa repetición con la
-    /// consulta de la página.
+    /// para asentar el total en 1: se mide el SEGUNDO, con el total quieto — si
+    /// cambiara, QuickGrid volvería a pedir la misma página por su cuenta y el
+    /// recuento mezclaría esa repetición con la consulta de la página. Con la
+    /// franja un clic solo añade o quita estados, así que el segundo cambio que
+    /// deja el total quieto es sumar «Por vencer» cuando nadie lo está: el filtro
+    /// cambia (se comprueba en la consulta) y las filas son las mismas.
     /// </summary>
     [Fact]
     public async Task Cambiar_de_filtro_sin_cambiar_el_total_hace_una_sola_consulta()
@@ -1000,15 +1134,18 @@ public class ClientesListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
 
-        await ElegirEnLaPastilla(cut, "Estado", "Con vencidos");
+        await AlternarEnLaFranja(cut, "Vencidos");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal("Refrielectric S.A."));
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await ElegirEnLaPastilla(cut, "Estado", "Al corriente");
+        await AlternarEnLaFranja(cut, "Por vencer");
 
-        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal("Montajes Ebro S.L."));
+        cut.WaitForAssertion(() => UltimaConsulta(mediador).EstadosDocumentales
+            .Should().Equal(EstadoDocumento.Vencido, EstadoDocumento.Urgente, EstadoDocumento.Proximo));
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Vencidos", "Por vencer"));
+        NombresDeLasFilas(cut).Should().Equal("Refrielectric S.A.");
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
-            "los dos estados devuelven un cliente: la única consulta que cabe contar es la del filtro nuevo");
+            "los dos filtros devuelven un Cliente empresarial: la única consulta que cabe contar es la del filtro nuevo");
     }
 
     private static IElement CabeceraOrdenable(IRenderedComponent<Clientes> cut, string titulo) =>
@@ -1202,8 +1339,13 @@ public class ClientesListaGen2Tests : BunitContext
 
     // ------------------------------------------------------------- Filas
 
+    /// <summary>
+    /// La celda de estado (EstadoFila): la pastilla dice el peor estado con el vocabulario único («Vencido»,
+    /// «Por vencer»), el motivo de debajo dice cuántos documentos —concordado— sin repetir el estado, y quien
+    /// no tiene alertas no lleva pastilla: «Sin incidencias» con punto verde.
+    /// </summary>
     [Fact]
-    public void El_estado_documental_concuerda_el_recuento_y_explica_de_donde_sale()
+    public void El_estado_documental_dice_el_peor_estado_concuerda_el_recuento_debajo_y_explica_de_donde_sale()
     {
         var cut = Renderizar(new MediatorFalso
         {
@@ -1217,9 +1359,17 @@ public class ClientesListaGen2Tests : BunitContext
         });
 
         // Peor estado primero (orden por defecto): los dos vencidos, por razón social, y después el resto.
-        var badges = cut.FindAll("tbody .badge");
-        badges.Select(b => b.TextContent.Trim()).Should().Equal(["1 vencido", "12 vencidos", "9 próximos", "Al corriente"]);
-        badges[1].GetAttribute("title").Should().Contain("trabajadores").And.NotContain("centros",
+        var celdas = cut.FindAll("tbody .estado-fila");
+        celdas.Select(c => (
+                Pastilla: c.QuerySelector(".badge")?.TextContent.Trim(),
+                Motivo: c.QuerySelector(".estado-fila-motivo")?.TextContent.Trim(),
+                Correcto: c.QuerySelector("[data-pieza=estado-correcto]")?.TextContent.Trim()))
+            .Should().Equal(
+                ("Vencido", "1 documento", null),
+                ("Vencido", "12 documentos", null),
+                ("Por vencer", "9 documentos", null),
+                (null, null, "Sin incidencias"));
+        celdas[1].QuerySelector(".badge")!.GetAttribute("title").Should().Contain("trabajadores").And.NotContain("centros",
             "el agregado de ObtenerClientesQuery sale de las alertas de sus trabajadores; los centros no entran");
     }
 
@@ -1266,7 +1416,8 @@ public class ClientesListaGen2Tests : BunitContext
         var consulta = UltimaConsulta(mediador);
         consulta.OrdenarPor.Should().Be(nameof(ClienteListaDto.EstadoDocumentalPeor));
         consulta.Descendente.Should().BeFalse();
-        NombresDeLasFilas(cut).Should().Equal(["Gamma Grúas S.L.", "Zeta Talleres Coop.", "Beta Frío S.A.", "Alfa Montajes S.L."]);
+        // Orden de gravedad (decisión del 2026-10-03): Vencido antes que Faltante.
+        NombresDeLasFilas(cut).Should().Equal(["Zeta Talleres Coop.", "Gamma Grúas S.L.", "Beta Frío S.A.", "Alfa Montajes S.L."]);
         // QuickGrid rellena la página con filas vacías: solo cuentan las que pintan un Cliente empresarial.
         cut.FindAll("tbody tr").Where(tr => tr.QuerySelector(".enlace-nombre-fila") is not null)
             .Select(tr => tr.ClassName ?? string.Empty).Should().Equal(
@@ -1570,14 +1721,14 @@ public class ClientesListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador, "clientes?q=Refri&critico=true", gestores: [marta]);
         await ElegirEnLaPastilla(cut, "Gestor CAE", "Marta Ibarra");
-        await ElegirEnLaPastilla(cut, "Estado", "Con vencidos");
+        await AlternarEnLaFranja(cut, "Vencidos");
 
         // Punto de partida: los cuatro ejes están puestos en la consulta vigente.
         var vigente = UltimaConsulta(mediador);
         vigente.Busqueda.Should().Be("Refri");
         vigente.SoloCriticos.Should().BeTrue();
         vigente.EjecutivoUsuarioId.Should().Be(marta.Id);
-        vigente.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        vigente.EstadosDocumentales.Should().Equal(EstadoDocumento.Vencido);
 
         await PulsarEnMasFiltros(cut, "Guardar filtro");
         await cut.Find("[role=dialog] input").InputAsync(new ChangeEventArgs { Value = "Refri críticos de Marta con vencidos" });
@@ -1626,9 +1777,10 @@ public class ClientesListaGen2Tests : BunitContext
         consulta.Busqueda.Should().Be("Refri");
         consulta.SoloCriticos.Should().BeTrue();
         consulta.EjecutivoUsuarioId.Should().Be(marta.Id);
-        consulta.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        consulta.EstadosDocumentales.Should().Equal(EstadoDocumento.Vencido);
         var uri = Services.GetRequiredService<NavigationManager>().Uri;
-        uri.Should().Contain("q=Refri").And.Contain("critico=true");
+        uri.Should().Contain("q=Refri").And.Contain("critico=true").And.Contain("estado=Vencido");
+        cut.MarcadosEnFranja().Should().Equal("Vencidos");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
         Pastilla(cut, "Gestor CAE").GetAttribute("aria-label").Should().Be("Gestor CAE: Marta Ibarra",
             "la pastilla enseña elegido al Gestor CAE del filtro");
@@ -1658,7 +1810,7 @@ public class ClientesListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador, "clientes?critico=true", gestores: [marta]);
         await ElegirEnLaPastilla(cut, "Gestor CAE", "Marta Ibarra");
-        await ElegirEnLaPastilla(cut, "Estado", "Con vencidos");
+        await AlternarEnLaFranja(cut, "Vencidos");
 
         await PulsarEnMasFiltros(cut, antiguo.Nombre);
 
@@ -1666,11 +1818,12 @@ public class ClientesListaGen2Tests : BunitContext
         consulta.Busqueda.Should().Be("Refri");
         consulta.SoloCriticos.Should().BeNull("el filtro antiguo SÍ declara SoloCriticos: false");
         consulta.EjecutivoUsuarioId.Should().Be(marta.Id, "el filtro antiguo no declara Gestor CAE: se queda el que había");
-        consulta.EstadoDocumental.Should().Be(EstadoDocumento.Vencido, "el filtro antiguo no declara estado: se queda el que había");
+        consulta.EstadosDocumentales.Should().Equal([EstadoDocumento.Vencido], "el filtro antiguo no declara estado: se queda el que había");
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Refri").And.NotContain("critico");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]));
         Pastilla(cut, "Gestor CAE").GetAttribute("aria-label").Should().Be("Gestor CAE: Marta Ibarra");
-        TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Gestor CAE: Marta Ibarra")).And.Contain(t => t.StartsWith("Estado: Vencido"));
+        TextosDeLosChips(cut).Should().Contain(t => t.StartsWith("Gestor CAE: Marta Ibarra"));
+        cut.MarcadosEnFranja().Should().Equal(["Vencidos"], "el estado que había sigue marcado en la franja");
     }
 
     /// <summary>
@@ -1694,14 +1847,16 @@ public class ClientesListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador, gestores: [marta]);
         await ElegirEnLaPastilla(cut, "Gestor CAE", "Marta Ibarra");
-        await ElegirEnLaPastilla(cut, "Estado", "Con vencidos");
+        await AlternarEnLaFranja(cut, "Vencidos");
         UltimaConsulta(mediador).EjecutivoUsuarioId.Should().Be(marta.Id, "punto de partida: hay Gestor CAE elegido");
 
         await PulsarEnMasFiltros(cut, nuevo.Nombre);
 
         var consulta = UltimaConsulta(mediador);
         consulta.EjecutivoUsuarioId.Should().BeNull("el filtro declara GestorCaeId: null");
-        consulta.EstadoDocumental.Should().BeNull("el filtro declara EstadoDocumental: null");
+        consulta.EstadosDocumentales.Should().BeNull("el filtro declara EstadoDocumental: null");
+        consulta.EstadoDocumental.Should().BeNull();
+        cut.MarcadosEnFranja().Should().Equal("Todos");
         Pastilla(cut, "Gestor CAE").GetAttribute("aria-label").Should().Be("Gestor CAE");
         // Peor estado primero: Refrielectric tiene vencidos.
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A.", "Montajes Ebro S.L."]));
@@ -1760,16 +1915,16 @@ public class ClientesListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
         var navegacion = Services.GetRequiredService<NavigationManager>();
-        await ElegirEnLaPastilla(cut, "Estado", "Con vencidos");
+        await AlternarEnLaFranja(cut, "Vencidos");
         var consultasAntes = mediador.Enviadas.OfType<ObtenerClientesQuery>().Count();
         var uriAntes = navegacion.Uri;
 
         await PulsarEnMasFiltros(cut, roto.Nombre);
 
         mediador.Enviadas.OfType<ObtenerClientesQuery>().Should().HaveCount(consultasAntes, "no se aplicó nada, así que no hay nada que recargar");
-        UltimaConsulta(mediador).EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        UltimaConsulta(mediador).EstadosDocumentales.Should().Equal(EstadoDocumento.Vencido);
         navegacion.Uri.Should().Be(uriAntes);
-        TextosDeLosChips(cut).Should().ContainSingle(t => t.StartsWith("Estado: Vencido"));
+        cut.MarcadosEnFranja().Should().Equal(["Vencidos"], "el estado que había sigue marcado: no se tocó ningún filtro");
         Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m =>
             m.Tono == TonoToast.Advertencia && m.Mensaje.StartsWith("No se pudo aplicar este filtro guardado"));
 
@@ -1868,7 +2023,7 @@ public class ClientesListaGen2Tests : BunitContext
     /// <summary>
     /// Con el orden por Estado documental (el de por defecto) y sin filtro de estado, el handler
     /// ordena la cartera entera (ObtenerClientesOrdenPorEstadoDocumentalTests lo fija contra
-    /// PostgreSQL): el total es el real y un Faltante cuyo nombre va el último sale el primero.
+    /// PostgreSQL): el total es el real y un Vencido cuyo nombre va el último sale el primero.
     /// </summary>
     [Fact]
     public void El_doble_con_orden_por_estado_ordena_la_cartera_entera_como_el_handler()
@@ -1876,14 +2031,14 @@ public class ClientesListaGen2Tests : BunitContext
         var mediador = new MediatorFalso();
         for (var i = 1; i <= MediatorFalso.LimiteCandidatosConFiltroDeEstado; i++)
             mediador.Almacen.Add(Cliente($"Cliente {i:0000}"));
-        mediador.Almacen.Add(Cliente("Cliente 9999", peor: EstadoDocumento.Faltante, cantidad: 1));
-        mediador.Almacen.Add(Cliente("Aaa Primero", peor: EstadoDocumento.Vencido, cantidad: 1));
+        mediador.Almacen.Add(Cliente("Cliente 9999", peor: EstadoDocumento.Vencido, cantidad: 1));
+        mediador.Almacen.Add(Cliente("Aaa Primero", peor: EstadoDocumento.Faltante, cantidad: 1));
 
         var ordenados = mediador.Filtrar(new ObtenerClientesQuery(null, null, OrdenarPor: nameof(ClienteListaDto.EstadoDocumentalPeor)));
 
         ordenados.TotalElementos.Should().Be(MediatorFalso.LimiteCandidatosConFiltroDeEstado + 2);
         ordenados.Elementos.Select(c => c.RazonSocial).Should().StartWith(["Cliente 9999", "Aaa Primero", "Cliente 0001"],
-            "el Faltante va primero aunque por nombre sea el candidato 2.002; después el vencido y el resto por razón social");
+            "el Vencido va primero aunque por nombre sea el candidato 2.002; después el Faltante (Vencido pesa más desde el 2026-10-03) y el resto por razón social");
     }
 
     /// <summary>

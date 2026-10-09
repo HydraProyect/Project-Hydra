@@ -1,0 +1,85 @@
+/* Franja de estado de un listado. Botones rectangulares (no pastillas: las pastillas son los filtros de
+   contexto de la barra) con un punto del color del estado, la cifra y el nombre. */
+.franja-estado {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.franja-estado-boton {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    min-height: 32px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.franja-estado-boton:hover {
+    background-color: var(--color-fila-hover);
+}
+
+.franja-estado-boton:focus-visible {
+    outline: 2px solid var(--color-primary-400);
+    outline-offset: 2px;
+}
+
+.franja-estado-recuento {
+    color: var(--color-text);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Marcado: mismo acento que el control segmentado de la fila de filtros. */
+.franja-estado-boton[aria-pressed="true"] {
+    background-color: var(--color-primary-50);
+    border-color: var(--color-primary-700);
+    color: var(--color-primary-700);
+    font-weight: 600;
+}
+
+.franja-estado-boton[aria-pressed="true"] .franja-estado-recuento {
+    color: inherit;
+}
+
+/* Sin filas en ese estado: sigue pulsable (se puede desmarcar), pero cede protagonismo. */
+.franja-estado-boton-vacio:not([aria-pressed="true"]) {
+    opacity: 0.6;
+}
+
+.franja-estado-punto {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    color: var(--color-text-muted);
+    background-color: currentColor;
+}
+
+.franja-estado-punto-peligro {
+    color: var(--color-danger-700);
+}
+
+.franja-estado-punto-advertencia {
+    color: var(--color-warning-700);
+}
+
+.franja-estado-punto-tolerancia {
+    color: var(--color-tolerancia-700);
+}
+
+.franja-estado-punto-exito {
+    color: var(--color-success-700);
+}
+
+.franja-estado-punto-info {
+    color: var(--color-info-500);
+}
