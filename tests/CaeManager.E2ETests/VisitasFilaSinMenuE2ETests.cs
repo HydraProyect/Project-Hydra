@@ -37,7 +37,9 @@ public class VisitasFilaSinMenuE2ETests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas");
 
-        var fecha = Ayudas.HoyDeNegocio().AddDays(400 + Random.Shared.Next(3000));
+        // Rango amplio (unos 270 años): con solo 3000 días, dos Visitas de prueba coincidían en fecha
+        // en cuanto la base acumulaba unas decenas de ejecuciones, y la fila dejaba de ser única.
+        var fecha = Ayudas.HoyDeNegocio().AddDays(400 + Random.Shared.Next(100_000));
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nueva visita", Exact = true }).ClickAsync();
         var alta = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nueva visita", Exact = true });
         await Expect(alta).ToBeVisibleAsync();
@@ -111,19 +113,28 @@ public class VisitasFilaSinMenuE2ETests(WebAppFixture fixture)
         await ventana.Locator(".ventana-contexto-disparador").ClickAsync();
         var lista = ventana.GetByRole(AriaRole.Group, new LocatorGetByRoleOptions { Name = "Trabajadores asignados", Exact = true });
         await Expect(lista).ToBeVisibleAsync();
+        // Cuenta, en el propio navegador y sin viaje al servidor, las pulsaciones que recibe el
+        // botón de vista rápida de una fila: es lo que hace el oyente cuando decide que el clic era
+        // de la fila. El oyente es síncrono: al volver de cada clic, o lo pulsó o no.
+        await page.EvaluateAsync(@"() => {
+            window.__pulsacionesDelNombre = 0;
+            document.addEventListener('click', e => {
+                if (e.target.closest?.('.nombre-abre-vista-rapida')) window.__pulsacionesDelNombre++;
+            }, true);
+        }");
+
         // Los dos clics se despachan en vez de darse con el ratón: lo que aquí se mide es que el
         // oyente de la fila descarta lo que nace dentro de la ventana, no que la ventana siga a la
         // vista (se sostiene por :hover y :focus-within, y con el ratón real se cerraba entre un clic
         // y el siguiente una vez de cada dos, sin relación con el oyente).
         await lista.Locator(".ventana-contexto-titulo").DispatchEventAsync("click");
         await lista.Locator(".ventana-contexto-pie").DispatchEventAsync("click");
-        // Barrera: si el oyente pulsara el botón de la fila, el panel llegaría tras la vuelta al
-        // servidor; sin esta espera, la ausencia se cumpliría antes de que pudiera aparecer.
-        await page.WaitForTimeoutAsync(1000);
+        Assert.Equal(0, await page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre"));
         await Expect(panel).ToHaveCountAsync(0);
 
         // Un punto de la fila que no es ningún control: la celda de la documentación.
         await fila.Locator("td.col-estado").ClickAsync();
+        Assert.Equal(1, await page.EvaluateAsync<int>("() => window.__pulsacionesDelNombre"));
         await Expect(panel).ToBeVisibleAsync();
         await Expect(panel.Locator(".visitas-detalle-fechas")).ToHaveTextAsync(await fila.Locator("button.nombre-abre-vista-rapida").InnerTextAsync());
 
