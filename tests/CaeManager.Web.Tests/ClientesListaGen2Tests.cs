@@ -1143,12 +1143,13 @@ public partial class ClientesListaGen2Tests : BunitContext
         cut.FindAll("thead th").Single(th => th.TextContent.Trim() == titulo).QuerySelector("button")!;
 
     /// <summary>
-    /// El orden por defecto (razón social) no coincide con el de CIF ni con su
-    /// inverso: si la pantalla no enviara el orden de la cabecera, las filas no
-    /// cambiarían.
+    /// La cabecera «Razón social» manda su orden en la consulta. La primera pulsación pide el
+    /// ascendente (el mismo que el doble aplica por defecto, así que las filas no se mueven);
+    /// la segunda lo invierte, y ahí las filas cambian: si la pantalla no enviara el orden de
+    /// la cabecera, seguirían como estaban.
     /// </summary>
     [Fact]
-    public async Task Pulsar_la_cabecera_CIF_ordena_la_consulta_por_CIF_y_la_segunda_vez_al_reves()
+    public async Task Pulsar_la_cabecera_Razon_social_ordena_la_consulta_y_la_segunda_vez_al_reves()
     {
         var mediador = new MediatorFalso
         {
@@ -1161,22 +1162,39 @@ public partial class ClientesListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
         NombresDeLasFilas(cut).Should().Equal(["Aislamientos Nervión S.L.", "Montajes Ebro S.L.", "Refrielectric S.A."]);
+        UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(ClienteListaDto.EstadoDocumentalPeor),
+            "control: la carga inicial ordena por la columna por defecto, no por razón social");
 
-        await CabeceraOrdenable(cut, "CIF").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Razón social").ClickAsync(new MouseEventArgs());
 
         var ascendente = UltimaConsulta(mediador);
-        ascendente.OrdenarPor.Should().Be(nameof(ClienteListaDto.Cif));
+        ascendente.OrdenarPor.Should().Be(nameof(ClienteListaDto.RazonSocial));
         ascendente.Descendente.Should().BeFalse();
-        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(
-            ["Refrielectric S.A.", "Montajes Ebro S.L.", "Aislamientos Nervión S.L."]));
 
-        await CabeceraOrdenable(cut, "CIF").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Razón social").ClickAsync(new MouseEventArgs());
 
         var descendente = UltimaConsulta(mediador);
-        descendente.OrdenarPor.Should().Be(nameof(ClienteListaDto.Cif));
+        descendente.OrdenarPor.Should().Be(nameof(ClienteListaDto.RazonSocial));
         descendente.Descendente.Should().BeTrue("la segunda pulsación invierte el orden");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(
-            ["Aislamientos Nervión S.L.", "Montajes Ebro S.L.", "Refrielectric S.A."]));
+            ["Refrielectric S.A.", "Montajes Ebro S.L.", "Aislamientos Nervión S.L."]));
+    }
+
+    /// <summary>
+    /// Cierre de listados: el CIF deja de ser columna propia (va bajo el nombre) y con ella se
+    /// retira de la pantalla el orden por CIF. Las cabeceras son exactamente estas, y solo dos
+    /// ordenan. La consulta conserva el orden por CIF; lo que se retira es quien lo pedía.
+    /// </summary>
+    [Fact]
+    public void No_hay_columna_CIF_y_solo_Razon_social_y_Estado_documental_ordenan()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Montajes Ebro S.L.", cif: "B-50.123.456") } });
+
+        cut.FindAll("thead th").Select(th => th.TextContent.Trim())
+            .Should().Equal("Razón social", "Gestor CAE", "Centros", "Estado documental", "");
+        cut.FindAll("thead th button.col-title").Select(b => b.TextContent.Trim())
+            .Should().Equal("Razón social", "Estado documental");
+        Fila(cut, "Montajes Ebro S.L.").QuerySelectorAll("td").Should().HaveCount(5, "una celda por cabecera: el CIF no ocupa celda propia");
     }
 
     // ------------------------------------------------------------ Carreras
@@ -1759,6 +1777,41 @@ public partial class ClientesListaGen2Tests : BunitContext
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "Se copió el CIF al portapapeles.",
             "control positivo: el clic llegó al botón de copiar");
         FrameAbierto.Should().BeNull("el clic se queda en el control");
+    }
+
+    /// <summary>
+    /// Identidad en dos líneas (cierre de listados): la primera celda lleva arriba la razón social
+    /// con sus avisos y debajo el CIF copiable. El orden en el DOM es el de lectura: una celda que
+    /// pusiera el CIF antes del nombre, o fuera de la celda del nombre, no es «bajo el nombre».
+    /// </summary>
+    [Fact]
+    public void El_cif_va_en_la_segunda_linea_de_la_celda_del_nombre()
+    {
+        var cliente = Cliente("Montajes Ebro S.L.", cif: "B-50.123.456", critico: true) with { SinContactoEnAgenda = true };
+        var cut = Renderizar(new MediatorFalso { Almacen = { cliente } });
+
+        var celda = Fila(cut, cliente.RazonSocial).QuerySelectorAll("td")[0];
+        var lineas = celda.QuerySelector(".celda-cliente-empresarial")!.Children;
+        lineas.Select(l => l.ClassName).Should().Equal("celda-cliente-empresarial-nombre", "celda-cliente-empresarial-cif");
+        lineas[0].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Montajes Ebro S.L.");
+        lineas[0].QuerySelector(".insignia-critico").Should().NotBeNull("«⚑ Crítico» sigue en la línea del nombre");
+        lineas[0].QuerySelector(".aviso-sin-agenda").Should().NotBeNull("«Sin contacto» sigue en la línea del nombre");
+        lineas[0].TextContent.Should().NotContain("B-50.123.456", "el CIF no va en la línea del nombre");
+        lineas[1].TextContent.Trim().Should().Be("B-50.123.456");
+        lineas[1].QuerySelector("button.boton-copiar-en-linea").Should().NotBeNull("el CIF de la segunda línea es el botón de copiar");
+    }
+
+    /// <summary>Sin CIF, la segunda línea conserva la raya que llevaba la antigua columna: no desaparece ni queda en blanco.</summary>
+    [Fact]
+    public void Sin_cif_la_segunda_linea_lleva_la_raya_y_nada_que_copiar()
+    {
+        var sinCif = Cliente("Refrielectric S.A.", cif: "");
+        var cut = Renderizar(new MediatorFalso { Almacen = { sinCif } });
+
+        var segundaLinea = Fila(cut, sinCif.RazonSocial).QuerySelector("td .celda-cliente-empresarial-cif")!;
+        segundaLinea.TextContent.Trim().Should().Be("—", "sin CIF la segunda línea dice que no lo hay, no se queda en blanco");
+        segundaLinea.QuerySelector(".texto-vacio-celda").Should().NotBeNull("la raya va atenuada, como el resto de celdas sin dato");
+        segundaLinea.QuerySelectorAll("button").Should().BeEmpty("sin CIF no hay nada que copiar");
     }
 
     /// <summary>
