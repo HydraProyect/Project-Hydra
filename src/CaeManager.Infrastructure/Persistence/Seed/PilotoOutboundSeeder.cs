@@ -50,9 +50,20 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// (<see cref="PilotoOutboundRetirada.RetirarLoteAsync"/>). Los datos de cada Tenant propietario se guardan
 /// en un único <c>SaveChangesAsync</c>; sus PDF se escriben antes, de uno en uno, y
 /// si el trabajo del Tenant termina con cualquier excepción se eliminan. La
-/// idempotencia mira la Empresa propia: si existe, el Tenant está sembrado y no se
-/// toca; si no, se siembra entero. Por eso una ejecución cortada también se puede
-/// reanudar sin retirar.
+/// idempotencia mira las Empresas del Tenant (<see cref="DatosSembrados"/>): si
+/// está la Empresa propia con el identificador fiscal que esta versión le da, el
+/// Tenant está sembrado y no se toca; si no tiene ninguna Empresa, se siembra
+/// entero. Por eso una ejecución cortada también se puede reanudar sin retirar.
+/// </para>
+///
+/// <para>
+/// <b>Un lote de otra versión no se completa ni se duplica.</b> Un Tenant
+/// propietario que tiene Empresas y ninguna con ese identificador fiscal lleva
+/// datos sembrados por otra versión de la siembra: en él no se escribe nada. El
+/// arranque lo avisa en el registro y sigue con los demás Tenants; la vía
+/// administrativa se niega antes de escribir en ninguno
+/// (<see cref="RechazarDatosDeOtraVersionAsync"/>). Para volver a sembrarlo hay
+/// que retirar antes el lote.
 /// </para>
 ///
 /// <para>
@@ -69,7 +80,7 @@ public static class PilotoOutboundSeeder
         Func<string, CredencialesDemo> CredencialesDe, CuentasPilotoOutbound Cuentas, DateOnly FechaDemostracion,
         ContactosPilotoOutbound Contactos);
 
-    /// <param name="Escribio">Falso en un re-arranque que encontró todo sembrado.</param>
+    /// <param name="Escribio">Falso en un re-arranque que no encontró nada que sembrar: todo sembrado ya, o lo que falta es de un Tenant con datos de otra versión.</param>
     /// <param name="TenantsConDatosNuevos">Nombres de los Tenants propietarios cuyos datos escribió esta ejecución.</param>
     public sealed record Resultado(bool Escribio, IReadOnlyList<string> TenantsConDatosNuevos, int Documentos, int Pdf, TimeSpan Duracion);
 
@@ -118,10 +129,19 @@ public static class PilotoOutboundSeeder
     /// <summary>
     /// El lote entero, idempotente y sin guarda de entorno. Antes de escribir nada
     /// comprueba que ningún nombre del piloto esté ocupado por un Tenant sin
-    /// marcador de demo y que la fecha de la demostración sirva para sembrar hoy.
+    /// marcador de demo, qué Tenants propietarios llevan datos de otra versión de
+    /// la siembra y que la fecha de la demostración sirva para sembrar hoy.
     ///
     /// <para>
-    /// La fecha solo se exige si hay algo que escribir. Con el lote ya sembrado
+    /// Un Tenant propietario con datos de otra versión se deja como está: se avisa
+    /// en el registro, con su nombre, y no se escribe nada en él —ni sus datos, ni
+    /// su Asignación de Operación, ni sus cuentas—; los demás siguen su curso. Aquí
+    /// no lanza, para no tumbar el arranque; la vía administrativa se niega antes
+    /// de llegar (<see cref="RechazarDatosDeOtraVersionAsync"/>).
+    /// </para>
+    ///
+    /// <para>
+    /// La fecha solo se exige si hay algo que escribir. Sin nada por sembrar
     /// —el re-arranque del día siguiente a la demostración, con la clave todavía
     /// activa— una fecha fuera de margen no tumba el arranque: se avisa en el
     /// registro y no se escribe nada, tampoco la pasada idempotente.
@@ -134,13 +154,19 @@ public static class PilotoOutboundSeeder
     {
         await RechazarNombresOcupadosPorUnTenantSinMarcadorAsync(dbContext, cancellationToken);
 
+        var deOtraVersion = await TenantsConDatosDeOtraVersionAsync(dbContext, cancellationToken);
+        foreach (var nombre in deOtraVersion)
+            logger.LogWarning(
+                "Siembra del piloto Outbound: {Motivo} En ese Tenant no se escribe nada y el arranque continúa.",
+                MensajeDeDatosDeOtraVersion([nombre]));
+
         if (OpcionesPilotoOutbound.MotivoFechaNoUtilizable(parametros.FechaDemostracion, DiaDeNegocio.Hoy()) is { } motivo)
         {
             if (await PrimerTenantSinSembrarAsync(dbContext, cancellationToken) is { } pendiente)
                 throw new InvalidOperationException($"{motivo} Queda por sembrar «{pendiente}», así que la siembra se niega y no escribe nada.");
 
             logger.LogWarning(
-                "Siembra del piloto Outbound: {Motivo} El lote ya está sembrado entero, así que no se escribe nada y el " +
+                "Siembra del piloto Outbound: {Motivo} No queda nada por sembrar, así que no se escribe nada y el " +
                 "arranque continúa; los estados de los documentos ya no son los del día de la demostración.", motivo);
             return new Resultado(false, [], 0, 0, TimeSpan.Zero);
         }
@@ -158,6 +184,10 @@ public static class PilotoOutboundSeeder
         foreach (var tenant in CatalogoPilotoOutbound.EnOrdenDeSiembra)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            // Ya avisado arriba: de un Tenant con datos de otra versión no se toca nada.
+            if (deOtraVersion.Contains(tenant.Nombre))
+                continue;
 
             var tenantPropietarioId = await AprovisionarConMarcadorAsync(
                 dbContext, tenant.Nombre, PerfilVocabularioTenant.ClienteDirecto,
@@ -234,35 +264,115 @@ public static class PilotoOutboundSeeder
     }
 
     /// <summary>
-    /// El primer Tenant del lote que una ejecución todavía tendría que escribir, o
-    /// <c>null</c> si están todos: el del Operador CAE externo tiene que existir, y
-    /// cada Tenant propietario, existir y tener ya su Empresa propia, que es lo que
-    /// mira la idempotencia de sus datos (<see cref="SembrarDatosAsync"/>). Solo lee.
+    /// El primer Tenant del lote que una ejecución todavía escribiría, o <c>null</c>
+    /// si no queda ninguno: el del Operador CAE externo tiene que existir, y cada
+    /// Tenant propietario, existir y tener datos. Uno con datos de otra versión de
+    /// la siembra no cuenta: en él no se va a escribir
+    /// (<see cref="TenantsConDatosDeOtraVersionAsync"/>). Solo lee.
     /// </summary>
     internal static async Task<string?> PrimerTenantSinSembrarAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
     {
-        var nombres = CatalogoPilotoOutbound.NombresTenants.ToList();
-        var existentes = await dbContext.Tenants
-            .Where(t => nombres.Contains(t.Nombre))
-            .Select(t => new { t.Id, t.Nombre }).ToListAsync(cancellationToken);
+        var existentes = await TenantsExistentesAsync(dbContext, cancellationToken);
 
-        if (existentes.All(t => t.Nombre != CatalogoPilotoOutbound.NombreTenantOperador))
+        if (!existentes.ContainsKey(CatalogoPilotoOutbound.NombreTenantOperador))
             return CatalogoPilotoOutbound.NombreTenantOperador;
 
         foreach (var tenant in CatalogoPilotoOutbound.EnOrdenDeSiembra)
         {
-            if (existentes.FirstOrDefault(t => t.Nombre == tenant.Nombre) is not { } existente)
+            if (!existentes.TryGetValue(tenant.Nombre, out var tenantId)
+                || await DatosSembradosAsync(dbContext, tenant, tenantId, cancellationToken) == DatosSembrados.Ninguno)
                 return tenant.Nombre;
-
-            var cifEmpresaPropia = CifDe(tenant, 0);
-            using (AmbitoTenantExplicito.Establecer(existente.Id))
-            {
-                if (!await dbContext.Empresas.AnyAsync(e => e.Cif == cifEmpresaPropia, cancellationToken))
-                    return tenant.Nombre;
-            }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Los Tenants propietarios del lote, en orden de siembra, que llevan datos
+    /// sembrados por otra versión de la siembra (<see cref="DatosSembrados.DeOtraVersion"/>).
+    /// Solo lee, y es lo primero que mira una ejecución después de los nombres.
+    /// </summary>
+    internal static async Task<IReadOnlyList<string>> TenantsConDatosDeOtraVersionAsync(
+        CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var existentes = await TenantsExistentesAsync(dbContext, cancellationToken);
+        var deOtraVersion = new List<string>();
+
+        foreach (var tenant in CatalogoPilotoOutbound.EnOrdenDeSiembra)
+        {
+            if (existentes.TryGetValue(tenant.Nombre, out var tenantId)
+                && await DatosSembradosAsync(dbContext, tenant, tenantId, cancellationToken) == DatosSembrados.DeOtraVersion)
+                deOtraVersion.Add(tenant.Nombre);
+        }
+
+        return deOtraVersion;
+    }
+
+    /// <summary>
+    /// La negativa de la vía administrativa: si algún Tenant propietario lleva datos
+    /// de otra versión de la siembra, lanza con sus nombres, antes de escribir nada
+    /// en ningún Tenant. Quien lanza la orden mira el código de salida: un aviso con
+    /// salida 0, como el del arranque, se leería como «sembrado».
+    /// </summary>
+    internal static async Task RechazarDatosDeOtraVersionAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var deOtraVersion = await TenantsConDatosDeOtraVersionAsync(dbContext, cancellationToken);
+
+        if (deOtraVersion.Count > 0)
+            throw new InvalidOperationException(
+                $"{MensajeDeDatosDeOtraVersion(deOtraVersion)} La siembra del piloto se niega y no escribe nada.");
+    }
+
+    /// <summary>Lo que dicen, con los mismos nombres y la misma instrucción, el aviso del arranque y la negativa de la vía administrativa.</summary>
+    public static string MensajeDeDatosDeOtraVersion(IReadOnlyList<string> nombresDeTenant) =>
+        (nombresDeTenant.Count == 1
+            ? $"El Tenant «{nombresDeTenant[0]}» tiene"
+            : $"Los Tenants «{string.Join("», «", nombresDeTenant)}» tienen") +
+        " datos sembrados por otra versión de la siembra del piloto: hay Empresas y ninguna lleva el identificador fiscal " +
+        $"que esta versión da a la Empresa propia. Hay que retirar el lote ({PilotoOutboundRetirada.Argumento}) antes de volver a sembrar.";
+
+    /// <summary>Qué hay sembrado en un Tenant propietario del piloto, según sus Empresas.</summary>
+    internal enum DatosSembrados
+    {
+        /// <summary>Ninguna Empresa: recién aprovisionado, o con una siembra cortada antes de su único guardado. Se siembra.</summary>
+        Ninguno,
+
+        /// <summary>Está la Empresa propia con el identificador fiscal que esta versión le da. No se toca.</summary>
+        DeEstaVersion,
+
+        /// <summary>Hay Empresas y ninguna con ese identificador fiscal: las sembró otra versión. No se toca y se dice.</summary>
+        DeOtraVersion,
+    }
+
+    /// <summary>
+    /// La pregunta de la idempotencia, dentro del ámbito del Tenant propietario. Mira
+    /// las Empresas porque nada las crea antes que los datos: ni aprovisionar el
+    /// Tenant (su fila, sus parámetros y su catálogo de tipos), ni la Asignación de
+    /// Operación, ni las cuentas. Un Tenant sin ninguna está por sembrar. Solo lee.
+    /// </summary>
+    private static async Task<DatosSembrados> DatosSembradosAsync(
+        CaeManagerDbContext dbContext, TenantPilotoOutbound tenant, Guid tenantPropietarioId, CancellationToken cancellationToken)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantPropietarioId);
+
+        var cifEmpresaPropia = CifDe(tenant, 0);
+        if (await dbContext.Empresas.AnyAsync(e => e.Cif == cifEmpresaPropia, cancellationToken))
+            return DatosSembrados.DeEstaVersion;
+
+        return await dbContext.Empresas.AnyAsync(cancellationToken) ? DatosSembrados.DeOtraVersion : DatosSembrados.Ninguno;
+    }
+
+    private static async Task<Dictionary<string, Guid>> TenantsExistentesAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    {
+        var nombres = CatalogoPilotoOutbound.NombresTenants.ToList();
+        var existentes = new Dictionary<string, Guid>();
+
+        // El nombre de un Tenant no es único en la base: con dos iguales se mira uno, sin lanzar, como hace el aprovisionamiento.
+        foreach (var tenant in await dbContext.Tenants
+                     .Where(t => nombres.Contains(t.Nombre)).Select(t => new { t.Nombre, t.Id }).ToListAsync(cancellationToken))
+            existentes.TryAdd(tenant.Nombre, tenant.Id);
+
+        return existentes;
     }
 
     /// <summary>El identificador fiscal de una Empresa del piloto: el ordinal 0 es la Empresa propia del Tenant.</summary>
@@ -425,7 +535,9 @@ public static class PilotoOutboundSeeder
 
     /// <summary>
     /// Los datos de un Tenant propietario, en un solo guardado. Devuelve falso si
-    /// ya estaba sembrado (su Empresa propia existe). Con cualquier excepción,
+    /// ya estaba sembrado (existe su Empresa propia, con el identificador fiscal de
+    /// esta versión). A un Tenant con datos de otra versión no se llega: el bucle
+    /// de <see cref="SembrarLoteAsync"/> lo salta antes. Con cualquier excepción,
     /// cancelación incluida, elimina los PDF que ya había escrito para este Tenant
     /// antes de relanzar: nada queda en el almacén sin fila que lo referencie.
     /// </summary>

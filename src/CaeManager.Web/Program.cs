@@ -806,8 +806,10 @@ if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoRetirar))
 // (PilotoOutboundSoloDesdeElModoCliTests lo vigila). Falla cerrada antes de escribir (ver
 // PilotoOutboundAdministrativa): exige el entorno confirmado a mano, un dominio de correo
 // propio, la fecha de la demostración y un directorio de credenciales en tmpfs, y se niega
-// con DatosPrueba:Activo. NO imprime ni registra contraseñas: van solo al fichero. Al
-// terminar mide el lote con la autoverificación y sale con 1 si la matriz no cuadra.
+// con DatosPrueba:Activo. Si un Tenant propietario lleva datos sembrados por otra versión
+// de la siembra, también se niega, sin escribir en ninguno: ese lote se retira antes. NO
+// imprime ni registra contraseñas: van solo al fichero. Al terminar mide el lote con la
+// autoverificación y sale con 1 si la matriz no cuadra; con 1 también si se niega o falla.
 //
 // Se lanza con el servicio "migrador": entre la siembra y la autoverificación ejecuta el
 // backfill de asignaciones del arranque, que pide la identidad de bootstrap.

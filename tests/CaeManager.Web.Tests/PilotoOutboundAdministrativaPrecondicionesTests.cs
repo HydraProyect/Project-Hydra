@@ -219,6 +219,23 @@ public class PilotoOutboundAdministrativaPrecondicionesTests
     }
 
     [Fact]
+    public void Un_lote_de_otra_version_de_la_siembra_se_dice_con_el_nombre_del_Tenant_y_con_que_hay_que_retirarlo()
+    {
+        var deUno = PilotoOutboundSeeder.MensajeDeDatosDeOtraVersion(["Tenant de ejemplo, S.L."]);
+        var deDos = PilotoOutboundSeeder.MensajeDeDatosDeOtraVersion(["Tenant de ejemplo, S.L.", "Otro Tenant, S.A."]);
+
+        deUno.Should().StartWith("El Tenant «Tenant de ejemplo, S.L.» tiene datos sembrados por otra versión de la siembra del piloto")
+            .And.Contain("Hay que retirar el lote (--retirar-piloto-outbound) antes de volver a sembrar.");
+        deDos.Should().StartWith("Los Tenants «Tenant de ejemplo, S.L.», «Otro Tenant, S.A.» tienen datos sembrados por otra versión")
+            .And.Contain("--retirar-piloto-outbound");
+
+        // Por la vía administrativa la negativa es una excepción con ese motivo: el modo la escribe tal cual por la
+        // salida de error y sale con 1 (PilotoOutboundSoloDesdeElModoCliTests vigila ese catch de Program.cs).
+        PilotoOutboundAdministrativa.MensajeDeInterrupcion(new InvalidOperationException(deUno + " La siembra del piloto se niega y no escribe nada."))
+            .Should().StartWith("Siembra del piloto Outbound interrumpida: " + deUno + " La siembra del piloto se niega y no escribe nada.");
+    }
+
+    [Fact]
     public void Un_fallo_que_no_es_un_rechazo_previsto_tambien_dice_su_tipo_su_mensaje_y_como_seguir()
     {
         (Exception Fallo, string Motivo)[] fallos =
