@@ -35,8 +35,8 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 ///
 /// <para>
 /// Compone, con las MISMAS consultas que <c>SubcontrataWorkspacePanel</c> y que la fila desplegada del listado
-/// (<c>AcordeonTrabajadoresSubcontrata</c>) —mismo alcance y misma RLS—, la identidad con el anillo, la banda de
-/// incidencias y las pestañas Trabajadores, Supervisión, Centros, Agenda e Historial. La edición de la identidad y
+/// (<c>AcordeonTrabajadoresSubcontrata</c>) —mismo alcance y misma RLS—, la identidad con el anillo
+/// y las pestañas Trabajadores, Supervisión, Centros, Agenda e Historial. La edición de la identidad y
 /// de las credenciales sigue viviendo en el panel: «Editar» lo abre.
 /// </para>
 ///
@@ -65,9 +65,6 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     /// <summary>Tope de filas de la pestaña Trabajadores: si hay más, el resumen lo dice (mismo tope que el panel).</summary>
     internal const int TamanoPaginaTrabajadores = 50;
-
-    /// <summary>Cuántos trabajadores nombra la banda antes de contar el resto.</summary>
-    internal const int NombresEnLaBanda = 3;
 
     private static readonly string[] PestanasValidas =
         [PestanaTrabajadores, PestanaSupervision, PestanaCentros, PestanaAgenda, PestanaHistorial];
@@ -245,7 +242,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     /// <summary>
     /// Trabajadores, supervisión y centros se piden en serie tras la cabecera, no al abrir su pestaña: de ellos salen
-    /// la banda, los recuentos de la cabecera y los contadores de las pestañas. En serie porque comparten el
+    /// los recuentos de la cabecera y los contadores de las pestañas. En serie porque comparten el
     /// DbContext del circuito.
     /// </summary>
     private async Task CargarTodoAsync()
@@ -625,29 +622,13 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         .Take(2)
         .Select(p => char.ToUpperInvariant(p[0])));
 
-    // ---------- Banda de cabecera ----------
+    // ---------- Trabajadores con problema ----------
 
     /// <summary>
-    /// Trabajadores que la banda nombra: los que tienen algún documento vencido o pendiente. En este incremento la
-    /// banda solo nombra trabajadores: la subcontrata no tiene documentación de empresa propia.
+    /// Trabajadores con algún documento vencido o pendiente: ponen en alerta el contador de su pestaña.
     /// </summary>
     private IReadOnlyList<TrabajadorDocumentacionSubcontrataDto> TrabajadoresConProblema =>
         TrabajadoresOrdenados.Where(t => EstadoDocumentoFicha360.TonoFila(t.PeorEstado) == TonoFila.Peligro).ToList();
-
-    /// <summary>
-    /// Centros con algún documento EXIGIDO sin ninguna verificación registrada: el dato del aviso de cabecera del
-    /// panel, que aquí vive en la banda.
-    /// </summary>
-    private int CentrosSinVerificar =>
-        _supervision?.Centros.Count(c => c.Tipos.Any(t => t.Exigido && t.Estado == EstadoSupervision.SinVerificar)) ?? 0;
-
-    private bool HayBanda => TrabajadoresConProblema.Count > 0 || CentrosSinVerificar > 0;
-
-    /// <summary>Pulsar el nombre de la banda abre la corrección de su documento en peor estado, en esta misma ficha.</summary>
-    private Task CorregirTrabajadorAsync(TrabajadorDocumentacionSubcontrataDto trabajador) =>
-        DocumentoQueLoCausa(trabajador) is { } documento
-            ? GestionarDocumentoAsync(trabajador.TrabajadorId, documento)
-            : Task.CompletedTask;
 
     // ---------- Supervisión ----------
 
@@ -832,7 +813,6 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
     }
 
-    private void IrASupervision() => CambiarPestana(PestanaSupervision);
 
     /// <summary>La edición de la identidad y de las credenciales vive en el panel, pestaña Información.</summary>
     private Task AbrirPanelInformacion() =>

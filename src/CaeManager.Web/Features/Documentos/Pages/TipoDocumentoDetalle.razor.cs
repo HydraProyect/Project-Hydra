@@ -40,15 +40,6 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
 
     internal const string PestanaTrabajadores = "trabajadores";
 
-    /// <summary>Nombres que la banda enseña por cada grupo de estado; el resto se resume en «y N más».</summary>
-    private const int NombresPorParteDeBanda = 3;
-
-    /// <summary>La banda de cabecera: sus partes («2 vencidos: …»), su tono y los contadores que marca su enlace.</summary>
-    private sealed record Banda(
-        TonoBanda Tono, IReadOnlyList<ParteDeBanda> Partes, string TextoEnlace, IReadOnlyList<GrupoEstadoTipoDocumento> Grupos);
-
-    private sealed record ParteDeBanda(string Recuento, IReadOnlyList<FilaTrabajadorTipoDocumentoDto> Nombradas, int Resto);
-
     [Parameter] public Guid TipoDocumentoId { get; set; }
 
     [Inject] private IMediator Mediator { get; set; } = default!;
@@ -153,9 +144,6 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         await CargarAsync();
     }
 
-    private Task VerDesdeLaBandaAsync(IEnumerable<GrupoEstadoTipoDocumento> grupos) =>
-        CambiarEstadosAsync(grupos.Select(g => g.ToString()).ToHashSet());
-
     private async Task CambiarPaginaAsync(int pagina)
     {
         _pagina = pagina;
@@ -207,41 +195,6 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         : _drawerGestion.AbrirCrearParaFaltanteAsync(fila.TrabajadorId, TipoDocumentoId);
 
     // ----- Presentación -----
-
-    /// <summary>
-    /// Banda de peligro si hay filas vencidas o pendientes; si no, de advertencia con las que están en tolerancia; sin
-    /// ninguna de las tres no hay banda. Cada nombre abre la corrección de esa fila; el enlace marca esos contadores.
-    /// </summary>
-    private Banda? BandaDeCabecera(EstadoTipoDocumentoDto estado)
-    {
-        var peligro = new[]
-            {
-                ParteDe(estado, GrupoEstadoTipoDocumento.Vencido, "BandaVencidosUno", "BandaVencidosVarios"),
-                ParteDe(estado, GrupoEstadoTipoDocumento.Pendiente, "BandaPendientesUno", "BandaPendientesVarios")
-            }
-            .OfType<ParteDeBanda>()
-            .ToList();
-        if (peligro.Count > 0)
-            return new Banda(TonoBanda.Peligro, peligro, Textos["BandaEnlacePeligro"],
-                [GrupoEstadoTipoDocumento.Vencido, GrupoEstadoTipoDocumento.Pendiente]);
-
-        return ParteDe(estado, GrupoEstadoTipoDocumento.EnTolerancia, "BandaToleranciaUno", "BandaToleranciaVarios") is { } tolerancia
-            ? new Banda(TonoBanda.Advertencia, [tolerancia], Textos["BandaEnlaceTolerancia"], [GrupoEstadoTipoDocumento.EnTolerancia])
-            : null;
-    }
-
-    private ParteDeBanda? ParteDe(EstadoTipoDocumentoDto estado, GrupoEstadoTipoDocumento grupo, string claveUno, string claveVarios)
-    {
-        var filas = estado.Recuentos.FirstOrDefault(r => r.Grupo == grupo)?.Filas ?? 0;
-        if (filas == 0)
-            return null;
-
-        var nombradas = estado.Incidencias
-            .Where(f => EstadoTipoDocumentoCalculo.Grupo(f.PeorEstado) == grupo)
-            .Take(NombresPorParteDeBanda)
-            .ToList();
-        return new ParteDeBanda(Plural(filas, claveUno, claveVarios), nombradas, filas - nombradas.Count);
-    }
 
     private static int TotalPaginas(EstadoTipoDocumentoDto estado) =>
         Math.Max(1, (int)Math.Ceiling(estado.TotalFiltradas / (double)estado.TamanoPagina));

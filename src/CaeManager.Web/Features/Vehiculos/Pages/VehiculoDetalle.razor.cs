@@ -28,9 +28,8 @@ namespace CaeManager.Web.Features.Vehiculos.Pages;
 ///
 /// <para>
 /// La lista pinta como mucho <see cref="MaximoDocumentos"/> documentos, igual
-/// que el panel; si hay más, el encabezado lo dice. La banda se deriva de los
-/// documentos pintados, y solo aparece cuando el peor estado del Vehículo es
-/// Vencido.
+/// que el panel; si hay más, el encabezado lo dice, y avisa también
+/// si algún vencido quedó fuera de ese tope.
 /// </para>
 /// </summary>
 public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
@@ -317,36 +316,15 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         _detalle?.EmpresaId is { } empresaId ? $"/empresas/{empresaId}" : null;
 
     /// <summary>
-    /// Los documentos vencidos que alimentan la banda. Solo cuando el peor
-    /// estado del Vehículo es Vencido: así la banda y el anillo cuentan lo mismo.
-    /// </summary>
-    private IReadOnlyList<DocumentoListaDto> Vencidos =>
-        _detalle?.PeorEstadoDocumental == EstadoDocumento.Vencido
-            ? _documentos.Where(d => d.Estado == EstadoDocumento.Vencido).ToList()
-            : [];
-
-    /// <summary>
     /// El peor estado dice Vencido pero ningún documento pintado lo está: el
     /// vencido quedó fuera de los <see cref="MaximoDocumentos"/> de la lista.
-    /// La banda lo dice sin nombrarlo, en vez de callar una alerta.
+    /// El encabezado de la lista lo dice sin nombrarlo, en vez de callar una alerta.
     /// </summary>
     private bool VencidosFueraDeLaLista =>
         _detalle?.PeorEstadoDocumental == EstadoDocumento.Vencido
         && !_cargandoDocumentos && !_errorDocumentos
         && _totalDocumentos > _documentos.Count
-        && Vencidos.Count == 0;
-
-    /// <summary>«venció el 02/09/2026, hace 36 días.»: neutro de género, porque el tipo de documento puede ser «ITV» o «Seguro».</summary>
-    private string TextoVencimiento(DocumentoListaDto documento)
-    {
-        if (documento.FechaVencimiento is not { } vence)
-            return Textos["FichaBandaVencido"];
-
-        var dias = DiaDeNegocio.Hoy().DayNumber - vence.DayNumber;
-        return dias == 1
-            ? Textos["FichaBandaVencioHaceUnDia", vence.ToString("dd/MM/yyyy")]
-            : Textos["FichaBandaVencioHaceDias", vence.ToString("dd/MM/yyyy"), dias];
-    }
+        && !_documentos.Any(d => d.Estado == EstadoDocumento.Vencido);
 
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
         _pestanas.Select(p =>

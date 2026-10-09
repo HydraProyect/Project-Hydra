@@ -711,21 +711,6 @@
   <data name="AriaVerificar" xml:space="preserve">
     <value>Verificar {0} en {1}</value>
   </data>
-  <data name="BandaTrabajadoresUno" xml:space="preserve">
-    <value>1 trabajador con documentación vencida o pendiente:</value>
-  </data>
-  <data name="BandaTrabajadoresVarios" xml:space="preserve">
-    <value>{0} trabajadores con documentación vencida o pendiente:</value>
-  </data>
-  <data name="BandaVerEnSupervision" xml:space="preserve">
-    <value>Ver en Supervisión</value>
-  </data>
-  <data name="BandaY" xml:space="preserve">
-    <value>y</value>
-  </data>
-  <data name="BandaYMas" xml:space="preserve">
-    <value>y {0} más</value>
-  </data>
   <data name="BotonCopiarContrasena" xml:space="preserve">
     <value>Copiar contraseña</value>
   </data>

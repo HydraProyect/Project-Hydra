@@ -94,25 +94,6 @@
             </Acciones>
         </CabeceraIdentidad>
 
-        @if (Vencidos.Count > 0)
-        {
-            @* Con escritura, cada incidencia es un botón y hay enlace general;
-               el rol Consulta conserva el texto y pierde los botones. *@
-            <SoloConEscritura>
-                @Banda(true)
-            </SoloConEscritura>
-            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Consulta" Context="soloConsulta">
-                @Banda(false)
-            </AuthorizeView>
-        }
-
-        else if (VencidosFueraDeLaLista)
-        {
-            <BandaAccion Tono="TonoBanda.Peligro">
-                <b>@Textos["FichaBandaVencidosSinNombrar"]</b>
-            </BandaAccion>
-        }
-
         <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["EtiquetaSecciones"]">
             <CuerpoConLateral EtiquetaLateral="@Textos["FichaEtiquetaLateral"]">
                 <ChildContent>
@@ -150,7 +131,13 @@
                             else
                             {
                                 <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["FichaListaDocumentos"]">
-                                    <Encabezado>@Textos["FichaMostrando", _documentos.Count, _totalDocumentos]</Encabezado>
+                                    <Encabezado>
+                                        @Textos["FichaMostrando", _documentos.Count, _totalDocumentos]
+                                        @if (VencidosFueraDeLaLista)
+                                        {
+                                            <b class="vehiculo360-vencidos-fuera" data-vencidos-fuera>@Textos["FichaVencidosFueraDeLaLista"]</b>
+                                        }
+                                    </Encabezado>
                                     <ChildContent>
                                         @foreach (var documento in _documentos)
                                         {
@@ -204,29 +191,3 @@
     }
 </div>
 </LimiteDeErrores>
-
-@code {
-    /// <summary>
-    /// La banda: una incidencia por documento vencido. Con un solo vencido
-    /// lleva además cuándo venció y el enlace general «Renovar {tipo}»; con
-    /// varios, cada nombre es su propia entrada. Abrir la incidencia lleva al
-    /// panel del Documento, que es donde hoy se renueva.
-    /// </summary>
-    private RenderFragment Banda(bool conEscritura) => __builder =>
-    {
-        var unico = Vencidos.Count == 1 ? Vencidos[0] : null;
-
-        <BandaAccion Tono="TonoBanda.Peligro"
-                     TextoEnlace="@(unico is null ? null : Textos["FichaBandaRenovar", unico.TipoDocumentoNombre].Value)"
-                     OnEnlace="@(conEscritura && unico is not null ? EventCallback.Factory.Create(this, () => AbrirDocumentoAsync(unico)) : default)">
-            @foreach (var vencido in Vencidos)
-            {
-                <span class="vehiculo360-incidencia" @key="vencido.Id">
-                    <IncidenciaBanda Texto="@vencido.TipoDocumentoNombre"
-                                     OnClick="@(conEscritura ? EventCallback.Factory.Create(this, () => AbrirDocumentoAsync(vencido)) : default)" />
-                    <span>@TextoVencimiento(vencido)</span>
-                </span>
-            }
-        </BandaAccion>
-    };
-}

@@ -10,14 +10,6 @@
     flex-basis: 100%;
 }
 
-/* Una parte de la banda: «2 vencidos:» y sus nombres, que no se parten entre líneas. */
-.tipo360-banda-parte {
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 0 var(--space-1);
-}
-
 /* Las dos líneas secundarias de la fila: identificador y empresa; vigencia y Centro. */
 .tipo360-linea {
     display: flex;
