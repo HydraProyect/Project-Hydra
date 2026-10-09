@@ -30,7 +30,9 @@ namespace CaeManager.Architecture.Tests;
 /// así que ese prefijo —y solo ese— se retira antes de comparar: la etiqueta y
 /// el digest tienen que seguir siendo los de producción. Una referencia desde
 /// cualquier otro registro se ve y cuenta como divergente, y producción misma
-/// se sigue exigiendo sin prefijo.
+/// se sigue exigiendo sin prefijo. En <c>.github/workflows/</c> el espejo es
+/// además obligatorio en todas las referencias: una sola que vuelva a Docker
+/// Hub devuelve el fallo a su job aunque el digest coincida.
 /// </para>
 ///
 /// <para>
@@ -94,11 +96,22 @@ public class MismaVersionDePostgresTests
             ComposeDeProduccion,
         });
 
-        // Control positivo del espejo: la CI lo usa hoy, así que si ninguna
-        // referencia lo lleva es que el recorrido ha dejado de ver el prefijo y
-        // la equivalencia de abajo no se estaría ejerciendo.
-        referencias.Should().Contain(r => r.Imagen.StartsWith(EspejoDeImagenesOficiales, StringComparison.Ordinal),
-            "los servicios de PostgreSQL de la CI se descargan del espejo de ECR Public");
+        // Todo PostgreSQL de los workflows se descarga del espejo, no solo alguno:
+        // un único servicio que vuelva a `image: postgres:…` (un merge mal
+        // resuelto, un servicio nuevo copiado de un compose) seguiría
+        // coincidiendo con producción por etiqueta y digest, y devolvería el
+        // `toomanyrequests` de Docker Hub a ese job. Se afirma por negación para
+        // que el fallo nombre fichero y línea; que la lista de partida no está
+        // vacía lo garantizan los controles positivos de arriba.
+        var workflowsSinEspejo = referencias
+            .Where(r => r.Fichero.StartsWith(".github/workflows/", StringComparison.Ordinal))
+            .Where(r => !r.Imagen.StartsWith(EspejoDeImagenesOficiales, StringComparison.Ordinal))
+            .Select(r => $"{r.Fichero}:{r.Linea}: {r.Imagen}")
+            .ToList();
+
+        workflowsSinEspejo.Should().BeEmpty(
+            $"los servicios de PostgreSQL de la CI se descargan de {EspejoDeImagenesOficiales} y no de Docker Hub, " +
+            "que limita las descargas sin autenticar desde las IP compartidas de los runners");
 
         var divergentes = referencias
             .Where(r => SinEspejo(r.Imagen) != produccion)
