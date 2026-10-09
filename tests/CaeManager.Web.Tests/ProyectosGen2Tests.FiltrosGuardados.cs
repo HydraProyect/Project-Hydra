@@ -150,7 +150,7 @@ public partial class ProyectosGen2Tests
         await gesto.WaitAsync(Paciencia);
 
         Uri.Should().Be(uriAntes, "«Seguir editando» no navega");
-        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Refrielectric S.L.");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Refrielectric S.L.");
         ValorDelBuscador(cut).Should().BeEmpty();
         ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "y conserva lo escrito");
         NombresEnLaTabla(cut).Should().Contain(ProyectoAbierto.Nombre, "la lista sigue siendo la del Cliente empresarial que había");
@@ -164,7 +164,7 @@ public partial class ProyectosGen2Tests
         cut.WaitForAssertion(() => Uri.Should().Contain($"cliente={ClienteBId}"));
         PreguntaAbierta(cut).Should().BeFalse("una sola pregunta: la navegación sale ya sin nada pendiente");
         PanelDeDetalleAbierto(cut).Should().BeFalse("el panel era de un proyecto del Cliente empresarial anterior");
-        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente empresarial: Frigoríficos Arcos S.A.");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Frigoríficos Arcos S.A.");
         ValorDelBuscador(cut).Should().Be("cámaras");
         NombresEnLaTabla(cut).Should().Equal([ProyectoDeB.Nombre]);
         CargasDeProyectosDe(ClienteBId).Should().Be(1, "una carga, no dos");
