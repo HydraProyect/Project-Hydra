@@ -49,23 +49,10 @@
     {
         get
         {
-            var buscado = SinAcentos(_busqueda.Trim());
+            var buscado = _busqueda.Trim();
             return buscado.Length == 0
                 ? Candidatos
-                : Candidatos.Where(c => SinAcentos(c.Nombre).Contains(buscado, StringComparison.Ordinal)).ToList();
+                : Candidatos.Where(c => TextoDeBusqueda.Contiene(c.Nombre, buscado)).ToList();
         }
-    }
-
-    private static string SinAcentos(string texto)
-    {
-        var descompuesto = texto.Normalize(System.Text.NormalizationForm.FormD);
-        var limpio = new System.Text.StringBuilder(descompuesto.Length);
-        foreach (var caracter in descompuesto)
-        {
-            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(caracter) != System.Globalization.UnicodeCategory.NonSpacingMark)
-                limpio.Append(char.ToUpperInvariant(caracter));
-        }
-
-        return limpio.ToString();
     }
 }

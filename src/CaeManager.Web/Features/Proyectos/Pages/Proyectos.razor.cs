@@ -395,8 +395,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         var termino = _busqueda.Trim();
         return termino.Length == 0
-            || proyecto.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase)
-            || proyecto.CentroNombre.Contains(termino, StringComparison.OrdinalIgnoreCase);
+            || TextoDeBusqueda.Contiene(proyecto.Nombre, termino)
+            || TextoDeBusqueda.Contiene(proyecto.CentroNombre, termino);
     }
 
     private string TextoConteo => HayFiltrosActivos

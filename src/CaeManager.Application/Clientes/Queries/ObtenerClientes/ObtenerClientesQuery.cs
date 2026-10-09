@@ -96,8 +96,8 @@ public class ObtenerClientesQueryHandler(
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
-            consulta = consulta.Where(c => c.RazonSocial.ToUpper().Contains(busqueda));
+            var busqueda = request.Busqueda;
+            consulta = consulta.Where(c => TextoDeBusqueda.Contiene(c.RazonSocial, busqueda));
         }
 
         if (request.SoloCriticos == true)

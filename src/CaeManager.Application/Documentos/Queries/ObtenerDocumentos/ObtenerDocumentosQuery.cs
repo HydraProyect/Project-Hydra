@@ -204,10 +204,10 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
+            var busqueda = request.Busqueda;
             consulta = consulta.Where(x =>
-                x.PropietarioNombre.ToUpper().Contains(busqueda) ||
-                x.TipoDocumentoNombre.ToUpper().Contains(busqueda));
+                TextoDeBusqueda.Contiene(x.PropietarioNombre, busqueda) ||
+                TextoDeBusqueda.Contiene(x.TipoDocumentoNombre, busqueda));
         }
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);

@@ -133,11 +133,11 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
+            var busqueda = request.Busqueda;
             consulta = consulta.Where(x =>
-                x.centro.Nombre.ToUpper().Contains(busqueda) ||
-                x.cliente.RazonSocial.ToUpper().Contains(busqueda) ||
-                x.empresa.RazonSocial.ToUpper().Contains(busqueda));
+                TextoDeBusqueda.Contiene(x.centro.Nombre, busqueda) ||
+                TextoDeBusqueda.Contiene(x.cliente.RazonSocial, busqueda) ||
+                TextoDeBusqueda.Contiene(x.empresa.RazonSocial, busqueda));
         }
 
         var total = await consulta.CountAsync(cancellationToken);
