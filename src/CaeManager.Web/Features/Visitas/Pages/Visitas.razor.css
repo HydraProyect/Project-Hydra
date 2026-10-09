@@ -203,8 +203,7 @@
 }
 
 /* Pestaña «Trabajadores» del panel: quién entra, con baja por fila (icono «menos») y alta desde una lista con buscador. */
-.visitas-trabajadores-lista,
-.visitas-candidatos-lista {
+.visitas-trabajadores-lista {
     list-style: none;
     margin: 0 0 var(--space-3);
     padding: 0;
@@ -252,36 +251,4 @@
 .visitas-trabajador-quitar:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-}
-
-.visitas-candidatos {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-}
-
-.visitas-candidatos-lista {
-    max-height: 280px;
-    margin: 0;
-    overflow-y: auto;
-}
-
-.visitas-candidato {
-    display: block;
-    width: 100%;
-    padding: var(--space-2);
-    border: 0;
-    border-radius: var(--radius-md);
-    background: none;
-    color: var(--color-text);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-
-.visitas-candidato:hover:not(:disabled),
-.visitas-candidato:focus-visible {
-    background: var(--color-surface-subtle);
 }

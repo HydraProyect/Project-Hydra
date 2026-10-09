@@ -836,7 +836,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _selectorCandidatosVisible;
     private bool _cargandoCandidatos;
     private bool _cambiandoTrabajadores;
-    private string _busquedaCandidatos = string.Empty;
     private IReadOnlyList<ElementoSeleccionable> _candidatos = [];
 
     private bool _confirmarQuitarTrabajadorVisible;
@@ -852,35 +851,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private void CerrarSelectorCandidatos()
     {
         _selectorCandidatosVisible = false;
-        _busquedaCandidatos = string.Empty;
         _candidatos = [];
-    }
-
-    /// <summary>
-    /// Buscador sin acentos ni mayúsculas, como el de los listados: «formacion» encuentra «Formación».
-    /// </summary>
-    private IReadOnlyList<ElementoSeleccionable> CandidatosFiltrados
-    {
-        get
-        {
-            var buscado = SinAcentos(_busquedaCandidatos.Trim());
-            return buscado.Length == 0
-                ? _candidatos
-                : _candidatos.Where(c => SinAcentos(c.Nombre).Contains(buscado, StringComparison.Ordinal)).ToList();
-        }
-    }
-
-    private static string SinAcentos(string texto)
-    {
-        var descompuesto = texto.Normalize(System.Text.NormalizationForm.FormD);
-        var limpio = new System.Text.StringBuilder(descompuesto.Length);
-        foreach (var caracter in descompuesto)
-        {
-            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(caracter) != System.Globalization.UnicodeCategory.NonSpacingMark)
-                limpio.Append(char.ToUpperInvariant(caracter));
-        }
-
-        return limpio.ToString();
     }
 
     /// <summary>
@@ -902,8 +873,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                 return;
 
             _candidatos = EtiquetasSelectorTrabajador.Construir(candidatos).Select(o => new ElementoSeleccionable(o.Id, o.Texto)).ToList();
-            _busquedaCandidatos = string.Empty;
-
+    
             if (_candidatos.Count == 0)
                 ToastService.Mostrar(Textos["ToastSinCandidatos"], TonoToast.Info);
             else if (_candidatos.Count == 1)

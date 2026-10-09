@@ -328,4 +328,29 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
         BotonesQuitar(cut).Should().BeEmpty("una Visita cancelada no se modifica; primero se reactiva");
         cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Añadir trabajador");
     }
+
+    // ── Listado: el recuento de trabajadores ─────────────────────────────
+
+    [Fact]
+    public async Task El_recuento_del_listado_abre_quien_entra_y_pulsar_a_uno_lleva_a_la_pestana_Trabajadores()
+    {
+        var mediator = ConTrabajadores("Ana García Ruiz", "Óscar Bravo Nieto");
+        Services.AddScoped<IMediator>(_ => mediator);
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<ContextWorkspaceService>();
+        var cut = Render<Visitas>();
+        cut.WaitForAssertion(() => cut.Find("tr .ventana-contexto-disparador"));
+
+        var disparador = cut.Find("tr .ventana-contexto-disparador");
+        disparador.TextContent.Trim().Should().Be("2");
+        disparador.GetAttribute("aria-label").Should().Be("Trabajadores asignados: 2");
+        var elementos = cut.FindAll("tr .ventana-contexto-elemento");
+        elementos.Select(e => e.QuerySelector(".ventana-contexto-elemento-texto")!.TextContent.Trim())
+            .Should().Equal(["Ana García Ruiz", "Óscar Bravo Nieto"]);
+
+        await elementos[1].ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => PestanaActiva(cut).Should().Be("Trabajadores"));
+        NombresQueEntran(cut).Should().Equal(["Ana García Ruiz", "Óscar Bravo Nieto"]);
+    }
 }

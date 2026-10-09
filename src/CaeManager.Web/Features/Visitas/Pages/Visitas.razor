@@ -23,6 +23,7 @@
 @using CaeManager.Web.Components.Workspace
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Visitas.Components
 @using CaeManager.Web.Features.Visitas
 @using FluentValidation
 @using MediatR
@@ -145,7 +146,27 @@
                     </span>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["EtiquetaTrabajadores"]" Align="Align.Center">
-                    @context.TotalTrabajadores
+                    @{
+                        var nombres = context.Trabajadores ?? [];
+                    }
+                    @* El recuento abre el desglose de quién entra; pulsar a uno lleva a la pestaña
+                       Trabajadores del panel, que es donde se añade o se quita. *@
+                    <VentanaContexto Interactiva="true"
+                                     Deshabilitada="@(nombres.Count == 0)"
+                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                     Etiqueta="@Textos["AriaTrabajadoresVisita", context.TotalTrabajadores]"
+                                     Titulo="@Textos["VentanaTrabajadoresTitulo"]"
+                                     Pie="@Textos["VentanaTrabajadoresPie"]"
+                                     class="visitas-recuento-trabajadores">
+                        <Disparador>@context.TotalTrabajadores</Disparador>
+                        <Detalle>
+                            @foreach (var nombre in nombres)
+                            {
+                                <VentanaContextoElemento Ayuda="@Textos["VentanaTrabajadoresAyuda"]"
+                                                         AlPulsar="() => AbrirDetalleAsync(context.Id, PestanaTrabajadores)">@nombre</VentanaContextoElemento>
+                            }
+                        </Detalle>
+                    </VentanaContexto>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaUrgencia"]" Align="Align.Center">
                     @* Los cuatro valores de NivelUrgenciaVisita, «Normal» incluido:
@@ -401,29 +422,8 @@
                     <SoloConEscritura>
                         @if (_selectorCandidatosVisible)
                         {
-                            <div class="visitas-candidatos" role="group" aria-label="@Textos["CandidatosEtiqueta"]">
-                                <CampoTexto Placeholder="@Textos["CandidatosBuscar"]" aria-label="@Textos["CandidatosBuscar"]"
-                                            Valor="@_busquedaCandidatos" ValorChanged="v => _busquedaCandidatos = v" />
-                                @if (CandidatosFiltrados.Count == 0)
-                                {
-                                    <p class="texto-vacio-seccion" role="status">@Textos["CandidatosSinCoincidencias"]</p>
-                                }
-                                else
-                                {
-                                    <ul class="visitas-candidatos-lista">
-                                        @foreach (var candidato in CandidatosFiltrados)
-                                        {
-                                            <li @key="candidato.Id">
-                                                <button type="button" class="visitas-candidato" disabled="@_cambiandoTrabajadores"
-                                                        @onclick="() => AnadirTrabajadorAsync(candidato)">
-                                                    @candidato.Nombre
-                                                </button>
-                                            </li>
-                                        }
-                                    </ul>
-                                }
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="CerrarSelectorCandidatos">@Textos["BotonVolver"]</Boton>
-                            </div>
+                            <SelectorCandidatoTrabajador Candidatos="_candidatos" Deshabilitado="_cambiandoTrabajadores"
+                                                         AlElegir="AnadirTrabajadorAsync" AlVolver="CerrarSelectorCandidatos" />
                         }
                         else
                         {
