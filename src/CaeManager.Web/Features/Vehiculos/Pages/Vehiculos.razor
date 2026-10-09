@@ -4,7 +4,6 @@
 @attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
 @using CaeManager.Application.Vehiculos.Commands.CrearVehiculo
 @using CaeManager.Application.Vehiculos.Commands.EditarVehiculo
-@using CaeManager.Application.Vehiculos.Commands.EliminarVehiculo
 @using CaeManager.Application.Vehiculos.Commands.EliminarVehiculos
 @using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId
 @using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos
@@ -129,13 +128,21 @@
                     </ColumnOptions>
                     <ChildContent>
                         <span class="celda-vehiculo">
-                            <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick='() => AbrirPreview(context.Id)'>@context.Nombre</button>
+                            <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
+                                    aria-label="@Textos["AbrirVistaRapidaDe", context.Nombre]"
+                                    @onclick="() => AbrirVistaRapidaAsync(context.Id)">@context.Nombre</button>
                             <span class="celda-vehiculo-modelo">@context.Modelo</span>
                         </span>
                     </ChildContent>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["EtiquetaMatricula"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.NumeroPlaca))">
-                    <span class="celda-vehiculo-matricula">@context.NumeroPlaca</span>
+                    @if (!string.IsNullOrWhiteSpace(context.NumeroPlaca))
+                    {
+                        <span class="celda-vehiculo-matricula">
+                            <BotonCopiar EnLinea="true" Valor="@context.NumeroPlaca" Texto="@context.NumeroPlaca" Etiqueta="@Textos["FichaCopiarLaMatricula"]"
+                                         NombreAccesible="@Textos["FichaCopiarMatricula", context.NumeroPlaca]" />
+                        </span>
+                    }
                 </TemplateColumn>
                 <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true" />
                 @* Columna de estado, de ancho fijo. El documento que causa el estado (el motivo bajo la pastilla)
@@ -145,15 +152,12 @@
                                 Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"
                                 Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" />
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
-                    <MenuAcciones>
-                        <ItemMenuAccion OnClick='() => AbrirPreview(context.Id)'>
-                            @Textos["AccionVer"]
-                        </ItemMenuAccion>
-                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.Nombre)">
-                            @Textos["AccionEliminar"]
-                        </ItemMenuAccion></SoloConEscritura>
-                    </MenuAcciones>
+                @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Ver» es el clic en la
+                   fila; «Eliminar», la selección múltiple (☑ de la cabecera o tecla «x»), con su
+                   confirmación y su «Deshacer». Este icono lleva a la página Vehículo 360
+                   (/vehiculos/{id}), a la que antes se llegaba desde el pie de la vista previa. *@
+                <TemplateColumn Title="" Align="Align.End">
+                    <Boton360 Nombre="@context.Nombre" Href="@($"/vehiculos/{context.Id}")" />
                 </TemplateColumn>
             </QuickGrid>
 
@@ -245,14 +249,6 @@
     <CampoTexto Etiqueta="@Textos["EtiquetaMatricula"]" Valor="@_numeroPlaca" ValorChanged="v => _numeroPlaca = v" OnBlur="ValidarNumeroPlacaAsync" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.NumeroPlaca))" />
 </DrawerFormulario>
 
-<DialogoConfirmacion
-    Visible="_confirmarEliminarVisible"
-    VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@Textos["ConfirmarEliminarTitulo", _nombreAEliminar]"
-    Mensaje="@Textos["ConfirmarEliminarMensaje"]"
-    EnProgreso="_eliminando"
-    OnConfirmar="ConfirmarEliminarAsync" />
-
 @* EliminarVehiculosCommand es ICommand, denegado a Consulta. *@
 <SoloConEscritura>
     <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
@@ -267,5 +263,4 @@
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
-<VehiculoPreviewDrawer VehiculoId="_previewVehiculoId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v" OnOperar="AbrirDesdePreviewAsync" />
 </LimiteDeErrores>

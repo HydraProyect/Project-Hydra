@@ -51,14 +51,15 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixture fixture)
         await Expect(filas.Nth(0)).ToHaveClassAsync(new Regex(@"\bfila-enfocada\b"));
         await Expect(filas.Nth(0)).ToBeFocusedAsync();
         await page.Keyboard.PressAsync("Enter");
-        var preview = page.Locator(".drawer-preview-vehiculo");
-        await Expect(preview.Locator(".nombre-cabecera-preview-vehiculo")).ToHaveTextAsync($"{prefijo} Alfa");
-        await preview.Locator(".boton-cerrar-preview-vehiculo").ClickAsync();
-        await Expect(preview).ToBeHiddenAsync();
+        // La vista rápida es el panel del Context Workspace (la fila ya no lleva menú «⋯»).
+        var panel = page.Locator(".workspace-panel");
+        await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync($"{prefijo} Alfa");
+        await panel.Locator("button.workspace-cerrar").ClickAsync();
+        await Expect(panel).ToHaveCountAsync(0);
 
-        // La acción de la segunda fila debe seguir abriendo Beta tras ordenar por Modelo.
-        await Ayudas.PulsarAccionDeMenuAsync(filas.Nth(1).Locator(".menu-acciones-disparador"), "Ver");
-        await Expect(preview.Locator(".nombre-cabecera-preview-vehiculo")).ToHaveTextAsync($"{prefijo} Beta");
+        // El nombre de la segunda fila debe seguir abriendo Beta tras ordenar por Modelo.
+        await filas.Nth(1).Locator(".nombre-abre-vista-rapida").ClickAsync();
+        await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync($"{prefijo} Beta");
     }
 
     [Fact]
@@ -129,7 +130,7 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixture fixture)
         await OrdenAscendenteAsync(cabecera);
     }
 
-    private static async Task CrearVehiculoAsync(IPage page, string nombre, string modelo, string matricula)
+    internal static async Task CrearVehiculoAsync(IPage page, string nombre, string modelo, string matricula)
     {
         await page.Locator("header.cabecera-pagina").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "+ Nuevo vehículo", Exact = true }).ClickAsync();
         var drawer = page.Locator(".drawer-panel");

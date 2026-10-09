@@ -9,6 +9,7 @@
 @implements IDisposable
 @inject IMediator Mediator
 @inject ToastService ToastService
+@inject ContextWorkspaceService WorkspaceService
 @inject IStringLocalizer<TextosVehiculos> Textos
 
 @if (_cargando)
@@ -28,15 +29,21 @@ else
     <div class="workspace-cabecera-entidad">
         <h2 class="workspace-titulo-entidad">@_detalle.Nombre</h2>
         <span class="workspace-subtitulo-entidad">@_detalle.EmpleadorNombre</span>
-        @if (PestanaActiva == "informacion" && !_editandoInformacion)
+        @if (!_editandoInformacion)
         {
-            @* Editar acaba en EditarVehiculoCommand, ICommand denegado a Consulta. *@
+            @* El lápiz vive en la cabecera en todas las pestañas (patrón de listados: la fila no
+               lleva menú y editar se hace desde el panel, también con la tecla «e»). Desde otra
+               pestaña lleva primero a «Información», que es donde está el formulario.
+               Editar acaba en EditarVehiculoCommand, ICommand denegado a Consulta. *@
             <SoloConEscritura>
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="@Textos["AriaEditarInformacion"]">
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="EditarDesdeCabeceraAsync"
+                       aria-label="@Textos["AriaEditarInformacion"]" title="@Textos["TituloEditarConAtajo"]">
                     <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
                 </Boton>
             </SoloConEscritura>
         }
+        @* A la página Vehículo 360 completa: lo que antes ofrecía el pie de la vista previa. *@
+        <Boton360 Nombre="@_detalle.Nombre" Href="@($"/vehiculos/{EntidadId}")" />
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
@@ -97,6 +104,8 @@ else
     [Parameter, EditorRequired] public string PestanaActiva { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> PestanaActivaChanged { get; set; }
 
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
     private VehiculoDetalleDto? _detalle;
     private bool _cargando = true;
     private bool _error;
@@ -143,6 +152,7 @@ else
     protected override void OnInitialized()
     {
         _cancelacion = _ciclo.Token;
+        WorkspaceService.OnEdicionSolicitada += AlSolicitarEdicion;
         _pestanas =
         [
             new("informacion", Textos["PestanaInformacion"]),
@@ -189,6 +199,56 @@ else
             if (generacion == _generacion && carga == _cargaCabecera)
                 _cargando = false;
         }
+
+        if (generacion != _generacion || carga != _cargaCabecera || cancelacion.IsCancellationRequested)
+            return;
+
+        // Una petición de edición («e») no sobrevive a una carga fallida ni a una ficha que ya
+        // no existe: si se quedara pendiente, un «Reintentar» con éxito entraría en edición sin
+        // que nadie lo pida.
+        if (_error || _detalle is null)
+            WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Vehiculo, id);
+        else
+            await AtenderEdicionSolicitadaAsync();
+    }
+
+    private void AlSolicitarEdicion() => InvokeAsync(async () =>
+    {
+        await AtenderEdicionSolicitadaAsync();
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Tecla «e» de un listado (<c>ContextWorkspaceService.AbrirEnEdicionAsync</c>): equivale
+    /// a pulsar el lápiz de la cabecera. Solo se consume con el detalle ya cargado; si llega
+    /// antes, la atiende el final de la carga. El lápiz va dentro de <c>SoloConEscritura</c>,
+    /// así que aquí se repite su misma condición: un rol de Consulta no entra en edición.
+    /// </summary>
+    private async Task AtenderEdicionSolicitadaAsync()
+    {
+        // Con una carga en curso el detalle en memoria puede ser el de una visita anterior a
+        // esta misma ficha: editar ahora copiaría al formulario datos que la carga va a
+        // sustituir. La petición espera; la atiende el final de la carga.
+        if (_cargando || _detalle is null || _detalle.Id != EntidadId)
+            return;
+        if (!WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Vehiculo, EntidadId))
+            return;
+        if (_editandoInformacion || EstadoAutenticacion is null)
+            return;
+
+        var usuario = (await EstadoAutenticacion).User;
+        if (!CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole))
+            return;
+
+        await EditarDesdeCabeceraAsync();
+    }
+
+    private async Task EditarDesdeCabeceraAsync()
+    {
+        if (PestanaActiva != "informacion")
+            await PestanaActivaChanged.InvokeAsync("informacion");
+
+        IniciarEdicionInformacion();
     }
 
     private void IniciarEdicionInformacion()
@@ -263,6 +323,7 @@ else
 
     public void Dispose()
     {
+        WorkspaceService.OnEdicionSolicitada -= AlSolicitarEdicion;
         _generacion++;
         _ciclo.Cancel();
         _ciclo.Dispose();
