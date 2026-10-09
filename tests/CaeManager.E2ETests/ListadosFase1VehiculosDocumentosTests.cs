@@ -80,10 +80,11 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixture fixture)
         // Vigente evita la ambigüedad de la colocación de fechas nulas al comprobar vencimiento.
         // La siembra tiene emisiones distintas y fechas de vencimiento diversas; los controles
         // posteriores fallan explícitamente si ese universo deja de distinguir ambos sentidos.
-        await page.Locator(".barra-filtros-pastillas").GetByRole(AriaRole.Button,
-            new LocatorGetByRoleOptions { Name = "Estado", Exact = true }).ClickAsync();
-        await page.Locator(".barra-filtros-pastillas").GetByRole(AriaRole.Menuitemradio,
-            new LocatorGetByRoleOptions { Name = "Vigente", Exact = true }).ClickAsync();
+        // El estado se filtra en la franja de estado (sustituyó a la pastilla «Estado»): un botón por
+        // estado, con su recuento delante del nombre.
+        var botonVigentes = page.Locator(".franja-estado-boton", new PageLocatorOptions { HasText = "Vigentes" });
+        await botonVigentes.ClickAsync();
+        await Expect(botonVigentes).ToHaveAttributeAsync("aria-pressed", "true");
         var vigencia = Cabecera(page, "Vigencia");
         await ElegirOpcionDocumentoAsync(vigencia, "Ordenar por emisión");
         await ComprobarOrdenDocumentoAsync(page, vigencia, "emision");
