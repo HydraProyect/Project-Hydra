@@ -230,9 +230,12 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         {
             // Misma pregunta de estado que la carga de página (ConRecuentosPorEstado): sin ella el
             // handler toma el camino que deja sin estado a quien no tiene documentos, y la fila
-            // pasaría de «Sin incidencias» a «Sin documentos» al refrescarla.
+            // pasaría de «Sin incidencias» a «Sin documentos» al refrescarla. Y el desglose se pide
+            // igual que allí: sin él la fila refrescada perdería el motivo bajo la pastilla.
             var resultado = await Mediator.Send(
-                new ObtenerVehiculosQuery(Busqueda: null, ConRecuentosPorEstado: true, VehiculoId: id), _ciclo.Token);
+                new ObtenerVehiculosQuery(
+                    Busqueda: null, ConRecuentosPorEstado: true, VehiculoId: id, ConDesgloseDocumental: true),
+                _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
             if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
@@ -381,26 +384,37 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         using var cancelacion = CancellationTokenSource.CreateLinkedTokenSource(_ciclo.Token, request.CancellationToken);
         var token = cancelacion.Token;
 
+        // La pregunta se compone entera ANTES del await, como el número de carga y el token.
+        var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        var consulta = new ObtenerVehiculosQuery(
+            Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+            EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
+            SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
+            Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
+            TamanoPagina: _paginacion.ItemsPerPage,
+            OrdenarPor: ordenarPor,
+            Descendente: descendente,
+            EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+            ConRecuentosPorEstado: true,
+            // Esta página pinta el motivo del estado: es quien pide el desglose.
+            ConDesgloseDocumental: true);
+
+        // La misma pregunta que la carga anterior conserva la selección y la fila enfocada (es el refresco
+        // tras corregir una incidencia, ver RefrescarTrasCorreccionAsync); cualquier otra las limpia.
+        var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
+        if (!conservarSeleccion)
+            _consultaQueConservaSeleccion = null;
+        _ultimaConsulta = consulta;
+
         _cargando = true;
         _errorCarga = false;
 
         try
         {
-            var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
-            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
             _ultimaColumnaOrden = request.SortByColumn;
             _ultimoOrdenAscendente = request.SortByAscending;
 
-            var resultado = await Mediator.Send(new ObtenerVehiculosQuery(
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
-                SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
-                Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage,
-                OrdenarPor: ordenarPor,
-                Descendente: descendente,
-                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
-                ConRecuentosPorEstado: true), token);
+            var resultado = await Mediator.Send(consulta, token);
 
             // La respuesta de una búsqueda ya abandonada no puede pisar el
             // total, las filas ni la selección de la pregunta que sí se está
@@ -414,8 +428,18 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
-            _seleccionados.Clear();
-            _idEnfocado = null;
+            if (conservarSeleccion)
+            {
+                // Lo que ya no está en la página (la corrección lo sacó del filtro) deja de estar seleccionado.
+                _seleccionados.IntersectWith(elementos.Select(v => v.Id));
+                if (_idEnfocado is { } enfocado && elementos.All(v => v.Id != enfocado))
+                    _idEnfocado = null;
+            }
+            else
+            {
+                _seleccionados.Clear();
+                _idEnfocado = null;
+            }
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
@@ -549,6 +573,51 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         await RecargarAsync();
     }
 
+    // ── Corrección de una incidencia desde la ventana del motivo ────────────────────────────────
+
+    private CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental _correccion = default!;
+
+    /// <summary>La consulta de la última carga de la rejilla: la pregunta que hay en pantalla.</summary>
+    private ObtenerVehiculosQuery? _ultimaConsulta;
+
+    /// <summary>
+    /// Si la siguiente carga hace esta misma pregunta (mismos filtros, orden y página), conserva la selección y
+    /// la fila enfocada en vez de limpiarlas. La fija <see cref="RefrescarTrasCorreccionAsync"/> y vale solo para
+    /// ese refresco: la sueltan una carga con otra pregunta y toda recarga que pida la página
+    /// (<see cref="RecargarAsync"/>: alta, baja, reintento tras un error), aunque repita la pregunta.
+    ///
+    /// <para>
+    /// No se suelta al leerla: si la corrección cambia el total (la fila corregida sale del filtro activo),
+    /// QuickGrid vuelve a pedir la misma página por su cuenta en el render siguiente, y esa segunda petición es
+    /// el mismo refresco, no una recarga nueva. Mismo patrón que <c>Trabajadores.razor.cs</c>.
+    /// </para>
+    /// </summary>
+    private ObtenerVehiculosQuery? _consultaQueConservaSeleccion;
+
+    /// <summary>
+    /// Abre, sin salir del listado, el formulario del documento de la incidencia pulsada. Una incidencia es
+    /// siempre un documento que existe, así que basta su Id: el formulario lo abre en renovación y lee de él a
+    /// qué Vehículo pertenece. Solo llega aquí quien puede escribir (la ventana no ofrece botones a los demás);
+    /// quién puede guardar lo decide el comando.
+    /// </summary>
+    private Task CorregirIncidenciaAsync(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
+        _correccion.AbrirAsync(incidencia.DocumentoId, incidencia.TipoDocumentoId, null, null);
+
+    /// <summary>
+    /// Tras corregir una incidencia: se vuelve a pedir la página tal como está (mismos filtros, orden y página)
+    /// para que la fila, su motivo y los recuentos de la franja digan lo de ahora. La selección y la fila
+    /// enfocada se conservan.
+    /// </summary>
+    private async Task RefrescarTrasCorreccionAsync()
+    {
+        if (_desechado || _grid is null)
+            return;
+
+        _consultaQueConservaSeleccion = _ultimaConsulta;
+        await _grid.RefreshDataAsync();
+        StateHasChanged();
+    }
+
     /// <summary>
     /// Vuelve a la página 1 y pide la lista UNA vez.
     /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> no lleva guarda de
@@ -558,6 +627,10 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// </summary>
     private async Task RecargarAsync()
     {
+        // Una recarga pedida por la página no es el refresco tras corregir una incidencia: aunque repita la
+        // pregunta, limpia la selección y la fila enfocada.
+        _consultaQueConservaSeleccion = null;
+
         if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
         else
