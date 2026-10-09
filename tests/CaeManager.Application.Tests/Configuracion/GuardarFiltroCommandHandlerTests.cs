@@ -12,7 +12,8 @@ public class GuardarFiltroCommandHandlerTests
         var usuarioId = Guid.NewGuid();
         var repositorio = new FiltroGuardadoRepositorioFalso();
         var unitOfWork = new Clientes.UnitOfWorkFalso();
-        var handler = new GuardarFiltroCommandHandler(new CurrentUserServiceFalso(usuarioId), repositorio, unitOfWork);
+        var handler = new GuardarFiltroCommandHandler(
+            new CurrentUserServiceFalso(usuarioId), new TenantActualFijo(Guid.NewGuid()), repositorio, unitOfWork);
 
         var resultado = await handler.Handle(
             new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, "Críticos", "{\"soloCriticos\":true}"), CancellationToken.None);
@@ -26,7 +27,8 @@ public class GuardarFiltroCommandHandlerTests
     {
         var repositorio = new FiltroGuardadoRepositorioFalso();
         var unitOfWork = new Clientes.UnitOfWorkFalso();
-        var handler = new GuardarFiltroCommandHandler(new CurrentUserServiceFalso(), repositorio, unitOfWork);
+        var handler = new GuardarFiltroCommandHandler(
+            new CurrentUserServiceFalso(), new TenantActualFijo(Guid.NewGuid()), repositorio, unitOfWork);
 
         var resultado = await handler.Handle(
             new GuardarFiltroCommand(PantallasConFiltrosGuardados.Clientes, "Críticos", "{}"), CancellationToken.None);

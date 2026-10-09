@@ -710,7 +710,7 @@ public class ComunicacionesGen2Tests : BunitContext
     /// buzón para «Redactar»: lo mínimo para abrir los cinco formularios de la página.
     /// </summary>
     private async Task<(IRenderedComponent<Bandeja> Cut, NavigationManager Navegacion)> RenderizarConversacionAbiertaAsync(
-        bool laDeteccionLeeLaFechaDeEmision = true)
+        bool laDeteccionLeeLaFechaDeEmision = true, bool conBuzon = true)
     {
         var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
         var detalle = DetalleDe(conversacion);
@@ -727,7 +727,8 @@ public class ComunicacionesGen2Tests : BunitContext
                     { new(CentroNorteId, "Centro Norte", ClienteRefrielectric.RazonSocial, "Refrielectric S.A.") }),
                 ObtenerFormatosRequeridosCentroQuery => Task.FromResult<object?>(null),
                 ObtenerBorradorPedirPrioridadQuery => Task.FromResult<object?>(Result.Exito(new BorradorPedirPrioridadDto(
-                    "validacion@example.invalid", "Prioridad Centro Norte", "<p>Rogamos prioridad.</p>", true, null, 2))),
+                    "validacion@example.invalid", "Prioridad Centro Norte", "<p>Rogamos prioridad.</p>", conBuzon, null, 2))),
+                ObtenerConexionesIntegracionQuery when !conBuzon => Task.FromResult<object?>(new List<ConexionIntegracionListaDto>()),
                 ObtenerConexionesIntegracionQuery => Task.FromResult<object?>(new List<ConexionIntegracionListaDto>
                     { new(Guid.NewGuid(), "cae@example.invalid", "CAE Norte", null, null, EstadoConexionIntegracion.Habilitada, DateTime.UtcNow, null, null) }),
                 EnviarMensajeNuevoCommand => Task.FromResult<object?>(Result.Exito(Guid.NewGuid())),
@@ -864,6 +865,38 @@ public class ComunicacionesGen2Tests : BunitContext
         await cut.Find(".modal-actualizar-documento-formulario textarea").InputAsync(new ChangeEventArgs { Value = "Renovado en septiembre." });
 
         await cut.SalirYComprobarQuePreguntaAsync(navegacion);
+    }
+
+    /// <summary>
+    /// FS-15: «Redactar» sin buzón de Microsoft 365 conectado era un toast de error que se iba solo. Ahora el Drawer se
+    /// abre con el motivo y a quién pedírselo, sin formulario y sin un «Enviar» que no puede enviar.
+    /// </summary>
+    [Fact]
+    public async Task Redactar_sin_buzon_conectado_abre_el_aviso_con_su_salida_en_lugar_de_un_toast()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync(conBuzon: false);
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel .aviso-sin-buzon").TextContent.Should().Contain("no hay ningún buzón de Microsoft 365 conectado"));
+        cut.Find(".drawer-panel .aviso-sin-buzon-pedir").TextContent.Should().Contain("rol Administrador de esta organización");
+        cut.FindAll(".drawer-panel button").Select(b => b.TextContent.Trim()).Should().NotContain("Enviar");
+        cut.FindAll(".drawer-panel input.campo-input").Should().BeEmpty();
+        Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Pedir_prioridad_sin_buzon_conectado_deja_copiar_el_borrador_y_dice_a_quien_pedir_el_buzon()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync(conBuzon: false);
+        await cut.FindAll(".composer-correo select")[1].ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel .aviso-sin-buzon").Should().ContainSingle());
+        cut.Find(".drawer-panel .aviso-sin-buzon-pedir").TextContent.Should().Contain("rol Administrador de esta organización");
+        // El borrador es HTML y «Copiar» escribe texto plano: lo que se pega en el correo propio no lleva etiquetas.
+        cut.FindComponent<AvisoSinBuzonCorreo>().FindComponent<BotonCopiar>().Instance.Valor.Should().Be("Prioridad Centro Norte\n\nRogamos prioridad.");
     }
 
     [Fact]
