@@ -58,8 +58,10 @@ public class ObtenerProyectosQueryHandler(ICentrosQueryContext centrosContext, I
             return proyectos;
 
         // Una sola consulta para los técnicos de toda la lista (no una por fila). El join con
-        // Trabajadores aplica sus filtros de consulta, igual que ObtenerTecnicosProyectoQuery:
-        // un técnico cuyo Trabajador no es visible no se nombra.
+        // Trabajadores aplica sus filtros de consulta (Tenant propietario, baja lógica), igual que
+        // ObtenerTecnicosProyectoQuery. No se cruza con ObtenerTrabajadorIdsVisiblesAsync: quien
+        // llega aquí ve el Cliente empresarial del proyecto y, con él, a todos los Trabajadores del
+        // Tenant (ver el comentario de ObtenerTecnicosProyectoQueryHandler y su test bajo RLS).
         var proyectoIds = proyectos.Select(p => p.Id).ToList();
         var tecnicos = await (
             from proyectoTecnico in proyectosContext.ProyectosTecnicos
