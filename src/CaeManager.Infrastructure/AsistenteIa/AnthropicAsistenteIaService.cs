@@ -98,7 +98,7 @@ public class AnthropicAsistenteIaService(
         var solicitud = new SolicitudAnthropic(
             config.Para(RutasAnthropic.Asistente).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.Asistente).Esfuerzo),
+            ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.Asistente).Esfuerzo),
             SystemPrompt,
             [.. historial.Select(m => new MensajeAnthropic(m.Rol == RolMensajeChat.Usuario ? "user" : "assistant", m.Texto))]);
 
@@ -161,7 +161,7 @@ public class AnthropicAsistenteIaService(
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
-        [property: JsonPropertyName("output_config")] ConfiguracionSalidaAnthropic OutputConfig,
+        [property: JsonPropertyName("output_config"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ConfiguracionSalidaAnthropic? OutputConfig,
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<MensajeAnthropic> Messages);
 

@@ -124,7 +124,7 @@ public class AnthropicDocumentAIProvider(
         var solicitud = new SolicitudAnthropic(
             config.Para(RutasAnthropic.Ocr).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.Ocr).Esfuerzo),
+            ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.Ocr).Esfuerzo),
             SystemPromptOcr,
             [
                 new MensajeAnthropic("user",
@@ -158,7 +158,7 @@ public class AnthropicDocumentAIProvider(
         var solicitud = new SolicitudAnthropic(
             config.Para(RutasAnthropic.ExtraccionEstructurada).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.ExtraccionEstructurada).Esfuerzo),
+            ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.ExtraccionEstructurada).Esfuerzo),
             SystemPromptEstructurado + PromptDocumental.ReglasDeAislamiento,
             [
                 new MensajeAnthropic("user",
@@ -313,7 +313,7 @@ public class AnthropicDocumentAIProvider(
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
-        [property: JsonPropertyName("output_config")] ConfiguracionSalidaAnthropic OutputConfig,
+        [property: JsonPropertyName("output_config"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ConfiguracionSalidaAnthropic? OutputConfig,
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<MensajeAnthropic> Messages);
 

@@ -67,7 +67,7 @@ public class AnthropicDeteccionRelevanciaCaeService(
         var solicitud = new SolicitudAnthropic(
             config.Para(RutasAnthropic.RelevanciaCae).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.RelevanciaCae).Esfuerzo),
+            ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.RelevanciaCae).Esfuerzo),
             SystemPrompt,
             [new MensajeAnthropic("user", $"Transcripción de la conversación:\n\n{cuerpoConversacion}")]);
 
@@ -162,7 +162,7 @@ public class AnthropicDeteccionRelevanciaCaeService(
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
-        [property: JsonPropertyName("output_config")] ConfiguracionSalidaAnthropic OutputConfig,
+        [property: JsonPropertyName("output_config"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ConfiguracionSalidaAnthropic? OutputConfig,
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<MensajeAnthropic> Messages);
 

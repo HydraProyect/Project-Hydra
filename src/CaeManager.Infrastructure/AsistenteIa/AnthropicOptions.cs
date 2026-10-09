@@ -26,12 +26,12 @@ public class AnthropicOptions
     /// <summary>
     /// Nivel de esfuerzo (<c>output_config.effort</c>) de toda ruta que no
     /// fije el suyo en <see cref="Rutas"/>. Es el control de cuánto razona el
-    /// modelo, y con él de la latencia y el coste. El valor por defecto es el
-    /// que la API aplica a <c>claude-sonnet-5</c> cuando no se envía ninguno;
-    /// no todos los modelos comparten ese valor por omisión, así que al
-    /// cambiar el modelo de una ruta conviene fijar también su esfuerzo.
+    /// modelo, y con él de la latencia y el coste. Sin configurar, la
+    /// solicitud no lleva el campo y la API aplica el nivel por omisión del
+    /// modelo, que no es el mismo en todos: al cambiar el modelo de una ruta
+    /// conviene fijar también su esfuerzo.
     /// </summary>
-    public string Esfuerzo { get; set; } = "high";
+    public string? Esfuerzo { get; set; }
 
     /// <summary>
     /// Modelo y esfuerzo propios de una ruta, por su clave de
@@ -43,7 +43,7 @@ public class AnthropicOptions
     public Dictionary<string, RutaAnthropicOptions> Rutas { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Modelo y esfuerzo efectivos de una ruta.</summary>
-    public (string Modelo, string Esfuerzo) Para(string ruta)
+    public (string Modelo, string? Esfuerzo) Para(string ruta)
     {
         Rutas.TryGetValue(ruta, out var propia);
 

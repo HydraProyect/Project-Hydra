@@ -33,4 +33,12 @@ internal static class ParadaRespuestaAnthropic
 
 /// <summary>Bloque <c>output_config</c> de la solicitud a la Messages API.</summary>
 internal sealed record ConfiguracionSalidaAnthropic(
-    [property: JsonPropertyName("effort")] string Effort);
+    [property: JsonPropertyName("effort")] string Effort)
+{
+    /// <summary>
+    /// Sin esfuerzo configurado no hay bloque: la solicitud sale sin
+    /// <c>output_config</c> y la API aplica el nivel por omisión del modelo.
+    /// </summary>
+    public static ConfiguracionSalidaAnthropic? De(string? esfuerzo) =>
+        string.IsNullOrWhiteSpace(esfuerzo) ? null : new ConfiguracionSalidaAnthropic(esfuerzo);
+}

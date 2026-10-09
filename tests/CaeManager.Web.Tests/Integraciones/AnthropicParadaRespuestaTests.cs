@@ -106,8 +106,43 @@ public sealed class AnthropicParadaRespuestaTests
         using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
         solicitud.RootElement.GetProperty("model").GetString().Should().Be("claude-sonnet-5");
         solicitud.RootElement.GetProperty("max_tokens").GetInt32().Should().Be(16000);
-        solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("high");
     }
+
+    /// <summary>
+    /// Sin esfuerzo configurado, ninguna ruta envía <c>output_config</c>: la
+    /// solicitud es la de antes de existir el ajuste y la API aplica el nivel
+    /// por omisión del modelo.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(TodasLasRutas))]
+    public async Task Sin_esfuerzo_configurado_la_solicitud_no_lleva_output_config(string ruta)
+    {
+        var manejador = new ManejadorFijo(Respuesta("end_turn", "{}"));
+
+        await LlamarAsync(ruta, manejador);
+
+        using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
+        solicitud.RootElement.TryGetProperty("output_config", out _).Should().BeFalse();
+    }
+
+    [Theory]
+    [MemberData(nameof(TodasLasRutas))]
+    public async Task Con_el_esfuerzo_general_configurado_toda_ruta_lo_envia(string ruta)
+    {
+        var opciones = Options.Create(new AnthropicOptions { ApiKey = "sk-ant-de-prueba", Esfuerzo = "medium" });
+        var manejador = new ManejadorFijo(Respuesta("end_turn", "{}"));
+
+        await LlamarAsync(ruta, manejador, opciones);
+
+        using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
+        solicitud.RootElement.GetProperty("output_config").GetProperty("effort").GetString().Should().Be("medium");
+    }
+
+    public static TheoryData<string> TodasLasRutas => new()
+    {
+        RutasAnthropic.Asistente, RutasAnthropic.RelevanciaCae, RutasAnthropic.VisitaCorreo, RutasAnthropic.GestionCorreo,
+        RutasAnthropic.Trabajadores, RutasAnthropic.Ocr, RutasAnthropic.ExtraccionEstructurada,
+    };
 
     [Fact]
     public async Task El_chat_envia_el_modelo_y_el_esfuerzo_de_su_ruta()
@@ -213,7 +248,7 @@ public sealed class AnthropicParadaRespuestaTests
         configuracion.GetSection(AnthropicOptions.SeccionConfiguracion).Bind(opciones);
 
         opciones.Para(RutasAnthropic.Ocr).Should().Be(("modelo-de-la-ruta", "low"));
-        opciones.Para(RutasAnthropic.Trabajadores).Should().Be(("modelo-general", "high"));
+        opciones.Para(RutasAnthropic.Trabajadores).Should().Be(("modelo-general", null));
     }
 
     private static IOptions<AnthropicOptions> OpcionesConRutaPropia(string ruta)
@@ -244,6 +279,12 @@ public sealed class AnthropicParadaRespuestaTests
 
         switch (ruta)
         {
+            case RutasAnthropic.Asistente:
+                {
+                    var r = await new AnthropicAsistenteIaService(http, opciones, NullLogger<AnthropicAsistenteIaService>.Instance)
+                        .PreguntarAsync([new MensajeChatDto(RolMensajeChat.Usuario, "Pregunta")], CancellationToken.None);
+                    return r.EsFallido ? r.Error : null;
+                }
             case RutasAnthropic.RelevanciaCae:
                 {
                     var r = await new AnthropicDeteccionRelevanciaCaeService(http, opciones, NullLogger<AnthropicDeteccionRelevanciaCaeService>.Instance)
@@ -295,7 +336,7 @@ public sealed class AnthropicParadaRespuestaTests
                 new { type = "text", text = texto }
             },
             stop_reason = motivoParada,
-            model = "claude-haiku-5-5",
+            model = "modelo-de-la-respuesta",
             usage = new { input_tokens = 10, output_tokens = 5 }
         });
 

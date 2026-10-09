@@ -62,7 +62,7 @@ public class AnthropicExtraccionTrabajadoresIaService(
         var solicitud = new SolicitudAnthropic(
             config.Para(RutasAnthropic.Trabajadores).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.Trabajadores).Esfuerzo),
+            ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.Trabajadores).Esfuerzo),
             SystemPrompt,
             [
                 new MensajeAnthropic("user",
@@ -166,7 +166,7 @@ public class AnthropicExtraccionTrabajadoresIaService(
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
-        [property: JsonPropertyName("output_config")] ConfiguracionSalidaAnthropic OutputConfig,
+        [property: JsonPropertyName("output_config"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ConfiguracionSalidaAnthropic? OutputConfig,
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<MensajeAnthropic> Messages);
 

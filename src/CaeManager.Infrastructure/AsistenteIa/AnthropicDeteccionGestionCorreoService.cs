@@ -131,7 +131,7 @@ public class AnthropicDeteccionGestionCorreoService(
         var solicitud = new SolicitudAnthropic(
             config.Para(RutasAnthropic.GestionCorreo).Modelo,
             config.MaxTokensRespuesta,
-            new ConfiguracionSalidaAnthropic(config.Para(RutasAnthropic.GestionCorreo).Esfuerzo),
+            ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.GestionCorreo).Esfuerzo),
             SystemPrompt,
             [new MensajeAnthropic("user", textoUsuario)]);
 
@@ -269,7 +269,7 @@ public class AnthropicDeteccionGestionCorreoService(
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
-        [property: JsonPropertyName("output_config")] ConfiguracionSalidaAnthropic OutputConfig,
+        [property: JsonPropertyName("output_config"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ConfiguracionSalidaAnthropic? OutputConfig,
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<MensajeAnthropic> Messages);
 
