@@ -278,6 +278,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private async ValueTask<GridItemsProviderResult<VisitaListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<VisitaListaDto> request)
     {
+        if (_servirPaginaEnMemoria)
+        {
+            // Refresco de una fila tras guardar su edición (ver RefrescarFilaAsync).
+            _servirPaginaEnMemoria = false;
+            return GridItemsProviderResult.From(_elementosPagina.ToList(), _totalElementos);
+        }
+
         var carga = ++_cargaLista;
         _cargando = true;
         _errorCarga = false;
@@ -433,6 +440,56 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             await _paginacion.SetCurrentPageIndexAsync(0);
 
         StateHasChanged();
+    }
+
+    // ── La fila se refresca tras guardar su edición ─────────────────────────────────────────────
+    // Editar una Visita no es motivo para perder el sitio: se vuelve a pedir SOLO esa fila y se
+    // sustituye en sitio (mismo criterio que Trabajadores.RefrescarFilaAsync). Filtros, orden,
+    // página, selección, fila enfocada y desplazamiento no se tocan, y la fila permanece aunque
+    // el cambio la saque del filtro activo o del orden, hasta la siguiente carga. El alta sí
+    // recarga: la fila nueva no tiene sitio en la página que se está viendo.
+
+    /// <summary>
+    /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
+    /// QuickGrid solo repinta sus filas cuando su proveedor le entrega una página, y una carga
+    /// de verdad limpiaría la selección y la fila enfocada. El total no cambia, así que no hay
+    /// segunda petición (ver <see cref="RecargarAsync"/>).
+    /// </summary>
+    private bool _servirPaginaEnMemoria;
+
+    /// <returns>
+    /// <c>false</c> si la fila no se sustituyó (no está en la página, hay una carga en vuelo o la
+    /// relectura falló): quien llama recarga la lista, que es lo que se hacía antes.
+    /// </returns>
+    private async Task<bool> RefrescarFilaAsync(Guid id)
+    {
+        if (_grid is null || _cargando || !_elementosPagina.Any(e => e.Id == id))
+            return false;
+
+        var carga = _cargaLista;
+        try
+        {
+            // Sin los filtros de la página: la fila se pide por su id y permanece aunque ya no los cumpla.
+            var resultado = await Mediator.Send(
+                new ObtenerVisitasQuery(Busqueda: null, SoloActivas: false, NotificadoCliente: null, VisitaId: id));
+            var indice = _elementosPagina.FindIndex(e => e.Id == id);
+            if (_grid is null || _cargando || carga != _cargaLista || indice < 0
+                || resultado.Elementos.FirstOrDefault() is not { } actualizada)
+                return false;
+
+            _elementosPagina[indice] = actualizada;
+            _servirPaginaEnMemoria = true;
+            await _grid.RefreshDataAsync();
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+        finally
+        {
+            _servirPaginaEnMemoria = false;
+        }
     }
 
     private Task AbrirCrearAsync() => PrepararCrearAsync();
@@ -1344,7 +1401,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                 TonoToast.Exito);
 
             _drawerVisible = false;
-            await RecargarAsync();
+            if (_editandoId is not { } editada || !await RefrescarFilaAsync(editada))
+                await RecargarAsync();
         }
         catch (ValidationException ex)
         {

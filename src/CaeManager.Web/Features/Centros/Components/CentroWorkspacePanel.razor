@@ -1144,6 +1144,8 @@ else
 
             ToastService.Mostrar("Centro actualizado correctamente.", TonoToast.Exito);
             _editandoInformacion = false;
+            // El listado de Centros no se entera de este guardado si no se le avisa: refresca su fila.
+            WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Centro, _detalle.Id);
             await CargarCabeceraAsync();
         }
         catch (ValidationException ex)
