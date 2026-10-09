@@ -486,6 +486,11 @@
                 </div>
             }
 
+            @if (_detalle.EstaCancelada)
+            {
+                @* Se dice también aquí, que es donde se abre el panel: en «Documentación» no hay nada que gestionar. *@
+                <p class="texto-vacio-seccion">@Textos["DetalleCanceladaSinAcciones"]</p>
+            }
             }
             else if (_detalle.EstaCancelada)
             {
