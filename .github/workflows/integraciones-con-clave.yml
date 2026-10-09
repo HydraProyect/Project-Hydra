@@ -242,13 +242,16 @@ jobs:
           MAX_TOKENS: ${{ inputs.banco_max_tokens }}
         run: |
           set -euo pipefail
+          # El valor ENTERO contra la expresión, no línea a línea con grep: con grep
+          # bastaría una línea válida para colar un salto de línea y lo que viniera detrás.
+          permitido='^[A-Za-z0-9._,\ -]*$'
           for valor in "$MODELOS" "$ESFUERZOS" "$RUTAS" "$MAX_TOKENS"; do
-            if ! printf '%s\n' "$valor" | grep -Eq '^[A-Za-z0-9._, -]*$'; then
+            if ! [[ $valor =~ $permitido ]]; then
               echo "::error::Las entradas del banco solo admiten letras, cifras, punto, guion, coma y espacio."
               exit 1
             fi
           done
-          if ! printf '%s\n' "$MAX_TOKENS" | grep -Eq '^([1-9][0-9]*)?$'; then
+          if ! [[ $MAX_TOKENS =~ ^([1-9][0-9]*)?$ ]]; then
             echo "::error::banco_max_tokens debe ser un entero positivo o ir vacío."
             exit 1
           fi
@@ -295,13 +298,15 @@ jobs:
         run: |
           if [ -z "${CLAVE:-}" ]; then
             echo "hay_clave=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Banco de modelos de IA NO ejecutado::El secreto CI_ANTHROPIC_API_KEY no llega a esta rama (${RAMA}): el banco solo puede lanzarse sobre main. No se ha medido nada."
+            echo "::error title=Banco de modelos de IA NO ejecutado::El secreto CI_ANTHROPIC_API_KEY no llega a esta rama (${RAMA}): el banco solo puede lanzarse sobre main. No se ha medido nada."
             {
-              echo "### 🟡 Banco de modelos de IA — NO ejecutado"
+              echo "### 🔴 Banco de modelos de IA — NO ejecutado"
               echo ""
               echo "El secreto \`CI_ANTHROPIC_API_KEY\` del environment \`ci-integraciones\` no llega a la rama \`${RAMA}\`. **No se ha medido nada.**"
             } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+            # En rojo, no en verde con aviso: este job solo existe porque alguien pidió una medición,
+            # y una ejecución entera en verde sin haber medido nada se leería como hecha.
+            exit 1
           fi
           case "$CLAVE" in
             sk-ant-admin*)

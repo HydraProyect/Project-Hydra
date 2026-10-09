@@ -392,6 +392,25 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
         }
     }
 
+    /// <summary>Rechaza con 401 y devuelve en el cuerpo la clave que recibió en <c>x-api-key</c>.</summary>
+    private sealed class EcoDeLaClave : HttpMessageHandler
+    {
+        public int ClavesVistas { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var clave = request.Headers.TryGetValues("x-api-key", out var valores) ? string.Join(' ', valores) : string.Empty;
+            if (clave.Contains("CANARIO", StringComparison.Ordinal))
+                ClavesVistas++;
+
+            var cuerpo = JsonSerializer.Serialize(new { type = "error", error = new { type = "authentication_error", message = $"invalid x-api-key: {clave}" } });
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.Unauthorized)
+            {
+                Content = new StringContent(cuerpo, System.Text.Encoding.UTF8, "application/json"),
+            });
+        }
+    }
+
     private sealed class RedCaida : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
@@ -583,12 +602,15 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
         const string clave = "sk-ant-api03-CANARIO-QUE-NO-DEBE-SALIR";
         var carpeta = Path.Combine(Path.GetTempPath(), "banco-modelos-ia-" + Guid.NewGuid().ToString("N"));
         var parametros = ParametrosDePrueba with { CarpetaSalida = carpeta, Modelo = "claude-sonnet-5" };
-        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(
-            parametros, clave, CorpusBancoModelosIa.Casos, caso => new ModeloSimulado(caso.RespuestaIdeal()));
-        var informe = InformeBancoModelosIa.Construir(parametros, resultados, [], [], DateTimeOffset.UnixEpoch, null);
+        // El peor tercero posible: una API que rechaza la petición devolviendo en el cuerpo la cabecera con la clave.
+        var eco = new EcoDeLaClave();
+        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(parametros, clave, CorpusBancoModelosIa.Casos, _ => eco);
+        var informe = InformeBancoModelosIa.Construir(
+            parametros, resultados, ValidacionDelInstrumento.Problemas(parametros, resultados), [], DateTimeOffset.UnixEpoch, null);
 
         try
         {
+            eco.ClavesVistas.Should().Be(resultados.Count, "el control positivo: la clave viajó en cada petición y volvió en cada respuesta");
             InformeBancoModelosIa.Escribir(informe, carpeta);
             LibroDeGasto.Anotar(informe, Path.Combine(carpeta, "libro.csv"), "local");
 
@@ -619,6 +641,12 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
         {
             LibroDeGasto.Anotar(octubre, libro, "local").Should().Be(Enum.GetValues<RutaIa>().Length);
             LibroDeGasto.Anotar(octubre, libro, "local").Should().Be(0, "anotar dos veces el mismo informe no duplica el gasto");
+            LibroDeGasto.Anotar(octubre, libro, "ci").Should().Be(0, "la misma medición anotada después con --anotar tampoco");
+            var leidoDelArtefacto = JsonSerializer.Deserialize<InformeBanco>(JsonSerializer.Serialize(octubre, InformeBancoModelosIa.Json), InformeBancoModelosIa.Json)!;
+            LibroDeGasto.Anotar(leidoDelArtefacto, libro, "ci").Should().Be(0, "ni leída de vuelta del JSON que se publica como artefacto");
+
+            // Un libro retocado a mano, sin salto de línea al final, no pega la línea nueva a la anterior.
+            File.WriteAllText(libro, File.ReadAllText(libro).TrimEnd('\r', '\n'));
             LibroDeGasto.Anotar(noviembre, libro, "ci").Should().Be(Enum.GetValues<RutaIa>().Length);
 
             File.ReadAllLines(libro)[0].Should().Be(LibroDeGasto.Cabecera);

@@ -213,7 +213,7 @@ public static class InformeBancoModelosIa
         if (informe.GastoDelMes is { } gasto)
         {
             md.AppendLine(Inv,
-                $"- **Acumulado de {gasto.Mes}** según el libro de gasto local, con esta ejecución: {Dolares(gasto.AcumuladoUsd)} $ de {Dolares(gasto.PresupuestoUsd, "0")} $ ({gasto.AcumuladoUsd / gasto.PresupuestoUsd:P1}). Solo cuenta lo que se ha anotado en este equipo.");
+                $"- **Acumulado de {gasto.Mes}** según el libro de gasto local, con esta ejecución: {Dolares(gasto.AcumuladoUsd)} $ de {Dolares(gasto.PresupuestoUsd, "0")} $ ({(gasto.PresupuestoUsd > 0 ? gasto.AcumuladoUsd / gasto.PresupuestoUsd : 0):P1}). Solo cuenta lo que se ha anotado en este equipo.");
         }
 
         var conFallos = informe.Casos.Where(c => c.Puntuacion < 1).ToList();
@@ -284,7 +284,10 @@ public static class LibroDeGasto
     {
         var carpeta = Path.GetDirectoryName(Path.GetFullPath(rutaDelLibro))!;
         Directory.CreateDirectory(carpeta);
-        var existentes = File.Exists(rutaDelLibro) ? File.ReadAllLines(rutaDelLibro).ToHashSet() : [];
+        var hayLibro = File.Exists(rutaDelLibro);
+        // Una medición es la misma venga de donde venga: el origen (segunda columna) no entra en la comparación,
+        // o anotar con --anotar el informe de una ejecución que ya se anotó sola contaría su gasto dos veces.
+        var existentes = hayLibro ? File.ReadAllLines(rutaDelLibro).Select(SinOrigen).ToHashSet() : [];
 
         var nuevas = informe.Rutas
             .Select(r => string.Join(',', new[]
@@ -294,13 +297,24 @@ public static class LibroDeGasto
                 r.TokensEntrada.ToString(Inv), r.TokensSalida.ToString(Inv),
                 r.CosteUsd?.ToString("0.######", Inv) ?? "", informe.Commit ?? "",
             }))
-            .Where(linea => !existentes.Contains(linea))
+            .Where(linea => !existentes.Contains(SinOrigen(linea)))
             .ToList();
 
+        var anotadas = nuevas.Count;
         if (existentes.Count == 0)
             nuevas.Insert(0, Cabecera);
+
+        // Un libro retocado a mano puede no acabar en salto de línea: sin esto la primera línea nueva se pegaría a la última.
+        if (hayLibro && File.ReadAllText(rutaDelLibro) is { Length: > 0 } previo && previo[^1] != '\n')
+            File.AppendAllText(rutaDelLibro, Environment.NewLine, new UTF8Encoding(false));
         File.AppendAllLines(rutaDelLibro, nuevas, new UTF8Encoding(false));
-        return nuevas.Count(l => l != Cabecera);
+        return anotadas;
+    }
+
+    private static string SinOrigen(string linea)
+    {
+        var campos = linea.Split(',');
+        return campos.Length < 2 ? linea : string.Join(',', campos.Where((_, indice) => indice != 1));
     }
 
     /// <summary>Suma del coste anotado en el mes de <paramref name="fecha"/> (UTC). Las líneas sin coste (modelo sin tarifa) no suman.</summary>

@@ -43,6 +43,13 @@ aparece_en() { if grep -rqF -- "$2" "$1" 2>/dev/null; then echo si; else echo no
 FALSO="$BASE/dotnet-falso.sh"
 cat > "$FALSO" <<'DOBLE'
 #!/usr/bin/env bash
+if [ "${1:-}" = "build" ]; then
+  echo "compilacion_clave=${Anthropic__ApiKey:-<ninguna>}" > "$FALSO_REGISTRO.compilacion"
+  [ "${FALSO_MODO:-pasa}" = "no-compila" ] && { echo "error CS0001: no compila"; exit 1; }
+  exit 0
+fi
+# La línea de órdenes del proceso: lo que vería cualquiera que listara procesos.
+tr '\0' ' ' < /proc/$$/cmdline > "$FALSO_REGISTRO.argv" 2>/dev/null || echo "$0 $*" > "$FALSO_REGISTRO.argv"
 salida=""
 previo=""
 for a in "$@"; do
@@ -70,6 +77,7 @@ case "${FALSO_MODO:-pasa}" in
   pasa)    echo '<UnitTestResult outcome="Passed" />' > "$salida/banco-ia.trx"; exit 0 ;;
   omitido) echo '<UnitTestResult outcome="NotExecuted" />' > "$salida/banco-ia.trx"; exit 0 ;;
   ninguno) echo '<TestRun />' > "$salida/banco-ia.trx"; exit 0 ;;
+  clave-en-trx) echo "<UnitTestResult outcome=\"Passed\" /><StdOut>${Anthropic__ApiKey:-}</StdOut>" > "$salida/banco-ia.trx"; exit 0 ;;
   pasa-y-omite) printf '%s
 ' '<UnitTestResult outcome="Passed" />' '<UnitTestResult outcome="NotExecuted" />' > "$salida/banco-ia.trx"; exit 0 ;;
   falla)   echo '<UnitTestResult outcome="Failed" />' > "$salida/banco-ia.trx"; exit 1 ;;
@@ -112,11 +120,34 @@ comprobar "la clave que imprime un tercero NO sale por la salida" "no" "$(contie
 comprobar "sale tachada (el doble sí la imprimió, por las dos salidas)" "2" "$(grep -cF '[clave oculta]' "$CASO/o")"
 comprobar "ni queda en la carpeta del informe" "no" "$(aparece_en "$CASO/salida" "$CANARIO")"
 comprobar "el libro de gasto va junto al fichero de la clave" "$HOME/.talveg/banco-ia-gasto.csv local" "$(registro libro) $(registro origen)"
-comprobar "--sin-compilar llega como --no-build" "si" "$(contiene "$CASO/registro" "--no-build")"
+comprobar "con --sin-compilar no se compila" "no" "$([ -e "$CASO/registro.compilacion" ] && echo si || echo no)"
+comprobar "la clave no viaja en la línea de órdenes" "no" "$(contiene "$CASO/registro.argv" "$CANARIO")"
 comprobar "el presupuesto por defecto es 240" "240" "$(registro presupuesto)"
 
+nuevo_caso compila-sin-la-clave
+echo "Anthropic__ApiKey=$CANARIO" > "$HOME/.talveg/banco-ia.env"
+bash "$GUION" --salida "$CASO/salida" > "$CASO/o" 2>&1; rc=$?
+comprobar "sin --sin-compilar: compila SIN la clave y mide con ella" "0 <ninguna> $CANARIO" "$rc $(grep -m1 '^compilacion_clave=' "$CASO/registro.compilacion" | cut -d= -f2-) $(registro clave)"
+
+nuevo_caso no-compila
+echo "Anthropic__ApiKey=$CANARIO" > "$HOME/.talveg/banco-ia.env"
+FALSO_MODO=no-compila bash "$GUION" --salida "$CASO/salida" > "$CASO/o" 2>&1; rc=$?
+comprobar "si no compila: sale con 1 y no mide" "1 no" "$rc $([ -e "$CASO/registro" ] && echo si || echo no)"
+
+nuevo_caso clave-en-el-trx
+echo "Anthropic__ApiKey=$CANARIO" > "$HOME/.talveg/banco-ia.env"
+FALSO_MODO=clave-en-trx bash "$GUION" --sin-compilar --salida "$CASO/salida" > "$CASO/o" 2>&1; rc=$?
+comprobar "si la clave acaba en un fichero de la salida: se borra y sale con 1" "1 no" "$rc $(aparece_en "$CASO/salida" "$CANARIO")"
+
+nuevo_caso tabla-de-otra-ejecucion
+echo "Anthropic__ApiKey=$CANARIO" > "$HOME/.talveg/banco-ia.env"
+echo "TABLA VIEJA" > "$CASO/salida/banco-ia-de-ayer.md"
+sleep 1
+bash "$GUION" --sin-compilar --salida "$CASO/salida" > "$CASO/o" 2>&1
+comprobar "no enseña la tabla de una ejecución anterior" "no" "$(contiene "$CASO/o" "TABLA VIEJA")"
+
 nuevo_caso fichero-con-crlf-y-comillas
-printf '# comentario\r\nAnthropic__ApiKey="%s"\r\n' "$CANARIO" > "$CASO/otra.env"
+printf '# comentario\r\nAnthropic__ApiKey="%s"   # la de pruebas\r\n' "$CANARIO" > "$CASO/otra.env"
 TALVEG_BANCO_IA_ENV="$CASO/otra.env" bash "$GUION" --salida "$CASO/salida" > "$CASO/o" 2>&1; rc=$?
 comprobar "TALVEG_BANCO_IA_ENV, CRLF y comillas: la clave llega limpia" "0 $CANARIO" "$rc $(registro clave)"
 comprobar "y el libro sigue al fichero de la clave" "$CASO/banco-ia-gasto.csv" "$(registro libro)"
@@ -178,13 +209,25 @@ nuevo_caso uso
 echo "Anthropic__ApiKey=$CANARIO" > "$HOME/.talveg/banco-ia.env"
 bash "$GUION" --no-existe > "$CASO/o" 2>&1; rc=$?
 comprobar "opción desconocida: 2" "2" "$rc"
-for malo in 'x;touch marca' '$(id)' 'a|b' "a'b"; do
+for malo in 'x;touch marca' '$(id)' 'a|b' "a'b" 'a,b' $'claude\nx;y'; do
   bash "$GUION" --modelo "$malo" --salida "$CASO/salida" > "$CASO/o" 2>&1; rc=$?
   comprobar "--modelo '$malo': se rechaza con 2 y no lanza" "2 no" "$rc $([ -e "$CASO/registro" ] && echo si || echo no)"
 done
 for malo in 0 -5 1.5 mil; do
   bash "$GUION" --max-tokens "$malo" --salida "$CASO/salida" > "$CASO/o" 2>&1; rc=$?
   comprobar "--max-tokens '$malo': se rechaza con 2 y no lanza" "2 no" "$rc $([ -e "$CASO/registro" ] && echo si || echo no)"
+done
+for opcion in --modelo --esfuerzo --rutas --max-tokens --salida --anotar --precio-entrada; do
+  timeout 20 bash "$GUION" "$opcion" > "$CASO/o" 2>&1; rc=$?
+  comprobar "$opcion sin valor: 2, y no se queda colgado" "2" "$rc"
+done
+for malo in -5 abc 1,5; do
+  bash "$GUION" --precio-entrada "$malo" --salida "$CASO/salida" > "$CASO/o" 2>&1; rc=$?
+  comprobar "--precio-entrada '$malo': se rechaza con 2" "2" "$rc"
+done
+for malo in 0 0.0 -1 240,5 mucho; do
+  TALVEG_BANCO_IA_PRESUPUESTO="$malo" bash "$GUION" --salida "$CASO/salida" > "$CASO/o" 2>&1; rc=$?
+  comprobar "presupuesto '$malo': se rechaza con 2 y no lanza" "2 no" "$rc $([ -e "$CASO/registro" ] && echo si || echo no)"
 done
 bash "$GUION" --solo-estimar --anotar "$CASO/o" > "$CASO/o2" 2>&1; rc=$?
 comprobar "--solo-estimar con --anotar: 2" "2" "$rc"

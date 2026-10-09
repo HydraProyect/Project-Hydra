@@ -29,8 +29,9 @@
 # No se pone como variable de entorno del usuario ni en user-secrets a
 # propósito: cualquier suite que viera Anthropic__ApiKey en el entorno activaría
 # sus tests con modelo real y gastaría sin que nadie lo pidiera. Este guion la
-# exporta SOLO al proceso del banco, no la escribe nunca y la tacha de la salida
-# si algo llegara a imprimirla.
+# exporta SOLO al proceso que ejecuta el banco (la compilación va antes y sin
+# ella), por el entorno y no por la línea de órdenes, no la escribe nunca y la
+# tacha de la salida si algo llegara a imprimirla.
 #
 # EL GASTO. En local, cada ejecución añade una línea por ruta al libro de gasto
 # ($TALVEG_BANCO_IA_LIBRO, por defecto banco-ia-gasto.csv junto al fichero de la
@@ -53,6 +54,11 @@ uso() { sed -n '2,41p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --modelo|--esfuerzo|--rutas|--max-tokens|--salida|--precio-entrada|--precio-salida|--anotar)
+      # Sin esto, una opción sin valor al final dejaría `shift 2` sin desplazar y el bucle no acabaría.
+      if [ $# -lt 2 ]; then echo "ERROR: falta el valor de $1." >&2; exit 2; fi ;;
+  esac
+  case "$1" in
     --modelo) modelo="${2:-}"; shift 2 ;;
     --esfuerzo) esfuerzo="${2:-}"; shift 2 ;;
     --rutas) rutas="${2:-}"; shift 2 ;;
@@ -68,15 +74,30 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-for valor in "$modelo" "$esfuerzo" "$rutas" "$precio_entrada" "$precio_salida" "$max_tokens"; do
-  # Sin el salto de línea, un valor vacío no daría ninguna línea a grep y se rechazaría.
-  if ! printf '%s
-' "$valor" | grep -Eq '^[A-Za-z0-9._, -]*$'; then
-    echo "ERROR: los parámetros solo admiten letras, cifras, punto, guion, coma y espacio." >&2
-    exit 2
-  fi
-done
-if [ -n "$max_tokens" ] && ! printf '%s\n' "$max_tokens" | grep -Eq '^[1-9][0-9]*$'; then
+# Se compara el valor ENTERO con `[[ =~ ]]`, no línea a línea con grep: con grep
+# bastaría que una línea casara para colar un salto de línea y lo que viniera detrás.
+# El modelo y el esfuerzo no admiten coma: son un campo del libro de gasto, que es un CSV.
+presupuesto="${TALVEG_BANCO_IA_PRESUPUESTO:-240}"
+nombre='^[A-Za-z0-9._-]*$'
+lista='^[A-Za-z0-9._,\ -]*$'
+importe='^([0-9]+(\.[0-9]+)?)?$'
+if ! [[ $modelo =~ $nombre && $esfuerzo =~ $nombre ]]; then
+  echo "ERROR: --modelo y --esfuerzo solo admiten letras, cifras, punto y guion." >&2
+  exit 2
+fi
+if ! [[ $rutas =~ $lista ]]; then
+  echo "ERROR: --rutas solo admite letras, cifras, punto, guion, coma y espacio." >&2
+  exit 2
+fi
+if ! [[ $precio_entrada =~ $importe && $precio_salida =~ $importe ]]; then
+  echo "ERROR: --precio-entrada y --precio-salida son importes con punto decimal (p. ej. 2.5)." >&2
+  exit 2
+fi
+if ! [[ $presupuesto =~ ^[0-9]+(\.[0-9]+)?$ ]] || [[ $presupuesto =~ ^[0.]+$ ]]; then
+  echo "ERROR: TALVEG_BANCO_IA_PRESUPUESTO debe ser un importe mayor que cero, con punto decimal." >&2
+  exit 2
+fi
+if ! [[ $max_tokens =~ ^([1-9][0-9]*)?$ ]]; then
   echo "ERROR: --max-tokens debe ser un entero positivo." >&2
   exit 2
 fi
@@ -102,7 +123,7 @@ if [ "$solo_estimar" -eq 0 ] && [ -z "$anotar" ]; then
   clave="${Anthropic__ApiKey:-}"
   if [ -z "$clave" ] && [ -f "$fichero_clave" ]; then
     # Se LEE la línea, no se ejecuta el fichero: un `source` correría lo que hubiera dentro.
-    clave=$(grep -m1 '^Anthropic__ApiKey=' "$fichero_clave" | cut -d= -f2- | tr -d '\r"' | sed -e "s/^[[:space:]']*//" -e "s/[[:space:]']*$//")
+    clave=$(grep -m1 '^Anthropic__ApiKey=' "$fichero_clave" | cut -d= -f2- | tr -d '\r"' | sed -e 's/[[:space:]]#.*$//' -e "s/^[[:space:]']*//" -e "s/[[:space:]']*$//")
   fi
   if [ -z "$clave" ]; then
     echo "BANCO DE MODELOS DE IA — NO EJECUTADO: no hay clave de Anthropic." >&2
@@ -113,7 +134,7 @@ if [ "$solo_estimar" -eq 0 ] && [ -z "$anotar" ]; then
   fi
   case "$clave" in
     sk-ant-admin*)
-      echo "ERROR: la clave es de ADMINISTRACIÓN de Anthropic (sk-ant-admin…). Usa una clave de la API de un workspace acotado." >&2
+      echo "ERROR: la clave es de ADMINISTRACIÓN de Anthropic (sk-ant-admin…). Usa una clave de la API de un workspace de Anthropic acotado." >&2
       exit 2 ;;
   esac
 fi
@@ -122,7 +143,7 @@ fi
 entorno=(
   "BANCO_IA_MODELO=$modelo" "BANCO_IA_ESFUERZO=$esfuerzo" "BANCO_IA_RUTAS=$rutas" "BANCO_IA_SALIDA=$salida"
   "BANCO_IA_PRECIO_ENTRADA=$precio_entrada" "BANCO_IA_PRECIO_SALIDA=$precio_salida" "BANCO_IA_MAX_TOKENS=$max_tokens"
-  "BANCO_IA_PRESUPUESTO_MES=${TALVEG_BANCO_IA_PRESUPUESTO:-240}"
+  "BANCO_IA_PRESUPUESTO_MES=$presupuesto"
 )
 if [ "$solo_estimar" -eq 1 ]; then
   filtro="FullyQualifiedName~BancoModelosIaTests.Estima_el_coste_sin_llamar_a_la_API"
@@ -135,7 +156,8 @@ elif [ -n "$anotar" ]; then
 else
   filtro="FullyQualifiedName~BancoModelosIaTests.Mide_las_rutas_Anthropic"
   # BANCO_IA_EJECUTAR es la petición expresa: sin ella el test se omite aunque haya clave.
-  entorno+=("Anthropic__ApiKey=$clave" "BANCO_IA_EJECUTAR=1")
+  # La clave NO va en esta lista: se exporta aparte, más abajo, para que no pase por ninguna línea de órdenes.
+  entorno+=("BANCO_IA_EJECUTAR=1")
   if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     entorno+=("BANCO_IA_ORIGEN=ci")
   else
@@ -145,21 +167,52 @@ else
   titulo="medición con modelo real"
 fi
 
-argumentos=(test "$PROYECTO" --filter "$filtro" --logger "trx;LogFileName=banco-ia.trx" --logger "console;verbosity=normal" --results-directory "$salida")
-[ "$compilar" -eq 0 ] && argumentos+=(--no-build)
+argumentos=(test "$PROYECTO" --no-build --filter "$filtro" --logger "trx;LogFileName=banco-ia.trx" --logger "console;verbosity=normal" --results-directory "$salida")
 
 echo "Banco de modelos de IA — $titulo (modelo: ${modelo:-el del producto}; esfuerzo: ${esfuerzo:-el del producto}; rutas: ${rutas:-todas})"
-rm -f "$salida/banco-ia.trx"
+cd "$RAIZ" || exit 1
 
-# Estimar y anotar corren SIN la clave aunque el entorno la traiga (`env -u`).
+# Se compila ANTES y SIN la clave: MSBuild, los analizadores y los procesos de
+# compilación que quedan vivos para la siguiente vez no tienen por qué verla.
+if [ "$compilar" -eq 1 ]; then
+  if ! (unset Anthropic__ApiKey BANCO_IA_EJECUTAR; exec "$DOTNET" build "$PROYECTO" -warnaserror) > "$salida/banco-ia-compilacion.log" 2>&1; then
+    tail -40 "$salida/banco-ia-compilacion.log" >&2
+    echo "ERROR: la compilación falló; no se ha medido nada ni se ha gastado nada." >&2
+    exit 1
+  fi
+fi
+
+rm -f "$salida/banco-ia.trx"
+marca="$salida/.banco-ia-inicio"
+: > "$marca"
+
+# La clave llega al proceso por su ENTORNO (un `export` dentro del subshell) y
+# nunca como argumento: una línea de órdenes la ve cualquiera que liste procesos.
+# Estimar y anotar corren SIN ella aunque el entorno de quien lanza la traiga.
 # La salida pasa por un filtro que tacha la clave: nada de lo que el banco
 # escribe la contiene, pero una traza de un tercero no debe poder filtrarla.
-cd "$RAIZ" || exit 1
-env -u Anthropic__ApiKey -u BANCO_IA_EJECUTAR "${entorno[@]}" "$DOTNET" "${argumentos[@]}" 2>&1 | while IFS= read -r linea; do
+(
+  unset Anthropic__ApiKey BANCO_IA_EJECUTAR
+  export "${entorno[@]}"
+  if [ -n "$clave" ]; then export Anthropic__ApiKey="$clave"; fi
+  exec "$DOTNET" "${argumentos[@]}"
+) 2>&1 | while IFS= read -r linea || [ -n "$linea" ]; do
   if [ -n "$clave" ]; then linea="${linea//"$clave"/[clave oculta]}"; fi
   printf '%s\n' "$linea"
 done
 codigo=${PIPESTATUS[0]}
+
+# El registrador escribe en el .trx lo que el test saca por su salida, sin pasar
+# por el filtro de arriba. Si la clave apareciera en algún fichero de la carpeta,
+# ese fichero se borra y la ejecución se da por mala.
+if [ -n "$clave" ]; then
+  sucios=$(grep -rlF -- "$clave" "$salida" 2>/dev/null)
+  if [ -n "$sucios" ]; then
+    printf '%s\n' "$sucios" | while IFS= read -r sucio; do rm -f "$sucio"; done
+    echo "ERROR: la clave apareció en un fichero de la carpeta de salida; se ha borrado. Revisa qué la escribió antes de repetir." >&2
+    exit 1
+  fi
+fi
 
 # ── No basta el código de salida: un test omitido también sale con 0.
 trx="$salida/banco-ia.trx"
@@ -176,7 +229,8 @@ fi
 
 # La tabla, a la vista: es el resultado, y el registrador de tests no la enseña.
 if [ -z "$anotar" ]; then
-  tabla=$(ls -t "$salida"/banco-ia-*.md 2>/dev/null | head -1)
+  # Solo la de ESTA ejecución: una tabla anterior no es el resultado de esta.
+  tabla=$(find "$salida" -maxdepth 1 -name 'banco-ia-*.md' -newer "$marca" 2>/dev/null | head -1)
   if [ -n "$tabla" ]; then echo; cat "$tabla"; echo; fi
 fi
 if [ "$solo_estimar" -eq 0 ] && [ -z "$anotar" ]; then
