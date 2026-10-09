@@ -61,6 +61,33 @@ public record ResultadoApoyoCartera(
 }
 
 /// <summary>
+/// Un apoyo vivo: la Asignación de Cartera <b>de apoyo</b> que nació de una propuesta de apoyo
+/// aceptada y sigue vigente, del Tenant entero, con rol Gestor CAE y <b>sin la marca de
+/// principal</b>. Si esa cartera recibió después la marca, deja de aparecer aquí: ya no es de
+/// apoyo. <paramref name="ProponenteUsuarioId"/> es quien la propuso, que puede no ser ya el
+/// principal de la operación.
+/// </summary>
+public record ApoyoVivoDeCartera(
+    Guid PropuestaId, Guid AsignacionOperacionId, Guid PropietarioTenantId, string NombreTenant,
+    Guid ApoyoUsuarioId, Guid ProponenteUsuarioId, DateTime? VigenciaHasta);
+
+/// <summary>Qué hizo <see cref="ICatalogoIncorporacionCartera.RetirarCarteraDeApoyoAsync"/>.</summary>
+public enum ResultadoRetiradaApoyo
+{
+    /// <summary>La cartera de apoyo se cerró y la propuesta que la emitió quedó terminada.</summary>
+    Retirada,
+
+    /// <summary>La cartera ya estaba cerrada (caducó, cayó con la operación u otro la retiró): solo se termina la propuesta.</summary>
+    YaEstabaCerrada,
+
+    /// <summary>La cartera lleva hoy la marca de principal: ya no es de apoyo y no se toca.</summary>
+    YaNoEsDeApoyo,
+
+    /// <summary>Se exigía que quien la propuso siguiera siendo el principal de la operación, y ya no lo es. No se toca nada.</summary>
+    ProponenteYaNoEsPrincipal,
+}
+
+/// <summary>
 /// La parte de la solicitud de incorporación a cartera que toca los
 /// catálogos de asignación. Vive detrás de un puerto por la misma razón que
 /// <see cref="IAsignacionesOperativasWriter"/>: esos catálogos están fuera del
@@ -137,14 +164,17 @@ public interface ICatalogoIncorporacionCartera
     /// <summary>
     /// Emite la Asignación de Cartera <b>de apoyo</b> del destinatario de una propuesta de apoyo
     /// (ADR-011 § 2.7, enmienda 2026-10-08) y su fila heredada de Operador Delegado, sin guardar:
-    /// del Tenant entero, sin caducidad, con rol Gestor CAE y <b>nunca con la marca de
-    /// principal</b>. Ni el rol, ni el ámbito, ni la marca son parámetros: salen de aquí.
+    /// del Tenant entero, con rol Gestor CAE y <b>nunca con la marca de principal</b>. Ni el
+    /// rol, ni el ámbito, ni la marca son parámetros: salen de aquí. Caduca en la fecha de fin
+    /// de la propuesta (<see cref="PropuestaApoyoCartera.VigenciaHastaPropuesta"/>) si la
+    /// lleva; sin ella, no caduca.
     ///
     /// <para>
     /// Devuelve un motivo de anulación, sin emitir nada, si la operación ya no es la externa
     /// vigente de ese Operador CAE sobre ese Tenant propietario o no queda delegación viva; si
     /// <b>quien propuso ya no lleva la marca de principal en una cartera vigente</b> de esa
-    /// operación; o si el destinatario ya tiene el Tenant en su cartera. No lee Identity: que
+    /// operación; si el destinatario ya tiene el Tenant en su cartera; o si la fecha de fin
+    /// propuesta ya pasó. No lee Identity: que
     /// las dos cuentas sigan activas y con su rol lo comprueba el Command.
     /// </para>
     ///
@@ -175,7 +205,8 @@ public interface ICatalogoIncorporacionCartera
     /// solicitud: cierra sus Asignaciones de Cartera universales vigentes sobre ese Tenant
     /// (las del Operador CAE indicado, con rol Gestor CAE), marca como revocadas —por
     /// <paramref name="actorUsuarioId"/>— las solicitudes de incorporación aceptadas que las
-    /// crearon y borra la fila heredada de Operador Delegado <b>solo si no le queda otra
+    /// crearon, da por terminadas las propuestas de apoyo aceptadas que las emitieron y borra
+    /// la fila heredada de Operador Delegado <b>solo si no le queda otra
     /// cartera vigente</b> sobre el mismo Tenant (por ejemplo, una de otro rol). Sin guardar. Devuelve <c>false</c> sin tocar nada si no
     /// tenía ese Tenant entero en su cartera. Como
     /// <see cref="IncorporarAsync(Guid, Guid, Guid, Guid, CancellationToken)"/>, exige el
@@ -183,6 +214,43 @@ public interface ICatalogoIncorporacionCartera
     /// </summary>
     Task<bool> RetirarCarteraUniversalAsync(
         Guid propietarioTenantId, Guid operadorTenantId, Guid usuarioId, Guid actorUsuarioId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Los apoyos vivos de <paramref name="operadorTenantId"/>: ver <see cref="ApoyoVivoDeCartera"/>.
+    /// Ordenados por nombre del Tenant propietario. Acotados al Operador CAE por el filtro y
+    /// por las políticas RLS de las carteras y de las propuestas de apoyo.
+    /// </summary>
+    Task<IReadOnlyList<ApoyoVivoDeCartera>> ObtenerApoyosVivosAsync(
+        Guid operadorTenantId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fin de un apoyo (ADR-011 § 2.7, enmienda 2026-10-08, punto 6): cierra <b>solo</b> la
+    /// Asignación de Cartera que emitió <paramref name="propuesta"/> y da la propuesta por
+    /// terminada, por el mismo camino que <see cref="RetirarCarteraUniversalAsync"/> (mismo
+    /// motivo de cierre y misma regla para la fila heredada de Operador Delegado: se borra
+    /// solo si al usuario no le queda otra cartera vigente sobre ese Tenant). Sin guardar.
+    ///
+    /// <para>
+    /// <b>No toca la marca de principal ni releva a nadie</b>: si la cartera lleva hoy la
+    /// marca, ya no es de apoyo y devuelve <see cref="ResultadoRetiradaApoyo.YaNoEsDeApoyo"/>
+    /// sin cambiar nada (retirar a un principal es otra operación, con su relevo). La cartera
+    /// se lee seguida por el contexto, así que una designación que le ponga la marca a la vez
+    /// hace perder el guardado por su versión.
+    /// </para>
+    ///
+    /// <para>
+    /// Con <paramref name="exigirProponentePrincipal"/> —la retirada por quien concedió el
+    /// apoyo— comprueba además que quien propuso sigue llevando la marca en una cartera vigente
+    /// de esa operación, y escribe esa cartera (renueva su versión) para que una pérdida
+    /// simultánea de la marca haga perder el guardado, igual que <see cref="IncorporarApoyoAsync"/>.
+    /// </para>
+    ///
+    /// Quién puede pedirlo lo decide el Command. Exige el Tenant propietario como Tenant activo
+    /// (<c>AmbitoTenantExplicito</c>).
+    /// </summary>
+    Task<ResultadoRetiradaApoyo> RetirarCarteraDeApoyoAsync(
+        PropuestaApoyoCartera propuesta, Guid actorUsuarioId, bool exigirProponentePrincipal,
         CancellationToken cancellationToken = default);
 
     /// <summary>

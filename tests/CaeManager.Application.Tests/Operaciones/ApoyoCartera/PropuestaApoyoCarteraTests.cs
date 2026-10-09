@@ -6,6 +6,7 @@ using CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 using CaeManager.Application.Operaciones.ApoyoCartera.Queries;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Comercial;
+using CaeManager.Application.Tests.Notificaciones;
 using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
@@ -55,6 +56,10 @@ public class PropuestaApoyoCarteraTests
             eventos.Add($"cuenta:{usuarioId}");
             return real.EsCuentaActivaConRolAsync(usuarioId, tenantId, rol, cancellationToken);
         }
+
+        public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+            Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+            real.ObtenerCuentasActivasConRolAsync(tenantId, rol, cancellationToken);
     }
 
     private sealed class GestoresCaeFalsos : IDirectorioCompanerosGestorCae
@@ -81,6 +86,9 @@ public class PropuestaApoyoCarteraTests
         public DirectorioRolesEnOrigen Roles { get; } = new();
         public TenantsQueryContextFalso Tenants { get; } = new();
         public GestoresCaeFalsos GestoresCae { get; } = new();
+        public DirectorioDestinosPorUsuario Cuentas { get; } = new();
+        public NotificacionUsuarioRepositorioFalso Notificaciones { get; } = new();
+        public UnitOfWorkConAmbito UnitOfWork { get; } = new();
 
         public Escenario()
         {
@@ -141,6 +149,7 @@ public class PropuestaApoyoCarteraTests
         public Task<Result> Aceptar(Guid actor, Guid propuestaId, Guid? origen = null, string? rolDeSesion = "GestorCae") =>
             new AceptarPropuestaApoyoCarteraCommandHandler(
                     Como(actor, origen, rolDeSesion), new DirectorioConTraza(Roles, Eventos), Catalogo, Repositorio, Transaccion, Bloqueo,
+                    Cuentas, Notificaciones, Tenants, UnitOfWork,
                     NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance)
                 .Handle(new AceptarPropuestaApoyoCarteraCommand(propuestaId), default);
 
@@ -401,10 +410,13 @@ public class PropuestaApoyoCarteraTests
     public void Ni_el_rol_ni_el_ambito_ni_la_marca_son_parametros_de_los_comandos()
     {
         typeof(ProponerApoyoCarteraCommand).GetProperties().Select(p => p.Name)
-            .Should().BeEquivalentTo(["AsignacionOperacionId", "DestinatarioUsuarioId"],
-                "quien propone elige la empresa y la persona; el rol, el ámbito y la marca los fija el catálogo");
+            .Should().BeEquivalentTo(["AsignacionOperacionId", "DestinatarioUsuarioId", "UltimoDia"],
+                "quien propone elige la empresa, la persona y, si quiere, hasta cuándo (D-5); el rol, el ámbito y la marca los fija el catálogo");
         typeof(AceptarPropuestaApoyoCarteraCommand).GetProperties().Select(p => p.Name)
             .Should().BeEquivalentTo(["PropuestaId"]);
+        foreach (var finDeApoyo in new[] { typeof(DesasignarmeDeApoyoCommand), typeof(RetirarApoyoConcedidoCommand), typeof(RevocarApoyoCarteraCommand) })
+            finDeApoyo.GetProperties().Select(p => p.Name)
+                .Should().BeEquivalentTo(["PropuestaId"], "el Tenant propietario, la cartera y las dos personas salen de la propuesta");
     }
 
     // ================= Aceptar =================
@@ -611,7 +623,8 @@ public class PropuestaApoyoCarteraTests
         var propuesta = e.PropuestaPendiente();
         var registro = new RegistroCaptura();
         var handler = new AceptarPropuestaApoyoCarteraCommandHandler(
-            e.Como(GestorB), e.Roles, e.Catalogo, e.Repositorio, new TransaccionQueFalla(), e.Bloqueo, registro);
+            e.Como(GestorB), e.Roles, e.Catalogo, e.Repositorio, new TransaccionQueFalla(), e.Bloqueo,
+            e.Cuentas, e.Notificaciones, e.Tenants, e.UnitOfWork, registro);
 
         var resultado = await handler.Handle(new AceptarPropuestaApoyoCarteraCommand(propuesta.Id), default);
 
@@ -631,7 +644,8 @@ public class PropuestaApoyoCarteraTests
         var propuesta = e.PropuestaPendiente();
         var registro = new RegistroCaptura();
         var handler = new AceptarPropuestaApoyoCarteraCommandHandler(
-            e.Como(GestorB), e.Roles, e.Catalogo, e.Repositorio, e.Transaccion, e.Bloqueo, registro);
+            e.Como(GestorB), e.Roles, e.Catalogo, e.Repositorio, e.Transaccion, e.Bloqueo,
+            e.Cuentas, e.Notificaciones, e.Tenants, e.UnitOfWork, registro);
 
         var resultado = await handler.Handle(new AceptarPropuestaApoyoCarteraCommand(propuesta.Id), default);
 

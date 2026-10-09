@@ -203,6 +203,20 @@ public class ExpiracionAsignacionesHostedService(
         foreach (var cartera in carteras.Concat(carterasHuerfanas).DistinctBy(c => c.Id))
             cartera.Cerrar(MotivoCierreAsignacion.Expirada, ahora);
 
+        // Una cartera externa del Tenant entero que caduca por su propia fecha —un apoyo con
+        // fecha de fin— se lleva la fila heredada de Operador Delegado, igual que una retirada:
+        // esa fila autoriza el Tenant por sí sola, y sin borrarla la cartera quedaría cerrada y
+        // el acceso intacto. Las que caen con su operación no pasan por aquí: ahí lo que
+        // termina es la delegación entera.
+        var cerradas = carteras.Select(c => c.Id).ToList();
+        foreach (var caducada in carteras.Where(c =>
+                     c.OperadorTenantId != c.PropietarioTenantId && c.Ambito.EsUniversal))
+        {
+            await CatalogoIncorporacionCartera.RetirarFilaHeredadaSiSobraAsync(
+                dbContext, caducada.PropietarioTenantId, caducada.OperadorTenantId, caducada.UsuarioId,
+                cerradas, ahora, stoppingToken);
+        }
+
         foreach (var operacion in operaciones)
             operacion.Cerrar(MotivoCierreAsignacion.Expirada, ahora);
 

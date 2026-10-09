@@ -375,6 +375,7 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
             return new AceptarPropuestaApoyoCarteraCommandHandler(
                     usuario, directorio, pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
                     new PropuestaApoyoCarteraRepository(contexto), new TransaccionDeComando(contexto), new BloqueoCarteraUsuario(contexto),
+                    directorio, new NotificacionUsuarioRepository(contexto), contexto, contexto,
                     NullLogger<AceptarPropuestaApoyoCarteraCommandHandler>.Instance)
                 .Handle(new AceptarPropuestaApoyoCarteraCommand(propuestaId), CancellationToken.None);
         }, tenantActivo);
@@ -518,6 +519,8 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
         public Task<ResultadoIncorporacionCartera> IncorporarAsync(Guid p, Guid o, Guid op, Guid u, CancellationToken c = default) => real.IncorporarAsync(p, o, op, u, c);
         public Task<IReadOnlyList<TenantEnCarteraDeGestor>> ObtenerCarteraUniversalAsync(Guid o, Guid u, CancellationToken c = default) => real.ObtenerCarteraUniversalAsync(o, u, c);
         public Task<bool> RetirarCarteraUniversalAsync(Guid p, Guid o, Guid u, Guid a, CancellationToken c = default) => real.RetirarCarteraUniversalAsync(p, o, u, a, c);
+        public Task<IReadOnlyList<ApoyoVivoDeCartera>> ObtenerApoyosVivosAsync(Guid o, CancellationToken c = default) => real.ObtenerApoyosVivosAsync(o, c);
+        public Task<ResultadoRetiradaApoyo> RetirarCarteraDeApoyoAsync(PropuestaApoyoCartera pr, Guid a, bool e, CancellationToken c = default) => real.RetirarCarteraDeApoyoAsync(pr, a, e, c);
         public Task<IReadOnlyList<CarteraVivaDeOperacion>> ObtenerCarterasVivasAsync(Guid o, Guid? p, CancellationToken c = default) => real.ObtenerCarterasVivasAsync(o, p, c);
         public Task<IReadOnlyList<OperacionConPrincipal>> ObtenerOperacionesDondeEsPrincipalAsync(Guid o, Guid u, CancellationToken c = default) => real.ObtenerOperacionesDondeEsPrincipalAsync(o, u, c);
         public Task<bool> ApagarPrincipalAsync(Guid o, Guid op, Guid u, CancellationToken c = default) => real.ApagarPrincipalAsync(o, op, u, c);

@@ -1,17 +1,26 @@
 @*
-    «Dar acceso»: el principal de un Tenant propietario —Gestor CAE o Coordinador CAE— propone a
-    un Gestor CAE de su mismo Operador CAE que le apoye en ese Tenant. Enseña, por cada Tenant del que quien mira es
-    hoy el principal, quién tiene ya acceso de apoyo y las propuestas suyas que siguen sin
-    responder (que puede retirar).
+    «Dar acceso» y el fin de un apoyo. Tres bloques, cada uno solo si tiene algo que enseñar:
 
-    Es solo interfaz: quién propone, a quién y sobre qué lo deciden ProponerApoyoCarteraCommand y
-    RetirarPropuestaApoyoCarteraCommand, que lo vuelven a leer todo. El rol del apoyo no se elige
-    aquí ni viaja en ninguna petición —lo fija el catálogo al aceptar—, y no se ofrece fecha de fin.
+    1. Las empresas de las que quien mira es hoy el principal —Gestor CAE o Coordinador CAE—:
+       quién tiene acceso de apoyo («Apoyo», o «Apoyo hasta <fecha>» si lleva fecha de fin), las
+       propuestas suyas sin responder (que puede retirar) y el formulario para proponer un apoyo
+       nuevo, con fecha de fin opcional. Junto al apoyo que concedió él mismo, «Retirar acceso».
+    2. «Mis accesos de apoyo»: las empresas en las que quien mira es Gestor CAE de apoyo, con
+       «Desasignarme».
+    3. Los apoyos que puede revocar por su rol (Coordinador CAE del apoyo o de quien lo propuso,
+       Dirección CAE, Administrador del Operador CAE).
 
-    Reutilizable: sin TenantId lista todos los Tenants de los que quien mira es principal (así se
-    monta, de forma provisional, en /cartera/solicitudes); con TenantId, solo ese. No pinta nada si
-    quien mira no es principal de ninguno.
+    Es solo interfaz: quién puede cada cosa lo deciden ProponerApoyoCarteraCommand,
+    RetirarPropuestaApoyoCarteraCommand, DesasignarmeDeApoyoCommand, RetirarApoyoConcedidoCommand
+    y RevocarApoyoCarteraCommand, que lo vuelven a leer todo. El rol del apoyo no se elige aquí ni
+    viaja en ninguna petición: lo fija el catálogo al aceptar.
+
+    Reutilizable: sin TenantId lista todo lo de quien mira (así se monta, de forma provisional, en
+    /cartera/solicitudes); con TenantId, solo ese Tenant propietario. «Desasignarme» vive aquí de
+    forma provisional: su sitio es la cabecera de la Empresa. No pinta nada si no hay nada que
+    enseñar.
 *@
+@using CaeManager.Application.Operaciones.ApoyoCartera.Queries
 @using CaeManager.Web.Components.DesignSystem
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
 
@@ -31,7 +40,23 @@
                         }
                         else
                         {
-                            <span class="dar-acceso-nota">@Textos["ApoyosEtiqueta", NombresDeApoyo(operacion)]</span>
+                            <span class="dar-acceso-nota">@Textos["ApoyosEtiqueta"]</span>
+                            @foreach (var apoyo in operacion.Apoyos)
+                            {
+                                var concedido = Concedido(operacion.AsignacionOperacionId, apoyo.UsuarioId);
+                                <span @key="apoyo.UsuarioId" class="dar-acceso-propuesta" data-apoyo-de="@apoyo.UsuarioId">
+                                    <span class="dar-acceso-nota">@Textos["ApoyoDePersona", apoyo.Nombre, Rotulo(apoyo.VigenciaHasta)]</span>
+                                    @if (concedido is not null)
+                                    {
+                                        <SoloConEscritura>
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                                   OnClick="() => PedirTerminar(concedido, ViaFinDeApoyo.RetirarLoConcedido)" Deshabilitado="_enCurso"
+                                                   data-retirar-apoyo="@concedido.PropuestaId"
+                                                   aria-label="@Textos["RetirarApoyoEtiqueta", concedido.NombreApoyo, concedido.NombreEmpresa]">@Textos["RetirarApoyo"]</Boton>
+                                        </SoloConEscritura>
+                                    }
+                                </span>
+                            }
                         }
                         @foreach (var propuesta in PropuestasDe(operacion.AsignacionOperacionId))
                         {
@@ -54,7 +79,7 @@
     </Tarjeta>
 
     <DrawerFormulario Visible="_operacionDelDrawer is not null" VisibleChanged="CerrarDrawer"
-                      Titulo="@TituloDrawer" HayCambios="() => _destinatarioId.Length > 0"
+                      Titulo="@TituloDrawer" HayCambios="() => _destinatarioId.Length > 0 || _ultimoDia.Length > 0"
                       Guardando="_enCurso" MensajeError="@_mensajeErrorFormulario"
                       Cargando="_destinatarios is null"
                       MotivoGuardarDeshabilitado="@MotivoProponerDeshabilitado"
@@ -69,6 +94,9 @@
                 <option value="@destinatario.UsuarioId">@destinatario.Nombre</option>
             }
         </CampoSelect>
+        <CampoTexto Etiqueta="@Textos["EtiquetaUltimoDia"]" Type="date" Valor="@_ultimoDia" ValorChanged="AlElegirUltimoDia"
+                    min="@HoyIso" />
+        <p class="dar-acceso-nota">@Textos["AyudaUltimoDia"]</p>
     </DrawerFormulario>
 
     <DialogoConfirmacion Visible="_aRetirar is not null"
@@ -79,6 +107,65 @@
                          TextoBotonDescartar="@Textos["BotonCancelar"]"
                          EnProgreso="_enCurso"
                          OnConfirmar="RetirarAsync" />
+}
+
+@if (_apoyos.Mios.Count > 0)
+{
+    <Tarjeta Titulo="@Textos["MisApoyosTitulo"]" NivelTitulo="2">
+        <p class="dar-acceso-descripcion">@Textos["MisApoyosDescripcion"]</p>
+        <ul class="dar-acceso-lista" data-testid="panel-mis-apoyos">
+            @foreach (var apoyo in _apoyos.Mios)
+            {
+                <li @key="apoyo.PropuestaId" class="dar-acceso-fila" data-mi-apoyo="@apoyo.PropuestaId">
+                    <div class="dar-acceso-empresa">
+                        <strong>@apoyo.NombreEmpresa</strong>
+                        <span class="dar-acceso-nota">@Textos["MiApoyoDetalle", Rotulo(apoyo.UltimoDia), apoyo.NombreProponente]</span>
+                    </div>
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                               OnClick="() => PedirTerminar(apoyo, ViaFinDeApoyo.Desasignarme)" Deshabilitado="_enCurso"
+                               aria-label="@Textos["DesasignarmeEtiqueta", apoyo.NombreEmpresa]">@Textos["Desasignarme"]</Boton>
+                    </SoloConEscritura>
+                </li>
+            }
+        </ul>
+    </Tarjeta>
+}
+
+@if (_apoyos.Revocables.Count > 0)
+{
+    <Tarjeta Titulo="@Textos["ApoyosRevocablesTitulo"]" NivelTitulo="2">
+        <p class="dar-acceso-descripcion">@Textos["ApoyosRevocablesDescripcion"]</p>
+        <ul class="dar-acceso-lista" data-testid="panel-apoyos-revocables">
+            @foreach (var apoyo in _apoyos.Revocables)
+            {
+                <li @key="apoyo.PropuestaId" class="dar-acceso-fila" data-apoyo-revocable="@apoyo.PropuestaId">
+                    <div class="dar-acceso-empresa">
+                        <strong>@apoyo.NombreEmpresa</strong>
+                        <span class="dar-acceso-nota">@Textos["ApoyoRevocableDetalle", apoyo.NombreApoyo, Rotulo(apoyo.UltimoDia), apoyo.NombreProponente]</span>
+                    </div>
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                               OnClick="() => PedirTerminar(apoyo, ViaFinDeApoyo.Revocar)" Deshabilitado="_enCurso"
+                               aria-label="@Textos["RevocarApoyoEtiqueta", apoyo.NombreApoyo, apoyo.NombreEmpresa]">@Textos["RevocarApoyo"]</Boton>
+                    </SoloConEscritura>
+                </li>
+            }
+        </ul>
+    </Tarjeta>
+}
+
+@if (_operaciones.Count > 0 || !_apoyos.EstaVacio)
+{
+    @* Terminar un apoyo quita un Tenant a una persona: pregunta antes, como el resto de acciones que no se deshacen. *@
+    <DialogoConfirmacion Visible="_aTerminar is not null"
+                         VisibleChanged="CerrarConfirmacionFinDeApoyo"
+                         Titulo="@TituloConfirmarFinDeApoyo"
+                         Mensaje="@MensajeConfirmarFinDeApoyo"
+                         TextoBotonConfirmar="@TextoConfirmarFinDeApoyo"
+                         TextoBotonDescartar="@Textos["BotonCancelar"]"
+                         EnProgreso="_enCurso"
+                         OnConfirmar="TerminarAsync" />
 }
 
 @code {

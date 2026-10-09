@@ -49,14 +49,19 @@ public class PropuestaApoyoCartera : Entity, IVersionable
     public EstadoPropuestaApoyoCartera Estado { get; private set; }
 
     /// <summary>
-    /// Fecha de fin que el proponente sugiere para el apoyo. Se guarda, pero ninguna vía la
-    /// ofrece ni la aplica todavía: la cartera de apoyo se emite sin caducidad.
+    /// Fecha de fin opcional que quien propone pone al apoyo (instante UTC en que deja de
+    /// estar vigente). La cartera de apoyo que se emite al aceptar la hereda como
+    /// <c>VigenciaHasta</c>; sin ella, el apoyo no caduca.
     /// </summary>
     public DateTime? VigenciaHastaPropuesta { get; private set; }
 
     public DateTime CreadaEnUtc { get; private set; }
 
-    /// <summary>Cuándo dejó de estar pendiente, por cualquiera de las cuatro salidas.</summary>
+    /// <summary>
+    /// Cuándo dejó de estar pendiente, por cualquiera de las cuatro salidas. Pasar después de
+    /// aceptada a terminada no lo cambia: cuándo y por qué terminó el apoyo lo dice el cierre
+    /// de su Asignación de Cartera.
+    /// </summary>
     public DateTime? ResueltaEnUtc { get; private set; }
 
     public MotivoAnulacionPropuestaApoyo? MotivoAnulacion { get; private set; }
@@ -171,6 +176,19 @@ public class PropuestaApoyoCartera : Entity, IVersionable
         Estado = EstadoPropuestaApoyoCartera.Anulada;
         MotivoAnulacion = motivo;
         ResueltaEnUtc = ahora;
+    }
+
+    /// <summary>
+    /// Aceptada → Terminada: la Asignación de Cartera de apoyo que emitió se cerró por retirada.
+    /// Quién puede retirarla lo decide el Command; aquí solo se exige que hubiera un apoyo que
+    /// terminar.
+    /// </summary>
+    public void Terminar()
+    {
+        if (Estado != EstadoPropuestaApoyoCartera.Aceptada)
+            throw new InvalidOperationException($"Solo termina un apoyo aceptado (la propuesta está {Estado}).");
+
+        Estado = EstadoPropuestaApoyoCartera.Terminada;
     }
 
     /// <summary>Acepta o rechaza el destinatario, y nadie más: ni quien propuso ni un tercero.</summary>
