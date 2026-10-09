@@ -432,13 +432,13 @@ public class Subcontrata360PaginaTests : BunitContext
         Boton(cut, "Ver credenciales").Click();
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("terminator"));
 
-        cut.Find("button[aria-pressed=false]").Click();
+        cut.Find(".subcontrata360-botones button[aria-pressed=false]").Click();
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("secreta"));
         mediador.Enviadas.OfType<ObtenerCredencialAccesoSubcontrataQuery>().Should().HaveCount(2,
             "revelar comprueba el doble factor en el momento, no enseña lo que ya tenía");
 
-        cut.Find("button[aria-pressed=true]").Click();
+        cut.Find(".subcontrata360-botones button[aria-pressed=true]").Click();
 
         cut.Markup.Should().NotContain("secreta");
     }

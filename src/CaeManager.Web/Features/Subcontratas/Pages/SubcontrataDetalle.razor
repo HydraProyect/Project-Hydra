@@ -294,7 +294,7 @@
                                                     else
                                                     {
                                                         @* Dos copias operativas del mismo tipo son dos filas: la clave no puede ser solo el tipo. *@
-                                                        @{ var clavesDocumentos = new ClavesDeHermanos(); }
+                                                        var clavesDocumentos = new ClavesDeHermanos();
                                                         <ul class="subcontrata360-subfilas" aria-label="@Textos["AriaDocumentacionExigidaA", trabajador.TrabajadorNombre]">
                                                             @foreach (var documento in trabajador.Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)))
                                                             {

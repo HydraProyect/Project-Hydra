@@ -154,6 +154,9 @@
         }
     }
 
+    /// <summary>Cierra sin preguntar: la página lo llama al pasar a otra subcontrata, cuyo formulario ya no es este.</summary>
+    public void Descartar() => _visible = false;
+
     private Task CambiarVisibilidad(bool visible)
     {
         _visible = visible;
