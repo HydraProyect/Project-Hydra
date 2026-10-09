@@ -89,7 +89,9 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
             new AutorizacionAdminPlataformaPorConcesion(contexto),
             new CurrentUserServiceFalso(usuarioId),
             new AsignacionesOperativasWriter(contexto, _tenantActual, new CurrentUserServiceFalso(usuarioId)),
-            unitOfWork);
+            unitOfWork,
+            new CaeManager.Infrastructure.Persistence.Repositories.EncargoAdministracionRepository(contexto),
+            new TransaccionDeComando(contexto), new AsignacionAutomaticaInerte());
 
     [Fact]
     public async Task El_administrador_de_plataforma_crea_un_tenant_propietario_operado_por_el_operador_nombrado()
@@ -345,6 +347,65 @@ public class CrearTenantPropietarioDeOperadorCaeExternoTests : IAsyncLifetime
         unidad.Guardados.Should().Be(1);
         (await contexto.DelegacionesTenant.CountAsync(d => d.TenantClienteId == resultado.Valor)).Should().Be(1,
             "control positivo: el único guardado llevó también la delegación");
+    }
+
+    /// <summary>
+    /// Encargo de administración en el nacimiento (decisión D-8, 2026-10-08): con la cláusula
+    /// informada, el Tenant propietario nace con su encargo ligado a la operación delegada que se
+    /// crea en ese mismo alta, y todo en el mismo guardado. Contra la base de verdad lo que se
+    /// comprueba es que la FK compuesta hacia la operación recién creada y el índice único del
+    /// encargo vigente aceptan las dos filas dentro de una sola transacción.
+    /// </summary>
+    [Fact]
+    public async Task Con_clausula_el_tenant_propietario_nace_con_operacion_y_encargo_en_el_mismo_guardado()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        _actorReal = admin;
+        await SembrarAdminPlataformaGlobalAsync(contexto, admin);
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "Operador CAE externo", operadorCaeExterno: true);
+        var unidad = new UnidadDeTrabajoContadora(contexto);
+
+        var resultado = await CrearHandler(contexto, admin, unidad).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(
+                operadorId, $"Tenant propietario con encargo {Guid.NewGuid():N}", "  Cláusula 7.ª del contrato de servicio "),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+        unidad.Guardados.Should().Be(1, "el encargo no se registra en un segundo guardado que pudiera fallar solo");
+        var propietarioId = resultado.Valor;
+
+        var operacion = await contexto.AsignacionesOperacion.AsNoTracking().SingleAsync(
+            o => !o.EsRaiz && o.PropietarioTenantId == propietarioId && o.OperadorTenantId == operadorId);
+        var encargo = await contexto.EncargosAdministracion.AsNoTracking().SingleAsync(e => e.PropietarioTenantId == propietarioId);
+
+        encargo.AsignacionOperacionId.Should().Be(operacion.Id);
+        encargo.OperadorTenantId.Should().Be(operadorId);
+        encargo.ClausulaContrato.Should().Be("Cláusula 7.ª del contrato de servicio");
+        encargo.Origen.Should().Be(OrigenEncargoAdministracion.AprovisionamientoDePlataforma);
+        encargo.RegistradoPorUsuarioId.Should().Be(admin, "el Actor real de la plataforma");
+        encargo.RetiradoEnUtc.Should().BeNull();
+        encargo.EstaVigente(DateTime.UtcNow).Should().BeTrue("nace vigente, en el mismo instante que la operación a la que se liga");
+        operacion.EstaVigenteEn(encargo.VigenciaDesde).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Sin_clausula_el_tenant_propietario_nace_sin_encargo()
+    {
+        await using var contexto = CrearContexto();
+        var admin = Guid.NewGuid();
+        _actorReal = admin;
+        await SembrarAdminPlataformaGlobalAsync(contexto, admin);
+        var operadorId = await SembrarTenantAsync(contexto, PerfilVocabularioTenant.Consultora, "Operador CAE externo", operadorCaeExterno: true);
+
+        var resultado = await CrearHandler(contexto, admin).Handle(
+            new CrearTenantPropietarioDeOperadorCaeExternoCommand(
+                operadorId, $"Tenant propietario sin encargo {Guid.NewGuid():N}", "   "),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+        (await contexto.EncargosAdministracion.AnyAsync(e => e.PropietarioTenantId == resultado.Valor))
+            .Should().BeFalse("en blanco es «sin encargo», no una cláusula vacía");
     }
 
     /// <summary>

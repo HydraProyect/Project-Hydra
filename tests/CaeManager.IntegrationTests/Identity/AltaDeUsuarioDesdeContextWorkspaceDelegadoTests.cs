@@ -218,6 +218,8 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
                 sp.GetRequiredService<CaeManagerDbContext>(), sp2.GetRequiredService<ICurrentUserService>()));
         serviciosMediator.AddSingleton<ITransaccionDeComando>(
             new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()));
+        // El alta engancha el «primer usuario elegible» (I5); aquí no se trata del principal de cartera.
+        serviciosMediator.AddSingleton<CaeManager.Application.Operaciones.IAsignacionAutomaticaDePrincipal>(new AsignacionAutomaticaInerte());
         serviciosMediator.AddMediatR(cfg => cfg.RegisterServicesFromAssemblyContaining<CrearUsuarioCommand>());
         await using var proveedorMediator = serviciosMediator.BuildServiceProvider();
 

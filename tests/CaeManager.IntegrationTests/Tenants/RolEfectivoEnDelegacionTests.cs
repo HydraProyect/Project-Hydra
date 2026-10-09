@@ -192,7 +192,7 @@ public class RolEfectivoEnDelegacionTests : IAsyncLifetime
             new AuthenticationStateProviderFalso(new ClaimsPrincipal(identidad)),
             new HttpContextAccessorFalso(),
             new ClienteActivoSeleccionadoFalso(tenantSeleccionado, asignacionOperacionId),
-            servicios.BuildServiceProvider());
+            servicios.AddTechoDeRolSinEncargoSembrado().BuildServiceProvider());
     }
 
     private CaeManagerDbContext CrearContexto(Guid? tenantSellado = null)

@@ -13,7 +13,7 @@ public static class EmpresasEndpoints
 {
     public static IEndpointRouteBuilder MapEmpresasEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/empresas/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken) =>
+        endpoints.MapGet("/empresas/exportar.xlsx", async (IMediator mediator, CancellationToken cancellationToken, string? q = null, string? estado = null) =>
         {
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Empresas");
@@ -31,7 +31,11 @@ public static class EmpresasEndpoints
             var fila = 2;
             await foreach (var empresa in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
                 mediator.Send(
-                    new ObtenerEmpresasQuery(Busqueda: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    new ObtenerEmpresasQuery(
+                        Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
+                        Pagina: pagina,
+                        TamanoPagina: tamanoPagina,
+                        EstadoDocumental: string.IsNullOrWhiteSpace(estado) ? null : estado),
                     cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = empresa.RazonSocial;

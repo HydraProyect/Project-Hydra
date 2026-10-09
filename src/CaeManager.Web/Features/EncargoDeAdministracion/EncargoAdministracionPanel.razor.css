@@ -1,0 +1,34 @@
+.encargo-administracion {
+    display: grid;
+    gap: var(--space-3);
+}
+
+.encargo-administracion-nota {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    margin: 0 0 var(--space-3);
+}
+
+.encargo-administracion-error {
+    color: var(--color-danger-700);
+    font: var(--font-body-sm);
+    margin: 0;
+}
+
+.encargo-administracion-fila {
+    border-top: 1px solid var(--color-border);
+    padding: var(--space-3) 0;
+}
+
+.encargo-administracion-cabecera {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.encargo-administracion-operador {
+    color: var(--color-text);
+    flex: 1 1 auto;
+    font: var(--font-body-md);
+}

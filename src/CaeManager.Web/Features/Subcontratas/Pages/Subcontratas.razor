@@ -34,7 +34,7 @@
         <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
             <Menu>
-                <ItemMenuAccion Href="/subcontratas/exportar.xlsx">@Textos["EnlaceExportarExcel"]</ItemMenuAccion>
+                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/subcontratas/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
             </Menu>
             <Primaria>
                 @if (!_alcanceCero)
@@ -295,15 +295,15 @@
                             }
                         </span>
                         @* Acciones tras "⋯", mismo criterio que Empresas. "Detalles"
-                           abre la vista previa y "Abrir Subcontrata 360" el Context
-                           Workspace: son dos profundidades distintas, y el mockup
-                           ofrece las dos. *@
+                           abre la vista previa y "Abrir Subcontrata 360" lleva a su
+                           página (/subcontratas/{id}): son dos profundidades
+                           distintas, y el mockup ofrece las dos. *@
                         <div class="tarjeta-fila-acordeon-acciones">
                             <MenuAcciones>
                                 <ItemMenuAccion OnClick="() => AbrirPreview(subcontrata.Id)">
                                     @Textos["MenuDetalles"]
                                 </ItemMenuAccion>
-                                <ItemMenuAccion OnClick='() => AbrirDesdePreviewAsync((subcontrata.Id, "informacion"))'>
+                                <ItemMenuAccion OnClick="() => IrASubcontrata360(subcontrata.Id)">
                                     @Textos["MenuAbrirSubcontrata360"]
                                 </ItemMenuAccion>
                                 <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(subcontrata.Id, subcontrata.RazonSocial)">

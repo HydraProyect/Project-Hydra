@@ -671,6 +671,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _ultimaColumnaOrden = request.SortByColumn;
             _ultimoOrdenAscendente = request.SortByAscending;
             var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+            (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
 
             var ambitoFiltro = Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambito) ? ambito : (AmbitoAplicacion?)null;
             var estadoFiltro = Enum.TryParse<EstadoDocumento>(_estadoFiltro, out var estado) ? estado : (EstadoDocumento?)null;
@@ -1266,4 +1267,21 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _eliminandoFiltroGuardado = false;
         }
     }
+
+    /// <summary>El orden de la última carga de la rejilla, para que «Exportar esta vista» salga en el mismo.</summary>
+    private string? _ordenExportar;
+    private bool _descendenteExportar;
+
+    /// <summary>
+    /// Los criterios de «Exportar esta vista»: los mismos que esta página pasa a la consulta del
+    /// listado, con los nombres de parámetro del endpoint de exportación, que los lee igual.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["ambito"] = _ambitoFiltro,
+        ["estado"] = _estadoFiltro,
+        ["orden"] = _ordenExportar,
+        ["desc"] = _descendenteExportar ? "true" : null,
+    };
 }

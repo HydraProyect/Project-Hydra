@@ -27,6 +27,14 @@ public abstract class EntidadBase : EntidadConTenant, IVersionable
     /// </summary>
     public Guid Version { get; private set; } = Guid.NewGuid();
 
+    /// <summary>
+    /// Para el agregado cuyo cambio vive en OTRA tabla (las filas de una unión): sin tocar la
+    /// raíz, EF no emite su UPDATE, el token de concurrencia no entra en ningún WHERE y dos
+    /// escrituras simultáneas no se ven. Lo llama un método de dominio con nombre propio, nunca
+    /// un Command.
+    /// </summary>
+    protected void RenovarVersion() => Version = Guid.NewGuid();
+
     public DateTime CreadoEnUtc { get; protected set; } = DateTime.UtcNow;
     public bool EstaEliminado { get; private set; }
     public DateTime? EliminadoEnUtc { get; private set; }

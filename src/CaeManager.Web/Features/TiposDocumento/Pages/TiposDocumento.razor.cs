@@ -13,9 +13,14 @@ using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.EncargoDeAdministracion.Recursos;
+using CaeManager.Web.Services;
 using FluentValidation;
 using MediatR;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.TiposDocumento.Pages;
 
@@ -42,6 +47,9 @@ namespace CaeManager.Web.Features.TiposDocumento.Pages;
 /// </summary>
 public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+    [Inject] private IStringLocalizer<TextosEncargoAdministracion> TextosEncargo { get; set; } = default!;
+
     /// <summary>Lo que dura «Guardado»/«No guardado» junto a un valor cambiado en la fila.</summary>
     private static readonly TimeSpan DuracionAvisoCambio = TimeSpan.FromMilliseconds(1200);
 
@@ -121,8 +129,22 @@ public partial class TiposDocumento : CaeManager.Web.Components.PaginaIntegrable
     /// <summary>Dentro del hub se queda en el hub; fuera, la ruta propia del selector.</summary>
     private string RutaLecturaIaPorCliente => IntegradaEnConfiguracion ? "/configuracion/ia" : "/configuracion/lectura-ia";
 
+    /// <summary>
+    /// Quien administra por Encargo de administración (decisión D-8, 2026-10-08) no cambia la
+    /// configuración global de IA de un tipo: los cuatro comandos <c>…GlobalCommand</c> están entre
+    /// los actos excluidos, y sus interruptores y el selector de documento oficial se le pintan
+    /// deshabilitados. La barrera es la de Application; esto evita ofrecer lo que falla.
+    /// </summary>
+    private bool _iaGlobalReservada;
+
+    private string AyudaIaGlobal(string ayuda) => _iaGlobalReservada ? TextosEncargo["ReservadoIaGlobal"] : ayuda;
+
     protected override async Task OnInitializedAsync()
     {
+        // El estado de autenticación del circuito ya está resuelto: se asigna antes del primer render.
+        if (EstadoAutenticacion is not null)
+            _iaGlobalReservada = PaginasExcluidasDelEncargo.ActuaPorEncargo((await EstadoAutenticacion).User);
+
         try
         {
             _clientesFiltroDisponibles = await Mediator.Send(new ObtenerClientesParaSelectorQuery());

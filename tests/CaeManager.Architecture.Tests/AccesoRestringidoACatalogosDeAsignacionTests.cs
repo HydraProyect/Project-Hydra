@@ -77,6 +77,12 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
     /// </summary>
     private static readonly HashSet<string> ArchivosAutorizados =
     [
+        // Encargo de administración (decisión D-8, 2026-10-08): lee la Asignación de Operación a la
+        // que se liga el encargo, sin seguimiento y acotada a la posición de PROPIETARIO
+        // (Id == el pedido y PropietarioTenantId == el Tenant activo de quien registra). Quién
+        // puede llegar hasta aquí lo decide antes AutoridadSobreElEncargo.
+        "src/CaeManager.Infrastructure/Persistence/Repositories/EncargoAdministracionRepository.cs",
+
         // Autoridad de AdminPlataforma (A3): decide si el usuario puede ejercer
         // la capacidad sobre un tenant o globalmente. Consulta acotada al propio
         // usuario —UsuarioPlataformaId == el de la sesión—, el mismo predicado

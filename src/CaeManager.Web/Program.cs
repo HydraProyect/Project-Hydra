@@ -363,6 +363,12 @@ builder.Services.ConfigureApplicationCookie(options =>
     OmitirRevalidacionDeStampEnRuta.Configurar(options, "/Error");
 });
 
+// Encargo de administración (decisión D-8, 2026-10-08): quien administra por encargo lleva el rol
+// elevado en sus claims, así que cumple el [Authorize(Roles = Administrador)] de cualquier página.
+// Este handler le niega las de la lista cerrada. Singleton: no tiene estado ni dependencias.
+builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+    PaginasExcluidasDelEncargoAuthorizationHandler>();
+
 builder.Services.AddAuthorization(options =>
 {
     // Toda página/endpoint requiere sesión iniciada salvo que declare [AllowAnonymous]

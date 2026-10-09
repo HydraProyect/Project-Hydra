@@ -17,6 +17,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using AuthenticationState = Microsoft.AspNetCore.Components.Authorization.AuthenticationState;
+using AuthenticationStateProvider = Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider;
 
 namespace CaeManager.IntegrationTests.Tenants;
 
@@ -195,6 +197,8 @@ public class RevalidacionCircuitoActivoHandlerTests : IAsyncLifetime
         return new RevalidacionCircuitoActivoHandler(
             seleccion,
             new CurrentUserServiceParaHandlerFalso(_usuario),
+            SinEncargoDeAdministracion.Instancia,
+            new PrincipalDelCircuitoSinEncargo(),
             contexto,
             contexto,
             SinSesionPrivilegiada,
@@ -306,4 +310,15 @@ public class RevalidacionCircuitoActivoHandlerTests : IAsyncLifetime
             set => throw new NotSupportedException();
         }
     }
+}
+
+/// <summary>
+/// El principal con el que se negoció el circuito, sin el claim del Encargo de
+/// administración: estos tests miden la revalidación de la selección, no la
+/// retirada del encargo.
+/// </summary>
+internal sealed class PrincipalDelCircuitoSinEncargo : AuthenticationStateProvider
+{
+    public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+        Task.FromResult(new AuthenticationState(new ClaimsPrincipal(new ClaimsIdentity())));
 }

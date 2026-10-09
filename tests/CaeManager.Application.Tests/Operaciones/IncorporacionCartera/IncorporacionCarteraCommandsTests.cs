@@ -486,7 +486,7 @@ public class IncorporacionCarteraCommandsTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task Revocar_la_incorporacion_del_principal_pasa_la_marca_a_su_Coordinador_CAE_o_la_deja_vacia(bool tieneCoordinador)
+    public async Task Revocar_la_incorporacion_del_principal_pasa_la_marca_a_su_Coordinador_CAE_o_al_unico_del_Operador_CAE(bool tieneCoordinador)
     {
         var solicitud = Aceptada();
         var apoyo = Guid.NewGuid();
@@ -502,14 +502,15 @@ public class IncorporacionCarteraCommandsTests
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
         var principal = _catalogo.CarterasVivas.Where(c => c.Cartera.EsPrincipal).Select(c => (Guid?)c.Cartera.UsuarioId).SingleOrDefault();
-        principal.Should().Be(tieneCoordinador ? _coordinador : null);
+        // Con Coordinador CAE propio es el relevo de I2; sin él se escala (D-7) y aquí el
+        // Operador CAE solo tiene un Coordinador CAE activo: recibe la marca igual.
+        principal.Should().Be(_coordinador);
         _catalogo.CarterasVivas.Select(c => c.Cartera.UsuarioId).Should().BeEquivalentTo(
-            tieneCoordinador ? new[] { apoyo, _coordinador } : [apoyo], "la cartera de apoyo no se toca");
-        _bloqueo.Compartidos.Should().Equal(tieneCoordinador ? [_coordinador] : Array.Empty<Guid>(),
+            [apoyo, _coordinador], "la cartera de apoyo no se toca");
+        _bloqueo.Compartidos.Should().Equal([_coordinador],
             "el relevo espera a una desactivación en curso de quien va a recibir la marca");
-        if (tieneCoordinador)
-            _catalogo.CambiosDeMarca.Where(c => c.Paso == "relevar").Should().ContainSingle()
-                .Which.TenantActivo.Should().Be(_empresa.Id);
+        _catalogo.CambiosDeMarca.Where(c => c.Paso == "relevar").Should().ContainSingle()
+            .Which.TenantActivo.Should().Be(_empresa.Id);
     }
 
     [Fact]

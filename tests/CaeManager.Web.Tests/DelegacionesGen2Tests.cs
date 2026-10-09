@@ -72,6 +72,9 @@ public partial class DelegacionesGen2Tests : BunitContext
         public Func<BuscarOperadorCaeExternoAutorizableQuery, OperadorCaeExternoAutorizableDto?> Buscar { get; set; } = _ => null;
         public Result<Guid> ResultadoAutorizacion { get; set; } = Result.Exito(Guid.NewGuid());
 
+        /// <summary>Lo que ve el panel del Encargo de administración que monta la página; por defecto, ninguno.</summary>
+        public IReadOnlyList<CaeManager.Application.Tenants.Queries.ObtenerEncargosAdministracion.EncargoAdministracionDto> Encargos { get; set; } = [];
+
         /// <summary>Lo que responde «Nueva delegación» (<see cref="CrearClienteDeleganteCommand"/>); por defecto, éxito.</summary>
         public Result<Guid> ResultadoCreacion { get; set; } = Result.Exito(Guid.NewGuid());
 
@@ -106,6 +109,7 @@ public partial class DelegacionesGen2Tests : BunitContext
                 ObtenerAccesosSoporteTalvegQuery => AccesosSoporteTalveg,
                 BuscarOperadorCaeExternoAutorizableQuery q => Buscar(q),
                 CrearDelegacionTenantCommand => ResultadoAutorizacion,
+                CaeManager.Application.Tenants.Queries.ObtenerEncargosAdministracion.ObtenerEncargosAdministracionQuery => Encargos,
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return (T)respuesta!;
@@ -622,6 +626,48 @@ public partial class DelegacionesGen2Tests : BunitContext
 
     private static AngleSharp.Dom.IElement BotonConTexto(IRenderedComponent<Delegaciones> cut, string texto) =>
         cut.FindAll("button").Single(b => b.TextContent.Trim() == texto);
+
+    // ------------------------------------------- Encargo de administración (D-8)
+
+    private static CaeManager.Application.Tenants.Queries.ObtenerEncargosAdministracion.EncargoAdministracionDto EncargoVigente() =>
+        new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "Operador CAE externo de prueba", "Cláusula 7.ª del contrato de servicio",
+            "v1", CaeManager.Domain.Tenants.OrigenEncargoAdministracion.AprovisionamientoDePlataforma, Guid.NewGuid(),
+            new DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc), new DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc), null, null, null,
+            CaeManager.Application.Tenants.Queries.ObtenerEncargosAdministracion.EstadoEncargoAdministracion.Vigente);
+
+    [Fact]
+    public void El_Administrador_propio_ve_aqui_el_encargo_vigente_y_puede_retirarlo_pero_no_registrar_otro()
+    {
+        ComoAdministradorDelTenantPropietario();
+        var configurar = _configurarMediador!;
+        _configurarMediador = m =>
+        {
+            configurar(m);
+            m.Encargos = [EncargoVigente()];
+        };
+
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+
+        cut.WaitForAssertion(() => cut.Find("[data-testid=encargo-vigente]").TextContent.Should()
+            .Contain("Operador CAE externo de prueba").And.Contain("Cláusula 7.ª del contrato de servicio"));
+        cut.FindAll("[data-testid=encargo-retirar]").Should().ContainSingle();
+        cut.FindAll("[data-testid=encargo-registrar]").Should().BeEmpty("en /delegaciones el encargo se ve y se retira; no se registra");
+        mediador.Enviadas.Select(x => x.Peticion.GetType().Name).Should().NotContain("ObtenerOperacionesEncargablesQuery");
+    }
+
+    [Fact]
+    public void Fuera_de_la_organizacion_propia_el_panel_del_encargo_no_se_monta()
+    {
+        // Quien administra por encargo mira una organización ajena: PuedeAutorizarOperador es falso y
+        // el panel ni se instancia, así que la consulta del encargo no llega a enviarse.
+        ComoAdministradorDelTenantPropietario();
+        _tenantSeleccionado = Guid.NewGuid();
+
+        var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
+
+        cut.FindAll("[data-testid=encargo-administracion]").Should().BeEmpty();
+        mediador.Enviadas.Select(x => x.Peticion.GetType().Name).Should().NotContain("ObtenerEncargosAdministracionQuery");
+    }
 
     [Fact]
     public void Sin_ser_Administrador_de_un_Tenant_propietario_no_se_ofrece_autorizar_un_Operador()

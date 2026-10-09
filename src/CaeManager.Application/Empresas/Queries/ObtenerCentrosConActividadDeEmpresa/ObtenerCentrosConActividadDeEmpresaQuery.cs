@@ -15,6 +15,11 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEm
 /// pocos, así que se deriva la actividad real: Empresa → Trabajadores →
 /// Asignaciones activas → Centro. Es una aproximación intencional a la
 /// realidad operativa, no una relación directa del modelo.
+///
+/// Que la Empresa sea visible no hace visibles todos los Centros donde
+/// trabaja: solo se devuelven los Centros visibles para quien pregunta
+/// (<see cref="IAlcanceDatosService.ObtenerCentroIdsVisiblesAsync"/>), igual
+/// que en la consulta gemela de Subcontrata.
 /// </summary>
 public record ObtenerCentrosConActividadDeEmpresaQuery(Guid EmpresaId) : IRequest<IReadOnlyList<CentroConActividadDto>>;
 
@@ -27,12 +32,17 @@ public class ObtenerCentrosConActividadDeEmpresaQueryHandler(IAsignacionesQueryC
         if (!await alcanceDatos.EmpresaVisibleAsync(request.EmpresaId, cancellationToken))
             return [];
 
+        var centrosVisibles = centrosContext.Centros;
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        if (centroIdsVisibles is not null)
+            centrosVisibles = centrosVisibles.Where(c => centroIdsVisibles.Contains(c.Id));
+
         var filas = await (
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             where trabajador.EmpresaId == request.EmpresaId
-            join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
+            join centro in centrosVisibles on asignacion.CentroId equals centro.Id
             // Centro.ClienteId ya apunta a Empresas (F3).
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             select new FilaActividadCentro(centro.Id, centro.Nombre, cliente.RazonSocial, trabajador.Id))

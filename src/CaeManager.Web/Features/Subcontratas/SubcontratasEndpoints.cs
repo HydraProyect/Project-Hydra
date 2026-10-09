@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas.Queries.ObtenerEvidenciaVerificacionParaDescarga;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Subcontratas;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Subcontratas.Recursos;
 using ClosedXML.Excel;
@@ -38,7 +39,8 @@ public static class SubcontratasEndpoints
 
         // Mismo patrón de referencia que ClientesEndpoints.
         endpoints.MapGet("/subcontratas/exportar.xlsx", async (
-            IMediator mediator, IStringLocalizer<TextosSubcontratas> textos, CancellationToken cancellationToken) =>
+            IMediator mediator, IStringLocalizer<TextosSubcontratas> textos, CancellationToken cancellationToken,
+            string? q = null, string? nivel = null) =>
         {
             using var libro = new XLWorkbook();
             var hoja = libro.Worksheets.Add("Subcontratas");
@@ -54,7 +56,11 @@ public static class SubcontratasEndpoints
             var fila = 2;
             await foreach (var subcontrata in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
                 mediator.Send(
-                    new ObtenerSubcontratasQuery(Busqueda: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    new ObtenerSubcontratasQuery(
+                        Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
+                        Pagina: pagina,
+                        TamanoPagina: tamanoPagina,
+                        NivelServicio: Enum.TryParse<NivelServicioSubcontrata>(nivel, out var nivelServicio) ? nivelServicio : null),
                     cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = subcontrata.RazonSocial;

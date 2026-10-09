@@ -11,9 +11,11 @@ namespace CaeManager.Application.Operaciones;
 ///
 /// <para>
 /// Si esa persona no tiene Coordinador CAE, o el suyo no es hoy una cuenta activa con rol
-/// Coordinador CAE del mismo Operador CAE, <b>no hay relevo y la operación queda sin
-/// principal</b>: el escalado a Dirección CAE y Administrador es otro incremento. El cierre en
-/// cascada de la operación entera tampoco pasa por aquí.
+/// Coordinador CAE del mismo Operador CAE, se escala (punto 4 de la misma enmienda,
+/// <see cref="EscaladoDePrincipalDeCartera"/>): recibe la marca la única cuenta activa del
+/// primer perfil del Operador CAE que tenga alguna. Con varias en ese perfil, o sin nadie en
+/// ninguno, <b>la operación queda sin principal</b> y la lista la alerta. El cierre en cascada
+/// de la operación entera no pasa por aquí.
 /// </para>
 /// </summary>
 public static class RelevoDePrincipalDeCartera
@@ -59,7 +61,25 @@ public static class RelevoDePrincipalDeCartera
     }
 
     /// <summary>
-    /// Pasa la marca al Coordinador CAE en cada operación que se quedó sin principal, con el
+    /// A quién pasa la marca que suelta <paramref name="usuarioId"/>: su Coordinador CAE
+    /// (<see cref="ResolverCoordinadorAsync"/>) y, si no hay a quién relevar, la única cuenta
+    /// del primer perfil con alguien (<see cref="EscaladoDePrincipalDeCartera.ResolverUnicoAsync"/>),
+    /// sin contarle a él. <c>null</c> si la operación tiene que quedar sin principal.
+    /// </summary>
+    public static async Task<Guid?> ResolverRelevoAsync(
+        Guid usuarioId,
+        Guid operadorTenantId,
+        IDirectorioDestinosCartera directorioDestinos,
+        IDirectorioUsuariosService directorioUsuarios,
+        IBloqueoCarteraUsuario bloqueoCartera,
+        CancellationToken cancellationToken) =>
+        await ResolverCoordinadorAsync(
+            usuarioId, operadorTenantId, directorioDestinos, directorioUsuarios, bloqueoCartera, cancellationToken)
+        ?? await EscaladoDePrincipalDeCartera.ResolverUnicoAsync(
+            operadorTenantId, usuarioId, directorioUsuarios, bloqueoCartera, cancellationToken);
+
+    /// <summary>
+    /// Pasa la marca a quien se releva en cada operación que se quedó sin principal, con el
     /// Tenant propietario de cada una como Tenant activo, y guarda. Se llama con el cierre o
     /// el apagado ya guardados (el índice único de principal no es diferible) y dentro de la
     /// transacción del comando. Devuelve <c>false</c> si un guardado perdió una carrera: el

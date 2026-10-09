@@ -17,7 +17,12 @@
 </div>
 
 @code {
-    private string TonoPieza => Tono == TonoBanda.Advertencia ? "advertencia" : "peligro";
+    private string TonoPieza => Tono switch
+    {
+        TonoBanda.Advertencia => "advertencia",
+        TonoBanda.Neutro => "neutro",
+        _ => "peligro"
+    };
 
     [Parameter] public TonoBanda Tono { get; set; } = TonoBanda.Peligro;
 

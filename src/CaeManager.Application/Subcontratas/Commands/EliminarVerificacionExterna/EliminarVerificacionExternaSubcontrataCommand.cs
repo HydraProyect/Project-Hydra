@@ -24,8 +24,12 @@ public class EliminarVerificacionExternaSubcontrataCommandHandler(
     public async Task<Result> Handle(
         EliminarVerificacionExternaSubcontrataCommand request, CancellationToken cancellationToken)
     {
+        // La verificación es de la Subcontrata EN un Centro: hacen falta las dos gestiones. Mismo
+        // cruce que RegistrarVerificacionExternaSubcontrataCommand, y la misma respuesta que «no existe».
         var verificacion = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (verificacion is null || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(verificacion.SubcontrataId, cancellationToken))
+        if (verificacion is null
+            || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(verificacion.SubcontrataId, cancellationToken)
+            || !await alcanceDatos.CentroParaGestionVisibleAsync(verificacion.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("VerificacionExterna.NoEncontrada", "No encontramos esta verificación."));
 
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();

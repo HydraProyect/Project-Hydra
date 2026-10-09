@@ -32,8 +32,16 @@ namespace CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 /// desactivada llevaba la marca de principal en alguna Asignación de Operación externa de su
 /// Operador CAE, en la misma transacción la marca pasa a su Coordinador CAE
 /// (<see cref="RelevoDePrincipalDeCartera"/>). Su cartera <b>sigue viva</b> (opción C,
-/// 2026-09-24): pierde la marca, no el acceso. Sin Coordinador CAE, la operación queda sin
-/// principal. Reactivar la cuenta no le devuelve la marca.
+/// 2026-09-24): pierde la marca, no el acceso. Sin Coordinador CAE a quien relevar se escala
+/// al único Coordinador CAE, Dirección CAE o Administrador del Operador CAE
+/// (<see cref="EscaladoDePrincipalDeCartera"/>, punto 4); si no hay uno solo, la operación
+/// queda sin principal. Reactivar la cuenta no le devuelve la marca.
+/// </para>
+///
+/// <para>
+/// <b>Primer usuario elegible</b> (mismo punto 4): si la cuenta reactivada es la única activa
+/// del Operador CAE con perfil Coordinador CAE, Dirección CAE o Administrador, recibe en la
+/// misma transacción la cartera principal de cada operación que siga sin principal.
 /// </para>
 /// </summary>
 public record CambiarActivacionUsuarioCommand(Guid UsuarioId, bool Activar) : ICommand;
@@ -41,6 +49,7 @@ public record CambiarActivacionUsuarioCommand(Guid UsuarioId, bool Activar) : IC
 public class CambiarActivacionUsuarioCommandHandler(
     IGestionCuentasUsuario cuentas,
     ICurrentUserService currentUserService,
+    ITenantActual tenantActual,
     ITransaccionDeComando transaccion,
     IBloqueoCarteraUsuario bloqueoCartera,
     ICatalogoIncorporacionCartera catalogo,
@@ -66,15 +75,24 @@ public class CambiarActivacionUsuarioCommandHandler(
         if (!cuenta.EsPropiaDelTenantActual)
             return Result.Fallo(AutoridadSobreCuentas.NoEncontrado);
 
+        // La cuenta destino tiene rol de Propiedad: solo la toca quien actúa en su propio
+        // Tenant de origen (primer acto excluido del Encargo de administración, D-8).
+        var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
+            cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId);
+        if (destinoIntocable.EsFallido)
+            return destinoIntocable;
+
         var resultado = await transaccion.EjecutarAsync(async ct =>
         {
             if (!request.Activar)
                 await bloqueoCartera.BloquearExclusivoAsync(request.UsuarioId, ct);
             var cambio = await cuentas.CambiarActivacionAsync(request.UsuarioId, request.Activar, ct);
-            if (cambio.EsFallido || request.Activar)
+            if (cambio.EsFallido)
                 return cambio;
 
-            return await CederMarcaDePrincipalAsync(request.UsuarioId, ct);
+            return request.Activar
+                ? await AsignarSiEsElPrimerElegibleAsync(request.UsuarioId, ct)
+                : await CederMarcaDePrincipalAsync(request.UsuarioId, ct);
         }, cancellationToken);
         if (resultado.EsExitoso) return resultado;
 
@@ -86,8 +104,26 @@ public class CambiarActivacionUsuarioCommandHandler(
     }
 
     /// <summary>
+    /// La cuenta recién reactivada recibe las operaciones sin principal de su Operador CAE solo
+    /// si es su única cuenta elegible. El Operador CAE es el Tenant de origen de quien reactiva,
+    /// por lo mismo que en <see cref="CederMarcaDePrincipalAsync"/>; una cuenta de otro Tenant
+    /// no aparece entre las elegibles de ese y no recibe nada.
+    /// </summary>
+    private async Task<Result> AsignarSiEsElPrimerElegibleAsync(Guid usuarioId, CancellationToken cancellationToken)
+    {
+        if (await currentUserService.ObtenerTenantOrigenIdAsync() is not { } operadorTenantId)
+            return Result.Exito();
+
+        return await EscaladoDePrincipalDeCartera.AsignarAlPrimerElegibleAsync(
+                catalogo, directorioUsuarios, bloqueoCartera, usuarioId, operadorTenantId, cancellationToken)
+            ? Result.Exito()
+            : Result.Fallo(PrincipalNoRelevado);
+    }
+
+    /// <summary>
     /// Apaga la marca de principal de la cuenta recién desactivada en cada operación externa de
-    /// su Operador CAE y la pasa a su Coordinador CAE. El Operador CAE es el Tenant de origen de
+    /// su Operador CAE y la pasa a su Coordinador CAE o, si no lo hay, a quien corresponda por
+    /// escalado. El Operador CAE es el Tenant de origen de
     /// quien desactiva: la cuenta es de su mismo Tenant (se comprobó arriba) y la política RLS
     /// de las carteras solo deja leer las del operador de la sesión.
     /// </summary>
@@ -100,11 +136,11 @@ public class CambiarActivacionUsuarioCommandHandler(
         if (principales.Count == 0)
             return Result.Exito();
 
-        var coordinadorDeRelevo = await RelevoDePrincipalDeCartera.ResolverCoordinadorAsync(
+        var relevo = await RelevoDePrincipalDeCartera.ResolverRelevoAsync(
             usuarioId, operadorTenantId, directorioDestinos, directorioUsuarios, bloqueoCartera, cancellationToken);
 
         return await RelevoDePrincipalDeCartera.ApagarYRelevarAsync(
-                catalogo, principales, operadorTenantId, usuarioId, coordinadorDeRelevo, cancellationToken)
+                catalogo, principales, operadorTenantId, usuarioId, relevo, cancellationToken)
             ? Result.Exito()
             : Result.Fallo(PrincipalNoRelevado);
     }

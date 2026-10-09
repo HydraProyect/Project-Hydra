@@ -212,7 +212,7 @@ public class FanOutMultiTenantFugaDeAlcanceTests : IAsyncLifetime
             new AuthenticationStateProviderFalso(new ClaimsPrincipal(identidad)),
             new HttpContextAccessorFalso(),
             new ClienteActivoSeleccionadoFalso(),
-            servicios.BuildServiceProvider());
+            servicios.AddTechoDeRolSinEncargoSembrado().BuildServiceProvider());
     }
 
     private CaeManagerDbContext CrearContexto()
