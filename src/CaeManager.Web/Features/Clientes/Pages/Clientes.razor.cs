@@ -581,6 +581,13 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             ? null
             : _ejecutivosParaFiltro.FirstOrDefault(g => g.Id == ejecutivoUsuarioId);
 
+    /// <summary>
+    /// Nombre accesible del botón de la celda «Gestor CAE»: empieza por lo que se ve en ella
+    /// (el Gestor CAE o «Sin asignar») y después dice qué hace y sobre qué Cliente empresarial.
+    /// </summary>
+    private string NombreAccesibleCambiarGestorCae(string razonSocial, GestorCaeSelectorDto? asignado) =>
+        Textos["CambiarGestorCaeDe", razonSocial, asignado?.NombreCompleto ?? Textos["GestorCaeSinAsignar"].Value];
+
     /// <summary>Opciones de la pastilla «Gestor CAE»: el mismo directorio que la columna.</summary>
     private IReadOnlyList<OpcionEstado> OpcionesGestorCae =>
         _ejecutivosParaFiltro.Select(g => new OpcionEstado(g.Id.ToString(), g.NombreCompleto)).ToList();

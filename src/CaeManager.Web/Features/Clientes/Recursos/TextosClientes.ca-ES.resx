@@ -463,7 +463,7 @@
     <value>Copia el CIF {0}</value>
   </data>
   <data name="CambiarGestorCaeDe" xml:space="preserve">
-    <value>Canvia el Gestor CAE de referència de {0}</value>
+    <value>{1}. Canvia el Gestor CAE de referència de {0}</value>
   </data>
   <data name="CambiarGestorCaeTitulo" xml:space="preserve">
     <value>Canvia el Gestor CAE de referència</value>

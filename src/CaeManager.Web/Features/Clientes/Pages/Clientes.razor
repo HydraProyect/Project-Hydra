@@ -227,10 +227,11 @@
                        CAE). Al resto la celda no se le ofrece como control: es texto. *@
                     @if (_puedeReasignarEjecutivo)
                     {
+                        var asignado = GestorCaeDeLaFila(context.EjecutivoUsuarioId);
                         <button type="button" class="celda-gestor-cae-pulsable"
-                                aria-label="@Textos["CambiarGestorCaeDe", context.RazonSocial]" title="@Textos["CambiarGestorCaeTitulo"]"
+                                aria-label="@NombreAccesibleCambiarGestorCae(context.RazonSocial, asignado)" title="@Textos["CambiarGestorCaeTitulo"]"
                                 @onclick="() => AbrirEditarAsync(context.Id)" @onclick:stopPropagation="true">
-                            @if (GestorCaeDeLaFila(context.EjecutivoUsuarioId) is { } asignado)
+                            @if (asignado is not null)
                             {
                                 <span class="persona-identidad">
                                     <AvatarUsuario Nombre="@asignado.NombreCompleto" Avatar="@asignado.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@asignado.NombreCompleto

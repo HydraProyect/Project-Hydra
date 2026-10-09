@@ -1524,10 +1524,10 @@ public class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { conGestor, sinGestor } }, rol: rol, gestores: [marta]);
 
         var celdaConGestor = Fila(cut, conGestor.RazonSocial).QuerySelector("button.celda-gestor-cae-pulsable")!;
-        celdaConGestor.GetAttribute("aria-label").Should().Be("Cambiar el Gestor CAE de referencia de Refrielectric S.A.");
+        celdaConGestor.GetAttribute("aria-label").Should().Be("Marta Ibarra. Cambiar el Gestor CAE de referencia de Refrielectric S.A.", "empieza por el texto visible");
         celdaConGestor.TextContent.Should().Contain("Marta Ibarra");
         var celdaSinGestor = Fila(cut, sinGestor.RazonSocial).QuerySelector("button.celda-gestor-cae-pulsable")!;
-        celdaSinGestor.GetAttribute("aria-label").Should().Be("Cambiar el Gestor CAE de referencia de Montajes Ebro S.L.");
+        celdaSinGestor.GetAttribute("aria-label").Should().Be("Sin asignar. Cambiar el Gestor CAE de referencia de Montajes Ebro S.L.", "empieza por el texto visible");
         celdaSinGestor.TextContent.Trim().Should().Be("Sin asignar");
         cut.FindAll(".drawer-panel").Should().BeEmpty("punto de partida: el formulario está cerrado");
 

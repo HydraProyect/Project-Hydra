@@ -106,7 +106,7 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
 
         // La celda «Gestor CAE» abre el formulario «Editar» de ESTE Cliente empresarial (el que
         // lleva el selector de Gestor CAE de referencia), y no la vista rápida.
-        await fila.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = $"Cambiar el Gestor CAE de referencia de {razonSocial}", Exact = true }).ClickAsync();
+        await fila.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = $"Cambiar el Gestor CAE de referencia de {razonSocial}" }).ClickAsync();
         await Expect(editar).ToBeVisibleAsync();
         await Expect(editar.GetByLabel("Razón social")).ToHaveValueAsync(razonSocial);
         await Expect(panel).ToHaveCountAsync(0);

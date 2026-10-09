@@ -50,8 +50,9 @@
     color: var(--color-primary-600);
 }
 
-/* Celda «Gestor CAE» para quien puede reasignar: toda la celda es el botón que abre el
-   formulario de edición con el selector de Gestor CAE. Sin caja: se lee como la celda de
+/* Celda «Gestor CAE» para quien puede reasignar: su contenido (avatar y nombre, o «Sin
+   asignar») es el botón que abre el formulario de edición con el selector de Gestor CAE;
+   el hueco restante de la celda sigue siendo fila. Sin caja: se lee como la celda de
    texto que ven los demás roles, y solo el puntero y el foco dicen que se pulsa. */
 .celda-gestor-cae-pulsable {
     border: 0;
