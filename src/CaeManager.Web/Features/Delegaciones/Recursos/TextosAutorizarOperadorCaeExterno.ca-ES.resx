@@ -83,6 +83,7 @@
   </data>
   <data name="SinPersonasPropietario" xml:space="preserve">
     <value>«{0}» encara no hi ha posat ningú del seu equip. Les persones les decideix «{0}» des de la seva organització; quan ho faci apareixeran aquí i les podràs retirar.</value>
+  </data>
   <data name="AltaIntro" xml:space="preserve">
     <value>Es crearà el Tenant propietari de l'Operador CAE extern, sense delegacions, i el compte del seu primer Administrador, sense contrasenya: l'estableix aquesta persona des de l'enllaç d'activació que veuràs en crear-lo.</value>
   </data>
