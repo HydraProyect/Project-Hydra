@@ -172,7 +172,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
             return resultado.Elementos.Select(c => c.Id);
         });
 
-        DebeEstrecharSinSalirDeLaCartera(ids, b => b.ClienteId);
+        DebeEstrecharSinSalirDeLaCartera(ids, b => b.ClienteEmpresarialId);
     }
 
     [Fact]
@@ -265,7 +265,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
     }
 
     public sealed record Bloque(
-        Guid ClienteId, Guid EmpresaId, Guid SubcontrataId, Guid CentroId, Guid TrabajadorId,
+        Guid ClienteEmpresarialId, Guid EmpresaId, Guid SubcontrataId, Guid CentroId, Guid TrabajadorId,
         Guid VehiculoId, Guid DocumentoId, Guid GestionId, Guid VisitaId);
 
     /// <summary>Una base para toda la clase: los tests solo leen.</summary>
@@ -325,7 +325,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
 
         /// <summary>La Asignación de Cartera del usuario: solo el primer bloque, en todas las dimensiones del alcance.</summary>
         public AlcanceDatosServiceFalso AlcanceDeLaCartera() => new(
-            clienteIds: [EnCartera.ClienteId],
+            clienteIds: [EnCartera.ClienteEmpresarialId],
             centroIds: [EnCartera.CentroId],
             empresaIds: [EnCartera.EmpresaId],
             subcontrataIds: [EnCartera.SubcontrataId],

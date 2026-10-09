@@ -118,7 +118,8 @@ public class AnadeBusquedaSinAcentosEnListadosTests : IAsyncLifetime
     [Fact]
     public async Task La_consulta_de_EF_compara_la_expresion_indexada_y_el_indice_le_sirve()
     {
-        await using var contexto = NuevoContexto();
+        // Con un Tenant en el contexto: sin él, el filtro global de EF deja la consulta en «WHERE FALSE».
+        await using var contexto = NuevoContexto(new TenantActualAmbiental { TenantId = Guid.NewGuid() });
         var termino = "garcia";
 
         var sql = contexto.Trabajadores.Where(t => TextoDeBusqueda.Contiene(t.Nombre, termino)).ToQueryString();
@@ -222,11 +223,11 @@ public class AnadeBusquedaSinAcentosEnListadosTests : IAsyncLifetime
         return resultado is DBNull or null ? default! : (T)resultado;
     }
 
-    private CaeManagerDbContext NuevoContexto()
+    private CaeManagerDbContext NuevoContexto(TenantActualAmbiental? tenant = null)
     {
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadena, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .Options;
-        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental());
+        return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenant ?? new TenantActualAmbiental());
     }
 }
