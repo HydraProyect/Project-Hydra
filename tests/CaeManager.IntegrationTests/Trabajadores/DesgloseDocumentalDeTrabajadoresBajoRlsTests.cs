@@ -145,6 +145,65 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// El aislamiento de <c>Documentos</c> por Tenant, observado en el servicio mismo. El test de arriba no lo
+    /// observa: el handler solo pasa al servicio los Ids de las filas de su página, y el gemelo del Tenant ajeno
+    /// nunca es una de ellas, así que sus documentos quedarían fuera aunque <c>Documentos</c> no estuviera aislado.
+    /// Aquí el Id ajeno SÍ entra en la lista pedida, junto al de un Trabajador propio.
+    ///
+    /// <para>
+    /// Barrera que observa: en esta conexión (<c>cae_app_runtime</c>) actúan a la vez el filtro global de EF y
+    /// RLS, y cualquiera de las dos basta. Cada una por separado: RLS sola, en
+    /// <see cref="La_lectura_va_bajo_RLS_efectiva_y_lo_que_no_debe_contar_existe"/> (misma conexión, sin filtro
+    /// de EF); el filtro de EF solo, en
+    /// <see cref="Sin_RLS_el_filtro_global_de_Tenant_basta_para_que_el_desglose_no_cuente_al_Tenant_ajeno"/>.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public async Task El_desglose_pedido_con_el_Id_de_un_Trabajador_de_otro_Tenant_no_devuelve_nada_suyo()
+    {
+        var servicio = new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime);
+
+        var desgloses = await servicio.CalcularDesgloseAsync(
+            AmbitoAplicacion.Trabajador, [_gemeloAjeno, _nora], CancellationToken.None);
+
+        // Control positivo: lo que no debe salir existe, es operativo (contaría si se leyera) y cuelga de ese Id.
+        var documentosAjenos = await _propietario.Documentos.IgnoreQueryFilters().Operativos()
+            .Where(d => d.TrabajadorId == _gemeloAjeno).Select(d => d.Id).ToListAsync();
+        documentosAjenos.Should().HaveCount(2).And.Contain(_documentoAjeno);
+
+        desgloses.Should().NotContainKey(_gemeloAjeno, "el Trabajador de otro Tenant no tiene entrada: ni contadores ni incidencias");
+        desgloses.Keys.Should().Equal([_nora], "solo el Trabajador propio");
+        desgloses.Values.SelectMany(d => d.Incidencias).Select(i => i.DocumentoId).Should().NotIntersectWith(documentosAjenos);
+        var nora = desgloses[_nora];
+        nora.Incidencias.Should().HaveCount(3, "control positivo: el propio sí trae su desglose");
+        (nora.DocumentosRegistrados, nora.DocumentosVigentes).Should().Be((4, 2), "los suyos, sin sumar los dos del gemelo");
+
+        (await servicio.CalcularDesgloseAsync(AmbitoAplicacion.Trabajador, [_gemeloAjeno], CancellationToken.None))
+            .Should().BeEmpty("pedido solo, el Id ajeno tampoco devuelve nada");
+    }
+
+    /// <summary>
+    /// La otra barrera, sola: con la conexión de propietario de la base (que RLS no acota) y el Tenant de la
+    /// sesión como Tenant actual, lo único que separa al servicio de los documentos del Tenant ajeno es el filtro
+    /// global de EF sobre <c>Documentos</c>. Es el test que se pone rojo si la lectura del desglose lo ignora.
+    /// </summary>
+    [Fact]
+    public async Task Sin_RLS_el_filtro_global_de_Tenant_basta_para_que_el_desglose_no_cuente_al_Tenant_ajeno()
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantSesion);
+
+        // Control del instrumento: en esta conexión no hay RLS que oculte los documentos del gemelo.
+        (await _propietario.Documentos.IgnoreQueryFilters().Operativos().CountAsync(d => d.TrabajadorId == _gemeloAjeno))
+            .Should().Be(2, "si RLS los ocultara aquí, este test no mediría el filtro de EF");
+
+        var desgloses = await new CalculoEstadoDocumentalService(_propietario, _propietario, _propietario)
+            .CalcularDesgloseAsync(AmbitoAplicacion.Trabajador, [_gemeloAjeno, _nora], CancellationToken.None);
+
+        desgloses.Keys.Should().Equal([_nora], "el filtro global de Tenant deja fuera los documentos del gemelo ajeno");
+        (desgloses[_nora].DocumentosRegistrados, desgloses[_nora].DocumentosVigentes).Should().Be((4, 2));
+    }
+
+    /// <summary>
     /// Coherencia: el peor estado de las incidencias de una fila es el estado de la fila, y una fila sin
     /// incidencias está en un estado que no pide acción (o no tiene estado).
     /// </summary>
