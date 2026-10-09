@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -317,6 +318,8 @@ public class RetiradaTenantDemoServiceTests
         // guardados son por Tenant desde el 2026-10-08), así que el barrido genérico por
         // TenantId de la retirada no la alcanza; solo la limpieza por usuario.
         var filtroEnTenantAjenoId = Guid.NewGuid();
+        var vistaEnTenantAjenoId = Guid.NewGuid();
+        var vistaEnTenantRetiradoId = Guid.NewGuid();
         await using (var contextoSiembraFiltro = CrearContextoBootstrap(arnes))
         {
             var gestorCaeId = (await contextoSiembraFiltro.Users.IgnoreQueryFilters()
@@ -329,6 +332,19 @@ public class RetiradaTenantDemoServiceTests
                  INSERT INTO "FiltrosGuardados" ("Id", "TenantId", "UsuarioId", "Pantalla", "Nombre", "ValoresJson", "CreadoEnUtc")
                  VALUES ({filtroEnTenantAjenoId}, {tenantPropietarioAjenoId}, {gestorCaeId}, 'Clientes', 'Vencidos', {"{}"}, now())
                  """);
+
+            // La vista recordada de ese mismo Gestor CAE vive en la misma tabla, en la fila de
+            // nombre reservado: una en el Tenant ajeno (limpieza por usuario) y otra en el propio
+            // Tenant retirado (barrido genérico). Ninguna de las dos limpiezas mira el nombre.
+            await contextoSiembraFiltro.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                 INSERT INTO "FiltrosGuardados" ("Id", "TenantId", "UsuarioId", "Pantalla", "Nombre", "ValoresJson", "CreadoEnUtc")
+                 VALUES ({vistaEnTenantAjenoId}, {tenantPropietarioAjenoId}, {gestorCaeId}, 'Clientes', {FiltroGuardado.NombreVistaRecordada}, {"{}"}, now()),
+                        ({vistaEnTenantRetiradoId}, {tenantConsultoraId}, {gestorCaeId}, 'Clientes', {FiltroGuardado.NombreVistaRecordada}, {"{}"}, now())
+                 """);
+            (await contextoSiembraFiltro.FiltrosGuardados.IgnoreQueryFilters()
+                    .CountAsync(f => f.Nombre == FiltroGuardado.NombreVistaRecordada && f.UsuarioId == gestorCaeId))
+                .Should().Be(2, "control del instrumento: las dos vistas recordadas existen antes de la retirada");
         }
 
         await using (var contextoBootstrap = CrearContextoBootstrap(arnes))
@@ -354,6 +370,10 @@ public class RetiradaTenantDemoServiceTests
         (await contextoFinal.FiltrosGuardados.IgnoreQueryFilters().AnyAsync(f => f.Id == filtroEnTenantAjenoId))
             .Should().BeFalse(
                 "el filtro que un usuario del Tenant retirado guardó en OTRO Tenant se borra con él: sin IgnoreQueryFilters en esa limpieza quedaría huérfano");
+        (await contextoFinal.FiltrosGuardados.IgnoreQueryFilters()
+                .Where(f => f.Id == vistaEnTenantAjenoId || f.Id == vistaEnTenantRetiradoId).Select(f => f.Id).ToListAsync())
+            .Should().BeEmpty(
+                "la vista recordada es una fila más de esa tabla: la del Tenant retirado y la que su usuario dejó en otro Tenant se borran igual que los filtros con nombre");
     }
 
     /// <summary>
