@@ -801,6 +801,37 @@ if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoRetirar))
     return;
 }
 
+// Retirada completa de la siembra del piloto Outbound (sus siete Tenants, con marcador de
+// demo, y los PDF de sus documentos): mismo patrón de dos pasos que --retirar-demo-direccion.
+if (args.Contains(PilotoOutboundRetirada.Argumento))
+{
+    using var scopeRetiradaPiloto = app.Services.CreateScope();
+    var loggerRetiradaPiloto = scopeRetiradaPiloto.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        var retirados = await PilotoOutboundRetirada.RetirarLoteAsync(
+            scopeRetiradaPiloto.ServiceProvider.GetRequiredService<CaeManagerDbContext>(),
+            () => scopeRetiradaPiloto.ServiceProvider
+                .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>().Crear(),
+            scopeRetiradaPiloto.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
+            loggerRetiradaPiloto);
+
+        foreach (var retirado in retirados)
+            Console.WriteLine(
+                $"Retirado: '{retirado.NombreTenant}' ({retirado.TenantId}) — " +
+                $"{retirado.FilasBorradas} filas tenant-scoped, {retirado.UsuariosBorrados} usuarios.");
+        if (retirados.Count == 0) Console.WriteLine("No hay ningún Tenant del piloto: nada que retirar.");
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.Error.WriteLine($"Retirada rechazada: {ex.Message}");
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
 // Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y Project-Hydra-Negocio/tecnico/DEPLOY.md),
 // Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS
@@ -886,6 +917,7 @@ using (var scope = app.Services.CreateScope())
         EscenariosDireccionDemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         GestorCaeCarteraMultiTenantSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         Fichas360DemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
+        PilotoOutboundSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
 
         // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
         // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
@@ -928,6 +960,14 @@ using (var scope = app.Services.CreateScope())
         // inerte salvo DatosPrueba:GestorCaeCarteraMultiTenant, y lanza en Producción.
         await GestorCaeCarteraMultiTenantSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
 
+        // Siembra del piloto del Servicio TALVEG Outbound: un Operador CAE externo de demostración
+        // y seis Tenants propietarios con un estado objetivo declarado — inerte salvo
+        // DatosPrueba:PilotoOutbound:Activo (con DatosPrueba:Activo), y lanza en Producción.
+        var siembraPilotoOutbound = await PilotoOutboundSeeder.SeedAsync(
+            dbContext, userManager, userStore,
+            scope.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
+            app.Configuration, app.Environment, logger);
+
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
         // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
         // que SegundoTenant:Activo esté configurado explícitamente.
@@ -963,6 +1003,26 @@ using (var scope = app.Services.CreateScope())
         // idempotente y reconciliador, así que se ejecuta en cada arranque hasta
         // que la doble escritura quede establecida (F1 del plan de migración).
         await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
+
+        // Autoverificación del piloto, después de TODA la siembra: mide con las consultas de las
+        // pantallas y compara con la matriz. Si esta ejecución sembró, una discrepancia tumba el
+        // arranque con el contador y el Tenant; en un re-arranque solo avisa, porque tras un ensayo
+        // los datos cambian a propósito. Solo lectura (ver PilotoOutboundAutoverificacion).
+        if (siembraPilotoOutbound is not null)
+        {
+            var informePilotoOutbound = await PilotoOutboundAutoverificacion.MedirAsync(
+                app.Services.GetRequiredService<IServiceScopeFactory>(),
+                OpcionesPilotoOutbound.Leer(app.Configuration, CaeManager.Domain.Common.DiaDeNegocio.Hoy()));
+
+            foreach (var advertencia in PilotoOutboundAutoverificacion.Advertencias(informePilotoOutbound))
+                logger.LogWarning("Piloto Outbound, divergencia declarada: {Advertencia}", advertencia);
+
+            if (siembraPilotoOutbound.Escribio)
+                PilotoOutboundAutoverificacion.Exigir(informePilotoOutbound);
+            else
+                foreach (var discrepancia in PilotoOutboundAutoverificacion.Discrepancias(informePilotoOutbound))
+                    logger.LogWarning("Piloto Outbound, los datos ya no son los de la matriz: {Discrepancia}", discrepancia);
+        }
     }
 }
 
