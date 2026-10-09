@@ -313,7 +313,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     {
         var prefijo = $"T4 «{CatalogoPilotoOutbound.NombreTenantT4}» · ";
         Informe ConT4(Func<PilotoOutboundAutoverificacion.MedicionTenant, PilotoOutboundAutoverificacion.MedicionTenant> cambio) =>
-            new([.. fixture.Informe.Tenants.Select(t => t.Clave == T4.Clave ? cambio(t) : t)]);
+            fixture.Informe with { Tenants = [.. fixture.Informe.Tenants.Select(t => t.Clave == T4.Clave ? cambio(t) : t)] };
 
         // Si Inicio volviera a dar el 100 % de «ningún documento», la autoverificación lo dice, con el contador.
         PilotoOutboundAutoverificacion.Discrepancias(ConT4(t => t with { InicioCumplimiento = 100 }))
@@ -1925,7 +1925,22 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         await arnes.SembrarAsync(configuracion);
         (await arnes.RecuentoAsync()).Should().BeEquivalentTo(completa, "MEDIDO: idempotente, siguen siendo siete");
 
-        // 6. La retirada se las lleva con el resto del lote.
+        // 6. Una instrucción revocada a propósito en un ensayo no se repone: el Tenant ya tiene la suya, cerrada.
+        var t2Id = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantT2);
+        (await arnes.EnTenantAsync(t2Id, async (db, _) =>
+        {
+            (await db.InstruccionesTratamientoIaTenantPropietario.SingleAsync()).Revocar("Ensayo del fallo cerrado.", DateTime.UtcNow);
+            return await db.SaveChangesAsync();
+        })).Should().BeGreaterThan(0, "control: la revocación se guardó");
+        await arnes.SembrarAsync(configuracion);
+        var trasRevocar = await InstruccionesDelPilotoAsync(arnes);
+        trasRevocar.Should().HaveCount(7, "MEDIDO: la siembra no añade otra al Tenant cuya instrucción se revocó");
+        trasRevocar.Where(i => !i.Vigente).Select(i => i.Tenant).Should().Equal(
+            [CatalogoPilotoOutbound.NombreTenantT2], "MEDIDO: y la revocada sigue revocada");
+        PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion)).Should().HaveCount(2, "MEDIDO: la autoverificación lo dice, una vez por cuenta")
+            .And.OnlyContain(l => l.StartsWith("Asistente IA · ") && l.Contains($"«{CatalogoPilotoOutbound.NombreTenantT2}»: medido sin instrucción"));
+
+        // 7. La retirada se las lleva con el resto del lote, también la revocada.
         completa[Clave].Should().Be(7, "control positivo: antes de retirar hay siete que borrar");
         (await arnes.RetirarAsync()).Should().HaveCount(7);
         var trasRetirar = await arnes.RecuentoAsync();

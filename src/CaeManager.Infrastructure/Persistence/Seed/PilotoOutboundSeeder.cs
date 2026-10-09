@@ -74,6 +74,13 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// </para>
 ///
 /// <para>
+/// <b>Instrucción de tratamiento de IA.</b> Los siete Tenants reciben una, vigente y
+/// marcada como borrador de demostración (<see cref="SembrarInstruccionTratamientoIaAsync"/>):
+/// sin ella el Asistente IA falla cerrado para toda cuenta que los tenga en su cartera.
+/// La autoverificación lo exige para la Gestora CAE y la Coordinadora CAE del piloto.
+/// </para>
+///
+/// <para>
 /// <b>Frontera.</b> No toca RLS ni autorización. Cada escritura va dentro del
 /// <see cref="AmbitoTenantExplicito"/> de su Tenant; la operación y las carteras
 /// pasan por el mismo <see cref="AsignacionesOperativasWriter"/> que usa la
@@ -216,8 +223,8 @@ public static class PilotoOutboundSeeder
                 dbContext, tenant.Nombre, PerfilVocabularioTenant.ClienteDirecto,
                 esOperadorCaeExterno: false, recuento, logger, cancellationToken);
 
-            // Antes de abrir la operación: el asistente falla cerrado con un solo Tenant de la cartera sin instrucción,
-            // así que ningún Tenant entra en la cartera de nadie sin la suya.
+            // Antes de abrir la operación: el asistente falla cerrado con un solo Tenant propietario de la cartera sin
+            // instrucción, así que ninguno entra en la cartera de un Gestor CAE sin la suya.
             await SembrarInstruccionTratamientoIaAsync(
                 dbContext, tenantPropietarioId, tenant.Nombre, equipo.Administrador.Id, logger, cancellationToken);
 
@@ -478,11 +485,15 @@ public static class PilotoOutboundSeeder
     /// </para>
     ///
     /// <para>
-    /// Idempotente y aparte de los datos del Tenant: mira solo si ya hay una instrucción
-    /// vigente, así que también la añade a un Tenant que esta versión sembró antes de que
-    /// existiera este paso, sin tocar nada más de él. A un Tenant con datos de otra versión
-    /// no se llega (el bucle de <see cref="SembrarLoteAsync"/> lo salta antes). La retirada
-    /// la borra con el resto de filas del Tenant.
+    /// Idempotente y aparte de los datos del Tenant: mira solo si el Tenant tiene ya alguna
+    /// instrucción, así que también la añade a un Tenant que esta versión sembró antes de
+    /// que existiera este paso, sin tocar nada más de él. Cuenta también una revocada: si
+    /// alguien la retiró en un ensayo —para enseñar el fallo cerrado—, la siembra no la
+    /// repone a sus espaldas en el siguiente arranque. A un Tenant con datos de otra versión
+    /// no se llega (el bucle de <see cref="SembrarLoteAsync"/> lo salta antes), y con la
+    /// fecha de la demostración fuera de margen y nada por sembrar tampoco se escribe: esa
+    /// salida de <see cref="SembrarLoteAsync"/> es anterior. La retirada la borra con el
+    /// resto de filas del Tenant.
     /// </para>
     /// </summary>
     private static async Task SembrarInstruccionTratamientoIaAsync(
@@ -491,7 +502,7 @@ public static class PilotoOutboundSeeder
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
 
-        if (await dbContext.InstruccionesTratamientoIaTenantPropietario.AnyAsync(i => i.RevocadaEnUtc == null, cancellationToken))
+        if (await dbContext.InstruccionesTratamientoIaTenantPropietario.AnyAsync(cancellationToken))
             return;
 
         dbContext.InstruccionesTratamientoIaTenantPropietario.Add(new InstruccionTratamientoIaTenantPropietario(
@@ -500,7 +511,7 @@ public static class PilotoOutboundSeeder
         await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
-            "Siembra del piloto Outbound: instrucción de tratamiento de IA (borrador de demostración) registrada en «{Tenant}».",
+            "Piloto Outbound, instrucción de tratamiento de IA (borrador de demostración) registrada en «{Tenant}».",
             nombreTenant);
     }
 
