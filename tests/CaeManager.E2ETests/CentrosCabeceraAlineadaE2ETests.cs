@@ -69,16 +69,17 @@ public class CentrosCabeceraAlineadaE2ETests(WebAppFixture fixture)
         var page = await AbrirCentrosAsync(contexto);
 
         // El conmutador llega con el prerender antes que el circuito y un clic en esa ventana se pierde: se
-        // repite hasta que el propio botón dice que está pulsado (como Ayudas.MostrarCentrosSinAgruparAsync).
+        // repite, una vez por segundo, hasta que el propio botón dice que está pulsado (aria-pressed).
         // Con la selección puesta los grupos se muestran abiertos, así que las filas se ven sin desagrupar.
-        var conmutador = page.Locator("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']");
-        await conmutador.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
-        for (var intento = 1; await conmutador.GetAttributeAsync("aria-pressed") != "true"; intento++)
-        {
-            Assert.True(intento <= 10, "«Selección múltiple» no se aplicó tras 10 clics.");
-            await conmutador.ClickAsync();
-            await page.WaitForTimeoutAsync(1_000);
-        }
+        await page.WaitForFunctionAsync("""
+            () => {
+                const conmutador = document.querySelector("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']");
+                if (!conmutador) return false;
+                if (conmutador.getAttribute('aria-pressed') === 'true') return true;
+                conmutador.click();
+                return false;
+            }
+            """, null, new PageWaitForFunctionOptions { PollingInterval = 1_000, Timeout = 30_000 });
         // El hueco de la casilla en la cabecera está vacío y no tiene alto: se afirma que existe, no que se ve.
         await Expect(page.Locator(".cabecera-columnas-centros-seleccion")).ToHaveCountAsync(1);
 
