@@ -40,24 +40,26 @@
     else if (_detalle is not null)
     {
         @*
-            Cabecera: identidad y recuentos en la entradilla, y en una segunda
-            línea los indicadores que piden atención. Un indicador en cero no
-            se pinta. Pulsarlo lleva a la pestaña Trabajadores filtrada.
+            Cabecera de identidad en tarjeta (patrón de las páginas 360): anillo
+            a la izquierda, identidad y recuentos en la línea de datos y, en una
+            segunda línea, los indicadores que piden atención. Un indicador en
+            cero no se pinta. Pulsarlo lleva a la pestaña Trabajadores filtrada.
         *@
-        <CabeceraPagina Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
-            @* El anillo va a la izquierda de la identidad, como en el mockup. *@
-            <Inicio>
+        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
+            <Anillo>
                 <AnilloCumplimiento Porcentaje="_cumplimiento" Tamano="TamanoAnillo.Cabecera"
                                     Etiqueta="@(_cumplimiento is { } p ? Textos["AnilloEtiqueta", p] : Textos["AnilloSinDato"])" />
-            </Inicio>
-            <Descripcion>
+            </Anillo>
+            <Datos>
                 @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
                 {
-                    @Textos["MetaCif", _detalle.Cif]
-                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
+                    <span>
+                        @Textos["MetaCif", _detalle.Cif]
+                        <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
+                    </span>
                     @if (_clientes is { Count: > 0 } || _recuentos is not null)
                     {
-                        <text> · </text>
+                        <span aria-hidden="true">·</span>
                     }
                 }
                 @* Los Clientes empresariales se cuentan con ObtenerClientesDeEmpresaQuery, que
@@ -68,15 +70,15 @@
                    cartera (Codex, #810). *@
                 @if (_clientes is { Count: > 0 } clientesMeta)
                 {
-                    @Plural(clientesMeta.Count, "MetaClientesUno", "MetaClientesVarios")
+                    <span>@Plural(clientesMeta.Count, "MetaClientesUno", "MetaClientesVarios")</span>
                 }
                 @if (_recuentos is { } recuentosMeta)
                 {
                     @if (_clientes is { Count: > 0 })
                     {
-                        <text> · </text>
+                        <span aria-hidden="true">·</span>
                     }
-                    @Plural(recuentosMeta.Total, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")
+                    <span>@Plural(recuentosMeta.Total, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")</span>
                 }
                 @if (_recuentos is { } r && (r.Vencidos > 0 || r.PorVencer > 0))
                 {
@@ -113,19 +115,17 @@
                         }
                     </span>
                 }
-            </Descripcion>
+            </Datos>
             <Acciones>
-                <span class="empresa360-acciones">
-                    <Boton Variante="VarianteBoton.Primario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
-                    @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
-                    <SoloConEscritura>
-                        <MenuAcciones>
-                            <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditarEmpresa"]</ItemMenuAccion>
-                        </MenuAcciones>
-                    </SoloConEscritura>
-                </span>
+                <Boton Variante="VarianteBoton.Primario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
+                <SoloConEscritura>
+                    <MenuAcciones ConBorde="true">
+                        <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditarEmpresa"]</ItemMenuAccion>
+                    </MenuAcciones>
+                </SoloConEscritura>
             </Acciones>
-        </CabeceraPagina>
+        </CabeceraIdentidad>
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>

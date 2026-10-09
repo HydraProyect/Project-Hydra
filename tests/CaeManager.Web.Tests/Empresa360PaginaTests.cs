@@ -225,14 +225,21 @@ public class Empresa360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Find(".cabecera-pagina-kicker").TextContent.Trim().Should().Be("Empresa");
-        cut.Find("h1").TextContent.Trim().Should().Be("Ibertec GmbH");
-        var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
+        // La identidad va en la tarjeta de cabecera del patrón 360, no en la cabecera suelta de pantalla.
+        var cabecera = cut.Find("[data-pieza=cabecera-identidad]");
+        cut.FindAll(".cabecera-pagina").Should().BeEmpty();
+        cabecera.QuerySelector(".cabecera-identidad-kicker")!.TextContent.Trim().Should().Be("Empresa");
+        cut.FindAll("h1").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Ibertec GmbH");
+        cabecera.QuerySelector("h1").Should().NotBeNull();
+        var entradilla = cabecera.QuerySelector(".cabecera-identidad-datos")!.TextContent;
         entradilla.Should().Contain("CIF B-48.220.917").And.Contain("2 Clientes").And.Contain("25 trabajadores");
         cut.Find("[role=img]").GetAttribute("aria-label").Should().StartWith("72% de cumplimiento");
         // El anillo va a la izquierda de la identidad, no entre las acciones (mockup).
-        cut.Find(".cabecera-pagina-inicio [role=img]").Should().NotBeNull();
-        cut.Find(".acciones-cabecera").QuerySelector("[role=img]").Should().BeNull();
+        cabecera.QuerySelector(".cabecera-identidad-anillo [role=img]").Should().NotBeNull();
+        cabecera.QuerySelector(".cabecera-identidad-acciones")!.QuerySelector("[role=img]").Should().BeNull();
+        // «Detectar altas y bajas» y el menú siguen en la cabecera.
+        cabecera.QuerySelector(".cabecera-identidad-acciones")!.TextContent.Should().Contain("Detectar altas y bajas");
+        cabecera.QuerySelector(".cabecera-identidad-acciones .menu-acciones-disparador").Should().NotBeNull();
 
         mediador.Enviadas.Should().Contain(new ObtenerEmpresaPorIdQuery(EmpresaId));
         mediador.Enviadas.Should().Contain(new ObtenerCumplimientoEmpresaQuery(EmpresaId));
@@ -573,7 +580,7 @@ public class Empresa360PaginaTests : BunitContext
         var cut = Renderizar();
 
         // Barrera: la entradilla ya tiene los trabajadores; si no, la ausencia sería verde vacío.
-        var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
+        var entradilla = cut.Find(".cabecera-identidad-datos").TextContent;
         entradilla.Should().Contain("25 trabajadores");
         entradilla.Should().NotContain("2 Clientes",
             "EmpresaDetalleDto trae dos ClienteIds, pero ninguno está en el alcance del actor");

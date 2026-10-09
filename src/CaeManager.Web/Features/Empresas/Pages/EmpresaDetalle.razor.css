@@ -4,20 +4,14 @@
     Components/DesignSystem; aquí solo lo que no tiene primitiva.
 */
 
-.empresa360-acciones {
-    display: inline-flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--space-3);
-}
-
-/* Segunda línea de la entradilla: los indicadores que piden atención. */
+/* Segunda línea de los datos de la cabecera: los indicadores que piden atención.
+   La línea de datos es un flex que parte; ocupar todo el ancho los baja de línea. */
 .empresa360-indicadores {
     display: flex;
+    flex-basis: 100%;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
-    margin-top: var(--space-2);
 }
 
 /* El botón solo envuelve al badge: sin fondo ni borde propios. */
