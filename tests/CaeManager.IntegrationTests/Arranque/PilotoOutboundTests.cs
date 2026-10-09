@@ -116,12 +116,93 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         (m.VisionCarteraPresente, m.VisionCarteraSinCartera, m.VisionCarteraSinDatos).Should().Be(
             (true, false, false), "MEDIDO: la fila pinta el porcentaje, no «Sin cartera» ni «Sin datos»");
 
-        m.Centros.Select(c => c.Estado).Should().BeEquivalentTo(
-            [EstadoCentro.Vencido, EstadoCentro.Faltante, EstadoCentro.Vencido, EstadoCentro.Faltante]);
-        (m.ParesExigidos, m.ParesFaltantes).Should().Be((40, 10));
+        m.Centros.Select(c => c.Estado).Should().Equal(
+            EstadoCentro.Vencido, EstadoCentro.Vencido, EstadoCentro.Vencido, EstadoCentro.Vencido);
+        (m.ParesExigidos, m.ParesFaltantes).Should().Be((20, 0), "MEDIDO: diez Trabajadores, un Centro cada uno, dos tipos exigidos; no falta ninguno");
         (m.Documentos, m.InicioVencidos).Should().Be((20, 10));
-        m.MiTrabajoFilas.Should().Be(20, "MEDIDO: por Trabajador, un documento vencido y uno que falta");
+        (m.MiTrabajoBloqueos, m.MiTrabajoActuaciones, m.MiTrabajoProximos, m.MiTrabajoSeguimiento).Should().Be(
+            (10, 0, 0, 0), "MEDIDO: una fila por documento vencido; la Visita, a quince días, no añade ninguna");
+        m.InicioVisitasUrgentes.Should().Be(0);
         m.MiTrabajoAlcanceCero.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// La pregunta que la construcción de T3 responde: lo que cada Centro enseña en el
+    /// listado de Centros, y lo que la comprobación previa de una Visita enseña de
+    /// quienes acuden, es solo lo que ESE Centro exige a SUS Trabajadores.
+    /// </summary>
+    [Fact]
+    public async Task T3_ningun_Centro_ensena_un_documento_que_no_exige_ni_de_un_Trabajador_que_no_es_suyo()
+    {
+        var (centros, asignaciones, filas, tipos, previa, centroDeLaVisita) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(T3.Nombre, async sp =>
+        {
+            var db = sp.GetRequiredService<CaeManager.Infrastructure.Persistence.CaeManagerDbContext>();
+            var sender = sp.GetRequiredService<ISender>();
+            var visita = await db.Visitas.Select(v => new { v.Id, v.CentroId }).SingleAsync();
+
+            return (
+                (await sender.Send(new CaeManager.Application.Centros.Queries.ObtenerCentros.ObtenerCentrosQuery(null, null, TamanoPagina: 1000))).Elementos,
+                await db.Asignaciones.Where(a => a.FechaBaja == null).Select(a => new { a.CentroId, a.TrabajadorId }).ToListAsync(),
+                await db.TiposDocumentoCentros.Select(f => new { f.CentroId, f.TipoDocumentoId, f.Incluido }).ToListAsync(),
+                await db.TiposDocumento.Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+                    .Select(t => new { t.Id, t.Nombre, PorDefecto = t.Requerido == RequisitoDocumental.Si }).ToListAsync(),
+                await sender.Send(new CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita.ObtenerDocumentacionVisitaQuery(visita.Id)),
+                visita.CentroId);
+        });
+
+        string NombreDelTipo(Guid? id) => tipos.SingleOrDefault(t => t.Id == id)?.Nombre ?? "(tipo de otro ámbito)";
+        string[] loQueExigeCadaCentro = [CatalogoPilotoOutbound.AptitudMedica, CatalogoPilotoOutbound.FormacionArt19];
+
+        asignaciones.Select(a => a.TrabajadorId).Should().HaveCount(10).And.OnlyHaveUniqueItems("MEDIDO: un Centro por Trabajador");
+        centros.Should().HaveCount(4);
+
+        var trabajadoresPorCentro = new List<int>();
+        foreach (var centro in centros.OrderBy(c => c.CodigoCentro, StringComparer.Ordinal))
+        {
+            var suyos = asignaciones.Where(a => a.CentroId == centro.Id).Select(a => a.TrabajadorId).ToHashSet();
+            var excluidos = filas.Where(f => f.CentroId == centro.Id && !f.Incluido).Select(f => f.TipoDocumentoId).ToHashSet();
+            var exigidos = tipos.Where(t => t.PorDefecto && !excluidos.Contains(t.Id)).Select(t => t.Id)
+                .Concat(filas.Where(f => f.CentroId == centro.Id && f.Incluido).Select(f => f.TipoDocumentoId)).ToHashSet();
+            var incidencias = centro.Recuentos.Vencidas.Concat(centro.Recuentos.Proximas).ToList();
+
+            salida.WriteLine(
+                $"MEDIDO {centro.CodigoCentro} «{centro.Nombre}»: {centro.CumplimientoPorcentaje} % {centro.Estado}; Trabajadores {suyos.Count}; " +
+                $"TotalVencidas {centro.Recuentos.TotalVencidas}; TotalProximas {centro.Recuentos.TotalProximas}; incidencias " +
+                $"[{string.Join("; ", incidencias.Select(i => $"{i.Estado} · {NombreDelTipo(i.TipoDocumentoId)} · {i.Ambito} · suyo={i.TrabajadorId is { } t && suyos.Contains(t)}"))}]");
+
+            exigidos.Select(id => NombreDelTipo(id)).Should().BeEquivalentTo(loQueExigeCadaCentro, "control: el instrumento sabe qué exige el Centro");
+            centro.CumplimientoPorcentaje.Should().Be(50);
+            centro.Estado.Should().Be(EstadoCentro.Vencido);
+            centro.Recuentos.TotalVencidas.Should().Be(suyos.Count, "MEDIDO: un vencido por Trabajador del Centro, y ninguno más");
+            centro.Recuentos.Proximas.Should().BeEmpty();
+            incidencias.Should().OnlyContain(
+                i => i.TipoDocumentoId != null && exigidos.Contains(i.TipoDocumentoId.Value) && i.TrabajadorId != null && suyos.Contains(i.TrabajadorId.Value),
+                "MEDIDO: toda incidencia es de un tipo que ESE Centro exige y de un Trabajador asignado a ESE Centro");
+            trabajadoresPorCentro.Add(suyos.Count);
+        }
+
+        trabajadoresPorCentro.Should().Equal(3, 3, 2, 2);
+
+        // La comprobación previa de la Visita (lo que la pantalla de Visitas consulta de quienes acuden).
+        previa.Should().NotBeNull();
+        var delCentroDeLaVisita = asignaciones.Where(a => a.CentroId == centroDeLaVisita).Select(a => a.TrabajadorId).ToList();
+        previa!.Trabajadores.Select(t => t.TrabajadorId).Should().BeEquivalentTo(delCentroDeLaVisita).And.HaveCount(3);
+        foreach (var trabajador in previa.Trabajadores)
+        {
+            var documentos = trabajador.Documentacion.Documentos;
+            salida.WriteLine(
+                $"MEDIDO comprobación previa · {trabajador.NombreCompleto}: peor estado {trabajador.Documentacion.PeorEstado}; " +
+                $"[{string.Join("; ", documentos.Select(x => $"{x.Estado} · {x.TipoDocumentoNombre}"))}]");
+
+            documentos.Should().OnlyContain(x => loQueExigeCadaCentro.Contains(x.TipoDocumentoNombre) && x.TrabajadorId == trabajador.TrabajadorId);
+            documentos.Select(x => $"{x.Estado} · {x.TipoDocumentoNombre}").Should().BeEquivalentTo(
+                [$"Vencido · {CatalogoPilotoOutbound.FormacionArt19}", $"Vigente · {CatalogoPilotoOutbound.AptitudMedica}"]);
+            trabajador.Documentacion.PeorEstado.Should().Be(EstadoDocumento.Vencido);
+        }
+
+        salida.WriteLine(
+            $"MEDIDO comprobación previa · Empresa propia: peor estado {previa.Empresa.PeorEstado}; {previa.Empresa.Documentos.Count} filas " +
+            $"[{string.Join("; ", previa.Empresa.Documentos.GroupBy(x => x.Estado).Select(g => $"{g.Key} {g.Count()}"))}]");
     }
 
     [Fact]
@@ -174,7 +255,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         (m.MiTrabajoBloqueos, m.MiTrabajoActuaciones, m.MiTrabajoProximos, m.MiTrabajoSeguimiento).Should().Be(
             (3, 1, 0, 0), "MEDIDO: dos Trabajadores bloqueados en el Centro de la periodicidad especial, un vencido y un urgente");
         m.MiTrabajoAlcanceCero.Should().BeFalse();
-        (m.InicioCumplimiento, m.VisionCarteraCumplimiento).Should().Be((95, 95), "MEDIDO: 19 de 20 documentos al día");
+        m.InicioCumplimiento.Should().Be(95, "MEDIDO: 19 de 20 documentos al día");
+        m.VisionCarteraCumplimiento.Should().Be(95);
         m.EmpresaCumplimiento.Should().Be(96, "MEDIDO: 212 de 220 pares; el vencido cuenta en los ocho Centros de su Trabajador");
         (m.InicioVencidos, m.InicioUrgentes, m.InicioProximos, m.InicioSinConfirmar).Should().Be((1, 1, 0, 0));
         m.InicioTrabajadoresBloqueados.Should().Be(2);
@@ -308,14 +390,15 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         var m = fixture.Informe.De(T6);
 
         (m.MiTrabajoBloqueos, m.MiTrabajoActuaciones, m.MiTrabajoProximos, m.MiTrabajoSeguimiento).Should().Be(
-            (12, 4, 2, 0), "MEDIDO: 5 vencidos + 6 «Falta» + 1 requisito bloqueante pendiente; 4 urgentes; 2 próximos");
+            (13, 4, 2, 0), "MEDIDO: 5 vencidos + 7 «Falta» + 1 requisito bloqueante pendiente; 4 urgentes; 2 próximos; la Visita no añade filas");
         m.MiTrabajoAlcanceCero.Should().BeFalse();
-        (m.InicioCumplimiento, m.VisionCarteraCumplimiento).Should().Be((96, 96), "MEDIDO: 110 de 115 documentos de Trabajador al día");
-        m.EmpresaCumplimiento.Should().Be(92, "MEDIDO: 138 de 150 pares");
+        m.InicioCumplimiento.Should().Be(96, "MEDIDO: 112 de 117 documentos de Trabajador al día");
+        m.VisionCarteraCumplimiento.Should().Be(96);
+        m.EmpresaCumplimiento.Should().Be(92, "MEDIDO: 145 de 158 pares");
         (m.InicioVencidos, m.InicioUrgentes, m.InicioProximos, m.InicioSinConfirmar).Should().Be((5, 4, 2, 0), "MEDIDO: hay Vencido, Urgente y Próximo");
-        (m.ParesExigidos, m.ParesFaltantes).Should().Be((150, 6), "MEDIDO: treinta Asignaciones activas × cinco tipos; seis pares sin documento");
-        m.InicioTrabajadoresBloqueados.Should().Be(1, "MEDIDO: uno de los Faltantes es de un requisito que bloquea el acceso; los otros cinco pares, no");
-        (m.Documentos, m.DocumentosSinPdf).Should().Be((121, 0), "MEDIDO: 115 de Trabajador y tres por cada una de las dos subcontratas");
+        (m.ParesExigidos, m.ParesFaltantes).Should().Be((158, 7), "MEDIDO: 31 Asignaciones activas; el Centro del desplazamiento exige seis tipos y los demás cinco; siete pares sin documento");
+        (m.InicioTrabajadoresBloqueados, m.InicioVisitasUrgentes).Should().Be((1, 0), "MEDIDO: uno de los Faltantes es de un requisito que bloquea el acceso; la Visita queda a más de 48 horas");
+        (m.Documentos, m.DocumentosSinPdf).Should().Be((123, 0), "MEDIDO: 117 de Trabajador y tres por cada una de las dos subcontratas");
         (m.ClientesEmpresariales, m.ClientesEmpresarialesSinContacto).Should().Be((9, 0), "MEDIDO: las dos subcontratas no cuentan como Clientes empresariales");
     }
 
@@ -326,9 +409,9 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         List<(EstadoCentro, int?)> De(ZonaPilotoOutbound zona) =>
             [.. T6.CentrosDe(zona).Select(c => m.Centros.Single(x => x.Nombre == c.Nombre)).Select(c => (c.Estado, c.Cumplimiento))];
 
-        // Barcelona, la peor: ningún Centro al 100 %.
+        // Barcelona, la peor: ningún Centro al 100 %. El primero es el del desplazamiento: 15 de 18 pares.
         De(DisenoT6PilotoOutbound.Barcelona).Should().Equal(
-            (EstadoCentro.Vencido, 80), (EstadoCentro.Vencido, 80), (EstadoCentro.Faltante, 80), (EstadoCentro.Faltante, 87));
+            (EstadoCentro.Faltante, 83), (EstadoCentro.Vencido, 80), (EstadoCentro.Faltante, 80), (EstadoCentro.Faltante, 87));
         // Madrid, intermedia: dos Centros con pares incumplidos y dos solo con avisos.
         De(DisenoT6PilotoOutbound.Madrid).Should().Equal(
             (EstadoCentro.Vencido, 90), (EstadoCentro.Urgente, 100), (EstadoCentro.Urgente, 100), (EstadoCentro.Faltante, 87));
@@ -365,26 +448,56 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     }
 
     [Fact]
-    public async Task T6_un_Trabajador_de_Madrid_tiene_una_Asignacion_temporal_en_un_Centro_de_Barcelona_sin_duplicarse()
+    public async Task T6_un_Trabajador_de_Madrid_esta_desplazado_a_un_Centro_de_Barcelona_con_Asignacion_activa_y_Visita_con_fechas_y_le_falta_lo_que_solo_pide_ese_Centro()
     {
         var d = ArnesPilotoOutbound.FechaDemostracion();
+        var destino = T6.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[0].Nombre;
 
-        var (trabajadores, asignaciones) = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(T6.Nombre), async (db, _) => (
-            await db.Trabajadores.CountAsync(),
-            await (from a in db.Asignaciones
-                   join c in db.Centros on a.CentroId equals c.Id
-                   select new { a.TrabajadorId, Centro = c.Nombre, a.FechaAlta, a.FechaBaja }).ToListAsync()));
+        var (trabajadores, asignaciones, visitas, enLaVisita, desplazadoId, leFalta) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(T6.Nombre, async sp =>
+        {
+            var db = sp.GetRequiredService<CaeManager.Infrastructure.Persistence.CaeManagerDbContext>();
+            var asignacionesConCentro = await (from a in db.Asignaciones
+                                               join c in db.Centros on a.CentroId equals c.Id
+                                               select new { a.TrabajadorId, Centro = c.Nombre, a.FechaAlta, a.FechaBaja }).ToListAsync();
+            var visitasConCentro = await (from v in db.Visitas
+                                          join c in db.Centros on v.CentroId equals c.Id
+                                          select new { v.Id, Centro = c.Nombre, v.FechaInicio, v.FechaFin }).ToListAsync();
 
+            // El desplazado es el único con Asignaciones en Centros de dos zonas (la zona es lo que precede a « · »).
+            var enDosZonas = asignacionesConCentro.GroupBy(a => a.TrabajadorId)
+                .Where(g => g.Select(a => a.Centro.Split(" · ")[0]).Distinct().Count() > 1).Select(g => g.Key).ToList();
+            enDosZonas.Should().ContainSingle("MEDIDO: solo un Trabajador trabaja en dos zonas");
+
+            var porCentro = await sp.GetRequiredService<ISender>().Send(
+                new CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador.ObtenerDocumentacionPorCentroDeTrabajadorQuery(enDosZonas[0]));
+
+            return (
+                await db.Trabajadores.CountAsync(), asignacionesConCentro, visitasConCentro,
+                await db.VisitasTrabajadores.Select(x => new { x.VisitaId, x.TrabajadorId }).ToListAsync(), enDosZonas[0],
+                porCentro.ToDictionary(
+                    c => c.CentroNombre,
+                    c => c.Documentos.Where(x => x.Estado == EstadoDocumento.Faltante).Select(x => x.TipoDocumentoNombre).ToList()));
+        });
+
+        // Un solo Trabajador, no una copia: siguen siendo 24, y todas las Asignaciones están activas.
         trabajadores.Should().Be(24, "MEDIDO: ocho por zona; el desplazado no es un Trabajador más");
-        asignaciones.Select(a => a.TrabajadorId).Distinct().Should().HaveCount(24, "MEDIDO: todos tienen Asignación, y ninguna es de alguien de fuera de esos 24");
-        asignaciones.Count(a => a.FechaBaja == null).Should().Be(30);
+        asignaciones.Select(a => a.TrabajadorId).Distinct().Should().HaveCount(24);
+        asignaciones.Should().HaveCount(31).And.OnlyContain(a => a.FechaBaja == null, "MEDIDO: una Asignación con fecha de baja sería inerte para el modelo");
 
-        var temporal = asignaciones.Should().ContainSingle(a => a.FechaBaja != null).Subject;
-        temporal.Centro.Should().StartWith("Barcelona · ");
-        (temporal.FechaAlta, temporal.FechaBaja).Should().Be((d.AddDays(-10), d.AddDays(20)), "MEDIDO: tiene fecha de alta y fecha de baja");
+        // Activo en las dos zonas: sus dos Centros de Madrid y, desde D−10, el de Barcelona.
+        var delDesplazado = asignaciones.Where(a => a.TrabajadorId == desplazadoId).ToList();
+        delDesplazado.Select(a => a.Centro.Split(" · ")[0]).Should().BeEquivalentTo(["Madrid", "Madrid", "Barcelona"]);
+        delDesplazado.Single(a => a.Centro == destino).FechaAlta.Should().Be(d.AddDays(-10));
 
-        asignaciones.Where(a => a.TrabajadorId == temporal.TrabajadorId && a.FechaBaja == null).Select(a => a.Centro)
-            .Should().NotBeEmpty().And.OnlyContain(c => c.StartsWith("Madrid · "), "MEDIDO: sus Asignaciones activas siguen en su zona");
+        // La temporalidad la lleva la Visita: con fechas, en el Centro de destino, con él, y a más de 48 horas de D.
+        var visita = visitas.Should().ContainSingle().Subject;
+        (visita.Centro, visita.FechaInicio, visita.FechaFin).Should().Be((destino, d.AddDays(10), d.AddDays(20)));
+        enLaVisita.Should().ContainSingle().Which.Should().Be(new { VisitaId = visita.Id, TrabajadorId = desplazadoId });
+
+        // Le falta exactamente lo que ese Centro pide y los de Madrid no.
+        leFalta.Should().HaveCount(3);
+        leFalta[destino].Should().Equal(CatalogoPilotoOutbound.CarretillasElevadoras);
+        leFalta.Where(p => p.Key != destino).Should().OnlyContain(p => p.Value.Count == 0);
     }
 
     [Fact]
@@ -411,7 +524,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         var filas = new[] { T2, T3, T4, T5, T6 }.ToDictionary(t => t.Clave, t => fixture.Informe.De(t).MiTrabajoFilas);
         salida.WriteLine($"MEDIDO filas de Mi trabajo: {string.Join(", ", filas.Select(p => $"{p.Key} {p.Value}"))}; suma {filas.Values.Sum()}");
 
-        filas.Should().Equal(new Dictionary<string, int> { ["T2"] = 0, ["T3"] = 20, ["T4"] = 19, ["T5"] = 4, ["T6"] = 18 });
+        filas.Should().Equal(new Dictionary<string, int> { ["T2"] = 0, ["T3"] = 10, ["T4"] = 19, ["T5"] = 4, ["T6"] = 19 });
+        filas.Values.Sum().Should().Be(52);
         filas.Values.Sum().Should().BeInRange(40, 80, "MEDIDO: ni una cola vacía ni una que no se pueda recorrer en la demostración");
     }
 
@@ -441,7 +555,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         });
 
         salida.WriteLine("MEDIDO rastros de envío: " + string.Join(", ", rastros.Select(p => $"{p.Key} {p.Value}")));
-        rastros["Documentos (control positivo)"].Should().Be(238, "control positivo: el recuento ve las filas de los Tenants del piloto");
+        rastros["Documentos (control positivo)"].Should().Be(240, "control positivo: el recuento ve las filas de los Tenants del piloto");
         rastros.Where(p => !p.Key.StartsWith("Documentos", StringComparison.Ordinal)).Should().OnlyContain(p => p.Value == 0);
     }
 
@@ -521,7 +635,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             });
         }
 
-        tamanos.Should().HaveCount(238, "MEDIDO: 77 de T2, 20 de T3, ninguno de T4, 20 de T5 y 121 de T6");
+        tamanos.Should().HaveCount(240, "MEDIDO: 77 de T2, 20 de T3, ninguno de T4, 20 de T5 y 123 de T6");
         var pesados = tamanos.Where(t => t.Bytes >= 5_000_000).ToList();
         salida.WriteLine($"MEDIDO PDF pesado: {string.Join(", ", pesados.Select(p => $"{p.Tenant} {p.Bytes} bytes"))}; el mayor de los demás: {tamanos.Where(t => t.Bytes < 5_000_000).Max(t => t.Bytes)} bytes");
         pesados.Should().ContainSingle().Which.Should().Match<(string Tenant, long Bytes)>(p => p.Tenant == "T2" && p.Bytes <= 10 * 1024 * 1024);
@@ -596,8 +710,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         var antes = await fixture.Arnes.RecuentoAsync();
         antes["Tenants del piloto"].Should().Be(7, "control: el recuento ve los seis Tenants propietarios y el del Operador CAE externo");
         antes["Cuentas del piloto"].Should().Be(5);
-        antes["Documentos"].Should().Be(238);
-        antes["Ficheros en el almacén"].Should().Be(238);
+        antes["Documentos"].Should().Be(240);
+        antes["Ficheros en el almacén"].Should().Be(240);
 
         var segunda = await fixture.Arnes.SembrarAsync(fixture.Configuracion);
 
@@ -684,12 +798,13 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
         conVencido.Should().Contain(l => l.StartsWith(prefijoT2 + "Mi trabajo · filas: medido "));
         conVencido.Should().Contain(l => l.StartsWith(prefijoT2 + "Empresas · % de cumplimiento de la Empresa propia: medido "));
 
-        // 3. Un documento vigente de T3 desaparece.
+        // 3. Un documento de T3 que debía estar Vencido queda Vigente: 11 de 20 en vez de 10 de 20.
         var t3 = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantT3);
         await arnes.EnTenantAsync(t3, async (db, _) =>
         {
             var hoy = DiaDeNegocio.Hoy();
-            db.Documentos.Remove(await db.Documentos.Where(d => d.FechaVencimiento > hoy).OrderBy(d => d.Id).FirstAsync());
+            var documento = await db.Documentos.Where(d => d.FechaVencimiento < hoy).OrderBy(d => d.Id).FirstAsync();
+            documento.CorregirVigencia(hoy.AddDays(-100), VigenciaDocumento.VenceEl(hoy.AddDays(200)));
             return await db.SaveChangesAsync();
         });
 
@@ -698,9 +813,10 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
         salida.WriteLine("MEDIDO " + mensaje);
 
         var prefijoT3 = $"T3 «{CatalogoPilotoOutbound.NombreTenantT3}» · ";
-        mensaje.Should().Contain(prefijoT3 + "Documentos · total: medido 19, esperado 20.");
-        mensaje.Should().Contain(prefijoT3 + "Inicio · % de cumplimiento: medido ");
-        mensaje.Should().Contain(prefijoT3 + "Visión de cartera · % de cumplimiento: medido ");
+        mensaje.Should().Contain(prefijoT3 + "Mi trabajo · filas: medido 9, esperado 10.");
+        mensaje.Should().Contain(prefijoT3 + "Inicio · % de cumplimiento: medido 55, esperado 50.");
+        mensaje.Should().Contain(prefijoT3 + "Visión de cartera · % de cumplimiento: medido 55, esperado 50.");
+        mensaje.Should().Contain(prefijoT3 + "Empresas · % de cumplimiento de la Empresa propia: medido 55, esperado 50.");
         mensaje.Should().NotContain($"T4 «{CatalogoPilotoOutbound.NombreTenantT4}»");
         mensaje.Should().NotContain($"T5 «{CatalogoPilotoOutbound.NombreTenantT5}»").And.NotContain($"T6 «{CatalogoPilotoOutbound.NombreTenantT6}»");
 
@@ -735,7 +851,7 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
         conT5yT6.Where(l => l.StartsWith(prefijoT5)).Should().Equal(
             [prefijoT5 + "Mi trabajo · filas: medido 6, esperado 4."], "MEDIDO: dos requisitos bloqueantes pendientes más, y nada más cambia en T5");
         conT5yT6.Where(l => l.StartsWith(prefijoT6)).Should().Equal(
-            [prefijoT6 + "Mi trabajo · filas: medido 17, esperado 18.", prefijoT6 + "Inicio · Trabajadores bloqueados: medido 0, esperado 1."],
+            [prefijoT6 + "Mi trabajo · filas: medido 18, esperado 19.", prefijoT6 + "Inicio · Trabajadores bloqueados: medido 0, esperado 1."],
             "MEDIDO: desaparece el requisito bloqueante pendiente y el Trabajador deja de estar bloqueado; el «Falta» sigue");
     }
 
@@ -997,7 +1113,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         await arnes.BackfillAsync();
         PilotoOutboundAutoverificacion.Exigir(await arnes.MedirAsync(configuracion));
         var completa = await arnes.RecuentoAsync();
-        completa["Ficheros en el almacén"].Should().Be(238);
+        completa["Ficheros en el almacén"].Should().Be(240);
 
         // 3. La retirada no deja nada del piloto y no toca lo demás.
         (await arnes.RetirarAsync()).Should().HaveCount(7);

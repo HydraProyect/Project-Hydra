@@ -237,20 +237,42 @@ public sealed record FechasPilotoOutbound(DateOnly FechaDemostracion)
 }
 
 /// <summary>
-/// La construcción del Tenant «mitad», que da 50 % en Centros, Empresa, Inicio y
-/// Visión de cartera a la vez. Cada Trabajador tiene Asignación activa a los dos
-/// Centros de un mismo Cliente empresarial; el primero exige exactamente
-/// {<see cref="TipoVigente"/>, <see cref="TipoVencido"/>} y el segundo exactamente
-/// {<see cref="TipoVigente"/>, <see cref="TipoAusente"/>}. Cada Trabajador tiene el
-/// primero Vigente, el segundo Vencido y ningún documento del tercero, y ningún
-/// documento de otro tipo: así la mitad de los pares exigidos y la mitad de los
-/// documentos existentes son conformes.
+/// La construcción del Tenant «mitad», que da 50 % en Inicio, Visión de cartera,
+/// el listado de Centros, cada Centro y Empresas a la vez, sin que ninguna fila
+/// atribuya a un Centro un documento que ese Centro no exige.
+///
+/// <para>
+/// Cada Trabajador tiene UNA sola Asignación activa (<see cref="TrabajadoresPorCentro"/>)
+/// y cada Centro exige exactamente {<see cref="TipoVigente"/>, <see cref="TipoVencido"/>}.
+/// Cada Trabajador tiene los dos documentos, el primero Vigente y el segundo
+/// Vencido, y ninguno de otro tipo: la mitad de los pares exigidos y la mitad de
+/// los documentos existentes son conformes, y no falta ninguno.
+/// </para>
+///
+/// <para>
+/// Un Centro por Trabajador a propósito: el listado de Centros añade como causa
+/// de cada Centro todo documento no vigente de un Trabajador con Asignación activa
+/// en él, lo exija o no ese Centro (<c>CalculoEstadoCentroService</c>). Con un
+/// Trabajador en dos Centros que exigen cosas distintas, uno de ellos enseñaría
+/// un vencido que no pide.
+/// </para>
+///
+/// <para>
+/// <see cref="CentroConVisita"/> tiene una Visita con todos sus Trabajadores, a
+/// <see cref="DiasHastaLaVisita"/> días de la demostración: es con lo que se
+/// mide la comprobación previa de la pantalla de Visitas.
+/// </para>
 /// </summary>
 public static class ConstruccionMitadPilotoOutbound
 {
     public const string TipoVigente = CatalogoPilotoOutbound.AptitudMedica;
     public const string TipoVencido = CatalogoPilotoOutbound.FormacionArt19;
-    public const string TipoAusente = CatalogoPilotoOutbound.EntregaEpi;
+
+    /// <summary>Cuántos Trabajadores tiene cada Centro, en el orden del catálogo: 3 + 3 + 2 + 2 = 10.</summary>
+    public static IReadOnlyList<int> TrabajadoresPorCentro { get; } = [3, 3, 2, 2];
+
+    public const int CentroConVisita = 0;
+    public const int DiasHastaLaVisita = 15;
 }
 
 /// <summary>
@@ -323,7 +345,7 @@ public static class DisenoT5PilotoOutbound
 /// <para>
 /// Dentro de su zona, el Trabajador k (0..7) tiene Asignación activa al Centro
 /// k/2, y los dos que son múltiplo de cuatro, además, al siguiente: diez
-/// Asignaciones activas por zona, treinta en total, 150 pares exigidos.
+/// Asignaciones activas por zona, treinta en total, más la del desplazamiento.
 /// </para>
 ///
 /// <para>
@@ -337,10 +359,20 @@ public static class DisenoT5PilotoOutbound
 ///
 /// <para>
 /// <see cref="TrabajadorDesplazado"/>, de Madrid, tiene además una Asignación
-/// temporal a <see cref="CentroDelDesplazamiento"/>, de Barcelona, con fecha de
-/// alta y fecha de baja. Es el mismo Trabajador, no una copia. El modelo solo
-/// considera activa una Asignación sin fecha de baja, así que esta no añade pares
-/// exigidos ni filas a ese Centro, aunque la baja sea posterior a la demostración.
+/// activa, de alta reciente, a <see cref="CentroDelDesplazamiento"/>, de
+/// Barcelona. Es el mismo Trabajador, no una copia. La Asignación no lleva fecha
+/// de baja porque el modelo solo considera activa la que no la tiene (una baja,
+/// aunque sea futura, la deja inerte y el Trabajador no aparecería en ese
+/// Centro): lo temporal del desplazamiento lo dice una Visita con fechas en ese
+/// Centro, que le incluye, a más de 48 horas de la demostración.
+/// </para>
+///
+/// <para>
+/// Ese Centro pide, además de los cinco tipos por defecto,
+/// <see cref="TipoPropioDelCentroDelDesplazamiento"/>, que los Centros de Madrid
+/// no piden. Los dos Trabajadores de Barcelona asignados allí lo tienen; al
+/// desplazado le falta: es la coordinación entre zonas. Con él, el Centro tiene
+/// 3 × 6 = 18 pares exigidos y el Tenant, 158.
 /// </para>
 /// </summary>
 public static class DisenoT6PilotoOutbound
@@ -373,7 +405,11 @@ public static class DisenoT6PilotoOutbound
     public const int TrabajadorDesplazado = 8;
     public static (ZonaPilotoOutbound Zona, int Centro) CentroDelDesplazamiento { get; } = (Barcelona, 0);
     public const int DiasDelAltaAntesDeLaDemostracion = 10;
-    public const int DiasDeLaBajaTrasLaDemostracion = 20;
+    public const string TipoPropioDelCentroDelDesplazamiento = CatalogoPilotoOutbound.CarretillasElevadoras;
+
+    /// <summary>La Visita del desplazamiento va de D+10 a D+20: ningún día entre D−9 y D queda a menos de diez días de su inicio.</summary>
+    public const int DiasHastaElInicioDeLaVisita = 10;
+    public const int DiasHastaElFinDeLaVisita = 20;
 
     /// <summary>Lo que cada subcontrata tiene de su propia Empresa, todo Vigente.</summary>
     public static IReadOnlyList<string> TiposDeDocumentoDeSubcontrata { get; } =
@@ -461,6 +497,9 @@ public static class CatalogoPilotoOutbound
     public const string FormacionArt19 = "Formación Art. 19";
     public const string InformacionArt18 = "Información Art. 18";
     public const string DocumentoIdentidad = "Documento de identidad";
+
+    /// <summary>Un tipo de ámbito Trabajador que NO se exige por defecto: solo lo pide el Centro que lo incluye.</summary>
+    public const string CarretillasElevadoras = "Carretillas elevadoras";
 
     /// <summary>Los cinco tipos de ámbito Trabajador exigidos por defecto. La siembra comprueba que el catálogo del Tenant dice lo mismo antes de escribir.</summary>
     public static IReadOnlyList<string> TiposExigidosDeTrabajador { get; } =
@@ -629,15 +668,16 @@ public static class CatalogoPilotoOutbound
                 Centros: [.. tenant.Centros.Select(c => new EsperadoCentroPilotoOutbound(c.Nombre, EstadoCentro.Vigente, 100))],
                 ParesExigidos: 65, ParesFaltantes: 0, Documentos: 77, TodoAlDia: true),
 
-            // Cada Trabajador: un Vencido (bloqueo por vigencia) y un Faltante en el segundo Centro de su pareja.
+            // Diez Trabajadores, cada uno en un Centro que le exige dos tipos: 20 pares y 20 documentos, la mitad
+            // Vencidos. Mi trabajo: una fila por documento vencido; la Visita, a quince días, no añade ninguna.
             EscenarioPilotoOutbound.Mitad => new(
-                FilasMiTrabajo: 20, CumplimientoInicio: 50, CumplimientoVisionCartera: 50, CumplimientoEmpresa: 50,
+                FilasMiTrabajo: 10, CumplimientoInicio: 50, CumplimientoVisionCartera: 50, CumplimientoEmpresa: 50,
                 Centros:
                 [
-                    new(tenant.Centros[0].Nombre, EstadoCentro.Vencido, 50), new(tenant.Centros[1].Nombre, EstadoCentro.Faltante, 50),
-                    new(tenant.Centros[2].Nombre, EstadoCentro.Vencido, 50), new(tenant.Centros[3].Nombre, EstadoCentro.Faltante, 50)
+                    new(tenant.Centros[0].Nombre, EstadoCentro.Vencido, 50), new(tenant.Centros[1].Nombre, EstadoCentro.Vencido, 50),
+                    new(tenant.Centros[2].Nombre, EstadoCentro.Vencido, 50), new(tenant.Centros[3].Nombre, EstadoCentro.Vencido, 50)
                 ],
-                ParesExigidos: 40, ParesFaltantes: 10, Documentos: 20, TodoAlDia: false),
+                ParesExigidos: 20, ParesFaltantes: 0, Documentos: 20, TodoAlDia: false),
 
             // Diecinueve pares exigidos, ninguno con documento: diecinueve filas «Falta».
             EscenarioPilotoOutbound.TodoPendiente => new(
@@ -676,16 +716,18 @@ public static class CatalogoPilotoOutbound
                     "exigidos (212 de 220): el mismo documento vencido cuenta una vez allí y ocho aquí, una por cada Centro " +
                     "que lo exige a su Trabajador."),
 
-            // Mi trabajo: 5 vencidos + 6 «Falta» (uno por Centro que lo exige: el Trabajador 4 está en dos) + 1
-            // requisito bloqueante pendiente + 4 urgentes + 2 próximos = 18 (Barcelona 10, Madrid 6, Santander 2).
-            // Documentos de Trabajador: 24 × 5 − 5 ausentes = 115, cinco Vencidos: 110 de 115 = 96 %; con los seis
-            // de las dos subcontratas, 121. Pares: 30 Asignaciones activas × 5 = 150; fallan 12 (los Trabajadores
-            // 0 y 4 están en dos Centros): 138 de 150 = 92 %.
+            // Mi trabajo: 5 vencidos + 7 «Falta» (uno por Centro que lo exige: el Trabajador 4 está en dos, y el
+            // desplazado no tiene el tipo propio del Centro de destino) + 1 requisito bloqueante pendiente + 4
+            // urgentes + 2 próximos = 19 (Barcelona 11, Madrid 6, Santander 2). La Visita del desplazamiento no
+            // añade filas: Mi trabajo solo trae Visitas urgentes. Documentos de Trabajador: 24 × 5 − 5 ausentes +
+            // 2 del tipo propio = 117, cinco Vencidos: 112 de 117 = 96 %; con los seis de las dos subcontratas, 123.
+            // Pares: 30 Asignaciones × 5 + el Centro de destino, que pasa de 2 × 5 a 3 × 6 = 158; fallan 13 (los
+            // Trabajadores 0 y 4 están en dos Centros): 145 de 158 = 92 %. El Centro de destino: 15 de 18 = 83 %.
             EscenarioPilotoOutbound.Territorial => new(
-                FilasMiTrabajo: 18, CumplimientoInicio: 96, CumplimientoVisionCartera: 96, CumplimientoEmpresa: 92,
+                FilasMiTrabajo: 19, CumplimientoInicio: 96, CumplimientoVisionCartera: 96, CumplimientoEmpresa: 92,
                 Centros:
                 [
-                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[0].Nombre, EstadoCentro.Vencido, 80),
+                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[0].Nombre, EstadoCentro.Faltante, 83),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[1].Nombre, EstadoCentro.Vencido, 80),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[2].Nombre, EstadoCentro.Faltante, 80),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[3].Nombre, EstadoCentro.Faltante, 87),
@@ -698,10 +740,10 @@ public static class CatalogoPilotoOutbound
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[2].Nombre, EstadoCentro.Urgente, 100),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[3].Nombre, EstadoCentro.Vigente, 100)
                 ],
-                ParesExigidos: 150, ParesFaltantes: 6, Documentos: 121, TodoAlDia: false, TrabajadoresBloqueados: 1,
+                ParesExigidos: 158, ParesFaltantes: 7, Documentos: 123, TodoAlDia: false, TrabajadoresBloqueados: 1,
                 Divergencia:
-                    "Inicio y Visión de cartera cuentan documentos de Trabajador (110 de 115 al día) y Centros y Empresas " +
-                    "cuentan pares exigidos (138 de 150): un documento que falta no existe para Inicio y sí es un par " +
+                    "Inicio y Visión de cartera cuentan documentos de Trabajador (112 de 117 al día) y Centros y Empresas " +
+                    "cuentan pares exigidos (145 de 158): un documento que falta no existe para Inicio y sí es un par " +
                     "incumplido en cada Centro que lo exige."),
 
             _ => null

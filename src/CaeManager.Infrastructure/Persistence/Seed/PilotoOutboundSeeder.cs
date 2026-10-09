@@ -667,26 +667,38 @@ public static class PilotoOutboundSeeder
         /// <summary>T3: ver <see cref="ConstruccionMitadPilotoOutbound"/>.</summary>
         private async Task ConstruirMitadAsync(List<Centro> centros, List<Trabajador> trabajadores)
         {
-            var parejas = centros.Count / 2;
-            for (var pareja = 0; pareja < parejas; pareja++)
+            var siguienteTrabajador = 0;
+            for (var c = 0; c < centros.Count; c++)
             {
-                ExigirExactamente(centros[pareja * 2], [ConstruccionMitadPilotoOutbound.TipoVigente, ConstruccionMitadPilotoOutbound.TipoVencido]);
-                ExigirExactamente(centros[pareja * 2 + 1], [ConstruccionMitadPilotoOutbound.TipoVigente, ConstruccionMitadPilotoOutbound.TipoAusente]);
+                ExigirExactamente(centros[c], [ConstruccionMitadPilotoOutbound.TipoVigente, ConstruccionMitadPilotoOutbound.TipoVencido]);
+
+                Visita? visita = null;
+                if (c == ConstruccionMitadPilotoOutbound.CentroConVisita)
+                {
+                    var dia = D.AddDays(ConstruccionMitadPilotoOutbound.DiasHastaLaVisita);
+                    visita = new Visita(centros[c].Id, dia, dia, "Parada programada de mantenimiento", OrigenVisita.Plataforma);
+                    dbContext.Visitas.Add(visita);
+                }
+
+                for (var k = 0; k < ConstruccionMitadPilotoOutbound.TrabajadoresPorCentro[c]; k++)
+                {
+                    var i = siguienteTrabajador++;
+                    dbContext.Asignaciones.Add(new Asignacion(trabajadores[i].Id, centros[c].Id, D.AddDays(-180 - i * 5)));
+                    if (visita is not null)
+                        dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[i].Id));
+
+                    await DocumentoDeTrabajadorAsync(
+                        trabajadores[i], Tipo(ConstruccionMitadPilotoOutbound.TipoVigente), _fechas.Emision(Siguiente()), _fechas.Vigente(Siguiente()));
+
+                    var vencido = _fechas.Vencido(Siguiente());
+                    await DocumentoDeTrabajadorAsync(
+                        trabajadores[i], Tipo(ConstruccionMitadPilotoOutbound.TipoVencido), FechasPilotoOutbound.EmisionDe(vencido), vencido);
+                }
             }
 
-            for (var i = 0; i < trabajadores.Count; i++)
-            {
-                var pareja = i % parejas;
-                dbContext.Asignaciones.Add(new Asignacion(trabajadores[i].Id, centros[pareja * 2].Id, D.AddDays(-180 - i * 5)));
-                dbContext.Asignaciones.Add(new Asignacion(trabajadores[i].Id, centros[pareja * 2 + 1].Id, D.AddDays(-150 - i * 5)));
-
-                await DocumentoDeTrabajadorAsync(
-                    trabajadores[i], Tipo(ConstruccionMitadPilotoOutbound.TipoVigente), _fechas.Emision(Siguiente()), _fechas.Vigente(Siguiente()));
-
-                var vencido = _fechas.Vencido(Siguiente());
-                await DocumentoDeTrabajadorAsync(
-                    trabajadores[i], Tipo(ConstruccionMitadPilotoOutbound.TipoVencido), FechasPilotoOutbound.EmisionDe(vencido), vencido);
-            }
+            if (siguienteTrabajador != trabajadores.Count)
+                throw new InvalidOperationException(
+                    $"{tenant.Clave}: el catálogo reparte {siguienteTrabajador} Trabajadores entre sus Centros y declara {trabajadores.Count}.");
         }
 
         /// <summary>
@@ -771,19 +783,35 @@ public static class PilotoOutboundSeeder
             foreach (var (trabajador, zona, centro) in DisenoT6PilotoOutbound.AsignacionesActivas)
                 dbContext.Asignaciones.Add(new Asignacion(trabajadores[trabajador].Id, CentroDe(zona, centro).Id, D.AddDays(-90 - trabajador * 4)));
 
-            // El desplazamiento temporal: el mismo Trabajador, otra Asignación, con alta y con baja.
+            // El desplazamiento: el mismo Trabajador, otra Asignación ACTIVA (sin baja: con ella sería inerte), y
+            // una Visita con fechas en el Centro de destino que dice hasta cuándo dura.
             var (zonaDeDestino, centroDeDestino) = DisenoT6PilotoOutbound.CentroDelDesplazamiento;
-            var desplazamiento = new Asignacion(
-                trabajadores[DisenoT6PilotoOutbound.TrabajadorDesplazado].Id, CentroDe(zonaDeDestino, centroDeDestino).Id,
-                D.AddDays(-DisenoT6PilotoOutbound.DiasDelAltaAntesDeLaDemostracion));
-            desplazamiento.DarDeBaja(D.AddDays(DisenoT6PilotoOutbound.DiasDeLaBajaTrasLaDemostracion));
-            dbContext.Asignaciones.Add(desplazamiento);
+            var destino = CentroDe(zonaDeDestino, centroDeDestino);
+            var desplazado = trabajadores[DisenoT6PilotoOutbound.TrabajadorDesplazado];
+            dbContext.Asignaciones.Add(new Asignacion(
+                desplazado.Id, destino.Id, D.AddDays(-DisenoT6PilotoOutbound.DiasDelAltaAntesDeLaDemostracion)));
+
+            var visita = new Visita(
+                destino.Id, D.AddDays(DisenoT6PilotoOutbound.DiasHastaElInicioDeLaVisita), D.AddDays(DisenoT6PilotoOutbound.DiasHastaElFinDeLaVisita),
+                $"Refuerzo temporal desde {DisenoT6PilotoOutbound.Madrid.Nombre}", OrigenVisita.Plataforma);
+            dbContext.Visitas.Add(visita);
+            dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, desplazado.Id));
 
             var (zonaBloqueante, centroBloqueante) = DisenoT6PilotoOutbound.CentroConRequisitoBloqueante;
             dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
                 Tipo(DisenoT6PilotoOutbound.TipoBloqueante).Id, CentroDe(zonaBloqueante, centroBloqueante).Id, incluido: true, bloqueaAcceso: true));
 
             await DocumentosDeTrabajadoresAsync(trabajadores, DisenoT6PilotoOutbound.Desviaciones);
+
+            // El tipo que solo pide el Centro de destino: lo tienen los Trabajadores de su zona asignados allí, no el desplazado.
+            var propioDelDestino = Tipo(DisenoT6PilotoOutbound.TipoPropioDelCentroDelDesplazamiento);
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(propioDelDestino.Id, destino.Id, incluido: true));
+            foreach (var (trabajador, _, _) in DisenoT6PilotoOutbound.AsignacionesActivas.Where(a => a.Zona == zonaDeDestino && a.Centro == centroDeDestino))
+            {
+                var vence = propioDelDestino.AplicaVencimientoAutomatico ? _fechas.Vigente(Siguiente()) : (DateOnly?)null;
+                await DocumentoDeTrabajadorAsync(trabajadores[trabajador], propioDelDestino, _fechas.Emision(Siguiente()), vence);
+            }
+
             await CrearSubcontratasAsync(propia);
         }
 
