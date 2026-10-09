@@ -1856,9 +1856,9 @@
 */
 .tabla-datos th.col-registrados-vigentes,
 .tabla-datos td.col-registrados-vigentes {
-    width: 160px;
-    min-width: 160px;
-    max-width: 160px;
+    width: 176px;
+    min-width: 176px;
+    max-width: 176px;
     text-align: left;
 }
 
