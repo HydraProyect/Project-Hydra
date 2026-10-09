@@ -27,8 +27,10 @@
         abren la superficie donde se corrige lo que la ventana enseña. Deja de
         ser un tooltip: el disparador es un <button> de verdad, el panel es un
         role="group" con nombre y el tabulador entra en sus botones, porque
-        :focus-within lo mantiene abierto. El clic no burbujea a la fila que
-        la contiene: pulsar una incidencia no abre además el panel de la fila.
+        :focus-within lo mantiene abierto. El clic no llega al @onclick de la fila que
+        la contiene (se corta en Blazor, no en el DOM: el oyente «pulsarFila» de
+        atajos-lista.js excluye el panel por su clase): pulsar una incidencia no
+        abre además el panel de la fila.
 
     En ambos modos el cursor puede cruzar del disparador al panel sin que se
     cierre (puente transparente sobre la separación) y Esc la cierra sin mover

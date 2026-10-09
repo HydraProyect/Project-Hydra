@@ -165,7 +165,7 @@
                                     {
                                         @* El recuento esconde una lista: la ventana de contexto la enseña al pasar el
                                            cursor o al enfocarlo, y cada técnico abre el panel en la pestaña «Técnicos».
-                                           Interactiva, la ventana ya corta su clic: no llega a la fila. *@
+                                           Interactiva, la ventana corta su clic para el @onclick de la fila; del oyente «pulsarFila» la excluye atajos-lista.js. *@
                                         <VentanaContexto Etiqueta="@TextoTecnicosActivos(proyecto.TecnicosActivos.Count)"
                                                          Titulo="@Textos["VentanaTecnicosTitulo"]"
                                                          Colocacion="VentanaContextoColocacion.AbajoCentro"

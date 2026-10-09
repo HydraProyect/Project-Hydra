@@ -260,8 +260,8 @@
                        /centros no filtra por Cliente empresarial). La fila solo trae el número:
                        los nombres se piden la primera vez que el puntero o el foco llegan al
                        recuento (ObtenerCentrosDeClienteQuery, la consulta de esa pestaña) y se
-                       olvidan con cada carga de la lista. La ventana interactiva corta ella
-                       misma la subida del clic. *@
+                       olvidan con cada carga de la lista. El clic dentro de la ventana no
+                       abre la vista rápida: el oyente «pulsarFila» de atajos-lista.js excluye su panel. *@
                     @if (context.Centros > 0)
                     {
                         <span class="ranura-centros-cliente" @onmouseenter="() => CargarCentrosDeFilaAsync(context.Id)" @onfocusin="() => CargarCentrosDeFilaAsync(context.Id)">
