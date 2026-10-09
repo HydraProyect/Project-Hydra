@@ -3,10 +3,13 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Gestiones;
 using CaeManager.Domain.Integraciones;
+using CaeManager.Domain.Reclamaciones;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
@@ -172,6 +175,14 @@ public static class PilotoOutboundSeeder
                     dbContext, almacen, tenant, tenantPropietarioId, parametros, equipo.GestoraPrimeraId, recuento, cancellationToken))
                 recuento.TenantsConDatosNuevos.Add(tenant.Nombre);
 
+            // La cuenta opcional de la matriz, después de los datos: su alcance es el primer Cliente empresarial de T1,
+            // que tiene que existir. Idempotente, como las demás cuentas.
+            if (ReferenceEquals(tenant, CatalogoPilotoOutbound.T1))
+                await CrearCuentaAsync(
+                    dbContext, userManager, userStore, entorno, parametros, logger, tenantPropietarioId,
+                    parametros.Cuentas.UsuarioDeClienteEmpresarialT1, CatalogoPilotoOutbound.NombreUsuarioDeClienteEmpresarialT1,
+                    Roles.Cliente, cancellationToken, cifDeSuClienteEmpresarial: CifDe(tenant, 1));
+
             // Un Tenant a la vez en memoria: lo rastreado de este no acompaña al siguiente.
             dbContext.ChangeTracker.Clear();
         }
@@ -309,10 +320,14 @@ public static class PilotoOutboundSeeder
         return new Equipo(administrador, gestoraPrimera.Id, gestorSegundo.Id, coordinadora.Id);
     }
 
+    /// <param name="cifDeSuClienteEmpresarial">
+    /// Solo para un Usuario de Cliente empresarial: el identificador fiscal del Cliente empresarial cuya relación
+    /// puede leer. Es el mismo dato que fija la aplicación al dar de alta una cuenta de ese rol; sin él, su alcance es vacío.
+    /// </param>
     private static async Task<ApplicationUser> CrearCuentaAsync(
         CaeManagerDbContext dbContext, UserManager<ApplicationUser> userManager, IUserStore<ApplicationUser> userStore,
         IHostEnvironment entorno, Parametros parametros, ILogger logger, Guid tenantId, string email, string nombre, string rol,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, string? cifDeSuClienteEmpresarial = null)
     {
         var usuario = await DelegacionDemoSeeder.CrearUsuarioConsultoraAsync(
                 dbContext, userManager, parametros.CredencialesDe(email), logger, tenantId, email, nombre, rol, cancellationToken)
@@ -320,10 +335,32 @@ public static class PilotoOutboundSeeder
 
         // P1-13: todo Administrador con segundo factor. Solo en Development se asigna el de siembra;
         // en cualquier otro entorno la cuenta lo configura en su primer acceso.
-        if (rol == Roles.Administrador && !usuario.TwoFactorEnabled)
+        var faltaElSegundoFactor = rol == Roles.Administrador && !usuario.TwoFactorEnabled;
+        if (!faltaElSegundoFactor && cifDeSuClienteEmpresarial is null)
+            return usuario;
+
+        using (AmbitoTenantExplicito.Establecer(tenantId))
         {
-            using (AmbitoTenantExplicito.Establecer(tenantId))
+            if (faltaElSegundoFactor)
                 await IdentitySeeder.AsignarSegundoFactorDeSiembraAsync(usuario, userManager, userStore, entorno, cancellationToken);
+
+            if (cifDeSuClienteEmpresarial is not null)
+            {
+                var clienteEmpresarialId = await dbContext.Empresas
+                        .Where(e => e.Cif == cifDeSuClienteEmpresarial).Select(e => (Guid?)e.Id).SingleOrDefaultAsync(cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        $"No existe el Cliente empresarial al que iba a quedar ligada la cuenta de {rol} del piloto.");
+
+                if (usuario.ClienteId != clienteEmpresarialId)
+                {
+                    usuario.ClienteId = clienteEmpresarialId;
+                    var resultado = await userManager.UpdateAsync(usuario);
+                    if (!resultado.Succeeded)
+                        throw new InvalidOperationException(
+                            $"No se pudo ligar la cuenta de {rol} del piloto a su Cliente empresarial: " +
+                            string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                }
+            }
         }
 
         return usuario;
@@ -489,9 +526,18 @@ public static class PilotoOutboundSeeder
                 case EscenarioPilotoOutbound.Territorial:
                     await ConstruirTerritorialAsync(propia, centros, trabajadores);
                     break;
+                case EscenarioPilotoOutbound.Grande:
+                    await ConstruirGrandeAsync(propia, centros, trabajadores);
+                    break;
                 default:
                     throw new InvalidOperationException($"El escenario {tenant.Escenario} de {tenant.Clave} no tiene constructor en la siembra del piloto.");
             }
+
+            // T2 y T1 siembran la documentación de su Empresa propia dentro de su constructor, y T4 no tiene ningún
+            // documento a propósito. A los demás se les da aquí, al final: así no se mueve ninguna de sus otras fechas.
+            if (tenant.Escenario is EscenarioPilotoOutbound.Mitad or EscenarioPilotoOutbound.PocosTrabajadoresMuchosCentros
+                or EscenarioPilotoOutbound.Territorial)
+                await DocumentosExigidosDeLaEmpresaPropiaAsync(propia, []);
         }
 
         /// <summary>
@@ -562,19 +608,24 @@ public static class PilotoOutboundSeeder
             var trabajadores = new List<Trabajador>();
             for (var i = 0; i < tenant.Trabajadores; i++)
             {
-                var trabajador = Trabajador.DeEmpresa(
-                    propia.Id,
-                    CatalogoPilotoOutbound.NombresDePila[(i + _indiceTenant * 3) % CatalogoPilotoOutbound.NombresDePila.Length],
-                    // El sumando de la vuelta: con más de dieciséis Trabajadores, el 17.º no repite el nombre completo del 1.º.
-                    CatalogoPilotoOutbound.Apellidos[(i * 5 + _indiceTenant * 7 + i / 16 * 3) % CatalogoPilotoOutbound.Apellidos.Length],
-                    DatosPruebaSeeder.GenerarDniValido(71_000_000 + _indiceTenant * 1_000 + i),
-                    fechaNacimiento: D.AddYears(-(25 + i * 7 % 30)).AddDays(-i * 13));
+                var trabajador = Trabajador.DeEmpresa(propia.Id, NombreDePilaDe(i), ApellidosDe(i), DniDe(i), fechaNacimiento: NacimientoDe(i));
                 dbContext.Trabajadores.Add(trabajador);
                 trabajadores.Add(trabajador);
             }
 
             return trabajadores;
         }
+
+        private string NombreDePilaDe(int i) =>
+            CatalogoPilotoOutbound.NombresDePila[(i + _indiceTenant * 3) % CatalogoPilotoOutbound.NombresDePila.Length];
+
+        /// <summary>El sumando de la vuelta: con más de dieciséis Trabajadores, el 17.º no repite el nombre completo del 1.º.</summary>
+        private string ApellidosDe(int i) =>
+            CatalogoPilotoOutbound.Apellidos[(i * 5 + _indiceTenant * 7 + i / 16 * 3) % CatalogoPilotoOutbound.Apellidos.Length];
+
+        private string DniDe(int i) => DatosPruebaSeeder.GenerarDniValido(71_000_000 + _indiceTenant * 1_000 + i);
+
+        private DateOnly NacimientoDe(int i) => D.AddYears(-(25 + i * 7 % 30)).AddDays(-i * 13);
 
         /// <summary>
         /// T2: las seis condiciones de «todo al día» a la vez. Cada Trabajador —también los
@@ -609,16 +660,7 @@ public static class PilotoOutboundSeeder
                 documentosPorTrabajador[trabajador.Id] = documentos;
             }
 
-            var tiposDeEmpresa = TiposExigidos(AmbitoAplicacion.Empresa);
-            for (var i = 0; i < tiposDeEmpresa.Count; i++)
-            {
-                var tipo = tiposDeEmpresa[i];
-                var vence = tipo.AplicaVencimientoAutomatico || i % 2 == 0 ? _fechas.Vigente(Siguiente()) : (DateOnly?)null;
-                var emision = _fechas.Emision(Siguiente());
-                var clave = await GuardarPdfAsync(
-                    tipo.Nombre, tenant.Nombre, emision, vence, pesado: tipo.Nombre == CatalogoPilotoOutbound.TipoDeEmpresaConPdfPesado);
-                Anadir(Documento.DeEmpresa(propia.Id, tipo.Id, emision, Vigencia(vence), clave));
-            }
+            await DocumentosExigidosDeLaEmpresaPropiaAsync(propia, [CatalogoPilotoOutbound.TipoDeEmpresaConPdfPesado]);
 
             var vehiculo = Vehiculo.DeEmpresa(propia.Id, "Furgón de taller", "Furgón de carga media", "4821KBT");
             dbContext.Vehiculos.Add(vehiculo);
@@ -816,20 +858,339 @@ public static class PilotoOutboundSeeder
         }
 
         /// <summary>
+        /// T1: ver <see cref="DisenoT1PilotoOutbound"/>. Cada bloque comprueba lo que da
+        /// por hecho del diseño y lanza con el motivo si no se cumple: un caso de estado
+        /// que no llegara a sembrarse haría fallar la autoverificación sin decir por qué.
+        /// </summary>
+        private async Task ConstruirGrandeAsync(Empresa propia, List<Centro> centros, List<Trabajador> trabajadores)
+        {
+            if (centros.Count != DisenoT1PilotoOutbound.Centros || trabajadores.Count != DisenoT1PilotoOutbound.TrabajadoresPropios)
+                throw new InvalidOperationException(
+                    $"{tenant.Clave}: el catálogo declara {centros.Count} Centros y {trabajadores.Count} Trabajadores propios, y el diseño " +
+                    $"del Tenant grande es de {DisenoT1PilotoOutbound.Centros} y {DisenoT1PilotoOutbound.TrabajadoresPropios}.");
+
+            // Las subcontratas y sus Trabajadores, a continuación de los propios: el índice en «trabajadores» es el del diseño.
+            var subcontratas = await CrearSubcontratasAsync(propia);
+            for (var i = DisenoT1PilotoOutbound.TrabajadoresPropios; i < DisenoT1PilotoOutbound.Trabajadores; i++)
+            {
+                var trabajador = Trabajador.DeSubcontrata(
+                    subcontratas[DisenoT1PilotoOutbound.SubcontrataDe(i)].Id, NombreDePilaDe(i), ApellidosDe(i), DniDe(i), fechaNacimiento: NacimientoDe(i));
+                dbContext.Trabajadores.Add(trabajador);
+                trabajadores.Add(trabajador);
+            }
+
+            for (var t = 0; t < trabajadores.Count; t++)
+            {
+                foreach (var c in DisenoT1PilotoOutbound.CentrosActivosDe(t))
+                    dbContext.Asignaciones.Add(new Asignacion(trabajadores[t].Id, centros[c].Id, D.AddDays(-150 - t % 90)));
+
+                if (!DisenoT1PilotoOutbound.EstaDeBaja(t)) continue;
+
+                var deBaja = new Asignacion(trabajadores[t].Id, centros[DisenoT1PilotoOutbound.CentroPrincipalDe(t)].Id, D.AddDays(-300));
+                deBaja.DarDeBaja(D.AddDays(-30));
+                dbContext.Asignaciones.Add(deBaja);
+            }
+
+            // Lo que cuatro Centros piden a su manera; los demás, los cinco tipos por defecto, sin condiciones propias.
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                Tipo(DisenoT1PilotoOutbound.TipoBloqueanteVencido).Id, centros[DisenoT1PilotoOutbound.CentroConRequisitoBloqueanteVencido].Id,
+                incluido: true, bloqueaAcceso: true));
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                Tipo(DisenoT1PilotoOutbound.TipoBloqueanteAusente).Id, centros[DisenoT1PilotoOutbound.CentroConRequisitoBloqueanteAusente].Id,
+                incluido: true, bloqueaAcceso: true));
+            dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(
+                Tipo(DisenoT1PilotoOutbound.TipoEnTolerancia).Id, centros[DisenoT1PilotoOutbound.CentroConTolerancia].Id,
+                incluido: true, toleranciaDias: DisenoT1PilotoOutbound.DiasDeTolerancia));
+
+            var documentos = await DocumentosDeTrabajadoresDelGrandeAsync(trabajadores);
+            var documentoDeEmpresaVencido = await DocumentosDeLaEmpresaPropiaDelGrandeAsync(propia);
+            await VehiculosDelGrandeAsync(propia);
+            await AcreditacionesExternasDelGrandeAsync(centros, trabajadores, documentos);
+            VisitaPorCorreoDelGrande(centros, trabajadores);
+
+            foreach (var (t, nombreTipo) in DisenoT1PilotoOutbound.GestionesPendientes)
+            {
+                if (documentos.ContainsKey((t, nombreTipo)) || DisenoT1PilotoOutbound.EstaDeBaja(t))
+                    throw new InvalidOperationException(
+                        $"{tenant.Clave}: la Gestión pendiente ({t}, {nombreTipo}) es de un documento que no falta o de un Trabajador de baja.");
+
+                dbContext.Gestiones.Add(new Gestion(
+                    trabajadores[t].Id, centros[DisenoT1PilotoOutbound.CentroPrincipalDe(t)].Id, Tipo(nombreTipo).Id,
+                    notas: "Pedido al responsable de prevención; pendiente de recibir."));
+            }
+
+            // La reclamación es un REGISTRO histórico: se añade la fila, con su hilo y su entrada en la cronología, tal
+            // como quedan después de un envío. Aquí no se envía ni se encola nada: la siembra no llama a IEmailService.
+            var enviada = D.AddDays(-DisenoT1PilotoOutbound.DiasDesdeLaReclamacion).ToDateTime(new TimeOnly(10, 0), DateTimeKind.Utc);
+            var destinatario = parametros.Contactos.DireccionDe(Etiqueta("propia"));
+            var conversacion = new Conversacion($"Documentación pendiente de {tenant.Nombre}", empresaId: propia.Id);
+            conversacion.AgregarMensaje(
+                DireccionMensaje.Saliente, CanalConversacion.Correo, $"gestion-cae@{ContactosPilotoOutbound.DominioPorDefecto}",
+                $"<p>El documento «{DisenoT1PilotoOutbound.TipoDeEmpresaVencido}» de {tenant.Nombre} ha vencido. Por favor, enviadnos el renovado.</p>",
+                enviada);
+            conversacion.AgregarParticipante(destinatario, RolParticipante.Para, TipoParticipanteOrigen.Empresa, propia.Id);
+            dbContext.Conversaciones.Add(conversacion);
+
+            var reclamacion = ReclamacionDocumental.ParaEmpresa(
+                propia.Id, gestoraPrimeraId, destinatario, enviada, [documentoDeEmpresaVencido.Id], conversacion.Id);
+            dbContext.ReclamacionesDocumentales.Add(reclamacion);
+            dbContext.EventosConversacion.Add(new EventoConversacion(
+                conversacion.Id, TipoEventoConversacion.ReclamacionEnviada, reclamacion.Id, enviada));
+        }
+
+        /// <summary>
+        /// Los documentos de los 175 Trabajadores de T1, por (índice del Trabajador, tipo):
+        /// los cinco exigidos, cada uno como diga <see cref="DisenoT1PilotoOutbound.DesviacionesDe"/>.
+        /// Un par que no está en el resultado es un documento que falta.
+        /// </summary>
+        private async Task<Dictionary<(int Trabajador, string Tipo), Documento>> DocumentosDeTrabajadoresDelGrandeAsync(
+            List<Trabajador> trabajadores)
+        {
+            var documentos = new Dictionary<(int Trabajador, string Tipo), Documento>();
+            var enTolerancia = (DisenoT1PilotoOutbound.TrabajadorEnTolerancia, DisenoT1PilotoOutbound.TipoEnTolerancia);
+
+            for (var t = 0; t < trabajadores.Count; t++)
+            {
+                var desviaciones = DisenoT1PilotoOutbound.DesviacionesDe(t);
+
+                foreach (var nombreTipo in CatalogoPilotoOutbound.TiposExigidosDeTrabajador)
+                {
+                    var tipo = Tipo(nombreTipo);
+                    var situacion = desviaciones.SingleOrDefault(d => d.Tipo == nombreTipo)?.Situacion;
+
+                    if ((t, nombreTipo) == enTolerancia && situacion != SituacionDocumentoPilotoOutbound.Vencido)
+                        throw new InvalidOperationException($"{tenant.Clave}: el documento que iba a estar en tolerancia ({t}, {nombreTipo}) no es un Vencido del diseño.");
+
+                    switch (situacion)
+                    {
+                        case SituacionDocumentoPilotoOutbound.Ausente:
+                            continue;
+
+                        case null:
+                            var vigente = tipo.AplicaVencimientoAutomatico ? _fechas.Vigente(Siguiente()) : (DateOnly?)null;
+                            documentos[(t, nombreTipo)] = await DocumentoDeTrabajadorAsync(trabajadores[t], tipo, _fechas.Emision(Siguiente()), vigente);
+                            continue;
+
+                        case SituacionDocumentoPilotoOutbound.SinConfirmar:
+                            if (tipo.AplicaVencimientoAutomatico)
+                                throw new InvalidOperationException($"{tenant.Clave}: «{nombreTipo}» vence por su tipo, así que no puede sembrarse sin confirmar.");
+
+                            documentos[(t, nombreTipo)] = await DocumentoDeTrabajadorAsync(
+                                trabajadores[t], tipo, _fechas.Emision(Siguiente()), vence: null, sinConfirmar: true);
+                            continue;
+                    }
+
+                    if (!tipo.AplicaVencimientoAutomatico)
+                        throw new InvalidOperationException($"{tenant.Clave}: «{nombreTipo}» no caduca, así que no puede sembrarse como {situacion}.");
+
+                    var vence = (t, nombreTipo) == enTolerancia
+                        ? D.AddDays(-DisenoT1PilotoOutbound.DiasDesdeQueVencioElDocumentoEnTolerancia)
+                        : situacion switch
+                        {
+                            SituacionDocumentoPilotoOutbound.Vencido => _fechas.Vencido(Siguiente()),
+                            SituacionDocumentoPilotoOutbound.Urgente => _fechas.Urgente(Siguiente()),
+                            SituacionDocumentoPilotoOutbound.Proximo => _fechas.Proximo(Siguiente()),
+                            _ => throw new InvalidOperationException($"{tenant.Clave}: situación de documento sin fecha: {situacion}.")
+                        };
+                    documentos[(t, nombreTipo)] = await DocumentoDeTrabajadorAsync(trabajadores[t], tipo, FechasPilotoOutbound.EmisionDe(vence), vence);
+                }
+            }
+
+            return documentos;
+        }
+
+        /// <summary>
+        /// Un documento, con su PDF, de cada tipo que se exige por defecto a una Empresa,
+        /// para la Empresa propia: Vigente, o sin caducidad en la mitad de los tipos que
+        /// no vencen por sí solos. Es lo que la comprobación previa de una Visita lista
+        /// como documentación de la Empresa; sin ellos, cada tipo sale allí como Faltante
+        /// aunque ninguna otra pantalla lo cuente.
+        /// </summary>
+        private async Task DocumentosExigidosDeLaEmpresaPropiaAsync(Empresa propia, IReadOnlyCollection<string> conPdfPesado)
+        {
+            var tiposDeEmpresa = TiposExigidos(AmbitoAplicacion.Empresa);
+            if (conPdfPesado.FirstOrDefault(n => tiposDeEmpresa.All(t => t.Nombre != n)) is { } ajeno)
+                throw new InvalidOperationException($"{tenant.Clave}: «{ajeno}», que iba a llevar un PDF pesado, ya no se exige por defecto a una Empresa.");
+
+            for (var i = 0; i < tiposDeEmpresa.Count; i++)
+            {
+                var tipo = tiposDeEmpresa[i];
+                var vence = tipo.AplicaVencimientoAutomatico || i % 2 == 0 ? _fechas.Vigente(Siguiente()) : (DateOnly?)null;
+                var emision = _fechas.Emision(Siguiente());
+                var clave = await GuardarPdfAsync(tipo.Nombre, tenant.Nombre, emision, vence, pesado: conPdfPesado.Contains(tipo.Nombre));
+                Anadir(Documento.DeEmpresa(propia.Id, tipo.Id, emision, Vigencia(vence), clave));
+            }
+        }
+
+        /// <summary>
+        /// Lo exigido por defecto a la Empresa propia de T1 (dos documentos con PDF
+        /// pesado) y un único documento Vencido, de un tipo que no se exige por defecto.
+        /// Devuelve el Vencido.
+        /// </summary>
+        private async Task<Documento> DocumentosDeLaEmpresaPropiaDelGrandeAsync(Empresa propia)
+        {
+            await DocumentosExigidosDeLaEmpresaPropiaAsync(propia, DisenoT1PilotoOutbound.TiposDeEmpresaConPdfPesado);
+
+            var tipoVencido = Tipo(DisenoT1PilotoOutbound.TipoDeEmpresaVencido);
+            if (tipoVencido.AmbitoAplicacion != AmbitoAplicacion.Empresa || tipoVencido.Requerido == RequisitoDocumental.Si)
+                throw new InvalidOperationException(
+                    $"{tenant.Clave}: «{tipoVencido.Nombre}» tiene que ser un tipo de ámbito Empresa que no se exija por defecto: su documento " +
+                    "vencido no puede formar parte de lo que un Centro pide para una Visita.");
+
+            var vencio = _fechas.Vencido(Siguiente());
+            var claveDelVencido = await GuardarPdfAsync(tipoVencido.Nombre, tenant.Nombre, FechasPilotoOutbound.EmisionDe(vencio), vencio, pesado: false);
+            var vencido = Documento.DeEmpresa(propia.Id, tipoVencido.Id, FechasPilotoOutbound.EmisionDe(vencio), Vigencia(vencio), claveDelVencido);
+            Anadir(vencido);
+            return vencido;
+        }
+
+        /// <summary>Los Vehículos de la Empresa propia con lo que se les exige por defecto, todo Vigente salvo un documento del primero.</summary>
+        private async Task VehiculosDelGrandeAsync(Empresa propia)
+        {
+            var tiposDeVehiculo = TiposExigidos(AmbitoAplicacion.Vehiculo);
+            if (tiposDeVehiculo.All(t => t.Nombre != DisenoT1PilotoOutbound.TipoDeVehiculoVencido))
+                throw new InvalidOperationException(
+                    $"{tenant.Clave}: «{DisenoT1PilotoOutbound.TipoDeVehiculoVencido}» ya no se exige por defecto a un Vehículo, y era el documento vencido.");
+
+            for (var v = 0; v < DisenoT1PilotoOutbound.Vehiculos.Count; v++)
+            {
+                var (nombre, modelo, placa) = DisenoT1PilotoOutbound.Vehiculos[v];
+                var vehiculo = Vehiculo.DeEmpresa(propia.Id, nombre, modelo, placa);
+                dbContext.Vehiculos.Add(vehiculo);
+
+                foreach (var tipo in tiposDeVehiculo)
+                {
+                    var estaVencido = v == 0 && tipo.Nombre == DisenoT1PilotoOutbound.TipoDeVehiculoVencido;
+                    var vence = estaVencido ? _fechas.Vencido(Siguiente()) : _fechas.Vigente(Siguiente());
+                    var emision = estaVencido ? FechasPilotoOutbound.EmisionDe(vence) : _fechas.Emision(Siguiente());
+                    var clave = await GuardarPdfAsync(tipo.Nombre, $"{vehiculo.Nombre} ({vehiculo.NumeroPlaca})", emision, vence, pesado: false);
+                    Anadir(Documento.DeVehiculo(vehiculo.Id, tipo.Id, emision, Vigencia(vence), clave));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Un canal de plataforma, principal, en cada Centro de
+        /// <see cref="DisenoT1PilotoOutbound.CentrosConPlataforma"/>, y una acreditación
+        /// externa por cada documento exigido de cada Trabajador asignado: Aceptada salvo
+        /// las que el diseño deja Pendientes de subir, Subidas, Rechazada o vencida en
+        /// la plataforma.
+        /// </summary>
+        private async Task AcreditacionesExternasDelGrandeAsync(
+            List<Centro> centros, List<Trabajador> trabajadores, Dictionary<(int Trabajador, string Tipo), Documento> documentos)
+        {
+            var proveedores = await dbContext.ProveedoresPlataformaCae
+                .Where(p => p.Activo).OrderBy(p => p.Codigo).Take(2).ToListAsync(cancellationToken);
+            if (proveedores.Count == 0)
+                throw new InvalidOperationException(
+                    $"No hay ningún proveedor de plataforma CAE activo: {tenant.Clave} necesita Centros con canal de plataforma.");
+
+            var (n, rechazadas, vencidasEnPlataforma) = (0, 0, 0);
+            for (var k = 0; k < DisenoT1PilotoOutbound.CentrosConPlataforma.Count; k++)
+            {
+                var c = DisenoT1PilotoOutbound.CentrosConPlataforma[k];
+                var proveedor = proveedores[k % proveedores.Count];
+
+                // La contraseña es un texto fijo que no abre nada: es el dato del portal de un
+                // Cliente empresarial ficticio, no una credencial de TALVEG.
+                var canal = CanalGestionDocumental.DePlataforma(
+                    centros[c].Id, "Gestión general", proveedor.Id, $"https://portal-demo-{proveedor.Codigo}.local",
+                    $"gestion.{tenant.Clave.ToLowerInvariant()}.centro{c + 1}", "sin-credencial-real");
+                canal.MarcarComoPrincipal();
+                dbContext.CanalesGestionDocumental.Add(canal);
+
+                for (var t = 0; t < trabajadores.Count; t++)
+                {
+                    if (!DisenoT1PilotoOutbound.CentrosActivosDe(t).Contains(c)) continue;
+
+                    foreach (var nombreTipo in CatalogoPilotoOutbound.TiposExigidosDeTrabajador)
+                    {
+                        if (!documentos.TryGetValue((t, nombreTipo), out var documento)) continue;
+
+                        var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+                        var posicion = n++ % DisenoT1PilotoOutbound.CadaCuantasAcreditaciones;
+
+                        if ((c, t, nombreTipo) == DisenoT1PilotoOutbound.AcreditacionRechazada)
+                        {
+                            acreditacion.MarcarSubida();
+                            acreditacion.Rechazar(
+                                CausaRechazoAcreditacion.Ilegible, "El certificado escaneado no se lee: falta la segunda página.",
+                                D.AddDays(-DisenoT1PilotoOutbound.DiasDesdeElRechazo).ToDateTime(new TimeOnly(9, 30), DateTimeKind.Utc));
+                            rechazadas++;
+                        }
+                        else if ((c, t, nombreTipo) == DisenoT1PilotoOutbound.AcreditacionVencidaEnPlataforma)
+                        {
+                            acreditacion.MarcarSubida();
+                            acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(D.AddDays(-DisenoT1PilotoOutbound.DiasDesdeQueVencioEnPlataforma)));
+                            vencidasEnPlataforma++;
+                        }
+                        else if (posicion == DisenoT1PilotoOutbound.PosicionSubida)
+                        {
+                            acreditacion.MarcarSubida();
+                        }
+                        else if (posicion != DisenoT1PilotoOutbound.PosicionPendienteDeSubir)
+                        {
+                            acreditacion.MarcarSubida();
+                            acreditacion.MarcarAceptada(n % 2 == 0 ? VigenciaEnPlataforma.NoVenceAqui : VigenciaEnPlataforma.VenceEl(D.AddDays(180 + n % 200)));
+                        }
+
+                        dbContext.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+                    }
+                }
+            }
+
+            if (rechazadas != 1 || vencidasEnPlataforma != 1)
+                throw new InvalidOperationException(
+                    $"{tenant.Clave}: el diseño señala una acreditación Rechazada y una vencida en plataforma, y se han sembrado " +
+                    $"{rechazadas} y {vencidasEnPlataforma}: el Trabajador ya no está en ese Centro o ya no tiene ese documento.");
+        }
+
+        /// <summary>
+        /// El Centro que se gestiona por correo: su canal principal es una dirección que
+        /// sale de la misma regla que los contactos de agenda, y tiene una Visita, a un
+        /// día de la demostración, con dos Trabajadores sin ninguna desviación.
+        /// </summary>
+        private void VisitaPorCorreoDelGrande(List<Centro> centros, List<Trabajador> trabajadores)
+        {
+            var c = DisenoT1PilotoOutbound.CentroPorCorreo;
+            if (DisenoT1PilotoOutbound.CentrosConPlataforma.Contains(c))
+                throw new InvalidOperationException($"{tenant.Clave}: el Centro que se gestiona por correo no puede tener además canal de plataforma.");
+
+            if (DisenoT1PilotoOutbound.TrabajadoresDeLaVisita.FirstOrDefault(
+                    t => DisenoT1PilotoOutbound.DesviacionesDe(t).Count > 0 || !DisenoT1PilotoOutbound.CentrosActivosDe(t).Contains(c), -1) is var ajeno and >= 0)
+                throw new InvalidOperationException(
+                    $"{tenant.Clave}: el Trabajador {ajeno} de la Visita por correo no está asignado a ese Centro o no tiene todo en regla.");
+
+            var canal = CanalGestionDocumental.PorEmail(
+                centros[c].Id, "Solicitudes de acceso", parametros.Contactos.DireccionDe(Etiqueta($"accesos-centro{c + 1}")), Persona(60 + c + 1));
+            canal.MarcarComoPrincipal();
+            dbContext.CanalesGestionDocumental.Add(canal);
+
+            var dia = D.AddDays(DisenoT1PilotoOutbound.DiasHastaLaVisita);
+            var visita = new Visita(centros[c].Id, dia, dia, "Revisión de inversores y cuadros de protección", OrigenVisita.Plataforma);
+            dbContext.Visitas.Add(visita);
+            foreach (var t in DisenoT1PilotoOutbound.TrabajadoresDeLaVisita)
+                dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[t].Id));
+        }
+
+        /// <summary>
         /// Las Empresas subcontratistas de la Empresa propia, cada una con su Relación
         /// Empresarial (la subcontrata presta el servicio; la Empresa propia lo recibe),
-        /// su contacto de agenda y su documentación de Empresa, toda Vigente. Sin
-        /// Trabajadores: no añaden pares exigidos ni filas a Mi trabajo.
+        /// su contacto de agenda y su documentación de Empresa, toda Vigente. No les
+        /// crea Trabajadores: así no añaden pares exigidos ni filas a Mi trabajo; el
+        /// Tenant que los quiera se los da con lo que devuelve, en el orden del catálogo.
         /// </summary>
-        private async Task CrearSubcontratasAsync(Empresa propia)
+        private async Task<List<Empresa>> CrearSubcontratasAsync(Empresa propia)
         {
             var ahora = DateTime.UtcNow;
             var razonesSociales = tenant.Subcontratas ?? [];
+            var subcontratas = new List<Empresa>();
 
             for (var i = 0; i < razonesSociales.Count; i++)
             {
                 var subcontrata = Empresa.CrearComoSubcontrata(razonesSociales[i], Cif(20 + i), NivelServicioSubcontrata.Gestionada.ToString());
                 dbContext.Empresas.Add(subcontrata);
+                subcontratas.Add(subcontrata);
                 dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrata.Id, propia.Id, ahora));
                 AnadirContacto(ContactoAgenda.DeSubcontrata(
                     subcontrata.Id, Persona(45 + i), parametros.Contactos.DireccionDe(Etiqueta($"subcontrata{i + 1}")),
@@ -843,6 +1204,8 @@ public static class PilotoOutboundSeeder
                     Anadir(Documento.DeEmpresa(subcontrata.Id, tipo.Id, emision, Vigencia(vence), clave));
                 }
             }
+
+            return subcontratas;
         }
 
         /// <summary>
@@ -915,10 +1278,16 @@ public static class PilotoOutboundSeeder
                 dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(Tipo(nombre).Id, centro.Id, incluido: true));
         }
 
-        private async Task<Documento> DocumentoDeTrabajadorAsync(Trabajador trabajador, TipoDocumento tipo, DateOnly emision, DateOnly? vence)
+        /// <param name="sinConfirmar">Sin fecha de vencimiento y sin confirmar que no caduca: el documento nace «Sin confirmar» en vez de «Sin caducidad».</param>
+        private async Task<Documento> DocumentoDeTrabajadorAsync(
+            Trabajador trabajador, TipoDocumento tipo, DateOnly emision, DateOnly? vence, bool sinConfirmar = false)
         {
+            if (sinConfirmar && vence is not null)
+                throw new InvalidOperationException($"{tenant.Clave}: un documento sin confirmar no lleva fecha de vencimiento.");
+
             var clave = await GuardarPdfAsync(tipo.Nombre, $"{trabajador.Nombre} {trabajador.Apellidos}", emision, vence, pesado: false);
-            var documento = Documento.DeTrabajador(trabajador.Id, tipo.Id, emision, Vigencia(vence), clave);
+            var documento = Documento.DeTrabajador(
+                trabajador.Id, tipo.Id, emision, sinConfirmar ? VigenciaDocumento.SinConfirmar : Vigencia(vence), clave);
             Anadir(documento);
             return documento;
         }

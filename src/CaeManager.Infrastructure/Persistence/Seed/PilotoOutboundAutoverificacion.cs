@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Security.Claims;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Centros;
@@ -5,9 +6,16 @@ using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Dashboard.Queries;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
+using CaeManager.Application.Visitas.GestionPorCorreo;
+using CaeManager.Application.Visitas.PaqueteDocumental;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.Gestiones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using MediatR;
@@ -53,10 +61,35 @@ public static class PilotoOutboundAutoverificacion
         IReadOnlyList<MedicionCentro> Centros, int? EmpresaCumplimiento,
         int ParesExigidos, int ParesFaltantes,
         int ClientesEmpresariales, int ClientesEmpresarialesSinContacto, int ClientesEmpresarialesConAlertas,
-        int Documentos, int DocumentosSinPdf, int ContactosDeAgenda, int ContactosFueraDeLaReglaDeCorreo)
+        int Documentos, int DocumentosSinPdf, int ContactosDeAgenda, int ContactosFueraDeLaReglaDeCorreo,
+        MedicionGrande? Grande = null)
     {
         public int MiTrabajoFilas => MiTrabajoBloqueos + MiTrabajoActuaciones + MiTrabajoProximos + MiTrabajoSeguimiento;
     }
+
+    /// <summary>
+    /// Lo que solo se mide del Tenant grande: su estructura, cuántas veces aparece
+    /// cada caso de estado de la matriz (<see cref="CasosDeEstadoPilotoOutbound"/>) y
+    /// el paquete documental de la primera Visita a un Centro que se gestiona por correo.
+    /// </summary>
+    public sealed record MedicionGrande(
+        int TrabajadoresPropios, int TrabajadoresDeSubcontrata, int Subcontratas,
+        IReadOnlyDictionary<string, int> CasosDeEstado, int VisitasACentrosPorCorreo, MedicionPaquete? Paquete);
+
+    /// <summary>
+    /// El ZIP de una Visita, construido con el servicio que usa la pantalla, contra lo
+    /// que su Centro exige a la Empresa propia y a cada Trabajador que acude.
+    /// </summary>
+    /// <param name="DiasDesdeLaDemostracion">Días entre la demostración y el inicio de la Visita: no depende del día en que se mide.</param>
+    /// <param name="DiasDesdeHoy">Días entre hoy y el inicio de la Visita: SÍ depende del día en que se mide.</param>
+    /// <param name="PdfDeTrabajador">Ficheros del ZIP, en la carpeta de Trabajadores, que abren como PDF.</param>
+    /// <param name="Faltan">Lo exigido que no está en el ZIP, por su nombre.</param>
+    /// <param name="Sobran">Lo que está en el ZIP y el Centro no exige, por su nombre.</param>
+    public sealed record MedicionPaquete(
+        string Centro, string CorreosDelCanal, int CorreosDelCanalFueraDeLaRegla,
+        int DiasDesdeLaDemostracion, int DiasDesdeHoy, int Trabajadores,
+        int ExigidosDeTrabajador, int ExigidosDeEmpresa, int PdfDeTrabajador, int PdfDeEmpresa, int FicherosEnElZip,
+        IReadOnlyList<string> Faltan, IReadOnlyList<string> Sobran);
 
     public sealed record Informe(IReadOnlyList<MedicionTenant> Tenants)
     {
@@ -66,7 +99,7 @@ public static class PilotoOutboundAutoverificacion
     /// <summary>Mide con las cuentas de la siembra local.</summary>
     public static Task<Informe> MedirAsync(
         IServiceScopeFactory fabricaDeAmbitos, OpcionesPilotoOutbound opciones, CancellationToken cancellationToken = default) =>
-        MedirAsync(fabricaDeAmbitos, CuentasPilotoOutbound.Locales, opciones.Contactos, cancellationToken);
+        MedirAsync(fabricaDeAmbitos, CuentasPilotoOutbound.Locales, opciones, cancellationToken);
 
     /// <summary>
     /// Mide con las cuentas indicadas, que tienen que ser la Gestora CAE primera y la
@@ -74,12 +107,12 @@ public static class PilotoOutboundAutoverificacion
     /// (ver <see cref="ComoCuentaDelPilotoAsync{T}"/>). Solo lectura.
     /// </summary>
     internal static async Task<Informe> MedirAsync(
-        IServiceScopeFactory fabricaDeAmbitos, CuentasPilotoOutbound cuentas, ContactosPilotoOutbound contactos,
+        IServiceScopeFactory fabricaDeAmbitos, CuentasPilotoOutbound cuentas, OpcionesPilotoOutbound opciones,
         CancellationToken cancellationToken)
     {
         var comoGestora = await ComoCuentaDelPilotoAsync(
             fabricaDeAmbitos, cuentas.GestoraPrimera, Roles.GestorCae,
-            servicios => MedirComoGestoraAsync(servicios, contactos, cancellationToken), cancellationToken);
+            servicios => MedirComoGestoraAsync(servicios, opciones, cancellationToken), cancellationToken);
 
         var visionCartera = await ComoCuentaDelPilotoAsync(
             fabricaDeAmbitos, cuentas.Coordinadora, Roles.CoordinadorCae,
@@ -115,10 +148,13 @@ public static class PilotoOutboundAutoverificacion
                 continue;
             }
 
+            void Discrepa(string contador, string medido, string esperado) =>
+                d.Add($"{tenant.Clave} «{tenant.Nombre}» · {contador}: medido {medido}, esperado {esperado}.");
+
             void Exige<T>(string contador, T medido, T esperado)
             {
                 if (!EqualityComparer<T>.Default.Equals(medido, esperado))
-                    d.Add($"{tenant.Clave} «{tenant.Nombre}» · {contador}: medido {Texto(medido)}, esperado {Texto(esperado)}.");
+                    Discrepa(contador, Texto(medido), Texto(esperado));
             }
 
             // Comunes a los seis: la cola se pudo consultar, cada documento abre como PDF y «Pedir» tiene a quién escribir.
@@ -128,6 +164,9 @@ public static class PilotoOutboundAutoverificacion
             Exige("Agenda · contactos fuera de la regla de correo", m.ContactosFueraDeLaReglaDeCorreo, 0);
             Exige("Clientes empresariales · sin contacto en la agenda", m.ClientesEmpresarialesSinContacto, 0);
             Exige("Agenda · tiene contactos", m.ContactosDeAgenda > 0, true);
+
+            if (CatalogoPilotoOutbound.EsperadoGrande(tenant) is { } grande)
+                ExigirGrande(m, grande, Discrepa);
 
             if (CatalogoPilotoOutbound.Esperado(tenant) is not { } e)
                 continue;
@@ -180,6 +219,86 @@ public static class PilotoOutboundAutoverificacion
     }
 
     /// <summary>
+    /// Lo que se exige del Tenant grande. La estructura, con cifras exactas; los
+    /// porcentajes y el volumen de Mi trabajo, por intervalo, porque su diseño fija
+    /// una proporción y no un número; cada caso de estado de la matriz, al menos una
+    /// vez; y el ZIP de la Visita por correo, fichero a fichero contra lo que su
+    /// Centro exige.
+    ///
+    /// <para>
+    /// Una sola comprobación depende del día en que se mide: que Inicio cuente la
+    /// Visita por correo entre las urgentes solo se exige cuando ya está a dos días
+    /// o menos. Antes, esa Visita todavía no es urgente y no se exige nada.
+    /// </para>
+    /// </summary>
+    private static void ExigirGrande(MedicionTenant m, EsperadoGrandePilotoOutbound e, Action<string, string, string> discrepa)
+    {
+        void Exacto(string contador, int? medido, int esperado)
+        {
+            if (medido != esperado) discrepa(contador, Texto(medido), Texto(esperado));
+        }
+
+        void Dentro(string contador, int? medido, IntervaloPilotoOutbound intervalo)
+        {
+            if (!intervalo.Contiene(medido)) discrepa(contador, Texto(medido), intervalo.ToString());
+        }
+
+        void Cierto(string contador, bool medido)
+        {
+            if (!medido) discrepa(contador, "no", "sí");
+        }
+
+        Cierto("Mi trabajo · la Gestora CAE tiene alcance en el Tenant", !m.MiTrabajoAlcanceCero);
+        Dentro("Mi trabajo · filas", m.MiTrabajoFilas, e.FilasMiTrabajo);
+        Dentro("Inicio · % de cumplimiento", m.InicioCumplimiento, e.CumplimientoInicioYVisionDeCartera);
+        Cierto("Visión de cartera · Tenant presente para la Coordinadora CAE", m.VisionCarteraPresente);
+        Cierto("Visión de cartera · la fila pinta un porcentaje", m is { VisionCarteraSinCartera: false, VisionCarteraSinDatos: false });
+        Dentro("Visión de cartera · % de cumplimiento", m.VisionCarteraCumplimiento, e.CumplimientoInicioYVisionDeCartera);
+        Dentro("Empresas · % de cumplimiento de la Empresa propia", m.EmpresaCumplimiento, e.CumplimientoEmpresa);
+        Exacto("Centros · número de Centros", m.Centros.Count, e.Centros);
+        Exacto("Clientes empresariales · número", m.ClientesEmpresariales, e.ClientesEmpresariales);
+        Exacto("Pares exigidos", m.ParesExigidos, e.ParesExigidos);
+        Exacto("Pares exigidos · Faltante", m.ParesFaltantes, e.ParesFaltantes);
+        Exacto("Documentos · total", m.Documentos, e.Documentos);
+
+        if (m.Grande is not { } g)
+        {
+            discrepa("Tenant grande · estructura, casos de estado y paquete de Visita", "sin medir", "medidos");
+            return;
+        }
+
+        Exacto("Trabajadores · propios", g.TrabajadoresPropios, e.TrabajadoresPropios);
+        Exacto("Trabajadores · de subcontrata", g.TrabajadoresDeSubcontrata, e.TrabajadoresDeSubcontrata);
+        Exacto("Subcontratas", g.Subcontratas, e.Subcontratas);
+
+        foreach (var caso in e.CasosDeEstado)
+            if (g.CasosDeEstado.GetValueOrDefault(caso) < 1)
+                discrepa($"Caso de estado · {caso}", Texto(g.CasosDeEstado.GetValueOrDefault(caso)), "al menos 1");
+
+        if (g.Paquete is not { } p)
+        {
+            discrepa("Visita por correo · Visitas a un Centro cuyo canal principal es un correo", Texto(g.VisitasACentrosPorCorreo), "al menos 1");
+            return;
+        }
+
+        Exacto("Visita por correo · direcciones del canal fuera de la regla de correo", p.CorreosDelCanalFueraDeLaRegla, 0);
+        Exacto("Visita por correo · días desde la demostración hasta la Visita", p.DiasDesdeLaDemostracion, e.DiasHastaLaVisita);
+        Exacto("Visita por correo · Trabajadores que acuden", p.Trabajadores, e.TrabajadoresDeLaVisita);
+        Exacto("Paquete de la Visita · documentos de Trabajador que exige el Centro", p.ExigidosDeTrabajador, e.ExigidosDeTrabajadorEnElPaquete);
+        Exacto("Paquete de la Visita · documentos de Empresa que exige el Centro", p.ExigidosDeEmpresa, e.ExigidosDeEmpresaEnElPaquete);
+        Exacto("Paquete de la Visita · PDF de Trabajador en el ZIP", p.PdfDeTrabajador, p.ExigidosDeTrabajador);
+        Exacto("Paquete de la Visita · PDF de Empresa en el ZIP", p.PdfDeEmpresa, p.ExigidosDeEmpresa);
+        Exacto("Paquete de la Visita · ficheros en el ZIP", p.FicherosEnElZip, p.ExigidosDeTrabajador + p.ExigidosDeEmpresa);
+        foreach (var falta in p.Faltan)
+            discrepa($"Paquete de la Visita · exigido por el Centro: {falta}", "no está en el ZIP", "en el ZIP");
+        foreach (var sobra in p.Sobran)
+            discrepa($"Paquete de la Visita · no exigido por el Centro: {sobra}", "está en el ZIP", "fuera del ZIP");
+
+        if (p.DiasDesdeHoy is >= 0 and <= 2 && m.InicioVisitasUrgentes < 1)
+            discrepa("Inicio · Visitas urgentes (la Visita por correo está a dos días o menos)", Texto(m.InicioVisitasUrgentes), "al menos 1");
+    }
+
+    /// <summary>
     /// Las divergencias declaradas del catálogo, con lo que se ha medido: no hacen
     /// fallar, pero quien prepara la demostración tiene que leerlas. Hay una por
     /// cada Tenant cuyo valor esperado de Inicio o de Visión de cartera no coincide
@@ -211,8 +330,9 @@ public static class PilotoOutboundAutoverificacion
     private static string Texto<T>(T valor) => valor is null ? "(nada)" : valor.ToString()!;
 
     private static async Task<IReadOnlyList<MedicionTenant>> MedirComoGestoraAsync(
-        IServiceProvider servicios, ContactosPilotoOutbound contactos, CancellationToken cancellationToken)
+        IServiceProvider servicios, OpcionesPilotoOutbound opciones, CancellationToken cancellationToken)
     {
+        var contactos = opciones.Contactos;
         var sender = servicios.GetRequiredService<ISender>();
         var dbContext = servicios.GetRequiredService<CaeManagerDbContext>();
         var calculo = servicios.GetRequiredService<ICalculoEstadoCentroService>();
@@ -249,6 +369,10 @@ public static class PilotoOutboundAutoverificacion
 
                 var correos = await dbContext.ContactosAgenda.AsNoTracking().Select(c => c.Email).ToListAsync(cancellationToken);
 
+                var grande = tenant.Escenario == EscenarioPilotoOutbound.Grande
+                    ? await MedirGrandeAsync(servicios, dbContext, opciones, kpis, pares, [.. centros.Select(c => c.Id)], cancellationToken)
+                    : null;
+
                 mediciones.Add(new MedicionTenant(
                     tenant.Clave, tenant.Nombre,
                     MiTrabajoPresente: cola is not null || noConsultado,
@@ -280,11 +404,209 @@ public static class PilotoOutboundAutoverificacion
                     Documentos: claves.Count,
                     DocumentosSinPdf: sinPdf,
                     ContactosDeAgenda: correos.Count,
-                    ContactosFueraDeLaReglaDeCorreo: correos.Count(c => !contactos.Cumple(c))));
+                    ContactosFueraDeLaReglaDeCorreo: correos.Count(c => !contactos.Cumple(c)),
+                    Grande: grande));
             }
         }
 
         return mediciones;
+    }
+
+    /// <summary>
+    /// Lo que solo se mide del Tenant grande, dentro del ámbito de Tenant que ya abrió
+    /// quien llama y con la identidad de la Gestora CAE. Cada caso de estado se busca
+    /// con la consulta o el servicio de la pantalla que lo enseña cuando da el dato
+    /// (Inicio, la documentación por Centro de un Trabajador, la evaluación de acceso,
+    /// el cálculo de pares exigidos, el paquete de la Visita) y, cuando no hay una
+    /// consulta que lo cuente, leyendo las filas. Solo lectura.
+    /// </summary>
+    private static async Task<MedicionGrande> MedirGrandeAsync(
+        IServiceProvider servicios, CaeManagerDbContext dbContext, OpcionesPilotoOutbound opciones, KpisDashboardDto kpis,
+        IReadOnlyList<ParDocumentalExigido> pares, IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken)
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var d = opciones.FechaDemostracion;
+
+        var trabajadores = await dbContext.Trabajadores.AsNoTracking()
+            .Select(t => new { t.Id, t.Nombre, t.Apellidos, DeSubcontrata = t.SubcontrataId != null }).ToListAsync(cancellationToken);
+        var asignaciones = await dbContext.Asignaciones.AsNoTracking()
+            .Select(a => new { a.TrabajadorId, a.CentroId, Activa = a.FechaBaja == null }).ToListAsync(cancellationToken);
+        var documentos = await dbContext.Documentos.AsNoTracking()
+            .Select(x => new { x.Id, x.TrabajadorId, x.EmpresaId, x.VehiculoId, x.TipoDocumentoId, x.FechaVencimiento, x.EstadoVigencia })
+            .ToListAsync(cancellationToken);
+        var propias = (await dbContext.Empresas.AsNoTracking().Where(e => e.EsPropia).Select(e => e.Id).ToListAsync(cancellationToken)).ToHashSet();
+        // Una subcontrata es la Empresa que provee a otra dentro del Tenant sin ser la Empresa propia: lo dice su Relación Empresarial.
+        var subcontratas = (await dbContext.RelacionesEmpresariales.AsNoTracking().Select(r => r.ProveedoraId).ToListAsync(cancellationToken))
+            .Where(id => !propias.Contains(id)).ToHashSet();
+        var acreditaciones = await dbContext.AcreditacionesDocumentoPlataforma.AsNoTracking()
+            .Select(a => new { a.Estado, a.FechaVencimientoEnPlataforma }).ToListAsync(cancellationToken);
+        var tipos = await dbContext.TiposDocumento.AsNoTracking()
+            .Select(t => new { t.Id, t.Nombre, t.AmbitoAplicacion, PorDefecto = t.Requerido == RequisitoDocumental.Si }).ToListAsync(cancellationToken);
+        var filasDeCentro = await dbContext.TiposDocumentoCentros.AsNoTracking().ToListAsync(cancellationToken);
+
+        var activas = asignaciones.Where(a => a.Activa).ToList();
+        bool Vencio(DateOnly? vence) => vence is { } fecha && fecha < hoy;
+
+        // Los requisitos que bloquean el acceso, evaluados como los evalúan Inicio y el estado de los Centros.
+        var evaluacion = await servicios.GetRequiredService<IEvaluacionDeAccesoPorCentroService>().EvaluarAsync([.. centroIds], cancellationToken);
+        var sinCumplir = evaluacion.Requisitos.Where(r => r.Resultado.Situacion != SituacionDeRequisitoBloqueante.Cumplido).ToList();
+        var ausentesQueBloquean = sinCumplir
+            .Where(r => r.Resultado.Situacion == SituacionDeRequisitoBloqueante.Ausente)
+            .Select(r => (r.CentroId, r.TrabajadorId, r.TipoDocumentoId)).ToHashSet();
+        var bloqueadoEn = sinCumplir.Select(r => (r.TrabajadorId, r.CentroId)).ToHashSet();
+
+        // «En tolerancia» es cómo pinta un documento vencido la ficha del Trabajador en el Centro que concede el margen.
+        var centrosConTolerancia = filasDeCentro.Where(f => f.ToleranciaDias > 0).Select(f => f.CentroId).ToHashSet();
+        var enTolerancia = 0;
+        foreach (var trabajadorId in activas.Where(a => centrosConTolerancia.Contains(a.CentroId)).Select(a => a.TrabajadorId).Distinct())
+        {
+            var porCentro = await servicios.GetRequiredService<ISender>().Send(
+                new ObtenerDocumentacionPorCentroDeTrabajadorQuery(trabajadorId), cancellationToken);
+            enTolerancia += porCentro.Where(c => centrosConTolerancia.Contains(c.CentroId))
+                .Sum(c => c.Documentos.Count(x => x.Estado == EstadoDocumento.EnTolerancia));
+        }
+
+        var visitas = await dbContext.Visitas.AsNoTracking().Where(v => !v.EstaCancelada)
+            .OrderBy(v => v.FechaInicio).Select(v => new { v.Id, v.CentroId, v.FechaInicio }).ToListAsync(cancellationToken);
+        var acudenA = (await dbContext.VisitasTrabajadores.AsNoTracking()
+            .Select(vt => new { vt.VisitaId, vt.TrabajadorId }).ToListAsync(cancellationToken)).ToLookup(x => x.VisitaId, x => x.TrabajadorId);
+
+        var reclamaciones = await dbContext.ReclamacionesDocumentales.AsNoTracking()
+            .Where(r => r.ConversacionId != null).Select(r => new { r.ConversacionId, r.FechaEnvioUtc }).ToListAsync(cancellationToken);
+        var respuestas = await dbContext.Mensajes.AsNoTracking().Where(x => x.Direccion == DireccionMensaje.Entrante)
+            .Select(x => new { x.ConversacionId, x.FechaUtc }).ToListAsync(cancellationToken);
+        var haceUnaSemana = hoy.AddDays(-7).ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+
+        var casos = new Dictionary<string, int>
+        {
+            [CasosDeEstadoPilotoOutbound.Vencido] = kpis.DocumentosVencidos,
+            [CasosDeEstadoPilotoOutbound.Urgente] = kpis.DocumentosUrgentes,
+            [CasosDeEstadoPilotoOutbound.Proximo] = kpis.DocumentosProximos,
+            [CasosDeEstadoPilotoOutbound.SinConfirmar] = kpis.DocumentosSinConfirmar,
+            [CasosDeEstadoPilotoOutbound.SinCaducidad] = kpis.DocumentosSinCaducidad,
+            [CasosDeEstadoPilotoOutbound.EnTolerancia] = enTolerancia,
+            [CasosDeEstadoPilotoOutbound.FaltanteBloqueante] = ausentesQueBloquean.Count,
+            [CasosDeEstadoPilotoOutbound.FaltanteNoBloqueante] = pares.Count(
+                p => p.Estado == EstadoDocumento.Faltante && !ausentesQueBloquean.Contains((p.CentroId, p.TrabajadorId, p.TipoDocumentoId))),
+            [CasosDeEstadoPilotoOutbound.AcreditacionPendienteDeSubir] = acreditaciones.Count(a => a.Estado == EstadoAcreditacion.PendienteDeSubir),
+            [CasosDeEstadoPilotoOutbound.AcreditacionSubida] = acreditaciones.Count(a => a.Estado == EstadoAcreditacion.Subida),
+            [CasosDeEstadoPilotoOutbound.AcreditacionAceptada] = acreditaciones.Count(
+                a => a.Estado == EstadoAcreditacion.Aceptada && !Vencio(a.FechaVencimientoEnPlataforma)),
+            [CasosDeEstadoPilotoOutbound.AcreditacionRechazada] = acreditaciones.Count(a => a.Estado == EstadoAcreditacion.Rechazada),
+            [CasosDeEstadoPilotoOutbound.AcreditacionVencidaEnPlataforma] = acreditaciones.Count(
+                a => a.Estado == EstadoAcreditacion.Aceptada && Vencio(a.FechaVencimientoEnPlataforma)),
+            [CasosDeEstadoPilotoOutbound.TrabajadorBloqueadoEnUnCentroYNoEnOtro] = bloqueadoEn.Select(b => b.TrabajadorId).Distinct()
+                .Count(t => activas.Any(a => a.TrabajadorId == t && !bloqueadoEn.Contains((t, a.CentroId)))),
+            [CasosDeEstadoPilotoOutbound.TrabajadorDeBaja] = asignaciones.GroupBy(a => a.TrabajadorId).Count(g => g.All(a => !a.Activa)),
+            [CasosDeEstadoPilotoOutbound.DocumentoDeEmpresaVencido] = documentos.Count(
+                x => x.EmpresaId is { } empresaId && propias.Contains(empresaId) && Vencio(x.FechaVencimiento)),
+            [CasosDeEstadoPilotoOutbound.SubcontrataConDocumentacionPropia] = subcontratas.Count(
+                s => documentos.Any(x => x.EmpresaId == s)),
+            [CasosDeEstadoPilotoOutbound.VehiculoConDocumentoVencido] = documentos
+                .Where(x => x.VehiculoId is not null && Vencio(x.FechaVencimiento)).Select(x => x.VehiculoId).Distinct().Count(),
+            [CasosDeEstadoPilotoOutbound.VisitaAMenosDe48Horas] = visitas.Count(
+                v => v.FechaInicio >= d && v.FechaInicio <= d.AddDays(1) && acudenA[v.Id].Any()),
+            [CasosDeEstadoPilotoOutbound.GestionPendiente] = await dbContext.Gestiones.AsNoTracking()
+                .CountAsync(g => g.Estado == EstadoGestion.Pendiente, cancellationToken),
+            [CasosDeEstadoPilotoOutbound.ReclamacionSinRespuesta] = reclamaciones.Count(
+                r => r.FechaEnvioUtc <= haceUnaSemana && !respuestas.Any(x => x.ConversacionId == r.ConversacionId && x.FechaUtc > r.FechaEnvioUtc))
+        };
+
+        // El paquete documental: la primera Visita a un Centro cuyo canal principal es un correo, con la regla de la pantalla.
+        MedicionPaquete? paquete = null;
+        var visitasACentrosPorCorreo = 0;
+        foreach (var visita in visitas)
+        {
+            if (await CanalCorreoDeCentro.ResolverAsync(dbContext, visita.CentroId, cancellationToken) is not { } canal) continue;
+            if (visitasACentrosPorCorreo++ > 0) continue;
+
+            var centro = await dbContext.Centros.AsNoTracking().Where(c => c.Id == visita.CentroId)
+                .Select(c => new { c.Nombre, c.EmpresaId }).SingleAsync(cancellationToken);
+            var acuden = acudenA[visita.Id].ToHashSet();
+            var filas = filasDeCentro.Where(f => f.CentroId == visita.CentroId).ToDictionary(f => (f.TipoDocumentoId, f.CentroId));
+            string NombreDelTipo(Guid tipoId) => tipos.SingleOrDefault(t => t.Id == tipoId)?.Nombre ?? tipoId.ToString();
+            string NombreDelTrabajador(Guid? id) =>
+                trabajadores.SingleOrDefault(t => t.Id == id) is { } t ? $"{t.Nombre} {t.Apellidos}" : "un Trabajador que no acude";
+
+            var exigidosDeEmpresa = tipos
+                .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa
+                            && ResolucionTipoDocumentoCentro.Aplica(filas, t.Id, visita.CentroId, t.PorDefecto))
+                .Select(t => t.Id).ToHashSet();
+            var exigidosDeTrabajador = pares
+                .Where(p => p.CentroId == visita.CentroId && acuden.Contains(p.TrabajadorId))
+                .Select(p => (p.TrabajadorId, p.TipoDocumentoId)).ToHashSet();
+
+            // El mismo servicio que arma el ZIP de la pantalla de la Visita. No se usa la consulta que lo
+            // envuelve porque esa deja constancia del acceso a documentos sensibles, y medir no escribe.
+            var zip = await servicios.GetRequiredService<IPaqueteDocumentalVisitaService>().ConstruirAsync(visita.Id, cancellationToken);
+            var enElZip = (zip?.Documentos ?? [])
+                .Select(x => documentos.SingleOrDefault(o => o.Id == x.DocumentoId))
+                .Where(x => x is not null).Select(x => x!).ToList();
+
+            var (pdfDeTrabajador, pdfDeEmpresa, ficheros) = (0, 0, 0);
+            if (zip is not null)
+            {
+                using var archivo = new ZipArchive(new MemoryStream(zip.Contenido), ZipArchiveMode.Read);
+                foreach (var entrada in archivo.Entries)
+                {
+                    ficheros++;
+                    await using var flujo = entrada.Open();
+                    if (!await EmpiezaComoPdfAsync(flujo, cancellationToken)) continue;
+
+                    if (entrada.FullName.StartsWith("Trabajadores", StringComparison.Ordinal)) pdfDeTrabajador++;
+                    else if (entrada.FullName.StartsWith("Empresa", StringComparison.Ordinal)) pdfDeEmpresa++;
+                }
+            }
+
+            var correosDelCanal = canal.EmailsDestinatarios.Split([';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            paquete = new MedicionPaquete(
+                centro.Nombre, canal.EmailsDestinatarios,
+                CorreosDelCanalFueraDeLaRegla: correosDelCanal.Length == 0 ? 1 : correosDelCanal.Count(c => !opciones.Contactos.Cumple(c)),
+                DiasDesdeLaDemostracion: visita.FechaInicio.DayNumber - d.DayNumber,
+                DiasDesdeHoy: visita.FechaInicio.DayNumber - hoy.DayNumber,
+                Trabajadores: acuden.Count,
+                ExigidosDeTrabajador: exigidosDeTrabajador.Count,
+                ExigidosDeEmpresa: exigidosDeEmpresa.Count,
+                PdfDeTrabajador: pdfDeTrabajador,
+                PdfDeEmpresa: pdfDeEmpresa,
+                FicherosEnElZip: ficheros,
+                Faltan:
+                [
+                    .. exigidosDeEmpresa
+                        .Where(tipoId => !enElZip.Any(x => x.EmpresaId == centro.EmpresaId && x.TipoDocumentoId == tipoId))
+                        .Select(tipoId => $"«{NombreDelTipo(tipoId)}» de la Empresa propia").Order(StringComparer.Ordinal),
+                    .. exigidosDeTrabajador
+                        .Where(e => !enElZip.Any(x => x.TrabajadorId == e.TrabajadorId && x.TipoDocumentoId == e.TipoDocumentoId))
+                        .Select(e => $"«{NombreDelTipo(e.TipoDocumentoId)}» de {NombreDelTrabajador(e.TrabajadorId)}").Order(StringComparer.Ordinal)
+                ],
+                Sobran:
+                [
+                    .. enElZip
+                        .Where(x => x.TrabajadorId is { } trabajadorId
+                            ? !exigidosDeTrabajador.Contains((trabajadorId, x.TipoDocumentoId))
+                            : !(x.EmpresaId == centro.EmpresaId && exigidosDeEmpresa.Contains(x.TipoDocumentoId)))
+                        .Select(x => x.TrabajadorId is null
+                            ? $"«{NombreDelTipo(x.TipoDocumentoId)}» de Empresa"
+                            : $"«{NombreDelTipo(x.TipoDocumentoId)}» de {NombreDelTrabajador(x.TrabajadorId)}")
+                        .Order(StringComparer.Ordinal)
+                ]);
+        }
+
+        return new MedicionGrande(
+            TrabajadoresPropios: trabajadores.Count(t => !t.DeSubcontrata),
+            TrabajadoresDeSubcontrata: trabajadores.Count(t => t.DeSubcontrata),
+            Subcontratas: subcontratas.Count,
+            CasosDeEstado: casos,
+            VisitasACentrosPorCorreo: visitasACentrosPorCorreo,
+            Paquete: paquete);
+    }
+
+    private static async Task<bool> EmpiezaComoPdfAsync(Stream flujo, CancellationToken cancellationToken)
+    {
+        var cabecera = new byte[5];
+        return await flujo.ReadAtLeastAsync(cabecera, cabecera.Length, throwOnEndOfStream: false, cancellationToken) == cabecera.Length
+               && cabecera.AsSpan().SequenceEqual("%PDF-"u8);
     }
 
     private static async Task<bool> EsPdfAsync(IFileStorageService almacen, string clave, CancellationToken cancellationToken)

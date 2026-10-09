@@ -7,8 +7,11 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// <summary>Qué datos recibe un Tenant propietario del piloto.</summary>
 public enum EscenarioPilotoOutbound
 {
-    /// <summary>Tenant, operación, carteras, Empresa propia y su agenda. Sus datos los añade otro incremento.</summary>
+    /// <summary>Tenant, operación, carteras, Empresa propia y su agenda, sin más datos. Hoy ningún Tenant del catálogo lo usa.</summary>
     Esqueleto,
+
+    /// <summary>Volumen y mezcla realista, con todos los casos de estado al menos una vez (ver <see cref="DisenoT1PilotoOutbound"/>).</summary>
+    Grande,
 
     /// <summary>Las seis condiciones de «todo al día» a la vez: cero filas en Mi trabajo y 100 % en todas las pantallas.</summary>
     TodoAlDia,
@@ -48,7 +51,10 @@ public enum SituacionDocumentoPilotoOutbound
     Proximo,
 
     /// <summary>El Trabajador no tiene ningún documento de ese tipo: Faltante en cada Centro que lo exige.</summary>
-    Ausente
+    Ausente,
+
+    /// <summary>El documento existe, no tiene fecha de vencimiento y nadie ha confirmado que no caduca. Solo en tipos sin vencimiento automático.</summary>
+    SinConfirmar
 }
 
 /// <summary>Un documento que se aparta de «todo en regla»: de quién (por índice en el Tenant), de qué tipo y cómo está.</summary>
@@ -82,14 +88,18 @@ public sealed record TenantPilotoOutbound(
 }
 
 /// <summary>Direcciones de las cuentas de la demostración. Las locales son las del arranque en Development; la vía administrativa pasa las de un dominio propio.</summary>
+/// <param name="UsuarioDeClienteEmpresarialT1">La cuenta opcional de la matriz: un Usuario de Cliente empresarial de T1, que solo lee lo de su Cliente empresarial.</param>
 public sealed record CuentasPilotoOutbound(
-    string GestoraPrimera, string GestorSegundo, string Coordinadora, string AdministradorOperador, string AdministradorT1)
+    string GestoraPrimera, string GestorSegundo, string Coordinadora, string AdministradorOperador, string AdministradorT1,
+    string UsuarioDeClienteEmpresarialT1)
 {
     public static CuentasPilotoOutbound Locales { get; } = new(
         "gestora1.piloto@caemanager.local", "gestor2.piloto@caemanager.local", "coordinadora.piloto@caemanager.local",
-        "administrador.piloto@caemanager.local", "administrador.t1.piloto@caemanager.local");
+        "administrador.piloto@caemanager.local", "administrador.t1.piloto@caemanager.local",
+        "cliente.t1.piloto@caemanager.local");
 
-    public IReadOnlyList<string> Todas => [GestoraPrimera, GestorSegundo, Coordinadora, AdministradorOperador, AdministradorT1];
+    public IReadOnlyList<string> Todas =>
+        [GestoraPrimera, GestorSegundo, Coordinadora, AdministradorOperador, AdministradorT1, UsuarioDeClienteEmpresarialT1];
 }
 
 /// <summary>
@@ -441,6 +451,284 @@ public static class DisenoT6PilotoOutbound
     ];
 }
 
+/// <summary>
+/// El diseño de T1, «grande», con reglas aritméticas sobre el índice del
+/// Trabajador y sin azar: 175 Trabajadores (los índices 0..149 son de la Empresa
+/// propia y 150..174 de las tres subcontratas, a razón de nueve, ocho y ocho) y
+/// veintiocho Centros de doce Clientes empresariales.
+///
+/// <para>
+/// <b>Asignaciones.</b> El Trabajador propio i tiene Asignación activa al Centro
+/// i % 28 y, si su posición en el ciclo (i % <see cref="Ciclo"/>) es múltiplo de
+/// seis, también al que queda catorce más allá. Los seis últimos propios
+/// (<see cref="PrimerTrabajadorDeBaja"/>..149) están de baja: su única Asignación
+/// tiene fecha de baja, así que no cuentan en ningún Centro, pero sus documentos
+/// siguen existiendo. El Trabajador de subcontrata s (0..24) está en el Centro
+/// (s + 4) % 28. Asignaciones activas: 144 + 24 + 25 = 193, y con los cinco tipos
+/// exigidos por defecto en todos los Centros, 965 pares exigidos (840 de la
+/// Empresa propia).
+/// </para>
+///
+/// <para>
+/// <b>Documentos.</b> Cada Trabajador tiene los cinco tipos exigidos, Vigentes o
+/// sin caducidad, salvo lo que diga <see cref="DesviacionesDe"/>: un ciclo de 24
+/// posiciones para los propios (144 = 6 × 24, así que cada posición se repite seis
+/// veces entre los que tienen Asignación activa) y una regla sobre s para los de
+/// subcontrata. Por ciclo: cinco documentos Vencidos (siete pares, porque dos son
+/// de Trabajadores con dos Centros), tres ausentes y nueve sin confirmar (doce
+/// pares). No conformes en la Empresa propia: 22 × 6 = 132 de 840 pares, el 84 %.
+/// Faltan 18 + 3 = 21 documentos, así que hay 854 de Trabajador; con los 14 de la
+/// Empresa propia, los 8 de los dos Vehículos y los 9 de las subcontratas, 885.
+/// </para>
+///
+/// <para>
+/// <b>Los casos de estado, cada uno en su sitio.</b>
+/// <see cref="CentroConRequisitoBloqueanteVencido"/> marca el certificado de
+/// aptitud médica como requisito que bloquea el acceso: los Trabajadores de
+/// <see cref="TrabajadoresBloqueadosEnUnCentroYNoEnElOtro"/> lo tienen vencido y
+/// quedan bloqueados allí, y no en su otro Centro, que no lo marca.
+/// <see cref="CentroConRequisitoBloqueanteAusente"/> marca el documento de
+/// identidad, que a <see cref="TrabajadorConFaltanteBloqueante"/> le falta: es el
+/// Faltante bloqueante; los otros veinte ausentes no bloquean.
+/// <see cref="CentroConTolerancia"/> concede <see cref="DiasDeTolerancia"/> días a
+/// la Formación Art. 19, y la de <see cref="TrabajadorEnTolerancia"/> venció hace
+/// <see cref="DiasDesdeQueVencioElDocumentoEnTolerancia"/>: allí se pinta «en
+/// tolerancia». Seis Centros (<see cref="CentrosConPlataforma"/>) tienen canal de
+/// plataforma y una acreditación externa por documento de cada Trabajador
+/// asignado, casi todas Aceptadas: una de cada ocho queda Pendiente de subir,
+/// otra de cada ocho Subida, una está Rechazada
+/// (<see cref="AcreditacionRechazada"/>) y otra, Aceptada, venció en la plataforma
+/// (<see cref="AcreditacionVencidaEnPlataforma"/>): esas dos bloquean su Centro.
+/// </para>
+///
+/// <para>
+/// <b>La Visita por correo.</b> <see cref="CentroPorCorreo"/> no tiene plataforma:
+/// su canal principal es una dirección de correo. Tiene una Visita que empieza
+/// <see cref="DiasHastaLaVisita"/> día después de la demostración, con los
+/// Trabajadores de <see cref="TrabajadoresDeLaVisita"/>, que no tienen ninguna
+/// desviación: el paquete documental lleva sus diez documentos y los trece que se
+/// exigen a la Empresa propia. Es el ÚNICO dato de T1 que depende del día: la
+/// Visita es «a menos de 48 horas» la víspera y el día de la demostración, y
+/// esos dos días añade una fila a Mi trabajo y una a las Visitas urgentes de
+/// Inicio.
+/// </para>
+///
+/// <para>
+/// <b>Consecuencia que conviene saber.</b> El documento de Empresa vencido de la
+/// Empresa propia (<see cref="TipoDeEmpresaVencido"/>, que no se exige por
+/// defecto) es causa de estado en TODOS sus Centros, porque el producto pinta
+/// cualquier documento con fecha de la Empresa del Centro: ningún Centro de T1
+/// sale mejor que «Vencido».
+/// </para>
+/// </summary>
+public static class DisenoT1PilotoOutbound
+{
+    public const int TrabajadoresPropios = 150;
+    public const int TrabajadoresDeSubcontrata = 25;
+    public const int Trabajadores = TrabajadoresPropios + TrabajadoresDeSubcontrata;
+    public const int Centros = 28;
+    public const int Ciclo = 24;
+    public const int PrimerTrabajadorDeBaja = 144;
+
+    public const string TipoBloqueanteVencido = CatalogoPilotoOutbound.AptitudMedica;
+    public const int CentroConRequisitoBloqueanteVencido = 0;
+    public static IReadOnlyList<int> TrabajadoresBloqueadosEnUnCentroYNoEnElOtro { get; } = [0, 84];
+
+    public const string TipoBloqueanteAusente = CatalogoPilotoOutbound.DocumentoIdentidad;
+    public const int CentroConRequisitoBloqueanteAusente = 7;
+    public const int TrabajadorConFaltanteBloqueante = 7;
+
+    public const string TipoEnTolerancia = CatalogoPilotoOutbound.FormacionArt19;
+    public const int CentroConTolerancia = 5;
+    public const int TrabajadorEnTolerancia = 5;
+    public const int DiasDesdeQueVencioElDocumentoEnTolerancia = 12;
+    public const int DiasDeTolerancia = 30;
+
+    public static IReadOnlyList<int> CentrosConPlataforma { get; } = [0, 3, 6, 9, 16, 20];
+
+    /// <summary>De cada ocho acreditaciones, en el orden en que se siembran, la cuarta queda Pendiente de subir y la séptima Subida.</summary>
+    public const int CadaCuantasAcreditaciones = 8;
+    public const int PosicionPendienteDeSubir = 3;
+    public const int PosicionSubida = 6;
+
+    public static (int Centro, int Trabajador, string Tipo) AcreditacionRechazada { get; } = (3, 3, CatalogoPilotoOutbound.AptitudMedica);
+    public static (int Centro, int Trabajador, string Tipo) AcreditacionVencidaEnPlataforma { get; } = (9, 37, CatalogoPilotoOutbound.FormacionArt19);
+    public const int DiasDesdeQueVencioEnPlataforma = 15;
+    public const int DiasDesdeElRechazo = 12;
+
+    public const int CentroPorCorreo = 13;
+    public static IReadOnlyList<int> TrabajadoresDeLaVisita { get; } = [13, 41];
+    public const int DiasHastaLaVisita = 1;
+
+    /// <summary>Los dos documentos de la Empresa propia que llevan el PDF pesado.</summary>
+    public static IReadOnlyList<string> TiposDeEmpresaConPdfPesado { get; } = ["Evaluación de Riesgos Laborales", "Plan de Prevención"];
+
+    /// <summary>Un tipo de ámbito Empresa que no se exige por defecto: su documento, Vencido, no entra en lo que un Centro pide para una Visita.</summary>
+    public const string TipoDeEmpresaVencido = "Mutua";
+
+    public static IReadOnlyList<(string Nombre, string Modelo, string Placa)> Vehiculos { get; } =
+        [("Camión grúa", "Camión con grúa autocargante", "7354LDM"), ("Furgoneta de mantenimiento", "Furgoneta de carga ligera", "2196KXV")];
+
+    /// <summary>El documento del primer Vehículo que está Vencido.</summary>
+    public const string TipoDeVehiculoVencido = "Seguro";
+
+    /// <summary>Una Gestión pendiente por cada uno: el Gestor CAE tiene apuntado que hay que conseguir ese documento, que falta, para el Centro del Trabajador.</summary>
+    public static IReadOnlyList<(int Trabajador, string Tipo)> GestionesPendientes { get; } =
+    [
+        (31, CatalogoPilotoOutbound.DocumentoIdentidad), (14, CatalogoPilotoOutbound.InformacionArt18),
+        (19, CatalogoPilotoOutbound.EntregaEpi), (38, CatalogoPilotoOutbound.InformacionArt18)
+    ];
+
+    /// <summary>
+    /// La reclamación a la Empresa propia por su documento vencido es un registro
+    /// histórico: «se envió» veinte días antes de la demostración. Con veinte, lleva
+    /// más de siete días sin respuesta cualquier día en que se pueda sembrar (el
+    /// primero es D−9).
+    /// </summary>
+    public const int DiasDesdeLaReclamacion = 20;
+
+    public static bool EsDeSubcontrata(int trabajador) => trabajador >= TrabajadoresPropios;
+
+    /// <summary>A cuál de las tres subcontratas pertenece (0..2). Solo para los índices 150..174.</summary>
+    public static int SubcontrataDe(int trabajador) => (trabajador - TrabajadoresPropios) % 3;
+
+    public static bool EstaDeBaja(int trabajador) => trabajador is >= PrimerTrabajadorDeBaja and < TrabajadoresPropios;
+
+    /// <summary>El Centro de su Asignación principal: activa, o dada de baja si el Trabajador está de baja.</summary>
+    public static int CentroPrincipalDe(int trabajador) =>
+        EsDeSubcontrata(trabajador) ? (trabajador - TrabajadoresPropios + 4) % Centros : trabajador % Centros;
+
+    /// <summary>Los Centros en los que tiene Asignación activa: ninguno, uno o dos.</summary>
+    public static IReadOnlyList<int> CentrosActivosDe(int trabajador)
+    {
+        if (EstaDeBaja(trabajador))
+            return [];
+
+        var principal = CentroPrincipalDe(trabajador);
+        return !EsDeSubcontrata(trabajador) && trabajador % Ciclo % 6 == 0 ? [principal, (principal + 14) % Centros] : [principal];
+    }
+
+    /// <summary>Los documentos del Trabajador que no están, sin más, Vigentes o sin caducidad.</summary>
+    public static IReadOnlyList<DesviacionDocumentoPilotoOutbound> DesviacionesDe(int trabajador)
+    {
+        IEnumerable<(string Tipo, SituacionDocumentoPilotoOutbound Situacion)> desviaciones;
+
+        if (EsDeSubcontrata(trabajador))
+        {
+            var s = trabajador - TrabajadoresPropios;
+            desviaciones = new (bool Aplica, string Tipo, SituacionDocumentoPilotoOutbound Situacion)[]
+                {
+                    (s % 5 == 1, CatalogoPilotoOutbound.AptitudMedica, SituacionDocumentoPilotoOutbound.Vencido),
+                    (s % 5 == 3, CatalogoPilotoOutbound.InformacionArt18, SituacionDocumentoPilotoOutbound.SinConfirmar),
+                    (s % 10 == 4, CatalogoPilotoOutbound.EntregaEpi, SituacionDocumentoPilotoOutbound.Ausente),
+                    (s % 10 == 9, CatalogoPilotoOutbound.FormacionArt19, SituacionDocumentoPilotoOutbound.Urgente)
+                }
+                .Where(d => d.Aplica).Select(d => (d.Tipo, d.Situacion));
+        }
+        else
+        {
+            desviaciones = PorPosicionEnElCiclo.GetValueOrDefault(trabajador % Ciclo) ?? [];
+        }
+
+        return [.. desviaciones.Select(d => new DesviacionDocumentoPilotoOutbound(trabajador, d.Tipo, d.Situacion))];
+    }
+
+    /// <summary>
+    /// El ciclo de los Trabajadores propios. Las posiciones 0, 6, 12 y 18 son las de
+    /// los que están en dos Centros. Las que no aparecen (2, 8, 13, 17 y 20) no
+    /// tienen ninguna desviación.
+    /// </summary>
+    private static readonly Dictionary<int, (string Tipo, SituacionDocumentoPilotoOutbound Situacion)[]> PorPosicionEnElCiclo = new()
+    {
+        [0] = [(CatalogoPilotoOutbound.AptitudMedica, SituacionDocumentoPilotoOutbound.Vencido)],
+        [1] = [(CatalogoPilotoOutbound.InformacionArt18, SituacionDocumentoPilotoOutbound.SinConfirmar)],
+        [3] = [(CatalogoPilotoOutbound.EntregaEpi, SituacionDocumentoPilotoOutbound.Urgente)],
+        [4] = [(CatalogoPilotoOutbound.DocumentoIdentidad, SituacionDocumentoPilotoOutbound.SinConfirmar)],
+        [5] = [(CatalogoPilotoOutbound.FormacionArt19, SituacionDocumentoPilotoOutbound.Vencido)],
+        [6] = [(CatalogoPilotoOutbound.InformacionArt18, SituacionDocumentoPilotoOutbound.SinConfirmar)],
+        [7] = [(CatalogoPilotoOutbound.DocumentoIdentidad, SituacionDocumentoPilotoOutbound.Ausente)],
+        [9] = [(CatalogoPilotoOutbound.AptitudMedica, SituacionDocumentoPilotoOutbound.Proximo)],
+        [10] = [(CatalogoPilotoOutbound.EntregaEpi, SituacionDocumentoPilotoOutbound.Vencido)],
+        [11] = [(CatalogoPilotoOutbound.InformacionArt18, SituacionDocumentoPilotoOutbound.SinConfirmar)],
+        [12] =
+        [
+            (CatalogoPilotoOutbound.AptitudMedica, SituacionDocumentoPilotoOutbound.Vencido),
+            (CatalogoPilotoOutbound.DocumentoIdentidad, SituacionDocumentoPilotoOutbound.SinConfirmar)
+        ],
+        [14] = [(CatalogoPilotoOutbound.InformacionArt18, SituacionDocumentoPilotoOutbound.Ausente)],
+        [15] = [(CatalogoPilotoOutbound.FormacionArt19, SituacionDocumentoPilotoOutbound.Urgente)],
+        [16] = [(CatalogoPilotoOutbound.InformacionArt18, SituacionDocumentoPilotoOutbound.SinConfirmar)],
+        [18] = [(CatalogoPilotoOutbound.DocumentoIdentidad, SituacionDocumentoPilotoOutbound.SinConfirmar)],
+        [19] = [(CatalogoPilotoOutbound.EntregaEpi, SituacionDocumentoPilotoOutbound.Ausente)],
+        [21] =
+        [
+            (CatalogoPilotoOutbound.InformacionArt18, SituacionDocumentoPilotoOutbound.SinConfirmar),
+            (CatalogoPilotoOutbound.FormacionArt19, SituacionDocumentoPilotoOutbound.Proximo)
+        ],
+        [22] = [(CatalogoPilotoOutbound.AptitudMedica, SituacionDocumentoPilotoOutbound.Vencido)],
+        [23] = [(CatalogoPilotoOutbound.DocumentoIdentidad, SituacionDocumentoPilotoOutbound.SinConfirmar)]
+    };
+}
+
+/// <summary>
+/// Los casos de estado de la matriz (§ 3.1) que la autoverificación busca en el
+/// Tenant grande. De cada uno tiene que haber al menos uno.
+/// </summary>
+public static class CasosDeEstadoPilotoOutbound
+{
+    public const string Vencido = "Documento Vencido";
+    public const string Urgente = "Documento Urgente";
+    public const string Proximo = "Documento Próximo";
+    public const string SinConfirmar = "Documento Sin confirmar";
+    public const string SinCaducidad = "Documento Sin caducidad";
+    public const string EnTolerancia = "Documento En tolerancia";
+    public const string FaltanteBloqueante = "Faltante bloqueante";
+    public const string FaltanteNoBloqueante = "Faltante no bloqueante";
+    public const string AcreditacionPendienteDeSubir = "Acreditación externa Pendiente de subir";
+    public const string AcreditacionSubida = "Acreditación externa Subida";
+    public const string AcreditacionAceptada = "Acreditación externa Aceptada";
+    public const string AcreditacionRechazada = "Acreditación externa Rechazada";
+    public const string AcreditacionVencidaEnPlataforma = "Acreditación externa vencida en plataforma";
+    public const string TrabajadorBloqueadoEnUnCentroYNoEnOtro = "Trabajador bloqueado en un Centro y no en otro";
+    public const string TrabajadorDeBaja = "Trabajador de baja";
+    public const string DocumentoDeEmpresaVencido = "Documento de Empresa vencido en la Empresa propia";
+    public const string SubcontrataConDocumentacionPropia = "Subcontrata con documentación propia";
+    public const string VehiculoConDocumentoVencido = "Vehículo con documento vencido";
+    public const string VisitaAMenosDe48Horas = "Visita a menos de 48 horas de la demostración";
+    public const string GestionPendiente = "Gestión pendiente";
+    public const string ReclamacionSinRespuesta = "Reclamación enviada sin respuesta";
+
+    public static IReadOnlyList<string> Todos { get; } =
+    [
+        Vencido, Urgente, Proximo, SinConfirmar, SinCaducidad, EnTolerancia, FaltanteBloqueante, FaltanteNoBloqueante,
+        AcreditacionPendienteDeSubir, AcreditacionSubida, AcreditacionAceptada, AcreditacionRechazada, AcreditacionVencidaEnPlataforma,
+        TrabajadorBloqueadoEnUnCentroYNoEnOtro, TrabajadorDeBaja, DocumentoDeEmpresaVencido, SubcontrataConDocumentacionPropia,
+        VehiculoConDocumentoVencido, VisitaAMenosDe48Horas, GestionPendiente, ReclamacionSinRespuesta
+    ];
+}
+
+/// <summary>Un intervalo cerrado: lo que la autoverificación admite donde el diseño no fija un número exacto.</summary>
+public sealed record IntervaloPilotoOutbound(int Minimo, int Maximo)
+{
+    public bool Contiene(int? valor) => valor is { } v && v >= Minimo && v <= Maximo;
+
+    public override string ToString() => $"entre {Minimo} y {Maximo}";
+}
+
+/// <summary>
+/// Lo que la autoverificación exige del Tenant grande: su estructura, con cifras
+/// exactas; sus porcentajes y su volumen de trabajo, por intervalo; los casos de
+/// estado de la matriz, al menos uno de cada; y el paquete documental de la Visita
+/// del Centro que se gestiona por correo, fichero a fichero contra lo exigido.
+/// </summary>
+/// <param name="DiasHastaLaVisita">La Visita por correo empieza estos días después de la demostración.</param>
+public sealed record EsperadoGrandePilotoOutbound(
+    int TrabajadoresPropios, int TrabajadoresDeSubcontrata, int Subcontratas, int ClientesEmpresariales, int Centros,
+    int Documentos, int ParesExigidos, int ParesFaltantes,
+    IntervaloPilotoOutbound CumplimientoEmpresa, IntervaloPilotoOutbound CumplimientoInicioYVisionDeCartera,
+    IntervaloPilotoOutbound FilasMiTrabajo, IReadOnlyList<string> CasosDeEstado,
+    int DiasHastaLaVisita, int TrabajadoresDeLaVisita, int ExigidosDeTrabajadorEnElPaquete, int ExigidosDeEmpresaEnElPaquete);
+
 /// <summary>Lo que la autoverificación exige de un Centro: su semáforo y su porcentaje.</summary>
 public sealed record EsperadoCentroPilotoOutbound(string Centro, EstadoCentro Estado, int Cumplimiento);
 
@@ -470,9 +758,9 @@ public sealed record EsperadoPilotoOutbound(
 /// coincidencia con una empresa real; no es una consulta al Registro Mercantil.
 ///
 /// <para>
-/// <b>Para ampliar</b>: un Tenant deja de ser <see cref="EscenarioPilotoOutbound.Esqueleto"/>
-/// dándole Centros aquí, un constructor en el sembrador y una rama en
-/// <see cref="Esperado"/>.
+/// <b>Para ampliar</b>: un Tenant nuevo nace como <see cref="EscenarioPilotoOutbound.Esqueleto"/>
+/// y deja de serlo dándole Centros aquí, un constructor en el sembrador y una rama en
+/// <see cref="Esperado"/> (o en <see cref="EsperadoGrande"/>, si lo suyo son intervalos).
 /// </para>
 /// </summary>
 public static class CatalogoPilotoOutbound
@@ -491,6 +779,7 @@ public static class CatalogoPilotoOutbound
     public const string NombreCoordinadora = "Carmen Lozano Prieto";
     public const string NombreAdministradorOperador = "Jorge Sancho Vera";
     public const string NombreAdministradorT1 = "Beatriz Molina Ferrer";
+    public const string NombreUsuarioDeClienteEmpresarialT1 = "Ramón Ibáñez Cuesta";
 
     public const string AptitudMedica = "Certificado de aptitud médica";
     public const string EntregaEpi = "Entrega de EPI";
@@ -557,16 +846,45 @@ public static class CatalogoPilotoOutbound
     public static IReadOnlyList<(int Trabajador, int Centro)> AsignacionesDeBajaT2 { get; } = [(10, 0), (11, 2)];
 
     /// <summary>
-    /// T1 sigue en esqueleto. Sus doce Clientes empresariales y sus tres subcontratas
-    /// quedan declarados con su razón social y sin Centros: un esqueleto no siembra
-    /// ninguno de los dos.
+    /// T1, «grande»: 150 Trabajadores propios (los de las tres subcontratas son otros
+    /// 25, ver <see cref="DisenoT1PilotoOutbound"/>), doce Clientes empresariales y
+    /// veintiocho Centros de Trabajo: tres en cada uno de los cuatro primeros y dos en
+    /// cada uno de los ocho siguientes.
     /// </summary>
-    public static TenantPilotoOutbound T1 { get; } = new("T1", NombreTenantT1, EscenarioPilotoOutbound.Esqueleto, false, 0,
+    public static TenantPilotoOutbound T1 { get; } = new("T1", NombreTenantT1, EscenarioPilotoOutbound.Grande, false, DisenoT1PilotoOutbound.TrabajadoresPropios,
     [
-        new("Logística Gorsenta, S.A.", []), new("Conservas Palvecor, S.A.", []), new("Distribuciones Kaltuva, S.A.", []),
-        new("Química Hastrel, S.A.", []), new("Energías Lindavo, S.A.", []), new("Componentes de Automoción Fervel, S.A.", []),
-        new("Laboratorios Visquena, S.A.", []), new("Papelera Mirtaldo, S.A.", []), new("Siderúrgica Moltrevi, S.A.", []),
-        new("Terminal Portuaria Tusmedo, S.A.", []), new("Centros de Datos Cinvelto, S.L.", []), new("Centros Comerciales Tramuel, S.A.", [])
+        new("Logística Gorsenta, S.A.",
+        [
+            new("Plataforma logística de Illescas", "Illescas"), new("Almacén regulador de Azuqueca", "Azuqueca de Henares"),
+            new("Centro de distribución de Getafe", "Getafe")
+        ]),
+        new("Conservas Palvecor, S.A.",
+        [
+            new("Fábrica de conservas de Calahorra", "Calahorra"), new("Planta de envasado de Alfaro", "Alfaro"),
+            new("Almacén de expediciones de Tudela", "Tudela")
+        ]),
+        new("Distribuciones Kaltuva, S.A.",
+        [
+            new("Centro de distribución de Zaragoza", "Zaragoza"), new("Plataforma de cruce de Valladolid", "Valladolid"),
+            new("Almacén de Vitoria", "Vitoria")
+        ]),
+        new("Química Hastrel, S.A.",
+        [
+            new("Planta química de Tarragona", "Tarragona"), new("Parque de tanques de Tarragona", "Tarragona"),
+            new("Laboratorio de control de Reus", "Reus")
+        ]),
+        new("Energías Lindavo, S.A.", [new("Subestación de Albacete", "Albacete"), new("Parque fotovoltaico de Almansa", "Almansa")]),
+        new("Componentes de Automoción Fervel, S.A.",
+            [new("Planta de estampación de Martorell", "Martorell"), new("Planta de montaje de Almussafes", "Almussafes")]),
+        new("Laboratorios Visquena, S.A.",
+            [new("Planta farmacéutica de Alcalá de Henares", "Alcalá de Henares"), new("Almacén de materias primas de Torrejón", "Torrejón de Ardoz")]),
+        new("Papelera Mirtaldo, S.A.", [new("Fábrica de papel de Hernani", "Hernani"), new("Almacén de bobinas de Andoain", "Andoain")]),
+        new("Siderúrgica Moltrevi, S.A.", [new("Acería de Avilés", "Avilés"), new("Tren de laminación de Gijón", "Gijón")]),
+        new("Terminal Portuaria Tusmedo, S.A.",
+            [new("Terminal de contenedores de Algeciras", "Algeciras"), new("Terminal de graneles de Huelva", "Huelva")]),
+        new("Centros de Datos Cinvelto, S.L.",
+            [new("Centro de datos de Alcobendas", "Alcobendas"), new("Centro de datos de San Sebastián de los Reyes", "San Sebastián de los Reyes")]),
+        new("Centros Comerciales Tramuel, S.A.", [new("Centro comercial de Málaga", "Málaga"), new("Centro comercial de Murcia", "Murcia")])
     ],
     ["Electricidad Uvalcor, S.L.", "Andamios Grebusal, S.L.", "Soldaduras Pivento, S.L."]);
 
@@ -656,7 +974,8 @@ public static class CatalogoPilotoOutbound
 
     /// <summary>
     /// Los valores de la matriz que la autoverificación exige de cada Tenant
-    /// propietario; <c>null</c> para un esqueleto (todavía sin datos que medir).
+    /// propietario; <c>null</c> para un esqueleto (sin datos que medir) y para el
+    /// Tenant grande, cuyo contrato es <see cref="EsperadoGrande"/>.
     /// Escritos a mano a partir del diseño, no derivados del sembrador: si el
     /// sembrador cambia y estos números no, la autoverificación falla.
     /// </summary>
@@ -677,7 +996,8 @@ public static class CatalogoPilotoOutbound
                     new(tenant.Centros[0].Nombre, EstadoCentro.Vencido, 50), new(tenant.Centros[1].Nombre, EstadoCentro.Vencido, 50),
                     new(tenant.Centros[2].Nombre, EstadoCentro.Vencido, 50), new(tenant.Centros[3].Nombre, EstadoCentro.Vencido, 50)
                 ],
-                ParesExigidos: 20, ParesFaltantes: 0, Documentos: 20, TodoAlDia: false),
+                // Documentos: 20 de Trabajador (10 × 2) y los 13 que se exigen por defecto a la Empresa propia, Vigentes.
+                ParesExigidos: 20, ParesFaltantes: 0, Documentos: 33, TodoAlDia: false),
 
             // Diecinueve pares exigidos, ninguno con documento: diecinueve filas «Falta».
             EscenarioPilotoOutbound.TodoPendiente => new(
@@ -710,7 +1030,8 @@ public static class CatalogoPilotoOutbound
                     new(tenant.Centros[10].Nombre, EstadoCentro.Vigente, 100), new(tenant.Centros[11].Nombre, EstadoCentro.Vigente, 100),
                     new(tenant.Centros[12].Nombre, EstadoCentro.Vigente, 100), new(tenant.Centros[13].Nombre, EstadoCentro.Vigente, 100)
                 ],
-                ParesExigidos: 220, ParesFaltantes: 0, Documentos: 20, TodoAlDia: false, TrabajadoresBloqueados: 2,
+                // Documentos: 20 de Trabajador (4 × 5) y los 13 que se exigen por defecto a la Empresa propia, Vigentes.
+                ParesExigidos: 220, ParesFaltantes: 0, Documentos: 33, TodoAlDia: false, TrabajadoresBloqueados: 2,
                 Divergencia:
                     "Inicio y Visión de cartera cuentan documentos (19 de 20 al día) y Centros y Empresas cuentan pares " +
                     "exigidos (212 de 220): el mismo documento vencido cuenta una vez allí y ocho aquí, una por cada Centro " +
@@ -740,7 +1061,8 @@ public static class CatalogoPilotoOutbound
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[2].Nombre, EstadoCentro.Urgente, 100),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[3].Nombre, EstadoCentro.Vigente, 100)
                 ],
-                ParesExigidos: 158, ParesFaltantes: 7, Documentos: 123, TodoAlDia: false, TrabajadoresBloqueados: 1,
+                // Documentos: los 123 de Trabajadores y subcontratas, y los 13 que se exigen por defecto a la Empresa propia, Vigentes.
+                ParesExigidos: 158, ParesFaltantes: 7, Documentos: 136, TodoAlDia: false, TrabajadoresBloqueados: 1,
                 Divergencia:
                     "Inicio y Visión de cartera cuentan documentos de Trabajador (112 de 117 al día) y Centros y Empresas " +
                     "cuentan pares exigidos (145 de 158): un documento que falta no existe para Inicio y sí es un par " +
@@ -748,4 +1070,38 @@ public static class CatalogoPilotoOutbound
 
             _ => null
         };
+
+    /// <summary>
+    /// Los valores que la autoverificación exige del Tenant grande; <c>null</c> para
+    /// los demás. Escritos a mano a partir de <see cref="DisenoT1PilotoOutbound"/>:
+    ///
+    /// <para>
+    /// Estructura, exacta: 150 Trabajadores propios y 25 de tres subcontratas, doce
+    /// Clientes empresariales y veintiocho Centros. Documentos: 175 × 5 − 21 ausentes
+    /// = 854 de Trabajador, 13 + 1 de la Empresa propia, 2 × 4 de los Vehículos y
+    /// 3 × 3 de las subcontratas: 885, cada uno con su PDF. Pares exigidos: 193
+    /// Asignaciones activas × 5 = 965, de los que 21 no tienen documento.
+    /// </para>
+    ///
+    /// <para>
+    /// Por intervalo. Empresas: 708 de los 840 pares de la Empresa propia, el 84 %; se
+    /// admite 82..88, el margen de la matriz («≈85 %»). Inicio y Visión de cartera
+    /// cuentan documentos de Trabajador, no pares: 854 menos 37 Vencidos y 61 sin
+    /// confirmar, 756 de 854, el 89 %; se admite 87..91. Mi trabajo: 37 vencidos, 21
+    /// «Falta», 3 requisitos bloqueantes pendientes, 15 urgentes y 12 próximos, más
+    /// las acreditaciones externas (del orden de 28 Pendientes de subir, 26 Subidas,
+    /// una Rechazada y una vencida en plataforma): unas 144 filas, 145 la víspera y
+    /// el día de la demostración por la Visita. T1 es la excepción declarada al
+    /// volumen de 40 a 80 filas de la cartera; se admite 100..250.
+    /// </para>
+    /// </summary>
+    public static EsperadoGrandePilotoOutbound? EsperadoGrande(TenantPilotoOutbound tenant) =>
+        tenant.Escenario != EscenarioPilotoOutbound.Grande
+            ? null
+            : new(
+                TrabajadoresPropios: 150, TrabajadoresDeSubcontrata: 25, Subcontratas: 3, ClientesEmpresariales: 12, Centros: 28,
+                Documentos: 885, ParesExigidos: 965, ParesFaltantes: 21,
+                CumplimientoEmpresa: new(82, 88), CumplimientoInicioYVisionDeCartera: new(87, 91), FilasMiTrabajo: new(100, 250),
+                CasosDeEstado: CasosDeEstadoPilotoOutbound.Todos,
+                DiasHastaLaVisita: 1, TrabajadoresDeLaVisita: 2, ExigidosDeTrabajadorEnElPaquete: 10, ExigidosDeEmpresaEnElPaquete: 13);
 }
