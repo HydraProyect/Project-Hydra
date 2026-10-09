@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
@@ -43,6 +44,9 @@ public class GestionesVacioPorFiltroTests : BunitContext
             {
                 ObtenerGestionesQuery q => new ResultadoPaginado<GestionListaDto>(
                     Gestiones, Gestiones.Count, q.Pagina, q.TamanoPagina),
+                // El estado vacío sin filtros pregunta cuántos Tenants hay para decidir adónde
+                // lleva «Ir a Mi trabajo» (GestionesVacioEnlaceMiTrabajoTests).
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
 

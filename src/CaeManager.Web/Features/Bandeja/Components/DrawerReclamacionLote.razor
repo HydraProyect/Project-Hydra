@@ -86,20 +86,19 @@
                             </fieldset>
                         }
 
-                        @* La columna "Trabajador" solo existe en el lote de ámbito
+                        @* El nombre del Trabajador solo se pinta en el lote de ámbito
                            Trabajador: en uno de Empresa el propietario de cada
                            documento es la propia titular de la tarjeta, así que
                            repetirla en cada fila no informaría de nada (por eso
-                           DocumentoReclamableDto.TrabajadorNombre es null ahí). *@
+                           DocumentoReclamableDto.TrabajadorNombre es null ahí).
+                           Va bajo el tipo de documento y no en una columna propia:
+                           cinco columnas no caben en el ancho del Drawer y la tabla
+                           se desplazaba en horizontal (DrawerReclamacionLote.razor.css). *@
                         @{ var muestraTrabajador = lote.Ambito != AmbitoAplicacion.Empresa; }
-                        <table class="tabla-datos">
+                        <table class="tabla-datos tabla-lote-reclamacion">
                             <thead>
                                 <tr>
                                     <th></th>
-                                    @if (muestraTrabajador)
-                                    {
-                                        <th>Trabajador</th>
-                                    }
                                     <th>Documento</th><th>Vencimiento</th><th>Estado</th>
                                 </tr>
                             </thead>
@@ -111,11 +110,13 @@
                                             <input type="checkbox" aria-label="@($"Incluir {documento.TipoDocumentoNombre}" + (muestraTrabajador ? $" de {documento.TrabajadorNombre}" : "") + $", vencimiento {documento.FechaVencimiento:dd/MM/yyyy}, en la reclamación")" checked="@seleccionados.Contains(documento.DocumentoId)"
                                                    @onchange="e => AlternarSeleccion(lote.TitularId, documento.DocumentoId, (bool)e.Value!)" />
                                         </td>
-                                        @if (muestraTrabajador)
-                                        {
-                                            <td>@documento.TrabajadorNombre</td>
-                                        }
-                                        <td>@documento.TipoDocumentoNombre</td>
+                                        <td class="lote-reclamacion-documento">
+                                            @documento.TipoDocumentoNombre
+                                            @if (muestraTrabajador)
+                                            {
+                                                <span class="lote-reclamacion-titular">@documento.TrabajadorNombre</span>
+                                            }
+                                        </td>
                                         <td>@documento.FechaVencimiento.ToString("dd/MM/yyyy")</td>
                                         <td><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></td>
                                     </tr>
@@ -133,11 +134,13 @@
                                             <input type="checkbox" aria-label="@EtiquetaIncluir(pendiente, muestraTrabajador)" checked="@pendientesSeleccionados.Contains(pendiente.Clave)"
                                                    @onchange="e => AlternarPendiente(lote.TitularId, pendiente.Clave, (bool)e.Value!)" />
                                         </td>
-                                        @if (muestraTrabajador)
-                                        {
-                                            <td>@pendiente.TrabajadorNombre</td>
-                                        }
-                                        <td>@pendiente.TipoDocumentoNombre</td>
+                                        <td class="lote-reclamacion-documento">
+                                            @pendiente.TipoDocumentoNombre
+                                            @if (muestraTrabajador)
+                                            {
+                                                <span class="lote-reclamacion-titular">@pendiente.TrabajadorNombre</span>
+                                            }
+                                        </td>
                                         <td>@TextosMiTrabajo.Texto("ReclamacionSinFecha")</td>
                                         <td><Badge Tono="EstadoDocumentoUi.Tono(estadoPendiente)">@EstadoDocumentoUi.Texto(estadoPendiente)</Badge></td>
                                     </tr>
