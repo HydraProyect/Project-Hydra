@@ -91,9 +91,13 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         public List<object> Enviadas { get; } = [];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
 
+        /// <summary>Se llama al recibir cada petición, antes de responderla: para mirar cómo está la página en ese instante.</summary>
+        public Action<object>? AlEnviar { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            AlEnviar?.Invoke(request);
             object respuesta = request switch
             {
                 ObtenerFiltrosGuardadosQuery => (IReadOnlyList<FiltroGuardadoDto>)FiltrosGuardados.ToList(),
@@ -400,7 +404,7 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         var url = await AplicarAsync(cut, "De la subcontrata");
 
         url.Should().BeEquivalentTo(new Dictionary<string, string> { ["subcontrata"] = SubcontrataS.ToString() });
-        Consultas<ObtenerVehiculosQuery>().Should().BeGreaterThan(consultasAntes, "aplicar recarga la rejilla");
+        (Consultas<ObtenerVehiculosQuery>() - consultasAntes).Should().Be(1, "una recarga, no dos");
         Ultima<ObtenerVehiculosQuery>().Should().Match<ObtenerVehiculosQuery>(q =>
             q.Busqueda == null && q.EstadoDocumental == null && q.EmpresaId == null && q.SubcontrataId == SubcontrataS);
     }
@@ -455,7 +459,7 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         var url = await AplicarAsync(cut, "Completadas");
 
         url.Should().BeEquivalentTo(new Dictionary<string, string> { ["estado"] = "Completada" });
-        Consultas<ObtenerGestionesQuery>().Should().BeGreaterThan(consultasAntes, "aplicar recarga la rejilla");
+        (Consultas<ObtenerGestionesQuery>() - consultasAntes).Should().Be(1, "una recarga, no dos");
         Ultima<ObtenerGestionesQuery>().Should().Match<ObtenerGestionesQuery>(q => q.Busqueda == null && q.Estado == EstadoGestion.Completada);
     }
 
@@ -496,6 +500,49 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         url.Should().BeEquivalentTo(new Dictionary<string, string> { ["cliente"] = ClienteB.ToString(), ["estado"] = "cerrados" });
         Ultima<ObtenerProyectosQuery>().ClienteId.Should().Be(ClienteB, "la lista que se pide es la del Cliente empresarial del filtro guardado");
         cut.FindAll(".chip-filtro").Should().BeEmpty("la búsqueda no está en el filtro guardado: se quita");
+    }
+
+    /// <summary>
+    /// La URL se escribe ANTES de cargar los datos del Cliente empresarial nuevo. Si se escribiera después,
+    /// durante la carga seguiría diciendo el anterior: teclear en el buscador en esa ventana navegaba
+    /// conservándolo, la página volvía a él y al terminar la carga se escribía el nuevo (dos cargas y parpadeo).
+    /// Y con los campos ya puestos, la navegación no dispara una segunda carga.
+    /// </summary>
+    [Fact]
+    public async Task Proyectos_al_aplicar_la_url_ya_dice_el_Cliente_empresarial_nuevo_cuando_empieza_su_carga_y_carga_una_vez()
+    {
+        ConFiltroGuardado("Cerrados de B", $"{{\"cliente\":\"{ClienteB}\",\"estado\":\"cerrados\"}}");
+        var cut = Renderizar<Proyectos>($"proyectos?cliente={ClienteA}&q=Nave&estado=abiertos");
+        var urlsAlCargarB = new List<Dictionary<string, string>>();
+        _mediador.AlEnviar = peticion =>
+        {
+            if (peticion is ObtenerProyectosQuery q && q.ClienteId == ClienteB)
+                urlsAlCargarB.Add(ParametrosDeLaUrl());
+        };
+
+        await AplicarAsync(cut, "Cerrados de B");
+
+        urlsAlCargarB.Should().ContainSingle("una carga del Cliente empresarial nuevo, no dos")
+            .Which.Should().BeEquivalentTo(new Dictionary<string, string> { ["cliente"] = ClienteB.ToString(), ["estado"] = "cerrados" },
+                "cuando empieza la carga la URL ya es la de la vista guardada");
+        _mediador.Enviadas.OfType<ObtenerProyectosQuery>().Count(q => q.ClienteId == ClienteA)
+            .Should().Be(1, "la del arranque: el Cliente empresarial anterior no vuelve a cargarse");
+    }
+
+    /// <summary>El mismo Cliente empresarial: solo cambian búsqueda y estado, que se filtran en pantalla. No hay carga.</summary>
+    [Fact]
+    public async Task Proyectos_aplicar_con_el_mismo_Cliente_empresarial_cambia_busqueda_y_estado_sin_volver_a_cargar()
+    {
+        ConFiltroGuardado("Cerrados de A", $"{{\"cliente\":\"{ClienteA}\",\"estado\":\"cerrados\"}}");
+        var cut = Renderizar<Proyectos>($"proyectos?cliente={ClienteA}&q=Nave&estado=abiertos");
+        var cargasAntes = Consultas<ObtenerProyectosQuery>();
+
+        var url = await AplicarAsync(cut, "Cerrados de A");
+
+        url.Should().BeEquivalentTo(new Dictionary<string, string> { ["cliente"] = ClienteA.ToString(), ["estado"] = "cerrados" });
+        Consultas<ObtenerProyectosQuery>().Should().Be(cargasAntes, "la lista de ese Cliente empresarial ya está cargada");
+        cut.FindAll(".chip-filtro").Should().BeEmpty("la búsqueda no está en el filtro guardado: se quita también de la barra");
+        cut.FindComponent<BarraFiltros>().Instance.Busqueda.Should().BeEmpty();
     }
 
     /// <summary>

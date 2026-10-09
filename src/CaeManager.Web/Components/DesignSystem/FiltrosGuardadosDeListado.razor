@@ -35,6 +35,7 @@
 @using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado
 @using CaeManager.Application.Configuracion.Commands.GuardarFiltro
 @using CaeManager.Application.Configuracion.Queries
+@using CaeManager.Domain.Common
 @using CaeManager.Web.Recursos
 @using MediatR
 @using Microsoft.AspNetCore.WebUtilities
@@ -82,6 +83,8 @@
     [Parameter, EditorRequired] public EventCallback AlCambiar { get; set; }
 
     private IReadOnlyList<FiltroGuardadoDto> _filtros = [];
+    /// <summary>La lectura inicial falló y aún no se ha podido releer: <see cref="_filtros"/> no es la lista del usuario.</summary>
+    private bool _cargaFallida;
     private bool _desechado;
 
     private bool _mostrarGuardar;
@@ -100,20 +103,28 @@
         Conexion.Conectar(this);
 
         // Los filtros guardados son un accesorio de la lista: si no se pueden leer, la barra sale sin
-        // ellos y la lista sigue siendo la lista.
-        try
-        {
-            _filtros = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(Pantalla)) ?? [];
-        }
-        catch (Exception)
-        {
-            _filtros = [];
-        }
+        // ellos y la lista sigue siendo la lista. Se recuerda que falló: ver GuardarAsync.
+        var leidos = await LeerAsync();
+        _cargaFallida = leidos is null;
+        _filtros = leidos ?? [];
 
         if (_desechado)
             return;
 
         await PublicarAsync();
+    }
+
+    /// <summary>Los filtros guardados del usuario en esta pantalla, o <c>null</c> si no se pudieron leer.</summary>
+    private async Task<IReadOnlyList<FiltroGuardadoDto>?> LeerAsync()
+    {
+        try
+        {
+            return await Mediator.Send(new ObtenerFiltrosGuardadosQuery(Pantalla)) ?? [];
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     public void Dispose()
@@ -155,7 +166,20 @@
         try
         {
             var valoresJson = JsonSerializer.Serialize(VistaDeLaUrl());
-            var resultado = await Mediator.Send(new GuardarFiltroCommand(Pantalla, _nombre, valoresJson));
+
+            Result<Guid> resultado;
+            try
+            {
+                resultado = await Mediator.Send(new GuardarFiltroCommand(Pantalla, _nombre, valoresJson));
+            }
+            catch (Exception)
+            {
+                // El guardado lanzó (dos pestañas guardando el mismo nombre a la vez chocan en el índice
+                // único; la base no responde): se dice dentro del modal, que sigue abierto con el nombre
+                // escrito. Sin esto la excepción sube al límite de errores y sustituye la página entera.
+                _mensajeError = Comunes["FiltroGuardadoGuardarError"];
+                return;
+            }
 
             // P. ej. el nombre repetido: se dice dentro del modal, con lo escrito intacto.
             if (resultado.EsFallido)
@@ -164,12 +188,24 @@
                 return;
             }
 
-            // Ya está guardado: se añade a la lista sin releerla, para que un fallo de la relectura no
-            // deje el modal abierto sobre un filtro que ya existe. El nombre se guarda sin espacios de borde.
-            _filtros = _filtros
-                .Append(new FiltroGuardadoDto(resultado.Valor, _nombre.Trim(), valoresJson, DateTime.UtcNow))
-                .OrderBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
+            // Si la lectura inicial falló, la lista en pantalla no es la del usuario: añadirle solo el nuevo
+            // haría parecer borrados los que ya tenía. Se relee entera ahora que hay algo que enseñar.
+            var releidos = _cargaFallida ? await LeerAsync() : null;
+            if (releidos is not null)
+            {
+                _filtros = releidos;
+                _cargaFallida = false;
+            }
+            else
+            {
+                // Ya está guardado: se añade a la lista sin releerla, para que un fallo de la relectura no
+                // deje el modal abierto sobre un filtro que ya existe. El nombre se guarda sin espacios de borde.
+                _filtros = _filtros
+                    .Append(new FiltroGuardadoDto(resultado.Valor, _nombre.Trim(), valoresJson, DateTime.UtcNow))
+                    .OrderBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
+            }
+
             CerrarGuardar();
             ToastService.Mostrar(Comunes["FiltroGuardadoToast"], TonoToast.Exito);
             await PublicarAsync();

@@ -22,9 +22,12 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
     private const string CarpetaDeFeatures = "src/CaeManager.Web/Features/";
 
     /// <summary>
-    /// Listados que pueden montar <c>BarraFiltros</c> sin filtros guardados. Visitas entra después: su
-    /// cabecera se está rehaciendo en otra línea de trabajo y hoy ni siquiera usa <c>BarraFiltros</c>.
-    /// Cuando los tenga, se quita de aquí (la última prueba lo exige).
+    /// Listados que pueden montar <c>BarraFiltros</c> sin filtros guardados. Solo Visitas, y la excepción es
+    /// deliberada aunque hoy no use <c>BarraFiltros</c>: otra línea de trabajo le va a poner
+    /// <c>&lt;BarraFiltros&gt;</c> ANTES de que el incremento de Visitas le añada los filtros guardados, y sin
+    /// esta excepción esa PR saldría en rojo por algo que no es suyo. La excepción se retira en el incremento
+    /// que le da los filtros guardados a Visitas (añadirla a <c>PantallasConFiltrosGuardados</c>, conectar la
+    /// pieza y quitarla de aquí: la última prueba lo exige).
     /// </summary>
     private static readonly string[] AunSinFiltrosGuardados =
     [

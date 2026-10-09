@@ -227,6 +227,9 @@
   <data name="FiltroGuardadoBorrarError" xml:space="preserve">
     <value>No pudimos borrar el filtro guardado. Intenta nuevamente en unos segundos.</value>
   </data>
+  <data name="FiltroGuardadoGuardarError" xml:space="preserve">
+    <value>No pudimos guardar el filtro. Si ya tienes uno con ese nombre, elige otro; si no, intenta nuevamente en unos segundos.</value>
+  </data>
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
     <value>Logo de la organización</value>
   </data>

@@ -42,6 +42,7 @@ public class FiltrosGuardadosDeListadoTests : BunitContext
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
         public Result<Guid>? ResultadoGuardar { get; set; }
         public bool FallaLaLectura { get; set; }
+        public bool FallaElGuardado { get; set; }
         public bool FallaElBorrado { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
@@ -51,6 +52,7 @@ public class FiltrosGuardadosDeListadoTests : BunitContext
             {
                 ObtenerFiltrosGuardadosQuery when FallaLaLectura => throw new InvalidOperationException("sin base"),
                 ObtenerFiltrosGuardadosQuery => (IReadOnlyList<FiltroGuardadoDto>)FiltrosGuardados.ToList(),
+                GuardarFiltroCommand when FallaElGuardado => throw new InvalidOperationException("23505: choque en el índice único"),
                 GuardarFiltroCommand => ResultadoGuardar ?? Result.Exito(Guid.NewGuid()),
                 EliminarFiltroGuardadoCommand when FallaElBorrado => throw new InvalidOperationException("sin base"),
                 EliminarFiltroGuardadoCommand => Result.Exito(),
@@ -193,6 +195,91 @@ public class FiltrosGuardadosDeListadoTests : BunitContext
         cut.FindComponent<CampoTexto>().Instance.Valor.Should().Be("Vencidas");
         _conexion.Opciones.Should().BeEmpty("no se guardó nada");
         Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El guardado LANZA (dos pestañas guardando el mismo nombre chocan en el índice único después de que el
+    /// validador lo diera por libre; la base no responde). Sin capturarlo, la excepción sube al límite de
+    /// errores de la página y la sustituye entera: aquí se dice dentro del modal, que no se cierra.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_guardado_lanza_se_dice_dentro_del_modal_que_sigue_abierto_con_el_nombre_escrito()
+    {
+        _mediador.FallaElGuardado = true;
+        var cut = await AbrirGuardarAsync("empresas?q=Ebro");
+        await EscribirNombreAsync(cut, "Vencidas");
+
+        var guardar = () => BotonDelDialogo(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        await guardar.Should().NotThrowAsync("una excepción aquí sustituye la página entera por el límite de errores");
+        _mediador.Enviadas.OfType<GuardarFiltroCommand>().Should().ContainSingle("control positivo: el guardado se intentó");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("No pudimos guardar el filtro");
+        cut.FindComponent<CampoTexto>().Instance.Valor.Should().Be("Vencidas");
+        BotonDelDialogo(cut, "Guardar").HasAttribute("disabled").Should().BeFalse("se puede reintentar");
+        _conexion.Opciones.Should().BeEmpty("no se guardó nada");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty();
+
+        // Reintento con la base de vuelta: el mismo modal guarda y se cierra.
+        _mediador.FallaElGuardado = false;
+        await BotonDelDialogo(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        _conexion.Opciones.Select(o => o.Texto).Should().Equal("Vencidas");
+    }
+
+    /// <summary>
+    /// La lectura inicial falló: la barra salió sin filtros guardados, pero el usuario SÍ tenía. Si al guardar
+    /// uno nuevo se añadiera a esa lista vacía, la barra enseñaría solo el nuevo y los anteriores parecerían
+    /// borrados. Tras un guardado correcto se relee la lista entera.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_lectura_inicial_fallo_tras_guardar_se_relee_la_lista_entera()
+    {
+        _mediador.FiltrosGuardados.Add(Filtro("Antiguo", "{\"estado\":\"Vencido\"}"));
+        _mediador.FallaLaLectura = true;
+        var cut = await AbrirGuardarAsync("empresas?q=Ebro");
+        _conexion.Opciones.Should().BeEmpty("control positivo: la lectura inicial falló y la barra salió sin filtros");
+        await EscribirNombreAsync(cut, "Ebro");
+
+        // La base vuelve; el guardado deja el nuevo junto al que ya había.
+        _mediador.FallaLaLectura = false;
+        _mediador.FiltrosGuardados.Add(Filtro("Ebro", "{\"q\":\"Ebro\"}"));
+        await BotonDelDialogo(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        _mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().HaveCount(2, "la inicial fallida y la relectura");
+        _conexion.Opciones.Select(o => o.Texto).Should().Equal(["Antiguo", "Ebro"], "los que ya tenía no parecen borrados");
+
+        // Ya con la lista buena, el siguiente guardado vuelve a añadir sin releer.
+        await cut.InvokeAsync(_conexion.AbrirGuardar);
+        await EscribirNombreAsync(cut, "Otro");
+        await BotonDelDialogo(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        _mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().HaveCount(2, "la lista ya es la del usuario: no se relee más");
+        _conexion.Opciones.Select(o => o.Texto).Should().Equal(["Antiguo", "Ebro", "Otro"]);
+    }
+
+    [Fact]
+    public async Task Si_la_relectura_tras_guardar_tambien_falla_se_anade_el_nuevo_y_el_modal_se_cierra()
+    {
+        _mediador.FallaLaLectura = true;
+        var cut = await AbrirGuardarAsync("empresas?q=Ebro");
+        await EscribirNombreAsync(cut, "Ebro");
+
+        await BotonDelDialogo(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=dialog]").Should().BeEmpty("el filtro ya está guardado: el modal no se queda abierto sobre él");
+        _mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().HaveCount(2, "la inicial y el intento de relectura");
+        _conexion.Opciones.Select(o => o.Texto).Should().Equal("Ebro");
+
+        // Sigue sin lista buena: el siguiente guardado lo vuelve a intentar.
+        _mediador.FallaLaLectura = false;
+        _mediador.FiltrosGuardados.AddRange([Filtro("Antiguo", "{}"), Filtro("Ebro", "{}"), Filtro("Otro", "{}")]);
+        await cut.InvokeAsync(_conexion.AbrirGuardar);
+        await EscribirNombreAsync(cut, "Otro");
+        await BotonDelDialogo(cut, "Guardar").ClickAsync(new MouseEventArgs());
+
+        _conexion.Opciones.Select(o => o.Texto).Should().Equal(["Antiguo", "Ebro", "Otro"]);
     }
 
     // -------------------------------------------------------------- aplicar

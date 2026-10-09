@@ -454,35 +454,52 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// autoridad; uno que ya no se ofrece cuenta como ausente).
     ///
     /// <para>
-    /// Con algo a medias en el panel de detalle se pregunta UNA vez y antes de tocar nada: aplicar la vista
-    /// puede cerrarlo (otro Cliente empresarial) y reescribe la URL, y una navegación con el panel sin guardar
-    /// volvería a preguntar «¿Salir sin guardar?». «Seguir editando» deja la vista como estaba.
+    /// <b>Otro Cliente empresarial</b> cierra el panel de detalle, así que pregunta antes, con la misma condición
+    /// que el cambio manual de Cliente empresarial (<see cref="SeleccionarClienteAsync"/>); «Seguir editando»
+    /// deja la vista como estaba. Después, en este orden: campos, panel cerrado, URL y, solo entonces, la
+    /// carga. La URL va antes de la carga para que no diga el Cliente empresarial anterior mientras llegan los
+    /// datos (teclear en el buscador en esa ventana navegaba conservándolo y lo devolvía a la pantalla), y con
+    /// los campos ya puestos <see cref="OnParametersSetAsync"/> los encuentra iguales y no carga otra vez.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>El mismo Cliente empresarial</b> no cierra nada: es un cambio de búsqueda y estado como el manual, y
+    /// como él solo navega. Los campos los pone <see cref="OnParametersSetAsync"/> al llegar la navegación: si
+    /// el panel tiene algo a medias el aviso de la página la detiene y pregunta (igual que al teclear en el
+    /// buscador), y con «Seguir editando» campos y URL siguen diciendo lo mismo.
     /// </para>
     /// </summary>
     private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
     {
-        if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
-            return;
-
         var cliente = Guid.TryParse(vista.GetValueOrDefault("cliente"), out var id) && _clientes.Any(c => c.Id == id)
             ? id
             : Guid.Empty;
-        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
-        _estadoFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
+        var busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        var estado = EstadosValidos(vista.GetValueOrDefault("estado"));
+        var cambiaDeCliente = cliente != _clienteSeleccionadoId;
 
-        if (cliente != _clienteSeleccionadoId)
+        if (cambiaDeCliente)
         {
+            if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
+                return;
+
             _clienteSeleccionadoId = cliente;
-            await OnClienteChangedAsync();
+            _busqueda = busqueda;
+            _estadoFiltro = estado;
+            // La navegación de abajo sale ya sin nada pendiente de guardar.
+            CerrarDetalle();
         }
 
-        // Una sola navegación, con el panel de detalle ya cerrado o sin nada pendiente de guardar.
+        // Una sola navegación, con todos los parámetros de la vista.
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
-            ["cliente"] = _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString(),
-            ["q"] = _busqueda,
-            ["estado"] = _estadoFiltro,
+            ["cliente"] = cliente == Guid.Empty ? null : cliente.ToString(),
+            ["q"] = busqueda,
+            ["estado"] = estado,
         });
+
+        if (cambiaDeCliente)
+            await OnClienteChangedAsync();
     }
 
     // ---- Nuevo proyecto (Drawer) ----

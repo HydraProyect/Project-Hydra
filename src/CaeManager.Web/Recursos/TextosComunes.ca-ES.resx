@@ -224,6 +224,9 @@
   <data name="FiltroGuardadoBorrarError" xml:space="preserve">
     <value>No hem pogut esborrar el filtre desat. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
+  <data name="FiltroGuardadoGuardarError" xml:space="preserve">
+    <value>No hem pogut desar el filtre. Si ja en tens un amb aquest nom, tria'n un altre; si no, torna-ho a provar d'aquí a uns segons.</value>
+  </data>
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
     <value>Logo de la organización</value>
   </data>
