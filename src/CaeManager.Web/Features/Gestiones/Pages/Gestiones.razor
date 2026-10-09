@@ -72,7 +72,7 @@
                     </ColumnOptions>
                     <ChildContent Context="context">
                         <span class="gestion-trabajador-centro">
-                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirVistaRapida(context)">@context.TrabajadorNombre</button>
+                            <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida" @onclick="() => AbrirVistaRapida(context)">@context.TrabajadorNombre</button>
                             <button type="button" class="enlace-nombre-fila gestion-centro" @onclick="() => AbrirVistaRapida(context)">@context.CentroNombre</button>
                         </span>
                     </ChildContent>
@@ -83,6 +83,10 @@
                                 Correcto="@(context.Estado == EstadoGestion.Completada)" />
                 </TemplateColumn>
                 <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="@Textos["ColumnaCreada"]" Sortable="true" />
+                @* Patrón de listados (2026-10-08): la fila no lleva menú «⋯». Su hueco de acción rápida es
+                   completar o reabrir; la vista rápida se abre con un clic en la fila, el nombre o Enter, y
+                   «Eliminar» vive en el pie de la vista rápida (decisión D1: esta pantalla no tiene selección
+                   múltiple). Sin icono 360: una Gestión no tiene página propia (decisión D7). *@
                 <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <SoloConEscritura>
                         @if (context.Estado == EstadoGestion.Pendiente)
@@ -92,18 +96,14 @@
                                 <span aria-hidden="true">✓</span> @Textos["ListaCompletar"]
                             </button>
                         }
+                        else
+                        {
+                            <button type="button" class="gestion-reabrir" disabled="@_cambiandoEstado.Contains(context.Id)"
+                                    @onclick="() => CambiarEstadoAsync(context.Id, false)">
+                                @Textos["AccionReabrir"]
+                            </button>
+                        }
                     </SoloConEscritura>
-                    <MenuAcciones>
-                        <SoloConEscritura><ItemMenuAccion OnClick="() => CambiarEstadoAsync(context.Id, context.Estado != EstadoGestion.Completada)">
-                            @(context.Estado == EstadoGestion.Completada ? Textos["AccionReabrir"] : Textos["AccionMarcarCompletada"])
-                        </ItemMenuAccion></SoloConEscritura>
-                        <ItemMenuAccion OnClick="() => AbrirVistaRapida(context)">
-                            @Textos["AccionVistaRapida"]
-                        </ItemMenuAccion>
-                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id)">
-                            @Textos["AccionEliminar"]
-                        </ItemMenuAccion></SoloConEscritura>
-                    </MenuAcciones>
                 </TemplateColumn>
             </QuickGrid>
 
@@ -204,7 +204,7 @@
         </div>
 
         @* Completar, reabrir y eliminar son ICommand: AutorizacionEscrituraBehavior los deniega
-           a Consulta, así que no se le ofrecen (el menú de la fila ya iba envuelto). *@
+           a Consulta, así que no se le ofrecen (los botones rápidos de la fila van envueltos igual). *@
         <SoloConEscritura>
             <div class="pie-vista-rapida-gestion">
                 <Boton Variante="VarianteBoton.Primario" Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, vista.Estado != EstadoGestion.Completada)">

@@ -31,9 +31,10 @@ namespace CaeManager.IntegrationTests.Arranque;
 ///     vigor"), así que <b>a todo trabajador sembrado le faltaban los dos</b>.
 ///   </description></item>
 ///   <item><description>
-///     <see cref="CalculadoraEstadoCentro"/> evalúa <c>Faltante</c> antes que
-///     <c>Vencido/Urgente/Proximo</c>, así que ese hueco universal tapaba
-///     cualquier otro estado.
+///     <see cref="CalculadoraEstadoCentro"/> evaluaba <c>Faltante</c> antes que
+///     <c>Vencido/Urgente/Proximo</c> (desde el 2026-10-09, solo antes que
+///     <c>Urgente/Proximo</c>: Vencido precede a Faltante), así que ese hueco
+///     universal tapaba cualquier otro estado.
 ///   </description></item>
 /// </list>
 ///
@@ -92,7 +93,7 @@ public class SemaforoDeCentrosDemoTests
         reparto.Keys.Should().Contain(EstadosDeVigencia,
             $"MEDIDO ({detalle}): los cuatro estados de vigencia tienen que estar representados — " +
             "si ninguno aparece es que un hueco de documentación obligatoria los está tapando a todos " +
-            "(Faltante se evalúa antes que Vencido en CalculadoraEstadoCentro)");
+            "(Faltante se evalúa antes que Urgente y Proximo en CalculadoraEstadoCentro)");
 
         reparto.Keys.Should().Contain(EstadoCentro.Faltante,
             $"MEDIDO ({detalle}): el guion de la demo enseña también huecos documentales reales");

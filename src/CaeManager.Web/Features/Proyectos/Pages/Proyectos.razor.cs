@@ -21,6 +21,7 @@ using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace CaeManager.Web.Features.Proyectos.Pages;
 
@@ -521,6 +522,56 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         await SeleccionarProyectoAsync(id);
     }
 
+    /// <summary>
+    /// Clic en cualquier punto de la fila. Sobre el proyecto que ya está abierto no hace nada: la
+    /// fila entera es una diana grande, y un clic de más no debe devolver el panel a «Información»
+    /// ni sacarlo de la edición.
+    /// </summary>
+    private Task AbrirDetalleDesdeLaFilaAsync(Guid id) =>
+        _proyectoSeleccionadoId == id && _detalle is not null ? Task.CompletedTask : AbrirDetalleConAvisoAsync(id);
+
+    /// <summary>
+    /// Un técnico de la ventana de contexto del recuento: abre el panel del proyecto en la pestaña
+    /// «Técnicos», que es donde se le da de baja o se asigna otro.
+    /// </summary>
+    private async Task AbrirDetalleEnTecnicosAsync(Guid id)
+    {
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync()) return;
+
+        if (_proyectoSeleccionadoId != id || _detalle is null)
+            await SeleccionarProyectoAsync(id);
+        if (_proyectoSeleccionadoId != id || _detalle is null) return;
+
+        CancelarEdicionInfo();
+        _mostrarFormularioTecnico = false;
+        await CambiarPestanaDetalleAsync("tecnicos");
+    }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// Tecla «e»: el panel del proyecto, ya en edición (lo mismo que su lápiz). A quien no puede
+    /// escribir se le abre en lectura: el lápiz tampoco se le ofrece. Si ese proyecto ya se está
+    /// editando, no se toca lo escrito; lo demás que haya a medias en el panel (otro proyecto en
+    /// edición, un alta de técnico) se pregunta antes de tirarlo.
+    /// </summary>
+    private async Task AbrirDetalleEnEdicionAsync(Guid id)
+    {
+        if (_proyectoSeleccionadoId == id && _editandoInfo) return;
+
+        var mismoProyecto = _proyectoSeleccionadoId == id && _detalle is not null;
+        if (mismoProyecto && !await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion)) return;
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync()) return;
+        if (!mismoProyecto)
+            await SeleccionarProyectoAsync(id);
+
+        if (_proyectoSeleccionadoId != id || _detalle is null) return;
+        if (!await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion)) return;
+
+        _mostrarFormularioTecnico = false;
+        IniciarEdicionInfo();
+    }
+
     private object?[] ValoresFormulario() => [_nuevoCentroId, _nuevoNombre, _nuevaFechaInicio, _nuevaFechaFinPrevista, _nuevasNotas];
 
     private void CerrarFormulariosDescartando()
@@ -608,7 +659,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             (true, false) => "fila-seleccionada",
             (false, true) => "fila-enfocada",
             _ => string.Empty
-        };
+        } + " fila-pulsable";
     }
 
     private int IndiceEnfocado(IReadOnlyList<ProyectoListaDto> visibles)
@@ -626,6 +677,17 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private async Task ManejarAtajoAsync(string tecla)
     {
         var visibles = ProyectosVisibles;
+
+        // «e»: el lápiz del panel sobre la fila enfocada; sin fila enfocada, sobre el proyecto
+        // cuyo panel está abierto.
+        if (tecla == "e")
+        {
+            var idEditar = _idEnfocado is not null && IndiceEnfocado(visibles) >= 0 ? _idEnfocado : _proyectoSeleccionadoId;
+            if (idEditar is { } id)
+                await AbrirDetalleEnEdicionAsync(id);
+            return;
+        }
+
         if (visibles.Count == 0) return;
 
         switch (tecla)
@@ -755,7 +817,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private Dictionary<string, string> _editErrores = new();
     private string? _editError;
 
-    /// <summary>"Editar" vive en el pie del panel: lleva a la pestaña Información, que es la que se edita.</summary>
+    /// <summary>El lápiz de la cabecera del panel (y la tecla «e»): lleva a la pestaña Información, que es la que se edita.</summary>
     private void IniciarEdicionInfo()
     {
         _pestanaDetalle = "informacion";

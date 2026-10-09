@@ -7,9 +7,9 @@ using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
-using CaeManager.Application.Documentos.Commands.EliminarDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumentos;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -31,6 +31,7 @@ namespace CaeManager.Web.Tests;
 // Alias: el tipo de la página se llama igual que su espacio de nombres, y sin
 // esto el compilador resuelve "Documentos" al namespace.
 using PaginaDocumentos = CaeManager.Web.Features.Documentos.Pages.Documentos;
+using EstadoAcreditacionUi = CaeManager.Web.Features.Documentos.EstadoAcreditacionUi;
 
 /// <summary>
 /// <c>/documentos</c> contra su mockup Gen 2 («Documentos TALVEG.dc.html») y
@@ -80,7 +81,6 @@ public class DocumentosGen2Tests : BunitContext
 
         public Func<EliminarDocumentosCommand, Result<ResultadoEliminacionLoteDto>>? AlEliminarLote { get; set; }
 
-        public Func<EliminarDocumentoCommand, Result>? AlEliminar { get; set; }
 
         /// <summary>
         /// Tenants que alcanza el usuario. Por defecto uno solo (el de origen): sin selector ni cabecera
@@ -105,7 +105,6 @@ public class DocumentosGen2Tests : BunitContext
             ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)Autorizados.ToList(),
             ObtenerDocumentosQuery q => Pagina(q),
             GuardarFiltroCommand => Result.Exito(Guid.NewGuid()),
-            EliminarDocumentoCommand c => AlEliminar?.Invoke(c) ?? Result.Exito(),
             EliminarDocumentosCommand c => AlEliminarLote?.Invoke(c)
                 ?? Result.Exito(new ResultadoEliminacionLoteDto(c.Ids.Count, [])),
             RestaurarDocumentoCommand => Result.Exito(),
@@ -446,20 +445,6 @@ public class DocumentosGen2Tests : BunitContext
 
         Pestana(cut, "Estado").QuerySelector(".pestanas-contador")!.TextContent
             .Should().Contain("2").And.Contain("documentos");
-    }
-
-    [Fact]
-    public void La_fecha_copiable_recibe_el_vencimiento_y_no_la_emision()
-    {
-        // Sin FechaEmision: fuera de Detección/Revisión IA solo la vigencia es
-        // copiable (P9, 2026-09-18) — la emisión ya tiene su propia columna,
-        // sin Alt+clic (hallazgo corregido, Project-Hydra-Negocio/tecnico/CAPA-USUARIO-AVANZADO-TALVEG.md
-        // § 6.1 quinquies).
-        var documento = Documento("Reconocimiento médico");
-        var (cut, _) = Renderizar(ConDocumentos(documento));
-        var fecha = cut.FindComponent<TextoFechaCopiable>().Instance;
-        fecha.Fecha.Should().Be(documento.FechaVencimiento);
-        fecha.FechaEmision.Should().BeNull();
     }
 
     /// <summary>
@@ -933,29 +918,6 @@ public class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// El Workspace no es modal: con la ficha del documento abierta, la baja se
-    /// confirma desde la fila que queda detrás. La ficha ya no tiene baja propia
-    /// (P41b), así que la lista es quien la retira.
-    /// </summary>
-    [Fact]
-    public async Task Eliminar_el_documento_cuya_ficha_esta_abierta_retira_la_ficha()
-    {
-        var documento = Documento("Reconocimiento médico");
-        var (cut, mediador) = Renderizar(ConDocumentos(documento));
-        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
-        await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Documento, documento.Id, "Reconocimiento médico", "informacion"));
-        workspace.EstaAbierto.Should().BeTrue("control positivo: la ficha estaba abierta");
-
-        // Hay dos menús: «Más» de la cabecera y el «⋯» de la fila.
-        await cut.Find("table .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await BotonPorTexto(cut, "tbody .menu-acciones-item", "Eliminar").ClickAsync(new MouseEventArgs());
-        await ConfirmarDialogo(cut);
-
-        mediador.Enviadas.OfType<EliminarDocumentoCommand>().Should().ContainSingle("la baja se ejecutó");
-        workspace.EstaAbierto.Should().BeFalse("una ficha abierta de un documento ya dado de baja no puede seguir editable");
-    }
-
-    /// <summary>
     /// Baja en lote. El DTO del lote no dice qué documentos cayeron, así que la
     /// lista retira las fichas de TODO lo pedido en cuanto cayó alguno (decisión:
     /// pasarse de retirar antes que dejar abierta una ficha muerta). Y no toca la
@@ -1325,15 +1287,158 @@ public class DocumentosGen2Tests : BunitContext
         cut.FindAll("[class*='drawer-preview']").Should().BeEmpty("no hay un segundo drawer de vista previa");
     }
 
+    // ------------------------------------- Fila sin menú «⋯» (decisión 2026-10-08)
+
+    private static readonly Guid TipoId = Guid.NewGuid();
+
+    private static DocumentoListaDto DocumentoDeFila(string? archivoUrl = "blob/reconocimiento.pdf", params AcreditacionResumenDto[] acreditaciones) => new(
+        Guid.NewGuid(), AmbitoAplicacion.Trabajador, "Javier Salas Moreno", "Reconocimiento médico",
+        new DateOnly(2026, 1, 15), new DateOnly(2027, 1, 15), EstadoDocumento.Vigente,
+        archivoUrl, acreditaciones, TipoId);
+
+    /// <summary>
+    /// La fila ya no lleva menú. QuickGrid no deja poner un manejador en el <c>tr</c>: la fila se marca
+    /// «fila-pulsable» y el nombre «nombre-abre-vista-rapida», que es lo que el oyente delegado de
+    /// <c>atajos-lista.js</c> busca para abrir la vista rápida con un clic en cualquier punto.
+    /// </summary>
     [Fact]
-    public async Task El_menu_de_fila_conserva_Ver_Renovar_y_Eliminar_con_el_destructivo_al_final()
+    public void La_fila_no_tiene_menu_y_queda_marcada_para_abrir_la_vista_rapida_con_un_clic()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
+
+        cut.FindAll("table .menu-acciones-disparador").Should().BeEmpty();
+        cut.Find(".cabecera-pagina .menu-acciones-disparador").Should().NotBeNull("control positivo: el menú «Más» de la cabecera sigue");
+        cut.Find("tbody tr").ClassList.Should().Contain("fila-pulsable");
+        cut.Find("tbody tr button.enlace-nombre-fila").ClassList.Should().Contain("nombre-abre-vista-rapida");
+    }
+
+    /// <summary>
+    /// «Renovar» conserva su sitio en la fila: abre el mismo drawer que abría el menú (el que renueva con
+    /// archivo nuevo). Sin archivo, el botón dice «Subir».
+    /// </summary>
+    [Theory]
+    [InlineData("blob/reconocimiento.pdf", "Renovar", "Renovar Reconocimiento médico de Javier Salas Moreno")]
+    [InlineData(null, "Subir", "Subir el archivo de Reconocimiento médico de Javier Salas Moreno")]
+    public async Task La_accion_rapida_de_la_fila_abre_el_drawer_de_renovacion(string? archivoUrl, string rotulo, string nombreAccesible)
+    {
+        var documento = DocumentoDeFila(archivoUrl);
+        var mediador = ConDocumentos(documento);
+        mediador.Interceptar = p => p is ObtenerDocumentoPorIdQuery ? Task.FromResult<object?>(null) : null;
+        var (cut, _) = Renderizar(mediador);
+
+        var boton = cut.Find("tbody .documentos-accion-rapida");
+        boton.TextContent.Trim().Should().Be(rotulo);
+        boton.GetAttribute("aria-label").Should().Be(nombreAccesible);
+        await boton.ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().Equal([new ObtenerDocumentoPorIdQuery(documento.Id)],
+            "el drawer de gestión pidió ese documento para renovarlo");
+        Services.GetRequiredService<ContextWorkspaceService>().EstaAbierto.Should().BeFalse("la acción rápida no abre la vista rápida");
+    }
+
+    /// <summary>El icono 360 de un Documento lleva a la página de su TIPO de documento.</summary>
+    [Fact]
+    public void El_icono_360_de_la_fila_lleva_a_la_pagina_del_tipo_de_documento()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
+
+        cut.Find("tbody a.boton-360-pagina").GetAttribute("href").Should().Be($"/documentos/tipos/{TipoId}");
+    }
+
+    /// <summary>Un productor que no informe el tipo no pinta un enlace a ninguna parte.</summary>
+    [Fact]
+    public void Sin_identificador_de_tipo_la_fila_no_pinta_el_icono_360()
     {
         var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
 
-        await cut.Find("table .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        cut.Find("tbody .documentos-accion-rapida").Should().NotBeNull("control positivo: la celda de acciones está pintada");
+        cut.FindAll("tbody a.boton-360-pagina").Should().BeEmpty();
+    }
 
-        var items = cut.FindAll("tbody .menu-acciones-item").Select(i => i.TextContent.Trim()).ToList();
-        items.Should().Equal("Ver", "Renovar", "Eliminar");
+    /// <summary>
+    /// Consulta no escribe (sin acción rápida ni barra de lote, aunque marque filas con «x») ni puede
+    /// abrir la página del tipo de documento (sin icono 360).
+    /// </summary>
+    [Fact]
+    public async Task Un_rol_de_Consulta_no_tiene_accion_rapida_ni_icono_360_ni_barra_de_lote()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()), rol: "Consulta");
+        cut.Find("tbody tr button.enlace-nombre-fila").Should().NotBeNull("control positivo: la fila está pintada");
+
+        cut.FindAll("tbody .documentos-accion-rapida").Should().BeEmpty();
+        cut.FindAll("tbody a.boton-360-pagina").Should().BeEmpty();
+
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+        await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("j"));
+        await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("x"));
+
+        cut.Find("tbody tr").ClassList.Should().Contain("fila-enfocada", "control positivo: los atajos llegaron a la lista");
+        cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Control positivo del anterior: con un rol de escritura, el mismo gesto («j» y «x») sí muestra
+    /// la barra de lote.
+    /// </summary>
+    [Fact]
+    public async Task Con_un_rol_de_escritura_marcar_la_fila_enfocada_muestra_la_barra_de_lote()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
+
+        var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;
+        await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("j"));
+        await cut.InvokeAsync(() => atajos.OnAtajo.InvokeAsync("x"));
+
+        cut.FindAll(".barra-acciones-lote").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// La celda «Plataformas» abre una ventana con una línea por plataforma —lo mismo que la celda ya
+    /// dice— y pulsar una abre la vista rápida del documento en «Validación».
+    /// </summary>
+    [Fact]
+    public async Task La_ventana_de_Plataformas_lista_cada_plataforma_y_abre_la_pestana_Validacion()
+    {
+        var documento = DocumentoDeFila("blob/reconocimiento.pdf",
+            new AcreditacionResumenDto(Guid.NewGuid(), "Nalanda", EstadoAcreditacion.Rechazada),
+            new AcreditacionResumenDto(Guid.NewGuid(), "CTAIMA", EstadoAcreditacion.Aceptada));
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+        var workspace = Services.GetRequiredService<ContextWorkspaceService>();
+
+        var ventana = cut.Find("tbody .documentos-plataformas");
+        ventana.QuerySelector(".ventana-contexto-titulo")!.TextContent.Should().Be("Estado en plataformas");
+        var lineas = ventana.QuerySelectorAll(".ventana-contexto-panel button");
+        lineas.Select(l => l.TextContent).Should().SatisfyRespectively(
+            l => l.Should().Contain("Nalanda").And.Contain(EstadoAcreditacionUi.Texto(EstadoAcreditacion.Rechazada)),
+            l => l.Should().Contain("CTAIMA").And.Contain(EstadoAcreditacionUi.Texto(EstadoAcreditacion.Aceptada)));
+
+        await lineas[0].ClickAsync(new MouseEventArgs());
+
+        workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Documento, documento.Id, "Reconocimiento médico", "validacion"));
+    }
+
+    [Fact]
+    public void Sin_plataformas_la_celda_no_abre_ninguna_ventana()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
+
+        cut.Find("tbody tr button.enlace-nombre-fila").Should().NotBeNull("control positivo: la fila está pintada");
+        cut.FindAll("tbody .documentos-plataformas").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Alt + clic sobre el vencimiento copia la emisión (decisión del 2026-10-08): la fila pasa las dos
+    /// fechas al botón copiable. Que Alt + clic copie de verdad lo prueban <c>TextoFechaCopiableTests</c>
+    /// y, en navegador, <c>DocumentosFilaSinMenuE2ETests</c>.
+    /// </summary>
+    [Fact]
+    public void El_vencimiento_copiable_de_la_fila_lleva_tambien_la_fecha_de_emision()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
+
+        var fecha = cut.Find("tbody button.texto-fecha-copiable");
+        fecha.TextContent.Trim().Should().Be("15/01/2027");
+        fecha.GetAttribute("data-copiar-alt").Should().Be("15/01/2026");
     }
 
     [Fact]

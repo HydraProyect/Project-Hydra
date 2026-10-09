@@ -95,9 +95,9 @@ public partial class Documento360Gen2Tests : BunitContext
         celdas.Select(c => c.TextContent.Trim()).Should().Contain("PropietarioMontajes Ebro S.L.").And.Contain("ArchivoDescargar PDF");
         cut.FindAll("[role=tab]").Should().HaveCount(4);
         cut.FindAll(".pestanas-contador").Should().BeEmpty("ninguna lista la carga este panel");
-        // Sin FechaEmision: fuera de Detección/Revisión IA solo la vigencia es
-        // copiable (P9, 2026-09-18) — la emisión ya tiene su propia celda,
-        // sin Alt+clic.
+        // Sin FechaEmision: en este panel solo la vigencia es copiable (P9,
+        // 2026-09-18) — la emisión ya tiene su propia celda, sin Alt+clic. El
+        // listado sí lo ofrece desde la decisión del 2026-10-08.
         var fecha = cut.FindComponent<TextoFechaCopiable>().Instance;
         fecha.Fecha.Should().Be(mediador.Detalles[id].FechaVencimiento);
         fecha.FechaEmision.Should().BeNull();

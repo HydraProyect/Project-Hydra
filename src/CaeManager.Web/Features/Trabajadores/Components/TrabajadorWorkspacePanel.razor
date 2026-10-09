@@ -1,6 +1,9 @@
 @*
     Panel de Trabajador para el Context Workspace. Pestañas: Información,
-    Documentación, Vehículos, Historial.
+    Documentación, Vehículos, Historial. Es también la vista rápida del listado
+    /trabajadores (sustituyó a TrabajadorPreviewDrawer): por eso lleva en la
+    cabecera el icono 360 a la página completa y, en Información, la
+    documentación base como referencia.
 
     "Citas" se retiró (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md H3): un
     enlace a una pantalla "Próximamente" contradice CatalogoMenuLateral ("un
@@ -19,7 +22,9 @@
 @using MediatR
 @using CaeManager.Web.Features.Trabajadores.Recursos
 @using CaeManager.Web.Recursos
+@using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.Extensions.Localization
+@implements IDisposable
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
@@ -42,15 +47,21 @@ else
 {
     <div class="workspace-cabecera-entidad">
         <h2 class="workspace-titulo-entidad">@_detalle.Nombre @_detalle.Apellidos</h2>
-        @if (PestanaActiva == "informacion" && !_editandoInformacion)
+        @if (!_editandoInformacion)
         {
-            @* Editar acaba en EditarTrabajadorCommand, ICommand denegado a Consulta. *@
+            @* El lápiz vive en la cabecera en todas las pestañas (patrón de listados: la fila no
+               lleva menú y editar se hace desde el panel, también con la tecla «e»). Desde otra
+               pestaña lleva primero a «Información», que es donde está el formulario.
+               Editar acaba en EditarTrabajadorCommand, ICommand denegado a Consulta. *@
             <SoloConEscritura>
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInformacion" aria-label="@Textos["AriaEditarInformacion"]">
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="EditarDesdeCabeceraAsync"
+                       aria-label="@Textos["AriaEditarInformacion"]" title="@Textos["TituloEditarConAtajo"]">
                     <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
                 </Boton>
             </SoloConEscritura>
         }
+        @* Icono 360 del catálogo: lleva a la página completa de Trabajador 360. *@
+        <Boton360 Nombre="@($"{_detalle.Nombre} {_detalle.Apellidos}")" Href="@($"/trabajadores/{_detalle.Id}")" />
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
@@ -94,6 +105,9 @@ else
                         <CampoInfo Etiqueta="@Textos["EtiquetaFechaNacimiento"]" Valor="@(_detalle.FechaNacimiento?.ToString("dd/MM/yyyy"))" />
                         <CampoInfo Etiqueta="@Textos["EtiquetaObservaciones"]" Valor="@_detalle.Observaciones" />
                     </div>
+                    @* Los cuatro documentos de la documentación base, como referencia: lo que la
+                       vista rápida anterior del listado enseñaba encima de las pestañas. *@
+                    <PanelDocumentacionBase TrabajadorId="EntidadId" />
                 }
                 break;
 
@@ -164,6 +178,7 @@ else
     private bool _cargando = true;
     private bool _error;
     private Guid _idCargado;
+    private int _cargaCabecera;
 
     private IReadOnlyList<VehiculoListaDto>? _vehiculos;
     private bool _cargandoVehiculos;
@@ -198,6 +213,51 @@ else
     private string? _mensajeErrorInformacion;
     private Dictionary<string, string> _erroresInformacion = new();
 
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    protected override void OnInitialized() => WorkspaceService.OnEdicionSolicitada += AlSolicitarEdicion;
+
+    public void Dispose() => WorkspaceService.OnEdicionSolicitada -= AlSolicitarEdicion;
+
+    private void AlSolicitarEdicion() => InvokeAsync(async () =>
+    {
+        await AtenderEdicionSolicitadaAsync();
+        StateHasChanged();
+    });
+
+    /// <summary>
+    /// Tecla «e» de un listado (<c>ContextWorkspaceService.AbrirEnEdicionAsync</c>): equivale
+    /// a pulsar el lápiz de la cabecera. Solo se consume con el detalle ya cargado; si llega
+    /// antes, la atiende el final de la carga. El lápiz va dentro de <c>SoloConEscritura</c>,
+    /// así que aquí se repite su misma condición: un rol de Consulta no entra en edición.
+    /// </summary>
+    private async Task AtenderEdicionSolicitadaAsync()
+    {
+        // Con una carga en curso el detalle en memoria puede ser el de una visita anterior a
+        // esta misma ficha: editar ahora copiaría al formulario datos que la carga va a
+        // sustituir. La petición espera; la atiende el final de la carga.
+        if (_cargando || _detalle is null || _detalle.Id != EntidadId)
+            return;
+        if (!WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Trabajador, EntidadId))
+            return;
+        if (_editandoInformacion || EstadoAutenticacion is null)
+            return;
+
+        var usuario = (await EstadoAutenticacion).User;
+        if (!CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole))
+            return;
+
+        await EditarDesdeCabeceraAsync();
+    }
+
+    private async Task EditarDesdeCabeceraAsync()
+    {
+        if (PestanaActiva != "informacion")
+            await PestanaActivaChanged.InvokeAsync("informacion");
+
+        IniciarEdicionInformacion();
+    }
+
     protected override async Task OnParametersSetAsync()
     {
         if (EntidadId != _idCargado)
@@ -215,21 +275,38 @@ else
 
     private async Task CargarCabeceraAsync()
     {
+        // Abrir la vista rápida de A y enseguida la de B lanza dos cargas. Si la de A vuelve la
+        // última, sin esto el panel titulado por B enseñaría —y dejaría editar— los datos de A.
+        var carga = ++_cargaCabecera;
+        var id = EntidadId;
         _cargando = true;
         _error = false;
 
         try
         {
-            _detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(EntidadId));
+            var detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(id));
+            if (carga != _cargaCabecera) return;
+            _detalle = detalle;
         }
         catch (Exception)
         {
+            if (carga != _cargaCabecera) return;
             _error = true;
+            // Una petición de edición («e») no sobrevive a la carga fallida: si se quedara
+            // pendiente, un reintento con éxito entraría en edición sin que nadie lo pida.
+            WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Trabajador, id);
         }
-        finally
-        {
-            _cargando = false;
-        }
+
+        _cargando = false;
+        if (_error)
+            return;
+
+        // Lo mismo si la ficha ya no existe (otro usuario la eliminó): el panel ofrece
+        // «Reintentar» y la petición no debe esperar a que el trabajador reaparezca.
+        if (_detalle is null)
+            WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Trabajador, id);
+        else
+            await AtenderEdicionSolicitadaAsync();
     }
 
     private async Task CargarVehiculosAsync()
