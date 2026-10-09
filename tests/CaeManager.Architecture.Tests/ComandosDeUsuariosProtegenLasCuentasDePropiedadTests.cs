@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.AsignarCarteraGestorCae;
+using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 using CaeManager.Application.Usuarios.Commands.CambiarActivacionUsuario;
 using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Application.Usuarios.Commands.DesignarGestorCaePrincipal;
@@ -82,6 +83,9 @@ public class ComandosDeUsuariosProtegenLasCuentasDePropiedadTests
         [typeof(DesignarGestorCaePrincipalCommand)] = (Exencion.AutoridadEnElTenantDeOrigen,
             "misma forma de autoridad que la cartera: el rol del actor se lee en su Tenant de origen; marca como principal "
             + "una cartera que ya existe, no toca la cuenta"),
+        [typeof(AsumirPrincipalDeOperacionCommand)] = (Exencion.AutoridadEnElTenantDeOrigen,
+            "quien asume la cartera principal es el propio actor, y su rol se lee en su Tenant de origen: no hay cuenta "
+            + "destino ajena ni rol de cartera o elevado que lo conceda desde el Tenant que opera"),
     };
 
     private static readonly List<Type> Comandos = typeof(CuentasConRolDePropiedad).Assembly.GetTypes()

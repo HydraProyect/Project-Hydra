@@ -231,8 +231,10 @@ public interface ICatalogoIncorporacionCartera
     /// <paramref name="coordinadorUsuarioId"/>. Si ya tiene cartera viva bajo la operación
     /// (Gestor CAE o Coordinador CAE) se marca esa; si no, se le emite una del Tenant entero
     /// <b>con rol Coordinador CAE, que no es parámetro</b>, y su fila heredada. Sin guardar.
-    /// No toca ninguna otra cartera. Quien llama responde de que esa cuenta sea un Coordinador
-    /// CAE activo del Operador CAE: aquí no se lee Identity. Mismas exigencias de Tenant
+    /// No toca ninguna otra cartera. Es también la escritura del escalado y de «Asumir» (punto 4):
+    /// quien recibe puede ser Dirección CAE o Administrador en su organización y la cartera
+    /// sigue siendo de rol Coordinador CAE. Quien llama responde de que esa cuenta sea una cuenta
+    /// activa del Operador CAE con uno de esos tres perfiles: aquí no se lee Identity. Mismas exigencias de Tenant
     /// activo que <see cref="ApagarPrincipalAsync"/>; se llama <b>después de guardar</b> el
     /// cierre o el apagado que dejó la operación sin principal.
     /// </summary>

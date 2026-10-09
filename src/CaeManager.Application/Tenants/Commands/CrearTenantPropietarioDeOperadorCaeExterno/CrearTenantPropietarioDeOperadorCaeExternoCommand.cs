@@ -89,9 +89,15 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
     ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter,
     IUnitOfWork unitOfWork,
-    IEncargoAdministracionRepository encargos)
+    IEncargoAdministracionRepository encargos,
+    ITransaccionDeComando transaccion,
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
     : IRequestHandler<CrearTenantPropietarioDeOperadorCaeExternoCommand, Result<Guid>>
 {
+    public static readonly Error PrincipalNoAsignado = Error.Crear(
+        "TenantPropietarioDeOperador.PrincipalNoAsignado",
+        "No pudimos completar el alta: la organización que lo gestiona cambió mientras tanto. No se ha creado nada; vuelve a intentarlo.");
+
     /// <summary>Mismos valores por defecto que <c>CrearClienteDeleganteCommand</c>; se repiten porque Application no depende de Infrastructure.</summary>
     private const int UmbralAmbarDiasPorDefecto = 30;
     private const int UmbralRojoDiasPorDefecto = 15;
@@ -143,25 +149,38 @@ public class CrearTenantPropietarioDeOperadorCaeExternoCommandHandler(
         // DelegacionTenant es catálogo global: el ámbito no le afecta.
         using (AmbitoTenantExplicito.Establecer(tenantPropietario.Id))
         {
-            tenantRepositorio.Agregar(tenantPropietario);
-            parametroSistemaRepositorio.Agregar(new ParametroSistema(UmbralAmbarDiasPorDefecto, UmbralRojoDiasPorDefecto));
-            await asignacionesWriter.AsegurarOperacionRaizAsync(
-                tenantPropietario.Id, tenantPropietario.CreadoEnUtc, cancellationToken);
+            // En la misma transacción, el principal por escalado (ADR-011 § 2.7, enmienda
+            // 2026-10-08, punto 4): la operación nace sin carteras y, si el Operador CAE tiene
+            // una sola persona en el primer perfil con alguien, recibe la cartera principal.
+            // Con varias, o sin nadie, la operación queda en la alerta de ese Operador CAE.
+            var escrita = await transaccion.EjecutarAsync(async ct =>
+            {
+                tenantRepositorio.Agregar(tenantPropietario);
+                parametroSistemaRepositorio.Agregar(new ParametroSistema(UmbralAmbarDiasPorDefecto, UmbralRojoDiasPorDefecto));
+                await asignacionesWriter.AsegurarOperacionRaizAsync(
+                    tenantPropietario.Id, tenantPropietario.CreadoEnUtc, ct);
 
-            var vinculo = new DelegacionTenant(request.TenantOperadorId, tenantPropietario.Id);
-            vinculosRepositorio.Agregar(vinculo);
-            var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
-                tenantPropietario.Id, request.TenantOperadorId, vinculo.CreadoEnUtc, vigenciaHasta: null, cancellationToken);
+                var vinculo = new DelegacionTenant(request.TenantOperadorId, tenantPropietario.Id);
+                vinculosRepositorio.Agregar(vinculo);
+                var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
+                    tenantPropietario.Id, request.TenantOperadorId, vinculo.CreadoEnUtc, vigenciaHasta: null, ct);
 
-            // El encargo nace en el mismo instante que la operación a la que se liga: con otro
-            // reloj, una operación abierta «después» del encargo no estaría vigente para él.
-            if (clausulaEncargo is not null)
-                encargos.Agregar(EncargoAdministracion.Registrar(
-                    operacion, clausulaEncargo, EncargoAdministracion.VersionTextoVigente,
-                    OrigenEncargoAdministracion.AprovisionamientoDePlataforma, usuarioId.Value,
-                    vinculo.CreadoEnUtc, vigenciaHasta: null));
+                // El encargo nace en el mismo instante que la operación a la que se liga: con otro
+                // reloj, una operación abierta «después» del encargo no estaría vigente para él.
+                if (clausulaEncargo is not null)
+                    encargos.Agregar(EncargoAdministracion.Registrar(
+                        operacion, clausulaEncargo, EncargoAdministracion.VersionTextoVigente,
+                        OrigenEncargoAdministracion.AprovisionamientoDePlataforma, usuarioId.Value,
+                        vinculo.CreadoEnUtc, vigenciaHasta: null));
 
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+                await unitOfWork.SaveChangesAsync(ct);
+
+                return await asignacionAutomatica.AlAbrirOperacionAsync(operacion, ct)
+                    ? Result.Exito()
+                    : Result.Fallo(PrincipalNoAsignado);
+            }, cancellationToken);
+            if (escrita.EsFallido)
+                return Result.Fallo<Guid>(escrita.Error);
         }
 
         return Result.Exito(tenantPropietario.Id);

@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -58,9 +59,15 @@ public record EditarUsuarioCommand(
 public class EditarUsuarioCommandHandler(
     IGestionCuentasUsuario cuentas,
     ICurrentUserService currentUserService,
-    ITenantActual tenantActual)
+    ITenantActual tenantActual,
+    ITransaccionDeComando transaccion,
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
     : IRequestHandler<EditarUsuarioCommand, Result>
 {
+    public static readonly Error RolNoCambiado = Error.Crear(
+        "Usuarios.RolNoCambiado",
+        "Los datos se guardaron, pero no pudimos cambiar el rol: su cartera cambió mientras tanto. Vuelve a intentarlo.");
+
     public static readonly Error AutogestionPermisoSensible = Error.Crear(
         "Usuarios.AutogestionPermisoSensible",
         "No puedes conceder ni revocar tu propio permiso de rastro de acceso a documentos sensibles. " +
@@ -135,7 +142,29 @@ public class EditarUsuarioCommandHandler(
         if (!concedeRol)
             return Result.Exito();
 
-        var cambio = await cuentas.CambiarRolAsync(request.UsuarioId, request.Rol, cancellationToken);
+        // Primer usuario elegible (ADR-011 § 2.7, enmienda 2026-10-08, punto 4): si con el rol
+        // nuevo la cuenta pasa a ser la única elegible de su Operador CAE, recibe en la misma
+        // transacción las operaciones sin principal. Un cambio de rol que Identity deja a medias
+        // se confirma tal cual, como antes: lo cuenta el mensaje de abajo.
+        var origen = await currentUserService.ObtenerTenantOrigenIdAsync();
+        var puedeSerElegible = origen is not null
+            && origen == tenantActual.TenantId
+            && EscaladoDePrincipalDeCartera.Niveles.Contains(request.Rol);
+
+        ResultadoCambioRol cambio = null!;
+        var escrita = await transaccion.EjecutarAsync(async ct =>
+        {
+            cambio = await cuentas.CambiarRolAsync(request.UsuarioId, request.Rol, ct);
+            if (cambio.Desenlace != DesenlaceCambioRol.Cambiado || !puedeSerElegible)
+                return Result.Exito();
+
+            return await asignacionAutomatica.AlPrimerElegibleAsync(request.UsuarioId, origen!.Value, ct)
+                ? Result.Exito()
+                : Result.Fallo(RolNoCambiado);
+        }, cancellationToken);
+        if (escrita.EsFallido)
+            return escrita;
+
         return cambio.Desenlace switch
         {
             DesenlaceCambioRol.Cambiado => Result.Exito(),

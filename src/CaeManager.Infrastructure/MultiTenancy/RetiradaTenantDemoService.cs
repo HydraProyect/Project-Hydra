@@ -120,6 +120,9 @@ public static class RetiradaTenantDemoService
         ..SiembraDemoDireccionAdministrativa.NombresTenantsDelLote,
         // La colección E2E del Gestor CAE con cartera en dos Tenants beneficiarios.
         ..GestorCaeCarteraMultiTenantSeeder.NombresTenants,
+        // La siembra del piloto Outbound: seis Tenants propietarios y su Operador CAE externo,
+        // con nombres limpios. Ver ExigenMarcador.
+        ..CatalogoPilotoOutbound.NombresTenants,
     ];
 
     /// <summary>
@@ -131,6 +134,7 @@ public static class RetiradaTenantDemoService
     /// </summary>
     private static bool ExigenMarcador(string nombre) =>
         SiembraDemoDireccionAdministrativa.NombresTenantsDelLote.Contains(nombre) ||
+        CatalogoPilotoOutbound.NombresTenants.Contains(nombre) ||
         nombre is CatalogoEscenariosDireccionDemo.NombreTenantDuff or CatalogoEscenariosDireccionDemo.NombreTenantPizzaPlanet;
 
     private static readonly MethodInfo MetodoCargarFilasDeTenant =

@@ -65,7 +65,8 @@ public class CrearUsuarioCommandHandler(
     ICurrentUserService currentUserService,
     ITenantActual tenantActual,
     ICatalogoIncorporacionCartera catalogoCartera,
-    ITransaccionDeComando transaccion)
+    ITransaccionDeComando transaccion,
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
     : IRequestHandler<CrearUsuarioCommand, Result<UsuarioCreado>>
 {
     public static readonly Error CarteraSoloParaGestorCae = Error.Crear(
@@ -155,6 +156,15 @@ public class CrearUsuarioCommandHandler(
                     if (incorporada.EsFallido)
                         return incorporada;
                 }
+
+                // Primer usuario elegible (ADR-011 § 2.7, enmienda 2026-10-08, punto 4): si la
+                // cuenta nace en el propio Operador CAE con perfil Coordinador CAE, Dirección CAE
+                // o Administrador y es la única elegible, recibe las operaciones sin principal.
+                if (falloRol is null
+                    && tenantOrigenId == tenantId
+                    && EscaladoDePrincipalDeCartera.Niveles.Contains(request.Rol)
+                    && !await asignacionAutomatica.AlPrimerElegibleAsync(usuarioId, tenantId, ct))
+                    return Result.Fallo(AltaNoGuardada);
 
                 return Result.Exito();
             }, cancellationToken);

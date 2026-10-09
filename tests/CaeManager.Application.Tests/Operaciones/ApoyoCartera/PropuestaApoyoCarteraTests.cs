@@ -55,6 +55,10 @@ public class PropuestaApoyoCarteraTests
             eventos.Add($"cuenta:{usuarioId}");
             return real.EsCuentaActivaConRolAsync(usuarioId, tenantId, rol, cancellationToken);
         }
+
+        public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+            Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+            real.ObtenerCuentasActivasConRolAsync(tenantId, rol, cancellationToken);
     }
 
     private sealed class GestoresCaeFalsos : IDirectorioCompanerosGestorCae

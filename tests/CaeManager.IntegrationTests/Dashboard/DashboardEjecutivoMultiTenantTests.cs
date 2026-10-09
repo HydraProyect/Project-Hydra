@@ -50,6 +50,10 @@ public class DashboardEjecutivoMultiTenantTests : IAsyncLifetime
             Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
             Task.FromResult(false);
 
+        public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+            Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<Guid>>([]);
+
         public Task<Guid?> ObtenerTenantDeUsuarioAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult<Guid?>(null);
     }

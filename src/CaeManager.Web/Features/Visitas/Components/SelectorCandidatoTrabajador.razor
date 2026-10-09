@@ -1,0 +1,71 @@
+@using CaeManager.Web.Features.Visitas.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosVisitas> Textos
+
+@*
+    Lista con buscador de los Trabajadores que pueden añadirse a una Visita. No elige por el
+    usuario: pulsar a uno lo añade (lo guarda la página, en el acto). El texto del buscador es un
+    filtro, no un dato: por eso no hay nada que perder al cerrar el panel con él escrito.
+*@
+<div class="visitas-candidatos" role="group" aria-label="@Textos["CandidatosEtiqueta"]">
+    <CampoTexto Placeholder="@Textos["CandidatosBuscar"]" aria-label="@Textos["CandidatosBuscar"]"
+                Valor="@_busqueda" ValorChanged="v => _busqueda = v" />
+    @if (Filtrados.Count == 0)
+    {
+        <p class="texto-vacio-seccion" role="status">@Textos["CandidatosSinCoincidencias"]</p>
+    }
+    else
+    {
+        <ul class="visitas-candidatos-lista">
+            @foreach (var candidato in Filtrados)
+            {
+                <li @key="candidato.Id">
+                    <button type="button" class="visitas-candidato" disabled="@Deshabilitado"
+                            @onclick="() => AlElegir.InvokeAsync(candidato)">
+                        @candidato.Nombre
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AlVolver">@Textos["BotonVolver"]</Boton>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ElementoSeleccionable> Candidatos { get; set; } = [];
+
+    [Parameter] public bool Deshabilitado { get; set; }
+
+    [Parameter] public EventCallback<ElementoSeleccionable> AlElegir { get; set; }
+
+    [Parameter] public EventCallback AlVolver { get; set; }
+
+    private string _busqueda = string.Empty;
+
+    /// <summary>
+    /// Buscador sin acentos ni mayúsculas, como el de los listados: «formacion» encuentra «Formación».
+    /// </summary>
+    private IReadOnlyList<ElementoSeleccionable> Filtrados
+    {
+        get
+        {
+            var buscado = SinAcentos(_busqueda.Trim());
+            return buscado.Length == 0
+                ? Candidatos
+                : Candidatos.Where(c => SinAcentos(c.Nombre).Contains(buscado, StringComparison.Ordinal)).ToList();
+        }
+    }
+
+    private static string SinAcentos(string texto)
+    {
+        var descompuesto = texto.Normalize(System.Text.NormalizationForm.FormD);
+        var limpio = new System.Text.StringBuilder(descompuesto.Length);
+        foreach (var caracter in descompuesto)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(caracter) != System.Globalization.UnicodeCategory.NonSpacingMark)
+                limpio.Append(char.ToUpperInvariant(caracter));
+        }
+
+        return limpio.ToString();
+    }
+}

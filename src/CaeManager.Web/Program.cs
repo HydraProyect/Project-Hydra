@@ -807,6 +807,86 @@ if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoRetirar))
     return;
 }
 
+// Siembra administrativa del piloto Outbound en un servidor que arranca como Production
+// (staging): SOLO desde este modo de CLI, nunca en el arranque normal
+// (PilotoOutboundSoloDesdeElModoCliTests lo vigila). Falla cerrada antes de escribir (ver
+// PilotoOutboundAdministrativa): exige el entorno confirmado a mano, un dominio de correo
+// propio, la fecha de la demostración y un directorio de credenciales en tmpfs, y se niega
+// con DatosPrueba:Activo. NO imprime ni registra contraseñas: van solo al fichero. Al
+// terminar mide el lote con la autoverificación y sale con 1 si la matriz no cuadra.
+//
+// Se lanza con el servicio "migrador": entre la siembra y la autoverificación ejecuta el
+// backfill de asignaciones del arranque, que pide la identidad de bootstrap.
+if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
+{
+    using var scopeSiembraPiloto = app.Services.CreateScope();
+    var serviciosSiembraPiloto = scopeSiembraPiloto.ServiceProvider;
+
+    try
+    {
+        var resultadoPiloto = await PilotoOutboundAdministrativa.SembrarAsync(
+            serviciosSiembraPiloto.GetRequiredService<CaeManagerDbContext>(),
+            () => serviciosSiembraPiloto
+                .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>().Crear(),
+            serviciosSiembraPiloto.GetRequiredService<UserManager<ApplicationUser>>(),
+            serviciosSiembraPiloto.GetRequiredService<IUserStore<ApplicationUser>>(),
+            serviciosSiembraPiloto.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
+            app.Services.GetRequiredService<IServiceScopeFactory>(),
+            app.Configuration, app.Environment,
+            PilotoOutboundAdministrativa.LeerOpciones(app.Configuration),
+            serviciosSiembraPiloto.GetRequiredService<ILogger<Program>>());
+
+        Environment.ExitCode = PilotoOutboundAdministrativa.Informar(
+            resultadoPiloto, app.Environment.EnvironmentName, Console.Out, Console.Error);
+    }
+    // Cualquier excepción, no solo los rechazos previstos: un fallo de disco o de base de datos a
+    // mitad también tiene que salir con código distinto de cero y diciendo cómo reanudar. Solo el
+    // tipo y el mensaje: la traza y los datos de la excepción no se imprimen.
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(PilotoOutboundAdministrativa.MensajeDeInterrupcion(ex));
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
+// Retirada completa de la siembra del piloto Outbound (sus siete Tenants, con marcador de
+// demo, y los ficheros que sus filas nombran en el almacén): mismo patrón de dos pasos que --retirar-demo-direccion,
+// más la misma confirmación de entorno que su siembra. Cada Tenant se anuncia en cuanto se
+// borra, no al final: un fallo a mitad deja en la salida qué se retiró ya, y la orden se repite.
+if (args.Contains(PilotoOutboundRetirada.Argumento))
+{
+    using var scopeRetiradaPiloto = app.Services.CreateScope();
+    var loggerRetiradaPiloto = scopeRetiradaPiloto.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        var retirados = await PilotoOutboundRetirada.RetirarLoteConfirmadoAsync(
+            app.Configuration, app.Environment,
+            scopeRetiradaPiloto.ServiceProvider.GetRequiredService<CaeManagerDbContext>(),
+            () => scopeRetiradaPiloto.ServiceProvider
+                .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>().Crear(),
+            scopeRetiradaPiloto.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
+            loggerRetiradaPiloto,
+            retirado => Console.WriteLine(
+                $"Retirado: '{retirado.NombreTenant}' ({retirado.TenantId}) — " +
+                $"{retirado.FilasBorradas} filas tenant-scoped, {retirado.UsuariosBorrados} usuarios."));
+
+        Console.WriteLine(retirados.Count == 0
+            ? "No hay ningún Tenant del piloto: nada que retirar."
+            : $"Retirada del piloto Outbound completa: {retirados.Count} Tenants.");
+    }
+    // Cualquier excepción, igual que en la siembra: lo ya anunciado con «Retirado:» está borrado.
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(PilotoOutboundRetirada.MensajeDeInterrupcion(ex));
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
 // Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y Project-Hydra-Negocio/tecnico/DEPLOY.md),
 // Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS
@@ -892,6 +972,7 @@ using (var scope = app.Services.CreateScope())
         EscenariosDireccionDemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         GestorCaeCarteraMultiTenantSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         Fichas360DemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
+        PilotoOutboundSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
 
         // Identidad ADMINISTRATIVA para los dos seeders que no son trafico de
         // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
@@ -934,6 +1015,14 @@ using (var scope = app.Services.CreateScope())
         // inerte salvo DatosPrueba:GestorCaeCarteraMultiTenant, y lanza en Producción.
         await GestorCaeCarteraMultiTenantSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
 
+        // Siembra del piloto del Servicio TALVEG Outbound: un Operador CAE externo de demostración
+        // y seis Tenants propietarios con un estado objetivo declarado — inerte salvo
+        // DatosPrueba:PilotoOutbound:Activo (con DatosPrueba:Activo), y lanza en Producción.
+        var siembraPilotoOutbound = await PilotoOutboundSeeder.SeedAsync(
+            dbContext, userManager, userStore,
+            scope.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
+            app.Configuration, app.Environment, logger);
+
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
         // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
         // que SegundoTenant:Activo esté configurado explícitamente.
@@ -969,6 +1058,16 @@ using (var scope = app.Services.CreateScope())
         // idempotente y reconciliador, así que se ejecuta en cada arranque hasta
         // que la doble escritura quede establecida (F1 del plan de migración).
         await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
+
+        // Autoverificación del piloto, después de TODA la siembra: mide con las consultas de las
+        // pantallas y compara con la matriz. Si esta ejecución sembró, una discrepancia —o no poder
+        // medir— tumba el arranque con el contador y el Tenant; en un re-arranque solo avisa, pase lo
+        // que pase en la medición, porque tras un ensayo los datos cambian a propósito. La decisión
+        // vive en PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync; aquí solo se invoca.
+        if (siembraPilotoOutbound is not null)
+            await PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync(
+                app.Services.GetRequiredService<IServiceScopeFactory>(),
+                OpcionesPilotoOutbound.Leer(app.Configuration), siembraPilotoOutbound.Escribio, logger);
     }
 }
 

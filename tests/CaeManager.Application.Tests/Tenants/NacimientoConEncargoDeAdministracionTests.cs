@@ -3,6 +3,7 @@ using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Operaciones;
+using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Tests.Plataforma;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Operaciones;
@@ -99,7 +100,7 @@ public class NacimientoConEncargoDeAdministracionTests
         AutorizacionAdminPlataformaFalsa? autorizacion = null) =>
         new(_tenantRepositorio, _tenants, new DelegacionTenantRepositorioFalso(), new ParametrosFalsos(),
             autorizacion ?? AutorizacionAdminPlataformaFalsa.Global(), new CurrentUserServiceFalso(_actor),
-            _writer, _unitOfWork, _encargos);
+            _writer, _unitOfWork, _encargos, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte());
 
     private sealed class TenantRepositoryFalso : ITenantRepository
     {

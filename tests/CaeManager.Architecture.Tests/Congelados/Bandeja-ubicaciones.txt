@@ -37,6 +37,7 @@ src/CaeManager.Application/Operaciones/IncorporacionCartera/RutasIncorporacionCa
 src/CaeManager.Application/Tenants/Encargo/ActosExcluidosDelEncargo.cs :: Bandeja = 1
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: SembrarInteligenciaBandejaAsync = 2
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: bandeja = 3
+src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs :: Bandeja = 1
 src/CaeManager.Infrastructure/Visitas/VigilanciaVisitasUrgentesHostedService.cs :: Bandeja = 1
 src/CaeManager.Infrastructure/Visitas/VigilanciaVisitasUrgentesHostedService.cs :: ObtenerBandejaGestor = 1
 src/CaeManager.Infrastructure/Visitas/VigilanciaVisitasUrgentesHostedService.cs :: ObtenerBandejaGestorQuery = 1

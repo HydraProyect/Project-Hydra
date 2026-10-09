@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
 using CaeManager.Application.Tenants.Queries.AutorizarOperadorCaeExterno;
@@ -39,6 +40,8 @@ public class AutorizarOperadorCaeExternoTests
     private readonly DelegacionTenantRepositorioFalso _vinculos = new();
     private readonly AsignacionesOperativasWriterFalso _writer = new();
     private readonly UnitOfWorkFalso _unitOfWork = new();
+    private readonly TransaccionDeComandoFalsa _transaccion = new();
+    private readonly AsignacionAutomaticaInerte _asignacionAutomatica = new();
 
     public AutorizarOperadorCaeExternoTests() =>
         _tenants.ListaTenants.AddRange([_propietario, _operador, _otroOperador, _otroPropietario, _plataforma]);
@@ -69,7 +72,7 @@ public class AutorizarOperadorCaeExternoTests
     }
 
     private CrearDelegacionTenantCommandHandler HandlerComo(AutorizacionDelegacionFalsa autorizacion) =>
-        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork);
+        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, _transaccion, _asignacionAutomatica);
 
     private void NoSeEscribioNada()
     {
@@ -93,6 +96,32 @@ public class AutorizarOperadorCaeExternoTests
         vinculo.Proposito.Should().Be(PropositoDelegacion.OperadorExterno);
         _writer.OperacionesAbiertas.Should().Equal((_propietario.Id, _operador.Id));
         _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Al_autorizar_la_operacion_recien_abierta_pasa_por_el_escalado_del_principal_en_la_misma_transaccion()
+    {
+        var resultado = await HandlerComo(AutorizacionDelegacionFalsa.AdministradorDe(_propietario.Id)).Handle(
+            new CrearDelegacionTenantCommand(_operador.Id, _propietario.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var operacion = _asignacionAutomatica.OperacionesAbiertas.Should().ContainSingle().Subject;
+        operacion.PropietarioTenantId.Should().Be(_propietario.Id);
+        operacion.OperadorTenantId.Should().Be(_operador.Id);
+        _transaccion.Confirmadas.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Si_el_escalado_pierde_la_carrera_la_autorizacion_no_se_confirma()
+    {
+        _asignacionAutomatica.Resultado = false;
+
+        var resultado = await HandlerComo(AutorizacionDelegacionFalsa.AdministradorDe(_propietario.Id)).Handle(
+            new CrearDelegacionTenantCommand(_operador.Id, _propietario.Id), CancellationToken.None);
+
+        resultado.Error.Should().Be(CrearDelegacionTenantCommandHandler.PrincipalNoAsignado);
+        _transaccion.Deshechas.Should().Be(1);
+        _transaccion.Confirmadas.Should().Be(0);
     }
 
     [Fact]

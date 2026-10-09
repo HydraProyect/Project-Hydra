@@ -34,4 +34,8 @@ public class DirectorioUsuariosServiceFalso(
     public Task<bool> EsCuentaActivaConRolAsync(
         Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
         Task.FromResult(cuentaActivaConRol);
+
+    public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
+        Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Guid>>([]);
 }
