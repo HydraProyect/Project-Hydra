@@ -101,6 +101,25 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
     private static Task<int> CuentasDelDominioAsync(ArnesPilotoOutbound arnes) =>
         arnes.ComoBootstrapAsync(b => b.Users.IgnoreQueryFilters().CountAsync(u => u.Email!.EndsWith("@" + Dominio)));
 
+    private static readonly byte[] ContenidoAjeno = [37, 80, 68, 70, 45, 97, 106, 101, 110, 111];
+
+    /// <summary>Crea un Tenant que no es del piloto y guarda un fichero suyo por el almacén real, dentro de su ámbito.</summary>
+    private static Task<(Guid TenantId, string Clave)> GuardarFicheroEnUnTenantAjenoAsync(ArnesPilotoOutbound arnes)
+    {
+        var ajeno = new Tenant("Empresa Ajena con Fichero S.L.", PerfilVocabularioTenant.ClienteDirecto);
+        return arnes.EnTenantAsync(ajeno.Id, async (db, sp) =>
+        {
+            db.Tenants.Add(ajeno);
+            await db.SaveChangesAsync();
+
+            using var contenido = new MemoryStream(ContenidoAjeno);
+            return (ajeno.Id, await sp.GetRequiredService<IFileStorageService>().GuardarAsync(contenido, "ajeno.pdf"));
+        });
+    }
+
+    private static string RutaEnElAlmacen(ArnesPilotoOutbound arnes, string clave) =>
+        Path.Combine(arnes.DirectorioAlmacen, clave.Replace('/', Path.DirectorySeparatorChar));
+
     private static List<(string Email, string Rol, string? Contrasena, string? Nota)> LeerCredenciales(string fichero) =>
         JsonDocument.Parse(File.ReadAllText(fichero)).RootElement.GetProperty("cuentas").EnumerateArray()
             .Select(c => (
@@ -115,6 +134,10 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
         var directorio = Directorio();
         try
         {
+            // Un Tenant que NO es del piloto, con un fichero suyo en el almacén: tiene que seguir ahí al final.
+            var ajeno = await GuardarFicheroEnUnTenantAjenoAsync(arnes);
+            File.Exists(RutaEnElAlmacen(arnes, ajeno.Clave)).Should().BeTrue("control: el fichero ajeno existe antes de sembrar");
+
             var sinPiloto = await arnes.RecuentoAsync();
             var log = new LoggerDeCaptura();
 
@@ -192,6 +215,43 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             LeerCredenciales(repetida.FicheroCredenciales).Should().OnlyContain(c => c.Contrasena == null && c.Nota != null);
             (await arnes.RecuentoAsync()).Should().BeEquivalentTo(completa, "MEDIDO: ni Tenants, ni cuentas, ni filas, ni ficheros nuevos");
 
+            // ── A ter. Lo que un ensayo deja en T1 y la retirada tiene que llevarse ──
+            // Un documento descartado (borrado lógico: su PDF sigue en disco), un logo, la plantilla en blanco de
+            // un requisito de Centro, y una fila del piloto que nombra la clave del fichero AJENO: la retirada
+            // pedirá borrarla dentro del ámbito de T1 y el almacén no debe resolverla.
+            var idT1 = tenants.Single(t => t.Nombre == CatalogoPilotoOutbound.NombreTenantT1).Id;
+            var (claveDescartada, claveLogo, clavePlantilla) = await arnes.EnTenantAsync(idT1, async (db, sp) =>
+            {
+                var almacen = sp.GetRequiredService<IFileStorageService>();
+
+                var documento = await db.Documentos.Where(d => d.ArchivoUrl != null).OrderBy(d => d.Id).FirstAsync();
+                documento.MarcarComoEliminado(Guid.NewGuid());
+
+                using var png = new MemoryStream([1, 2, 3]);
+                var logo = await almacen.GuardarAsync(png, "logo.png");
+                (await db.Tenants.IgnoreQueryFilters().SingleAsync(t => t.Id == idT1))
+                    .EstablecerLogo(logo, new string('a', Tenant.LongitudLogoVersion), DateTime.UtcNow);
+
+                var requisitos = await db.TiposDocumentoCentros.OrderBy(t => t.Id).Take(2).ToListAsync();
+                requisitos.Should().HaveCount(2, "control: T1 tiene requisitos de Centro donde colgar una plantilla en blanco");
+                using var pdf = new MemoryStream([4, 5, 6]);
+                var plantilla = await almacen.GuardarAsync(pdf, "plantilla.pdf");
+                requisitos[0].Actualizar(
+                    requisitos[0].Incluido, requisitos[0].PeriodicidadEspecialMeses, requisitos[0].BloqueaAcceso,
+                    plantilla, "plantilla.pdf", requisitos[0].ToleranciaDias);
+                requisitos[1].Actualizar(
+                    requisitos[1].Incluido, requisitos[1].PeriodicidadEspecialMeses, requisitos[1].BloqueaAcceso,
+                    ajeno.Clave, "ajeno.pdf", requisitos[1].ToleranciaDias);
+
+                await db.SaveChangesAsync();
+                return (documento.ArchivoUrl!, logo, plantilla);
+            });
+
+            (await arnes.EnTenantAsync(idT1, (db, _) => db.Documentos.CountAsync(d => d.ArchivoUrl == claveDescartada)))
+                .Should().Be(0, "control: el documento descartado ya no lo ve una consulta con los filtros globales");
+            foreach (var clave in new[] { claveDescartada, claveLogo, clavePlantilla })
+                File.Exists(RutaEnElAlmacen(arnes, clave)).Should().BeTrue($"control: el fichero {clave} existe antes de retirar");
+
             // ── B. Retirada ─────────────────────────────────────────────────
             await BorrarCanalesCifradosAsync(arnes);
             var trasBorrarCanales = await arnes.RecuentoAsync();
@@ -228,6 +288,23 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             anunciados.Should().Equal(CatalogoPilotoOutbound.NombresTenants, "MEDIDO: Tenants propietarios primero y el del Operador CAE externo al final");
             (await arnes.RecuentoAsync()).Should().BeEquivalentTo(sinPiloto, "MEDIDO: ni Tenants, ni cuentas, ni filas, ni ficheros del piloto; lo demás, igual que antes");
             (await CuentasDelDominioAsync(arnes)).Should().Be(0);
+
+            // B.3 bis. Los ficheros del ensayo se han ido, el descartado incluido; el del Tenant ajeno sigue y se lee.
+            File.Exists(RutaEnElAlmacen(arnes, claveDescartada)).Should().BeFalse(
+                "MEDIDO: el PDF de un documento descartado durante el ensayo no sobrevive a la retirada");
+            File.Exists(RutaEnElAlmacen(arnes, claveLogo)).Should().BeFalse("MEDIDO: el logo del Tenant retirado tampoco");
+            File.Exists(RutaEnElAlmacen(arnes, clavePlantilla)).Should().BeFalse("MEDIDO: ni la plantilla en blanco de un requisito de Centro");
+
+            File.Exists(RutaEnElAlmacen(arnes, ajeno.Clave)).Should().BeTrue(
+                "MEDIDO: la retirada no borra un fichero de otro Tenant, ni cuando una fila del piloto nombra su clave");
+            (await arnes.EnTenantAsync(ajeno.TenantId, async (_, sp) =>
+                {
+                    await using var flujo = await sp.GetRequiredService<IFileStorageService>().AbrirAsync(ajeno.Clave);
+                    using var memoria = new MemoryStream();
+                    await flujo.CopyToAsync(memoria);
+                    return memoria.ToArray();
+                }))
+                .Should().Equal(ContenidoAjeno, "MEDIDO: y su Tenant lo sigue leyendo entero");
 
             // B.4 Lo que la retirada deja, medido: los directorios vacíos de cada Tenant en el almacén y la
             // auditoría de su propio borrado, sellada con Tenants que ya no existen.
@@ -389,6 +466,54 @@ public class PilotoOutboundAdministrativaTests(ITestOutputHelper salida)
             Directory.GetFiles(directorio).Should().BeEmpty("MEDIDO: ni siquiera se abrió el fichero de credenciales");
             (await arnes.ComoBootstrapAsync(b => b.Users.IgnoreQueryFilters().SingleAsync(u => u.Id == idCuenta)))
                 .TenantId.Should().Be(idTenantAjeno, "MEDIDO: la cuenta ajena sigue en su Tenant");
+        }
+        finally
+        {
+            Directory.Delete(directorio, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task En_un_re_arranque_un_lote_que_ya_no_se_deja_medir_deja_una_advertencia_y_no_lanza_y_recien_escrito_si_lanza()
+    {
+        await using var arnes = await ArnesPilotoOutbound.CrearAsync();
+        var directorio = Directorio();
+        try
+        {
+            (await SembrarAsync(arnes, Opciones(directorio))).Discrepancias.Should().BeEmpty("control: el lote recién sembrado se mide y cuadra");
+
+            var cuentas = PilotoOutboundAdministrativa.CuentasDe(Dominio);
+            var opciones = new OpcionesPilotoOutbound(
+                ArnesPilotoOutbound.FechaDemostracion(), ContactosPilotoOutbound.Crear(ArnesPilotoOutbound.CorreoDePrueba, dominio: null));
+
+            Task MedirAsync(bool escribio, ILogger registro) => PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync(
+                arnes.FabricaDeAmbitos, cuentas, opciones, escribio, registro, CancellationToken.None);
+
+            var sinCambios = () => MedirAsync(escribio: true, NullLogger.Instance);
+            await sinCambios.Should().NotThrowAsync("control: sin tocar nada, ni siquiera el camino que exige lanza");
+
+            // Lo que hace un ensayo: la Gestora CAE con la que se mide cambia de rol.
+            var idOperador = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantOperador);
+            await arnes.EnTenantAsync(idOperador, async (_, sp) =>
+            {
+                var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
+                var gestora = (await userManager.FindByEmailAsync(cuentas.GestoraPrimera))!;
+                (await userManager.RemoveFromRoleAsync(gestora, Roles.GestorCae)).Succeeded.Should().BeTrue();
+                (await userManager.AddToRoleAsync(gestora, Roles.CoordinadorCae)).Succeeded.Should().BeTrue();
+                return 0;
+            });
+
+            var avisos = new ArnesPilotoOutbound.RegistroDeAvisos();
+            var reArranque = () => MedirAsync(escribio: false, avisos);
+            await reArranque.Should().NotThrowAsync("MEDIDO: en un re-arranque, no poder medir no tumba el arranque");
+            avisos.Avisos.Should().ContainSingle("MEDIDO: queda una advertencia, y solo una, con el motivo")
+                .Which.Should().StartWith("Piloto Outbound, no se ha podido medir el lote ya sembrado")
+                .And.Contain($"no tiene exactamente el rol {Roles.GestorCae}");
+
+            var recienEscrito = () => MedirAsync(escribio: true, NullLogger.Instance);
+            await recienEscrito.Should().ThrowAsync<InvalidOperationException>().WithMessage(
+                $"*no tiene exactamente el rol {Roles.GestorCae}*",
+                "MEDIDO: con el lote recién escrito, el mismo fallo sí lanza");
         }
         finally
         {

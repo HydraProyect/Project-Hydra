@@ -416,14 +416,36 @@ public static class PilotoOutboundAdministrativa
     }
 
     /// <summary>
-    /// Lo que el modo escribe por la salida de error cuando la siembra no termina. Puede ser un
-    /// rechazo previo a toda escritura o un fallo a mitad, y el mensaje no los distingue: lo que
-    /// ya exista lleva el marcador de demo, así que en los dos casos vale lo mismo.
+    /// Lo que el modo escribe por la salida de error cuando la siembra no termina, sea cual sea
+    /// la excepción. Puede ser un rechazo previo a toda escritura o un fallo a mitad, y el
+    /// mensaje no los distingue: lo que ya exista lleva el marcador de demo, así que en los dos
+    /// casos vale lo mismo. Lleva el tipo y el mensaje (<see cref="Motivo"/>), nunca la traza.
     /// </summary>
-    public static string MensajeDeInterrupcion(InvalidOperationException excepcion) =>
-        $"Siembra del piloto Outbound interrumpida: {excepcion.Message}{Environment.NewLine}" +
+    public static string MensajeDeInterrupcion(Exception excepcion) =>
+        $"Siembra del piloto Outbound interrumpida: {Motivo(excepcion)}{Environment.NewLine}" +
         "Si llegó a escribir, cada Tenant creado lleva el marcador de demo: corregida la causa, se reanuda " +
-        $"repitiendo la orden o se retira con {PilotoOutboundRetirada.Argumento}.";
+        $"repitiendo la orden o se retira con {PilotoOutboundRetirada.Argumento}. Si ya se había creado un fichero de " +
+        "credenciales, se conserva: las contraseñas de las cuentas ya creadas solo están en el fichero de la ejecución que las creó.";
+
+    /// <summary>
+    /// El motivo de una interrupción, para la salida de error de los modos del piloto. Un rechazo
+    /// previsto (<see cref="InvalidOperationException"/>) va con su mensaje tal cual; cualquier otra
+    /// excepción, con su tipo delante y, si la envuelve otra, el tipo y el mensaje de la causa más
+    /// interna, que es donde un fallo de base de datos o de disco dice qué pasó. Solo tipos y
+    /// mensajes: ni la traza, ni <see cref="Exception.Data"/>, ni <c>ToString()</c>, que es por
+    /// donde un proveedor podría volcar valores de la operación fallida.
+    /// </summary>
+    internal static string Motivo(Exception excepcion)
+    {
+        if (excepcion is InvalidOperationException && excepcion.InnerException is null)
+            return excepcion.Message;
+
+        var motivo = $"{excepcion.GetType().Name}: {excepcion.Message}";
+        var causa = excepcion.GetBaseException();
+        return ReferenceEquals(causa, excepcion)
+            ? motivo
+            : $"{motivo} Causa: {causa.GetType().Name}: {causa.Message}";
+    }
 
     private static string Texto<T>(T valor) => valor is null ? "(nada)" : valor.ToString()!;
 }

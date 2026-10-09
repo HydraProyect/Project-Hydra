@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Infrastructure.Persistence.Seed;
 
@@ -325,6 +326,61 @@ public static class PilotoOutboundAutoverificacion
             throw new InvalidOperationException(
                 $"La siembra del piloto Outbound no da los resultados de su matriz ({discrepancias.Count} discrepancias):" +
                 Environment.NewLine + string.Join(Environment.NewLine, discrepancias.Select(x => " - " + x)));
+    }
+
+    /// <summary>
+    /// El paso del arranque local tras la siembra: mide con las cuentas locales y decide
+    /// según <paramref name="escribio"/>.
+    /// </summary>
+    public static Task MedirYExigirOAvisarAsync(
+        IServiceScopeFactory fabricaDeAmbitos, OpcionesPilotoOutbound opciones, bool escribio, ILogger logger,
+        CancellationToken cancellationToken = default) =>
+        MedirYExigirOAvisarAsync(fabricaDeAmbitos, CuentasPilotoOutbound.Locales, opciones, escribio, logger, cancellationToken);
+
+    /// <summary>
+    /// Mide y, según la ejecución haya escrito o no, exige o avisa.
+    ///
+    /// <para>
+    /// <b>Si acaba de escribir</b>, lo medido tiene que ser la matriz: una discrepancia lanza
+    /// (<see cref="Exigir"/>) y no poder medir también, porque una siembra recién hecha que no
+    /// se deja medir está mal.
+    /// </para>
+    ///
+    /// <para>
+    /// <b>Si no escribió</b> (un re-arranque con el lote ya sembrado), nada de esto lanza. Tras
+    /// un ensayo los datos cambian a propósito —se descarta un documento, se cambia el rol de
+    /// una cuenta, se borra un Centro—, y eso puede dar discrepancias o impedir la medición
+    /// entera (la cuenta con la que se mide ya no tiene su rol, falta la fila que una lectura
+    /// espera única). Las dos cosas quedan como advertencias en el registro y el arranque sigue.
+    /// </para>
+    /// </summary>
+    internal static async Task MedirYExigirOAvisarAsync(
+        IServiceScopeFactory fabricaDeAmbitos, CuentasPilotoOutbound cuentas, OpcionesPilotoOutbound opciones, bool escribio,
+        ILogger logger, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var informe = await MedirAsync(fabricaDeAmbitos, cuentas, opciones, cancellationToken);
+
+            foreach (var advertencia in Advertencias(informe))
+                logger.LogWarning("Piloto Outbound, divergencia declarada: {Advertencia}", advertencia);
+
+            if (escribio)
+            {
+                Exigir(informe);
+                return;
+            }
+
+            foreach (var discrepancia in Discrepancias(informe))
+                logger.LogWarning("Piloto Outbound, los datos ya no son los de la matriz: {Discrepancia}", discrepancia);
+        }
+        // Solo en el re-arranque, y solo lo que no sea una cancelación: con el lote recién escrito, todo lanza.
+        catch (Exception ex) when (!escribio && ex is not OperationCanceledException)
+        {
+            logger.LogWarning(
+                ex, "Piloto Outbound, no se ha podido medir el lote ya sembrado y el arranque sigue sin esa comprobación: {Motivo}",
+                ex.Message);
+        }
     }
 
     private static string Texto<T>(T valor) => valor is null ? "(nada)" : valor.ToString()!;

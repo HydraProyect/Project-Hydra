@@ -94,6 +94,36 @@ public class PilotoOutboundSoloDesdeElModoCliTests
             "si volviera a ser pública, Program.cs u otro ensamblado podrían retirar sin la confirmación de entorno");
     }
 
+    [Theory]
+    [InlineData(ModoSembrar, "PilotoOutboundAdministrativa.MensajeDeInterrupcion(ex)")]
+    [InlineData(ModoRetirar, "PilotoOutboundRetirada.MensajeDeInterrupcion(ex)")]
+    public void Cualquier_excepcion_de_los_modos_del_piloto_termina_con_codigo_distinto_de_cero_y_diciendo_como_reanudar(
+        string modo, string mensaje)
+    {
+        var (bloque, _) = BloqueDe(Program(), modo);
+
+        Regex.IsMatch(
+                bloque,
+                @"catch \(Exception ex\)\s*\{\s*Console\.Error\.WriteLine\(" + Regex.Escape(mensaje) + @"\);\s*Environment\.ExitCode = 1;\s*\}")
+            .Should().BeTrue(
+                "un fallo de disco o de base de datos a mitad también tiene que salir con 1 y con el mensaje de cómo reanudar, no como excepción sin tratar");
+        Regex.Matches(bloque, @"\bcatch\b").Count.Should().Be(1,
+            "un catch más estrecho delante (el de InvalidOperationException de antes) dejaría fuera a las demás o les cambiaría el mensaje");
+        bloque.Should().NotContain("ex.ToString()").And.NotContain("ex.StackTrace").And.NotContain("ex.Data",
+            "del fallo solo se imprime el tipo y el mensaje, que es lo que compone MensajeDeInterrupcion");
+    }
+
+    [Fact]
+    public void El_arranque_local_no_decide_en_Program_si_la_autoverificacion_exige_o_avisa()
+    {
+        var program = Program();
+
+        Regex.Count(program, Regex.Escape("PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync(")).Should().Be(1,
+            "control positivo: el arranque invoca el método que mide y decide");
+        program.Should().NotContain("PilotoOutboundAutoverificacion.MedirAsync(").And.NotContain("PilotoOutboundAutoverificacion.Exigir(",
+            "si Program.cs vuelve a medir por su cuenta, un fallo de la medición en un re-arranque vuelve a tumbar el arranque sin test que lo vea");
+    }
+
     [Fact]
     public void Los_argumentos_y_las_claves_de_los_modos_de_CLI_son_los_que_documenta_el_runbook()
     {

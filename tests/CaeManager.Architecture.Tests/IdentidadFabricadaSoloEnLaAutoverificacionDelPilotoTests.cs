@@ -30,7 +30,14 @@ public class IdentidadFabricadaSoloEnLaAutoverificacionDelPilotoTests
 {
     private const string UnicoFichero = "src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs";
 
-    private static readonly Regex AsignacionAlAccesor = new(@"\.HttpContext\s*=(?!=)", RegexOptions.Compiled);
+    /// <summary>
+    /// Toda asignación a algo que se llame exactamente <c>HttpContext</c>: la directa
+    /// (<c>accesor.HttpContext = …</c>, también <c>??=</c>) y la del inicializador de objeto
+    /// (<c>new HttpContextAccessor { HttpContext = … }</c>), que no lleva punto delante y por eso
+    /// se le escapaba a la expresión anterior. No casa comparaciones (<c>==</c>), miembros con
+    /// cuerpo de expresión (<c>=&gt;</c>) ni identificadores que solo terminan igual.
+    /// </summary>
+    private static readonly Regex AsignacionAlAccesor = new(@"(?<!\w)HttpContext\s*(?:\?\?)?=(?![=>])", RegexOptions.Compiled);
 
     [Fact]
     public void Solo_la_autoverificacion_del_piloto_construye_un_contexto_HTTP()
@@ -60,6 +67,30 @@ public class IdentidadFabricadaSoloEnLaAutoverificacionDelPilotoTests
         Regex.IsMatch(texto, @"private static async Task<T> ComoCuentaDelPilotoAsync<T>\(").Should().BeTrue(
             "el método que construye la identidad es privado: no hay entrada que la construya para otra cuenta");
     }
+
+    /// <summary>Control positivo del detector: las formas de publicar un contexto en el accesor que tiene que ver.</summary>
+    [Theory]
+    [InlineData("accesor.HttpContext = contexto;")]
+    [InlineData("accesor.HttpContext=contexto;")]
+    [InlineData("accesor.HttpContext ??= contexto;")]
+    [InlineData("var accesor = new HttpContextAccessor { HttpContext = contexto };")]
+    [InlineData("var accesor = new HttpContextAccessor\n{\n    HttpContext = contexto\n};")]
+    [InlineData("var otro = new Envoltorio { Nombre = \"x\", HttpContext = contexto };")]
+    public void El_detector_casa_la_asignacion_directa_y_la_del_inicializador_de_objeto(string texto) =>
+        AsignacionAlAccesor.IsMatch(texto).Should().BeTrue($"«{texto}» publica un contexto HTTP y el trinquete tiene que verlo");
+
+    /// <summary>Control negativo: leer, comparar o declarar no es publicar; si casaran, el trinquete señalaría medio <c>src/</c>.</summary>
+    [Theory]
+    [InlineData("if (accesor.HttpContext == null) return;")]
+    [InlineData("if (accesor.HttpContext != null) return;")]
+    [InlineData("var usuario = accesor.HttpContext?.User;")]
+    [InlineData("public HttpContext? HttpContext => accesor.HttpContext;")]
+    [InlineData("[CascadingParameter] public HttpContext? HttpContext { get; set; } = default!;")]
+    [InlineData("HttpContext contexto = otro;")]
+    [InlineData("var contexto = new DefaultHttpContext { User = identidad };")]
+    [InlineData("var miHttpContext = contexto;")]
+    public void El_detector_no_casa_lecturas_comparaciones_ni_declaraciones(string texto) =>
+        AsignacionAlAccesor.IsMatch(texto).Should().BeFalse($"«{texto}» no asigna el contexto HTTP de ningún accesor");
 
     /// <summary>Control positivo: el instrumento enumera <c>src/</c> y ve un patrón que existe en más de un fichero.</summary>
     [Fact]

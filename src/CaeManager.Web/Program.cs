@@ -833,7 +833,10 @@ if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
         Environment.ExitCode = PilotoOutboundAdministrativa.Informar(
             resultadoPiloto, app.Environment.EnvironmentName, Console.Out, Console.Error);
     }
-    catch (InvalidOperationException ex)
+    // Cualquier excepción, no solo los rechazos previstos: un fallo de disco o de base de datos a
+    // mitad también tiene que salir con código distinto de cero y diciendo cómo reanudar. Solo el
+    // tipo y el mensaje: la traza y los datos de la excepción no se imprimen.
+    catch (Exception ex)
     {
         Console.Error.WriteLine(PilotoOutboundAdministrativa.MensajeDeInterrupcion(ex));
         Environment.ExitCode = 1;
@@ -843,7 +846,7 @@ if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
 }
 
 // Retirada completa de la siembra del piloto Outbound (sus siete Tenants, con marcador de
-// demo, y los PDF de sus documentos): mismo patrón de dos pasos que --retirar-demo-direccion,
+// demo, y los ficheros que sus filas nombran en el almacén): mismo patrón de dos pasos que --retirar-demo-direccion,
 // más la misma confirmación de entorno que su siembra. Cada Tenant se anuncia en cuanto se
 // borra, no al final: un fallo a mitad deja en la salida qué se retiró ya, y la orden se repite.
 if (args.Contains(PilotoOutboundRetirada.Argumento))
@@ -868,9 +871,10 @@ if (args.Contains(PilotoOutboundRetirada.Argumento))
             ? "No hay ningún Tenant del piloto: nada que retirar."
             : $"Retirada del piloto Outbound completa: {retirados.Count} Tenants.");
     }
-    catch (InvalidOperationException ex)
+    // Cualquier excepción, igual que en la siembra: lo ya anunciado con «Retirado:» está borrado.
+    catch (Exception ex)
     {
-        Console.Error.WriteLine($"Retirada rechazada: {ex.Message}");
+        Console.Error.WriteLine(PilotoOutboundRetirada.MensajeDeInterrupcion(ex));
         Environment.ExitCode = 1;
     }
 
@@ -1050,24 +1054,14 @@ using (var scope = app.Services.CreateScope())
         await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
 
         // Autoverificación del piloto, después de TODA la siembra: mide con las consultas de las
-        // pantallas y compara con la matriz. Si esta ejecución sembró, una discrepancia tumba el
-        // arranque con el contador y el Tenant; en un re-arranque solo avisa, porque tras un ensayo
-        // los datos cambian a propósito. Solo lectura (ver PilotoOutboundAutoverificacion).
+        // pantallas y compara con la matriz. Si esta ejecución sembró, una discrepancia —o no poder
+        // medir— tumba el arranque con el contador y el Tenant; en un re-arranque solo avisa, pase lo
+        // que pase en la medición, porque tras un ensayo los datos cambian a propósito. La decisión
+        // vive en PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync; aquí solo se invoca.
         if (siembraPilotoOutbound is not null)
-        {
-            var informePilotoOutbound = await PilotoOutboundAutoverificacion.MedirAsync(
+            await PilotoOutboundAutoverificacion.MedirYExigirOAvisarAsync(
                 app.Services.GetRequiredService<IServiceScopeFactory>(),
-                OpcionesPilotoOutbound.Leer(app.Configuration));
-
-            foreach (var advertencia in PilotoOutboundAutoverificacion.Advertencias(informePilotoOutbound))
-                logger.LogWarning("Piloto Outbound, divergencia declarada: {Advertencia}", advertencia);
-
-            if (siembraPilotoOutbound.Escribio)
-                PilotoOutboundAutoverificacion.Exigir(informePilotoOutbound);
-            else
-                foreach (var discrepancia in PilotoOutboundAutoverificacion.Discrepancias(informePilotoOutbound))
-                    logger.LogWarning("Piloto Outbound, los datos ya no son los de la matriz: {Discrepancia}", discrepancia);
-        }
+                OpcionesPilotoOutbound.Leer(app.Configuration), siembraPilotoOutbound.Escribio, logger);
     }
 }
 

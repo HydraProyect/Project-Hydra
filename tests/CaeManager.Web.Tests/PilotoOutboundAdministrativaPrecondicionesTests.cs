@@ -218,6 +218,65 @@ public class PilotoOutboundAdministrativaPrecondicionesTests
             .And.Contain("se reanuda repitiendo la orden").And.Contain("--retirar-piloto-outbound");
     }
 
+    [Fact]
+    public void Un_fallo_que_no_es_un_rechazo_previsto_tambien_dice_su_tipo_su_mensaje_y_como_seguir()
+    {
+        (Exception Fallo, string Motivo)[] fallos =
+        [
+            (new IOException("No queda espacio en el dispositivo."), "IOException: No queda espacio en el dispositivo."),
+            (new UnauthorizedAccessException("Acceso denegado a la ruta."), "UnauthorizedAccessException: Acceso denegado a la ruta."),
+            (new Microsoft.EntityFrameworkCore.DbUpdateException("No se pudieron guardar los cambios.", new TimeoutException("La base no respondió.")),
+                "DbUpdateException: No se pudieron guardar los cambios. Causa: TimeoutException: La base no respondió."),
+        ];
+
+        foreach (var (fallo, motivo) in fallos)
+        {
+            PilotoOutboundAdministrativa.MensajeDeInterrupcion(fallo)
+                .Should().StartWith("Siembra del piloto Outbound interrumpida: " + motivo)
+                .And.Contain("se reanuda repitiendo la orden").And.Contain("--retirar-piloto-outbound")
+                .And.Contain("credenciales, se conserva");
+
+            PilotoOutboundRetirada.MensajeDeInterrupcion(fallo)
+                .Should().StartWith("Retirada del piloto Outbound interrumpida: " + motivo)
+                .And.Contain("«Retirado:»").And.Contain("se reanuda repitiendo la orden");
+        }
+    }
+
+    [Fact]
+    public void El_mensaje_de_una_interrupcion_no_lleva_la_traza_ni_los_datos_de_la_excepcion()
+    {
+        Exception lanzada;
+        try
+        {
+            throw new IOException("fallo al escribir") { Data = { ["contenido"] = "Xk7#valor-que-no-debe-salir" } };
+        }
+        catch (IOException ex)
+        {
+            lanzada = ex;
+        }
+
+        lanzada.StackTrace.Should().NotBeNullOrEmpty("control positivo: la excepción lleva traza, así que su ausencia en el mensaje es del mensaje");
+
+        foreach (var mensaje in new[]
+                 {
+                     PilotoOutboundAdministrativa.MensajeDeInterrupcion(lanzada),
+                     PilotoOutboundRetirada.MensajeDeInterrupcion(lanzada),
+                 })
+        {
+            mensaje.Should().Contain("IOException: fallo al escribir");
+            mensaje.Should().NotContain("Xk7#valor-que-no-debe-salir", "Exception.Data no se imprime");
+            mensaje.Should().NotContain(nameof(El_mensaje_de_una_interrupcion_no_lleva_la_traza_ni_los_datos_de_la_excepcion), "la traza no se imprime");
+        }
+    }
+
+    [Fact]
+    public void El_rechazo_de_la_retirada_dice_el_motivo_tal_cual_y_como_seguir()
+    {
+        PilotoOutboundRetirada.MensajeDeInterrupcion(new InvalidOperationException("el motivo exacto"))
+            .Should().StartWith("Retirada del piloto Outbound interrumpida: el motivo exacto")
+            .And.Contain("se reanuda repitiendo la orden");
+    }
+
     private static (int Codigo, string Salida, string Errores) Informar(PilotoOutboundAdministrativa.Resultado resultado)
     {
         using var salida = new StringWriter();
