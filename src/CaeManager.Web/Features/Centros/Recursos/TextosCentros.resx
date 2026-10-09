@@ -126,14 +126,25 @@
   <data name="ColEmpresa" xml:space="preserve">
     <value>Empresa</value>
   </data>
-  <data name="ColVencidos" xml:space="preserve">
-    <value>Venc.</value>
+  <data name="ColEstado" xml:space="preserve">
+    <value>Estado</value>
   </data>
-  <data name="ColProximos" xml:space="preserve">
-    <value>Próx.</value>
+  <data name="ColVisita" xml:space="preserve">
+    <value>Visita</value>
   </data>
-  <data name="ColEstadoVisita" xml:space="preserve">
-    <value>Estado / visita</value>
+  <data name="MotivoUnVencido" xml:space="preserve">
+    <value>1 vencido</value>
+    <comment>Motivo bajo la pastilla de estado del Centro: documentos en Recuentos.Vencidas.</comment>
+  </data>
+  <data name="MotivoVencidos" xml:space="preserve">
+    <value>{0} vencidos</value>
+  </data>
+  <data name="MotivoUnProximo" xml:space="preserve">
+    <value>1 por vencer</value>
+    <comment>Motivo bajo la pastilla de estado del Centro: documentos en Recuentos.Proximas. Mismo rótulo que la pastilla «Por vencer» (decisión del 2026-10-08).</comment>
+  </data>
+  <data name="MotivoProximos" xml:space="preserve">
+    <value>{0} por vencer</value>
   </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al día: no necesita intervención, pero puedes sustituirlo</value>

@@ -1032,7 +1032,11 @@ public class CentrosListaPatronTests : BunitContext
 
         var cabecera = cut.Find(".cabecera-columnas-centros");
         cabecera.TextContent.Should().Contain("Centro").And.Contain("Empresa").And.Contain("Cumplimiento")
-            .And.Contain("Venc.").And.Contain("Próx.").And.Contain("Estado / visita");
+            .And.Contain("Estado").And.Contain("Visita");
+        // Vencidos y próximos no tienen columna: son el motivo bajo la pastilla de estado.
+        cabecera.TextContent.Should().NotContain("Venc.").And.NotContain("Próx.");
+        cabecera.QuerySelectorAll(".cabecera-columnas-centros-indicadores > span").Select(s => s.TextContent.Trim())
+            .Should().Equal("Estado", "Visita");
         cabecera.GetAttribute("role").Should().BeNull("no es una tabla: la fila se despliega");
         cut.Markup.IndexOf("cabecera-columnas-centros", StringComparison.Ordinal)
             .Should().BeLessThan(cut.Markup.IndexOf("lista-filas-acordeon", StringComparison.Ordinal));
