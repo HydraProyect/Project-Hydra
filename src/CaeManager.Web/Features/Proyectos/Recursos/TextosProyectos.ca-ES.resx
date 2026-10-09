@@ -274,7 +274,7 @@
     <value>¿Eliminar este proyecto?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>El proyecto {0} dejará de aparecer en las listas. No se puede recuperar desde la aplicación: si solo ha terminado, ciérralo en lugar de eliminarlo.</value>
+    <value>El proyecto {0} dejará de aparecer en las listas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlo desde Auditoría. Si solo ha terminado, ciérralo en lugar de eliminarlo.</value>
   </data>
   <data name="ErrorFaltaCentro" xml:space="preserve">
     <value>Selecciona un centro.</value>
@@ -344,4 +344,13 @@
   <data name="ListaPlazo" xml:space="preserve"><value>Termini</value></data>
   <data name="ListaProyecto" xml:space="preserve"><value>Projecte</value></data>
   <data name="ListaSinFechaFinPrevista" xml:space="preserve"><value>Sense data de fi prevista</value></data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="ToastRestaurado" xml:space="preserve">
+    <value>Projecte restaurat.</value>
+  </data>
+  <data name="ErrorRestaurar" xml:space="preserve">
+    <value>No s'ha pogut desfer l'eliminació. Torna-ho a provar.</value>
+  </data>
 </root>

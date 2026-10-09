@@ -312,6 +312,25 @@ public class RetiradaTenantDemoServiceTests
                 "escenario no reproduce el caso real");
         }
 
+        // Un Gestor CAE del Operador CAE externo guardó un filtro operando sobre el Tenant
+        // propietario de un Cliente Delegante: la fila lleva el Tenant AJENO (los filtros
+        // guardados son por Tenant desde el 2026-10-08), así que el barrido genérico por
+        // TenantId de la retirada no la alcanza; solo la limpieza por usuario.
+        var filtroEnTenantAjenoId = Guid.NewGuid();
+        await using (var contextoSiembraFiltro = CrearContextoBootstrap(arnes))
+        {
+            var gestorCaeId = (await contextoSiembraFiltro.Users.IgnoreQueryFilters()
+                .Where(u => u.TenantId == tenantConsultoraId).OrderBy(u => u.Id).FirstAsync()).Id;
+            var tenantPropietarioAjenoId = (await contextoSiembraFiltro.AsignacionesOperacion
+                .Where(a => a.OperadorTenantId == tenantConsultoraId && a.PropietarioTenantId != tenantConsultoraId)
+                .OrderBy(a => a.Id).FirstAsync()).PropietarioTenantId;
+            await contextoSiembraFiltro.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                 INSERT INTO "FiltrosGuardados" ("Id", "TenantId", "UsuarioId", "Pantalla", "Nombre", "ValoresJson", "CreadoEnUtc")
+                 VALUES ({filtroEnTenantAjenoId}, {tenantPropietarioAjenoId}, {gestorCaeId}, 'Clientes', 'Vencidos', {"{}"}, now())
+                 """);
+        }
+
         await using (var contextoBootstrap = CrearContextoBootstrap(arnes))
         {
             Tenant tenantValidado;
@@ -332,6 +351,9 @@ public class RetiradaTenantDemoServiceTests
         (await contextoFinal.AsignacionesCartera.AnyAsync(a => a.OperadorTenantId == tenantConsultoraId))
             .Should().BeFalse(
                 "MEDIDO: mismo control sobre AsignacionCartera — el lado Operador de la cartera externa tampoco queda huérfano");
+        (await contextoFinal.FiltrosGuardados.IgnoreQueryFilters().AnyAsync(f => f.Id == filtroEnTenantAjenoId))
+            .Should().BeFalse(
+                "el filtro que un usuario del Tenant retirado guardó en OTRO Tenant se borra con él: sin IgnoreQueryFilters en esa limpieza quedaría huérfano");
     }
 
     /// <summary>

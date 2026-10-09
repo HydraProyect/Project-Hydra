@@ -32,9 +32,18 @@ namespace CaeManager.Web.Services;
 /// renderer del circuito, y llamarlas desde un temporizador en segundo plano
 /// arriesgaría una excepción de hilo peor que el hueco que se cierra. La
 /// próxima interacción del usuario (click, navegación, envío de formulario)
-/// ya despacha su Query/Command con la selección invalidada, y el filtro
-/// global de EF Core deniega por tenant nulo — fallo cerrado, igual que el
-/// resto de <see cref="ClienteActivoSeleccionado"/>.
+/// ya despacha su Query/Command con la selección invalidada: el Tenant
+/// propietario retirado deja de resolverse y <c>TenantActual</c> cae al Tenant
+/// de origen del usuario, igual que el resto de
+/// <see cref="ClienteActivoSeleccionado"/>. El rol cae con él: el principal del
+/// circuito conserva el claim de rol de la cartera retirada, pero
+/// <c>CurrentUserService.ObtenerRolEfectivoAsync</c> devuelve sin selección el
+/// rol de la sesión en origen, no ese claim (hallazgo del 2026-10-09). Las
+/// puertas que preguntan al principal directamente (<c>[Authorize(Roles = …)]</c>,
+/// <c>IsInRole</c>) NO pasan por ese método y siguen viendo el rol de la
+/// cartera hasta que el circuito se renegocia: las escrituras y el alcance de
+/// datos ya no dependen de ellas, pero lo que esas puertas dejan pintar o
+/// navegar dentro del circuito sí, y eso sigue abierto.
 ///
 /// Segunda razón de ser, añadida tras el hallazgo de Módulo 1 (CI, 1 de 3 en
 /// <c>SeleccionSobreviveAlCircuitoTests</c>): <c>OnCircuitOpenedAsync</c>
@@ -117,7 +126,10 @@ public class RevalidacionCircuitoActivoHandler(
     /// observado en las mediciones, pero no descartado con certeza total para
     /// todas las topologías de despliegue), el resultado es el mismo fallo
     /// cerrado que ya existía antes de este fix — sin Workspace operativo
-    /// derivado, no un downgrade de seguridad.
+    /// derivado, no un downgrade de seguridad. Lo es también para el rol solo
+    /// desde el 2026-10-09: el principal de ese circuito ya trae el claim de
+    /// rol de la cartera, y hasta entonces <c>ObtenerRolEfectivoAsync</c> lo
+    /// devolvía en el Tenant de origen.
     ///
     /// Una sola lectura, sin comprobar antes si hay <c>HttpContext</c>: un
     /// primer intento que comprobaba <c>httpContextAccessor.HttpContext is null</c>

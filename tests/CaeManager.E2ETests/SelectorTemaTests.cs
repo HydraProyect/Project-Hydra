@@ -33,7 +33,6 @@ public class SelectorTemaTests(WebAppFixture fixture)
 
         await Ayudas.IniciarSesionAsync(
             page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
         // Línea base: sin preferencia explícita, "sistema" no pone el atributo
@@ -94,7 +93,6 @@ public class SelectorTemaTests(WebAppFixture fixture)
 
         await Ayudas.IniciarSesionAsync(
             page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
         var selectorTema = page.GetByRole(AriaRole.Switch, new() { Name = "Tema oscuro" });
@@ -155,7 +153,6 @@ public class SelectorTemaTests(WebAppFixture fixture)
 
         await Ayudas.IniciarSesionAsync(
             page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
         // Este usuario alcanza varios Tenants beneficiarios: el selector de la barra lateral se pinta.
@@ -225,7 +222,6 @@ public class SelectorTemaTests(WebAppFixture fixture)
 
         await Ayudas.IniciarSesionAsync(
             page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
         await page.AddStyleTagAsync(new PageAddStyleTagOptions
         {

@@ -9,6 +9,7 @@ using CaeManager.Application.Integraciones.Queries.ObtenerProveedoresPlataformaC
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionCliente;
 using CaeManager.Domain.Centros;
+using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
@@ -18,6 +19,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Tests;
 
@@ -26,6 +28,12 @@ namespace CaeManager.Web.Tests;
 /// Trabajador×TipoDocumento obligatorio aplicable) el badge dice «Sin datos», no «Vigente»; con cumplimiento
 /// medido sigue diciendo «Vigente», y un estado distinto de Vigente no cambia nunca. Mismo cálculo que la lista
 /// y la ficha (<c>EstadoCentroUi.Texto(estado, cumplimiento)</c>).
+///
+/// <para>
+/// Con el mismo arnés, el defecto C4 del piloto Outbound (2026-10-08): la nota «Última reclamación a este Cliente
+/// empresarial» enlazaba a Comunicaciones aunque el módulo estuviera apagado (<c>Comunicaciones:Activo</c>), y con él
+/// apagado esa página responde «no encontrado». Mismo criterio que la entrada del menú.
+/// </para>
 /// </summary>
 public class CentroWorkspacePanelSinDatosTests : BunitContext
 {
@@ -35,14 +43,14 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
         this.ConRolDeEscritura();
     }
 
-    private sealed class MediatorFalso(CentroDetalleDto detalle, EstadoCentroDto estado) : IMediator
+    private sealed class MediatorFalso(CentroDetalleDto detalle, EstadoCentroDto estado, UltimaReclamacionClienteDto? ultimaReclamacion) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             object? valor = request switch
             {
                 ObtenerCentroPorIdQuery => detalle,
-                ObtenerUltimaReclamacionClienteQuery => null,
+                ObtenerUltimaReclamacionClienteQuery => ultimaReclamacion,
                 ObtenerLoteReclamacionQuery => Array.Empty<LoteReclamacionClienteDto>(),
                 ObtenerEstadoCentroQuery => estado,
                 ObtenerCanalesGestionDeCentroQuery => (IReadOnlyList<CanalGestionResumenDto>)[],
@@ -95,13 +103,14 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => throw NoDeberia();
     }
 
-    private string TextoDelBadgeDeEstado(EstadoCentro estado, int? cumplimiento)
+    private IRenderedComponent<CentroWorkspacePanel> Montar(
+        EstadoCentro estado, int? cumplimiento, UltimaReclamacionClienteDto? ultimaReclamacion = null)
     {
         var centroId = Guid.NewGuid();
         var detalle = new CentroDetalleDto(
             centroId, Guid.NewGuid(), "Refrielectric S.A.", Guid.NewGuid(), "Montajes Ebro S.L.",
             "Centro Logístico Norte", "C-001", null, null, null, Guid.NewGuid());
-        Services.AddScoped<IMediator>(_ => new MediatorFalso(detalle, new EstadoCentroDto(estado, [], cumplimiento)));
+        Services.AddScoped<IMediator>(_ => new MediatorFalso(detalle, new EstadoCentroDto(estado, [], cumplimiento), ultimaReclamacion));
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -115,8 +124,11 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
             .Add(c => c.EntidadId, centroId)
             .Add(c => c.PestanaActiva, "informacion"));
         cut.WaitForAssertion(() => cut.Find(".workspace-cabecera-entidad .badge"));
-        return cut.Find(".workspace-cabecera-entidad .badge").TextContent.Trim();
+        return cut;
     }
+
+    private string TextoDelBadgeDeEstado(EstadoCentro estado, int? cumplimiento) =>
+        Montar(estado, cumplimiento).Find(".workspace-cabecera-entidad .badge").TextContent.Trim();
 
     [Theory]
     [InlineData(EstadoCentro.Vigente, null, "Sin datos")]
@@ -128,5 +140,20 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
         EstadoCentro estado, int? cumplimiento, string esperado)
     {
         TextoDelBadgeDeEstado(estado, cumplimiento).Should().Be(esperado);
+    }
+
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public void Ver_en_Comunicaciones_solo_se_ofrece_con_el_modulo_activo(bool activo, int esperados)
+    {
+        Services.AddSingleton<IOptions<ComunicacionesOptions>>(Options.Create(new ComunicacionesOptions { Activo = activo }));
+
+        var cut = Montar(EstadoCentro.Vencido, cumplimiento: null,
+            new UltimaReclamacionClienteDto(Guid.NewGuid(), DateTime.UtcNow.AddDays(-2), 3, ConversacionId: Guid.NewGuid()));
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Última reclamación a este Cliente empresarial",
+            "control: la nota de la última reclamación, con hilo, está pintada"));
+        cut.FindAll("a").Count(a => a.TextContent.Trim() == "Ver en Comunicaciones").Should().Be(esperados);
     }
 }

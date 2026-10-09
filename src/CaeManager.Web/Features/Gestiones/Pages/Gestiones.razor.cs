@@ -1,9 +1,12 @@
 using CaeManager.Web.Components;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.EliminarGestion;
+using CaeManager.Application.Gestiones.Commands.RestaurarGestion;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Components.Workspace;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.QuickGrid;
@@ -105,6 +108,13 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private GridItemsProvider<GestionListaDto>? _proveedorElementos;
 
+    /// <summary>
+    /// Destino del botón «Ir a Mi trabajo» del estado vacío: el mismo que el de la entrada del menú
+    /// (<see cref="CatalogoMenuLateral.RutaMiTrabajo"/>). Null hasta que la lista sale vacía por
+    /// primera vez; el número de Tenants autorizados no cambia durante la vida de la página.
+    /// </summary>
+    private string? _rutaMiTrabajo;
+
     private IReadOnlyList<OpcionEstado> OpcionesEstado =>
     [
         new(nameof(EstadoGestion.Pendiente), Textos["FiltroPendientes"]),
@@ -116,6 +126,9 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? TerminoBusquedaInicial { get; set; }
+
     protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
 
     /// <summary>La URL es la fuente de verdad del filtro (P1-18) — ver el resto de listados.</summary>
@@ -124,6 +137,10 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         var deLaUrl = Enum.TryParse<EstadoGestion>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
         if (deLaUrl != _filtroEstado)
             _filtroEstado = deLaUrl;
+
+        var busquedaDeLaUrl = TerminoBusquedaInicial ?? string.Empty;
+        if (busquedaDeLaUrl != _busqueda)
+            _busqueda = busquedaDeLaUrl;
     }
 
     private async ValueTask<GridItemsProviderResult<GestionListaDto>> ProveerElementosAsync(
@@ -158,6 +175,19 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             if (_desechado || carga != _cargaVigente)
                 return GridItemsProviderResult.From(new List<GestionListaDto>(), 0);
 
+            // El estado vacío sin filtros enlaza a Mi trabajo, y su destino depende de cuántos
+            // Tenants tiene autorizados quien mira. Se pregunta solo cuando ese estado va a pintarse,
+            // una vez, y DESPUÉS de la consulta principal, nunca a la vez: el DbContext del circuito
+            // no admite dos a un tiempo.
+            if (resultado.TotalElementos == 0 && !HayFiltrosActivos && _rutaMiTrabajo is null)
+            {
+                var ruta = await ResolverRutaMiTrabajoAsync(request.CancellationToken);
+                if (_desechado || carga != _cargaVigente)
+                    return GridItemsProviderResult.From(new List<GestionListaDto>(), 0);
+
+                _rutaMiTrabajo = ruta;
+            }
+
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
 
@@ -184,9 +214,29 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         }
     }
 
+    /// <summary>
+    /// La pregunta es accesoria: solo decide adónde lleva un botón. Si falla, la lista vacía sigue
+    /// siendo una lista vacía y no un error de carga; el destino queda sin resolver (el botón cae en
+    /// <c>/bandeja</c>, que existe para cualquiera con Mi trabajo) y se vuelve a preguntar en la
+    /// siguiente carga vacía.
+    /// </summary>
+    private async Task<string?> ResolverRutaMiTrabajoAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+            return CatalogoMenuLateral.RutaMiTrabajo(autorizados.Count > 1);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 
@@ -229,21 +279,24 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     }
 
     /// <summary>
-    /// Quita los dos filtros en una sola recarga. El estado vive además en la
-    /// URL y se limpia allí: <see cref="OnParametersSet"/> re-sincroniza desde
-    /// ella en cada navegación dentro de la página.
+    /// Quita los dos filtros en una sola recarga y en una sola navegación. Los
+    /// dos viven además en la URL y se limpian allí: <see cref="OnParametersSet"/>
+    /// re-sincroniza desde ella en cada navegación dentro de la página, y un
+    /// filtro que siguiera en la URL volvería a aplicarse.
     /// </summary>
     private async Task LimpiarFiltrosAsync()
     {
         _busqueda = string.Empty;
         _filtroEstado = string.Empty;
-        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
         await RecargarAsync();
     }
 
+    /// <summary>Mismo motivo que <see cref="LimpiarFiltrosAsync"/>: la búsqueda se quita también de la URL.</summary>
     private async Task QuitarBusquedaAsync()
     {
         _busqueda = string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
         await RecargarAsync();
     }
 
@@ -372,6 +425,35 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         _confirmarEliminarVisible = true;
     }
 
+    /// <summary>«Deshacer» del aviso tras eliminar — ver RestaurarGestionCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        // Guarda por elemento: dos pulsaciones en «Deshacer» del mismo aviso no mandan dos restauraciones.
+        if (!_restaurando.Add(id)) return;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarGestionCommand(id));
+
+            ToastService.Mostrar(
+                resultado.EsExitoso ? Textos["ToastRestaurada"].Value : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                await RecargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurando.Remove(id);
+        }
+    }
+
+    private readonly HashSet<Guid> _restaurando = [];
+
     private async Task ConfirmarEliminarAsync()
     {
         _eliminando = true;
@@ -387,7 +469,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             }
             else
             {
-                ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito);
+                ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(id));
                 _confirmarEliminarVisible = false;
 
                 // Una vista rápida abierta sobre la gestión borrada enseñaría,

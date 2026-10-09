@@ -104,6 +104,16 @@ public interface IAlcanceDatosService
     Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsParaGestionAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// El mismo alcance de gestión que <see cref="ObtenerSubcontrataIdsParaGestionAsync"/>, para una
+    /// Subcontrata <b>eliminada</b>: esa lista se deriva de las Empresas vivas y nunca contiene la
+    /// fila que <c>RestaurarSubcontrataCommand</c> quiere devolver. Decide por las mismas
+    /// coordenadas —rol, cartera y Relaciones Empresariales vigentes, que la baja no toca— sin
+    /// pasar por la Empresa. No comprueba que el id sea de una Subcontrata ni de este Tenant: eso
+    /// es del comando.
+    /// </summary>
+    Task<bool> SubcontrataEliminadaParaGestionVisibleAsync(Guid subcontrataId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Trabajadores con al menos una Asignación activa a un Centro visible y, para un Gestor o
     /// Coordinador CAE con cartera, además toda la plantilla de la Empresa propia del Tenant aunque
     /// no tenga ninguna Asignación. Lo usan los listados y los selectores con alcance

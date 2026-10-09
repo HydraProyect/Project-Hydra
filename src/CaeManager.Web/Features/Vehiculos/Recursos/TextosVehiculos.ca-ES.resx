@@ -115,13 +115,13 @@
     <value>¿Eliminar el vehículo {0}?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
-    <value>Dejará de aparecer en las listas. No se puede recuperar desde la aplicación.</value>
+    <value>Dejará de aparecer en las listas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlo desde Auditoría.</value>
   </data>
   <data name="ConfirmarEliminarLoteTitulo" xml:space="preserve">
     <value>¿Eliminar {0} vehículo(s)?</value>
   </data>
   <data name="ConfirmarEliminarLoteMensaje" xml:space="preserve">
-    <value>Dejarán de aparecer en las listas. No se pueden recuperar desde la aplicación.</value>
+    <value>Dejarán de aparecer en las listas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría.</value>
   </data>
   <data name="ErrorSeleccionaEmpresa" xml:space="preserve">
     <value>Selecciona una empresa.</value>
@@ -187,7 +187,7 @@
     <value>Ver toda su documentación →</value>
   </data>
   <data name="BotonOperar" xml:space="preserve">
-    <value>Operar →</value>
+    <value>Obre la fitxa 360</value>
   </data>
   <data name="NotaPieOperar" xml:space="preserve">
     <value>Abre la ficha 360 del vehículo</value>
@@ -230,5 +230,107 @@
   </data>
   <data name="ListaColumnaVehiculoOrden" xml:space="preserve">
     <value>Vehicle · {0}</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="ToastRestaurado" xml:space="preserve">
+    <value>Vehicle restaurat.</value>
+  </data>
+  <data name="ToastLoteRestaurados" xml:space="preserve">
+    <value>{0} vehicle(s) restaurat(s).</value>
+  </data>
+  <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
+    <value>{0} restaurat(s). {1} no s'han pogut restaurar: {2}</value>
+  </data>
+  <data name="ErrorRestaurar" xml:space="preserve">
+    <value>No s'ha pogut desfer l'eliminació. Torna-ho a provar.</value>
+  </data>
+  <data name="FichaKicker" xml:space="preserve">
+    <value>Vehicle</value>
+  </data>
+  <data name="FichaRutaNavegacion" xml:space="preserve">
+    <value>Ruta de Vehicle 360</value>
+  </data>
+  <data name="FichaErrorDescripcion" xml:space="preserve">
+    <value>Pot ser que no existeixi o que no hi tinguis accés.</value>
+  </data>
+  <data name="FichaAnilloDetalle" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="FichaAnilloEtiqueta" xml:space="preserve">
+    <value>{0} de {1} documents registrats al dia</value>
+  </data>
+  <data name="FichaAnilloSinDocumentos" xml:space="preserve">
+    <value>Sense documents registrats</value>
+  </data>
+  <data name="FichaCopiarLaMatricula" xml:space="preserve">
+    <value>la matrícula</value>
+  </data>
+  <data name="FichaCopiarMatricula" xml:space="preserve">
+    <value>Copia la matrícula {0}</value>
+  </data>
+  <data name="FichaEmpleadorPrefijo" xml:space="preserve">
+    <value>Empleador:</value>
+  </data>
+  <data name="FichaSubirDocumento" xml:space="preserve">
+    <value>Puja un document</value>
+  </data>
+  <data name="FichaMasAcciones" xml:space="preserve">
+    <value>Més accions</value>
+  </data>
+  <data name="FichaEditarVehiculo" xml:space="preserve">
+    <value>Edita el vehicle</value>
+  </data>
+  <data name="FichaEtiquetaLateral" xml:space="preserve">
+    <value>Context</value>
+  </data>
+  <data name="FichaErrorDocumentosTitulo" xml:space="preserve">
+    <value>No hem pogut carregar els documents</value>
+  </data>
+  <data name="FichaVacioDocumentosTitulo" xml:space="preserve">
+    <value>Sense documents</value>
+  </data>
+  <data name="FichaVacioDocumentosDescripcion" xml:space="preserve">
+    <value>Encara no hi ha documents registrats per a aquest vehicle.</value>
+  </data>
+  <data name="FichaListaDocumentos" xml:space="preserve">
+    <value>Documents del vehicle</value>
+  </data>
+  <data name="FichaMostrando" xml:space="preserve">
+    <value>Mostrant {0} de {1}</value>
+  </data>
+  <data name="FichaVence" xml:space="preserve">
+    <value>Venç: {0}</value>
+  </data>
+  <data name="FichaNotaRegistrados" xml:space="preserve">
+    <value>Només hi apareixen documents registrats. TALVEG encara no sap quins documents s'exigeixen a un vehicle, de manera que aquí no hi veuràs «Pendent».</value>
+  </data>
+  <data name="FichaEditarEnlace" xml:space="preserve">
+    <value>Edita →</value>
+  </data>
+  <data name="FichaNotaEmpleador" xml:space="preserve">
+    <value>L'empleador no es pot canviar.</value>
+  </data>
+  <data name="FichaBandaRenovar" xml:space="preserve">
+    <value>Renova {0}</value>
+  </data>
+  <data name="FichaBandaVencido" xml:space="preserve">
+    <value>va vèncer.</value>
+  </data>
+  <data name="FichaBandaVencioHaceUnDia" xml:space="preserve">
+    <value>va vèncer el {0}, fa 1 dia.</value>
+  </data>
+  <data name="FichaBandaVencioHaceDias" xml:space="preserve">
+    <value>va vèncer el {0}, fa {1} dies.</value>
+  </data>
+  <data name="FichaGlosaDocumentoUno" xml:space="preserve">
+    <value>document</value>
+  </data>
+  <data name="FichaGlosaDocumentoVarios" xml:space="preserve">
+    <value>documents</value>
+  </data>
+  <data name="FichaBandaVencidosSinNombrar" xml:space="preserve">
+    <value>Hi ha documents vençuts que no caben en aquesta llista.</value>
   </data>
 </root>

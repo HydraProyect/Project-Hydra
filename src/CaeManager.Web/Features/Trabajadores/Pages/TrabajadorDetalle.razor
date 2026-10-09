@@ -90,11 +90,14 @@
             <Acciones>
                 <span class="trabajador360-acciones">
                     <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
-                    <MenuAcciones>
-                        <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion></SoloConEscritura>
-                        <SoloConEscritura><ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion></SoloConEscritura>
-                        <SoloConEscritura><ItemMenuAccion OnClick="AbrirCrearGestionAsync">@Textos["AccionCrearGestion"]</ItemMenuAccion></SoloConEscritura>
-                    </MenuAcciones>
+                    @* Las tres acciones del menú son escrituras: a Consulta no se le deja el «⋯» con el menú vacío. *@
+                    <SoloConEscritura>
+                        <MenuAcciones>
+                            <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion>
+                            <ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion>
+                            <ItemMenuAccion OnClick="AbrirCrearGestionAsync">@Textos["AccionCrearGestion"]</ItemMenuAccion>
+                        </MenuAcciones>
+                    </SoloConEscritura>
                 </span>
             </Acciones>
         </CabeceraPagina>

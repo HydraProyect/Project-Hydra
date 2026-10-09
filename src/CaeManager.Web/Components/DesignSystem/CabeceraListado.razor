@@ -23,10 +23,18 @@
 
     El conmutador conserva el nombre accesible «Selección múltiple» (aria-pressed dice si está
     activo). Solo se pinta si el llamador pasa SeleccionMultipleChanged.
+
+    El botón ⌨ abre la chuleta de atajos (la misma de «?»): atajos-globales.js escucha
+    data-abrir-atajos, porque la chuleta vive en el islote AtajosGlobales del layout.
+
+    KeyTips (keytips.js, letras de CatalogoAtajos.KeyTips): S el conmutador, K la chuleta,
+    M el menú «⋯» y N la acción primaria — la letra se declara en el envoltorio
+    (data-keytip-contenedor) y la recibe el botón que la página ponga dentro.
 *@
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
+@inject IStringLocalizer<CaeManager.Web.Features.AtajosGlobales.Recursos.TextosAtajosGlobales> TextosAtajos
 
 <CabeceraPagina Titulo="@Titulo" JuntoAlTitulo="@(Contador is null && DatoCabecera is null ? null : JuntoAlTituloFragment)">
     <Acciones>
@@ -34,16 +42,23 @@
         {
             <button type="button" class="cabecera-listado-icono @(SeleccionMultiple ? "cabecera-listado-icono-activo" : null)"
                     aria-pressed="@(SeleccionMultiple ? "true" : "false")"
-                    aria-label="@Comunes["SeleccionMultiple"]" title="@Comunes["SeleccionMultiple"]"
+                    aria-label="@Comunes["SeleccionMultiple"]" title="@Comunes["SeleccionMultiple"]" data-keytip="S"
                     @onclick="() => SeleccionMultipleChanged.InvokeAsync(!SeleccionMultiple)">
                 <Icono Nombre="seleccion" />
             </button>
         }
+        <button type="button" class="cabecera-listado-icono" aria-label="@TextosAtajos["TituloAyuda"]" title="@TextosAtajos["TituloAyuda"]"
+                aria-keyshortcuts="?" data-abrir-atajos="" data-keytip="K">
+            <Icono Nombre="teclado" />
+        </button>
         @if (Menu is not null)
         {
-            <MenuAcciones ConBorde="true" EtiquetaAccesible="@Comunes["MasAcciones"]">@Menu</MenuAcciones>
+            <MenuAcciones ConBorde="true" EtiquetaAccesible="@Comunes["MasAcciones"]" Keytip="M">@Menu</MenuAcciones>
         }
-        @Primaria
+        @if (Primaria is not null)
+        {
+            <span class="cabecera-listado-primaria" data-keytip-contenedor="N">@Primaria</span>
+        }
     </Acciones>
 </CabeceraPagina>
 

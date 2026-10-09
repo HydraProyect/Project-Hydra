@@ -30,6 +30,8 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
     private ModalActivo _modal = ModalActivo.Ninguno;
     private OperadorCaeExternoDto? _operadorDestino;
     private string _nombre = string.Empty;
+    private string _emailAdministrador = string.Empty;
+    private string _nombreAdministrador = string.Empty;
     private bool _enCurso;
     private string? _errorFormulario;
 
@@ -44,6 +46,30 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
     /// </summary>
     private string EnlaceDeAutorizacion(OperadorCaeExternoDto operador) =>
         Navegacion.ToAbsoluteUri($"delegaciones?autorizar={operador.TenantId}").ToString();
+
+    /// <summary>
+    /// Lo que dura el token de activación (<c>DataProtectionTokenProviderOptions.TokenLifespan</c>,
+    /// fijado en <c>InfrastructureServiceCollectionExtensions</c>). El mismo valor que anuncia /usuarios.
+    /// </summary>
+    private const int MinutosCaducidadActivacion = 60;
+
+    /// <summary>
+    /// El alta recién hecha y el enlace con el que su primer Administrador establece la contraseña.
+    /// Vive solo mientras el modal está abierto: el token no se guarda en ningún otro sitio.
+    /// </summary>
+    private sealed record ActivacionPrimerAdministrador(
+        string NombreOperador, string NombreAdministrador, string EmailAdministrador, string Enlace);
+
+    private ActivacionPrimerAdministrador? _activacion;
+
+    /// <summary>
+    /// La misma forma de URL que el enlace de activación de /usuarios: el token de un solo uso de
+    /// Identity, ya codificado por Application, sobre la página que sabe consumirlo.
+    /// </summary>
+    private string EnlaceActivacion(Guid usuarioId, string tokenCodificado) =>
+        Navegacion
+            .ToAbsoluteUri($"/cuenta/restablecer-contrasena?userId={usuarioId}&code={tokenCodificado}")
+            .ToString();
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -82,20 +108,28 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
         _modal = modal;
         _operadorDestino = operador;
         _nombre = string.Empty;
+        _emailAdministrador = string.Empty;
+        _nombreAdministrador = string.Empty;
         _errorFormulario = null;
     }
 
     /// <summary>
-    /// P1-E2b: el modal abre siempre con el nombre vacío, así que hay algo que perder en
-    /// cuanto se ha escrito un nombre de Operador CAE externo o de Tenant propietario. Lo
-    /// leen AvisoCambiosSinGuardar y el Modal; cerrado (también tras crear) nunca.
+    /// P1-E2b: el modal abre siempre con los campos vacíos, así que hay algo que perder en
+    /// cuanto se ha escrito un nombre de Operador CAE externo o de Tenant propietario, o el
+    /// correo o el nombre del primer Administrador. Lo leen AvisoCambiosSinGuardar y el
+    /// Modal; cerrado (también tras crear) nunca.
     /// </summary>
-    private bool HayCambiosSinGuardar => _modal is not ModalActivo.Ninguno && !string.IsNullOrWhiteSpace(_nombre);
+    private bool HayCambiosSinGuardar => _modal is not ModalActivo.Ninguno
+        && (!string.IsNullOrWhiteSpace(_nombre)
+            || !string.IsNullOrWhiteSpace(_emailAdministrador)
+            || !string.IsNullOrWhiteSpace(_nombreAdministrador));
 
     private void CerrarModalDescartando()
     {
         _modal = ModalActivo.Ninguno;
         _nombre = string.Empty;
+        _emailAdministrador = string.Empty;
+        _nombreAdministrador = string.Empty;
     }
 
     private void CerrarModal(bool visible)
@@ -112,20 +146,42 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
         StateHasChanged();
         try
         {
-            var resultado = _modal is ModalActivo.Operador
-                ? await Mediator.Send(new CrearOperadorCaeExternoCommand(_nombre))
-                : await Mediator.Send(new CrearTenantPropietarioDeOperadorCaeExternoCommand(_operadorDestino!.TenantId, _nombre));
-            if (_desechado) return;
-
-            if (resultado.EsFallido)
+            if (_modal is ModalActivo.Operador)
             {
-                _errorFormulario = resultado.Error.Mensaje;
-                return;
+                var alta = await Mediator.Send(
+                    new CrearOperadorCaeExternoCommand(_nombre, _emailAdministrador, _nombreAdministrador));
+                if (_desechado) return;
+
+                if (alta.EsFallido)
+                {
+                    _errorFormulario = alta.Error.Mensaje;
+                    return;
+                }
+
+                // El enlace sale del token que devuelve la propia alta: no se pide después,
+                // porque no hay otro Command que lo genere para un Tenant sin Administrador.
+                _activacion = new ActivacionPrimerAdministrador(
+                    _nombre.Trim(),
+                    _nombreAdministrador.Trim(),
+                    _emailAdministrador.Trim(),
+                    EnlaceActivacion(alta.Valor.PrimerAdministradorUsuarioId, alta.Valor.TokenActivacion));
+                ToastService.Mostrar("Operador CAE externo creado.", TonoToast.Exito);
+            }
+            else
+            {
+                var resultado = await Mediator.Send(
+                    new CrearTenantPropietarioDeOperadorCaeExternoCommand(_operadorDestino!.TenantId, _nombre));
+                if (_desechado) return;
+
+                if (resultado.EsFallido)
+                {
+                    _errorFormulario = resultado.Error.Mensaje;
+                    return;
+                }
+
+                ToastService.Mostrar("Tenant propietario creado y operado por el Operador.", TonoToast.Exito);
             }
 
-            ToastService.Mostrar(
-                _modal is ModalActivo.Operador ? "Operador CAE externo creado." : "Tenant propietario creado y operado por el Operador.",
-                TonoToast.Exito);
             _modal = ModalActivo.Ninguno;
             await CargarAsync();
         }

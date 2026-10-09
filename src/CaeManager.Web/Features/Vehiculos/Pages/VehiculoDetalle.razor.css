@@ -1,0 +1,54 @@
+/*
+  Vehículo 360, página. La maquetación (cabecera de identidad, banda, cuerpo
+  con lateral, tarjetas, filas en rejilla) la ponen los componentes compartidos
+  del DesignSystem; aquí solo se estila lo que esta página mete en sus ranuras.
+  Medidas del mockup «Vehiculo 360 página TALVEG».
+*/
+
+/* La matrícula como placa (.placa del mockup): se copia al pulsarla. El botón
+   es de BotonCopiar, por eso el ::deep. */
+.vehiculo360-placa ::deep .boton-copiar {
+    font: var(--font-label-md);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-text);
+    border-radius: var(--radius-sm);
+    padding: 1px 7px;
+    cursor: copy;
+}
+
+/* El nombre del empleador en la entradilla (.lnk del mockup). */
+.vehiculo360-enlace {
+    font-weight: 600;
+    color: var(--color-primary-500);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.vehiculo360-enlace:hover {
+    text-decoration: underline;
+}
+
+.vehiculo360-enlace:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}
+
+/* Cada incidencia de la banda: el nombre del documento y cuándo venció. */
+.vehiculo360-incidencia {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.3em;
+    flex-wrap: wrap;
+}
+
+/* Nota bajo los datos del lateral (.nota del mockup). */
+.vehiculo360-nota {
+    margin: var(--space-2) 0 0;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}

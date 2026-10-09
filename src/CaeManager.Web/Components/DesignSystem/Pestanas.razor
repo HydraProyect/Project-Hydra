@@ -19,6 +19,7 @@
                     aria-controls="@ObtenerIdPanel(definicion.Id)"
                     tabindex="@(activa ? "0" : "-1")"
                     class="pestanas-boton @(activa ? "pestanas-boton-activa" : "")"
+                    data-keytip=""
                     @ref="_referencias[indice]"
                     @onclick="() => ActivarAsync(definicion.Id)"
                     @onkeydown="e => ManejarTeclaAsync(e, indice)">

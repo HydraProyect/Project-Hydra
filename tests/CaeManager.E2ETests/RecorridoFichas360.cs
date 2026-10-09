@@ -53,7 +53,9 @@ internal static class RecorridoFichas360
         await page.GetByText("Ver Trabajador 360 →").ClickAsync();
         await page.WaitForURLAsync(new Regex(@"/trabajadores/[0-9a-f-]{36}"));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Expect(page.Locator(".menu-acciones-disparador")).ToHaveCountAsync(1, new() { Timeout = 15_000 });
+        // Barrera de «la ficha cargó»: el contenedor de acciones de la cabecera, que se pinta con cualquier rol.
+        // El «⋯» no sirve: sus tres acciones son escrituras y a un rol de solo lectura (el del recorrido delegado) no se le pinta.
+        await Expect(page.Locator(".trabajador360-acciones")).ToHaveCountAsync(1, new() { Timeout = 15_000 });
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "Trabajador 360");
 
         // Y la ficha sobrevive a recargarla.

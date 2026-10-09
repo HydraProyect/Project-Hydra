@@ -17,7 +17,8 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<MenuAcciones @ref="_menu" Etiqueta="@TextoDisparador" Pastilla="true" Activa="@Activa">
+@* KeyTips: la letra se deduce del nombre del filtro, no del texto con el valor aplicado. *@
+<MenuAcciones @ref="_menu" Etiqueta="@TextoDisparador" Pastilla="true" Activa="@Activa" Keytip="" KeytipNombre="@Etiqueta">
     @if (OfrecerTodos)
     {
         <ItemMenuAccion Marcado="@(!Activa)" OnClick="() => ElegirAsync(string.Empty)">@(TextoTodos ?? Comunes["OpcionTodos"].Value)</ItemMenuAccion>
