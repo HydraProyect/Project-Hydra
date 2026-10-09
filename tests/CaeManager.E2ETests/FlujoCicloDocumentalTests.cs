@@ -324,18 +324,8 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        // MenuAcciones.razor abre el desplegable con un @onclick server-side,
-        // y la búsqueda de más arriba acaba de refiltrar el QuickGrid: el
-        // clic de abrir el menú puede llegar mientras la fila se reconstruye
-        // y perderse sin que Playwright lo reporte, y el propio clic sobre
-        // "Renovar" puede caer justo cuando un re-render se lleva el panel
-        // por delante (ver el análisis completo, con la mutación que lo
-        // reproduce, en la documentación de PulsarAccionDeMenuAsync en
-        // Ayudas). PulsarAccionDeMenuAsync reintenta el ciclo abrir+pulsar
-        // entero y confirma que el panel se cerró de verdad tras el clic.
-        await Ayudas.PulsarAccionDeMenuAsync(
-            filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Más acciones" }),
-            "Renovar");
+        // La fila ya no lleva menú «⋯»: «Renovar» es su acción rápida, que abre el mismo drawer.
+        await filaDocumento.Locator("button.documentos-accion-rapida").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
         // Fecha de emisión sin tocar (sigue siendo hoy — evita el diálogo de

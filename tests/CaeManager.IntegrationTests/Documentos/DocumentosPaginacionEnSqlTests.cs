@@ -34,6 +34,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
     private readonly Guid _tenant = Guid.NewGuid();
     private readonly DateOnly _hoy = DiaDeNegocio.Hoy();
     private readonly Dictionary<Guid, VigenciaDocumento> _vigenciaPorDocumento = [];
+    private Guid _tipoId;
 
     public async Task InitializeAsync()
     {
@@ -52,6 +53,7 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         var tipo = new TipoDocumento("Seguro RC", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
         contexto.TiposDocumento.Add(tipo);
         await contexto.SaveChangesAsync();
+        _tipoId = tipo.Id;
 
         // Un documento por cada estado posible, colocando la fecha de
         // vencimiento justo dentro de cada franja. Los dos sin fecha son
@@ -124,6 +126,8 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
 
         resultado.TotalElementos.Should().Be(6);
         resultado.Elementos.Select(d => d.Estado).Distinct().Should().HaveCount(6, "cada documento cae en un estado distinto");
+        resultado.Elementos.Should().OnlyContain(d => d.TipoDocumentoId == _tipoId,
+            "la fila lleva el identificador de su tipo: es el destino del icono 360 del listado");
     }
 
     [Fact]
