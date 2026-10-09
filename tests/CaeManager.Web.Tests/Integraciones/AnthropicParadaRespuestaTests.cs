@@ -96,7 +96,7 @@ public sealed class AnthropicParadaRespuestaTests
     }
 
     [Fact]
-    public async Task Sin_ajuste_propio_la_ruta_envia_el_modelo_el_tope_y_el_esfuerzo_generales()
+    public async Task Sin_ajuste_propio_la_ruta_envia_el_modelo_y_el_tope_generales()
     {
         var manejador = new ManejadorFijo(Respuesta("end_turn", """{"esAccionableCae": false, "resumen": "Sin gestión", "confianza": 90}"""));
         var servicio = new AnthropicDeteccionRelevanciaCaeService(new HttpClient(manejador), Opciones, NullLogger<AnthropicDeteccionRelevanciaCaeService>.Instance);
@@ -120,6 +120,28 @@ public sealed class AnthropicParadaRespuestaTests
         var manejador = new ManejadorFijo(Respuesta("end_turn", "{}"));
 
         await LlamarAsync(ruta, manejador);
+
+        using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
+        solicitud.RootElement.TryGetProperty("output_config", out _).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Una variable de entorno vacía o con espacios cuenta como no fijada: no
+    /// debe salir como <c>effort: " "</c>, que la API rechazaría.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(TodasLasRutas))]
+    public async Task Un_esfuerzo_en_blanco_general_y_de_la_ruta_cuenta_como_no_configurado(string ruta)
+    {
+        var opciones = Options.Create(new AnthropicOptions
+        {
+            ApiKey = "sk-ant-de-prueba",
+            Esfuerzo = "  ",
+            Rutas = { [ruta] = new RutaAnthropicOptions { Esfuerzo = " " } },
+        });
+        var manejador = new ManejadorFijo(Respuesta("end_turn", "{}"));
+
+        await LlamarAsync(ruta, manejador, opciones);
 
         using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
         solicitud.RootElement.TryGetProperty("output_config", out _).Should().BeFalse();
