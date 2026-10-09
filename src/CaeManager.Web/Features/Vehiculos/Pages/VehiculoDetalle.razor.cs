@@ -249,7 +249,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     }
 
     /// <summary>
-    /// Tras subir un documento o cerrar el panel: anillo, banda y lista se
+    /// Tras subir un documento o cerrar el panel: anillo y lista se
     /// vuelven a leer, sin pasar por el esqueleto.
     /// </summary>
     private async Task RecargarTrasCambioAsync()

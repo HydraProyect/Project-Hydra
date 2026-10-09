@@ -314,8 +314,13 @@ public class Visita360PaginaTests : BunitContext
         var (cut, _) = Montar(Detalle(), documentacion: DocumentacionConIncidencias());
 
         cut.FindAll("[data-pieza=banda]").Should().BeEmpty();
-        cut.FindAll("[data-pieza=fila][data-tono=peligro] button.fila-relacion-nombre").Should().NotBeEmpty(
-            "la fila con problema abre su documento, que era lo que hacía la incidencia de la banda");
+        var filas = cut.FindAll("[data-pieza=fila][data-tono=peligro] button.fila-relacion-nombre");
+        filas.Select(f => f.TextContent.Trim()).Should().Contain(["Aptitud médica", "Entrega de EPI"]);
+
+        // Lo que hacía la incidencia de la banda: la fila del documento sin presentar lleva a subirlo.
+        filas.Single(f => f.TextContent.Trim() == "Entrega de EPI").Click();
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain($"/documentos?trabajadorId={Paula}&tipoDocumentoId=");
     }
 
     [Fact]
