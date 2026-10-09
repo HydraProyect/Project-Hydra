@@ -15,7 +15,7 @@ namespace CaeManager.Web.Tests;
 /// </para>
 /// <para>
 /// <b>Lo que NO observa:</b> que un componente concreto lo use correctamente
-/// en su <c>catch</c> (eso lo cubren <see cref="NotificacionesPopupTests"/>),
+/// en su <c>catch</c> (eso lo cubre <see cref="CampanaAvisosCircuitoTests"/>),
 /// ni si Npgsql cambia esta jerarquía en una versión futura — un cambio ahí
 /// solo lo detectaría una ejecución real contra PostgreSQL.
 /// </para>

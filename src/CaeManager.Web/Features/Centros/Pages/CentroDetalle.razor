@@ -139,7 +139,8 @@
             </JuntoAlTitulo>
             <Acciones>
                 <span class="centro360-acciones">
-                <Boton Variante="VarianteBoton.Primario" OnClick="ProgramarVisita">Programar visita</Boton>
+                @* Lleva a /visitas con el Drawer de alta abierto (CrearVisitaCommand, denegado a Consulta). *@
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="ProgramarVisita">Programar visita</Boton></SoloConEscritura>
                 @*
                     El resto de acciones, en el menú «⋯» del mockup. «Reclamar
                     documentación» remite al panel a propósito (ver doc de la
@@ -153,7 +154,8 @@
                     <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => _confirmarEliminarVisible = true">@Textos["MenuEliminarCentro"]</ItemMenuAccion></SoloConEscritura>
                     @if (_documentosPorReclamar > 0)
                     {
-                        <ItemMenuAccion OnClick="AbrirInformacion">Reclamar documentación (@_documentosPorReclamar)</ItemMenuAccion>
+                        @* Reclamar envía un mensaje (EnviarReclamacionCommand): es escritura, y a Consulta no se le ofrece. *@
+                        <SoloConEscritura><ItemMenuAccion OnClick="AbrirInformacion">Reclamar documentación (@_documentosPorReclamar)</ItemMenuAccion></SoloConEscritura>
                     }
                     <ItemMenuAccion OnClick="GenerarInformeDelCentro">Generar informe del centro</ItemMenuAccion>
                 </MenuAcciones>

@@ -274,12 +274,13 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         // EstadoDocumento.Proximo y EstadoAcreditacion.Subida/Aceptada (ver su
         // propio comentario) — pasarle alertas/pendientesPlataforma con esas
         // filas incluidas es seguro, no las cuela en Bloqueo/Actuación. Las
-        // vencidas en plataforma entran después, con la misma regla de orden.
-        var fusionados = ObtenerBandejaGestorQueryHandler.Ordenar(
-            ObtenerBandejaGestorQueryHandler.Fusionar(
-                    alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita, detecciones, pendientesPlataforma,
-                    hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita)
-                .Concat(MapearVencidasEnPlataforma(pendientesPlataforma, alertas)));
+        // vencidas en plataforma entran después. El orden se fija más abajo,
+        // una sola vez, cuando ya se sabe qué Rechazada cierra su Centro.
+        var fusionados = ObtenerBandejaGestorQueryHandler.Fusionar(
+                alertas, revisiones, requisitos, visitasUrgentes.Elementos, sugerenciasVisita, detecciones, pendientesPlataforma,
+                hoy, parametros.HorasAvisoVisita, parametros.HorasCriticasVisita)
+            .Concat(MapearVencidasEnPlataforma(pendientesPlataforma, alertas))
+            .ToList();
         var proximosSinEmpresa = MapearProximos(alertas);
         var seguimientoSinEmpresa = MapearSeguimiento(pendientesPlataforma);
 
@@ -298,9 +299,12 @@ public class ObtenerMiTrabajoAgregadoQueryHandler(
         // D-7: qué Rechazada cierra de verdad su Centro de Trabajo lo decide
         // el cálculo de estado del Centro, sobre los datos de ESTE Tenant
         // (seguimos dentro de su AmbitoTenantExplicito). Sin esto, EsBloqueo
-        // no tendría RechazoBloqueaCentro que leer.
-        var bloqueoActuacionItems = await ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloqueanAsync(
-            MarcarEmpresaSujeto(fusionados, empresas), calculoEstadoCentro, cancellationToken);
+        // no tendría RechazoBloqueaCentro que leer, ni el orden de la cola
+        // —el mismo de /bandeja, que pone primero lo que bloquea el acceso—
+        // sabría qué Rechazada va delante: por eso se ordena después de marcar.
+        var bloqueoActuacionItems = ObtenerBandejaGestorQueryHandler.Ordenar(
+            await ObtenerBandejaAgrupadaQueryHandler.MarcarRechazosQueBloqueanAsync(
+                MarcarEmpresaSujeto(fusionados, empresas), calculoEstadoCentro, cancellationToken));
         var proximos = MarcarEmpresaSujeto(proximosSinEmpresa, empresas);
         var seguimiento = MarcarEmpresaSujeto(seguimientoSinEmpresa, empresas);
         var bloqueoActuacion = ObtenerBandejaAgrupadaQueryHandler.Agrupar(bloqueoActuacionItems);

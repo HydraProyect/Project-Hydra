@@ -155,7 +155,7 @@ public class MiTrabajoAcreditacionVencidaBajoRlsTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task La_vencida_en_plataforma_es_bloqueo_de_su_Tenant_propietario_por_delante_de_la_rechazada()
+    public async Task La_vencida_en_plataforma_es_bloqueo_de_su_Tenant_propietario_y_va_detras_de_la_rechazada_que_cierra_su_Centro()
     {
         var resultado = await _servicios.GetRequiredService<IMediator>().Send(new ObtenerMiTrabajoAgregadoQuery());
 
@@ -172,11 +172,15 @@ public class MiTrabajoAcreditacionVencidaBajoRlsTests : IAsyncLifetime
         cola.Should().NotContain(i => i.DocumentoId == _documentoVigenteDelegante,
             "una aceptada todavía vigente en la plataforma no es trabajo");
 
-        // Control de observación: la rechazada del mismo Centro llega, y la
-        // vencida va delante por prioridad (Vencida → alta, D-6).
+        // Control de observación: la rechazada del mismo Centro llega. Es
+        // aplicable a ese Centro y lo cierra, así que va delante de la vencida:
+        // lo que bloquea el acceso precede a todo lo demás (decisión 9 del
+        // propietario, 2026-10-03), y la vencida en la plataforma se ordena
+        // con la prioridad de Vencido (P12), que va detrás (decisión 10).
         var rechazada = cola.Should().ContainSingle(i => i.DocumentoId == _documentoRechazadoDelegante).Subject;
         rechazada.Tipo.Should().Be(TipoItemBandeja.PlataformaRechazada);
-        cola.IndexOf(vencida).Should().BeLessThan(cola.IndexOf(rechazada));
+        rechazada.RechazoBloqueaCentro.Should().BeTrue("la rechazada del escenario cierra su Centro de Trabajo: por eso va la primera");
+        cola.Select(i => i.Id).Should().Equal(rechazada.Id, vencida.Id);
 
         cola.Should().HaveCount(2, "la siembra del delegante no deja más trabajo que la vencida y la rechazada");
         delegante.Resumen.Bloqueos.Should().Be(2, "la vencida siempre, y la rechazada porque es aplicable a su Centro");

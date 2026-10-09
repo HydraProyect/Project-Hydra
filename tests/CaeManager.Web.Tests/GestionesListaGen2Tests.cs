@@ -5,6 +5,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.EliminarGestion;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Web.Components.DesignSystem;
@@ -102,6 +103,12 @@ public class GestionesListaGen2Tests : BunitContext
                 case EliminarGestionCommand e:
                     Almacen.RemoveAll(g => g.Id == e.Id);
                     return Result.Exito();
+
+                // El estado vacío sin filtros pregunta cuántos Tenants hay para decidir adónde
+                // lleva «Ir a Mi trabajo»: uno solo, /bandeja (GestionesVacioEnlaceMiTrabajoTests
+                // cubre el caso de varios).
+                case ObtenerClientesAutorizadosQuery:
+                    return (IReadOnlyList<ClienteAutorizadoDto>)[new(Guid.NewGuid(), "Organización de prueba", EsOrigen: true)];
 
                 default:
                     throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.");
@@ -736,7 +743,7 @@ public class GestionesListaGen2Tests : BunitContext
 
         var enlace = cut.FindAll(".estado-vacio a").Single();
         enlace.TextContent.Trim().Should().Be("Ir a Mi trabajo →");
-        enlace.GetAttribute("href").Should().Be("bandeja", "Mi trabajo es /bandeja en el menú");
+        enlace.GetAttribute("href").Should().Be("bandeja", "con un solo Tenant autorizado, Mi trabajo es /bandeja en el menú");
     }
 
     [Fact]

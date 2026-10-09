@@ -28,6 +28,27 @@
             {
                 <span class="anillo-cumplimiento-leyenda">@Leyenda</span>
             }
+            @if (!string.IsNullOrWhiteSpace(Detalle))
+            {
+                <span class="anillo-cumplimiento-detalle">@Detalle</span>
+            }
+        </span>
+    </span>
+}
+else if (!string.IsNullOrWhiteSpace(Detalle))
+{
+    @* Sin universo pero con detalle («0 de 0»): se dibuja la pista sola, sin
+       color, para que el hueco de la cabecera no cambie de forma entre una
+       ficha con documentos y otra recién creada. *@
+    <span class="anillo-cumplimiento-envoltorio anillo-cumplimiento-@Tamano.ToString().ToLowerInvariant() anillo-cumplimiento-solo-pista" data-pieza="anillo"
+          role="img" aria-label="@(Etiqueta ?? "Sin requisitos")">
+        <svg class="anillo-cumplimiento" viewBox="0 0 36 36" aria-hidden="true">
+            <title>@(Etiqueta ?? "Sin requisitos")</title>
+            <circle class="anillo-cumplimiento-pista" cx="18" cy="18" r="@RadioSvg" />
+        </svg>
+        <span class="anillo-cumplimiento-texto" aria-hidden="true">
+            —
+            <span class="anillo-cumplimiento-detalle">@Detalle</span>
         </span>
     </span>
 }
@@ -61,6 +82,12 @@ else
 
     /// <summary>Segunda línea dentro del aro, bajo el porcentaje (p. ej. "Cumplimiento") — solo tiene sitio real en TamanoAnillo.Grande; en Pequeno/Medio se ignora visualmente por el propio tamaño del contenedor.</summary>
     [Parameter] public string? Leyenda { get; set; }
+
+    /// <summary>
+    /// Tercera línea, en minúscula y pequeña, bajo la cifra: la fracción que el porcentaje resume («2 de 4»).
+    /// Pensada para TamanoAnillo.Cabecera. Con Porcentaje null y Detalle («0 de 0») se pinta la pista sola con «—».
+    /// </summary>
+    [Parameter] public string? Detalle { get; set; }
 
     /// <summary>
     /// Umbrales propios del anillo (100% = Exito, ≥50% = Advertencia, resto
