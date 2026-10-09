@@ -150,23 +150,11 @@
   <data name="ConfirmarRevocarPropiaMensaje" xml:space="preserve">
     <value>Deixaràs de tenir {0} a la teva cartera.</value>
   </data>
-  <data name="AvisoTitulo" xml:space="preserve">
-    <value>Sol·licituds de cartera</value>
-  </data>
-  <data name="AvisoResumenUna" xml:space="preserve">
-    <value>{0} sol·licitud pendent</value>
-  </data>
-  <data name="AvisoResumenVarias" xml:space="preserve">
-    <value>{0} sol·licituds pendents</value>
-  </data>
   <data name="AvisoPide" xml:space="preserve">
     <value>{0} demana incorporar-se a {1}</value>
   </data>
   <data name="AvisoVerTodas" xml:space="preserve">
     <value>Veure-les totes</value>
-  </data>
-  <data name="AvisoMasTarde" xml:space="preserve">
-    <value>Més tard</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
     <value>No s'han pogut carregar les sol·licituds</value>

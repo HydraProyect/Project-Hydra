@@ -12,8 +12,8 @@ namespace CaeManager.Architecture.Tests;
 /// P1-E1c: todo islote interactivo lleva el envoltorio común de errores. Un islote es una
 /// raíz de circuito sin ruta, y hay dos formas de serlo:
 /// <list type="bullet">
-/// <item>llevar <c>@rendermode InteractiveServer</c> en su propia directiva (NavegacionMovil,
-/// NotificacionesPopup…) — se ve por reflexión, en su <see cref="RenderModeAttribute"/>;</item>
+/// <item>llevar <c>@rendermode InteractiveServer</c> en su propia directiva (NavegacionMovil
+/// …) — se ve por reflexión, en su <see cref="RenderModeAttribute"/>;</item>
 /// <item>que otro .razor lo use con <c>@rendermode="InteractiveServer"</c> en el punto de uso
 /// (los de MainLayout: SelectorTema, AnfitrionToasts…) — no deja rastro en el tipo, así que se
 /// busca en el marcado de todos los .razor.</item>
@@ -58,8 +58,8 @@ public class IslotesInteractivosConLimiteDeErroresTests
             "control positivo del uso cualificado con espacio de nombres (<CaeManager.Web.Components.Workspace.ContextWorkspace …>)");
         islotes.Should().Contain("NavegacionMovil",
             "control positivo de la directiva @rendermode propia: si la reflexión se queda ciega, falta");
-        islotes.Should().HaveCountGreaterThanOrEqualTo(19,
-            "los 13 islotes de MainLayout y los 6 componentes sin ruta con @rendermode propio medidos al crear el trinquete");
+        islotes.Should().HaveCountGreaterThanOrEqualTo(17,
+            "los islotes de MainLayout y los componentes sin ruta con @rendermode propio: 19 al crear el trinquete, 17 tras retirar NotificacionesPopup, PanelAvisosNormativos y AvisoSolicitudesCartera");
         IslotesInteractivos().Should().OnlyContain(t => File.Exists(RutaRazor(t)),
             "cada islote tiene que resolverse a su .razor; si no, la mitad de marcado no estaría mirando nada");
     }

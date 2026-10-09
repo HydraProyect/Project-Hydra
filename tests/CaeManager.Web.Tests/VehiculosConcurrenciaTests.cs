@@ -10,6 +10,7 @@ using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelecto
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EliminarVehiculo;
 using CaeManager.Application.Vehiculos.Commands.EliminarVehiculos;
+using CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
@@ -73,6 +74,7 @@ public class VehiculosConcurrenciaTests : BunitContext
                 ObtenerVehiculosQuery q => Paginado(q),
                 EliminarVehiculoCommand => Baja,
                 EliminarVehiculosCommand => BajaLote,
+                RestaurarVehiculoCommand => Result.Exito(),
                 _ => throw new NotSupportedException(request.GetType().Name)
             };
             return (T)valor!;
@@ -138,6 +140,48 @@ public class VehiculosConcurrenciaTests : BunitContext
         cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Should().ContainSingle();
         cut.FindAll(".cabecera-pagina button[aria-label='Selección múltiple']").Should().BeEmpty();
         cut.FindAll("input[type=checkbox]").Should().BeEmpty();
+    }
+
+    /// <summary>Listados 5/7 (decisión D6, 2026-10-08): eliminar un Vehículo deja «Deshacer», que restaura ese y solo ese.</summary>
+    [Fact]
+    public async Task Eliminar_ofrece_Deshacer_y_Deshacer_restaura_ese_vehiculo()
+    {
+        var furgoneta = Vehiculo("Furgoneta de obra");
+        var (cut, m) = Renderizar(furgoneta);
+
+        await PulsarEnElMenuDeLaFila(cut, 0, "Eliminar");
+        var dialogo = DialogoEliminar(cut);
+        await cut.InvokeAsync(() => dialogo.OnConfirmar.InvokeAsync());
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(x => x.TextoAccion == "Deshacer");
+        m.Enviadas.OfType<RestaurarVehiculoCommand>().Should().BeEmpty("ofrecer «Deshacer» no restaura nada");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        m.Enviadas.OfType<RestaurarVehiculoCommand>().Should().Equal([new RestaurarVehiculoCommand(furgoneta.Id)]);
+    }
+
+    /// <summary>En lote, un único «Deshacer» para todo el lote, y restaura solo los que el lote sí eliminó.</summary>
+    [Fact]
+    public async Task Eliminar_en_lote_ofrece_un_unico_Deshacer_que_restaura_los_que_cayeron()
+    {
+        var furgoneta = Vehiculo("Furgoneta de obra");
+        var (cut, m) = Renderizar(furgoneta, Vehiculo("Camión grúa"));
+        m.BajaLote = Result.Exito(new ResultadoEliminacionLoteDto(1, [], [furgoneta.Id]));
+
+        await cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        cut.FindAll("input[type=checkbox]")[1].Change(true);
+        await Boton(cut, "Eliminar seleccionados").ClickAsync(new MouseEventArgs());
+        var dialogo = DialogoEliminarLote(cut);
+        await cut.InvokeAsync(() => dialogo.OnConfirmar.InvokeAsync());
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Single(x => x.TextoAccion == "Deshacer");
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        m.Enviadas.OfType<RestaurarVehiculoCommand>().Select(c => c.Id).Should().Equal([furgoneta.Id]);
     }
 
     [Fact]

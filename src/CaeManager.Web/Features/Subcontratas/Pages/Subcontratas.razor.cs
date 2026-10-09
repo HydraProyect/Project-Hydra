@@ -4,6 +4,7 @@ using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontratas;
+using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Application.Common;
 using CaeManager.Web.Components.Layout;
@@ -567,11 +568,10 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>
     /// Eliminación de una sola fila desde su menú, con el mismo comando que
-    /// ya existía (EliminarSubcontrataCommand) y que la lista no usaba. Sin
-    /// "Deshacer": no hay comando de restauración de subcontratas, y ofrecer
-    /// un botón sin camino detrás sería prometer algo que no ocurre. El motivo
-    /// de un rechazo —p. ej. que aún tenga trabajadores— lo da el propio
-    /// comando y se enseña tal cual.
+    /// ya existía (EliminarSubcontrataCommand) y que la lista no usaba. El
+    /// aviso ofrece «Deshacer» (RestaurarSubcontrataCommand). El motivo de un
+    /// rechazo —p. ej. que aún tenga trabajadores— lo da el propio comando y
+    /// se enseña tal cual.
     /// </summary>
     private async Task ConfirmarEliminarAsync()
     {
@@ -589,7 +589,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
                 return;
             }
 
-            ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastEliminada"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(idEliminada));
             WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, [idEliminada]);
             await CargarAsync();
         }
@@ -603,6 +603,64 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         }
     }
 
+    /// <summary>«Deshacer» del aviso tras eliminar — ver RestaurarSubcontrataCommand.</summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        // Guarda por elemento: dos pulsaciones en «Deshacer» del mismo aviso no mandan dos restauraciones.
+        if (!_restaurando.Add(id)) return;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarSubcontrataCommand(id));
+
+            ToastService.Mostrar(
+                resultado.EsExitoso ? Textos["ToastRestaurada"].Value : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                await CargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurando.Remove(id);
+        }
+    }
+
+    private readonly HashSet<Guid> _restaurando = [];
+
+    private bool _restaurandoLote;
+
+    /// <summary>«Deshacer» del aviso de una eliminación en lote: un único deshacer restaura todos los que el lote sí eliminó.</summary>
+    private async Task DeshacerEliminarLoteAsync(IReadOnlyList<Guid> ids)
+    {
+        if (_restaurandoLote) return;
+        _restaurandoLote = true;
+
+        try
+        {
+            var r = await RestauracionEnLote.RestaurarAsync(ids, id => Mediator.Send(new RestaurarSubcontrataCommand(id)));
+
+            ToastService.Mostrar(
+                r.Errores.Count == 0 ? Textos["ToastLoteRestauradas", r.Restaurados].Value : Textos["ToastLoteRestauradasConErrores", r.Restaurados, r.Errores.Count, string.Join(" ", r.Errores)].Value,
+                r.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+
+            if (r.Restaurados > 0)
+                await CargarAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurandoLote = false;
+        }
+    }
+
     private async Task ConfirmarEliminarLoteAsync()
     {
         _eliminandoLote = true;
@@ -612,18 +670,20 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             var idsPedidos = _seleccionados.ToList();
             var resultado = await Mediator.Send(new EliminarSubcontratasCommand(idsPedidos));
             var dto = resultado.Valor;
+            IReadOnlyList<Guid> eliminadas = dto.IdsEliminados ?? [];
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
                     ? Textos["ToastLoteEliminadas", dto.Eliminados]
                     : Textos["ToastLoteEliminadasConErrores", dto.Eliminados, dto.Errores.Count, string.Join(" ", dto.Errores)],
-                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
+                eliminadas.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
+                eliminadas.Count > 0 ? () => DeshacerEliminarLoteAsync(eliminadas) : null);
 
-            // El DTO del lote solo trae el recuento (limitación del DTO: el handler sí sabe qué ids cayeron):
-            // si cayó alguno, se retiran las fichas de todos los pedidos, también la de un superviviente
-            // (con su edición sin guardar, si la tenía). Se prefiere pasarse de retirar a dejar abierta una ficha muerta.
+            // Se retiran solo las fichas de los que cayeron (IdsEliminados); un superviviente
+            // conserva la suya y su edición sin guardar.
             if (dto.Eliminados > 0)
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, idsPedidos);
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Subcontrata, dto.IdsEliminados ?? idsPedidos);
 
             _seleccionados.Clear();
             _confirmarEliminarLoteVisible = false;

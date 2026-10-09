@@ -6,9 +6,8 @@ namespace CaeManager.Web.Components.Layout;
 /// <summary>
 /// Distingue la carrera "el circuito de Blazor se desconecta mientras una
 /// consulta sigue en vuelo" de un fallo real de base de datos que sí hay que
-/// dejar pasar, en los cuatro componentes que solo se quedarían sin un dato
-/// (<c>SelectorClienteActivo</c>, <c>SelectorTema</c>, <c>NotificacionesPopup</c>
-/// y <c>PanelAvisosNormativos</c>).
+/// dejar pasar, en los componentes que solo se quedarían sin un dato
+/// (<c>SelectorClienteActivo</c>, <c>SelectorTema</c> y <c>CampanaAvisos</c>).
 ///
 /// <para>
 /// <see cref="MainLayout"/> sufre la misma carrera pero <b>no</b> usa este

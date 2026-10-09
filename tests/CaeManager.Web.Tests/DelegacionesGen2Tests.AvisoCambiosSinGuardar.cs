@@ -246,4 +246,23 @@ public partial class DelegacionesGen2Tests
 
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "el Operador CAE externo ya está creado");
     }
+
+    /// <summary>
+    /// FS-22: el correo y el nombre del primer Administrador también son trabajo escrito. Cada
+    /// uno por separado, con el nombre del Operador CAE externo vacío: si el aviso solo mirase
+    /// el nombre, ninguno de los dos preguntaría.
+    /// </summary>
+    [Theory]
+    [InlineData("Correo del primer Administrador", "marta@operador-sur.test")]
+    [InlineData("Nombre del primer Administrador", "Marta Ruiz")]
+    public async Task Aviso_el_alta_de_Operador_CAE_externo_solo_con_un_dato_del_primer_Administrador_pregunta(string etiqueta, string valor)
+    {
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: true);
+        await BotonConTexto(cut, "Nuevo Operador CAE externo").ClickAsync(new MouseEventArgs());
+        await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "control: recién abierto no hay nada que perder");
+
+        await EscribirEnElCampoAsync(cut, etiqueta, valor);
+
+        await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
+    }
 }

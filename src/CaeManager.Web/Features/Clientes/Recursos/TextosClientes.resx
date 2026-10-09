@@ -455,4 +455,16 @@
   <data name="ToleranciaSinTiposDescripcion" xml:space="preserve">
     <value>Este Cliente empresarial no tiene tipos de documento de Trabajador o de Empresa a los que fijar tolerancia, o no tienes acceso a él.</value>
   </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
+  <data name="ToastLoteRestaurados" xml:space="preserve">
+    <value>{0} Cliente(s) empresarial(es) restaurado(s).</value>
+  </data>
+  <data name="ToastLoteRestauradosConErrores" xml:space="preserve">
+    <value>{0} restaurado(s). {1} no se pudieron restaurar: {2}</value>
+  </data>
+  <data name="ErrorRestaurarLote" xml:space="preserve">
+    <value>No se pudo deshacer la baja. Inténtalo de nuevo.</value>
+  </data>
 </root>

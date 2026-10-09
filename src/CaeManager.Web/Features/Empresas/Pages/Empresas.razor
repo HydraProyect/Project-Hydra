@@ -204,7 +204,6 @@
             }
             <span></span>
             <span>@Textos["ColEmpresa"]</span>
-            <span class="columna-presta-servicio">@Textos["ColPrestaServicioA"]</span>
             <span>Cumplimiento</span>
             <span>Documentación</span>
             <span>Detecciones</span>
@@ -242,29 +241,9 @@
                             </a>
                             <span class="tarjeta-fila-acordeon-meta celda-empresa">@(empresa.Cif ?? "—")</span>
                         </span>
-                        @* «Presta servicio a» (maqueta aprobada): el primer Cliente empresarial por razón social y
-                           «+N», como pastilla que abre el mismo desplegable que el chevron. Sin resumen, un «—»: si
-                           la consulta falló, su título lo dice (un fallo no es «no presta servicio»); si no, un
-                           título que no distingue «sin Clientes empresariales» de «no los gestionas tú» (#810). El
-                           envoltorio no recorta (solo min-width: 0): el texto de la pastilla recorta por su cuenta y
-                           el anillo de foco tiene que verse entero. *@
-                        <span class="columna-presta-servicio">
-                            @if (_resumenClientes.TryGetValue(empresa.Id, out var resumen))
-                            {
-                                <button type="button" class="@("pastilla-presta-servicio" + (expandido ? " pastilla-presta-servicio-abierta" : ""))"
-                                        aria-expanded="@(expandido ? "true" : "false")"
-                                        aria-label="@Textos["PrestaServicioEtiqueta", TextoPrestaServicio(resumen), empresa.RazonSocial]"
-                                        @onclick="() => AlternarExpansionAsync(empresa.Id)">
-                                    <span class="pastilla-presta-servicio-texto">@TextoPrestaServicio(resumen)</span>
-                                    <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-                                </button>
-                            }
-                            else
-                            {
-                                <span class="celda-sin-presta-servicio"
-                                      title="@(_resumenClientesConError ? Textos["PrestaServicioError"] : Textos["PrestaServicioNinguno"])">—</span>
-                            }
-                        </span>
+                        @* La fila no nombra ni cuenta Clientes empresariales (decisión del propietario, 2026-10-08:
+                           sin columna «Presta servicio a»): solo los enseña el desplegable del chevron, que los pide
+                           con alcance de gestión. *@
                         @* Cumplimiento antes que Documentación, en el orden del mockup. Cada
                            celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
                            de columnas: un componente que no se pinta desalinearía la fila
@@ -320,10 +299,13 @@
                     </div>
                     @if (expandido)
                     {
-                        @* La fila desplegada son los Clientes empresariales a los que
-                           esta Empresa presta servicio en una Relación Empresarial: un
-                           rol de la relación, no un tipo de la Empresa. Por eso el
-                           rótulo dice «Presta servicio a», y no «N clientes» a secas. *@
+                        @* La fila desplegada son los Clientes empresariales de las
+                           Relaciones Empresariales vigentes en las que esta Empresa es
+                           la proveedora: un rol de la relación, no un tipo de la
+                           Empresa. Su rótulo, su vacío y su error son los de la pestaña
+                           «Clientes empresariales» de Empresa 360 (TextosEmpresas):
+                           neutros, sin recuento y sin «presta servicio a» (decisión del
+                           propietario, 2026-10-08). *@
                         <div class="tarjeta-fila-acordeon-contenido">
                             @{ var clientes = _clientesPorEmpresa.GetValueOrDefault(empresa.Id); }
                             @if (clientes is null)
@@ -335,7 +317,7 @@
                                 @* Antes un fallo se pintaba como «no tiene ningún
                                    Cliente asociado»: calma donde lo cierto es que no
                                    sabemos nada. *@
-                                <p class="texto-vacio-seccion" role="alert">No pudimos cargar a quién presta servicio esta empresa.</p>
+                                <p class="texto-vacio-seccion" role="alert">@Textos["ErrorClientes"]</p>
                                 <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => ReintentarClientesAsync(empresa.Id)">
                                     Reintentar
                                 </Boton>
@@ -344,11 +326,11 @@
                             {
                                 @* ObtenerClientesDeEmpresaQuery devuelve vacío también sin alcance de gestión:
                                    el texto es cierto en los dos casos y no revela cuál (#810). *@
-                                <p class="texto-vacio-seccion">Esta empresa no presta servicio a Clientes empresariales, o no están dentro de tu alcance de gestión.</p>
+                                <p class="texto-vacio-seccion">@Textos["VacioClientesDescripcion"]</p>
                             }
                             else
                             {
-                                <span class="titulo-clientes-empresa">@TituloClientes(clientes.Count)</span>
+                                <span class="titulo-clientes-empresa">@Textos["PestanaClientes"]</span>
                                 <ul class="workspace-lista-entidades">
                                     @foreach (var cliente in clientes)
                                     {

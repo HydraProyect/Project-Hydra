@@ -40,7 +40,6 @@ public class AsumirPrincipalDeOperacionE2ETests(WebAppFixtureEscenariosDireccion
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/cartera/solicitudes");
 

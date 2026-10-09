@@ -28,14 +28,14 @@
         <Boton Variante="@(SeleccionMultiple ? VarianteBoton.Secundario : VarianteBoton.Fantasma)"
                Tamano="TamanoBoton.Pequeno"
                OnClick="AlternarSeleccionMultipleAsync"
-               aria-pressed="@(SeleccionMultiple ? "true" : "false")">
+               aria-pressed="@(SeleccionMultiple ? "true" : "false")" data-keytip="S">
             Selección múltiple
         </Boton>
     }
 
     @if (OnAlternarTodos.HasDelegate)
     {
-        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => OnAlternarTodos.InvokeAsync(!TodosExpandidos)">
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => OnAlternarTodos.InvokeAsync(!TodosExpandidos)" data-keytip="E">
             @(TodosExpandidos ? Comunes["ContraerTodo"] : Comunes["ExpandirTodo"])
         </Boton>
     }

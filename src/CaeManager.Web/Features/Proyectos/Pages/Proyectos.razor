@@ -353,6 +353,8 @@
                     {
                         <Boton OnClick="() => AbrirReabrirConfirmAsync(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionReabrirProyecto"]</Boton>
                     }
+                    @* Proyectos no tiene selección múltiple: «Eliminar» vive en el pie del panel (D1, 2026-10-08). *@
+                    <Boton OnClick="() => AbrirEliminarAsync(_detalle.Id, _detalle.Nombre)" Variante="VarianteBoton.Destructivo">@Textos["MenuEliminar"]</Boton>
                 </div>
             </SoloConEscritura>
         }
