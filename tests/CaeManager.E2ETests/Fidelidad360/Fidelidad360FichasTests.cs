@@ -28,12 +28,17 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     /// <summary>Tabla y columna por las que se resuelve el id de la ficha cuando no es una Empresa.</summary>
     private const string VehiculosPorNombre = "\"Vehiculos\".\"Nombre\"";
     private const string ProyectosPorNombre = "\"Proyectos\".\"Nombre\"";
+    private const string TiposDeDocumentoPorNombre = "\"TiposDocumento\".\"Nombre\"";
+    private const string TipoDeDocumentoDeLaMaqueta = "Entrega de EPI";
 
     /// <summary>
     /// Pareja ficha ↔ mockup. La ruta se resuelve por el nombre sembrado: la razón social de una
-    /// Empresa, salvo que <paramref name="BuscarEn"/> nombre otra tabla y columna.
+    /// Empresa, salvo que <paramref name="BuscarEn"/> nombre otra tabla y columna. Si el mockup se enseña con algo ya
+    /// abierto (una fila desplegada), <paramref name="ClicAntesDeMedir"/> es el selector que se pulsa en la ficha para
+    /// dejarla en el mismo estado: sin él se compararían dos estados distintos, no dos pantallas.
     /// </summary>
-    private sealed record Pareja(string Clave, string Ruta, string RazonSocial, Mockup360 Mockup, string? BuscarEn = null);
+    private sealed record Pareja(
+        string Clave, string Ruta, string RazonSocial, Mockup360 Mockup, string? BuscarEn = null, string? ClicAntesDeMedir = null);
 
     private static readonly Pareja[] Parejas =
     [
@@ -49,6 +54,14 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
                 "Proyecto 360 página TALVEG.dc.html", "[data-pieza=\"lateral\"] [data-pieza=\"tarjeta\"]",
                 tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme"),
             BuscarEn: ProyectosPorNombre),
+        new("tipo-documento-360", "/documentos/tipos/", TipoDeDocumentoDeLaMaqueta,
+            Mockup360.PorConvencion(
+                "Tipo Documento 360 página TALVEG.dc.html",
+                "[data-pieza=\"lateral\"] [data-pieza=\"tarjeta\"]",
+                tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme"),
+            BuscarEn: TiposDeDocumentoPorNombre,
+            // La maqueta abre el estado por Centro de una fila; la ficha arranca con todas plegadas.
+            ClicAntesDeMedir: "[data-pieza=\"fila\"] button[aria-expanded=\"false\"]"),
     ];
 
     public static TheoryData<string, string> ParejasPorTema()
@@ -171,6 +184,14 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         await Fidelidad360.CapturarAsync(paginaMockup, Path.Combine(salida, "mockup.png"));
 
         var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.RazonSocial, tema, pareja.BuscarEn);
+        if (pareja.ClicAntesDeMedir is { } selector)
+        {
+            // Vale cualquiera de las que casen (la maqueta abre una fila, no una concreta): se pulsa la que encuentre el
+            // documento, sin localizador posicional.
+            await paginaFicha.EvalOnSelectorAsync(selector, "elemento => elemento.click()");
+            await paginaFicha.WaitForSelectorAsync("[data-pieza=\"fila\"] button[aria-expanded=\"true\"]");
+        }
+
         var ficha = await Fidelidad360.MedirAsentadoAsync(paginaFicha, "ficha", SelectoresDeLado.Convencion());
         await Fidelidad360.CapturarAsync(paginaFicha, Path.Combine(salida, "ficha.png"));
 

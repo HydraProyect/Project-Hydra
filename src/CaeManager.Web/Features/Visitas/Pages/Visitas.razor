@@ -53,10 +53,10 @@
     <div class="barra-filtros">
         <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" data-keytip="F" />
         <label class="filtro-critico">
-            <input type="checkbox" @bind="_soloActivas" @bind:after="RecargarAsync" /> @Textos["FiltroSoloActivas"]
+            <input type="checkbox" @bind="_soloActivas" @bind:after="CambiarSoloActivasAsync" /> @Textos["FiltroSoloActivas"]
         </label>
         <label class="filtro-critico">
-            <input type="checkbox" @bind="_soloUrgentes" @bind:after="RecargarAsync" /> @Textos["FiltroSoloUrgentes"]
+            <input type="checkbox" @bind="_soloUrgentes" @bind:after="CambiarSoloUrgentesAsync" /> @Textos["FiltroSoloUrgentes"]
         </label>
         <CampoSelect Etiqueta="@Textos["EtiquetaNotificadaTitular"]" Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync">
             <option value="">@Textos["OpcionTodas"]</option>

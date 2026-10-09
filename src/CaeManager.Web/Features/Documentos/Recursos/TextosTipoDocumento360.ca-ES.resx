@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPestanaNavegador" xml:space="preserve">
+    <value>Tipus de document</value>
+  </data>
+  <data name="EtiquetaMigas" xml:space="preserve">
+    <value>Ruta de Tipus de document 360</value>
+  </data>
+  <data name="MigaDocumentos" xml:space="preserve">
+    <value>Documents</value>
+  </data>
+  <data name="MigaCargando" xml:space="preserve">
+    <value>…</value>
+  </data>
+  <data name="ErrorTitulo" xml:space="preserve">
+    <value>No hem pogut carregar aquest tipus de document</value>
+  </data>
+  <data name="ErrorDescripcion" xml:space="preserve">
+    <value>Pot ser que ja no existeixi o que no hi tinguis accés.</value>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Torna-ho a provar</value>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Tipus de document · es demana a treballadors</value>
+  </data>
+  <data name="MetaVigencia" xml:space="preserve">
+    <value>Vigència</value>
+  </data>
+  <data name="VigenciaMesesUno" xml:space="preserve">
+    <value>{0} mes</value>
+  </data>
+  <data name="VigenciaMesesVarios" xml:space="preserve">
+    <value>{0} mesos</value>
+  </data>
+  <data name="VigenciaSinDefinir" xml:space="preserve">
+    <value>Sense vigència fixa</value>
+  </data>
+  <data name="MetaExigidoEn" xml:space="preserve">
+    <value>Exigit en</value>
+  </data>
+  <data name="MetaCentrosUno" xml:space="preserve">
+    <value>centre</value>
+  </data>
+  <data name="MetaCentrosVarios" xml:space="preserve">
+    <value>centres</value>
+  </data>
+  <data name="MetaA" xml:space="preserve">
+    <value>a</value>
+  </data>
+  <data name="MetaTrabajadoresUno" xml:space="preserve">
+    <value>treballador</value>
+  </data>
+  <data name="MetaTrabajadoresVarios" xml:space="preserve">
+    <value>treballadors</value>
+  </data>
+  <data name="ReglaRecuento" xml:space="preserve">
+    <value>Cada treballador compta una vegada per cada Centre que l'hi exigeix: {0} de {1} al dia.</value>
+  </data>
+  <data name="AnilloEtiqueta" xml:space="preserve">
+    <value>{0} de {1} al dia, comptant una vegada per cada Centre que l'exigeix</value>
+  </data>
+  <data name="AnilloSinDato" xml:space="preserve">
+    <value>Cap Centre exigeix aquest document</value>
+  </data>
+  <data name="AnilloFraccion" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="MasAcciones" xml:space="preserve">
+    <value>Més accions</value>
+  </data>
+  <data name="AccionSubidaMultiple" xml:space="preserve">
+    <value>Pujada múltiple</value>
+  </data>
+  <data name="AccionEditarTipo" xml:space="preserve">
+    <value>Edita el tipus de document</value>
+  </data>
+  <data name="BandaVencidosUno" xml:space="preserve">
+    <value>{0} vençut:</value>
+  </data>
+  <data name="BandaVencidosVarios" xml:space="preserve">
+    <value>{0} vençuts:</value>
+  </data>
+  <data name="BandaPendientesUno" xml:space="preserve">
+    <value>{0} pendent:</value>
+  </data>
+  <data name="BandaPendientesVarios" xml:space="preserve">
+    <value>{0} pendents:</value>
+  </data>
+  <data name="BandaToleranciaUno" xml:space="preserve">
+    <value>{0} en tolerància:</value>
+  </data>
+  <data name="BandaToleranciaVarios" xml:space="preserve">
+    <value>{0} en tolerància:</value>
+  </data>
+  <data name="BandaYMas" xml:space="preserve">
+    <value>i {0} més</value>
+  </data>
+  <data name="BandaEnlacePeligro" xml:space="preserve">
+    <value>Mostra vençuts i pendents</value>
+  </data>
+  <data name="BandaEnlaceTolerancia" xml:space="preserve">
+    <value>Mostra en tolerància</value>
+  </data>
+  <data name="EtiquetaGrupoPestanas" xml:space="preserve">
+    <value>Seccions del tipus de document</value>
+  </data>
+  <data name="PestanaTrabajadores" xml:space="preserve">
+    <value>Treballadors</value>
+  </data>
+  <data name="GlosaPestanaTrabajadores" xml:space="preserve">
+    <value>treballadors a qui s'exigeix</value>
+  </data>
+  <data name="EtiquetaFiltroEstado" xml:space="preserve">
+    <value>Filtra per estat</value>
+  </data>
+  <data name="Todos" xml:space="preserve">
+    <value>Tots</value>
+  </data>
+  <data name="EstadoVencido" xml:space="preserve">
+    <value>Vençut</value>
+  </data>
+  <data name="EstadoPendiente" xml:space="preserve">
+    <value>Pendent</value>
+  </data>
+  <data name="EstadoEnTolerancia" xml:space="preserve">
+    <value>En tolerància</value>
+  </data>
+  <data name="EstadoPorVencer" xml:space="preserve">
+    <value>A punt de vèncer</value>
+  </data>
+  <data name="EstadoSinConfirmar" xml:space="preserve">
+    <value>Sense confirmar</value>
+  </data>
+  <data name="EstadoVigente" xml:space="preserve">
+    <value>Vigent</value>
+  </data>
+  <data name="EtiquetaLista" xml:space="preserve">
+    <value>Treballadors a qui s'exigeix aquest document</value>
+  </data>
+  <data name="Mostrando" xml:space="preserve">
+    <value>Es mostren {0} de {1} · del pitjor estat al millor</value>
+  </data>
+  <data name="FiltroSinResultados" xml:space="preserve">
+    <value>Cap en els estats marcats.</value>
+  </data>
+  <data name="VacioTitulo" xml:space="preserve">
+    <value>Cap Centre exigeix aquest document a cap treballador</value>
+  </data>
+  <data name="VacioDescripcion" xml:space="preserve">
+    <value>Aquí apareixerà cada treballador amb almenys un Centre assignat que l'hi exigeixi. Encara no n'hi ha cap.</value>
+  </data>
+  <data name="FilaDni" xml:space="preserve">
+    <value>DNI</value>
+  </data>
+  <data name="CopiarElDni" xml:space="preserve">
+    <value>el DNI</value>
+  </data>
+  <data name="FilaSinDocumento" xml:space="preserve">
+    <value>Sense document</value>
+  </data>
+  <data name="FilaEmitido" xml:space="preserve">
+    <value>Emès {0}</value>
+  </data>
+  <data name="FilaEmisionHasta" xml:space="preserve">
+    <value>{0} →</value>
+  </data>
+  <data name="CifraFraccion" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="CifraCentrosUno" xml:space="preserve">
+    <value>centre</value>
+  </data>
+  <data name="CifraCentrosVarios" xml:space="preserve">
+    <value>centres</value>
+  </data>
+  <data name="AccionRenovar" xml:space="preserve">
+    <value>Renova</value>
+  </data>
+  <data name="AccionSubir" xml:space="preserve">
+    <value>Puja</value>
+  </data>
+  <data name="AccionConfirmar" xml:space="preserve">
+    <value>Confirma</value>
+  </data>
+  <data name="VerEstadoPorCentro" xml:space="preserve">
+    <value>Mostra l'estat per Centre de {0}</value>
+  </data>
+  <data name="CentroNoHayDocumento" xml:space="preserve">
+    <value>No hi ha document</value>
+  </data>
+  <data name="CentroVencio" xml:space="preserve">
+    <value>Va vèncer el {0}</value>
+  </data>
+  <data name="CentroEnTolerancia" xml:space="preserve">
+    <value>Va vèncer el {0} · en tolerància fins al {1}</value>
+  </data>
+  <data name="CentroCaducaEnDias" xml:space="preserve">
+    <value>Caduca d'aquí a {0} dies</value>
+  </data>
+  <data name="CentroCaducaManana" xml:space="preserve">
+    <value>Caduca demà</value>
+  </data>
+  <data name="CentroCaducaHoy" xml:space="preserve">
+    <value>Caduca avui</value>
+  </data>
+  <data name="CentroVigenteHasta" xml:space="preserve">
+    <value>Vigent fins al {0}</value>
+  </data>
+  <data name="CentroNoCaduca" xml:space="preserve">
+    <value>No caduca</value>
+  </data>
+  <data name="CentroSinFecha" xml:space="preserve">
+    <value>Falta la data de venciment</value>
+  </data>
+  <data name="EtiquetaLateral" xml:space="preserve">
+    <value>Context</value>
+  </data>
+  <data name="InfoTitulo" xml:space="preserve">
+    <value>Informació</value>
+  </data>
+  <data name="InfoEditar" xml:space="preserve">
+    <value>Edita →</value>
+  </data>
+  <data name="InfoSePideA" xml:space="preserve">
+    <value>Es demana a</value>
+  </data>
+  <data name="InfoSePideATrabajador" xml:space="preserve">
+    <value>Treballador</value>
+  </data>
+  <data name="InfoVigencia" xml:space="preserve">
+    <value>Vigència</value>
+  </data>
+  <data name="InfoVencimientoAutomatico" xml:space="preserve">
+    <value>Venciment automàtic</value>
+  </data>
+  <data name="Si" xml:space="preserve">
+    <value>Sí</value>
+  </data>
+  <data name="No" xml:space="preserve">
+    <value>No</value>
+  </data>
+  <data name="InfoSePide" xml:space="preserve">
+    <value>Es demana?</value>
+  </data>
+  <data name="InfoAutoridad" xml:space="preserve">
+    <value>Autoritat</value>
+  </data>
+  <data name="InfoSeSolicitaA" xml:space="preserve">
+    <value>Se sol·licita a</value>
+  </data>
+  <data name="InfoAlias" xml:space="preserve">
+    <value>Noms alternatius</value>
+  </data>
+  <data name="SinDato" xml:space="preserve">
+    <value>—</value>
+  </data>
+</root>

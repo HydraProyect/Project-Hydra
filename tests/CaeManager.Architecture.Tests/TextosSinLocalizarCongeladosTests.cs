@@ -91,9 +91,9 @@ public class TextosSinLocalizarCongeladosTests
         // bucle para esquivar la heurística; si el detector aprende a ignorar código Razor,
         // esta entrada se retira.
         ["DashboardEjecutivo"] = 1,
-        ["Delegaciones"] = 97,
+        ["Delegaciones"] = 96, // 97 → 96 el 2026-10-09 (FS-22): el párrafo del modal «Nuevo Operador CAE externo» cambia de regla y pasa, con los textos nuevos del primer Administrador, a TextosAutorizarOperadorCaeExterno.resx (claves Alta*).
         ["Documentos"] = 433, // 445 → 433: cabecera y filtros fase 1 se localizan; se retiran rótulos repetidos. // 446 → 445 el 2026-10-04 (CampoSelectAvanzado): el selector de sello de FirmaEnCampoTab deja de llevar «Ninguno» como <option> y pasa a la lista de opciones (SIN migrar a .resx). Antes: 454 → 446 el 2026-10-04: la aceptación en bloque de RevisionIaTab sustituye el lote del 95 %, y sus textos nuevos van a TextosDocumentos.resx. 455 → 454 el 2026-10-02: «Enviadas» y «+ Nueva reclamación» pasan de marcado a la lista de pestañas de ReclamacionesTab (D-30; sigue sin localizar, solo cambia de lugar). 459 → 458 el 2026-09-26: borrado en lote de Documentos.razor a TextosDocumentos.resx (FS-09). 458 → 455 el 2026-09-29: lote 3, chips, «Más» y textos del 4a a TextosDocumentos.resx.
-        ["Empresas"] = 193, // 194 → 193 el 2026-10-05 (columnas de la maqueta): la cabecera «Razón social» + «CIF» pasa a una sola columna «Empresa» de TextosEmpresas.resx. Antes: 198 → 194 el 2026-10-05 (rediseño de listados, fase 1): exportar, buscador y pastilla de /empresas pasan a TextosEmpresas.resx.
+        ["Empresas"] = 189, // 193 → 189 el 2026-10-09 (sin «Presta servicio a»): el rótulo con recuento de la fila desplegada (dos formas) desaparece, y su vacío y su error pasan a reutilizar VacioClientesDescripcion y ErrorClientes de TextosEmpresas.resx. Antes: 194 → 193 el 2026-10-05 (columnas de la maqueta): la cabecera «Razón social» + «CIF» pasa a una sola columna «Empresa» de TextosEmpresas.resx. Antes: 198 → 194 el 2026-10-05 (rediseño de listados, fase 1): exportar, buscador y pastilla de /empresas pasan a TextosEmpresas.resx.
         ["Extension"] = 29,
         ["Facturacion"] = 96,
         ["GestionRoles"] = 50,

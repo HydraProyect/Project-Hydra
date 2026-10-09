@@ -1371,6 +1371,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("UsuarioId")
                         .HasColumnType("uuid");
 
@@ -1380,7 +1383,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UsuarioId", "Pantalla");
+                    b.HasIndex("TenantId", "UsuarioId", "Pantalla", "Nombre")
+                        .IsUnique();
 
                     b.ToTable("FiltrosGuardados", (string)null);
                 });

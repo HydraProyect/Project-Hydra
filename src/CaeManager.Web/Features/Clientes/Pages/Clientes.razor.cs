@@ -188,6 +188,14 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     [SupplyParameterFromQuery(Name = "critico")]
     public bool? SoloCriticosInicial { get; set; }
 
+    /// <summary>Gestor CAE por el que se filtra la lista (Id de usuario). Viaja en la URL como el resto de filtros.</summary>
+    [SupplyParameterFromQuery(Name = "gestor")]
+    public string? GestorCaeInicial { get; set; }
+
+    /// <summary>Estado documental por el que se filtra, con el mismo nombre de parámetro que en Trabajadores y Empresas.</summary>
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoDocumentalInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     /// <summary>
@@ -344,10 +352,22 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var soloCriticosDeLaUrl = SoloCriticosInicial ?? false;
-        var cambio = deLaUrl != _busqueda || soloCriticosDeLaUrl != _soloCriticos;
+        // Lo que no sea un estado conocido, o un Gestor CAE que el directorio visible de este
+        // usuario no ofrece, es «sin filtro»: un Id en la URL no es autoridad, y la pantalla
+        // no filtra por alguien a quien no puede nombrar (misma regla que el filtro guardado).
+        var gestorDeLaUrl = Guid.TryParse(GestorCaeInicial, out var gestorId) && _ejecutivosParaFiltro.Any(g => g.Id == gestorId)
+            ? gestorId.ToString()
+            : string.Empty;
+        var estadoDeLaUrl = Enum.TryParse<EstadoDocumento>(EstadoDocumentalInicial, out var estadoUrl) && Enum.IsDefined(estadoUrl)
+            ? estadoUrl.ToString()
+            : string.Empty;
+        var cambio = deLaUrl != _busqueda || soloCriticosDeLaUrl != _soloCriticos
+            || gestorDeLaUrl != _ejecutivoFiltro || estadoDeLaUrl != _estadoDocumentalFiltro;
 
         _busqueda = deLaUrl;
         _soloCriticos = soloCriticosDeLaUrl;
+        _ejecutivoFiltro = gestorDeLaUrl;
+        _estadoDocumentalFiltro = estadoDeLaUrl;
 
         // Las dos acciones por URL se atienden aquí y no en OnInitializedAsync:
         // ese solo corre al montar, y tanto el atajo global «n» como el
@@ -450,16 +470,18 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         await RecargarAsync();
     }
 
-    /// <summary>Filtros "Ejecutivo" y "Estado documental" del mockup "Lista Clientes TALVEG" — mismo patrón que SoloCriticos: estado local + recarga, sin URL propia porque no forman parte de ningún enlace compartido todavía.</summary>
+    /// <summary>Filtros «Gestor CAE» y «Estado documental» del mockup "Lista Clientes TALVEG" — mismo patrón que SoloCriticos: estado local, URL (<c>?gestor=</c>, <c>?estado=</c>) y recarga.</summary>
     private async Task CambiarEjecutivoFiltroAsync(string valor)
     {
         _ejecutivoFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("gestor", valor);
         await RecargarAsync();
     }
 
     private async Task CambiarEstadoDocumentalFiltroAsync(string valor)
     {
         _estadoDocumentalFiltro = valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await RecargarAsync();
     }
 
@@ -575,7 +597,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// «Limpiar todo» de la tarjeta de filtros.
     ///
     /// <para>
-    /// <b>Los dos filtros que viajan por la URL se limpian TAMBIÉN allí.</b>
+    /// <b>Los cuatro filtros que viajan por la URL (<c>q</c>, <c>critico</c>, <c>gestor</c>, <c>estado</c>) se limpian TAMBIÉN allí.</b>
     /// Hasta ahora solo se borraba <c>q</c>: <c>critico</c> se quedaba puesto y
     /// <see cref="OnParametersSetAsync"/>, que re-sincroniza desde la URL, lo
     /// devolvía a true en la siguiente pasada de parámetros. El resultado era
@@ -602,6 +624,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         {
             ["q"] = null,
             ["critico"] = null,
+            ["gestor"] = null,
+            ["estado"] = null,
         });
         await RecargarAsync();
     }
@@ -1185,14 +1209,16 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
                 ? valores.GestorCaeId.Valor!
                 : string.Empty;
         if (valores.EstadoDocumental.Declarado)
-            _estadoDocumentalFiltro = Enum.TryParse<EstadoDocumento>(valores.EstadoDocumental.Valor, out _)
-                ? valores.EstadoDocumental.Valor!
+            _estadoDocumentalFiltro = Enum.TryParse<EstadoDocumento>(valores.EstadoDocumental.Valor, out var estadoGuardado) && Enum.IsDefined(estadoGuardado)
+                ? estadoGuardado.ToString()
                 : string.Empty;
 
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
             ["critico"] = _soloCriticos ? "true" : null,
+            ["gestor"] = _ejecutivoFiltro,
+            ["estado"] = _estadoDocumentalFiltro,
         });
         await RecargarAsync();
     }

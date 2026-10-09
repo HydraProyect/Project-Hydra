@@ -1,0 +1,84 @@
+/*
+    Tipo de documento 360 — lo propio de esta página. La maquetación compartida
+    de las páginas 360 (cabecera de identidad, banda, contadores, fila con
+    pastilla en columna fija, cuerpo con lateral) vive en Components/DesignSystem;
+    aquí solo lo que no tiene primitiva.
+*/
+
+/* Segunda línea de la meta: la frase que hace evidente la regla de recuento. */
+.tipo360-regla {
+    flex-basis: 100%;
+}
+
+/* Una parte de la banda: «2 vencidos:» y sus nombres, que no se parten entre líneas. */
+.tipo360-banda-parte {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-1);
+}
+
+/* Las dos líneas secundarias de la fila: identificador y empresa; vigencia y Centro. */
+.tipo360-linea {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 var(--space-1);
+}
+
+.tipo360-nota {
+    margin: var(--space-2) 0 0;
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+/*
+    Estado por Centro (desplegable de la fila): identidad | pastilla | acción.
+    La columna de la pastilla mide lo mismo que la de la fila (FilaRelacion), para
+    que las pastillas del desplegable caigan en vertical bajo la de su fila.
+*/
+.tipo360-subfila {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 152px 160px;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-top: 1px solid var(--color-fila-divisor);
+}
+
+.tipo360-subfila:first-child {
+    border-top: 0;
+}
+
+.tipo360-subfila-identidad {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.tipo360-subfila-identidad small {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.tipo360-subfila-accion {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* El identificador es su propio botón de copia: se lee como dato de la línea, no como un botón aparte. */
+.tipo360-linea ::deep .boton-copiar {
+    height: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 600;
+    color: inherit;
+    cursor: copy;
+}
+
+.tipo360-linea ::deep .boton-copiar:hover:not(:disabled) {
+    background: none;
+    color: var(--color-primary-500);
+}

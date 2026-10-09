@@ -100,6 +100,49 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         params VehiculoListaDto[] vehiculos) =>
         RenderizarConMediador(busqueda, estado, vehiculos).Cut;
 
+    /// <summary>Parámetros de consulta adicionales (<c>empresa=…</c>), ya codificados. Se fija antes de renderizar.</summary>
+    private string? _consultaExtra;
+
+    // ------------------------------------- El empleador viaja en la URL (T20)
+
+    [Fact]
+    public void Un_enlace_con_la_Empresa_la_lleva_a_la_consulta()
+    {
+        _consultaExtra = $"empresa={EmpresaId}";
+
+        var (_, mediador) = RenderizarConMediador();
+
+        var consulta = mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last();
+        consulta.EmpresaId.Should().Be(EmpresaId);
+        consulta.SubcontrataId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Con_Empresa_y_subcontrata_en_la_url_gana_la_subcontrata_y_un_valor_que_no_es_Id_no_filtra()
+    {
+        _consultaExtra = $"empresa=no-es-un-id&subcontrata={SubcontrataId}";
+
+        var (_, mediador) = RenderizarConMediador();
+
+        var consulta = mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last();
+        consulta.SubcontrataId.Should().Be(SubcontrataId);
+        consulta.EmpresaId.Should().BeNull();
+    }
+
+    [Fact]
+    public void Quitar_los_filtros_borra_tambien_el_empleador_de_la_url()
+    {
+        _consultaExtra = $"empresa={EmpresaId}";
+        var (cut, mediador) = RenderizarConMediador();
+        cut.Markup.Should().Contain("Quitar los filtros", "con la Empresa en la URL el vacío es «con estos filtros»");
+
+        cut.Find(".estado-vacio button").Click();
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("empresa=",
+            "OnParametersSet la repondría desde la URL en la siguiente pasada de parámetros");
+        mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last().EmpresaId.Should().BeNull();
+    }
+
     private (IRenderedComponent<Vehiculos> Cut, MediatorPorTipo Mediador) RenderizarConMediador(
         string? busqueda = null, string? estado = null, params VehiculoListaDto[] vehiculos)
     {
@@ -116,6 +159,7 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         var partes = new List<string>();
         if (!string.IsNullOrWhiteSpace(busqueda)) partes.Add("q=" + Uri.EscapeDataString(busqueda));
         if (!string.IsNullOrWhiteSpace(estado)) partes.Add("estado=" + Uri.EscapeDataString(estado));
+        if (_consultaExtra is not null) partes.Add(_consultaExtra);
         Services.GetRequiredService<NavigationManager>()
             .NavigateTo(partes.Count == 0 ? "vehiculos" : "vehiculos?" + string.Join('&', partes));
 

@@ -1,5 +1,4 @@
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
-using CaeManager.Application.Empresas.Queries.ObtenerResumenClientesDeEmpresas;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
@@ -14,12 +13,14 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Empresas;
 
 /// <summary>
-/// Columna «Presta servicio a» de /empresas: <see cref="ObtenerResumenClientesDeEmpresasQuery"/> contra
-/// Postgres. Comparte predicado y alcance con <see cref="ObtenerClientesDeEmpresaQuery"/> (el desplegable de
-/// la fila): aquí se comprueba que los dos cuentan lo mismo, que solo cuentan Relaciones Empresariales
-/// vigentes con un Cliente empresarial real, y que el alcance es el de GESTIÓN (REC-153).
+/// Fila desplegada de /empresas y pestaña «Clientes empresariales» de Empresa 360:
+/// <see cref="ObtenerClientesDeEmpresaQuery"/> contra Postgres. Se comprueba que solo devuelve los Clientes
+/// empresariales de Relaciones Empresariales vigentes (ni cerradas, ni con el Cliente dado de baja, ni con una
+/// Empresa propia como contraparte), y que el alcance es el de GESTIÓN (REC-153): fuera de él no revela
+/// ninguno (#810). Hasta 2026-10-08 esta siembra probaba el resumen de la columna «Presta servicio a»,
+/// retirada; las propiedades del predicado y del alcance se conservan aquí sobre la consulta que queda.
 /// </summary>
-public class ResumenClientesDeEmpresasTests : IAsyncLifetime
+public class ClientesDeEmpresaBajoAlcanceDeGestionTests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
@@ -73,33 +74,17 @@ public class ResumenClientesDeEmpresasTests : IAsyncLifetime
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
     [Fact]
-    public async Task Cuenta_las_relaciones_vigentes_con_Clientes_empresariales_y_da_el_primero_por_razon_social()
-    {
-        var resumen = await ResumirAsync(new AlcanceDatosServiceFalso(), _norteId, _surId, _esteId, _subcontrataId);
-
-        // «Aries», dado de baja, iría primero por razón social: si contara, el resumen sería (3, «Aries…»).
-        resumen.Should().ContainKey(_norteId).WhoseValue.Should().Be(new ResumenClientesDeEmpresaDto(2, "Orion Cliente S.L."));
-        resumen.Keys.Should().Equal([_norteId],
-            "Sur solo tiene una relación cerrada, Este ninguna, y la Subcontrata presta servicio a una Empresa propia, no a un Cliente empresarial");
-    }
-
-    /// <summary>Paridad con el desplegable de la fila: mismo total y mismo primero, Empresa a Empresa.</summary>
-    [Fact]
-    public async Task Cuenta_lo_mismo_que_el_desplegable_de_cada_fila()
+    public async Task Devuelve_solo_los_Clientes_empresariales_de_relaciones_vigentes_por_razon_social()
     {
         var alcance = new AlcanceDatosServiceFalso();
-        Guid[] empresas = [_norteId, _surId, _esteId, _subcontrataId];
 
-        var resumen = await ResumirAsync(alcance, empresas);
-
-        foreach (var empresa in empresas)
-        {
-            var desplegable = await ClientesDeEmpresaAsync(alcance, empresa);
-            if (desplegable.Count == 0)
-                resumen.Should().NotContainKey(empresa);
-            else
-                resumen[empresa].Should().Be(new ResumenClientesDeEmpresaDto(desplegable.Count, desplegable[0].RazonSocial));
-        }
+        // «Aries», dado de baja, iría primero por razón social: si contara, la lista empezaría por él.
+        (await ClientesDeEmpresaAsync(alcance, _norteId)).Select(c => c.RazonSocial)
+            .Should().Equal("Orion Cliente S.L.", "Pegaso Cliente S.L.");
+        (await ClientesDeEmpresaAsync(alcance, _surId)).Should().BeEmpty("Sur solo tuvo una relación, ya cerrada");
+        (await ClientesDeEmpresaAsync(alcance, _esteId)).Should().BeEmpty("Este no tiene ninguna relación");
+        (await ClientesDeEmpresaAsync(alcance, _subcontrataId)).Should().BeEmpty(
+            "la Subcontrata presta servicio a una Empresa propia, no a un Cliente empresarial");
     }
 
     /// <summary>Un usuario de portal (rol Cliente): alcance de gestión vacío, aunque vea las Empresas. No ve nada.</summary>
@@ -108,28 +93,23 @@ public class ResumenClientesDeEmpresasTests : IAsyncLifetime
     {
         var portal = new AlcanceDatosServiceFalso(empresaIds: [_norteId, _surId], empresaIdsParaGestion: []);
 
-        var resumen = await ResumirAsync(portal, _norteId, _surId);
-
-        resumen.Should().BeEmpty();
+        (await ClientesDeEmpresaAsync(portal, _norteId)).Should().BeEmpty();
+        (await ClientesDeEmpresaAsync(portal, _surId)).Should().BeEmpty();
     }
 
-    /// <summary>Con alcance de gestión parcial, una Empresa pedida fuera de él no aparece aunque tenga Clientes empresariales.</summary>
+    /// <summary>
+    /// No revelación (#810): con alcance de gestión parcial, una Empresa fuera de él devuelve lo mismo que una
+    /// Empresa sin Relaciones Empresariales vigentes — vacío — aunque tenga Clientes empresariales.
+    /// </summary>
     [Fact]
-    public async Task Una_Empresa_fuera_del_alcance_de_gestion_no_aparece_aunque_se_pida()
+    public async Task Una_Empresa_fuera_del_alcance_de_gestion_no_revela_sus_Clientes_empresariales()
     {
         var parcial = new AlcanceDatosServiceFalso(empresaIds: [_norteId, _surId], empresaIdsParaGestion: [_surId]);
 
-        var resumen = await ResumirAsync(parcial, _norteId, _surId);
-
-        resumen.Should().BeEmpty("Norte tiene dos Clientes empresariales pero está fuera del alcance de gestión, y Sur no tiene ninguno vigente");
-        (await ResumirAsync(new AlcanceDatosServiceFalso(), _norteId)).Should().ContainKey(_norteId, "control: sin restricción Norte sí aparece");
-    }
-
-    private async Task<IReadOnlyDictionary<Guid, ResumenClientesDeEmpresaDto>> ResumirAsync(AlcanceDatosServiceFalso alcance, params Guid[] empresas)
-    {
-        await using var contexto = CrearContexto();
-        var handler = new ObtenerResumenClientesDeEmpresasQueryHandler(contexto, alcance);
-        return await handler.Handle(new ObtenerResumenClientesDeEmpresasQuery(empresas), CancellationToken.None);
+        (await ClientesDeEmpresaAsync(parcial, _norteId)).Should().BeEmpty(
+            "Norte tiene dos Clientes empresariales pero está fuera del alcance de gestión");
+        (await ClientesDeEmpresaAsync(parcial, _surId)).Should().BeEmpty("Sur está dentro, pero no tiene ninguno vigente");
+        (await ClientesDeEmpresaAsync(new AlcanceDatosServiceFalso(), _norteId)).Should().HaveCount(2, "control: sin restricción Norte sí los devuelve");
     }
 
     private async Task<IReadOnlyList<ClienteDeEmpresaDto>> ClientesDeEmpresaAsync(AlcanceDatosServiceFalso alcance, Guid empresa)

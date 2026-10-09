@@ -1622,18 +1622,12 @@ public static class DatosPruebaSeeder
         var gestorConPreferencias = gestoresPrueba.FirstOrDefault();
         if (gestorConPreferencias is not null)
         {
-            // La clave lleva el Tenant (PantallasConFiltrosGuardados.ClaveAlmacenada,
-            // la misma función que usan la lectura y la escritura): sembrados con
-            // el nombre de la pantalla a secas no los leería nadie. El Tenant es
-            // el del propio usuario de prueba, que es el que se está sembrando.
-            if (PantallasConFiltrosGuardados.ClaveAlmacenada(PantallasConFiltrosGuardados.Clientes, gestorConPreferencias.TenantId) is { } claveClientes)
-                dbContext.FiltrosGuardados.Add(new FiltroGuardado(
-                    gestorConPreferencias.Id, claveClientes, "Solo críticos",
-                    """{"soloCriticos":true}"""));
-            if (PantallasConFiltrosGuardados.ClaveAlmacenada(PantallasConFiltrosGuardados.Documentos, gestorConPreferencias.TenantId) is { } claveDocumentos)
-                dbContext.FiltrosGuardados.Add(new FiltroGuardado(
-                    gestorConPreferencias.Id, claveDocumentos, "Vencidos",
-                    """{"estado":"Vencido"}"""));
+            dbContext.FiltrosGuardados.Add(new FiltroGuardado(
+                gestorConPreferencias.Id, PantallasConFiltrosGuardados.Clientes, "Solo críticos",
+                """{"soloCriticos":true}"""));
+            dbContext.FiltrosGuardados.Add(new FiltroGuardado(
+                gestorConPreferencias.Id, PantallasConFiltrosGuardados.Documentos, "Vencidos",
+                """{"estado":"Vencido"}"""));
             dbContext.PreferenciasDashboardUsuario.Add(new PreferenciaDashboardUsuario(
                 gestorConPreferencias.Id,
                 [CatalogoKpis.TrabajadoresActivos, CatalogoKpis.SemaforoDocumental, CatalogoKpis.IncidenciasAbiertas]));
