@@ -41,7 +41,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // no tiene datos operativos propios, así que la lista arranca vacía
         // y "+ Nuevo Cliente empresarial" aparece tanto en la cabecera como en el
         // EstadoVacio — cualquiera de los dos abre el mismo drawer.
-        await page.GetByText("+ Nuevo Cliente empresarial").First.ClickAsync();
+        await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_999_901));
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();

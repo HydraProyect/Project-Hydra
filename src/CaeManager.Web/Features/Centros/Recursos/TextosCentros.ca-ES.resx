@@ -13,8 +13,8 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="CabeceraCliente" xml:space="preserve">
-    <value>Client empresarial:</value>
-    <comment>Rètol en pantalla del Client empresarial del Centre (CONTRATO_TERMINOLOGIA § 3.2; Gen2 § 14 esmenat el 2026-10-02).</comment>
+    <value>Client:</value>
+    <comment>Rètol en pantalla del Client empresarial del Centre (CONTRATO_TERMINOLOGIA § 3.2; decisió de rètol del 2026-10-09).</comment>
   </data>
   <data name="CabeceraEmpresa" xml:space="preserve">
     <value>Empresa:</value>
@@ -163,7 +163,7 @@
     <value>Tolerància després de vèncer: {0} dies, fixada en aquest Centre</value>
   </data>
   <data name="RequisitoToleranciaHeredada" xml:space="preserve">
-    <value>Tolerància després de vèncer: {0} dies, la del Client empresarial</value>
+    <value>Tolerància després de vèncer: {0} dies, la del Client</value>
   </data>
   <data name="PeriodicidadSinPropia" xml:space="preserve">
     <value>Sense període propi: val el venciment del document</value>
@@ -175,7 +175,7 @@
     <value>Tolerància després del venciment (dies)</value>
   </data>
   <data name="ToleranciaOpcionHeredada" xml:space="preserve">
-    <value>Heretada del Client empresarial ({0} dies)</value>
+    <value>Heretada del Client ({0} dies)</value>
   </data>
   <data name="ToleranciaOpcionDias" xml:space="preserve">
     <value>{0} dies</value>
@@ -187,7 +187,7 @@
     <value>Dies de tolerància (nombre enter)</value>
   </data>
   <data name="ToleranciaErrorPersonalizada" xml:space="preserve">
-    <value>Indica un nombre enter de dies de tolerància, o tria la heretada del Client empresarial.</value>
+    <value>Indica un nombre enter de dies de tolerància, o tria la heretada del Client.</value>
   </data>
   <data name="BloqueadosTrabajadoresUno" xml:space="preserve">
     <value>1 treballador bloquejat</value>
@@ -241,10 +241,10 @@
     <value>Exporta a Excel</value>
   </data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve">
-    <value>Filtra aquesta pantalla: centre, codi, Client empresarial o empresa</value>
+    <value>Filtra aquesta pantalla: centre, codi, Client o empresa</value>
   </data>
   <data name="FiltroClienteEmpresarial" xml:space="preserve">
-    <value>Client empresarial</value>
+    <value>Client</value>
   </data>
   <data name="FiltroEstado" xml:space="preserve">
     <value>Estat</value>
@@ -259,13 +259,13 @@
     <value>Totes</value>
   </data>
   <data name="ChipClienteEmpresarial" xml:space="preserve">
-    <value>Client empresarial: {0}</value>
+    <value>Client: {0}</value>
   </data>
   <data name="ChipEmpresa" xml:space="preserve">
     <value>Empresa: {0}</value>
   </data>
   <data name="QuitarFiltroClienteEmpresarial" xml:space="preserve">
-    <value>Treu el filtre de Client empresarial</value>
+    <value>Treu el filtre de Client</value>
   </data>
   <data name="QuitarFiltroEmpresa" xml:space="preserve">
     <value>Treu el filtre d'empresa</value>
@@ -277,7 +277,7 @@
     <value>Sense agrupar</value>
   </data>
   <data name="AgruparPorCliente" xml:space="preserve">
-    <value>Per Client empresarial</value>
+    <value>Per Client</value>
   </data>
   <data name="OrdenCumplimiento" xml:space="preserve">
     <value>Compliment</value>

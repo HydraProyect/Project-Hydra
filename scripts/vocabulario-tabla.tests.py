@@ -178,7 +178,8 @@ class PruebasDeLaTabla(unittest.TestCase):
         for e in datos["excepciones"]:
             self.assertIn(f"`{e['id']}`", t)
         self.assertGreaterEqual(len(datos["prohibidos"]), 10)
-        self.assertGreaterEqual(len(datos["excepciones"]), 5)
+        # 8 → 4 el 2026-10-09: las cuatro excepciones de «Cliente» a secas se retiran con su término (decisión de rótulo).
+        self.assertGreaterEqual(len(datos["excepciones"]), 4)
 
 
 if __name__ == "__main__":

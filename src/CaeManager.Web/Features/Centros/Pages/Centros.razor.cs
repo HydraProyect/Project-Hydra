@@ -41,7 +41,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Centros por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
     private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
 
-    /// <summary>Pastilla «Cliente empresarial»: Id del Cliente empresarial o vacío. Viaja en la URL como <c>cliente</c>.</summary>
+    /// <summary>Pastilla «Cliente»: Id del Cliente empresarial o vacío. Viaja en la URL como <c>cliente</c>.</summary>
     private string _clienteFiltro = string.Empty;
 
     /// <summary>«Empresa» de «Más filtros»: Id de la Empresa o vacío. Viaja en la URL como <c>empresa</c>.</summary>
@@ -336,7 +336,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _instantanea.Fijar(alAbrir);
         }
 
-        // Las opciones de las pastillas «Cliente empresarial» y «Empresa», al final: la lista y el
+        // Las opciones de las pastillas «Cliente» y «Empresa», al final: la lista y el
         // alta encadenada no esperan por ellas.
         await CargarOpcionesDeFiltroAsync();
     }
@@ -390,7 +390,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private static Guid? IdDeFiltro(string valor) => Guid.TryParse(valor, out var id) ? id : null;
 
     /// <summary>
-    /// Opciones de las pastillas «Cliente empresarial» y «Empresa», las dos por el alcance de
+    /// Opciones de las pastillas «Cliente» y «Empresa», las dos por el alcance de
     /// <b>visibilidad</b>, el mismo que la lista: los Clientes empresariales visibles y las Empresas de
     /// los Centros visibles. No el selector de Empresas del alta, que acota por alcance de gestión y para
     /// un usuario de portal (rol Cliente) va vacío aunque vea Centros con su Empresa. Cada una con su
@@ -877,7 +877,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _empresaId = string.Empty;
     }
 
-    private const string AvisoSeleccionaCliente = "Selecciona un Cliente empresarial.";
+    private const string AvisoSeleccionaCliente = "Selecciona un Cliente.";
     private const string AvisoSeleccionaEmpresa = "Selecciona una empresa.";
 
     private void AlElegirEmpresa(string valor)
@@ -887,7 +887,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     }
 
     /// <summary>
-    /// El aviso «Selecciona un Cliente empresarial.» (o «Selecciona una empresa.») es de un intento anterior de guardar: al rellenar el
+    /// El aviso «Selecciona un Cliente.» (o «Selecciona una empresa.») es de un intento anterior de guardar: al rellenar el
     /// campo deja de ser verdad (misma regla que Trabajadores, #1020). Un error de servidor sigue en pantalla.
     /// </summary>
     private void LimpiarAvisoDeSeleccionFaltante()
@@ -922,7 +922,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         _clientesDisponibles = [.. _clientesDisponibles, new ClienteSelectorDto(creado.Id, creado.RazonSocial)];
         await CambiarClienteCreacionAsync(creado.Id.ToString());
-        ToastService.Mostrar("Cliente empresarial creado correctamente.", TonoToast.Exito);
+        ToastService.Mostrar("Cliente creado correctamente.", TonoToast.Exito);
     }
 
     private void AbrirCrearEmpresaInline(string texto)

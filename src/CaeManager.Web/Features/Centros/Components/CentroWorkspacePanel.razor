@@ -114,7 +114,7 @@ else
     @if (_ultimaReclamacion is { } reclamacion)
     {
         <p class="workspace-nota-contextual">
-            Última reclamación a este Cliente empresarial: @reclamacion.FechaEnvioUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
+            Última reclamación a este Cliente: @reclamacion.FechaEnvioUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
             (@reclamacion.TotalDocumentos documento@(reclamacion.TotalDocumentos == 1 ? "" : "s")).
             @* Al cliente, no al hilo: el deep-link a una conversación concreta
                no existe todavía (Project-Hydra-Negocio/tecnico/05_WORKSPACE_PATTERNS.md § 3.6).
@@ -139,7 +139,7 @@ else
                         <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
                     }
                     <div class="workspace-grupo-campos">
-                        <CampoInfo Etiqueta="Cliente empresarial" Valor="@_detalle.ClienteRazonSocial" />
+                        <CampoInfo Etiqueta="Cliente" Valor="@_detalle.ClienteRazonSocial" />
                         <CampoInfo Etiqueta="Empresa" Valor="@_detalle.EmpresaRazonSocial" />
                         <CampoTexto Etiqueta="Nombre" Valor="@_nombreInfo" ValorChanged="v => _nombreInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarCentroCommand.Nombre))" />
                         <CampoTexto Etiqueta="Código de centro" Valor="@_codigoCentroInfo" ValorChanged="v => _codigoCentroInfo = v" />
@@ -155,7 +155,7 @@ else
                 else
                 {
                     <div class="workspace-grupo-campos">
-                        <CampoInfo Etiqueta="Cliente empresarial" Valor="@_detalle.ClienteRazonSocial" />
+                        <CampoInfo Etiqueta="Cliente" Valor="@_detalle.ClienteRazonSocial" />
                         <CampoInfo Etiqueta="Empresa" Valor="@_detalle.EmpresaRazonSocial" />
                         <CampoInfo Etiqueta="Código de centro" Valor="@_detalle.CodigoCentro" />
                         <CampoInfo Etiqueta="Dirección" Valor="@_detalle.Direccion" />
@@ -692,7 +692,7 @@ else
                 @if (_loteReclamacionCentro.Destinatarios is not { Count: > 0 })
                 {
                     <div class="alerta-formulario" role="alert">
-                        No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la pestaña Agenda de este centro o de su Cliente empresarial.
+                        No hay ningún contacto en la agenda al que reclamar esta documentación — añade uno en la pestaña Agenda de este centro o de su Cliente.
                     </div>
                 }
                 else

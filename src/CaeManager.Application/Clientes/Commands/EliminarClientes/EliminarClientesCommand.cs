@@ -47,7 +47,7 @@ public class EliminarClientesCommandHandler(
             var empresa = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
             if (empresa is null || !await alcanceDatos.ClienteVisibleAsync(empresa.Id, cancellationToken))
             {
-                errores.Add("Un Cliente empresarial ya no existía.");
+                errores.Add("Un Cliente ya no existía.");
                 continue;
             }
 

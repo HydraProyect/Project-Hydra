@@ -727,7 +727,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        Celda(cut, "Clientes empresariales para los que trabaja").Should().Be("Refrielectric S.A. y 1 más",
+        Celda(cut, "Clientes para los que trabaja").Should().Be("Refrielectric S.A. y 1 más",
             "un Id cuyo nombre no llega se cuenta, no se omite ni se inventa");
         Celda(cut, "Empresas a las que presta servicio").Should().Be("Montajes Ebro S.L.");
         Celda(cut, "Identificación fiscal").Should().Be("A-48.007.615");

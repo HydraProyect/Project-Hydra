@@ -109,8 +109,8 @@ public class EmpleadoresDeTrabajadoresVisiblesTests : IAsyncLifetime
         var usuarioId = Guid.NewGuid();
         await using (var contexto = CrearContexto())
         {
-            var clienteVisible = Empresa.CrearComoCliente("Cliente empresarial visible", "B10380244", false, null, null);
-            var clienteAjeno = Empresa.CrearComoCliente("Cliente empresarial ajeno", "B10380251", false, null, null);
+            var clienteVisible = Empresa.CrearComoCliente("Cliente visible", "B10380244", false, null, null);
+            var clienteAjeno = Empresa.CrearComoCliente("Cliente ajeno", "B10380251", false, null, null);
             var empleadorAjeno = Empresa.CrearComoSubcontrata("Empresa empleadora ajena", null, NivelServicioSubcontrata.Gestionada.ToString());
             contexto.Empresas.AddRange(clienteVisible, clienteAjeno, empleadorAjeno);
             var centroVisible = new Centro(clienteVisible.Id, _empresaNorteId, "Centro visible");

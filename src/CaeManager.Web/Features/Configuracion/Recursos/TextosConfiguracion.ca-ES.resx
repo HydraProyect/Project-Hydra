@@ -85,7 +85,7 @@
     <value>Catálogo y vigencias</value>
   </data>
   <data name="EntradaIaNombre" xml:space="preserve">
-    <value>Lectura IA por Cliente empresarial</value>
+    <value>Lectura IA por Cliente</value>
   </data>
   <data name="EntradaIaResumen" xml:space="preserve">
     <value>Restricción por tipo de documento</value>
@@ -136,7 +136,7 @@
     <value>Reintentar</value>
   </data>
   <data name="LecturaIaTituloPagina" xml:space="preserve">
-    <value>Lectura IA por Cliente empresarial</value>
+    <value>Lectura IA por Cliente</value>
   </data>
   <data name="LecturaIaVolver" xml:space="preserve">
     <value>← Configuración</value>
@@ -148,28 +148,28 @@
     <value>Tipos de documento</value>
   </data>
   <data name="LecturaIaDescripcionDespuesEnlace" xml:space="preserve">
-    <value>. Aquí eliges un Cliente empresarial para restringirla solo para él: puedes desactivar un tipo que está activo para todos, nunca activar uno que está desactivado.</value>
+    <value>. Aquí eliges un Cliente para restringirla solo para él: puedes desactivar un tipo que está activo para todos, nunca activar uno que está desactivado.</value>
   </data>
   <data name="LecturaIaNotaAlcance" xml:space="preserve">
-    <value>Hoy esa restricción solo la aplica la detección de trabajadores en los documentos de empresa, y la omite para una empresa únicamente cuando todos los Clientes empresariales a los que presta servicio tienen ese tipo desactivado.</value>
+    <value>Hoy esa restricción solo la aplica la detección de trabajadores en los documentos de empresa, y la omite para una empresa únicamente cuando todos los Clientes a los que presta servicio tienen ese tipo desactivado.</value>
   </data>
   <data name="LecturaIaErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar los Clientes empresariales</value>
+    <value>No pudimos cargar los Clientes</value>
   </data>
   <data name="LecturaIaVacioTitulo" xml:space="preserve">
-    <value>Todavía no hay ningún Cliente empresarial</value>
+    <value>Todavía no hay ningún Cliente</value>
   </data>
   <data name="LecturaIaVacioDescripcion" xml:space="preserve">
-    <value>Da de alta un Cliente empresarial para poder restringir su lectura IA.</value>
+    <value>Da de alta un Cliente para poder restringir su lectura IA.</value>
   </data>
   <data name="LecturaIaBuscarEtiqueta" xml:space="preserve">
-    <value>Buscar Cliente empresarial</value>
+    <value>Buscar Cliente</value>
   </data>
   <data name="LecturaIaBuscarPlaceholder" xml:space="preserve">
     <value>Razón social…</value>
   </data>
   <data name="LecturaIaSinCoincidencias" xml:space="preserve">
-    <value>Ningún Cliente empresarial coincide con «{0}».</value>
+    <value>Ningún Cliente coincide con «{0}».</value>
   </data>
   <data name="AutomatizacionesErrorCargaTitulo" xml:space="preserve">
     <value>No pudimos cargar las automatizaciones</value>

@@ -8,7 +8,9 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Por qué existe.</b> El contrato de terminología era prosa y el código no lo comprobaba: sacar
-/// «Cliente» a secas de la interfaz costó tres PR y 239 toques de fichero (D-07 y D-27). La fuente
+/// «Cliente» a secas de la interfaz costó tres PR y 239 toques de fichero (D-07 y D-27), y la decisión
+/// de rótulo del 2026-10-09 lo devolvió a la pantalla como forma corta del Cliente empresarial: lo que hoy se caza
+/// es el rótulo largo («Cliente empresarial»), que queda para documentación, análisis y código. La fuente
 /// única es <c>Vocabulario/Vocabulario.json</c> (términos canónicos, términos prohibidos con su
 /// sustitución y excepciones por contexto con su motivo); este test la aplica a los valores de todos los
 /// <c>.resx</c> (neutral y satélites es/ca) y al texto visible de los <c>.razor</c>, y
@@ -151,18 +153,20 @@ public class VocabularioDePantallaTests
     // ───────────────────────── mutaciones, con fuentes sintéticas ─────────────────────────
 
     [Fact]
-    public void Un_resx_con_Cliente_a_secas_da_rojo_con_fichero_clave_y_termino()
+    public void Un_resx_con_Cliente_empresarial_da_rojo_con_fichero_clave_y_termino()
     {
+        // Decisión de rótulo del 2026-10-09: la pantalla dice «Cliente»; el rótulo largo es lo que se caza.
         const string ruta = "src/CaeManager.Web/Features/Falsa/Recursos/TextosFalsa.resx";
-        var textos = VocabularioDePantalla.TextosDeResx(ruta, Resx_(("EtiquetaCliente", "Cliente"), ("EtiquetaBuena", "Cliente empresarial")));
+        var textos = VocabularioDePantalla.TextosDeResx(ruta, Resx_(
+            ("EtiquetaCliente", "Cliente empresarial"), ("EtiquetaBuena", "Cliente"), ("EtiquetaRol", "Usuario de Cliente empresarial")));
 
         var deuda = VocabularioDePantalla.DeudaMedida(VocabularioDePantalla.Escanear(Vocabulario.Value, textos));
 
-        deuda.Should().ContainSingle().Which.Key.Should().Be(new Ubicacion(ruta, "EtiquetaCliente [cliente-a-secas]"));
+        deuda.Should().ContainSingle().Which.Key.Should().Be(new Ubicacion(ruta, "EtiquetaCliente [cliente-empresarial-en-pantalla]"));
 
         // Y el veredicto de verdad: contra la lista congelada real, la línea nueva es un desvío con ese texto.
         var desvios = ListaCongelada.Desvios(deuda, new Dictionary<Ubicacion, int>());
-        desvios.Should().ContainSingle().Which.Should().Contain("TextosFalsa.resx").And.Contain("EtiquetaCliente").And.Contain("cliente-a-secas");
+        desvios.Should().ContainSingle().Which.Should().Contain("TextosFalsa.resx").And.Contain("EtiquetaCliente").And.Contain("cliente-empresarial-en-pantalla");
     }
 
     [Fact]
@@ -187,38 +191,43 @@ public class VocabularioDePantallaTests
         // Una excepción real acotada por clave, con un fichero y una clave concretos tomados de su propia definición
         // (el comodín «TextosImportacion*.resx» casa con la ausencia de «*»): el test no depende de qué frase
         // concreta contenga hoy el recurso.
-        var excepcion = Vocabulario.Value.Excepciones.First(e => e.Prohibidos.Contains("cliente-a-secas") && e.Claves is { Count: > 0 });
+        var excepcion = Vocabulario.Value.Excepciones.First(e => e.Claves is { Count: > 0 });
+        var termino = excepcion.Prohibidos[0];
+        var frase = Vocabulario.Value.Prohibidos.Single(p => p.Id == termino).Casa![0];
         var ficheroLiteral = excepcion.Ficheros[0].Replace("*", string.Empty);
         var clave = excepcion.Claves![0];
         VocabularioDePantalla.ComodinARegex(excepcion.Ficheros[0]).IsMatch(ficheroLiteral).Should().BeTrue();
 
         // Dentro del contexto: la excepción la cubre y no hay deuda.
-        var dentro = VocabularioDePantalla.Escanear(Vocabulario.Value, [(ficheroLiteral, (string?)clave, "Cliente y Empresa")]);
+        var dentro = VocabularioDePantalla.Escanear(Vocabulario.Value, [(ficheroLiteral, (string?)clave, frase)])
+            .Where(h => h.IdProhibido == termino).ToList();
         dentro.Should().ContainSingle().Which.IdExcepcion.Should().Be(excepcion.Id);
         VocabularioDePantalla.DeudaMedida(dentro).Should().BeEmpty();
 
         // Otra clave del mismo fichero: no es el contexto de la excepción.
-        var otraClave = VocabularioDePantalla.Escanear(Vocabulario.Value, [(ficheroLiteral, (string?)"OtraClave", "Cliente y Empresa")]);
+        var otraClave = VocabularioDePantalla.Escanear(Vocabulario.Value, [(ficheroLiteral, (string?)"OtraClave", frase)])
+            .Where(h => h.IdProhibido == termino);
         VocabularioDePantalla.DeudaMedida(otraClave).Should().ContainSingle();
 
         // Otro fichero con la misma clave: tampoco.
         var otroFichero = VocabularioDePantalla.Escanear(Vocabulario.Value,
-            [("src/CaeManager.Web/Features/Falsa/Recursos/TextosFalsa.resx", (string?)clave, "Cliente y Empresa")]);
+            [("src/CaeManager.Web/Features/Falsa/Recursos/TextosFalsa.resx", (string?)clave, frase)])
+            .Where(h => h.IdProhibido == termino);
         VocabularioDePantalla.DeudaMedida(otroFichero).Should().ContainSingle();
     }
 
     [Fact]
-    public void Un_mensaje_de_Application_con_Cliente_a_secas_da_rojo_con_fichero_y_codigo_de_error()
+    public void Un_mensaje_de_Application_con_Cliente_empresarial_da_rojo_con_fichero_y_codigo_de_error()
     {
         const string ruta = "src/CaeManager.Application/Falsa/Commands/FalsoCommand.cs";
         const string codigo = @"
             class C {
                 void M() {
-                    var a = Error.Crear(""Falso.NoEncontrado"", ""No encontramos ese Cliente."");
-                    var b = Error.Crear(""Falso.Bien"", ""No encontramos ese Cliente empresarial."");
+                    var a = Error.Crear(""Falso.NoEncontrado"", ""No encontramos ese Cliente empresarial."");
+                    var b = Error.Crear(""Falso.Bien"", ""No encontramos ese Cliente."");
                     var c = Error.Crear(""Falso.Interpolado"", $""El tenant {x} no existe"");
                     RuleFor(x => x.A).WithMessage(""Falta el gestor."");
-                    var d = Otra.Crear(""Falso.Ajeno"", ""Cliente en otra fábrica no cuenta"");
+                    var d = Otra.Crear(""Falso.Ajeno"", ""Cliente empresarial en otra fábrica no cuenta"");
                     var e = Error.Crear(""Falso.Concat"", ""No encontramos ese Cliente "" + ""empresarial."");
                     var f = Domain.Common.Error.Crear(""Falso.Cualificado"", ""El operador cualificado no existe"");
                 }
@@ -228,9 +237,11 @@ public class VocabularioDePantallaTests
 
         hallazgos.Select(h => (h.Clave, h.IdProhibido)).Should().BeEquivalentTo(new[]
         {
-            ("Falso.NoEncontrado", "cliente-a-secas"),
+            ("Falso.NoEncontrado", "cliente-empresarial-en-pantalla"),
             ("Falso.Interpolado", "tenant-a-secas"),
             ("WithMessage", "gestor-a-secas"),
+            // Los trozos de una concatenación se unen antes de casar: el rótulo largo partido en dos literales también se ve.
+            ("Falso.Concat", "cliente-empresarial-en-pantalla"),
             ("Falso.Cualificado", "operador-a-secas"),
         });
         hallazgos.Should().OnlyContain(h => h.Fichero == ruta);
@@ -241,14 +252,14 @@ public class VocabularioDePantallaTests
     {
         const string ruta = "src/CaeManager.Web/Features/Falsa/Pages/Falsa.razor";
         const string marcado =
-            "<Buscador PlaceholderBuscador=\"Buscar por Cliente\" EtiquetaCampoNuevo=\"Operador\" />" +
-            "<input placeholder=\"https://portal-del-cliente.com/login\" />" +
-            "<section aria-labelledby=\"columnas-plantilla-clientes-titulo\"><p>relación empresa-cliente</p></section>";
+            "<Buscador PlaceholderBuscador=\"Buscar por Cliente empresarial\" EtiquetaCampoNuevo=\"Operador\" />" +
+            "<input placeholder=\"https://portal-del-operador.com/login\" />" +
+            "<section aria-labelledby=\"columnas-del-operador-titulo\"><p>datos del cliente empresarial</p></section>";
 
         var hallazgos = VocabularioDePantalla.Escanear(Vocabulario.Value, VocabularioDePantalla.TextosDeRazor(ruta, marcado));
 
-        hallazgos.Select(h => h.IdProhibido).Should().BeEquivalentTo(new[] { "cliente-a-secas", "operador-a-secas", "cliente-a-secas" },
-            "el atributo PlaceholderBuscador no está en la lista del detector y se ve igualmente; la URL no cuenta; el compuesto «empresa-cliente» sí; aria-labelledby es una referencia a un id y no cuenta");
+        hallazgos.Select(h => h.IdProhibido).Should().BeEquivalentTo(new[] { "cliente-empresarial-en-pantalla", "operador-a-secas", "cliente-empresarial-en-pantalla" },
+            "el atributo PlaceholderBuscador no está en la lista del detector y se ve igualmente; la URL no cuenta (un solo «operador», el del atributo); el texto entre etiquetas sí; aria-labelledby es una referencia a un id y no cuenta");
     }
 
     [Fact]

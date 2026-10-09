@@ -627,7 +627,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     {
         get
         {
-            var sustantivo = _totalElementos == 1 ? "Cliente empresarial" : "Clientes empresariales";
+            var sustantivo = _totalElementos == 1 ? "Cliente" : "Clientes";
             return HayFiltrosActivos
                 ? $"{_totalElementos} {sustantivo} con estos filtros"
                 : $"{_totalElementos} {sustantivo}";
@@ -755,7 +755,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         if (cliente is null)
         {
-            ToastService.Mostrar("No encontramos este Cliente empresarial. Puede que ya se haya eliminado.", TonoToast.Error);
+            ToastService.Mostrar("No encontramos este Cliente. Puede que ya se haya eliminado.", TonoToast.Error);
             await RecargarAsync();
             return;
         }
@@ -887,7 +887,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             }
 
             ToastService.Mostrar(
-                _editandoId is null ? "Cliente empresarial creado correctamente." : "Cliente empresarial actualizado correctamente.",
+                _editandoId is null ? "Cliente creado correctamente." : "Cliente actualizado correctamente.",
                 TonoToast.Exito);
 
             _drawerVisible = false;
@@ -1005,7 +1005,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
             ToastService.Mostrar(
                 dto.Errores.Count == 0
-                    ? $"{dto.Eliminados} Cliente(s) empresarial(es) dado(s) de baja."
+                    ? $"{dto.Eliminados} Cliente(s) dado(s) de baja."
                     : $"{dto.Eliminados} dado(s) de baja. {dto.Errores.Count} no se pudieron dar de baja: {string.Join(" ", dto.Errores)}",
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
                 eliminados.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
@@ -1022,7 +1022,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         }
         catch (Exception)
         {
-            ToastService.Mostrar("No pudimos dar de baja los Clientes empresariales seleccionados. Intenta nuevamente.", TonoToast.Error);
+            ToastService.Mostrar("No pudimos dar de baja los Clientes seleccionados. Intenta nuevamente.", TonoToast.Error);
         }
         finally
         {

@@ -8,7 +8,7 @@ namespace CaeManager.Web.Features.Asignaciones.Recursos;
 /// (<c>LocalizacionRecursosYRegistroTests</c>, Architecture.Tests).
 ///
 /// <para>
-/// <c>ColumnaCliente</c> rotula «Cliente empresarial» desde el 2026-10-02 (D-27; la columna
+/// <c>ColumnaCliente</c> rotula «Cliente» (decisión de rótulo del 2026-10-09; la columna
 /// muestra <c>AsignacionListaDto.ClienteNombre</c>); el nombre del DTO sigue siendo deuda terminológica, y
 /// renombrarlo es un incremento de terminología, no de localización.
 /// </para>

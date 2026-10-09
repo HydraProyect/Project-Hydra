@@ -101,7 +101,7 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
 
         using (AmbitoTenantExplicito.Establecer(_beneficiario))
         {
-            var cliente = Empresa.CrearComoCliente("Cliente empresarial de prueba", "B10380186", false, null, null);
+            var cliente = Empresa.CrearComoCliente("Cliente de prueba", "B10380186", false, null, null);
             var contratista = new Empresa("Montajes de prueba S.L.", "B87654323");
             var contraparte = Empresa.CrearComoCliente("Otra contraparte de prueba", "B10380194", false, null, null);
             _propietario.Empresas.AddRange(cliente, contratista, contraparte);

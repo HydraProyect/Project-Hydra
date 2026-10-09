@@ -80,7 +80,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await page.GetByLabel("Identificación fiscal (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_602));
         await page.GetByText("Guardar y continuar").ClickAsync();
 
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente empresarial" }).WaitForAsync();
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await page.GetByLabel("Identificación fiscal", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_601));
         await page.GetByText("Guardar y continuar a Centro").ClickAsync();
@@ -129,7 +129,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         // --- Paso 4: /centros — buscar, dejar que el buscador asiente y expandir ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente empresarial o empresa");
+        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa");
         await buscador.FillAsync(nombreCentro);
 
         var botonExpandir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}" });

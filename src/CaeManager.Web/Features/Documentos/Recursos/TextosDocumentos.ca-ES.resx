@@ -55,7 +55,7 @@
     <value>Àmbit: {0}</value>
   </data>
   <data name="ChipAmbitoCliente" xml:space="preserve">
-    <value>Client empresarial</value>
+    <value>Client</value>
     <comment>Valor del chip «Ámbito: …» cuando el filtro es el Cliente empresarial (CONTRATO_TERMINOLOGIA § 3.2).</comment>
   </data>
   <data name="ChipEstado" xml:space="preserve">
@@ -204,7 +204,7 @@
   <data name="ListaFiltroEstado" xml:space="preserve"><value>Estat</value></data>
   <data name="ListaTodos" xml:space="preserve"><value>Tots</value></data>
   <data name="ListaAmbitoTrabajador" xml:space="preserve"><value>Treballador</value></data>
-  <data name="ListaAmbitoClienteEmpresarial" xml:space="preserve"><value>Client empresarial</value></data>
+  <data name="ListaAmbitoClienteEmpresarial" xml:space="preserve"><value>Client</value></data>
   <data name="ListaAmbitoEmpresa" xml:space="preserve"><value>Empresa</value></data>
   <data name="ListaAmbitoVehiculo" xml:space="preserve"><value>Vehicle</value></data>
   <data name="ListaAmbitoProyecto" xml:space="preserve"><value>Projecte</value></data>

@@ -47,7 +47,7 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         await page.GetByText("Guardar y continuar").ClickAsync();
 
         // --- Paso 2: Cliente ---
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente empresarial" }).WaitForAsync();
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         // El resumen del paso demuestra que la Empresa del paso 1 ya está
         // persistida y encadenada — no es solo estado en memoria del wizard.
         // Locator acotado con HasText, no ".texto-vacio-seccion" a secas: el
@@ -127,7 +127,7 @@ public class AltaGuiadaTests(WebAppFixture fixture)
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        await page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente empresarial o empresa").FillAsync(nombreCentro);
+        await page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa").FillAsync(nombreCentro);
         // Acotado a la lista: el nombre buscado también sale en el chip «Búsqueda: …».
         await page.Locator(".lista-filas-acordeon").GetByText(nombreCentro).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
     }

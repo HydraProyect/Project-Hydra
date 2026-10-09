@@ -777,7 +777,7 @@ public class Trabajador360Gen2Tests : BunitContext
         Filas(cut, "Exigidos solo en algunos Centros de trabajo").Should().BeEquivalentTo(
             new[]
             {
-                new[] { "Formación específica de centro", "Centro Norte del Cliente empresarial Refrielectric S.A.", "Por vencer", "15/10/2025", "15/10/2026" },
+                new[] { "Formación específica de centro", "Centro Norte del Cliente Refrielectric S.A.", "Por vencer", "15/10/2025", "15/10/2026" },
             },
             o => o.WithStrictOrdering(),
             "el tipo exigido a todo trabajador (Requerido = Sí) no es propio de ningún Centro (Q2); la renovación es la caducidad del documento (Q1)");
@@ -785,7 +785,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var centro = cut.Find(".trabajador360-exigencia-centro a");
         centro.GetAttribute("href").Should().Be($"/centros/{norte.CentroId}");
         cut.Find(".trabajador360-exigencias").TextContent.Should().NotContain("exigido por",
-            "lo exige el Centro de trabajo; el Cliente empresarial solo lo sitúa");
+            "lo exige el Centro de trabajo; el Cliente solo lo sitúa");
     }
 
     [Fact]
@@ -825,8 +825,8 @@ public class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         var asignaciones = cut.Find("[aria-label='Asignaciones activas']");
-        asignaciones.TextContent.Should().Contain("Cliente empresarial",
-            "la contraparte de una Relación Empresarial no es «Cliente» a secas")
+        asignaciones.TextContent.Should().Contain("Cliente",
+            "la contraparte de una Relación Empresarial se rotula «Cliente» (decisión del 2026-10-09)")
             .And.Contain("Centro Norte").And.Contain("02/07/2026");
         asignaciones.QuerySelectorAll(".columna-accion button").Select(b => b.TextContent.Trim())
             .Should().Equal(["Dar de baja", "Dar de baja"]);
@@ -1404,7 +1404,7 @@ public class Trabajador360Gen2Tests : BunitContext
         await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Reclamar faltantes")
             .ClickAsync(new MouseEventArgs());
         cut.FindAll(".reclamacion-destinatarios input[type=checkbox]").Should().HaveCount(2,
-            "el test necesita la modal con dos Clientes empresariales");
+            "el test necesita la modal con dos Clientes");
     }
 
     [Fact]
@@ -1518,7 +1518,7 @@ public class Trabajador360Gen2Tests : BunitContext
 
         var reclamar = BotonDelPie(cut, "Reclamar");
         reclamar.HasAttribute("disabled").Should().BeTrue();
-        reclamar.GetAttribute("title").Should().Be("Marca al menos un Cliente empresarial");
+        reclamar.GetAttribute("title").Should().Be("Marca al menos un Cliente");
     }
 
     /// <summary>El modal cerraba antes de enviar: la selección se perdía y, si el envío fallaba, solo quedaban toasts.</summary>
@@ -1547,7 +1547,7 @@ public class Trabajador360Gen2Tests : BunitContext
             await pulsado.WaitAsync(TimeSpan.FromSeconds(10));
         }
 
-        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().HaveCount(2, "un envío por Cliente empresarial");
+        mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().HaveCount(2, "un envío por Cliente");
         cut.FindAll("[role=dialog]").Should().BeEmpty("al terminar bien, se cierra");
     }
 
@@ -1633,7 +1633,7 @@ public class Trabajador360Gen2Tests : BunitContext
     {
         var id = Guid.NewGuid();
         var mediador = ConDosClientesEmpresarialesQueReclamar(id);
-        mediador.FallaEnviarReclamacionCon = "El Cliente empresarial no tiene contacto con email.";
+        mediador.FallaEnviarReclamacionCon = "El Cliente no tiene contacto con email.";
         var cut = Renderizar(id);
         await AbrirModalReclamarAsync(cut);
 
@@ -1641,7 +1641,7 @@ public class Trabajador360Gen2Tests : BunitContext
 
         mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().HaveCount(2, "control positivo: se intentó con los dos");
         cut.FindAll("[role=dialog]").Should().NotBeEmpty("si no se envió ninguno, el modal sigue para reintentar");
-        AlertasDelModal(cut).Should().ContainSingle().Which.Should().Contain("El Cliente empresarial no tiene contacto con email.");
+        AlertasDelModal(cut).Should().ContainSingle().Which.Should().Contain("El Cliente no tiene contacto con email.");
         cut.FindAll(".reclamacion-destinatarios input[type=checkbox]").Should().OnlyContain(c => c.HasAttribute("checked"), "la selección se conserva");
         Avisos.Mensajes.Should().BeEmpty("los motivos van en el aviso fijo, no en toasts");
 
