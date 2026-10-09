@@ -206,6 +206,57 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
         r.RecuentosPorEstado!.Values.Sum().Should().Be(r.TotalElementos, "sin filtro de estado, los recuentos suman el total");
     }
 
+    /// <summary>
+    /// Cuando dos estados compiten por la misma Visita gana el primero de la precedencia, en el recuento
+    /// y en el filtro por igual: una cancelada que ya estaba gestionada es «Cancelada», y una gestionada
+    /// de un Centro sin gestión CAE es «No requiere gestión CAE». Sin estas dos filas, invertir las ramas
+    /// de la partición no cambiaría ninguna cifra.
+    /// </summary>
+    [Fact]
+    public async Task Si_dos_estados_compiten_gana_cancelada_y_despues_centro_sin_gestion()
+    {
+        await using (var c = CrearContexto())
+        {
+            (await c.Visitas.SingleAsync(v => v.Id == _gestionada)).Cancelar(DateTime.UtcNow, "Obra aplazada");
+            (await c.Visitas.SingleAsync(v => v.Id == _sinGestionCae)).MarcarDocumentacionGestionada(DateTime.UtcNow);
+            await c.SaveChangesAsync();
+        }
+
+        var todas = await LeerPorEstadoAsync();
+        todas.RecuentosPorEstado.Should().BeEquivalentTo(new Dictionary<string, int>
+        {
+            [nameof(EstadoDocumentacionVisita.PorGestionar)] = 3,
+            [nameof(EstadoDocumentacionVisita.Gestionada)] = 0,
+            [nameof(EstadoDocumentacionVisita.SinGestionCae)] = 1,
+            [nameof(EstadoDocumentacionVisita.Cancelada)] = 2,
+        });
+
+        (await LeerPorEstadoAsync(estados: EstadoDocumentacionVisita.Gestionada)).Elementos.Should().BeEmpty();
+        (await LeerPorEstadoAsync(estados: EstadoDocumentacionVisita.SinGestionCae)).Elementos.Select(v => v.Id)
+            .Should().Equal(_sinGestionCae);
+        (await LeerPorEstadoAsync(estados: EstadoDocumentacionVisita.Cancelada)).Elementos.Select(v => v.Id)
+            .Should().BeEquivalentTo([_gestionada, _cancelada]);
+    }
+
+    /// <summary>Los recuentos se calculan después de los demás filtros: aquí, la búsqueda.</summary>
+    [Fact]
+    public async Task Los_recuentos_respetan_la_busqueda()
+    {
+        await using var lectura = CrearContexto();
+        var r = await new ObtenerVisitasQueryHandler(lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), lectura)
+            .Handle(new ObtenerVisitasQuery("Centro sin gestión", SoloActivas: false, NotificadoCliente: null,
+                ConRecuentosPorEstado: true), CancellationToken.None);
+
+        r.TotalElementos.Should().Be(1, "control: la búsqueda deja solo la visita de ese Centro");
+        r.RecuentosPorEstado.Should().BeEquivalentTo(new Dictionary<string, int>
+        {
+            [nameof(EstadoDocumentacionVisita.PorGestionar)] = 0,
+            [nameof(EstadoDocumentacionVisita.Gestionada)] = 0,
+            [nameof(EstadoDocumentacionVisita.SinGestionCae)] = 1,
+            [nameof(EstadoDocumentacionVisita.Cancelada)] = 0,
+        });
+    }
+
     [Theory]
     [InlineData(EstadoDocumentacionVisita.PorGestionar)]
     [InlineData(EstadoDocumentacionVisita.Gestionada)]

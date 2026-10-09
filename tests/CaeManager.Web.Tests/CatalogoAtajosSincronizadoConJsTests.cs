@@ -148,9 +148,7 @@ public class CatalogoAtajosSincronizadoConJsTests
         var paginas = declaradasPorFichero.Where(f => !compartidos.Contains(f.Fichero) && f.Fichero != "MenuAcciones.razor" && f.Fichero != "PastillaFiltro.razor");
         foreach (var (fichero, letras) in paginas)
         {
-            // Visitas todavía no usa CabeceraListado ni la barra de pastillas: declara N y F ella
-            // misma. Cualquier otra página solo puede añadir letras que las piezas compartidas no usan.
-            if (fichero == "Visitas.razor") continue;
+            // Una página solo puede añadir letras que las piezas compartidas no usan.
             letras.Should().NotIntersectWith(letrasCompartidas, $"{fichero} repite una letra que ya declara una pieza compartida del listado");
         }
 
