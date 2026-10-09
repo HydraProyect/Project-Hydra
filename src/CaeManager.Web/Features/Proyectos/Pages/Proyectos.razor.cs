@@ -314,8 +314,26 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private const string EstadoCerrados = "cerrados";
 
     // De instancia, no static: las etiquetas salen del localizador inyectado.
-    private IReadOnlyList<OpcionEstado> OpcionesEstado =>
-        [new(EstadoAbiertos, Textos["FiltroAbiertos"]), new(EstadoCerrados, Textos["FiltroCerrados"])];
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesEstado =>
+        [new(Textos["FiltroAbiertos"], TonoBadge.Exito, EstadoAbiertos), new(Textos["FiltroCerrados"], TonoBadge.Neutro, EstadoCerrados)];
+
+    /// <summary>
+    /// La selección de estados que llega de la URL reducida a los dos que existen; lo demás se descarta.
+    /// Cadena vacía si no queda ninguno.
+    /// </summary>
+    private static string EstadosValidos(string? seleccion) =>
+        SeleccionEstados.Unir(SeleccionEstados.Separar(seleccion).Where(v => v is EstadoAbiertos or EstadoCerrados)) ?? string.Empty;
+
+    /// <summary>Proyectos por estado para la franja: con la búsqueda aplicada y sin el filtro de estado.</summary>
+    private IReadOnlyDictionary<string, int> RecuentosPorEstado
+    {
+        get
+        {
+            var conBusqueda = _proyectos.Where(CumpleBusqueda).ToList();
+            var abiertos = conBusqueda.Count(p => p.EstaAbierto);
+            return new Dictionary<string, int> { [EstadoAbiertos] = abiertos, [EstadoCerrados] = conBusqueda.Count - abiertos };
+        }
+    }
 
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
@@ -343,7 +361,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (busquedaDeLaUrl != _busqueda)
             _busqueda = busquedaDeLaUrl;
 
-        var estadoDeLaUrl = OpcionesEstado.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
+        var estadoDeLaUrl = EstadosValidos(EstadoInicial);
         if (estadoDeLaUrl != _estadoFiltro)
             _estadoFiltro = estadoDeLaUrl;
 
@@ -364,23 +382,21 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private bool CumpleFiltros(ProyectoListaDto proyecto)
     {
-        var cumpleEstado = _estadoFiltro switch
-        {
-            EstadoAbiertos => proyecto.EstaAbierto,
-            EstadoCerrados => !proyecto.EstaAbierto,
-            _ => true
-        };
+        // Varios estados marcados: pasa el Proyecto que esté en cualquiera. Sin ninguno, todos.
+        var marcados = SeleccionEstados.Separar(_estadoFiltro);
+        var cumpleEstado = marcados.Count == 0
+            || marcados.Contains(proyecto.EstaAbierto ? EstadoAbiertos : EstadoCerrados);
 
-        if (!cumpleEstado) return false;
+        return cumpleEstado && CumpleBusqueda(proyecto);
+    }
 
+    private bool CumpleBusqueda(ProyectoListaDto proyecto)
+    {
         var termino = _busqueda.Trim();
         return termino.Length == 0
             || proyecto.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase)
             || proyecto.CentroNombre.Contains(termino, StringComparison.OrdinalIgnoreCase);
     }
-
-    private string TextoEstadoFiltro =>
-        OpcionesEstado.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto.ToLowerInvariant() ?? string.Empty;
 
     private string TextoConteo => HayFiltrosActivos
         ? Textos["ConteoConFiltro", ProyectosVisibles.Count, _proyectos.Count].Value
@@ -393,16 +409,14 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         return Task.CompletedTask;
     }
 
-    private Task CambiarEstadoAsync(string valor)
+    private Task CambiarEstadoAsync(string? valor)
     {
-        _estadoFiltro = valor;
+        _estadoFiltro = valor ?? string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         return Task.CompletedTask;
     }
 
     private Task QuitarBusquedaAsync() => BuscarAsync(string.Empty);
-
-    private Task QuitarEstadoAsync() => CambiarEstadoAsync(string.Empty);
 
     /// <summary>
     /// Quita los dos filtros, y los dos TAMBIÉN de la URL en una sola

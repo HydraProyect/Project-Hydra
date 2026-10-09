@@ -338,8 +338,10 @@ public class GestionesListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => EstadoEnLaVistaRapida(cut).Should().Be("Completada"));
         BotonDeLaVistaRapida(cut, "Reabrir gestión").Should().NotBeNull("el botón pasa a la acción contraria");
         mediador.Enviadas.OfType<ObtenerGestionesQuery>().Count().Should().BeGreaterThan(consultasAntes, "tras el cambio se recarga la lista");
-        cut.WaitForAssertion(() => cut.FindAll("tbody .badge").Select(b => b.TextContent.Trim())
-            .Should().BeEquivalentTo(["Pendiente", "Completada"], "la fila recargada trae el estado nuevo, la otra no cambia"));
+        // La celda de estado (EstadoFila): lo pendiente lleva pastilla; lo completado no pide acción y va sin ella.
+        cut.WaitForAssertion(() => cut.FindAll("tbody [data-pieza=estado-correcto]").Select(b => b.TextContent.Trim())
+            .Should().Equal(["Completada"], "la fila recargada trae el estado nuevo"));
+        cut.FindAll("tbody .badge").Select(b => b.TextContent.Trim()).Should().Equal(["Pendiente"], "la otra no cambia");
     }
 
     [Fact]
@@ -577,7 +579,12 @@ public class GestionesListaGen2Tests : BunitContext
         Services.GetRequiredService<NavigationManager>().NavigateTo("gestiones?estado=Pendiente");
         var cut = Render<Gestiones>();
 
-        await ElegirEstadoGestionFase1(cut, "Completadas");
+        // De «Pendientes» a «Completadas» son dos clics en la franja: desmarcar la una y marcar la otra (marcar
+        // las dos sería «todas»). La consulta retenida es la primera, la de «Pendientes».
+        cut.WaitForAssertion(() => retenida.Should().BeTrue());
+        await AlternarEstadoGestionFase1(cut, "Pendientes");
+        await AlternarEstadoGestionFase1(cut, "Completadas");
+        UltimaGestionFase1(mediador).Estado.Should().Be(EstadoGestion.Completada);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ninguna gestión con estos filtros"));
 
         await cut.InvokeAsync(() => respuestaVieja.SetResult(
@@ -610,7 +617,9 @@ public class GestionesListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra"), Gestion("Nuria Salas Ortiz", EstadoGestion.Completada) } };
         var cut = Renderizar(mediador, url: "gestiones?q=Salas&estado=Completada");
         var navegacion = Services.GetRequiredService<NavigationManager>();
-        cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().HaveCount(2));
+        // Un solo chip, el de la búsqueda: el estado se ve marcado en la franja, no en un chip.
+        cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().HaveCount(1));
+        cut.Find(".franja-estado-boton[data-estado='Completada']").GetAttribute("aria-pressed").Should().Be("true");
         var navegaciones = 0;
         navegacion.LocationChanged += (_, _) => navegaciones++;
 
@@ -624,22 +633,61 @@ public class GestionesListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().BeEmpty());
     }
 
+    /// <summary>
+    /// El estado ya no tiene chip: se ve marcado en la franja («Todas», «Pendientes», «Completadas») y se quita
+    /// desmarcándolo, también de la URL y de la consulta.
+    /// </summary>
     [Fact]
-    public async Task Quitar_el_chip_de_estado_lo_quita_tambien_de_la_url_y_de_la_consulta()
+    public async Task Desmarcar_el_estado_en_la_franja_lo_quita_tambien_de_la_url_y_de_la_consulta()
     {
         var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra"), Gestion("Iker Zubiaga Mena", EstadoGestion.Completada) } };
         var cut = Renderizar(mediador, estado: nameof(EstadoGestion.Completada));
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
-        cut.Find(".chip-filtro").TextContent.Should().Contain("Estado: completadas");
+        cut.RotulosDeFranja().Should().Equal("Todas", "Pendientes", "Completadas");
+        cut.MarcadosEnFranja().Should().Equal("Completadas");
+        cut.FindAll(".chip-filtro").Should().BeEmpty("el estado se ve en la franja, no como chip");
         navegacion.Uri.Should().Contain("estado=Completada", "es el punto de partida de este caso");
+        UltimaGestionFase1(mediador).Estado.Should().Be(EstadoGestion.Completada, "es el punto de partida de este caso");
 
-        await cut.Find(".chip-filtro-quitar").ClickAsync(new MouseEventArgs());
+        await AlternarEstadoGestionFase1(cut, "Completadas");
 
         navegacion.Uri.Should().NotContain("estado=");
-        mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().Estado.Should().BeNull();
-        cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().BeEmpty());
+        UltimaGestionFase1(mediador).Estado.Should().BeNull();
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Todas"));
         cut.WaitForAssertion(() => cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("2"));
+    }
+
+    /// <summary>
+    /// La consulta de Gestiones filtra por un solo estado. Con los dos botones marcados no hay nada que filtrar
+    /// (son todos los estados que existen): la consulta va sin estado, pero la URL y la franja conservan la
+    /// selección tal cual; y «Todas» la borra.
+    /// </summary>
+    [Fact]
+    public async Task Con_los_dos_estados_marcados_la_consulta_va_sin_estado_y_la_url_conserva_la_seleccion()
+    {
+        var mediador = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra"), Gestion("Iker Zubiaga Mena", EstadoGestion.Completada) } };
+        var cut = Renderizar(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await AlternarEstadoGestionFase1(cut, "Pendientes");
+
+        UltimaGestionFase1(mediador).Estado.Should().Be(EstadoGestion.Pendiente);
+        navegacion.Uri.Should().EndWith("estado=Pendiente");
+        cut.WaitForAssertion(() => TrabajadoresDeLasFilas(cut).Should().Equal("Juan Pérez Ibarra"));
+
+        await AlternarEstadoGestionFase1(cut, "Completadas");
+
+        UltimaGestionFase1(mediador).Estado.Should().BeNull("dos estados marcados son todos");
+        Uri.UnescapeDataString(navegacion.Uri).Should().EndWith("estado=Pendiente,Completada");
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Pendientes", "Completadas"));
+        cut.WaitForAssertion(() => TrabajadoresDeLasFilas(cut).Should().HaveCount(2));
+
+        await AlternarEstadoGestionFase1(cut, "Todas");
+
+        UltimaGestionFase1(mediador).Estado.Should().BeNull();
+        navegacion.Uri.Should().NotContain("estado=");
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Todas"));
     }
 
     /// <summary>
@@ -1111,11 +1159,8 @@ public class GestionesListaGen2Tests : BunitContext
     }
     private static Task AtajoGestionFase1(IRenderedComponent<Gestiones> cut, string tecla) =>
         cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.OnAtajo.InvokeAsync(tecla));
-    private static async Task ElegirEstadoGestionFase1(IRenderedComponent<Gestiones> cut, string texto)
-    {
-        var pastilla = cut.Find(".barra-filtros-pastillas .menu-acciones-disparador-pastilla");
-        if (pastilla.GetAttribute("aria-expanded") != "true") await pastilla.ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Single(b => b.TextContent.Trim() == texto).ClickAsync(new MouseEventArgs());
-    }
+    /// <summary>Marca o desmarca un botón de la franja de estado por su rótulo («Todas», «Pendientes», «Completadas»).</summary>
+    private static Task AlternarEstadoGestionFase1(IRenderedComponent<Gestiones> cut, string rotulo) =>
+        cut.BotonDeFranja(rotulo).ClickAsync(new MouseEventArgs());
 
 }

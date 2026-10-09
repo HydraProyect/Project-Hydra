@@ -226,8 +226,9 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
 
         var buscador = page.GetByRole(AriaRole.Textbox, new PageGetByRoleOptions { Name = "Filtrar esta pantalla", Exact = true });
 
-        // Menú abierto: la pastilla «Estado» enfoca su opción vigente («Todos»).
-        var pastillaEstado = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Estado", Exact = true });
+        // Menú abierto: la pastilla «Criticidad» enfoca su opción vigente («Todos»). Hasta el 2026-10-08 se
+        // usaba la pastilla «Estado», que pasó a ser la franja de estado (botones, sin menú).
+        var pastillaEstado = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Criticidad", Exact = true });
         await pastillaEstado.ClickAsync();
         var todos = page.GetByRole(AriaRole.Menuitemradio, new PageGetByRoleOptions { Name = "Todos", Exact = true });
         await Expect(todos).ToBeFocusedAsync();

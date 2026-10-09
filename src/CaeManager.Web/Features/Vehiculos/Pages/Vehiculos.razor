@@ -66,8 +66,6 @@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
         <Pastillas>
-            <PastillaFiltro Etiqueta="@Textos["EtiquetaDocumentacion"]" TextoTodos="@Textos["ListaFiltroTodas"]"
-                            Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync" Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
             <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpleador"]" TextoTodos="@Textos["ListaFiltroTodos"]"
                             Valor="@ValorFiltroEmpleador" ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
         </Pastillas>
@@ -75,10 +73,6 @@
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
                 <ChipFiltro Etiqueta="@Textos["ListaChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["ListaQuitarBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
-            }
-            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
-            {
-                <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="@Textos["ListaQuitarDocumentacion"]" OnQuitar="() => CambiarEstadoAsync(string.Empty)" />
             }
             @if (!string.IsNullOrWhiteSpace(_filtroEmpresaId))
             {
@@ -90,6 +84,11 @@
             }
         </Chips>
     </BarraFiltros>
+    @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
+       URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
+       demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
+    <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
     }
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -139,10 +138,12 @@
                     <span class="celda-vehiculo-matricula">@context.NumeroPlaca</span>
                 </TemplateColumn>
                 <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true" />
-                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
-                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)">
-                        @EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)
-                    </Badge>
+                @* Columna de estado, de ancho fijo. El documento que causa el estado (el motivo bajo la pastilla)
+                   no viaja en VehiculoListaDto. *@
+                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" Class="col-estado" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
+                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)"
+                                Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"
+                                Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" />
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
                     <MenuAcciones>

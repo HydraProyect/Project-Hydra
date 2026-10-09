@@ -15,8 +15,8 @@ public class CoherenciaDeLaSeveridadDelEstadoTests
     /// <summary>Lo más grave primero. Es la tabla de entrada: cada fila fija un rango.</summary>
     private static readonly EstadoDocumento[] DeMasAMenosGrave =
     [
-        EstadoDocumento.Faltante,
         EstadoDocumento.Vencido,
+        EstadoDocumento.Faltante,
         EstadoDocumento.EnTolerancia,
         EstadoDocumento.Urgente,
         EstadoDocumento.Proximo,
@@ -31,7 +31,7 @@ public class CoherenciaDeLaSeveridadDelEstadoTests
         var ordenados = Enum.GetValues<EstadoDocumento>().OrderBy(SeveridadEstadoDocumento.Rango).ToArray();
 
         ordenados.Should().Equal(DeMasAMenosGrave,
-            "lo que falta, antes que lo vencido, lo vencido en tolerancia (entre vencido y urgente: ya venció pero aún vale " +
+            "lo vencido, antes que lo que falta (orden fijado el 2026-10-03), lo vencido en tolerancia (ya venció pero aún vale " +
             "para acceder), lo urgente, lo próximo, lo sin confirmar (detrás de lo malo conocido y delante de lo vigente), " +
             "lo vigente y, al final, lo que no caduca");
     }

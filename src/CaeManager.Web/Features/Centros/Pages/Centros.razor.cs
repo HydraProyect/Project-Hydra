@@ -38,6 +38,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
 
+    /// <summary>Centros por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
+
     /// <summary>Pastilla «Cliente empresarial»: Id del Cliente empresarial o vacío. Viaja en la URL como <c>cliente</c>.</summary>
     private string _clienteFiltro = string.Empty;
 
@@ -309,7 +312,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             return;
 
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
-        _estadoFiltro = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
+        _estadoFiltro = EstadoCentroUi.SeleccionValida(EstadoInicial);
         _clienteFiltro = IdDesdeUrl(ClienteFiltroInicial);
         _empresaFiltro = IdDesdeUrl(EmpresaFiltroInicial);
         _centroIdFiltro = CentroId;
@@ -369,7 +372,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             return;
 
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        var estadoDeLaUrl = Enum.TryParse<EstadoCentro>(EstadoInicial, out _) ? EstadoInicial! : string.Empty;
+        var estadoDeLaUrl = EstadoCentroUi.SeleccionValida(EstadoInicial);
         var clienteDeLaUrl = IdDesdeUrl(ClienteFiltroInicial);
         var empresaDeLaUrl = IdDesdeUrl(EmpresaFiltroInicial);
         var (ordenarPorDeLaUrl, descendenteDeLaUrl) = OrdenDesdeUrl();
@@ -446,13 +449,15 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private ObtenerCentrosQuery ConsultaDePaginaActual() => new(
         Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
         ClienteId: IdDeFiltro(_clienteFiltro),
-        Estado: Enum.TryParse<EstadoCentro>(_estadoFiltro, out var estado) ? estado : null,
+        Estado: null,
         OrdenarPor: _ordenarPor,
         Descendente: _ordenDescendente,
         Pagina: _pagina,
         TamanoPagina: _tamanoPagina,
         CentroId: _centroIdFiltro,
-        EmpresaId: IdDeFiltro(_empresaFiltro));
+        EmpresaId: IdDeFiltro(_empresaFiltro),
+        Estados: SeleccionEstados.Separar<EstadoCentro>(_estadoFiltro) is { Count: > 0 } estados ? estados : null,
+        ConRecuentosPorEstado: true);
 
     private async Task CargarAsync(bool resetPagina = false)
     {
@@ -468,6 +473,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             var resultado = await Mediator.Send(ConsultaDePaginaActual());
 
             _totalElementos = resultado.TotalElementos;
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
             _elementosPagina = resultado.Elementos.ToList();
             _seleccionados.Clear();
             _expandidos.Clear();
@@ -576,6 +582,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         }
 
         _totalElementos = resultado.TotalElementos;
+        _recuentosPorEstado = resultado.RecuentosPorEstado;
         _elementosPagina = resultado.Elementos.ToList();
         _seleccionados.IntersectWith(_elementosPagina.Select(c => c.Id));
         _expandidos.Clear();
@@ -610,9 +617,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         await CargarAsync(resetPagina: true);
     }
 
-    private async Task CambiarEstadoAsync(string valor)
+    private async Task CambiarEstadoAsync(string? valor)
     {
-        _estadoFiltro = valor;
+        _estadoFiltro = valor ?? string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await CargarAsync(resetPagina: true);
     }
@@ -800,8 +807,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     private string EtiquetaFiltroBusqueda => Textos["ChipBusqueda", _busqueda].Value;
 
-    private string EtiquetaFiltroEstado =>
-        Textos["ChipEstado", EstadoCentroUi.Opciones.FirstOrDefault(o => o.Valor == _estadoFiltro)?.Texto ?? "—"].Value;
 
     /// <summary>«N centros»; con filtros, dice que el número es el de los que coinciden.</summary>
     private string TextoConteo

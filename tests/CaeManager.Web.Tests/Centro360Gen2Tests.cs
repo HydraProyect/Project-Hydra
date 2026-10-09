@@ -770,6 +770,38 @@ public class Centro360Gen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Urgente y Próximo se rotulan igual («Por vencer»): el filtro ofrece una sola opción con ese texto, y
+    /// elegirla deja a la vista a quien tenga un documento en cualquiera de los dos estados.
+    /// </summary>
+    [Fact]
+    public void El_filtro_de_estado_ofrece_un_solo_Por_vencer_que_trae_lo_urgente_y_lo_proximo()
+    {
+        var opciones = AcordeonAsignacionesCentro.OpcionesEstadoDocumental;
+        opciones.Select(o => o.Texto).Should().OnlyHaveUniqueItems("dos opciones con el mismo rótulo no se distinguen");
+        var porVencer = opciones.Single(o => o.Texto == "Por vencer");
+
+        var id = Guid.NewGuid();
+        Registrar(new MediatorFalso()).Asignaciones[id] =
+        [
+            Asignado("Juan Pérez", EstadoDocumento.Urgente, Documento("Formación PRL", EstadoDocumento.Urgente, new DateOnly(2026, 10, 12))),
+            Asignado("Ana Ruiz", EstadoDocumento.Proximo, Documento("Formación PRL", EstadoDocumento.Proximo, new DateOnly(2026, 11, 2))),
+            Asignado("Marco Vila", EstadoDocumento.Vigente, Documento("Formación PRL", EstadoDocumento.Vigente, new DateOnly(2027, 4, 17)))
+        ];
+
+        var cut = RenderizarAcordeon(id);
+        cut.Render(p => p
+            .Add(a => a.CentroId, id)
+            .Add(a => a.CentroNombre, "Centro Norte")
+            .Add(a => a.EmpresaId, Guid.NewGuid())
+            .Add(a => a.EmpresaNombre, "Ibertec GmbH")
+            .Add(a => a.SeleccionMultiple, true)
+            .Add(a => a.MostrarTotales, true)
+            .Add(a => a.FiltroEstado, porVencer.Valor));
+
+        cut.Markup.Should().Contain("Juan Pérez").And.Contain("Ana Ruiz").And.NotContain("Marco Vila");
+    }
+
+    /// <summary>
     /// Vacío POR FILTRO ≠ vacío por no haber trabajadores. El primero nombra el
     /// filtro que no encontró nada; el segundo dice que no hay asignaciones.
     /// </summary>

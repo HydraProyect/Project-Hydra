@@ -421,30 +421,67 @@ public class CentrosListaPatronTests : BunitContext
         buscador.HasAttribute("data-filtro-pantalla").Should().BeTrue("es lo que enfoca la tecla f (atajos-lista.js)");
     }
 
+    /// <summary>
+    /// El Estado ya no es una pastilla: es la franja de estado, encima de la tabla, con un botón por rótulo.
+    /// Urgente y Próximo son un solo botón, «Por vencer».
+    /// </summary>
     [Fact]
-    public void Las_pastillas_primarias_son_Cliente_empresarial_y_Estado_y_Empresa_va_en_Mas_filtros()
+    public void La_pastilla_primaria_es_Cliente_empresarial_el_Estado_va_en_la_franja_y_Empresa_en_Mas_filtros()
     {
         var cut = Renderizar(ConDosClientes());
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
-            .Should().Equal("Cliente empresarial", "Estado", "Más filtros");
+            .Should().Equal("Cliente empresarial", "Más filtros");
+        cut.RotulosDeFranja().Should().Equal(
+            "Todos", "Bloqueo de la plataforma CAE", "Vencido", "Pendiente", "Por vencer", "Vigente", "No requiere gestión CAE");
+        cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
     }
 
     [Fact]
-    public void Los_filtros_activos_salen_como_chips_y_cada_chip_quita_su_filtro_de_la_url()
+    public void La_busqueda_sale_como_chip_el_estado_marcado_en_la_franja_y_desmarcarlo_lo_quita_de_la_url()
     {
-        var cut = Renderizar(ConCentros(Centro("Centro Norte")), url: "centros?q=norte&estado=Vencido");
+        var mediador = ConCentros(Centro("Centro Norte"));
+        var cut = Renderizar(mediador, url: "centros?q=norte&estado=Vencido");
 
         var chips = cut.FindAll(".barra-filtros-pastillas .chip-filtro").Select(c => c.TextContent.Trim()).ToList();
-        chips.Should().HaveCount(2);
-        chips.Should().Contain(c => c.Contains("norte")).And.Contain(c => c.Contains("Vencido"));
+        chips.Should().ContainSingle("el estado ya no tiene chip: se ve marcado en la franja").Which.Should().Contain("norte");
+        cut.MarcadosEnFranja().Should().Equal("Vencido");
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().Estados.Should().Equal(EstadoCentro.Vencido);
 
-        cut.FindAll(".barra-filtros-pastillas .chip-filtro")
-            .Single(c => c.TextContent.Contains("Vencido")).QuerySelector(".chip-filtro-quitar")!.Click();
+        cut.BotonDeFranja("Vencido").Click();
 
         var url = Services.GetRequiredService<NavigationManager>().Uri;
         url.Should().NotContain("estado=").And.Contain("q=norte");
+        cut.MarcadosEnFranja().Should().Equal("Todos");
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().Estados.Should().BeNullOrEmpty();
         cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// «Por vencer» es un solo botón para dos estados de código: marca Urgente y Próximo a la vez, en la URL
+    /// (<c>estado=Urgente,Proximo</c>) y en la consulta, y admite otro estado marcado a su lado.
+    /// </summary>
+    [Fact]
+    public void Marcar_Por_vencer_en_la_franja_manda_Urgente_y_Proximo_en_la_url_y_en_la_consulta()
+    {
+        var mediador = ConCentros(Centro("Centro Norte"));
+        var cut = Renderizar(mediador);
+
+        cut.BotonDeFranja("Por vencer").Click();
+
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        Uri.UnescapeDataString(navegacion.Uri).Should().EndWith("estado=Urgente,Proximo");
+        var consulta = mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last();
+        consulta.Estados.Should().Equal(EstadoCentro.Urgente, EstadoCentro.Proximo);
+        consulta.Estado.Should().BeNull("el filtro de un solo estado ya no se usa desde la página");
+        cut.MarcadosEnFranja().Should().Equal("Por vencer");
+
+        cut.BotonDeFranja("Vencido").Click();
+
+        Uri.UnescapeDataString(navegacion.Uri).Should().EndWith("estado=Urgente,Proximo,Vencido");
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().Estados
+            .Should().Equal(EstadoCentro.Urgente, EstadoCentro.Proximo, EstadoCentro.Vencido);
+        cut.MarcadosEnFranja().Should().Equal("Vencido", "Por vencer");
     }
 
     [Fact]
@@ -452,7 +489,8 @@ public class CentrosListaPatronTests : BunitContext
     {
         var url = $"centros?q=norte&estado=Vencido&cliente={ClienteOrion}&empresa={EmpresaMontajes}";
         var cut = Renderizar(ConDosClientes(), url: url);
-        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().HaveCount(4, "control positivo: los cuatro filtros llegaron de la URL");
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().HaveCount(3, "control positivo: búsqueda, Cliente empresarial y empresa llegaron de la URL");
+        cut.MarcadosEnFranja().Should().Equal(["Vencido"], "control positivo: el cuarto filtro, el estado, llegó de la URL y está marcado en la franja");
         var navegacion = Services.GetRequiredService<NavigationManager>();
         var navegaciones = 0;
         navegacion.LocationChanged += (_, _) => navegaciones++;
@@ -462,6 +500,23 @@ public class CentrosListaPatronTests : BunitContext
         navegacion.Uri.Should().NotContain("q=").And.NotContain("estado=").And.NotContain("cliente=").And.NotContain("empresa=");
         navegaciones.Should().Be(1);
         cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().BeEmpty();
+        cut.MarcadosEnFranja().Should().Equal("Todos");
+    }
+
+    /// <summary>
+    /// El estado no tiene chip, pero sigue siendo un filtro: con solo el estado marcado, «Limpiar todo» aparece
+    /// y lo quita. Si el estado dejara de contar como filtro activo, la franja sería el único modo de deshacerlo.
+    /// </summary>
+    [Fact]
+    public void Con_solo_el_estado_marcado_Limpiar_todo_aparece_y_lo_quita()
+    {
+        var cut = Renderizar(ConCentros(Centro("Centro Norte")), url: "centros?estado=Vencido");
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().BeEmpty("control: el estado no pinta chip");
+
+        cut.Find(".limpiar-filtros-barra").Click();
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("estado=");
+        cut.MarcadosEnFranja().Should().Equal("Todos");
     }
 
     /// <summary>

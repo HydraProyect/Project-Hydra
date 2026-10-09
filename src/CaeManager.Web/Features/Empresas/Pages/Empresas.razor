@@ -77,9 +77,9 @@
     }
     else
     {
-    @* Barra de filtros en modo pastillas: el buscador «Filtrar esta pantalla» (tecla f), la
-       pastilla «Documentación» y, en la misma fila, «Expandir todo / Contraer todo» y el
-       recuento. Sin «Más filtros»: esta pantalla no tiene filtros guardados.
+    @* Barra de filtros en modo pastillas: el buscador «Filtrar esta pantalla» (tecla f) y, en la
+       misma fila, «Expandir todo / Contraer todo» y el recuento. El estado se filtra en la franja
+       de debajo. Sin «Más filtros»: esta pantalla no tiene filtros guardados.
 
        - El buscador busca en la razón social y en el CIF (ObtenerEmpresasQuery): la pista
          dice los dos.
@@ -87,10 +87,8 @@
          en la URL como «estado». *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
-        <Pastillas>
-            <PastillaFiltro Etiqueta="@Textos["ListaFiltroDocumentacion"]" TextoTodos="@Textos["ListaFiltroTodas"]" Valor="@_estadoFiltro"
-                            ValorChanged="CambiarEstadoAsync" Opciones="EstadoDocumentoUi.OpcionesDocumentales" />
-        </Pastillas>
+        @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
+        <Pastillas></Pastillas>
         <Herramientas>
             @if (_elementosPagina.Count > 0)
             {
@@ -114,12 +112,13 @@
             {
                 <ChipFiltro Etiqueta="@($"Búsqueda: \"{_busqueda}\"")" EtiquetaAccesible="Quitar filtro de búsqueda" OnQuitar="QuitarFiltroBusquedaAsync" />
             }
-            @if (!string.IsNullOrWhiteSpace(_estadoFiltro))
-            {
-                <ChipFiltro Etiqueta="@EtiquetaFiltroEstado" EtiquetaAccesible="Quitar filtro de documentación" OnQuitar="QuitarFiltroEstadoAsync" />
-            }
         </Chips>
     </BarraFiltros>
+    @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
+       URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
+       demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
+    <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["ListaFiltroTodas"]" />
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -272,10 +271,10 @@
                                                  Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
                         </span>
                         <span>
-                            <Badge Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)" Tamano="TamanoBadge.Pequeno"
-                                   title="@TituloEstadoDocumental(empresa.EstadoDocumental)">
-                                @EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)
-                            </Badge>
+                            <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
+                                        Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
+                                        Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
+                                        Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)" />
                         </span>
                         <span>
                             @if (empresa.DeteccionesPendientes > 0)
