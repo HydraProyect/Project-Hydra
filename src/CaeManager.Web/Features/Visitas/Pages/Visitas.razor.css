@@ -284,3 +284,19 @@
     min-width: var(--space-8);
     padding-inline: var(--space-2);
 }
+
+/* Fila sin menú «⋯»: la acción rápida de la fila cancelada y el icono 360, en línea al final. */
+.visitas-celda-acciones {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+/* Cabecera del panel: el Centro y, a su derecha, el lápiz. */
+.visitas-detalle-titulo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
