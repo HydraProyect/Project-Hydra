@@ -977,7 +977,7 @@ public class CentrosListaPatronTests : BunitContext
 
         var cabecera = cut.Find(".cabecera-columnas-centros");
         cabecera.TextContent.Should().Contain("Centro").And.Contain("Empresa").And.Contain("Cumplimiento")
-            .And.Contain("Venc.").And.Contain("Por vencer").And.Contain("Estado / visita");
+            .And.Contain("Venc.").And.Contain("Próx.").And.Contain("Estado / visita");
         cabecera.GetAttribute("role").Should().BeNull("no es una tabla: la fila se despliega");
         cut.Markup.IndexOf("cabecera-columnas-centros", StringComparison.Ordinal)
             .Should().BeLessThan(cut.Markup.IndexOf("lista-filas-acordeon", StringComparison.Ordinal));

@@ -114,7 +114,7 @@
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
     <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" />
+                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["ListaFiltroTodas"]" />
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 

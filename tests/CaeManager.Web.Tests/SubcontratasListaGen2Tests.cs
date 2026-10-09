@@ -414,7 +414,7 @@ public class SubcontratasListaGen2Tests : BunitContext
         var lineas = cut.FindAll(".ventana-contexto-panel .ventana-linea").ToList();
 
         var lineaUrgente = lineas.Should().ContainSingle(l => l.TextContent.Contains("EPIs — Iñaki Otaegi")).Subject;
-        lineaUrgente.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer");
+        lineaUrgente.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Por vencer (urgente)");
         lineaUrgente.QuerySelector(".badge")!.ClassList.Should().Contain("badge-peligro",
             "donde se colorea por gravedad, lo urgente sigue en rojo: es lo único que lo separa de lo próximo");
 

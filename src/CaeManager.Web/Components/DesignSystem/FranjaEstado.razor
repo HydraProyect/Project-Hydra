@@ -31,7 +31,9 @@
     {
         var recuento = RecuentoDe(opcion);
         var pulsado = EstaMarcada(opcion);
-        <button type="button" class="@ClaseBoton(recuento)" aria-pressed="@AriaPulsado(pulsado)" @onclick="() => AlternarAsync(opcion)">
+        @* data-estado: los estados de código del botón, para localizarlo sin depender del rótulo ni de la cifra. *@
+        <button type="button" class="@ClaseBoton(recuento)" aria-pressed="@AriaPulsado(pulsado)" data-estado="@string.Join(SeleccionEstados.Separador, opcion.Valores)"
+                @onclick="() => AlternarAsync(opcion)">
             <span class="franja-estado-punto franja-estado-punto-@opcion.Tono.ToString().ToLowerInvariant()" aria-hidden="true"></span>
             @if (recuento is { } n)
             {

@@ -423,8 +423,8 @@ public class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
             .Should().NotContain("Documentación", "el estado documental se filtra en la franja, no en una pastilla");
-        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
-        cut.MarcadosEnFranja().Should().Equal("Todos");
+        cut.RotulosDeFranja().Should().Equal("Todas", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
+        cut.MarcadosEnFranja().Should().Equal("Todas");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
 
         await AlternarEnLaFranja(cut, "Vencidos");
@@ -476,7 +476,7 @@ public class EmpresasListaGen2Tests : BunitContext
 
         Navegacion.Uri.Should().NotContain("estado=");
         UltimaConsulta(mediador).EstadoDocumental.Should().BeNull();
-        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Todos"));
+        cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Todas"));
     }
 
     /// <summary>
@@ -506,7 +506,7 @@ public class EmpresasListaGen2Tests : BunitContext
         consulta.Busqueda.Should().BeNull();
         consulta.EstadoDocumental.Should().BeNull();
         cut.WaitForAssertion(() => cut.FindAll(".chip-filtro").Should().BeEmpty());
-        cut.MarcadosEnFranja().Should().Equal("Todos");
+        cut.MarcadosEnFranja().Should().Equal("Todas");
         cut.Find(".conteo-empresas").TextContent.Trim().Should().Be("2 de 2 empresas");
     }
 

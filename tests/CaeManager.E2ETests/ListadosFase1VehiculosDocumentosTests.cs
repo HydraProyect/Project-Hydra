@@ -81,8 +81,8 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixture fixture)
         // La siembra tiene emisiones distintas y fechas de vencimiento diversas; los controles
         // posteriores fallan explícitamente si ese universo deja de distinguir ambos sentidos.
         // El estado se filtra en la franja de estado (sustituyó a la pastilla «Estado»): un botón por
-        // estado, con su recuento delante del nombre.
-        var botonVigentes = page.Locator(".franja-estado-boton", new PageLocatorOptions { HasText = "Vigentes" });
+        // estado, localizable por su estado de código (data-estado).
+        var botonVigentes = page.Locator(".franja-estado-boton[data-estado='Vigente']");
         await botonVigentes.ClickAsync();
         await Expect(botonVigentes).ToHaveAttributeAsync("aria-pressed", "true");
         var vigencia = Cabecera(page, "Vigencia");

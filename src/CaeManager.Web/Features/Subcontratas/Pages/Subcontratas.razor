@@ -257,10 +257,11 @@
                                                oleada 3) y, desde el 2026-10-08, también rótulo («Por vencer»):
                                                sin el tono por incidencia aquí, un documento urgente era
                                                indistinguible de uno próximo normal en esta lista. Por eso el
-                                               desglose conserva el rojo para lo urgente, aunque la pastilla de
-                                               estado general ya no lo use. *@
+                                               desglose conserva el rojo para lo urgente y lo dice con palabras
+                                               («Por vencer (urgente)»): el color no puede ser el único portador
+                                               del significado. *@
                                             <span class="ventana-linea">
-                                                <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.TextoDeSeveridad(incidencia.Estado)</Badge>
                                                 @incidencia.Descripcion
                                             </span>
                                         }
