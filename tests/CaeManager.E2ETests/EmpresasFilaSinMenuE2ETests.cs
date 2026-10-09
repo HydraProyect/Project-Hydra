@@ -76,8 +76,13 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixture fixture)
         await Expect(panel.Locator("a.boton-360-pagina")).ToHaveAttributeAsync("href", new Regex(@"^/empresas/[0-9a-f-]{36}$"));
 
         // El icono 360 de la fila lleva a la página, sin abrir la vista rápida por el camino.
+        // Con el panel cerrado: abierto, a este ancho tapa el final de la fila (medido en CI,
+        // «workspace-panel … intercepts pointer events»), y su cabecera tiene su propio icono 360.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
+        await Expect(panel).ToHaveCountAsync(0);
         await fila.Locator("a.boton-360-pagina").ClickAsync();
         await page.WaitForURLAsync(new Regex(@"/empresas/[0-9a-f-]{36}$"));
+        await Expect(panel).ToHaveCountAsync(0);
 
         // De vuelta en la lista, el lápiz de la cabecera del panel entra en edición. Va el
         // último: en el usuario sembrado, editar saca de la lista a configurar la 2FA.
