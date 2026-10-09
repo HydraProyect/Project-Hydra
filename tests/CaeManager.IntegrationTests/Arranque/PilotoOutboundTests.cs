@@ -832,7 +832,7 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
                               select f).SingleAsync();
             fila.Actualizar(fila.Incluido, fila.PeriodicidadEspecialMeses, fila.BloqueaAcceso, fila.ArchivoUrl, fila.NombreArchivoOriginal, toleranciaDias: 0);
             return await db.SaveChangesAsync();
-        })).Should().Be(1, "control: la alteración de T5 se escribió");
+        })).Should().BeGreaterThan(0, "control: la alteración de T5 se escribió (la fila y su auditoría)");
 
         // 5. En T6, el Centro que exigía el certificado para acceder deja de exigirlo así: nadie queda bloqueado.
         var t6 = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantT6);
@@ -841,7 +841,7 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
             var fila = await db.TiposDocumentoCentros.Where(f => f.BloqueaAcceso).SingleAsync();
             fila.Actualizar(fila.Incluido, fila.PeriodicidadEspecialMeses, bloqueaAcceso: false, fila.ArchivoUrl, fila.NombreArchivoOriginal, fila.ToleranciaDias);
             return await db.SaveChangesAsync();
-        })).Should().Be(1, "control: la alteración de T6 se escribió");
+        })).Should().BeGreaterThan(0, "control: la alteración de T6 se escribió (la fila y su auditoría)");
 
         var conT5yT6 = PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion));
         var prefijoT5 = $"T5 «{CatalogoPilotoOutbound.NombreTenantT5}» · ";
