@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using FluentValidation;
@@ -14,7 +15,8 @@ public class EliminarFiltroGuardadoCommandValidator : AbstractValidator<Eliminar
 }
 
 public class EliminarFiltroGuardadoCommandHandler(
-    ICurrentUserService currentUserService, IFiltroGuardadoRepository repositorio, IUnitOfWork unitOfWork)
+    ICurrentUserService currentUserService, ITenantActual tenantActual,
+    IFiltroGuardadoRepository repositorio, IUnitOfWork unitOfWork)
     : IRequestHandler<EliminarFiltroGuardadoCommand, Result>
 {
     public async Task<Result> Handle(EliminarFiltroGuardadoCommand request, CancellationToken cancellationToken)
@@ -25,9 +27,15 @@ public class EliminarFiltroGuardadoCommandHandler(
 
         var filtro = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
 
-        // Mismo mensaje para "no existe" y "no es tuyo": no revela si el filtro
-        // de otro usuario existe o no.
-        if (filtro is null || filtro.UsuarioId != usuarioId.Value)
+        // Solo se puede borrar lo que se puede ver: el filtro tiene que ser del
+        // usuario actual Y del Tenant activo (misma clave con la que se lee, ver
+        // PantallasConFiltrosGuardados.EsDelTenant). Sin Tenant resuelto, o con
+        // una fila antigua sin Tenant en la clave, no se borra nada.
+        //
+        // Mismo mensaje para "no existe", "no es tuyo" y "es de otro Tenant": no
+        // revela si el filtro existe.
+        if (filtro is null || filtro.UsuarioId != usuarioId.Value
+            || !PantallasConFiltrosGuardados.EsDelTenant(filtro.Pantalla, tenantActual.TenantId))
             return Result.Fallo(Error.Crear("FiltroGuardado.NoEncontrado", "No encontramos ese filtro guardado."));
 
         repositorio.Eliminar(filtro);

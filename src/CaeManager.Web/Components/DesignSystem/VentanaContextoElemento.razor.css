@@ -1,0 +1,55 @@
+/*
+    Fila pulsable dentro del panel de una VentanaContexto interactiva. Ocupa
+    todo el ancho del panel para que el objetivo del clic sea la línea entera,
+    no solo el texto.
+*/
+.ventana-contexto-elemento {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    margin: 0;
+    padding: var(--space-1) var(--space-2);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--color-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.ventana-contexto-elemento:hover:not(:disabled),
+.ventana-contexto-elemento:focus-visible {
+    /* No --color-fila-hover: en oscuro vale lo mismo que --color-overlay, el fondo del panel. */
+    background-color: var(--color-primary-50);
+    color: var(--color-primary-500);
+}
+
+.ventana-contexto-elemento:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+.ventana-contexto-elemento:disabled {
+    color: var(--color-text-muted);
+    cursor: default;
+}
+
+.ventana-contexto-elemento-texto {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ventana-contexto-elemento-secundario {
+    flex: none;
+    color: var(--color-text-muted);
+}
+
+/* El catálogo solo tiene el chevron hacia abajo: aquí apunta a «se abre». */
+.ventana-contexto-elemento-flecha {
+    display: inline-flex;
+    flex: none;
+    color: var(--color-text-muted);
+    transform: rotate(-90deg);
+}
