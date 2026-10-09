@@ -222,7 +222,7 @@
             foreach (var aviso in normativa)
             {
                 items.Add(new ItemAviso(TipoAviso.Normativa, aviso.Id, $"normativa:{aviso.Id}",
-                    aviso.Titulo, aviso.NormaVigilada, aviso.UrlHtml));
+                    aviso.Titulo, $"{aviso.NormaVigilada} · {aviso.FechaPublicacion:dd/MM/yyyy}", aviso.UrlHtml));
             }
 
             // Solo se pregunta si hay algo que marcar: sin avisos normativos pendientes el botón no existe.
@@ -303,23 +303,16 @@
     }
 
     /// <summary>La autoridad final es el Command (ver su comentario); el botón solo se ofrece al Actor de Plataforma TALVEG.</summary>
-    private async Task MarcarNormativaRevisadaAsync(ItemAviso item)
-    {
-        var resultado = await EjecutarAsync(item.Id, new MarcarAvisoRevisionNormativaRevisadoCommand(item.Id, Notas: null));
-        if (resultado is { EsFallido: true })
-            Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
-    }
+    private Task MarcarNormativaRevisadaAsync(ItemAviso item) =>
+        EjecutarAsync(item.Id, new MarcarAvisoRevisionNormativaRevisadoCommand(item.Id, Notas: null), resultado =>
+        {
+            if (resultado.EsFallido)
+                Toasts.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+        });
 
-    private async Task AceptarSolicitudAsync(ItemAviso item)
-    {
-        var resultado = await EjecutarAsync(item.Id, new AceptarSolicitudIncorporacionCarteraCommand(item.Id));
-        if (resultado is null) return;
-
-        if (resultado.EsFallido)
-            Toasts.Mostrar(TextosIncorporacionCartera.MensajeDeError(TextosCartera, resultado.Error), TonoToast.Error);
-        else
-            Toasts.Mostrar(TextosCartera["ToastAceptada", item.Solicitante ?? string.Empty, item.Empresa ?? string.Empty], TonoToast.Exito);
-    }
+    private Task AceptarSolicitudAsync(ItemAviso item) =>
+        EjecutarAsync(item.Id, new AceptarSolicitudIncorporacionCarteraCommand(item.Id), resultado =>
+            AvisarResolucion(resultado, TextosCartera["ToastAceptada", item.Solicitante ?? string.Empty, item.Empresa ?? string.Empty]));
 
     // Rechazar cierra la solicitud sin vuelta atrás: se confirma, como en la bandeja.
     private void PedirRechazar(ItemAviso item) => _aRechazar = item;
@@ -335,28 +328,33 @@
         if (_aRechazar is not { } item)
             return;
 
-        var resultado = await EjecutarAsync(item.Id, new RechazarSolicitudIncorporacionCarteraCommand(item.Id));
+        await EjecutarAsync(item.Id, new RechazarSolicitudIncorporacionCarteraCommand(item.Id),
+            resultado => AvisarResolucion(resultado, TextosCartera["ToastRechazada"]));
         _aRechazar = null;
-        if (resultado is null) return;
+    }
 
+    private void AvisarResolucion(Result resultado, string textoExito)
+    {
         if (resultado.EsFallido)
             Toasts.Mostrar(TextosIncorporacionCartera.MensajeDeError(TextosCartera, resultado.Error), TonoToast.Error);
         else
-            Toasts.Mostrar(TextosCartera["ToastRechazada"], TonoToast.Exito);
+            Toasts.Mostrar(textoExito, TonoToast.Exito);
     }
 
-    /// <summary>Ejecuta un Command de un solo elemento y recarga; devuelve null si ya había otro en curso.</summary>
-    private async Task<Result?> EjecutarAsync(Guid id, IRequest<Result> command)
+    /// <summary>
+    /// Ejecuta un Command de un solo elemento, avisa de su resultado y solo entonces recarga: un fallo de
+    /// la recarga no puede dejar sin aviso una resolución que ya se hizo. No hace nada si ya había otro en curso.
+    /// </summary>
+    private async Task EjecutarAsync(Guid id, IRequest<Result> command, Action<Result> avisar)
     {
         if (_enCurso is not null)
-            return null;
+            return;
 
         _enCurso = id;
         try
         {
-            var resultado = await Mediator.Send(command);
+            avisar(await Mediator.Send(command));
             await CargarAsync();
-            return resultado;
         }
         finally
         {

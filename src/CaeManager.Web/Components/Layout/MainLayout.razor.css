@@ -318,3 +318,11 @@ html[data-menu-compacto] .barra-lateral > ::deep :not(.marca):not(nav) {
         transition: none;
     }
 }
+
+/* Un diálogo abierto desde la cabecera (la confirmación de Rechazar de la campana de avisos) queda
+   dentro de este contexto de apilamiento: su z-index de modal solo valdría 1020 frente al resto de
+   la página y la barra de acciones por lotes (1040) o los drawers (1045) se pintarían encima. Mientras
+   haya un modal dentro, la cabecera sube por encima de todos ellos. */
+.cabecera-fija:has(.modal-superposicion) {
+    z-index: 1060;
+}

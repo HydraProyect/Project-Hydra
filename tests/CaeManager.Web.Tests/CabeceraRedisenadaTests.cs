@@ -353,13 +353,16 @@ public class CabeceraRedisenadaTests : BunitContext
         bool esCoordinadorCae = false,
         IReadOnlyList<SolicitudIncorporacionCarteraDto>? solicitudes = null,
         bool esActorPlataforma = false,
-        Result? resultadoDeComandos = null)
+        Result? resultadoDeComandos = null,
+        Error? errorDeBandeja = null)
     {
         var mediador = new MediatorFalso(request => request switch
         {
             ObtenerNotificacionesPendientesQuery => notificaciones ?? [],
             ObtenerAvisosRevisionNormativaQuery => normativa ?? [],
             EsAdministradorPlataformaQuery => esActorPlataforma,
+            ObtenerSolicitudesIncorporacionCarteraQuery when errorDeBandeja is not null =>
+                Result.Fallo<BandejaIncorporacionCarteraDto>(errorDeBandeja),
             ObtenerSolicitudesIncorporacionCarteraQuery => Result.Exito(
                 new BandejaIncorporacionCarteraDto(esCoordinadorCae, solicitudes ?? [], [], [])),
             MarcarNotificacionLeidaCommand => Result.Exito(),
@@ -518,6 +521,138 @@ public class CabeceraRedisenadaTests : BunitContext
         cut.Find($"[data-aviso='cartera:{solicitud.Id}'] button").Click();
 
         Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Error);
+    }
+
+    [Fact]
+    public void Una_notificacion_con_destino_navega_a_el_y_una_sin_destino_no_navega()
+    {
+        var conDestino = new NotificacionDto(Guid.NewGuid(), "Con destino", "m", "/documentos", null);
+        var sinDestino = new NotificacionDto(Guid.NewGuid(), "Sin destino", "m", null, null);
+        RegistrarCampana(notificaciones: [conDestino, sinDestino]);
+        var cut = Render<CampanaAvisos>();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var inicio = navegacion.Uri;
+
+        cut.FindAll("button.campana-item").Single(b => b.TextContent.Contains("Sin destino")).Click();
+        navegacion.Uri.Should().Be(inicio, "sin UrlAccion solo se marca leída");
+
+        cut.FindAll("button.campana-item").Single(b => b.TextContent.Contains("Con destino")).Click();
+        navegacion.Uri.Should().EndWith("/documentos");
+    }
+
+    [Fact]
+    public void Si_la_Query_de_solicitudes_niega_el_permiso_la_campana_se_pinta_sin_avisos_de_cartera()
+    {
+        RegistrarCampana(notificaciones: [Notificacion("Una")], errorDeBandeja: ErroresSolicitudCartera.SinPermiso);
+
+        var cut = Render<CampanaAvisos>();
+
+        cut.Find("[data-testid=campana-contador]").TextContent.Should().Be("1");
+        cut.FindAll("[data-aviso^=cartera]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Si_el_Command_de_marcar_revisado_falla_se_avisa_con_un_toast_de_error()
+    {
+        RegistrarCampana(normativa: [Normativa(revisado: false)], esActorPlataforma: true,
+            resultadoDeComandos: Result.Fallo(ErroresSolicitudCartera.SinPermiso));
+        var cut = Render<CampanaAvisos>();
+
+        cut.Find("[data-aviso^=normativa] button").Click();
+
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Error);
+    }
+
+    [Fact]
+    public void El_aviso_normativo_muestra_la_norma_y_la_fecha_de_publicacion()
+    {
+        RegistrarCampana(normativa: [Normativa(revisado: false)]);
+
+        var cut = Render<CampanaAvisos>();
+
+        cut.Find("[data-aviso^=normativa] small").TextContent.Should().Be("RD 1627/1997 · 07/09/2026");
+    }
+
+    [Fact]
+    public void Tras_aceptar_la_solicitud_resuelta_desaparece_de_la_campana()
+    {
+        var solicitud = SolicitudDe("Marta", "Empresa Norte");
+        var pendientes = new List<SolicitudIncorporacionCarteraDto> { solicitud };
+        var mediador = new MediatorFalso(request =>
+        {
+            switch (request)
+            {
+                case ObtenerNotificacionesPendientesQuery: return (IReadOnlyList<NotificacionDto>)[];
+                case ObtenerAvisosRevisionNormativaQuery: return (IReadOnlyList<AvisoRevisionNormativaDto>)[];
+                case ObtenerSolicitudesIncorporacionCarteraQuery:
+                    return Result.Exito(new BandejaIncorporacionCarteraDto(true, pendientes.ToList(), [], []));
+                case AceptarSolicitudIncorporacionCarteraCommand:
+                    pendientes.Clear();
+                    return Result.Exito();
+                default: throw new NotSupportedException(request.GetType().Name);
+            }
+        });
+        Services.AddSingleton<IMediator>(mediador);
+        Services.AddSingleton<ToastService>();
+        var cut = Render<CampanaAvisos>();
+        cut.FindAll("[data-aviso^=cartera]").Should().ContainSingle("control positivo");
+
+        cut.Find($"[data-aviso='cartera:{solicitud.Id}'] button").Click();
+
+        cut.FindAll("[data-aviso^=cartera]").Should().BeEmpty();
+        cut.FindAll("[data-testid=campana-contador]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_toast_de_la_resolucion_sale_aunque_falle_la_recarga_posterior()
+    {
+        var solicitud = SolicitudDe("Marta", "Empresa Norte");
+        var resuelta = false;
+        var mediador = new MediatorFalso(request =>
+        {
+            switch (request)
+            {
+                case ObtenerNotificacionesPendientesQuery when resuelta: throw new InvalidOperationException("recarga rota");
+                case ObtenerNotificacionesPendientesQuery: return (IReadOnlyList<NotificacionDto>)[];
+                case ObtenerAvisosRevisionNormativaQuery: return (IReadOnlyList<AvisoRevisionNormativaDto>)[];
+                case ObtenerSolicitudesIncorporacionCarteraQuery:
+                    return Result.Exito(new BandejaIncorporacionCarteraDto(true, [solicitud], [], []));
+                case AceptarSolicitudIncorporacionCarteraCommand:
+                    resuelta = true;
+                    return Result.Exito();
+                default: throw new NotSupportedException(request.GetType().Name);
+            }
+        });
+        Services.AddSingleton<IMediator>(mediador);
+        Services.AddSingleton<ToastService>();
+        Services.AddSingleton<CaeManager.Application.Common.IAlertaOperativa>(new AlertaMuda());
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var cut = Render<CampanaAvisos>();
+
+        cut.Find($"[data-aviso='cartera:{solicitud.Id}'] button").Click();
+
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Exito, "la solicitud ya se aceptó antes de la recarga rota");
+    }
+
+    private sealed class AlertaMuda : CaeManager.Application.Common.IAlertaOperativa
+    {
+        public void Emitir(string mensaje, CaeManager.Application.Common.NivelAlertaOperativa nivel) { }
+        public void CapturarExcepcion(Exception excepcion) { }
+        public void DejarMigaDePan(string mensaje) { }
+        public IDisposable IniciarAmbitoDeCaptura() => new Nada();
+        private sealed class Nada : IDisposable { public void Dispose() { } }
+    }
+
+    [Fact]
+    public void La_cabecera_sube_su_apilamiento_mientras_tiene_un_dialogo_dentro()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+        var css = File.ReadAllText(Path.Combine(dir!, "src", "CaeManager.Web", "Components", "Layout", "MainLayout.razor.css"));
+
+        css.Should().Contain(".cabecera-fija:has(.modal-superposicion)",
+            "la confirmación de Rechazar vive dentro del contexto de apilamiento de la cabecera");
     }
 
     [Fact]
