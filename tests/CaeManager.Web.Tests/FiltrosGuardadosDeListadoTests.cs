@@ -9,6 +9,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Tests;
 
@@ -34,6 +35,25 @@ public class FiltrosGuardadosDeListadoTests : BunitContext
         Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ToastService>();
+        Services.AddSingleton<ILogger<FiltrosGuardadosDeListado>>(_registro);
+    }
+
+    private readonly RegistroQueAnota _registro = new();
+
+    /// <summary>Guarda lo que la pieza escribe en el registro con nivel de error o superior.</summary>
+    private sealed class RegistroQueAnota : ILogger<FiltrosGuardadosDeListado>
+    {
+        public List<(string Mensaje, Exception? Excepcion)> Errores { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Error)
+                Errores.Add((formatter(state, exception), exception));
+        }
     }
 
     private sealed class MediatorDeFiltros : IMediator
@@ -219,6 +239,13 @@ public class FiltrosGuardadosDeListadoTests : BunitContext
         _conexion.Opciones.Should().BeEmpty("no se guardó nada");
         Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty();
 
+        // El fallo no se queda solo en el modal: va al registro, con la pantalla y sin el nombre ni el contenido del filtro.
+        var anotado = _registro.Errores.Should().ContainSingle("un fallo real de base tiene que poder verse en el log").Subject;
+        anotado.Excepcion.Should().BeOfType<InvalidOperationException>().Which.Message.Should().Contain("23505");
+        anotado.Mensaje.Should().Contain(PantallasConFiltrosGuardados.Empresas)
+            .And.NotContain("Vencidas", "el nombre del filtro lo escribe el usuario")
+            .And.NotContain("Ebro", "ni lo que filtra");
+
         // Reintento con la base de vuelta: el mismo modal guarda y se cierra.
         _mediador.FallaElGuardado = false;
         await BotonDelDialogo(cut, "Guardar").ClickAsync(new MouseEventArgs());
@@ -390,6 +417,10 @@ public class FiltrosGuardadosDeListadoTests : BunitContext
         Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m => m.Tono == TonoToast.Error)
             .Which.Mensaje.Should().Be("No pudimos borrar el filtro guardado. Intenta nuevamente en unos segundos.");
         _conexion.Opciones.Select(o => o.Texto).Should().Equal("Solo Ebro");
+
+        var anotado = _registro.Errores.Should().ContainSingle("el fallo del borrado también va al registro").Subject;
+        anotado.Excepcion.Should().BeOfType<InvalidOperationException>();
+        anotado.Mensaje.Should().Contain(PantallasConFiltrosGuardados.Empresas).And.NotContain("Ebro", "ni el nombre ni el contenido del filtro");
     }
 
     // ------------------------------------------------------------- conexión

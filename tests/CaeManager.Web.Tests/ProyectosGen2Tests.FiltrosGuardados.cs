@@ -1,4 +1,5 @@
 using Bunit;
+using Bunit.TestDoubles;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 using CaeManager.Web.Components.DesignSystem;
@@ -6,6 +7,7 @@ using CaeManager.Web.Features.Proyectos.Pages;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
 
@@ -15,10 +17,12 @@ namespace CaeManager.Web.Tests;
 /// <see cref="FiltrosGuardadosEnListadosTests"/>; aquí hace falta el panel editado, que es lo que monta esta clase.
 ///
 /// <para>
-/// La vara de medir es el gesto manual equivalente. Cambiar de Cliente empresarial cierra el panel y pregunta
-/// antes (<c>Aviso_cambiar_de_Cliente_empresarial_…</c>). Cambiar la búsqueda o el estado no cierra nada, pero
-/// navega, y con algo a medias el aviso de la página detiene esa navegación y pregunta: lo fija
-/// <see cref="Escribir_en_el_buscador_con_la_edicion_a_medias_pregunta_al_navegar"/>.
+/// Aplicar un filtro guardado pregunta UNA vez y antes de tocar nada, cambie o no de Cliente empresarial. El
+/// gesto manual equivalente también pregunta: cambiar de Cliente empresarial cierra el panel
+/// (<c>Aviso_cambiar_de_Cliente_empresarial_…</c>), y cambiar la búsqueda o el estado navega y el aviso de la
+/// página detiene esa navegación (<see cref="Escribir_en_el_buscador_con_la_edicion_a_medias_pregunta_al_navegar"/>).
+/// La diferencia es quién repite la navegación al descartar: si la detuviera el aviso, la repetiría él y sin
+/// reemplazo; preguntando antes, la navegación del filtro sale una vez y con reemplazo.
 /// </para>
 /// </summary>
 public partial class ProyectosGen2Tests
@@ -45,8 +49,8 @@ public partial class ProyectosGen2Tests
 
     /// <summary>
     /// La referencia: el cambio MANUAL de la búsqueda con la edición del panel a medias pregunta «¿Salir sin
-    /// guardar?», porque navega y el aviso de la página detiene la navegación. Aplicar un filtro guardado del
-    /// mismo Cliente empresarial es ese mismo cambio y se comporta igual.
+    /// guardar?», porque navega y el aviso de la página detiene la navegación. Por eso aplicar un filtro
+    /// guardado del mismo Cliente empresarial no puede dejar de preguntar: solo elige preguntar antes de navegar.
     /// </summary>
     [Fact]
     public async Task Escribir_en_el_buscador_con_la_edicion_a_medias_pregunta_al_navegar()
@@ -85,7 +89,7 @@ public partial class ProyectosGen2Tests
         var uriAntes = Uri;
 
         var gesto = AplicarFiltroGuardadoAsync(cut, "Naves de A");
-        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("como al teclear en el buscador con algo a medias"));
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("aplicar la vista reescribe la URL: se pregunta antes"));
         await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
         await gesto.WaitAsync(Paciencia);
 
@@ -103,6 +107,31 @@ public partial class ProyectosGen2Tests
         ValorDelBuscador(cut).Should().Be("nave");
         PreguntaAbierta(cut).Should().BeFalse("una sola pregunta");
         PanelDeDetalleAbierto(cut).Should().BeTrue("el mismo Cliente empresarial no cierra el panel");
+    }
+
+    /// <summary>
+    /// Con el mismo Cliente empresarial y el panel a medias, la pregunta la hace la página ANTES de navegar. Si la
+    /// hiciera el aviso al detener la navegación, «Salir y descartar» la repetiría él, sin reemplazo: una entrada
+    /// de más en el historial, y «atrás» volvería a la misma lista con otros filtros en vez de salir de ella.
+    /// </summary>
+    [Fact]
+    public async Task Filtro_guardado_del_mismo_Cliente_empresarial_con_la_edicion_a_medias_al_descartar_navega_una_vez_y_con_reemplazo()
+    {
+        ConFiltroGuardado("Naves de A", $"{{\"cliente\":\"{ClienteId}\",\"q\":\"nave\"}}");
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+        await EscribirEnElPanelAsync(cut, "Otro nombre");
+        var historial = ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History;
+
+        var gesto = AplicarFiltroGuardadoAsync(cut, "Naves de A");
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
+        await PulsarEnLaPreguntaAsync(cut, "Salir y descartar");
+        await gesto.WaitAsync(Paciencia);
+        cut.WaitForAssertion(() => Uri.Should().Contain("q=nave", "control positivo: el filtro se aplicó"));
+
+        var delFiltro = historial.Where(h => h.Uri.Contains("q=nave")).ToList();
+        delFiltro.Should().NotBeEmpty("control positivo: el historial de bUnit registra la navegación del filtro")
+            .And.OnlyContain(h => h.Options.ReplaceHistoryEntry, "un filtro sustituye la entrada del historial, no añade otra");
+        delFiltro.Should().ContainSingle("la navegación del filtro sale una vez: nadie la detiene y la repite");
     }
 
     [Fact]

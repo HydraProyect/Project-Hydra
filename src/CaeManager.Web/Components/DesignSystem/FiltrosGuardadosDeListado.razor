@@ -44,6 +44,7 @@
 @inject NavigationManager Navegacion
 @inject ToastService ToastService
 @inject IStringLocalizer<TextosComunes> Comunes
+@inject ILogger<FiltrosGuardadosDeListado> Logger
 
 <ModalFormulario Visible="_mostrarGuardar" VisibleChanged="v => { if (!v) CerrarGuardar(); }" Titulo="@Comunes["FiltroGuardadoModalTitulo"]"
                  Ancho="AnchoModal.Pequeno" HayCambios="() => HayCambiosFiltro" Guardando="_guardando"
@@ -172,11 +173,13 @@
             {
                 resultado = await Mediator.Send(new GuardarFiltroCommand(Pantalla, _nombre, valoresJson));
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 // El guardado lanzó (dos pestañas guardando el mismo nombre a la vez chocan en el índice
                 // único; la base no responde): se dice dentro del modal, que sigue abierto con el nombre
                 // escrito. Sin esto la excepción sube al límite de errores y sustituye la página entera.
+                // Al registro va la pantalla, no el nombre ni el contenido del filtro.
+                Logger.LogError(ex, "No se pudo guardar un filtro guardado de la pantalla {Pantalla}", Pantalla);
                 _mensajeError = Comunes["FiltroGuardadoGuardarError"];
                 return;
             }
@@ -303,8 +306,9 @@
             _filtros = _filtros.Where(f => f.Id != filtro.Id).ToList();
             await PublicarAsync();
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Logger.LogError(ex, "No se pudo borrar un filtro guardado de la pantalla {Pantalla}", Pantalla);
             ToastService.Mostrar(Comunes["FiltroGuardadoBorrarError"], TonoToast.Error);
         }
         finally

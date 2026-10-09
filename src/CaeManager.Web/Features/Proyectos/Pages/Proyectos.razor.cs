@@ -454,48 +454,46 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// autoridad; uno que ya no se ofrece cuenta como ausente).
     ///
     /// <para>
-    /// <b>Otro Cliente empresarial</b> cierra el panel de detalle, así que pregunta antes, con la misma condición
-    /// que el cambio manual de Cliente empresarial (<see cref="SeleccionarClienteAsync"/>); «Seguir editando»
-    /// deja la vista como estaba. Después, en este orden: campos, panel cerrado, URL y, solo entonces, la
-    /// carga. La URL va antes de la carga para que no diga el Cliente empresarial anterior mientras llegan los
-    /// datos (teclear en el buscador en esa ventana navegaba conservándolo y lo devolvía a la pantalla), y con
-    /// los campos ya puestos <see cref="OnParametersSetAsync"/> los encuentra iguales y no carga otra vez.
+    /// Con algo a medias en el panel de detalle se pregunta UNA vez y antes de tocar nada, cambie o no el
+    /// Cliente empresarial: aplicar la vista reescribe la URL, y una navegación con el panel sin guardar la
+    /// detendría el aviso de la página, que al descartar la repite él y sin reemplazo (una entrada de más
+    /// en el historial). Preguntando aquí, la navegación del filtro sale una vez y con reemplazo. «Seguir
+    /// editando» deja la vista como estaba.
     /// </para>
     ///
     /// <para>
-    /// <b>El mismo Cliente empresarial</b> no cierra nada: es un cambio de búsqueda y estado como el manual, y
-    /// como él solo navega. Los campos los pone <see cref="OnParametersSetAsync"/> al llegar la navegación: si
-    /// el panel tiene algo a medias el aviso de la página la detiene y pregunta (igual que al teclear en el
-    /// buscador), y con «Seguir editando» campos y URL siguen diciendo lo mismo.
+    /// Después, en este orden: campos, panel cerrado (solo si cambia el Cliente empresarial), URL y, solo
+    /// entonces, la carga. La URL va antes de la carga para que no diga el Cliente empresarial anterior
+    /// mientras llegan los datos (teclear en el buscador en esa ventana navegaba conservándolo y lo devolvía a
+    /// la pantalla), y con los campos ya puestos <see cref="OnParametersSetAsync"/> los encuentra iguales y no
+    /// carga otra vez.
     /// </para>
     /// </summary>
     private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
     {
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
+            return;
+
         var cliente = Guid.TryParse(vista.GetValueOrDefault("cliente"), out var id) && _clientes.Any(c => c.Id == id)
             ? id
             : Guid.Empty;
-        var busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
-        var estado = EstadosValidos(vista.GetValueOrDefault("estado"));
         var cambiaDeCliente = cliente != _clienteSeleccionadoId;
 
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
         if (cambiaDeCliente)
         {
-            if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
-                return;
-
             _clienteSeleccionadoId = cliente;
-            _busqueda = busqueda;
-            _estadoFiltro = estado;
-            // La navegación de abajo sale ya sin nada pendiente de guardar.
+            // El panel era de un proyecto del Cliente empresarial anterior.
             CerrarDetalle();
         }
 
-        // Una sola navegación, con todos los parámetros de la vista.
+        // Una sola navegación, con todos los parámetros de la vista y sin nada pendiente de guardar.
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["cliente"] = cliente == Guid.Empty ? null : cliente.ToString(),
-            ["q"] = busqueda,
-            ["estado"] = estado,
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro,
         });
 
         if (cambiaDeCliente)
