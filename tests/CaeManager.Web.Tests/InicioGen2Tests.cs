@@ -132,7 +132,7 @@ public class InicioGen2Tests : BunitContext
 
         cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("0% de cumplimiento documental");
         cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim()
-            .Should().Be("Ningún documento subido de los 19 que exigen los centros de trabajo.");
+            .Should().Be("Ningún documento subido. Los centros de trabajo exigen 19 (uno por trabajador, tipo de documento y centro).");
         cut.Find(".dashboard-resumen").TextContent.Should().NotContain("100%").And.NotContain("0 de 0");
     }
 

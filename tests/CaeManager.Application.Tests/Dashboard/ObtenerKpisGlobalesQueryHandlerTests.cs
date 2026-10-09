@@ -166,6 +166,25 @@ public class ObtenerKpisGlobalesQueryHandlerTests
 
     // ---------------------------------------------------------------- P2.4 / D-7
 
+    /// <summary>
+    /// Decisión del 2026-10-09: una organización sin ningún documento y con pares exigidos se pinta al 0 %, y una tasa que
+    /// se pinta pesa en la media por su propio denominador (los pares exigidos). Antes pesaba cero y la media la ignoraba.
+    /// </summary>
+    [Fact]
+    public void Una_organizacion_sin_documentos_y_con_pares_exigidos_pesa_en_la_media_con_su_cero()
+    {
+        var resultado = ObtenerKpisGlobalesQueryHandler.Fusionar(
+        [
+            (Cliente("ConDocumentos"), Kpis(vigentes: 81, tasa: 100)),
+            (Cliente("TodoPorHacer"), Kpis(tasa: 0, centros: 3) with { ParesExigidosSinDocumento = 19 })
+        ]);
+
+        resultado.HayCumplimientoDocumentalQueMedir.Should().BeTrue();
+        resultado.TasaCumplimientoDocumentalPromedio.Should().Be(81, "81 al día de 81 + 19: el 0 % de la segunda cuenta");
+        var fila = resultado.ClientesConMasRiesgo.Single(c => c.Nombre == "TodoPorHacer");
+        (fila.TasaCumplimientoDocumental, fila.SinDatos).Should().Be((0, false));
+    }
+
     private static KpisDashboardDto ConBloqueosYDatos(KpisDashboardDto kpis, int bloqueados = 0, bool sinDatos = false) =>
         kpis with { CentrosBloqueados = bloqueados, SinDatos = sinDatos };
 

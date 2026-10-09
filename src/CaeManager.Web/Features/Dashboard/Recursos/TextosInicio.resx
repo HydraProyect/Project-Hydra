@@ -37,7 +37,7 @@
     <value>No hay documentos de trabajador ni documentación exigida por los centros de trabajo que medir.</value>
   </data>
   <data name="AnilloSinDocumentosDetalle" xml:space="preserve">
-    <value>Ningún documento subido de los {0} que exigen los centros de trabajo.</value>
+    <value>Ningún documento subido. Los centros de trabajo exigen {0} (uno por trabajador, tipo de documento y centro).</value>
   </data>
   <data name="CentrosBloqueadosKpiUno" xml:space="preserve">
     <value>1 Centro de Trabajo con bloqueo de la plataforma CAE del Cliente empresarial: el porcentaje cuenta documentos, no acceso.</value>

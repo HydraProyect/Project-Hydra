@@ -37,7 +37,7 @@
     <value>No hi ha documents de treballador ni documentació exigida pels centres de treball per mesurar.</value>
   </data>
   <data name="AnilloSinDocumentosDetalle" xml:space="preserve">
-    <value>Cap document pujat dels {0} que exigeixen els centres de treball.</value>
+    <value>Cap document pujat. Els centres de treball n'exigeixen {0} (un per treballador, tipus de document i centre).</value>
   </data>
   <data name="CentrosBloqueadosKpiUno" xml:space="preserve">
     <value>1 Centre de Treball amb bloqueig de la plataforma CAE del Client empresarial: el percentatge compta documents, no accés.</value>

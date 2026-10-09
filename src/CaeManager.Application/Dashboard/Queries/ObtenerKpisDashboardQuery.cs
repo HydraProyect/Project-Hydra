@@ -84,6 +84,13 @@ public record KpisDashboardDto(
     public FraccionCumplimiento Fraccion => FraccionDe(
         DocumentosVigentes, DocumentosProximos, DocumentosUrgentes, DocumentosVencidos, DocumentosSinConfirmar, DocumentosSinCaducidad);
 
+    /// <summary>
+    /// El «de cuántos» de <see cref="TasaCumplimientoDocumental"/>: los Documentos de Trabajador medidos o, sin ninguno, los
+    /// pares que exigen los Centros (<see cref="ParesExigidosSinDocumento"/>). Es lo que pesa esta organización en la media
+    /// de Visión de cartera: una tasa que se pinta pesa por su propio denominador.
+    /// </summary>
+    public int DenominadorDeLaTasa => Fraccion.Requeridos + ParesExigidosSinDocumento;
+
     /// <summary>La misma fracción desde los recuentos por estado: el Dashboard Ejecutivo la usa con los recuentos sumados de varios Tenants.</summary>
     public static FraccionCumplimiento FraccionDe(
         int vigentes, int proximos, int urgentes, int vencidos, int sinConfirmar, int sinCaducidad) =>
