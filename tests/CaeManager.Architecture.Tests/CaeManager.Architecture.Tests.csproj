@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="10.0.1" />
+    <PackageReference Include="coverlet.collector" Version="10.1.0" />
     <!-- Fijado en exacta (no comodín): la 8.x exige licencia comercial de
          pago (Xceed); ver el razonamiento completo en
          CaeManager.Domain.Tests.csproj y dependabot.yml. -->
