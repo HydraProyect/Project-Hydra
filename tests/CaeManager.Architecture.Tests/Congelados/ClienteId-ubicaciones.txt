@@ -184,6 +184,7 @@ src/CaeManager.Application/Proyectos/Queries/ObtenerProyectos/ObtenerProyectosQu
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectosParaSelector/ObtenerProyectosParaSelectorQuery.cs :: ClienteId = 2
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectosParaSelector/ObtenerProyectosParaSelectorQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectosParaSelector/ObtenerProyectosParaSelectorQuery.cs :: clienteIdsVisibles = 3
+src/CaeManager.Application/Proyectos/Queries/ObtenerTecnicosProyecto/ObtenerTecnicosProyectoQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: ClienteId = 8
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Reclamaciones/Commands/EnviarReclamacion/EnviarReclamacionCommand.cs :: clienteIdsVisibles = 3

@@ -129,6 +129,6 @@ public class BuscadorGlobalIrAAreasNuevasTests : BunitContext
 
         await cut.Find("input.buscador-input").InputAsync("client");
 
-        cut.FindAll("a.buscador-item").Should().Contain(a => a.TextContent.Contains("Ir a Clientes empresariales", StringComparison.Ordinal));
+        cut.FindAll("a.buscador-item").Should().Contain(a => a.TextContent.Contains("Ir a Clientes", StringComparison.Ordinal));
     }
 }

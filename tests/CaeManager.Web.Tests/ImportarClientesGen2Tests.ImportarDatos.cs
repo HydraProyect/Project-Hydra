@@ -110,8 +110,8 @@ public partial class ImportarClientesGen2Tests
 
     [Theory]
     [InlineData("cae", "Importación CAE completa", "Importación CAE completa (multi-hoja)")]
-    [InlineData("clientes", "Plantilla de Clientes empresariales", "Plantilla de Clientes empresariales")]
-    [InlineData("combinada", "Combinada", "Combinada: Cliente empresarial + Empresas + Centros + Trabajadores")]
+    [InlineData("clientes", "Plantilla de Clientes", "Plantilla de Clientes")]
+    [InlineData("combinada", "Combinada", "Combinada: Cliente + Empresas + Centros + Trabajadores")]
     [InlineData("documentos", "Documentos", "Documentos")]
     public async Task Continuar_lleva_el_nombre_corto_del_mockup_y_la_zona_de_soltar_el_titulo_entero(
         string plantilla, string nombreCorto, string titulo)
@@ -165,17 +165,17 @@ public partial class ImportarClientesGen2Tests
         Texto(cut.Find("h1.titulo-pagina")).Should().Be("Importación combinada");
         Texto(cut.Find(".cabecera-pagina-kicker")).Should().Be("Configuración");
         cut.Find("a.enlace-volver-importacion").GetAttribute("href").Should().Be("/clientes");
-        Texto(cut.Find(".miga-importacion")).Should().Be("Negocio → Clientes empresariales → Importación combinada");
+        Texto(cut.Find(".miga-importacion")).Should().Be("Negocio → Clientes → Importación combinada");
         var entradilla = Texto(cut.Find(".cabecera-pagina-descripcion"));
         entradilla.Should().StartWith("Estructura organizativa completa sin documentos").And.Contain("cuatro hojas");
-        Regex.Matches(entradilla, @"\b[Cc]lientes?\b(?! empresarial)").Should()
-            .BeEmpty("la hoja «Clientes» crea Clientes empresariales: nunca «cliente» a secas en un texto nuevo");
+        Regex.Matches(entradilla, @"\b[Cc]lientes?\s+empresarial(?:es)?\b").Should()
+            .BeEmpty("la hoja «Clientes» crea Clientes: la pantalla no dice el rótulo largo (decisión del 2026-10-09)");
 
         await OpcionPlantilla(cut, "cae").ClickAsync(new MouseEventArgs());
 
         Texto(cut.Find("h1.titulo-pagina")).Should().Be("Importar datos", "con otra plantilla ya no es la importación combinada");
         cut.FindAll(".cabecera-pagina-descripcion").Should().BeEmpty("la entradilla es de la Combinada");
-        Texto(cut.Find("a.enlace-volver-importacion")).Should().Be("Volver a Clientes empresariales", "se sigue habiendo llegado desde Clientes");
+        Texto(cut.Find("a.enlace-volver-importacion")).Should().Be("Volver a Clientes", "se sigue habiendo llegado desde Clientes");
     }
 
     [Fact]
@@ -241,7 +241,7 @@ public partial class ImportarClientesGen2Tests
         var escenario = new Escenario();
         escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.", yaExisteCliente: true, yaExisteCentro: true)]);
         var (cut, _) = Renderizar(escenario);
-        await Pulsar(cut, "Continuar con Plantilla de Clientes empresariales");
+        await Pulsar(cut, "Continuar con Plantilla de Clientes");
         await Subir(cut, "a.xlsx", "A");
         await Pulsar(cut, "Ver plan de importación");
 
@@ -271,7 +271,7 @@ public partial class ImportarClientesGen2Tests
             "Grupo Previo S.A. No viene en la hoja Clientes Ya existe · se reutiliza",
             "  Empresa Previa S.L. Ya existe · se reutiliza",
             "    Nave Previa Sin código Se creará",
-            "Sin Cliente empresarial asociado",
+            "Sin Cliente asociado",
             "  Talleres Sueltos S.L. Se creará",
             "    Marco Vila Sanz 11223344A Se creará",
             "  Contratas Previas S.L. Ya existe · se reutiliza",
@@ -372,7 +372,7 @@ public partial class ImportarClientesGen2Tests
 
         cut.WaitForAssertion(() => TituloDeLaSeccion(cut).Should().Be("Reporte"));
         mediador.Enviados.OfType<EjecutarImportacionCombinadaCommand>().Should().ContainSingle();
-        cut.FindAll("a").Should().ContainSingle(a => Texto(a) == "Ver Clientes empresariales")
+        cut.FindAll("a").Should().ContainSingle(a => Texto(a) == "Ver Clientes")
             .Which.GetAttribute("href").Should().Be("/clientes");
     }
 
@@ -390,6 +390,6 @@ public partial class ImportarClientesGen2Tests
         await BotonDelDialogo(cut, "Sí, importar").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => TituloDeLaSeccion(cut).Should().Be("Reporte"));
-        cut.FindAll("a").Should().NotContain(a => Texto(a) == "Ver Clientes empresariales");
+        cut.FindAll("a").Should().NotContain(a => Texto(a) == "Ver Clientes");
     }
 }

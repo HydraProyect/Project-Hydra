@@ -58,7 +58,7 @@ internal sealed class ClienteVigenteDeEmpresa
 /// Predicado de «a quién presta servicio esta Empresa»: Relación Empresarial vigente en la que la
 /// Empresa es la proveedora y la contraparte es un Cliente empresarial real (<c>EsCritico != null</c>; ver
 /// el comentario del handler de arriba). Hoy su único llamador es el handler de arriba (la fila desplegada
-/// de /empresas y la pestaña «Clientes empresariales» de Empresa 360). NO aplica alcance: el llamador acota
+/// de /empresas y la pestaña «Clientes» de Empresa 360). NO aplica alcance: el llamador acota
 /// antes los Ids con el alcance de GESTIÓN (REC-153). Proyecta a una clase con inicializador, no a un record
 /// con constructor, para que EF pueda ordenar después de la proyección.
 /// </summary>

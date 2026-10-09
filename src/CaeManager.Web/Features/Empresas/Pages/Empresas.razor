@@ -231,7 +231,7 @@
                         }
                         <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
                                 aria-expanded="@(expandido ? "true" : "false")"
-                                aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los Clientes empresariales de {empresa.RazonSocial}")"
+                                aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los Clientes de {empresa.RazonSocial}")"
                                 @onclick="() => AlternarExpansionAsync(empresa.Id)" @onclick:stopPropagation="true">
                             <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                         </button>
@@ -310,7 +310,7 @@
                            Relaciones Empresariales vigentes en las que esta Empresa es
                            la proveedora: un rol de la relación, no un tipo de la
                            Empresa. Su rótulo, su vacío y su error son los de la pestaña
-                           «Clientes empresariales» de Empresa 360 (TextosEmpresas):
+                           «Clientes» de Empresa 360 (TextosEmpresas):
                            neutros, sin recuento y sin «presta servicio a» (decisión del
                            propietario, 2026-10-08). *@
                         <div class="tarjeta-fila-acordeon-contenido">
@@ -383,11 +383,11 @@
             <input type="checkbox" @bind="_esActividadAnexoI" /> Actividad del Anexo I del RSP
         </label>
 
-        <SelectorMultiple Etiqueta="Clientes empresariales con los que trabaja"
+        <SelectorMultiple Etiqueta="Clientes con los que trabaja"
                            Elementos="@_clientesDisponiblesSelector"
                            Seleccionados="@_clienteIdsSeleccionados"
                            OnAlternar="args => AlternarCliente(args.Id, args.Marcado)"
-                           TextoVacio="Todavía no hay Clientes empresariales creados." />
+                           TextoVacio="Todavía no hay Clientes creados." />
     </ChildContent>
     <PieExtra>
         <Boton Variante="VarianteBoton.Secundario" Cargando="_guardando" OnClick="GuardarYCrearCentroAsync">

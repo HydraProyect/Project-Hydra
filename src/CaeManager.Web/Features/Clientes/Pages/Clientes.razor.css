@@ -21,7 +21,7 @@
 /* La barra de filtros (tarjeta, chips, «Limpiar todo») vive ahora en el
    componente BarraFiltros y en list-page.css: aquí ya no se copia. */
 
-/* Resumen de la barra de filtros: «3 Clientes empresariales con estos filtros». */
+/* Resumen de la barra de filtros: «3 Clientes con estos filtros». */
 .conteo-clientes {
     font: var(--font-caption);
     color: var(--color-text-muted);

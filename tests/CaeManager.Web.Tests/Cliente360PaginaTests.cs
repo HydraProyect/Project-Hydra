@@ -183,15 +183,15 @@ public class Cliente360PaginaTests : BunitContext
 
         var cabecera = cut.Find(".cabecera-pagina");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Refrielectric S.A.");
-        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Cliente empresarial",
-            "en pantalla el Cliente empresarial se rotula «Cliente empresarial» (CONTRATO_TERMINOLOGIA § 3.2)");
+        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Cliente",
+            "en pantalla el Cliente se rotula «Cliente» (CONTRATO_TERMINOLOGIA § 3.2)");
         cabecera.QuerySelector(".cliente360-meta")!.TextContent.Should()
             .Contain("CIF A-48.220.917").And.Contain("3 centros · 42 trabajadores");
         cabecera.QuerySelector(".cliente360-meta button")
             .Should().NotBeNull("el CIF se copia con BotonCopiar");
         Textos(cabecera.QuerySelectorAll(".cliente360-indicadores .badge")).Should().Equal(["Crítico"]);
         cut.FindAll(".anillo-cumplimiento, [class*='anillo']").Should().BeEmpty(
-            "no existe porcentaje de cumplimiento por Cliente empresarial: un anillo inventaría uno");
+            "no existe porcentaje de cumplimiento por Cliente: un anillo inventaría uno");
     }
 
     /// <summary>
@@ -276,7 +276,7 @@ public class Cliente360PaginaTests : BunitContext
             Bloqueo(id, "Almacén Getafe", juan, "Juan Pérez"),
             Bloqueo(id, "Oficinas Bilbao", juan, "Juan Pérez"),
             Bloqueo(id, "Almacén Getafe", Guid.NewGuid(), "Marco Vila"),
-            Bloqueo(Guid.NewGuid(), "Planta de otro Cliente empresarial", Guid.NewGuid(), "Ajeno Ajeno")]);
+            Bloqueo(Guid.NewGuid(), "Planta de otro Cliente", Guid.NewGuid(), "Ajeno Ajeno")]);
         Registrar(mediador);
 
         var cut = Renderizar(id);
@@ -451,7 +451,7 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("2 centros de este Cliente empresarial, del peor estado al mejor.");
+        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("2 centros de este Cliente, del peor estado al mejor.");
         var filas = cut.FindAll("li.fila-relacion");
         filas.Select(f => f.QuerySelector("a.fila-relacion-nombre")!.GetAttribute("href"))
             .Should().Equal([$"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}"], "el orden es el de la consulta: peor primero");
@@ -535,7 +535,7 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         cut.Find(".estado-vacio").TextContent.Should()
-            .Contain("No pudimos cargar este Cliente empresarial").And.Contain("Puede que ya no exista o que no tengas acceso.");
+            .Contain("No pudimos cargar este Cliente").And.Contain("Puede que ya no exista o que no tengas acceso.");
         cut.FindAll(".cabecera-pagina").Should().BeEmpty();
         // Del cliente pide solo su ficha; la lista de empresas autorizadas es del aviso de enlace profundo (§ 4.5).
         mediador.Enviadas.Where(e => e is not CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados.ObtenerClientesAutorizadosQuery)
@@ -561,7 +561,7 @@ public class Cliente360PaginaTests : BunitContext
         cut.Find(".cliente360-nota-pie").TextContent.Should().Be("Solo visible para tu equipo.");
 
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar Cliente empresarial").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar Cliente").ClickAsync(new MouseEventArgs());
         workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Cliente, id, "Refrielectric S.A.", "informacion"));
 
         var editar = cut.FindAll("button").Where(b => b.TextContent.Trim() == "Editar →").ToList();

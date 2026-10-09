@@ -309,7 +309,7 @@ public class GateNivel0EnDeteccionesDeIngestaTests
             new TestAsyncQueryable<CanalGestionDocumental>(new List<CanalGestionDocumental>().AsQueryable());
     }
 
-    private static Centro CentroDelCliente() => new(ClienteId, Guid.NewGuid(), "Centro del Cliente empresarial");
+    private static Centro CentroDelCliente() => new(ClienteId, Guid.NewGuid(), "Centro del Cliente");
 
     /// <summary>Una asignación activa en ese Centro: sin ella el flujo de gestión se para antes del proveedor.</summary>
     private sealed class AsignacionesQueryContextConUna(Guid centroId) : IAsignacionesQueryContext

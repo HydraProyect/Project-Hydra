@@ -127,7 +127,7 @@ public class AsignarCarteraGestorCaeCommandTests
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
         e.Catalogo.Retiradas.Should().ContainSingle().Which.Should().Be((Beneficiario1, Operador, Gestor, Actor, (Guid?)Beneficiario1));
         e.Catalogo.TenantsAlGuardar.Should().Equal(Beneficiario1);
-        e.Bloqueo.Exclusivos.Should().BeEquivalentTo(new[] { Gestor }, "retirar decide si la fila heredada sobra: excluye a las reasignaciones de Cliente empresarial hacia este Gestor CAE");
+        e.Bloqueo.Exclusivos.Should().BeEquivalentTo(new[] { Gestor }, "retirar decide si la fila heredada sobra: excluye a las reasignaciones de Cliente hacia este Gestor CAE");
         e.Bloqueo.Compartidos.Should().BeEmpty();
         e.Transaccion.Confirmadas.Should().Be(1);
     }

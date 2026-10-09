@@ -430,7 +430,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// «Lo que es puro del cliente» (Q2 = (a)): los tipos que un Centro exige y
     /// que no se piden con carácter general, por par Trabajador–Centro. El
     /// modelo no guarda quién originó la exigencia, así que se rotula como
-    /// «exigido en el Centro X (del Cliente empresarial Y)», nunca como
+    /// «exigido en el Centro X (del Cliente Y)», nunca como
     /// «exigido por Y». La fecha de renovación es la caducidad del documento
     /// (Q1 = (a)): la misma en todos los Centros, porque Documento no tiene
     /// CentroId.

@@ -193,7 +193,7 @@ public class FacturacionGen2Tests : BunitContext
     {
         var (cut, mediador) = Renderizar(new Escenario());
 
-        cut.Find(".estado-vacio h3").TextContent.Should().Be("Elige un Cliente empresarial para empezar",
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Elige un Cliente para empezar",
             "antes no se pintaba nada bajo el selector: «aún no has elegido» no se distinguía de «no hay resultados»");
         cut.FindAll("[role=tablist]").Should().BeEmpty();
         mediador.Enviados.OfType<ObtenerTarifasClienteQuery>().Should().BeEmpty();
@@ -208,7 +208,7 @@ public class FacturacionGen2Tests : BunitContext
         var (cut, _) = Renderizar(escenario);
 
         cut.FindAll("#sel-cliente").Should().BeEmpty();
-        cut.Find(".estado-vacio h3").TextContent.Should().Be("No hay Clientes empresariales disponibles");
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("No hay Clientes disponibles");
     }
 
     // ---------------------------------------------------------------- franja del cliente
@@ -231,7 +231,7 @@ public class FacturacionGen2Tests : BunitContext
             .Which.ClienteId.Should().Be(ClienteA);
         FilasTarifas(cut).Select(f => Texto(f.QuerySelector(".concepto-nombre")!))
             .Should().Equal("Trabajador activo", "Alta de centro");
-        ConceptosTarificados(cut).Should().Be("2 de 7", "hay siete ConceptoFacturable y este Cliente empresarial tiene tarifa para dos");
+        ConceptosTarificados(cut).Should().Be("2 de 7", "hay siete ConceptoFacturable y este Cliente tiene tarifa para dos");
     }
 
     [Fact]
@@ -470,7 +470,7 @@ public class FacturacionGen2Tests : BunitContext
 
         await Calcular(cut);
 
-        cut.Find("[role=tabpanel] .estado-vacio h3").TextContent.Should().Be("No encontramos este Cliente empresarial");
+        cut.Find("[role=tabpanel] .estado-vacio h3").TextContent.Should().Be("No encontramos este Cliente");
     }
 
     // ---------------------------------------------------------------- tarifas

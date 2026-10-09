@@ -29,7 +29,7 @@ public class ToleranciaDocumentoClienteEmpresarial : EntidadConTenant
     public ToleranciaDocumentoClienteEmpresarial(Guid clienteEmpresarialId, Guid tipoDocumentoId, int toleranciaDias)
     {
         if (clienteEmpresarialId == Guid.Empty)
-            throw new ArgumentException("La tolerancia debe pertenecer a un Cliente empresarial.", nameof(clienteEmpresarialId));
+            throw new ArgumentException("La tolerancia debe pertenecer a un Cliente.", nameof(clienteEmpresarialId));
         if (tipoDocumentoId == Guid.Empty)
             throw new ArgumentException("La tolerancia debe ser de un tipo de documento.", nameof(tipoDocumentoId));
 

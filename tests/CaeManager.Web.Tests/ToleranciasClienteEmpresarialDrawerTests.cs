@@ -164,7 +164,7 @@ public class ToleranciasClienteEmpresarialDrawerTests : BunitContext
     {
         var mediador = Registrar(new MediatorFalso
         {
-            Resultado = Result.Fallo(Error.Crear("ToleranciaCliente.SinAcceso", "No tienes acceso a este Cliente empresarial."))
+            Resultado = Result.Fallo(Error.Crear("ToleranciaCliente.SinAcceso", "No tienes acceso a este Cliente."))
         });
         bool? visible = null;
         var cut = Abrir(v => visible = v);
@@ -172,7 +172,7 @@ public class ToleranciasClienteEmpresarialDrawerTests : BunitContext
         cut.FindAll("select")[1].Change("5");
         await cut.InvokeAsync(() => Guardar(cut).Click());
 
-        cut.Markup.Should().Contain("No tienes acceso a este Cliente empresarial.");
+        cut.Markup.Should().Contain("No tienes acceso a este Cliente.");
         visible.Should().BeNull("un guardado fallido no cierra el panel");
         mediador.Enviadas.OfType<EstablecerToleranciaClienteEmpresarialCommand>().Should().ContainSingle();
     }

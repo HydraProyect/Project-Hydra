@@ -181,14 +181,14 @@ class Repo(unittest.TestCase):
                  '<Boton Deshabilitado="true" Motivo="porque" Variante="Secundario">d</Boton>\n'
                  '@* <Boton /> comentado *@\n'
                  '<div role="alert">uno</div><div role="alert">dos</div>\n'
-                 '<p>Cliente a secas</p><p>Cliente empresarial no cuenta</p>\n'
-                 '@code { string t = "Cliente en C# no cuenta"; }\n')
+                 '<p>Cliente a secas no cuenta</p><p>Cliente empresarial</p>\n'
+                 '@code { string t = "Cliente empresarial en C# no cuenta"; }\n')
         escribir(raiz, "src/CaeManager.Web/B.razor", '<Drawer><CampoTexto /></Drawer>\n')
         escribir(raiz, "src/CaeManager.Web/C.razor", '<Drawer HayCambios="x"><CampoTexto /></Drawer>\n')
         escribir(raiz, "src/CaeManager.Web/D.razor", '<Modal><p>sin campos</p></Modal>\n')
         escribir(raiz, "src/CaeManager.Web/Recursos/T.resx",
-                 '<root><data name="K"><value>Cliente suelto y otro Cliente</value></data></root>')
-        escribir(raiz, "src/CaeManager.Web/Recursos/T.ca-ES.resx", '<root><data name="K"><value>Cliente</value></data></root>')
+                 '<root><data name="K"><value>Cliente empresarial suelto, otro Cliente empresarial y un Cliente</value></data></root>')
+        escribir(raiz, "src/CaeManager.Web/Recursos/T.ca-ES.resx", '<root><data name="K"><value>Cliente empresarial</value></data></root>')
         escribir(raiz, "src/CaeManager.Web/Migrations/M.razor", '<Boton />')
         escribir(raiz, "tests/CaeManager.E2ETests/X.cs",
                  'p.GetByText("a"); p.GetByText("b"); l.First.ClickAsync(); l.Nth(2); var x = lista.First(); p.GetByTestId("z");')
@@ -221,7 +221,7 @@ class Repo(unittest.TestCase):
         v = self.filas()["M15"]["valor"]
         self.assertEqual(v, "GetByText 2 + posicionales 2; GetByTestId 1")
 
-    def test_M16_cliente_a_secas_en_resx_y_marcado_pero_no_en_codigo_ni_el_satelite(self):
+    def test_M16_cliente_empresarial_en_resx_y_marcado_pero_no_en_codigo_ni_el_satelite(self):
         self.assertEqual(self.filas()["M16"]["valor"], "2 valores .resx + 1 en marcado")
 
     def test_M16_toma_el_patron_de_Vocabulario_json_cuando_existe(self):
@@ -229,7 +229,7 @@ class Repo(unittest.TestCase):
         with tempfile.TemporaryDirectory() as t:
             raiz = Path(t)
             self.arbol(raiz)
-            vocab = {"prohibidos": [{"id": "cliente-a-secas", "patron": r"\bsuelto\b", "ignorarMayusculas": True}]}
+            vocab = {"prohibidos": [{"id": "cliente-empresarial-en-pantalla", "patron": r"\bsuelto\b", "ignorarMayusculas": True}]}
             escribir(raiz, "tests/CaeManager.Architecture.Tests/Vocabulario/Vocabulario.json", json.dumps(vocab))
             f = {x["id"]: x for x in mp.metricas_de_repo(raiz)}["M16"]
         self.assertEqual(f["valor"], "1 valores .resx + 0 en marcado")
@@ -237,20 +237,20 @@ class Repo(unittest.TestCase):
 
     def test_M16_aplica_los_descartes_de_Vocabulario_json_antes_de_casar(self):
         # «descartarAntesDeCasar» quita del texto lo que no es lenguaje de pantalla ANTES de casar: sin descarte, el patrón
-        # (\bCliente\b) cuenta 2 en el .resx y 2 en el marcado; con un descarte para cada origen, 1 y 1.
+        # (\bCliente\b) cuenta 3 en el .resx y 2 en el marcado; con un descarte para cada origen, 2 y 1.
         with tempfile.TemporaryDirectory() as t:
             raiz = Path(t)
             self.arbol(raiz)
             vocab = {"descartarAntesDeCasar": [],
-                     "prohibidos": [{"id": "cliente-a-secas", "patron": r"\bCliente\b", "ignorarMayusculas": False}]}
+                     "prohibidos": [{"id": "cliente-empresarial-en-pantalla", "patron": r"\bCliente\b", "ignorarMayusculas": False}]}
             escribir(raiz, "tests/CaeManager.Architecture.Tests/Vocabulario/Vocabulario.json", json.dumps(vocab))
             f = {x["id"]: x for x in mp.metricas_de_repo(raiz)}["M16"]
-            self.assertEqual(f["valor"], "2 valores .resx + 2 en marcado")
-            vocab["descartarAntesDeCasar"] = [r"\bCliente suelto\b", r"\bCliente a secas\b"]
+            self.assertEqual(f["valor"], "3 valores .resx + 2 en marcado")
+            vocab["descartarAntesDeCasar"] = [r"\bCliente empresarial suelto\b", r"\bCliente a secas\b"]
             escribir(raiz, "tests/CaeManager.Architecture.Tests/Vocabulario/Vocabulario.json", json.dumps(vocab))
             g = {x["id"]: x for x in mp.metricas_de_repo(raiz)}["M16"]
-        self.assertEqual(g["valor"], "1 valores .resx + 1 en marcado",
-                         "el descarte quita una aparición del .resx («Cliente suelto») y otra del marcado («Cliente a secas»)")
+        self.assertEqual(g["valor"], "2 valores .resx + 1 en marcado",
+                         "el descarte quita una aparición del .resx («Cliente empresarial suelto») y otra del marcado («Cliente a secas»)")
 
     def test_M16_con_Vocabulario_json_ilegible_es_NO_MEDIDA_y_no_un_cero(self):
         with tempfile.TemporaryDirectory() as t:

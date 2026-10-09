@@ -96,7 +96,7 @@ public class TipoDocumentoCentro : EntidadConTenant
     {
         if (dias is < 0 or > ToleranciaMaximaDias)
             throw new ArgumentException(
-                $"La tolerancia debe ser un número entero de días entre 0 y {ToleranciaMaximaDias}, o vacía para heredar la del Cliente empresarial.",
+                $"La tolerancia debe ser un número entero de días entre 0 y {ToleranciaMaximaDias}, o vacía para heredar la del Cliente.",
                 nameof(dias));
 
         ToleranciaDias = dias;

@@ -38,7 +38,6 @@ src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: VacioDetalle 
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: VacioFiltroDetalle = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: VacioFiltroTitulo = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: VacioTitulo = 1
-src/CaeManager.Web/Features/Asignaciones/Recursos/TextosAsignaciones.resx :: ColumnaCliente = 1
 src/CaeManager.Web/Features/Asignaciones/Recursos/TextosAsignaciones.resx :: ColumnaFechaAlta = 1
 src/CaeManager.Web/Features/Asignaciones/Recursos/TextosAsignaciones.resx :: NombreHoja = 1
 src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: Descripcion = 1
@@ -288,7 +287,6 @@ src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: BarraSinJornada = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: BotonGuardarKpis = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: ColumnaHorasGestion = 1
-src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: ColumnaReceptorServicio = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: ColumnaRepartoMostrados = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: DesgloseHorasConTotal = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: DesgloseHorasSinTotal = 1
@@ -467,9 +465,7 @@ src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: Indic
 src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: KickerCicloDocumental = 1
 src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: KickerConfiguracion = 1
 src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: MetricaActualizados = 1
-src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: MigaClientes = 1
 src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: MotivoAsignacionNueva = 1
-src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: MotivoClienteDelCentro = 1
 src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: MotivoNoSeCreaCentro = 1
 src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: MotivoNoSeCreaCliente = 1
 src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion.resx :: MotivoRazonSocialNueva = 1
@@ -675,7 +671,6 @@ src/CaeManager.Web/Features/Reportes/Recursos/TextosReportes.resx :: ErrorCargaH
 src/CaeManager.Web/Features/Reportes/Recursos/TextosReportes.resx :: ErrorGeneracionDescripcion = 1
 src/CaeManager.Web/Features/Reportes/Recursos/TextosReportes.resx :: ErrorGeneracionTitulo = 1
 src/CaeManager.Web/Features/Reportes/Recursos/TextosReportes.resx :: EtiquetaCentrosIncluidos = 1
-src/CaeManager.Web/Features/Reportes/Recursos/TextosReportes.resx :: EtiquetaClienteEmpresarial = 1
 src/CaeManager.Web/Features/Reportes/Recursos/TextosReportes.resx :: HistorialTodaLaCartera = 1
 src/CaeManager.Web/Features/Reportes/Recursos/TextosReportes.resx :: HistorialVacio = 1
 src/CaeManager.Web/Features/Reportes/Recursos/TextosReportes.resx :: HojaGeneradoEl = 1
@@ -970,7 +965,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Bot
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonNuevoTrabajador = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonQuitarFiltros = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: BotonSubirDocumento = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ColumnaClienteEmpresarial = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ConfirmarBajaAsignacionMensaje = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ConfirmarBajaAsignacionTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ContadorIncidenciasUno = 1
@@ -1011,7 +1005,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Eti
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaTelefonoWhatsapp = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EtiquetaTipoDocumento = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: IncidenciasVarios = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: LeyendaClientesEmpresariales = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: MigaTrabajadores = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ModalAsignarCentroTitulo = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ModalCrearGestionTitulo = 1

@@ -335,7 +335,7 @@
     margin-bottom: 0;
 }
 
-/* Control segmentado de la fila de filtros («Sin agrupar / Por Cliente empresarial»): la opción
+/* Control segmentado de la fila de filtros («Sin agrupar / Por Cliente»): la opción
    vigente lleva aria-pressed="true". */
 .segmentado-lista {
     display: inline-flex;

@@ -117,9 +117,41 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// <summary>Se cancela al retirar la página: la resolución de la empresa activa no sigue consultando servicios del circuito.</summary>
     private readonly CancellationTokenSource _ciclo = new();
 
+    // ── La fila se refresca tras guardar en la vista rápida ─────────────────────────────────────
+    // El panel vive en MainLayout y guarda sin pasar por esta página: avisa por
+    // ContextWorkspaceService.OnEntidadGuardada. Se vuelve a pedir SOLO esa fila y se sustituye
+    // en sitio (mismo criterio que Centros.RefrescarCentroAsync): filtros, orden, página,
+    // selección, acordeones, fila enfocada y desplazamiento no se tocan, y la fila permanece
+    // aunque el cambio la saque del filtro activo, hasta la siguiente carga.
+    private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
+    {
+        if (tipo == EntidadWorkspace.Subcontrata)
+            _ = InvokeAsync(() => RefrescarFilaAsync(id));
+    }
+
+    private async Task RefrescarFilaAsync(Guid id)
+    {
+        // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
+        // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
+        // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
+        if (_cargando || !_elementosPagina.Any(s => s.Id == id))
+            return;
+
+        try
+        {
+            await RefrescarSubcontrataAsync(id);
+        }
+        catch (Exception)
+        {
+            // El guardado ya es firme: que falle la relectura no es un error que enseñar. La
+            // fila conserva el dato anterior hasta la siguiente carga, como antes de este aviso.
+        }
+    }
+
     public void Dispose()
     {
         WorkspaceService.OnCambio -= AlCambiarWorkspace;
+        WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -127,6 +159,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     protected override async Task OnInitializedAsync()
     {
         WorkspaceService.OnCambio += AlCambiarWorkspace;
+        WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _nivelFiltro = NivelDesdeUrl();
 

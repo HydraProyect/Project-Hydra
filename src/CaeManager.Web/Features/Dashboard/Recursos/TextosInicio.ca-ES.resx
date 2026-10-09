@@ -40,10 +40,10 @@
     <value>Cap document pujat. Els centres de treball n'exigeixen {0} (un per treballador, tipus de document i centre).</value>
   </data>
   <data name="CentrosBloqueadosKpiUno" xml:space="preserve">
-    <value>1 Centre de Treball amb bloqueig de la plataforma CAE del Client empresarial: el percentatge compta documents, no accés.</value>
+    <value>1 Centre de Treball amb bloqueig de la plataforma CAE del Client: el percentatge compta documents, no accés.</value>
   </data>
   <data name="CentrosBloqueadosKpiVarios" xml:space="preserve">
-    <value>{0} Centres de Treball amb bloqueig de la plataforma CAE del Client empresarial: el percentatge compta documents, no accés.</value>
+    <value>{0} Centres de Treball amb bloqueig de la plataforma CAE del Client: el percentatge compta documents, no accés.</value>
   </data>
   <data name="TrabajadoresBloqueadosKpiUno" xml:space="preserve">
     <value>1 Treballador bloquejat: el percentatge compta documents, no accés.</value>

@@ -56,7 +56,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
     private async Task<Escenario> SembrarAsync(Guid tenant, string sufijo)
     {
         await using var contexto = CrearContexto(tenant);
-        var cliente = Empresa.CrearComoCliente($"Cliente empresarial {sufijo}", "B10380186", false, null, null);
+        var cliente = Empresa.CrearComoCliente($"Cliente {sufijo}", "B10380186", false, null, null);
         var propia = new Empresa($"Empresa propia {sufijo}", "B10380194");
         var otraPropia = new Empresa($"Otra Empresa propia {sufijo}", "B10380202");
         var subcontrata = Empresa.CrearComoSubcontrata($"Subcontrata {sufijo}", null, "Estandar");
@@ -65,7 +65,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
 
         var centroDelCliente = new Centro(cliente.Id, propia.Id, $"Centro del Cliente {sufijo}");
         // Centro cuyo «cliente» es una Empresa sin marca de Cliente empresarial (EsCritico null).
-        var centroSinCliente = new Centro(otraPropia.Id, otraPropia.Id, $"Centro sin Cliente empresarial {sufijo}");
+        var centroSinCliente = new Centro(otraPropia.Id, otraPropia.Id, $"Centro sin Cliente {sufijo}");
         contexto.Centros.AddRange(centroDelCliente, centroSinCliente);
         var trabajadorPropio = Trabajador.DeEmpresa(propia.Id, "Nora", "Vidal", "12345678Z");
         var trabajadorSub = Trabajador.DeSubcontrata(subcontrata.Id, "Leo", "Mas", "11111111H");
@@ -136,7 +136,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         using var _ = new AssertionScope();
         a.AccesoTotal.Should().BeFalse("la cartera es autoridad de Operación, no el alcance total de un rol de Propiedad");
         a.Clientes.Should().NotBeNull().And.Contain(e.Cliente)
-            .And.NotContain([e.Propia, e.Subcontrata], "la lista de Clientes sigue siendo la de Clientes empresariales");
+            .And.NotContain([e.Propia, e.Subcontrata], "la lista de Clientes sigue siendo la de Clientes");
         a.Centros.Should().NotBeNull().And.Contain([e.CentroDelCliente, e.CentroSinClienteEmpresarial]);
         a.CentrosGestion.Should().NotBeNull().And.Contain([e.CentroDelCliente, e.CentroSinClienteEmpresarial]);
         a.Empresas.Should().NotBeNull().And.Contain([e.Propia, e.OtraPropia]);
@@ -197,7 +197,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
         var a = await MedirAsync(gestor, "GestorCae", _tenant);
 
         using var _ = new AssertionScope();
-        a.Clientes.Should().NotBeNull().And.BeEmpty("el Tenant no tiene ningún Cliente empresarial");
+        a.Clientes.Should().NotBeNull().And.BeEmpty("el Tenant no tiene ningún Cliente");
         a.Centros.Should().NotBeNull().And.Contain(centro);
         a.CentrosGestion.Should().NotBeNull().And.Contain(centro);
         a.Empresas.Should().NotBeNull().And.Contain(propia);
@@ -304,7 +304,7 @@ public class AlcanceCarteraUniversalTenantCompletoTests : IAsyncLifetime
 
         var a = await MedirAsync(usuarioPortal, "Cliente", _tenant);
 
-        a.Clientes.Should().Equal([e.Cliente], "control positivo: el portal ve su Cliente empresarial");
+        a.Clientes.Should().Equal([e.Cliente], "control positivo: el portal ve su Cliente");
         a.Centros.Should().Contain(e.CentroDelCliente).And.NotContain(e.CentroSinClienteEmpresarial);
         a.Trabajadores.Should().NotContain([e.TrabajadorPropio, e.TrabajadorDeSubcontrata]);
         a.Subcontratas.Should().NotContain(e.Subcontrata);

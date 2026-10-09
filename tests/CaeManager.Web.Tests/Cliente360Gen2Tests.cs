@@ -182,8 +182,8 @@ public partial class Cliente360Gen2Tests : BunitContext
 
         var cabecera = cut.Find(".cabecera-cliente-360");
         cabecera.QuerySelector("h2")!.TextContent.Trim().Should().Be("Refrielectric S.A.");
-        cabecera.QuerySelector(".kicker-cliente-360")!.TextContent.Trim().Should().Be("Cliente empresarial",
-            "en pantalla el Cliente empresarial se rotula «Cliente empresarial» (CONTRATO_TERMINOLOGIA § 3.2), igual que la página Cliente 360");
+        cabecera.QuerySelector(".kicker-cliente-360")!.TextContent.Trim().Should().Be("Cliente",
+            "en pantalla el Cliente se rotula «Cliente» (CONTRATO_TERMINOLOGIA § 3.2), igual que la página Cliente 360");
         cabecera.QuerySelectorAll(".badge").Select(b => b.TextContent.Trim()).Should().Equal(["Crítico"]);
         cabecera.TextContent.Should().Contain("3 centros · 42 trabajadores");
     }
@@ -200,7 +200,7 @@ public partial class Cliente360Gen2Tests : BunitContext
 
         var cabecera = cut.Find(".cabecera-cliente-360");
         cabecera.TextContent.Should().NotContain("cumplimiento",
-            "no existe porcentaje de cumplimiento por Cliente empresarial: vive en CentroListaDto");
+            "no existe porcentaje de cumplimiento por Cliente: vive en CentroListaDto");
         cabecera.TextContent.Should().NotContain("vencidos",
             "el recuento por estado documental solo lo produce ObtenerClientesQuery, y es el del estado peor");
     }
@@ -763,7 +763,7 @@ public partial class Cliente360Gen2Tests : BunitContext
 
         await filas[0].ClickAsync(new MouseEventArgs());
 
-        workspace.Pila.Should().HaveCount(2, "el Empresa 360 se apila sobre el Cliente empresarial, no lo sustituye");
+        workspace.Pila.Should().HaveCount(2, "el Empresa 360 se apila sobre el Cliente, no lo sustituye");
         workspace.FrameActual!.Tipo.Should().Be(EntidadWorkspace.Empresa);
         workspace.FrameActual.EntidadId.Should().Be(empresa.Id);
     }

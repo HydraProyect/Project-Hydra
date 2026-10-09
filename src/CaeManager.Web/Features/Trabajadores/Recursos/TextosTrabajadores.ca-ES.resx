@@ -319,7 +319,7 @@
     <value>Centro</value>
   </data>
   <data name="ColumnaClienteEmpresarial" xml:space="preserve">
-    <value>Cliente empresarial</value>
+    <value>Client</value>
   </data>
   <data name="ColumnaDesde" xml:space="preserve">
     <value>Desde</value>
@@ -385,7 +385,7 @@
     <value>Reclamar documentación pendiente</value>
   </data>
   <data name="LeyendaClientesEmpresariales" xml:space="preserve">
-    <value>Clientes empresariales</value>
+    <value>Clients</value>
   </data>
   <data name="BotonReclamar" xml:space="preserve">
     <value>Reclamar</value>
@@ -442,7 +442,7 @@
     <value>Renovar</value>
   </data>
   <data name="NotaReclamarVarios" xml:space="preserve">
-    <value>{0} tiene documentación pendiente en varios Clientes empresariales a la vez. Elige a cuáles reclamar.</value>
+    <value>{0} tiene documentación pendiente en varios Clientes a la vez. Elige a cuáles reclamar.</value>
   </data>
   <data name="DocumentosPendientesUno" xml:space="preserve">
     <value>1 documento pendiente</value>
@@ -508,7 +508,7 @@
     <value>Renovar abans de</value>
   </data>
   <data name="DelClienteEmpresarial" xml:space="preserve">
-    <value>del Client empresarial {0}</value>
+    <value>del Client {0}</value>
   </data>
   <data name="Kicker" xml:space="preserve">
     <value>Treballador</value>
@@ -541,7 +541,7 @@
     <value>Reclamación enviada a {0}.</value>
   </data>
   <data name="ToastReclamacionEnviadaVarios" xml:space="preserve">
-    <value>Reclamación enviada a {0} Clientes empresariales: {1}.</value>
+    <value>Reclamación enviada a {0} Clientes: {1}.</value>
   </data>
   <data name="ToastGestionCreada" xml:space="preserve">
     <value>Se creó la gestión en {0} centro(s).</value>
@@ -550,7 +550,7 @@
     <value>Tria un tipus de document</value>
   </data>
   <data name="MotivoReclamarSinCliente" xml:space="preserve">
-    <value>Marca almenys un Client empresarial</value>
+    <value>Marca almenys un Client</value>
   </data>
   <data name="AriaSeccionesTrabajador" xml:space="preserve">
     <value>Secciones del trabajador</value>

@@ -269,18 +269,18 @@ public class BuscadorGlobalGen2Tests : BunitContext
     /// <summary>
     /// El mockup pone el tipo en el subtítulo de cada fila. El contrato de
     /// lenguaje decide cuál: la contraparte de una Relación Empresarial es el
-    /// <b>Cliente empresarial</b>, nunca "cliente" a secas — y el literal que
-    /// llega del handler es justamente "Cliente".
+    /// <b>Cliente empresarial</b>, que en pantalla se rotula «Cliente» (decisión
+    /// de rótulo del 2026-10-09) — el literal que llega del handler es "Cliente".
     /// </summary>
     [Fact]
-    public async Task El_subtitulo_de_una_contraparte_dice_Cliente_empresarial()
+    public async Task El_subtitulo_de_una_contraparte_dice_Cliente()
     {
         var mediador = new MediadorControlado { Resultado = UnClienteEmpresarial };
         var cut = await RenderizarYAbrir(mediador);
 
         await Input(cut).EscribirAsync("refri");
 
-        cut.Find(".buscador-item-subtitulo").TextContent.Trim().Should().Be("Cliente empresarial");
+        cut.Find(".buscador-item-subtitulo").TextContent.Trim().Should().Be("Cliente");
     }
 
     /// <summary>
@@ -311,7 +311,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         // recuento de filas CON subtítulo, que es lo que este test mide.
         cut.FindAll(".buscador-item-titulo").Count(t => t.TextContent.Contains("Doble Papel S.L.", StringComparison.Ordinal))
             .Should().Be(1, "una Empresa con varios papeles contextuales sigue siendo una sola fila del buscador");
-        cut.Find(".buscador-item-subtitulo").TextContent.Trim().Should().Be("Cliente empresarial · Subcontrata");
+        cut.Find(".buscador-item-subtitulo").TextContent.Trim().Should().Be("Cliente · Subcontrata");
     }
 
     /// <summary>
@@ -857,14 +857,15 @@ public class BuscadorGlobalGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// La neutralización terminológica solo alcanzaba a los resultados
-    /// directos. Un reciente guardado lleva el subtítulo tal y como lo emitió
-    /// el handler —para la contraparte de una Relación Empresarial, «Cliente» a
-    /// secas—, así que abrir un Cliente empresarial y reabrir el palette lo
-    /// devolvía escrito mal.
+    /// Un reciente guardado lleva el subtítulo tal y como lo emitió el handler
+    /// —para la contraparte de una Relación Empresarial, «Cliente»—, que desde
+    /// la decisión de rótulo del 2026-10-09 es justo lo que dice la pantalla. Lo
+    /// que este test vigila es que el reciente no vuelva al rótulo largo: con
+    /// el rótulo igual al literal del handler ya no puede distinguir si el
+    /// subtítulo pasa o no por la traducción de papeles (límite declarado).
     /// </summary>
     [Fact]
-    public async Task Un_reciente_de_contraparte_se_lee_como_Cliente_empresarial_y_no_como_cliente_a_secas()
+    public async Task Un_reciente_de_contraparte_se_lee_como_Cliente_y_no_con_el_rotulo_largo()
     {
         var mediador = new MediadorControlado
         {
@@ -876,7 +877,8 @@ public class BuscadorGlobalGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("a.buscador-item").Should().NotBeEmpty(
             "control del instrumento: sin filas, las aserciones de abajo se cumplirían solas"));
 
-        SinEspaciosDeMas(cut.Find("a.buscador-item").TextContent).Should().Contain("Cliente empresarial",
-            "el literal «Cliente» que emite el handler no puede llegar tal cual a la pantalla");
+        SinEspaciosDeMas(cut.Find("a.buscador-item").TextContent).Should().Contain("Cliente",
+            "la contraparte de una Relación Empresarial se rotula «Cliente»")
+            .And.NotContain("Cliente empresarial", "el rótulo largo no vuelve a la pantalla (decisión del 2026-10-09)");
     }
 }

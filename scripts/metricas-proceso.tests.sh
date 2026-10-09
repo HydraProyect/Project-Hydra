@@ -48,7 +48,7 @@ mutante "M11 ignora las comillas dentro de la etiqueta" 's/elif c in "\\"'"'"'":
 mutante "M11 ignora los paréntesis dentro de la etiqueta" 's/elif c in "({\[":/elif False:/'                          "test_no_se_cierra_en_una_flecha"
 mutante "M15 cuenta el First de LINQ"                's/(?!\\s\*\[(<\])//'                                             "test_M15_locators_e2e"
 mutante "gh que falla devuelve datos vacíos"         's/raise GhNoDisponible(f"gh {/return [] if True else (f"gh {/'  "test_gh_que_falla_es_NO_MEDIDA"
-mutante "M16 cuenta Cliente empresarial"             's/(?!\\s+(?:empresarial|empresariales|comercial|de servicio|delegante))//' "test_M16_cliente_a_secas"
+mutante "M16 cuenta Cliente a secas"                 's/Clientes?\\s+empresarial(?:es)?\\b", re.IGNORECASE/Clientes?\\b", re.IGNORECASE/' "test_M16_cliente_empresarial"
 mutante "M16 ignora Vocabulario.json y usa su regex local" 's/    if vocabulario.is_file():/    if False:/'                "test_M16_toma_el_patron"
 mutante "M16 no aplica los descartes del vocabulario"  's/patron.findall(sin_descartar(descartes, v))/patron.findall(v)/'           "test_M16_aplica_los_descartes"
 mutante "M16 no aplica los descartes al marcado"       's/patron.findall(sin_descartar(descartes, texto))/patron.findall(texto)/'     "test_M16_aplica_los_descartes"

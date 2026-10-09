@@ -40,7 +40,7 @@ public class AsignacionesExportacionTests
         var hoja = libro.Worksheet(1);
         hoja.Name.Should().Be("Asignaciones");
         Enumerable.Range(1, 5).Select(c => hoja.Cell(1, c).GetString()).Should()
-            .Equal("Trabajador", "Centro", "Cliente empresarial", "Fecha de alta", "Estado");
+            .Equal("Trabajador", "Centro", "Cliente", "Fecha de alta", "Estado");
     }
 
     [Fact]

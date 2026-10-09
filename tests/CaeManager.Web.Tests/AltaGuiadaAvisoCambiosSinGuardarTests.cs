@@ -134,7 +134,7 @@ public class AltaGuiadaAvisoCambiosSinGuardarTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ya creada"));
 
         await cut.SalirYComprobarQueNoPreguntaAsync(navegacion,
-            "la Empresa ya está guardada y en el paso del Cliente empresarial no se ha escrito nada");
+            "la Empresa ya está guardada y en el paso del Cliente no se ha escrito nada");
     }
 
     [Fact]

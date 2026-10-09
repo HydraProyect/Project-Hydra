@@ -37,7 +37,7 @@ public class EstablecerDocumentacionRequeridaCentroCommandValidator : AbstractVa
         RuleFor(c => c.PeriodicidadEspecialMeses).GreaterThan(0).When(c => c.PeriodicidadEspecialMeses is not null)
             .WithMessage("La periodicidad especial debe ser un número entero de meses mayor que cero.");
         RuleFor(c => c.ToleranciaDias).InclusiveBetween(0, TipoDocumentoCentro.ToleranciaMaximaDias).When(c => c.ToleranciaDias is not null)
-            .WithMessage($"La tolerancia debe ser un número entero de días entre 0 y {TipoDocumentoCentro.ToleranciaMaximaDias}, o vacía para heredar la del Cliente empresarial.");
+            .WithMessage($"La tolerancia debe ser un número entero de días entre 0 y {TipoDocumentoCentro.ToleranciaMaximaDias}, o vacía para heredar la del Cliente.");
         RuleFor(c => c.ArchivoUrl).MaximumLength(TipoDocumentoCentro.LongitudMaximaArchivoUrl);
         RuleFor(c => c.NombreArchivoOriginal).MaximumLength(TipoDocumentoCentro.LongitudMaximaNombreArchivo);
     }

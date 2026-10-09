@@ -126,10 +126,10 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantA);
         var c = _propietario;
 
-        var cliente = Empresa.CrearComoCliente("Cliente empresarial A", "B12345674", false, null, null);
+        var cliente = Empresa.CrearComoCliente("Cliente A", "B12345674", false, null, null);
         var contratista = new Empresa("Contratista A S.L.");
-        var cliente2 = Empresa.CrearComoCliente("Cliente empresarial A2", "B23456783", false, null, null);
-        var cliente3 = Empresa.CrearComoCliente("Cliente empresarial A3", "B34567891", false, null, null);
+        var cliente2 = Empresa.CrearComoCliente("Cliente A2", "B23456783", false, null, null);
+        var cliente3 = Empresa.CrearComoCliente("Cliente A3", "B34567891", false, null, null);
         var empVencida5 = new Empresa("Empresa con certificado vencido hace 5 dias");
         var empVencida6 = new Empresa("Empresa con certificado vencido hace 6 dias");
         var empresaBase = new Empresa("Empresa base A");
@@ -156,8 +156,8 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         centro3.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
         var centro4 = new Centro(cliente.Id, contratista.Id, "Centro A4");
         var centro5 = new Centro(cliente.Id, contratista.Id, "Centro A5");
-        var centro6 = new Centro(cliente2.Id, contratista.Id, "Centro A6 (Cliente empresarial A2)");
-        var centro7 = new Centro(cliente3.Id, contratista.Id, "Centro A7 (Cliente empresarial A3)");
+        var centro6 = new Centro(cliente2.Id, contratista.Id, "Centro A6 (Cliente A2)");
+        var centro7 = new Centro(cliente3.Id, contratista.Id, "Centro A7 (Cliente A3)");
         c.Centros.AddRange(centro1, centro2, centro3, centro4, centro5, centro6, centro7);
 
         var pss = new TipoDocumento("PSS firmado", null, false, 1, AmbitoAplicacion.Trabajador);
@@ -407,7 +407,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantB);
         var c = _propietario;
 
-        var cliente = Empresa.CrearComoCliente("Cliente empresarial B", "B12345674", false, null, null);
+        var cliente = Empresa.CrearComoCliente("Cliente B", "B12345674", false, null, null);
         var contratista = new Empresa("Contratista B S.L.");
         c.Empresas.AddRange(cliente, contratista);
         await c.SaveChangesAsync();
@@ -442,7 +442,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantC);
         var c = _propietario;
 
-        var cliente = Empresa.CrearComoCliente("Cliente empresarial C", "B12345674", false, null, null);
+        var cliente = Empresa.CrearComoCliente("Cliente C", "B12345674", false, null, null);
         var contratista = new Empresa("Contratista C S.L.");
         c.Empresas.AddRange(cliente, contratista);
         await c.SaveChangesAsync();
@@ -475,7 +475,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         using var ambito = AmbitoTenantExplicito.Establecer(_tenantD);
         var c = _propietario;
 
-        var cliente = Empresa.CrearComoCliente("Cliente empresarial D", "B12345674", false, null, null);
+        var cliente = Empresa.CrearComoCliente("Cliente D", "B12345674", false, null, null);
         var contratista = new Empresa("Contratista D S.L.");
         c.Empresas.AddRange(cliente, contratista);
         await c.SaveChangesAsync();
@@ -688,7 +688,7 @@ public class CoherenciaDelBloqueoDeAccesoEntreSuperficiesTests : IAsyncLifetime
         var delCliente = await handler.Handle(new ObtenerToleranciasClienteEmpresarialQuery(_clienteA), CancellationToken.None);
 
         delCliente.Single(t => t.TipoDocumentoId == _tipoCertificado).ToleranciaDias.Should().Be(ToleranciaA4,
-            "es la tolerancia que hereda el Centro A4 de su Cliente empresarial");
+            "es la tolerancia que hereda el Centro A4 de su Cliente");
         delCliente.Single(t => t.TipoDocumentoId == _tipoPss).ToleranciaDias.Should().Be(0, "sin fila la tolerancia es 0");
         delCliente.Select(t => t.Ambito).Should().OnlyContain(a => a == AmbitoAplicacion.Trabajador || a == AmbitoAplicacion.Empresa,
             "solo los ámbitos que la regla de acceso evalúa");

@@ -20,7 +20,7 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 public record ObtenerEmpresasQuery(
     string? Busqueda, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
-    bool ConRecuentosPorEstado = false)
+    bool ConRecuentosPorEstado = false, Guid? EmpresaId = null)
     : IRequest<ResultadoPaginado<EmpresaListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -55,6 +55,11 @@ public class ObtenerEmpresasQueryHandler(
         var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
         if (empresaIdsVisibles is not null)
             consulta = consulta.Where(e => empresaIdsVisibles.Contains(e.Id));
+
+        // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
+        // Va después del alcance: solo estrecha.
+        if (request.EmpresaId is not null)
+            consulta = consulta.Where(e => e.Id == request.EmpresaId);
 
         // Razón social o CIF, como ObtenerSubcontratasQuery: el buscador de la lista promete los dos.
         if (!string.IsNullOrWhiteSpace(request.Busqueda))

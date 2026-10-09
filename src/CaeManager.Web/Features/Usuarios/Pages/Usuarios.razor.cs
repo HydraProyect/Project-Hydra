@@ -622,12 +622,12 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         // verdad, no una copia: si allí un rol pasa a ver todo y aquí no, la
         // columna diría "sin cartera" de alguien que ve toda la organización.
         if (Roles.AlcanzaTodaLaOrganizacion(rol))
-            return new("Todos los Clientes empresariales", false,
+            return new("Todos los Clientes", false,
                 "Su rol alcanza toda la organización; no depende de ninguna Asignación de Cartera.");
 
         if (rol == Roles.Cliente)
             return usuario.ClienteId is not null
-                ? new("1 Cliente empresarial", false,
+                ? new("1 Cliente", false,
                     "Usuario de portal: solo ve la documentación relacionada con la empresa a la que está vinculado.")
                 : new("Sin empresa vinculada", true,
                     "Un usuario de portal sin empresa vinculada no ve nada. Se vincula por CIF al editar la cuenta.");
@@ -656,7 +656,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             return DesdeCarteras(
                 carteras.TryGetValue(usuario.Id, out var propia) ? [propia] : [],
                 explicacion: "Por sus Asignaciones de Cartera vigentes en esta organización.",
-                explicacionSinAlcance: "Sin Asignación de Cartera vigente no ve ningún Cliente empresarial, y toda lista le sale vacía.");
+                explicacionSinAlcance: "Sin Asignación de Cartera vigente no ve ningún Cliente, y toda lista le sale vacía.");
 
         return new("—", false, "Esta cuenta todavía no tiene rol, así que no alcanza nada.");
     }
