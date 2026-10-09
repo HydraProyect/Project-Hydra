@@ -76,7 +76,8 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
 
     private const string AbrirMenuDeLaUltimaFila = """
         () => {
-            const filas = document.querySelectorAll('table.tabla-datos tbody tr');
+            // QuickGrid completa la página con filas vacías, que list-page.css oculta: no cuentan como filas.
+            const filas = Array.from(document.querySelectorAll('table.tabla-datos tbody tr')).filter(f => f.querySelector('.menu-acciones-disparador'));
             if (!filas.length) return false;
             const ultima = filas[filas.length - 1];
             if (ultima.querySelector('.menu-acciones-panel')) return true;
@@ -98,7 +99,7 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
             const panel = hueco.querySelector('.menu-acciones-panel');
             // El panel entra con una transición que lo desplaza 8 px: se mide ya asentado.
             await Promise.all(panel.getAnimations().map(a => a.finished.catch(() => null)));
-            const filas = tabla.querySelectorAll('tbody tr');
+            const filas = Array.from(document.querySelectorAll('table.tabla-datos tbody tr')).filter(f => f.querySelector('.menu-acciones-disparador'));
             const quienDesplaza = hueco.scrollHeight - hueco.clientHeight >= tabla.scrollHeight - tabla.clientHeight ? hueco : tabla;
             const altoContenido = quienDesplaza.scrollHeight;
             const altoVisible = quienDesplaza.clientHeight;
@@ -129,10 +130,10 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
     /// <summary>Con qué se encontró el recorrido cuando el menú de la última fila no llegó a abrirse.</summary>
     private const string DescribirMenuSinAbrir = """
         () => {
-            const filas = document.querySelectorAll('table.tabla-datos tbody tr');
-            const conMenu = document.querySelectorAll('table.tabla-datos tbody tr .menu-acciones-disparador').length;
+            const todas = document.querySelectorAll('table.tabla-datos tbody tr').length;
+            const filas = Array.from(document.querySelectorAll('table.tabla-datos tbody tr')).filter(f => f.querySelector('.menu-acciones-disparador'));
             const ultimo = filas.length ? filas[filas.length - 1].querySelector('.menu-acciones-disparador') : null;
-            return `${filas.length} fila(s), ${conMenu} con menú; el de la última ${ultimo ? 'existe, aria-expanded=' + ultimo.getAttribute('aria-expanded') : 'no existe'}; `
+            return `${todas} <tr>, ${filas.length} con menú; el de la última ${ultimo ? 'dice aria-expanded=' + ultimo.getAttribute('aria-expanded') : 'no existe'}; `
                 + `${document.querySelectorAll('.menu-acciones-panel').length} panel(es) abiertos; ${location.pathname}${location.search}`;
         }
         """;
