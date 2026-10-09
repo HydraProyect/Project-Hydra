@@ -78,8 +78,9 @@ public class LeyendaAtajosListaAdopcionTests
 
     private static List<string> TeclasOmitidas(string pagina, string razor)
     {
-        var linea = razor.Split('\n').Single(l => l.Contains("<LeyendaAtajosLista", StringComparison.Ordinal));
-        if (!linea.Contains("Omitir", StringComparison.Ordinal))
+        // Que la monte, y una sola vez, lo dice La_pagina_monta_la_leyenda_exactamente_una_vez.
+        var linea = razor.Split('\n').FirstOrDefault(l => l.Contains("<LeyendaAtajosLista", StringComparison.Ordinal));
+        if (linea is null || !linea.Contains("Omitir", StringComparison.Ordinal))
         {
             return [];
         }
