@@ -73,6 +73,18 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
         }
         """;
 
+    private const string AbrirMenuDeLaUltimaFila = """
+        () => {
+            const filas = document.querySelectorAll('table.tabla-datos tbody tr');
+            if (!filas.length) return false;
+            const ultima = filas[filas.length - 1];
+            if (ultima.querySelector('.menu-acciones-panel')) return true;
+            const disparador = ultima.querySelector('.menu-acciones-disparador');
+            if (disparador && disparador.getAttribute('aria-expanded') !== 'true') disparador.click();
+            return false;
+        }
+        """;
+
     /// <summary>
     /// Con un menú «⋯» abierto: cuánto desplazamiento VERTICAL propio le ha aparecido al listado (un
     /// contenedor que desplaza en horizontal también recorta en vertical, y el panel se abre hacia abajo),
@@ -83,6 +95,7 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
             const tabla = document.querySelector('table.tabla-datos');
             const hueco = tabla.parentElement;
             const panel = hueco.querySelector('.menu-acciones-panel');
+            const filas = tabla.querySelectorAll('tbody tr');
             const vertical = Math.max(hueco.scrollHeight - hueco.clientHeight, tabla.scrollHeight - tabla.clientHeight);
             const sobresale = panel.getBoundingClientRect().bottom - hueco.getBoundingClientRect().bottom;
             panel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -93,7 +106,8 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
                 return !(encima && (encima === o || o.contains(encima)));
             }).map(o => o.textContent.trim());
             return {
-                filas: tabla.querySelectorAll('tbody tr').length,
+                filas: filas.length,
+                esDeLaUltimaFila: panel.closest('tr') === filas[filas.length - 1],
                 opciones: opciones.length,
                 tapadas,
                 vertical,
@@ -174,7 +188,7 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
     /// <summary>
     /// 1100 px, pocas filas y el menú de la ÚLTIMA: es el caso en que el panel no tiene nada debajo salvo el
     /// borde del contenedor que desplaza. La posición es aquí la propiedad que se mide, no un atajo para
-    /// encontrar una fila: por eso la última fila se marca en la página en vez de localizarse por orden.
+    /// encontrar una fila: por eso la última fila se busca en la página en vez de con un localizador por orden.
     /// </summary>
     [Fact]
     public async Task Con_el_listado_desplazandose_por_su_cuenta_el_menu_de_la_ultima_fila_se_abre_entero()
@@ -184,10 +198,10 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
         // Se filtra por la entidad de una fila cualquiera para quedarse con pocos documentos y sin paginador.
         var entidad = await page.EvaluateAsync<string>("() => document.querySelector('table.tabla-datos tbody .nombre-fila-entidad').textContent.trim()");
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?q={Uri.EscapeDataString(entidad)}");
-        await Expect(page.Locator("table.tabla-datos tbody tr .menu-acciones-disparador")).Not.ToHaveCountAsync(0);
-        await page.EvaluateAsync("() => { const filas = document.querySelectorAll('table.tabla-datos tbody tr'); filas[filas.length - 1].setAttribute('data-ultima-fila', ''); }");
-
-        await Ayudas.AbrirMenuAccionesAsync(page.Locator("tr[data-ultima-fila] .menu-acciones-disparador"));
+        // QuickGrid vuelve a pintar las filas cuando el circuito trae los datos, así que una marca puesta en la
+        // fila se pierde y un clic anterior al circuito también: se pulsa el disparador de la que sea la última
+        // fila en cada vuelta, hasta que su panel existe (y solo si no consta ya como abierto).
+        await page.WaitForFunctionAsync(AbrirMenuDeLaUltimaFila, null, new PageWaitForFunctionOptions { PollingInterval = 1_000, Timeout = 30_000 });
         var medicion = await page.EvaluateAsync<JsonElement>(MedirMenuAbierto);
         var vertical = medicion.GetProperty("vertical").GetInt32();
         var sobresale = medicion.GetProperty("sobresale").GetDouble();
@@ -196,6 +210,7 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
 
         // Si a este ancho el listado no se desplazara por su cuenta, el caso no estaría midiendo lo que dice.
         Assert.True(medicion.GetProperty("desplazaEnHorizontal").GetBoolean(), $"{donde} el listado no es un contenedor de desplazamiento a este ancho.");
+        Assert.True(medicion.GetProperty("esDeLaUltimaFila").GetBoolean(), $"{donde} el menú abierto no es el de la última fila.");
         Assert.True(medicion.GetProperty("opciones").GetInt32() > 0, $"{donde} el menú no tiene opciones.");
         Assert.True(vertical <= 0, $"{donde} el menú abierto mete {vertical} px de desplazamiento vertical dentro del listado.");
         Assert.True(sobresale <= 0.5, $"{donde} el panel sobresale {sobresale:0.#} px por debajo del envoltorio del listado.");
