@@ -68,6 +68,7 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
                 accionesFuera,
                 anchoTabla: Math.round(tabla.getBoundingClientRect().width),
                 anchoHueco: hueco.clientWidth,
+                anchosColumnas: Array.from(tabla.querySelectorAll('thead th')).map(th => Math.round(th.getBoundingClientRect().width)).join('+'),
                 ordenableMenor: `${Math.round(Math.min(...ordenables.map(r => r.width)))}×${Math.round(Math.min(...ordenables.map(r => r.height)))}`
             };
         }
@@ -91,12 +92,17 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
     /// cuánto sobresale el panel del envoltorio y qué opciones quedan tapadas una vez traído el panel a la vista.
     /// </summary>
     private const string MedirMenuAbierto = """
-        () => {
+        async () => {
             const tabla = document.querySelector('table.tabla-datos');
             const hueco = tabla.parentElement;
             const panel = hueco.querySelector('.menu-acciones-panel');
+            // El panel entra con una transición que lo desplaza 8 px: se mide ya asentado.
+            await Promise.all(panel.getAnimations().map(a => a.finished.catch(() => null)));
             const filas = tabla.querySelectorAll('tbody tr');
-            const vertical = Math.max(hueco.scrollHeight - hueco.clientHeight, tabla.scrollHeight - tabla.clientHeight);
+            const quienDesplaza = hueco.scrollHeight - hueco.clientHeight >= tabla.scrollHeight - tabla.clientHeight ? hueco : tabla;
+            const altoContenido = quienDesplaza.scrollHeight;
+            const altoVisible = quienDesplaza.clientHeight;
+            const vertical =Math.max(hueco.scrollHeight - hueco.clientHeight, tabla.scrollHeight - tabla.clientHeight);
             const sobresale = panel.getBoundingClientRect().bottom - hueco.getBoundingClientRect().bottom;
             panel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
             const opciones = Array.from(panel.querySelectorAll('[role=menuitem]'));
@@ -111,10 +117,23 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
                 opciones: opciones.length,
                 tapadas,
                 vertical,
+                altoContenido,
+                altoVisible,
                 sobresale,
                 altoPanel: Math.round(panel.getBoundingClientRect().height),
                 desplazaEnHorizontal: [hueco, tabla].some(e => ['auto', 'scroll'].includes(getComputedStyle(e).overflowX))
             };
+        }
+        """;
+
+    /// <summary>Con qué se encontró el recorrido cuando el menú de la última fila no llegó a abrirse.</summary>
+    private const string DescribirMenuSinAbrir = """
+        () => {
+            const filas = document.querySelectorAll('table.tabla-datos tbody tr');
+            const conMenu = document.querySelectorAll('table.tabla-datos tbody tr .menu-acciones-disparador').length;
+            const ultimo = filas.length ? filas[filas.length - 1].querySelector('.menu-acciones-disparador') : null;
+            return `${filas.length} fila(s), ${conMenu} con menú; el de la última ${ultimo ? 'existe, aria-expanded=' + ultimo.getAttribute('aria-expanded') : 'no existe'}; `
+                + `${document.querySelectorAll('.menu-acciones-panel').length} panel(es) abiertos; ${location.pathname}${location.search}`;
         }
         """;
 
@@ -151,6 +170,7 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
             var porDesplazar = medicion.GetProperty("porDesplazar").GetInt32();
             var donde = $"[{anchoVentana} px{(seleccionMultiple ? ", selección múltiple" : string.Empty)}{(reservaBarra > 0 ? $", {reservaBarra} px de barra vertical" : string.Empty)}; "
                 + $"tabla de {medicion.GetProperty("anchoTabla").GetInt32()} px en un hueco de {medicion.GetProperty("anchoHueco").GetInt32()} px; "
+                + $"columnas de {medicion.GetProperty("anchosColumnas").GetString()} px; "
                 + $"cabecera ordenable más pequeña {medicion.GetProperty("ordenableMenor").GetString()} px]";
             salida.WriteLine($"MEDIDA {donde} desplazamiento propio del listado: {porDesplazar} px");
 
@@ -201,12 +221,23 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
         // QuickGrid vuelve a pintar las filas cuando el circuito trae los datos, así que una marca puesta en la
         // fila se pierde y un clic anterior al circuito también: se pulsa el disparador de la que sea la última
         // fila en cada vuelta, hasta que su panel existe (y solo si no consta ya como abierto).
-        await page.WaitForFunctionAsync(AbrirMenuDeLaUltimaFila, null, new PageWaitForFunctionOptions { PollingInterval = 1_000, Timeout = 30_000 });
+        try
+        {
+            await page.WaitForFunctionAsync(AbrirMenuDeLaUltimaFila, null, new PageWaitForFunctionOptions { PollingInterval = 1_000, Timeout = 30_000 });
+        }
+        catch (TimeoutException)
+        {
+            // Un menú que no llega a abrirse es un fallo del recorrido, no una medida del listado.
+            Assert.Fail($"El menú de la última fila no se abrió en 30 s: {await page.EvaluateAsync<string>(DescribirMenuSinAbrir)}");
+        }
+
         var medicion = await page.EvaluateAsync<JsonElement>(MedirMenuAbierto);
         var vertical = medicion.GetProperty("vertical").GetInt32();
         var sobresale = medicion.GetProperty("sobresale").GetDouble();
+        var tapadas = medicion.GetProperty("tapadas").EnumerateArray().Select(t => t.GetString()).ToList();
         var donde = $"[1100 px, {medicion.GetProperty("filas").GetInt32()} fila(s), panel de {medicion.GetProperty("altoPanel").GetInt32()} px de alto]";
-        salida.WriteLine($"MEDIDA {donde} desplazamiento vertical propio: {vertical} px; el panel sobresale {sobresale:0.#} px del envoltorio");
+        salida.WriteLine($"MEDIDA {donde} desplazamiento vertical propio: {vertical} px (contenido de {medicion.GetProperty("altoContenido").GetInt32()} px en {medicion.GetProperty("altoVisible").GetInt32()} px visibles); "
+            + $"el panel sobresale {sobresale:0.#} px del envoltorio; opciones tapadas: {tapadas.Count} de {medicion.GetProperty("opciones").GetInt32()}");
 
         // Si a este ancho el listado no se desplazara por su cuenta, el caso no estaría midiendo lo que dice.
         Assert.True(medicion.GetProperty("desplazaEnHorizontal").GetBoolean(), $"{donde} el listado no es un contenedor de desplazamiento a este ancho.");
@@ -214,7 +245,6 @@ public class DocumentosListadoSinDesbordeE2ETests(WebAppFixture fixture, ITestOu
         Assert.True(medicion.GetProperty("opciones").GetInt32() > 0, $"{donde} el menú no tiene opciones.");
         Assert.True(vertical <= 0, $"{donde} el menú abierto mete {vertical} px de desplazamiento vertical dentro del listado.");
         Assert.True(sobresale <= 0.5, $"{donde} el panel sobresale {sobresale:0.#} px por debajo del envoltorio del listado.");
-        var tapadas = medicion.GetProperty("tapadas").EnumerateArray().Select(t => t.GetString()).ToList();
         Assert.True(tapadas.Count == 0, $"{donde} opciones que no se pueden pulsar: {string.Join(", ", tapadas)}");
     }
 

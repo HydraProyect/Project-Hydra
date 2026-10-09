@@ -16,6 +16,27 @@
     color: var(--color-text-muted);
 }
 
+.documentos-opciones-orden {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.documentos-opciones-orden button {
+    border: 0;
+    border-radius: 0.25rem;
+    padding: 0.375rem 0.5rem;
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+}
+
+.documentos-opciones-orden button:hover {
+    background: var(--color-surface-hover);
+}
+
 /*
   El listado cabe en su hueco. Con siete columnas, la tabla no podía bajar de unos 1200 px (1196 y
   1210 en dos mediciones del 2026-10-09 con los datos sembrados), fuera cual fuera el ancho de la
