@@ -223,9 +223,6 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         .Take(2)
         .Select(palabra => char.ToUpperInvariant(palabra[0])));
 
-    private string Plural(int cantidad, string claveUno, string claveVarios) =>
-        Textos[cantidad == 1 ? claveUno : claveVarios, cantidad];
-
     private string TextoVigencia(int? meses) => meses switch
     {
         null => Textos["VigenciaSinDefinir"],
