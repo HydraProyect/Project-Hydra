@@ -439,72 +439,72 @@
     <value>Documentació per gestionar primer</value>
   </data>
   <data name="PestanasDetalleEtiqueta" xml:space="preserve">
-    <value>Secciones de la visita</value>
+    <value>Seccions de la visita</value>
   </data>
   <data name="PestanaInformacion" xml:space="preserve">
-    <value>Información</value>
+    <value>Informació</value>
   </data>
   <data name="TrabajadoresPanelVacio" xml:space="preserve">
-    <value>Sin trabajadores asignados.</value>
+    <value>Sense treballadors assignats.</value>
   </data>
   <data name="TrabajadoresPanelLista" xml:space="preserve">
-    <value>Trabajadores que entran</value>
+    <value>Treballadors que hi entren</value>
   </data>
   <data name="AriaQuitarTrabajador" xml:space="preserve">
-    <value>Quitar a {0} de la visita</value>
+    <value>Treure {0} de la visita</value>
   </data>
   <data name="AyudaQuitarTrabajador" xml:space="preserve">
-    <value>Quitar de la visita</value>
+    <value>Treure de la visita</value>
   </data>
   <data name="AyudaQuitarUltimoTrabajador" xml:space="preserve">
-    <value>La visita debe incluir al menos un trabajador</value>
+    <value>La visita ha d'incloure almenys un treballador</value>
   </data>
   <data name="BotonAnadirTrabajador" xml:space="preserve">
-    <value>Añadir trabajador</value>
+    <value>Afegir treballador</value>
   </data>
   <data name="CandidatosEtiqueta" xml:space="preserve">
-    <value>Trabajadores que se pueden añadir</value>
+    <value>Treballadors que es poden afegir</value>
   </data>
   <data name="CandidatosBuscar" xml:space="preserve">
-    <value>Buscar trabajador</value>
+    <value>Cercar treballador</value>
   </data>
   <data name="CandidatosSinCoincidencias" xml:space="preserve">
-    <value>Ningún trabajador coincide.</value>
+    <value>Cap treballador hi coincideix.</value>
   </data>
   <data name="ToastSinCandidatos" xml:space="preserve">
-    <value>No queda ningún trabajador por añadir a esta visita.</value>
+    <value>No queda cap treballador per afegir a aquesta visita.</value>
   </data>
   <data name="ToastErrorCandidatos" xml:space="preserve">
-    <value>No pudimos cargar los trabajadores. Vuelve a intentarlo.</value>
+    <value>No hem pogut carregar els treballadors. Torna-ho a provar.</value>
   </data>
   <data name="ToastTrabajadorAnadido" xml:space="preserve">
-    <value>{0} entra en la visita.</value>
+    <value>{0} entra a la visita.</value>
   </data>
   <data name="ToastTrabajadorQuitado" xml:space="preserve">
-    <value>{0} sale de la visita.</value>
+    <value>{0} surt de la visita.</value>
   </data>
   <data name="ToastErrorCambiarTrabajadores" xml:space="preserve">
-    <value>No pudimos cambiar los trabajadores de la visita. Vuelve a intentarlo.</value>
+    <value>No hem pogut canviar els treballadors de la visita. Torna-ho a provar.</value>
   </data>
   <data name="ConfirmarQuitarTrabajadorTitulo" xml:space="preserve">
-    <value>¿Quitar a {0} de la visita?</value>
+    <value>Vols treure {0} de la visita?</value>
   </data>
   <data name="ConfirmarQuitarTrabajadorMensaje" xml:space="preserve">
-    <value>Dejará de entrar en esta visita. Puedes volver a añadirlo después.</value>
+    <value>Deixarà d'entrar en aquesta visita. El pots tornar a afegir després.</value>
   </data>
   <data name="BotonQuitarTrabajador" xml:space="preserve">
-    <value>Quitar de la visita</value>
+    <value>Treure de la visita</value>
   </data>
   <data name="AriaTrabajadoresVisita" xml:space="preserve">
-    <value>Trabajadores asignados: {0}</value>
+    <value>Treballadors assignats: {0}</value>
   </data>
   <data name="VentanaTrabajadoresTitulo" xml:space="preserve">
-    <value>Trabajadores asignados</value>
+    <value>Treballadors assignats</value>
   </data>
   <data name="VentanaTrabajadoresPie" xml:space="preserve">
-    <value>Clic en uno para añadir o quitar</value>
+    <value>Clic en un per afegir o treure</value>
   </data>
   <data name="VentanaTrabajadoresAyuda" xml:space="preserve">
-    <value>Abrir la pestaña Trabajadores de la visita</value>
+    <value>Obrir la pestanya Treballadors de la visita</value>
   </data>
 </root>

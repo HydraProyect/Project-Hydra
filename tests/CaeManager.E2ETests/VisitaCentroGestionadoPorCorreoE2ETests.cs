@@ -200,8 +200,9 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         // --- Pestaña «Trabajadores»: quién entra, añadir desde la lista y quitar con el «menos» ---
         await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
         var filasTrabajador = drawer.Locator(".visitas-trabajador-fila");
+        var listaTrabajadores = drawer.Locator(".visitas-trabajadores-lista");
         await Expect(filasTrabajador).ToHaveCountAsync(1);
-        await Expect(filasTrabajador.First).ToContainTextAsync($"{nombreTrabajador} {apellidosTrabajador}");
+        await Expect(listaTrabajadores).ToContainTextAsync($"{nombreTrabajador} {apellidosTrabajador}");
         var quitarAlPrimero = drawer.GetByRole(AriaRole.Button,
             new LocatorGetByRoleOptions { Name = $"Quitar a {nombreTrabajador} {apellidosTrabajador} de la visita", Exact = true });
         await Expect(quitarAlPrimero).ToBeDisabledAsync();
@@ -209,14 +210,16 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Añadir trabajador", Exact = true }).ClickAsync();
         var candidatos = drawer.Locator(".visitas-candidatos");
         // Con un único candidato en el Tenant se añade sin lista; con varios hay que elegirlo.
-        await Expect(candidatos.Or(filasTrabajador.Nth(1)).First).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Expect(drawer.Locator(".visitas-candidatos, .visitas-trabajador-fila + .visitas-trabajador-fila")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         if (await candidatos.IsVisibleAsync())
         {
             var buscador = candidatos.GetByPlaceholder("Buscar trabajador");
             await buscador.FillAsync("zzzz-nadie-se-llama-asi");
             await Expect(candidatos).ToContainTextAsync("Ningún trabajador coincide.");
             await buscador.FillAsync(string.Empty);
-            await candidatos.Locator(".visitas-candidato").First.ClickAsync();
+            // Las etiquetas de los candidatos son únicas: se pulsa por su nombre accesible, no por posición.
+            var nombresCandidatos = await candidatos.Locator(".visitas-candidato").AllInnerTextsAsync();
+            await candidatos.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = nombresCandidatos[0].Trim(), Exact = true }).ClickAsync();
         }
 
         await Expect(filasTrabajador).ToHaveCountAsync(2, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
@@ -225,7 +228,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await quitarAlPrimero.ClickAsync();
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Quitar de la visita", Exact = true }).ClickAsync();
         await Expect(filasTrabajador).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
-        await Expect(filasTrabajador.First).Not.ToContainTextAsync(apellidosTrabajador);
+        await Expect(listaTrabajadores).Not.ToContainTextAsync(apellidosTrabajador);
 
         // Lo guardado, no lo pintado: tras recargar la página la visita sigue con un solo trabajador y no es el primero.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas");
@@ -234,7 +237,7 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await Ayudas.PulsarAccionDeMenuAsync(filaVisita.Locator(".menu-acciones-disparador"), "Ver");
         await drawer.GetByRole(AriaRole.Tab, new LocatorGetByRoleOptions { Name = "Trabajadores", Exact = true }).ClickAsync();
         await Expect(filasTrabajador).ToHaveCountAsync(1);
-        await Expect(filasTrabajador.First).Not.ToContainTextAsync(apellidosTrabajador);
+        await Expect(listaTrabajadores).Not.ToContainTextAsync(apellidosTrabajador);
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

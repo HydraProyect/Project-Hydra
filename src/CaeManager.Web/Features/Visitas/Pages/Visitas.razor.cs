@@ -873,7 +873,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                 return;
 
             _candidatos = EtiquetasSelectorTrabajador.Construir(candidatos).Select(o => new ElementoSeleccionable(o.Id, o.Texto)).ToList();
-    
+
             if (_candidatos.Count == 0)
                 ToastService.Mostrar(Textos["ToastSinCandidatos"], TonoToast.Info);
             else if (_candidatos.Count == 1)
