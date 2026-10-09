@@ -45,6 +45,8 @@ public static class ApplicationServiceCollectionExtensions
         // Esqueleto común de los Commands que cambian una tarea del asistente de flujos.
         services.AddScoped<CaeManager.Application.AsistenteIa.Tareas.ModificacionTareaAsistente>();
         services.AddScoped<CaeManager.Application.Clientes.ReasignadorCarteraCliente>();
+        services.AddScoped<CaeManager.Application.Operaciones.IAsignacionAutomaticaDePrincipal,
+            CaeManager.Application.Operaciones.AsignacionAutomaticaDePrincipal>();
         // Quién puede restablecer la 2FA de otra cuenta, separado del acto: el
         // Administrador del Tenant (P0-8) o Soporte TALVEG con Sesión Privilegiada
         // (ADR-011 § 8.7, punto 3). La compuesta elige por la sesión, nunca prueba los dos.
@@ -143,6 +145,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IValidacionDocumentoOficialService, ValidacionDocumentoOficialService>();
         services.AddScoped<IRegistroAccesoDocumentoSensibleService, RegistroAccesoDocumentoSensibleService>();
         services.AddScoped<IRegistroAccesoDatoSensibleService, RegistroAccesoDatoSensibleService>();
+        services.AddScoped<IRegistroExportacionService, RegistroExportacionService>();
 
         // Parsers de documento oficial: lógica pura (regex sobre texto),
         // singletons sin estado; el registry los indexa por perfil.

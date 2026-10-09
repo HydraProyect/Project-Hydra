@@ -72,10 +72,13 @@ public interface IDirectorioUsuariosService
     /// <paramref name="rol"/> y no están desactivadas; mismo predicado que
     /// <see cref="EsCuentaActivaConRolAsync"/>, para todas a la vez.
     ///
-    /// La usa el aviso de un apoyo de cartera (ADR-011 § 2.7, enmienda 2026-10-08, punto 5)
-    /// para llegar a la Dirección CAE del Operador CAE cuando falta un Coordinador CAE. Solo
-    /// identificadores. La política RLS de las cuentas la acota al Tenant activo, así que se
-    /// llama con <paramref name="tenantId"/> como Tenant activo (<c>AmbitoTenantExplicito</c>).
+    /// La usan el escalado del principal de una Asignación de Operación (ADR-011 § 2.7,
+    /// enmienda 2026-10-08, punto 4), para saber cuántas personas hay en cada perfil del
+    /// Operador CAE, y el aviso de un apoyo de cartera (punto 5), para llegar a la Dirección
+    /// CAE cuando falta un Coordinador CAE. Solo identificadores: quien llama decide con el
+    /// número o avisa, no enseña la lista. La política RLS de las cuentas la acota al Tenant
+    /// activo, así que se llama con <paramref name="tenantId"/> como Tenant activo
+    /// (<c>AmbitoTenantExplicito</c>).
     /// </summary>
     Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
         Guid tenantId, string rol, CancellationToken cancellationToken = default);

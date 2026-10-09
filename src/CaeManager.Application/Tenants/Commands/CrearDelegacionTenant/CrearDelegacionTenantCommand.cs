@@ -55,9 +55,14 @@ public class CrearDelegacionTenantCommandHandler(
     IDelegacionTenantRepository repositorio, ITenantsQueryContext tenantsContext,
     IAsignacionesOperativasWriter asignacionesWriter,
     IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork, ITransaccionDeComando transaccion,
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
     : IRequestHandler<CrearDelegacionTenantCommand, Result<Guid>>
 {
+    public static readonly Error PrincipalNoAsignado = Error.Crear(
+        "DelegacionTenant.PrincipalNoAsignado",
+        "No pudimos completar la autorización: la organización autorizada cambió mientras tanto. No se ha guardado nada; vuelve a intentarlo.");
+
     public async Task<Result<Guid>> Handle(CrearDelegacionTenantCommand request, CancellationToken cancellationToken)
     {
         // La autoridad va primero, antes incluso de comprobar que los tenants
@@ -131,32 +136,50 @@ public class CrearDelegacionTenantCommandHandler(
                 "DelegacionTenant.OtroOperadorVigente",
                 "Tu organización ya tiene otro Operador CAE externo activo. Revoca su acceso antes de autorizar uno nuevo."));
 
-        var delegacion = new DelegacionTenant(request.TenantConsultoraId, request.TenantClienteId);
-        repositorio.Agregar(delegacion);
+        // La delegación, su operación y el principal por escalado (ADR-011 § 2.7, enmienda
+        // 2026-10-08, punto 4) se confirman juntos: la operación nace sin carteras y, si el
+        // Operador CAE tiene una sola persona en el primer perfil con alguien (Coordinador CAE →
+        // Dirección CAE → Administrador), recibe la cartera principal aquí mismo. Con varias, o
+        // sin nadie, la operación queda en la alerta de ese Operador CAE. Todo lo que se añade
+        // al contexto se crea dentro: un reintento de la estrategia de ejecución empieza de cero.
+        Guid delegacionId = default;
+        var escrita = await transaccion.EjecutarAsync(async ct =>
+        {
+            var delegacion = new DelegacionTenant(request.TenantConsultoraId, request.TenantClienteId);
+            repositorio.Agregar(delegacion);
+            delegacionId = delegacion.Id;
 
-        // Doble escritura. El propietario de los datos es el Cliente Delegante
-        // y el operador es la Consultora — el orden importa y es justo el que
-        // encarna "delegación de acceso, no de propiedad".
-        await asignacionesWriter.AbrirOperacionDelegadaAsync(
-            request.TenantClienteId, request.TenantConsultoraId, delegacion.CreadoEnUtc, vigenciaHasta: null, cancellationToken);
+            // Doble escritura. El propietario de los datos es el Cliente Delegante
+            // y el operador es la Consultora — el orden importa y es justo el que
+            // encarna "delegación de acceso, no de propiedad".
+            var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
+                request.TenantClienteId, request.TenantConsultoraId, delegacion.CreadoEnUtc, vigenciaHasta: null, ct);
 
-        // La comprobación de OtroOperadorVigente de arriba no cierra la ventana
-        // entre dos autorizaciones concurrentes sobre el mismo Tenant
-        // propietario: el índice único IX_AsignacionesOperacion_
-        // DelegacionTotalVigente sigue siendo la barrera real, y una carrera
-        // perdedora sale como DbUpdateException sin traducir (hallazgo E de la
-        // revisión puente del incremento 1b, Baja). NO se traduce aquí a
-        // propósito: Application no puede depender de Npgsql.PostgresException
-        // para distinguir esa carrera de otro DbUpdateException real —el que
-        // lanza RLS cuando el workspace activo no es el Tenant propietario— sin
-        // cruzar la frontera de capas (FronterasDeCapaTests). Un catch (DbUpdateException)
-        // sin esa distinción tapaba ese segundo caso: Desde_el_workspace_de_otro_tenant_RLS_no_deja_escribir_la_operacion
-        // dejó de ver la excepción que RLS lanza aposta. Traducirlo bien exige
-        // mover la comprobación de ConstraintName a Infrastructure (mismo
-        // patrón que OperacionImportacionRepository/ExpiracionAsignacionesHostedService) —
-        // incremento aparte.
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            // La comprobación de OtroOperadorVigente de arriba no cierra la ventana
+            // entre dos autorizaciones concurrentes sobre el mismo Tenant
+            // propietario: el índice único IX_AsignacionesOperacion_
+            // DelegacionTotalVigente sigue siendo la barrera real, y una carrera
+            // perdedora sale como DbUpdateException sin traducir (hallazgo E de la
+            // revisión puente del incremento 1b, Baja). NO se traduce aquí a
+            // propósito: Application no puede depender de Npgsql.PostgresException
+            // para distinguir esa carrera de otro DbUpdateException real —el que
+            // lanza RLS cuando el workspace activo no es el Tenant propietario— sin
+            // cruzar la frontera de capas (FronterasDeCapaTests). Un catch (DbUpdateException)
+            // sin esa distinción tapaba ese segundo caso: Desde_el_workspace_de_otro_tenant_RLS_no_deja_escribir_la_operacion
+            // dejó de ver la excepción que RLS lanza aposta. Traducirlo bien exige
+            // mover la comprobación de ConstraintName a Infrastructure (mismo
+            // patrón que OperacionImportacionRepository/ExpiracionAsignacionesHostedService) —
+            // incremento aparte. La transacción explícita no cambia esto: la excepción sale igual.
+            await unitOfWork.SaveChangesAsync(ct);
 
-        return Result.Exito(delegacion.Id);
+            // Quien ejecuta es el Administrador del Tenant propietario: la RLS de cuentas no le
+            // enseña las del Operador CAE, así que hoy esto no asigna a nadie y la operación nace
+            // en la alerta del Operador CAE (IAsignacionAutomaticaDePrincipal lo explica).
+            return await asignacionAutomatica.AlAbrirOperacionAsync(operacion, ct)
+                ? Result.Exito()
+                : Result.Fallo(PrincipalNoAsignado);
+        }, cancellationToken);
+
+        return escrita.EsFallido ? Result.Fallo<Guid>(escrita.Error) : Result.Exito(delegacionId);
     }
 }

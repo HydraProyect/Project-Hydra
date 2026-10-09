@@ -5,6 +5,7 @@ using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
@@ -46,7 +47,10 @@ public record VisitaListaDto(
     decimal? AntelacionNominalHoras = null,
     decimal? AntelacionEfectivaHoras = null,
     // Versión de la Visita tal como la ve la lista: «Reactivar» la devuelve en el Command.
-    Guid Version = default)
+    Guid Version = default,
+    // Quién entra, «Nombre Apellidos» por apellidos: lo que abre el recuento de la columna
+    // «Trabajadores». Sin DNI, igual que el detalle de la Visita.
+    IReadOnlyList<string>? Trabajadores = null)
 {
     /// <summary>
     /// Lo que la columna «Documentación» pinta en rojo: ni cancelada, ni en un
@@ -69,7 +73,7 @@ public record VisitaListaDto(
 /// (al menos un Documento y todos Vigente/SinCaducidad) porque EsObligatorio
 /// todavía no se aplica a documentos de Trabajador.
 /// </summary>
-public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ITrabajadoresQueryContext trabajadoresContext)
     : IRequestHandler<ObtenerVisitasQuery, ResultadoPaginado<VisitaListaDto>>
 {
     public async Task<ResultadoPaginado<VisitaListaDto>> Handle(ObtenerVisitasQuery request, CancellationToken cancellationToken)
@@ -199,6 +203,12 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
         var trabajadorIdsImplicados = trabajadoresPorVisita.Select(t => t.TrabajadorId).Distinct().ToList();
         var empresaIdsImplicadas = pagina.Select(p => p.EmpresaId).Distinct().ToList();
 
+        var nombresTrabajadores = await trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIdsImplicados.Contains(t.Id))
+            .OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre)
+            .Select(t => new { t.Id, NombreCompleto = t.Nombre + " " + t.Apellidos })
+            .ToListAsync(cancellationToken);
+
         var vencimientosTrabajadores = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null && trabajadorIdsImplicados.Contains(d.TrabajadorId!.Value))
             .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.EstadoVigencia, d.FechaVencimiento })
@@ -262,7 +272,11 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
                 Tramo: p.Tramo,
                 AntelacionNominalHoras: p.AntelacionNominalHoras,
                 AntelacionEfectivaHoras: p.AntelacionEfectivaHoras,
-                Version: p.Version);
+                Version: p.Version,
+                Trabajadores: nombresTrabajadores
+                    .Where(t => trabajadorIdsDeEstaVisita.Contains(t.Id))
+                    .Select(t => t.NombreCompleto)
+                    .ToList());
         }).ToList();
 
         if (ordenaPorGestionar)

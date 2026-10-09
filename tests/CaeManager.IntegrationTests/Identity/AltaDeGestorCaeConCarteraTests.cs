@@ -321,7 +321,7 @@ public class AltaDeGestorCaeConCarteraTests : IAsyncLifetime
                 sp.GetRequiredService<DirectorioUsuariosTenant>(),
                 contexto);
             return new CrearUsuarioCommandHandler(
-                cuentas, usuario, tenantActual, new CatalogoConGanchos(this), new TransaccionDeComando(contexto));
+                cuentas, usuario, tenantActual, new CatalogoConGanchos(this), new TransaccionDeComando(contexto), new AsignacionAutomaticaInerte());
         }
 
         public async ValueTask DisposeAsync()

@@ -1,0 +1,18 @@
+.sin-principal-intro {
+    margin: 0 0 var(--space-3);
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+}
+
+.sin-principal-acciones {
+    text-align: end;
+}
+
+.sin-principal-solo-lectores {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}

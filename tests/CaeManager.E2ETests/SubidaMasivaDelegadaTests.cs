@@ -83,7 +83,7 @@ public class SubidaMasivaDelegadaTests(WebAppFixture fixture)
         // El menú también contiene exportaciones de lectura: abrirlo demuestra que
         // la cabecera funciona antes de comprobar que no ofrece acciones de escritura.
         var menu = await Ayudas.AbrirMenuAccionesAsync(page.Locator(".cabecera-pagina .menu-acciones-disparador"));
-        await Expect(menu.GetByRole(AriaRole.Menuitem, new LocatorGetByRoleOptions { Name = "Exportar a Excel", Exact = true }))
+        await Expect(menu.GetByRole(AriaRole.Menuitem, new LocatorGetByRoleOptions { Name = "Exportar todo", Exact = true }))
             .ToBeVisibleAsync();
         await Expect(menu.GetByRole(AriaRole.Menuitem, new LocatorGetByRoleOptions { Name = "Subida múltiple", Exact = true }))
             .ToHaveCountAsync(0);

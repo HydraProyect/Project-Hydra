@@ -367,7 +367,8 @@ public class DesignarGestorCaePrincipalCommandTests
 
         await RetirarAsync(e, GestorA);
 
-        e.Principal.Should().BeNull();
+        // Sin relevo posible se escala (D-7): queda un solo Coordinador CAE activo en el Operador CAE.
+        e.Principal.Should().Be(Coordinador2);
         e.ConCartera.Should().NotContain(Coordinador1);
     }
 

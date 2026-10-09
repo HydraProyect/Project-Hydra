@@ -4,5 +4,8 @@ namespace CaeManager.Web.Components.DesignSystem;
 public enum TonoBanda
 {
     Peligro,
-    Advertencia
+    Advertencia,
+
+    /// <summary>Informa de un estado sin urgencia («Visita cancelada»): no pide ninguna acción.</summary>
+    Neutro
 }

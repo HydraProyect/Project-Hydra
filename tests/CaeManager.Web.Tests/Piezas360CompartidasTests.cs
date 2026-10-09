@@ -75,6 +75,7 @@ public class Piezas360CompartidasTests : BunitContext
     [Theory]
     [InlineData(TonoBanda.Peligro, "peligro")]
     [InlineData(TonoBanda.Advertencia, "advertencia")]
+    [InlineData(TonoBanda.Neutro, "neutro")]
     public void La_banda_declara_su_tono_y_se_anuncia_como_estado(TonoBanda tono, string esperado)
     {
         var cut = Render<BandaAccion>(p => p.Add(x => x.Tono, tono).AddChildContent("el 02/09/2026."));

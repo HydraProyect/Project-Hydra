@@ -22,6 +22,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     private const string TenantPizzaPlanet = "Pizza Planet S.L.";
     private const string EmpresaDeLaMaqueta = "Montajes Skynet S.L.";
     private const string ClienteEmpresarialDeLaMaqueta = "Cyberdyne Ibérica S.A.";
+    private const string SubcontrataDeLaMaqueta = "Transportes Terminator S.L.";
     private const string VehiculoDeLaMaqueta = "Camión grúa";
     private const string ProyectoDeLaMaqueta = "Reforma nave Sevilla";
 
@@ -38,12 +39,30 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     /// dejarla en el mismo estado: sin él se compararían dos estados distintos, no dos pantallas.
     /// </summary>
     private sealed record Pareja(
-        string Clave, string Ruta, string RazonSocial, Mockup360 Mockup, string? BuscarEn = null, string? ClicAntesDeMedir = null);
+        string Clave, string Ruta, string RazonSocial, Mockup360 Mockup, string? BuscarEn = null, string? ClicAntesDeMedir = null,
+        string? ConsultaId = null);
+
+    private const string CentroDeLaVisitaDeLaMaqueta = "Sede Sevilla";
+
+    // La Visita no tiene nombre propio: se localiza por su Centro, con la consulta entera (los
+    // mismos @razon y @tenant). La de la maqueta es la más reciente de ese Centro; la otra que
+    // la siembra deja en él es la ya finalizada.
+    private const string ConsultaIdDeVisita =
+        """
+        SELECT v."Id"::text FROM "Visitas" v
+        JOIN "Centros" c ON c."Id" = v."CentroId" JOIN "Tenants" t ON t."Id" = v."TenantId"
+        WHERE c."Nombre" = @razon AND t."Nombre" = @tenant AND NOT v."EstaCancelada"
+        ORDER BY v."FechaInicio" DESC LIMIT 1
+        """;
 
     private static readonly Pareja[] Parejas =
     [
         new("empresa-360", "/empresas/", EmpresaDeLaMaqueta, Mockup360.PaginaDc("Empresa 360 página TALVEG.dc.html")),
         new("cliente-empresarial-360", "/clientes/", ClienteEmpresarialDeLaMaqueta, Mockup360.PaginaDc("Cliente 360 página TALVEG.dc.html")),
+        new("subcontrata-360", "/subcontratas/", SubcontrataDeLaMaqueta, Mockup360.PorConvencion(
+            "Subcontrata 360 página TALVEG.dc.html", "[data-pieza=\"cabecera-identidad\"]",
+            tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : null),
+            ClicAntesDeMedir: ".lista-relaciones > [data-pieza=\"fila\"]:first-child .fila-relacion-desplegar"),
         new("vehiculo-360", "/vehiculos/", VehiculoDeLaMaqueta,
             Mockup360.PorConvencion(
                 "Vehiculo 360 página TALVEG.dc.html", "[data-pieza=\"cabecera-identidad\"]",
@@ -62,6 +81,11 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
             BuscarEn: TiposDeDocumentoPorNombre,
             // La maqueta abre el estado por Centro de una fila; la ficha arranca con todas plegadas.
             ClicAntesDeMedir: "[data-pieza=\"fila\"] button[aria-expanded=\"false\"]"),
+        new("visita-360", "/visitas/", CentroDeLaVisitaDeLaMaqueta,
+            Mockup360.PorConvencion(
+                "Visita 360 página TALVEG.dc.html", "[data-pieza=\"cabecera-identidad\"]",
+                tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme"),
+            ConsultaId: ConsultaIdDeVisita),
     ];
 
     public static TheoryData<string, string> ParejasPorTema()
@@ -76,7 +100,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         return datos;
     }
 
-    private async Task<IPage> AbrirFichaAsync(IBrowserContext contexto, string ruta, string razonSocial, string tema, string? buscarEn = null)
+    private async Task<IPage> AbrirFichaAsync(IBrowserContext contexto, string ruta, string razonSocial, string tema, string? buscarEn = null, string? consultaId = null)
     {
         var email = await fixture.LeerValorSqlAsync(
             """SELECT "Email" FROM "AspNetUsers" WHERE "Email" LIKE 'coordinador1.%@caemanager.local' """);
@@ -85,6 +109,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
             ? (t, c)
             : throw new ArgumentException($"Se esperaba \"Tabla\".\"Columna\" y llegó «{buscarEn}».", nameof(buscarEn));
         var id = await fixture.LeerValorSqlAsync(
+            consultaId ??
             $"""
             SELECT e."Id"::text FROM {tabla} e JOIN "Tenants" t ON t."Id" = e."TenantId"
             WHERE e.{columna} = @razon AND t."Nombre" = @tenant
@@ -183,7 +208,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
 
         await Fidelidad360.CapturarAsync(paginaMockup, Path.Combine(salida, "mockup.png"));
 
-        var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.RazonSocial, tema, pareja.BuscarEn);
+        var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.RazonSocial, tema, pareja.BuscarEn, pareja.ConsultaId);
         if (pareja.ClicAntesDeMedir is { } selector)
         {
             // Vale cualquiera de las que casen (la maqueta abre una fila, no una concreta): se pulsa la que encuentre el

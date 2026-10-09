@@ -3,6 +3,7 @@ using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Importacion;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Exportacion;
 using ClosedXML.Excel;
@@ -50,7 +51,8 @@ public static class DocumentosEndpoints
         // Lleva el listado completo de Documentos del tenant (propietario,
         // tipo, fechas): mismo criterio de caché que el PDF.
         endpoints.MapGet("/documentos/exportar.xlsx", async (
-            HttpContext contexto, IMediator mediator, CancellationToken cancellationToken) =>
+            HttpContext contexto, IMediator mediator, CancellationToken cancellationToken,
+            string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false) =>
         {
             CabecerasArchivoSensible.ProhibirCache(contexto);
 
@@ -68,7 +70,15 @@ public static class DocumentosEndpoints
             var fila = 2;
             await foreach (var documento in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
                 mediator.Send(
-                    new ObtenerDocumentosQuery(TrabajadorId: null, Ambito: null, Busqueda: null, Pagina: pagina, TamanoPagina: tamanoPagina),
+                    new ObtenerDocumentosQuery(
+                        TrabajadorId: null,
+                        Ambito: Enum.TryParse<AmbitoAplicacion>(ambito, out var ambitoFiltro) ? ambitoFiltro : null,
+                        Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
+                        Estado: Enum.TryParse<EstadoDocumento>(estado, out var estadoFiltro) ? estadoFiltro : null,
+                        Pagina: pagina,
+                        TamanoPagina: tamanoPagina,
+                        OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
+                        Descendente: desc),
                     cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = documento.PropietarioNombre;
