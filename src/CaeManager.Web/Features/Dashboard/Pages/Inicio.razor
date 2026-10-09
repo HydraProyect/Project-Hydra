@@ -135,8 +135,13 @@
                 @* El mockup deja la salida a la cola completa siempre visible, no solo
                    cuando el resumen se queda corto: aquí se ven como mucho
                    MaximoGruposAtencion grupos, y quien quiere operar de verdad va a
-                   Mi trabajo tanto si son tres como si son treinta. *@
-                <a class="enlace-ver-todas" href="@_rutaVerTodoMiTrabajo">Ver todo en Mi trabajo →</a>
+                   Mi trabajo tanto si son tres como si son treinta. Solo para quien
+                   tiene Mi trabajo: el rol Consulta ve este resumen, pero las dos
+                   páginas de la cola le deniegan el acceso (la regla del menú). *@
+                @if (_tieneMiTrabajo)
+                {
+                    <a class="enlace-ver-todas" href="@_rutaVerTodoMiTrabajo">Ver todo en Mi trabajo →</a>
+                }
             }
 
             @if (_pendientePorPlataforma.Count > 0)

@@ -3,9 +3,11 @@ using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 using CaeManager.Application.BusquedaGlobal.Queries.ObtenerRecientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.BusquedaGlobal.Recursos;
 using System.Globalization;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Routing;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
@@ -144,6 +146,26 @@ public partial class BuscadorGlobal
         ("Crear documento", "/documentos?accion=crear"),
     ];
 
+    // En cascada y no inyectado, como NavMenu: la paleta vive en un circuito y la sesión puede
+    // cambiar sin que el componente se vuelva a crear. Sin estado (otro host, un test que no lo
+    // declara) la cuenta se trata como sin Mi trabajo: se deja de ofrecer, nunca al revés.
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// La cuenta tiene «Mi trabajo» (la regla del menú, <see cref="CatalogoMenuLateral.TieneMiTrabajo"/>).
+    /// Es el único destino del grupo «Ir a» que se filtra por cuenta: las dos páginas de la cola
+    /// deniegan el acceso al rol Consulta, que sí ve el resto de Operación. El catálogo
+    /// (<see cref="CoberturaDePaleta.DestinosNavegacion"/>) sigue siendo una tabla estática sin
+    /// roles; el filtro vive aquí, donde está la cuenta.
+    /// </summary>
+    private bool _tieneMiTrabajo;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _tieneMiTrabajo = EstadoAutenticacion is not null
+            && CatalogoMenuLateral.TieneMiTrabajo((await EstadoAutenticacion).User);
+    }
+
     private IReadOnlyList<ItemBusquedaDto> IrA
     {
         get
@@ -152,6 +174,7 @@ public partial class BuscadorGlobal
             if (termino.Length < 2) return [];
 
             return CoberturaDePaleta.DestinosNavegacion
+                .Where(c => _tieneMiTrabajo || !CatalogoMenuLateral.EsRutaDeMiTrabajo(c.Ruta))
                 .Where(c => c.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase))
                 .Select(c => new ItemBusquedaDto(Guid.Empty, c.Nombre, null, c.Ruta))
                 .ToList();

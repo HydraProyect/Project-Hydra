@@ -39,6 +39,8 @@ public class AlertasVacioPorFiltroTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        // El enlace a Mi trabajo de la página va en un AuthorizeView (AlertasEnlaceMiTrabajoTests).
+        this.ConRolDeEscritura();
     }
 
     private sealed class MediatorConAlertas(IReadOnlyList<AlertaDto> alertas) : IMediator

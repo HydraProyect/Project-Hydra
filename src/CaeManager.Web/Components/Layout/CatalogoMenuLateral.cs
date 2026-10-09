@@ -153,6 +153,27 @@ public static class CatalogoMenuLateral
     /// </summary>
     public static string RutaMiTrabajo(bool variosTenants) => variosTenants ? "mi-trabajo" : "bandeja";
 
+    /// <summary>
+    /// ¿Tiene esta cuenta «Mi trabajo»? La misma pregunta que se hace el menú, para las entradas
+    /// que no son el menú y no pueden usar <c>AuthorizeView</c> (el enlace de Inicio, los atajos
+    /// «g b» y «g m», el grupo «Ir a» de la paleta): a un rol fuera de
+    /// <see cref="RolesDeMiTrabajo"/> esas entradas lo dejarían en «acceso denegado». No es
+    /// autoridad: quien autoriza sigue siendo el <c>[Authorize]</c> de las dos páginas.
+    /// </summary>
+    public static bool TieneMiTrabajo(ClaimsPrincipal usuario) =>
+        RolesDeMiTrabajo.Split(',').Any(usuario.IsInRole);
+
+    /// <summary>
+    /// ¿Es esta ruta una de las dos de «Mi trabajo» (las que devuelve <see cref="RutaMiTrabajo"/>)?
+    /// Para los catálogos de destinos escritos como ruta (atajos, paleta), que así filtran con la
+    /// regla del menú en vez de repetir las dos rutas a mano.
+    /// </summary>
+    public static bool EsRutaDeMiTrabajo(string ruta)
+    {
+        var segmento = ruta.Trim('/');
+        return segmento == RutaMiTrabajo(variosTenants: false) || segmento == RutaMiTrabajo(variosTenants: true);
+    }
+
     public static IReadOnlyList<GrupoMenuLateral> Grupos { get; } =
     [
         // Dashboard / Visión de cartera / Dashboard Ejecutivo son tres Operational Home distintos

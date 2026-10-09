@@ -7,6 +7,7 @@ using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace CaeManager.Web.Tests;
 
@@ -62,6 +63,7 @@ public class FirmasGuardadasCacheTests
                 contexto,
                 new MediatorFalso(new FirmaGuardadaUsuarioDto("firma.png", DateTime.UtcNow)),
                 new AlmacenamientoFalso(),
+                NullLoggerFactory.Instance,
                 CancellationToken.None));
 
         var cacheControl = contexto.Response.Headers.CacheControl.ToString();
@@ -85,6 +87,7 @@ public class FirmasGuardadasCacheTests
                 contexto,
                 new MediatorFalso(new SelloEmpresaDto("sello.png", DateTime.UtcNow)),
                 new AlmacenamientoFalso(),
+                NullLoggerFactory.Instance,
                 CancellationToken.None));
 
         var cacheControl = contexto.Response.Headers.CacheControl.ToString();
@@ -112,6 +115,7 @@ public class FirmasGuardadasCacheTests
                 contexto,
                 new MediatorFalso(new FirmaGuardadaUsuarioDto("firma.png", DateTime.UtcNow)),
                 new AlmacenamientoFalso(),
+                NullLoggerFactory.Instance,
                 CancellationToken.None));
 
         contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);

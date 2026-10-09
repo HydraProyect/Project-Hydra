@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 using CaeManager.Application.BusquedaGlobal.Queries.ObtenerRecientes;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Features.BusquedaGlobal;
 using FluentAssertions;
 using MediatR;
@@ -101,6 +102,8 @@ public class BuscadorGlobalIrAAreasNuevasTests : BunitContext
         Services.AddScoped<IMediator>(_ => new MediatorBuscadorVacio());
         Services.AddScoped<BusquedaGlobalService>();
         Services.AddScoped<CaeManager.Application.Common.ITenantActual, TenantActualDePaletaFalso>();
+        // Una cuenta con «Mi trabajo»: su entrada solo se ofrece a quien puede abrirla.
+        AddAuthorization().SetAuthorized("marta").SetRoles(Roles.GestorCae);
 
         var cut = Render<BuscadorGlobal>();
         await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
@@ -123,6 +126,8 @@ public class BuscadorGlobalIrAAreasNuevasTests : BunitContext
         Services.AddScoped<IMediator>(_ => new MediatorBuscadorVacio());
         Services.AddScoped<BusquedaGlobalService>();
         Services.AddScoped<CaeManager.Application.Common.ITenantActual, TenantActualDePaletaFalso>();
+        // Una cuenta con «Mi trabajo»: su entrada solo se ofrece a quien puede abrirla.
+        AddAuthorization().SetAuthorized("marta").SetRoles(Roles.GestorCae);
 
         var cut = Render<BuscadorGlobal>();
         await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
@@ -130,5 +135,53 @@ public class BuscadorGlobalIrAAreasNuevasTests : BunitContext
         await cut.Find("input.buscador-input").InputAsync("client");
 
         cut.FindAll("a.buscador-item").Should().Contain(a => a.TextContent.Contains("Ir a Clientes empresariales", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// Resto del defecto C1 del piloto Outbound (lote 2): la paleta ofrecía «Ir a Mi trabajo» a
+    /// cualquiera, y <c>/bandeja</c> y <c>/mi-trabajo</c> deniegan el acceso al rol Consulta. Se
+    /// busca «ir a», que casa con todo el grupo, para que la ausencia de las dos entradas se lea
+    /// junto a la presencia de las demás; la misma búsqueda con un Gestor CAE es el control positivo.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public async Task Mi_trabajo_solo_se_ofrece_en_el_grupo_Ir_a_a_quien_puede_abrirlo(string rol, bool seOfrece)
+    {
+        Services.AddScoped<IMediator>(_ => new MediatorBuscadorVacio());
+        Services.AddScoped<BusquedaGlobalService>();
+        Services.AddScoped<CaeManager.Application.Common.ITenantActual, TenantActualDePaletaFalso>();
+        AddAuthorization().SetAuthorized("usuario").SetRoles(rol);
+
+        var cut = Render<BuscadorGlobal>();
+        await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
+        await cut.Find("input.buscador-input").InputAsync("ir a");
+
+        var destinos = cut.FindAll("a.buscador-item").Select(a => a.GetAttribute("href")).ToList();
+        destinos.Should().Contain("/gestiones", "control: el grupo «Ir a» está pintado y Operación se ofrece a los dos roles");
+        if (seOfrece)
+            destinos.Should().Contain("/bandeja").And.Contain("/mi-trabajo");
+        else
+            destinos.Should().NotContain("/bandeja").And.NotContain("/mi-trabajo");
+    }
+
+    /// <summary>
+    /// Sin estado de autenticación en cascada no se sabe si la cuenta tiene Mi trabajo: se deja de
+    /// ofrecer, nunca al revés. El resto del grupo no depende de la cuenta.
+    /// </summary>
+    [Fact]
+    public async Task Sin_estado_de_autenticacion_la_paleta_no_ofrece_Mi_trabajo()
+    {
+        Services.AddScoped<IMediator>(_ => new MediatorBuscadorVacio());
+        Services.AddScoped<BusquedaGlobalService>();
+        Services.AddScoped<CaeManager.Application.Common.ITenantActual, TenantActualDePaletaFalso>();
+
+        var cut = Render<BuscadorGlobal>();
+        await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
+        await cut.Find("input.buscador-input").InputAsync("ir a");
+
+        var destinos = cut.FindAll("a.buscador-item").Select(a => a.GetAttribute("href")).ToList();
+        destinos.Should().Contain("/gestiones");
+        destinos.Should().NotContain("/bandeja").And.NotContain("/mi-trabajo");
     }
 }

@@ -1,5 +1,7 @@
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.AtajosGlobales.Recursos;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Localization;
 using Microsoft.JSInterop;
 
@@ -16,6 +18,38 @@ public partial class AtajosGlobales : IAsyncDisposable
     private IJSObjectReference? _moduloKeyTips;
     private IJSObjectReference? _suscripcionKeyTips;
     private bool _ayudaVisible;
+
+    // En cascada y no inyectado, como NavMenu: el islote vive en un circuito y la sesión puede
+    // cambiar sin que el componente se vuelva a crear. Sin estado (otro host, un test que no lo
+    // declara) la cuenta se trata como sin Mi trabajo: se deja de ofrecer, nunca al revés.
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// La cuenta tiene «Mi trabajo» (la regla del menú, <see cref="CatalogoMenuLateral.TieneMiTrabajo"/>).
+    /// Decide si «g b» y «g m» llevan a algún sitio y si la chuleta los anuncia: al rol Consulta
+    /// esas dos páginas le deniegan el acceso, y un atajo que acaba en «acceso denegado» es peor
+    /// que uno que no existe.
+    /// </summary>
+    private bool _tieneMiTrabajo;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _tieneMiTrabajo = EstadoAutenticacion is not null
+            && CatalogoMenuLateral.TieneMiTrabajo((await EstadoAutenticacion).User);
+    }
+
+    private bool EsDestinoOfrecido(string destino) =>
+        _tieneMiTrabajo || !CatalogoMenuLateral.EsRutaDeMiTrabajo(destino);
+
+    /// <summary>
+    /// La sección «Navegación» de la chuleta, sin los atajos cuyo destino no se ofrece a esta
+    /// cuenta. El catálogo y <c>atajos-globales.js</c> siguen llevando las diez teclas: lo que
+    /// cambia por cuenta es lo que este componente hace con ellas.
+    /// </summary>
+    private IEnumerable<DefinicionAtajo> NavegacionOfrecida =>
+        CatalogoAtajos.Navegacion.Where(atajo =>
+            !CatalogoAtajos.DestinosNavegacion.TryGetValue(atajo.Tecla.Split(' ')[^1], out var destino)
+            || EsDestinoOfrecido(destino));
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -57,7 +91,7 @@ public partial class AtajosGlobales : IAsyncDisposable
     [JSInvokable]
     public void IrA(string tecla)
     {
-        if (CatalogoAtajos.DestinosNavegacion.TryGetValue(tecla, out var destino))
+        if (CatalogoAtajos.DestinosNavegacion.TryGetValue(tecla, out var destino) && EsDestinoOfrecido(destino))
             NavigationManager.NavigateTo(destino);
     }
 

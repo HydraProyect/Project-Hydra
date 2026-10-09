@@ -20,22 +20,7 @@ public static class SubcontratasEndpoints
 {
     public static IEndpointRouteBuilder MapSubcontratasEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/subcontratas/verificaciones/{id:guid}/evidencia", async (
-            Guid id, IMediator mediator, IFileStorageService almacenamiento,
-            IRegistroAccesoDocumentoSensibleService registroAcceso, CancellationToken cancellationToken) =>
-        {
-            var evidencia = await mediator.Send(new ObtenerEvidenciaVerificacionParaDescargaQuery(id), cancellationToken);
-            if (evidencia is null)
-                return Results.NotFound();
-
-            // DEC-36 (REC-099): a diferencia de un adjunto de correo o una
-            // plantilla en blanco, la evidencia de VerificacionExternaSubcontrata
-            // SÍ tiene un TipoDocumentoId real (Codex lo detectó antes de
-            // abrir la PR — la exclusión original asumía lo contrario).
-            var flujo = await almacenamiento.AbrirAsync(evidencia.ArchivoRuta, cancellationToken);
-            await registroAcceso.RegistrarSiSensibleAsync(id, evidencia.TipoDocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
-            return Results.File(flujo, TipoContenidoDe(evidencia.NombreArchivo), evidencia.NombreArchivo, enableRangeProcessing: true);
-        });
+        endpoints.MapGet("/subcontratas/verificaciones/{id:guid}/evidencia", ServirEvidenciaAsync);
 
         // Mismo patrón de referencia que ClientesEndpoints.
         endpoints.MapGet("/subcontratas/exportar.xlsx", async (
@@ -86,6 +71,48 @@ public static class SubcontratasEndpoints
         });
 
         return endpoints;
+    }
+
+    /// <summary>
+    /// Manejador de <c>GET /subcontratas/verificaciones/{id}/evidencia</c>. Método con nombre, y no
+    /// una lambda, para poder probarlo sin levantar el host (mismo criterio que
+    /// <c>DocumentosEndpoints.ServirArchivoAsync</c>).
+    /// </summary>
+    public static async Task<IResult> ServirEvidenciaAsync(
+        Guid id, IMediator mediator, IFileStorageService almacenamiento,
+        IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro,
+        CancellationToken cancellationToken)
+    {
+        var evidencia = await mediator.Send(new ObtenerEvidenciaVerificacionParaDescargaQuery(id), cancellationToken);
+        if (evidencia is null)
+            return Results.NotFound();
+
+        // DEC-36 (REC-099): a diferencia de un adjunto de correo o una
+        // plantilla en blanco, la evidencia de VerificacionExternaSubcontrata
+        // SÍ tiene un TipoDocumentoId real (Codex lo detectó antes de
+        // abrir la PR — la exclusión original asumía lo contrario).
+        // Se abre primero y se registra después, como en DocumentosEndpoints:
+        // si el fichero no está, no queda el registro de un acceso que no
+        // entregó contenido.
+        Stream flujo;
+        try
+        {
+            flujo = await almacenamiento.AbrirAsync(evidencia.ArchivoRuta, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            // La verificación dice tener evidencia, pero el almacén no la tiene: 404 y un aviso, y
+            // no la excepción sin controlar. El aviso lleva el Id de la verificación y no la
+            // excepción ni la clave del fichero: la ruta del almacén no sale ni en la respuesta ni
+            // en el registro.
+            fabricaRegistro.CreateLogger(typeof(SubcontratasEndpoints).FullName!).LogWarning(
+                "La verificación externa {VerificacionId} tiene evidencia registrada pero su fichero no está en el almacén; se responde 404.",
+                id);
+            return Results.NotFound();
+        }
+
+        await registroAcceso.RegistrarSiSensibleAsync(id, evidencia.TipoDocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+        return Results.File(flujo, TipoContenidoDe(evidencia.NombreArchivo), evidencia.NombreArchivo, enableRangeProcessing: true);
     }
 
     /// <summary>

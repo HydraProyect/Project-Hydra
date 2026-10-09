@@ -10,6 +10,7 @@ using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.Bandeja;
 using CaeManager.Web.Services;
 using MediatR;
@@ -51,12 +52,12 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     public const string RutaMiTrabajo = "/mi-trabajo";
 
     /// <summary>
-    /// Roles de cuenta que autoriza la página Mi trabajo (<c>MiTrabajo.razor</c>,
-    /// atributo <c>Authorize</c>). Solo se lleva allí a quien puede abrirla: un
-    /// rol Consulta con cartera en otro Tenant acabaría en «acceso denegado».
+    /// La cuenta tiene alguno de los roles que autorizan Mi trabajo
+    /// (<see cref="CatalogoMenuLateral.RolesDeMiTrabajo"/>, la regla del menú). Solo se
+    /// lleva allí, y solo se le ofrece el enlace, a quien puede abrirla: un rol Consulta
+    /// acabaría en «acceso denegado» en cualquiera de las dos páginas de la cola.
     /// </summary>
-    private static readonly string[] RolesMiTrabajo =
-        [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae];
+    private bool _tieneMiTrabajo;
 
     private KpisDashboardDto? _kpis;
 
@@ -291,11 +292,12 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
             var mostrarRequiereAtencion = !estadoAutenticacion.User.IsInRole(Roles.Cliente);
             _esCoordinadorCae = estadoAutenticacion.User.IsInRole(Roles.CoordinadorCae);
+            var tieneMiTrabajo = CatalogoMenuLateral.TieneMiTrabajo(estadoAutenticacion.User);
             var perfilVocabulario = await Mediator.Send(new ObtenerPerfilVocabularioActualQuery(), token);
 
             var kpis = await Mediator.Send(new ObtenerKpisDashboardQuery(), token);
 
-            if (kpis.SinCarteraAsignada && RolesMiTrabajo.Any(estadoAutenticacion.User.IsInRole))
+            if (kpis.SinCarteraAsignada && tieneMiTrabajo)
                 (carteraEnOtroTenant, activoEsOrigen) = await ResolverCarteraEnOtroTenantAsync(token);
 
             if (carteraEnOtroTenant && activoEsOrigen && _aterrizaTrasLogin)
@@ -336,7 +338,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
 
                     // Solo si el enlace se va a pintar (hay cola) y la cuenta puede abrir
                     // Mi trabajo: un rol sin acceso a /mi-trabajo acabaría en «acceso denegado».
-                    if (todosLosItems.Count > 0 && RolesMiTrabajo.Any(estadoAutenticacion.User.IsInRole))
+                    if (todosLosItems.Count > 0 && tieneMiTrabajo)
                     {
                         var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), token);
                         if (autorizados.Count > 1)
@@ -352,6 +354,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
                 return;
 
             _mostrarRequiereAtencion = mostrarRequiereAtencion;
+            _tieneMiTrabajo = tieneMiTrabajo;
             _perfilVocabulario = perfilVocabulario;
             _kpis = kpis;
             _carteraEnOtroTenant = carteraEnOtroTenant;

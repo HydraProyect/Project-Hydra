@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Features.AtajosGlobales;
 using CaeManager.Web.Features.AtajosGlobales.Recursos;
 using FluentAssertions;
@@ -21,6 +22,9 @@ public class AtajosGlobalesTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        // Una cuenta con «Mi trabajo»: «g b» y «g m» solo existen para quien puede abrir esas dos
+        // páginas (ver AtajosGlobalesSinMiTrabajoTests para la cuenta que no).
+        AddAuthorization().SetAuthorized("marta").SetRoles(Roles.GestorCae);
     }
 
     [Fact]

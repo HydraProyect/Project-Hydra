@@ -29,7 +29,7 @@ public static class FirmasGuardadasEndpoints
     /// </summary>
     public static async Task<IResult> ServirFirmaAsync(
         HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
-        CancellationToken cancellationToken)
+        ILoggerFactory fabricaRegistro, CancellationToken cancellationToken)
     {
         var firma = await mediator.Send(new ObtenerFirmaGuardadaUsuarioQuery(), cancellationToken);
         if (firma is null)
@@ -40,7 +40,23 @@ public static class FirmasGuardadasEndpoints
         // No pasa por IRegistroAccesoDocumentoSensibleService (DEC-36,
         // HO-099-01 § 6-7): FirmaGuardadaUsuario es una imagen de firma,
         // sin TipoDocumentoId — no es un Documento del catálogo.
-        var flujo = await almacenamiento.AbrirAsync(firma.ImagenUrl, cancellationToken);
+        Stream flujo;
+        try
+        {
+            flujo = await almacenamiento.AbrirAsync(firma.ImagenUrl, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            // La firma está registrada, pero el almacén no tiene su imagen: 404 y un aviso, como en
+            // DocumentosEndpoints, y no la excepción sin controlar. El aviso no lleva la excepción
+            // ni la clave del fichero (la ruta del almacén no sale ni en la respuesta ni en el
+            // registro) y tampoco un Id: la consulta devuelve la firma de la cuenta en sesión sin
+            // identificarla, y deducir aquí la cuenta de los claims podría nombrar a otra.
+            fabricaRegistro.CreateLogger(typeof(FirmasGuardadasEndpoints).FullName!).LogWarning(
+                "La firma guardada de la cuenta en sesión está registrada pero su imagen no está en el almacén; se responde 404.");
+            return Results.NotFound();
+        }
+
         return Results.File(flujo, "image/png", enableRangeProcessing: true);
     }
 
@@ -73,7 +89,7 @@ public static class FirmasGuardadasEndpoints
     /// </summary>
     public static async Task<IResult> ServirSelloAsync(
         Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
-        CancellationToken cancellationToken)
+        ILoggerFactory fabricaRegistro, CancellationToken cancellationToken)
     {
         var sello = await mediator.Send(new ObtenerSelloEmpresaQuery(id), cancellationToken);
         if (sello is null)
@@ -85,7 +101,21 @@ public static class FirmasGuardadasEndpoints
         // HO-099-01 § 6-7): mismo motivo que /mi-firma/archivo arriba —
         // SelloEmpresa es una imagen de sello, no un Documento
         // clasificable por TipoDocumento.
-        var flujo = await almacenamiento.AbrirAsync(sello.ImagenUrl, cancellationToken);
+        Stream flujo;
+        try
+        {
+            flujo = await almacenamiento.AbrirAsync(sello.ImagenUrl, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            // Mismo criterio que la firma de arriba; aquí el aviso sí lleva un Id, el de la Empresa
+            // del sello, que es el de la ruta. Sin la excepción ni la clave del fichero.
+            fabricaRegistro.CreateLogger(typeof(FirmasGuardadasEndpoints).FullName!).LogWarning(
+                "El sello guardado de la Empresa {EmpresaId} está registrado pero su imagen no está en el almacén; se responde 404.",
+                id);
+            return Results.NotFound();
+        }
+
         return Results.File(flujo, "image/png", enableRangeProcessing: true);
     }
 }

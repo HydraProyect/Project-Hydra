@@ -652,6 +652,24 @@ public class InicioGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Resto del defecto C1 del piloto Outbound (lote 2). El rol Consulta ve «Requiere atención»,
+    /// pero <c>/bandeja</c> y <c>/mi-trabajo</c> le deniegan el acceso: la salida a la cola completa
+    /// no se le ofrece, igual que el menú no le ofrece «Mi trabajo». El control positivo, con la
+    /// misma cola y un Gestor CAE, es el test de arriba.
+    /// </summary>
+    [Fact]
+    public void A_un_rol_sin_Mi_trabajo_no_se_le_ofrece_la_salida_a_la_cola_completa()
+    {
+        var cut = Renderizar(
+            new MediadorDeInicio(Item("v1", TipoItemBandeja.Vencido, Refrielectric, "Refrielectric S.A.")),
+            rol: Roles.Consulta);
+
+        cut.FindAll(".lista-bandeja").Should().ContainSingle("control: el resumen de la cola sí se le pinta");
+        cut.FindAll("a").Should().NotContain(a => a.TextContent.Contains("Ver todo en Mi trabajo"));
+        cut.FindAll("a").Should().NotContain(a => a.GetAttribute("href") == "/bandeja" || a.GetAttribute("href") == Inicio.RutaMiTrabajo);
+    }
+
+    /// <summary>
     /// Mismo destino que «Mi trabajo» en el menú lateral (CatalogoMenuLateral,
     /// RutaPorContexto): con más de un Tenant autorizado es la cola agregada de toda
     /// la cartera, no la del Context Workspace activo.

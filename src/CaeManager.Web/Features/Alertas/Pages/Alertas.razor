@@ -60,8 +60,12 @@
        (Fase C, truncada a 5 filas): un duplicado estricto, no una función
        distinta — no enseñaba nada que /bandeja no enseñara, y enseñaba
        menos. Retirada; el enlace de abajo es el único camino que hacía
-       falta conservar. *@
-    <a href="/bandeja" class="enlace-nombre-fila">@Textos["EnlaceColaTrabajo"]</a>
+       falta conservar. Se ofrece a quien el menú ofrece «Mi trabajo»
+       (CatalogoMenuLateral.RolesDeMiTrabajo): esta página la abre también el
+       rol Consulta, al que el destino le deniega el acceso. *@
+    <AuthorizeView Roles="@CatalogoMenuLateral.RolesDeMiTrabajo">
+        <a href="/bandeja" class="enlace-nombre-fila">@Textos["EnlaceColaTrabajo"]</a>
+    </AuthorizeView>
 
     @* Reclamación agregada (DEC-4 + DEC-7, Project-Hydra-Negocio/tecnico/PLAN-SESIONES-NOCTURNAS-2026-09-02.md):
        SelectorLoteDocumental (PR #408) es el mismo componente que usa el
