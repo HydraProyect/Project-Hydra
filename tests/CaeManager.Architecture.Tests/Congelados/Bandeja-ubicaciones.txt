@@ -8,11 +8,13 @@ src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaAgrupada/ObtenerBandeja
 src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaAgrupada/ObtenerBandejaAgrupadaQuery.cs :: ObtenerBandejaAgrupadaQueryHandler = 1
 src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaAgrupada/ObtenerBandejaAgrupadaQuery.cs :: ObtenerBandejaGestor = 1
 src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaAgrupada/ObtenerBandejaAgrupadaQuery.cs :: ObtenerBandejaGestorQuery = 1
-src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaAgrupada/ObtenerBandejaAgrupadaQuery.cs :: ObtenerBandejaGestorQueryHandler = 1
+src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaAgrupada/ObtenerBandejaAgrupadaQuery.cs :: ObtenerBandejaGestorQueryHandler = 2
 src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaAgrupada/ObtenerBandejaAgrupadaQuery.cs :: TipoItemBandeja = 5
 src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs :: (nombre de fichero) = 1
-src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs :: Bandeja = 1
+src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs :: Bandeja = 2
 src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs :: ItemBandejaDto = 15
+src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs :: ObtenerBandejaAgrupada = 1
+src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs :: ObtenerBandejaAgrupadaQueryHandler = 1
 src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs :: ObtenerBandejaGestor = 1
 src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs :: ObtenerBandejaGestorQuery = 3
 src/CaeManager.Application/Bandeja/Queries/ObtenerBandejaGestor/ObtenerBandejaGestorQuery.cs :: ObtenerBandejaGestorQueryHandler = 1

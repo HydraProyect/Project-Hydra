@@ -115,6 +115,9 @@ public class VisitasGen2Tests : BunitContext
         public Result<PaqueteDocumentalDescargaDto> Paquete { get; set; } =
             Result.Exito(new PaqueteDocumentalDescargaDto("paquete-centro-norte.zip", new byte[1024]));
 
+        /// <summary>FS-15: el Tenant no tiene ningún buzón de Microsoft 365 conectado desde el que enviar.</summary>
+        public bool SinBuzon { get; set; }
+
         public int ConsultasPaquete { get; private set; }
 
         public AvisoVisitaDto Aviso { get; set; } = new("Aviso de visita — Almacén Sur — 01/10/2026", "Buenos días:\n\n- Ana Garcia (Contratista Demo SL)");
@@ -168,6 +171,9 @@ public class VisitasGen2Tests : BunitContext
                 case ObtenerPaqueteDocumentalVisitaQuery:
                     ConsultasPaquete++;
                     return Respuesta<TResponse>(Paquete);
+
+                case ObtenerConexionesIntegracionQuery when SinBuzon:
+                    return Respuesta<TResponse>((IReadOnlyList<ConexionIntegracionListaDto>)[]);
 
                 case ObtenerConexionesIntegracionQuery:
                     return Respuesta<TResponse>((IReadOnlyList<ConexionIntegracionListaDto>)
@@ -686,6 +692,29 @@ public class VisitasGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".visitas-solicitud-correo .alerta-formulario").TextContent.Should().Contain("No hay documentación vigente"));
         cut.FindComponents<RedactarMensajeDrawer>().Single().Instance.Visible.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// FS-15: en una Visita de un Centro de canal Email, «Enviar por correo» sin buzón de Microsoft 365 conectado no acaba
+    /// en un aviso que se va. El compositor se queda abierto con el motivo, a quién pedírselo (el Gestor CAE no puede abrir
+    /// Conexiones de integración) y la alternativa de siempre: copiar la solicitud y bajar el mismo ZIP.
+    /// </summary>
+    [Fact]
+    public async Task Enviar_por_correo_sin_buzon_conectado_explica_el_motivo_y_deja_copiar_el_texto_y_bajar_el_zip()
+    {
+        var (cut, mediator) = await AbrirCajonPorCorreoAsync();
+        mediator.SinBuzon = true;
+
+        await BotonEnviarPorCorreo(cut).ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel .aviso-sin-buzon").TextContent.Should().Contain("no hay ningún buzón de Microsoft 365 conectado"));
+        cut.FindComponents<RedactarMensajeDrawer>().Single().Instance.Visible.Should().BeTrue("cerrarse solo era el flujo sin salida");
+        cut.Find(".aviso-sin-buzon-pedir").TextContent.Should().Contain("rol Administrador de esta organización");
+        cut.FindAll("a.aviso-sin-buzon-conectar").Should().BeEmpty("el rol Gestor CAE no abre /integraciones");
+        cut.Find(".aviso-sin-buzon").TextContent.Should().Contain("acceso@centronorte.es");
+        cut.FindComponent<AvisoSinBuzonCorreo>().FindComponent<BotonCopiar>().Instance.Valor.Should().StartWith(mediator.Solicitud.Asunto + "\n\n");
+        cut.Find("a.aviso-sin-buzon-descargar").GetAttribute("href").Should().EndWith("/paquete-documental.zip");
+        mediator.Comandos.OfType<EnviarMensajeNuevoCommand>().Should().BeEmpty();
     }
 
     [Fact]

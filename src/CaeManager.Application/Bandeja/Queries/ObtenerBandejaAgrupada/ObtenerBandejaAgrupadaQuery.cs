@@ -37,7 +37,11 @@ public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator, ICalculoEsta
     public async Task<BandejaAgrupadaDto> Handle(ObtenerBandejaAgrupadaQuery request, CancellationToken cancellationToken)
     {
         var items = await mediator.Send(new ObtenerBandejaGestorQuery(), cancellationToken);
-        return Agrupar(await MarcarRechazosQueBloqueanAsync(items, calculoEstadoCentro, cancellationToken));
+        // La cola plana llega ordenada sin saber qué Rechazada cierra su Centro
+        // de Trabajo. El orden pone primero lo que bloquea el acceso, así que
+        // se vuelve a aplicar aquí, con los rechazos ya marcados.
+        return Agrupar(ObtenerBandejaGestorQueryHandler.Ordenar(
+            await MarcarRechazosQueBloqueanAsync(items, calculoEstadoCentro, cancellationToken)));
     }
 
     /// <summary>
@@ -110,11 +114,11 @@ public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator, ICalculoEsta
             entrada.Items.Add(item);
         }
 
-        // La prioridad de ObtenerBandejaGestorQueryHandler.Fusionar ya dejó
-        // los items más urgentes primero dentro de cada grupo (GroupBy es
-        // estable) — aquí solo hace falta ordenar los GRUPOS entre sí:
-        // primero los que bloquean acceso, luego por la severidad más alta
-        // presente, luego por tamaño.
+        // ObtenerBandejaGestorQueryHandler.Ordenar ya dejó los items en el
+        // orden único dentro de cada grupo (lo que bloquea el acceso primero;
+        // el reparto en grupos conserva el orden de llegada) — aquí solo hace
+        // falta ordenar los GRUPOS entre sí: primero los que bloquean acceso,
+        // luego por la prioridad más alta presente, luego por tamaño.
         var grupos = orden
             .Select(id => new GrupoColaDto(
                 id, claves[id].Titulo,
