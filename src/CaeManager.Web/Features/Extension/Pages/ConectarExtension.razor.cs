@@ -109,6 +109,22 @@ public partial class ConectarExtension : CaeManager.Web.Components.PaginaInterac
     /// </summary>
     private bool DebePedirActualizar => HuboFallo && !CompatibilidadExtension.AdmiteConexionManual(_versionExtension);
 
+    /// <summary>
+    /// FS-17: la extensión no respondió (o ni se le preguntó), así que no se sabe si está instalada: se señala la sección
+    /// «Instalar la extensión». Si respondió con su versión, está instalada y no hay nada que instalar.
+    /// </summary>
+    private bool DebeSenalarInstalacion => HuboFallo && _versionExtension is null;
+
+    /// <summary>
+    /// Dónde se instala la extensión (<c>Extension:UrlInstalacion</c>). Hoy no hay ninguna decidida —la extensión no está
+    /// publicada en la tienda del navegador—, así que viene vacía y la página da los pasos de la carga manual. Solo se
+    /// enlaza una dirección https absoluta: un valor mal escrito no puede acabar siendo un enlace a cualquier sitio.
+    /// </summary>
+    private string? UrlInstalacion =>
+        Uri.TryCreate(Configuracion["Extension:UrlInstalacion"], UriKind.Absolute, out var url) && url.Scheme == Uri.UriSchemeHttps
+            ? url.AbsoluteUri
+            : null;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)

@@ -404,7 +404,7 @@
     Visible="_confirmarReabrirVisible"
     VisibleChanged="v => _confirmarReabrirVisible = v"
     Titulo="@Textos["ConfirmarReabrirTitulo"]"
-    Mensaje="@Textos["ConfirmarReabrirMensaje", _nombreAReabrir, _fechaCierreAReabrir?.ToString() ?? string.Empty].Value"
+    Mensaje="@Textos["ConfirmarReabrirMensaje", _nombreAReabrir, _fechaCierreAReabrir?.ToString("dd/MM/yyyy") ?? string.Empty].Value"
     TextoBotonConfirmar="@Textos["AccionReabrirProyecto"]"
     EnProgreso="_reabriendo"
     OnConfirmar="ConfirmarReabrirAsync" />

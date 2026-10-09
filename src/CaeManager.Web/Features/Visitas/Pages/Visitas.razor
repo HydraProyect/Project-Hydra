@@ -663,6 +663,7 @@
    la solicitud (los compone ObtenerSolicitudAccesoCorreoQuery) y el ZIP adjunto. Nada sale hasta que el Gestor CAE pulsa «Enviar». *@
 <RedactarMensajeDrawer Visible="_composerPaqueteVisible" VisibleChanged="v => _composerPaqueteVisible = v"
                        DestinatariosIniciales="@_solicitudCorreo?.Destinatarios" AsuntoInicial="@_solicitudCorreo?.Asunto"
-                       CuerpoInicial="@_solicitudCorreo?.Cuerpo" Adjunto="_adjuntoPaquete" />
+                       CuerpoInicial="@_solicitudCorreo?.Cuerpo" Adjunto="_adjuntoPaquete"
+                       RutaDescargaAdjunto="@(_detalle is null ? null : RutaPaqueteDocumental(_detalle.Id))" />
 
 </LimiteDeErrores>

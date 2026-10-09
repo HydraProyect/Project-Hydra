@@ -13,13 +13,39 @@
     Excepción: una entidad que todavía no tiene página 360 (Subcontrata en
     Cliente 360) pasa OnNombre en vez de Href, y su nombre es un botón que
     abre el panel — el mismo destino que el botón 360.
+
+    Fila en rejilla (mockups «… 360 página» del 2026-10-08): con cualquiera
+    de las ranuras Cifra, Estado o Acciones la fila deja el flex y pasa a la
+    rejilla única identidad | cifra | estado | acción. Las tres últimas
+    columnas tienen ancho fijo, así que la pastilla de estado empieza a la
+    misma altura horizontal en todas las filas de la lista. Sin esas ranuras
+    la fila se pinta como siempre: Cliente 360 y Empresa 360 no cambian.
+
+    Tono tiñe la fila con problema (data-tono, que es por donde la localiza
+    el comparador de fidelidad). Desplegable añade un botón con
+    aria-expanded al inicio de la identidad y un bloque bajo la fila.
 *@
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<li class="fila-relacion" data-pieza="fila">
-    @if (!string.IsNullOrWhiteSpace(Iniciales))
+<li class="fila-relacion @(EnRejilla ? "fila-relacion-rejilla" : null)" data-pieza="fila" data-tono="@TonoPieza">
+    <span class="fila-relacion-identidad">
+    @if (Desplegable is not null)
+    {
+        <button type="button" class="fila-relacion-desplegar"
+                aria-expanded="@(Desplegada ? "true" : "false")"
+                aria-label="@(EtiquetaDesplegar ?? Comunes["DesplegarFilaDe", Nombre])"
+                @onclick="AlternarDesplegadaAsync">
+            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+        </button>
+    }
+
+    @if (Avatar is not null)
+    {
+        <span class="fila-relacion-casilla">@Avatar</span>
+    }
+    else if (!string.IsNullOrWhiteSpace(Iniciales))
     {
         @* El nombre va al lado: las iniciales son decoración, no se anuncian. *@
         <span class="fila-relacion-avatar" aria-hidden="true">@Iniciales</span>
@@ -48,8 +74,23 @@
             <span class="fila-relacion-detalle" data-pieza="fila-detalle">@Detalle</span>
         }
     </span>
+    </span>
 
-    @if (Derecha is not null || OnAbrir360.HasDelegate)
+    @if (EnRejilla)
+    {
+        @* Las tres celdas se pintan siempre, aunque vayan vacías: son las que
+           mantienen cada columna en su sitio. *@
+        <span class="fila-relacion-cifra">@Cifra</span>
+        <span class="fila-relacion-estado">@Estado</span>
+        <span class="fila-relacion-acciones">
+            @Acciones
+            @if (OnAbrir360.HasDelegate)
+            {
+                <Boton360 Nombre="@Nombre" OnClick="OnAbrir360" />
+            }
+        </span>
+    }
+    else if (Derecha is not null || OnAbrir360.HasDelegate)
     {
         <span class="fila-relacion-derecha">
             @Derecha
@@ -59,9 +100,25 @@
             }
         </span>
     }
+
+    @if (Desplegable is not null && Desplegada)
+    {
+        <div class="fila-relacion-desplegado">@Desplegable</div>
+    }
 </li>
 
 @code {
+    private bool EnRejilla => Cifra is not null || Estado is not null || Acciones is not null;
+
+    private string? TonoPieza => Tono switch
+    {
+        TonoFila.Peligro => "peligro",
+        TonoFila.Advertencia => "advertencia",
+        _ => null,
+    };
+
+    private Task AlternarDesplegadaAsync() => DesplegadaChanged.InvokeAsync(!Desplegada);
+
     /// <summary>Nombre visible de la entidad. También da nombre accesible al botón 360.</summary>
     [Parameter, EditorRequired] public string Nombre { get; set; } = string.Empty;
 
@@ -87,4 +144,40 @@
     [Parameter] public EventCallback OnNombre { get; set; }
     /// <summary>Abre el panel de la entidad. Sin delegado no se pinta el botón 360.</summary>
     [Parameter] public EventCallback OnAbrir360 { get; set; }
+
+    /// <summary>
+    /// Casilla de la izquierda con contenido propio: el <see cref="AvatarUsuario"/>
+    /// de una fila de persona. Gana a <see cref="Iniciales"/> y a <see cref="NombreIcono"/>.
+    /// </summary>
+    [Parameter] public RenderFragment? Avatar { get; set; }
+
+    /// <summary>Segunda columna de la rejilla: la cifra de la fila («3 de 4», «67 %»).</summary>
+    [Parameter] public RenderFragment? Cifra { get; set; }
+
+    /// <summary>
+    /// Tercera columna de la rejilla, de ancho fijo: la pastilla de estado,
+    /// que empieza siempre a la izquierda de su columna.
+    /// </summary>
+    [Parameter] public RenderFragment? Estado { get; set; }
+
+    /// <summary>
+    /// Cuarta columna de la rejilla, alineada a la derecha: el botón de la
+    /// fila («Renovar», «Ver»). El botón 360 de <see cref="OnAbrir360"/> va detrás.
+    /// </summary>
+    [Parameter] public RenderFragment? Acciones { get; set; }
+
+    /// <summary>Fila con problema: la tiñe y emite <c>data-tono</c>. Sin valor, fila normal.</summary>
+    [Parameter] public TonoFila? Tono { get; set; }
+
+    /// <summary>
+    /// Contenido que se despliega bajo la fila (el estado por Centro de un
+    /// documento). Con valor, la identidad empieza por un botón de desplegar.
+    /// </summary>
+    [Parameter] public RenderFragment? Desplegable { get; set; }
+
+    [Parameter] public bool Desplegada { get; set; }
+    [Parameter] public EventCallback<bool> DesplegadaChanged { get; set; }
+
+    /// <summary>Nombre accesible del botón de desplegar. Por defecto, «Desplegar {Nombre}».</summary>
+    [Parameter] public string? EtiquetaDesplegar { get; set; }
 }

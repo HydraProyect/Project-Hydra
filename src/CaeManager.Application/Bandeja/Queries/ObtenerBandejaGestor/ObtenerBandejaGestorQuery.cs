@@ -1,5 +1,6 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
+using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciasVisitaCorreoPendientes;
@@ -34,10 +35,11 @@ namespace CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor;
 /// Fase F añade dos fuentes más: Visitas ya confirmadas dentro de la ventana
 /// mínima de validación de la plataforma del cliente, y sugerencias de
 /// visita (correo/WhatsApp) sin resolver todavía dentro de esa misma
-/// ventana — estas últimas son las de mayor prioridad de toda la cola: una
-/// "visita sorpresa" sin confirmar es lo más urgente de gestionar, porque
-/// hasta que alguien la confirma ni siquiera hay Visita ni documentación
-/// verificada.
+/// ventana — estas últimas son las de mayor prioridad entre lo que no
+/// bloquea el acceso: una "visita sorpresa" sin confirmar es lo más urgente
+/// de gestionar, porque hasta que alguien la confirma ni siquiera hay Visita
+/// ni documentación verificada. Por delante de todo va lo que bloquea el
+/// acceso (ver <see cref="ObtenerBandejaGestorQueryHandler.Ordenar"/>).
 /// </summary>
 public record ObtenerBandejaGestorQuery : IRequest<IReadOnlyList<ItemBandejaDto>>;
 
@@ -163,7 +165,9 @@ public enum TipoItemBandeja
 /// <c>ObtenerMiTrabajoAgregadoQueryHandler.EsBloqueo</c>).
 /// <see cref="ObtenerBandejaGestorQuery"/> sola no lo rellena —también la
 /// consume la vigilancia de visitas urgentes, a la que no le hace falta—: allí
-/// false significa «no calculado», no «no bloquea».
+/// false significa «no calculado», no «no bloquea». El orden de la cola
+/// (<c>ObtenerBandejaGestorQueryHandler.Ordenar</c>) lee este campo: quien lo
+/// rellena tiene que ordenar después de rellenarlo.
 /// </param>
 /// <param name="AcreditacionId">
 /// Solo en los ítems de plataforma (pendiente, rechazada, en seguimiento,
@@ -388,39 +392,58 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             ProveedorNombre: x.proveedor.ProveedorNombre,
             AcreditacionId: x.d.AcreditacionId)));
 
-        // Una sugerencia sin confirmar pesa más que cualquier otra cosa: sin
-        // confirmarla no hay ni Visita ni documentación que verificar. Entre
-        // el resto: Faltante/Vencido siguen siendo lo más urgente de lo ya
-        // conocido; una Visita confirmada dentro de la ventana pesa más que
-        // un Requisito bloqueante (tiene una fecha límite externa fija, el
-        // Requisito no), que a su vez pesa más que un documento Urgente
-        // individual o una revisión IA.
+        // Aquí todavía no se sabe qué Rechazada cierra su Centro de Trabajo
+        // (RechazoBloqueaCentro sin calcular): este orden vale para la cola
+        // plana. La cola agrupada y Mi trabajo agregada marcan los rechazos y
+        // vuelven a ordenar con la misma regla.
         return Ordenar(items);
     }
 
     /// <summary>
-    /// Orden de la cola: prioridad del tipo, luego fecha, luego Id. Público para
-    /// que Mi trabajo agregada, que añade tipos que <see cref="Fusionar"/> no emite
-    /// (<see cref="TipoItemBandeja.PlataformaVencida"/>), ordene con la misma regla.
+    /// Orden único de la cola (decisiones 9 y 10 del propietario, 2026-10-03):
+    /// primero todo lo que bloquea el acceso
+    /// (<see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso"/>: un
+    /// requisito bloqueante pendiente o una Rechazada que cierra su Centro de
+    /// Trabajo), después el resto. El bloqueo tiene precedencia sobre la
+    /// severidad documental y sobre cualquier otro tipo, también sobre una
+    /// sugerencia de visita o una Visita urgentes. Dentro de cada tramo:
+    /// <see cref="Prioridad"/> del tipo, luego fecha, luego Id.
+    ///
+    /// <para>
+    /// Lee <see cref="ItemBandejaDto.RechazoBloqueaCentro"/>, que sin calcular
+    /// vale false: una Rechazada sin marcar se ordena como no bloqueante. Por eso
+    /// quien marca los rechazos (la cola agrupada y Mi trabajo agregada) ordena
+    /// DESPUÉS de marcarlos. Público para que las dos lo hagan con esta regla y
+    /// no con una copia; Mi trabajo agregada añade además tipos que
+    /// <see cref="Fusionar"/> no emite (<see cref="TipoItemBandeja.PlataformaVencida"/>).
+    /// </para>
     /// </summary>
     public static List<ItemBandejaDto> Ordenar(IEnumerable<ItemBandejaDto> items) => items
-        .OrderBy(i => Prioridad(i.Tipo))
+        .OrderBy(i => ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(i) ? 0 : 1)
+        .ThenBy(i => Prioridad(i.Tipo))
         .ThenBy(i => i.Fecha)
         .ThenBy(i => i.Id)
         .ToList();
 
     /// <summary>
-    /// Prioridad de cada tipo en la cola (menor, antes). Única fuente: la usan
-    /// <see cref="Ordenar"/> y el orden de grupos de la cola agrupada. Una
-    /// acreditación vencida en la plataforma pesa lo mismo que un documento
-    /// vencido en TALVEG (D-6: «Vencida → alta»).
+    /// Prioridad de cada tipo dentro de su tramo (menor, antes). Única fuente:
+    /// la usan <see cref="Ordenar"/> y el orden de grupos de la cola agrupada.
+    /// Vencido va antes que Faltante (decisión 10 del propietario, 2026-10-03),
+    /// y una acreditación vencida en la plataforma pesa lo mismo que un
+    /// documento vencido en TALVEG (D-6: «Vencida → alta»). Entre lo que no
+    /// bloquea, una sugerencia de visita sin confirmar va la primera (sin
+    /// confirmarla no hay ni Visita ni documentación que verificar), y una
+    /// Visita confirmada dentro de la ventana pesa más que un documento Urgente
+    /// individual o una revisión IA. La precedencia de lo que bloquea el acceso
+    /// no está aquí, sino en <see cref="Ordenar"/>: depende del ítem, no solo
+    /// de su tipo.
     /// </summary>
     public static int Prioridad(TipoItemBandeja tipo) => tipo switch
     {
         TipoItemBandeja.SugerenciaVisitaUrgente => 0,
-        TipoItemBandeja.Faltante => 1,
-        TipoItemBandeja.Vencido => 2,
-        TipoItemBandeja.PlataformaVencida => 2,
+        TipoItemBandeja.Vencido => 1,
+        TipoItemBandeja.PlataformaVencida => 1,
+        TipoItemBandeja.Faltante => 2,
         TipoItemBandeja.PlataformaRechazada => 3,
         TipoItemBandeja.VisitaUrgente => 4,
         TipoItemBandeja.RequisitoPendiente => 5,

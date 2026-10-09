@@ -1,0 +1,23 @@
+.incidencia-banda {
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 700;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.incidencia-banda:hover {
+    color: var(--color-text);
+}
+
+.incidencia-banda:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.incidencia-banda-texto {
+    font-weight: 700;
+}

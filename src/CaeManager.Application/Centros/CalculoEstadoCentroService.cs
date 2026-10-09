@@ -38,8 +38,10 @@ public enum AmbitoCausa
 }
 
 /// <param name="DocumentoId">
-/// <c>null</c> salvo en causas de Empresa, donde siempre hay un Documento real
-/// detrás (§ AgregarCausasDeEmpresaAsync: sin detección de falta total ahí,
+/// El Documento real que hay detrás de la causa; <c>null</c> solo cuando la
+/// causa es la falta total de un documento de Trabajador (no hay nada que
+/// renovar: se crea). En causas de Empresa siempre viene
+/// (§ AgregarCausasDeEmpresaAsync: sin detección de falta total ahí,
 /// solo vigencia) — junto con <paramref name="TipoDocumentoId"/> y
 /// <paramref name="FechaVencimiento"/> es lo que necesita la tabla de
 /// documentos del bloque Empresa del Centro 360 (Documento · Estado ·
@@ -47,9 +49,17 @@ public enum AmbitoCausa
 /// enlazar "Gestionar" sin una consulta aparte — reutiliza las mismas causas
 /// que ya decidieron el EstadoCentro.
 /// </param>
+/// <param name="TrabajadorId">
+/// De quién es la causa cuando <paramref name="Ambito"/> es
+/// <see cref="AmbitoCausa.Trabajador"/>. Con él y <paramref name="TipoDocumentoId"/>
+/// el listado de Centros abre la corrección de una incidencia —renovar el
+/// Documento o subir el que falta— sin salir de la pantalla. Es un dato para
+/// localizar el formulario, no autoridad: el comando que guarda vuelve a
+/// comprobar el alcance.
+/// </param>
 public record CausaEstadoCentro(
     string Descripcion, EstadoDocumento? Estado, bool Bloqueante, AmbitoCausa Ambito,
-    Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento);
+    Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento, Guid? TrabajadorId = null);
 
 public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentro> Causas);
 
@@ -224,7 +234,7 @@ public class CalculoEstadoCentroService(
                 EstadoDocumento.Vencido,
                 Bloqueante: true,
                 fila.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
-                fila.Id, fila.TipoDocumentoId, fila.FechaVencimientoEnPlataforma));
+                fila.Id, fila.TipoDocumentoId, fila.FechaVencimientoEnPlataforma, fila.TrabajadorId));
         }
     }
 
@@ -332,7 +342,7 @@ public class CalculoEstadoCentroService(
                 Estado: null,
                 Bloqueante: true,
                 fila.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
-                fila.Id, fila.TipoDocumentoId, FechaVencimiento: null));
+                fila.Id, fila.TipoDocumentoId, FechaVencimiento: null, fila.TrabajadorId));
         }
     }
 
@@ -423,7 +433,7 @@ public class CalculoEstadoCentroService(
             // Solo con fecha: mismo criterio que en AgregarCausasDeEmpresaAsync.
             where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteCausa
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            select new { TrabajadorId = documento.TrabajadorId!.Value, documento.FechaVencimiento, tipoDocumento.Nombre })
+            select new { documento.Id, documento.TipoDocumentoId, TrabajadorId = documento.TrabajadorId!.Value, documento.FechaVencimiento, tipoDocumento.Nombre })
             .ToListAsync(cancellationToken))
             .ToLookup(d => d.TrabajadorId);
 
@@ -438,7 +448,7 @@ public class CalculoEstadoCentroService(
                 causasPorCentro[asignacion.CentroId].Add(
                     new CausaEstadoCentro(
                         $"{documento.Nombre} — {asignacion.TrabajadorNombre}", estado, Bloqueante: false, AmbitoCausa.Trabajador,
-                        DocumentoId: null, TipoDocumentoId: null, FechaVencimiento: null));
+                        documento.Id, documento.TipoDocumentoId, documento.FechaVencimiento, asignacion.TrabajadorId));
             }
         }
 
@@ -483,7 +493,7 @@ public class CalculoEstadoCentroService(
                 // no un «Bloqueado»: quien queda bloqueado es el Trabajador (ReglaBloqueoDeAcceso, por Centro).
                 causasPorCentro[asignacion.CentroId].Add(new CausaEstadoCentro(
                     $"{tipo.Nombre} — {asignacion.TrabajadorNombre}", EstadoDocumento.Faltante, Bloqueante: false, AmbitoCausa.Trabajador,
-                    DocumentoId: null, TipoDocumentoId: null, FechaVencimiento: null));
+                    DocumentoId: null, tipo.Id, FechaVencimiento: null, asignacion.TrabajadorId));
             }
         }
     }

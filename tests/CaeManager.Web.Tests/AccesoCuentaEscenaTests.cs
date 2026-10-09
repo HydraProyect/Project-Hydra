@@ -172,6 +172,36 @@ public class AccesoCuentaEscenaTests : BunitContext
         cut.FindAll("#password-actual").Should().ContainSingle("la actual no lleva requisitos: ya existe");
     }
 
+    /// <summary>
+    /// FS-16: forzado por <c>DebeCambiarContrasena</c>, «Volver» rebotaría en el guard de
+    /// MainLayout, así que la única salida es cerrar sesión. Quien llega desde «Mi cuenta»
+    /// (<see cref="RutasMiCuenta.CambiarContrasena"/>) no está obligado a nada: se le dice
+    /// otra cosa y puede volver sin cambiarla.
+    /// </summary>
+    [Fact]
+    public void Cambiar_contrasena_forzado_no_ofrece_volver()
+    {
+        var cut = Render<CambiarContrasena>();
+
+        cut.Markup.Should().Contain("Tienes que cambiar tu contraseña antes de continuar.");
+        cut.FindAll(".acceso-alterno a").Should().BeEmpty();
+        cut.FindAll("form").Should().ContainSingle(f => f.GetAttribute("action") == "/cuenta/cerrar-sesion");
+    }
+
+    [Fact]
+    public void Cambiar_contrasena_desde_Mi_cuenta_no_dice_que_sea_obligatorio_y_deja_volver()
+    {
+        Services.GetRequiredService<NavigationManager>().NavigateTo(RutasMiCuenta.CambiarContrasena);
+
+        var cut = Render<CambiarContrasena>();
+
+        cut.Markup.Should().NotContain("Tienes que cambiar tu contraseña antes de continuar.");
+        cut.Markup.Should().Contain("Escribe tu contraseña actual y la que quieres usar a partir de ahora.");
+        var volver = cut.Find(".acceso-alterno a");
+        volver.GetAttribute("href").Should().Be("/");
+        volver.GetAttribute("data-enhance-nav").Should().Be("false", "sale de AccesoLayout a MainLayout");
+    }
+
     [Fact]
     public void La_verificacion_en_dos_pasos_tiene_titulo_y_salida_sin_estar_bloqueada()
     {

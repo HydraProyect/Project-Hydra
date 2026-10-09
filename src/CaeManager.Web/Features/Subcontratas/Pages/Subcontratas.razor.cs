@@ -163,6 +163,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         if (_sinEmpresaSeleccionada)
             return;
 
+        _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
         await CargarAsync();
 
         if (Accion == "crear")
@@ -196,6 +197,66 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private NivelServicioSubcontrata? NivelSeleccionado =>
         Enum.TryParse<NivelServicioSubcontrata>(_nivelFiltro, out var nivel) ? nivel : null;
 
+    /// <summary>La consulta de la página que se está viendo: filtros y paginación actuales.</summary>
+    private ObtenerSubcontratasQuery ConsultaDePaginaActual() => new(
+        Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+        Pagina: _pagina,
+        TamanoPagina: _tamanoPagina,
+        NivelServicio: NivelSeleccionado);
+
+    [CascadingParameter] private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// El rol efectivo puede escribir (misma pregunta que <see cref="SoloConEscritura"/>). Decide si
+    /// las incidencias de las ventanas de «Vencidos» y «Próximos» se ofrecen como pulsables.
+    /// </summary>
+    private bool _puedeEscribir;
+
+    private CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental _correccion = default!;
+
+    // Toda incidencia de una Subcontrata es de un Trabajador (ver IncidenciaSubcontrataDto): no hay Empresa que pasar.
+    private bool EsCorregible(IncidenciaSubcontrataDto incidencia) =>
+        _puedeEscribir && CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental.EsCorregible(
+            incidencia.DocumentoId, incidencia.TipoDocumentoId, incidencia.TrabajadorId, empresaId: null);
+
+    private bool HayCorregibles(IReadOnlyList<IncidenciaSubcontrataDto> incidencias) => incidencias.Any(EsCorregible);
+
+    private string? PieDeIncidencias(IReadOnlyList<IncidenciaSubcontrataDto> incidencias) =>
+        HayCorregibles(incidencias) ? Comunes["VentanaIncidenciasPie"].Value : null;
+
+    private Task CorregirIncidenciaAsync(IncidenciaSubcontrataDto incidencia) =>
+        _correccion.AbrirAsync(incidencia.DocumentoId, incidencia.TipoDocumentoId, incidencia.TrabajadorId, empresaId: null);
+
+    /// <summary>
+    /// Tras corregir una incidencia desde la ventana de contexto: el documento corregido puede
+    /// contar en más de una fila, así que se vuelve a pedir la página tal como está y se sustituye
+    /// en sitio, conservando la selección. Los acordeones se cierran porque su contenido ya no es
+    /// el de antes de corregir (mismo criterio que Centros).
+    /// </summary>
+    private async Task RefrescarTrasCorreccionAsync()
+    {
+        ResultadoPaginado<SubcontrataListaDto> resultado;
+        try
+        {
+            resultado = await Mediator.Send(ConsultaDePaginaActual());
+        }
+        catch (Exception)
+        {
+            // El documento ya se guardó: que falle la relectura no es un error del formulario.
+            // CargarAsync enseña el estado de error de la lista, con su reintento.
+            await CargarAsync();
+            return;
+        }
+
+        _totalElementos = resultado.TotalElementos;
+        _elementosPagina = resultado.Elementos.ToList();
+        _seleccionados.IntersectWith(_elementosPagina.Select(s => s.Id));
+        _expandidos.Clear();
+        if (FilaEnVistaPrevia is null)
+            _previewVisible = false;
+        StateHasChanged();
+    }
+
     private async Task CargarAsync(bool resetPagina = false)
     {
         if (resetPagina)
@@ -207,11 +268,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
         try
         {
-            var resultado = await Mediator.Send(new ObtenerSubcontratasQuery(
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                Pagina: _pagina,
-                TamanoPagina: _tamanoPagina,
-                NivelServicio: NivelSeleccionado));
+            var resultado = await Mediator.Send(ConsultaDePaginaActual());
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
