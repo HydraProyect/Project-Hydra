@@ -233,7 +233,10 @@ else
     /// </summary>
     private async Task AtenderEdicionSolicitadaAsync()
     {
-        if (_detalle is null || _detalle.Id != EntidadId)
+        // Con una carga en curso el detalle en memoria puede ser el de una visita anterior a
+        // esta misma ficha: editar ahora copiaría al formulario datos que la carga va a
+        // sustituir. La petición espera; la atiende el final de la carga.
+        if (_cargando || _detalle is null || _detalle.Id != EntidadId)
             return;
         if (!WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Trabajador, EntidadId))
             return;
@@ -295,7 +298,14 @@ else
         }
 
         _cargando = false;
-        if (!_error)
+        if (_error)
+            return;
+
+        // Lo mismo si la ficha ya no existe (otro usuario la eliminó): el panel ofrece
+        // «Reintentar» y la petición no debe esperar a que el trabajador reaparezca.
+        if (_detalle is null)
+            WorkspaceService.ConsumirEdicionSolicitada(EntidadWorkspace.Trabajador, id);
+        else
             await AtenderEdicionSolicitadaAsync();
     }
 

@@ -51,7 +51,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             return;
 
         _desechado = true;
-        WorkspaceService.OnCambio -= AlCambiarWorkspace;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -158,8 +157,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// <summary>Trabajador cuyo panel está abierto arriba de la pila del Context Workspace, si lo hay.</summary>
     private Guid? TrabajadorEnVistaPrevia =>
         WorkspaceService.FrameActual is { Tipo: EntidadWorkspace.Trabajador } frame ? frame.EntidadId : null;
-
-    private void AlCambiarWorkspace() => InvokeAsync(StateHasChanged);
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -270,7 +267,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     {
         // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
         _proveedorElementos = ProveerElementosAsync;
-        WorkspaceService.OnCambio += AlCambiarWorkspace;
 
         if (EstadoAutenticacion is not null)
         {

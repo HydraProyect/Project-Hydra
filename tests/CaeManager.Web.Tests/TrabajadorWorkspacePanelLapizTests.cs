@@ -215,6 +215,72 @@ public class TrabajadorWorkspacePanelLapizTests : BunitContext
         cut.Find(".workspace-titulo-entidad").TextContent.Trim().Should().Be("Ana Moreno", "la respuesta de Bea era de otra pregunta");
     }
 
+    private IRenderedComponent<TrabajadorWorkspacePanel> RenderizarConRetencion(
+        Guid id, ContextWorkspaceService workspace, Func<ObtenerTrabajadorPorIdQuery, Task<TrabajadorDetalleDto>> detalle)
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        this.ConRolDeEscritura();
+        Services.AddLocalization();
+        Services.AddScoped<IMediator>(_ => new MediadorConRetencion(detalle));
+        Services.AddScoped<ToastService>();
+        Services.AddScoped(_ => workspace);
+        return Render<TrabajadorWorkspacePanel>(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, "informacion"));
+    }
+
+    /// <summary>
+    /// La ficha ya no existe (otro usuario la eliminó): la consulta responde sin detalle, que no
+    /// es un fallo. La petición de edición se descarta igual; si quedara viva, un «Reintentar»
+    /// con el trabajador ya restaurado entraría en edición sin que nadie lo pidiera.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_ficha_ya_no_existe_la_peticion_de_edicion_se_descarta()
+    {
+        var workspace = new ContextWorkspaceService();
+        await workspace.AbrirEnEdicionAsync(EntidadWorkspace.Trabajador, Id, "Marco Vila");
+        var cargas = 0;
+
+        var cut = RenderizarConRetencion(Id, workspace, _ =>
+            Task.FromResult(cargas++ == 0 ? null! : Detalle(Id, "Marco", "Vila")));
+
+        cut.FindAll(Lapiz).Should().BeEmpty("control positivo: sin detalle no hay cabecera");
+        workspace.ConsumirEdicionSolicitada(EntidadWorkspace.Trabajador, Id).Should().BeFalse("la carga sin detalle la descartó");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reintentar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(Lapiz).Should().NotBeNull("control positivo: el reintento cargó la ficha");
+        EnEdicion(cut).Should().BeFalse("nadie pidió editar tras la carga sin detalle");
+    }
+
+    /// <summary>
+    /// A cargada, se abre B y se vuelve a A: mientras la segunda carga de A no responde, el
+    /// detalle en memoria es el de la primera visita. Una «e» en ese hueco espera a la carga, y
+    /// el formulario se rellena con lo recién leído, no con la copia anterior.
+    /// </summary>
+    [Fact]
+    public async Task La_tecla_e_durante_una_recarga_espera_y_edita_los_datos_recien_cargados()
+    {
+        var b = Guid.NewGuid();
+        var workspace = new ContextWorkspaceService();
+        var segundaCargaDeA = new TaskCompletionSource<TrabajadorDetalleDto>();
+        var cargasDeA = 0;
+        var cut = RenderizarConRetencion(Id, workspace, q =>
+            q.Id == b ? new TaskCompletionSource<TrabajadorDetalleDto>().Task
+            : cargasDeA++ == 0 ? Task.FromResult(Detalle(Id, "Marco", "Vila"))
+            : segundaCargaDeA.Task);
+        cut.Find(".workspace-titulo-entidad").TextContent.Trim().Should().Be("Marco Vila", "control positivo: primera visita cargada");
+        cut.Render(p => p.Add(x => x.EntidadId, b));
+        cut.Render(p => p.Add(x => x.EntidadId, Id));
+
+        await cut.InvokeAsync(() => workspace.AbrirEnEdicionAsync(EntidadWorkspace.Trabajador, Id, "Marco Vila"));
+
+        EnEdicion(cut).Should().BeFalse("la recarga sigue en curso");
+
+        await cut.InvokeAsync(() => segundaCargaDeA.SetResult(Detalle(Id, "Marcos", "Vila")));
+
+        cut.WaitForAssertion(() => EnEdicion(cut).Should().BeTrue("la petición se atiende al terminar la carga"));
+        cut.FindAll("input").Select(i => i.GetAttribute("value")).Should().Contain("Marcos").And.NotContain("Marco");
+    }
+
     private sealed class MediadorConRetencion(Func<ObtenerTrabajadorPorIdQuery, Task<TrabajadorDetalleDto>> detalle) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
