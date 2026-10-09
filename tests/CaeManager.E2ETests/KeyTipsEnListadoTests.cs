@@ -40,8 +40,11 @@ public class KeyTipsEnListadoTests(WebAppFixture fixture)
         // --- Encender: Alt pulsada y soltada sola. ---
         await page.Keyboard.PressAsync("Alt");
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "raiz");
+        // Las letras se pintan en el mismo paso que el atributo: se leen de la capa, sin
+        // localizar por texto.
+        var pintadas = (await letras.AllTextContentsAsync()).Select(l => l.Trim()).ToList();
         foreach (var letra in new[] { "K", "F", "L", "A" })
-            await Assertions.Expect(letras.GetByText(letra, new() { Exact = true })).ToHaveCountAsync(1);
+            Assert.Single(pintadas, l => l == letra);
 
         // --- Bajar a un grupo y elegir dentro: el modo sigue encendido. ---
         await page.Keyboard.PressAsync("a");

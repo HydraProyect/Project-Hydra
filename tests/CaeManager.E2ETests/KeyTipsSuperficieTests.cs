@@ -12,7 +12,7 @@ namespace CaeManager.E2ETests;
 /// <remarks>
 /// Lo que Chromium de Playwright no puede medir: que Alt suelta enfoque el menú del navegador
 /// en Windows. Eso es de la ventana del navegador, no de la página, y se midió a mano con
-/// teclas del sistema sobre Chrome y Edge (CAPA-USUARIO-AVANZADO-TALVEG.md § 3.3).
+/// teclas del sistema sobre Chrome y Edge (Project-Hydra-Negocio/tecnico/CAPA-USUARIO-AVANZADO-TALVEG.md § 3.3).
 /// </remarks>
 public class KeyTipsSuperficieTests : IAsyncLifetime
 {
