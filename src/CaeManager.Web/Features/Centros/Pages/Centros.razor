@@ -78,7 +78,7 @@
         - Pastillas primarias: «Cliente» y «Estado». «Empresa» va dentro de «Más filtros».
           Las tres viajan en la URL (cliente, estado, empresa). «cliente» y «empresa» no son los
           parámetros del alta encadenada, que prefijan el formulario y no filtran.
-        - En la misma fila: agrupar por Cliente empresarial (agrupación visual de la página, de serie),
+        - En la misma fila: el desplegable «Agrupar» (de serie, por Cliente empresarial; DesplegableAgrupar),
           «Expandir todo» y el recuento. El orden por cumplimiento (blueprint § 3.1, DDL-036: atacar los
           peores centros sin depender de que haya visita) vive en la cabecera de su columna, como en la
           maqueta aprobada.
@@ -102,12 +102,7 @@
         <Herramientas>
             @if (_elementosPagina.Count > 0)
             {
-                <span class="segmentado-lista" role="group" aria-label="@Textos["AgruparEtiqueta"]" data-keytip="A" data-keytip-grupo="">
-                    <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "false" : "true")"
-                            @onclick="() => CambiarAgrupacion(false)">@Textos["AgruparNo"]</button>
-                    <button type="button" class="segmentado-lista-opcion" aria-pressed="@(_agruparPorCliente ? "true" : "false")"
-                            @onclick="() => CambiarAgrupacion(true)">@Textos["AgruparPorCliente"]</button>
-                </span>
+                <DesplegableAgrupar Opciones="OpcionesAgrupar" Valor="@(_agruparPorCliente ? AgruparPorClienteClave : null)" ValorChanged="CambiarAgrupacion" />
                 <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
             }
         </Herramientas>
@@ -235,20 +230,16 @@
             <span class="cabecera-columnas-centros-acciones"></span>
         </div>
 
-        @* Agrupación visual por Cliente empresarial (de serie): una cabecera por grupo con su
-           contador y el resumen de la página («N con problema», «N por vencer»), tintada con el peor
-           estado del grupo. Los grupos arrancan contraídos y se abren de uno en uno o con «Expandir
-           todo»; con búsqueda, con un Centro concreto en la URL o con selección múltiple se ven
-           abiertos (también mientras haya filas marcadas), y entonces la cabecera no es un botón (no
-           podría contraerlos). Es visual y de la página: con el orden de serie los grupos salen del
-           peor estado al mejor; con un orden pedido, en el de su primera fila, y dentro de cada grupo
-           se respeta ese orden (Grupos). Con más de una página, una nota dice que los recuentos son de
-           esta página y no del Cliente empresarial entero. *@
+        @* Agrupación por Cliente empresarial (de serie): una cabecera por grupo (CabeceraGrupoLista)
+           con el total y el resumen por estado del grupo ENTERO —todas las páginas, los da la consulta
+           (ResumenPorGrupo)—, blanca salvo que el grupo contenga algún Centro que tiña su fila. Los
+           grupos arrancan contraídos y se abren de uno en uno o con «Expandir todo»; con búsqueda, con
+           un Centro concreto en la URL o con selección múltiple se ven abiertos (también mientras haya
+           filas marcadas), y entonces la cabecera no es un botón (no podría contraerlos). Las filas son
+           las de la página: si un grupo sigue en otra, su contador lo dice («3 de 12»). Con el orden de
+           serie los grupos salen del peor estado al mejor; con un orden pedido, en el de su primera
+           fila, y dentro de cada grupo se respeta ese orden (Grupos). *@
         var grupos = Grupos;
-        @if (_agruparPorCliente && TotalPaginas > 1)
-        {
-            <p class="nota-grupos-pagina texto-vacio-seccion">@Textos["GrupoNotaEstaPagina"]</p>
-        }
         var cabecerasDeGrupo = grupos.ToDictionary(g => g.Centros[0].Id);
         var clavesDeGrupo = new ClavesDeHermanos();
         <div class="lista-filas-acordeon">
@@ -256,36 +247,11 @@
             {
                 @if (_agruparPorCliente && cabecerasDeGrupo.TryGetValue(centro.Id, out var grupo))
                 {
-                    var abierto = GrupoAbierto(grupo.ClienteEmpresarialId);
-                    RenderFragment contenidoCabecera =
-                        @<text>
-                            <span class="grupo-lista-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
-                            <span class="grupo-lista-nombre">@grupo.Nombre</span>
-                            <span class="grupo-lista-contador" title="@Textos["GrupoContadorTitulo", grupo.Centros.Count]">@grupo.Centros.Count</span>
-                            <span class="grupo-lista-resumen">
-                                @if (grupo.ConProblema > 0)
-                                {
-                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@Textos["GrupoConProblema", grupo.ConProblema]</Badge>
-                                }
-                                @if (grupo.PorVencer > 0)
-                                {
-                                    <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["GrupoPorVencer", grupo.PorVencer]</Badge>
-                                }
-                            </span>
-                        </text>;
-                    <div class="@("grupo-lista" + ClaseTinteGrupo(grupo))" @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)">
-                        @if (GruposForzadosAbiertos)
-                        {
-                            <div class="grupo-lista-cabecera grupo-lista-cabecera-abierta grupo-lista-cabecera-fija">@contenidoCabecera</div>
-                        }
-                        else
-                        {
-                            <button type="button" class="@("grupo-lista-cabecera" + (abierto ? " grupo-lista-cabecera-abierta" : ""))"
-                                    aria-expanded="@(abierto ? "true" : "false")" @onclick="() => AlternarGrupo(grupo.ClienteEmpresarialId)">
-                                @contenidoCabecera
-                            </button>
-                        }
-                    </div>
+                    <CabeceraGrupoLista @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)" Nombre="@grupo.Nombre"
+                                        Total="grupo.Total" EnPagina="grupo.Centros.Count" TituloContador="@Textos["GrupoContadorTitulo", grupo.Total]"
+                                        Resumen="ResumenDe(grupo)" Tinte="grupo.Tinte"
+                                        Abierto="GrupoAbierto(grupo.ClienteEmpresarialId)" Fijo="GruposForzadosAbiertos"
+                                        OnAlternar="() => AlternarGrupo(grupo.ClienteEmpresarialId)" />
                 }
                 @if (!GrupoAbierto(ClienteEmpresarialDe(centro)))
                 {

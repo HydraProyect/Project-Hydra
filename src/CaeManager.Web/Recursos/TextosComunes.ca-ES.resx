@@ -341,6 +341,24 @@
   <data name="ContraerTodo" xml:space="preserve">
     <value>Plegar-ho tot</value>
   </data>
+  <data name="AgruparRotulo" xml:space="preserve">
+    <value>Agrupa: {0}</value>
+  </data>
+  <data name="AgruparRotuloNo" xml:space="preserve">
+    <value>Agrupa: no</value>
+  </data>
+  <data name="AgruparSin" xml:space="preserve">
+    <value>Sense agrupar</value>
+  </data>
+  <data name="AgruparPor" xml:space="preserve">
+    <value>Per {0}</value>
+  </data>
+  <data name="GrupoContadorParcial" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="GrupoContadorParcialTitulo" xml:space="preserve">
+    <value>{0} de {1} en aquesta pàgina</value>
+  </data>
   <data name="FranjaEstadoEtiqueta" xml:space="preserve">
     <value>Filtra per estat</value>
   </data>

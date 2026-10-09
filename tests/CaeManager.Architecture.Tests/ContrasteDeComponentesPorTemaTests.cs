@@ -146,9 +146,7 @@ public class ContrasteDeComponentesPorTemaTests
         new("Contador junto al título del listado", ListPage, [".cabecera-listado-contador"]),
         new("Cabecera de grupo del listado", ListPage, [".grupo-lista-cabecera"]),
         new("Contador de la cabecera de grupo", ListPage, [".grupo-lista-contador"], FondoSiFalta: "var(--color-surface)"),
-        new("Opción del control segmentado", ListPage, [".segmentado-lista-opcion"]),
-        new("Opción vigente del control segmentado", ListPage,
-            [".segmentado-lista-opcion", ".segmentado-lista-opcion[aria-pressed=\"true\"]"]),
+        new("Resumen por estado de la cabecera de grupo", ListPage, [".grupo-lista-resumen"], FondoSiFalta: "var(--color-surface)"),
 
         // ---- Enlaces ----
         new("Enlace sobre superficie", "wwwroot/css/base.css", ["a"], FondoSiFalta: "var(--color-surface)"),

@@ -12,12 +12,14 @@ using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
 using CaeManager.Web.Features.Centros.Pages;
+using CaeManager.Web.Features.Centros.Recursos;
 using FluentAssertions;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Tests;
 
@@ -94,17 +96,29 @@ public class CentrosListaPatronTests : BunitContext
         }
 
         /// <summary>
-        /// Filtra por Cliente empresarial y por Empresa como la consulta real (que lo prueba
+        /// Filtra por Cliente empresarial, por Empresa y por Centro como la consulta real (que lo prueba
         /// BusquedaYFiltrosDeListadosTests contra Postgres): si la página no enviara el filtro,
-        /// se verían todos.
+        /// se verían todos. Como ella, pagina, y el resumen por grupo —si se pide— cuenta TODAS las filas
+        /// que pasan los filtros, no solo las de la página (ObtenerCentrosQueryResumenPorGrupoBajoRlsTests).
         /// </summary>
         private ResultadoPaginado<CentroListaDto> Filtrar(ObtenerCentrosQuery q)
         {
             var filas = Centros
                 .Where(c => q.ClienteId is null || c.ClienteId == q.ClienteId)
                 .Where(c => q.EmpresaId is null || c.EmpresaId == q.EmpresaId)
+                .Where(c => q.CentroId is null || c.Id == q.CentroId)
                 .ToList();
-            return new ResultadoPaginado<CentroListaDto>(filas, filas.Count, q.Pagina, q.TamanoPagina);
+            var pagina = filas.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList();
+            return new ResultadoPaginado<CentroListaDto>(pagina, filas.Count, q.Pagina, q.TamanoPagina)
+            {
+                ResumenPorGrupo = q.ConResumenPorGrupo
+                    ? filas.GroupBy(c => c.ClienteId).ToDictionary(
+                        grupo => grupo.Key.ToString(),
+                        grupo => new ResumenDeGrupo(
+                            grupo.Count(),
+                            grupo.GroupBy(c => c.Estado.ToString()).ToDictionary(porEstado => porEstado.Key, porEstado => porEstado.Count())))
+                    : null
+            };
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -427,7 +441,8 @@ public class CentrosListaPatronTests : BunitContext
         var cut = Renderizar(ConDosClientes());
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
-            .Should().Equal("Cliente", "Más filtros");
+            .Should().Equal(["Cliente", "Más filtros", "Agrupar: Cliente"],
+                "las pastillas de filtro, y detrás el desplegable «Agrupar», que es vista y no filtro");
         cut.RotulosDeFranja().Should().Equal(
             "Todos", "Bloqueo de la plataforma CAE", "Vencido", "Pendiente", "Por vencer", "Vigente", "No requiere gestión CAE");
         cut.MarcadosEnFranja().Should().Equal(["Todos"], "sin filtro de estado, el marcado es «Todos»");
@@ -568,6 +583,22 @@ public class CentrosListaPatronTests : BunitContext
 
     private static AngleSharp.Dom.IElement Disparador(IRenderedComponent<Centros> cut, string etiqueta) =>
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Single(p => p.GetAttribute("aria-label") == etiqueta);
+
+    /// <summary>
+    /// El campo de la agrupación se rotula con el texto de su pastilla de filtro (hoy «Cliente empresarial»; el
+    /// rótulo de pantalla se decide fuera de este incremento): los tests lo leen del mismo recurso que la página,
+    /// para medir que el desplegable dice ese campo y no una cadena concreta.
+    /// </summary>
+    private string CampoCliente => Services.GetRequiredService<IStringLocalizer<TextosCentros>>()["FiltroClienteEmpresarial"].Value;
+
+    /// <summary>El desplegable «Agrupar» de la barra: el disparador que declara la letra A de KeyTips.</summary>
+    private static AngleSharp.Dom.IElement DesplegableAgrupar(IRenderedComponent<Centros> cut) => cut.Find("[data-keytip='A']");
+
+    private static void ElegirAgrupacion(IRenderedComponent<Centros> cut, string opcion)
+    {
+        DesplegableAgrupar(cut).Click();
+        cut.FindAll("[role=menuitemradio]").Single(i => i.TextContent.Trim() == opcion).Click();
+    }
 
     // ------------------------------------------------- revisión puente de la PR B
 
@@ -716,7 +747,7 @@ public class CentrosListaPatronTests : BunitContext
         cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").Click();
 
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().OrdenarPor.Should().Be(nameof(CentroListaDto.CumplimientoPorcentaje));
-        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Por Cliente");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be($"Agrupar: {CampoCliente}");
         NombresDeGrupo(cut).Should().Equal("Pegaso Cliente S.L.", "Orion Cliente S.L.");
     }
 
@@ -801,15 +832,97 @@ public class CentrosListaPatronTests : BunitContext
         var cut = RenderizarConGruposContraidos(ConDosClientes());
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
-        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Sin agrupar").Click();
+        ElegirAgrupacion(cut, "Sin agrupar");
 
         navegacion.Uri.Should().Contain("agrupar=no");
-        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Sin agrupar",
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: no",
             "la pasada de parámetros que sigue a la navegación no puede devolver la agrupación");
+        cut.FindAll(".grupo-lista").Should().BeEmpty();
 
-        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Por Cliente").Click();
+        ElegirAgrupacion(cut, $"Por {CampoCliente}");
 
         navegacion.Uri.Should().NotContain("agrupar", "agrupada es la vista de fábrica: no deja rastro en la URL");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be($"Agrupar: {CampoCliente}");
+        cut.FindAll(".grupo-lista").Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// Contrato de la URL (AgrupacionDeLista): ausente es la agrupación de fábrica de Centros, por Cliente
+    /// empresarial; «no» la quita; la clave explícita también vale; un valor desconocido es la de fábrica.
+    /// </summary>
+    [Theory]
+    [InlineData("centros", true)]
+    [InlineData("centros?agrupar=no", false)]
+    [InlineData("centros?agrupar=cliente", true)]
+    [InlineData("centros?agrupar=inventada", true)]
+    [InlineData("centros?agrupar=", true)]
+    public void La_url_decide_la_agrupacion_y_lo_desconocido_es_la_de_fabrica(string url, bool agrupada)
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes(), url);
+
+        cut.FindAll(".grupo-lista").Should().HaveCount(agrupada ? 2 : 0);
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be(agrupada ? $"Agrupar: {CampoCliente}" : "Agrupar: no");
+        cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(agrupada ? 0 : 3, "agrupada nace contraída; sin agrupar se ven todas las filas");
+    }
+
+    /// <summary>La clave explícita de la agrupación de fábrica se lee, pero al elegir no se escribe: la fábrica no deja rastro.</summary>
+    [Fact]
+    public void Con_la_clave_explicita_en_la_url_quitar_la_agrupacion_escribe_no()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes(), "centros?agrupar=cliente");
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        ElegirAgrupacion(cut, "Sin agrupar");
+
+        navegacion.Uri.Should().EndWith("centros?agrupar=no");
+        cut.FindAll(".grupo-lista").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// La agrupación se lee de la URL en cada pasada de parámetros (atrás/adelante, un enlace dentro de la
+    /// pantalla) y se aplica sin volver a pedir la lista: el resumen por grupo ya vino con la página.
+    /// </summary>
+    [Fact]
+    public void Un_cambio_de_agrupacion_en_la_url_se_aplica_sin_volver_a_pedir_la_lista()
+    {
+        var mediador = ConDosClientes();
+        var cut = RenderizarConGruposContraidos(mediador, "centros?agrupar=no");
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        cut.FindAll(".grupo-lista").Should().BeEmpty("control positivo: llega sin agrupar");
+
+        navegacion.NavigateTo("centros");
+
+        cut.WaitForAssertion(() => cut.FindAll(".grupo-lista").Should().HaveCount(2));
+        cut.Find(".grupo-lista .grupo-lista-resumen").TextContent.Should().Contain("1 vencido");
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().ContainSingle();
+    }
+
+    /// <summary>La agrupación es vista, no filtro: «Quitar filtros» limpia los filtros y la deja como estaba.</summary>
+    [Fact]
+    public void Limpiar_todo_no_toca_la_agrupacion()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes(), "centros?agrupar=no&q=planta");
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        cut.Find(".limpiar-filtros-barra").Click();
+
+        navegacion.Uri.Should().NotContain("q=", "control positivo: sí limpió el filtro");
+        navegacion.Uri.Should().Contain("agrupar=no");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: no");
+    }
+
+    /// <summary>La página pide siempre el resumen por grupo: sin él la cabecera solo podría contar la página.</summary>
+    [Theory]
+    [InlineData("centros")]
+    [InlineData("centros?agrupar=no")]
+    public void La_pagina_pide_siempre_el_resumen_por_grupo(string url)
+    {
+        var mediador = ConDosClientes();
+
+        RenderizarConGruposContraidos(mediador, url);
+
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Should().OnlyContain(q => q.ConResumenPorGrupo,
+            "agrupar y desagrupar no vuelve a pedir la lista, así que el resumen tiene que haber venido ya");
     }
 
     [Fact]
@@ -833,7 +946,8 @@ public class CentrosListaPatronTests : BunitContext
 
         var cut = RenderizarConGruposContraidos(mediador, "centros?agrupar=no&orden=cumplimiento-desc");
 
-        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Sin agrupar");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: no");
+        cut.FindAll(".grupo-lista").Should().BeEmpty();
         var consultas = mediador.Enviadas.OfType<ObtenerCentrosQuery>().ToList();
         consultas.Should().ContainSingle("la carga inicial ya lee el orden de la URL; la primera pasada de parámetros no la repite");
         (consultas[0].OrdenarPor, consultas[0].Descendente).Should().Be((nameof(CentroListaDto.CumplimientoPorcentaje), true));
@@ -854,7 +968,7 @@ public class CentrosListaPatronTests : BunitContext
     {
         var cut = RenderizarConGruposContraidos(ConDosClientes());
 
-        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Sin agrupar").Click();
+        ElegirAgrupacion(cut, "Sin agrupar");
 
         var fila = cut.FindAll(".tarjeta-fila-acordeon").First(f => f.TextContent.Contains("Planta Bilbao"));
         fila.QuerySelector(".tarjeta-fila-acordeon-meta")!.ChildNodes.First().TextContent.Should().Be("Pegaso Cliente S.L. · C-001");
@@ -882,23 +996,170 @@ public class CentrosListaPatronTests : BunitContext
         cut.Find(".cabecera-columnas-centros .cabecera-columna-orden").GetAttribute("aria-pressed").Should().Be("true");
     }
 
-    /// <summary>Con más de una página, los recuentos de grupo se rotulan como de esta página.</summary>
-    [Theory]
-    [InlineData(20, false)]
-    [InlineData(21, true)]
-    public void Con_mas_de_una_pagina_avisa_de_que_los_grupos_son_de_esta_pagina(int centros, bool conNota)
+    /// <summary>
+    /// Orion tiene 22 Centros y el único vencido es el último, que cae en la segunda página; después va Pegaso.
+    /// En la primera página (20 filas, todas de Orion y todas vigentes) la cabecera cuenta el grupo ENTERO: 22,
+    /// con su vencido y su tinte, y dice que aquí solo hay 20. Ya no hay nota de «recuentos de esta página».
+    /// </summary>
+    [Fact]
+    public void Con_dos_paginas_la_cabecera_resume_el_grupo_entero_y_dice_cuantos_hay_en_esta_pagina()
     {
-        var cut = RenderizarConGruposContraidos(ConCentros(Enumerable.Range(1, centros).Select(i => Centro($"Centro {i:00}")).ToArray()));
+        var mediador = ConCentros(
+        [
+            .. Enumerable.Range(1, 21).Select(i => CentroDe($"Orion {i:00}", ClienteOrion, EmpresaMontajes)),
+            CentroDe("Orion 22", ClienteOrion, EmpresaMontajes, EstadoCentro.Vencido),
+            CentroDe("Planta Bilbao", ClientePegaso, EmpresaLimpiezas),
+        ]);
 
-        cut.FindAll(".nota-grupos-pagina").Any().Should().Be(conNota);
-        cut.Find(".grupo-lista-contador").GetAttribute("title").Should().EndWith("en esta página");
+        var cut = RenderizarConGruposContraidos(mediador);
+
+        var grupo = cut.FindAll(".grupo-lista").Should().ContainSingle("Pegaso no tiene ninguna fila en esta página").Subject;
+        var contador = grupo.QuerySelector(".grupo-lista-contador")!;
+        contador.TextContent.Trim().Should().Be("20 de 22");
+        contador.GetAttribute("title").Should().Be("20 de 22 en esta página");
+        grupo.QuerySelector(".grupo-lista-resumen")!.TextContent.Trim().Should().Be("1 vencido",
+            "el vencido de Orion está en la otra página: el resumen es del grupo entero");
+        grupo.ClassList.Should().Contain("fila-tintada-peligro");
+        cut.FindAll(".nota-grupos-pagina").Should().BeEmpty();
+
+        cut.AbrirGruposDeCentros();
+        cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(20, "control: las filas siguen siendo las de la página");
+        cut.FindAll(".tarjeta-fila-acordeon.fila-tintada-peligro").Should().BeEmpty("control: ninguna fila de esta página está vencida");
+    }
+
+    /// <summary>
+    /// Con el orden de serie manda el peor del grupo ENTERO: Pegaso aparece primero y sus filas visibles son tan
+    /// vigentes como las de Orion, pero Orion tiene un vencido en la segunda página y sale delante.
+    /// </summary>
+    [Fact]
+    public void El_orden_de_serie_de_los_grupos_usa_el_peor_del_grupo_entero_y_no_el_de_la_pagina()
+    {
+        var mediador = ConCentros(
+        [
+            CentroDe("Planta Bilbao", ClientePegaso, EmpresaLimpiezas),
+            .. Enumerable.Range(1, 19).Select(i => CentroDe($"Orion {i:00}", ClienteOrion, EmpresaMontajes)),
+            CentroDe("Orion 20", ClienteOrion, EmpresaMontajes, EstadoCentro.Vencido),
+        ]);
+
+        var cut = RenderizarConGruposContraidos(mediador);
+
+        NombresDeGrupo(cut).Should().Equal("Orion Cliente S.L.", "Pegaso Cliente S.L.");
+        cut.FindAll(".grupo-lista-contador").Select(c => c.TextContent.Trim()).Should().Equal("19 de 20", "1");
+    }
+
+    /// <summary>Con el grupo entero en la página el contador solo dice el total, con su título.</summary>
+    [Fact]
+    public void Con_una_sola_pagina_el_contador_dice_el_total_del_grupo()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+
+        var contador = cut.Find(".grupo-lista-contador");
+        contador.TextContent.Trim().Should().Be("2");
+        contador.GetAttribute("title").Should().Be("2 centro(s)");
+    }
+
+    /// <summary>
+    /// El resumen lista, de peor a mejor, los estados con algún Centro que no sean neutros, en minúscula y en su
+    /// número. «Por vencer» suma Urgente y Próximo, como la franja de estado; ni lo vigente ni lo que no requiere
+    /// gestión CAE se listan.
+    /// </summary>
+    [Fact]
+    public void El_resumen_del_grupo_dice_cada_estado_en_su_numero_y_calla_lo_que_no_es_un_problema()
+    {
+        var cut = RenderizarConGruposContraidos(ConCentros(
+            CentroDe("A", ClienteOrion, EmpresaMontajes, EstadoCentro.Vigente),
+            CentroDe("B", ClienteOrion, EmpresaMontajes, EstadoCentro.SinGestionCae),
+            CentroDe("C", ClienteOrion, EmpresaMontajes, EstadoCentro.Proximo),
+            CentroDe("D", ClienteOrion, EmpresaMontajes, EstadoCentro.Urgente),
+            CentroDe("E", ClienteOrion, EmpresaMontajes, EstadoCentro.Faltante),
+            CentroDe("F", ClienteOrion, EmpresaMontajes, EstadoCentro.Faltante),
+            CentroDe("G", ClienteOrion, EmpresaMontajes, EstadoCentro.Vencido),
+            CentroDe("H", ClienteOrion, EmpresaMontajes, EstadoCentro.Vencido),
+            CentroDe("I", ClienteOrion, EmpresaMontajes, EstadoCentro.Vencido),
+            CentroDe("J", ClienteOrion, EmpresaMontajes, EstadoCentro.Bloqueado)));
+
+        var estados = cut.FindAll(".grupo-lista-resumen-estado");
+
+        estados.Select(e => e.TextContent.Trim()).Should().Equal(
+            "1 bloqueo de la plataforma CAE", "3 vencidos", "2 pendientes", "2 por vencer");
+        estados.Select(e => e.QuerySelector(".grupo-lista-punto")!.ClassList.Last()).Should().Equal(
+            "grupo-lista-punto-peligro", "grupo-lista-punto-peligro", "grupo-lista-punto-peligro", "grupo-lista-punto-advertencia");
+        cut.Find(".grupo-lista-contador").TextContent.Trim().Should().Be("10");
+    }
+
+    /// <summary>
+    /// El rótulo en singular del resumen es el de la pastilla de estado de la fila (EstadoCentroUi.Texto), en
+    /// minúscula inicial: si el rótulo de un estado cambia, el resumen no puede quedarse con el antiguo.
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoCentro.Bloqueado)]
+    [InlineData(EstadoCentro.Vencido)]
+    [InlineData(EstadoCentro.Faltante)]
+    [InlineData(EstadoCentro.Urgente)]
+    [InlineData(EstadoCentro.Proximo)]
+    public void El_resumen_en_singular_dice_el_mismo_rotulo_que_la_pastilla_de_estado(EstadoCentro estado)
+    {
+        var cut = RenderizarConGruposContraidos(ConCentros(CentroDe("A", ClienteOrion, EmpresaMontajes, estado)));
+
+        var rotulo = CaeManager.Web.Features.Centros.EstadoCentroUi.Texto(estado);
+        cut.Find(".grupo-lista-resumen-estado").TextContent.Trim()
+            .Should().Be($"1 {char.ToLowerInvariant(rotulo[0])}{rotulo[1..]}");
+    }
+
+    /// <summary>
+    /// La cabecera es blanca salvo que el grupo contenga algún Centro cuya FILA se tiñe, y entonces lleva el
+    /// tinte del peor: mismo criterio que <see cref="Las_filas_con_problema_van_tintadas_por_su_estado"/>.
+    /// «Próximo» se rotula «por vencer» y sale en el resumen, pero no tiñe ni su fila ni su grupo.
+    /// </summary>
+    [Theory]
+    [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.SinGestionCae }, null)]
+    [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Proximo }, null)]
+    [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Urgente }, "fila-tintada-aviso")]
+    [InlineData(new[] { EstadoCentro.Urgente, EstadoCentro.Vencido }, "fila-tintada-peligro")]
+    [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Faltante }, "fila-tintada-peligro")]
+    [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Bloqueado }, "fila-tintada-peligro")]
+    public void El_grupo_solo_se_tine_si_contiene_un_Centro_cuya_fila_se_tine(EstadoCentro[] estados, string? tinte)
+    {
+        var cut = RenderizarConGruposContraidos(ConCentros(
+            estados.Select((estado, i) => CentroDe($"Centro {i}", ClienteOrion, EmpresaMontajes, estado)).ToArray()));
+
+        cut.Find(".grupo-lista").ClassList.Where(c => c.StartsWith("fila-tintada-", StringComparison.Ordinal))
+            .Should().Equal(tinte is null ? [] : [tinte]);
+    }
+
+    /// <summary>
+    /// Guardar un documento desde el acordeón refresca SOLO esa fila, sin volver a pedir la página: si el Centro
+    /// cambia de estado, el resumen de su grupo (que vino con la página) cambia con él.
+    /// </summary>
+    [Fact]
+    public async Task Refrescar_una_fila_en_sitio_corrige_el_resumen_de_su_grupo()
+    {
+        var mediador = ConDosClientes();
+        var cut = RenderizarConGruposContraidos(mediador);
+        cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button").Click();
+        var vencido = mediador.Centros.Single(c => c.Estado == EstadoCentro.Vencido);
+        var acordeon = cut.FindComponents<Bunit.TestDoubles.Stub<AcordeonAsignacionesCentro>>()
+            .Single(a => a.Instance.Parameters.Get(p => p.CentroId) == vencido.Id);
+        cut.Find(".grupo-lista .grupo-lista-resumen").TextContent.Should().Contain("1 vencido").And.Contain("1 por vencer", "control positivo");
+        var consultasDePagina = mediador.Enviadas.OfType<ObtenerCentrosQuery>().Count(q => q.CentroId is null);
+
+        mediador.Centros[mediador.Centros.IndexOf(vencido)] = vencido with { Estado = EstadoCentro.Vigente };
+        await cut.InvokeAsync(() => acordeon.Instance.Parameters.Get(p => p.OnCambio).InvokeAsync());
+
+        var grupo = cut.Find(".grupo-lista");
+        grupo.QuerySelector(".grupo-lista-resumen")!.TextContent.Trim().Should().Be("1 por vencer");
+        grupo.ClassList.Should().Contain("fila-tintada-aviso").And.NotContain("fila-tintada-peligro");
+        grupo.QuerySelector(".grupo-lista-contador")!.TextContent.Trim().Should().Be("2", "el total del grupo no cambia");
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Count(q => q.CentroId is null).Should().Be(consultasDePagina,
+            "control: fue el refresco de una fila, no una recarga de la página");
     }
 
     // ------------------------------------------------- agrupación por Cliente empresarial
 
     /// <summary>
     /// De serie, agrupada por Cliente empresarial y con los grupos contraídos: una cabecera por grupo
-    /// con su contador y el resumen de la página, tintada con el peor estado del grupo.
+    /// con su contador y el resumen por estado, tintada con el peor estado del grupo; el grupo sin
+    /// ningún problema va en blanco y sin resumen.
     /// </summary>
     [Fact]
     public void De_serie_agrupa_por_Cliente_empresarial_con_los_grupos_contraidos_y_su_resumen()
@@ -909,11 +1170,35 @@ public class CentrosListaPatronTests : BunitContext
         grupos.Select(g => g.QuerySelector(".grupo-lista-nombre")!.TextContent.Trim()).Should().Equal("Orion Cliente S.L.", "Pegaso Cliente S.L.");
         grupos.Select(g => g.QuerySelector(".grupo-lista-contador")!.TextContent.Trim()).Should().Equal("2", "1");
         grupos.Select(g => g.QuerySelector(".grupo-lista-cabecera")!.GetAttribute("aria-expanded")).Should().Equal("false", "false");
-        grupos[0].QuerySelector(".grupo-lista-resumen")!.TextContent.Should().Contain("1 con problema").And.Contain("1 por vencer");
+        grupos[0].QuerySelectorAll(".grupo-lista-resumen-estado").Select(e => e.TextContent.Trim()).Should().Equal("1 vencido", "1 por vencer");
         grupos[0].ClassList.Should().Contain("fila-tintada-peligro", "el peor de Orion está vencido");
         grupos[1].ClassList.Should().NotContain("fila-tintada-peligro").And.NotContain("fila-tintada-aviso");
+        grupos[1].QuerySelectorAll(".grupo-lista-resumen").Should().BeEmpty("lo vigente no se lista: Pegaso no tiene nada que resumir");
+        cut.FindAll(".grupo-lista .badge").Should().BeEmpty("el resumen ya no son las pastillas «N con problema»");
         cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty("los grupos contraídos no enseñan sus Centros");
-        cut.Find(".segmentado-lista button[aria-pressed=true]").TextContent.Trim().Should().Be("Por Cliente");
+        DesplegableAgrupar(cut).TextContent.Trim().Should().Be("Agrupar: Cliente", "el rótulo de pantalla del campo es «Cliente»");
+    }
+
+    /// <summary>
+    /// El desplegable «Agrupar» va en la barra de filtros, antes de «Expandir todo», y ofrece «Sin agrupar» y
+    /// «Por» el campo, con la vigente marcada. El control segmentado ya no existe.
+    /// </summary>
+    [Fact]
+    public void El_desplegable_Agrupar_va_antes_de_Expandir_todo_y_ofrece_Sin_agrupar_y_Por_el_campo()
+    {
+        var cut = RenderizarConGruposContraidos(ConDosClientes());
+
+        var agrupar = DesplegableAgrupar(cut);
+        var expandir = cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button");
+        agrupar.CompareDocumentPosition(expandir).HasFlag(AngleSharp.Dom.DocumentPositions.Following).Should().BeTrue();
+        agrupar.Closest(".barra-filtros-pastillas").Should().NotBeNull();
+        cut.FindAll(".segmentado-lista").Should().BeEmpty();
+
+        agrupar.Click();
+
+        var opciones = cut.FindAll("[role=menuitemradio]");
+        opciones.Select(o => o.TextContent.Trim()).Should().Equal("Sin agrupar", $"Por {CampoCliente}");
+        opciones.Select(o => o.GetAttribute("aria-checked")).Should().Equal("false", "true");
     }
 
     [Fact]
@@ -957,7 +1242,7 @@ public class CentrosListaPatronTests : BunitContext
     {
         var cut = RenderizarConGruposContraidos(ConDosClientes());
 
-        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Sin agrupar").Click();
+        ElegirAgrupacion(cut, "Sin agrupar");
 
         cut.FindAll(".grupo-lista").Should().BeEmpty();
         cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim())

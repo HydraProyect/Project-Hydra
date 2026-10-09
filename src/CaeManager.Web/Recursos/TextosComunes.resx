@@ -343,6 +343,28 @@
   <data name="ContraerTodo" xml:space="preserve">
     <value>Contraer todo</value>
   </data>
+  <data name="AgruparRotulo" xml:space="preserve">
+    <value>Agrupar: {0}</value>
+    <comment>Pastilla del desplegable «Agrupar» de un listado con una agrupación aplicada; {0} es el campo («Cliente»).</comment>
+  </data>
+  <data name="AgruparRotuloNo" xml:space="preserve">
+    <value>Agrupar: no</value>
+    <comment>Pastilla del desplegable «Agrupar» de un listado sin agrupar.</comment>
+  </data>
+  <data name="AgruparSin" xml:space="preserve">
+    <value>Sin agrupar</value>
+  </data>
+  <data name="AgruparPor" xml:space="preserve">
+    <value>Por {0}</value>
+    <comment>Opción del desplegable «Agrupar»; {0} es el campo («Cliente»).</comment>
+  </data>
+  <data name="GrupoContadorParcial" xml:space="preserve">
+    <value>{0} de {1}</value>
+    <comment>Contador de la cabecera de grupo cuando la página solo enseña parte del grupo: {0} filas en esta página de las {1} del grupo.</comment>
+  </data>
+  <data name="GrupoContadorParcialTitulo" xml:space="preserve">
+    <value>{0} de {1} en esta página</value>
+  </data>
   <data name="FranjaEstadoEtiqueta" xml:space="preserve">
     <value>Filtrar por estado</value>
   </data>
