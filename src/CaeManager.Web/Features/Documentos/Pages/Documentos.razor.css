@@ -60,16 +60,29 @@
   (flechas izquierda y derecha con el foco en él); por eso tiene su anillo de foco.
   Lo fija DocumentosTablaDesplazableE2ETests.
 
-  Por lo mismo, lo que sobresale por debajo de la tabla desplaza el envoltorio en vertical. Dos casos:
+  Por lo mismo, tampoco se pega la sombra que la cabecera gana al desplazar (list-page.css), y lo que
+  sobresale por debajo de la tabla desplaza el envoltorio en vertical. Tres casos:
     · la entrada escalonada de las filas (revelar-escalonado, list-page.css) las baja 6 px mientras
       dura, y sin sitio debajo asomaba una barra vertical durante la animación: de ahí el relleno
-      inferior de 6 px (medido: 5 px de desplazamiento vertical sin él, 0 con él);
-    · la ventana «Estado en plataformas» de la última fila se abre hacia abajo y sí lo desplaza
-      (unos 50 px con una plataforma); se alcanza desplazando el envoltorio. Sin resolver aquí.
+      inferior de 6 px (medido: 5 px de desplazamiento vertical sin él, 0 con él). Sin animación
+      (prefers-reduced-motion) no hace falta y no se pone;
+    · la ventana «Estado en plataformas» se abre hacia abajo solo en las seis primeras filas de la
+      página y hacia arriba en las demás (ColocacionVentanaPlataformas, Documentos.razor.cs). En una
+      página de pocas filas todavía puede sobresalir por debajo: se alcanza desplazando el envoltorio;
+    · las opciones de una cabecera de columna de QuickGrid (.col-options), igual, en una página de
+      una o dos filas.
+
+  El envoltorio lleva tabindex, role y nombre también cuando no tiene nada que desplazar (la tabla
+  cabe, o por debajo de 768 px): es una parada de tabulación de más.
 */
 @media (min-width: 768px) {
     .documentos-tabla-desplazable {
         overflow-x: auto;
+    }
+}
+
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+    .documentos-tabla-desplazable {
         padding-bottom: 6px;
     }
 }

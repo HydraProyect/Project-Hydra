@@ -1008,6 +1008,20 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Pestaña de la vista rápida a la que lleva la ventana de la celda «Plataformas».</summary>
     private const string PestanaValidacion = "validacion";
 
+    /// <summary>
+    /// Primera fila de la página (contando desde cero) en la que la ventana de «Plataformas» se abre hacia
+    /// arriba. La tabla va en un envoltorio que desplaza en horizontal y que, por eso, recorta en vertical:
+    /// una ventana que sobresale por debajo de la tabla le mete desplazamiento vertical propio, y una que
+    /// sobresale por arriba queda recortada sin forma de alcanzarla. Con seis filas y la cabecera por
+    /// encima caben los 280 px que el panel mide como mucho.
+    /// </summary>
+    private const int PrimeraFilaConVentanaHaciaArriba = 6;
+
+    private VentanaContextoColocacion ColocacionVentanaPlataformas(Guid id) =>
+        _elementosPagina.FindIndex(e => e.Id == id) >= PrimeraFilaConVentanaHaciaArriba
+            ? VentanaContextoColocacion.ArribaCentro
+            : VentanaContextoColocacion.AbajoCentro;
+
     private void AbrirGuardarFiltro()
     {
         _mensajeErrorFiltro = null;

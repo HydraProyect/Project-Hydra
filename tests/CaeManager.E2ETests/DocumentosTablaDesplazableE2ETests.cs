@@ -23,9 +23,10 @@ namespace CaeManager.E2ETests;
 public class DocumentosTablaDesplazableE2ETests(WebAppFixture fixture, ITestOutputHelper salida)
 {
     /// <summary>
-    /// Con <c>reservaBarra</c> estrecha antes el hueco lo que ocupa una barra de desplazamiento vertical
-    /// clásica: Chromium sin cabeza las pinta superpuestas, y en el navegador de una persona el hueco es
-    /// esos píxeles más estrecho.
+    /// Mide qué antepasados del envoltorio desbordan en horizontal y cuánto le queda por desplazar al
+    /// envoltorio. <c>reservaBarra</c> son los píxeles que se le quitan antes al hueco: Chromium sin cabeza
+    /// pinta las barras de desplazamiento superpuestas, y en el navegador de una persona la barra vertical
+    /// clásica de la página ocupa sitio y deja el hueco esos píxeles más estrecho.
     /// </summary>
     private const string MedirDesborde = """
         reservaBarra => {
@@ -73,7 +74,16 @@ public class DocumentosTablaDesplazableE2ETests(WebAppFixture fixture, ITestOutp
         var page = await AbrirDocumentosAsync(contexto, anchoVentana);
         if (seleccionMultiple)
         {
-            await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
+            // El clic se repite hasta que el propio conmutador dice que está pulsado, porque llega con el
+            // prerender antes que el circuito (mismo patrón que Ayudas.MostrarCentrosSinAgruparAsync).
+            var conmutador = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true });
+            for (var intento = 1; await conmutador.GetAttributeAsync("aria-pressed") != "true"; intento++)
+            {
+                Assert.True(intento <= 10, "«Selección múltiple» no se aplicó tras 10 clics.");
+                await conmutador.ClickAsync();
+                await page.WaitForTimeoutAsync(1_000);
+            }
+
             await Expect(page.GetByRole(AriaRole.Checkbox, new PageGetByRoleOptions { Name = "Seleccionar los documentos de esta página", Exact = true }))
                 .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         }
