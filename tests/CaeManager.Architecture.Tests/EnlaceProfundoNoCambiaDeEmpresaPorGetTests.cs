@@ -51,6 +51,7 @@ public class EnlaceProfundoNoCambiaDeEmpresaPorGetTests
     [InlineData("src/CaeManager.Web/Features/Clientes/Pages/ClienteDetalle.razor")]
     [InlineData("src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor")]
     [InlineData("src/CaeManager.Web/Features/Empresas/Pages/EmpresaDetalle.razor")]
+    [InlineData("src/CaeManager.Web/Features/Vehiculos/Pages/VehiculoDetalle.razor")]
     public void Cada_ficha_360_pinta_el_enlace_profundo_en_su_estado_de_error(string ficha)
     {
         var fuente = File.ReadAllText(Path.Combine(RaizDelRepositorio(), ficha));

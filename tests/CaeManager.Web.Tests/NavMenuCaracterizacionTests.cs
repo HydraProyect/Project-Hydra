@@ -399,6 +399,36 @@ public class NavMenuCaracterizacionTests
         cut.FindAll("a.active").Should().HaveCount(1);
     }
 
+    /// <summary>
+    /// Defecto C1 del piloto Outbound (2026-10-08): el menú ofrecía «Mi trabajo» al rol Consulta y sus dos
+    /// páginas (<c>/bandeja</c> con un Tenant autorizado, <c>/mi-trabajo</c> con varios) se lo negaban. El
+    /// menú no ofrece un destino que la página niega: se compara con el <c>[Authorize]</c> de la página a
+    /// la que lleva el enlace en cada caso, no con una lista escrita aquí.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador)]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    [InlineData(Roles.GestorCae)]
+    [InlineData(Roles.Consulta)]
+    public void El_menu_ofrece_Mi_trabajo_solo_a_quien_su_pagina_autoriza(string rol)
+    {
+        foreach (var tenants in new[] { 1, 2 })
+        {
+            var pagina = tenants > 1
+                ? typeof(CaeManager.Web.Features.Bandeja.Pages.MiTrabajo)
+                : typeof(CaeManager.Web.Features.Bandeja.Pages.Bandeja);
+            var autorizados = pagina.GetCustomAttribute<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>()!.Roles!
+                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            autorizados.Should().NotBeEmpty("control: la página restringe por rol; si dejara de hacerlo, este test no mediría nada");
+
+            var cut = Pintar(new Combinacion(rol, null, false, false, PerfilVocabularioTenant.Consultora, tenants), null);
+            var ofrecido = cut.FindAll(".nav-fila").Any(f => f.GetAttribute("data-enlace") == "mi-trabajo");
+
+            ofrecido.Should().Be(autorizados.Contains(rol), $"rol {rol} con {tenants} Tenant(s) autorizado(s): la página es {pagina.Name}");
+        }
+    }
+
     private static IRenderedComponent<NavMenu> Pintar(Combinacion c, OrdenMenuLateralDto? orden)
     {
         var ctx = new BunitContext();
