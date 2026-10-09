@@ -580,7 +580,9 @@ public class AutorizacionDeDelegacionTests
         delegacion.Desactivar();
         var reactivacion = await new ReactivarDelegacionTenantCommandHandler(
                 delegaciones, soloMiembroDelOperadorCae, quienAdministraPorEncargo,
-                new AsignacionesOperativasWriterFalso(), unitOfWork, new TenantsQueryContextFalso())
+                new AsignacionesOperativasWriterFalso(), unitOfWork, new TenantsQueryContextFalso(),
+                new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
+                new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso())
             .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
         reactivacion.EsFallido.Should().BeTrue("no deshace la retirada que decidió el Tenant propietario");
