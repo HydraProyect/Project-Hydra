@@ -476,4 +476,52 @@
   <data name="ErrorRestaurarLote" xml:space="preserve">
     <value>No se pudo deshacer la baja. Inténtalo de nuevo.</value>
   </data>
+  <data name="AbrirVistaRapidaDe" xml:space="preserve">
+    <value>Abrir la vista rápida de {0}</value>
+  </data>
+  <data name="EtiquetaCif" xml:space="preserve">
+    <value>el CIF</value>
+  </data>
+  <data name="CopiarCif" xml:space="preserve">
+    <value>Copiar el CIF {0}</value>
+  </data>
+  <data name="CambiarGestorCaeDe" xml:space="preserve">
+    <value>{1}. Cambiar el Gestor CAE de referencia de {0}</value>
+  </data>
+  <data name="CambiarGestorCaeTitulo" xml:space="preserve">
+    <value>Cambiar el Gestor CAE de referencia</value>
+  </data>
+  <data name="GestorCaeSinAsignar" xml:space="preserve">
+    <value>Sin asignar</value>
+  </data>
+  <data name="VerCentroDe" xml:space="preserve">
+    <value>Ver el centro de {1}</value>
+  </data>
+  <data name="VerCentrosDe" xml:space="preserve">
+    <value>Ver los {0} centros de {1}</value>
+  </data>
+  <data name="CentrosTituloUno" xml:space="preserve">
+    <value>{0} centro</value>
+  </data>
+  <data name="CentrosTituloVarios" xml:space="preserve">
+    <value>{0} centros</value>
+  </data>
+  <data name="CentroDeVentanaAyuda" xml:space="preserve">
+    <value>Abrir sus centros en el panel</value>
+  </data>
+  <data name="CentrosDeFilaCargando" xml:space="preserve">
+    <value>Cargando centros…</value>
+  </data>
+  <data name="CentrosDeFilaError" xml:space="preserve">
+    <value>No pudimos cargar los centros. Vuelve a pasar por el recuento para reintentarlo.</value>
+  </data>
+  <data name="CentrosDeFilaPieMas" xml:space="preserve">
+    <value>Y {0} más en la pestaña Centros.</value>
+  </data>
+  <data name="AriaEditarIdentidad" xml:space="preserve">
+    <value>Editar la identidad del Cliente empresarial</value>
+  </data>
+  <data name="TituloEditarConAtajo" xml:space="preserve">
+    <value>Editar (e)</value>
+  </data>
 </root>

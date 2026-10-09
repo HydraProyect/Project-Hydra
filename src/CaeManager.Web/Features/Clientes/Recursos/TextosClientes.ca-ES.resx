@@ -453,4 +453,52 @@
   <data name="ErrorRestaurarLote" xml:space="preserve">
     <value>No s'ha pogut desfer la baixa. Torna-ho a provar.</value>
   </data>
+  <data name="AbrirVistaRapidaDe" xml:space="preserve">
+    <value>Obre la vista ràpida de {0}</value>
+  </data>
+  <data name="EtiquetaCif" xml:space="preserve">
+    <value>el CIF</value>
+  </data>
+  <data name="CopiarCif" xml:space="preserve">
+    <value>Copia el CIF {0}</value>
+  </data>
+  <data name="CambiarGestorCaeDe" xml:space="preserve">
+    <value>{1}. Canvia el Gestor CAE de referència de {0}</value>
+  </data>
+  <data name="CambiarGestorCaeTitulo" xml:space="preserve">
+    <value>Canvia el Gestor CAE de referència</value>
+  </data>
+  <data name="GestorCaeSinAsignar" xml:space="preserve">
+    <value>Sense assignar</value>
+  </data>
+  <data name="VerCentroDe" xml:space="preserve">
+    <value>Veure el centre de {1}</value>
+  </data>
+  <data name="VerCentrosDe" xml:space="preserve">
+    <value>Veure els {0} centres de {1}</value>
+  </data>
+  <data name="CentrosTituloUno" xml:space="preserve">
+    <value>{0} centre</value>
+  </data>
+  <data name="CentrosTituloVarios" xml:space="preserve">
+    <value>{0} centres</value>
+  </data>
+  <data name="CentroDeVentanaAyuda" xml:space="preserve">
+    <value>Obre els seus centres al panell</value>
+  </data>
+  <data name="CentrosDeFilaCargando" xml:space="preserve">
+    <value>Carregant centres…</value>
+  </data>
+  <data name="CentrosDeFilaError" xml:space="preserve">
+    <value>No hem pogut carregar els centres. Torna a passar pel recompte per reintentar-ho.</value>
+  </data>
+  <data name="CentrosDeFilaPieMas" xml:space="preserve">
+    <value>I {0} més a la pestanya Centres.</value>
+  </data>
+  <data name="AriaEditarIdentidad" xml:space="preserve">
+    <value>Edita la identitat del Client empresarial</value>
+  </data>
+  <data name="TituloEditarConAtajo" xml:space="preserve">
+    <value>Edita (e)</value>
+  </data>
 </root>

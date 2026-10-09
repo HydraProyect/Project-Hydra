@@ -4,7 +4,7 @@
 @attribute [Authorize(Roles = CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.Gestion)]
 @using CaeManager.Application.Clientes.Commands.CrearCliente
 @using CaeManager.Application.Clientes.Commands.EditarCliente
-@using CaeManager.Application.Clientes.Commands.EliminarCliente
+@using CaeManager.Application.Clientes.Queries.ObtenerCentrosDeCliente
 @using CaeManager.Application.Clientes.Queries.ObtenerClientePorId
 @using CaeManager.Application.Clientes.Queries.ObtenerClientes
 @using CaeManager.Application.Common
@@ -30,8 +30,9 @@
 
 <div class="contenedor-pagina">
     @* Rediseño de listados, fase 1 (piloto): cabecera de una línea (CabeceraListado) con el
-       contador, el conmutador ☑ de selección múltiple, el menú «⋯» con las acciones
-       secundarias y UNA acción primaria. Las filas de esta pantalla son Clientes
+       contador, el conmutador ☑ de selección múltiple —la única vía para dar de baja: la
+       fila no lleva menú—, el menú «⋯» con las acciones secundarias y UNA acción primaria.
+       Las filas de esta pantalla son Clientes
        empresariales del Tenant (Empresas que reciben el servicio en una Relación
        Empresarial), no Clientes comerciales TALVEG.
 
@@ -172,18 +173,22 @@
                             <input type="checkbox" aria-label="Seleccionar los de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
                         </HeaderTemplate>
                         <ChildContent>
-                            <input type="checkbox" aria-label="@($"Seleccionar {context.RazonSocial}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                            <input type="checkbox" aria-label="@($"Seleccionar {context.RazonSocial}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" @onclick:stopPropagation="true" />
                         </ChildContent>
                     </TemplateColumn>
                 }
                 <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))">
-                    @* Pieza 5 del patrón: el nombre, en negrita y sin
-                       subrayado, abre la vista previa lateral (pieza 6). La
-                       ficha 360 (/clientes/{id}) se abre desde el «⋯» y desde
-                       el pie de la vista previa. Esto revierte la decisión
-                       2026-09-22 (nombre = enlace a la ficha); el contrato
-                       del 2026-09-28 manda. *@
-                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad" @onclick="() => AbrirVistaPrevia(context.Id)">@context.RazonSocial</button>
+                    @* Patrón de listados: la fila no lleva menú «⋯». El nombre es un botón
+                       que abre la vista rápida (el panel del Context Workspace), igual que
+                       Enter sobre la fila enfocada. QuickGrid no expone el clic de la fila: la
+                       clase «fila-pulsable» (RowClass) y «nombre-abre-vista-rapida» son el
+                       contrato con el oyente delegado de atajos-lista.js, que convierte el
+                       clic en un punto sin controles de la fila en un clic sobre este botón.
+                       A la página Cliente 360 (/clientes/{id}) se va con el icono 360 del
+                       final de la fila y con el del panel. *@
+                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
+                            aria-label="@Textos["AbrirVistaRapidaDe", context.RazonSocial]"
+                            @onclick="() => AbrirVistaRapidaAsync(context.Id)" @onclick:stopPropagation="true">@context.RazonSocial</button>
                     @* «⚑ Crítico» junto al nombre, en lugar de la antigua columna «Crítico». *@
                     @if (context.EsCritico)
                     {
@@ -196,14 +201,49 @@
                     {
                         <button type="button" class="aviso-sin-agenda"
                                 title="Sin contacto en la agenda: no se puede reclamar documentación a este Cliente empresarial"
-                                @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "agenda")'>
+                                @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "agenda")'
+                                @onclick:stopPropagation="true">
                             Sin contacto
                         </button>
                     }
                 </TemplateColumn>
-                <PropertyColumn Property="@(c => c.Cif)" Title="CIF" Sortable="true" />
+                @* El CIF se copia con un clic, sin abrir la fila. Sigue ordenando por CIF. *@
+                <TemplateColumn Title="CIF" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.Cif))">
+                    @if (string.IsNullOrWhiteSpace(context.Cif))
+                    {
+                        <span class="texto-vacio-celda">—</span>
+                    }
+                    else
+                    {
+                        <BotonCopiar EnLinea="true" Valor="@context.Cif" Texto="@context.Cif" Etiqueta="@Textos["EtiquetaCif"]"
+                                     NombreAccesible="@Textos["CopiarCif", context.Cif]" />
+                    }
+                </TemplateColumn>
                 <TemplateColumn Title="Gestor CAE">
-                    @if (GestorCaeDeLaFila(context.EjecutivoUsuarioId) is { } gestor)
+                    @* Decisión del propietario (2026-10-09): el formulario «Editar Cliente
+                       empresarial» de esta página —el único sitio donde se cambia el Gestor CAE
+                       de referencia— ya no cuelga de un menú de fila: lo abre esta celda, y solo
+                       para quien puede reasignar (Administrador, Dirección CAE, Coordinador
+                       CAE). Al resto la celda no se le ofrece como control: es texto. *@
+                    @if (_puedeReasignarEjecutivo)
+                    {
+                        var asignado = GestorCaeDeLaFila(context.EjecutivoUsuarioId);
+                        <button type="button" class="celda-gestor-cae-pulsable"
+                                aria-label="@NombreAccesibleCambiarGestorCae(context.RazonSocial, asignado)" title="@Textos["CambiarGestorCaeTitulo"]"
+                                @onclick="() => AbrirEditarAsync(context.Id)" @onclick:stopPropagation="true">
+                            @if (asignado is not null)
+                            {
+                                <span class="persona-identidad">
+                                    <AvatarUsuario Nombre="@asignado.NombreCompleto" Avatar="@asignado.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@asignado.NombreCompleto
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="texto-vacio-celda">@Textos["GestorCaeSinAsignar"]</span>
+                            }
+                        </button>
+                    }
+                    else if (GestorCaeDeLaFila(context.EjecutivoUsuarioId) is { } gestor)
                     {
                         <span class="persona-identidad">
                             <AvatarUsuario Nombre="@gestor.NombreCompleto" Avatar="@gestor.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@gestor.NombreCompleto
@@ -215,18 +255,45 @@
                     }
                 </TemplateColumn>
                 <TemplateColumn Title="Centros" Align="Align.Center">
-                    @* Antes era un enlace a /centros?clienteId=…, pero la lista
-                       de Centros no filtra por ese parámetro (solo lo usa para
-                       encadenar un alta): llevaba a TODOS los centros. Los
-                       centros de este cliente sí están en su Cliente 360, en su
-                       propia pestaña. *@
+                    @* El recuento abre su ventana de contexto con los centros de este Cliente
+                       empresarial; pulsar uno abre el panel en su pestaña «Centros» (la lista
+                       /centros no filtra por Cliente empresarial). La fila solo trae el número:
+                       los nombres se piden la primera vez que el puntero o el foco llegan al
+                       recuento (ObtenerCentrosDeClienteQuery, la consulta de esa pestaña) y se
+                       olvidan con cada carga de la lista. La ventana interactiva corta ella
+                       misma la subida del clic. *@
                     @if (context.Centros > 0)
                     {
-                        <button type="button" class="enlace-centros-cliente"
-                                aria-label="@($"Ver los {context.Centros} centros de {context.RazonSocial}")"
-                                @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "centros")'>
-                            @context.Centros
-                        </button>
+                        <span class="ranura-centros-cliente" @onmouseenter="() => CargarCentrosDeFilaAsync(context.Id)" @onfocusin="() => CargarCentrosDeFilaAsync(context.Id)">
+                            <VentanaContexto Etiqueta="@Textos[context.Centros == 1 ? "VerCentroDe" : "VerCentrosDe", context.Centros, context.RazonSocial]"
+                                             Titulo="@Textos[context.Centros == 1 ? "CentrosTituloUno" : "CentrosTituloVarios", context.Centros]"
+                                             Colocacion="VentanaContextoColocacion.AbajoCentro" Interactiva="true"
+                                             Pie="@PieDeCentrosDeFila(context.Id)">
+                                <Disparador>
+                                    <span class="enlace-centros-cliente">@context.Centros</span>
+                                </Disparador>
+                                <Detalle>
+                                    @if (_centrosDeFila.TryGetValue(context.Id, out var centrosDeFila))
+                                    {
+                                        @foreach (var centro in centrosDeFila.Take(MaximoCentrosEnVentana))
+                                        {
+                                            <VentanaContextoElemento Secundario="@centro.EmpresaRazonSocial" Ayuda="@Textos["CentroDeVentanaAyuda"]"
+                                                                     AlPulsar="() => AbrirCentrosDeFilaAsync(context.Id)">
+                                                @centro.Nombre
+                                            </VentanaContextoElemento>
+                                        }
+                                    }
+                                    else if (_centrosDeFilaConError.Contains(context.Id))
+                                    {
+                                        <span class="ventana-linea">@Textos["CentrosDeFilaError"]</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="ventana-linea">@Textos["CentrosDeFilaCargando"]</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
+                        </span>
                     }
                     else
                     {
@@ -248,25 +315,14 @@
                         <EstadoFila Correcto="true" Texto="@EstadoDocumentoUi.SinIncidencias" Titulo="@Textos["TituloSinIncidencias"]" />
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="Acciones" Align="Align.End">
-                    @* Orden del contrato: «Abrir ficha 360 · Editar · … ·
-                       Eliminar». La vista rápida ya no es un ítem: la abre el
-                       nombre de la fila. La baja es lógica
-                       (EliminarClienteCommand → MarcarComoEliminado, con
-                       «Deshacer»), así que se rotula «Dar de baja» y con el
-                       mismo verbo en la barra de lote, en los diálogos y en
-                       los avisos; es el «Eliminar» del contrato. *@
-                    <MenuAcciones>
-                        <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo($"/clientes/{context.Id}")'>
-                            Abrir ficha 360
-                        </ItemMenuAccion>
-                        <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirEditarAsync(context.Id)">
-                            Editar
-                        </ItemMenuAccion></SoloConEscritura>
-                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminar(context.Id, context.RazonSocial)">
-                            @Textos["DarDeBaja"]
-                        </ItemMenuAccion></SoloConEscritura>
-                    </MenuAcciones>
+                <TemplateColumn Title="" Align="Align.End">
+                    @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Abrir ficha
+                       360» es este icono; «Editar», el lápiz del panel (tecla «e») para la
+                       identidad y la celda «Gestor CAE» para el formulario con la reasignación;
+                       «Dar de baja», la selección múltiple (☑ de la cabecera o tecla «x»), con
+                       su «Deshacer». La baja es lógica (EliminarClientesCommand), y por eso se
+                       rotula «Dar de baja» en la barra de lote, en el diálogo y en los avisos. *@
+                    <Boton360 Nombre="@context.RazonSocial" Href="@($"/clientes/{context.Id}")" />
                 </TemplateColumn>
             </QuickGrid>
 
@@ -356,23 +412,14 @@
     </PieExtra>
 </DrawerFormulario>
 
-<DialogoConfirmacion
-    Visible="_confirmarEliminarVisible"
-    VisibleChanged="v => _confirmarEliminarVisible = v"
-    Titulo="@($"¿Dar de baja a {_razonSocialAEliminar}?")"
-    Mensaje="Se ocultará de las listas activas. Podrás deshacerlo desde el aviso que aparecerá."
-    TextoBotonConfirmar="@Textos["DarDeBaja"]"
-    EnProgreso="_eliminando"
-    OnConfirmar="ConfirmarEliminarAsync" />
-
-@* Pieza 6: vista previa lateral. El pie ofrece «Abrir ficha 360». «Ver toda su
-   documentación» sigue abriendo el panel de 520 px (Context Workspace). *@
-<ClientePreviewDrawer ClienteId="_previewClienteId" Visible="_previewVisible" VisibleChanged="v => _previewVisible = v"
-                      OnOperar="AbrirDesdeVistaPreviaAsync" OnAbrirFicha="AbrirFichaDesdeVistaPrevia" />
-
-<BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
-                    OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true"
-                    TextoAccion="@Textos["DarDeBajaSeleccionados"]" />
+@* La barra de lote solo ofrece «Dar de baja seleccionados», y EliminarClientesCommand es un
+   ICommand que AutorizacionEscrituraBehavior deniega a Consulta: marcar filas es lectura,
+   pero la barra no se le ofrece a quien no puede ejecutarla. *@
+<SoloConEscritura>
+    <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
+                        OnLimpiar="() => _seleccionados.Clear()" OnEliminar="() => _confirmarEliminarLoteVisible = true"
+                        TextoAccion="@Textos["DarDeBajaSeleccionados"]" />
+</SoloConEscritura>
 
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"

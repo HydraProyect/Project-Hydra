@@ -118,6 +118,9 @@ public partial class Cliente360Gen2Tests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddLocalization();
+        // El lápiz de la cabecera y «Editar identidad» van dentro de SoloConEscritura: estos
+        // casos prueban la ficha, no el permiso (eso es ClienteWorkspacePanelLapizTests).
+        this.ConRolDeEscritura();
         return mediador;
     }
 
