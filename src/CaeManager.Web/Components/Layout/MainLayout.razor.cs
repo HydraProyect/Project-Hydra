@@ -229,7 +229,7 @@ public partial class MainLayout
             // dejar la excepción sin observar.
             //
             // Sigue sin usarse ExcepcionDeCircuitoDesconectado.Es (los otros
-            // cuatro sitios de layout sí, REC-166), pero ya no por el motivo de
+            // sitios de layout sí, REC-166), pero ya no por el motivo de
             // entonces —"atrapar de más aquí es fallar abierto"—, que este
             // cambio deja obsoleto: con el estado del circuito decidiendo, un
             // tipo de más no abre nada, porque el camino de circuito vivo

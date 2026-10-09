@@ -76,7 +76,6 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
         };
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
 
         var donde = "inicio";
         try

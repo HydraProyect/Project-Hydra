@@ -14,7 +14,6 @@ public class GestionesFase1TecladoTests(WebAppFixture fixture)
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl,
             Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/gestiones");
         var filas = page.Locator("tbody tr").Filter(new LocatorFilterOptions
         { Has = page.Locator(".gestion-trabajador-centro") });

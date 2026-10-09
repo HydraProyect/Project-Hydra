@@ -16,7 +16,6 @@ namespace CaeManager.Architecture.Tests;
 /// (medido el 2026-09-18 sobre <c>ef42310c</c>, contraste WCAG 2.x sobre el
 /// fondo declarado en la propia regla):
 /// <list type="bullet">
-///   <item><c>--color-neutral-800</c> en <c>.titulo-aviso-normativo</c>: 12,61:1 en claro, <b>1,29:1</b> en oscuro.</item>
 ///   <item><c>--color-neutral-700</c> en <c>.badge-neutro</c>: 7,82:1 en claro, <b>2,02:1</b> en oscuro.</item>
 ///   <item><c>--color-neutral-600</c> en <c>.descripcion-avisos-normativos</c>: 6,20:1 en claro, <b>2,62:1</b> en oscuro.</item>
 ///   <item><c>--color-info-500</c> en <c>.badge-info</c>, <c>.badge-visita</c>, <c>.pendiente-rol-icono</c> y cuatro reglas de Plataforma: 6,86–7,58:1 en claro, <b>1,99–2,15:1</b> en oscuro.</item>
@@ -201,8 +200,8 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
     /// <summary>
     /// Prueba de sensibilidad sobre el árbol real: el detector tiene que ver
     /// como violación un token vigilado al que se le quita la variante oscura.
-    /// Reconstruye el estado previo a esta PR para <c>--color-neutral-800</c>
-    /// (1,29:1 en oscuro) sobre los ficheros de verdad, no sobre CSS de
+    /// Reconstruye el estado previo a esta PR para <c>--color-neutral-700</c>
+    /// (2,02:1 en oscuro en <c>.badge-neutro</c>) sobre los ficheros de verdad, no sobre CSS de
     /// juguete. Si esto pasara, el trinquete de arriba estaría en verde por no
     /// mirar el árbol.
     /// </summary>
@@ -210,13 +209,13 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
     public void El_detector_marca_un_token_real_al_que_se_le_quita_la_variante_oscura()
     {
         var tokensSinVariante = SinDeclaracionEnBloqueOscuro(
-            File.ReadAllText(RutaTokensCss()), "--color-neutral-800");
+            File.ReadAllText(RutaTokensCss()), "--color-neutral-700");
 
         var violaciones = Violaciones(tokensSinVariante, Ficheros()).ToList();
 
-        violaciones.Select(v => v.Variable).Distinct().Should().Contain("--color-neutral-800",
-            "sin su variante oscura, neutral-800 vuelve a resolver a #2a3441 en los dos temas, que es "
-            + "exactamente el defecto de .titulo-aviso-normativo");
+        violaciones.Select(v => v.Variable).Distinct().Should().Contain("--color-neutral-700",
+            "sin su variante oscura, neutral-700 vuelve a resolver al mismo valor en los dos temas, que es "
+            + "exactamente el defecto de .badge-neutro");
     }
 
     /// <summary>

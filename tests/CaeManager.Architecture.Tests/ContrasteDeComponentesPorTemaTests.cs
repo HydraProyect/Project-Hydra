@@ -248,8 +248,6 @@ public class ContrasteDeComponentesPorTemaTests
             (3.7, "banda de error del framework, mismo rojo --color-danger-500 con letra blanca (3,76:1)"),
         ["wwwroot/app.css|.blazor-error-boundary"] =
             (3.7, "pantalla de error del framework, mismo rojo --color-danger-500 con letra blanca (3,76:1)"),
-        ["Features/VigilanciaNormativa/PanelAvisosNormativos.razor.css|.badge-avisos-normativos"] =
-            (3.7, "contador rojo del botón de avisos, mismo --color-danger-500 con letra blanca (3,76:1)"),
         ["Features/Retencion/Pages/Retencion.razor.css|.flujo-retencion-flecha"] =
             (1.3, "flecha decorativa del flujo (--color-border-strong sobre --color-surface-subtle): no lleva texto, es un trazo"),
     };

@@ -32,7 +32,6 @@ public class SelectorTemaPrerenderTests(WebAppFixture fixture)
 
         await Ayudas.IniciarSesionAsync(
             page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
         // Elegir "oscuro" desde el circuito ya conectado: esto es lo que deja
@@ -76,7 +75,6 @@ public class SelectorTemaPrerenderTests(WebAppFixture fixture)
 
         await Ayudas.IniciarSesionAsync(
             page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
         var selectorTema = page.GetByRole(AriaRole.Switch, new() { Name = "Tema oscuro" });
