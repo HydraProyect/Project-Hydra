@@ -51,7 +51,11 @@ public class RepartoDeCarteraPorClienteRetiradoTests
             "ámbito nombra DeRelacionCliente; ningún productor la llama. Si necesitas dar alcance a un Gestor " +
             "CAE, es la cartera del Tenant entero por un acto explícito (IAsignacionesOperativasWriter." +
             "AsegurarCarteraTenantEnteroAsync, CatalogoIncorporacionCartera), no una cartera por Cliente " +
-            "empresarial. Control positivo incluido: la definición tiene que aparecer, o el escaneo no mira");
+            "empresarial. Si de verdad vas a añadir un productor de ámbitos por Cliente empresarial, antes cruza " +
+            "con ObtenerTrabajadorIdsVisiblesAsync las lecturas que nombran a los técnicos de un Proyecto " +
+            "(ObtenerProyectosQuery y ObtenerTecnicosProyectoQuery): bajo una operación acotada nombrarían a " +
+            "Trabajadores fuera del alcance (TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests). " +
+            "Control positivo incluido: la definición tiene que aparecer, o el escaneo no mira");
     }
 
     /// <summary>

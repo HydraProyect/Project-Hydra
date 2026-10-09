@@ -19,12 +19,14 @@ public record TecnicoProyectoDto(
 /// detalle.
 ///
 /// <para>
-/// No se cruza con <c>ObtenerTrabajadorIdsVisiblesAsync</c> porque hoy sería redundante: quien ve
-/// un Proyecto tiene alcance total dentro del Tenant propietario o una Asignación de Cartera, que
-/// es siempre sobre el Tenant entero (D-7) y alcanza a todos sus Trabajadores. Solo dejaría de
-/// serlo bajo una Asignación de Operación acotada a un Cliente empresarial, que ningún código de
-/// producción crea (<c>RepartoDeCarteraPorClienteRetiradoTests</c>); la invariante y ese caso
-/// están medidos bajo RLS en <c>TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests</c>.
+/// No se cruza con <c>ObtenerTrabajadorIdsVisiblesAsync</c> porque hoy sería redundante: los roles
+/// que entran en Proyectos (las páginas excluyen al rol Cliente del portal) tienen alcance total
+/// dentro del Tenant propietario o una Asignación de Cartera, que es siempre sobre el Tenant
+/// entero (D-7) y alcanza a todos sus Trabajadores. Solo dejaría de serlo bajo una Asignación de
+/// Operación acotada a un Cliente empresarial, que ningún código de producción crea
+/// (<c>RepartoDeCarteraPorClienteRetiradoTests</c>), o si esta lectura se abriera al rol Cliente;
+/// la invariante y el caso de la operación acotada están medidos bajo RLS en
+/// <c>TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests</c>.
 /// </para>
 /// </summary>
 public class ObtenerTecnicosProyectoQueryHandler(IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext, IAlcanceDatosService alcanceDatos)
@@ -32,14 +34,14 @@ public class ObtenerTecnicosProyectoQueryHandler(IProyectosQueryContext proyecto
 {
     public async Task<IReadOnlyList<TecnicoProyectoDto>> Handle(ObtenerTecnicosProyectoQuery request, CancellationToken cancellationToken)
     {
-        var clienteIdsDelProyecto = await proyectosContext.Proyectos
+        var empresaClienteDelProyecto = await proyectosContext.Proyectos
             .Where(p => p.Id == request.ProyectoId)
             .Select(p => p.ClienteId)
             .ToListAsync(cancellationToken);
 
         // Inexistente o fuera de alcance: la misma lista vacía, sin distinguir un caso del otro.
-        if (clienteIdsDelProyecto.Count == 0
-            || !await ProyectoAutorizacion.VisibleAsync(clienteIdsDelProyecto[0], alcanceDatos, cancellationToken))
+        if (empresaClienteDelProyecto.Count == 0
+            || !await ProyectoAutorizacion.VisibleAsync(empresaClienteDelProyecto[0], alcanceDatos, cancellationToken))
             return [];
 
         var consulta =

@@ -108,8 +108,8 @@ public class TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests : IAsyncLifetime
             Cuenta(_consulta, _propietario.Id, Roles.Consulta);
             Cuenta(_gestorSinCartera, _propietario.Id, Roles.GestorCae);
             Cuenta(_gestorBajoOperacionAcotada, _propietario.Id, Roles.GestorCae);
-            // La cuenta del Operador CAE externo es GestorCae en SU organización: el rol con el que
-            // opera aquí lo da la Asignación de Operador Delegado.
+            // La cuenta del Gestor CAE del Operador CAE externo es GestorCae en SU organización: el
+            // rol con el que opera aquí lo da la Asignación de Operador Delegado.
             Cuenta(_gestorExterno, _operadorExterno.Id, Roles.GestorCae);
 
             var clienteA = Empresa.CrearComoCliente("Cliente empresarial A", "B10380186", false, null, null);
