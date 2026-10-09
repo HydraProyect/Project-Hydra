@@ -191,6 +191,39 @@
   <data name="BorrarFiltroGuardado" xml:space="preserve">
     <value>Esborra el filtre desat {0}</value>
   </data>
+  <data name="FiltroGuardadoModalTitulo" xml:space="preserve">
+    <value>Desa el filtre actual</value>
+  </data>
+  <data name="FiltroGuardadoNombre" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="FiltroGuardadoNombrePlaceholder" xml:space="preserve">
+    <value>Pendents de revisar</value>
+  </data>
+  <data name="FiltroGuardadoSinNombre" xml:space="preserve">
+    <value>Escriu un nom per al filtre</value>
+  </data>
+  <data name="FiltroGuardadoGuardar" xml:space="preserve">
+    <value>Desa</value>
+  </data>
+  <data name="FiltroGuardadoCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="FiltroGuardadoToast" xml:space="preserve">
+    <value>Filtre desat.</value>
+  </data>
+  <data name="FiltroGuardadoBorrarTitulo" xml:space="preserve">
+    <value>Vols esborrar el filtre desat «{0}»?</value>
+  </data>
+  <data name="FiltroGuardadoBorrarMensaje" xml:space="preserve">
+    <value>Desapareixerà dels teus filtres desats d'aquesta pantalla. No esborra cap dada ni canvia el que la llista mostra ara.</value>
+  </data>
+  <data name="FiltroGuardadoBorrarBoton" xml:space="preserve">
+    <value>Esborra el filtre</value>
+  </data>
+  <data name="FiltroGuardadoBorrarError" xml:space="preserve">
+    <value>No hem pogut esborrar el filtre desat. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
     <value>Logo de la organización</value>
   </data>
