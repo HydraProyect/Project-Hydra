@@ -531,6 +531,17 @@ public sealed class WebAppFixtureEscenariosDireccion : WebAppFixture
 /// vigente que ya une al Operador CAE externo con el Tenant propietario: si no hay exactamente una,
 /// no se inserta nada y la siembra falla.
 /// </para>
+///
+/// <para>
+/// <b>La Asignación de Cartera también se siembra aquí.</b> La siembra de demo da al Administrador
+/// del Operador CAE externo una asignación de Operador Delegado (vía heredada) sobre los dos
+/// Tenants propietarios, pero ninguna cartera: el relleno de carteras solo emite la de Consulta
+/// (<c>AsignacionesOperativasBackfillSeeder.RolesDeAlcanceTotal</c>). Sin cartera entra por la vía
+/// heredada, que nunca se eleva, y el encargo no sube ningún techo. La fixture le da una cartera
+/// de Gestor CAE <b>del Tenant entero</b> (ámbito universal) bajo cada una de las dos operaciones:
+/// el encargo solo eleva una cartera universal, y con la misma cartera en los dos Tenants lo único
+/// que los distingue es la fila del encargo. No se toca la siembra de demo de <c>src/</c>.
+/// </para>
 /// </summary>
 [CollectionDefinition("AppCollectionEncargoAdministracion")]
 public class AppCollectionEncargoAdministracion : ICollectionFixture<WebAppFixtureEncargoAdministracion>;
@@ -564,6 +575,8 @@ public sealed class WebAppFixtureEncargoAdministracion : WebAppFixture
         {
             if (_encargoId is not null)
                 return _encargoId;
+
+            await SembrarCarterasDelTenantEnteroAsync();
 
             var id = Guid.CreateVersion7().ToString();
             var filas = await EjecutarSqlAsync(
@@ -606,5 +619,46 @@ public sealed class WebAppFixtureEncargoAdministracion : WebAppFixture
         {
             _candado.Release();
         }
+    }
+
+    /// <summary>
+    /// Una Asignación de Cartera vigente, de Gestor CAE y de ámbito universal, del Administrador del
+    /// Operador CAE externo de demo bajo la operación de cada uno de los dos Tenants propietarios.
+    /// Las columnas son las de <c>AsignacionesCartera</c> en la línea base del esquema; los ámbitos
+    /// se dejan nulos (universal) y <c>EsPrincipal</c> en su valor por defecto. Tienen que salir
+    /// exactamente dos filas: una por Tenant propietario.
+    /// </summary>
+    private async Task SembrarCarterasDelTenantEnteroAsync()
+    {
+        var filas = await EjecutarSqlAsync(
+            """
+            INSERT INTO "AsignacionesCartera"
+                ("Id", "AsignacionOperacionId", "UsuarioId", "Rol", "PropietarioTenantId", "OperadorTenantId",
+                 "VigenciaDesde", "Estado", "Version", "CreadoEnUtc")
+            SELECT gen_random_uuid(), o."Id", u."Id", 'GestorCae', o."PropietarioTenantId", o."OperadorTenantId",
+                   @ahora::timestamptz - interval '1 hour', 'Vigente', gen_random_uuid(), @ahora::timestamptz
+            FROM "AsignacionesOperacion" o
+            JOIN "Tenants" propietario ON propietario."Id" = o."PropietarioTenantId"
+            JOIN "Tenants" operador ON operador."Id" = o."OperadorTenantId"
+            CROSS JOIN "AspNetUsers" u
+            WHERE propietario."Nombre" IN (@conEncargo, @sinEncargo)
+              AND operador."Nombre" = @operador
+              AND u."NormalizedEmail" = upper(@gestor)
+              AND u."TenantId" = o."OperadorTenantId"
+              AND NOT o."EsRaiz"
+              AND o."OperadorTenantId" <> o."PropietarioTenantId"
+              AND o."Estado" = 'Vigente'
+              AND o."VigenciaHasta" IS NULL
+              AND o."AmbitoRelacionClienteId" IS NULL
+              AND o."AmbitoCentroId" IS NULL
+              AND o."AmbitoTrabajadorId" IS NULL
+              AND o."AmbitoProyectoId" IS NULL
+            """,
+            ("ahora", DateTime.UtcNow.ToString("O")),
+            ("conEncargo", TenantConEncargo),
+            ("sinEncargo", TenantSinEncargo),
+            ("operador", Ayudas.NombreTenantConsultora),
+            ("gestor", Ayudas.EmailAdministradorConsultora));
+        Assert.Equal(2, filas);
     }
 }

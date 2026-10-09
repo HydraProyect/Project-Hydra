@@ -4,12 +4,13 @@ namespace CaeManager.E2ETests;
 
 /// <summary>
 /// Encargo de administración (decisión D-8, 2026-10-08) con un navegador real. El protagonista es
-/// el Administrador del Operador CAE externo de demo, que tiene Asignación de Cartera vigente (rol
-/// Gestor CAE) sobre dos Tenants propietarios: uno le ha encargado su administración
-/// (<see cref="WebAppFixtureEncargoAdministracion.TenantConEncargo"/>) y el otro no
+/// el Administrador del Operador CAE externo de demo, con Asignación de Cartera vigente (rol
+/// Gestor CAE, del Tenant entero) sobre dos Tenants propietarios: uno le ha encargado su
+/// administración (<see cref="WebAppFixtureEncargoAdministracion.TenantConEncargo"/>) y el otro no
 /// (<see cref="WebAppFixtureEncargoAdministracion.TenantSinEncargo"/>). La misma cuenta, la misma
 /// cartera y el mismo rol en su Tenant de origen: lo único que cambia entre los dos es la fila del
-/// encargo, que siembra la fixture.
+/// encargo. Las dos carteras y el encargo los siembra la fixture: la siembra de demo solo le da la
+/// vía heredada de Operador Delegado, que no se eleva.
 ///
 /// <list type="number">
 /// <item>Sin encargo no abre la configuración del Tenant propietario: opera con el techo de su
