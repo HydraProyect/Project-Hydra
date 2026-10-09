@@ -374,6 +374,9 @@ public class AltaDeGestorCaeConCarteraTests : IAsyncLifetime
             public Task<ResultadoIncorporacionCartera> IncorporarAsync(
                 SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default) =>
                 Real.IncorporarAsync(solicitud, cancellationToken);
+            public Task<ResultadoApoyoCartera> IncorporarApoyoAsync(
+                PropuestaApoyoCartera propuesta, CancellationToken cancellationToken = default) =>
+                Real.IncorporarApoyoAsync(propuesta, cancellationToken);
             public Task RetirarAsync(SolicitudIncorporacionCartera solicitud, CancellationToken cancellationToken = default) =>
                 Real.RetirarAsync(solicitud, cancellationToken);
             public Task<IReadOnlyList<TenantEnCarteraDeGestor>> ObtenerCarteraUniversalAsync(

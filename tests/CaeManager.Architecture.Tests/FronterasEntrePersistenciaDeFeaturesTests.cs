@@ -753,6 +753,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Operaciones.RechazarSolicitudIncorporacionCarteraCommandHandler", "ITenantsQueryContext"),
         ("Operaciones.RevocarIncorporacionCarteraCommandHandler", "INotificacionUsuarioRepository"),
         ("Operaciones.RevocarIncorporacionCarteraCommandHandler", "ITenantsQueryContext"),
+
+        // Propuesta de apoyo (2026-10-08): el destinatario y quien la propone ven
+        // el Tenant propietario rotulado «Empresa» por su nombre, igual que en la
+        // solicitud de incorporación. Solo lee el nombre de los Tenants de las
+        // propuestas que el repositorio ya acotó al Operador CAE de origen.
+        ("Operaciones.ObtenerPropuestasApoyoPendientesQueryHandler", "ITenantsQueryContext"),
     };
 
     [Fact]
