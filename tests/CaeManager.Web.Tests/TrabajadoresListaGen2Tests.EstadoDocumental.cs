@@ -118,8 +118,8 @@ public partial class TrabajadoresListaGen2Tests
         var celda = CeldaDeEstado(cut);
         celda.QuerySelector(".motivo-incidencias-texto")!.TextContent.Trim().Should().Be("1 vencido · 1 sin confirmar",
             "control positivo: el motivo se ve igual");
-        celda.QuerySelectorAll(".ventana-linea").Should().HaveCount(2, "control positivo: el desglose también");
         celda.QuerySelectorAll("button").Should().BeEmpty("no se ofrece un formulario que el comando va a denegar");
+        celda.QuerySelectorAll(".ventana-linea").Should().HaveCount(2, "control positivo: el desglose se sigue viendo");
     }
 
     [Fact]
