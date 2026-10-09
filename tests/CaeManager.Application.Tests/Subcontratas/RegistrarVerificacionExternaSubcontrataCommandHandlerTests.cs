@@ -22,11 +22,12 @@ namespace CaeManager.Application.Tests.Subcontratas;
 /// perteneciera a una <see cref="RelacionEmpresarial"/> vigente de ESTA
 /// Subcontrata — un usuario con gestión sobre una Subcontrata y el id de
 /// cualquier otro Centro del tenant podía registrar una verificación ajena.
-/// Mismo criterio de pertenencia que <c>CentrosSeleccionables</c> de
+/// Mismo criterio que <c>CentrosSeleccionables</c> de
 /// <c>ObtenerSupervisionSubcontrataQuery</c> (única fuente del selector de
-/// Centro del drawer; desde 2026-10-09 además acotada a los Centros visibles
-/// para quien pregunta, cruce que el comando no repite) y que
-/// <c>_tiposVerificables</c> del drawer para el tipo documental.
+/// Centro del drawer) en sus dos mitades —Relación Empresarial vigente y,
+/// desde 2026-10-09, Centro al alcance de quien pregunta, que el comando
+/// repite con el alcance de gestión— y que <c>_tiposVerificables</c> del
+/// drawer para el tipo documental.
 /// </summary>
 public class RegistrarVerificacionExternaSubcontrataCommandHandlerTests
 {
@@ -213,4 +214,79 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandlerTests
         verificaciones.Verificaciones.Should().BeEmpty();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
+
+    /// <summary>
+    /// Revisión puente 2026-10-09. Un Gestor CAE (o su Coordinador CAE) amparado por una
+    /// Asignación de Operación acotada a un Cliente empresarial gestiona la Subcontrata —le
+    /// llega por la Relación Empresarial con ese Cliente empresarial— pero no los Centros de
+    /// OTRO Cliente empresarial al que la misma Subcontrata también sirve. La Relación
+    /// Empresarial vigente con ese otro no basta: el Centro tiene que estar además al alcance
+    /// de gestión de quien registra.
+    ///
+    /// La respuesta es la de «no existe», también cuando ese Centro no requiere gestión CAE:
+    /// contestar «CentroSinGestionCae» confirmaría que el Centro existe y cómo está configurado.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Falla_como_centro_no_encontrado_cuando_el_Centro_no_esta_al_alcance_de_gestion_de_quien_registra(bool sinGestionCae)
+    {
+        var (subcontrata, _, centroAlAlcance, tipo, subcontratas, empresas, centros, tipos) = PrepararEscenario();
+        var centroFueraDeAlcance = AgregarCentroDeOtroClienteEmpresarialConRelacionVigente(subcontrata, empresas, centros);
+        if (sinGestionCae)
+            centroFueraDeAlcance.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
+        var verificaciones = new VerificacionExternaSubcontrataRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new RegistrarVerificacionExternaSubcontrataCommandHandler(
+            subcontratas, verificaciones, centros, empresas, tipos,
+            GestionAcotadaAlCentro(subcontrata, centroAlAlcance),
+            new CurrentUserServiceFalso(Guid.NewGuid()), new FileStorageServiceFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new RegistrarVerificacionExternaSubcontrataCommand(
+                subcontrata.Id, centroFueraDeAlcance.Id, tipo.Id, new DateOnly(2026, 1, 1), ResultadoVerificacionExterna.Valido, null, null),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("VerificacionExterna.CentroNoEncontrado");
+        verificaciones.Verificaciones.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>Control del anterior: con el mismo alcance acotado, el Centro que sí gestiona se sigue pudiendo verificar.</summary>
+    [Fact]
+    public async Task Registra_la_verificacion_en_el_Centro_que_si_esta_al_alcance_de_gestion_de_quien_registra()
+    {
+        var (subcontrata, _, centroAlAlcance, tipo, subcontratas, empresas, centros, tipos) = PrepararEscenario();
+        AgregarCentroDeOtroClienteEmpresarialConRelacionVigente(subcontrata, empresas, centros);
+        var verificaciones = new VerificacionExternaSubcontrataRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new RegistrarVerificacionExternaSubcontrataCommandHandler(
+            subcontratas, verificaciones, centros, empresas, tipos,
+            GestionAcotadaAlCentro(subcontrata, centroAlAlcance),
+            new CurrentUserServiceFalso(Guid.NewGuid()), new FileStorageServiceFalso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new RegistrarVerificacionExternaSubcontrataCommand(
+                subcontrata.Id, centroAlAlcance.Id, tipo.Id, new DateOnly(2026, 1, 1), ResultadoVerificacionExterna.Valido, null, null),
+            CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        verificaciones.Verificaciones.Should().ContainSingle().Which.CentroId.Should().Be(centroAlAlcance.Id);
+    }
+
+    private static Centro AgregarCentroDeOtroClienteEmpresarialConRelacionVigente(
+        Empresa subcontrata, EmpresasQueryContextFalso empresas, CentrosQueryContextFalso centros)
+    {
+        var otroClienteEmpresarial = Empresa.CrearComoCliente("Otro Cliente empresarial S.A.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var centro = new Centro(otroClienteEmpresarial.Id, Guid.NewGuid(), "Planta de otro Cliente empresarial");
+        empresas.ListaEmpresas.Add(otroClienteEmpresarial);
+        empresas.ListaRelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrata.Id, otroClienteEmpresarial.Id, DateTime.UtcNow.AddMonths(-6)));
+        centros.ListaCentros.Add(centro);
+        return centro;
+    }
+
+    /// <summary>Gestiona la Subcontrata, pero de los Centros solo el indicado (lista explícita, no null).</summary>
+    private static AlcanceDatosServiceFalso GestionAcotadaAlCentro(Empresa subcontrata, Centro centro) =>
+        new(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrata.Id], centroIdsVisibles: [centro.Id]);
 }

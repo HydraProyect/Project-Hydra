@@ -78,16 +78,19 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandler(
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 
         // Ids ajenos bajo el filtro de tenant = no encontrados (regla global del repo).
-        // Mismo criterio de pertenencia que CentrosSeleccionables de ObtenerSupervisionSubcontrataQuery:
-        // el Centro tiene que estar bajo un Cliente con una RelacionEmpresarial vigente
-        // con ESTA Subcontrata — si no, es un Centro ajeno aunque exista en el tenant.
-        // El selector, además, solo ofrece los Centros visibles para quien pregunta; este
-        // comando no repite ese cruce: comprueba la gestión sobre la Subcontrata, no sobre el Centro.
+        // Mismo criterio que CentrosSeleccionables de ObtenerSupervisionSubcontrataQuery, en sus dos
+        // mitades. Pertenencia: el Centro tiene que estar bajo un Cliente con una RelacionEmpresarial
+        // vigente con ESTA Subcontrata — si no, es un Centro ajeno aunque exista en el tenant.
+        // Alcance: además tiene que estar al alcance de gestión de quien registra. Gestionar la
+        // Subcontrata no basta: bajo una Asignación de Operación acotada a un Cliente empresarial se
+        // gestiona la Subcontrata sin gestionar los Centros de otro Cliente empresarial al que también sirve.
+        // Las dos negativas responden igual, y antes que la comprobación de gestión CAE de abajo: un
+        // Centro fuera de alcance no se distingue de uno que no existe.
         var centroEnRelacionVigente = await empresasContext.RelacionesEmpresariales
             .Where(r => r.ProveedoraId == request.SubcontrataId && r.VigenciaHasta == null)
             .Join(centrosContext.Centros, r => r.ClienteId, c => c.ClienteId, (r, c) => c.Id)
             .AnyAsync(id => id == request.CentroId, cancellationToken);
-        if (!centroEnRelacionVigente)
+        if (!centroEnRelacionVigente || !await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("VerificacionExterna.CentroNoEncontrado", "No encontramos este centro."));
 
         // P1-X2: un Centro sin gestión CAE no acredita nada ante nadie; sus
