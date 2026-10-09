@@ -13,7 +13,9 @@ namespace CaeManager.Application.Tenants.Commands.CrearDelegacionTenant;
 /// Crea un Delegated Workspace: autoriza a la Consultora
 /// <paramref name="TenantConsultoraId"/> a operar sobre el Cliente Delegante
 /// <paramref name="TenantClienteId"/> (ADR-004 § 5.3). No concede acceso a
-/// ningún usuario por sí sola — eso es <c>CrearAsignacionOperadorDelegadoCommand</c>.
+/// ningún usuario por sí sola: las personas entran después por una Asignación de Cartera
+/// que decide el propio Operador CAE externo (<c>ICatalogoIncorporacionCartera.IncorporarAsync</c>,
+/// desde <c>/usuarios</c> o al aceptar una solicitud de cartera).
 ///
 /// <para>
 /// <b>Incremento 1b del aprovisionamiento</b> (decisión del propietario, 2026-09-22,

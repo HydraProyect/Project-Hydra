@@ -1,0 +1,31 @@
+@*
+    Banda bajo la cabecera de identidad de una página 360 (mockups «… 360
+    página» del 2026-10-08, .banda): dice qué le pasa a lo que se está viendo
+    y deja corregirlo desde ahí. El contenido mezcla texto con incidencias
+    nombradas (<IncidenciaBanda>), cada una pulsable; a la derecha, un enlace
+    con la acción general («Renovar ITV»).
+
+    Sin delegado en OnEnlace no hay enlace: es como se pinta para el rol
+    Consulta, que conserva el texto y pierde los botones.
+*@
+<div class="banda-accion" role="status" data-pieza="banda" data-tono="@TonoPieza">
+    <span class="banda-accion-texto">@ChildContent</span>
+    @if (OnEnlace.HasDelegate && !string.IsNullOrWhiteSpace(TextoEnlace))
+    {
+        <button type="button" class="banda-accion-enlace" @onclick="OnEnlace">@TextoEnlace</button>
+    }
+</div>
+
+@code {
+    private string TonoPieza => Tono == TonoBanda.Advertencia ? "advertencia" : "peligro";
+
+    [Parameter] public TonoBanda Tono { get; set; } = TonoBanda.Peligro;
+
+    /// <summary>Texto de la banda, con sus <see cref="IncidenciaBanda"/> intercaladas.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Rótulo del enlace de la derecha. Solo se pinta si además hay <see cref="OnEnlace"/>.</summary>
+    [Parameter] public string? TextoEnlace { get; set; }
+
+    [Parameter] public EventCallback OnEnlace { get; set; }
+}

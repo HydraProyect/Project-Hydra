@@ -18,7 +18,8 @@ namespace CaeManager.Application.Subcontratas;
 /// excluyente), así que toda causa aquí es siempre de un Trabajador.
 /// </summary>
 public record IncidenciaSubcontrataDto(
-    string Descripcion, EstadoDocumento Estado, Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento);
+    string Descripcion, EstadoDocumento Estado, Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento,
+    Guid? TrabajadorId = null);
 
 /// <summary>Desglose de las incidencias de una Subcontrata por estado — mismo criterio que <c>RecuentosCentroDto</c>: no lleva contadores propios, se derivan de las listas.</summary>
 public record RecuentosSubcontrataDto(
@@ -201,7 +202,7 @@ public class CalculoEstadoSubcontrataService(
 
                 causasPorSubcontrata[subcontrataId].Add(new IncidenciaSubcontrataDto(
                     $"{nombrePorTipo[tipoId]} — {nombrePorTrabajador[trabajadorId]}", estado,
-                    tieneDocumento ? documento!.Id : null, tipoId, tieneDocumento ? documento!.FechaVencimiento : null));
+                    tieneDocumento ? documento!.Id : null, tipoId, tieneDocumento ? documento!.FechaVencimiento : null, trabajadorId));
             }
 
             fraccionPorSubcontrata[subcontrataId] = actual;

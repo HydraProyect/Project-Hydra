@@ -1,0 +1,48 @@
+.banda-accion {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    padding: 10px var(--space-4);
+    border: 1px solid;
+    border-radius: var(--radius-md);
+    font: var(--font-body-md);
+    font-weight: 500;
+}
+
+.banda-accion[data-tono="peligro"] {
+    background: var(--color-danger-50);
+    color: var(--color-danger-700);
+    border-color: color-mix(in srgb, var(--color-danger-700) 35%, transparent);
+}
+
+.banda-accion[data-tono="advertencia"] {
+    background: var(--color-warning-50);
+    color: var(--color-warning-700);
+    border-color: color-mix(in srgb, var(--color-warning-700) 35%, transparent);
+}
+
+.banda-accion-texto {
+    display: inline-flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.3em;
+}
+
+.banda-accion-enlace {
+    margin-left: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: 700;
+    color: inherit;
+    text-decoration: underline;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.banda-accion-enlace:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}

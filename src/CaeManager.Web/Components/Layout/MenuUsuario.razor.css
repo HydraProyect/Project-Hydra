@@ -125,6 +125,13 @@
     outline-offset: -2px;
 }
 
+/* Rótulo del grupo «Mi cuenta»: no es un elemento del menú, solo lo encabeza. */
+.menu-cuenta-titulo {
+    padding: var(--space-2) var(--space-3) var(--space-1);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
 .menu-cuenta-idioma {
     display: flex;
     padding: var(--space-1) var(--space-3);

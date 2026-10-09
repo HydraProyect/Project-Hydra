@@ -1,0 +1,62 @@
+@*
+    Contadores de estado sobre una lista de una página 360 (mockups «… 360
+    página» del 2026-10-08, .chips): «Todos · 4», «Vencido · 1», «Por vencer
+    · 1»… Cada contador es un botón con aria-pressed. La selección es
+    múltiple —marcar «Vencido» y «Por vencer» enseña los dos— y «Todos» la
+    borra (decisión de Chris del 2026-10-08).
+
+    Solo se pinta un contador por estado presente en la lista; uno que se
+    quede a cero mientras está marcado sigue a la vista para poder quitarlo.
+
+    No es FiltroEstado: aquel es el desplegable de selección única de la
+    barra de filtros de un listado.
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<div class="filtro-estados" role="group" aria-label="@(Etiqueta ?? Comunes["FiltrarPorEstado"])">
+    <button type="button" class="filtro-estados-opcion"
+            aria-pressed="@(Seleccion.Count == 0 ? "true" : "false")"
+            @onclick="LimpiarAsync">@(TextoTodos ?? Comunes["FiltroEstadosTodos"]) · <b>@Total</b></button>
+    @foreach (var opcion in Opciones)
+    {
+        var marcada = Seleccion.Contains(opcion.Valor);
+        if (opcion.Recuento > 0 || marcada)
+        {
+            <button type="button" class="filtro-estados-opcion"
+                    aria-pressed="@(marcada ? "true" : "false")"
+                    @onclick="() => AlternarAsync(opcion.Valor)">@opcion.Texto · <b>@opcion.Recuento</b></button>
+        }
+    }
+</div>
+
+@code {
+    private static readonly IReadOnlySet<string> Ninguno = new HashSet<string>();
+
+    [Parameter, EditorRequired] public IReadOnlyList<OpcionEstadoRecuento> Opciones { get; set; } = [];
+
+    /// <summary>Valores marcados. Vacío equivale a «Todos».</summary>
+    [Parameter] public IReadOnlySet<string> Seleccion { get; set; } = Ninguno;
+    [Parameter] public EventCallback<IReadOnlySet<string>> SeleccionChanged { get; set; }
+
+    /// <summary>Número de filas de la lista sin filtrar: la cifra de «Todos».</summary>
+    [Parameter] public int Total { get; set; }
+
+    /// <summary>Rótulo del contador que borra la selección. Por defecto, «Todos».</summary>
+    [Parameter] public string? TextoTodos { get; set; }
+
+    /// <summary>Nombre accesible del grupo. Por defecto, «Filtrar por estado».</summary>
+    [Parameter] public string? Etiqueta { get; set; }
+
+    private Task LimpiarAsync() =>
+        Seleccion.Count == 0 ? Task.CompletedTask : SeleccionChanged.InvokeAsync(Ninguno);
+
+    private Task AlternarAsync(string valor)
+    {
+        var nueva = new HashSet<string>(Seleccion);
+        if (!nueva.Remove(valor))
+            nueva.Add(valor);
+        return SeleccionChanged.InvokeAsync(nueva);
+    }
+}

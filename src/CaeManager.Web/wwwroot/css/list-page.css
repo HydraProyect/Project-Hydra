@@ -243,56 +243,91 @@
     gap: var(--space-2);
 }
 
-/* Filas con problema (vencido o bloqueo / urgente): fondo plano del tono y franja de 3 px
-   a la izquierda. Sin degradado: el contraste se mide con el fondo plano. Más específica
-   que el resalte al pasar el puntero, para que la fila no pierda el tono. */
-.tabla-datos tr.fila-tintada-peligro td {
+/*
+  Fila con problema (vencido, bloqueo o crítico: peligro; urgente: aviso). ÚNICO sitio de la regla,
+  para listados y fichas 360: el tono entra por la izquierda y se funde con la superficie al 75 %
+  del ancho; al pasar el puntero la fila queda teñida entera. Sin franja lateral y sin borde.
+
+  Cómo está hecho: el tono es el background-color (plano, que es lo que mide el trinquete de
+  contraste por tema) y encima va una capa de degradado de transparente a --color-surface, el doble
+  de ancha que la fila. En reposo se ve su mitad derecha (transparente hasta el 75 % de la fila,
+  superficie después); con el puntero, la mitad izquierda, toda transparente. Se anima solo
+  background-position. Las propiedades van sueltas (background-color, background-image...) y no
+  en el atajo «background», para que el color siga siendo medible.
+
+  Quién lo lleva: el <tr> de .tabla-datos, la cabecera de una fila de acordeón, la cabecera de un
+  grupo y cualquier elemento con .fila-degradado-peligro / .fila-degradado-aviso (filas de las
+  fichas 360, cuyo CSS es aislado y no puede colgarse de los selectores de listado).
+*/
+.tabla-datos tr.fila-tintada-peligro,
+.tarjeta-fila-acordeon.fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera,
+.grupo-lista.fila-tintada-peligro > .grupo-lista-cabecera,
+.fila-degradado-peligro {
     background-color: var(--color-danger-50);
     color: var(--color-text);
 }
 
-.tabla-datos tr.fila-tintada-aviso td {
+.tabla-datos tr.fila-tintada-aviso,
+.tarjeta-fila-acordeon.fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera,
+.grupo-lista.fila-tintada-aviso > .grupo-lista-cabecera,
+.fila-degradado-aviso {
     background-color: var(--color-warning-50);
     color: var(--color-text);
 }
 
-.tabla-datos tr.fila-tintada-peligro td:first-child {
-    box-shadow: inset 3px 0 0 var(--color-danger-700);
+.tabla-datos tr.fila-tintada-peligro,
+.tabla-datos tr.fila-tintada-aviso,
+.tarjeta-fila-acordeon.fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera,
+.tarjeta-fila-acordeon.fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera,
+.grupo-lista.fila-tintada-peligro > .grupo-lista-cabecera,
+.grupo-lista.fila-tintada-aviso > .grupo-lista-cabecera,
+.fila-degradado-peligro,
+.fila-degradado-aviso {
+    background-image: linear-gradient(90deg, transparent 0, transparent 50%, var(--color-surface) 87.5%, var(--color-surface) 100%);
+    background-size: 200% 100%;
+    background-position: 100% 0;
+    background-repeat: no-repeat;
+    transition: background-position 360ms var(--ease-fluid);
 }
 
-.tabla-datos tr.fila-tintada-aviso td:first-child {
-    box-shadow: inset 3px 0 0 var(--color-warning-700);
+.tabla-datos tr.fila-tintada-peligro:hover,
+.tabla-datos tr.fila-tintada-aviso:hover,
+.tarjeta-fila-acordeon.fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera:hover,
+.tarjeta-fila-acordeon.fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera:hover,
+.grupo-lista.fila-tintada-peligro > .grupo-lista-cabecera:hover,
+.grupo-lista.fila-tintada-aviso > .grupo-lista-cabecera:hover,
+.fila-degradado-peligro:hover,
+.fila-degradado-aviso:hover {
+    background-position: 0 0;
 }
 
-/* Fila tintada que además tiene el foco de j/k: conserva el tinte y la franja de su estado
-   (las reglas de arriba ganan a .fila-enfocada por especificidad) y suma la señal de foco
-   como líneas arriba y abajo, para que no se pierda ninguna de las dos. */
+@media (prefers-reduced-motion: reduce) {
+    .tabla-datos tr.fila-tintada-peligro,
+    .tabla-datos tr.fila-tintada-aviso,
+    .tarjeta-fila-acordeon.fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera,
+    .tarjeta-fila-acordeon.fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera,
+    .grupo-lista.fila-tintada-peligro > .grupo-lista-cabecera,
+    .grupo-lista.fila-tintada-aviso > .grupo-lista-cabecera,
+    .fila-degradado-peligro,
+    .fila-degradado-aviso {
+        transition: none;
+    }
+}
+
+/* En la tabla el degradado es de la fila entera, así que sus celdas no pintan fondo: ni el gris
+   del puntero (.tabla-datos tr:hover td) ni el azul del foco de j/k (.fila-enfocada td). */
+.tabla-datos tr.fila-tintada-peligro td,
+.tabla-datos tr.fila-tintada-aviso td,
+.tabla-datos tr.fila-tintada-peligro:hover td,
+.tabla-datos tr.fila-tintada-aviso:hover td {
+    background-color: transparent;
+}
+
+/* Fila tintada que además tiene el foco de j/k: conserva el degradado de su estado y suma la
+   señal de foco como líneas arriba y abajo, para que no se pierda ninguna de las dos. */
 .tabla-datos tr.fila-enfocada.fila-tintada-peligro td,
 .tabla-datos tr.fila-enfocada.fila-tintada-aviso td {
     box-shadow: inset 0 2px 0 var(--color-primary-400), inset 0 -2px 0 var(--color-primary-400);
-}
-
-.tabla-datos tr.fila-enfocada.fila-tintada-peligro td:first-child {
-    box-shadow: inset 3px 0 0 var(--color-danger-700), inset 0 2px 0 var(--color-primary-400), inset 0 -2px 0 var(--color-primary-400);
-}
-
-.tabla-datos tr.fila-enfocada.fila-tintada-aviso td:first-child {
-    box-shadow: inset 3px 0 0 var(--color-warning-700), inset 0 2px 0 var(--color-primary-400), inset 0 -2px 0 var(--color-primary-400);
-}
-
-/* Las mismas filas tintadas en los listados de acordeón (Empresas, Subcontratas, Centros): el
-   tinte va en la cabecera de la fila, no en el desplegable. Más específicas que el resalte al
-   pasar el puntero (.tarjeta-fila-acordeon-cabecera:hover), para que la fila no pierda el tono. */
-.tarjeta-fila-acordeon.fila-tintada-peligro > .tarjeta-fila-acordeon-cabecera {
-    background-color: var(--color-danger-50);
-    color: var(--color-text);
-    box-shadow: inset 3px 0 0 var(--color-danger-700);
-}
-
-.tarjeta-fila-acordeon.fila-tintada-aviso > .tarjeta-fila-acordeon-cabecera {
-    background-color: var(--color-warning-50);
-    color: var(--color-text);
-    box-shadow: inset 3px 0 0 var(--color-warning-700);
 }
 
 /* En la fila del modo pastillas, «Expandir todo» y compañía van en línea con los filtros. */
@@ -334,10 +369,11 @@
 }
 
 /* Cabecera de grupo de un listado de acordeón agrupado (Centros por Cliente empresarial): fila
-   entera pulsable con chevron, nombre, contador y resumen. Tintada con el peor estado del grupo
-   con las mismas reglas planas que las filas. */
+   entera pulsable con chevron, nombre, contador y resumen. Blanca, con el gris de fila al pasar
+   el puntero; si el grupo contiene vencidos o urgentes lleva el mismo degradado que las filas
+   (regla única de «Fila con problema», arriba). */
 .grupo-lista {
-    border-top: 1px solid var(--color-border);
+    border-top: 1px solid var(--color-fila-divisor);
 }
 
 .grupo-lista-cabecera {
@@ -348,11 +384,15 @@
     min-height: 40px;
     padding: var(--space-2) var(--space-3);
     border: 0;
-    background-color: var(--color-surface-subtle);
+    background-color: var(--color-surface);
     color: var(--color-text);
     font-weight: 600;
     text-align: left;
     cursor: pointer;
+}
+
+.grupo-lista-cabecera:hover {
+    background-color: var(--color-fila-hover);
 }
 
 /* Grupos abiertos por algo ajeno a ellos (búsqueda, selección múltiple, Centro en la URL): la
@@ -394,18 +434,6 @@
     gap: var(--space-2);
     margin-left: auto;
     font-weight: 500;
-}
-
-.grupo-lista.fila-tintada-peligro > .grupo-lista-cabecera {
-    background-color: var(--color-danger-50);
-    color: var(--color-text);
-    box-shadow: inset 3px 0 0 var(--color-danger-700);
-}
-
-.grupo-lista.fila-tintada-aviso > .grupo-lista-cabecera {
-    background-color: var(--color-warning-50);
-    color: var(--color-text);
-    box-shadow: inset 3px 0 0 var(--color-warning-700);
 }
 
 .grupo-lista.fila-tintada-peligro .grupo-lista-contador,
@@ -893,7 +921,7 @@
   la fila correcta.
 */
 .tarjeta-fila-acordeon-cabecera:hover {
-    background-color: var(--color-surface-hover);
+    background-color: var(--color-fila-hover);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1416,8 +1444,8 @@
     letter-spacing: 0.04em;
     font-size: 0.6875rem;
     color: var(--color-text-muted);
-    background-color: var(--color-surface-hover);
-    border-bottom: var(--border-default);
+    background-color: var(--color-surface);
+    border-bottom: 1px solid var(--color-fila-divisor);
 }
 
 /*
@@ -1433,9 +1461,11 @@
     color: inherit;
 }
 
+/* Divisor entre filas: va en la celda, por encima del fondo de la fila, así que se ve igual
+   sobre el rojo y el ámbar de una fila con problema. */
 .tabla-datos td {
     padding: var(--space-4);
-    border-bottom: var(--border-default);
+    border-bottom: 1px solid var(--color-fila-divisor);
     font: var(--font-body-md);
 }
 
@@ -1445,7 +1475,7 @@
 
 /* Resalte de fila: es la funcion que --motion-base declara (07 § 8). */
 .tabla-datos tr:hover td {
-    background-color: var(--color-surface-hover);
+    background-color: var(--color-fila-hover);
     transition: background-color var(--motion-base) var(--ease-standard);
 }
 

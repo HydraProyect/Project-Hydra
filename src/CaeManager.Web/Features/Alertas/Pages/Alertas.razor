@@ -15,10 +15,13 @@
 @using MediatR
 @using Microsoft.Extensions.Localization
 @using CaeManager.Web.Features.IncorporacionCartera.Components
+@using CaeManager.Infrastructure.Comunicaciones
+@using Microsoft.Extensions.Options
 @inject IMediator Mediator
 @inject IStringLocalizer<TextosAlertas> Textos
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject ToastService ToastService
+@inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
@@ -114,8 +117,11 @@
                                ella (Conversacion.EmpresaId), pero llevar hasta él
                                exige un filtro por Empresa que esa pantalla todavía
                                no tiene — enlazar con ?cliente= abriría una bandeja
-                               vacía, que se leería como "no hay hilo". *@
-                            @if (lote.UltimaReclamacionConversacionId is not null && lote.Ambito != AmbitoAplicacion.Empresa)
+                               vacía, que se leería como "no hay hilo".
+                               Tampoco se ofrece con el módulo apagado (Comunicaciones:Activo):
+                               /comunicaciones redirige a «no encontrado», y el menú oculta su entrada. *@
+                            @if (lote.UltimaReclamacionConversacionId is not null && lote.Ambito != AmbitoAplicacion.Empresa
+                                 && OpcionesComunicaciones.Value.Activo)
                             {
                                 <a href="@($"/comunicaciones?cliente={lote.TitularId}")">@Textos["EnlaceVerEnComunicaciones"]</a>
                             }

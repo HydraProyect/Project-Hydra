@@ -80,6 +80,15 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     /// </summary>
     private string _rutaVerTodoMiTrabajo = RutaBandeja;
     private const string RutaBandeja = "/bandeja";
+
+    /// <summary>
+    /// Destino de cada fila de «Próximamente». Es el listado y no la Visita de la
+    /// fila porque hoy una Visita no tiene dirección propia: ni página de detalle
+    /// ni parámetro de consulta que la abra (el listado la abre desde su propio
+    /// estado). El enlace de la celda y el clic de la fila leen la misma constante
+    /// para que no puedan divergir cuando ese destino exista.
+    /// </summary>
+    private const string RutaVisitas = "/visitas";
     private IReadOnlyList<PendientePorPlataformaDto> _pendientePorPlataforma = [];
     private IReadOnlyList<ItemBandejaDto> _queLlegoSinVer = [];
     private IReadOnlyList<VisitaListaDto> _proximamente = [];

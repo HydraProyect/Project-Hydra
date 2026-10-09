@@ -87,8 +87,9 @@ public class CabeceraRedisenadaTests : BunitContext
         panel.QuerySelector(".menu-cuenta-nombre")!.TextContent.Trim().Should().Be("Elena Ríos");
 
         var enlaces = panel.QuerySelectorAll("a[role=menuitem]").Select(a => a.GetAttribute("href")).ToList();
-        enlaces.Should().Equal(["/mi-avatar", "/mi-firma"],
-            "el propio avatar, arriba del todo, lleva a elegirlo; después «Mi firma y mis datos»");
+        enlaces.Should().Equal(
+            ["/mi-avatar", "/mi-firma", "/cuenta/configurar-2fa", "/cuenta/cambiar-contrasena?motivo=mi-cuenta"],
+            "el propio avatar, arriba del todo, lleva a elegirlo; después «Mi cuenta»: firma, 2FA y contraseña");
 
         panel.QuerySelector("form.selector-idioma-formulario")!.GetAttribute("action").Should().Be("/cuenta/idioma",
             "el idioma sigue siendo el <form> POST de siempre, ahora dentro del menú");
@@ -98,6 +99,35 @@ public class CabeceraRedisenadaTests : BunitContext
         var cerrar = salida.QuerySelector("button.boton-cerrar-sesion")!;
         cerrar.GetAttribute("role").Should().Be("menuitem");
         cerrar.TextContent.Trim().Should().Be("Cerrar sesión");
+    }
+
+    /// <summary>
+    /// FS-16: leer o escribir credenciales de plataforma exige 2FA a roles a los que no se
+    /// les fuerza al iniciar sesión (AutorizacionSecretosDeTenantBehavior), y la entrada
+    /// lateral «Verificación en dos pasos» solo la ve Administrador. El menú de usuario es
+    /// la puerta voluntaria de todos, así que no depende del rol: se pinta sin autorización
+    /// registrada. Las dos páginas son estáticas y con otro layout.
+    /// </summary>
+    [Fact]
+    public void El_menu_de_usuario_ofrece_Mi_cuenta_con_dos_pasos_y_contrasena_a_cualquier_rol()
+    {
+        Services.AddSingleton<IOptions<OpcionesLocalizacion>>(Opciones.Create(new OpcionesLocalizacion()));
+        Services.AddSingleton<IMediator>(new MediatorFalso(_ => null));
+
+        var cut = Render<MenuUsuario>(p => p.Add(m => m.Nombre, "Marta Ruiz"));
+
+        var panel = cut.Find("#menu-cuenta-panel");
+        panel.QuerySelector(".menu-cuenta-titulo")!.TextContent.Trim().Should().Be("Mi cuenta");
+
+        var dosPasos = panel.QuerySelector("a[href='/cuenta/configurar-2fa']")!;
+        dosPasos.TextContent.Trim().Should().Be("Verificación en dos pasos");
+        dosPasos.GetAttribute("role").Should().Be("menuitem");
+        dosPasos.GetAttribute("data-enhance-nav").Should().Be("false");
+
+        var contrasena = panel.QuerySelector("a[href='/cuenta/cambiar-contrasena?motivo=mi-cuenta']")!;
+        contrasena.TextContent.Trim().Should().Be("Cambiar contraseña");
+        contrasena.GetAttribute("role").Should().Be("menuitem");
+        contrasena.GetAttribute("data-enhance-nav").Should().Be("false");
     }
 
     [Fact]

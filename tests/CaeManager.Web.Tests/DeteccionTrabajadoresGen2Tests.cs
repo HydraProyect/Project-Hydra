@@ -649,6 +649,32 @@ public class DeteccionTrabajadoresGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Resolver una detección es ResolverDeteccionNuevoCommand o ResolverDeteccionAusenteCommand, que
+    /// AutorizacionEscrituraBehavior deniega al rol Consulta. Empresa 360 le enseña el enlace a esta pantalla
+    /// (leer las detecciones es lectura), pero las cuatro acciones de fila no se le pintan.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.GestorCae, true)]
+    public void Las_acciones_de_fila_solo_se_pintan_a_un_rol_con_escritura(string rol, bool sePintan)
+    {
+        var escenario = new Escenario();
+        escenario.Nuevo(EmpresaA, "Iker", "Mena Ruiz", "12345678Z");
+        escenario.Ausente(EmpresaA, "Nuria", "Salas Prieto", "11223344B");
+        var (cut, _) = Renderizar(escenario, rol: rol);
+
+        // Barrera: las dos filas se leen con cualquier rol.
+        NombresPintados(cut).Should().HaveCount(2);
+
+        var botones = cut.FindAll("tr[data-deteccion] button").Select(Texto).ToList();
+        string[] acciones = ["Descartar", "Dar de alta", "Mantener activo", "Dar de baja"];
+        if (sePintan)
+            botones.Should().Contain(acciones);
+        else
+            botones.Should().NotContain(acciones);
+    }
+
+    /// <summary>
     /// «Sin cambios» y «nadie está mirando» se parecían demasiado: el vacío dice
     /// ahora de qué depende que la detección corra, y a quien puede activarla
     /// le dice dónde. Las dos pantallas son de Administrador.

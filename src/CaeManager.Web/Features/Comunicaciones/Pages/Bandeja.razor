@@ -595,6 +595,13 @@
                 <div class="alerta-formulario" role="alert">@_redactarError</div>
             }
 
+            @if (_conexionesRedactar.Count == 0)
+            {
+                @* FS-15: sin buzón no hay formulario que rellenar; se dice por qué y quién lo conecta. *@
+                <AvisoSinBuzonCorreo />
+            }
+            else
+            {
             @if (_conexionesRedactar.Count > 1)
             {
                 <CampoSelect Etiqueta="Enviar desde" Valor="@(_conexionRedactarId?.ToString() ?? string.Empty)" ValorChanged="v => _conexionRedactarId = Guid.TryParse(v, out var id) ? id : null">
@@ -609,10 +616,14 @@
             <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_redactarDestinatarios" ValorChanged="v => _redactarDestinatarios = v" Placeholder="contacto@cliente.com" />
             <CampoTexto Etiqueta="Asunto" Valor="@_redactarAsunto" ValorChanged="v => _redactarAsunto = v" />
             <CampoTextarea Etiqueta="Mensaje" Valor="@_redactarCuerpo" ValorChanged="v => _redactarCuerpo = v" Filas="6" />
+            }
         </ChildContent>
         <Pie>
             <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoRedaccion" OnClick="() => _drawerRedactar?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-            <Boton Variante="VarianteBoton.Primario" Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoDesdeRedactarAsync">Enviar</Boton>
+            @if (_conexionesRedactar.Count > 0)
+            {
+                <Boton Variante="VarianteBoton.Primario" Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoDesdeRedactarAsync">Enviar</Boton>
+            }
         </Pie>
     </Drawer>
 
@@ -633,7 +644,7 @@
             {
                 @if (!_borradorPrioridad.HayConexionDisponible)
                 {
-                    <div class="alerta-formulario" role="alert">No hay ningún buzón de correo conectado — conecta uno de Microsoft 365 antes de enviar.</div>
+                    <AvisoSinBuzonCorreo TextoParaCopiar="@AvisoSinBuzonCorreo.TextoDeCorreo(_asuntoPrioridad, AvisoSinBuzonCorreo.HtmlATexto(_cuerpoPrioridad))" Destinatarios="@_destinatarioPrioridad" />
                 }
                 @if (_borradorPrioridad.UltimaSolicitudEnviadaEnUtc is { } ultima)
                 {
