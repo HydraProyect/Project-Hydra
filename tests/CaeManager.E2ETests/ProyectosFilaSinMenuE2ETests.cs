@@ -50,8 +50,8 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixture fixture)
             await opcion.PressAsync("Space");
             await Expect(menu).ToBeHiddenAsync();
             await Expect(selector).ToHaveTextAsync("Cliente empresarial: " + nombre);
-            // La lista de ese Cliente empresarial ya está pintada (filas o estado vacío) antes de leerla.
-            await Expect(page.Locator("table.tabla-proyectos tbody tr, .estado-vacio").First).ToBeVisibleAsync();
+            // La lista de ese Cliente empresarial ya está pintada (tabla o estado vacío) antes de leerla.
+            await Expect(page.Locator("table.tabla-proyectos, .estado-vacio")).ToBeVisibleAsync();
 
             var nombres = (await conTecnicos.Locator("button.nombre-proyecto").AllTextContentsAsync())
                 .Select(n => n.Trim()).Where(n => n.Length > 0).ToArray();
