@@ -386,7 +386,7 @@
   </data>
   <data name="ColumnaTecnicos" xml:space="preserve"><value>Tècnics</value></data>
   <data name="VentanaTecnicosTitulo" xml:space="preserve"><value>Tècnics actius</value></data>
-  <data name="VentanaTecnicosPie" xml:space="preserve"><value>Clic en un per obrir la pestanya Tècnics</value></data>
+  <data name="VentanaTecnicosPie" xml:space="preserve"><value>Clica un per obrir la pestanya Tècnics</value></data>
   <data name="VentanaTecnicoAyuda" xml:space="preserve"><value>Obrir la pestanya Tècnics del projecte</value></data>
   <data name="AriaEditarProyecto" xml:space="preserve"><value>Editar la informació del projecte</value></data>
   <data name="TituloEditarConAtajo" xml:space="preserve"><value>Editar (e)</value></data>

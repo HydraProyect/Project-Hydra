@@ -79,11 +79,12 @@ public class ObtenerProyectosQueryTecnicosActivosTests
     }
 
     [Fact]
-    public async Task Un_tecnico_cuyo_Trabajador_no_es_visible_no_se_nombra()
+    public async Task Un_tecnico_cuyo_Trabajador_no_devuelve_la_consulta_de_Trabajadores_no_se_nombra()
     {
         var reforma = NuevoProyecto("Reforma nave");
-        // Alta de técnico hacia un Trabajador que la consulta de Trabajadores no devuelve
-        // (baja lógica o fuera de los filtros de consulta): ni se cuenta ni se nombra.
+        // Alta de técnico hacia un Trabajador que la consulta de Trabajadores no devuelve: ni se
+        // cuenta ni se nombra. Esto fija la unión; que los filtros de consulta de EF (Tenant
+        // propietario, baja lógica) dejen fuera a un Trabajador no se observa en esta capa.
         _proyectos.ListaProyectosTecnicos.Add(new ProyectoTecnico(reforma.Id, Guid.NewGuid(), Inicio));
 
         var lista = await Handler().Handle(new ObtenerProyectosQuery(ClienteId), CancellationToken.None);

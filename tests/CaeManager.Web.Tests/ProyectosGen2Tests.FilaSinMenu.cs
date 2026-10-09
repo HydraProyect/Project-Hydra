@@ -126,6 +126,46 @@ public partial class ProyectosGen2Tests
 
         PreguntaAbierta(cut).Should().BeFalse("no se abandona nada");
         ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre");
+
+        // Y sigue contando como cambio sin guardar: si «e» reabriera la edición, lo escrito pasaría
+        // a ser el punto de partida y cerrar el panel lo tiraría sin preguntar.
+        var cierre = cut.Find("aside.panel-proyecto button.cerrar-panel-proyecto").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("lo escrito sigue siendo un cambio sin guardar"));
+        await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
+        await cierre.WaitAsync(Paciencia);
+    }
+
+    [Fact]
+    public async Task La_tecla_e_con_un_alta_de_tecnico_a_medias_en_ese_proyecto_pregunta_antes_de_tirarla()
+    {
+        var cut = await AbrirElAltaDeTecnicoAsync();
+        await CambiarLaFechaDeAltaAsync(cut);
+
+        // Sin fila enfocada, «e» edita el proyecto del panel. Sin await: queda pendiente del aviso.
+        var tecla = Atajo(cut, "e");
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("pasar a editar la información cierra el alta de técnico"));
+        await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
+        await tecla.WaitAsync(Paciencia);
+
+        ValorDelCampo(cut, "Fecha de alta").Should().Be("2020-01-01", "«Seguir editando» conserva el alta a medias");
+        EnEdicion(cut).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_clic_en_la_fila_del_proyecto_ya_abierto_no_devuelve_el_panel_a_Informacion()
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoAbierto2];
+        var cut = await RenderizarConClienteAsync();
+        await AbrirDetalle(cut, ProyectoAbierto);
+        await cut.FindAll("button[role=tab]").Single(b => b.TextContent.Trim() == "Técnicos").ClickAsync(new MouseEventArgs());
+
+        await FilaDe(cut, ProyectoAbierto).ClickAsync(new MouseEventArgs());
+
+        PestanaActiva(cut).Should().Be("Técnicos");
+        _mediator.Enviados.OfType<ObtenerProyectoPorIdQuery>().Should().ContainSingle("el detalle ya estaba cargado");
+
+        await FilaDe(cut, ProyectoAbierto2).ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => PanelAbiertoEn(cut, ProyectoAbierto2).Should().BeTrue("la fila de otro proyecto sí cambia el panel"));
     }
 
     [Fact]

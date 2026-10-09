@@ -136,7 +136,7 @@
                                fila abre la vista rápida (el panel lateral), igual que Enter sobre la fila
                                enfocada; los controles de dentro —nombre, recuento de técnicos, icono 360—
                                hacen lo suyo y no dejan subir el clic. *@
-                            <tr class="@ClaseFila(proyecto)" @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">
+                            <tr class="@ClaseFila(proyecto)" @onclick="() => AbrirDetalleDesdeLaFilaAsync(proyecto.Id)">
                                 <td>
                                     <span class="proyecto-nombre-centro">
                                         @* El nombre es el destino de teclado del clic en la fila (la fila no es focable con Tab). *@
