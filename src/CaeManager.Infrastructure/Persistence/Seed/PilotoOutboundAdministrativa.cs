@@ -37,8 +37,21 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// <b>Falla cerrada, antes de escribir.</b> <see cref="ValidarPrecondiciones"/> no
 /// toca la base; después, y todavía sin escribir ni crear el fichero de
 /// credenciales, se comprueba que ningún nombre del piloto esté ocupado por un
-/// Tenant sin marcador de demo, que la fecha sirva para sembrar hoy y que ninguna
+/// Tenant sin marcador de demo, que ningún Tenant propietario lleve datos sembrados
+/// por otra versión de la siembra, que la fecha sirva para sembrar hoy y que ninguna
 /// cuenta con un correo del piloto pertenezca a otro Tenant.
+/// </para>
+///
+/// <para>
+/// <b>Un lote de otra versión se retira, no se completa.</b> La siembra es
+/// idempotente por Tenant propietario: no toca el que ya tiene la Empresa propia con
+/// el identificador fiscal de esta versión y siembra entero el que no tiene ninguna
+/// Empresa, así que una ejecución cortada se reanuda repitiendo la orden. Pero si
+/// uno tiene Empresas y ninguna con ese identificador, sus datos son de otra versión:
+/// la orden se niega con su nombre, sin escribir en ningún Tenant, y el modo sale
+/// con código distinto de cero y con <see cref="MensajeDeInterrupcion"/> en la salida
+/// de error, como con cualquier otra negativa. El arranque, en ese mismo caso, solo
+/// avisa; aquí un aviso con salida 0 se leería como «sembrado».
 /// </para>
 ///
 /// <para>
@@ -217,8 +230,9 @@ public static class PilotoOutboundAdministrativa
         var cuentas = CuentasDe(opciones.DominioCorreo);
         var cuentasConSuTenant = CuentasConSuTenant(cuentas);
 
-        // Las tres negativas que miran la base, antes de crear el fichero de credenciales y de escribir nada.
+        // Las cuatro negativas que miran la base, antes de crear el fichero de credenciales y de escribir nada.
         await PilotoOutboundSeeder.RechazarNombresOcupadosPorUnTenantSinMarcadorAsync(dbContext, cancellationToken);
+        await PilotoOutboundSeeder.RechazarDatosDeOtraVersionAsync(dbContext, cancellationToken);
 
         if (OpcionesPilotoOutbound.MotivoFechaNoUtilizable(opciones.FechaDemostracion, DiaDeNegocio.Hoy()) is { } motivo
             && await PilotoOutboundSeeder.PrimerTenantSinSembrarAsync(dbContext, cancellationToken) is { } pendiente)
