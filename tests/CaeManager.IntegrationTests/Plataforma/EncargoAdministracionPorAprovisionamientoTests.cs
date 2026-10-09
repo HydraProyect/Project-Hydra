@@ -160,8 +160,8 @@ public class EncargoAdministracionPorAprovisionamientoTests : IAsyncLifetime
             var operacion = await siembra.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionId);
             var retirado = EncargoAdministracion.Registrar(
                 operacion, "Cláusula 7.ª del contrato de servicio", EncargoAdministracion.VersionTextoVigente,
-                OrigenEncargoAdministracion.AprovisionamientoDePlataforma, _soporte, ahora.AddDays(-2), vigenciaHasta: null);
-            retirado.Retirar(_soporte, ahora.AddDays(-1));
+                OrigenEncargoAdministracion.AprovisionamientoDePlataforma, _soporte, ahora.AddHours(-12), vigenciaHasta: null);
+            retirado.Retirar(_soporte, ahora.AddHours(-6));
             siembra.EncargosAdministracion.Add(retirado);
             await siembra.SaveChangesAsync();
             retiradoId = retirado.Id;
