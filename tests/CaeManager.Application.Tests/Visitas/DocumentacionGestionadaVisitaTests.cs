@@ -4,6 +4,7 @@ using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
+using CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestionada;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -47,6 +48,10 @@ public class DocumentacionGestionadaVisitaTests
         public Task<Result> MarcarAsync(Guid version = default) =>
             new MarcarDocumentacionGestionadaCommandHandler(Visitas, Centros, UnitOfWork, Alcance)
                 .Handle(new MarcarDocumentacionGestionadaCommand(Visita.Id, version), CancellationToken.None);
+
+        public Task<Result> QuitarMarcaAsync(Guid version = default) =>
+            new QuitarMarcaDocumentacionGestionadaCommandHandler(Visitas, UnitOfWork, Alcance)
+                .Handle(new QuitarMarcaDocumentacionGestionadaCommand(Visita.Id, version), CancellationToken.None);
 
         public Task<Result<Guid>> EnviarPaqueteAsync(Guid? version = null) =>
             new EnviarPaqueteAcreditacionVisitaCommandHandler(
@@ -167,6 +172,105 @@ public class DocumentacionGestionadaVisitaTests
 
         resultado.Error.Should().Be(MarcarDocumentacionGestionadaCommandHandler.CentroSinGestionCae);
         escenario.Visita.DocumentacionGestionada.Should().BeFalse();
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    // ---------------------------------------------------------------- Deshacer la marca
+
+    private static readonly DateTime Marcada = new(2026, 1, 1, 9, 0, 0, DateTimeKind.Utc);
+
+    [Fact]
+    public async Task Quitar_la_marca_devuelve_la_visita_a_por_gestionar_y_guarda()
+    {
+        var escenario = new Escenario();
+        escenario.Visita.MarcarDocumentacionGestionada(Marcada);
+
+        var resultado = await escenario.QuitarMarcaAsync(escenario.Visita.Version);
+
+        resultado.EsExitoso.Should().BeTrue();
+        escenario.Visita.DocumentacionGestionada.Should().BeFalse();
+        escenario.UnitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    /// <summary>La Visita no guarda cómo se marcó: la marca del envío del paquete se deshace igual, y el correo enviado no se toca.</summary>
+    [Fact]
+    public async Task Quitar_la_marca_tambien_deshace_la_que_puso_el_envio_del_paquete()
+    {
+        var escenario = new Escenario();
+        (await escenario.EnviarPaqueteAsync()).EsExitoso.Should().BeTrue();
+        escenario.Visita.DocumentacionGestionada.Should().BeTrue("control: el envío la marcó");
+
+        (await escenario.QuitarMarcaAsync()).EsExitoso.Should().BeTrue();
+
+        escenario.Visita.DocumentacionGestionada.Should().BeFalse();
+        escenario.Emisor.Enviados.Should().ContainSingle("lo enviado, enviado está");
+    }
+
+    [Fact]
+    public async Task Quitar_la_marca_de_una_visita_que_ya_esta_por_gestionar_no_hace_nada()
+    {
+        var escenario = new Escenario();
+
+        var resultado = await escenario.QuitarMarcaAsync();
+
+        resultado.EsExitoso.Should().BeTrue();
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Quitar_la_marca_fuera_del_alcance_de_gestion_responde_no_encontrada_y_no_la_quita()
+    {
+        var escenario = new Escenario { Alcance = Escenario.FueraDeAlcance() };
+        escenario.Visita.MarcarDocumentacionGestionada(Marcada);
+
+        // Con una versión desfasada: fuera de alcance no se revela ni el conflicto.
+        var resultado = await escenario.QuitarMarcaAsync(Guid.NewGuid());
+
+        resultado.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        escenario.Visita.DocumentacionGestionadaEnUtc.Should().Be(Marcada);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Quitar_la_marca_con_alcance_de_lectura_sin_alcance_de_gestion_no_la_quita()
+    {
+        var escenario = new Escenario();
+        escenario.Visita.MarcarDocumentacionGestionada(Marcada);
+        escenario.Alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, centroIdsVisibles: [escenario.Centro.Id], centroIdsParaGestion: []);
+
+        var resultado = await escenario.QuitarMarcaAsync();
+
+        resultado.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        escenario.Visita.DocumentacionGestionada.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Quitar_la_marca_de_una_visita_cancelada_se_rechaza()
+    {
+        var escenario = new Escenario();
+        escenario.Visita.MarcarDocumentacionGestionada(Marcada);
+        escenario.Visita.Cancelar(DateTime.UtcNow, null);
+
+        var resultado = await escenario.QuitarMarcaAsync();
+
+        resultado.Error.Codigo.Should().Be("Visita.Cancelada");
+        escenario.Visita.DocumentacionGestionada.Should().BeTrue();
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Quitar_la_marca_con_una_version_desfasada_se_rechaza_por_concurrencia()
+    {
+        var escenario = new Escenario();
+        var versionVista = escenario.Visita.Version;
+        escenario.Visita.RegistrarCambioDeTrabajadores();
+        escenario.Visita.MarcarDocumentacionGestionada(Marcada);
+
+        var resultado = await escenario.QuitarMarcaAsync(versionVista);
+
+        resultado.Error.Codigo.Should().Be(Application.Common.ConcurrenciaOptimista.CodigoConflicto);
+        escenario.Visita.DocumentacionGestionada.Should().BeTrue("otra persona la marcó para los Trabajadores de ahora");
         escenario.UnitOfWork.VecesGuardado.Should().Be(0);
     }
 

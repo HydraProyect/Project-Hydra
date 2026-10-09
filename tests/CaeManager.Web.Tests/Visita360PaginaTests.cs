@@ -8,6 +8,7 @@ using Bunit.TestDoubles;
 using CaeManager.Application.Common;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
+using CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
@@ -86,6 +87,9 @@ public class Visita360PaginaTests : BunitContext
                     return Result.Exito(new AvisoVisitaDto("Aviso de visita — Sede Sevilla", "Mañana acuden dos técnicos."));
                 case ObtenerPaqueteDocumentalVisitaQuery:
                     return Result.Exito(new PaqueteDocumentalDescargaDto("paquete.zip", [1, 2, 3]));
+                case QuitarMarcaDocumentacionGestionadaCommand c:
+                    Detalles[c.Id] = Detalles[c.Id] with { DocumentacionGestionadaEnUtc = null, Version = Guid.NewGuid() };
+                    return Result.Exito();
                 case MarcarDocumentacionGestionadaCommand c:
                     Detalles[c.Id] = Detalles[c.Id] with { DocumentacionGestionadaEnUtc = new DateTime(2026, 10, 9, 10, 0, 0, DateTimeKind.Utc), Version = Guid.NewGuid() };
                     return Result.Exito();
@@ -416,6 +420,21 @@ public class Visita360PaginaTests : BunitContext
         cut.Markup.Should().Contain("Gestionada el");
     }
 
+    /// <summary>Deshacer: gestionada, el menú ofrece quitar la marca; al quitarla la cabecera vuelve a «por gestionar».</summary>
+    [Fact]
+    public async Task Quitar_la_marca_desde_el_menu_manda_el_comando_con_la_version_y_la_cabecera_vuelve_a_por_gestionar()
+    {
+        var gestionada = Detalle() with { DocumentacionGestionadaEnUtc = new DateTime(2026, 10, 9, 10, 0, 0, DateTimeKind.Utc) };
+        var (cut, mediador) = Montar(gestionada, documentacion: DocumentacionConIncidencias());
+
+        await cut.Find("[data-pieza=cabecera-identidad] .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Quitar la marca de gestionada").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<QuitarMarcaDocumentacionGestionadaCommand>().Should().ContainSingle()
+            .Which.Should().Be(new QuitarMarcaDocumentacionGestionadaCommand(VisitaId, gestionada.Version)));
+        cut.WaitForAssertion(() => Cabecera(cut).Should().Contain("Documentación por gestionar"));
+    }
+
     [Fact]
     public void En_un_Centro_sin_gestion_CAE_la_cabecera_no_habla_de_documentacion_por_gestionar()
     {
@@ -423,6 +442,7 @@ public class Visita360PaginaTests : BunitContext
 
         Cabecera(cut).Should().NotContain("por gestionar").And.NotContain("Documentación gestionada");
         cut.Markup.Should().NotContain("Marcar documentación gestionada");
+        cut.Markup.Should().NotContain("Quitar la marca de gestionada");
     }
 
     [Fact]

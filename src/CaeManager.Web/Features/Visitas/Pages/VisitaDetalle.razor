@@ -132,6 +132,11 @@
                         {
                             <ItemMenuAccion OnClick="MarcarDocumentacionGestionadaAsync">@Textos["BotonMarcarDocumentacionGestionada"]</ItemMenuAccion>
                         }
+                        else if (visita.CentroRequiereGestionCae)
+                        {
+                            @* Deshacer: una marca puesta por error vuelve a «Por gestionar». *@
+                            <ItemMenuAccion OnClick="QuitarMarcaDocumentacionGestionadaAsync">@Textos["BotonQuitarMarcaDocumentacionGestionada"]</ItemMenuAccion>
+                        }
                         <ItemMenuAccion OnClick="AbrirCancelar" Destructivo="true">@Textos["Visita360CancelarVisita"]</ItemMenuAccion>
                     </MenuAcciones>
                 }

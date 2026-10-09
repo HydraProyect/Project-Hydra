@@ -6,6 +6,7 @@ using CaeManager.Application.Integraciones;
 using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
+using CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestionada;
 using CaeManager.Application.Visitas.Queries.ObtenerDetalleVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
@@ -51,6 +52,7 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
         public bool RequiereGestionCae { get; set; } = true;
         public Result RespuestaAlMarcar { get; set; } = Result.Exito();
         public List<MarcarDocumentacionGestionadaCommand> Marcas { get; } = [];
+        public List<QuitarMarcaDocumentacionGestionadaCommand> MarcasQuitadas { get; } = [];
 
         private VisitaListaDto Fila() => new(
             VisitaId, Guid.NewGuid(), "Centro Norte", Guid.NewGuid(), "Iberojet S.A.", Guid.NewGuid(), "Instalaciones Arbeko S.L.",
@@ -86,6 +88,12 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
                     Version = Guid.NewGuid();
                     return Respuesta<TResponse>(Result.Exito());
 
+                case QuitarMarcaDocumentacionGestionadaCommand quitar:
+                    MarcasQuitadas.Add(quitar);
+                    GestionadaEn = null;
+                    Version = Guid.NewGuid();
+                    return Respuesta<TResponse>(Result.Exito());
+
                 case MarcarDocumentacionGestionadaCommand marcar:
                     Marcas.Add(marcar);
                     if (RespuestaAlMarcar.EsExitoso)
@@ -109,6 +117,10 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
     }
 
     private const string BotonMarcar = "Marcar documentación gestionada";
+    private const string BotonQuitarMarca = "Quitar la marca de gestionada";
+
+    private static IReadOnlyList<IElement> BotonesQuitarMarca(IRenderedComponent<Visitas> cut) =>
+        cut.FindAll(".drawer-panel button").Where(b => b.TextContent.Trim() == BotonQuitarMarca).ToList();
 
     private IRenderedComponent<Visitas> Renderizar(MediatorPanel mediator)
     {
@@ -215,6 +227,28 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
         cut.WaitForAssertion(() => mediator.Marcas.Should().ContainSingle());
         mediator.Marcas.Single().Version.Should().NotBe(versionAlAbrir);
         cut.WaitForAssertion(() => Fila(cut).QuerySelectorAll("[data-pieza=estado-correcto]").Should().ContainSingle());
+    }
+
+    /// <summary>Deshacer: una Visita gestionada ofrece quitar la marca, y al quitarla vuelve a «Por gestionar» y a ofrecer marcarla.</summary>
+    [Fact]
+    public async Task El_panel_de_una_visita_gestionada_ofrece_quitar_la_marca_y_manda_el_comando_con_su_version()
+    {
+        var mediator = new MediatorPanel { GestionadaEn = new DateTime(2026, 10, 9, 10, 0, 0, DateTimeKind.Utc) };
+        var versionVista = mediator.Version;
+        var cut = await AbrirPanelAsync(mediator);
+
+        cut.WaitForAssertion(() => BotonesQuitarMarca(cut).Should().ContainSingle());
+        BotonesMarcar(cut).Should().BeEmpty();
+        await BotonesQuitarMarca(cut).Single().ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediator.MarcasQuitadas.Should().ContainSingle());
+        mediator.MarcasQuitadas.Single().Should().Be(new QuitarMarcaDocumentacionGestionadaCommand(mediator.VisitaId, versionVista));
+        cut.WaitForAssertion(() =>
+        {
+            Fila(cut).QuerySelectorAll(".badge-peligro").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Por gestionar");
+            BotonesQuitarMarca(cut).Should().BeEmpty();
+            BotonesMarcar(cut).Should().ContainSingle();
+        });
     }
 
     [Fact]

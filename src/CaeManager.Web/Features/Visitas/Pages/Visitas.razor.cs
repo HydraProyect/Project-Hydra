@@ -13,6 +13,7 @@ using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Visitas.Commands;
 using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
+using CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
 using CaeManager.Application.Visitas.Commands.QuitarTrabajadorDeVisita;
@@ -917,6 +918,38 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         catch (Exception)
         {
             ToastService.Mostrar(Textos["ToastErrorDocumentacionGestionada"], TonoToast.Error);
+        }
+        finally
+        {
+            _marcandoDocumentacionGestionada = false;
+        }
+
+        await RecargarAsync();
+        if (_detalle?.Id == detalle.Id)
+            await AbrirDetalleAsync(detalle.Id, _pestanaDetalle);
+    }
+
+    /// <summary>
+    /// Deshace la marca. Mismo trato que al marcar: viaja la versión del panel y, salga bien o
+    /// mal, fila y panel se vuelven a leer de lo guardado.
+    /// </summary>
+    private async Task QuitarMarcaDocumentacionGestionadaAsync()
+    {
+        if (_detalle is not { } detalle || _marcandoDocumentacionGestionada)
+            return;
+
+        _marcandoDocumentacionGestionada = true;
+        try
+        {
+            var resultado = await Mediator.Send(new QuitarMarcaDocumentacionGestionadaCommand(detalle.Id, detalle.Version));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastMarcaDocumentacionGestionadaQuitada"], TonoToast.Exito);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorQuitarMarcaDocumentacionGestionada"], TonoToast.Error);
         }
         finally
         {

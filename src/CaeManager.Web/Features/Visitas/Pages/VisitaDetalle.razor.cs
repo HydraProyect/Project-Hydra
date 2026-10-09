@@ -5,6 +5,7 @@ using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Visitas.Commands;
 using CaeManager.Application.Visitas.Commands.EnviarPaqueteAcreditacionVisita;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
+using CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Commands.ReactivarVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerAvisoVisita;
@@ -697,6 +698,36 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
             await CargarAsync();
 
         return resultado;
+    }
+
+    /// <summary>
+    /// Deshace la marca. Mismo trato que al marcar: viaja la versión de la página y, salga bien
+    /// o mal, la Visita se vuelve a leer.
+    /// </summary>
+    private async Task QuitarMarcaDocumentacionGestionadaAsync()
+    {
+        if (_detalle is not { EstaCancelada: false } detalle || _marcandoDocumentacionGestionada)
+            return;
+
+        _marcandoDocumentacionGestionada = true;
+        try
+        {
+            var resultado = await Mediator.Send(new QuitarMarcaDocumentacionGestionadaCommand(detalle.Id, detalle.Version));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastMarcaDocumentacionGestionadaQuitada"], TonoToast.Exito);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ToastService.Mostrar(Textos["ToastErrorQuitarMarcaDocumentacionGestionada"], TonoToast.Error);
+        }
+        finally
+        {
+            _marcandoDocumentacionGestionada = false;
+        }
+
+        await CargarAsync();
     }
 
     /// <summary>

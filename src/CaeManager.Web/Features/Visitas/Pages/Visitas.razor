@@ -477,12 +477,17 @@
                             @* Salida manual de «Por gestionar»: lo gestionado fuera de TALVEG (portal del
                                titular, otro correo). Vive junto al dato y no en el pie: con «Marcar como
                                notificada» y «Editar», un tercer botón no cabe en el ancho del panel. *@
-                            @if (_detalle.DocumentacionGestionadaEnUtc is null)
-                            {
-                                <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionMarca">
+                            <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionMarca">
+                                @if (_detalle.DocumentacionGestionadaEnUtc is null)
+                                {
                                     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_marcandoDocumentacionGestionada" OnClick="MarcarDocumentacionGestionadaAsync">@Textos["BotonMarcarDocumentacionGestionada"]</Boton>
-                                </AuthorizeView>
-                            }
+                                }
+                                else
+                                {
+                                    @* Deshacer: una marca puesta por error vuelve a «Por gestionar». *@
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Cargando="_marcandoDocumentacionGestionada" OnClick="QuitarMarcaDocumentacionGestionadaAsync">@Textos["BotonQuitarMarcaDocumentacionGestionada"]</Boton>
+                                }
+                            </AuthorizeView>
                         </dd>
                     </div>
                 }

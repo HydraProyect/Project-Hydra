@@ -173,6 +173,19 @@ public class Visita : EntidadBase
         DocumentacionGestionadaEnUtc = ahoraUtc;
     }
 
+    /// <summary>
+    /// Deshace la marca: la Visita vuelve a «Por gestionar». Vale para una marca puesta por
+    /// error, venga de la acción manual o del envío del paquete (la Visita no guarda cuál fue);
+    /// el paquete ya enviado no se toca. Lanza si está cancelada, igual que al marcar.
+    /// </summary>
+    public void QuitarMarcaDocumentacionGestionada()
+    {
+        if (EstaCancelada)
+            throw new InvalidOperationException("La visita está cancelada.");
+
+        DocumentacionGestionadaEnUtc = null;
+    }
+
     /// <summary>Ata la visita a la conversación que la pidió. Idempotente: una vez atada no se reasigna, para que el instante de solicitud no se mueva bajo los pies del cálculo ya sellado.</summary>
     public void RegistrarOrigenSolicitud(Guid conversacionId, DateTime fechaHoraSolicitudUtc)
     {

@@ -189,6 +189,35 @@ public class VisitaTests
     }
 
     [Fact]
+    public void Quitar_la_marca_devuelve_la_visita_a_por_gestionar_y_se_puede_volver_a_marcar()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);
+        var otraVez = new DateTime(2026, 7, 22, 9, 0, 0, DateTimeKind.Utc);
+        visita.MarcarDocumentacionGestionada(new DateTime(2026, 7, 20, 9, 0, 0, DateTimeKind.Utc));
+
+        visita.QuitarMarcaDocumentacionGestionada();
+
+        visita.DocumentacionGestionada.Should().BeFalse();
+        visita.DocumentacionGestionadaEnUtc.Should().BeNull();
+
+        visita.MarcarDocumentacionGestionada(otraVez);
+        visita.DocumentacionGestionadaEnUtc.Should().Be(otraVez);
+    }
+
+    [Fact]
+    public void A_una_visita_cancelada_no_se_le_quita_la_marca()
+    {
+        var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);
+        visita.MarcarDocumentacionGestionada(DateTime.UtcNow);
+        visita.Cancelar(DateTime.UtcNow, null);
+
+        var accion = () => visita.QuitarMarcaDocumentacionGestionada();
+
+        accion.Should().Throw<InvalidOperationException>();
+        visita.DocumentacionGestionada.Should().BeTrue("cancelada no se modifica; primero se reactiva");
+    }
+
+    [Fact]
     public void Una_visita_cancelada_no_se_marca_como_gestionada()
     {
         var visita = new Visita(CentroIdValido, new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 5), null);

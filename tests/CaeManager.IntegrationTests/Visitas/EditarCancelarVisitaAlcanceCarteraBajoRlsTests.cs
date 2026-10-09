@@ -5,6 +5,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
+using CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestionada;
 using CaeManager.Application.Visitas.Commands.QuitarTrabajadorDeVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerCandidatosTrabajadorVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
@@ -364,6 +365,24 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         (await GestionadaEnAsync(_visitaDentro)).Should().BeNull();
     }
 
+    /// <summary>Deshacer la marca, contra PostgreSQL bajo RLS: dentro de la cartera se quita; fuera de ella o en otro Tenant, ni se ve ni se toca.</summary>
+    [Fact]
+    public async Task Gestor_CAE_quita_la_marca_en_su_cartera_y_no_fuera_de_ella_ni_en_otro_Tenant()
+    {
+        (await MarcarGestionadaAsync(_gestor, "GestorCae", _visitaDentro)).EsExitoso.Should().BeTrue();
+        (await MarcarGestionadaAsync(_gestor, "Administrador", _visitaFuera)).EsExitoso.Should().BeTrue();
+        (await GestionadaEnAsync(_visitaFuera)).Should().NotBeNull("control: quien administra la organización sí la marcó");
+
+        (await QuitarMarcaAsync(_gestor, "GestorCae", _visitaDentro)).EsExitoso.Should().BeTrue();
+        var fueraDeCartera = await QuitarMarcaAsync(_gestor, "GestorCae", _visitaFuera);
+        var otroTenant = await QuitarMarcaAsync(_gestor, "Administrador", _visitaDeOtroTenant);
+
+        (await GestionadaEnAsync(_visitaDentro)).Should().BeNull();
+        fueraDeCartera.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        otroTenant.Error.Codigo.Should().Be("Visita.NoEncontrada");
+        (await GestionadaEnAsync(_visitaFuera)).Should().NotBeNull("fuera de la cartera la marca sigue puesta");
+    }
+
     [Fact]
     public async Task Gestor_CAE_no_marca_gestionada_una_Visita_fuera_de_su_cartera_ni_de_otro_Tenant()
     {
@@ -563,6 +582,16 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
             NullLogger<AnadirTrabajadorAVisitaCommandHandler>.Instance, CrearAlcance(runtime, usuario));
 
         return await handler.Handle(new AnadirTrabajadorAVisitaCommand(visitaId, trabajadorId, version), CancellationToken.None);
+    }
+
+    private async Task<Result> QuitarMarcaAsync(Guid usuarioId, string rol, Guid visitaId)
+    {
+        var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
+        await using var runtime = CrearContextoRuntime(usuario);
+        var handler = new QuitarMarcaDocumentacionGestionadaCommandHandler(
+            new VisitaRepository(runtime), runtime, CrearAlcance(runtime, usuario));
+
+        return await handler.Handle(new QuitarMarcaDocumentacionGestionadaCommand(visitaId), CancellationToken.None);
     }
 
     private async Task<Result> MarcarGestionadaAsync(Guid usuarioId, string rol, Guid visitaId, Guid version = default)
