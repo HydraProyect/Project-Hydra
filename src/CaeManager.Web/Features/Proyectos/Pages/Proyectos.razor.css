@@ -1,5 +1,11 @@
-.contenedor-tabla-proyectos {
-    overflow-x: auto;
+/* El desplazamiento horizontal solo hace falta en pantallas estrechas. En las anchas el
+   contenedor no recorta: `overflow-x: auto` obliga también a recortar en vertical, y la
+   ventana de contexto del recuento de técnicos (que se abre hacia abajo) quedaba cortada
+   en una lista de pocas filas. */
+@media (max-width: 767px) {
+    .contenedor-tabla-proyectos {
+        overflow-x: auto;
+    }
 }
 
 .acciones-seccion {
@@ -97,7 +103,9 @@
     flex-shrink: 0;
 }
 
+/* El texto ocupa lo que dejan el lápiz, el icono 360 y la X, que quedan juntos a la derecha. */
 .texto-cabecera-panel-proyecto {
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
@@ -287,6 +295,7 @@
 .proyecto-nombre-centro { display: flex; flex-direction: column; gap: var(--space-1); }
 .proyecto-centro { font: var(--font-caption); color: var(--color-text-muted); }
 .proyecto-plazo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.enlace-pagina-proyecto {
-    font: var(--font-label-md);
+/* Recuento de técnicos: el cero no abre nada y se lee como dato de apoyo. */
+.celda-sin-recuento {
+    color: var(--color-text-muted);
 }

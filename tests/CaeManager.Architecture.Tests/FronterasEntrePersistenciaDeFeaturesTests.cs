@@ -490,6 +490,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Proyectos.ObtenerProyectosParaSelectorQueryHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerProyectosParaSelectorQueryHandler", "IClientesQueryContext"),
         ("Proyectos.ObtenerProyectosQueryHandler", "ICentrosQueryContext"),
+        // Nombres de los técnicos activos de cada fila del listado: el mismo cruce Proyectos → Trabajadores
+        // que ya tiene ObtenerTecnicosProyectoQueryHandler, en una sola consulta para toda la lista.
+        ("Proyectos.ObtenerProyectosQueryHandler", "ITrabajadoresQueryContext"),
         ("Proyectos.ObtenerTecnicosProyectoQueryHandler", "ITrabajadoresQueryContext"),
         ("Reclamaciones.EnviarReclamacionCommandHandler", "IAsignacionesQueryContext"),
         ("Reclamaciones.EnviarReclamacionCommandHandler", "ICentrosQueryContext"),

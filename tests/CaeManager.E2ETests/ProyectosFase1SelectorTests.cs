@@ -105,7 +105,7 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
             new LocatorGetByRoleOptions { Name = nombreProyecto, Exact = true }).ClickAsync();
         var panel = page.Locator("aside.panel-proyecto");
         await Expect(panel.Locator(".nombre-cabecera-panel-proyecto")).ToHaveTextAsync(nombreProyecto);
-        await panel.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Editar", Exact = true }).ClickAsync();
+        await panel.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Editar la información del proyecto", Exact = true }).ClickAsync();
         var campoNombre = panel.GetByRole(AriaRole.Textbox, new LocatorGetByRoleOptions { Name = "Nombre", Exact = true });
         await Expect(campoNombre).ToHaveValueAsync(nombreProyecto);
         var nombreSinGuardar = nombreProyecto + " — edición sin guardar";
