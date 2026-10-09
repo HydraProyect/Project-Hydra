@@ -632,7 +632,9 @@ public static class PilotoOutboundSeeder
         /// <summary>
         /// T2: las seis condiciones de «todo al día» a la vez. Cada Trabajador —también los
         /// dos con la Asignación dada de baja— tiene los cinco tipos exigidos, Vigentes o
-        /// sin caducidad; la Empresa, todos los suyos (uno con PDF pesado); un Vehículo
+        /// sin caducidad; la Empresa, todos los suyos (uno con PDF pesado), Vigentes salvo
+        /// los dos certificados mensuales, que un documento coherente con su tipo solo
+        /// puede tener «Próximo» y son lo único que este Tenant trae a Mi trabajo; un Vehículo
         /// con los suyos; un Centro con plataforma y todo Aceptado, y con un requisito
         /// que bloquea el acceso, cumplido; una Visita lejos de las 48 horas.
         /// </summary>
@@ -655,8 +657,8 @@ public static class PilotoOutboundSeeder
                 foreach (var nombreTipo in CatalogoPilotoOutbound.TiposExigidosDeTrabajador)
                 {
                     var tipo = Tipo(nombreTipo);
-                    var vence = tipo.AplicaVencimientoAutomatico ? _fechas.Vigente(Siguiente()) : (DateOnly?)null;
-                    documentos.Add(await DocumentoDeTrabajadorAsync(trabajador, tipo, _fechas.Emision(Siguiente()), vence));
+                    var (emision, vence) = FechasEnReglaDeTrabajador(tipo);
+                    documentos.Add(await DocumentoDeTrabajadorAsync(trabajador, tipo, emision, vence));
                 }
 
                 documentosPorTrabajador[trabajador.Id] = documentos;
@@ -668,7 +670,7 @@ public static class PilotoOutboundSeeder
             dbContext.Vehiculos.Add(vehiculo);
             foreach (var tipo in TiposExigidos(AmbitoAplicacion.Vehiculo))
             {
-                var (emision, vence) = (_fechas.Emision(Siguiente()), _fechas.Vigente(Siguiente()));
+                var (emision, vence) = _fechas.EnRegla(tipo, semillaDeEmision: Siguiente(), semillaDeVencimiento: Siguiente());
                 var clave = await GuardarPdfAsync(tipo.Nombre, $"{vehiculo.Nombre} ({vehiculo.NumeroPlaca})", emision, vence, pesado: false);
                 Anadir(Documento.DeVehiculo(vehiculo.Id, tipo.Id, emision, Vigencia(vence), clave));
             }
@@ -731,12 +733,13 @@ public static class PilotoOutboundSeeder
                     if (visita is not null)
                         dbContext.VisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajadores[i].Id));
 
-                    await DocumentoDeTrabajadorAsync(
-                        trabajadores[i], Tipo(ConstruccionMitadPilotoOutbound.TipoVigente), _fechas.Emision(Siguiente()), _fechas.Vigente(Siguiente()));
+                    var tipoVigente = Tipo(ConstruccionMitadPilotoOutbound.TipoVigente);
+                    var (emision, vence) = _fechas.EnRegla(tipoVigente, semillaDeEmision: Siguiente(), semillaDeVencimiento: Siguiente());
+                    await DocumentoDeTrabajadorAsync(trabajadores[i], tipoVigente, emision, vence);
 
-                    var vencido = _fechas.Vencido(Siguiente());
-                    await DocumentoDeTrabajadorAsync(
-                        trabajadores[i], Tipo(ConstruccionMitadPilotoOutbound.TipoVencido), FechasPilotoOutbound.EmisionDe(vencido), vencido);
+                    var tipoVencido = Tipo(ConstruccionMitadPilotoOutbound.TipoVencido);
+                    var (emitido, vencido) = _fechas.ConVencimiento(tipoVencido, _fechas.Vencido(Siguiente()));
+                    await DocumentoDeTrabajadorAsync(trabajadores[i], tipoVencido, emitido, vencido);
                 }
             }
 
@@ -796,15 +799,15 @@ public static class PilotoOutboundSeeder
             for (var t = 0; t < trabajadores.Count; t++)
             {
                 // Emitido hace seis meses y veinte días: Vigente por su fecha, vencido donde se renueva cada seis meses.
+                // Aquí el dato del diseño es la emisión, y el vencimiento del documento sale de ella.
                 var emision = DisenoT5PilotoOutbound.TrabajadoresConAptitudAntigua.Contains(t)
                     ? D.AddDays(-DisenoT5PilotoOutbound.DiasDesdeElVencimientoPorPeriodicidad).AddMonths(-DisenoT5PilotoOutbound.MesesDePeriodicidadEspecial)
                     : D.AddDays(-60);
-                fechasFijadas[(t, DisenoT5PilotoOutbound.TipoConCondicionesPorCentro)] = (emision, emision.AddYears(1));
+                fechasFijadas[(t, DisenoT5PilotoOutbound.TipoConCondicionesPorCentro)] = _fechas.DesdeEmision(conCondiciones, emision);
             }
 
-            var vencido = D.AddDays(-DisenoT5PilotoOutbound.DiasDesdeQueVencio);
             fechasFijadas[(DisenoT5PilotoOutbound.TrabajadorConElVencido, DisenoT5PilotoOutbound.TipoVencidoEnTolerancia)] =
-                (FechasPilotoOutbound.EmisionDe(vencido), vencido);
+                _fechas.ConVencimiento(Tipo(DisenoT5PilotoOutbound.TipoVencidoEnTolerancia), D.AddDays(-DisenoT5PilotoOutbound.DiasDesdeQueVencio));
 
             await DocumentosDeTrabajadoresAsync(trabajadores, DisenoT5PilotoOutbound.Desviaciones, fechasFijadas);
         }
@@ -852,8 +855,8 @@ public static class PilotoOutboundSeeder
             dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(propioDelDestino.Id, destino.Id, incluido: true));
             foreach (var (trabajador, _, _) in DisenoT6PilotoOutbound.AsignacionesActivas.Where(a => a.Zona == zonaDeDestino && a.Centro == centroDeDestino))
             {
-                var vence = propioDelDestino.AplicaVencimientoAutomatico ? _fechas.Vigente(Siguiente()) : (DateOnly?)null;
-                await DocumentoDeTrabajadorAsync(trabajadores[trabajador], propioDelDestino, _fechas.Emision(Siguiente()), vence);
+                var (emision, vence) = FechasEnReglaDeTrabajador(propioDelDestino);
+                await DocumentoDeTrabajadorAsync(trabajadores[trabajador], propioDelDestino, emision, vence);
             }
 
             await CrearSubcontratasAsync(propia);
@@ -969,8 +972,8 @@ public static class PilotoOutboundSeeder
                             continue;
 
                         case null:
-                            var vigente = tipo.AplicaVencimientoAutomatico ? _fechas.Vigente(Siguiente()) : (DateOnly?)null;
-                            documentos[(t, nombreTipo)] = await DocumentoDeTrabajadorAsync(trabajadores[t], tipo, _fechas.Emision(Siguiente()), vigente);
+                            var (emision, vigente) = FechasEnReglaDeTrabajador(tipo);
+                            documentos[(t, nombreTipo)] = await DocumentoDeTrabajadorAsync(trabajadores[t], tipo, emision, vigente);
                             continue;
 
                         case SituacionDocumentoPilotoOutbound.SinConfirmar:
@@ -983,9 +986,9 @@ public static class PilotoOutboundSeeder
                     }
 
                     if (!tipo.AplicaVencimientoAutomatico)
-                        throw new InvalidOperationException($"{tenant.Clave}: «{nombreTipo}» no caduca, así que no puede sembrarse como {situacion}.");
+                        throw new InvalidOperationException($"{tenant.Clave}: «{nombreTipo}» no vence por su tipo, y el diseño solo sabe sembrar como {situacion} uno que sí.");
 
-                    var vence = (t, nombreTipo) == enTolerancia
+                    var vencimientoDeDiseno = (t, nombreTipo) == enTolerancia
                         ? D.AddDays(-DisenoT1PilotoOutbound.DiasDesdeQueVencioElDocumentoEnTolerancia)
                         : situacion switch
                         {
@@ -994,7 +997,8 @@ public static class PilotoOutboundSeeder
                             SituacionDocumentoPilotoOutbound.Proximo => _fechas.Proximo(Siguiente()),
                             _ => throw new InvalidOperationException($"{tenant.Clave}: situación de documento sin fecha: {situacion}.")
                         };
-                    documentos[(t, nombreTipo)] = await DocumentoDeTrabajadorAsync(trabajadores[t], tipo, FechasPilotoOutbound.EmisionDe(vence), vence);
+                    var (emitido, vence) = _fechas.ConVencimiento(tipo, vencimientoDeDiseno);
+                    documentos[(t, nombreTipo)] = await DocumentoDeTrabajadorAsync(trabajadores[t], tipo, emitido, vence);
                 }
             }
 
@@ -1003,10 +1007,12 @@ public static class PilotoOutboundSeeder
 
         /// <summary>
         /// Un documento, con su PDF, de cada tipo que se exige por defecto a una Empresa,
-        /// para la Empresa propia: Vigente, o sin caducidad en la mitad de los tipos que
-        /// no vencen por sí solos. Es lo que la comprobación previa de una Visita lista
-        /// como documentación de la Empresa; sin ellos, cada tipo sale allí como Faltante
-        /// aunque ninguna otra pantalla lo cuente.
+        /// para la Empresa propia, en regla (<see cref="FechasPilotoOutbound.EnRegla"/>):
+        /// Vigente, salvo los dos certificados mensuales, que están «Próximo». Ninguno
+        /// queda «no caduca»: los que no vencen por su tipo llevan la fecha anotada a
+        /// mano. Es lo que la comprobación previa de una Visita lista como documentación
+        /// de la Empresa; sin ellos, cada tipo sale allí como Faltante aunque ninguna
+        /// otra pantalla lo cuente.
         /// </summary>
         private async Task DocumentosExigidosDeLaEmpresaPropiaAsync(Empresa propia, IReadOnlyCollection<string> conPdfPesado)
         {
@@ -1017,8 +1023,11 @@ public static class PilotoOutboundSeeder
             for (var i = 0; i < tiposDeEmpresa.Count; i++)
             {
                 var tipo = tiposDeEmpresa[i];
-                var vence = tipo.AplicaVencimientoAutomatico || i % 2 == 0 ? _fechas.Vigente(Siguiente()) : (DateOnly?)null;
-                var emision = _fechas.Emision(Siguiente());
+                // La paridad ya no decide nada del documento. Solo conserva lo que se le pedía al contador cuando los tipos
+                // impares sin vencimiento automático se sembraban «no caduca» —una fecha en vez de dos—: así ningún
+                // documento sembrado después cambia de fecha.
+                int? semillaDeVencimiento = tipo.AplicaVencimientoAutomatico || i % 2 == 0 ? Siguiente() : null;
+                var (emision, vence) = _fechas.EnRegla(tipo, Siguiente(), semillaDeVencimiento);
                 var clave = await GuardarPdfAsync(tipo.Nombre, tenant.Nombre, emision, vence, pesado: conPdfPesado.Contains(tipo.Nombre));
                 Anadir(Documento.DeEmpresa(propia.Id, tipo.Id, emision, Vigencia(vence), clave));
             }
@@ -1039,9 +1048,9 @@ public static class PilotoOutboundSeeder
                     $"{tenant.Clave}: «{tipoVencido.Nombre}» tiene que ser un tipo de ámbito Empresa que no se exija por defecto: su documento " +
                     "vencido no puede formar parte de lo que un Centro pide para una Visita.");
 
-            var vencio = _fechas.Vencido(Siguiente());
-            var claveDelVencido = await GuardarPdfAsync(tipoVencido.Nombre, tenant.Nombre, FechasPilotoOutbound.EmisionDe(vencio), vencio, pesado: false);
-            var vencido = Documento.DeEmpresa(propia.Id, tipoVencido.Id, FechasPilotoOutbound.EmisionDe(vencio), Vigencia(vencio), claveDelVencido);
+            var (emitido, vencio) = _fechas.ConVencimiento(tipoVencido, _fechas.Vencido(Siguiente()));
+            var claveDelVencido = await GuardarPdfAsync(tipoVencido.Nombre, tenant.Nombre, emitido, vencio, pesado: false);
+            var vencido = Documento.DeEmpresa(propia.Id, tipoVencido.Id, emitido, Vigencia(vencio), claveDelVencido);
             Anadir(vencido);
             return vencido;
         }
@@ -1063,8 +1072,9 @@ public static class PilotoOutboundSeeder
                 foreach (var tipo in tiposDeVehiculo)
                 {
                     var estaVencido = v == 0 && tipo.Nombre == DisenoT1PilotoOutbound.TipoDeVehiculoVencido;
-                    var vence = estaVencido ? _fechas.Vencido(Siguiente()) : _fechas.Vigente(Siguiente());
-                    var emision = estaVencido ? FechasPilotoOutbound.EmisionDe(vence) : _fechas.Emision(Siguiente());
+                    var (emision, vence) = estaVencido
+                        ? _fechas.ConVencimiento(tipo, _fechas.Vencido(Siguiente()))
+                        : _fechas.EnRegla(tipo, semillaDeVencimiento: Siguiente(), semillaDeEmision: Siguiente());
                     var clave = await GuardarPdfAsync(tipo.Nombre, $"{vehiculo.Nombre} ({vehiculo.NumeroPlaca})", emision, vence, pesado: false);
                     Anadir(Documento.DeVehiculo(vehiculo.Id, tipo.Id, emision, Vigencia(vence), clave));
                 }
@@ -1201,7 +1211,7 @@ public static class PilotoOutboundSeeder
                 foreach (var nombreTipo in DisenoT6PilotoOutbound.TiposDeDocumentoDeSubcontrata)
                 {
                     var tipo = Tipo(nombreTipo);
-                    var (emision, vence) = (_fechas.Emision(Siguiente()), _fechas.Vigente(Siguiente()));
+                    var (emision, vence) = _fechas.EnRegla(tipo, semillaDeEmision: Siguiente(), semillaDeVencimiento: Siguiente());
                     var clave = await GuardarPdfAsync(tipo.Nombre, razonesSociales[i], emision, vence, pesado: false);
                     Anadir(Documento.DeEmpresa(subcontrata.Id, tipo.Id, emision, Vigencia(vence), clave));
                 }
@@ -1243,8 +1253,8 @@ public static class PilotoOutboundSeeder
 
                     if (desviacion is null)
                     {
-                        var vigente = tipo.AplicaVencimientoAutomatico ? _fechas.Vigente(Siguiente()) : (DateOnly?)null;
-                        await DocumentoDeTrabajadorAsync(trabajadores[i], tipo, _fechas.Emision(Siguiente()), vigente);
+                        var (emision, vigente) = FechasEnReglaDeTrabajador(tipo);
+                        await DocumentoDeTrabajadorAsync(trabajadores[i], tipo, emision, vigente);
                         continue;
                     }
 
@@ -1253,16 +1263,17 @@ public static class PilotoOutboundSeeder
 
                     if (!tipo.AplicaVencimientoAutomatico)
                         throw new InvalidOperationException(
-                            $"{tenant.Clave}: «{nombreTipo}» no caduca, así que no puede sembrarse como {desviacion.Situacion}.");
+                            $"{tenant.Clave}: «{nombreTipo}» no vence por su tipo, y el diseño solo sabe sembrar como {desviacion.Situacion} uno que sí.");
 
-                    var vence = desviacion.Situacion switch
+                    var vencimientoDeDiseno = desviacion.Situacion switch
                     {
                         SituacionDocumentoPilotoOutbound.Vencido => _fechas.Vencido(Siguiente()),
                         SituacionDocumentoPilotoOutbound.Urgente => _fechas.Urgente(Siguiente()),
                         SituacionDocumentoPilotoOutbound.Proximo => _fechas.Proximo(Siguiente()),
                         _ => throw new InvalidOperationException($"{tenant.Clave}: situación de documento sin fecha: {desviacion.Situacion}.")
                     };
-                    await DocumentoDeTrabajadorAsync(trabajadores[i], tipo, FechasPilotoOutbound.EmisionDe(vence), vence);
+                    var (emitido, vence) = _fechas.ConVencimiento(tipo, vencimientoDeDiseno);
+                    await DocumentoDeTrabajadorAsync(trabajadores[i], tipo, emitido, vence);
                 }
             }
         }
@@ -1278,6 +1289,17 @@ public static class PilotoOutboundSeeder
 
             foreach (var nombre in nombresDeTipo.Where(n => !CatalogoPilotoOutbound.TiposExigidosDeTrabajador.Contains(n)))
                 dbContext.TiposDocumentoCentros.Add(new TipoDocumentoCentro(Tipo(nombre).Id, centro.Id, incluido: true));
+        }
+
+        /// <summary>
+        /// Las fechas de un documento de Trabajador en regla (<see cref="FechasPilotoOutbound.EnRegla"/>).
+        /// Pide al contador lo mismo que cuando la emisión y el vencimiento se fechaban por separado
+        /// —dos fechas si el tipo vence solo, y una si no—: así ningún otro documento cambia de fecha.
+        /// </summary>
+        private (DateOnly Emision, DateOnly? Vence) FechasEnReglaDeTrabajador(TipoDocumento tipo)
+        {
+            int? semillaDeVencimiento = tipo.AplicaVencimientoAutomatico ? Siguiente() : null;
+            return _fechas.EnRegla(tipo, Siguiente(), semillaDeVencimiento);
         }
 
         /// <param name="sinConfirmar">Sin fecha de vencimiento y sin confirmar que no caduca: el documento nace «Sin confirmar» en vez de «Sin caducidad».</param>

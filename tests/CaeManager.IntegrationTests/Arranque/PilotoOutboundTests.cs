@@ -100,6 +100,13 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         foreach (var m in fixture.Informe.Tenants)
             salida.WriteLine("MEDIDO " + PilotoOutboundTextos.Linea(m));
 
+        // Lo que se lee de un vistazo antes de la demostración: los Centros de cada Tenant por estado, y si queda alguno en verde.
+        foreach (var m in fixture.Informe.Tenants)
+            salida.WriteLine($"MEDIDO {m.Clave}: {PilotoOutboundTextos.CentrosPorEstado(m)}");
+        salida.WriteLine(
+            "MEDIDO Centros «Vigente» en los seis Tenants: " +
+            fixture.Informe.Tenants.Sum(m => m.Centros.Count(c => c.Estado == EstadoCentro.Vigente)));
+
         PilotoOutboundAutoverificacion.Discrepancias(fixture.Informe).Should().BeEmpty();
         fixture.Informe.Tenants.Should().HaveCount(6);
     }
@@ -108,16 +115,23 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     public void T2_esta_todo_al_dia_en_las_seis_pantallas()
     {
         var m = fixture.Informe.De(T2);
+        salida.WriteLine(
+            $"MEDIDO T2: Mi trabajo (bloqueos {m.MiTrabajoBloqueos}, actuaciones {m.MiTrabajoActuaciones}, próximos {m.MiTrabajoProximos}, " +
+            $"seguimiento {m.MiTrabajoSeguimiento}); Inicio (vencidos {m.InicioVencidos}, urgentes {m.InicioUrgentes}, próximos {m.InicioProximos}, " +
+            $"sin confirmar {m.InicioSinConfirmar}); {PilotoOutboundTextos.CentrosPorEstado(m)}");
 
         m.MiTrabajoPresente.Should().BeTrue();
         m.MiTrabajoAlcanceCero.Should().BeFalse("MEDIDO: cero filas con alcance, no por falta de cartera");
+        // Los dos certificados mensuales de la Empresa propia están «Próximo», y aun así Mi trabajo e Inicio no traen
+        // nada: sus alertas y sus recuentos solo leen documentos de Trabajador.
         (m.MiTrabajoBloqueos, m.MiTrabajoActuaciones, m.MiTrabajoProximos, m.MiTrabajoSeguimiento).Should().Be((0, 0, 0, 0));
         m.InicioCumplimiento.Should().Be(100);
         (m.InicioVencidos, m.InicioUrgentes, m.InicioProximos, m.InicioSinConfirmar).Should().Be((0, 0, 0, 0));
         (m.InicioCentrosBloqueados, m.InicioTrabajadoresBloqueados, m.InicioVisitasUrgentes).Should().Be((0, 0, 0));
         m.VisionCarteraCumplimiento.Should().Be(100);
         m.EmpresaCumplimiento.Should().Be(100);
-        m.Centros.Should().HaveCount(5).And.OnlyContain(c => c.Estado == EstadoCentro.Vigente && c.Cumplimiento == 100);
+        // Donde sí se ven es en los Centros: un documento de la Empresa propia que no está Vigente tiñe todos los suyos.
+        m.Centros.Should().HaveCount(5).And.OnlyContain(c => c.Estado == EstadoCentro.Proximo && c.Cumplimiento == 100);
         (m.ParesExigidos, m.ParesFaltantes).Should().Be((65, 0), "MEDIDO: trece Asignaciones activas × cinco tipos");
         (m.ClientesEmpresariales, m.ClientesEmpresarialesSinContacto, m.ClientesEmpresarialesConAlertas).Should().Be((3, 0, 0));
         (m.Documentos, m.DocumentosSinPdf).Should().Be((77, 0), "MEDIDO: 12 Trabajadores × 5, 13 de la Empresa y 4 del Vehículo");
@@ -193,10 +207,14 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             centro.CumplimientoPorcentaje.Should().Be(50);
             centro.Estado.Should().Be(EstadoCentro.Vencido);
             centro.Recuentos.TotalVencidas.Should().Be(suyos.Count, "MEDIDO: un vencido por Trabajador del Centro, y ninguno más");
-            centro.Recuentos.Proximas.Should().BeEmpty();
-            incidencias.Should().OnlyContain(
+            // Lo único que un Centro enseña sin ser de sus Trabajadores es de su Empresa: los dos certificados mensuales,
+            // «Próximo», que llegan a todos los Centros de la Empresa propia.
+            var deLaEmpresa = incidencias.Where(i => i.Ambito == CaeManager.Application.Centros.AmbitoCausa.Empresa).ToList();
+            deLaEmpresa.Should().HaveCount(2).And.OnlyContain(i => i.Estado == EstadoDocumento.Proximo && i.TrabajadorId == null);
+            centro.Recuentos.Proximas.Should().BeEquivalentTo(deLaEmpresa);
+            incidencias.Except(deLaEmpresa).Should().OnlyContain(
                 i => i.TipoDocumentoId != null && exigidos.Contains(i.TipoDocumentoId.Value) && i.TrabajadorId != null && suyos.Contains(i.TrabajadorId.Value),
-                "MEDIDO: toda incidencia es de un tipo que ESE Centro exige y de un Trabajador asignado a ESE Centro");
+                "MEDIDO: toda incidencia de Trabajador es de un tipo que ESE Centro exige y de un Trabajador asignado a ESE Centro");
             trabajadoresPorCentro.Add(suyos.Count);
         }
 
@@ -286,7 +304,9 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         m.Centros.Should().HaveCount(14);
         m.Centros.Count(c => c is { Estado: EstadoCentro.Vencido, Cumplimiento: 95 }).Should().Be(8, "MEDIDO: los ocho Centros del Trabajador con el vencido");
         m.Centros.Count(c => c is { Estado: EstadoCentro.Urgente, Cumplimiento: 100 }).Should().Be(2);
-        m.Centros.Count(c => c is { Estado: EstadoCentro.Vigente, Cumplimiento: 100 }).Should().Be(4);
+        // Los cuatro sin nada pendiente de sus Trabajadores: los tiñen los dos certificados mensuales de la Empresa propia.
+        m.Centros.Count(c => c is { Estado: EstadoCentro.Proximo, Cumplimiento: 100 }).Should().Be(4);
+        salida.WriteLine($"MEDIDO T5: {PilotoOutboundTextos.CentrosPorEstado(m)}");
     }
 
     [Fact]
@@ -435,9 +455,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         // Madrid, intermedia: dos Centros con pares incumplidos y dos solo con avisos.
         De(DisenoT6PilotoOutbound.Madrid).Should().Equal(
             (EstadoCentro.Vencido, 90), (EstadoCentro.Urgente, 100), (EstadoCentro.Urgente, 100), (EstadoCentro.Faltante, 87));
-        // Santander, casi limpia: los cuatro al 100 %, y solo dos avisos.
+        // Santander, casi limpia: los cuatro al 100 %, y solo dos avisos de sus Trabajadores. Los dos Centros sin
+        // ninguno quedan «Próximo» por los dos certificados mensuales de la Empresa propia.
         De(DisenoT6PilotoOutbound.Santander).Should().Equal(
-            (EstadoCentro.Vigente, 100), (EstadoCentro.Proximo, 100), (EstadoCentro.Urgente, 100), (EstadoCentro.Vigente, 100));
+            (EstadoCentro.Proximo, 100), (EstadoCentro.Proximo, 100), (EstadoCentro.Urgente, 100), (EstadoCentro.Proximo, 100));
     }
 
     [Fact]
@@ -839,7 +860,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
 
         // La comprobación previa: dos Trabajadores con todo en regla, y de la Empresa propia nada que falte. La
         // pantalla pone una fila «Faltante» por cada tipo exigido sin documento, y no lista lo que está confirmado
-        // como que no caduca: que no haya ningún Faltante es lo que dice que lo exigido está entero.
+        // como que no caduca: que no haya ningún Faltante es lo que dice que lo exigido está entero. De los cinco
+        // tipos de un Trabajador solo queda sin listar la información de riesgos, el único que no caduca.
         previa.Should().NotBeNull();
         foreach (var t in previa!.Trabajadores)
             salida.WriteLine(
@@ -849,15 +871,17 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             t => t.Documentacion.Documentos.Count > 0 && t.Documentacion.Documentos.All(
                 x => x.DocumentoId != null && x.Estado == EstadoDocumento.Vigente),
             "MEDIDO: ningún Faltante ni nada fuera de vigencia; los documentos que no caducan no se listan");
+        previa.Trabajadores.Should().OnlyContain(
+            t => t.Documentacion.Documentos.Count == 4 && t.Documentacion.Documentos.All(x => x.TipoDocumentoNombre != CatalogoPilotoOutbound.InformacionArt18),
+            "cuatro de los cinco tipos exigidos tienen fecha: el documento de identidad también, anotada a mano");
         salida.WriteLine(
             $"MEDIDO T1 comprobación previa · Empresa propia: {previa.Empresa.Documentos.Count} filas " +
             $"[{string.Join("; ", previa.Empresa.Documentos.GroupBy(x => x.Estado).Select(e => $"{e.Key} {e.Count()}"))}]");
         previa.Empresa.Documentos.Should().NotContain(x => x.Estado == EstadoDocumento.Faltante);
         previa.Empresa.Documentos.Where(x => x.Estado == EstadoDocumento.Vencido).Should().ContainSingle(
             "MEDIDO: el único documento vencido de la Empresa propia").Which.TipoDocumentoNombre.Should().Be("Mutua");
-        previa.Empresa.Documentos.Where(x => x.Estado != EstadoDocumento.Vencido).Should().NotBeEmpty().And.OnlyContain(
-            x => x.DocumentoId != null && x.Estado == EstadoDocumento.Vigente,
-            "MEDIDO: lo demás que se lista de la Empresa propia está Vigente");
+        ExigirDocumentosDeEmpresaEnRegla([.. previa.Empresa.Documentos.Where(x => x.Estado != EstadoDocumento.Vencido)]);
+        previa.Empresa.Documentos.Should().HaveCount(14, "los trece que se exigen por defecto a una Empresa, todos con fecha, y el «Mutua» vencido");
 
         // El ZIP que descarga la pantalla.
         descarga.EsExitoso.Should().BeTrue();
@@ -960,11 +984,12 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                 $"{previa!.Empresa.PeorEstado}; {previa.Empresa.Documentos.Count} filas " +
                 $"[{string.Join("; ", previa.Empresa.Documentos.GroupBy(x => x.Estado).Select(e => $"{e.Key} {e.Count()}"))}]");
             // La pantalla pone una fila «Faltante» por cada tipo exigido sin documento y no lista lo confirmado como
-            // que no caduca: de los trece que se exigen por defecto a una Empresa salen los nueve que tienen fecha.
+            // que no caduca: salen los trece que se exigen por defecto a una Empresa, porque los trece tienen fecha.
             previa.Empresa.Documentos.Should().NotContain(
                 x => x.Estado == EstadoDocumento.Faltante, "MEDIDO: a la Empresa propia no le falta nada de lo que el Centro exige");
-            previa.Empresa.Documentos.Should().HaveCount(9, "MEDIDO: los nueve tipos con fecha de los trece que se exigen por defecto");
-            previa.Empresa.Documentos.Should().OnlyContain(x => x.DocumentoId != null && x.Estado == EstadoDocumento.Vigente);
+            previa.Empresa.Documentos.Should().HaveCount(13, "ninguno de los trece tipos que se exigen por defecto a una Empresa queda «no caduca»");
+            ExigirDocumentosDeEmpresaEnRegla(previa.Empresa.Documentos);
+            previa.Empresa.PeorEstado.Should().Be(EstadoDocumento.Proximo);
         }
         finally
         {
@@ -975,6 +1000,93 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                     return await db.SaveChangesAsync();
                 });
         }
+    }
+
+    // Los dos tipos de documento que vencen solos al mes, escritos a mano.
+    private static readonly string[] CertificadosMensuales = ["Certificado de estar al corriente con la Seguridad Social", "ITA"];
+
+    /// <summary>
+    /// Lo que la comprobación previa lista de una Empresa propia en regla: cada fila con
+    /// su documento, «Próximo» los dos certificados mensuales —un documento mensual
+    /// coherente con su tipo no puede estar a más de 31 días de vencer— y Vigente lo demás.
+    /// </summary>
+    private static void ExigirDocumentosDeEmpresaEnRegla(IReadOnlyList<DocumentoVisitaItemDto> documentos)
+    {
+        documentos.Should().OnlyContain(x => x.DocumentoId != null);
+        documentos.Where(x => x.Estado == EstadoDocumento.Proximo).Select(x => x.TipoDocumentoNombre).Should().BeEquivalentTo(CertificadosMensuales);
+        documentos.Where(x => x.Estado != EstadoDocumento.Proximo).Should().NotBeEmpty().And.OnlyContain(x => x.Estado == EstadoDocumento.Vigente);
+    }
+
+    /// <summary>
+    /// Las dos propiedades de fechas de la autoverificación y la regla de «no caduca»,
+    /// leídas directamente de las filas de los seis Tenants: el vencimiento de un Tipo
+    /// que vence solo es su emisión más los meses del Tipo, ninguna emisión es futura
+    /// —ni lo habría sido el primer día en que se podía sembrar— y solo quedan «no
+    /// caduca» los Tipos cuya nota del catálogo dice que no tienen caducidad.
+    /// </summary>
+    [Fact]
+    public async Task Las_fechas_de_cada_documento_son_las_que_el_producto_le_habria_dado_y_solo_cinco_tipos_quedan_sin_caducidad()
+    {
+        var d = ArnesPilotoOutbound.FechaDemostracion();
+        var hoy = DiaDeNegocio.Hoy();
+        var primerDiaDeSiembra = d.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias);
+        string[] deFechaManualNombrados = ["Certificado de estar al corriente con Hacienda", "Seguro de Responsabilidad Civil + recibo de pago"];
+        var (conVencimientoAutomatico, sinCaducidadEnTotal) = (0, 0);
+
+        foreach (var tenant in CatalogoPilotoOutbound.Tenants)
+        {
+            var filas = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, _) =>
+            {
+                var tipos = await db.TiposDocumento.AsNoTracking().ToDictionaryAsync(t => t.Id);
+                var documentos = await db.Documentos.AsNoTracking()
+                    .Select(x => new { x.TipoDocumentoId, x.FechaEmision, x.FechaVencimiento, x.EstadoVigencia }).ToListAsync();
+                return documentos.Select(x => (Tipo: tipos[x.TipoDocumentoId], x.FechaEmision, x.FechaVencimiento, x.EstadoVigencia)).ToList();
+            });
+
+            var deTipoQueVenceSolo = filas.Where(f => f.Tipo.FijaVigenciaDesdeLaEmision).ToList();
+            var ajenosASuTipo = deTipoQueVenceSolo
+                .Where(f => f.FechaVencimiento != CalculadoraEstadoDocumento.CalcularFechaVencimiento(f.FechaEmision, f.Tipo.VigenciaMeses)).ToList();
+            var emitidosDespuesDeHoy = filas.Where(f => f.FechaEmision > hoy).ToList();
+            var emitidosDespuesDelPrimerDia = filas.Where(f => f.FechaEmision > primerDiaDeSiembra).ToList();
+            var sinCaducidad = filas.Where(f => f.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca).ToList();
+            var mensuales = deTipoQueVenceSolo.Where(f => f.Tipo.VigenciaMeses == 1).ToList();
+            var trimestrales = deTipoQueVenceSolo.Where(f => f.Tipo.VigenciaMeses == 3).ToList();
+            conVencimientoAutomatico += deTipoQueVenceSolo.Count;
+
+            salida.WriteLine(
+                $"MEDIDO {tenant.Clave}: {filas.Count} documentos, {deTipoQueVenceSolo.Count} de un Tipo que vence solo; con vencimiento ajeno a su Tipo " +
+                $"{ajenosASuTipo.Count}; emitidos después de hoy {emitidosDespuesDeHoy.Count}; emitidos después de D−{OpcionesPilotoOutbound.MargenMaximoDias} " +
+                $"{emitidosDespuesDelPrimerDia.Count}; emisión más tardía {(filas.Count == 0 ? "(sin documentos)" : $"{filas.Max(f => f.FechaEmision):yyyy-MM-dd}")}; " +
+                $"sin caducidad {sinCaducidad.Count} [{string.Join("; ", sinCaducidad.GroupBy(f => f.Tipo.Nombre).Select(g => $"{g.Key} {g.Count()}"))}]; " +
+                $"mensuales vencen en [{string.Join(", ", mensuales.Select(f => $"D+{f.FechaVencimiento!.Value.DayNumber - d.DayNumber}"))}]; " +
+                $"trimestrales vencen en [{string.Join(", ", trimestrales.Select(f => $"D+{f.FechaVencimiento!.Value.DayNumber - d.DayNumber}"))}]");
+
+            ajenosASuTipo.Select(f => $"{f.Tipo.Nombre}: {f.FechaEmision:yyyy-MM-dd} → {f.FechaVencimiento:yyyy-MM-dd}").Should().BeEmpty(
+                $"{tenant.Clave}: el producto no deja crear un documento de un Tipo que vence solo con otro vencimiento que su emisión más los meses del Tipo");
+            emitidosDespuesDeHoy.Should().BeEmpty($"{tenant.Clave}: ninguna emisión es futura");
+            emitidosDespuesDelPrimerDia.Should().BeEmpty($"{tenant.Clave}: ninguna emisión habría sido futura el primer día en que se podía sembrar");
+            sinCaducidad.Select(f => f.Tipo.Nombre).Distinct().Should().BeSubsetOf(
+                CatalogoPilotoOutbound.TiposQueNoCaducan, $"{tenant.Clave}: solo quedan «no caduca» los Tipos cuya nota del catálogo lo dice");
+            filas.Where(f => deFechaManualNombrados.Contains(f.Tipo.Nombre)).Should().OnlyContain(
+                f => f.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha, $"{tenant.Clave}: Hacienda y el seguro llevan su fecha, anotada a mano");
+            mensuales.Should().OnlyContain(
+                f => f.FechaVencimiento!.Value.DayNumber - d.DayNumber >= 16 && f.FechaVencimiento.Value.DayNumber - d.DayNumber <= 21,
+                $"{tenant.Clave}: un mensual está «Próximo», y nunca «Urgente», de D−9 a D");
+            trimestrales.Should().OnlyContain(
+                f => f.FechaVencimiento!.Value.DayNumber - d.DayNumber > 30, $"{tenant.Clave}: un trimestral recién emitido sigue Vigente el día de la demostración");
+
+            if (tenant.Escenario == EscenarioPilotoOutbound.TodoPendiente) continue;
+
+            // Control positivo, por Tenant con documentos: había de las tres clases que mirar.
+            (mensuales.Count, trimestrales.Count).Should().Be((2, 4), $"{tenant.Clave}: los seis documentos de la Empresa propia que vencen al mes o a los tres meses");
+            filas.Where(f => deFechaManualNombrados.Contains(f.Tipo.Nombre) && f.FechaVencimiento != null).Should().HaveCountGreaterThanOrEqualTo(2);
+            sinCaducidadEnTotal += sinCaducidad.Count;
+        }
+
+        sinCaducidadEnTotal.Should().BeGreaterThan(0, "la información de riesgos de un Trabajador sigue sin caducidad: el estado no desaparece de la siembra");
+        conVencimientoAutomatico.Should().BeGreaterThan(500, "control: se miraron los documentos de los seis Tenants, no un conjunto vacío");
+        fixture.Informe.Tenants.Should().OnlyContain(
+            m => m.DocumentosConVencimientoAjenoASuTipo == 0 && m.DocumentosEmitidosEnElFuturo == 0, "la autoverificación midió lo mismo, por Tenant");
     }
 
     [Fact]
@@ -1111,8 +1223,13 @@ internal static class PilotoOutboundTextos
         $"presente={m.VisionCarteraPresente} sinCartera={m.VisionCarteraSinCartera} sinDatos={m.VisionCarteraSinDatos} {m.VisionCarteraCumplimiento}% | Empresa {m.EmpresaCumplimiento}% | Centros " +
         $"[{string.Join("; ", m.Centros.Select(c => $"{c.Estado} {c.Cumplimiento}%"))}] | pares {m.ParesExigidos} (faltantes {m.ParesFaltantes}) | " +
         $"Clientes empresariales {m.ClientesEmpresariales} (sin contacto {m.ClientesEmpresarialesSinContacto}, con alertas " +
-        $"{m.ClientesEmpresarialesConAlertas}) | documentos {m.Documentos} (sin PDF {m.DocumentosSinPdf}) | agenda {m.ContactosDeAgenda} " +
+        $"{m.ClientesEmpresarialesConAlertas}) | documentos {m.Documentos} (sin PDF {m.DocumentosSinPdf}, con vencimiento ajeno a su Tipo " +
+        $"{m.DocumentosConVencimientoAjenoASuTipo}, emitidos en el futuro {m.DocumentosEmitidosEnElFuturo}) | agenda {m.ContactosDeAgenda} " +
         $"(fuera de regla {m.ContactosFueraDeLaReglaDeCorreo})" + (m.Grande is { } g ? " | " + Grande(g) : string.Empty);
+
+    /// <summary>Los Centros de Trabajo del Tenant por estado, con los seis estados aunque alguno no tenga ninguno.</summary>
+    public static string CentrosPorEstado(PilotoOutboundAutoverificacion.MedicionTenant m) =>
+        $"Centros por estado [{string.Join(", ", Enum.GetValues<EstadoCentro>().Select(e => $"{e} {m.Centros.Count(c => c.Estado == e)}"))}]";
 
     private static string Grande(PilotoOutboundAutoverificacion.MedicionGrande g) =>
         $"Trabajadores propios {g.TrabajadoresPropios}, de subcontrata {g.TrabajadoresDeSubcontrata}, subcontratas {g.Subcontratas} | casos " +
@@ -1164,8 +1281,7 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
         await arnes.EnTenantAsync(t2, async (db, _) =>
         {
             var documento = await db.Documentos.Where(d => d.TrabajadorId != null && d.FechaVencimiento != null).OrderBy(d => d.Id).FirstAsync();
-            var vence = DiaDeNegocio.Hoy().AddDays(-20);
-            documento.CorregirVigencia(vence.AddYears(-1), VigenciaDocumento.VenceEl(vence));
+            await CorregirComoElProductoAsync(db, documento, DiaDeNegocio.Hoy().AddDays(-20));
             return await db.SaveChangesAsync();
         });
 
@@ -1186,7 +1302,7 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
         {
             var hoy = DiaDeNegocio.Hoy();
             var documento = await db.Documentos.Where(d => d.FechaVencimiento < hoy).OrderBy(d => d.Id).FirstAsync();
-            documento.CorregirVigencia(hoy.AddDays(-100), VigenciaDocumento.VenceEl(hoy.AddDays(200)));
+            await CorregirComoElProductoAsync(db, documento, hoy.AddDays(200));
             return await db.SaveChangesAsync();
         });
 
@@ -1246,8 +1362,7 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
                                    where x.FechaVencimiento != null
                                    orderby x.Id
                                    select x).FirstAsync();
-            var vence = DiaDeNegocio.Hoy().AddDays(-20);
-            documento.CorregirVigencia(vence.AddYears(-1), VigenciaDocumento.VenceEl(vence));
+            await CorregirComoElProductoAsync(db, documento, DiaDeNegocio.Hoy().AddDays(-20));
             (await db.SaveChangesAsync()).Should().BeGreaterThan(0, "control: la alteración de T1 se escribió");
             return await db.TiposDocumento.Where(t => t.Id == documento.TipoDocumentoId).Select(t => t.Nombre).SingleAsync();
         });
@@ -1262,6 +1377,48 @@ public class PilotoOutboundSensibilidadTests(ITestOutputHelper salida)
             l => l.StartsWith(prefijoT1 + $"Paquete de la Visita · exigido por el Centro: «{tipoQueYaNoViaja}» de ")
                  && l.EndsWith(": medido no está en el ZIP, esperado en el ZIP."),
             "MEDIDO: la autoverificación dice qué documento falta, y de quién");
+
+        // 7. En T5, dos documentos dejan de tener las fechas que el producto les habría dado, sin cambiar de estado: a uno de
+        //    un Tipo que vence solo se le mueve la emisión y se le deja el vencimiento, y uno que no caduca pasa a estar
+        //    emitido pasado mañana. La emisión futura se escribe por la propiedad de la fila: el dominio no deja corregirla así.
+        //    El primero es una entrega de EPI Vigente: ningún Centro de T5 le pone condiciones propias a ese Tipo.
+        (await arnes.EnTenantAsync(t5, async (db, _) =>
+        {
+            var hoy = DiaDeNegocio.Hoy();
+            var epi = await db.TiposDocumento.SingleAsync(t => t.Nombre == CatalogoPilotoOutbound.EntregaEpi);
+            epi.FijaVigenciaDesdeLaEmision.Should().BeTrue("control: la entrega de EPI vence sola");
+            var deTipoQueVenceSolo = await db.Documentos
+                .Where(d => d.TipoDocumentoId == epi.Id && d.FechaVencimiento > hoy.AddDays(60)).OrderBy(d => d.Id).FirstAsync();
+            deTipoQueVenceSolo.CorregirVigencia(deTipoQueVenceSolo.FechaEmision.AddDays(-40), deTipoQueVenceSolo.Vigencia);
+
+            var queNoCaduca = await db.Documentos.Where(d => d.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca).OrderBy(d => d.Id).FirstAsync();
+            db.Entry(queNoCaduca).Property(d => d.FechaEmision).CurrentValue = hoy.AddDays(2);
+
+            return await db.SaveChangesAsync();
+        })).Should().BeGreaterThan(0, "control: las dos alteraciones de T5 se escribieron");
+
+        var conFechasAjenas = PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion)).Where(l => l.StartsWith(prefijoT5)).ToList();
+        foreach (var linea in conFechasAjenas) salida.WriteLine("MEDIDO " + linea);
+
+        conFechasAjenas.Should().BeEquivalentTo(
+        [
+            prefijoT5 + "Documentos · vencimiento que no es la emisión más los meses de su Tipo: medido 1, esperado 0.",
+            prefijoT5 + "Documentos · emisión posterior a hoy: medido 1, esperado 0.",
+            prefijoT5 + "Mi trabajo · filas: medido 6, esperado 4."
+        ], "la autoverificación nombra el Tenant y las dos propiedades de fechas, y nada más cambia en T5 desde el paso 4");
+    }
+
+    /// <summary>
+    /// Corrige un documento para que venza <paramref name="haciaElDia"/> —o hasta tres días antes, si ese día no lo
+    /// alcanza ninguna emisión— con la emisión de la que el producto sacaría ese vencimiento: así la alteración
+    /// solo aparta de la matriz el estado, y no también la coherencia de las fechas con el Tipo.
+    /// </summary>
+    private static async Task CorregirComoElProductoAsync(
+        CaeManager.Infrastructure.Persistence.CaeManagerDbContext db, Documento documento, DateOnly haciaElDia)
+    {
+        var meses = await db.TiposDocumento.Where(t => t.Id == documento.TipoDocumentoId).Select(t => t.VigenciaMeses).SingleAsync() ?? 12;
+        var emision = haciaElDia.AddMonths(-meses);
+        documento.CorregirVigencia(emision, VigenciaDocumento.VenceEl(emision.AddMonths(meses)));
     }
 
     /// <summary>Filas de auditoría de toda la base y sellos de concurrencia de las cuentas: cambia con cualquier escritura por la aplicación.</summary>

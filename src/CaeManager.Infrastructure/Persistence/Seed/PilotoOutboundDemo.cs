@@ -1,5 +1,6 @@
 using System.Globalization;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Documentos;
 using Microsoft.Extensions.Configuration;
 
 namespace CaeManager.Infrastructure.Persistence.Seed;
@@ -218,8 +219,7 @@ public sealed record OpcionesPilotoOutbound(DateOnly FechaDemostracion, Contacto
 /// Las fechas de la siembra, todas relativas al día de la demostración (D) y nunca
 /// al día en que se siembra: ningún documento cambia de estado entre el ensayo y
 /// la demostración. Márgenes de la matriz: Vigente, más de 60 días después;
-/// Próximo, 20..25; Urgente, 5..10; Vencido, entre 10 y 90 días antes. Las
-/// emisiones son siempre anteriores a D−30, así que nunca son futuras.
+/// Próximo, 20..25; Urgente, 5..10; Vencido, entre 10 y 90 días antes.
 ///
 /// <para>
 /// Próximo y Urgente usan solo los dos primeros días de su margen. El estado se
@@ -229,19 +229,188 @@ public sealed record OpcionesPilotoOutbound(DateOnly FechaDemostracion, Contacto
 /// D−9, y uno en D+7 es todavía Próximo. D+20..D+21 es Próximo y D+5..D+6 es
 /// Urgente los diez días.
 /// </para>
+///
+/// <para>
+/// <b>Emisión y vencimiento van juntos, y los decide el Tipo de documento.</b> El
+/// producto no deja crear un documento de un Tipo con vencimiento automático cuyo
+/// vencimiento no sea su emisión más los meses del Tipo
+/// (<see cref="CalculadoraEstadoDocumento.ResolverVigencia"/>), así que la siembra
+/// tampoco: <see cref="EnRegla"/>, <see cref="ConVencimiento"/> y
+/// <see cref="DesdeEmision"/> devuelven siempre el par, y en esos Tipos una de las
+/// dos fechas se calcula desde la otra. Ninguna emisión es posterior a
+/// D−<see cref="OpcionesPilotoOutbound.MargenMaximoDias"/>, el primer día en que se
+/// puede sembrar: nunca es futura.
+/// </para>
 /// </summary>
 public sealed record FechasPilotoOutbound(DateOnly FechaDemostracion)
 {
+    // Los umbrales por defecto de un Tenant: «Próximo» a 30 días o menos, «Urgente» a 15 o menos.
+    private const int UmbralAmbarDias = 30;
+    private const int UmbralRojoDias = 15;
+
+    /// <summary>Lo que se le supone a un documento de fecha manual: se emitió doce meses antes de vencer.</summary>
+    private const int MesesDeUnDocumentoDeFechaManual = 12;
+
+    private const int AnosDeUnDocumentoDeIdentidad = 10;
+
     public DateOnly Vigente(int i) => FechaDemostracion.AddDays(75 + Positivo(i) % 240);
     public DateOnly Proximo(int i) => FechaDemostracion.AddDays(20 + Positivo(i) % 2);
     public DateOnly Urgente(int i) => FechaDemostracion.AddDays(5 + Positivo(i) % 2);
     public DateOnly Vencido(int i) => FechaDemostracion.AddDays(-(10 + Positivo(i) % 81));
 
-    /// <summary>Emisión de un documento que vence después de D o que no caduca.</summary>
+    /// <summary>Emisión de un documento que no caduca o que nadie ha confirmado: no hay vencimiento del que calcularla.</summary>
     public DateOnly Emision(int i) => FechaDemostracion.AddDays(-(45 + Positivo(i) % 280));
 
-    /// <summary>Emisión de un documento del que se conoce el vencimiento: un año antes.</summary>
-    public static DateOnly EmisionDe(DateOnly vencimiento) => vencimiento.AddYears(-1);
+    /// <summary>El último día en que puede estar emitido un documento sin ser futuro el día en que se siembra, sea cual sea.</summary>
+    private DateOnly UltimaEmision => FechaDemostracion.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias);
+
+    /// <summary>
+    /// Las fechas de un documento que el diseño no pone en ningún estado a propósito:
+    /// «en regla». Lo que eso quiere decir depende del Tipo.
+    /// <list type="bullet">
+    /// <item>Vencimiento automático de doce meses o más: vence en <see cref="Vigente"/> y
+    /// se emitió los meses del Tipo antes.</item>
+    /// <item>Vencimiento automático de dos a once meses (RLC, RNT y sus recibos, de
+    /// tres): recién emitido —entre D−9 y D−18— y Vigente los diez días.</item>
+    /// <item>Vencimiento automático de un mes (el certificado de estar al corriente con
+    /// la Seguridad Social y el ITA): a un documento mensual coherente le quedan, como
+    /// mucho, 31 días, así que está «Próximo» —nunca «Urgente»— los diez días. Se
+    /// emitió en D−9, o en D−10 si desde D−9 vencería en D+22.</item>
+    /// <item>Sin vencimiento automático y de
+    /// <see cref="CatalogoPilotoOutbound.TiposQueNoCaducan"/>: no caduca.</item>
+    /// <item>Documento de identidad: vence a lo largo de los ocho años siguientes y se
+    /// emitió diez años antes.</item>
+    /// <item>Cualquier otro sin vencimiento automático: fecha manual, en
+    /// <see cref="Vigente"/>, emitido doce meses antes.</item>
+    /// </list>
+    /// </summary>
+    /// <param name="semillaDeVencimiento">
+    /// La semilla del vencimiento. Sin ella se usa la de la emisión: es el caso de los
+    /// documentos que antes se sembraban «no caduca» y pedían al contador de la siembra
+    /// una sola fecha.
+    /// </param>
+    public (DateOnly Emision, DateOnly? Vence) EnRegla(TipoDocumento tipo, int semillaDeEmision, int? semillaDeVencimiento = null)
+    {
+        var vigente = Vigente(semillaDeVencimiento ?? semillaDeEmision);
+
+        if (tipo.AplicaVencimientoAutomatico)
+        {
+            return MesesDe(tipo) switch
+            {
+                >= 12 => ConVencimiento(tipo, vigente),
+                > 1 => Reciente(tipo, semillaDeEmision),
+                _ => Mensual(tipo)
+            };
+        }
+
+        if (CatalogoPilotoOutbound.TiposQueNoCaducan.Contains(tipo.Nombre))
+            return (Emision(semillaDeEmision), null);
+
+        if (tipo.Nombre == CatalogoPilotoOutbound.DocumentoIdentidad)
+        {
+            var vence = FechaDemostracion.AddDays(75 + Positivo(semillaDeEmision) % 3000);
+            return (NoFutura(tipo, vence.AddYears(-AnosDeUnDocumentoDeIdentidad)), vence);
+        }
+
+        return ConVencimiento(tipo, vigente);
+    }
+
+    /// <summary>
+    /// Las fechas de un documento cuyo vencimiento fija el diseño (Vencido, Urgente,
+    /// Próximo, en tolerancia…): el vencimiento es el dado y la emisión se calcula
+    /// hacia atrás, con los meses del Tipo si vence solo y con doce si su fecha es manual.
+    ///
+    /// <para>
+    /// Un vencimiento en un día que ninguna emisión alcanza —el 29 de febrero con una
+    /// vigencia de años; el 29, 30 o 31 con una de meses, si el mes de la emisión es más
+    /// corto— no existe para el producto. Ahí, y solo ahí, el vencimiento retrocede al
+    /// día que sí se alcanza: uno en las vigencias de años y tres como mucho en las
+    /// demás, que caben en todos los márgenes de arriba y en las tolerancias del diseño.
+    /// </para>
+    /// </summary>
+    public (DateOnly Emision, DateOnly Vence) ConVencimiento(TipoDocumento tipo, DateOnly vencimientoDeDiseno)
+    {
+        if (!tipo.AplicaVencimientoAutomatico)
+            return (NoFutura(tipo, vencimientoDeDiseno.AddMonths(-MesesDeUnDocumentoDeFechaManual)), vencimientoDeDiseno);
+
+        var meses = MesesDe(tipo);
+        var emision = vencimientoDeDiseno.AddMonths(-meses);
+        var vence = emision.AddMonths(meses);
+        if (vencimientoDeDiseno.DayNumber - vence.DayNumber is < 0 or > 3)
+            throw new InvalidOperationException(
+                $"«{tipo.Nombre}» ({meses} meses): ninguna emisión da un vencimiento a tres días o menos del {vencimientoDeDiseno:yyyy-MM-dd} del diseño.");
+
+        return ComoLoDariaElProducto(tipo, emision, vence);
+    }
+
+    /// <summary>
+    /// Las fechas de un documento de un Tipo con vencimiento automático del que el
+    /// diseño fija la EMISIÓN: el vencimiento es el que el producto le calcularía.
+    /// </summary>
+    public (DateOnly Emision, DateOnly Vence) DesdeEmision(TipoDocumento tipo, DateOnly emision) =>
+        ComoLoDariaElProducto(tipo, emision, emision.AddMonths(MesesDe(tipo)));
+
+    /// <summary>Recién emitido: entre D−9 y D−18, repartido sin azar. Tiene que seguir Vigente el día de la demostración.</summary>
+    private (DateOnly Emision, DateOnly Vence) Reciente(TipoDocumento tipo, int semilla)
+    {
+        var emision = UltimaEmision.AddDays(-(Positivo(semilla) % 10));
+        var vence = emision.AddMonths(MesesDe(tipo));
+        if (vence.DayNumber - FechaDemostracion.DayNumber <= UmbralAmbarDias)
+            throw new InvalidOperationException(
+                $"«{tipo.Nombre}» ({MesesDe(tipo)} meses): emitido el {emision:yyyy-MM-dd} vence el {vence:yyyy-MM-dd}, a {UmbralAmbarDias} días o " +
+                $"menos de la demostración ({FechaDemostracion:yyyy-MM-dd}), y la siembra lo quería Vigente.");
+
+        return ComoLoDariaElProducto(tipo, emision, vence);
+    }
+
+    /// <summary>
+    /// La emisión más tardía que no es futura ningún día de siembra y cuyo vencimiento,
+    /// un mes después, es «Próximo» de D−9 a D: a más de quince días de D y a treinta o
+    /// menos de D−9, es decir, entre D+16 y D+21. Desde D−9 vence entre D+19 y D+22,
+    /// según lo que dure el mes; desde D−10, entre D+18 y D+21.
+    /// </summary>
+    private (DateOnly Emision, DateOnly Vence) Mensual(TipoDocumento tipo)
+    {
+        for (var atras = 0; atras <= 1; atras++)
+        {
+            var emision = UltimaEmision.AddDays(-atras);
+            var vence = emision.AddMonths(MesesDe(tipo));
+            var dias = vence.DayNumber - FechaDemostracion.DayNumber;
+            if (dias > UmbralRojoDias && dias + OpcionesPilotoOutbound.MargenMaximoDias <= UmbralAmbarDias)
+                return ComoLoDariaElProducto(tipo, emision, vence);
+        }
+
+        throw new InvalidOperationException(
+            $"«{tipo.Nombre}»: ninguna emisión de D−{OpcionesPilotoOutbound.MargenMaximoDias} o del día anterior da un vencimiento «Próximo» " +
+            $"todos los días entre el primero de siembra y la demostración ({FechaDemostracion:yyyy-MM-dd}).");
+    }
+
+    /// <summary>
+    /// Lo que no se supone: que el par es el que el producto calcularía
+    /// (<see cref="CalculadoraEstadoDocumento.CalcularFechaVencimiento"/>) y que la
+    /// emisión no es futura el primer día en que se puede sembrar.
+    /// </summary>
+    private (DateOnly Emision, DateOnly Vence) ComoLoDariaElProducto(TipoDocumento tipo, DateOnly emision, DateOnly vence)
+    {
+        if (CalculadoraEstadoDocumento.CalcularFechaVencimiento(emision, tipo.VigenciaMeses) != vence)
+            throw new InvalidOperationException(
+                $"«{tipo.Nombre}»: emitido el {emision:yyyy-MM-dd}, el producto no lo haría vencer el {vence:yyyy-MM-dd}.");
+
+        return (NoFutura(tipo, emision), vence);
+    }
+
+    private DateOnly NoFutura(TipoDocumento tipo, DateOnly emision) =>
+        emision <= UltimaEmision
+            ? emision
+            : throw new InvalidOperationException(
+                $"«{tipo.Nombre}»: la emisión ({emision:yyyy-MM-dd}) sería posterior a {UltimaEmision:yyyy-MM-dd}, el primer día en que se " +
+                "puede sembrar: el documento nacería emitido en el futuro.");
+
+    private static int MesesDe(TipoDocumento tipo) =>
+        tipo.FijaVigenciaDesdeLaEmision
+            ? tipo.VigenciaMeses!.Value
+            : throw new InvalidOperationException(
+                $"«{tipo.Nombre}» no vence solo, o dice que sí y no dice en cuántos meses: la siembra no sabe fecharlo.");
 
     private static int Positivo(int i) => i < 0 ? -i : i;
 }
@@ -790,6 +959,20 @@ public static class CatalogoPilotoOutbound
     /// <summary>Un tipo de ámbito Trabajador que NO se exige por defecto: solo lo pide el Centro que lo incluye.</summary>
     public const string CarretillasElevadoras = "Carretillas elevadoras";
 
+    /// <summary>
+    /// Los únicos Tipos de documento que la siembra deja «no caduca». Son los de
+    /// vencimiento manual cuya nota del catálogo (<see cref="TipoDocumentoSeedData"/>)
+    /// dice que no tienen caducidad, o no les da ninguna: «Formación base, no consta
+    /// caducidad», «No consta periodicidad de renovación», «Configurable si el convenio
+    /// interno define vigencia», «Vigente mientras dure la relación laboral — sin fecha
+    /// de caducidad propia» y «Vigente mientras continúe contratado — sin fecha de
+    /// caducidad propia». Todos los demás Tipos sin vencimiento automático llevan una
+    /// fecha anotada a mano, como dicen sus notas («fecha de vencimiento manual»), y la
+    /// siembra se la pone (<see cref="FechasPilotoOutbound.EnRegla"/>).
+    /// </summary>
+    public static IReadOnlyList<string> TiposQueNoCaducan { get; } =
+        ["Formación 60h (base convenio)", InformacionArt18, CarretillasElevadoras, "Contrato de Trabajo", "Alta en Seguridad Social"];
+
     /// <summary>Los cinco tipos de ámbito Trabajador exigidos por defecto. La siembra comprueba que el catálogo del Tenant dice lo mismo antes de escribir.</summary>
     public static IReadOnlyList<string> TiposExigidosDeTrabajador { get; } =
         [AptitudMedica, EntregaEpi, FormacionArt19, InformacionArt18, DocumentoIdentidad];
@@ -982,9 +1165,12 @@ public static class CatalogoPilotoOutbound
     public static EsperadoPilotoOutbound? Esperado(TenantPilotoOutbound tenant) =>
         tenant.Escenario switch
         {
+            // «Todo al día» es 100 % en las cuatro pantallas y ninguna fila en Mi trabajo, que solo trae documentos de
+            // Trabajador. Sus Centros no están en verde: los dos certificados mensuales de la Empresa propia, que un
+            // documento coherente con su tipo solo puede tener «Próximo», tiñen de ámbar todos los Centros de la Empresa.
             EscenarioPilotoOutbound.TodoAlDia => new(
                 FilasMiTrabajo: 0, CumplimientoInicio: 100, CumplimientoVisionCartera: 100, CumplimientoEmpresa: 100,
-                Centros: [.. tenant.Centros.Select(c => new EsperadoCentroPilotoOutbound(c.Nombre, EstadoCentro.Vigente, 100))],
+                Centros: [.. tenant.Centros.Select(c => new EsperadoCentroPilotoOutbound(c.Nombre, EstadoCentro.Proximo, 100))],
                 ParesExigidos: 65, ParesFaltantes: 0, Documentos: 77, TodoAlDia: true),
 
             // Diez Trabajadores, cada uno en un Centro que le exige dos tipos: 20 pares y 20 documentos, la mitad
@@ -1017,7 +1203,8 @@ public static class CatalogoPilotoOutbound
             // Asignaciones × 5 = 220; la Formación vencida falla en los ocho Centros de su Trabajador: 212 de
             // 220 = 96 %. Los ocho primeros Centros tienen a los cuatro Trabajadores (19 de 20 pares, y el
             // vencido los pone en rojo); los dos siguientes, a tres (15 de 15, con el EPI urgente); los cuatro
-            // últimos, a dos o a uno, sin nada pendiente.
+            // últimos, a dos o a uno, sin nada pendiente de sus Trabajadores: los deja en «Próximo» lo único que
+            // les llega, los dos certificados mensuales de la Empresa propia.
             EscenarioPilotoOutbound.PocosTrabajadoresMuchosCentros => new(
                 FilasMiTrabajo: 4, CumplimientoInicio: 95, CumplimientoVisionCartera: 95, CumplimientoEmpresa: 96,
                 Centros:
@@ -1027,10 +1214,10 @@ public static class CatalogoPilotoOutbound
                     new(tenant.Centros[4].Nombre, EstadoCentro.Vencido, 95), new(tenant.Centros[5].Nombre, EstadoCentro.Vencido, 95),
                     new(tenant.Centros[6].Nombre, EstadoCentro.Vencido, 95), new(tenant.Centros[7].Nombre, EstadoCentro.Vencido, 95),
                     new(tenant.Centros[8].Nombre, EstadoCentro.Urgente, 100), new(tenant.Centros[9].Nombre, EstadoCentro.Urgente, 100),
-                    new(tenant.Centros[10].Nombre, EstadoCentro.Vigente, 100), new(tenant.Centros[11].Nombre, EstadoCentro.Vigente, 100),
-                    new(tenant.Centros[12].Nombre, EstadoCentro.Vigente, 100), new(tenant.Centros[13].Nombre, EstadoCentro.Vigente, 100)
+                    new(tenant.Centros[10].Nombre, EstadoCentro.Proximo, 100), new(tenant.Centros[11].Nombre, EstadoCentro.Proximo, 100),
+                    new(tenant.Centros[12].Nombre, EstadoCentro.Proximo, 100), new(tenant.Centros[13].Nombre, EstadoCentro.Proximo, 100)
                 ],
-                // Documentos: 20 de Trabajador (4 × 5) y los 13 que se exigen por defecto a la Empresa propia, Vigentes.
+                // Documentos: 20 de Trabajador (4 × 5) y los 13 que se exigen por defecto a la Empresa propia, en regla.
                 ParesExigidos: 220, ParesFaltantes: 0, Documentos: 33, TodoAlDia: false, TrabajadoresBloqueados: 2,
                 Divergencia:
                     "Inicio y Visión de cartera cuentan documentos (19 de 20 al día) y Centros y Empresas cuentan pares " +
@@ -1056,12 +1243,14 @@ public static class CatalogoPilotoOutbound
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Madrid)[1].Nombre, EstadoCentro.Urgente, 100),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Madrid)[2].Nombre, EstadoCentro.Urgente, 100),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Madrid)[3].Nombre, EstadoCentro.Faltante, 87),
-                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[0].Nombre, EstadoCentro.Vigente, 100),
+                    // Los dos de Santander sin nada pendiente de sus Trabajadores quedan en «Próximo» por los dos
+                    // certificados mensuales de la Empresa propia, igual que el que ya lo estaba por un documento de Trabajador.
+                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[0].Nombre, EstadoCentro.Proximo, 100),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[1].Nombre, EstadoCentro.Proximo, 100),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[2].Nombre, EstadoCentro.Urgente, 100),
-                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[3].Nombre, EstadoCentro.Vigente, 100)
+                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[3].Nombre, EstadoCentro.Proximo, 100)
                 ],
-                // Documentos: los 123 de Trabajadores y subcontratas, y los 13 que se exigen por defecto a la Empresa propia, Vigentes.
+                // Documentos: los 123 de Trabajadores y subcontratas, y los 13 que se exigen por defecto a la Empresa propia, en regla.
                 ParesExigidos: 158, ParesFaltantes: 7, Documentos: 136, TodoAlDia: false, TrabajadoresBloqueados: 1,
                 Divergencia:
                     "Inicio y Visión de cartera cuentan documentos de Trabajador (112 de 117 al día) y Centros y Empresas " +
