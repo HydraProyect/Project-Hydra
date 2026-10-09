@@ -515,3 +515,96 @@ public sealed class WebAppFixtureEscenariosDireccion : WebAppFixture
             ["Circuit__RevalidacionIntervaloSegundos"] = "2",
         };
 }
+
+/// <summary>
+/// Instancia propia para el Encargo de administración (decisión D-8, 2026-10-08), con su base
+/// propia: el encargo eleva al Administrador del Operador CAE externo de demo dentro de un Tenant
+/// propietario, y eso no debe alcanzar a ninguna otra colección.
+///
+/// <para>
+/// <b>El encargo se siembra aquí, por SQL, y no por la interfaz.</b> En pantalla solo lo registra
+/// Soporte TALVEG dentro de una Sesión Privilegiada de aprovisionamiento o un Administrador propio
+/// del Tenant propietario, nunca nadie del Operador CAE externo que lo recibe (la política
+/// <c>posicion_en_el_encargo</c> lo impide además en la base). Es un estado que quien protagoniza
+/// el recorrido no puede fabricar, igual que los de <see cref="WebAppFixture.EjecutarSqlAsync(string, string, string)"/>.
+/// La fila copia los dos Tenants y la operación de la Asignación de Operación externa, universal y
+/// vigente que ya une al Operador CAE externo con el Tenant propietario: si no hay exactamente una,
+/// no se inserta nada y la siembra falla.
+/// </para>
+/// </summary>
+[CollectionDefinition("AppCollectionEncargoAdministracion")]
+public class AppCollectionEncargoAdministracion : ICollectionFixture<WebAppFixtureEncargoAdministracion>;
+
+public sealed class WebAppFixtureEncargoAdministracion : WebAppFixture
+{
+    /// <summary>Tenant propietario que encarga su administración al Operador CAE externo de demo.</summary>
+    public const string TenantConEncargo = Ayudas.NombreClienteDelegadoDemo2;
+
+    /// <summary>Tenant propietario que el mismo Operador CAE externo opera sin encargo: el control.</summary>
+    public const string TenantSinEncargo = Ayudas.NombreClienteDelegadoDemo;
+
+    /// <summary>
+    /// Mismo valor que <c>EncargoAdministracion.VersionTextoVigente</c>; se repite porque este
+    /// proyecto no referencia Domain (mismo criterio que las constantes de <see cref="Ayudas"/>).
+    /// </summary>
+    private const string VersionTextoVigente = "2026-10-09";
+
+    private readonly SemaphoreSlim _candado = new(1, 1);
+    private string? _encargoId;
+
+    /// <summary>
+    /// Registra, una sola vez por instancia, el encargo de <see cref="TenantConEncargo"/> a favor
+    /// del Operador CAE externo de demo, y devuelve su Id. Lo registra la cuenta de plataforma, con
+    /// origen <c>AprovisionamientoDePlataforma</c>: el actor nunca es alguien del Operador CAE.
+    /// </summary>
+    public async Task<string> AsegurarEncargoAsync()
+    {
+        await _candado.WaitAsync();
+        try
+        {
+            if (_encargoId is not null)
+                return _encargoId;
+
+            var id = Guid.CreateVersion7().ToString();
+            var filas = await EjecutarSqlAsync(
+                """
+                INSERT INTO "EncargosAdministracion"
+                    ("Id", "PropietarioTenantId", "OperadorTenantId", "AsignacionOperacionId", "ClausulaContrato",
+                     "VersionTexto", "Origen", "RegistradoPorUsuarioId", "RegistradoEnUtc", "VigenciaDesde", "Version")
+                SELECT @id::uuid, o."PropietarioTenantId", o."OperadorTenantId", o."Id", @clausula,
+                       @version, 'AprovisionamientoDePlataforma', u."Id", @ahora::timestamptz, @ahora::timestamptz,
+                       @fila::uuid
+                FROM "AsignacionesOperacion" o
+                JOIN "Tenants" propietario ON propietario."Id" = o."PropietarioTenantId"
+                JOIN "Tenants" operador ON operador."Id" = o."OperadorTenantId"
+                CROSS JOIN "AspNetUsers" u
+                WHERE propietario."Nombre" = @propietario
+                  AND operador."Nombre" = @operador
+                  AND u."NormalizedEmail" = upper(@actor)
+                  AND NOT o."EsRaiz"
+                  AND o."OperadorTenantId" <> o."PropietarioTenantId"
+                  AND o."Estado" = 'Vigente'
+                  AND o."VigenciaHasta" IS NULL
+                  AND o."AmbitoRelacionClienteId" IS NULL
+                  AND o."AmbitoCentroId" IS NULL
+                  AND o."AmbitoTrabajadorId" IS NULL
+                  AND o."AmbitoProyectoId" IS NULL
+                """,
+                ("id", id),
+                ("clausula", "Cláusula de prueba E2E, sin valor contractual (siembra de test)"),
+                ("version", VersionTextoVigente),
+                ("ahora", DateTime.UtcNow.ToString("O")),
+                ("fila", Guid.NewGuid().ToString()),
+                ("propietario", TenantConEncargo),
+                ("operador", Ayudas.NombreTenantConsultora),
+                ("actor", Ayudas.EmailAdministrador));
+            Assert.Equal(1, filas);
+
+            return _encargoId = id;
+        }
+        finally
+        {
+            _candado.Release();
+        }
+    }
+}
