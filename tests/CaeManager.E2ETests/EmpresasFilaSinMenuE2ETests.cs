@@ -36,7 +36,6 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixture fixture)
         var page = await contexto.NewPageAsync();
         await page.SetViewportSizeAsync(1280, 800);
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.DescartarNotificacionesPendientesAsync(page);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await Expect(page.Locator(".marco-lista-empresas .fila-pulsable")).Not.ToHaveCountAsync(0);
         return page;
