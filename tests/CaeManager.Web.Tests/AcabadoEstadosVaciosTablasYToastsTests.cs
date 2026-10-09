@@ -114,9 +114,10 @@ public class AcabadoEstadosVaciosTablasYToastsTests : BunitContext
         // La cuenta atrás es de reloj real y el pintado de bUnit no tiene tiempo acotado: en
         // ningún momento el aviso puede quedar sin pausa mientras el test pinta o busca en el
         // DOM, o caduca antes de la búsqueda (intermitente medido el 2026-10-09: con la máquina
-        // cargada, entre MouseLeave y FocusIn corría lo que quedara de los 250 ms). Por eso
-        // nace sujeto por el servicio y cada evento del anfitrión releva al anterior antes de
-        // soltarlo; las esperas que quedan solo pueden alargarse, nunca llegar tarde.
+        // cargada, entre MouseLeave y FocusIn corría lo que quedara de los 250 ms). Por eso el
+        // test lo sujeta desde el servicio nada más mostrarlo y cada evento del anfitrión releva
+        // al anterior antes de soltarlo: lo único que el test espera es tiempo con el aviso en
+        // pausa, y tardar de más ahí no cambia el resultado.
         servicio.Mostrar("hola");
         var id = servicio.Mensajes.Single().Id;
         servicio.FocoEn(id, true);
@@ -133,7 +134,10 @@ public class AcabadoEstadosVaciosTablasYToastsTests : BunitContext
         servicio.Mensajes.Should().ContainSingle("focusin del anfitrión también lo pausa");
 
         // Sin el mouseleave conectado el puntero seguiría «encima» y esto no terminaría nunca;
-        // sin el focusout, tampoco.
+        // sin el focusout, tampoco. El foco se reafirma desde el servicio (no cambia nada si el
+        // focusin hizo lo suyo) para que tampoco termine con los dos manejadores de salida
+        // cruzados: mouseleave soltando el foco y focusout soltando el puntero.
+        servicio.FocoEn(id, true);
         cut.Find(".toast").FocusOut();
         await EsperarAsync(() => servicio.Mensajes.Count == 0);
         servicio.Mensajes.Should().BeEmpty("al soltar el último evento, la cuenta atrás se reanuda");
