@@ -386,6 +386,13 @@ public class AltaDeGestorCaeConCarteraTests : IAsyncLifetime
                 Guid propietarioTenantId, Guid operadorTenantId, Guid usuarioId, Guid actorUsuarioId,
                 CancellationToken cancellationToken = default) =>
                 Real.RetirarCarteraUniversalAsync(propietarioTenantId, operadorTenantId, usuarioId, actorUsuarioId, cancellationToken);
+            public Task<IReadOnlyList<ApoyoVivoDeCartera>> ObtenerApoyosVivosAsync(
+                Guid operadorTenantId, CancellationToken cancellationToken = default) =>
+                Real.ObtenerApoyosVivosAsync(operadorTenantId, cancellationToken);
+            public Task<ResultadoRetiradaApoyo> RetirarCarteraDeApoyoAsync(
+                PropuestaApoyoCartera propuesta, Guid actorUsuarioId, bool exigirProponentePrincipal,
+                CancellationToken cancellationToken = default) =>
+                Real.RetirarCarteraDeApoyoAsync(propuesta, actorUsuarioId, exigirProponentePrincipal, cancellationToken);
             public void DescartarPendientes() => Real.DescartarPendientes();
             public Task<IReadOnlySet<Guid>> FiltrarCarterasVigentesAsync(
                 IReadOnlyCollection<Guid> asignacionCarteraIds, CancellationToken cancellationToken = default) =>

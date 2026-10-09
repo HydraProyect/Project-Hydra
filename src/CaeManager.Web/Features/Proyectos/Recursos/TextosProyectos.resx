@@ -123,9 +123,6 @@
   <data name="BadgeCerrado" xml:space="preserve">
     <value>Cerrado</value>
   </data>
-  <data name="MenuDetalles" xml:space="preserve">
-    <value>Detalles</value>
-  </data>
   <data name="AccionCerrarProyecto" xml:space="preserve">
     <value>Cerrar proyecto</value>
   </data>
@@ -194,9 +191,6 @@
   </data>
   <data name="BotonCancelar" xml:space="preserve">
     <value>Cancelar</value>
-  </data>
-  <data name="BotonEditar" xml:space="preserve">
-    <value>Editar</value>
   </data>
   <data name="VacioTecnicosTitulo" xml:space="preserve">
     <value>Sin técnicos asignados</value>
@@ -359,8 +353,6 @@
   <data name="MenuEditarProyecto" xml:space="preserve"><value>Editar proyecto</value></data>
   <data name="MenuCerrarProyecto" xml:space="preserve"><value>Cerrar proyecto…</value></data>
   <data name="MenuEliminarProyecto" xml:space="preserve"><value>Eliminar proyecto</value></data>
-  <data name="MenuAbrirPagina" xml:space="preserve"><value>Abrir página</value></data>
-  <data name="EnlaceAbrirPagina" xml:space="preserve"><value>Abrir página del proyecto →</value></data>
   <data name="EtiquetaLateral" xml:space="preserve"><value>Contexto</value></data>
   <data name="EditarFlecha" xml:space="preserve"><value>Editar →</value></data>
   <data name="GlosaTecnicosActivos" xml:space="preserve"><value>técnicos activos</value></data>
@@ -392,4 +384,10 @@
   <data name="ErrorRestaurar" xml:space="preserve">
     <value>No se pudo deshacer la eliminación. Inténtalo de nuevo.</value>
   </data>
+  <data name="ColumnaTecnicos" xml:space="preserve"><value>Técnicos</value></data>
+  <data name="VentanaTecnicosTitulo" xml:space="preserve"><value>Técnicos activos</value></data>
+  <data name="VentanaTecnicosPie" xml:space="preserve"><value>Clic en uno para abrir la pestaña Técnicos</value></data>
+  <data name="VentanaTecnicoAyuda" xml:space="preserve"><value>Abrir la pestaña Técnicos del proyecto</value></data>
+  <data name="AriaEditarProyecto" xml:space="preserve"><value>Editar la información del proyecto</value></data>
+  <data name="TituloEditarConAtajo" xml:space="preserve"><value>Editar (e)</value></data>
 </root>

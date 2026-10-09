@@ -46,7 +46,7 @@
     <value>Empreses de les quals ets principal. Pots proposar a un Gestor CAE de la teva organització que et doni suport: hi tindrà accés quan accepti.</value>
   </data>
   <data name="ApoyosEtiqueta" xml:space="preserve">
-    <value>Amb accés de suport: {0}</value>
+    <value>Amb accés de suport:</value>
   </data>
   <data name="SinApoyos" xml:space="preserve">
     <value>Ningú més hi té accés de suport.</value>
@@ -76,7 +76,7 @@
     <value>Donar accés a {0}</value>
   </data>
   <data name="DrawerIntro" xml:space="preserve">
-    <value>Proposa a un Gestor CAE de la teva organització que et doni suport en aquesta Empresa. Quan accepti tindrà accés a aquesta Empresa com a Gestor CAE de suport; tu continues sent el principal.</value>
+    <value>Proposa a un Gestor CAE de la teva organització que et doni suport en aquesta Empresa. Quan accepti tindrà accés a aquesta Empresa com a Gestor CAE de suport; tu continues sent el principal. Si hi poses data, l'accés es tanca sol en acabar aquell dia.</value>
   </data>
   <data name="EtiquetaDestinatario" xml:space="preserve">
     <value>Gestor CAE a qui ho proposes</value>
@@ -149,5 +149,101 @@
   </data>
   <data name="ErrorAnuladaYaEnCartera" xml:space="preserve">
     <value>La proposta s'ha anul·lat: ja tenies accés a aquesta Empresa.</value>
+  </data>
+  <data name="RotuloApoyo" xml:space="preserve">
+    <value>Suport</value>
+  </data>
+  <data name="RotuloApoyoHasta" xml:space="preserve">
+    <value>Suport fins al {0:dd/MM/yyyy}</value>
+  </data>
+  <data name="ApoyoDePersona" xml:space="preserve">
+    <value>{0} · {1}</value>
+  </data>
+  <data name="RetirarApoyo" xml:space="preserve">
+    <value>Retirar l'accés</value>
+  </data>
+  <data name="RetirarApoyoEtiqueta" xml:space="preserve">
+    <value>Retirar l'accés de suport de {0} a {1}</value>
+  </data>
+  <data name="MisApoyosTitulo" xml:space="preserve">
+    <value>Els meus accessos de suport</value>
+  </data>
+  <data name="MisApoyosDescripcion" xml:space="preserve">
+    <value>Empreses a les quals tens accés com a suport. Pots deixar l'accés quan ja no el necessitis.</value>
+  </data>
+  <data name="MiApoyoDetalle" xml:space="preserve">
+    <value>{0}, a proposta de {1}</value>
+  </data>
+  <data name="Desasignarme" xml:space="preserve">
+    <value>Desassignar-me</value>
+  </data>
+  <data name="DesasignarmeEtiqueta" xml:space="preserve">
+    <value>Desassignar-me de {0}</value>
+  </data>
+  <data name="ApoyosRevocablesTitulo" xml:space="preserve">
+    <value>Accessos de suport que pots revocar</value>
+  </data>
+  <data name="ApoyosRevocablesDescripcion" xml:space="preserve">
+    <value>Accessos de suport entre Gestors CAE de la teva organització sobre els quals tens autoritat.</value>
+  </data>
+  <data name="ApoyoRevocableDetalle" xml:space="preserve">
+    <value>{0} · {1}, a proposta de {2}</value>
+  </data>
+  <data name="RevocarApoyo" xml:space="preserve">
+    <value>Revocar</value>
+  </data>
+  <data name="RevocarApoyoEtiqueta" xml:space="preserve">
+    <value>Revocar l'accés de suport de {0} a {1}</value>
+  </data>
+  <data name="ConfirmarDesasignarmeTitulo" xml:space="preserve">
+    <value>Vols desassignar-te d'aquesta Empresa?</value>
+  </data>
+  <data name="ConfirmarDesasignarmeMensaje" xml:space="preserve">
+    <value>Deixaràs de tenir accés a {0}. Per tornar-hi a entrar, qui en sigui el principal t'ho haurà de proposar de nou.</value>
+  </data>
+  <data name="ConfirmarRetirarApoyoTitulo" xml:space="preserve">
+    <value>Vols retirar aquest accés de suport?</value>
+  </data>
+  <data name="ConfirmarRevocarApoyoTitulo" xml:space="preserve">
+    <value>Vols revocar aquest accés de suport?</value>
+  </data>
+  <data name="ConfirmarFinDeApoyoMensaje" xml:space="preserve">
+    <value>{0} deixarà de tenir accés a {1}.</value>
+  </data>
+  <data name="ToastDesasignado" xml:space="preserve">
+    <value>Ja no tens accés de suport a {0}.</value>
+  </data>
+  <data name="ToastApoyoTerminado" xml:space="preserve">
+    <value>{0} ja no té accés de suport a {1}.</value>
+  </data>
+  <data name="EtiquetaUltimoDia" xml:space="preserve">
+    <value>Fins al (opcional)</value>
+  </data>
+  <data name="AyudaUltimoDia" xml:space="preserve">
+    <value>Últim dia amb accés. Sense data, el suport no caduca.</value>
+  </data>
+  <data name="ErrorAnuladaFechaDeFinPasada" xml:space="preserve">
+    <value>La proposta s'ha anul·lat: la data de fi d'aquest suport ja ha passat.</value>
+  </data>
+  <data name="ErrorFechaDeFinNoValida" xml:space="preserve">
+    <value>La data de fi del suport no pot ser anterior a avui.</value>
+  </data>
+  <data name="ErrorApoyoNoEncontrado" xml:space="preserve">
+    <value>Aquest accés de suport ja no existeix.</value>
+  </data>
+  <data name="ErrorEresElPrincipal" xml:space="preserve">
+    <value>Ara ets el principal d'aquesta Empresa: ja no et pots desassignar. Demana al teu Coordinador CAE que designi una altra persona.</value>
+  </data>
+  <data name="ErrorApoyoEsAhoraPrincipal" xml:space="preserve">
+    <value>Aquesta persona és ara el principal de l'Empresa: el seu accés ja no és de suport i no es retira des d'aquí.</value>
+  </data>
+  <data name="ErrorSoloRetirasLoQueConcediste" xml:space="preserve">
+    <value>Només pots retirar l'accés de suport que has donat tu.</value>
+  </data>
+  <data name="ErrorYaNoEresElPrincipal" xml:space="preserve">
+    <value>Ja no ets el principal d'aquesta Empresa: aquest accés de suport el pot retirar un Coordinador CAE.</value>
+  </data>
+  <data name="ErrorApoyoFueraDeTuEquipo" xml:space="preserve">
+    <value>Ni aquesta persona ni qui li va donar l'accés són al teu equip: no pots revocar aquest suport.</value>
   </data>
 </root>

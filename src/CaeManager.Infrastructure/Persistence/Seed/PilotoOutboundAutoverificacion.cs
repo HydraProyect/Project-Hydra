@@ -52,6 +52,11 @@ public static class PilotoOutboundAutoverificacion
     public sealed record MedicionCentro(string Nombre, EstadoCentro Estado, int? Cumplimiento);
 
     /// <summary>Lo medido de un Tenant propietario. Los nombres dicen de qué pantalla sale cada contador.</summary>
+    /// <param name="DocumentosConVencimientoAjenoASuTipo">
+    /// Documentos de un Tipo que fija la vigencia desde la emisión (<see cref="TipoDocumento.FijaVigenciaDesdeLaEmision"/>)
+    /// cuyo vencimiento no es el que el producto calcula: la emisión más los meses del Tipo.
+    /// </param>
+    /// <param name="DocumentosEmitidosEnElFuturo">Documentos con una emisión posterior a hoy, el día en que se mide.</param>
     public sealed record MedicionTenant(
         string Clave, string Nombre,
         bool MiTrabajoPresente, bool MiTrabajoNoConsultado, bool MiTrabajoAlcanceCero,
@@ -62,7 +67,8 @@ public static class PilotoOutboundAutoverificacion
         IReadOnlyList<MedicionCentro> Centros, int? EmpresaCumplimiento,
         int ParesExigidos, int ParesFaltantes,
         int ClientesEmpresariales, int ClientesEmpresarialesSinContacto, int ClientesEmpresarialesConAlertas,
-        int Documentos, int DocumentosSinPdf, int ContactosDeAgenda, int ContactosFueraDeLaReglaDeCorreo,
+        int Documentos, int DocumentosSinPdf, int DocumentosConVencimientoAjenoASuTipo, int DocumentosEmitidosEnElFuturo,
+        int ContactosDeAgenda, int ContactosFueraDeLaReglaDeCorreo,
         MedicionGrande? Grande = null)
     {
         public int MiTrabajoFilas => MiTrabajoBloqueos + MiTrabajoActuaciones + MiTrabajoProximos + MiTrabajoSeguimiento;
@@ -158,10 +164,13 @@ public static class PilotoOutboundAutoverificacion
                     Discrepa(contador, Texto(medido), Texto(esperado));
             }
 
-            // Comunes a los seis: la cola se pudo consultar, cada documento abre como PDF y «Pedir» tiene a quién escribir.
+            // Comunes a los seis: la cola se pudo consultar, cada documento abre como PDF, tiene las fechas que el
+            // producto le habría dado y «Pedir» tiene a quién escribir.
             Exige("Mi trabajo · Tenant presente en la cartera de la Gestora CAE", m.MiTrabajoPresente, true);
             Exige("Mi trabajo · cola que no se pudo consultar", m.MiTrabajoNoConsultado, false);
             Exige("Documentos · sin PDF que se abra", m.DocumentosSinPdf, 0);
+            Exige("Documentos · vencimiento que no es la emisión más los meses de su Tipo", m.DocumentosConVencimientoAjenoASuTipo, 0);
+            Exige("Documentos · emisión posterior a hoy", m.DocumentosEmitidosEnElFuturo, 0);
             Exige("Agenda · contactos fuera de la regla de correo", m.ContactosFueraDeLaReglaDeCorreo, 0);
             Exige("Clientes empresariales · sin contacto en la agenda", m.ClientesEmpresarialesSinContacto, 0);
             Exige("Agenda · tiene contactos", m.ContactosDeAgenda > 0, true);
@@ -393,6 +402,7 @@ public static class PilotoOutboundAutoverificacion
         var dbContext = servicios.GetRequiredService<CaeManagerDbContext>();
         var calculo = servicios.GetRequiredService<ICalculoEstadoCentroService>();
         var almacen = servicios.GetRequiredService<IFileStorageService>();
+        var hoy = DiaDeNegocio.Hoy();
 
         var nombres = CatalogoPilotoOutbound.Tenants.Select(t => t.Nombre).ToList();
         var idPorNombre = await dbContext.Tenants.AsNoTracking()
@@ -417,11 +427,19 @@ public static class PilotoOutboundAutoverificacion
                 var clientes = (await sender.Send(new ObtenerClientesQuery(null, null, TamanoPagina: 1000), cancellationToken)).Elementos;
                 var pares = await calculo.ObtenerParesExigidosAsync([.. centros.Select(c => c.Id)], cancellationToken);
 
-                var claves = await dbContext.Documentos.AsNoTracking().Select(d => d.ArchivoUrl).ToListAsync(cancellationToken);
+                var documentos = await dbContext.Documentos.AsNoTracking()
+                    .Select(d => new { d.ArchivoUrl, d.TipoDocumentoId, d.FechaEmision, d.FechaVencimiento }).ToListAsync(cancellationToken);
                 var sinPdf = 0;
-                foreach (var clave in claves)
+                foreach (var clave in documentos.Select(d => d.ArchivoUrl))
                     if (clave is null || !await EsPdfAsync(almacen, clave, cancellationToken))
                         sinPdf++;
+
+                // Lo que el producto no deja crear: un Tipo que vence solo, con un vencimiento que no sale de su emisión.
+                var tipos = await dbContext.TiposDocumento.AsNoTracking().ToDictionaryAsync(t => t.Id, cancellationToken);
+                var conVencimientoAjenoASuTipo = documentos.Count(d =>
+                    tipos[d.TipoDocumentoId] is { FijaVigenciaDesdeLaEmision: true } tipo
+                    && d.FechaVencimiento != CalculadoraEstadoDocumento.CalcularFechaVencimiento(d.FechaEmision, tipo.VigenciaMeses));
+                var emitidosEnElFuturo = documentos.Count(d => d.FechaEmision > hoy);
 
                 var correos = await dbContext.ContactosAgenda.AsNoTracking().Select(c => c.Email).ToListAsync(cancellationToken);
 
@@ -457,8 +475,10 @@ public static class PilotoOutboundAutoverificacion
                     ClientesEmpresariales: clientes.Count,
                     ClientesEmpresarialesSinContacto: clientes.Count(c => c.SinContactoEnAgenda),
                     ClientesEmpresarialesConAlertas: clientes.Count(c => c.EstadoDocumentalPeor is not null || c.EstadoDocumentalCantidad != 0),
-                    Documentos: claves.Count,
+                    Documentos: documentos.Count,
                     DocumentosSinPdf: sinPdf,
+                    DocumentosConVencimientoAjenoASuTipo: conVencimientoAjenoASuTipo,
+                    DocumentosEmitidosEnElFuturo: emitidosEnElFuturo,
                     ContactosDeAgenda: correos.Count,
                     ContactosFueraDeLaReglaDeCorreo: correos.Count(c => !contactos.Cumple(c)),
                     Grande: grande));

@@ -218,3 +218,31 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Pestaña «Documentación»: incidencias de sus trabajadores (las de «Vencidos» y «Próximos»
+   de la fila del listado), que antes enseñaba la vista previa de la lista. */
+.lista-incidencias-subcontrata-360 {
+    list-style: none;
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.fila-incidencia-subcontrata-360 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 44px;
+    padding: var(--space-1) var(--space-4);
+}
+
+.fila-incidencia-subcontrata-360 + .fila-incidencia-subcontrata-360 {
+    border-top: var(--border-default);
+}
+
+.texto-incidencia-subcontrata-360 {
+    flex: 1;
+    min-width: 0;
+    font: var(--font-body-md);
+}

@@ -16,6 +16,10 @@ public enum EstadoCentro
     /// <summary>
     /// Un Trabajador con Asignación activa a este Centro no tiene ningún
     /// Documento de un TipoDocumento obligatorio que el Centro le exige.
+    /// Su valor numérico es mayor que el de <see cref="Vencido"/> y está
+    /// congelado por la API v1, pero NO es más grave: con un documento vencido
+    /// y otro que falta, el Centro está <see cref="Vencido"/>
+    /// (<see cref="CalculadoraEstadoCentro"/>).
     /// </summary>
     Faltante = 4,
 

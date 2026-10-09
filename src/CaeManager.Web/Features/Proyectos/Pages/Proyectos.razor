@@ -125,6 +125,7 @@
                         <tr>
                             <th>@Textos["ListaProyecto"]</th>
                             <th>@Textos["ListaPlazo"]</th>
+                            <th>@Textos["ColumnaTecnicos"]</th>
                             <th>@Textos["EtiquetaEstado"]</th>
                             <th class="col-acciones"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
                         </tr>
@@ -132,10 +133,16 @@
                     <tbody>
                         @foreach (var proyecto in ProyectosVisibles)
                         {
-                            <tr class="@ClaseFila(proyecto)">
+                            @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
+                               fila abre la vista rápida (el panel lateral), igual que Enter sobre la fila
+                               enfocada; los controles de dentro —nombre, recuento de técnicos, icono 360—
+                               hacen lo suyo y no dejan subir el clic. *@
+                            <tr class="@ClaseFila(proyecto)" @onclick="() => AbrirDetalleDesdeLaFilaAsync(proyecto.Id)">
                                 <td>
                                     <span class="proyecto-nombre-centro">
-                                        <button type="button" class="enlace-nombre-fila nombre-proyecto" @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">@proyecto.Nombre</button>
+                                        @* El nombre es el destino de teclado del clic en la fila (la fila no es focable con Tab). *@
+                                        <button type="button" class="enlace-nombre-fila nombre-proyecto nombre-abre-vista-rapida"
+                                                @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)" @onclick:stopPropagation="true">@proyecto.Nombre</button>
                                         <span class="proyecto-centro">@proyecto.CentroNombre</span>
                                     </span>
                                 </td>
@@ -153,6 +160,33 @@
                                         }
                                     </span>
                                 </td>
+                                <td class="celda-tecnicos-proyecto">
+                                    @if (proyecto.TecnicosActivos.Count > 0)
+                                    {
+                                        @* El recuento esconde una lista: la ventana de contexto la enseña al pasar el
+                                           cursor o al enfocarlo, y cada técnico abre el panel en la pestaña «Técnicos».
+                                           Interactiva, la ventana ya corta su clic: no llega a la fila. *@
+                                        <VentanaContexto Etiqueta="@TextoTecnicosActivos(proyecto.TecnicosActivos.Count)"
+                                                         Titulo="@Textos["VentanaTecnicosTitulo"]"
+                                                         Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                         Interactiva="true"
+                                                         Pie="@Textos["VentanaTecnicosPie"]">
+                                            <Disparador>@proyecto.TecnicosActivos.Count</Disparador>
+                                            <Detalle>
+                                                @foreach (var tecnico in proyecto.TecnicosActivos)
+                                                {
+                                                    <VentanaContextoElemento Ayuda="@Textos["VentanaTecnicoAyuda"]" AlPulsar="() => AbrirDetalleEnTecnicosAsync(proyecto.Id)">
+                                                        @tecnico.NombreCompleto
+                                                    </VentanaContextoElemento>
+                                                }
+                                            </Detalle>
+                                        </VentanaContexto>
+                                    }
+                                    else
+                                    {
+                                        <span class="celda-sin-recuento">0</span>
+                                    }
+                                </td>
                                 <td>
                                     @if (proyecto.EstaAbierto)
                                     {
@@ -163,20 +197,11 @@
                                         <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCerrado"]" />
                                     }
                                 </td>
+                                @* Dónde quedó cada acción del menú «⋯» que tenía la fila: «Detalles» es el clic en
+                                   la fila; «Abrir página», este icono 360; «Cerrar proyecto», «Reabrir» y «Eliminar»,
+                                   el pie del panel (Proyectos no tiene selección múltiple: D1, 2026-10-08). *@
                                 <td class="col-acciones">
-                                    <MenuAcciones>
-                                        <ItemMenuAccion OnClick="() => AbrirDetalleConAvisoAsync(proyecto.Id)">@Textos["MenuDetalles"]</ItemMenuAccion>
-                                        <ItemMenuAccion Href="@($"/proyectos/{proyecto.Id}")">@Textos["MenuAbrirPagina"]</ItemMenuAccion>
-                                        @if (proyecto.EstaAbierto)
-                                        {
-                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirCerrarConfirmAsync(proyecto.Id)">@Textos["AccionCerrarProyecto"]</ItemMenuAccion></SoloConEscritura>
-                                        }
-                                        else
-                                        {
-                                            <SoloConEscritura><ItemMenuAccion OnClick="() => AbrirReabrirConfirmAsync(proyecto.Id)">@Textos["AccionReabrirProyecto"]</ItemMenuAccion></SoloConEscritura>
-                                        }
-                                        <SoloConEscritura><ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminarAsync(proyecto.Id, proyecto.Nombre)">@Textos["MenuEliminar"]</ItemMenuAccion></SoloConEscritura>
-                                    </MenuAcciones>
+                                    <Boton360 Nombre="@proyecto.Nombre" Href="@($"/proyectos/{proyecto.Id}")" />
                                 </td>
                             </tr>
                         }
@@ -189,11 +214,11 @@
 
 @if (_proyectoSeleccionadoId is not null)
 {
-    @* Panel lateral de detalle, mismo apilamiento que los PreviewDrawer de
-       Clientes, Empresas, Trabajadores y Vehículos: sin scrim, la lista sigue
-       usable detrás. SIN "Operar →": Proyecto no es una EntidadWorkspace, no
-       hay Context Workspace al que mandar a nadie — este panel es el detalle
-       completo y también donde se edita y se cierra el proyecto. *@
+    @* Panel lateral de detalle, la vista rápida de la fila: sin scrim, la lista sigue
+       usable detrás. Proyecto no es una EntidadWorkspace, así que el panel es de esta
+       página y no del Context Workspace: aquí se edita (lápiz de la cabecera, tecla «e»),
+       se cierra, se reabre y se elimina el proyecto. La página Proyecto 360 es el
+       detalle completo; a ella lleva el icono 360 de la cabecera y el de la fila. *@
     <aside class="panel-proyecto" role="complementary" aria-label="@Textos["AriaPanelDetalle"]">
         <div class="cabecera-panel-proyecto">
             <div class="texto-cabecera-panel-proyecto">
@@ -212,10 +237,24 @@
                         }
                         <span>@_detalle.CentroNombre · @TextoTecnicosActivos(_detalle.TecnicosActivos)</span>
                     </div>
-                    @* La página 360 del proyecto es el detalle completo; este panel queda como consulta rápida. *@
-                    <a class="enlace-pagina-proyecto" href="@($"/proyectos/{_detalle.Id}")">@Textos["EnlaceAbrirPagina"]</a>
                 }
             </div>
+            @if (_detalle is not null && !_cargandoDetalle)
+            {
+                @if (!_editandoInfo)
+                {
+                    @* El lápiz vive en la cabecera en todas las pestañas (patrón de listados: la fila no
+                       lleva menú y editar se hace desde el panel, también con la tecla «e»). Desde otra
+                       pestaña lleva primero a «Información», que es donde está el formulario. *@
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IniciarEdicionInfo"
+                               aria-label="@Textos["AriaEditarProyecto"]" title="@Textos["TituloEditarConAtajo"]">
+                            <Icono Nombre="editar" Tamano="TamanoIcono.Pequeno" />
+                        </Boton>
+                    </SoloConEscritura>
+                }
+                <Boton360 Nombre="@_detalle.Nombre" Href="@($"/proyectos/{_detalle.Id}")" />
+            }
             <button type="button" class="cerrar-panel-proyecto" aria-label="@Textos["AriaCerrarPanel"]" @onclick="CerrarDetalleConAvisoAsync"><Icono Nombre="cerrar" /></button>
         </div>
 
@@ -344,11 +383,10 @@
 
         @if (_detalle is not null && !_cargandoDetalle && !_editandoInfo)
         {
-            @* Editar, cerrar, asignar y dar de baja técnicos son ICommand: AutorizacionEscrituraBehavior
-               los deniega a Consulta, así que no se le ofrecen (el menú de la fila ya iba envuelto). *@
+            @* Cerrar, reabrir y eliminar son ICommand: AutorizacionEscrituraBehavior los deniega a
+               Consulta, así que no se le ofrecen. «Editar» es el lápiz de la cabecera. *@
             <SoloConEscritura>
                 <div class="pie-panel-proyecto">
-                    <Boton OnClick="IniciarEdicionInfo" Variante="VarianteBoton.Secundario">@Textos["BotonEditar"]</Boton>
                     @if (_detalle.EstaAbierto)
                     {
                         <Boton OnClick="() => AbrirCerrarConfirmAsync(_detalle.Id)" Variante="VarianteBoton.Secundario">@Textos["AccionCerrarProyecto"]</Boton>

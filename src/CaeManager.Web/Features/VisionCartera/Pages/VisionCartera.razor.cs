@@ -122,7 +122,7 @@ public partial class VisionCartera : CaeManager.Web.Components.PaginaInteractiva
 
     private IReadOnlyList<ClienteRiesgoDto> SinCartera => Organizaciones.Where(o => o.SinCarteraAsignada).ToList();
 
-    /// <summary>Con cartera pero sin Centros de Trabajo ni documentos con fecha: su 100% es «sin datos».</summary>
+    /// <summary>Con cartera pero sin documentos de Trabajador ni documentación exigida por sus Centros de Trabajo: su 100% es «sin datos».</summary>
     private IReadOnlyList<ClienteRiesgoDto> SinDatos => ConCartera.Where(o => o.SinDatos).ToList();
 
     /// <summary>Las que tienen algún Trabajador bloqueado o algún Centro de Trabajo con bloqueo de la plataforma (D-7): nunca en verde.</summary>

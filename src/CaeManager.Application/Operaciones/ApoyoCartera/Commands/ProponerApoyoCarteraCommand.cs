@@ -26,8 +26,15 @@ namespace CaeManager.Application.Operaciones.ApoyoCartera.Commands;
 /// propuesta pendiente. <b>Operación</b>: externa, no raíz, del Tenant entero, vigente y con la
 /// delegación al Operador CAE viva.
 /// </para>
+///
+/// <para>
+/// <b>Fecha de fin opcional</b> (<paramref name="UltimoDia"/>): el último día de negocio en que
+/// el apoyo estará vigente, incluido entero; hoy o posterior. Sin ella el apoyo no caduca. La
+/// cartera que se emita al aceptar la hereda y el servicio de expiración la cierra.
+/// </para>
 /// </summary>
-public record ProponerApoyoCarteraCommand(Guid AsignacionOperacionId, Guid DestinatarioUsuarioId) : ICommand<Guid>;
+public record ProponerApoyoCarteraCommand(
+    Guid AsignacionOperacionId, Guid DestinatarioUsuarioId, DateOnly? UltimoDia = null) : ICommand<Guid>;
 
 public class ProponerApoyoCarteraCommandHandler(
     ICurrentUserService currentUserService,
@@ -45,6 +52,10 @@ public class ProponerApoyoCarteraCommandHandler(
 
         if (request.DestinatarioUsuarioId == ctx.UsuarioId)
             return Result.Fallo<Guid>(ErroresPropuestaApoyo.DestinatarioNoValido);
+
+        if (request.UltimoDia is { } ultimoDia && ultimoDia < DiaDeNegocio.Hoy())
+            return Result.Fallo<Guid>(ErroresPropuestaApoyo.FechaDeFinNoValida);
+        DateTime? vigenciaHasta = request.UltimoDia is { } dia ? VigenciaDeApoyo.HastaElFinalDe(dia) : null;
 
         using (ctx.EnOrigen())
         {
@@ -85,7 +96,7 @@ public class ProponerApoyoCarteraCommandHandler(
                 return Result.Fallo<Guid>(ErroresPropuestaApoyo.OperacionNoDisponible);
 
             var propuesta = PropuestaApoyoCartera.Crear(
-                operacion, ctx.UsuarioId, request.DestinatarioUsuarioId, vigenciaHastaPropuesta: null, DateTime.UtcNow);
+                operacion, ctx.UsuarioId, request.DestinatarioUsuarioId, vigenciaHasta, DateTime.UtcNow);
             repositorio.Agregar(propuesta);
 
             // Dos propuestas a la vez al mismo destinatario: el índice único de pendientes deja pasar una.

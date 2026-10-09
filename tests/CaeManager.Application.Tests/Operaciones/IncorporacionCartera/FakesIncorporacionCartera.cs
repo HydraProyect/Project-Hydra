@@ -1,3 +1,4 @@
+using CaeManager.Application.Clientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Operaciones;
 using CaeManager.Domain.Operaciones;
@@ -28,6 +29,15 @@ public class CurrentUserServicePorAmbito(Guid? usuarioId, Guid? tenantOrigenId, 
     public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(tenantOrigenId);
 
     public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+}
+
+/// <summary>Las cuentas del Operador CAE tal y como las da Identity: rol, a quién reportan y si están activas.</summary>
+public class DirectorioDestinosPorUsuario : IDirectorioDestinosCartera
+{
+    public Dictionary<Guid, DestinoCartera> Cuentas { get; } = [];
+
+    public Task<DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Cuentas.GetValueOrDefault(usuarioId));
 }
 
 /// <summary>Anota el Tenant activo en cada guardado, para comprobar dónde se sella lo escrito.</summary>
@@ -233,12 +243,71 @@ public class CatalogoIncorporacionCarteraFalso : ICatalogoIncorporacionCartera
 
         var cartera = AsignacionCartera.Externa(
             Operaciones[propuesta.AsignacionOperacionId], propuesta.DestinatarioUsuarioId, "GestorCae",
-            AmbitoAsignacion.Universal, DateTime.UtcNow, null, DateTime.UtcNow);
+            AmbitoAsignacion.Universal, DateTime.UtcNow, propuesta.VigenciaHastaPropuesta, DateTime.UtcNow);
         CarterasVigentes.Add(cartera.Id);
         CarterasVivas.Add((propuesta.OperadorTenantId, new CarteraVivaDeOperacion(
             propuesta.AsignacionOperacionId, propuesta.PropietarioTenantId, "Empresa",
-            propuesta.DestinatarioUsuarioId, "GestorCae", false, null)));
+            propuesta.DestinatarioUsuarioId, "GestorCae", false, propuesta.VigenciaHastaPropuesta)));
+        ApoyosEmitidos.Add((propuesta, cartera.Id));
         return Task.FromResult(new ResultadoApoyoCartera(cartera, Guid.NewGuid(), null));
+    }
+
+    /// <summary>Cada propuesta que emitió una cartera de apoyo, con la cartera emitida.</summary>
+    public List<(PropuestaApoyoCartera Propuesta, Guid CarteraId)> ApoyosEmitidos { get; } = [];
+
+    /// <summary>Cada fin de apoyo pedido, con el Tenant activo con que se pidió.</summary>
+    public List<(Guid PropuestaId, Guid ActorUsuarioId, bool ExigirProponentePrincipal, Guid? TenantActivo)> ApoyosRetirados { get; } = [];
+
+    private int IndiceDeCartera(Guid operadorTenantId, Guid asignacionOperacionId, Guid usuarioId) =>
+        CarterasVivas.FindIndex(c => c.OperadorTenantId == operadorTenantId
+                                     && c.Cartera.AsignacionOperacionId == asignacionOperacionId
+                                     && c.Cartera.UsuarioId == usuarioId);
+
+    /// <summary>Como el real: propuestas aceptadas cuya cartera sigue viva, sin marca y de Gestor CAE.</summary>
+    public Task<IReadOnlyList<ApoyoVivoDeCartera>> ObtenerApoyosVivosAsync(
+        Guid operadorTenantId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ApoyoVivoDeCartera>>(ApoyosEmitidos
+            .Select(a => a.Propuesta)
+            .Where(p => p.OperadorTenantId == operadorTenantId && p.Estado == EstadoPropuestaApoyoCartera.Aceptada)
+            .Select(p => (Propuesta: p, Indice: IndiceDeCartera(operadorTenantId, p.AsignacionOperacionId, p.DestinatarioUsuarioId)))
+            .Where(x => x.Indice >= 0 && CarterasVivas[x.Indice].Cartera is { EsPrincipal: false, Rol: "GestorCae" })
+            .Select(x => new ApoyoVivoDeCartera(
+                x.Propuesta.Id, x.Propuesta.AsignacionOperacionId, x.Propuesta.PropietarioTenantId,
+                CarterasVivas[x.Indice].Cartera.NombreTenant, x.Propuesta.DestinatarioUsuarioId,
+                x.Propuesta.ProponenteUsuarioId, CarterasVivas[x.Indice].Cartera.VigenciaHasta))
+            .ToList());
+
+    /// <summary>
+    /// Como el real: no toca una cartera con marca, exige (si se pide) que quien propuso siga
+    /// siendo el principal, y al cerrar da la propuesta por terminada. Nunca toca otra cartera.
+    /// </summary>
+    public Task<ResultadoRetiradaApoyo> RetirarCarteraDeApoyoAsync(
+        PropuestaApoyoCartera propuesta, Guid actorUsuarioId, bool exigirProponentePrincipal,
+        CancellationToken cancellationToken = default)
+    {
+        ApoyosRetirados.Add((propuesta.Id, actorUsuarioId, exigirProponentePrincipal, AmbitoTenantExplicito.TenantIdActual));
+
+        var i = IndiceDeCartera(propuesta.OperadorTenantId, propuesta.AsignacionOperacionId, propuesta.DestinatarioUsuarioId);
+        if (i < 0)
+        {
+            propuesta.Terminar();
+            return Task.FromResult(ResultadoRetiradaApoyo.YaEstabaCerrada);
+        }
+
+        if (CarterasVivas[i].Cartera.EsPrincipal)
+            return Task.FromResult(ResultadoRetiradaApoyo.YaNoEsDeApoyo);
+
+        if (exigirProponentePrincipal
+            && !CarterasVivas.Any(c => c.OperadorTenantId == propuesta.OperadorTenantId
+                                       && c.Cartera.AsignacionOperacionId == propuesta.AsignacionOperacionId
+                                       && c.Cartera.EsPrincipal
+                                       && c.Cartera.UsuarioId == propuesta.ProponenteUsuarioId))
+            return Task.FromResult(ResultadoRetiradaApoyo.ProponenteYaNoEsPrincipal);
+
+        CarterasVivas.RemoveAt(i);
+        CarterasVigentes.Remove(ApoyosEmitidos.FirstOrDefault(a => a.Propuesta.Id == propuesta.Id).CarteraId);
+        propuesta.Terminar();
+        return Task.FromResult(ResultadoRetiradaApoyo.Retirada);
     }
 
     /// <summary>Los Tenants que cada Gestor CAE tiene enteros, por Operador CAE.</summary>

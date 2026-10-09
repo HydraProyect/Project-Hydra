@@ -1,8 +1,9 @@
 namespace CaeManager.Domain.Operaciones;
 
 /// <summary>
-/// Ciclo de vida de una <see cref="PropuestaApoyoCartera"/>. Solo
-/// <see cref="Pendiente"/> admite cambio; los demás son finales.
+/// Ciclo de vida de una <see cref="PropuestaApoyoCartera"/>. <see cref="Pendiente"/> admite
+/// las cuatro salidas; <see cref="Aceptada"/> solo pasa a <see cref="Terminada"/>; los demás
+/// son finales.
 /// </summary>
 public enum EstadoPropuestaApoyoCartera
 {
@@ -23,4 +24,13 @@ public enum EstadoPropuestaApoyoCartera
     /// <see cref="MotivoAnulacionPropuestaApoyo"/>.
     /// </summary>
     Anulada = 4,
+
+    /// <summary>
+    /// El apoyo que nació de esta propuesta terminó por retirada: se desasignó el propio Gestor
+    /// CAE de apoyo, lo retiró quien lo concedió o lo revocó un Coordinador CAE o un superior.
+    /// Un apoyo que termina porque su Asignación de Cartera caduca o cae con la operación no
+    /// pasa por aquí: la propuesta se queda en <see cref="Aceptada"/> apuntando a una cartera
+    /// cerrada, y quien pregunta «¿sigue vivo este apoyo?» mira siempre la cartera.
+    /// </summary>
+    Terminada = 5,
 }

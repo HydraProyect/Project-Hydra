@@ -27,10 +27,17 @@ public record KpisDashboardDto(
     /// <see cref="CumplimientoDocumental"/> (Vigente, Próximo, Urgente y Sin caducidad) sobre todos los
     /// Documentos de Trabajador, histórico incluido (<see cref="Fraccion"/>). NO es un veredicto de cumplimiento — no
     /// ve los Trabajadores bloqueados (<see cref="TrabajadoresBloqueados"/>) ni los Centros de Trabajo con bloqueo de la plataforma
-    /// (<see cref="CentrosBloqueados"/>), y sin ningún documento vale 100 porque
-    /// no hay nada que contar (<see cref="SinDatos"/>, <see cref="SinCarteraAsignada"/>). Su universo (todos los
+    /// (<see cref="CentrosBloqueados"/>). Su universo (todos los
     /// documentos, no los pares que exigen los Centros) no es ninguno de los cuatro contextos de
     /// <see cref="ContextoCumplimiento"/>: queda pendiente de decisión del propietario.
+    ///
+    /// <para>
+    /// Sin ningún Documento de Trabajador en el alcance no hay fracción que calcular y decide
+    /// <see cref="SinDocumentos"/>, con lo que enseñan Centros y Empresas para los mismos datos (decisión del propietario,
+    /// 2026-10-09: «que no dé 100 %»): si los Centros del alcance exigen algún par, vale 0 — todo falta —; si no exigen
+    /// ninguno, no hay nada que medir (<see cref="SinDatos"/>) y el 100 que queda es un valor neutro que no se pinta, igual
+    /// que con <see cref="SinCarteraAsignada"/>.
+    /// </para>
     /// </summary>
     int TasaCumplimientoDocumental,
     int VisitasUrgentes = 0,
@@ -48,9 +55,10 @@ public record KpisDashboardDto(
     /// </summary>
     int CentrosBloqueados = 0,
     /// <summary>
-    /// Ni un Centro de Trabajo ni un Documento con fecha de vencimiento en el
-    /// alcance: el 100 de <see cref="TasaCumplimientoDocumental"/> es «nada que
-    /// medir», nunca «al día», y no se presenta como organización en verde.
+    /// Ni un Documento de Trabajador ni un par exigido por los Centros de Trabajo del
+    /// alcance (lo que incluye no tener ningún Centro): el 100 de <see cref="TasaCumplimientoDocumental"/> es «nada que
+    /// medir», nunca «al día», y no se presenta como organización en verde. Es la misma lectura que el <c>null</c> de
+    /// <see cref="FraccionCumplimiento.Porcentaje"/> en Centros y Empresas.
     /// </summary>
     bool SinDatos = false,
     /// <summary>Documentos de Trabajador sin vigencia confirmada: cuentan en el denominador de la tasa y no en el numerador.</summary>
@@ -63,11 +71,25 @@ public record KpisDashboardDto(
     /// Mi trabajo). «Bloqueado» es un estado del Trabajador, nunca del Centro (2026-10-03). Con uno o más, el Tenant no está al día
     /// aunque <see cref="TasaCumplimientoDocumental"/> sea alta.
     /// </summary>
-    int TrabajadoresBloqueados = 0)
+    int TrabajadoresBloqueados = 0,
+    /// <summary>
+    /// Pares Trabajador × Tipo de documento que exigen los Centros de Trabajo del alcance (contexto
+    /// <see cref="ContextoCumplimiento.Centro"/>) cuando en él no hay ningún Documento de Trabajador: todos faltan y son el
+    /// «de cuántos» del 0 de <see cref="TasaCumplimientoDocumental"/>. Vale 0 en cuanto existe algún documento — la tasa
+    /// sale entonces de <see cref="Fraccion"/> y esos pares no se consultan.
+    /// </summary>
+    int ParesExigidosSinDocumento = 0)
 {
     /// <summary>La fracción de la tasa, por la única definición de <see cref="CumplimientoDocumental"/>.</summary>
     public FraccionCumplimiento Fraccion => FraccionDe(
         DocumentosVigentes, DocumentosProximos, DocumentosUrgentes, DocumentosVencidos, DocumentosSinConfirmar, DocumentosSinCaducidad);
+
+    /// <summary>
+    /// El «de cuántos» de <see cref="TasaCumplimientoDocumental"/>: los Documentos de Trabajador medidos o, sin ninguno, los
+    /// pares que exigen los Centros (<see cref="ParesExigidosSinDocumento"/>). Es lo que pesa esta organización en la media
+    /// de Visión de cartera: una tasa que se pinta pesa por su propio denominador.
+    /// </summary>
+    public int DenominadorDeLaTasa => Fraccion.Requeridos + ParesExigidosSinDocumento;
 
     /// <summary>La misma fracción desde los recuentos por estado: el Dashboard Ejecutivo la usa con los recuentos sumados de varios Tenants.</summary>
     public static FraccionCumplimiento FraccionDe(
@@ -78,6 +100,17 @@ public record KpisDashboardDto(
             (EstadoDocumento.Urgente, urgentes), (EstadoDocumento.Vencido, vencidos),
             (EstadoDocumento.SinConfirmar, sinConfirmar), (EstadoDocumento.SinCaducidad, sinCaducidad)
         ]);
+
+    /// <summary>
+    /// La tasa y <see cref="SinDatos"/> cuando el alcance no tiene ningún Documento de Trabajador
+    /// (<paramref name="fraccion"/> sin requeridos). Con documentos, la tasa es la de la fracción y esto no decide nada.
+    /// </summary>
+    /// <param name="fraccion">La fracción de los Documentos de Trabajador del alcance.</param>
+    /// <param name="paresExigidos">Pares que exigen los Centros del alcance; solo se consulta sin documentos.</param>
+    public static (int Tasa, bool SinDatos) SinDocumentos(FraccionCumplimiento fraccion, int paresExigidos) =>
+        fraccion.Porcentaje is { } porcentaje ? (porcentaje, false)
+        : paresExigidos > 0 ? (0, false)
+        : (100, true);
 }
 
 /// <summary>
@@ -185,6 +218,13 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         // el denominador; Sin caducidad en los dos lados). Esta tasa no tiene fórmula propia.
         var fraccion = KpisDashboardDto.FraccionDe(vigentes, proximos, urgentes, vencidos, sinConfirmar, sinCaducidad);
 
+        // Sin ningún Documento de Trabajador la fracción no dice nada: lo que falta lo dicen los pares que exigen los
+        // Centros del alcance, con el mismo cálculo que el listado de Centros. Solo se consulta en ese caso.
+        var paresExigidosSinDocumento = fraccion.Requeridos == 0 && centroIds.Count > 0
+            ? (await calculoEstadoCentro.CalcularCumplimientoAsync(centroIds, cancellationToken)).Values.Sum(f => f.Requeridos)
+            : 0;
+        var (tasa, sinDatos) = KpisDashboardDto.SinDocumentos(fraccion, paresExigidosSinDocumento);
+
         return new KpisDashboardDto(
             TrabajadoresActivos: trabajadoresActivos,
             Centros: centros,
@@ -193,14 +233,15 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             DocumentosProximos: proximos,
             DocumentosVigentes: vigentes,
             VisitasProgramadas: visitasProgramadas,
-            TasaCumplimientoDocumental: fraccion.Porcentaje ?? 100,
+            TasaCumplimientoDocumental: tasa,
             VisitasUrgentes: visitasUrgentes,
             SinCarteraAsignada: sinCarteraAsignada,
             TrabajadoresNuevosEsteMes: trabajadoresNuevosEsteMes,
             CentrosBloqueados: centrosBloqueados,
-            SinDatos: centros == 0 && fraccion.Requeridos == 0,
+            SinDatos: sinDatos,
             DocumentosSinConfirmar: sinConfirmar,
             DocumentosSinCaducidad: sinCaducidad,
-            TrabajadoresBloqueados: trabajadoresBloqueados);
+            TrabajadoresBloqueados: trabajadoresBloqueados,
+            ParesExigidosSinDocumento: paresExigidosSinDocumento);
     }
 }
