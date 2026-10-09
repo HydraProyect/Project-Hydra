@@ -219,7 +219,7 @@ public static class PilotoOutboundSeeder
     /// Un nombre del piloto ocupado por un Tenant sin marcador de demo puede ser un
     /// Tenant real que se llama igual: no se escribe en él ni a su lado.
     /// </summary>
-    private static async Task RechazarNombresOcupadosPorUnTenantSinMarcadorAsync(
+    internal static async Task RechazarNombresOcupadosPorUnTenantSinMarcadorAsync(
         CaeManagerDbContext dbContext, CancellationToken cancellationToken)
     {
         var nombres = CatalogoPilotoOutbound.NombresTenants.ToList();
@@ -239,7 +239,7 @@ public static class PilotoOutboundSeeder
     /// cada Tenant propietario, existir y tener ya su Empresa propia, que es lo que
     /// mira la idempotencia de sus datos (<see cref="SembrarDatosAsync"/>). Solo lee.
     /// </summary>
-    private static async Task<string?> PrimerTenantSinSembrarAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
+    internal static async Task<string?> PrimerTenantSinSembrarAsync(CaeManagerDbContext dbContext, CancellationToken cancellationToken)
     {
         var nombres = CatalogoPilotoOutbound.NombresTenants.ToList();
         var existentes = await dbContext.Tenants
@@ -270,8 +270,11 @@ public static class PilotoOutboundSeeder
         DatosPruebaSeeder.GenerarCifValido(8_100_000 + CatalogoPilotoOutbound.Tenants.ToList().IndexOf(tenant) * 100 + ordinal);
 
     /// <summary>
-    /// Aprovisiona el Tenant y lo marca como demo de inmediato, antes de escribir
-    /// sus datos: lo que quede de una ejecución cortada tiene que poder retirarse.
+    /// Aprovisiona el Tenant ya marcado como demo, en un único guardado: lo que quede
+    /// de una ejecución cortada tiene que poder retirarse, y un Tenant con nombre del
+    /// piloto y sin marcador haría que siembra y retirada se negaran. Al que ya existe
+    /// no se le toca: <see cref="RechazarNombresOcupadosPorUnTenantSinMarcadorAsync"/>
+    /// ya ha comprobado, antes de escribir nada, que lleva el marcador.
     /// </summary>
     private static async Task<Guid> AprovisionarConMarcadorAsync(
         CaeManagerDbContext dbContext, string nombre, PerfilVocabularioTenant perfil, bool esOperadorCaeExterno,
@@ -280,8 +283,7 @@ public static class PilotoOutboundSeeder
         var existia = await dbContext.Tenants.AnyAsync(t => t.Nombre == nombre, cancellationToken);
 
         var tenantId = await DelegacionDemoSeeder.AprovisionarTenantAsync(
-            dbContext, nombre, perfil, logger, cancellationToken, esOperadorCaeExterno);
-        await SiembraDemoDireccionAdministrativa.MarcarComoDemoAsync(dbContext, tenantId, cancellationToken);
+            dbContext, nombre, perfil, logger, cancellationToken, esOperadorCaeExterno, marcarComoDemo: true);
 
         if (!existia) recuento.TenantsCreados++;
         return tenantId;

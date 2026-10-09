@@ -801,8 +801,51 @@ if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoRetirar))
     return;
 }
 
+// Siembra administrativa del piloto Outbound en un servidor que arranca como Production
+// (staging): SOLO desde este modo de CLI, nunca en el arranque normal
+// (PilotoOutboundSoloDesdeElModoCliTests lo vigila). Falla cerrada antes de escribir (ver
+// PilotoOutboundAdministrativa): exige el entorno confirmado a mano, un dominio de correo
+// propio, la fecha de la demostración y un directorio de credenciales en tmpfs, y se niega
+// con DatosPrueba:Activo. NO imprime ni registra contraseñas: van solo al fichero. Al
+// terminar mide el lote con la autoverificación y sale con 1 si la matriz no cuadra.
+//
+// Se lanza con el servicio "migrador": entre la siembra y la autoverificación ejecuta el
+// backfill de asignaciones del arranque, que pide la identidad de bootstrap.
+if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
+{
+    using var scopeSiembraPiloto = app.Services.CreateScope();
+    var serviciosSiembraPiloto = scopeSiembraPiloto.ServiceProvider;
+
+    try
+    {
+        var resultadoPiloto = await PilotoOutboundAdministrativa.SembrarAsync(
+            serviciosSiembraPiloto.GetRequiredService<CaeManagerDbContext>(),
+            () => serviciosSiembraPiloto
+                .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>().Crear(),
+            serviciosSiembraPiloto.GetRequiredService<UserManager<ApplicationUser>>(),
+            serviciosSiembraPiloto.GetRequiredService<IUserStore<ApplicationUser>>(),
+            serviciosSiembraPiloto.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
+            app.Services.GetRequiredService<IServiceScopeFactory>(),
+            app.Configuration, app.Environment,
+            PilotoOutboundAdministrativa.LeerOpciones(app.Configuration),
+            serviciosSiembraPiloto.GetRequiredService<ILogger<Program>>());
+
+        Environment.ExitCode = PilotoOutboundAdministrativa.Informar(
+            resultadoPiloto, app.Environment.EnvironmentName, Console.Out, Console.Error);
+    }
+    catch (InvalidOperationException ex)
+    {
+        Console.Error.WriteLine(PilotoOutboundAdministrativa.MensajeDeInterrupcion(ex));
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
 // Retirada completa de la siembra del piloto Outbound (sus siete Tenants, con marcador de
-// demo, y los PDF de sus documentos): mismo patrón de dos pasos que --retirar-demo-direccion.
+// demo, y los PDF de sus documentos): mismo patrón de dos pasos que --retirar-demo-direccion,
+// más la misma confirmación de entorno que su siembra. Cada Tenant se anuncia en cuanto se
+// borra, no al final: un fallo a mitad deja en la salida qué se retiró ya, y la orden se repite.
 if (args.Contains(PilotoOutboundRetirada.Argumento))
 {
     using var scopeRetiradaPiloto = app.Services.CreateScope();
@@ -810,18 +853,20 @@ if (args.Contains(PilotoOutboundRetirada.Argumento))
 
     try
     {
-        var retirados = await PilotoOutboundRetirada.RetirarLoteAsync(
+        var retirados = await PilotoOutboundRetirada.RetirarLoteConfirmadoAsync(
+            app.Configuration, app.Environment,
             scopeRetiradaPiloto.ServiceProvider.GetRequiredService<CaeManagerDbContext>(),
             () => scopeRetiradaPiloto.ServiceProvider
                 .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>().Crear(),
             scopeRetiradaPiloto.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
-            loggerRetiradaPiloto);
-
-        foreach (var retirado in retirados)
-            Console.WriteLine(
+            loggerRetiradaPiloto,
+            retirado => Console.WriteLine(
                 $"Retirado: '{retirado.NombreTenant}' ({retirado.TenantId}) — " +
-                $"{retirado.FilasBorradas} filas tenant-scoped, {retirado.UsuariosBorrados} usuarios.");
-        if (retirados.Count == 0) Console.WriteLine("No hay ningún Tenant del piloto: nada que retirar.");
+                $"{retirado.FilasBorradas} filas tenant-scoped, {retirado.UsuariosBorrados} usuarios."));
+
+        Console.WriteLine(retirados.Count == 0
+            ? "No hay ningún Tenant del piloto: nada que retirar."
+            : $"Retirada del piloto Outbound completa: {retirados.Count} Tenants.");
     }
     catch (InvalidOperationException ex)
     {
