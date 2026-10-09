@@ -1138,13 +1138,14 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             emitidosDespuesDelPrimerDia.Should().BeEmpty($"{tenant.Clave}: ninguna emisión habría sido futura el primer día en que se podía sembrar");
             sinCaducidad.Select(f => f.Tipo.Nombre).Distinct().Should().BeSubsetOf(
                 CatalogoPilotoOutbound.TiposQueNoCaducan, $"{tenant.Clave}: solo quedan «no caduca» los Tipos cuya nota del catálogo lo dice");
-            filas.Where(f => deFechaManualNombrados.Contains(f.Tipo.Nombre)).Should().OnlyContain(
-                f => f.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha, $"{tenant.Clave}: Hacienda y el seguro llevan su fecha, anotada a mano");
-            mensuales.Should().OnlyContain(
-                f => f.FechaVencimiento!.Value.DayNumber - d.DayNumber >= 16 && f.FechaVencimiento.Value.DayNumber - d.DayNumber <= 21,
+            // Por negación y no con OnlyContain, que da rojo ante una colección vacía: el Tenant con todo
+            // pendiente no tiene documentos. Que en los demás había de las tres clases lo afirma el control de abajo.
+            filas.Where(f => deFechaManualNombrados.Contains(f.Tipo.Nombre) && f.EstadoVigencia != EstadoVigenciaDocumento.VenceEnFecha)
+                .Select(f => f.Tipo.Nombre).Should().BeEmpty($"{tenant.Clave}: Hacienda y el seguro llevan su fecha, anotada a mano");
+            mensuales.Select(f => f.FechaVencimiento!.Value.DayNumber - d.DayNumber).Where(dias => dias is < 16 or > 21).Should().BeEmpty(
                 $"{tenant.Clave}: un mensual está «Próximo», y nunca «Urgente», de D−9 a D");
-            trimestrales.Should().OnlyContain(
-                f => f.FechaVencimiento!.Value.DayNumber - d.DayNumber > 30, $"{tenant.Clave}: un trimestral recién emitido sigue Vigente el día de la demostración");
+            trimestrales.Select(f => f.FechaVencimiento!.Value.DayNumber - d.DayNumber).Where(dias => dias <= 30).Should().BeEmpty(
+                $"{tenant.Clave}: un trimestral recién emitido sigue Vigente el día de la demostración");
 
             if (tenant.Escenario == EscenarioPilotoOutbound.TodoPendiente) continue;
 
