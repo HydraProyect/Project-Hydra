@@ -249,13 +249,17 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         EscribirCampoPrivado(pagina, "_usuarioACorregirCorreo", filaDelegada);
         EscribirCampoPrivado(pagina, "_correoCorregido", "desviado@x.test");
 
-        await InvocarToleraRecargaSinRendererAsync(pagina, "GuardarCorreoCorregidoAsync");
+        // Si la frontera fallara, la página seguiría adelante hacia piezas que este arnés no
+        // monta (textos localizados, recarga) y reventaría ahí. Lo que decide la prueba es el
+        // estado de la cuenta, así que se afirma primero y la excepción, si la hubo, después.
+        var excepcion = await Record.ExceptionAsync(() => InvocarAsync(pagina, "GuardarCorreoCorregidoAsync"));
 
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var cuentaTrasElAtaque = await userManager.FindByIdAsync(_usuarioAjenoDelegado.ToString());
         cuentaTrasElAtaque!.Email.Should().Be("gestor-ajeno@x.test",
             "corregir el correo de la cuenta de un Operador Delegado desde el tenant que opera desviaría su activación a una dirección de otra organización");
         espia.Llamadas.Should().Be(0);
+        excepcion.Should().BeNull();
     }
 
     [Fact]
