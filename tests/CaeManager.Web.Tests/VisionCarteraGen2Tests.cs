@@ -490,7 +490,7 @@ public class VisionCarteraGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Una organización sin Centros de Trabajo ni documentos con fecha no está
+    /// Una organización sin documentos de Trabajador ni documentación exigida no está
     /// al 100%: está «sin datos». No se pinta porcentaje, no cuenta en verde y
     /// no forma la media.
     /// </summary>

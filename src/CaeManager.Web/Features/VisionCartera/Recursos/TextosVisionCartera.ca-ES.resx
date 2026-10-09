@@ -310,7 +310,7 @@
     <value>Sin datos</value>
   </data>
   <data name="TituloCumplimientoSinDatos" xml:space="preserve">
-    <value>{0}: sin Centros de Trabajo ni documentos con fecha de vencimiento, así que no hay cumplimiento que medir</value>
+    <value>{0}: sin documentos de Trabajador ni documentación exigida por sus Centros de Trabajo, así que no hay cumplimiento que medir</value>
   </data>
   <data name="BadgeBloqueadosUno" xml:space="preserve">
     <value>1 Centro de Trabajo con bloqueo de la plataforma CAE</value>

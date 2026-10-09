@@ -102,9 +102,9 @@ public class InicioGen2Tests : BunitContext
     // ------------------------------------------------ anillo: sin datos y bloqueos (P2.4)
 
     /// <summary>
-    /// Con trabajadores pero sin Centros de Trabajo ni documentos con vigencia,
-    /// la consulta devuelve 100 (nada que medir) y SinDatos: el anillo no puede
-    /// afirmar «100 % de cumplimiento», que se lee como «al día».
+    /// Con trabajadores pero sin documentos de Trabajador ni documentación exigida por
+    /// los Centros de Trabajo, la consulta devuelve 100 (nada que medir) y SinDatos: el
+    /// anillo no puede afirmar «100 % de cumplimiento», que se lee como «al día».
     /// </summary>
     [Fact]
     public void Sin_datos_que_medir_el_anillo_no_afirma_un_cien_por_cien_de_cumplimiento()
@@ -116,6 +116,24 @@ public class InicioGen2Tests : BunitContext
 
         cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("Sin datos de cumplimiento documental");
         cut.Find(".dashboard-resumen").TextContent.Should().NotContain("100%");
+    }
+
+    /// <summary>
+    /// Decisión del propietario, 2026-10-09: sin ningún documento y con documentación exigida por los Centros de Trabajo,
+    /// el anillo dice 0 % y de cuántos, no «100 %» ni «0 de 0 documentos al día».
+    /// </summary>
+    [Fact]
+    public void Sin_documentos_y_con_documentacion_exigida_el_anillo_dice_cero_y_cuantos_se_exigen()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = KpisACero() with { TrabajadoresActivos = 8, Centros = 3, ParesExigidosSinDocumento = 19 }
+        });
+
+        cut.Find(".dashboard-resumen-anillo-titulo").TextContent.Should().Be("0% de cumplimiento documental");
+        cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim()
+            .Should().Be("Ningún documento subido de los 19 que exigen los centros de trabajo.");
+        cut.Find(".dashboard-resumen").TextContent.Should().NotContain("100%").And.NotContain("0 de 0");
     }
 
     [Fact]

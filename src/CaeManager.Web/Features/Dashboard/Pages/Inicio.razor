@@ -179,8 +179,10 @@
            que no tiene cola que gestionar pero sí su propio cumplimiento. *@
         <div class="dashboard-resumen">
             <div class="dashboard-resumen-tarjeta-anillo">
-                @* P2.4 (D-7): sin Centros de Trabajo ni documentos con vigencia, el
-                   100 % de la consulta es «nada que medir», no «al día» (SinDatos); y
+                @* P2.4 (D-7): sin documentos de Trabajador ni documentación exigida por
+                   los Centros de Trabajo, el 100 % de la consulta es «nada que medir», no
+                   «al día» (SinDatos); sin documentos pero con documentación exigida es
+                   0 % y el detalle dice cuántos se exigen (ParesExigidosSinDocumento); y
                    el porcentaje cuenta documentos, no acceso: los Trabajadores
                    bloqueados (regla de acceso por Centro) y los Centros de Trabajo con
                    bloqueo de la plataforma CAE (CalculoEstadoCentroService, el mismo
@@ -197,7 +199,14 @@
                     else
                     {
                         <p class="dashboard-resumen-anillo-titulo">@_kpis.TasaCumplimientoDocumental% de cumplimiento documental</p>
-                        <p class="dashboard-resumen-anillo-detalle">@_kpis.Fraccion.AlDia.ToString("N0") de @_kpis.Fraccion.Requeridos.ToString("N0") documentos al día en cartera</p>
+                        @if (_kpis.ParesExigidosSinDocumento > 0)
+                        {
+                            <p class="dashboard-resumen-anillo-detalle">@Textos["AnilloSinDocumentosDetalle", _kpis.ParesExigidosSinDocumento.ToString("N0")]</p>
+                        }
+                        else
+                        {
+                            <p class="dashboard-resumen-anillo-detalle">@_kpis.Fraccion.AlDia.ToString("N0") de @_kpis.Fraccion.Requeridos.ToString("N0") documentos al día en cartera</p>
+                        }
                     }
                     @if (_kpis.TrabajadoresBloqueados > 0)
                     {

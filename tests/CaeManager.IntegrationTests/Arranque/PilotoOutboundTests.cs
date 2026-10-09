@@ -225,7 +225,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     }
 
     [Fact]
-    public void T4_sin_documentos_da_cero_en_Centros_y_Empresa_y_declara_la_divergencia_de_Inicio_y_Vision_de_cartera()
+    public void T4_sin_documentos_da_cero_en_Centros_Empresa_Inicio_y_Vision_de_cartera()
     {
         var m = fixture.Informe.De(T4);
 
@@ -234,35 +234,37 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         (m.ParesExigidos, m.ParesFaltantes, m.Documentos).Should().Be((19, 19, 0));
         m.MiTrabajoFilas.Should().Be(19);
 
-        // La divergencia declarada: sin documentos, estas dos pantallas no dicen 0 %. El número vive en UN sitio.
-        CatalogoPilotoOutbound.CumplimientoDeInicioYVisionDeCarteraEnT4.Should().Be(100, "es lo que main pinta hoy; si cambia, se cambia la constante");
-        m.InicioCumplimiento.Should().Be(100);
-        m.VisionCarteraCumplimiento.Should().Be(100);
+        // Sin documentos, Inicio y Visión de cartera cuentan los pares exigidos: 0 de 19, como Centros y Empresas. El
+        // número vive en UN sitio.
+        CatalogoPilotoOutbound.CumplimientoDeInicioYVisionDeCarteraEnT4.Should().Be(0, "decisión del 2026-10-09: sin documentos y con pares exigidos, Inicio no da 100 %");
+        m.InicioCumplimiento.Should().Be(0);
+        m.VisionCarteraCumplimiento.Should().Be(0);
+        (m.VisionCarteraPresente, m.VisionCarteraSinCartera, m.VisionCarteraSinDatos).Should().Be(
+            (true, false, false), "la fila pinta 0 %, no «Sin cartera» ni «Sin datos»: hay diecinueve pares exigidos");
 
         var advertencias = PilotoOutboundAutoverificacion.Advertencias(fixture.Informe);
-        advertencias.Should().HaveCount(3, "MEDIDO: T4, T5 y T6 declaran que Inicio y Visión de cartera no dan la cifra de Empresas");
-        advertencias.Should().ContainSingle(a => a.StartsWith($"T4 «{CatalogoPilotoOutbound.NombreTenantT4}»"))
-            .Which.Should().Contain("Inicio 100 %").And.Contain("Visión de cartera 100 %").And.Contain("Empresas 0 %");
+        advertencias.Should().HaveCount(2, "T5 y T6 declaran que Inicio y Visión de cartera no dan la cifra de Empresas; T4 ya coincide");
+        advertencias.Should().NotContain(a => a.StartsWith($"T4 «{CatalogoPilotoOutbound.NombreTenantT4}»"));
     }
 
     [Fact]
-    public void La_autoverificacion_exige_en_T4_la_constante_de_Inicio_y_Vision_de_cartera_y_avisa_solo_mientras_diverge()
+    public void La_autoverificacion_exige_en_T4_la_constante_de_Inicio_y_Vision_de_cartera_y_avisa_solo_si_diverge()
     {
         var prefijo = $"T4 «{CatalogoPilotoOutbound.NombreTenantT4}» · ";
         Informe ConT4(Func<PilotoOutboundAutoverificacion.MedicionTenant, PilotoOutboundAutoverificacion.MedicionTenant> cambio) =>
             new([.. fixture.Informe.Tenants.Select(t => t.Clave == T4.Clave ? cambio(t) : t)]);
 
-        // El día que Inicio pase a contar pares exigidos medirá 0: la autoverificación lo dice, con el contador.
-        PilotoOutboundAutoverificacion.Discrepancias(ConT4(t => t with { InicioCumplimiento = 0 }))
-            .Should().Equal(prefijo + "Inicio · % de cumplimiento: medido 0, esperado 100.");
-        PilotoOutboundAutoverificacion.Discrepancias(ConT4(t => t with { VisionCarteraCumplimiento = 0 }))
-            .Should().Equal(prefijo + "Visión de cartera · % de cumplimiento: medido 0, esperado 100.");
+        // Si Inicio volviera a dar el 100 % de «ningún documento», la autoverificación lo dice, con el contador.
+        PilotoOutboundAutoverificacion.Discrepancias(ConT4(t => t with { InicioCumplimiento = 100 }))
+            .Should().Equal(prefijo + "Inicio · % de cumplimiento: medido 100, esperado 0.");
+        PilotoOutboundAutoverificacion.Discrepancias(ConT4(t => t with { VisionCarteraCumplimiento = 100 }))
+            .Should().Equal(prefijo + "Visión de cartera · % de cumplimiento: medido 100, esperado 0.");
 
         // La advertencia sale de comparar los esperados del catálogo, no de un texto fijo.
         var esperadoHoy = CatalogoPilotoOutbound.Esperado(T4)!;
-        esperadoHoy.InicioOVisionDeCarteraDivergenDeEmpresa.Should().BeTrue();
-        (esperadoHoy with { CumplimientoInicio = 0, CumplimientoVisionCartera = 0 }).InicioOVisionDeCarteraDivergenDeEmpresa
-            .Should().BeFalse("con la constante a 0, igual que Empresas, deja de haber divergencia que declarar");
+        esperadoHoy.InicioOVisionDeCarteraDivergenDeEmpresa.Should().BeFalse("con la constante a 0, igual que Empresas, no hay divergencia que declarar");
+        (esperadoHoy with { CumplimientoInicio = 100, CumplimientoVisionCartera = 100 }).InicioOVisionDeCarteraDivergenDeEmpresa
+            .Should().BeTrue("control: con el 100 % antiguo sí divergía de Empresas");
         CatalogoPilotoOutbound.Esperado(T2)!.InicioOVisionDeCarteraDivergenDeEmpresa.Should().BeFalse("control: donde las tres cifras coinciden no se avisa");
     }
 

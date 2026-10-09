@@ -34,7 +34,10 @@
     <value>Sin datos de cumplimiento documental</value>
   </data>
   <data name="AnilloSinDatosDetalle" xml:space="preserve">
-    <value>No hay centros de trabajo ni documentos con vigencia en cartera que medir.</value>
+    <value>No hay documentos de trabajador ni documentación exigida por los centros de trabajo que medir.</value>
+  </data>
+  <data name="AnilloSinDocumentosDetalle" xml:space="preserve">
+    <value>Ningún documento subido de los {0} que exigen los centros de trabajo.</value>
   </data>
   <data name="CentrosBloqueadosKpiUno" xml:space="preserve">
     <value>1 Centro de Trabajo con bloqueo de la plataforma CAE del Cliente empresarial: el porcentaje cuenta documentos, no acceso.</value>
