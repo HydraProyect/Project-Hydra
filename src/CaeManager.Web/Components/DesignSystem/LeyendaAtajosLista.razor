@@ -1,0 +1,86 @@
+@*
+    Leyenda de teclado al pie de un listado: una línea con las teclas que la pantalla maneja y un rótulo de
+    una palabra cada una («j k moverse · Enter abrir · … · ? todos»).
+
+    - Las teclas NO se escriben aquí: salen de CatalogoAtajos.LeyendaLista, que las toma de las mismas listas
+      que pinta la chuleta («?»). La leyenda no la duplica: su última entrada remite a ella.
+    - Cada pantalla enseña solo lo que maneja de verdad. Omitir quita entradas de CatalogoAtajos.Lista por su
+      tecla, tal cual figura allí («x», «e», «f»); «Alt» y «?» van siempre. Una tecla que no esté en esa lista
+      es un error de quien la escribe y se dice al pintar, no se ignora.
+    - Sin filas que recorrer (lista vacía, cargando o con error) no se pinta: va dentro de la rama que pinta la
+      tabla, o con HayFilas cuando la rejilla sigue montada y solo se esconde.
+    - En pantallas táctiles o estrechas se oculta (CSS aislado): ahí no hay teclado que la use.
+
+    Uso:
+
+        <LeyendaAtajosLista />
+        <LeyendaAtajosLista Omitir="@(["x", "e"])" HayFilas="@(_totalElementos > 0)" />
+*@
+@using CaeManager.Web.Features.AtajosGlobales
+@using CaeManager.Web.Features.AtajosGlobales.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosAtajosGlobales> Textos
+
+@if (HayFilas)
+{
+    <ul class="leyenda-atajos-lista" data-pieza="leyenda-atajos" aria-label="@Textos["LeyendaListaEtiqueta"]">
+        @foreach (var atajo in _entradas)
+        {
+            <li class="leyenda-atajos-lista-entrada" data-tecla="@atajo.Tecla" title="@Textos[ClaveTitulo(atajo)]">
+                @foreach (var tecla in atajo.Tecla.Split(SeparadorDeTeclas))
+                {
+                    <kbd>@tecla</kbd>
+                }
+                <span class="leyenda-atajos-lista-rotulo">@Textos[atajo.ClaveDescripcion + SufijoRotuloBreve]</span>
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>Sufijo de la clave del rótulo de una palabra: <c>&lt;ClaveDescripcion&gt;Breve</c>.</summary>
+    public const string SufijoRotuloBreve = "Breve";
+
+    /// <summary>«j / k» son dos teclas con un solo rótulo: cada una va en su <c>kbd</c>.</summary>
+    private const string SeparadorDeTeclas = " / ";
+
+    /// <summary>
+    /// «?» remite a la chuleta. Su descripción larga («Mostrar esta ayuda») solo se entiende dentro de ella,
+    /// así que al pie del listado lleva una propia.
+    /// </summary>
+    private const string ClaveDescripcionChuleta = "AccionMostrarAyuda";
+    private const string ClaveTituloChuleta = "LeyendaTodosLosAtajos";
+
+    private IReadOnlyList<DefinicionAtajo> _entradas = CatalogoAtajos.LeyendaLista;
+
+    /// <summary>
+    /// Teclas de <see cref="CatalogoAtajos.Lista"/> que esta pantalla no maneja, tal cual figuran en
+    /// <see cref="DefinicionAtajo.Tecla"/>.
+    /// </summary>
+    [Parameter] public IReadOnlyCollection<string>? Omitir { get; set; }
+
+    /// <summary>Hay filas que recorrer. Con <c>false</c> la leyenda no se pinta.</summary>
+    [Parameter] public bool HayFilas { get; set; } = true;
+
+    protected override void OnParametersSet()
+    {
+        if (Omitir is null || Omitir.Count == 0)
+        {
+            _entradas = CatalogoAtajos.LeyendaLista;
+            return;
+        }
+
+        var desconocidas = Omitir.Where(tecla => CatalogoAtajos.Lista.All(a => a.Tecla != tecla)).ToList();
+        if (desconocidas.Count > 0)
+        {
+            throw new ArgumentException(
+                $"LeyendaAtajosLista: Omitir lleva teclas que no están en CatalogoAtajos.Lista ({string.Join(", ", desconocidas)}). " +
+                "Solo se omiten atajos de lista, por su tecla tal cual figura en el catálogo.", nameof(Omitir));
+        }
+
+        _entradas = CatalogoAtajos.LeyendaLista.Where(a => !Omitir.Contains(a.Tecla)).ToList();
+    }
+
+    private static string ClaveTitulo(DefinicionAtajo atajo) =>
+        atajo.ClaveDescripcion == ClaveDescripcionChuleta ? ClaveTituloChuleta : atajo.ClaveDescripcion;
+}

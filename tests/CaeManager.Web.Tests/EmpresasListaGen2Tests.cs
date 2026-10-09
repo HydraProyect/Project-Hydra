@@ -50,7 +50,7 @@ namespace CaeManager.Web.Tests;
 /// ellos dejaría en verde una pantalla que no los envía.
 /// </para>
 /// </summary>
-public class EmpresasListaGen2Tests : BunitContext
+public partial class EmpresasListaGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado, que importa un módulo JS.</summary>
     public EmpresasListaGen2Tests()

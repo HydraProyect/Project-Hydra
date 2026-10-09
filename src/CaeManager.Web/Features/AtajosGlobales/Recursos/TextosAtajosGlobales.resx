@@ -93,6 +93,33 @@
   <data name="ListaFiltrarPantalla" xml:space="preserve">
     <value>Ir al filtro de esta pantalla</value>
   </data>
+  <data name="LeyendaListaEtiqueta" xml:space="preserve">
+    <value>Atajos de teclado de esta lista</value>
+  </data>
+  <data name="LeyendaTodosLosAtajos" xml:space="preserve">
+    <value>Ver todos los atajos de teclado</value>
+  </data>
+  <data name="ListaFilaSiguienteAnteriorBreve" xml:space="preserve">
+    <value>moverse</value>
+  </data>
+  <data name="ListaAbrirFilaBreve" xml:space="preserve">
+    <value>abrir</value>
+  </data>
+  <data name="ListaEditarFilaBreve" xml:space="preserve">
+    <value>editar</value>
+  </data>
+  <data name="ListaMarcarFilaBreve" xml:space="preserve">
+    <value>marcar</value>
+  </data>
+  <data name="ListaFiltrarPantallaBreve" xml:space="preserve">
+    <value>filtrar</value>
+  </data>
+  <data name="KeyTipsEncenderBreve" xml:space="preserve">
+    <value>KeyTips</value>
+  </data>
+  <data name="AccionMostrarAyudaBreve" xml:space="preserve">
+    <value>todos</value>
+  </data>
   <data name="SeccionKeyTips" xml:space="preserve">
     <value>Letras sobre los controles (KeyTips)</value>
   </data>

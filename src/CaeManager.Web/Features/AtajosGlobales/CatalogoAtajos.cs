@@ -124,6 +124,29 @@ public static class CatalogoAtajos
     ];
 
     /// <summary>
+    /// Leyenda al pie de un listado (<c>LeyendaAtajosLista</c>): una línea con las teclas de
+    /// <see cref="Lista"/>, la que enciende KeyTips y la que abre la chuleta, en el orden en que se
+    /// leen al pie (moverse, abrir, editar, marcar, filtrar). No añade teclas: cada entrada es la
+    /// misma <see cref="DefinicionAtajo"/> de su lista de origen, así que una tecla que cambie allí
+    /// cambia aquí. El rótulo de una palabra de cada entrada vive en <c>TextosAtajosGlobales</c> con
+    /// la clave <c>&lt;ClaveDescripcion&gt;Breve</c>.
+    /// </summary>
+    /// <remarks>
+    /// Va declarada después de <see cref="Lista"/>, <see cref="KeyTipsGestos"/> y
+    /// <see cref="Acciones"/>: los campos estáticos se inicializan en orden de texto.
+    /// </remarks>
+    public static readonly IReadOnlyList<DefinicionAtajo> LeyendaLista =
+    [
+        Lista.Single(a => a.ClaveDescripcion == "ListaFilaSiguienteAnterior"),
+        Lista.Single(a => a.ClaveDescripcion == "ListaAbrirFila"),
+        Lista.Single(a => a.ClaveDescripcion == "ListaEditarFila"),
+        Lista.Single(a => a.ClaveDescripcion == "ListaMarcarFila"),
+        Lista.Single(a => a.ClaveDescripcion == "ListaFiltrarPantalla"),
+        KeyTipsGestos.Single(a => a.ClaveDescripcion == "KeyTipsEncender"),
+        Acciones.Single(a => a.ClaveDescripcion == "AccionMostrarAyuda")
+    ];
+
+    /// <summary>
     /// Letras estables de KeyTips: las de los controles compartidos de los listados, iguales
     /// en todas las pantallas. Una letra por control, sin repetir. <c>keytips.js</c> lleva las
     /// mismas en <c>LETRAS_ESTABLES</c> y nunca las da a un control que deduce su letra

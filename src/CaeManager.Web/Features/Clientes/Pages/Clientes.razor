@@ -337,6 +337,7 @@
                               Etiqueta="Cliente(s)" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
             }
+            <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
         </div>
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)

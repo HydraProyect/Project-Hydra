@@ -110,6 +110,7 @@
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                               Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+            <LeyendaAtajosLista Omitir="@(["x", "e"])" HayFilas="@(_totalElementos > 0)" />
         </div>
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
