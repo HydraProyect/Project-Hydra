@@ -30,7 +30,6 @@ src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor :: [operador-a
 src/CaeManager.Web/Features/Delegaciones/Recursos/TextosAutorizarOperadorCaeExterno.ca-ES.resx :: NotaPropiedad [operador-a-secas] = 1
 src/CaeManager.Web/Features/Delegaciones/Recursos/TextosAutorizarOperadorCaeExterno.resx :: NotaPropiedad [operador-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor :: [alcance-a-secas] = 1
-src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor :: [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor :: [tenant-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.ca-ES.resx :: VacioClientesDescripcion [alcance-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Recursos/TextosEmpresas.resx :: VacioClientesDescripcion [alcance-a-secas] = 1
