@@ -82,7 +82,10 @@ jobs:
     # bien los tests (ver el comentario de ci.yml, "Repartir las clases").
     services:
       postgres:
-        image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        # Misma imagen (mismo digest) que el servicio db de producción, servida
+        # desde el espejo de ECR Public y no desde Docker Hub: el motivo está en
+        # el servicio postgres del job tests-integracion de ci.yml.
+        image: public.ecr.aws/docker/library/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
         env:
           POSTGRES_PASSWORD: postgres
         ports:

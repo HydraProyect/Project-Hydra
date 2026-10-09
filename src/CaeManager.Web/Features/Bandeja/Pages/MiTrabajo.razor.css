@@ -441,6 +441,9 @@
     border: 0;
     border-bottom: var(--border-default);
     background: var(--color-surface);
+    /* Es un <button>: sin color propio toma el del agente de usuario (negro) y
+       no el de la página; en oscuro el título del lote quedaba a 1,31:1. */
+    color: var(--color-text);
     font: var(--font-body-sm);
     text-align: left;
     cursor: pointer;
