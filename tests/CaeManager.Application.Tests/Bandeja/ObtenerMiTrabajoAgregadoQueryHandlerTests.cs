@@ -258,8 +258,10 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
     }
 
     /// <summary>
-    /// Prioridad alta, la de Vencido (D-6): por delante de una Rechazada y de
-    /// un Requisito pendiente, por detrás de un Faltante.
+    /// Prioridad alta, la de Vencido (D-6): por delante de un Faltante y de una
+    /// Rechazada que no cierra su Centro de Trabajo, y por detrás de lo que
+    /// bloquea el acceso (un requisito bloqueante pendiente). El orden entero
+    /// lo fija <see cref="OrdenUnicoDeLaColaTests"/>.
     /// </summary>
     [Fact]
     public void Ordenar_pone_la_vencida_en_plataforma_con_la_prioridad_de_Vencido()
@@ -277,7 +279,7 @@ public class ObtenerMiTrabajoAgregadoQueryHandlerTests
             De(TipoItemBandeja.Faltante, "faltante"),
         ]);
 
-        ordenados.Select(i => i.Id).Should().Equal("faltante", "plataforma-vencida", "vencido", "rechazada", "requisito");
+        ordenados.Select(i => i.Id).Should().Equal("requisito", "plataforma-vencida", "vencido", "faltante", "rechazada");
     }
 
     private static readonly Guid EmpresaPropia = Guid.NewGuid();

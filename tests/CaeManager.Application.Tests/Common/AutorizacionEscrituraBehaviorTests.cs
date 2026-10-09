@@ -1,5 +1,15 @@
+using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
+using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands.CrearDocumento;
+using CaeManager.Application.Documentos.Commands.GuardarSelloEmpresa;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
+using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente;
+using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionNuevo;
+using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Common;
 using FluentAssertions;
@@ -469,6 +479,76 @@ public class AutorizacionEscrituraBehaviorTests
             new FalsoCommand(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
+    }
+
+    // Las escrituras que ofrecen las fichas 360 de Centro y de Empresa (y la pantalla de detección de
+    // Trabajadores a la que enlaza Empresa 360). La interfaz las oculta al rol Consulta con SoloConEscritura,
+    // pero ocultar no autoriza: quien deniega es este behavior, y aquí se prueba con el tipo real de cada
+    // Command, no con un doble. Si alguno dejara de ser ICommand o pasara a IComandoDeAutoservicio, su caso
+    // se pone en rojo.
+    public static TheoryData<object> EscriturasDeLasFichas360 =>
+    [
+        new CrearAsignacionCommand(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 10, 9)),
+        new CrearAsignacionesCommand([Guid.NewGuid()], [Guid.NewGuid()], new DateOnly(2026, 10, 9)),
+        new DarDeBajaAsignacionesCommand([Guid.NewGuid()], new DateOnly(2026, 10, 9)),
+        new EnviarReclamacionCommand(Guid.NewGuid(), [Guid.NewGuid()]),
+        new EnviarReclamacionEmpresaCommand(Guid.NewGuid(), [Guid.NewGuid()]),
+        new CrearDocumentoCommand(Guid.NewGuid(), null, null, null, null, Guid.NewGuid(), new DateOnly(2026, 10, 9), null, null, null),
+        new CrearVisitaCommand(Guid.NewGuid(), new DateOnly(2026, 10, 9), new DateOnly(2026, 10, 9), [Guid.NewGuid()], null),
+        new GuardarSelloEmpresaCommand(Guid.NewGuid(), [1, 2, 3]),
+        new ResolverDeteccionNuevoCommand(Guid.NewGuid(), true),
+        new ResolverDeteccionAusenteCommand(Guid.NewGuid(), true),
+    ];
+
+    [Theory]
+    [MemberData(nameof(EscriturasDeLasFichas360))]
+    public async Task Las_escrituras_de_las_fichas_360_se_deniegan_al_rol_Consulta_sin_llegar_al_handler(object comando)
+    {
+        var (resultado, siguienteFueLlamado) = await PasarPorElBehaviorAsync(comando, "Consulta");
+
+        siguienteFueLlamado.Should().BeFalse();
+        resultado!.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Autorizacion.SoloLectura");
+    }
+
+    // Control positivo: el mismo recorrido, con un rol de escritura, sí llega al handler. Sin él, un
+    // ayudante que nunca llamara al siguiente daría verde arriba por el motivo equivocado.
+    [Theory]
+    [MemberData(nameof(EscriturasDeLasFichas360))]
+    public async Task Las_escrituras_de_las_fichas_360_llegan_al_handler_con_un_rol_de_escritura(object comando)
+    {
+        var (_, siguienteFueLlamado) = await PasarPorElBehaviorAsync(comando, "GestorCae");
+
+        siguienteFueLlamado.Should().BeTrue();
+    }
+
+    private static Task<(Result? Resultado, bool SiguienteFueLlamado)> PasarPorElBehaviorAsync(object comando, string rol)
+    {
+        var respuesta = comando.GetType().GetInterfaces()
+            .Single(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>))
+            .GetGenericArguments()[0];
+        var metodo = typeof(AutorizacionEscrituraBehaviorTests)
+            .GetMethod(nameof(PasarPorElBehaviorTipadoAsync), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .MakeGenericMethod(comando.GetType(), respuesta);
+        return (Task<(Result?, bool)>)metodo.Invoke(null, [comando, rol])!;
+    }
+
+    private static async Task<(Result? Resultado, bool SiguienteFueLlamado)> PasarPorElBehaviorTipadoAsync<TComando, TRespuesta>(
+        TComando comando, string rol)
+        where TComando : IRequest<TRespuesta>
+        where TRespuesta : Result
+    {
+        var behavior = new AutorizacionEscrituraBehavior<TComando, TRespuesta>(
+            new CurrentUserServiceFalso(Guid.NewGuid(), rol), SinSesionPrivilegiada, SinTenant);
+        var siguienteFueLlamado = false;
+
+        var resultado = await behavior.Handle(comando, _ =>
+        {
+            siguienteFueLlamado = true;
+            return Task.FromResult<TRespuesta>(null!);
+        }, CancellationToken.None);
+
+        return (resultado, siguienteFueLlamado);
     }
 
     private static SesionPrivilegiadaActiva SesionCon(CapacidadPrivilegio capacidad, Guid? tenantObjetivoId = null) =>

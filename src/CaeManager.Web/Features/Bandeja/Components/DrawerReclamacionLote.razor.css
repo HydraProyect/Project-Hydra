@@ -1,0 +1,19 @@
+/* La tabla del lote vive dentro de una Tarjeta dentro de un Drawer (420 px como máximo, Drawer.razor.css):
+   con el relleno de un listado a página completa (.tabla-datos, list-page.css) no cabe y el cuerpo
+   del Drawer se desplazaba en horizontal. Aquí va compacta, y el nombre del Trabajador baja a una
+   segunda línea de la celda del documento en vez de ocupar una columna. */
+.tabla-lote-reclamacion th,
+.tabla-lote-reclamacion td {
+    padding: var(--space-2);
+}
+
+/* Un tipo de documento o un nombre largos se parten antes que ensanchar la tabla. */
+.lote-reclamacion-documento {
+    overflow-wrap: anywhere;
+}
+
+.lote-reclamacion-titular {
+    display: block;
+    font: var(--font-body-sm);
+    color: var(--color-text-muted);
+}

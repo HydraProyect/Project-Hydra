@@ -1,0 +1,15 @@
+/* El selector se monta dentro de un Drawer. Su envoltorio aparta los campos del reparto que da el
+   cuerpo del Drawer (.drawer-cuerpo, Drawer.razor.css), así que lo repite: sin esto los campos
+   quedaban pegados unos a otros. */
+.selector-lote-documental {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+/* Cancelar y Continuar, alineados como el pie de un Drawer (.drawer-pie). */
+.selector-lote-acciones {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+}

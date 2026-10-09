@@ -22,42 +22,37 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     private const string TenantPizzaPlanet = "Pizza Planet S.L.";
     private const string EmpresaDeLaMaqueta = "Montajes Skynet S.L.";
     private const string ClienteEmpresarialDeLaMaqueta = "Cyberdyne Ibérica S.A.";
+    private const string VehiculoDeLaMaqueta = "Camión grúa";
 
+    /// <summary>Tabla y columna por las que se resuelve el id de la ficha cuando no es una Empresa.</summary>
+    private const string VehiculosPorNombre = "\"Vehiculos\".\"Nombre\"";
+    private const string TiposDeDocumentoPorNombre = "\"TiposDocumento\".\"Nombre\"";
     private const string TipoDeDocumentoDeLaMaqueta = "Entrega de EPI";
 
-    /// <summary>Id de una Empresa del Tenant por su razón social: la consulta de una pareja que no declara otra.</summary>
-    private const string ConsultaIdDeEmpresa =
-        """
-        SELECT e."Id"::text FROM "Empresas" e JOIN "Tenants" t ON t."Id" = e."TenantId"
-        WHERE e."RazonSocial" = @valor AND t."Nombre" = @tenant
-        """;
-
-    private const string ConsultaIdDeTipoDeDocumento =
-        """
-        SELECT d."Id"::text FROM "TiposDocumento" d JOIN "Tenants" t ON t."Id" = d."TenantId"
-        WHERE d."Nombre" = @valor AND t."Nombre" = @tenant
-        """;
-
     /// <summary>
-    /// Pareja ficha ↔ mockup. La ruta se resuelve por un valor sembrado: la razón social de una Empresa o, si la ficha
-    /// se localiza por otra tabla, lo que busque su <paramref name="ConsultaId"/> (SQL que devuelve el id como texto,
-    /// con los parámetros <c>@valor</c> y <c>@tenant</c>). Si el mockup se enseña con algo ya abierto (una fila
-    /// desplegada), <paramref name="ClicAntesDeMedir"/> es el selector que se pulsa en la ficha para dejarla en el
-    /// mismo estado: sin él se compararían dos estados distintos, no dos pantallas.
+    /// Pareja ficha ↔ mockup. La ruta se resuelve por el nombre sembrado: la razón social de una
+    /// Empresa, salvo que <paramref name="BuscarEn"/> nombre otra tabla y columna. Si el mockup se enseña con algo ya
+    /// abierto (una fila desplegada), <paramref name="ClicAntesDeMedir"/> es el selector que se pulsa en la ficha para
+    /// dejarla en el mismo estado: sin él se compararían dos estados distintos, no dos pantallas.
     /// </summary>
     private sealed record Pareja(
-        string Clave, string Ruta, string Valor, Mockup360 Mockup, string? ConsultaId = null, string? ClicAntesDeMedir = null);
+        string Clave, string Ruta, string RazonSocial, Mockup360 Mockup, string? BuscarEn = null, string? ClicAntesDeMedir = null);
 
     private static readonly Pareja[] Parejas =
     [
         new("empresa-360", "/empresas/", EmpresaDeLaMaqueta, Mockup360.PaginaDc("Empresa 360 página TALVEG.dc.html")),
         new("cliente-empresarial-360", "/clientes/", ClienteEmpresarialDeLaMaqueta, Mockup360.PaginaDc("Cliente 360 página TALVEG.dc.html")),
+        new("vehiculo-360", "/vehiculos/", VehiculoDeLaMaqueta,
+            Mockup360.PorConvencion(
+                "Vehiculo 360 página TALVEG.dc.html", "[data-pieza=\"cabecera-identidad\"]",
+                tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme"),
+            BuscarEn: VehiculosPorNombre),
         new("tipo-documento-360", "/documentos/tipos/", TipoDeDocumentoDeLaMaqueta,
             Mockup360.PorConvencion(
                 "Tipo Documento 360 página TALVEG.dc.html",
                 "[data-pieza=\"lateral\"] [data-pieza=\"tarjeta\"]",
                 tema => tema == "oscuro" ? "document.documentElement.dataset.theme = 'oscuro'" : "delete document.documentElement.dataset.theme"),
-            ConsultaIdDeTipoDeDocumento,
+            BuscarEn: TiposDeDocumentoPorNombre,
             // La maqueta abre el estado por Centro de una fila; la ficha arranca con todas plegadas.
             ClicAntesDeMedir: "[data-pieza=\"fila\"] button[aria-expanded=\"false\"]"),
     ];
@@ -74,11 +69,19 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         return datos;
     }
 
-    private async Task<IPage> AbrirFichaAsync(IBrowserContext contexto, string ruta, string valor, string tema, string? consultaId = null)
+    private async Task<IPage> AbrirFichaAsync(IBrowserContext contexto, string ruta, string razonSocial, string tema, string? buscarEn = null)
     {
         var email = await fixture.LeerValorSqlAsync(
             """SELECT "Email" FROM "AspNetUsers" WHERE "Email" LIKE 'coordinador1.%@caemanager.local' """);
-        var id = await fixture.LeerValorSqlAsync(consultaId ?? ConsultaIdDeEmpresa, ("valor", valor), ("tenant", TenantPizzaPlanet));
+        // «buscarEn» solo llega de las constantes de esta clase ("Tabla"."Columna"): no es entrada externa.
+        var (tabla, columna) = (buscarEn ?? "\"Empresas\".\"RazonSocial\"").Split('.') is [var t, var c]
+            ? (t, c)
+            : throw new ArgumentException($"Se esperaba \"Tabla\".\"Columna\" y llegó «{buscarEn}».", nameof(buscarEn));
+        var id = await fixture.LeerValorSqlAsync(
+            $"""
+            SELECT e."Id"::text FROM {tabla} e JOIN "Tenants" t ON t."Id" = e."TenantId"
+            WHERE e.{columna} = @razon AND t."Nombre" = @tenant
+            """, ("razon", razonSocial), ("tenant", TenantPizzaPlanet));
 
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
@@ -173,7 +176,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
 
         await Fidelidad360.CapturarAsync(paginaMockup, Path.Combine(salida, "mockup.png"));
 
-        var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.Valor, tema, pareja.ConsultaId);
+        var paginaFicha = await AbrirFichaAsync(contexto, pareja.Ruta, pareja.RazonSocial, tema, pareja.BuscarEn);
         if (pareja.ClicAntesDeMedir is { } selector)
         {
             // Vale cualquiera de las que casen (la maqueta abre una fila, no una concreta): se pulsa la que encuentre el
@@ -194,7 +197,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         var texto = new StringBuilder();
         texto.AppendLine(CultureInfo.InvariantCulture, $"## {pareja.Clave} · tema {tema}");
         texto.AppendLine();
-        texto.AppendLine(CultureInfo.InvariantCulture, $"Mockup: `{pareja.Mockup.Fichero}`. Ficha: `{pareja.Ruta}{{id}}` de «{pareja.Valor}». Ventana {Fidelidad360.Ancho}×{Fidelidad360.Alto}.");
+        texto.AppendLine(CultureInfo.InvariantCulture, $"Mockup: `{pareja.Mockup.Fichero}`. Ficha: `{pareja.Ruta}{{id}}` de «{pareja.RazonSocial}». Ventana {Fidelidad360.Ancho}×{Fidelidad360.Alto}.");
         texto.AppendLine(CultureInfo.InvariantCulture, $"Píxeles distintos entre capturas: {fraccion.ToString("P1", CultureInfo.InvariantCulture)} (indicador; ver `diferencia.png`).");
         if (mockupSinEsteTema)
             texto.AppendLine().AppendLine("**EL MOCKUP NO TIENE TEMA OSCURO**: pedirlo no cambió su fondo. La tabla compara la ficha en oscuro con un mockup en claro y no mide fidelidad.");

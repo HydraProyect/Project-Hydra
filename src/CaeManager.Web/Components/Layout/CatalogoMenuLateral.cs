@@ -137,6 +137,22 @@ public static class CatalogoMenuLateral
     private const string RolesDeGestionDocumental =
         $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}";
 
+    /// <summary>
+    /// Quién tiene «Mi trabajo». Mismo valor que el <c>[Authorize]</c> de <c>Bandeja</c> y de
+    /// <c>MiTrabajo</c> (lo vigila un test): el rol Consulta ve Operación, pero esas dos páginas le
+    /// deniegan el acceso, y el menú no debe ofrecer un destino que la página niega. Público porque
+    /// quien enlace a Mi trabajo desde otra pantalla decide con esto si ofrece el enlace.
+    /// </summary>
+    public const string RolesDeMiTrabajo =
+        $"{Roles.Administrador},{Roles.DireccionCae},{Roles.CoordinadorCae},{Roles.GestorCae}";
+
+    /// <summary>
+    /// Adónde lleva «Mi trabajo»: con más de un Tenant autorizado, a la cola agregada de toda la
+    /// cartera (<c>/mi-trabajo</c>); con uno solo, a <c>/bandeja</c>. Una sola regla para el menú y
+    /// para cualquier pantalla que enlace allí, que así no pueden divergir.
+    /// </summary>
+    public static string RutaMiTrabajo(bool variosTenants) => variosTenants ? "mi-trabajo" : "bandeja";
+
     public static IReadOnlyList<GrupoMenuLateral> Grupos { get; } =
     [
         // Dashboard / Visión de cartera / Dashboard Ejecutivo son tres Operational Home distintos
@@ -217,9 +233,11 @@ public static class CatalogoMenuLateral
         // "Mi trabajo" y no "Bandeja": "bandeja" en español significa inbox de correo. Con más de
         // un Tenant autorizado (mismo criterio que el selector de Tenant de la cabecera) es la cola
         // agregada de toda la cartera (/mi-trabajo); con uno solo, /bandeja. Abre Operación por
-        // mandato del propietario del 2026-09-29.
+        // mandato del propietario del 2026-09-29. No se ofrece al rol Consulta: ninguna de las dos
+        // páginas lo autoriza (ver RolesDeMiTrabajo).
         new("mi-trabajo", "operacion", "bandeja", "mi-trabajo", "Mi trabajo",
-            RutaPorContexto: c => c.VariosTenants ? "mi-trabajo" : "bandeja"),
+            Condicion: c => c.TieneAlgunRol(RolesDeMiTrabajo),
+            RutaPorContexto: c => RutaMiTrabajo(c.VariosTenants)),
         // Comunicaciones es la excepción explícita a "solo lo que ya funciona": se oculta con
         // Comunicaciones:Activo porque no hay ingesta real detrás (ver ComunicacionesOptions).
         new("comunicaciones", "operacion", "comunicaciones", "chat", "Comunicaciones",
