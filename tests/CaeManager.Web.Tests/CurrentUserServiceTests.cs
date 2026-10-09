@@ -87,9 +87,12 @@ public class CurrentUserServiceTests
     /// <summary>
     /// Sin Delegated Workspace seleccionado, que es el caso de todo usuario
     /// que no es Operador Delegado: <c>ObtenerRolEfectivoAsync</c> devuelve el
-    /// claim sin resolver nada del contenedor ni tocar la base de datos, por
-    /// eso basta un proveedor vacío (ver CurrentUserService). El camino
-    /// delegado se cubre en CaeManager.IntegrationTests, con contexto real.
+    /// rol de la sesión en origen —el claim de rol, mientras ningún middleware
+    /// lo haya sustituido— sin resolver nada del contenedor ni tocar la base de
+    /// datos, por eso basta un proveedor vacío (ver CurrentUserService). El
+    /// principal ya sustituido que pierde la selección se cubre en
+    /// RolEfectivoDelWorkspaceMiddlewareTests; el camino delegado, en
+    /// CaeManager.IntegrationTests, con contexto real.
     /// </summary>
     private static CurrentUserService CrearServicio(
         AuthenticationStateProvider authStateProvider, IHttpContextAccessor httpContextAccessor) =>
