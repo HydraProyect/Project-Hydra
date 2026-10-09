@@ -144,6 +144,122 @@ public class EncargoAdministracionPorAprovisionamientoTests : IAsyncLifetime
         (await comprobacion.EncargosAdministracion.AnyAsync()).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Corrección C4 (2026-10-09), con el otro rol que escribe encargos. El positivo de los dos
+    /// disparadores bajo <c>cae_app_aprovisionamiento</c> es el test del pipeline completo de
+    /// arriba (registra y retira); aquí va lo que tienen que rechazar, con el rol adoptado a mano
+    /// porque ningún comando de producción intenta estas escrituras.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_rol_de_aprovisionamiento_la_retirada_no_se_deshace_y_el_Operador_CAE_tiene_que_ser_el_de_la_operacion()
+    {
+        var ahora = DateTime.UtcNow;
+        Guid retiradoId;
+        await using (var siembra = CrearContexto(_propietario.Id, new SinSeleccion()))
+        {
+            var operacion = await siembra.AsignacionesOperacion.SingleAsync(o => o.Id == _operacionId);
+            var retirado = EncargoAdministracion.Registrar(
+                operacion, "Cláusula 7.ª del contrato de servicio", EncargoAdministracion.VersionTextoVigente,
+                OrigenEncargoAdministracion.AprovisionamientoDePlataforma, _soporte, ahora.AddDays(-2), vigenciaHasta: null);
+            retirado.Retirar(_soporte, ahora.AddDays(-1));
+            siembra.EncargosAdministracion.Add(retirado);
+            await siembra.SaveChangesAsync();
+            retiradoId = retirado.Id;
+        }
+
+        // El rol puede actualizar la retirada: si saliera 42501 no se estaría midiendo el disparador.
+        (await TienePrivilegioDeColumnaAsync("cae_app_aprovisionamiento", "RetiradoEnUtc", "UPDATE")).Should().BeTrue();
+
+        (await SqlStateComoAprovisionamientoAsync(
+                $"""UPDATE public."EncargosAdministracion" SET "RetiradoEnUtc" = NULL, "RetiradoPorUsuarioId" = NULL WHERE "Id" = '{retiradoId}';"""))
+            .Should().Be((PostgresErrorCodes.CheckViolation, -1), "una retirada no se deshace");
+        (await SqlStateComoAprovisionamientoAsync(
+                $"""UPDATE public."EncargosAdministracion" SET "RetiradoPorUsuarioId" = '{Guid.NewGuid()}' WHERE "Id" = '{retiradoId}';"""))
+            .Should().Be((PostgresErrorCodes.CheckViolation, -1), "el autor de la retirada no se reescribe");
+
+        // Las columnas salen de la migración que crea la tabla, no de memoria.
+        string Insertar(Guid operadorTenantId) =>
+            $"""
+            INSERT INTO public."EncargosAdministracion"
+                ("Id", "PropietarioTenantId", "OperadorTenantId", "AsignacionOperacionId", "ClausulaContrato",
+                 "VersionTexto", "Origen", "RegistradoPorUsuarioId", "RegistradoEnUtc", "VigenciaDesde", "Version")
+            VALUES
+                ('{Guid.NewGuid()}', '{_propietario.Id}', '{operadorTenantId}', '{_operacionId}', 'Cláusula de prueba',
+                 '{EncargoAdministracion.VersionTextoVigente}', '{OrigenEncargoAdministracion.AprovisionamientoDePlataforma}',
+                 '{_soporte}', now(), now(), '{Guid.NewGuid()}');
+            """;
+
+        (await SqlStateComoAprovisionamientoAsync(Insertar(_plataforma.Id)))
+            .Should().Be((PostgresErrorCodes.CheckViolation, -1),
+                "el encargo nombra al Operador CAE de su Asignación de Operación, no a otro Tenant");
+        // Control positivo: la misma sentencia con el Operador CAE de la operación inserta una fila.
+        // Sin él, el rojo anterior podría ser de un disparador que no ve la operación bajo RLS.
+        (await SqlStateComoAprovisionamientoAsync(Insertar(_operador.Id)))
+            .Should().Be(((string?)null, 1));
+
+        await using var comprobacion = CrearContexto(_propietario.Id, new SinSeleccion());
+        var fila = await comprobacion.EncargosAdministracion.AsNoTracking().SingleAsync();
+        fila.Id.Should().Be(retiradoId, "todas las escrituras de arriba se revierten: solo queda la fila sembrada");
+        fila.RetiradoPorUsuarioId.Should().Be(_soporte);
+        fila.RetiradoEnUtc.Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Ejecuta <paramref name="sql"/> como <c>cae_app_aprovisionamiento</c> con el Tenant propietario
+    /// como Tenant activo, dentro de una transacción que siempre se revierte. Devuelve el SQLSTATE
+    /// del rechazo (y -1 filas) o, si entró, <c>null</c> y las filas afectadas.
+    /// </summary>
+    private async Task<(string? SqlState, int Filas)> SqlStateComoAprovisionamientoAsync(string sql)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+
+        await using (var preparar = conexion.CreateCommand())
+        {
+            preparar.Transaction = transaccion;
+            preparar.CommandText =
+                "SELECT set_config('app.tenant_id', @tenant, true); SET LOCAL ROLE cae_app_aprovisionamiento;";
+            preparar.Parameters.AddWithValue("tenant", _propietario.Id.ToString());
+            await preparar.ExecuteNonQueryAsync();
+        }
+
+        await using (var comprobarRol = conexion.CreateCommand())
+        {
+            comprobarRol.Transaction = transaccion;
+            comprobarRol.CommandText = "SELECT current_user::text;";
+            ((string)(await comprobarRol.ExecuteScalarAsync())!).Should().Be("cae_app_aprovisionamiento");
+        }
+
+        try
+        {
+            await using var comando = conexion.CreateCommand();
+            comando.Transaction = transaccion;
+            comando.CommandText = sql;
+            return (null, await comando.ExecuteNonQueryAsync());
+        }
+        catch (PostgresException ex)
+        {
+            return (ex.SqlState, -1);
+        }
+        finally
+        {
+            await transaccion.RollbackAsync();
+        }
+    }
+
+    private async Task<bool> TienePrivilegioDeColumnaAsync(string rol, string columna, string privilegio)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT has_column_privilege(@rol, 'public.\"EncargosAdministracion\"', @columna, @privilegio);";
+        comando.Parameters.AddWithValue("rol", rol);
+        comando.Parameters.AddWithValue("columna", columna);
+        comando.Parameters.AddWithValue("privilegio", privilegio);
+        return (bool)(await comando.ExecuteScalarAsync())!;
+    }
+
     private async Task<bool> TienePrivilegioAsync(string rol, string privilegio)
     {
         await using var conexion = new NpgsqlConnection(_cadenaConexion);

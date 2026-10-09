@@ -7,6 +7,7 @@ using CaeManager.Application.Tenants.Commands.RegistrarEncargoAdministracion;
 using CaeManager.Application.Tenants.Commands.RetirarEncargoAdministracion;
 using CaeManager.Application.Tenants.Encargo;
 using CaeManager.Application.Tenants.Queries.ObtenerEncargosAdministracion;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
@@ -93,6 +94,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     private ApplicationUser _direccionOperador = null!;
     private ApplicationUser _gestorOperador = null!;
     private ApplicationUser _adminOperadorSinCartera = null!;
+    private ApplicationUser _adminOperadorCarteraParcial = null!;
     private ApplicationUser _adminOtroOperador = null!;
     private ApplicationUser _adminPropietario = null!;
     private ApplicationUser _adminTercero = null!;
@@ -121,6 +123,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         _direccionOperador = await SembrarUsuarioAsync("direccion-operador", _operador, Roles.DireccionCae);
         _gestorOperador = await SembrarUsuarioAsync("gestor-operador", _operador, Roles.GestorCae);
         _adminOperadorSinCartera = await SembrarUsuarioAsync("admin-sin-cartera", _operador, Roles.Administrador);
+        _adminOperadorCarteraParcial = await SembrarUsuarioAsync("admin-cartera-parcial", _operador, Roles.Administrador);
         _adminOtroOperador = await SembrarUsuarioAsync("admin-otro-operador", _otroOperador, Roles.Administrador);
         _adminPropietario = await SembrarUsuarioAsync("admin-propietario", _propietario, Roles.Administrador);
         _adminTercero = await SembrarUsuarioAsync("admin-tercero", _tercero, Roles.Administrador);
@@ -172,8 +175,19 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         {
             var cliente = Empresa.CrearComoCliente("Cliente empresarial de prueba", "B10380186", false, null, null);
             siembra.Empresas.Add(cliente);
+            // Una cartera PARCIAL (acotada a un Centro) bajo la operación que tiene encargo: es la
+            // de un Administrador del Operador CAE al que el encargo no debe ampliarle el ámbito.
+            var centro = new Centro(cliente.Id, cliente.Id, "Centro de la cartera parcial");
+            siembra.Centros.Add(centro);
             await siembra.SaveChangesAsync();
             _clienteEmpresarial = cliente.Id;
+
+            var ahora = DateTime.UtcNow;
+            var operacion = await siembra.AsignacionesOperacion.SingleAsync(o => o.Id == _operacion);
+            siembra.AsignacionesCartera.Add(AsignacionCartera.Externa(
+                operacion, _adminOperadorCarteraParcial.Id, Roles.GestorCae,
+                new AmbitoAsignacion(CentroId: centro.Id), ahora.AddDays(-1), null, ahora));
+            await siembra.SaveChangesAsync();
         }
     }
 
@@ -291,6 +305,102 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         encargos[1].RegistradoPorUsuarioId.Should().Be(_adminPropietario.Id);
     }
 
+    // ── Los disparadores: lo que los privilegios por columna no cierran ───
+
+    /// <summary>
+    /// Corrección C4 (2026-10-09). El rol de runtime puede actualizar las dos columnas de la
+    /// retirada, así que sin el disparador podía también deshacerla (y devolver el techo de
+    /// Propiedad al Operador CAE) o cambiarle el autor. Por eso lo que se espera es
+    /// <c>check_violation</c> y no <c>insufficient_privilege</c>: el privilegio lo tiene.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_rol_de_runtime_una_retirada_ni_se_escribe_a_medias_ni_se_deshace_ni_se_reescribe()
+    {
+        using (var ambito = Sesion(_adminPropietario, _propietario))
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+
+            // A medias, sobre el encargo vigente: un autor sin instante lo dejaría vigente con el
+            // autor ya escrito, y un instante sin autor lo retiraría sin decir quién.
+            (await SqlStateDeAsync(contexto,
+                    $"""UPDATE "EncargosAdministracion" SET "RetiradoPorUsuarioId" = '{_adminTercero.Id}' WHERE "Id" = '{_encargo}';"""))
+                .Should().Be(PostgresErrorCodes.CheckViolation, "la retirada se escribe entera: autor e instante a la vez");
+            (await SqlStateDeAsync(contexto,
+                    $"""UPDATE "EncargosAdministracion" SET "RetiradoEnUtc" = now() WHERE "Id" = '{_encargo}';"""))
+                .Should().Be(PostgresErrorCodes.CheckViolation, "la retirada se escribe entera: autor e instante a la vez");
+
+            // Control positivo: la retirada entera, con el handler de producción y este mismo rol.
+            var retirada = await Retirar(ambito).Handle(new RetirarEncargoAdministracionCommand(_encargo), CancellationToken.None);
+            retirada.EsExitoso.Should().BeTrue(retirada.EsFallido ? retirada.Error.Codigo : string.Empty);
+
+            (await SqlStateDeAsync(contexto,
+                    $"""UPDATE "EncargosAdministracion" SET "RetiradoEnUtc" = NULL, "RetiradoPorUsuarioId" = NULL WHERE "Id" = '{_encargo}';"""))
+                .Should().Be(PostgresErrorCodes.CheckViolation, "una retirada no se deshace: para volver a encargar se registra otro");
+            (await SqlStateDeAsync(contexto,
+                    $"""UPDATE "EncargosAdministracion" SET "RetiradoPorUsuarioId" = '{_adminTercero.Id}' WHERE "Id" = '{_encargo}';"""))
+                .Should().Be(PostgresErrorCodes.CheckViolation, "el autor de la retirada no se reescribe");
+            (await SqlStateDeAsync(contexto,
+                    $"""UPDATE "EncargosAdministracion" SET "RetiradoEnUtc" = now() + interval '1 day' WHERE "Id" = '{_encargo}';"""))
+                .Should().Be(PostgresErrorCodes.CheckViolation, "el instante de la retirada no se reescribe");
+        }
+
+        await using var propietarioDeLaBase = ContextoPropietarioDeLaBase();
+        (await SqlStateDeAsync(propietarioDeLaBase,
+                $"""UPDATE "EncargosAdministracion" SET "RetiradoEnUtc" = NULL, "RetiradoPorUsuarioId" = NULL WHERE "Id" = '{_encargo}';"""))
+            .Should().Be(PostgresErrorCodes.CheckViolation, "el disparador vale para cualquier rol, también para el propietario de la tabla");
+
+        var fila = await propietarioDeLaBase.EncargosAdministracion.AsNoTracking().SingleAsync(e => e.Id == _encargo);
+        fila.RetiradoPorUsuarioId.Should().Be(_adminPropietario.Id);
+        fila.RetiradoEnUtc.Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Corrección C4 (2026-10-09). La clave foránea ata (operación, Tenant propietario), no el
+    /// Operador CAE: sin el disparador, una fila podía nombrar como beneficiario a un Operador CAE
+    /// que no es el de esa operación. La política no lo impide (quien inserta es el Administrador
+    /// propio, desde su Tenant): tiene que salir <c>check_violation</c>, del disparador.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_rol_de_runtime_no_se_registra_un_encargo_a_nombre_de_un_Operador_CAE_que_no_es_el_de_la_operacion()
+    {
+        var adminPropio = await SembrarUsuarioAsync("admin-propietario-sin-encargo", _propietarioSinEncargo, Roles.Administrador);
+
+        AsignacionOperacion operacion;
+        await using (var lectura = ContextoPropietarioDeLaBase())
+            operacion = await lectura.AsignacionesOperacion.AsNoTracking().SingleAsync(o => o.Id == _operacionSinEncargo);
+
+        using (var ambito = Sesion(adminPropio, _propietarioSinEncargo))
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            // Fila que el dominio no deja construir: la operación es de _operador y el encargo nombra a otro.
+            var aNombreDeOtro = Encargar(operacion, adminPropio.Id, DateTime.UtcNow);
+            typeof(EncargoAdministracion).GetProperty(nameof(EncargoAdministracion.OperadorTenantId))!
+                .SetValue(aNombreDeOtro, _otroOperador);
+            contexto.EncargosAdministracion.Add(aNombreDeOtro);
+
+            var guardar = async () => await contexto.SaveChangesAsync();
+
+            (await guardar.Should().ThrowAsync<DbUpdateException>())
+                .Which.InnerException.Should().BeOfType<PostgresException>()
+                .Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        }
+
+        // Control positivo: la misma inserción, por el mismo rol y desde la misma posición, entra
+        // cuando nombra al Operador CAE de la operación. Sin él, el rojo de arriba podría ser de
+        // un disparador que no ve la operación bajo RLS y lo rechaza todo.
+        using (var ambito = Sesion(adminPropio, _propietarioSinEncargo))
+        {
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            contexto.EncargosAdministracion.Add(Encargar(operacion, adminPropio.Id, DateTime.UtcNow));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var comprobacion = ContextoPropietarioDeLaBase();
+        (await comprobacion.EncargosAdministracion.AsNoTracking()
+                .Where(e => e.AsignacionOperacionId == _operacionSinEncargo).Select(e => e.OperadorTenantId).ToListAsync())
+            .Should().Equal(_operador);
+    }
+
     // ── El tercer acto excluido, con Identity y la base de verdad ─────────
 
     [Fact]
@@ -379,6 +489,32 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         (await circuito.Usuario.EncargoQueElevaAsync()).Should().BeNull();
         (await circuito.Alcance.ObtenerClienteIdsVisiblesAsync()).Should().NotBeNull().And.BeEmpty(
             "alcance cero: ni total ni el del Tenant entero");
+    }
+
+    /// <summary>
+    /// Corrección C1 (2026-10-09). El rol de Propiedad tiene alcance total sin consultar carteras,
+    /// así que elevar a quien tiene una cartera parcial le daba el Tenant entero. El control
+    /// positivo es <see cref="Con_cartera_y_encargo_el_perfil_de_Propiedad_en_origen_es_el_rol_efectivo"/>:
+    /// misma operación, mismo encargo y mismo perfil en origen, con cartera universal.
+    /// </summary>
+    [Fact]
+    public async Task Con_cartera_parcial_el_encargo_no_eleva_y_el_alcance_sigue_siendo_el_de_la_cartera()
+    {
+        (await RolEnAsync(_adminOperadorCarteraParcial, _propietario, _operacion, Roles.Administrador))
+            .Should().Be(new RolEfectivoPorOperacion(Roles.GestorCae, null),
+                "el encargo sube el techo de quien ya tiene el Tenant entero; a una cartera parcial le ampliaría el ámbito");
+
+        using var ambito = Sesion(_adminOperadorCarteraParcial, _propietario);
+        var circuito = CircuitoDe(
+            ambito, _adminOperadorCarteraParcial, _propietario, _operacion, Roles.Administrador, encargoEnElClaim: null);
+        (await circuito.Usuario.ObtenerRolEfectivoAsync()).Should().Be(Roles.GestorCae);
+        (await circuito.Usuario.EncargoQueElevaAsync()).Should().BeNull();
+        // Una lista (aunque vacía) es alcance por cartera; null sería el alcance total del rol de
+        // Propiedad. Hoy una cartera acotada a un Centro no concede ningún Cliente empresarial
+        // (dimensión diferida, falla cerrado): lo que importa aquí es que no se vuelve total.
+        (await circuito.Alcance.ObtenerClienteIdsVisiblesAsync()).Should().NotBeNull(
+            "con cartera parcial el alcance es el de la cartera, nunca el total del Tenant propietario")
+            .And.NotContain(_clienteEmpresarial);
     }
 
     [Fact]
