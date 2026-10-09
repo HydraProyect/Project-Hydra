@@ -1,0 +1,86 @@
+@*
+    «Dar acceso»: el principal de un Tenant propietario —Gestor CAE o Coordinador CAE— propone a
+    un Gestor CAE de su mismo Operador CAE que le apoye en ese Tenant. Enseña, por cada Tenant del que quien mira es
+    hoy el principal, quién tiene ya acceso de apoyo y las propuestas suyas que siguen sin
+    responder (que puede retirar).
+
+    Es solo interfaz: quién propone, a quién y sobre qué lo deciden ProponerApoyoCarteraCommand y
+    RetirarPropuestaApoyoCarteraCommand, que lo vuelven a leer todo. El rol del apoyo no se elige
+    aquí ni viaja en ninguna petición —lo fija el catálogo al aceptar—, y no se ofrece fecha de fin.
+
+    Reutilizable: sin TenantId lista todos los Tenants de los que quien mira es principal (así se
+    monta, de forma provisional, en /cartera/solicitudes); con TenantId, solo ese. No pinta nada si
+    quien mira no es principal de ninguno.
+*@
+@using CaeManager.Web.Components.DesignSystem
+@using CaeManager.Web.Features.IncorporacionCartera.Recursos
+
+@if (_operaciones.Count > 0)
+{
+    <Tarjeta Titulo="@Textos["PanelTitulo"]" NivelTitulo="2">
+        <p class="dar-acceso-descripcion">@Textos["PanelDescripcion"]</p>
+        <ul class="dar-acceso-lista" data-testid="panel-dar-acceso">
+            @foreach (var operacion in _operaciones)
+            {
+                <li @key="operacion.AsignacionOperacionId" class="dar-acceso-fila" data-dar-acceso-operacion="@operacion.AsignacionOperacionId">
+                    <div class="dar-acceso-empresa">
+                        <strong>@operacion.NombreTenant</strong>
+                        @if (operacion.Apoyos.Count == 0)
+                        {
+                            <span class="dar-acceso-nota">@Textos["SinApoyos"]</span>
+                        }
+                        else
+                        {
+                            <span class="dar-acceso-nota">@Textos["ApoyosEtiqueta", NombresDeApoyo(operacion)]</span>
+                        }
+                        @foreach (var propuesta in PropuestasDe(operacion.AsignacionOperacionId))
+                        {
+                            <span @key="propuesta.Id" class="dar-acceso-propuesta" data-propuesta-enviada="@propuesta.Id">
+                                <span class="dar-acceso-nota">@Textos["PropuestaSinResponder", propuesta.NombreDestinatario]</span>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                       OnClick="() => PedirRetirar(propuesta)" Deshabilitado="_enCurso"
+                                       aria-label="@Textos["RetirarPropuestaEtiqueta", propuesta.NombreDestinatario, propuesta.NombreEmpresa]">@Textos["RetirarPropuesta"]</Boton>
+                            </span>
+                        }
+                    </div>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                           OnClick="() => AbrirDrawerAsync(operacion)" Deshabilitado="_enCurso"
+                           aria-label="@Textos["BotonDarAccesoEtiqueta", operacion.NombreTenant]">
+                        <span aria-hidden="true">+</span> @Textos["BotonDarAcceso"]
+                    </Boton>
+                </li>
+            }
+        </ul>
+    </Tarjeta>
+
+    <DrawerFormulario Visible="_operacionDelDrawer is not null" VisibleChanged="CerrarDrawer"
+                      Titulo="@TituloDrawer" HayCambios="() => _destinatarioId.Length > 0"
+                      Guardando="_enCurso" MensajeError="@_mensajeErrorFormulario"
+                      Cargando="_destinatarios is null"
+                      MotivoGuardarDeshabilitado="@MotivoProponerDeshabilitado"
+                      SinContenido="@(_destinatarios is { Count: 0 } ? SinDestinatarios : null)"
+                      OnGuardar="ProponerAsync"
+                      TextoGuardar="@Textos["BotonProponer"]" TextoCancelar="@Textos["BotonCancelar"]">
+        <p class="dar-acceso-intro">@Textos["DrawerIntro"]</p>
+        <CampoSelect Etiqueta="@Textos["EtiquetaDestinatario"]" Valor="@_destinatarioId" ValorChanged="AlElegirDestinatario">
+            <option value="">@Textos["OpcionElige"]</option>
+            @foreach (var destinatario in _destinatarios ?? [])
+            {
+                <option value="@destinatario.UsuarioId">@destinatario.Nombre</option>
+            }
+        </CampoSelect>
+    </DrawerFormulario>
+
+    <DialogoConfirmacion Visible="_aRetirar is not null"
+                         VisibleChanged="CerrarConfirmacionRetirada"
+                         Titulo="@Textos["ConfirmarRetirarTitulo"]"
+                         Mensaje="@MensajeConfirmarRetirar"
+                         TextoBotonConfirmar="@Textos["RetirarPropuesta"]"
+                         TextoBotonDescartar="@Textos["BotonCancelar"]"
+                         EnProgreso="_enCurso"
+                         OnConfirmar="RetirarAsync" />
+}
+
+@code {
+    private RenderFragment SinDestinatarios => @<EstadoVacio Titulo="@Textos["MotivoSinDestinatarios"]" Descripcion="@Textos["SinDestinatarios"]" />;
+}

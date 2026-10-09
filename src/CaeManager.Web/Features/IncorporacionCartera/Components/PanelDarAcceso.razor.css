@@ -1,0 +1,47 @@
+.dar-acceso-descripcion,
+.dar-acceso-intro {
+    margin: 0 0 var(--space-3);
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+}
+
+.dar-acceso-lista {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dar-acceso-fila {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-top: var(--border-default);
+}
+
+.dar-acceso-fila:first-child {
+    border-top: 0;
+}
+
+.dar-acceso-empresa {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+    color: var(--color-text);
+    font: var(--font-body-md);
+    overflow-wrap: anywhere;
+}
+
+.dar-acceso-nota {
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.dar-acceso-propuesta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}

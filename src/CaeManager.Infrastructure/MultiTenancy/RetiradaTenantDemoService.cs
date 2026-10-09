@@ -248,13 +248,17 @@ public static class RetiradaTenantDemoService
             // SaveChangesAsync de abajo resuelve el orden real por sí solo.
             //
             // Las solicitudes de incorporación a cartera van delante: tienen FK
-            // Restrict hacia la operación y hacia la cartera que crearon.
+            // Restrict hacia la operación y hacia la cartera que crearon. Lo mismo
+            // las propuestas de apoyo.
             dbContext.RemoveRange(await dbContext.SolicitudesIncorporacionCartera
                 .Where(s => s.PropietarioTenantId == tenantId || s.OperadorTenantId == tenantId)
                 .ToListAsync(cancellationToken));
             // Los Encargos de administración, igual: FK Restrict hacia la operación.
             dbContext.RemoveRange(await dbContext.EncargosAdministracion
                 .Where(e => e.PropietarioTenantId == tenantId || e.OperadorTenantId == tenantId)
+                .ToListAsync(cancellationToken));
+            dbContext.RemoveRange(await dbContext.PropuestasApoyoCartera
+                .Where(p => p.PropietarioTenantId == tenantId || p.OperadorTenantId == tenantId)
                 .ToListAsync(cancellationToken));
             dbContext.RemoveRange(await dbContext.AsignacionesCartera
                 .Where(a => a.PropietarioTenantId == tenantId || a.OperadorTenantId == tenantId)

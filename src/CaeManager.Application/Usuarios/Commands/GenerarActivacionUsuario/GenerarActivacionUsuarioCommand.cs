@@ -16,6 +16,12 @@ namespace CaeManager.Application.Usuarios.Commands.GenerarActivacionUsuario;
 /// una cuenta que ya tiene contraseña. Para esa cuenta el canal es «olvidé mi
 /// contraseña».
 /// </para>
+///
+/// <para>
+/// Emitir el enlace nuevo deja sin valor el anterior y queda auditado sobre la
+/// cuenta: lo hace el puerto en la misma escritura
+/// (<see cref="IGestionCuentasUsuario.GenerarTokenActivacionAsync"/>), no este handler.
+/// </para>
 /// </summary>
 public record GenerarActivacionUsuarioCommand(Guid UsuarioId) : ICommand<string>;
 

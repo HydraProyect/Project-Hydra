@@ -3,6 +3,9 @@ using System.Security.Claims;
 using Bunit;
 using CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida;
 using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes;
+using CaeManager.Application.Operaciones.ApoyoCartera;
+using CaeManager.Application.Operaciones.ApoyoCartera.Commands;
+using CaeManager.Application.Operaciones.ApoyoCartera.Queries;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
@@ -354,8 +357,18 @@ public class CabeceraRedisenadaTests : BunitContext
         IReadOnlyList<SolicitudIncorporacionCarteraDto>? solicitudes = null,
         bool esActorPlataforma = false,
         Result? resultadoDeComandos = null,
-        Error? errorDeBandeja = null)
+        Error? errorDeBandeja = null,
+        List<PropuestaApoyoDto>? propuestas = null,
+        Func<Guid, Result>? alAceptarPropuesta = null)
     {
+        // Como la Query real: una propuesta resuelta (aceptada, anulada o rechazada) deja de estar pendiente.
+        var pendientes = propuestas ?? [];
+        Result Resolver(Guid id, Result resultado)
+        {
+            pendientes.RemoveAll(p => p.Id == id);
+            return resultado;
+        }
+
         var mediador = new MediatorFalso(request => request switch
         {
             ObtenerNotificacionesPendientesQuery => notificaciones ?? [],
@@ -365,6 +378,10 @@ public class CabeceraRedisenadaTests : BunitContext
                 Result.Fallo<BandejaIncorporacionCarteraDto>(errorDeBandeja),
             ObtenerSolicitudesIncorporacionCarteraQuery => Result.Exito(
                 new BandejaIncorporacionCarteraDto(esCoordinadorCae, solicitudes ?? [], [], [])),
+            ObtenerPropuestasApoyoPendientesQuery => new PropuestasApoyoPendientesDto(pendientes.ToList(), []),
+            AceptarPropuestaApoyoCarteraCommand aceptar => Resolver(
+                aceptar.PropuestaId, alAceptarPropuesta?.Invoke(aceptar.PropuestaId) ?? Result.Exito()),
+            RechazarPropuestaApoyoCarteraCommand rechazar => Resolver(rechazar.PropuestaId, Result.Exito()),
             MarcarNotificacionLeidaCommand => Result.Exito(),
             MarcarAvisoRevisionNormativaRevisadoCommand or AceptarSolicitudIncorporacionCarteraCommand
                 or RechazarSolicitudIncorporacionCarteraCommand => resultadoDeComandos ?? Result.Exito(),
@@ -586,6 +603,7 @@ public class CabeceraRedisenadaTests : BunitContext
                 case ObtenerAvisosRevisionNormativaQuery: return (IReadOnlyList<AvisoRevisionNormativaDto>)[];
                 case ObtenerSolicitudesIncorporacionCarteraQuery:
                     return Result.Exito(new BandejaIncorporacionCarteraDto(true, pendientes.ToList(), [], []));
+                case ObtenerPropuestasApoyoPendientesQuery: return new PropuestasApoyoPendientesDto([], []);
                 case AceptarSolicitudIncorporacionCarteraCommand:
                     pendientes.Clear();
                     return Result.Exito();
@@ -617,6 +635,7 @@ public class CabeceraRedisenadaTests : BunitContext
                 case ObtenerAvisosRevisionNormativaQuery: return (IReadOnlyList<AvisoRevisionNormativaDto>)[];
                 case ObtenerSolicitudesIncorporacionCarteraQuery:
                     return Result.Exito(new BandejaIncorporacionCarteraDto(true, [solicitud], [], []));
+                case ObtenerPropuestasApoyoPendientesQuery: return new PropuestasApoyoPendientesDto([], []);
                 case AceptarSolicitudIncorporacionCarteraCommand:
                     resuelta = true;
                     return Result.Exito();
@@ -719,6 +738,200 @@ public class CabeceraRedisenadaTests : BunitContext
 
         mediador.Enviadas.OfType<ObtenerNotificacionesPendientesQuery>().Count().Should().Be(lecturasAlMontar + 1);
         cut.Find("button.campana-boton").GetAttribute("aria-expanded").Should().Be("true");
+    }
+
+    // ---- Campana: propuestas de apoyo dirigidas a quien mira (cuarta fuente) ----
+
+    private static PropuestaApoyoDto Propuesta(string empresa = "Empresa Uno", string proponente = "Marta") =>
+        new(Guid.NewGuid(), Guid.NewGuid(), empresa, Guid.NewGuid(), Guid.NewGuid(), proponente,
+            Guid.NewGuid(), "Lucía", DateTime.UtcNow);
+
+    /// <summary>Las propuestas de apoyo pendientes: un tipo más de aviso de la campana, con clave <c>apoyo:{id}</c>.</summary>
+    private const string PropuestasPendientes = "[data-aviso^='apoyo:']";
+
+    private static AngleSharp.Dom.IElement BotonDe(IRenderedComponent<CampanaAvisos> cut, string texto) =>
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == texto);
+
+    /// <summary>La campana lleva un diálogo por tipo de aviso que se rechaza; a lo sumo uno está abierto.</summary>
+    private static IRenderedComponent<DialogoConfirmacion>? DialogoAbierto(IRenderedComponent<CampanaAvisos> cut) =>
+        cut.FindComponents<DialogoConfirmacion>().SingleOrDefault(d => d.Instance.Visible);
+
+    [Fact]
+    public void Cada_propuesta_de_apoyo_es_un_aviso_propio_con_Aceptar_y_Rechazar()
+    {
+        var una = Propuesta("Empresa Uno", "Marta");
+        var otra = Propuesta("Empresa Dos", "Pau");
+        RegistrarCampana(notificaciones: [Notificacion("Visita mañana")], propuestas: [una, otra]);
+
+        var cut = Render<CampanaAvisos>();
+
+        cut.Find("[data-testid=campana-contador]").TextContent.Should().Be("3", "una notificación y un aviso por propuesta, sin agrupar");
+        cut.FindAll(PropuestasPendientes).Select(e => e.GetAttribute("data-aviso"))
+            .Should().BeEquivalentTo($"apoyo:{una.Id}", $"apoyo:{otra.Id}");
+        cut.Find($"[data-aviso='apoyo:{una.Id}']").TextContent.Should().Contain("Marta te propone apoyo en Empresa Uno");
+        cut.FindAll("button").Count(b => b.TextContent.Trim() == "Aceptar").Should().Be(2);
+        cut.FindAll("button").Count(b => b.TextContent.Trim() == "Rechazar").Should().Be(2);
+
+        // Dos «Aceptar» iguales a la vista: el nombre accesible dice de qué Tenant propietario es cada uno.
+        cut.FindAll($"[data-aviso='apoyo:{otra.Id}'] button").Select(b => b.GetAttribute("aria-label"))
+            .Should().Equal("Aceptar la propuesta de apoyo en Empresa Dos", "Rechazar la propuesta de apoyo en Empresa Dos");
+    }
+
+    /// <summary>
+    /// El tipo nuevo comparte marcado con la solicitud de cartera, y lo que no puede compartir es
+    /// el Command: con una de cada, cada Aceptar envía el suyo y ninguno el del otro tipo.
+    /// </summary>
+    [Fact]
+    public void Con_una_solicitud_y_una_propuesta_cada_Aceptar_envia_el_Command_de_su_tipo()
+    {
+        var solicitud = SolicitudDe("Pau", "Empresa Norte");
+        var propuesta = Propuesta("Empresa Uno", "Marta");
+        var mediador = RegistrarCampana(esCoordinadorCae: true, solicitudes: [solicitud], propuestas: [propuesta]);
+        var cut = Render<CampanaAvisos>();
+
+        cut.Find($"[data-aviso='apoyo:{propuesta.Id}'] button").Click();
+
+        mediador.Enviadas.OfType<AceptarPropuestaApoyoCarteraCommand>().Should().ContainSingle(c => c.PropuestaId == propuesta.Id);
+        mediador.Enviadas.OfType<AceptarSolicitudIncorporacionCarteraCommand>().Should().BeEmpty();
+
+        cut.Find($"[data-aviso='cartera:{solicitud.Id}'] button").Click();
+
+        mediador.Enviadas.OfType<AceptarSolicitudIncorporacionCarteraCommand>().Should().ContainSingle(c => c.SolicitudId == solicitud.Id);
+        mediador.Enviadas.OfType<AceptarPropuestaApoyoCarteraCommand>().Should().ContainSingle();
+        cut.Find($"[data-aviso='cartera:{solicitud.Id}'] button").HasAttribute("aria-label").Should().BeFalse(
+            "la solicitud no trae nombre accesible propio: el del tipo nuevo no se le pega");
+    }
+
+    [Fact]
+    public async Task Aceptar_envia_solo_el_id_de_la_propuesta_y_deja_el_enlace_a_ese_Tenant()
+    {
+        var propuesta = Propuesta();
+        var mediador = RegistrarCampana(propuestas: [propuesta]);
+        var cut = Render<CampanaAvisos>();
+
+        await cut.InvokeAsync(() => BotonDe(cut, "Aceptar").Click());
+
+        mediador.Enviadas.OfType<AceptarPropuestaApoyoCarteraCommand>().Should().ContainSingle()
+            .Which.Should().Be(new AceptarPropuestaApoyoCarteraCommand(propuesta.Id));
+        cut.FindAll(PropuestasPendientes).Should().BeEmpty("aceptada, deja de estar pendiente");
+        cut.FindAll("[data-testid=campana-contador]").Should().BeEmpty("lo ya aceptado no cuenta como aviso pendiente");
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Exito && t.Mensaje.Contains("Empresa Uno"));
+        mediador.Enviadas.OfType<ObtenerPropuestasApoyoPendientesQuery>().Count().Should().Be(2,
+            "productor único: al montar y tras resolver");
+
+        var aceptada = cut.Find($"[data-propuesta-aceptada='{propuesta.Id}']");
+        aceptada.TextContent.Should().Contain("Ya tienes acceso de apoyo a Empresa Uno");
+        var formulario = aceptada.QuerySelector("form")!;
+        formulario.GetAttribute("method").Should().Be("post");
+        formulario.GetAttribute("action").Should().Be("/cuenta/cliente-activo",
+            "abrir el Tenant pasa por el mismo POST revalidado que el selector, no por un atajo");
+        formulario.QuerySelector("input[name=tenantId]")!.GetAttribute("value").Should().Be(propuesta.TenantPropietarioId.ToString());
+        formulario.QuerySelector("button[type=submit]")!.TextContent.Trim().Should().Be("Abrir Empresa Uno");
+    }
+
+    /// <summary>
+    /// La recarga de productor único reemplaza los avisos pendientes, y la propuesta aceptada ya no
+    /// es uno de ellos: el enlace al Tenant tiene que sobrevivir a esa recarga mientras el panel
+    /// siga abierto, y olvidarse al cerrarlo.
+    /// </summary>
+    [Fact]
+    public async Task El_enlace_al_Tenant_recien_aceptado_sobrevive_a_la_recarga_y_se_olvida_al_cerrar_el_panel()
+    {
+        var propuesta = Propuesta();
+        var mediador = RegistrarCampana(propuestas: [propuesta]);
+        var cut = Render<CampanaAvisos>();
+        cut.Find("button.campana-boton").Click();
+        var lecturas = mediador.Enviadas.OfType<ObtenerPropuestasApoyoPendientesQuery>().Count();
+
+        await cut.InvokeAsync(() => BotonDe(cut, "Aceptar").Click());
+
+        mediador.Enviadas.OfType<ObtenerPropuestasApoyoPendientesQuery>().Count().Should().Be(lecturas + 1, "control: hubo recarga");
+        cut.FindAll($"[data-propuesta-aceptada='{propuesta.Id}']").Should().ContainSingle();
+        cut.FindAll(".campana-vacio").Should().BeEmpty("con algo que abrir, el panel no dice que está vacío");
+
+        cut.Find("button.campana-boton").Click();
+        cut.Find("button.campana-boton").GetAttribute("aria-expanded").Should().Be("false", "control: el panel se cerró");
+        cut.Find("button.campana-boton").Click();
+
+        cut.FindAll("[data-propuesta-aceptada]").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El Command de aceptar no admite rol, marca de principal ni usuario: lo único que puede
+    /// salir de la interfaz es qué propuesta. Si alguien le añade un parámetro, este test obliga
+    /// a mirarlo.
+    /// </summary>
+    [Fact]
+    public void El_comando_de_aceptar_solo_lleva_el_id_de_la_propuesta()
+    {
+        typeof(AceptarPropuestaApoyoCarteraCommand).GetProperties().Select(p => p.Name)
+            .Should().BeEquivalentTo(nameof(AceptarPropuestaApoyoCarteraCommand.PropuestaId));
+        typeof(ProponerApoyoCarteraCommand).GetProperties().Select(p => p.Name)
+            .Should().BeEquivalentTo(
+                nameof(ProponerApoyoCarteraCommand.AsignacionOperacionId),
+                nameof(ProponerApoyoCarteraCommand.DestinatarioUsuarioId));
+    }
+
+    [Fact]
+    public async Task Rechazar_pregunta_antes_y_solo_al_confirmar_envia_el_comando()
+    {
+        var propuesta = Propuesta();
+        var mediador = RegistrarCampana(propuestas: [propuesta]);
+        var cut = Render<CampanaAvisos>();
+
+        await cut.InvokeAsync(() => BotonDe(cut, "Rechazar").Click());
+
+        mediador.Enviadas.OfType<RechazarPropuestaApoyoCarteraCommand>().Should().BeEmpty("un clic no rechaza: no se deshace");
+        var dialogo = DialogoAbierto(cut);
+        dialogo.Should().NotBeNull("control positivo: el diálogo se abrió");
+        dialogo!.Instance.Titulo.Should().Be("Rechazar propuesta de apoyo", "es el diálogo de la propuesta, no el de la solicitud de cartera");
+        dialogo.Instance.Mensaje.Should().Contain("Empresa Uno").And.Contain("Marta");
+        cut.FindAll(PropuestasPendientes).Should().ContainSingle("sigue pendiente mientras se pregunta");
+
+        await cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
+
+        mediador.Enviadas.OfType<RechazarPropuestaApoyoCarteraCommand>().Should().ContainSingle(c => c.PropuestaId == propuesta.Id);
+        mediador.Enviadas.OfType<AceptarPropuestaApoyoCarteraCommand>().Should().BeEmpty();
+        mediador.Enviadas.OfType<RechazarSolicitudIncorporacionCarteraCommand>().Should().BeEmpty("el rechazo de una propuesta no sale por el Command de la solicitud");
+        cut.FindAll(PropuestasPendientes).Should().BeEmpty();
+        cut.FindAll("[data-propuesta-aceptada]").Should().BeEmpty("rechazar no da acceso ni ofrece abrir el Tenant");
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Exito && t.Mensaje.Contains("rechazada"));
+        DialogoAbierto(cut).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Cancelar_el_rechazo_no_envia_nada_y_la_propuesta_sigue_pendiente()
+    {
+        var mediador = RegistrarCampana(propuestas: [Propuesta()]);
+        var cut = Render<CampanaAvisos>();
+        await cut.InvokeAsync(() => BotonDe(cut, "Rechazar").Click());
+
+        DialogoAbierto(cut).Should().NotBeNull("control positivo: el diálogo se abrió");
+
+        await cut.InvokeAsync(() => DialogoAbierto(cut)!.Instance.VisibleChanged.InvokeAsync(false));
+
+        mediador.Enviadas.OfType<RechazarPropuestaApoyoCarteraCommand>().Should().BeEmpty();
+        cut.FindAll(PropuestasPendientes).Should().ContainSingle();
+        Toasts.Mensajes.Should().BeEmpty();
+        DialogoAbierto(cut).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Si_la_propuesta_se_anula_al_aceptar_se_dice_el_motivo_y_no_se_ofrece_abrir_el_Tenant()
+    {
+        var propuesta = Propuesta();
+        RegistrarCampana(
+            propuestas: [propuesta],
+            alAceptarPropuesta: _ => Result.Fallo(ErroresPropuestaApoyo.AnuladaProponenteYaNoEsPrincipal));
+        var cut = Render<CampanaAvisos>();
+
+        await cut.InvokeAsync(() => BotonDe(cut, "Aceptar").Click());
+
+        // El resultado se dice como el de cualquier otra resolución de la campana: con un toast.
+        Toasts.Mensajes.Should().ContainSingle(t => t.Tono == TonoToast.Error)
+            .Which.Mensaje.Should().Contain("ya no es el principal");
+        cut.FindAll("[data-propuesta-aceptada]").Should().BeEmpty("sin cartera emitida no hay Tenant que abrir");
+        cut.FindAll(PropuestasPendientes).Should().BeEmpty("anulada, deja de estar pendiente");
     }
 
     // ---- Banda de avisos del sistema (propuesta 07) ----

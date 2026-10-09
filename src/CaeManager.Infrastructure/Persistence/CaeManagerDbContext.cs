@@ -285,6 +285,7 @@ public class CaeManagerDbContext(
     public DbSet<SolicitudIncorporacionCartera> SolicitudesIncorporacionCartera => Set<SolicitudIncorporacionCartera>();
     public DbSet<EncargoAdministracion> EncargosAdministracion => Set<EncargoAdministracion>();
     IQueryable<EncargoAdministracion> CaeManager.Application.Tenants.IEncargosAdministracionQueryContext.EncargosAdministracion => EncargosAdministracion;
+    public DbSet<PropuestaApoyoCartera> PropuestasApoyoCartera => Set<PropuestaApoyoCartera>();
     public DbSet<CaeManager.Domain.Plataforma.ConcesionPrivilegio> ConcesionesPrivilegio => Set<CaeManager.Domain.Plataforma.ConcesionPrivilegio>();
     IQueryable<CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma> CaeManager.Application.Plataforma.IPlataformaQueryContext.EstadoBootstrapPlataforma => EstadoBootstrapPlataforma;
 

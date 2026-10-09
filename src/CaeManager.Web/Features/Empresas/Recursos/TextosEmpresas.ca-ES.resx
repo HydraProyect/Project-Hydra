@@ -252,12 +252,6 @@
   <data name="SinContrasena" xml:space="preserve">
     <value>No hi ha cap contrasenya desada.</value>
   </data>
-  <data name="VistaRapida" xml:space="preserve">
-    <value>Vista ràpida</value>
-  </data>
-  <data name="AbrirEmpresa360" xml:space="preserve">
-    <value>Obre fitxa 360</value>
-  </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} empresa(s) restaurada(s).</value>
   </data>
@@ -285,7 +279,43 @@
   <data name="ListaFiltroTodas" xml:space="preserve">
     <value>Totes</value>
   </data>
+  <data name="AbrirVistaRapidaDe" xml:space="preserve">
+    <value>Obrir la vista ràpida de {0}</value>
+  </data>
+  <data name="CopiarCif" xml:space="preserve">
+    <value>Copia el CIF {0}</value>
+  </data>
+  <data name="EtiquetaCif" xml:space="preserve">
+    <value>el CIF</value>
+  </data>
   <data name="ColEmpresa" xml:space="preserve">
     <value>Empresa</value>
+  </data>
+  <data name="GestorCaeRotulo" xml:space="preserve">
+    <value>Gestor CAE</value>
+  </data>
+  <data name="GestorCaeGrupo" xml:space="preserve">
+    <value>Gestor CAE d’aquesta organització</value>
+  </data>
+  <data name="GestorCaeTitulo" xml:space="preserve">
+    <value>Gestors CAE amb Assignació de Cartera sobre aquesta organització</value>
+  </data>
+  <data name="GestorCaePrincipal" xml:space="preserve">
+    <value>Principal</value>
+  </data>
+  <data name="GestorCaeCoordinadorPrincipal" xml:space="preserve">
+    <value>Coordinador CAE principal</value>
+  </data>
+  <data name="GestorCaeApoyo" xml:space="preserve">
+    <value>Suport</value>
+  </data>
+  <data name="GestorCaeApoyoHasta" xml:space="preserve">
+    <value>Suport fins al {0}</value>
+  </data>
+  <data name="GestorCaeSinPrincipal" xml:space="preserve">
+    <value>Sense principal</value>
+  </data>
+  <data name="GestorCaeError" xml:space="preserve">
+    <value>No l’hem pogut carregar</value>
   </data>
 </root>

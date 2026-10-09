@@ -405,6 +405,28 @@ public class DesignarGestorCaePrincipalCommandTests
         operacion.Apoyos.Single(a => a.UsuarioId == Coordinador2).VigenciaHasta.Should().NotBeNull();
     }
 
+    /// <summary>
+    /// Quien pinta a estas personas (la cabecera «Gestor CAE» de Empresas) usa su avatar: viaja
+    /// con el nombre, y quien no eligió ninguno va sin él para que se pinten sus iniciales.
+    /// </summary>
+    [Fact]
+    public async Task La_lectura_lleva_el_avatar_que_eligio_cada_persona_y_ninguno_para_quien_no_eligio()
+    {
+        var e = new Escenario { ActorId = GestorB, RolDeSesion = "GestorCae" };
+        e.Roles.Avatares[GestorA] = "buho-ambar";
+        e.Roles.Avatares[GestorC] = "zorro-azul";
+
+        var operaciones = await new ObtenerPersonasConCarteraQueryHandler(
+                new CurrentUserServicePorAmbito(e.ActorId, e.TenantOrigen, e.RolDeSesion), e.Roles, e.Catalogo)
+            .Handle(new ObtenerPersonasConCarteraQuery(Propietario), default);
+
+        var operacion = operaciones.Should().ContainSingle().Subject;
+        operacion.Principal!.UsuarioId.Should().Be(GestorA, "control positivo del escenario");
+        operacion.Principal.Avatar.Should().Be("buho-ambar");
+        operacion.Apoyos.Single(a => a.UsuarioId == GestorC).Avatar.Should().Be("zorro-azul");
+        operacion.Apoyos.Single(a => a.UsuarioId == GestorB).Avatar.Should().BeNull();
+    }
+
     [Theory]
     [InlineData("Consulta", true)]
     [InlineData("Cliente", true)]
