@@ -320,6 +320,30 @@ public class ContrasteDeComponentesPorTemaTests
     }
 
     /// <summary>
+    /// El borde que identifica un control (DDL-062) tiene que distinguirse a 3:1 de toda superficie sobre la que puede pintarse.
+    /// Hasta la paleta G (2026-10-09) el token valía lo mismo en los dos temas y el mínimo solo constaba en un comentario de
+    /// <c>tokens.css</c>; desde que el oscuro lo redeclara, un retoque de ese bloque podía hundirlo sin que nada se pusiera en rojo.
+    /// </summary>
+    [Theory]
+    [InlineData("oscuro")]
+    [InlineData("claro")]
+    public void El_borde_de_control_se_distingue_a_3_a_1_de_cada_superficie(string tema)
+    {
+        var tokens = Tokens.Desde(File.ReadAllText(RutaTokensCss()));
+        string R(string token) => tokens.IntentarResolver($"var({token})", tema)!;
+
+        string[] superficies =
+            ["--color-bg", "--color-surface", "--color-surface-subtle", "--color-surface-hover", "--color-elevated", "--color-overlay"];
+        var insuficientes = superficies
+            .Select(s => (Superficie: s, Ratio: Contraste(R("--color-border-control"), R(s))))
+            .Where(m => m.Ratio < 3.0)
+            .Select(m => $"{m.Superficie} {m.Ratio:0.00}:1")
+            .ToList();
+
+        insuficientes.Should().BeEmpty($"--color-border-control identifica un control y debe dar 3:1 en el tema {tema}");
+    }
+
+    /// <summary>
     /// «En tolerancia» (decisión de Chris, 2026-10-04) es un tono propio ENTRE el ámbar de advertencia y el rojo de peligro, en
     /// los dos temas y tanto en la letra como en el fondo del chip: el contraste ya lo mide <see cref="Pares"/>, esto fija que
     /// el tono no se funda con ninguno de sus vecinos (un retoque que lo acercase al ámbar o al rojo deshace la decisión).
@@ -342,7 +366,10 @@ public class ContrasteDeComponentesPorTemaTests
             var max = Math.Max(r, Math.Max(g, b));
             var d = max - Math.Min(r, Math.Min(g, b));
             var h = max == r ? ((g - b) / d) % 6 : max == g ? ((b - r) / d) + 2 : ((r - g) / d) + 4;
-            return (h * 60 + 360) % 360;
+            // Matiz con signo alrededor del rojo (0°): un rojo que tira a carmesí (el --color-danger-50 de la paleta G, #341418) vale
+            // -7,5° y no 352,5°. Sin el signo, el orden ámbar > tolerancia > rojo se rompe por la vuelta del círculo, no por el tono.
+            var grados = (h * 60 + 360) % 360;
+            return grados > 180 ? grados - 360 : grados;
         }
 
         var (mAmbar, mTolerancia, mRojo) = (Matiz(ambar), Matiz(tolerancia), Matiz(rojo));
