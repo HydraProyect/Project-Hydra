@@ -27,6 +27,7 @@
     private string _texto = string.Empty;
     private string _ultimoTextoTecleado = string.Empty;
     private string _ultimoValorNotificado = string.Empty;
+    private bool _textoPendienteDeResolver;
     private CancellationTokenSource? _debounceCts;
 
     [Parameter] public string? Etiqueta { get; set; }
@@ -46,11 +47,17 @@
     /// </summary>
     protected override void OnParametersSet()
     {
-        if (Valor == _ultimoValorNotificado)
+        if (Valor == _ultimoValorNotificado && !_textoPendienteDeResolver)
             return;
 
+        // Un Id que llega antes que sus opciones (el padre preselecciona y carga la lista después)
+        // queda pendiente y se reintenta en cada render hasta que su opción aparece: darlo por
+        // sincronizado con texto vacío dejaba el campo en blanco con la entidad ya elegida. Deja de
+        // estar pendiente en cuanto la persona escribe, que es quien manda desde entonces.
         _ultimoValorNotificado = Valor;
-        _texto = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto ?? string.Empty;
+        var opcion = Opciones.FirstOrDefault(o => o.Id == Valor);
+        _texto = opcion?.Texto ?? string.Empty;
+        _textoPendienteDeResolver = opcion is null && !string.IsNullOrEmpty(Valor);
     }
 
     private async Task ManejarEscrituraAsync(ChangeEventArgs e)
@@ -62,6 +69,7 @@
         // latencia sobrescriba visualmente lo que el usuario ya ve con una
         // versión más corta.
         _ultimoTextoTecleado = e.Value?.ToString() ?? string.Empty;
+        _textoPendienteDeResolver = false;
 
         _debounceCts?.Cancel();
         _debounceCts?.Dispose();

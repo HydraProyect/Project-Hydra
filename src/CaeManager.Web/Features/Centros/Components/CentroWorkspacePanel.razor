@@ -41,6 +41,8 @@
 @using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos
 @using MediatR
 @using Microsoft.AspNetCore.Components.Forms
+@using CaeManager.Infrastructure.Comunicaciones
+@using Microsoft.Extensions.Options
 @inject IMediator Mediator
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
@@ -50,6 +52,7 @@
 @inject ICurrentUserService CurrentUserService
 @inject IResolucionProveedorPlataformaCaeService ResolucionProveedor
 @inject NavigationManager NavigationManager
+@inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
 
 @if (_cargando)
 {
@@ -104,8 +107,10 @@ else
             Última reclamación a este Cliente empresarial: @reclamacion.FechaEnvioUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
             (@reclamacion.TotalDocumentos documento@(reclamacion.TotalDocumentos == 1 ? "" : "s")).
             @* Al cliente, no al hilo: el deep-link a una conversación concreta
-               no existe todavía (Project-Hydra-Negocio/tecnico/05_WORKSPACE_PATTERNS.md § 3.6). *@
-            @if (reclamacion.ConversacionId is not null)
+               no existe todavía (Project-Hydra-Negocio/tecnico/05_WORKSPACE_PATTERNS.md § 3.6).
+               Con el módulo apagado (Comunicaciones:Activo) no se ofrece: /comunicaciones
+               redirige a «no encontrado», y el menú tampoco muestra su entrada. *@
+            @if (reclamacion.ConversacionId is not null && OpcionesComunicaciones.Value.Activo)
             {
                 <a href="@($"/comunicaciones?cliente={clienteIdDelCentro}")">Ver en Comunicaciones</a>
             }

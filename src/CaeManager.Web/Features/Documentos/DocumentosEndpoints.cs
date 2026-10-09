@@ -20,31 +20,7 @@ public static class DocumentosEndpoints
 {
     public static IEndpointRouteBuilder MapDocumentosEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/documentos/{id:guid}/archivo", async (
-            Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
-            IRegistroAccesoDocumentoSensibleService registroAcceso, CancellationToken cancellationToken) =>
-        {
-            var documento = await mediator.Send(new ObtenerDocumentoPorIdQuery(id), cancellationToken);
-            if (documento?.ArchivoUrl is null)
-                return Results.NotFound();
-
-            CabecerasArchivoSensible.ProhibirCache(contexto);
-
-            // DEC-36 (REC-099): se abre primero y se registra después de que
-            // AbrirAsync confirme que el archivo existe — si el blob no
-            // estuviera (storage inconsistente), no queda un registro de un
-            // acceso que nunca entregó contenido (Codex, HO-099-01).
-            var flujo = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
-            await registroAcceso.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
-            // enableRangeProcessing: el visor de PDF del navegador pide por
-            // rangos al paginar/buscar en vez de volver a traer el archivo
-            // entero en cada petición. No reduce el coste del servidor —
-            // DiskFileStorageService ya descifra el archivo completo en
-            // memoria antes de servirlo (medición de Módulo 2, PR #360) — la
-            // lectura por rangos que sí lo haría exige un formato cifrado por
-            // bloques, pendiente de decisión.
-            return Results.File(flujo, "application/pdf", documento.NombreArchivoDescarga, enableRangeProcessing: true);
-        })
+        endpoints.MapGet("/documentos/{id:guid}/archivo", ServirArchivoAsync)
         // Único endpoint que la extensión de navegador necesita de este
         // fichero: sin el PDF no puede subir nada a la plataforma CAE, y
         // obligar al gestor a descargarlo primero a su disco es justo la
@@ -120,5 +96,54 @@ public static class DocumentosEndpoints
         });
 
         return endpoints;
+    }
+
+    /// <summary>
+    /// Manejador de <c>GET /documentos/{id}/archivo</c>. Método con nombre, y no una lambda, para
+    /// poder probarlo sin levantar el host (mismo criterio que <c>LogoTenantEndpoints.ServirAsync</c>).
+    /// </summary>
+    public static async Task<IResult> ServirArchivoAsync(
+        Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
+        IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro,
+        CancellationToken cancellationToken)
+    {
+        var documento = await mediator.Send(new ObtenerDocumentoPorIdQuery(id), cancellationToken);
+        if (documento?.ArchivoUrl is null)
+            return Results.NotFound();
+
+        CabecerasArchivoSensible.ProhibirCache(contexto);
+
+        // DEC-36 (REC-099): se abre primero y se registra después de que
+        // AbrirAsync confirme que el archivo existe — si el blob no
+        // estuviera (storage inconsistente), no queda un registro de un
+        // acceso que nunca entregó contenido (Codex, HO-099-01).
+        Stream flujo;
+        try
+        {
+            flujo = await almacenamiento.AbrirAsync(documento.ArchivoUrl, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            // El Documento existe y dice tener adjunto, pero el almacén no lo tiene: 404, como los
+            // demás endpoints de contenido (AuditoriaEndpoints, LogoTenantEndpoints), y no la
+            // excepción sin controlar. A diferencia de ellos se avisa, porque aquí es una
+            // inconsistencia que alguien tiene que mirar. El aviso lleva el Id del Documento y no la
+            // excepción ni la clave del fichero: la ruta del almacén no sale ni en la respuesta ni
+            // en el registro.
+            fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!).LogWarning(
+                "El Documento {DocumentoId} tiene adjunto registrado pero su fichero no está en el almacén; se responde 404.",
+                documento.Id);
+            return Results.NotFound();
+        }
+
+        await registroAcceso.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+        // enableRangeProcessing: el visor de PDF del navegador pide por
+        // rangos al paginar/buscar en vez de volver a traer el archivo
+        // entero en cada petición. No reduce el coste del servidor —
+        // DiskFileStorageService ya descifra el archivo completo en
+        // memoria antes de servirlo (medición de Módulo 2, PR #360) — la
+        // lectura por rangos que sí lo haría exige un formato cifrado por
+        // bloques, pendiente de decisión.
+        return Results.File(flujo, "application/pdf", documento.NombreArchivoDescarga, enableRangeProcessing: true);
     }
 }
