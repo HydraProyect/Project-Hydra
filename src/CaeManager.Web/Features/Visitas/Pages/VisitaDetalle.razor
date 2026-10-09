@@ -80,6 +80,14 @@
                     {
                         <Badge Tono="TonoBadge.Neutro">@Textos["BadgeSinGestionCae"]</Badge>
                     }
+                    else if (visita.DocumentacionGestionadaEnUtc is { } gestionadaEn)
+                    {
+                        <span title="@Textos["TituloDocumentacionGestionadaEl", CaeManager.Domain.Common.DiaDeNegocio.De(gestionadaEn)]"><Badge Tono="TonoBadge.Exito">@Textos["Visita360DocumentacionGestionada"]</Badge></span>
+                    }
+                    else
+                    {
+                        <Badge Tono="TonoBadge.Peligro">@Textos["Visita360DocumentacionPorGestionar"]</Badge>
+                    }
                 }
             </JuntoAlTitulo>
             <Acciones>
@@ -119,6 +127,16 @@
                             <ItemMenuAccion Href="@RutaPaqueteDocumental(visita.Id)">@Textos["DescargarPaqueteDocumental"]</ItemMenuAccion>
                         }
                         <ItemMenuAccion OnClick="AlternarNotificadoAsync">@(visita.NotificadoCliente ? Textos["BotonQuitarMarcaNotificada"] : Textos["BotonMarcarNotificada"])</ItemMenuAccion>
+                        @* Salida manual de «Por gestionar»: lo gestionado fuera de TALVEG. *@
+                        @if (visita is { CentroRequiereGestionCae: true, DocumentacionGestionadaEnUtc: null })
+                        {
+                            <ItemMenuAccion OnClick="MarcarDocumentacionGestionadaAsync">@Textos["BotonMarcarDocumentacionGestionada"]</ItemMenuAccion>
+                        }
+                        else if (visita.CentroRequiereGestionCae)
+                        {
+                            @* Deshacer: una marca puesta por error vuelve a «Por gestionar». *@
+                            <ItemMenuAccion OnClick="QuitarMarcaDocumentacionGestionadaAsync">@Textos["BotonQuitarMarcaDocumentacionGestionada"]</ItemMenuAccion>
+                        }
                         <ItemMenuAccion OnClick="AbrirCancelar" Destructivo="true">@Textos["Visita360CancelarVisita"]</ItemMenuAccion>
                     </MenuAcciones>
                 }
@@ -272,6 +290,10 @@
                             <div><dt>@Textos["DetalleEntrada"]</dt><dd>@(visita.HoraEstimadaAcceso?.ToString("HH:mm") ?? Textos["DetalleSinHora"].Value)</dd></div>
                             <div><dt>@Textos["EtiquetaOrigen"]</dt><dd>@TextoOrigen(visita.Origen)</dd></div>
                             <div><dt>@Textos["EtiquetaTrabajadores"]</dt><dd>@visita.Trabajadores.Count</dd></div>
+                            @if (!EsSinGestionCae && !EsCancelada)
+                            {
+                                <div class="visita360-dato-ancho"><dt>@Textos["ColumnaDocumentacion"]</dt><dd>@TextoDocumentacionGestionada(visita)</dd></div>
+                            }
                         </dl>
                         @* El interruptor es a la vez el dato y el disparador de
                            MarcarNotificadoClienteCommand: a Consulta y en una cancelada se
@@ -363,7 +385,8 @@
    y el ZIP adjunto. Nada sale hasta que el Gestor CAE pulsa «Enviar». *@
 <RedactarMensajeDrawer Visible="_composerPaqueteVisible" VisibleChanged="v => _composerPaqueteVisible = v"
                        DestinatariosIniciales="@_solicitudCorreo?.Destinatarios" AsuntoInicial="@_solicitudCorreo?.Asunto"
-                       CuerpoInicial="@_solicitudCorreo?.Cuerpo" Adjunto="_adjuntoPaquete" />
+                       CuerpoInicial="@_solicitudCorreo?.Cuerpo" Adjunto="_adjuntoPaquete"
+                       EnviarCon="EnviarPaqueteDeLaVisitaAsync" OnEnviado="CargarAsync" />
 
 </LimiteDeErrores>
 

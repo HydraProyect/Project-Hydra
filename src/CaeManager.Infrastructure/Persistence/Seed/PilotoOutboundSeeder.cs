@@ -63,7 +63,13 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// arranque lo avisa en el registro y sigue con los demás Tenants; la vía
 /// administrativa se niega antes de escribir en ninguno
 /// (<see cref="RechazarDatosDeOtraVersionAsync"/>). Para volver a sembrarlo hay
-/// que retirar antes el lote.
+/// que retirar antes el lote. La autoverificación del arranque tampoco le exige
+/// la matriz, y lo que hace con él depende de si la ejecución ha escrito. La que
+/// escribe otros Tenants no lo mide, y avisa de que no lo mide. Un re-arranque
+/// que no escribe nada sí lo mide, como a los demás, y de lo que descuadre solo
+/// avisa. Qué Tenants son se decide aquí, antes de escribir
+/// nada, y viaja en el resultado (<see cref="Resultado.TenantsConDatosDeOtraVersion"/>):
+/// la autoverificación no vuelve a preguntarlo sobre los datos que verifica.
 /// </para>
 ///
 /// <para>
@@ -82,7 +88,13 @@ public static class PilotoOutboundSeeder
 
     /// <param name="Escribio">Falso en un re-arranque que no encontró nada que sembrar: todo sembrado ya, o lo que falta es de un Tenant con datos de otra versión.</param>
     /// <param name="TenantsConDatosNuevos">Nombres de los Tenants propietarios cuyos datos escribió esta ejecución.</param>
-    public sealed record Resultado(bool Escribio, IReadOnlyList<string> TenantsConDatosNuevos, int Documentos, int Pdf, TimeSpan Duracion);
+    /// <param name="TenantsConDatosDeOtraVersion">
+    /// Nombres de los Tenants propietarios que esta ejecución encontró con datos de otra versión de la siembra, leídos
+    /// antes de escribir nada: en ellos no escribió. Es la lista con la que decide la autoverificación del arranque.
+    /// </param>
+    public sealed record Resultado(
+        bool Escribio, IReadOnlyList<string> TenantsConDatosNuevos, IReadOnlyList<string> TenantsConDatosDeOtraVersion,
+        int Documentos, int Pdf, TimeSpan Duracion);
 
     /// <summary>
     /// La guarda de Producción, aparte de <see cref="SeedAsync"/> para que el arranque la
@@ -137,7 +149,10 @@ public static class PilotoOutboundSeeder
     /// en el registro, con su nombre, y no se escribe nada en él —ni sus datos, ni
     /// su Asignación de Operación, ni sus cuentas—; los demás siguen su curso. Aquí
     /// no lanza, para no tumbar el arranque; la vía administrativa se niega antes
-    /// de llegar (<see cref="RechazarDatosDeOtraVersionAsync"/>).
+    /// de llegar (<see cref="RechazarDatosDeOtraVersionAsync"/>). Tampoco lo tumba
+    /// después la autoverificación: aunque esta ejecución escriba otros Tenants, ese
+    /// no lo mide. La lista de esos Tenants, tal como se lee aquí antes de escribir,
+    /// va en el resultado.
     /// </para>
     ///
     /// <para>
@@ -168,7 +183,7 @@ public static class PilotoOutboundSeeder
             logger.LogWarning(
                 "Siembra del piloto Outbound: {Motivo} No queda nada por sembrar, así que no se escribe nada y el " +
                 "arranque continúa; los estados de los documentos ya no son los del día de la demostración.", motivo);
-            return new Resultado(false, [], 0, 0, TimeSpan.Zero);
+            return new Resultado(false, [], deOtraVersion, 0, 0, TimeSpan.Zero);
         }
 
         var cronometro = Stopwatch.StartNew();
@@ -220,7 +235,7 @@ public static class PilotoOutboundSeeder
         cronometro.Stop();
         var resultado = new Resultado(
             recuento.TenantsCreados > 0 || recuento.TenantsConDatosNuevos.Count > 0,
-            recuento.TenantsConDatosNuevos, recuento.Documentos, recuento.Pdf, cronometro.Elapsed);
+            recuento.TenantsConDatosNuevos, deOtraVersion, recuento.Documentos, recuento.Pdf, cronometro.Elapsed);
 
         if (resultado.Escribio)
         {

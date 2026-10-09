@@ -74,15 +74,26 @@ public class ToastService
     private readonly TimeSpan _duracion;
     private readonly TimeSpan _duracionConAccion;
 
+    /// <summary>
+    /// De aquí salen la hora y las esperas de la cuenta atrás, nunca del reloj del sistema a pelo:
+    /// una prueba que afirma «quedan 2 s» tiene que poder mover el tiempo ella misma, o depende de
+    /// lo cargada que esté la máquina.
+    /// </summary>
+    private readonly TimeProvider _reloj;
+
     public ToastService() : this(DuracionAutoDescarte, DuracionAutoDescarteConAccion)
     {
     }
 
-    /// <summary>Duraciones propias: solo para probar el temporizador sin esperar 5 u 8 segundos.</summary>
-    public ToastService(TimeSpan duracion, TimeSpan duracionConAccion)
+    /// <summary>
+    /// Duraciones propias: solo para probar el temporizador sin esperar 5 u 8 segundos. Con
+    /// <paramref name="reloj"/>, la prueba además decide cuándo pasa el tiempo.
+    /// </summary>
+    public ToastService(TimeSpan duracion, TimeSpan duracionConAccion, TimeProvider? reloj = null)
     {
         _duracion = duracion;
         _duracionConAccion = duracionConAccion;
+        _reloj = reloj ?? TimeProvider.System;
     }
 
     public event Action? OnCambio;
@@ -122,7 +133,7 @@ public class ToastService
             if (!_cuentas.TryGetValue(id, out var cuenta) || !cuenta.Visible)
                 return null;
 
-            var restante = cuenta.Pausada ? cuenta.Restante : cuenta.Restante - (DateTime.UtcNow - cuenta.Inicio);
+            var restante = cuenta.Pausada ? cuenta.Restante : cuenta.Restante - (Ahora - cuenta.Inicio);
 
             // El margen absorbe la resolución del reloj: un tic que llega justo en el cambio de
             // segundo no debe volver a pintar el segundo que acaba de terminar.
@@ -187,6 +198,8 @@ public class ToastService
             await toast.OnAccion();
     }
 
+    private DateTime Ahora => _reloj.GetUtcNow().UtcDateTime;
+
     private void Programar(Guid id, TimeSpan duracion, bool cuentaVisible)
     {
         var cuenta = new CuentaAtras(duracion, cuentaVisible);
@@ -201,7 +214,7 @@ public class ToastService
     {
         var cts = new CancellationTokenSource();
         cuenta.Cts = cts;
-        cuenta.Inicio = DateTime.UtcNow;
+        cuenta.Inicio = Ahora;
         _ = EsperarAsync(id, cuenta.Restante, cuenta.Visible, cts.Token);
     }
 
@@ -216,7 +229,7 @@ public class ToastService
             while (restante > TimeSpan.Zero)
             {
                 var tramo = cuentaVisible ? HastaElCambioDeSegundo(restante) : restante;
-                await Task.Delay(tramo, ct);
+                await Task.Delay(tramo, _reloj, ct);
                 restante -= tramo;
 
                 if (cuentaVisible && restante > TimeSpan.Zero)
@@ -250,7 +263,7 @@ public class ToastService
             if (!estabaPausada && cuenta.Pausada)
             {
                 cuenta.Cts?.Cancel();
-                cuenta.Restante -= DateTime.UtcNow - cuenta.Inicio;
+                cuenta.Restante -= Ahora - cuenta.Inicio;
                 if (cuenta.Restante < TimeSpan.Zero)
                     cuenta.Restante = TimeSpan.Zero;
             }

@@ -15,9 +15,11 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Visitas;
 
 /// <summary>
-/// <c>OrdenarPor = PorGestionar</c> de ObtenerVisitasQuery, contra PostgreSQL real: la
-/// documentación se calcula en memoria, así que el orden y la paginación se hacen
-/// después de calcularla, y el DTO lleva la antelación sellada en la Visita.
+/// <c>OrdenarPor = PorGestionar</c> de ObtenerVisitasQuery, contra PostgreSQL real. «Por
+/// gestionar» es el estado guardado en la Visita (sin fecha de documentación gestionada), no
+/// un cálculo sobre los documentos: se ordena y se pagina en SQL, y una Visita con todos los
+/// documentos vigentes sigue por gestionar hasta que se marca. El DTO lleva además la
+/// antelación sellada en la Visita.
 /// </summary>
 public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
 {
@@ -26,7 +28,8 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
     private readonly DateOnly _hoy = DiaDeNegocio.Hoy();
     private Guid _porGestionarCercana;
     private Guid _porGestionarLejana;
-    private Guid _completa;
+    private Guid _gestionada;
+    private Guid _vigenteSinGestionar;
     private Guid _sinGestionCae;
     private Guid _cancelada;
 
@@ -49,8 +52,11 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
         c.Trabajadores.Add(ana);
         await c.SaveChangesAsync();
 
-        // Sin trabajadores y sin tipos obligatorios → documentación completa.
-        var completa = new Visita(conGestion.Id, _hoy.AddDays(1), _hoy.AddDays(1), null);
+        // Sin trabajadores y sin tipos obligatorios → documentos «completos» las dos; solo
+        // una está marcada como gestionada. La otra es el caso que decide la regla nueva.
+        var gestionada = new Visita(conGestion.Id, _hoy.AddDays(1), _hoy.AddDays(1), null);
+        gestionada.MarcarDocumentacionGestionada(DateTime.UtcNow);
+        var vigenteSinGestionar = new Visita(conGestion.Id, _hoy.AddDays(6), _hoy.AddDays(6), null);
         // Con una trabajadora sin ningún documento → por gestionar.
         var lejana = new Visita(conGestion.Id, _hoy.AddDays(8), _hoy.AddDays(8), null);
         var cercana = new Visita(conGestion.Id, _hoy.AddDays(5), _hoy.AddDays(5), null);
@@ -64,15 +70,15 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
         cercana.MarcarExpedienteCompleto(solicitud.AddHours(3),
             new ResultadoAntelacion(25m, 22m, 3m, TramoAntelacion.Expres, AtribucionUrgencia.SolicitudTardiaCliente));
 
-        c.Visitas.AddRange(completa, lejana, cercana, sinGestionCae, cancelada);
+        c.Visitas.AddRange(gestionada, vigenteSinGestionar, lejana, cercana, sinGestionCae, cancelada);
         await c.SaveChangesAsync();
         c.VisitasTrabajadores.AddRange(
             new VisitaTrabajador(lejana.Id, ana.Id), new VisitaTrabajador(cercana.Id, ana.Id),
             new VisitaTrabajador(sinGestionCae.Id, ana.Id), new VisitaTrabajador(cancelada.Id, ana.Id));
         await c.SaveChangesAsync();
 
-        (_completa, _porGestionarLejana, _porGestionarCercana, _sinGestionCae, _cancelada) =
-            (completa.Id, lejana.Id, cercana.Id, sinGestionCae.Id, cancelada.Id);
+        (_gestionada, _vigenteSinGestionar, _porGestionarLejana, _porGestionarCercana, _sinGestionCae, _cancelada) =
+            (gestionada.Id, vigenteSinGestionar.Id, lejana.Id, cercana.Id, sinGestionCae.Id, cancelada.Id);
     }
 
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
@@ -94,8 +100,8 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
         var r = await LeerAsync(descendente: true);
 
         r.Elementos.Select(v => v.Id).Should().Equal(
-            _porGestionarCercana, _porGestionarLejana,   // por gestionar, por fecha
-            _completa, _sinGestionCae, _cancelada);      // el resto, por fecha
+            _porGestionarCercana, _vigenteSinGestionar, _porGestionarLejana,   // por gestionar, por fecha
+            _gestionada, _sinGestionCae, _cancelada);                          // el resto, por fecha
     }
 
     [Fact]
@@ -104,8 +110,29 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
         var r = await LeerAsync(descendente: false);
 
         r.Elementos.Select(v => v.Id).Should().Equal(
-            _completa, _sinGestionCae, _cancelada,
-            _porGestionarCercana, _porGestionarLejana);
+            _gestionada, _sinGestionCae, _cancelada,
+            _porGestionarCercana, _vigenteSinGestionar, _porGestionarLejana);
+    }
+
+    /// <summary>
+    /// La regla del 2026-10-09: con todos los documentos vigentes la Visita sigue «Por
+    /// gestionar» hasta que se envía el paquete o se marca; y marcada, deja de estarlo aunque
+    /// los documentos digan lo mismo que antes.
+    /// </summary>
+    [Fact]
+    public async Task Por_gestionar_sale_del_estado_guardado_y_no_de_que_los_documentos_esten_vigentes()
+    {
+        var r = await LeerAsync(descendente: true);
+
+        var sinGestionar = r.Elementos.Single(v => v.Id == _vigenteSinGestionar);
+        sinGestionar.DocumentacionCompleta.Should().BeTrue("control: sus documentos están en regla");
+        sinGestionar.DocumentacionGestionadaEnUtc.Should().BeNull();
+        sinGestionar.PorGestionar.Should().BeTrue();
+
+        var gestionada = r.Elementos.Single(v => v.Id == _gestionada);
+        gestionada.DocumentacionCompleta.Should().BeTrue("control: mismos documentos que la anterior");
+        gestionada.DocumentacionGestionadaEnUtc.Should().NotBeNull();
+        gestionada.PorGestionar.Should().BeFalse();
     }
 
     [Fact]
@@ -117,7 +144,7 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
         cancelada.DocumentacionCompleta.Should().BeFalse();
         cancelada.PorGestionar.Should().BeFalse();
         r.Elementos.Single(v => v.Id == _sinGestionCae).PorGestionar.Should().BeFalse();
-        r.Elementos.Count(v => v.PorGestionar).Should().Be(2);
+        r.Elementos.Count(v => v.PorGestionar).Should().Be(3);
     }
 
     [Fact]
@@ -125,8 +152,8 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
     {
         var segunda = await LeerAsync(descendente: true, pagina: 2, tamano: 2);
 
-        segunda.Total.Should().Be(5);
-        segunda.Elementos.Select(v => v.Id).Should().Equal(_completa, _sinGestionCae);
+        segunda.Total.Should().Be(6);
+        segunda.Elementos.Select(v => v.Id).Should().Equal(_porGestionarLejana, _gestionada);
     }
 
     [Fact]
@@ -134,7 +161,7 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
     {
         var r = await LeerAsync(descendente: false, tamano: 2, ordenarPor: null);
 
-        r.Elementos.Select(v => v.Id).Should().Equal(_completa, _sinGestionCae);
+        r.Elementos.Select(v => v.Id).Should().Equal(_gestionada, _sinGestionCae);
     }
 
     [Fact]
@@ -145,7 +172,7 @@ public class ObtenerVisitasQueryOrdenPorGestionarTests : IAsyncLifetime
         var medida = r.Elementos.Single(v => v.Id == _porGestionarCercana);
         (medida.Tramo, medida.AntelacionNominalHoras, medida.AntelacionEfectivaHoras)
             .Should().Be((TramoAntelacion.Expres, 25m, 22m));
-        r.Elementos.Single(v => v.Id == _completa).Tramo.Should().BeNull();
+        r.Elementos.Single(v => v.Id == _gestionada).Tramo.Should().BeNull();
     }
 
     private CaeManagerDbContext CrearContexto()

@@ -57,7 +57,9 @@ public record DetalleVisitaDto(
     Guid CentroId = default,
     Guid EmpresaTitularId = default,
     OrigenVisita Origen = OrigenVisita.Manual,
-    NivelUrgenciaVisita NivelUrgencia = NivelUrgenciaVisita.Normal);
+    NivelUrgenciaVisita NivelUrgencia = NivelUrgenciaVisita.Normal,
+    // Estado guardado (Visita.DocumentacionGestionadaEnUtc): null = por gestionar.
+    DateTime? DocumentacionGestionadaEnUtc = null);
 
 public class ObtenerDetalleVisitaQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
@@ -99,7 +101,8 @@ public class ObtenerDetalleVisitaQueryHandler(
                 v.Atribucion,
                 v.EstaCancelada,
                 v.MotivoCancelacion,
-                v.Version
+                v.Version,
+                v.DocumentacionGestionadaEnUtc
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -144,6 +147,7 @@ public class ObtenerDetalleVisitaQueryHandler(
             visita.CentroId,
             visita.EmpresaTitularId,
             visita.Origen,
-            nivelUrgencia);
+            nivelUrgencia,
+            visita.DocumentacionGestionadaEnUtc);
     }
 }

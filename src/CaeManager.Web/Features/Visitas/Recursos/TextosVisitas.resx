@@ -78,9 +78,6 @@
   <data name="ColumnaDocumentacion" xml:space="preserve">
     <value>Documentación</value>
   </data>
-  <data name="BadgeDocumentacionCompleta" xml:space="preserve">
-    <value>Completa</value>
-  </data>
   <data name="BadgeDocumentacionPorGestionar" xml:space="preserve">
     <value>Por gestionar</value>
   </data>
@@ -632,5 +629,44 @@
   </data>
   <data name="DetalleAbrirPagina" xml:space="preserve">
     <value>Abrir la página de la visita →</value>
+  </data>
+  <data name="BadgeDocumentacionGestionada" xml:space="preserve">
+    <value>Gestionada</value>
+  </data>
+  <data name="TituloDocumentacionGestionadaEl" xml:space="preserve">
+    <value>Documentación gestionada el {0}</value>
+  </data>
+  <data name="TituloPorGestionarDocumentosVigentes" xml:space="preserve">
+    <value>Documentos vigentes: falta enviar el paquete o marcarla como gestionada</value>
+  </data>
+  <data name="TituloPorGestionarFaltanDocumentos" xml:space="preserve">
+    <value>Faltan documentos vigentes</value>
+  </data>
+  <data name="DetalleDocumentacionGestionadaEl" xml:space="preserve">
+    <value>Gestionada el {0}</value>
+  </data>
+  <data name="BotonMarcarDocumentacionGestionada" xml:space="preserve">
+    <value>Marcar documentación gestionada</value>
+  </data>
+  <data name="BotonQuitarMarcaDocumentacionGestionada" xml:space="preserve">
+    <value>Quitar la marca de gestionada</value>
+  </data>
+  <data name="ToastMarcaDocumentacionGestionadaQuitada" xml:space="preserve">
+    <value>La documentación vuelve a estar por gestionar.</value>
+  </data>
+  <data name="ToastErrorQuitarMarcaDocumentacionGestionada" xml:space="preserve">
+    <value>No pudimos quitar la marca de documentación gestionada. Intenta nuevamente.</value>
+  </data>
+  <data name="ToastDocumentacionGestionada" xml:space="preserve">
+    <value>Documentación marcada como gestionada.</value>
+  </data>
+  <data name="ToastErrorDocumentacionGestionada" xml:space="preserve">
+    <value>No pudimos marcar la documentación como gestionada. Intenta nuevamente.</value>
+  </data>
+  <data name="Visita360DocumentacionGestionada" xml:space="preserve">
+    <value>Documentación gestionada</value>
+  </data>
+  <data name="Visita360DocumentacionPorGestionar" xml:space="preserve">
+    <value>Documentación por gestionar</value>
   </data>
 </root>
