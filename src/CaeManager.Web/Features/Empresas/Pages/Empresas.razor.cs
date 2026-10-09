@@ -309,20 +309,35 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     private async Task RefrescarFilaAsync(Guid id)
     {
-        // Con una carga en vuelo no se sustituye nada: esa carga trae la página entera.
+        // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
+        // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
+        // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
         if (_desechado || _cargando || !_elementosPagina.Any(e => e.Id == id))
             return;
 
         var carga = _cargaVigente;
         try
         {
-            var resultado = await Mediator.Send(new ObtenerEmpresasQuery(Busqueda: null, EmpresaId: id), _ciclo.Token);
+            // Misma pregunta de estado que la carga de página (ConRecuentosPorEstado): sin ella el
+            // handler toma el camino que deja sin estado a quien no tiene documentos, y la fila
+            // pasaría de «Sin incidencias» a «Sin documentos» al refrescarla.
+            var resultado = await Mediator.Send(
+                new ObtenerEmpresasQuery(Busqueda: null, ConRecuentosPorEstado: true, EmpresaId: id), _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
             if (_desechado || _cargando || carga != _cargaVigente || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
                 return;
 
             _elementosPagina[indice] = actualizada;
+
+            // El formulario del panel también edita los Clientes empresariales de la Empresa, que
+            // son el contenido del acordeón de la fila: lo cargado ya no vale. Si está
+            // desplegado se vuelve a pedir; si no, se pedirá al desplegarlo.
+            _clientesPorEmpresa.Remove(id);
+            _clientesConError.Remove(id);
+            if (_expandidos.Contains(id))
+                await CargarClientesDeEmpresaAsync(id);
+
             StateHasChanged();
         }
         catch (Exception)

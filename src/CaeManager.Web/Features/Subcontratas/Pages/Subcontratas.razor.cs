@@ -131,7 +131,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     private async Task RefrescarFilaAsync(Guid id)
     {
-        // Con una carga en vuelo no se sustituye nada: esa carga trae la página entera.
+        // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
+        // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
+        // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
         if (_cargando || !_elementosPagina.Any(s => s.Id == id))
             return;
 

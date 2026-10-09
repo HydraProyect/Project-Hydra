@@ -1,3 +1,4 @@
+using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
@@ -76,12 +77,18 @@ public partial class EmpresasListaGen2Tests
             "la fila enseña el dato nuevo y no cambia de sitio"));
         UltimaConsulta(mediador).EmpresaId.Should().Be(nervion.Id, "se pide solo esa fila");
         UltimaConsulta(mediador).Busqueda.Should().BeNull();
+        UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue(
+            "misma pregunta de estado que la carga de página: sin ella, quien no tiene documentos pasaría de «Sin incidencias» a «Sin documentos»");
         ConsultasDeLista(mediador).Should().Be(consultasAntes + 1, "la consulta por id y ninguna de página detrás");
         mediador.Enviadas.OfType<ObtenerEmpresasQuery>().Count(q => q.EmpresaId is null).Should().Be(consultasAntes,
             "ninguna consulta de página nueva");
     }
 
-    /// <summary>Además de página, selección y foco, la fila desplegada (sus Clientes empresariales) sigue desplegada.</summary>
+    /// <summary>
+    /// Además de página, selección y foco, la fila desplegada sigue desplegada. Su contenido —los
+    /// Clientes empresariales de la Empresa— se vuelve a pedir, porque el formulario del panel
+    /// también los edita y lo cargado antes de guardar ya no vale.
+    /// </summary>
     [Fact]
     public async Task El_aviso_de_guardado_conserva_la_pagina_la_seleccion_multiple_la_fila_enfocada_y_la_fila_desplegada()
     {
@@ -112,7 +119,9 @@ public partial class EmpresasListaGen2Tests
         cut.Find(".fila-enfocada .enlace-nombre-fila").TextContent.Trim().Should().Be("Empresa 21");
         cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal(
             ["false", "false", "true", "false", "false"], "la fila sustituida sigue desplegada");
-        mediador.Enviadas.Should().HaveCount(enviadasAntes + 1, "solo la consulta de esa fila: ni página ni Clientes empresariales otra vez");
+        cut.WaitForAssertion(() => mediador.Enviadas.Skip(enviadasAntes).OfType<ObtenerClientesDeEmpresaQuery>()
+            .Select(c => c.EmpresaId).Should().Equal([editada], "el acordeón desplegado de esa fila vuelve a pedir sus Clientes empresariales"));
+        mediador.Enviadas.Should().HaveCount(enviadasAntes + 2, "la consulta de esa fila y la de su acordeón: ninguna de página");
         UltimaConsulta(mediador).EmpresaId.Should().Be(editada);
     }
 

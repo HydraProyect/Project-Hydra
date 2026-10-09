@@ -219,14 +219,20 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private async Task RefrescarFilaAsync(Guid id)
     {
-        // Con una carga en vuelo no se sustituye nada: esa carga trae la página entera.
+        // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
+        // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
+        // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
         if (_desechado || _grid is null || _cargando || !_elementosPagina.Any(e => e.Id == id))
             return;
 
         var carga = _cargaVigente;
         try
         {
-            var resultado = await Mediator.Send(new ObtenerVehiculosQuery(Busqueda: null, VehiculoId: id), _ciclo.Token);
+            // Misma pregunta de estado que la carga de página (ConRecuentosPorEstado): sin ella el
+            // handler toma el camino que deja sin estado a quien no tiene documentos, y la fila
+            // pasaría de «Sin incidencias» a «Sin documentos» al refrescarla.
+            var resultado = await Mediator.Send(
+                new ObtenerVehiculosQuery(Busqueda: null, ConRecuentosPorEstado: true, VehiculoId: id), _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
             if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)

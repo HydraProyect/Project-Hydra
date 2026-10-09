@@ -304,7 +304,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     private async Task RefrescarFilaAsync(Guid id)
     {
-        // Con una carga en vuelo no se sustituye nada: esa carga trae la página entera.
+        // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
+        // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
+        // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
         if (_desechado || _grid is null || _cargando || _pestanaActiva != "listado" || !_elementosPagina.Any(e => e.Id == id))
             return;
 

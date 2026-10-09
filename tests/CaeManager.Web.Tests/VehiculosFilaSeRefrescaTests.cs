@@ -177,6 +177,8 @@ public class VehiculosFilaSeRefrescaTests : BunitContext
             "la fila enseña el dato nuevo y no cambia de sitio"));
         UltimaConsulta(mediador).VehiculoId.Should().Be(camion.Id, "se pide solo esa fila");
         UltimaConsulta(mediador).Busqueda.Should().BeNull();
+        UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue(
+            "misma pregunta de estado que la carga de página: sin ella, quien no tiene documentos pasaría de «Sin incidencias» a «Sin documentos»");
         ConsultasDeLista(mediador).Should().Be(consultasAntes + 1, "la consulta por id y ninguna de página detrás");
         mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Count(q => q.VehiculoId is null).Should().Be(consultasAntes,
             "ninguna consulta de página nueva");
