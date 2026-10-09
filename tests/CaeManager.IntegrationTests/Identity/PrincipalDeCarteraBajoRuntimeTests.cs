@@ -357,8 +357,63 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Leer no concede: con la lectura concedida, el Administrador del Tenant propietario sigue
-    /// sin poder designar principal sobre la cartera que acaba de ver.
+    /// Qué cuenta como «un Operador CAE externo gestiona mi Tenant» para la lectura del Tenant
+    /// propietario: una operación Outbound con su delegación de Operador CAE externo activa. Una
+    /// operación Inbound, o una cuya delegación se desactivó, no se anuncia.
+    /// </summary>
+    [Fact]
+    public async Task La_lectura_del_Tenant_propietario_no_anuncia_una_operacion_Inbound_ni_una_con_la_delegacion_desactivada()
+    {
+        var conInbound = new Tenant("Propietario con operación Inbound");
+        var conDelegacionDesactivada = new Tenant("Propietario con la delegación desactivada");
+        var control = new Tenant("Propietario con operación Outbound viva");
+        Guid operacionDeControl;
+        await using (var contexto = ContextoPropietario(_operador.Id))
+        {
+            var ahora = DateTime.UtcNow;
+            contexto.Tenants.AddRange(conInbound, conDelegacionDesactivada, control);
+
+            AsignacionOperacion Abrir(Tenant propietario, ServicioCae servicio, bool delegacionActiva)
+            {
+                var operacion = AsignacionOperacion.Externa(
+                    propietario.Id, _otroOperador.Id, servicio, AmbitoAsignacion.Universal,
+                    vigenciaDesde: ahora.AddDays(-30), vigenciaHasta: null, ahora);
+                var vinculo = new DelegacionTenant(_otroOperador.Id, propietario.Id);
+                if (!delegacionActiva) vinculo.Desactivar();
+                contexto.AsignacionesOperacion.Add(operacion);
+                contexto.DelegacionesTenant.Add(vinculo);
+                var cartera = AsignacionCartera.Externa(operacion, _coordinadorAjeno, Roles.CoordinadorCae, AmbitoAsignacion.Universal, ahora, null, ahora);
+                cartera.DesignarPrincipal();
+                contexto.AsignacionesCartera.Add(cartera);
+                return operacion;
+            }
+
+            Abrir(conInbound, ServicioCae.Inbound, delegacionActiva: true);
+            Abrir(conDelegacionDesactivada, ServicioCae.Outbound, delegacionActiva: false);
+            operacionDeControl = Abrir(control, ServicioCae.Outbound, delegacionActiva: true).Id;
+            await contexto.SaveChangesAsync();
+        }
+
+        Task<IReadOnlyList<OperacionExternaSobreTenant>> Leer(Tenant propietario) =>
+            EnArnes(_administradorAjeno, Roles.Administrador, propietario.Id, (usuario, contexto, _, _) =>
+                new CatalogoIncorporacionCartera(contexto, usuario)
+                    .ObtenerOperacionesExternasSobreTenantAsync(propietario.Id, CancellationToken.None));
+
+        var viva = (await Leer(control)).Should().ContainSingle("control: la misma siembra, Outbound y con delegación activa, sí se lee").Subject;
+        viva.AsignacionOperacionId.Should().Be(operacionDeControl);
+        viva.NombreOperador.Should().Be(_otroOperador.Nombre);
+        viva.Carteras.Should().ContainSingle().Which.Should().Match<CarteraVivaDeOperacion>(
+            c => c.UsuarioId == _coordinadorAjeno && c.EsPrincipal && c.Rol == Roles.CoordinadorCae);
+
+        (await Leer(conInbound)).Should().BeEmpty("la operación es Inbound");
+        (await Leer(conDelegacionDesactivada)).Should().BeEmpty("la delegación de Operador CAE externo está desactivada");
+    }
+
+    /// <summary>
+    /// Guarda de no regresión: leer no concede. El Administrador del Tenant propietario, que
+    /// ahora ve la cartera, sigue sin poder designar principal sobre ella. Lo frena lo mismo que
+    /// antes de este cambio —el comando solo busca carteras del Operador CAE de quien lo pide, y
+    /// el Tenant propietario no es Operador CAE de sí mismo—: ningún cambio de la lectura lo toca.
     /// </summary>
     [Fact]
     public async Task Leer_la_cartera_desde_el_Tenant_propietario_no_deja_designar_principal()
@@ -367,7 +422,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             .Should().ContainSingle("control: la lectura sí le responde");
 
         (await Designar(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id, _operacion, _gestorB))
-            .EsFallido.Should().BeTrue();
+            .Error.Should().Be(DesignarGestorCaePrincipalCommandHandler.DestinoSinCartera);
         (await PrincipalesAsync(_operacion)).Should().Equal(_gestorA);
     }
 
