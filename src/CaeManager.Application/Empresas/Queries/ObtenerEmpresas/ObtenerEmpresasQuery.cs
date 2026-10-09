@@ -138,7 +138,10 @@ public class ObtenerEmpresasQueryHandler(
 
             var totalConEstado = await conFecha.CountAsync(cancellationToken);
 
-            var ordenadaConEstado = request.Descendente
+            // Este camino se toma también solo para contar por estado (la franja lo pide siempre), así que el
+            // orden no puede darse por supuesto: por estado si es la columna pedida, y si no por la misma lista
+            // blanca que el camino sin estado.
+            var porEstado = request.Descendente
                 ? conFecha.OrderByDescending(e =>
                     e.PeorFecha != null && e.PeorFecha < hoy ? 0
                     : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? 1
@@ -153,7 +156,20 @@ public class ObtenerEmpresasQueryHandler(
                     : e.HaySinConfirmar ? 3
                     : e.PeorFecha != null ? 4
                     : 5);
-            var ordenadaFinal = ordenadaConEstado.ThenBy(e => e.RazonSocial).ThenBy(e => e.Id);
+            var ordenaPorEstado = string.Equals(
+                request.OrdenarPor, nameof(EmpresaListaDto.EstadoDocumental), StringComparison.Ordinal);
+            var ordenadaConEstado = ordenaPorEstado
+                ? porEstado.ThenBy(e => e.RazonSocial)
+                : (request.OrdenarPor, request.Descendente) switch
+                {
+                    (nameof(EmpresaListaDto.RazonSocial), true) => conFecha.OrderByDescending(e => e.RazonSocial),
+                    (nameof(EmpresaListaDto.Cif), false) => conFecha.OrderBy(e => e.Cif),
+                    (nameof(EmpresaListaDto.Cif), true) => conFecha.OrderByDescending(e => e.Cif),
+                    (nameof(EmpresaListaDto.CreadoEnUtc), false) => conFecha.OrderBy(e => e.CreadoEnUtc),
+                    (nameof(EmpresaListaDto.CreadoEnUtc), true) => conFecha.OrderByDescending(e => e.CreadoEnUtc),
+                    _ => conFecha.OrderBy(e => e.RazonSocial)
+                };
+            var ordenadaFinal = ordenadaConEstado.ThenBy(e => e.Id);
 
             var paginaConEstado = await ordenadaFinal
                 .Skip((request.Pagina - 1) * request.TamanoPagina)

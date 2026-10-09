@@ -539,6 +539,32 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
             return (r.TotalElementos, r.RecuentosPorEstado);
         });
 
+        // Pedir los recuentos no cambia el orden de la página. La franja los pide siempre, y contar lleva la
+        // consulta por el camino que conoce el estado: si ese camino ordenase por estado sin que se le pida,
+        // elegir otra columna en la cabecera no haría nada (defecto que destapó un E2E de Vehículos).
+        async Task ComprobarOrdenAsync(string superficie, Func<bool, Task<IReadOnlyList<Guid>>> listarIds)
+        {
+            var sinRecuentos = await listarIds(false);
+            var conRecuentos = await listarIds(true);
+            if (sinRecuentos.Count < 2)
+                fallos.Add($"{superficie} · orden: se esperaban al menos dos filas y hay {sinRecuentos.Count}");
+            if (!conRecuentos.SequenceEqual(sinRecuentos))
+                fallos.Add($"{superficie} · orden: con recuentos la página sale en otro orden que sin ellos");
+        }
+
+        await ComprobarOrdenAsync("Lista de Trabajadores", async conRecuentos =>
+            (await trabajadores.Handle(
+                new ObtenerTrabajadoresQuery(null, TamanoPagina: 100, OrdenarPor: nameof(TrabajadorListaDto.Dni), Descendente: true, ConRecuentosPorEstado: conRecuentos),
+                CancellationToken.None)).Elementos.Select(x => x.Id).ToList());
+        await ComprobarOrdenAsync("Lista de Empresas", async conRecuentos =>
+            (await empresas.Handle(
+                new ObtenerEmpresasQuery(null, TamanoPagina: 100, OrdenarPor: nameof(EmpresaListaDto.Cif), Descendente: true, ConRecuentosPorEstado: conRecuentos),
+                CancellationToken.None)).Elementos.Select(x => x.Id).ToList());
+        await ComprobarOrdenAsync("Lista de Vehículos", async conRecuentos =>
+            (await vehiculos.Handle(
+                new ObtenerVehiculosQuery(null, TamanoPagina: 100, OrdenarPor: nameof(VehiculoListaDto.NumeroPlaca), Descendente: true, ConRecuentosPorEstado: conRecuentos),
+                CancellationToken.None)).Elementos.Select(x => x.Id).ToList());
+
         // Lista de Centros: el escenario tiene un solo Centro, así que la franja lo cuenta en su estado y en
         // ningún otro; marcar su estado junto a otro lo trae, y marcar dos que no son el suyo no trae nada.
         var centros = new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro);

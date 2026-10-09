@@ -138,7 +138,10 @@ public class ObtenerVehiculosQueryHandler(
 
             var totalConEstado = await conFecha.CountAsync(cancellationToken);
 
-            var ordenadaConEstado = request.Descendente
+            // Este camino se toma también solo para contar por estado (la franja lo pide siempre), así que el
+            // orden no puede darse por supuesto: por estado si es la columna pedida, y si no por la misma lista
+            // blanca que el camino sin estado.
+            var porEstado = request.Descendente
                 ? conFecha.OrderByDescending(x =>
                     x.PeorFecha != null && x.PeorFecha < hoy ? 0
                     : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
@@ -153,7 +156,22 @@ public class ObtenerVehiculosQueryHandler(
                     : x.HaySinConfirmar ? 3
                     : x.PeorFecha != null ? 4
                     : 5);
-            var ordenadaFinal = ordenadaConEstado.ThenBy(x => x.Nombre).ThenBy(x => x.Id);
+            var ordenaPorEstado = string.Equals(
+                request.OrdenarPor, nameof(VehiculoListaDto.EstadoDocumental), StringComparison.Ordinal);
+            var ordenadaConEstado = ordenaPorEstado
+                ? porEstado.ThenBy(x => x.Nombre)
+                : (request.OrdenarPor, request.Descendente) switch
+                {
+                    (nameof(VehiculoListaDto.Nombre), true) => conFecha.OrderByDescending(x => x.Nombre),
+                    (nameof(VehiculoListaDto.Modelo), false) => conFecha.OrderBy(x => x.Modelo).ThenBy(x => x.Nombre),
+                    (nameof(VehiculoListaDto.Modelo), true) => conFecha.OrderByDescending(x => x.Modelo).ThenBy(x => x.Nombre),
+                    (nameof(VehiculoListaDto.NumeroPlaca), false) => conFecha.OrderBy(x => x.NumeroPlaca),
+                    (nameof(VehiculoListaDto.NumeroPlaca), true) => conFecha.OrderByDescending(x => x.NumeroPlaca),
+                    (nameof(VehiculoListaDto.EmpleadorNombre), false) => conFecha.OrderBy(x => x.EmpleadorNombre).ThenBy(x => x.Nombre),
+                    (nameof(VehiculoListaDto.EmpleadorNombre), true) => conFecha.OrderByDescending(x => x.EmpleadorNombre).ThenBy(x => x.Nombre),
+                    _ => conFecha.OrderBy(x => x.Nombre)
+                };
+            var ordenadaFinal = ordenadaConEstado.ThenBy(x => x.Id);
 
             var paginaConEstado = await ordenadaFinal
                 .Skip((request.Pagina - 1) * request.TamanoPagina)
