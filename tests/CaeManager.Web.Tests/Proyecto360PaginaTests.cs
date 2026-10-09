@@ -8,6 +8,7 @@ using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
 using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
+using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -150,6 +151,7 @@ public class Proyecto360PaginaTests : BunitContext
                 AsignarTecnicoProyectoCommand => Result.Exito(Guid.NewGuid()),
                 DesasignarTecnicoProyectoCommand => Result.Exito(),
                 EliminarProyectoCommand => Result.Exito(),
+                RestaurarProyectoCommand => Result.Exito(),
                 CerrarProyectoCommand => Result.Exito(),
                 ReabrirProyectoCommand => Result.Exito(),
                 ActualizarProyectoCommand => Result.Exito(),
@@ -468,6 +470,24 @@ public class Proyecto360PaginaTests : BunitContext
         _mediador.Enviados.OfType<EliminarProyectoCommand>().Should().ContainSingle().Which.Id.Should().Be(AbiertoId);
         Navegacion.Uri.Should().EndWith("/proyectos");
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(t => t.Mensaje == "Proyecto eliminado.");
+    }
+
+    /// <summary>El aviso de eliminado ofrece «Deshacer», como el listado; al restaurar se vuelve a la página.</summary>
+    [Fact]
+    public async Task Eliminar_ofrece_deshacer_y_al_restaurar_vuelve_a_la_pagina_del_proyecto()
+    {
+        var cut = Renderizar(AbiertoId);
+        await ElegirDelMenuAsync(cut, "Eliminar proyecto");
+        await BotonConTexto(cut, "[role=dialog] .modal-pie button", "Eliminar").ClickAsync(new MouseEventArgs());
+
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(t => t.Mensaje == "Proyecto eliminado.");
+        aviso.TextoAccion.Should().Be("Deshacer");
+        _mediador.Enviados.OfType<RestaurarProyectoCommand>().Should().BeEmpty();
+
+        await cut.InvokeAsync(() => aviso.OnAccion!());
+
+        _mediador.Enviados.OfType<RestaurarProyectoCommand>().Should().ContainSingle().Which.Id.Should().Be(AbiertoId);
+        Navegacion.Uri.Should().EndWith($"/proyectos/{AbiertoId}");
     }
 
     // ------------------------------------------------------------------ pestañas y carrera de cargas

@@ -4,6 +4,7 @@ using CaeManager.Application.Proyectos.Commands.CerrarProyecto;
 using CaeManager.Application.Proyectos.Commands.DesasignarTecnicoProyecto;
 using CaeManager.Application.Proyectos.Commands.EliminarProyecto;
 using CaeManager.Application.Proyectos.Commands.ReabrirProyecto;
+using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectoPorId;
 using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -457,6 +458,38 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
     // ---- Eliminar proyecto ----
 
+    private bool _restaurando;
+
+    /// <summary>
+    /// «Deshacer» del aviso tras eliminar — ver RestaurarProyectoCommand. Se pulsa ya desde el
+    /// listado (esta página se dejó al eliminar): si restaura, vuelve a la página del proyecto.
+    /// </summary>
+    private async Task DeshacerEliminarAsync(Guid id)
+    {
+        if (_restaurando) return;
+        _restaurando = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarProyectoCommand(id));
+
+            ToastService.Mostrar(
+                resultado.EsExitoso ? Textos["ToastRestaurado"].Value : resultado.Error.Mensaje,
+                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
+
+            if (resultado.EsExitoso)
+                NavigationManager.NavigateTo($"/proyectos/{id}");
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurar"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurando = false;
+        }
+    }
+
     private bool _confirmarEliminarVisible;
     private bool _eliminando;
 
@@ -477,7 +510,8 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
             }
 
             // El proyecto eliminado ya no tiene página: se vuelve al listado, que es donde deja de aparecer.
-            ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito);
+            // Con «Deshacer», como el listado: el aviso sobrevive a la vuelta al listado.
+            ToastService.Mostrar(Textos["ToastEliminado"], TonoToast.Exito, Textos["ToastAccionDeshacer"], () => DeshacerEliminarAsync(id));
 
             // Si mientras tanto se navegó a otro proyecto, el resultado es del anterior:
             // no se toca ningún diálogo ni lista del que se está viendo ahora.
