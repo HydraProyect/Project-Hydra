@@ -133,8 +133,8 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
 
         var plan = await AnalizarAsync(libro);
 
-        plan.Centros.Should().BeEmpty("una Subcontrata homónima no es un Cliente empresarial");
-        plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros" && o.Motivo.Contains("No se encontró el Cliente empresarial"));
+        plan.Centros.Should().BeEmpty("una Subcontrata homónima no es un Cliente");
+        plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Centros" && o.Motivo.Contains("No se encontró el Cliente"));
 
         // El plan que el análisis nunca produciría, ejecutado igualmente: la
         // escritura tiene que aplicar el mismo criterio por su cuenta. Los
@@ -152,7 +152,7 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
         var resultado = await EjecutarAsync(planForzado);
 
         resultado.CentrosCreados.Should().Be(0);
-        resultado.Omitidos.Should().ContainSingle(o => o.Motivo.Contains("No se encontró el Cliente empresarial"));
+        resultado.Omitidos.Should().ContainSingle(o => o.Motivo.Contains("No se encontró el Cliente"));
 
         await using var verificacion = CrearContexto();
         (await verificacion.Centros.CountAsync(c => c.Nombre == NombreCentro)).Should().Be(0);
@@ -206,7 +206,7 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
 
         await using var verificacion = CrearContexto();
         var empresa = await verificacion.Empresas.SingleAsync(e => e.RazonSocial == razonSocial);
-        empresa.EsCritico.Should().NotBeNull("la fila de la hoja \"Clientes\" declara que esta Empresa es Cliente empresarial");
+        empresa.EsCritico.Should().NotBeNull("la fila de la hoja \"Clientes\" declara que esta Empresa es Cliente");
         empresa.NivelServicio.Should().Be("Estándar", "fusionar rellena lo vacío, no borra lo que ya había");
         (await verificacion.Centros.CountAsync(c => c.ClienteId == empresa.Id)).Should().Be(1);
     }

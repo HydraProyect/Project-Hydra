@@ -22,10 +22,10 @@
     <value>Nivel 1 · Global</value>
   </data>
   <data name="DescripcionAntesEnlace" xml:space="preserve">
-    <value>Catálogo maestro: qué documentos existen, a qué ámbito aplican, si se piden por defecto y cómo los procesa la lectura IA. La lectura IA de cada Cliente empresarial (Nivel 2) se afina en</value>
+    <value>Catálogo maestro: qué documentos existen, a qué ámbito aplican, si se piden por defecto y cómo los procesa la lectura IA. La lectura IA de cada Cliente (Nivel 2) se afina en</value>
   </data>
   <data name="EnlaceLecturaIaCliente" xml:space="preserve">
-    <value>Lectura IA por Cliente empresarial</value>
+    <value>Lectura IA por Cliente</value>
   </data>
   <data name="DescripcionTrasEnlace" xml:space="preserve">
     <value>.</value>
@@ -40,10 +40,10 @@
     <value>Buscar por nombre o alias</value>
   </data>
   <data name="FiltroCliente" xml:space="preserve">
-    <value>Client empresarial</value>
+    <value>Client</value>
   </data>
   <data name="OpcionTodosClientes" xml:space="preserve">
-    <value>Todos los Clientes empresariales</value>
+    <value>Todos los Clientes</value>
   </data>
   <data name="FiltroEmpresa" xml:space="preserve">
     <value>Empresa</value>
@@ -67,7 +67,7 @@
     <value>Ningún tipo con estos filtros</value>
   </data>
   <data name="VacioFiltrosDescripcion" xml:space="preserve">
-    <value>Ninguno coincide con la búsqueda por nombre o alias ni con el ámbito de Cliente empresarial, empresa o centro seleccionado.</value>
+    <value>Ninguno coincide con la búsqueda por nombre o alias ni con el ámbito de Cliente, empresa o centro seleccionado.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
     <value>Quitar los filtros</value>
@@ -187,7 +187,7 @@
     <value>Trabajador</value>
   </data>
   <data name="AmbitoCliente" xml:space="preserve">
-    <value>Client empresarial</value>
+    <value>Client</value>
   </data>
   <data name="AmbitoEmpresa" xml:space="preserve">
     <value>Empresa</value>
@@ -241,7 +241,7 @@
     <value>Práctica del sector</value>
   </data>
   <data name="NaturalezaRequisitoCliente" xml:space="preserve">
-    <value>Requisito de Cliente empresarial</value>
+    <value>Requisito de Cliente</value>
   </data>
   <data name="OpcionNaturalezaRecomendacion" xml:space="preserve">
     <value>Recomendación de TALVEG</value>
@@ -274,7 +274,7 @@
     <value>Criterios de validación</value>
   </data>
   <data name="PistaCriterios" xml:space="preserve">
-    <value>Pega aquí los términos de validación tal como los describe la plataforma documental del Cliente empresarial (la sección de criterios/requisitos de aceptación del propio portal), sin reescribirlos: es el texto contra el que se comprueba si un documento vale, y la referencia que usará la lectura automática de documentos.</value>
+    <value>Pega aquí los términos de validación tal como los describe la plataforma documental del Cliente (la sección de criterios/requisitos de aceptación del propio portal), sin reescribirlos: es el texto contra el que se comprueba si un documento vale, y la referencia que usará la lectura automática de documentos.</value>
   </data>
   <data name="EtiquetaSeSolicitaA" xml:space="preserve">
     <value>Se solicita a</value>
@@ -313,7 +313,7 @@
     <value>{0} de {1}</value>
   </data>
   <data name="AyudaLecturaIa" xml:space="preserve">
-    <value>Lectura automática por IA para este tipo de documento, en todos los Clientes empresariales</value>
+    <value>Lectura automática por IA para este tipo de documento, en todos los Clientes</value>
   </data>
   <data name="AyudaDeteccionTrabajadores" xml:space="preserve">
     <value>Detecta automáticamente altas y bajas de personal comparando este documento (p. ej. ITA, RNT) contra los trabajadores activos de la empresa</value>
@@ -322,10 +322,10 @@
     <value>Verifica por IA el tipo, fecha de emisión y firma del documento contra lo introducido al subirlo, con confidence score</value>
   </data>
   <data name="ToastErrorClientesFiltro" xml:space="preserve">
-    <value>No pudimos cargar los Clientes empresariales del filtro. La lista de tipos sí se carga.</value>
+    <value>No pudimos cargar los Clientes del filtro. La lista de tipos sí se carga.</value>
   </data>
   <data name="ToastErrorEmpresasFiltro" xml:space="preserve">
-    <value>No pudimos cargar las empresas de este Cliente empresarial.</value>
+    <value>No pudimos cargar las empresas de este Cliente.</value>
   </data>
   <data name="ToastErrorCentrosFiltro" xml:space="preserve">
     <value>No pudimos cargar los centros de esta empresa.</value>

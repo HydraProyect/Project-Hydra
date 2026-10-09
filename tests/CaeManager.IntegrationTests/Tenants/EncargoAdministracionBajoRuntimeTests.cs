@@ -173,7 +173,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         // del alcance por cartera (la lista que lo contiene) y del alcance cero (lista vacía).
         await using (var siembra = ContextoPropietarioDeLaBase(_propietario))
         {
-            var cliente = Empresa.CrearComoCliente("Cliente empresarial de prueba", "B10380186", false, null, null);
+            var cliente = Empresa.CrearComoCliente("Cliente de prueba", "B10380186", false, null, null);
             siembra.Empresas.Add(cliente);
             // Una cartera PARCIAL (acotada a un Centro) bajo la operación que tiene encargo: es la
             // de un Administrador del Operador CAE al que el encargo no debe ampliarle el ámbito.

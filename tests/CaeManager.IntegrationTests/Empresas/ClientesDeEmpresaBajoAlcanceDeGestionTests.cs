@@ -84,7 +84,7 @@ public class ClientesDeEmpresaBajoAlcanceDeGestionTests : IAsyncLifetime
         (await ClientesDeEmpresaAsync(alcance, _surId)).Should().BeEmpty("Sur solo tuvo una relación, ya cerrada");
         (await ClientesDeEmpresaAsync(alcance, _esteId)).Should().BeEmpty("Este no tiene ninguna relación");
         (await ClientesDeEmpresaAsync(alcance, _subcontrataId)).Should().BeEmpty(
-            "la Subcontrata presta servicio a una Empresa propia, no a un Cliente empresarial");
+            "la Subcontrata presta servicio a una Empresa propia, no a un Cliente");
     }
 
     /// <summary>Un usuario de portal (rol Cliente): alcance de gestión vacío, aunque vea las Empresas. No ve nada.</summary>
@@ -107,7 +107,7 @@ public class ClientesDeEmpresaBajoAlcanceDeGestionTests : IAsyncLifetime
         var parcial = new AlcanceDatosServiceFalso(empresaIds: [_norteId, _surId], empresaIdsParaGestion: [_surId]);
 
         (await ClientesDeEmpresaAsync(parcial, _norteId)).Should().BeEmpty(
-            "Norte tiene dos Clientes empresariales pero está fuera del alcance de gestión");
+            "Norte tiene dos Clientes pero está fuera del alcance de gestión");
         (await ClientesDeEmpresaAsync(parcial, _surId)).Should().BeEmpty("Sur está dentro, pero no tiene ninguno vigente");
         (await ClientesDeEmpresaAsync(new AlcanceDatosServiceFalso(), _norteId)).Should().HaveCount(2, "control: sin restricción Norte sí los devuelve");
     }

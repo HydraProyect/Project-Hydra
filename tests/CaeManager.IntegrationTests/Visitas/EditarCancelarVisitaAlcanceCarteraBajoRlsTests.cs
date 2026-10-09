@@ -91,8 +91,8 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
 
         using (AmbitoTenantExplicito.Establecer(_tenant))
         {
-            var clienteDentro = Empresa.CrearComoCliente("Cliente empresarial dentro", "B10380186", false, null, null);
-            var clienteFuera = Empresa.CrearComoCliente("Cliente empresarial fuera", "B10380194", false, null, null);
+            var clienteDentro = Empresa.CrearComoCliente("Cliente dentro", "B10380186", false, null, null);
+            var clienteFuera = Empresa.CrearComoCliente("Cliente fuera", "B10380194", false, null, null);
             var propia = new Empresa("Empresa propia", "B10380202");
             var subcontrataFuera = Empresa.CrearComoSubcontrata("Subcontrata fuera", null, NivelServicioSubcontrata.Gestionada.ToString());
             _propietario.Empresas.AddRange(clienteDentro, clienteFuera, propia, subcontrataFuera);
@@ -128,7 +128,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
 
         using (AmbitoTenantExplicito.Establecer(otroTenant.Id))
         {
-            var cliente = Empresa.CrearComoCliente("Cliente empresarial de otro Tenant", "B10380210", false, null, null);
+            var cliente = Empresa.CrearComoCliente("Cliente de otro Tenant", "B10380210", false, null, null);
             var propia = new Empresa("Empresa propia de otro Tenant", "B10380228");
             _propietario.Empresas.AddRange(cliente, propia);
             var centro = new CaeManager.Domain.Centros.Centro(cliente.Id, propia.Id, "Centro de otro Tenant");

@@ -34,10 +34,10 @@
     <value>Reintentar</value>
   </data>
   <data name="EtiquetaCliente" xml:space="preserve">
-    <value>Client empresarial</value>
+    <value>Client</value>
   </data>
   <data name="OpcionElegirCliente" xml:space="preserve">
-    <value>— Selecciona un Client empresarial —</value>
+    <value>— Selecciona un Client —</value>
   </data>
   <data name="EtiquetaEstado" xml:space="preserve">
     <value>Estado</value>
@@ -70,10 +70,10 @@
     <value>Limpiar todo</value>
   </data>
   <data name="SinClienteTitulo" xml:space="preserve">
-    <value>Tria un Client empresarial per veure els seus projectes</value>
+    <value>Tria un Client per veure els seus projectes</value>
   </data>
   <data name="SinClienteDescripcion" xml:space="preserve">
-    <value>Cada proyecto de obra o instalación pertenece a un centro de un Cliente empresarial concreto.</value>
+    <value>Cada proyecto de obra o instalación pertenece a un centro de un Cliente concreto.</value>
   </data>
   <data name="ErrorProyectosTitulo" xml:space="preserve">
     <value>No pudimos cargar los proyectos</value>
@@ -82,22 +82,22 @@
     <value>Sin proyectos</value>
   </data>
   <data name="VacioDescripcion" xml:space="preserve">
-    <value>Este Cliente empresarial todavía no tiene ningún proyecto de obra o instalación.</value>
+    <value>Este Cliente todavía no tiene ningún proyecto de obra o instalación.</value>
   </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
     <value>Ningún proyecto con este filtro</value>
   </data>
   <data name="VacioFiltroDescripcion" xml:space="preserve">
-    <value>Este Cliente empresarial sí tiene proyectos, pero ninguno coincide con la búsqueda ni con el estado seleccionado.</value>
+    <value>Este Cliente sí tiene proyectos, pero ninguno coincide con la búsqueda ni con el estado seleccionado.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
     <value>Quitar los filtros</value>
   </data>
   <data name="ConteoConFiltro" xml:space="preserve">
-    <value>{0} de {1} proyecto(s) de este Cliente empresarial</value>
+    <value>{0} de {1} proyecto(s) de este Cliente</value>
   </data>
   <data name="ConteoSinFiltro" xml:space="preserve">
-    <value>{0} proyecto(s) de este Cliente empresarial</value>
+    <value>{0} proyecto(s) de este Cliente</value>
   </data>
   <data name="EtiquetaNombre" xml:space="preserve">
     <value>Nombre</value>
@@ -333,7 +333,7 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Els projectes es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
   </data>
-  <data name="ListaElegirClienteEmpresarial" xml:space="preserve"><value>Selecciona un Client empresarial</value></data>
+  <data name="ListaElegirClienteEmpresarial" xml:space="preserve"><value>Selecciona un Client</value></data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar aquesta pantalla: nom o centre</value></data>
   <data name="EtiquetaPlazoSinMedida" xml:space="preserve"><value>Sense termini per mesurar: no hi ha una data de fi prevista vàlida o el projecte no ha començat</value></data>
   <data name="EtiquetaPlazoTranscurrido" xml:space="preserve"><value>{0} % del termini previst transcorregut</value></data>
@@ -348,7 +348,7 @@
   <data name="ErrorDetalleTitulo" xml:space="preserve"><value>No hem pogut carregar aquest projecte</value></data>
   <data name="ErrorDetalleDescripcion" xml:space="preserve"><value>Pot ser que ja no existeixi o que no hi tinguis accés.</value></data>
   <data name="MetaCentro" xml:space="preserve"><value>Centre:</value></data>
-  <data name="MetaCliente" xml:space="preserve"><value>Client empresarial:</value></data>
+  <data name="MetaCliente" xml:space="preserve"><value>Client:</value></data>
   <data name="CopiarLaFechaDeFin" xml:space="preserve"><value>la data de fi prevista</value></data>
   <data name="AccionAsignarTecnico" xml:space="preserve"><value>Assignar tècnic</value></data>
   <data name="AccionReabrir" xml:space="preserve"><value>Reobrir</value></data>

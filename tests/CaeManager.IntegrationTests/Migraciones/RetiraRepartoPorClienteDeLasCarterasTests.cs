@@ -93,7 +93,7 @@ public class RetiraRepartoPorClienteDeLasCarterasTests : IAsyncLifetime
         contexto.AsignacionesCartera.Add(
             AsignacionCartera.Interna(operacion, Guid.NewGuid(), AmbitoAsignacion.Universal, ahora.AddDays(-1), null, ahora));
         await contexto.Invoking(c => c.SaveChangesAsync()).Should().NotThrowAsync(
-            "el CHECK rechaza el reparto por Cliente empresarial, no la cartera: sin esto un esquema que rechazase todo pasaría la prueba anterior");
+            "el CHECK rechaza el reparto por Cliente, no la cartera: sin esto un esquema que rechazase todo pasaría la prueba anterior");
 
         (await contexto.AsignacionesCartera.CountAsync(c => c.Estado == EstadoAsignacion.Vigente)).Should().Be(1);
     }
@@ -301,7 +301,7 @@ public class RetiraRepartoPorClienteDeLasCarterasTests : IAsyncLifetime
     {
         await using var contexto = NuevoContexto(_tenant.Id);
         var cliente = Empresa.CrearComoCliente(
-            "Cliente empresarial de la contracción",
+            "Cliente de la contracción",
             DatosPruebaSeeder.GenerarCifValido(8_500_000 + Interlocked.Increment(ref _secuenciaCif)), false, null, null);
         contexto.Empresas.Add(cliente);
         await contexto.SaveChangesAsync();
@@ -351,7 +351,7 @@ public class RetiraRepartoPorClienteDeLasCarterasTests : IAsyncLifetime
             return pg;
         }
 
-        throw new Xunit.Sdk.XunitException("La escritura no falló: la base de datos aceptó una cartera por Cliente empresarial no cerrada.");
+        throw new Xunit.Sdk.XunitException("La escritura no falló: la base de datos aceptó una cartera por Cliente no cerrada.");
     }
 
     private static async Task<bool> ExisteIndice(CaeManagerDbContext contexto, string nombre) =>

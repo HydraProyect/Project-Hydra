@@ -19,7 +19,7 @@
     <value>Cerrar</value>
   </data>
   <data name="Descripcion" xml:space="preserve">
-    <value>Especialista en legislación de Prevención de Riesgos Laborales (España/UE). No tiene acceso a tus Clientes empresariales, Trabajadores ni Documentos — solo responde dudas normativas generales.</value>
+    <value>Especialista en legislación de Prevención de Riesgos Laborales (España/UE). No tiene acceso a tus Clientes, Trabajadores ni Documentos — solo responde dudas normativas generales.</value>
   </data>
   <data name="MensajeVacio" xml:space="preserve">
     <value>Escribe tu pregunta sobre PRL para empezar.</value>
@@ -202,7 +202,7 @@
     <value>Alta de Centre</value>
   </data>
   <data name="Orden_alta_cliente_empresarial" xml:space="preserve">
-    <value>Alta de Client empresarial</value>
+    <value>Alta de Client</value>
   </data>
   <data name="Orden_consulta_de_estado" xml:space="preserve">
     <value>Consulta d'estat</value>
@@ -223,7 +223,7 @@
     <value>Empresa</value>
   </data>
   <data name="Campo_cliente_empresarial" xml:space="preserve">
-    <value>Client empresarial</value>
+    <value>Client</value>
   </data>
   <data name="Campo_centro" xml:space="preserve">
     <value>Centre</value>
@@ -271,7 +271,7 @@
     <value>Registrar la Visita</value>
   </data>
   <data name="Paso_EnviarReclamacionCommand" xml:space="preserve">
-    <value>Enviar la reclamació al Client empresarial</value>
+    <value>Enviar la reclamació al Client</value>
   </data>
   <data name="Paso_EnviarReclamacionEmpresaCommand" xml:space="preserve">
     <value>Enviar la reclamació a l'Empresa</value>
@@ -280,7 +280,7 @@
     <value>Crear el Centre</value>
   </data>
   <data name="Paso_CrearClienteCommand" xml:space="preserve">
-    <value>Crear el Client empresarial</value>
+    <value>Crear el Client</value>
   </data>
   <data name="Paso_ObtenerDocumentacionPorCentroDeTrabajadorQuery" xml:space="preserve">
     <value>Consultar la documentació que exigeix el Centre</value>

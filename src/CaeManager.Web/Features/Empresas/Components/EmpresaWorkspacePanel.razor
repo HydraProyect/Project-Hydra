@@ -49,7 +49,7 @@ else
             <h2 class="workspace-titulo-entidad titulo-empresa-360">@_detalle.RazonSocial</h2>
             @if (PestanaActiva == "clientes" && _clientes is { Count: > 0 })
             {
-                <span class="recuentos-empresa-360">@(_clientes.Count == 1 ? "1 Cliente empresarial" : $"{_clientes.Count} Clientes empresariales")</span>
+                <span class="recuentos-empresa-360">@(_clientes.Count == 1 ? "1 Cliente" : $"{_clientes.Count} Clientes")</span>
             }
         </div>
         @if (_cumplimiento is not null)
@@ -93,11 +93,11 @@ else
                     <label class="campo-checkbox">
                         <input type="checkbox" @bind="_esActividadAnexoIInfo" /> Actividad del Anexo I del RSP
                     </label>
-                    <SelectorMultiple Etiqueta="Clientes empresariales con los que trabaja"
+                    <SelectorMultiple Etiqueta="Clientes con los que trabaja"
                                        Elementos="@_clientesDisponiblesSelector"
                                        Seleccionados="@_clienteIdsInfo"
                                        OnAlternar="args => AlternarClienteInfo(args.Id, args.Marcado)"
-                                       TextoVacio="Todavía no hay Clientes empresariales creados." />
+                                       TextoVacio="Todavía no hay Clientes creados." />
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoInformacion" OnClick="CancelarEdicionInformacion">Cancelar</Boton>
                         <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Cargando="_guardandoInformacion" OnClick="GuardarInformacionAsync">Guardar</Boton>
@@ -115,7 +115,7 @@ else
                         <BotonCopiar Valor="@_credencialUrl" Etiqueta="la URL" />
                     </div>
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="Empresa / Cliente empresarial / Proveedor" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
+                        <CampoTexto Etiqueta="Empresa / Cliente / Proveedor" Valor="@_credencialCampoEmpresa" ValorChanged="v => _credencialCampoEmpresa = v" />
                         <BotonCopiar Valor="@_credencialCampoEmpresa" Etiqueta="este campo" />
                     </div>
                     <div class="campo-con-boton">
@@ -153,7 +153,7 @@ else
                            pestaña: EmpresaDetalleDto.ClienteIds no está acotado y anunciaría una cartera que
                            el actor no puede ver. Una lista vacía no se cuenta: sin alcance de gestión el
                            handler devuelve vacío a propósito, y «0» sería falso (mismo criterio que #810). *@
-                        <CampoInfo Etiqueta="Clientes empresariales con los que trabaja" Valor="@(_clientes is { Count: > 0 } clientesInfo ? clientesInfo.Count.ToString() : null)" />
+                        <CampoInfo Etiqueta="Clientes con los que trabaja" Valor="@(_clientes is { Count: > 0 } clientesInfo ? clientesInfo.Count.ToString() : null)" />
                         <CampoInfo Etiqueta="Creada" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
                     </div>
                     <div class="acciones-empresa-360">
@@ -171,7 +171,7 @@ else
                 }
                 else if (_errorClientes)
                 {
-                    <EstadoVacio Titulo="No pudimos cargar los Clientes empresariales" Descripcion="Intenta nuevamente en unos segundos.">
+                    <EstadoVacio Titulo="No pudimos cargar los Clientes" Descripcion="Intenta nuevamente en unos segundos.">
                         <Accion>
                             <Boton Variante="VarianteBoton.Primario" OnClick="CargarClientesAsync">Reintentar</Boton>
                         </Accion>
@@ -179,7 +179,7 @@ else
                 }
                 else if (_clientes is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin Clientes empresariales que puedas consultar" Descripcion="Esta empresa no tiene Clientes empresariales asociados, o no están dentro de tu alcance de gestión." />
+                    <EstadoVacio Titulo="Sin Clientes que puedas consultar" Descripcion="Esta empresa no tiene Clientes asociados, o no están dentro de tu alcance de gestión." />
                 }
                 else if (_clientes is not null)
                 {
@@ -233,7 +233,7 @@ else
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
     [
         new("informacion", "Información"),
-        new("clientes", "Clientes empresariales"),
+        new("clientes", "Clientes"),
         new("documentacion", "Documentación"),
         new("agenda", "Agenda"),
         new("sello", "Sello"),

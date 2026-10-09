@@ -353,7 +353,7 @@ public class DocumentacionGestionadaVisitaTests
 
     private static VisitaListaDto Fila(
         bool documentosVigentes, DateTime? gestionadaEn, bool requiereGestionCae = true, bool cancelada = false) =>
-        new(Guid.NewGuid(), Guid.NewGuid(), "Nave Norte", Guid.NewGuid(), "Cliente empresarial", Guid.NewGuid(), "Empresa",
+        new(Guid.NewGuid(), Guid.NewGuid(), "Nave Norte", Guid.NewGuid(), "Cliente", Guid.NewGuid(), "Empresa",
             Fecha, Fecha.AddDays(1), TotalTrabajadores: 1, DocumentacionCompleta: documentosVigentes, NotificadoCliente: false,
             OrigenVisita.Correo, NivelUrgenciaVisita.Urgente, CentroRequiereGestionCae: requiereGestionCae,
             EstaCancelada: cancelada, DocumentacionGestionadaEnUtc: gestionadaEn);

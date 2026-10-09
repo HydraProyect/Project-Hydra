@@ -152,7 +152,7 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
         var cut = Montar(EstadoCentro.Vencido, cumplimiento: null,
             new UltimaReclamacionClienteDto(Guid.NewGuid(), DateTime.UtcNow.AddDays(-2), 3, ConversacionId: Guid.NewGuid()));
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Última reclamación a este Cliente empresarial",
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Última reclamación a este Cliente",
             "control: la nota de la última reclamación, con hilo, está pintada"));
         cut.FindAll("a").Count(a => a.TextContent.Trim() == "Ver en Comunicaciones").Should().Be(esperados);
     }

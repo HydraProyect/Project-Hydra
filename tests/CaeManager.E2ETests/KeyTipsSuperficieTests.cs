@@ -57,7 +57,7 @@ public class KeyTipsSuperficieTests : IAsyncLifetime
                     <button id="pastilla-s" data-keytip="" onclick="registrar('subcontrata')">Subcontrata</button>
                     <span id="agrupar" role="group" aria-label="Agrupar" data-keytip="A" data-keytip-grupo>
                         <button id="sin-agrupar" aria-pressed="true" onclick="registrar('sin')">Sin agrupar</button>
-                        <button id="por-cliente" aria-pressed="false" onclick="registrar('cliente')">Por Cliente empresarial</button>
+                        <button id="por-cliente" aria-pressed="false" onclick="registrar('cliente')">Por Cliente</button>
                     </span>
                     <button id="oculto" data-keytip="X" style="display:none" onclick="registrar('X')">Exportar</button>
                     <select id="tamano" data-keytip="" aria-label="Mostrar"><option>20</option><option>50</option></select>

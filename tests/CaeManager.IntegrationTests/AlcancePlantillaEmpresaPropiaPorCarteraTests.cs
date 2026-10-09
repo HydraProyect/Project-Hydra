@@ -53,7 +53,7 @@ public class AlcancePlantillaEmpresaPropiaPorCarteraTests : IAsyncLifetime
     private async Task<Escenario> SembrarEstructuraAsync(Guid tenant, string sufijo, string cifCliente, string cifPropia, string cifContraparte)
     {
         await using var contexto = CrearContexto(tenant);
-        var cliente = Empresa.CrearComoCliente($"Cliente empresarial {sufijo}", cifCliente, false, null, null);
+        var cliente = Empresa.CrearComoCliente($"Cliente {sufijo}", cifCliente, false, null, null);
         var propia = new Empresa($"Empresa propia {sufijo}", cifPropia);
         var contraparte = Empresa.CrearComoCliente($"Empresa contraparte {sufijo}", cifContraparte, false, null, null);
         var subcontrata = Empresa.CrearComoSubcontrata($"Subcontrata {sufijo}", null, "Estandar");
@@ -191,7 +191,7 @@ public class AlcancePlantillaEmpresaPropiaPorCarteraTests : IAsyncLifetime
 
         visibles.Should().Contain(conAsignacion, "control positivo: el portal ve a quien trabaja en un Centro de su Cliente");
         visibles.Should().NotContain(sinAsignacion,
-            "el usuario de portal de un Cliente empresarial no gana la estructura propia del Tenant");
+            "el usuario de portal de un Cliente no gana la estructura propia del Tenant");
         (await DetalleAsync(usuarioPortal, "Cliente", _tenant, sinAsignacion)).Should().BeNull();
     }
 

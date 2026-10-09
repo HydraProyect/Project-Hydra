@@ -27,7 +27,7 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class ClienteWorkspacePanelLapizTests : BunitContext
 {
-    private const string Lapiz = "button[aria-label='Editar la identidad del Cliente empresarial']";
+    private const string Lapiz = "button[aria-label='Editar la identidad del Cliente']";
     private static readonly Guid Id = Guid.NewGuid();
 
     private MediadorPorFuncion _mediador = null!;

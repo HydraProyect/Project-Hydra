@@ -27,7 +27,7 @@ public static class CentrosEndpoints
 
             hoja.Cell(1, 1).Value = "Nombre";
             hoja.Cell(1, 2).Value = "Código de centro";
-            hoja.Cell(1, 3).Value = "Cliente empresarial";
+            hoja.Cell(1, 3).Value = "Cliente";
             hoja.Cell(1, 4).Value = "Empresa";
             hoja.Cell(1, 5).Value = "Estado";
             hoja.Cell(1, 6).Value = "% cumplimiento";

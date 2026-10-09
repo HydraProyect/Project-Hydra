@@ -80,7 +80,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await page.GetByLabel("Identificación fiscal (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_602));
         await page.GetByText("Guardar y continuar").ClickAsync();
 
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente empresarial" }).WaitForAsync();
+        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await page.GetByLabel("Identificación fiscal", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_601));
         await page.GetByText("Guardar y continuar a Centro").ClickAsync();
@@ -129,7 +129,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         // --- Paso 4: /centros — buscar, dejar que el buscador asiente y expandir ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente empresarial o empresa");
+        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa");
         await buscador.FillAsync(nombreCentro);
 
         var botonExpandir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}" });
@@ -142,14 +142,16 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // "1": se captura el valor real de partida y se compara contra sí
         // mismo tras resolver únicamente el tipo de este test, en vez de
         // asumir un número fijo.
-        // Acotado a la cabecera de la fila, no a toda la tarjeta: una vez
-        // expandida, la fila del Trabajador dentro del acordeón trae su
-        // propio badge con la misma clase .badge-peligro, y el recuento del
-        // Centro dejaría de resolver a un único elemento.
+        // El recuento de vencidos del Centro es el motivo bajo la pastilla de
+        // estado («6 vencidos»), no un badge con la cifra: la columna «Venc.»
+        // se retiró el 2026-10-09. Se localiza por su clase propia y no por
+        // .badge-peligro, que en la cabecera de la fila es ahora la pastilla
+        // de estado («Pendiente») y dentro del acordeón, el badge de cada
+        // Trabajador.
         var filaCentro = page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = nombreCentro });
-        var badgeVencidas = filaCentro.Locator(".tarjeta-fila-acordeon-cabecera .badge-peligro");
-        await Expect(badgeVencidas).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        var vencidasAntes = int.Parse((await badgeVencidas.InnerTextAsync()).Trim());
+        var motivoVencidas = filaCentro.Locator(".tarjeta-fila-acordeon-cabecera .motivo-recuento-vencidos");
+        await Expect(motivoVencidas).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        var vencidasAntes = await LeerRecuentoAsync(motivoVencidas);
         Assert.True(vencidasAntes >= 1, "El Trabajador recién asignado debería tener al menos el Faltante de este test.");
 
         // Blur explícito del buscador ANTES de expandir — ver el GAP
@@ -230,8 +232,17 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // (el resto de tipos obligatorios del catálogo compartido siguen
         // pendientes, así que no llega a desaparecer del todo).
         await Expect(badgeFalta).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        var vencidasDespues = int.Parse((await badgeVencidas.InnerTextAsync()).Trim());
+        var vencidasDespues = await LeerRecuentoAsync(motivoVencidas);
         Assert.Equal(vencidasAntes - 1, vencidasDespues);
+    }
+
+    /// <summary>La cifra con la que empieza el motivo («6 vencidos» → 6). Falla si el texto no empieza por un número.</summary>
+    private static async Task<int> LeerRecuentoAsync(ILocator motivo)
+    {
+        var texto = (await motivo.InnerTextAsync()).Trim();
+        var cifra = new string(texto.TakeWhile(char.IsDigit).ToArray());
+        Assert.True(cifra.Length > 0, $"El motivo «{texto}» no empieza por una cifra.");
+        return int.Parse(cifra);
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

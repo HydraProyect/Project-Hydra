@@ -57,7 +57,7 @@ public class EmpresaPreviewDrawerTests : BunitContext
         Services.AddScoped<IMediator>(_ => m);
         var cut = Render<EmpresaPreviewDrawer>(p => p.Add(x => x.EmpresaId, id).Add(x => x.Visible, true));
         return cut.WaitForElements(".celda-info-preview-empresa")
-            .Where(c => c.QuerySelector("span")!.TextContent.Trim() == "Clientes empresariales")
+            .Where(c => c.QuerySelector("span")!.TextContent.Trim() == "Clientes")
             .Should().ContainSingle().Subject
             .QuerySelector("strong")!.TextContent.Trim();
     }
@@ -69,7 +69,7 @@ public class EmpresaPreviewDrawerTests : BunitContext
         m.Detalles[id] = new(id, "Montajes Ebro S.L.", "B-50", DateTime.UtcNow, [Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid()], Guid.NewGuid());
         m.Clientes[id] = [new(Guid.NewGuid(), "Refrielectric S.A.", "A-01")];
 
-        CeldaClientes(m, id).Should().Be("1", "el actor solo gestiona uno de los tres Clientes empresariales de la Empresa");
+        CeldaClientes(m, id).Should().Be("1", "el actor solo gestiona uno de los tres Clientes de la Empresa");
     }
 
     [Fact]

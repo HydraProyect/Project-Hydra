@@ -59,6 +59,8 @@ public class CentrosListaGen2Tests : BunitContext
         public int? EliminadosDelLote { get; set; }
         /// <summary>Ids que el lote pide y no elimina: no entran en IdsEliminados.</summary>
         public HashSet<Guid> NoEliminables { get; } = [];
+        /// <summary>Visitas programadas por Centro; vacío salvo que el test las siembre.</summary>
+        public Dictionary<Guid, IReadOnlyList<VisitaResumenDto>> Visitas { get; init; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(object)(Registrar(request) switch
@@ -71,7 +73,7 @@ public class CentrosListaGen2Tests : BunitContext
                 RestaurarCentroCommand => Result.Exito(),
                 // Sin documento que devolver: basta para observar qué se pidió abrir.
                 ObtenerDocumentoPorIdQuery => null!,
-                ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
+                ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)Visitas,
                 ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
                     Centros, Centros.Count, q.Pagina, q.TamanoPagina),
@@ -118,13 +120,16 @@ public class CentrosListaGen2Tests : BunitContext
 
     private MediatorPorTipo _mediador = null!;
 
+    /// <summary>Visitas programadas que devolverá el mediador, por Centro. Se siembran antes de renderizar.</summary>
+    private readonly Dictionary<Guid, IReadOnlyList<VisitaResumenDto>> _visitas = [];
+
     private IRenderedComponent<Centros> Renderizar(params CentroListaDto[] centros) =>
         RenderizarConGruposContraidos(centros).AbrirGruposDeCentros();
 
     /// <summary>Como la ve el usuario al llegar: agrupada por Cliente empresarial y con los grupos contraídos.</summary>
     private IRenderedComponent<Centros> RenderizarConGruposContraidos(params CentroListaDto[] centros)
     {
-        _mediador = new MediatorPorTipo { Centros = centros };
+        _mediador = new MediatorPorTipo { Centros = centros, Visitas = _visitas };
         Services.AddScoped<IMediator>(_ => _mediador);
         Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
         Services.AddScoped<ToastService>();
@@ -287,15 +292,16 @@ public class CentrosListaGen2Tests : BunitContext
         EstadoCentroUi.Tono(estado, cumplimiento).Should().Be(sinDatos ? TonoBadge.Neutro : EstadoCentroUi.Tono(estado));
     }
     /// <summary>
-    /// D-18: la columna de recuentos mide 40 px (cabecera «VENC.» / «PRÓX.»), así que la cifra va sola, como en el
-    /// mockup, y su texto completo («2 documentos vencidos») sale en el <c>title</c> (tooltip) del badge.
+    /// Los recuentos de vencidos y próximos no tienen columna (retiradas el 2026-10-09): son el motivo bajo la
+    /// pastilla de estado, «2 vencidos · 1 por vencer», y cada parte es el disparador de su ventana de contexto,
+    /// que conserva el nombre accesible con el reparto por ámbito.
     /// </summary>
     [Fact]
-    public void Las_cifras_de_recuento_llevan_su_texto_completo_en_el_title()
+    public void Los_recuentos_son_el_motivo_bajo_la_pastilla_de_estado()
     {
         IncidenciaCentroDto Incidencia(AmbitoCausa ambito) =>
             new("Formación PRL", ambito, EstadoDocumento.Vencido, Guid.NewGuid(), Guid.NewGuid(), null);
-        var centro = Centro("Centro Logístico Norte") with
+        var centro = Centro("Centro Logístico Norte", EstadoCentro.Vencido) with
         {
             Recuentos = new RecuentosCentroDto(
                 [Incidencia(AmbitoCausa.Empresa), Incidencia(AmbitoCausa.Trabajador)],
@@ -304,9 +310,72 @@ public class CentrosListaGen2Tests : BunitContext
 
         var cut = Renderizar(centro);
 
-        var badges = cut.FindAll(".ranura-recuento .badge-solo-recuento");
-        badges.Select(b => b.TextContent.Trim()).Should().Equal("2", "1");
-        badges.Select(b => b.GetAttribute("title")).Should().Equal("2 documentos vencidos", "1 documento próximo a vencer");
+        var estado = cut.Find(".ranura-estado-centro .estado-fila");
+        estado.QuerySelector(".estado-fila-correcto").Should().BeNull("un Centro vencido lleva pastilla de color");
+        estado.TextContent.Should().Contain("Vencido");
+        var motivo = estado.QuerySelector(".estado-fila-motivo")!;
+        motivo.QuerySelectorAll(".motivo-recuento").Select(m => m.TextContent.Trim()).Should().Equal("2 vencidos", "1 por vencer");
+        // Con incidencias corregibles la ventana es interactiva y el nombre accesible va en su botón disparador.
+        motivo.QuerySelectorAll(".ventana-contexto-disparador").Select(v => v.GetAttribute("aria-label")).Should().Equal(
+            "2 vencidos. 2 documentos vencidos: 1 de empresa y 1 de trabajadores",
+            "1 por vencer. 1 documento próximo a vencer: 1 de trabajadores");
+        // El nombre accesible empieza por lo que se ve: quien dicta «2 vencidos» activa ese disparador (WCAG 2.5.3).
+        motivo.QuerySelectorAll(".ventana-contexto-disparador").Should().OnlyContain(
+            d => d.GetAttribute("aria-label")!.StartsWith(d.TextContent.Trim() + ".", StringComparison.Ordinal));
+        cut.FindAll(".badge-solo-recuento").Should().BeEmpty("la cifra suelta de las columnas retiradas ya no se pinta");
+    }
+
+    [Theory]
+    [InlineData(1, 0, "1 vencido")]
+    [InlineData(0, 3, "3 por vencer")]
+    public void El_motivo_solo_nombra_el_recuento_que_hay(int vencidas, int proximas, string esperado)
+    {
+        IReadOnlyList<IncidenciaCentroDto> Incidencias(int n, EstadoDocumento estado) => Enumerable.Range(0, n)
+            .Select(_ => new IncidenciaCentroDto("Formación PRL", AmbitoCausa.Trabajador, estado, Guid.NewGuid(), Guid.NewGuid(), null))
+            .ToList();
+        var centro = Centro("Centro Logístico Norte", vencidas > 0 ? EstadoCentro.Vencido : EstadoCentro.Proximo) with
+        {
+            Recuentos = new RecuentosCentroDto(Incidencias(vencidas, EstadoDocumento.Vencido), Incidencias(proximas, EstadoDocumento.Proximo))
+        };
+
+        var cut = Renderizar(centro);
+
+        var motivo = cut.Find(".ranura-estado-centro .estado-fila-motivo");
+        motivo.QuerySelectorAll(".motivo-recuento").Select(m => m.TextContent.Trim()).Should().Equal(esperado);
+        motivo.QuerySelector(".motivo-recuento-separador").Should().BeNull("con un solo recuento no hay nada que separar");
+    }
+
+    [Fact]
+    public void Un_centro_sin_vencidos_ni_proximos_lleva_su_estado_sin_motivo()
+    {
+        var cut = Renderizar(Centro("Centro Logístico Norte"));
+
+        var estado = cut.Find(".ranura-estado-centro .estado-fila");
+        estado.QuerySelector(".estado-fila-correcto")!.TextContent.Should().Contain("Vigente");
+        estado.QuerySelector(".estado-fila-motivo").Should().BeNull();
+    }
+
+    /// <summary>
+    /// Decisión del 2026-10-09: con visita programada la fila enseña la visita Y la pastilla de estado con su
+    /// motivo. Antes la visita ocupaba el sitio del estado y un Centro vencido con visita no decía que lo estaba.
+    /// </summary>
+    [Fact]
+    public void Con_visita_programada_se_ven_la_visita_y_el_estado_con_su_motivo()
+    {
+        var centro = Centro("Centro Logístico Norte", EstadoCentro.Vencido) with
+        {
+            Recuentos = new RecuentosCentroDto(
+                [new IncidenciaCentroDto("Formación PRL", AmbitoCausa.Trabajador, EstadoDocumento.Vencido, Guid.NewGuid(), Guid.NewGuid(), null)],
+                [])
+        };
+        _visitas[centro.Id] = [new VisitaResumenDto(Guid.NewGuid(), new DateOnly(2026, 10, 15), new DateOnly(2026, 10, 16), 3)];
+
+        var cut = Renderizar(centro);
+
+        cut.Find(".ranura-recuento-final .badge-visita").TextContent.Trim().Should().Be("Visita 15/10–16/10");
+        var estado = cut.Find(".ranura-estado-centro .estado-fila");
+        estado.TextContent.Should().Contain("Vencido");
+        estado.QuerySelector(".estado-fila-motivo .motivo-recuento")!.TextContent.Trim().Should().Be("1 vencido");
     }
 
     /// <summary>

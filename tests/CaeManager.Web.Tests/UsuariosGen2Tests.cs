@@ -2531,7 +2531,7 @@ public partial class UsuariosGen2Tests : BunitContext
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Desactivar");
 
         var dialogo = cut.Find("[role=dialog]");
-        dialogo.TextContent.Should().Contain("la conserva su Coordinador CAE").And.NotContain("no se reparte por Cliente empresarial", "el modo por Cliente empresarial ya no existe (D-7)");
+        dialogo.TextContent.Should().Contain("la conserva su Coordinador CAE").And.NotContain("no se reparte por Cliente", "el modo por Cliente ya no existe (D-7)");
         dialogo.QuerySelectorAll("select").Should().BeEmpty("no hay traspaso de cartera");
 
         await ConfirmarDesactivacionAsync(cut);

@@ -3,7 +3,7 @@
     Gen 2 («Cliente 360 TALVEG.dc.html»). «Cliente empresarial» es quien
     recibe el servicio en una Relación Empresarial: un papel, no un tipo
     permanente de Empresa — la misma Empresa puede ser contratista en otra
-    relación. En pantalla se rotula «Cliente empresarial» (Gen2 § 14 enmendado el 2026-10-02), igual que
+    relación. En pantalla se rotula «Cliente» (decisión de rótulo del 2026-10-09), igual que
     la página Cliente 360 (/clientes/{id}, ClienteDetalle): página y panel no
     pueden nombrar distinto a la misma entidad a la vez. En código y en los
     DTO sigue siendo Cliente empresarial, que es lo que lo distingue del
@@ -105,7 +105,7 @@
 }
 else if (_error || _detalle is null)
 {
-    <EstadoVacio Titulo="No pudimos cargar el Cliente empresarial" Descripcion="Intenta nuevamente en unos segundos.">
+    <EstadoVacio Titulo="No pudimos cargar el Cliente" Descripcion="Intenta nuevamente en unos segundos.">
         <Accion>
             <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">Reintentar</Boton>
         </Accion>
@@ -147,7 +147,7 @@ else
     </div>
 
     @* PestanaActiva con @: el parámetro es string, y sin @ Razor le pasa el literal "PestanaActiva" (ninguna pestaña quedaba marcada como activa). *@
-    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del Cliente empresarial">
+    <Pestanas Definiciones="PestanasConRecuento" PestanaActiva="@PestanaActiva" PestanaActivaChanged="PestanaActivaChanged" EtiquetaGrupo="Secciones del Cliente">
         @switch (PestanaActiva)
         {
             case "informacion":
@@ -160,7 +160,7 @@ else
                     <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialEditada" ValorChanged="v => _razonSocialEditada = v" MensajeError="@ObtenerErrorIdentidad(nameof(EditarClienteCommand.RazonSocial))" />
                     <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cifEditado" ValorChanged="v => _cifEditado = v" MensajeError="@ObtenerErrorIdentidad(nameof(EditarClienteCommand.Cif))" />
                     <label class="campo-checkbox">
-                        <input type="checkbox" @bind="_esCriticoEditado" /> Cliente empresarial crítico
+                        <input type="checkbox" @bind="_esCriticoEditado" /> Cliente crítico
                     </label>
                     <div class="workspace-acciones-edicion">
                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_guardandoIdentidad" OnClick="CancelarEdicionIdentidad">Cancelar</Boton>
@@ -209,7 +209,7 @@ else
                 }
                 else if (_empresas is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin empresas" Descripcion="Este Cliente empresarial todavía no tiene ninguna Empresa contratada con relación viva." />
+                    <EstadoVacio Titulo="Sin empresas" Descripcion="Este Cliente todavía no tiene ninguna Empresa contratada con relación viva." />
                 }
                 else if (_empresas is not null)
                 {
@@ -237,7 +237,7 @@ else
                 }
                 else if (_subcontratas is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin subcontratas" Descripcion="Este Cliente empresarial todavía no tiene ninguna Subcontrata declarada." />
+                    <EstadoVacio Titulo="Sin subcontratas" Descripcion="Este Cliente todavía no tiene ninguna Subcontrata declarada." />
                 }
                 else if (_subcontratas is not null)
                 {
@@ -265,7 +265,7 @@ else
                 }
                 else if (_centros is { Count: 0 })
                 {
-                    <EstadoVacio Titulo="Sin centros" Descripcion="Este Cliente empresarial todavía no tiene ningún Centro." />
+                    <EstadoVacio Titulo="Sin centros" Descripcion="Este Cliente todavía no tiene ningún Centro." />
                 }
                 else if (_centros is not null)
                 {
@@ -306,7 +306,7 @@ else
                     <div class="alerta-formulario" role="alert">@_mensajeErrorNota</div>
                 }
                 <CampoTextarea Etiqueta="Nota interna" Valor="@_notaEditada" ValorChanged="v => _notaEditada = v" Filas="4"
-                               Placeholder="Solo la ve tu equipo. No se envía al Cliente empresarial." />
+                               Placeholder="Solo la ve tu equipo. No se envía al Cliente." />
                 <div class="acciones-cliente-360">
                     <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoNota" OnClick="GuardarNotaAsync">Guardar nota</Boton>
                     <span class="recuentos-cliente-360">Solo visible para tu equipo.</span>

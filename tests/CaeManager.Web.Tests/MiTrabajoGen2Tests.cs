@@ -443,14 +443,14 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Fact]
-    public void El_orden_por_Cliente_empresarial_se_rotula_completo_y_no_Cliente_a_secas()
+    public void El_orden_por_Cliente_empresarial_se_rotula_Cliente_y_no_con_el_rotulo_largo()
     {
         var cut = Renderizar();
 
         var botones = cut.Find("[role=group][aria-label=Ordenar]").QuerySelectorAll("button").Select(b => b.TextContent.Trim());
 
-        botones.Should().Contain("Cliente empresarial", "CONTRATO_TERMINOLOGIA § 3.2; Gen2 § 14 enmendado el 2026-10-02")
-            .And.NotContain("Cliente");
+        botones.Should().Contain("Cliente", "CONTRATO_TERMINOLOGIA § 3.2, decisión de rótulo del 2026-10-09")
+            .And.NotContain("Cliente empresarial");
     }
 
     [Fact]
@@ -463,7 +463,7 @@ public class MiTrabajoGen2Tests : BunitContext
         // Contrato § 14: en pantalla el Tenant propietario es «Empresa» y el
         // Cliente empresarial es «Cliente empresarial»; nunca comparten rótulo.
         var detalle = cut.Find(".mi-trabajo-detalle");
-        detalle.QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Cliente empresarial", "Plataforma CAE");
+        detalle.QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Cliente", "Plataforma CAE");
         detalle.QuerySelectorAll("dd").Select(d => d.TextContent).Should().Equal("Laboratorios Dexter", "Cervezas Duff Ibérica", "Nalanda");
         Formulario(detalle).Tenant.Should().Be(TenantDexter.ToString());
     }
@@ -886,7 +886,7 @@ public class MiTrabajoGen2Tests : BunitContext
         cut.Find("input.mi-trabajo-filtro").GetAttribute("value").Should().Be("Reconocimiento");
         cut.FindAll(".mi-trabajo-chip-activo").Single().TextContent.Should().Contain("Bloqueos");
         cut.FindAll(".mi-trabajo-cartera-fila-activa").Single().TextContent.Should().Contain("Refrielectric");
-        cut.FindAll(".mi-trabajo-pestana-activa").Select(e => e.TextContent.Trim()).Should().BeEquivalentTo("Severidad", "Cliente empresarial");
+        cut.FindAll(".mi-trabajo-pestana-activa").Select(e => e.TextContent.Trim()).Should().BeEquivalentTo("Severidad", "Cliente");
     }
 
     [Fact]
@@ -909,7 +909,7 @@ public class MiTrabajoGen2Tests : BunitContext
         cut.FindAll(".mi-trabajo-cartera-fila").Single(f => f.TextContent.Contains("Laboratorios Dexter")).Click();
         cut.Find("input.mi-trabajo-filtro").Input("Rechazado");
         cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent.Trim() == "Severidad").Click();
-        cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent.Trim() == "Cliente empresarial").Click();
+        cut.FindAll(".mi-trabajo-pestana").Single(b => b.TextContent.Trim() == "Cliente").Click();
 
         var consulta = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(UrlActual).Query);
         consulta["severidad"].ToString().Should().Be("bloqueo");

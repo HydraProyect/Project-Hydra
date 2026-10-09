@@ -176,21 +176,21 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
 
         // Sin await: el cambio queda pendiente de la respuesta del aviso; se afirma antes de esperarla.
         var cambio = ElegirCliente(cut, ClienteBId);
-        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("cambiar de Cliente empresarial tira la edición"));
-        ConsultasDeTarifasDe(ClienteBId).Should().Be(0, "no se cambia de Cliente empresarial mientras pregunta");
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("cambiar de Cliente tira la edición"));
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(0, "no se cambia de Cliente mientras pregunta");
 
         await cut.PulsarEnElAvisoAsync("Seguir editando");
         await cambio.WaitAsync(TimeSpan.FromSeconds(10));
 
         cut.Find("input[aria-label='Precio unitario']").GetAttribute("value").Should().Be("4.25", "«Seguir editando» conserva lo escrito");
-        ConsultasDeTarifasDe(ClienteBId).Should().Be(0, "y no carga las tarifas del otro Cliente empresarial");
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(0, "y no carga las tarifas del otro Cliente");
 
         var segundo = ElegirCliente(cut, ClienteBId);
         cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
         await cut.PulsarEnElAvisoAsync("Salir y descartar");
         await segundo.WaitAsync(TimeSpan.FromSeconds(10));
 
-        ConsultasDeTarifasDe(ClienteBId).Should().Be(1, "descartar cambia de Cliente empresarial");
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(1, "descartar cambia de Cliente");
         cut.FindAll("input[aria-label='Precio unitario']").Should().BeEmpty("la edición se descartó");
     }
 
@@ -202,8 +202,8 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
         await cut.Find("#nueva-precio").ChangeAsync(new ChangeEventArgs { Value = "12.5" });
 
         var cambio = ElegirCliente(cut, ClienteBId);
-        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("cambiar de Cliente empresarial tira el alta"));
-        ConsultasDeTarifasDe(ClienteBId).Should().Be(0, "no se cambia de Cliente empresarial mientras pregunta");
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("cambiar de Cliente tira el alta"));
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(0, "no se cambia de Cliente mientras pregunta");
 
         await cut.PulsarEnElAvisoAsync("Seguir editando");
         await cambio.WaitAsync(TimeSpan.FromSeconds(10));
@@ -216,7 +216,7 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
         await cut.PulsarEnElAvisoAsync("Salir y descartar");
         await segundo.WaitAsync(TimeSpan.FromSeconds(10));
 
-        ConsultasDeTarifasDe(ClienteBId).Should().Be(1, "descartar cambia de Cliente empresarial");
+        ConsultasDeTarifasDe(ClienteBId).Should().Be(1, "descartar cambia de Cliente");
         cut.FindAll("#nueva-precio").Should().BeEmpty("el alta se descartó");
     }
 
@@ -231,7 +231,7 @@ public class FacturacionAvisoCambiosSinGuardarTests : BunitContext
         await Task.WhenAny(cambio, Task.Delay(TimeSpan.FromSeconds(2)));
 
         PreguntaAbierta(cut).Should().BeFalse("el alta está como se abrió");
-        cambio.IsCompleted.Should().BeTrue("sin cambios el cambio de Cliente empresarial no se queda esperando una respuesta");
+        cambio.IsCompleted.Should().BeTrue("sin cambios el cambio de Cliente no se queda esperando una respuesta");
         await cambio;
         ConsultasDeTarifasDe(ClienteBId).Should().Be(1, "el cambio se hace directamente");
     }

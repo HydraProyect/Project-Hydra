@@ -75,7 +75,7 @@
         Barra de filtros en modo pastillas (rediseño de listados, fase 1):
         - El buscador «Filtrar esta pantalla» (tecla f) busca en el nombre y el código del Centro,
           el Cliente empresarial y la Empresa (ObtenerCentrosQuery): la pista dice los cuatro.
-        - Pastillas primarias: «Cliente empresarial» y «Estado». «Empresa» va dentro de «Más filtros».
+        - Pastillas primarias: «Cliente» y «Estado». «Empresa» va dentro de «Más filtros».
           Las tres viajan en la URL (cliente, estado, empresa). «cliente» y «empresa» no son los
           parámetros del alta encadenada, que prefijan el formulario y no filtran.
         - En la misma fila: agrupar por Cliente empresarial (agrupación visual de la página, de serie),
@@ -207,7 +207,8 @@
         }
 
         @* Cabecera de columnas (pieza 4), con las columnas de la maqueta aprobada: Centro | Empresa |
-           Cumplimiento | Venc. | Próx. | Estado / visita. Sin roles de tabla a propósito: esto no es una
+           Cumplimiento | Estado | Visita. Los recuentos de vencidos y próximos no tienen columna: son el
+           motivo bajo la pastilla de estado. Sin roles de tabla a propósito: esto no es una
            tabla —la fila se despliega— y anunciarlo como tal prometería a un lector de pantalla una
            navegación por celdas que no existe. «Cumplimiento» es el único rótulo que ordena (la consulta
            solo ordena por él en esta pantalla): pulsarlo de nuevo invierte el sentido. Los anchos son los
@@ -228,9 +229,8 @@
                 </button>
             </span>
             <span class="cabecera-columnas-centros-indicadores">
-                <span>@Textos["ColVencidos"]</span>
-                <span>@Textos["ColProximos"]</span>
-                <span>@Textos["ColEstadoVisita"]</span>
+                <span>@Textos["ColEstado"]</span>
+                <span>@Textos["ColVisita"]</span>
             </span>
             <span class="cabecera-columnas-centros-acciones"></span>
         </div>
@@ -336,64 +336,70 @@
                                                Etiqueta="@(centro.CumplimientoPorcentaje is { } cumplimiento ? $"{cumplimiento}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro" : null)" />
                         </span>
                         @*
-                            Zona de indicadores de ancho FIJO. Es lo que hace que los
-                            recuentos, el estado y la visita caigan en la misma vertical en
-                            todas las filas, independientemente de lo largo que sea el
-                            nombre del centro (lámina L3, blueprint § 3.2).
-                        *@
-                        @*
-                            Ranuras FIJAS de recuento (blueprint § 3.2, lámina L3,
-                            contrato de fidelidad 2026-08-09 § 1.6, bug C-2):
-                            vencidos · próximos · estado-o-visita caen siempre en
-                            la misma vertical, estén o no presentes en esa fila.
+                            Zona de indicadores de ancho FIJO, con dos ranuras: estado y visita. Es lo
+                            que hace que caigan en la misma vertical en todas las filas, sea cual sea
+                            el largo del nombre del centro (lámina L3, blueprint § 3.2).
 
-                            La 3ª ranura es mutuamente excluyente entre el Badge
-                            de Estado y la visita — antes se mostraban los dos a
-                            la vez y el ancho fijo de la columna no les alcanzaba
-                            (C-2: "Visita 15/08–16/08" caía a una segunda línea
-                            bajo "Bloqueado"). Cuando hay visita, la visita gana
-                            el espacio porque es la información con fecha límite;
-                            si no hay visita, se ve el estado.
+                            Estado: la pastilla se pinta SIEMPRE (lo correcto, con punto verde y texto
+                            gris) y debajo va el motivo, «N vencidos · M por vencer», que es lo que antes
+                            decían las columnas «Venc.» y «Próx.». Cada parte del motivo abre su ventana
+                            de contexto con las incidencias, por ámbito y corregibles sin salir del
+                            listado. Sin vencidos ni próximos no hay motivo.
+
+                            Visita: tiene su propia ranura y se ve A LA VEZ que el estado (decisión
+                            del 2026-10-09). Antes se excluían porque las dos ranuras de recuento no
+                            dejaban sitio para ambos (contrato de fidelidad 2026-08-09 § 1.6, bug C-2).
                         *@
                         <span class="tarjeta-fila-acordeon-indicadores">
-                            <span class="ranura-recuento">
-                                @if (centro.Recuentos.TotalVencidas > 0)
+                            <span class="ranura-recuento ranura-estado-centro">
+                                @if (centro.Recuentos.TotalVencidas > 0 || centro.Recuentos.TotalProximas > 0)
                                 {
-                                    <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Vencidas, "vencido")"
-                                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                     Interactiva="HayCorregibles(centro, centro.Recuentos.Vencidas)"
-                                                     Pie="@PieDeIncidencias(centro, centro.Recuentos.Vencidas)"
-                                                     Titulo="@($"{centro.Recuentos.TotalVencidas} {(centro.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
-                                        <Disparador>
-                                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento"
-                                                   title="@($"{centro.Recuentos.TotalVencidas} {(centro.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
-                                                @centro.Recuentos.TotalVencidas
-                                            </Badge>
-                                        </Disparador>
-                                        <Detalle>
-                                            @DesgloseIncidencias(centro, centro.Recuentos.Vencidas)
-                                        </Detalle>
-                                    </VentanaContexto>
+                                    <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)">
+                                        <MotivoContenido>
+                                            @if (centro.Recuentos.TotalVencidas > 0)
+                                            {
+                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoVencidos(centro.Recuentos.TotalVencidas), centro.Recuentos.Vencidas, "vencido")"
+                                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                                 Interactiva="HayCorregibles(centro, centro.Recuentos.Vencidas)"
+                                                                 Pie="@PieDeIncidencias(centro, centro.Recuentos.Vencidas)"
+                                                                 Titulo="@($"{centro.Recuentos.TotalVencidas} {(centro.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                                    <Disparador>
+                                                        <span class="motivo-recuento motivo-recuento-vencidos">@MotivoVencidos(centro.Recuentos.TotalVencidas)</span>
+                                                    </Disparador>
+                                                    <Detalle>
+                                                        @DesgloseIncidencias(centro, centro.Recuentos.Vencidas)
+                                                    </Detalle>
+                                                </VentanaContexto>
+                                            }
+                                            @if (centro.Recuentos.TotalVencidas > 0 && centro.Recuentos.TotalProximas > 0)
+                                            {
+                                                <span class="motivo-recuento-separador" aria-hidden="true">·</span>
+                                            }
+                                            @if (centro.Recuentos.TotalProximas > 0)
+                                            {
+                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoProximos(centro.Recuentos.TotalProximas), centro.Recuentos.Proximas, "próximo a vencer")"
+                                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                                 Interactiva="HayCorregibles(centro, centro.Recuentos.Proximas)"
+                                                                 Pie="@PieDeIncidencias(centro, centro.Recuentos.Proximas)"
+                                                                 Titulo="@($"{centro.Recuentos.TotalProximas} {(centro.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                                    <Disparador>
+                                                        <span class="motivo-recuento motivo-recuento-proximos">@MotivoProximos(centro.Recuentos.TotalProximas)</span>
+                                                    </Disparador>
+                                                    <Detalle>
+                                                        @DesgloseIncidencias(centro, centro.Recuentos.Proximas)
+                                                    </Detalle>
+                                                </VentanaContexto>
+                                            }
+                                        </MotivoContenido>
+                                    </EstadoFila>
                                 }
-                            </span>
-                            <span class="ranura-recuento">
-                                @if (centro.Recuentos.TotalProximas > 0)
+                                else
                                 {
-                                    <VentanaContexto Etiqueta="@DescribirRecuento(centro.Recuentos.Proximas, "próximo a vencer")"
-                                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                     Interactiva="HayCorregibles(centro, centro.Recuentos.Proximas)"
-                                                     Pie="@PieDeIncidencias(centro, centro.Recuentos.Proximas)"
-                                                     Titulo="@($"{centro.Recuentos.TotalProximas} {(centro.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
-                                        <Disparador>
-                                            <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno" class="badge-solo-recuento"
-                                                   title="@($"{centro.Recuentos.TotalProximas} {(centro.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
-                                                @centro.Recuentos.TotalProximas
-                                            </Badge>
-                                        </Disparador>
-                                        <Detalle>
-                                            @DesgloseIncidencias(centro, centro.Recuentos.Proximas)
-                                        </Detalle>
-                                    </VentanaContexto>
+                                    <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)" />
                                 }
                             </span>
                             <span class="ranura-recuento ranura-recuento-final">
@@ -435,12 +441,6 @@
                                             }
                                         </Detalle>
                                     </VentanaContexto>
-                                }
-                                else if (MostrarEstadoEnIndicadores(centro))
-                                {
-                                    <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
-                                                Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
-                                                Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)" />
                                 }
                             </span>
                         </span>
@@ -505,7 +505,7 @@
         @if (_padresFijadosPorCadena)
         {
             <div class="campo">
-                <label>Cliente empresarial</label>
+                <label>Cliente</label>
                 <span>@_clienteNombreSoloLectura</span>
             </div>
             <div class="campo">
@@ -514,16 +514,16 @@
             </div>
 
             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="DesvincularPadresFijadosAsync">
-                Cambiar Cliente empresarial/empresa
+                Cambiar Cliente/empresa
             </Boton>
         }
         else
         {
-            <SelectorEntidad Etiqueta="Cliente empresarial" Placeholder="Busca o crea un Cliente empresarial…" Valor="@_clienteId"
+            <SelectorEntidad Etiqueta="Cliente" Placeholder="Busca o crea un Cliente…" Valor="@_clienteId"
                               ValorChanged="CambiarClienteCreacionAsync" Opciones="ClientesComoOpciones"
                               PermiteCrear="true" OnCrearSolicitado="AbrirCrearClienteInline" />
 
-            <SelectorEntidad Etiqueta="Empresa" Placeholder="@(string.IsNullOrEmpty(_clienteId) ? "Elige primero un Cliente empresarial…" : "Busca o crea una empresa…")"
+            <SelectorEntidad Etiqueta="Empresa" Placeholder="@(string.IsNullOrEmpty(_clienteId) ? "Elige primero un Cliente…" : "Busca o crea una empresa…")"
                               Valor="@_empresaId" ValorChanged="AlElegirEmpresa" Opciones="EmpresasComoOpciones"
                               Deshabilitado="@(string.IsNullOrEmpty(_clienteId))"
                               PermiteCrear="true" OnCrearSolicitado="AbrirCrearEmpresaInline" />
@@ -570,7 +570,7 @@
 
 <DrawerAsignacionMasiva @ref="_drawerAsignacion" OnGuardado="ManejarAsignacionMasivaGuardadaAsync" />
 
-@* Corregir una incidencia desde la ventana de contexto de «Vencidos» o «Próximos», sin salir del listado. *@
+@* Corregir una incidencia desde la ventana de contexto del motivo («N vencidos», «M por vencer»), sin salir del listado. *@
 <CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
 
 <DialogoConfirmacion

@@ -24,6 +24,13 @@ public class RepartoDeCarteraPorClienteRetiradoTests
     /// <c>AmbitoAsignacion.DeRelacionCliente</c> es la única forma de crear un ámbito por Cliente empresarial.
     /// Su definición es lo único que la nombra en <c>src</c>: ningún productor la llama (la
     /// <c>AsignacionOperacion</c> acotada por Cliente empresarial tampoco tiene productor).
+    ///
+    /// <para>
+    /// De esto depende que las lecturas que nombran a los técnicos de un Proyecto no necesiten cruzar con
+    /// <c>ObtenerTrabajadorIdsVisiblesAsync</c>: bajo una operación acotada un Gestor CAE vería el Proyecto y
+    /// no a todos sus técnicos (<c>TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests</c>). Quien añada el
+    /// productor cruza antes esas lecturas.
+    /// </para>
     /// </summary>
     private const string FabricaDelAmbito = "DeRelacionCliente";
 
@@ -44,7 +51,11 @@ public class RepartoDeCarteraPorClienteRetiradoTests
             "ámbito nombra DeRelacionCliente; ningún productor la llama. Si necesitas dar alcance a un Gestor " +
             "CAE, es la cartera del Tenant entero por un acto explícito (IAsignacionesOperativasWriter." +
             "AsegurarCarteraTenantEnteroAsync, CatalogoIncorporacionCartera), no una cartera por Cliente " +
-            "empresarial. Control positivo incluido: la definición tiene que aparecer, o el escaneo no mira");
+            "empresarial. Si de verdad vas a añadir un productor de ámbitos por Cliente empresarial, antes cruza " +
+            "con ObtenerTrabajadorIdsVisiblesAsync las lecturas que nombran a los técnicos de un Proyecto " +
+            "(ObtenerProyectosQuery y ObtenerTecnicosProyectoQuery): bajo una operación acotada nombrarían a " +
+            "Trabajadores fuera del alcance (TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests). " +
+            "Control positivo incluido: la definición tiene que aparecer, o el escaneo no mira");
     }
 
     /// <summary>

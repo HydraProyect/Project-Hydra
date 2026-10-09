@@ -21,7 +21,7 @@ namespace CaeManager.IntegrationTests.Trabajadores;
 /// <summary>
 /// Opciones de la pastilla «Empresa» de /trabajadores contra Postgres: los empleadores de los Trabajadores que
 /// quien mira ve, separados en Empresas y Subcontratas, sin empleadores dados de baja y, con alcance restringido
-/// (un Usuario de Cliente empresarial ve Trabajadores por Asignación), solo los de esos Trabajadores.
+/// (un Usuario de Cliente ve Trabajadores por Asignación), solo los de esos Trabajadores.
 /// </summary>
 public class EmpleadoresDeTrabajadoresVisiblesTests : IAsyncLifetime
 {
@@ -79,7 +79,7 @@ public class EmpleadoresDeTrabajadoresVisiblesTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Visibilidad restringida a dos Trabajadores (como un Usuario de Cliente empresarial que los ve por Asignación): solo sus
+    /// Visibilidad restringida a dos Trabajadores (como un Usuario de Cliente que los ve por Asignación): solo sus
     /// empleadores, ni Limpiezas Sur (su Trabajador no es visible) ni ninguna Empresa sin Trabajadores visibles.
     /// </summary>
     [Fact]
@@ -102,15 +102,15 @@ public class EmpleadoresDeTrabajadoresVisiblesTests : IAsyncLifetime
         empleadores.Subcontratas.Should().BeEmpty();
     }
 
-    /// <summary>Composición con visibilidad real: el Usuario de Cliente empresarial ve ambos tipos de empleador por asignación.</summary>
+    /// <summary>Composición con visibilidad real: el Usuario de Cliente ve ambos tipos de empleador por asignación.</summary>
     [Fact]
     public async Task Usuario_de_Cliente_empresarial_recibe_solo_empleadores_de_Trabajadores_asignados_a_sus_Centros()
     {
         var usuarioId = Guid.NewGuid();
         await using (var contexto = CrearContexto())
         {
-            var clienteVisible = Empresa.CrearComoCliente("Cliente empresarial visible", "B10380244", false, null, null);
-            var clienteAjeno = Empresa.CrearComoCliente("Cliente empresarial ajeno", "B10380251", false, null, null);
+            var clienteVisible = Empresa.CrearComoCliente("Cliente visible", "B10380244", false, null, null);
+            var clienteAjeno = Empresa.CrearComoCliente("Cliente ajeno", "B10380251", false, null, null);
             var empleadorAjeno = Empresa.CrearComoSubcontrata("Empresa empleadora ajena", null, NivelServicioSubcontrata.Gestionada.ToString());
             contexto.Empresas.AddRange(clienteVisible, clienteAjeno, empleadorAjeno);
             var centroVisible = new Centro(clienteVisible.Id, _empresaNorteId, "Centro visible");
@@ -142,7 +142,7 @@ public class EmpleadoresDeTrabajadoresVisiblesTests : IAsyncLifetime
         var visibles = await alcance.ObtenerTrabajadorIdsVisiblesAsync();
         visibles.Should().BeEquivalentTo([_trabajadorNorteId, _trabajadorSubcontrataId]);
         (await alcance.ObtenerEmpresaIdsParaGestionAsync()).Should().BeEmpty(
-            "el Usuario de Cliente empresarial puede leer sus Trabajadores y no gestionar las Empresas empleadoras");
+            "el Usuario de Cliente puede leer sus Trabajadores y no gestionar las Empresas empleadoras");
         var handler = new ObtenerEmpleadoresDeTrabajadoresVisiblesQueryHandler(lectura, lectura, alcance);
         var empleadores = await handler.Handle(new ObtenerEmpleadoresDeTrabajadoresVisiblesQuery(), CancellationToken.None);
         empleadores.Empresas.Select(e => e.Id).Should().Equal(_empresaNorteId);

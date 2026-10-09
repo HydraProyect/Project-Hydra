@@ -135,7 +135,7 @@
     outline-offset: -2px;
 }
 
-/* Rótulo de la fila desplegada: «Clientes empresariales», sin recuento. */
+/* Rótulo de la fila desplegada: «Clientes», sin recuento. */
 .titulo-clientes-empresa {
     display: block;
     margin-bottom: var(--space-2);

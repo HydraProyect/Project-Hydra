@@ -44,11 +44,11 @@ public class EstablecerToleranciaClienteEmpresarialCommandHandler(
         {
             var visibles = await alcanceDatosService.ObtenerClienteIdsVisiblesAsync(cancellationToken);
             if (visibles is null || !visibles.Contains(request.ClienteEmpresarialId))
-                return Result.Fallo(Error.Crear("ToleranciaCliente.SinAcceso", "No tienes acceso a este Cliente empresarial."));
+                return Result.Fallo(Error.Crear("ToleranciaCliente.SinAcceso", "No tienes acceso a este Cliente."));
         }
         else if (!await empresasContext.Empresas.AnyAsync(c => c.Id == request.ClienteEmpresarialId, cancellationToken))
         {
-            return Result.Fallo(Error.Crear("ToleranciaCliente.ClienteNoEncontrado", "No encontramos este Cliente empresarial."));
+            return Result.Fallo(Error.Crear("ToleranciaCliente.ClienteNoEncontrado", "No encontramos este Cliente."));
         }
 
         if (!await tiposDocumentoContext.TiposDocumento.AnyAsync(t => t.Id == request.TipoDocumentoId, cancellationToken))
