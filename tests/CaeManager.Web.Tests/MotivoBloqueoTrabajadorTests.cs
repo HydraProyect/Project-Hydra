@@ -143,6 +143,30 @@ public class MotivoBloqueoTrabajadorTests : BunitContext
         cut.FindAll("button.motivo-bloqueo-pedir").Should().HaveCount(3);
     }
 
+    /// <summary>
+    /// «Pedir» acaba en EnviarReclamacionCommand, que AutorizacionEscrituraBehavior deniega al rol Consulta: ni el del
+    /// bloqueo ni el de los pendientes que no bloquean se le pintan, pero el motivo y la lista sí se le dicen.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", 0)]
+    [InlineData("GestorCae", 2)]
+    public void Pedir_solo_se_pinta_a_un_rol_con_escritura_en_el_bloqueo_y_en_los_pendientes_que_no_bloquean(string rol, int botones)
+    {
+        this.ConRolDeEscritura(rol);
+        var hoy = DiaDeNegocio.Hoy();
+        var otros = new[]
+        {
+            new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Formación PRL", EstadoDocumento.Proximo, hoy.AddDays(6))
+        };
+
+        var cut = Pintar([Bloqueo(Ana, "Aptitud médica", SituacionDeRequisitoBloqueante.Ausente)], otros, []);
+
+        // Barrera: las dos líneas se leen con cualquier rol.
+        cut.FindAll(".motivo-bloqueo-linea").Should().HaveCount(2);
+        cut.Markup.Should().Contain($"Formación PRL — caduca {hoy.AddDays(6):dd/MM/yyyy}");
+        cut.FindAll("button.motivo-bloqueo-pedir").Should().HaveCount(botones);
+    }
+
     [Fact]
     public void Un_pendiente_que_ni_cabe_en_la_ventana_ni_es_un_sin_confirmar_con_documento_no_ofrece_Pedir()
     {
