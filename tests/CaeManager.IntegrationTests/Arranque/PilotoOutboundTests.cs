@@ -1943,11 +1943,11 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         // 7. La retirada se las lleva con el resto del lote, también la revocada.
         completa[Clave].Should().Be(7, "control positivo: antes de retirar hay siete que borrar");
         (await arnes.RetirarAsync()).Should().HaveCount(7);
-        var trasRetirar = await arnes.RecuentoAsync();
-        trasRetirar[Clave].Should().Be(0, "MEDIDO: la retirada no deja ninguna instrucción del piloto");
-        trasRetirar.Should().BeEquivalentTo(sinPiloto);
+        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(sinPiloto);
+        // El recuento del arnés cuenta por los Tenants del piloto que existen, y ya no existe ninguno: daría cero aunque
+        // las filas siguieran ahí. Lo que mide la retirada es este, sobre la tabla entera de una base recién creada.
         (await arnes.ComoBootstrapAsync(b => b.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters().CountAsync()))
-            .Should().Be(0, "MEDIDO: tampoco queda ninguna huérfana de un Tenant que ya no existe");
+            .Should().Be(0, "MEDIDO: la retirada no deja ninguna instrucción, tampoco huérfana de un Tenant que ya no existe");
     }
 
     private sealed record InstruccionSembrada(string Tenant, bool Vigente, string Dpa, string Anexo, OrigenInstruccionTratamientoIa Origen, Guid RegistradaPor);
