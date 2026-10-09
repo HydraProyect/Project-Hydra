@@ -53,7 +53,10 @@ public record DocumentoListaDto(
     DateOnly? FechaVencimiento,
     EstadoDocumento Estado,
     string? ArchivoUrl,
-    IReadOnlyList<AcreditacionResumenDto> Acreditaciones);
+    IReadOnlyList<AcreditacionResumenDto> Acreditaciones,
+    // Destino del icono 360 de la fila: la página del TIPO de documento (/documentos/tipos/{id}).
+    // Opcional y al final: ningún otro productor cambia; sin él (Guid.Empty) la fila no pinta el icono.
+    Guid TipoDocumentoId = default);
 
 /// <summary>
 /// Une los Documentos de Trabajador/Cliente/Empresa (cada uno vive en la
@@ -89,6 +92,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioId = (Guid?)documento.TrabajadorId,
                 PropietarioNombre = trabajador.Nombre + " " + trabajador.Apellidos,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
+                TipoDocumentoId = tipoDocumento.Id,
                 documento.FechaEmision,
                 documento.EstadoVigencia,
                 documento.FechaVencimiento,
@@ -111,6 +115,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioId = (Guid?)documento.ClienteId,
                 PropietarioNombre = cliente.RazonSocial,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
+                TipoDocumentoId = tipoDocumento.Id,
                 documento.FechaEmision,
                 documento.EstadoVigencia,
                 documento.FechaVencimiento,
@@ -131,6 +136,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioId = (Guid?)documento.EmpresaId,
                 PropietarioNombre = empresa.RazonSocial,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
+                TipoDocumentoId = tipoDocumento.Id,
                 documento.FechaEmision,
                 documento.EstadoVigencia,
                 documento.FechaVencimiento,
@@ -151,6 +157,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioId = (Guid?)documento.VehiculoId,
                 PropietarioNombre = vehiculo.Nombre + " (" + vehiculo.NumeroPlaca + ")",
                 TipoDocumentoNombre = tipoDocumento.Nombre,
+                TipoDocumentoId = tipoDocumento.Id,
                 documento.FechaEmision,
                 documento.EstadoVigencia,
                 documento.FechaVencimiento,
@@ -171,6 +178,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioId = (Guid?)documento.ProyectoId,
                 PropietarioNombre = proyecto.Nombre,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
+                TipoDocumentoId = tipoDocumento.Id,
                 documento.FechaEmision,
                 documento.EstadoVigencia,
                 documento.FechaVencimiento,
@@ -321,6 +329,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 x.Ambito,
                 x.PropietarioNombre,
                 x.TipoDocumentoNombre,
+                x.TipoDocumentoId,
                 x.FechaEmision,
                 x.EstadoVigencia,
                 x.FechaVencimiento,
@@ -338,7 +347,8 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 CalculadoraEstadoDocumento.Calcular(
                     d.EstadoVigencia, d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
                 d.ArchivoUrl,
-                acreditacionesPorDocumento.GetValueOrDefault(d.Id, [])))
+                acreditacionesPorDocumento.GetValueOrDefault(d.Id, []),
+                d.TipoDocumentoId))
             .ToList();
 
         return new ResultadoPaginado<DocumentoListaDto>(elementos, total, request.Pagina, request.TamanoPagina)

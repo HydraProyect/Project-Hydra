@@ -226,10 +226,8 @@ public class DeepLinksTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
 
-        // Documentos abre el panel desde el menú "⋯" de la fila (MenuAcciones),
-        // no de un enlace directo como Trabajadores/Centros.
-        // Con el patrón de lista la cabecera lleva también un menú «Más»: el de la fila es el de la tabla.
-        await Ayudas.PulsarAccionDeMenuAsync(page.Locator("table .menu-acciones-disparador").First, "Ver");
+        // Documentos abre el panel desde el nombre de la fila (la fila ya no lleva menú «⋯»).
+        await page.Locator("table tbody button.nombre-abre-vista-rapida").First.ClickAsync();
 
         await page.Locator(".workspace-titulo-entidad").WaitForAsync();
         var tituloOriginal = (await page.Locator(".workspace-titulo-entidad").TextContentAsync())!.Trim();

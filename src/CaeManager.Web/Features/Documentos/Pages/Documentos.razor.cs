@@ -5,7 +5,6 @@ using CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
-using CaeManager.Application.Documentos.Commands.EliminarDocumento;
 using CaeManager.Application.Documentos.Commands.EliminarDocumentos;
 using CaeManager.Application.Documentos.Commands.RenovarDocumento;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
@@ -307,11 +306,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     {
         _contextoVigente++;
 
-        _confirmarEliminarVisible = false;
-        _idAEliminar = Guid.Empty;
-        _propietarioAEliminar = string.Empty;
-        _tipoDocumentoAEliminar = string.Empty;
-
         _confirmarEliminarLoteVisible = false;
         _seleccionados.Clear();
 
@@ -323,7 +317,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         // anterior: dejarlas encendidas bloquearía para siempre el botón del
         // contexto nuevo. Su contrapartida está en cada finally, que solo
         // apaga la suya si el contexto sigue siendo el que la encendió.
-        _eliminando = false;
         _eliminandoLote = false;
         _guardandoFiltro = false;
     }
@@ -637,12 +630,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// </summary>
     private int? _totalConocido;
 
-    private bool _confirmarEliminarVisible;
-    private Guid _idAEliminar;
-    private string _propietarioAEliminar = string.Empty;
-    private string _tipoDocumentoAEliminar = string.Empty;
-    private bool _eliminando;
-
     private async ValueTask<GridItemsProviderResult<DocumentoListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<DocumentoListaDto> request)
     {
@@ -806,103 +793,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         StateHasChanged();
     }
 
-    private void AbrirEliminar(Guid id, string propietarioNombre, string tipoDocumentoNombre)
-    {
-        _idAEliminar = id;
-        _propietarioAEliminar = propietarioNombre;
-        _tipoDocumentoAEliminar = tipoDocumentoNombre;
-        _confirmarEliminarVisible = true;
-    }
-
-    private async Task ConfirmarEliminarAsync()
-    {
-        // El botón deshabilitado no basta: el segundo clic ya viajaba cuando se
-        // deshabilitó. La guarda va en el método, que es lo que se ejecuta.
-        if (_eliminando || _desechado)
-            return;
-
-        // La pregunta entera se lee antes del primer await: el id que se borra,
-        // el token y el contexto al que pertenece esta operación.
-        var idEliminado = _idAEliminar;
-        var token = _ciclo.Token;
-        var contexto = _contextoVigente;
-
-        if (idEliminado == Guid.Empty)
-            return;
-
-        _eliminando = true;
-
-        try
-        {
-            var resultado = await Mediator.Send(new EliminarDocumentoCommand(idEliminado), token);
-
-            if (resultado.EsFallido)
-            {
-                ToastService.MostrarError(resultado.Error);
-            }
-            else
-            {
-                // El aviso se da siempre: el documento se eliminó de verdad y
-                // quien lo pidió tiene que poder deshacerlo. Lo que no puede
-                // hacerse es tocar la pantalla si ya es otra —cerrar una modal
-                // que abrió otra operación, o recargar una lista que ya no es
-                // esta—: el contexto se comprueba DESPUÉS del await, no solo en
-                // el finally.
-                ToastService.Mostrar("Documento eliminado correctamente.", TonoToast.Exito, "Deshacer", () => DeshacerEliminarAsync(idEliminado));
-                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Documento, [idEliminado]);
-
-                if (ContextoSigueSiendo(contexto))
-                {
-                    _confirmarEliminarVisible = false;
-                    await RecargarAsync();
-                }
-            }
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar("No pudimos eliminar el documento. Intenta nuevamente en unos segundos.", TonoToast.Error);
-        }
-        finally
-        {
-            // Solo apaga la bandera que ella encendió: si entre medias cambió lo
-            // que hay en pantalla, la bandera vigente es de otra operación y
-            // apagarla la reabriría a un segundo envío.
-            if (ContextoSigueSiendo(contexto))
-                _eliminando = false;
-        }
-    }
-
-    /// <summary>
-    /// Fase D ("Deshacer al eliminar") — acción del toast tras eliminar, ver
-    /// RestaurarDocumentoCommand. Con guarda propia: el aviso sigue en pantalla
-    /// mientras se restaura y dos pulsaciones mandarían dos restauraciones.
-    /// </summary>
-    private readonly HashSet<Guid> _restaurando = [];
-
-    private async Task DeshacerEliminarAsync(Guid id)
-    {
-        if (_desechado || !_restaurando.Add(id))
-            return;
-
-        var token = _ciclo.Token;
-
-        try
-        {
-            var resultado = await Mediator.Send(new RestaurarDocumentoCommand(id), token);
-
-            ToastService.Mostrar(
-                resultado.EsExitoso ? "Documento restaurado." : resultado.Error.Mensaje,
-                resultado.EsExitoso ? TonoToast.Exito : TonoToast.Error);
-
-            if (resultado.EsExitoso)
-                await RecargarAsync();
-        }
-        finally
-        {
-            _restaurando.Remove(id);
-        }
-    }
-
     // --- P3-31: selección múltiple ---
 
     private bool TodosSeleccionados =>
@@ -986,7 +876,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             if (dto.Eliminados > 0)
                 WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Documento, dto.IdsEliminados ?? pedidos);
 
-            // Ver el comentario del borrado individual. Aquí además se
+            // El aviso se da siempre (la baja ocurrió y quien la pidió tiene que poder
+            // deshacerla), pero la pantalla solo se toca si sigue siendo la misma: el
+            // contexto se comprueba DESPUÉS del await, no solo en el finally. Aquí además se
             // vaciaba la selección, que al cambiar de contexto ya es la que
             // acaba de hacer quien está mirando ahora.
             if (ContextoSigueSiendo(contexto))
@@ -1010,7 +902,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>
     /// FS-09 (auditoría UX de flujos sin salida, 2026-09-24): «Deshacer» del aviso
     /// de una eliminación en lote. Restaura los que el lote sí eliminó, uno a uno
-    /// con <see cref="RestaurarDocumentoCommand"/>, como el borrado individual.
+    /// con <see cref="RestaurarDocumentoCommand"/>.
     /// </summary>
     private bool _restaurandoLote;
 
@@ -1060,7 +952,9 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _ => null,
         };
         var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;
-        return string.Join(' ', new[] { foco, tinte }.Where(c => c is not null));
+        // «fila-pulsable»: un clic en la fila abre la vista rápida. QuickGrid no deja poner @onclick en
+        // el <tr>: lo atiende el oyente delegado de atajos-lista.js, que pulsa «.nombre-abre-vista-rapida».
+        return string.Join(' ', new[] { "fila-pulsable", foco, tinte }.Where(c => c is not null));
     }
 
     private async Task ManejarAtajoAsync(string tecla)
@@ -1100,16 +994,19 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     // --- Patrón único de lista (Project-Hydra-Negocio/tecnico/CONTRATO-PATRON-PANTALLA-LISTA-2026-09-28.md) ---
 
     /// <summary>
-    /// Propietario de la fila, «Ver» del «⋯» y Enter sobre la fila enfocada: la vista previa (pieza 6). En
+    /// Propietario de la fila, clic en la fila y Enter sobre la fila enfocada: la vista previa (pieza 6). En
     /// Documentos es el panel del Context Workspace, que ya existe; el contrato prohíbe sumarle un drawer.
     /// </summary>
-    private Task AbrirPanelAsync(Guid id)
+    private Task AbrirPanelAsync(Guid id, string pestana = "informacion")
     {
         var documento = _elementosPagina.FirstOrDefault(e => e.Id == id);
         return documento is null
             ? Task.CompletedTask
-            : WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, "informacion");
+            : WorkspaceService.AbrirAsync(EntidadWorkspace.Documento, documento.Id, documento.TipoDocumentoNombre, pestana);
     }
+
+    /// <summary>Pestaña de la vista rápida a la que lleva la ventana de la celda «Plataformas».</summary>
+    private const string PestanaValidacion = "validacion";
 
     private void AbrirGuardarFiltro()
     {
@@ -1221,7 +1118,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var guardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Documentos), token);
             ToastService.Mostrar("Filtro guardado.", TonoToast.Exito);
 
-            // Ver el comentario del borrado individual. El nombre a medio
+            // La pantalla solo se toca si sigue siendo la misma: el contexto se
+            // comprueba DESPUÉS del await, no solo en el finally. El nombre a medio
             // escribir y la modal abierta pueden ser ya de otra operación.
             if (ContextoSigueSiendo(contexto))
             {
