@@ -67,6 +67,7 @@ public class AnthropicDeteccionRelevanciaCaeService(
         var solicitud = new SolicitudAnthropic(
             config.Modelo,
             config.MaxTokensRespuesta,
+            new ConfiguracionSalidaAnthropic(config.Esfuerzo),
             SystemPrompt,
             [new MensajeAnthropic("user", $"Transcripción de la conversación:\n\n{cuerpoConversacion}")]);
 
@@ -91,6 +92,16 @@ public class AnthropicDeteccionRelevanciaCaeService(
             }
 
             var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaAnthropic>(cancellationToken);
+
+            if (ParadaRespuestaAnthropic.EsIncompleta(cuerpo?.StopReason))
+            {
+                logger.LogWarning(
+                    "La API de Anthropic no completó la detección de relevancia CAE (stop_reason {MotivoParada}, {Correlacion}).", cuerpo!.StopReason, CorrelacionRespuestaIa.Describir(respuesta));
+
+                return Result.Fallo<DeteccionRelevanciaCaeDto>(Error.Crear(
+                    "DeteccionRelevanciaCae.RespuestaIncompleta", "No pudimos analizar la conversación automáticamente."));
+            }
+
             var texto = cuerpo?.Content.FirstOrDefault(c => c.Type == "text")?.Text;
 
             if (string.IsNullOrWhiteSpace(texto))
@@ -151,6 +162,7 @@ public class AnthropicDeteccionRelevanciaCaeService(
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
+        [property: JsonPropertyName("output_config")] ConfiguracionSalidaAnthropic OutputConfig,
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<MensajeAnthropic> Messages);
 
@@ -159,7 +171,8 @@ public class AnthropicDeteccionRelevanciaCaeService(
         [property: JsonPropertyName("content")] string Content);
 
     private sealed record RespuestaAnthropic(
-        [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenidoAnthropic> Content);
+        [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenidoAnthropic> Content,
+        [property: JsonPropertyName("stop_reason")] string? StopReason = null);
 
     private sealed record BloqueContenidoAnthropic(
         [property: JsonPropertyName("type")] string Type,

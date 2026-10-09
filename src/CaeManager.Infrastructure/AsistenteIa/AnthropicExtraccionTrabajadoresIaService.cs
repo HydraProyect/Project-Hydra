@@ -62,6 +62,7 @@ public class AnthropicExtraccionTrabajadoresIaService(
         var solicitud = new SolicitudAnthropic(
             config.Modelo,
             config.MaxTokensRespuesta,
+            new ConfiguracionSalidaAnthropic(config.Esfuerzo),
             SystemPrompt,
             [
                 new MensajeAnthropic("user",
@@ -92,6 +93,16 @@ public class AnthropicExtraccionTrabajadoresIaService(
             }
 
             var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaAnthropic>(cancellationToken);
+
+            if (ParadaRespuestaAnthropic.EsIncompleta(cuerpo?.StopReason))
+            {
+                logger.LogWarning(
+                    "La API de Anthropic no completó la extracción de trabajadores (stop_reason {MotivoParada}, {Correlacion}).", cuerpo!.StopReason, CorrelacionRespuestaIa.Describir(respuesta));
+
+                return Result.Fallo<IReadOnlyList<TrabajadorExtraidoDto>>(Error.Crear(
+                    "ExtraccionTrabajadores.RespuestaIncompleta", "No pudimos leer el documento automáticamente."));
+            }
+
             var texto = cuerpo?.Content.FirstOrDefault(c => c.Type == "text")?.Text;
 
             if (string.IsNullOrWhiteSpace(texto))
@@ -155,6 +166,7 @@ public class AnthropicExtraccionTrabajadoresIaService(
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
+        [property: JsonPropertyName("output_config")] ConfiguracionSalidaAnthropic OutputConfig,
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<MensajeAnthropic> Messages);
 
@@ -173,7 +185,8 @@ public class AnthropicExtraccionTrabajadoresIaService(
         [property: JsonPropertyName("data")] string Data);
 
     private sealed record RespuestaAnthropic(
-        [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenidoAnthropic> Content);
+        [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenidoAnthropic> Content,
+        [property: JsonPropertyName("stop_reason")] string? StopReason = null);
 
     private sealed record BloqueContenidoAnthropic(
         [property: JsonPropertyName("type")] string Type,

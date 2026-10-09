@@ -124,6 +124,7 @@ public class AnthropicDocumentAIProvider(
         var solicitud = new SolicitudAnthropic(
             config.Modelo,
             config.MaxTokensRespuesta,
+            new ConfiguracionSalidaAnthropic(config.Esfuerzo),
             SystemPromptOcr,
             [
                 new MensajeAnthropic("user",
@@ -157,6 +158,7 @@ public class AnthropicDocumentAIProvider(
         var solicitud = new SolicitudAnthropic(
             config.Modelo,
             config.MaxTokensRespuesta,
+            new ConfiguracionSalidaAnthropic(config.Esfuerzo),
             SystemPromptEstructurado + PromptDocumental.ReglasDeAislamiento,
             [
                 new MensajeAnthropic("user",
@@ -202,6 +204,16 @@ public class AnthropicDocumentAIProvider(
             }
 
             var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaAnthropic>(cancellationToken);
+
+            if (ParadaRespuestaAnthropic.EsIncompleta(cuerpo?.StopReason))
+            {
+                logger.LogWarning(
+                    "La API de Anthropic no completó la lectura del documento (stop_reason {MotivoParada}, {Correlacion}).", cuerpo!.StopReason, CorrelacionRespuestaIa.Describir(respuesta));
+
+                return Result.Fallo<RespuestaConUso>(Error.Crear(
+                    $"{prefijoError}.RespuestaIncompleta", "No pudimos procesar el documento automáticamente."));
+            }
+
             var texto = cuerpo?.Content.FirstOrDefault(c => c.Type == "text")?.Text;
 
             if (string.IsNullOrWhiteSpace(texto))
@@ -301,6 +313,7 @@ public class AnthropicDocumentAIProvider(
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
+        [property: JsonPropertyName("output_config")] ConfiguracionSalidaAnthropic OutputConfig,
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<MensajeAnthropic> Messages);
 
@@ -323,7 +336,8 @@ public class AnthropicDocumentAIProvider(
         [property: JsonPropertyName("usage")] UsoAnthropic? Usage,
         // El modelo resuelto que atendió la llamada — puede diferir del alias
         // pedido en la solicitud. Ver AuditoriaExtraccionIa.ModeloExacto.
-        [property: JsonPropertyName("model")] string? Model);
+        [property: JsonPropertyName("model")] string? Model,
+        [property: JsonPropertyName("stop_reason")] string? StopReason = null);
 
     private sealed record BloqueContenidoAnthropic(
         [property: JsonPropertyName("type")] string Type,
