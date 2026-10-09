@@ -382,8 +382,13 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         await InvokeAsync(StateHasChanged);
     }
 
+    /// <summary>
+    /// «fila-pulsable»: un clic en cualquier punto de la fila abre la vista rápida. QuickGrid no
+    /// expone el clic de fila, así que lo atiende el módulo de atajos de lista, que pulsa el
+    /// «nombre-abre-vista-rapida» de la fila.
+    /// </summary>
     private string ObtenerClaseFila(GestionListaDto fila) =>
-        fila.Id == (_idEnfocado ?? _vistaRapida?.Id) ? "fila-enfocada" : string.Empty;
+        fila.Id == (_idEnfocado ?? _vistaRapida?.Id) ? "fila-pulsable fila-enfocada" : "fila-pulsable";
 
     private void AbrirVistaRapida(GestionListaDto fila)
     {
