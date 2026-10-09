@@ -35,11 +35,11 @@ public class ObtenerVisitasQueryPorIdTests : IAsyncLifetime
         await contexto.Database.MigrateAsync();
 
         contexto.ParametrosSistema.Add(new ParametroSistema(30, 15, horasAvisoVisita: 48, horasCriticasVisita: 24));
-        var titular = Empresa.CrearComoCliente("Titular Visita Por Id S.L.", "B12345674", false, null, null);
+        var clienteEmpresarial = Empresa.CrearComoCliente("Cliente Visita Por Id S.L.", "B12345674", false, null, null);
         var empresa = new Empresa("Empresa Visita Por Id S.L.", "B87654323");
-        contexto.Empresas.AddRange(titular, empresa);
-        var norte = new Centro(titular.Id, empresa.Id, "Centro Norte Por Id");
-        var sur = new Centro(titular.Id, empresa.Id, "Centro Sur Por Id");
+        contexto.Empresas.AddRange(clienteEmpresarial, empresa);
+        var norte = new Centro(clienteEmpresarial.Id, empresa.Id, "Centro Norte Por Id");
+        var sur = new Centro(clienteEmpresarial.Id, empresa.Id, "Centro Sur Por Id");
         contexto.Centros.AddRange(norte, sur);
 
         var visitaNorte = new Visita(norte.Id, _hoy.AddDays(1), _hoy.AddDays(2), notas: null);

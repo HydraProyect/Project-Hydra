@@ -1372,8 +1372,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             TimeOnly? horaEstimada = TimeOnly.TryParse(_horaEstimadaAcceso, out var hora) ? hora : null;
             var trabajadorIds = _trabajadorIdsSeleccionados.ToList();
             string? mensajeError;
+            // Se captura antes del await: es la Visita que se envía y la fila que se refresca después.
+            var editandoId = _editandoId;
 
-            if (_editandoId is null)
+            if (editandoId is null)
             {
                 if (!Guid.TryParse(_centroId, out var centroId))
                 {
@@ -1386,7 +1388,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarVisitaCommand(_editandoId.Value, fechaInicio, fechaFin, trabajadorIds, notas, _versionEditando, horaEstimada));
+                var resultado = await Mediator.Send(new EditarVisitaCommand(editandoId.Value, fechaInicio, fechaFin, trabajadorIds, notas, _versionEditando, horaEstimada));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 
@@ -1397,11 +1399,11 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             }
 
             ToastService.Mostrar(
-                _editandoId is null ? Textos["ToastCreada"].Value : Textos["ToastActualizada"].Value,
+                editandoId is null ? Textos["ToastCreada"].Value : Textos["ToastActualizada"].Value,
                 TonoToast.Exito);
 
             _drawerVisible = false;
-            if (_editandoId is not { } editada || !await RefrescarFilaAsync(editada))
+            if (editandoId is not { } editada || !await RefrescarFilaAsync(editada))
                 await RecargarAsync();
         }
         catch (ValidationException ex)

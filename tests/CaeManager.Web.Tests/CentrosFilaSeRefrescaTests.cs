@@ -31,7 +31,7 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class CentrosFilaSeRefrescaTests : BunitContext
 {
-    private static readonly Guid Titular = Guid.NewGuid();
+    private static readonly Guid ClienteEmpresarial = Guid.NewGuid();
 
     public CentrosFilaSeRefrescaTests()
     {
@@ -102,9 +102,9 @@ public class CentrosFilaSeRefrescaTests : BunitContext
         public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
-    /// <summary>Todos del mismo titular: un solo grupo, y el orden de las filas es el de la página.</summary>
+    /// <summary>Todos del mismo Cliente empresarial: un solo grupo, y el orden de las filas es el de la página.</summary>
     private static CentroListaDto Centro(string nombre) => new(
-        Guid.NewGuid(), nombre, "C-001", Titular, "Refrielectric S.A.",
+        Guid.NewGuid(), nombre, "C-001", ClienteEmpresarial, "Refrielectric S.A.",
         Guid.NewGuid(), "Montajes Ebro S.L.", EstadoCentro.Vigente,
         CumplimientoPorcentaje: 100, RecuentosCentroDto.Vacio);
 
