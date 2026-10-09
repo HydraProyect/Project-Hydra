@@ -160,9 +160,9 @@
     <value>Se muestran los {0} centros con peor estado de {1}.</value>
     <comment>La lista se corta en MaximoCentros; los indicadores se cuentan sobre lo mostrado.</comment>
   </data>
-  <data name="DetalleEmpresa" xml:space="preserve">
-    <value>Empresa: {0}</value>
-    <comment>Empresa contratista que opera el Centro.</comment>
+  <data name="DetalleEntraComoContratista" xml:space="preserve">
+    <value>Entra como contratista: {0}</value>
+    <comment>Empresa del Tenant que trabaja en el Centro. El Centro es del Cliente (su titular): nunca «Empresa: X», que se lee como si fuera la dueña. Solo se pinta si el usuario ve más de una Empresa contratista.</comment>
   </data>
   <data name="DetalleVencidosUno" xml:space="preserve">
     <value>1 vencido</value>

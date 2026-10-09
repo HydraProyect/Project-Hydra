@@ -209,7 +209,7 @@ public class MaquetacionPaginas360Tests : BunitContext
                 .Add(x => x.Nombre, "Planta Barakaldo")
                 .Add(x => x.Href, "/centros/5")
                 .Add(x => x.NombreIcono, "centros")
-                .Add(x => x.Detalle, (RenderFragment)(b => b.AddContent(0, "Empresa: Montajes Ebro S.L.")))
+                .Add(x => x.Detalle, (RenderFragment)(b => b.AddContent(0, "3 vencidos · 1 próximo")))
                 .Add(x => x.Derecha, (RenderFragment)(b => b.AddMarkupContent(0, "<span id='estado'>Bloqueado</span>")))
                 .Add(x => x.OnAbrir360, () => abiertos++)));
 
@@ -220,7 +220,7 @@ public class MaquetacionPaginas360Tests : BunitContext
         nombre.TextContent.Should().Be("Planta Barakaldo");
         nombre.GetAttribute("href").Should().Be("/centros/5");
         fila.QuerySelector(".fila-relacion-icono svg").Should().NotBeNull();
-        fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresa: Montajes Ebro S.L.");
+        fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("3 vencidos · 1 próximo");
 
         var derecha = fila.QuerySelector(".fila-relacion-derecha")!;
         derecha.QuerySelector("#estado").Should().NotBeNull();

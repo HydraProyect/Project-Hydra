@@ -80,7 +80,7 @@
                             <VentanaContexto Etiqueta="@indicador.Etiqueta" Titulo="@indicador.Titulo">
                                 <Disparador>
                                     <button type="button" class="cliente360-indicador-boton" data-indicador="@indicador.Clave" @onclick="IrACentros">
-                                        <Badge Tono="indicador.Tono" Tamano="indicador.Tamano">@indicador.Texto</Badge>
+                                        <Badge Tono="indicador.Tono">@indicador.Texto</Badge>
                                     </button>
                                 </Disparador>
                                 <Detalle>
@@ -140,13 +140,12 @@
                                     @foreach (var centro in _centros)
                                     {
                                         <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" NombreIcono="centros"
-                                                      OnAbrir360="() => AbrirCentroAsync(centro)">
-                                            <Detalle>@DetalleCentro(centro)</Detalle>
+                                                      OnAbrir360="() => AbrirCentroAsync(centro)" Detalle="FragmentoDetalleCentro(centro)">
                                             <Derecha>
                                                 <span class="cliente360-cumplimiento" title="@Textos["CumplimientoCentro"]">
                                                     @(centro.CumplimientoPorcentaje is { } porcentaje ? $"{porcentaje} %" : Textos["CentroSinRequisitos"])
                                                 </span>
-                                                <Badge Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)" Tamano="TamanoBadge.Pequeno">@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)</Badge>
+                                                <Badge Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)">@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)</Badge>
                                             </Derecha>
                                         </FilaRelacion>
                                     }
