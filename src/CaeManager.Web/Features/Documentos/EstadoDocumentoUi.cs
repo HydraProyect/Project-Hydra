@@ -43,7 +43,7 @@ public static class EstadoDocumentoUi
     };
 
     /// <summary>
-    /// Rótulo de un estado en la interfaz. Vocabulario único (decisión del propietario, 2026-10-08):
+    /// Rótulo de un estado en la interfaz. Vocabulario único (decisión de producto, 2026-10-08):
     /// <see cref="EstadoDocumento.Urgente"/> y <see cref="EstadoDocumento.Proximo"/> se leen los dos «Por vencer», y
     /// <see cref="EstadoDocumento.Faltante"/> se lee «Pendiente». Los estados de código no cambian: el filtro, el
     /// orden y el tinte de fila siguen distinguiendo lo urgente de lo próximo.

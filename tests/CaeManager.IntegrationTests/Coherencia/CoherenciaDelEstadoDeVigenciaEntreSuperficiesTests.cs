@@ -3,6 +3,7 @@ using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Calendario.Queries;
 using CaeManager.Application.Centros;
+using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Documentos;
@@ -537,6 +538,37 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
                 CancellationToken.None);
             return (r.TotalElementos, r.RecuentosPorEstado);
         });
+
+        // Lista de Centros: el escenario tiene un solo Centro, así que la franja lo cuenta en su estado y en
+        // ningún otro; marcar su estado junto a otro lo trae, y marcar dos que no son el suyo no trae nada.
+        var centros = new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro);
+        async Task<ResultadoPaginado<CentroListaDto>> ListarCentrosAsync(params EstadoCentro[] estados) =>
+            await centros.Handle(
+                new ObtenerCentrosQuery(null, null, Estados: estados.Length == 0 ? null : estados, ConRecuentosPorEstado: true),
+                CancellationToken.None);
+
+        var sinFiltro = await ListarCentrosAsync();
+        var estadoDelCentro = sinFiltro.Elementos.Single(x => x.Id == _centroId).Estado;
+        var otros = Enum.GetValues<EstadoCentro>().Where(e => e != estadoDelCentro).Take(2).ToArray();
+        if (sinFiltro.RecuentosPorEstado is not { } recuentosDeCentros)
+            fallos.Add("Lista de Centros: no devuelve recuentos aunque se piden");
+        else
+        {
+            if (recuentosDeCentros.Values.Sum() != sinFiltro.TotalElementos)
+                fallos.Add($"Lista de Centros: los recuentos suman {recuentosDeCentros.Values.Sum()} y la lista tiene {sinFiltro.TotalElementos}");
+            if (recuentosDeCentros.GetValueOrDefault(estadoDelCentro.ToString()) != sinFiltro.Elementos.Count(x => x.Estado == estadoDelCentro))
+                fallos.Add($"Lista de Centros · {estadoDelCentro}: el botón dice {recuentosDeCentros.GetValueOrDefault(estadoDelCentro.ToString())}");
+
+            var conSuEstado = await ListarCentrosAsync(otros[0], estadoDelCentro);
+            if (conSuEstado.Elementos.All(x => x.Id != _centroId))
+                fallos.Add($"Lista de Centros · {otros[0]},{estadoDelCentro}: no trae al Centro, que está en {estadoDelCentro}");
+            if (!(conSuEstado.RecuentosPorEstado ?? new Dictionary<string, int>()).OrderBy(par => par.Key).SequenceEqual(recuentosDeCentros.OrderBy(par => par.Key)))
+                fallos.Add("Lista de Centros: los recuentos cambian al marcar estados");
+
+            var sinSuEstado = await ListarCentrosAsync(otros);
+            if (sinSuEstado.Elementos.Any(x => x.Id == _centroId))
+                fallos.Add($"Lista de Centros · {string.Join(",", otros)}: trae al Centro, que está en {estadoDelCentro}");
+        }
 
         fallos.Should().BeEmpty();
 
