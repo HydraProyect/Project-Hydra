@@ -9,7 +9,7 @@
 .cliente360-meta {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: calc(var(--space-3) / 2);
     flex-wrap: wrap;
 }
 
@@ -39,7 +39,7 @@
 
 .cliente360-indicador-boton:focus-visible {
     outline: var(--border-focus);
-    outline-offset: 2px;
+    outline-offset: calc(var(--space-1) / 2);
 }
 
 /* «3 centros de este cliente, del peor estado al mejor.» sobre la lista
@@ -58,7 +58,7 @@
 /* .fila-rel-pct del mockup: label, ancho mínimo y a la derecha, para que
    los porcentajes de la lista queden en columna. */
 .cliente360-cumplimiento {
-    min-width: 42px;
+    min-width: calc(var(--space-10) + var(--space-1) / 2);
     text-align: right;
     font: var(--font-label);
     font-variant-numeric: tabular-nums;
