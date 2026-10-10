@@ -41,6 +41,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 {
     internal const string PestanaTecnicos = "tecnicos";
     internal const string PestanaDocumentos = "documentos";
+    internal const string PestanaFicha = "ficha";
 
     [Parameter] public Guid ProyectoId { get; set; }
 
@@ -81,7 +82,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
 
     private static DateOnly Hoy => DiaDeNegocio.Hoy();
 
-    private string PestanaActiva => Pestana == PestanaDocumentos ? PestanaDocumentos : PestanaTecnicos;
+    private string PestanaActiva => Pestana is PestanaDocumentos or PestanaFicha ? Pestana : PestanaTecnicos;
 
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         [new BreadcrumbElemento(Textos["MigaProyectos"]), new BreadcrumbElemento(_detalle?.Nombre ?? "…")];
@@ -95,7 +96,9 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         new(PestanaDocumentos, Textos["PestanaDocumentos"])
         {
             Contador = _detalle is null ? null : new ContadorPestana(_detalle.DocumentosGestionados, Textos["GlosaDocumentosGestionados"])
-        }
+        },
+        // «Ficha» va la última mientras no haya «Historial»; cuando exista, justo antes.
+        new(PestanaFicha, Comunes["PestanaFicha"])
     ];
 
     /// <summary>

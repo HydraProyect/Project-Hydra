@@ -87,33 +87,6 @@
   <data name="AccionEditarTipo" xml:space="preserve">
     <value>Editar tipo de documento</value>
   </data>
-  <data name="BandaVencidosUno" xml:space="preserve">
-    <value>{0} vencido:</value>
-  </data>
-  <data name="BandaVencidosVarios" xml:space="preserve">
-    <value>{0} vencidos:</value>
-  </data>
-  <data name="BandaPendientesUno" xml:space="preserve">
-    <value>{0} pendiente:</value>
-  </data>
-  <data name="BandaPendientesVarios" xml:space="preserve">
-    <value>{0} pendientes:</value>
-  </data>
-  <data name="BandaToleranciaUno" xml:space="preserve">
-    <value>{0} en tolerancia:</value>
-  </data>
-  <data name="BandaToleranciaVarios" xml:space="preserve">
-    <value>{0} en tolerancia:</value>
-  </data>
-  <data name="BandaYMas" xml:space="preserve">
-    <value>y {0} más</value>
-  </data>
-  <data name="BandaEnlacePeligro" xml:space="preserve">
-    <value>Ver vencidos y pendientes</value>
-  </data>
-  <data name="BandaEnlaceTolerancia" xml:space="preserve">
-    <value>Ver en tolerancia</value>
-  </data>
   <data name="EtiquetaGrupoPestanas" xml:space="preserve">
     <value>Secciones del tipo de documento</value>
   </data>
@@ -154,7 +127,13 @@
     <value>Mostrando {0} de {1} · del peor estado al mejor</value>
   </data>
   <data name="FiltroSinResultados" xml:space="preserve">
-    <value>Ninguno en los estados marcados.</value>
+    <value>Ninguno con ese filtro.</value>
+  </data>
+  <data name="BuscadorTrabajadores" xml:space="preserve">
+    <value>Buscar trabajador en este tipo de documento…</value>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Quitar filtros</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
     <value>Ningún Centro exige este documento a ningún trabajador</value>

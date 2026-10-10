@@ -5,6 +5,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
@@ -48,7 +49,8 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IDocumentosQueryContext documentosContext,
     IConfiguracionQueryContext configuracionContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    ISituacionDocumentosEnCentrosService situacionDocumentos)
     : IRequestHandler<ObtenerDocumentacionPorCentroDeTrabajadorQuery, IReadOnlyList<CentroDocumentacionTrabajadorDto>>
 {
     public async Task<IReadOnlyList<CentroDocumentacionTrabajadorDto>> Handle(
@@ -114,6 +116,16 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
         var documentosPorTipo = DocumentoEfectivo.UnoPorClave(
             documentosDelTrabajador, d => d.TipoDocumentoId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
 
+        // Segunda línea de cada documento: cada grupo fija un Centro, así que el estado en la plataforma es el de los
+        // canales de ESE Centro (el mismo documento puede estar aceptado en uno y sin subir en otro). Una carga para
+        // todos los Centros del Trabajador.
+        var situacion = await situacionDocumentos.CargarAsync(
+            centroIds,
+            documentosPorTipo.Values.Select(d => d.Id).ToList(),
+            [request.TrabajadorId],
+            tipoIdsCandidatos,
+            cancellationToken);
+
         var resultado = new List<CentroDocumentacionTrabajadorDto>();
 
         foreach (var asignacion in asignaciones)
@@ -130,7 +142,9 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
             {
                 if (!documentosPorTipo.TryGetValue(tipo.Id, out var documento))
                 {
-                    items.Add(new DocumentoRequeridoDto(null, tipo.Id, tipo.Nombre, EstadoDocumento.Faltante, null));
+                    items.Add(new DocumentoRequeridoDto(
+                        null, tipo.Id, tipo.Nombre, EstadoDocumento.Faltante, null,
+                        UltimaReclamacion: situacion.UltimaReclamacionDeAusente(request.TrabajadorId, tipo.Id)));
                     estadosDeLosPares.Add(EstadoDocumento.Faltante);
                     continue;
                 }
@@ -150,7 +164,9 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
                     estado, documento.EstadoVigencia, documento.FechaVencimiento, documento.FechaEmision, condiciones, hoy);
 
                 items.Add(new DocumentoRequeridoDto(
-                    documento.Id, tipo.Id, tipo.Nombre, estadoEnCentro, documento.FechaVencimiento, EnToleranciaHasta: enToleranciaHasta));
+                    documento.Id, tipo.Id, tipo.Nombre, estadoEnCentro, documento.FechaVencimiento, EnToleranciaHasta: enToleranciaHasta,
+                    AcreditacionesEnElCentro: situacion.AcreditacionesEn(asignacion.CentroId, documento.Id),
+                    UltimaReclamacion: situacion.UltimaReclamacionDe(documento.Id)));
             }
 
             var ordenados = items.OrderBy(i => SeveridadEstadoDocumento.Rango(i.Estado)).ThenBy(i => i.TipoDocumentoNombre).ToList();

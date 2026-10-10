@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.Centros.Commands.EditarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
@@ -31,7 +32,7 @@ namespace CaeManager.Web.Tests;
 /// entra en edición por ninguno de los dos caminos. La cabecera lleva además el icono 360 a la
 /// página completa del Centro.
 /// </summary>
-public class CentroWorkspacePanelLapizTests : BunitContext
+public partial class CentroWorkspacePanelLapizTests : BunitContext
 {
     private const string Lapiz = "button[aria-label='Editar información del centro']";
     private static readonly Guid Id = Guid.NewGuid();
@@ -109,6 +110,7 @@ public class CentroWorkspacePanelLapizTests : BunitContext
             ObtenerCentroPorIdQuery when _cargasQueFallan-- > 0 => throw new InvalidOperationException("Fallo simulado de la carga."),
             ObtenerCentroPorIdQuery q when _otrosCentros.TryGetValue(q.Id, out var otro) => detalle with { Id = q.Id, Nombre = otro },
             ObtenerCentroPorIdQuery => detalle,
+            EditarCentroCommand when _edicion is not null => _edicion,
             ObtenerUltimaReclamacionClienteQuery => null,
             ObtenerLoteReclamacionQuery => Array.Empty<LoteReclamacionClienteDto>(),
             ObtenerEstadoCentroQuery => new EstadoCentroDto(EstadoCentro.Vigente, [], 100),

@@ -34,8 +34,7 @@ public partial class VisitasGen2Tests
         var cut = Renderizar(mediator);
         if (cancelada)
         {
-            await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
-                .ChangeAsync(new ChangeEventArgs { Value = false });
+            await FiltrosVisitasDePrueba.ElegirAsync(cut, "Solo activas", "No");
         }
 
         cut.WaitForAssertion(() => Fila(cut, "Centro Norte"));
@@ -232,8 +231,9 @@ public partial class VisitasGen2Tests
         mediator.Visitas.Add(Visita("Centro Norte"));
         var cut = Renderizar(mediator);
 
-        // Tres: quitar un Trabajador, reactivar y cancelar en lote.
-        cut.FindComponents<DialogoConfirmacion>().Should().HaveCount(3);
+        // Cuatro: quitar un Trabajador, reactivar, cancelar en lote y borrar un filtro guardado (la pieza
+        // FiltrosGuardadosDeListado monta el suyo).
+        cut.FindComponents<DialogoConfirmacion>().Should().HaveCount(4);
     }
 
     // Mismo formato que Visitas.TextoFechas, que es privado en la página.

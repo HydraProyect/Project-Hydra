@@ -25,12 +25,15 @@ namespace CaeManager.Web.Features.Documentos;
 /// </para>
 ///
 /// <para>
-/// <b>Nunca «validado» aquí.</b> Ese término queda reservado al eje de
-/// confianza técnica del archivo (firma íntegra, emisor reconocible — ver
-/// <c>DecisionValidacionOficial</c> y <c>NivelConfianzaDocumental</c>). La
-/// aceptación por un tercero se dice «aceptada», y solo así: son dos
-/// preguntas distintas sobre el mismo documento y compartir palabra las
-/// funde.
+/// <b>«Validada» es de este eje, y solo de este</b> (decisión del propietario,
+/// 2026-10-10, que invierte la del 2026-08-29): es el término del sector para
+/// decir que la plataforma del Cliente dio por buena la acreditación. El valor
+/// del enum sigue llamándose <c>Aceptada</c>; solo cambia el rótulo de
+/// pantalla. El eje de confianza técnica del archivo (firma íntegra, emisor
+/// reconocible — ver <c>DecisionValidacionOficial</c> y
+/// <c>NivelConfianzaDocumental</c>) se dice «verificado», nunca «validado»:
+/// son dos preguntas distintas sobre el mismo documento y compartir palabra
+/// las funde.
 /// </para>
 /// </summary>
 public static class EstadoAcreditacionUi
@@ -39,7 +42,7 @@ public static class EstadoAcreditacionUi
     {
         EstadoAcreditacion.PendienteDeSubir => "pendiente de envío",
         EstadoAcreditacion.Subida => "enviada",
-        EstadoAcreditacion.Aceptada => "aceptada",
+        EstadoAcreditacion.Aceptada => "validada",
         EstadoAcreditacion.Rechazada => "rechazada",
         EstadoAcreditacion.NoRequerida => "no exigida",
         _ => "—"
@@ -47,7 +50,7 @@ public static class EstadoAcreditacionUi
 
     /// <summary>
     /// La misma etiqueta con la inicial en mayúscula, para cuando encabeza un
-    /// badge en vez de ir dentro de una frase («Nalanda: aceptada»). Se deriva
+    /// badge en vez de ir dentro de una frase («Nalanda: validada»). Se deriva
     /// del texto único en vez de mantener una segunda tabla: así no puede
     /// divergir de <see cref="Texto"/>, que es justo el fallo que este helper
     /// existe para cerrar.

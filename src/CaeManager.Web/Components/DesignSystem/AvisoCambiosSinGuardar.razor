@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Components.Routing
 @using CaeManager.Web.Components.Workspace
 @inject NavigationManager Navegacion
+@inject IJSRuntime JS
 @implements IDisposable
 @using System.Runtime.CompilerServices
 
@@ -16,6 +17,15 @@
       repite la navegación ya sin volver a preguntar;
     - recargar o cerrar la pestaña con cambios dispara el aviso del propio navegador
       (ConfirmExternalNavigation), que no admite texto propio;
+    - el clic en un enlace interno y «atrás»/«adelante» del navegador NO llegan al NavigationLock: el Router no es
+      interactivo y esas dos navegaciones las atiende la navegación mejorada en el cliente, sin avisar antes al circuito
+      (medido en navegador; solo el NavigateTo del servidor consulta al NavigationLock). Las trae hasta aquí
+      wwwroot/js/aviso-salida-navegador.js, que pregunta a SalidaDelNavegador antes de dejar que ocurran: el aviso que
+      las detiene es el mismo y pregunta lo mismo. Detenido un recorrido del historial, la barra de direcciones vuelve a
+      la URL de la vista que sigue en pantalla, y «Salir y descartar» lo repite (AvisoSalidaDelNavegadorE2ETests);
+    - la página que escribe sus propios filtros en la URL (ActualizarFiltrosEnUrl) no sale de ningún sitio: el formulario
+      sigue montado con lo escrito, así que no se pregunta. Preguntar ahí dejaba, tras «Seguir editando», la lista ya
+      filtrada con la URL de antes, porque NavigateTo no le dice a la página que la navegación se detuvo;
     HayCambios es una función y se consulta en el momento de navegar, no el valor del
     último render: así la navegación que el propio formulario lanza justo después de
     cerrarse (limpiar ?accion= de la URL, «Continuar con…» tras guardar) ya ve el
@@ -93,6 +103,15 @@
     private bool _preguntando;
     private string? _destinoPendiente;
     private bool _salidaConfirmada;
+
+    /// <summary>
+    /// La pregunta abierta es por un «atrás»/«adelante» del navegador: descartar no navega con NavigateTo (añadiría una
+    /// entrada al historial en vez de recorrerlo), le pide al navegador que repita el recorrido.
+    /// </summary>
+    private Func<Task>? _reanudarRecorrido;
+
+    /// <summary>Avisos que ya descartaron en este mismo recorrido: no se les vuelve a preguntar al repetirlo.</summary>
+    private HashSet<AvisoCambiosSinGuardar> _yaDescartaronEnElRecorrido = [];
     private TaskCompletionSource<bool>? _abandonoPendiente;
 
     /// <summary>
@@ -113,6 +132,9 @@
         Ambito?.Registrar(this);
         AmbitoFicha?.Registrar(this);
     }
+
+    protected override Task OnAfterRenderAsync(bool firstRender) =>
+        firstRender ? SalidaDelNavegador.ConectarAsync(Navegacion, JS) : Task.CompletedTask;
 
     public void Dispose()
     {
@@ -148,6 +170,7 @@
         _abandonoPendiente?.TrySetResult(false);
         _abandonoPendiente = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         _destinoPendiente = null;
+        _reanudarRecorrido = null;
         _preguntando = true;
         StateHasChanged();
         return _abandonoPendiente.Task;
@@ -166,16 +189,61 @@
         if (!DebeDetener(contexto))
             return Task.CompletedTask;
 
+        contexto.PreventNavigation();
+        Preguntar(contexto, reanudarRecorrido: null, yaDescartaron: []);
+        return Task.CompletedTask;
+    }
+
+    private void Preguntar(
+        LocationChangingContext contexto, Func<Task>? reanudarRecorrido, HashSet<AvisoCambiosSinGuardar> yaDescartaron)
+    {
         // Los otros avisos montados con cambios que también la habrían detenido (el NavigationManager ya no los invoca: este la
         // detiene primero): se adhieren a esta pregunta en vez de volver a preguntar en la segunda vuelta.
         _adheridos.Clear();
-        _adheridos.AddRange(OtrosQueTambienLaDetendrian(contexto));
+        _adheridos.AddRange(OtrosQueTambienLaDetendrian(contexto).Where(a => !yaDescartaron.Contains(a)));
 
-        contexto.PreventNavigation();
         _destinoPendiente = contexto.TargetLocation;
+        _reanudarRecorrido = reanudarRecorrido;
+        _yaDescartaronEnElRecorrido = yaDescartaron;
         _preguntando = true;
         StateHasChanged();
-        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// El navegador va a atender un clic en un enlace interno o un «atrás»/«adelante», que no pasan por el NavigationLock
+    /// (ver la cabecera). Si algún aviso del circuito la detendría, pregunta él y se devuelve <c>true</c>: el navegador
+    /// no navega. Con una pregunta ya abierta tampoco navega: sigue pendiente la primera.
+    ///
+    /// <para>
+    /// <paramref name="reanudarRecorrido"/> solo viene en un recorrido del historial: es lo que «Salir y descartar» hace en
+    /// vez de NavigateTo. Antes de repetirlo se vuelve a mirar si queda otro aviso que lo detendría (el de otra superficie,
+    /// que no se adhirió a la pregunta); <paramref name="yaDescartaron"/> evita preguntar dos veces al mismo.
+    /// </para>
+    /// </summary>
+    internal static bool DetenerSalidaDelNavegador(
+        NavigationManager navegacion, string destino, Func<Task>? reanudarRecorrido, HashSet<AvisoCambiosSinGuardar> yaDescartaron)
+    {
+        if (!Montados.TryGetValue(navegacion, out var montados))
+            return false;
+
+        List<AvisoCambiosSinGuardar> avisos;
+        lock (montados)
+            avisos = [.. montados];
+
+        if (avisos.Any(a => a._preguntando))
+            return true;
+
+        var contexto = new LocationChangingContext
+        {
+            TargetLocation = navegacion.ToAbsoluteUri(destino).AbsoluteUri,
+            IsNavigationIntercepted = true
+        };
+        var primero = avisos.FirstOrDefault(a => !yaDescartaron.Contains(a) && a.DebeDetener(contexto));
+        if (primero is null)
+            return false;
+
+        primero.Preguntar(contexto, reanudarRecorrido, yaDescartaron);
+        return true;
     }
 
     /// <summary>
@@ -183,6 +251,10 @@
     /// </summary>
     private bool DebeDetener(LocationChangingContext contexto)
     {
+        // La página escribe sus propios filtros en la URL: sigue montada, con sus formularios y lo escrito en ellos.
+        if (contexto.HistoryEntryState == CaeManager.Web.Components.NavigationManagerExtensions.EstadoEscrituraDeFiltros)
+            return false;
+
         // Cambiar de ficha en el Context Workspace ya confirmado (o sin nada que perder) escribe
         // ?ctx= con la ficha nueva mientras esta todavía está montada: no es otra salida.
         if (AmbitoFicha?.EnAbandonoAutorizado == true)
@@ -195,6 +267,15 @@
         // atrás/adelante hacia otra pestaña sigue preguntando.
         if ((Ambito is null || Ambito.EnAbandonoAutorizado)
             && ContextWorkspace.EsSoloCambioDePestana(
+                Navegacion.ToAbsoluteUri(Navegacion.Uri), Navegacion.ToAbsoluteUri(contexto.TargetLocation)))
+            return false;
+
+        // Un formulario de la ficha del Context Workspace no se desmonta porque la PÁGINA
+        // de debajo escriba su pestaña o un filtro en la URL (misma página, mismo ?ctx=):
+        // no es una salida. Sin esto, cambiar de pestaña en una ficha 360 con el panel a
+        // medio editar preguntaba sin motivo y «Seguir editando» dejaba la URL desincronizada.
+        if (AmbitoFicha is not null
+            && ContextWorkspace.ConservaLaFichaAbierta(
                 Navegacion.ToAbsoluteUri(Navegacion.Uri), Navegacion.ToAbsoluteUri(contexto.TargetLocation)))
             return false;
 
@@ -228,6 +309,7 @@
     {
         _preguntando = false;
         _destinoPendiente = null;
+        _reanudarRecorrido = null;
         _adheridos.Clear();
         _abandonoPendiente?.TrySetResult(false);
         _abandonoPendiente = null;
@@ -250,7 +332,24 @@
         _destinoPendiente = null;
         var adheridos = _adheridos.ToList();
         _adheridos.Clear();
+        var reanudarRecorrido = _reanudarRecorrido;
+        _reanudarRecorrido = null;
         await AlDescartar.InvokeAsync();
+
+        if (reanudarRecorrido is not null)
+        {
+            // Repetir el recorrido no pasa por el NavigationLock: nadie consumiría una salida confirmada, y dejarla
+            // puesta haría pasar sin preguntar la siguiente navegación del servidor.
+            foreach (var adherido in adheridos)
+                await adherido.DescartarSinPreguntarAsync();
+            var yaDescartaron = _yaDescartaronEnElRecorrido;
+            yaDescartaron.Add(this);
+            yaDescartaron.UnionWith(adheridos);
+            if (!DetenerSalidaDelNavegador(Navegacion, destino, reanudarRecorrido, yaDescartaron))
+                await reanudarRecorrido();
+            return;
+        }
+
         foreach (var adherido in adheridos)
             await adherido.DescartarAdheridoAsync();
         _salidaConfirmada = true;

@@ -105,10 +105,10 @@
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
         <PanelDocumentacionBase TrabajadorId="TrabajadorId" />
-        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="v => _pestanaActiva = v" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador360"]">
+        <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador360"]">
             @switch (_pestanaActiva)
             {
-                case "operacion":
+                case PestanaOperacion:
                     @*
                         Franja «Por vencer» (decisión del propietario 2026-09-24,
                         Q3 = (a)): los documentos del trabajador en Próximo o
@@ -224,6 +224,12 @@
                                                                     </Authorized>
                                                                     <NotAuthorized>@documento.TipoDocumentoNombre</NotAuthorized>
                                                                 </AuthorizeView>
+                                                                @* Cada grupo fija un Centro: el estado es el de las plataformas de ESE Centro. Fuera de un
+                                                                   Centro (pestaña «Documentación») no se resume: está sin decidir. *@
+                                                                <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion
+                                                                    Acreditaciones="documento.AcreditacionesEnElCentro"
+                                                                    UltimaReclamacion="documento.UltimaReclamacion"
+                                                                    Estado="documento.Estado" />
                                                             </span>
                                                             <span role="cell">
                                                                 <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
@@ -333,7 +339,7 @@
                     }
                     break;
 
-                case "documentacion":
+                case PestanaDocumentacion:
                     @*
                         Documentación del trabajador a día de hoy (decisión del
                         propietario 2026-09-24, Q1–Q4 = (a)). Dos bloques:
@@ -429,7 +435,7 @@
                     }
                     break;
 
-                case "historial":
+                case PestanaHistorial:
                     <PestanaHistorial EntidadTipo="Trabajador" EntidadId="TrabajadorId" />
                     break;
             }

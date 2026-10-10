@@ -42,7 +42,7 @@ public sealed class PlataformaTabBucleCorreccionTests : BunitContext
         var cut = Render<PlataformaTab>(p => p.Add(x => x.OnSubirVersionCorregida, (Guid _) => { }));
 
         var fila = Fila(cut, RechazadaId);
-        Botones(fila).Should().Equal("Subir versión corregida", "Marcar aceptado", "Marcar rechazado…");
+        Botones(fila).Should().Equal("Subir versión corregida", "Marcar validado", "Marcar rechazado…");
         Botones(fila).Should().NotContain("Marcar subido", "sin versión nueva, MarcarAcreditacionSubidaCommand la rechaza");
 
         var portal = fila.QuerySelector("a")!;

@@ -65,33 +65,9 @@
             </Acciones>
         </CabeceraIdentidad>
 
-        @if (BandaDeCabecera(estado) is { } banda)
-        {
-            <BandaAccion Tono="banda.Tono" TextoEnlace="@banda.TextoEnlace" OnEnlace="() => VerDesdeLaBandaAsync(banda.Grupos)">
-                @foreach (var (parte, posicion) in banda.Partes.Select((parte, posicion) => (parte, posicion)))
-                {
-                    <span class="tipo360-banda-parte">
-                        @if (posicion > 0)
-                        {
-                            <span aria-hidden="true">·</span>
-                        }
-                        <span>@parte.Recuento</span>
-                        @foreach (var incidencia in parte.Nombradas)
-                        {
-                            <IncidenciaBanda Texto="@incidencia.Nombre" OnClick="() => CorregirAsync(incidencia)" />
-                        }
-                        @if (parte.Resto > 0)
-                        {
-                            <span>@Textos["BandaYMas", parte.Resto]</span>
-                        }
-                    </span>
-                }
-            </BandaAccion>
-        }
-
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
-                <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaTrabajadores" PestanaActivaChanged="_ => { }" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]">
+                <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaActiva" PestanaActivaChanged="_ => { }" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]">
                     @if (estado.Trabajadores == 0)
                     {
                         <Tarjeta>
@@ -106,6 +82,11 @@
                     }
                     else
                     {
+                        <div class="tipo360-buscador">
+                            <CampoTexto Type="search" Placeholder="@Textos["BuscadorTrabajadores"]" aria-label="@Textos["BuscadorTrabajadores"]"
+                                        Valor="@_busqueda" ValorChanged="BuscarAsync" />
+                        </div>
+
                         <FiltroEstadosMultiple Opciones="OpcionesDeEstado" Seleccion="_estadosMarcados" SeleccionChanged="CambiarEstadosAsync"
                                                Total="estado.Trabajadores" TextoTodos="@Textos["Todos"]" Etiqueta="@Textos["EtiquetaFiltroEstado"]" />
 
@@ -176,7 +157,10 @@
                             <Pie>
                                 @if (estado.Filas.Count == 0 && HayFiltrosActivos)
                                 {
-                                    <p class="tipo360-nota">@Textos["FiltroSinResultados"]</p>
+                                    <p class="tipo360-nota">
+                                        @Textos["FiltroSinResultados"]
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarFiltrosAsync">@Textos["QuitarFiltros"]</Boton>
+                                    </p>
                                 }
                             </Pie>
                         </ListaRelaciones>

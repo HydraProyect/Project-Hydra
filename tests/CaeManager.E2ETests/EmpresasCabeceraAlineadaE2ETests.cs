@@ -13,8 +13,8 @@ namespace CaeManager.E2ETests;
 /// y «Detecciones» se veían desplazadas). Un test de bUnit no puede verlo: no hay maquetación.
 /// Se mide con los datos sembrados, a 1280 px, en tema claro y oscuro y con la selección múltiple puesta.
 /// </summary>
-[Collection("AppCollection")]
-public class EmpresasCabeceraAlineadaE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class EmpresasCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
 {
     /// <summary>
     /// Dos medidas por fila, con medio píxel de tolerancia de redondeo (un desplazamiento real mide decenas):

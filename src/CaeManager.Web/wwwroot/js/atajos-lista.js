@@ -3,7 +3,7 @@
 // sin interop porque el foco puede estar en cualquier elemento. Se ignora
 // el evento si el foco está en un campo de texto/contenteditable, para no
 // interceptar "j"/"k" mientras el usuario escribe en un filtro.
-import { hayDialogoModalAbierto } from './atajos-contexto.js';
+import { hayDialogoModalAbierto, atajosDeLista } from './atajos-contexto.js';
 
 // Debe coincidir con CatalogoAtajos.Lista (CatalogoAtajosSincronizadoConJsTests).
 const TECLAS_ADMITIDAS = ['j', 'k', 'x', 'Enter', 'f', 'e'];
@@ -173,9 +173,16 @@ export function registrarAtajosLista(dotNetRef) {
 
     document.addEventListener('keydown', manejador);
     document.addEventListener('click', pulsarFila);
+    atajosDeLista.activos++;
+    let retirado = false;
 
     return {
         dispose: () => {
+            // Un dispose repetido no descuenta dos veces.
+            if (!retirado) {
+                retirado = true;
+                atajosDeLista.activos--;
+            }
             document.removeEventListener('keydown', manejador);
             document.removeEventListener('click', pulsarFila);
         }

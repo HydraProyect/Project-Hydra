@@ -35,8 +35,8 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 ///
 /// <para>
 /// Compone, con las MISMAS consultas que <c>SubcontrataWorkspacePanel</c> y que la fila desplegada del listado
-/// (<c>AcordeonTrabajadoresSubcontrata</c>) —mismo alcance y misma RLS—, la identidad con el anillo, la banda de
-/// incidencias y las pestañas Trabajadores, Supervisión, Centros, Agenda e Historial. La edición de la identidad y
+/// (<c>AcordeonTrabajadoresSubcontrata</c>) —mismo alcance y misma RLS—, la identidad con el anillo
+/// y las pestañas Trabajadores, Supervisión, Centros, Agenda e Historial. La edición de la identidad y
 /// de las credenciales sigue viviendo en el panel: «Editar» lo abre.
 /// </para>
 ///
@@ -66,9 +66,6 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     /// <summary>Tope de filas de la pestaña Trabajadores: si hay más, el resumen lo dice (mismo tope que el panel).</summary>
     internal const int TamanoPaginaTrabajadores = 50;
 
-    /// <summary>Cuántos trabajadores nombra la banda antes de contar el resto.</summary>
-    internal const int NombresEnLaBanda = 3;
-
     private static readonly string[] PestanasValidas =
         [PestanaTrabajadores, PestanaSupervision, PestanaCentros, PestanaAgenda, PestanaHistorial];
 
@@ -76,6 +73,12 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     /// <summary>Pestaña activa, en la URL (sin parámetro = Trabajadores), como en las demás fichas 360.</summary>
     [Parameter, SupplyParameterFromQuery(Name = "pestana")] public string? Pestana { get; set; }
+
+    /// <summary>
+    /// Contadores de estado marcados en la pestaña Trabajadores, en la URL y separados por coma
+    /// (<see cref="EstadoDocumentoFicha360.ClavesDesdeUrl"/>); sin parámetro, todos.
+    /// </summary>
+    [Parameter, SupplyParameterFromQuery(Name = "estado")] public string? Estado { get; set; }
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
@@ -134,6 +137,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     private string _pestana = PestanaTrabajadores;
     private string? _pestanaDeLaUrl;
+    private string? _estadoDeLaUrl;
     private bool _urlAdoptada;
 
     /// <summary>
@@ -184,13 +188,22 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         await CargarTodoAsync();
     }
 
-    /// <summary>Adopta la pestaña cuando cambia en la URL ahí fuera (un enlace, el botón «atrás»).</summary>
+    /// <summary>
+    /// Adopta la pestaña y los contadores de estado cuando cambian en la URL ahí fuera (un enlace, el botón «atrás»);
+    /// lo que cambia la propia página ya lo apuntó antes de navegar.
+    /// </summary>
     private void AdoptarUrl()
     {
         if (!_urlAdoptada || !string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
             _pestana = PestanasValidas.Contains(Pestana) ? Pestana! : PestanaTrabajadores;
+        }
+
+        if (!_urlAdoptada || !string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
+        {
+            _estadoDeLaUrl = Estado;
+            _estadosMarcados = EstadoDocumentoFicha360.ClavesDesdeUrl(Estado);
         }
 
         _urlAdoptada = true;
@@ -218,7 +231,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         _trabajadores = null;
         _cargandoTrabajadores = true;
         _errorTrabajadores = false;
-        _estadosMarcados = new HashSet<string>();
+        // Los contadores marcados no se reinician aquí: los fija la URL de la subcontrata que se abre (AdoptarUrl).
         _trabajadoresDesplegados.Clear();
         _supervision = null;
         _cargandoSupervision = true;
@@ -245,7 +258,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     /// <summary>
     /// Trabajadores, supervisión y centros se piden en serie tras la cabecera, no al abrir su pestaña: de ellos salen
-    /// la banda, los recuentos de la cabecera y los contadores de las pestañas. En serie porque comparten el
+    /// los recuentos de la cabecera y los contadores de las pestañas. En serie porque comparten el
     /// DbContext del circuito.
     /// </summary>
     private async Task CargarTodoAsync()
@@ -528,7 +541,13 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     private bool HayFiltrosActivos => _estadosMarcados.Count > 0;
 
-    private void CambiarEstadosMarcados(IReadOnlySet<string> seleccion) => _estadosMarcados = seleccion;
+    /// <summary>Marcar o quitar un contador lo apunta también en la URL; quitarlos todos retira el parámetro.</summary>
+    private void CambiarEstadosMarcados(IReadOnlySet<string> seleccion)
+    {
+        _estadosMarcados = seleccion;
+        _estadoDeLaUrl = EstadoDocumentoFicha360.ClavesEnUrl(seleccion);
+        NavigationManager.ActualizarFiltroEnUrl("estado", _estadoDeLaUrl);
+    }
 
     private string TextoResumenTrabajadores =>
         Textos["ResumenListaOrdenada", TrabajadoresVisibles.Count, _trabajadores?.Count ?? 0];
@@ -599,10 +618,26 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     {
         if (_drawerDocumento is null) return Task.CompletedTask;
 
-        return documento.DocumentoId is { } documentoId
-            ? _drawerDocumento.AbrirEditarAsync(documentoId)
-            : _drawerDocumento.AbrirCrearParaFaltanteAsync(trabajadorId, documento.TipoDocumentoId);
+        return _drawerDocumento.AbrirSerieAsync(SerieDeDocumentos, PasoDe(trabajadorId, documento));
     }
+
+    private static PasoSerieDocumento PasoDe(Guid trabajadorId, DocumentoRequeridoDto documento) =>
+        PasoSerieDocumento.DeFilaDeTrabajador(documento.DocumentoId, trabajadorId, documento.TipoDocumentoId);
+
+    /// <summary>Del peor estado al mejor: el orden en que cada Trabajador despliega su documentación.</summary>
+    private static IEnumerable<DocumentoRequeridoDto> DocumentosOrdenados(TrabajadorDocumentacionSubcontrataDto trabajador) =>
+        trabajador.Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado));
+
+    /// <summary>
+    /// «Guardar y siguiente»: los documentos que piden «Renovar» o «Subir», en el orden en que la lista los pinta
+    /// (los Trabajadores que se ven, con el filtro puesto, y dentro de cada uno del peor estado al mejor).
+    /// </summary>
+    private IReadOnlyList<PasoSerieDocumento> SerieDeDocumentos =>
+        TrabajadoresVisibles
+            .SelectMany(t => DocumentosOrdenados(t)
+                .Where(d => PasoSerieDocumento.EsDeSerie(d.Estado))
+                .Select(d => PasoDe(t.TrabajadorId, d)))
+            .ToList();
 
     private async Task ManejarDocumentoGuardadoAsync()
     {
@@ -625,29 +660,13 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         .Take(2)
         .Select(p => char.ToUpperInvariant(p[0])));
 
-    // ---------- Banda de cabecera ----------
+    // ---------- Trabajadores con problema ----------
 
     /// <summary>
-    /// Trabajadores que la banda nombra: los que tienen algún documento vencido o pendiente. En este incremento la
-    /// banda solo nombra trabajadores: la subcontrata no tiene documentación de empresa propia.
+    /// Trabajadores con algún documento vencido o pendiente: ponen en alerta el contador de su pestaña.
     /// </summary>
     private IReadOnlyList<TrabajadorDocumentacionSubcontrataDto> TrabajadoresConProblema =>
         TrabajadoresOrdenados.Where(t => EstadoDocumentoFicha360.TonoFila(t.PeorEstado) == TonoFila.Peligro).ToList();
-
-    /// <summary>
-    /// Centros con algún documento EXIGIDO sin ninguna verificación registrada: el dato del aviso de cabecera del
-    /// panel, que aquí vive en la banda.
-    /// </summary>
-    private int CentrosSinVerificar =>
-        _supervision?.Centros.Count(c => c.Tipos.Any(t => t.Exigido && t.Estado == EstadoSupervision.SinVerificar)) ?? 0;
-
-    private bool HayBanda => TrabajadoresConProblema.Count > 0 || CentrosSinVerificar > 0;
-
-    /// <summary>Pulsar el nombre de la banda abre la corrección de su documento en peor estado, en esta misma ficha.</summary>
-    private Task CorregirTrabajadorAsync(TrabajadorDocumentacionSubcontrataDto trabajador) =>
-        DocumentoQueLoCausa(trabajador) is { } documento
-            ? GestionarDocumentoAsync(trabajador.TrabajadorId, documento)
-            : Task.CompletedTask;
 
     // ---------- Supervisión ----------
 
@@ -832,7 +851,6 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
     }
 
-    private void IrASupervision() => CambiarPestana(PestanaSupervision);
 
     /// <summary>La edición de la identidad y de las credenciales vive en el panel, pestaña Información.</summary>
     private Task AbrirPanelInformacion() =>

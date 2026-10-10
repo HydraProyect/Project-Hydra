@@ -603,8 +603,6 @@ src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: Confirmar
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: ConfirmarEliminarTitulo = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: ConfirmarReabrirMensaje = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: ConfirmarReabrirTitulo = 1
-src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: ConteoConFiltro = 1
-src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: ConteoSinFiltro = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: DescripcionPagina = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: DetalleNoDisponible = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: DrawerNuevoTitulo = 1
@@ -639,7 +637,6 @@ src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: OpcionEle
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: OpcionElegirTecnico = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: PestanaInformacion = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: PlaceholderBusqueda = 1
-src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: SinClienteDescripcion = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: TecnicosActivosUno = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: TecnicosActivosVarios = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: ToastActualizado = 1
@@ -650,7 +647,6 @@ src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: ToastReab
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: ToastTecnicoAsignado = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: ToastTecnicoDeBaja = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: VacioDescripcion = 1
-src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: VacioFiltroDescripcion = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: VacioFiltroTitulo = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: VacioTecnicosDescripcion = 1
 src/CaeManager.Web/Features/Proyectos/Recursos/TextosProyectos.resx :: VacioTecnicosTitulo = 1
@@ -1217,7 +1213,6 @@ src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: BotonQuitarSe
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: BotonVerFinalizadas = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: CasillaNotificadaTitularCentro = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: ColumnaDocumentacion = 1
-src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: ColumnaTitularEmpresa = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: ConfirmarCancelarLoteMensaje = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: ConfirmarCancelarLoteTitulo = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: ConfirmarCancelarMensaje = 1

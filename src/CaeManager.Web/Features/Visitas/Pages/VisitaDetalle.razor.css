@@ -241,8 +241,3 @@
     gap: var(--space-2);
     margin-top: var(--space-3);
 }
-
-/* Un tramo de la banda por titular: separados entre sí, sin partirse por dentro más que entre palabras. */
-.visita360-banda-tramo {
-    margin-left: var(--space-1);
-}

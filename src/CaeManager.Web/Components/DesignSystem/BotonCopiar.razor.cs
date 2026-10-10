@@ -38,6 +38,13 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
     /// </summary>
     [Parameter] public bool EnLinea { get; set; }
 
+    /// <summary>
+    /// Lo escrito en el buscador del listado, para marcar en <see cref="Texto"/> la parte que casa
+    /// (<c>TextoResaltado</c>). Solo cambia lo que se ve: lo que se copia sigue saliendo de
+    /// <see cref="Valor"/> y el nombre accesible de <see cref="NombreAccesible"/>, los dos íntegros.
+    /// </summary>
+    [Parameter] public string? TerminoResaltado { get; set; }
+
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
 

@@ -1,0 +1,31 @@
+# Peso de cada colección de xUnit de tests/CaeManager.E2ETests, en segundos de
+# reloj (arranque de la aplicación incluido). Lo lee
+# scripts/repartir-e2e-por-coleccion.sh para equilibrar los bloques del job
+# «Tests E2E (bloque N de 4)» de ci.yml.
+#
+# Formato: <nombre de la colección> <segundos enteros>. Las líneas con # no cuentan.
+#
+# Es un dato que caduca, no un contrato: la suite crece cada día. Una colección
+# que falte aquí no se queda sin ejecutar (entra con el peso por defecto y el
+# guion avisa); solo reparte peor. Se regenera con el p50 por colección de los
+# .trx del job E2E en runs verdes de `merge_group`.
+#
+# Medido el 2026-10-10 sobre 12 runs de `merge_group` verdes posteriores a #1228.
+# AppCollection y AppCollectionListados son las dos mitades de la antigua
+# AppCollection (513 s): p50 por clase de esos mismos runs más un arranque de
+# la aplicación (~39 s) para cada una. Se vuelven a medir tras la partición.
+AppCollection 278
+AppCollectionListados 274
+AppCollectionGestorCaeCarteraMultiTenant 111
+AppCollectionEscenariosDireccion 97
+AppCollectionVentanaSoporte 81
+AppCollectionFichas360 71
+AppCollectionConsultasSql 71
+AppCollectionRevalidacionRapida 70
+AppCollectionConCatalan 60
+AppCollectionMultiTenant 55
+AppCollectionEncargoAdministracion 54
+AppCollectionSoporte 53
+AppCollectionBajoRuntime 51
+AppCollectionRetencion 48
+AppCollectionCuentaAMedioActivar 46

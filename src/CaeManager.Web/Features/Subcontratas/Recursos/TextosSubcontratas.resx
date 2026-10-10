@@ -114,12 +114,6 @@
   <data name="RotuloCumplimiento" xml:space="preserve">
     <value>Cumplimiento</value>
   </data>
-  <data name="ColumnaVencidos" xml:space="preserve">
-    <value>Vencidos</value>
-  </data>
-  <data name="ColumnaProximos" xml:space="preserve">
-    <value>Por vencer</value>
-  </data>
   <data name="AriaSeleccionarSubcontrata" xml:space="preserve">
     <value>Seleccionar la empresa {0}</value>
   </data>
@@ -161,9 +155,6 @@
   </data>
   <data name="BadgeProximosVarios" xml:space="preserve">
     <value>{0} por vencer</value>
-  </data>
-  <data name="BadgeAlCorriente" xml:space="preserve">
-    <value>Sin incidencias</value>
   </data>
   <data name="MenuEliminar" xml:space="preserve">
     <value>Eliminar</value>
@@ -711,21 +702,6 @@
   <data name="AriaVerificar" xml:space="preserve">
     <value>Verificar {0} en {1}</value>
   </data>
-  <data name="BandaTrabajadoresUno" xml:space="preserve">
-    <value>1 trabajador con documentación vencida o pendiente:</value>
-  </data>
-  <data name="BandaTrabajadoresVarios" xml:space="preserve">
-    <value>{0} trabajadores con documentación vencida o pendiente:</value>
-  </data>
-  <data name="BandaVerEnSupervision" xml:space="preserve">
-    <value>Ver en Supervisión</value>
-  </data>
-  <data name="BandaY" xml:space="preserve">
-    <value>y</value>
-  </data>
-  <data name="BandaYMas" xml:space="preserve">
-    <value>y {0} más</value>
-  </data>
   <data name="BotonCopiarContrasena" xml:space="preserve">
     <value>Copiar contraseña</value>
   </data>
@@ -866,5 +842,26 @@
   </data>
   <data name="ErrorCargaIncidenciasDescripcion" xml:space="preserve">
     <value>No significa que no haya ninguno. Consulta la pestaña Trabajadores o vuelve a abrir la ficha.</value>
+  </data>
+  <data name="RotuloSubcontrata" xml:space="preserve">
+    <value>Subcontrata</value>
+  </data>
+  <data name="RotuloEstadoDocumental" xml:space="preserve">
+    <value>Estado documental</value>
+  </data>
+  <data name="FiltroTodas" xml:space="preserve">
+    <value>Todas</value>
+  </data>
+  <data name="MotivoSinConfirmarUno" xml:space="preserve">
+    <value>1 sin confirmar</value>
+  </data>
+  <data name="MotivoSinConfirmarVarios" xml:space="preserve">
+    <value>{0} sin confirmar</value>
+  </data>
+  <data name="RecuentoDocumentosSinConfirmarUno" xml:space="preserve">
+    <value>1 documento con la vigencia sin confirmar</value>
+  </data>
+  <data name="RecuentoDocumentosSinConfirmarVarios" xml:space="preserve">
+    <value>{0} documentos con la vigencia sin confirmar</value>
   </data>
 </root>

@@ -100,7 +100,8 @@
                   HayFiltrosActivos="HayFiltrosActivos"
                   OnLimpiarTodo="LimpiarFiltrosAsync" OnGuardarFiltro="AbrirGuardarFiltro"
                   FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
-                  OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado">
+                  OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
+                  VistaRecordada="_vistaRecordada">
         <Pastillas>
             <PastillaFiltro Etiqueta="Gestor CAE" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync" Opciones="OpcionesGestorCae" />
             <PastillaFiltro Etiqueta="@Textos["ListaFiltroCriticidad"]" Valor="@(_soloCriticos ? ValorSoloCriticos : string.Empty)"
@@ -129,6 +130,9 @@
             }
         </Resumen>
     </BarraFiltros>
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Clientes"
+                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged"
+                             ListoParaRestaurar="_directorioDeGestoresCargado" />
 
     @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez y viaja en la URL como
        «estado». Aquí un botón pregunta si el Cliente empresarial tiene ALGUNA alerta en ese estado, así que uno
@@ -165,7 +169,7 @@
         }
 
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+            <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
                     <TemplateColumn Title="" Align="Align.Center">
@@ -177,7 +181,8 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))">
+                <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))"
+                                IsDefaultSortColumn="@_orden.Es("cliente")" InitialSortDirection="_orden.Direccion">
                     @* Patrón de listados: la fila no lleva menú «⋯». El nombre es un botón
                        que abre la vista rápida (el panel del Context Workspace), igual que
                        Enter sobre la fila enfocada. QuickGrid no expone el clic de la fila: la
@@ -193,7 +198,7 @@
                     <span class="celda-cliente-empresarial-nombre">
                     <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
                             aria-label="@Textos["AbrirVistaRapidaDe", context.RazonSocial]"
-                            @onclick="() => AbrirVistaRapidaAsync(context.Id)" @onclick:stopPropagation="true">@context.RazonSocial</button>
+                            @onclick="() => AbrirVistaRapidaAsync(context.Id)" @onclick:stopPropagation="true"><TextoResaltado Texto="@context.RazonSocial" Termino="@_busqueda" /></button>
                     @* «⚑ Crítico» junto al nombre, en lugar de la antigua columna «Crítico». *@
                     @if (context.EsCritico)
                     {
@@ -311,13 +316,74 @@
                 </TemplateColumn>
                 @* Columna de orden por defecto: el peor estado primero (Vencido → Faltante →
                    Urgente → Próximo → sin incidencias), resuelto en ObtenerClientesQuery. La pastilla dice el peor
-                   estado y el motivo de debajo cuántas alertas hay en él; lo correcto va sin pastilla. *@
-                <TemplateColumn Title="Estado documental" Sortable="true" IsDefaultSortColumn="true" Class="col-estado"
+                   estado y el motivo de debajo cuántas alertas hay en él; lo correcto va sin pastilla.
+                   El motivo abre una ventana de contexto con las alertas de la fila, una por línea y de la más
+                   grave a la menos (ClienteListaDto.Incidencias: las MISMAS que dan la pastilla, de todos los
+                   estados y no solo del peor, hasta el tope de la consulta). Cada línea nombra el documento y
+                   el Trabajador, como en Centros; quien puede escribir la pulsa y la corrige aquí
+                   (CorreccionIncidenciaDocumental). El nombre del Trabajador va en la ventana, no en la fila.
+                   El clic dentro de la ventana no abre la vista rápida: «pulsarFila» de atajos-lista.js
+                   excluye su panel. Una fila con estado y sin incidencias (no ocurre con la consulta de esta
+                   página) conserva el motivo de texto: no se abre una ventana sin líneas. *@
+                <TemplateColumn Title="Estado documental" Sortable="true" IsDefaultSortColumn="@_orden.Es("documentacion")" InitialSortDirection="_orden.Direccion" Class="col-estado"
                                 SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EstadoDocumentalPeor))">
                     @if (context.EstadoDocumentalPeor is { } peor)
                     {
-                        <EstadoFila Tono="EstadoDocumentoUi.Tono(peor)" Texto="@EstadoDocumentoUi.Texto(peor)" Titulo="@TituloEstadoDocumental(peor)"
-                                    Motivo="@MotivoEstadoDocumental(context.EstadoDocumentalCantidad)" />
+                        var cliente = context;
+                        var motivo = MotivoEstadoDocumental(cliente.EstadoDocumentalCantidad);
+                        if (cliente.Incidencias.Count > 0)
+                        {
+                            <EstadoFila Tono="EstadoDocumentoUi.Tono(peor)" Texto="@EstadoDocumentoUi.Texto(peor)" Titulo="@TituloEstadoDocumental(peor)">
+                                <MotivoContenido>
+                                    <VentanaContexto Etiqueta="@EtiquetaDeIncidencias(cliente, peor, motivo)"
+                                                     Titulo="@TituloDeIncidencias(cliente.IncidenciasTotales)"
+                                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                     Interactiva="_puedeEscribir"
+                                                     Pie="@PieDeIncidencias(cliente)">
+                                        <Disparador>
+                                            <span class="motivo-incidencias-cliente">@motivo</span>
+                                        </Disparador>
+                                        <Detalle>
+                                            @* La identidad es la de la alerta (AlertaDto.IdDeFila): un Faltante no tiene documento.
+                                               Pasa por ClavesDeHermanos, así que ni una identidad repetida tumbaría el circuito.
+                                               La pastilla de cada línea colorea por gravedad (TonoDeSeveridad), como los demás
+                                               desgloses: lo urgente va en rojo aunque se rotule «Por vencer» igual que lo próximo.
+                                               El motivo cuenta solo las del peor estado; el título de la ventana, todas. *@
+                                            @{ var claves = new ClavesDeHermanos(); }
+                                            @foreach (var incidencia in cliente.Incidencias)
+                                            {
+                                                if (_puedeEscribir)
+                                                {
+                                                    <VentanaContextoElemento @key="claves.De(incidencia.Clave)"
+                                                                             Ayuda="@Comunes["VentanaIncidenciaAyuda"].Value"
+                                                                             Secundario="@SecundarioDeIncidencia(incidencia)"
+                                                                             AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
+                                                        <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                        <span class="incidencia-cliente-texto">@TextoDeIncidencia(incidencia)</span>
+                                                    </VentanaContextoElemento>
+                                                }
+                                                else
+                                                {
+                                                    <span class="ventana-linea" @key="claves.De(incidencia.Clave)">
+                                                        <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                        <span class="incidencia-cliente-texto">@TextoDeIncidencia(incidencia)</span>
+                                                        @if (SecundarioDeIncidencia(incidencia) is { } secundario)
+                                                        {
+                                                            <span class="incidencia-cliente-secundario">@secundario</span>
+                                                        }
+                                                    </span>
+                                                }
+                                            }
+                                        </Detalle>
+                                    </VentanaContexto>
+                                </MotivoContenido>
+                            </EstadoFila>
+                        }
+                        else
+                        {
+                            <EstadoFila Tono="EstadoDocumentoUi.Tono(peor)" Texto="@EstadoDocumentoUi.Texto(peor)" Titulo="@TituloEstadoDocumental(peor)"
+                                        Motivo="@motivo" />
+                        }
                     }
                     else
                     {
@@ -420,6 +486,10 @@
         }
     </PieExtra>
 </DrawerFormulario>
+
+@* Corrección de una incidencia pulsada en la ventana del motivo: el formulario de «Gestionar» de
+   Documentos, que se monta al primer uso. Lo que guarde pasa por sus comandos, con su autorización. *@
+<CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
 
 @* La barra de lote solo ofrece «Dar de baja seleccionados», y EliminarClientesCommand es un
    ICommand que AutorizacionEscrituraBehavior deniega a Consulta: marcar filas es lectura,

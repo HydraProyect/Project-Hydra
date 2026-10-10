@@ -8,12 +8,14 @@ using CaeManager.Application.Common;
 using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Domain.Documentos;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace CaeManager.Web.Features.Empresas.Pages;
 
@@ -22,6 +24,15 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
     private bool _alcanceCero;
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// El rol de quien mira puede escribir: las incidencias del motivo y de la fila desplegada son botones
+    /// que abren su corrección. Mismo criterio que el listado de Vehículos. No es la autorización: quién
+    /// puede guardar lo decide el comando.
+    /// </summary>
+    private bool _puedeEscribir;
 
     // QuickGrid no soporta filas expandibles (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md
     // § 0.11 — migra /empresas al mismo patrón de Centros.razor § 0.1): cada
@@ -75,6 +86,18 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     // pantallas. A la página Empresa 360 (/empresas/{id}) se va con el icono 360 de la fila.
     private Task AbrirVistaRapidaAsync(Guid id) =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, NombreDe(id), "informacion");
+
+    /// <summary>Ruta de esta lista, sin filtros: la del <c>@page</c>.</summary>
+    private const string RutaLista = "/empresas";
+
+    /// <summary>
+    /// Quien mira acaba de desasignarse, desde la cabecera «Gestor CAE», de su apoyo sobre el Tenant
+    /// propietario activo: todo lo que esta página tiene pintado es de un Tenant al que ya no accede.
+    /// Aquí no se decide adónde va: se recarga la lista entera, sin filtros (<c>forceLoad</c>), y es
+    /// el arranque normal de la aplicación quien resuelve de nuevo el Tenant activo y el acceso.
+    /// Tras «+ Dar acceso» no se llama: ahí basta con que la cabecera relea su dato.
+    /// </summary>
+    private void RecargarTrasDesasignarme() => NavigationManager.NavigateTo(RutaLista, forceLoad: true);
 
     /// <summary>
     /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
@@ -196,6 +219,13 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _estadoFiltro = EstadoDesdeUrl();
+
+        if (EstadoAutenticacion is not null)
+        {
+            var usuario = (await EstadoAutenticacion).User;
+            if (_desechado) return;
+            _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(usuario.IsInRole);
+        }
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
@@ -321,8 +351,11 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             // Misma pregunta de estado que la carga de página (ConRecuentosPorEstado): sin ella el
             // handler toma el camino que deja sin estado a quien no tiene documentos, y la fila
             // pasaría de «Sin incidencias» a «Sin documentos» al refrescarla.
+            // Y pide el desglose, como la carga de página: la fila pinta el motivo de su estado.
             var resultado = await Mediator.Send(
-                new ObtenerEmpresasQuery(Busqueda: null, ConRecuentosPorEstado: true, EmpresaId: id), _ciclo.Token);
+                new ObtenerEmpresasQuery(
+                    Busqueda: null, ConRecuentosPorEstado: true, EmpresaId: id, ConDesgloseDocumental: true),
+                _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
             if (_desechado || _cargando || carga != _cargaVigente || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
@@ -365,6 +398,18 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// <summary>La respuesta es de la pregunta vigente y la página sigue viva.</summary>
     private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
 
+    /// <summary>La consulta de la última carga de la lista: la pregunta que hay en pantalla.</summary>
+    private ObtenerEmpresasQuery? _ultimaConsulta;
+
+    /// <summary>
+    /// Si la siguiente carga hace esta misma pregunta (mismos filtros, página y tamaño), conserva la
+    /// selección, las filas desplegadas y la fila enfocada en vez de limpiarlas. La fija
+    /// <see cref="RefrescarTrasCorreccionAsync"/> y vale solo para ese refresco: toda carga la suelta al
+    /// leerla, repita o no la pregunta. Mismo patrón que <c>Vehiculos.razor.cs</c>; aquí se suelta al
+    /// leerla porque esta lista no usa QuickGrid, que es quien allí repite la petición por su cuenta.
+    /// </summary>
+    private ObtenerEmpresasQuery? _consultaQueConservaSeleccion;
+
     private async Task CargarAsync(bool resetPagina = false)
     {
         if (resetPagina)
@@ -380,7 +425,15 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             Pagina: _pagina,
             TamanoPagina: _tamanoPagina,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
-            ConRecuentosPorEstado: true);
+            ConRecuentosPorEstado: true,
+            // Esta página pinta el motivo del estado: es quien pide el desglose.
+            ConDesgloseDocumental: true);
+
+        // La misma pregunta que la carga anterior, pedida por el refresco tras corregir una incidencia,
+        // conserva la selección, las filas desplegadas y la fila enfocada; cualquier otra carga las limpia.
+        var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
+        _consultaQueConservaSeleccion = null;
+        _ultimaConsulta = consulta;
 
         _cargando = true;
         _errorCarga = false;
@@ -395,11 +448,28 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _elementosPagina = resultado.Elementos.ToList();
-            _seleccionados.Clear();
-            _expandidos.Clear();
-            _clientesPorEmpresa.Clear();
-            _clientesConError.Clear();
-            _idEnfocado = null;
+            if (conservarSeleccion)
+            {
+                // Lo que ya no está en la página (la corrección lo sacó del filtro) deja de estar
+                // seleccionado y desplegado. Los Clientes ya cargados de las filas que siguen valen:
+                // corregir un documento no los cambia.
+                var enPagina = _elementosPagina.Select(e => e.Id).ToHashSet();
+                _seleccionados.IntersectWith(enPagina);
+                _expandidos.IntersectWith(enPagina);
+                foreach (var fuera in _clientesPorEmpresa.Keys.Where(id => !enPagina.Contains(id)).ToList())
+                    _clientesPorEmpresa.Remove(fuera);
+                _clientesConError.IntersectWith(enPagina);
+                if (_idEnfocado is { } enfocado && !enPagina.Contains(enfocado))
+                    _idEnfocado = null;
+            }
+            else
+            {
+                _seleccionados.Clear();
+                _expandidos.Clear();
+                _clientesPorEmpresa.Clear();
+                _clientesConError.Clear();
+                _idEnfocado = null;
+            }
         }
         catch (Exception) when (!EsVigente(carga))
         {
@@ -418,6 +488,39 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
                 StateHasChanged();
             }
         }
+    }
+
+    // ── Corrección de una incidencia desde la ventana del motivo o desde la fila desplegada ────────
+
+    private CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental _correccion = default!;
+
+    /// <summary>
+    /// Abre, sin salir del listado, el formulario del documento de la incidencia pulsada, con la Empresa de
+    /// la fila como propietaria. Una incidencia es siempre un documento que existe: el formulario lo abre en
+    /// renovación. Solo llega aquí quien puede escribir (ni la ventana ni la fila desplegada ofrecen botones
+    /// a los demás); quién puede guardar lo decide el comando.
+    /// </summary>
+    private Task CorregirIncidenciaAsync(Guid empresaId, CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
+        _correccion.AbrirAsync(incidencia.DocumentoId, incidencia.TipoDocumentoId, null, empresaId);
+
+    /// <summary>
+    /// Tras corregir una incidencia: se vuelve a pedir la página tal como está (mismos filtros, página y
+    /// tamaño) para que la fila, su motivo y los recuentos de la franja digan lo de ahora. La selección, las
+    /// filas desplegadas y la fila enfocada se conservan.
+    /// </summary>
+    private async Task RefrescarTrasCorreccionAsync()
+    {
+        if (_desechado)
+            return;
+
+        _consultaQueConservaSeleccion = _ultimaConsulta;
+        await CargarAsync();
+
+        // Una carga de Clientes que estaba en vuelo pertenecía a la lista anterior y se descartó: la fila
+        // que sigue desplegada los vuelve a pedir, para no quedarse cargando.
+        var sinClientes = _expandidos.Where(id => !_clientesPorEmpresa.ContainsKey(id)).ToList();
+        if (sinClientes.Count > 0)
+            await Task.WhenAll(sinClientes.Select(CargarClientesDeEmpresaAsync));
     }
 
     // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
@@ -468,6 +571,33 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         await CargarAsync(resetPagina: true);
     }
 
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Empresas;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.
+    /// Fuera quedan <c>accion</c> y las precargas del alta (<c>Nombre</c>, <c>ClienteId</c>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. Cada valor pasa por la misma
+    /// validación que el de la URL (un estado que ya no existe se ignora), y la URL se escribe en una
+    /// sola navegación antes de recargar; así <see cref="OnParametersSetAsync"/> la encuentra igual que los campos.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = _busqueda, ["estado"] = _estadoFiltro });
+        await CargarAsync(resetPagina: true);
+    }
+
     /// <summary>
     /// «N de M empresas». M es el total que devuelve la consulta, que con
     /// filtros ya viene filtrado — por eso la frase lo dice, y no promete
@@ -506,7 +636,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         _totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _tamanoPagina > TamanoPaginaMinimo);
 
     /// <summary>
-    /// Nombre accesible del anillo. Antes se interpolaba el porcentaje sin
+    /// Nombre accesible de la barra de cumplimiento. Antes se interpolaba el porcentaje sin
     /// mirar si existía, y una empresa sin cumplimiento calculable se anunciaba
     /// como «% de cumplimiento…» — un número que no hay. Null significa que no
     /// tiene actividad en ningún Centro o que ninguno tiene requisitos
@@ -518,7 +648,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             : "Sin actividad en ningún centro con requisitos aplicables";
 
     /// <summary>
-    /// De dónde sale la columna Documentación: es el PEOR estado de vigencia
+    /// De dónde sale la columna «Estado documental»: es el PEOR estado de vigencia
     /// de los documentos de la Empresa. El mockup explica cada estado con
     /// plazos fijos («7 días», «30 días»), pero los umbrales de urgente y
     /// próximo son configurables (<c>CalculadoraEstadoDocumento</c>), así que

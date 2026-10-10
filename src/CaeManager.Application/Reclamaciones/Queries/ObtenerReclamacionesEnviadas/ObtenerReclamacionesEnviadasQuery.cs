@@ -148,10 +148,10 @@ public class ObtenerReclamacionesEnviadasQueryHandler(
                     .. lineasDe.Where(l => l.DocumentoId is null).Select(l => PendienteSinFecha.Ausente(l.TrabajadorId, l.TipoDocumentoId!.Value)),
                     .. lineasDe.Where(l => l.DocumentoId is { } id && sinConfirmarHoy.Contains(id)).Select(l => PendienteSinFecha.SinConfirmar(l.DocumentoId!.Value))
                 ];
-                bool? sinRespuesta = r.ConversacionId is null
-                    ? null
-                    : !entrantesPorConversacion.GetValueOrDefault(r.ConversacionId.Value, [])
-                        .Any(fecha => fecha > r.FechaEnvioUtc);
+                var sinRespuesta = RespuestaDeReclamacion.SinRespuesta(
+                    r.ConversacionId,
+                    r.FechaEnvioUtc,
+                    r.ConversacionId is { } conversacionId ? entrantesPorConversacion.GetValueOrDefault(conversacionId, []) : []);
 
                 return new ReclamacionEnviadaDto(
                     r.Id, r.ClienteId ?? r.EmpresaId!.Value, r.RazonSocial,

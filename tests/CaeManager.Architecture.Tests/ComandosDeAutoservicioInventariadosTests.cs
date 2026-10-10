@@ -27,6 +27,11 @@ public class ComandosDeAutoservicioInventariadosTests
         "AceptarTerminosCommand",
         "GuardarFiltroCommand",
         "EliminarFiltroGuardadoCommand",
+        // La vista recordada de un listado (decisión del 2026-10-08): la fila reservada de
+        // FiltroGuardado del propio usuario en el Tenant actual. Usuario de ICurrentUserService,
+        // ningún Id en el request, y solo la lee su dueño.
+        "GuardarVistaRecordadaCommand",
+        "OlvidarVistaRecordadaCommand",
         "RegistrarUsoRecienteCommand",
         "GuardarPreferenciaDashboardCommand",
         "MarcarNotificacionLeidaCommand",

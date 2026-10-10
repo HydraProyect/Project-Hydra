@@ -4,6 +4,7 @@ using CaeManager.Application.Gestiones.Commands.EliminarGestion;
 using CaeManager.Application.Gestiones.Commands.RestaurarGestion;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Layout;
@@ -42,6 +43,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     private List<GestionListaDto> _elementosPagina = [];
     private static readonly GridSort<GestionListaDto> OrdenTrabajadorListado = GridSort<GestionListaDto>.ByAscending(g => g.TrabajadorNombre);
     private static readonly GridSort<GestionListaDto> OrdenCentroListado = GridSort<GestionListaDto>.ByAscending(g => g.CentroNombre);
+    private static readonly GridSort<GestionListaDto> OrdenCreadaListado = GridSort<GestionListaDto>.ByAscending(g => g.CreadoEnUtc);
 
     public void Dispose() => _desechado = true;
 
@@ -146,6 +148,34 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    /// <summary>Orden de columna (<c>?orden=creada-desc</c>). Sin él, el de fábrica: por estado.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    /// <summary>
+    /// El orden de columna viaja en la URL y forma parte de la vista. La rejilla nace ordenada por
+    /// estado; «trabajador» y «centro» son la misma columna.
+    /// </summary>
+    private readonly OrdenDeRejilla _orden = new(
+    [
+        ("trabajador", nameof(GestionListaDto.TrabajadorNombre)),
+        ("centro", nameof(GestionListaDto.CentroNombre)),
+        ("tipo", nameof(GestionListaDto.TipoDocumentoNombre)),
+        ("estado", nameof(GestionListaDto.Estado)),
+        ("creada", nameof(GestionListaDto.CreadoEnUtc)),
+    ], claveDeFabrica: "estado");
+
+    /// <summary>El orden que llega (URL, filtro guardado o vista recordada). Si cambia, la rejilla se remonta ya ordenada.</summary>
+    private bool LeerOrden(string? valor)
+    {
+        if (!_orden.Leer(valor))
+            return false;
+
+        if (_orden.Propiedad is nameof(GestionListaDto.TrabajadorNombre) or nameof(GestionListaDto.CentroNombre))
+            _ordenTrabajadorPorCentro = _orden.Propiedad == nameof(GestionListaDto.CentroNombre);
+        return true;
+    }
+
     protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
 
     /// <summary>La URL es la fuente de verdad del filtro (P1-18) — ver el resto de listados.</summary>
@@ -158,6 +188,8 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         var busquedaDeLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (busquedaDeLaUrl != _busqueda)
             _busqueda = busquedaDeLaUrl;
+
+        LeerOrden(OrdenInicial);
     }
 
     private async ValueTask<GridItemsProviderResult<GestionListaDto>> ProveerElementosAsync(
@@ -171,6 +203,9 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
         _ultimaColumnaOrden = request.SortByColumn;
         _ultimoOrdenAscendente = request.SortByAscending;
+        if (_orden.Anotar(ordenarPor, descendente))
+            NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
+        (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         _elementosPagina = [];
         _idEnfocado = null;
         var consulta = new ObtenerGestionesQuery(
@@ -307,6 +342,45 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         await RecargarAsync();
     }
 
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Gestiones;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado, y lo que
+    /// recuerda la vista recordada (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "orden"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. El estado pasa por la misma
+    /// validación que el de la URL (<see cref="EstadosValidos"/>). La URL se escribe en una sola navegación
+    /// y se recarga aquí: <see cref="OnParametersSet"/> sincroniza los campos, pero no recarga.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _filtroEstado = EstadosValidos(vista.GetValueOrDefault("estado"));
+        var cambiaElOrden = LeerOrden(vista.GetValueOrDefault("orden"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["estado"] = _filtroEstado,
+            ["orden"] = _orden.EnUrl,
+        });
+
+        // Con otro orden la rejilla se remonta en el siguiente render y pide ella los datos:
+        // refrescar además la saliente sería pedirlos dos veces.
+        if (cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+            StateHasChanged();
+        else
+            await RecargarAsync();
+    }
+
     /// <summary>Mismo motivo que <see cref="LimpiarFiltrosAsync"/>: la búsqueda se quita también de la URL.</summary>
     private async Task QuitarBusquedaAsync()
     {
@@ -357,6 +431,32 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private string TextoEstado(EstadoGestion estado) =>
         estado == EstadoGestion.Completada ? Textos["EstadoCompletada"] : Textos["EstadoPendiente"];
+
+    /// <summary>
+    /// Motivo bajo la pastilla de estado: cuánto lleva abierta una Gestión pendiente. La completada no
+    /// lleva motivo (no pide acción).
+    /// </summary>
+    private string? MotivoEstado(GestionListaDto gestion)
+    {
+        if (gestion.Estado != EstadoGestion.Pendiente)
+            return null;
+
+        return DiasAbierta(gestion.CreadoEnUtc, DiaDeNegocio.Hoy()) switch
+        {
+            0 => Textos["MotivoAbiertaHoy"],
+            1 => Textos["MotivoAbiertaHaceUnDia"],
+            var dias => Textos["MotivoAbiertaHaceDias", dias]
+        };
+    }
+
+    /// <summary>
+    /// Días naturales que lleva abierta una Gestión, contados entre días de negocio (Europe/Madrid): el
+    /// instante de creación se lleva a su día de negocio antes de restar, así que una Gestión creada a las
+    /// 23:30 UTC —ya el día siguiente en Madrid— no cuenta un día de más. Nunca negativo: una creación
+    /// posterior a «hoy» (relojes desacompasados) se lee como abierta hoy.
+    /// </summary>
+    private static int DiasAbierta(DateTime creadoEnUtc, DateOnly hoy) =>
+        Math.Max(0, hoy.DayNumber - DiaDeNegocio.De(creadoEnUtc).DayNumber);
 
     private async Task ManejarAtajoAsync(string tecla)
     {
@@ -509,4 +609,21 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             _eliminando = false;
         }
     }
+
+    // ---- Exportar esta vista ----
+
+    private string? _ordenExportar;
+    private bool _descendenteExportar;
+
+    /// <summary>
+    /// Los criterios de la vista con los nombres de parámetro de <c>/gestiones/exportar.xlsx</c>:
+    /// los mismos que <see cref="ProveerElementosAsync"/> pasa a la consulta del listado.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["estado"] = _filtroEstado,
+        ["orden"] = _ordenExportar,
+        ["desc"] = _descendenteExportar ? "true" : null,
+    };
 }

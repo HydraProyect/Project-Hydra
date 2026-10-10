@@ -290,7 +290,11 @@
             }
             else
             {
-                var r = _recuentos;
+                var r = _recuentosLista ?? _recuentos;
+                <div class="empresa360-buscador">
+                    <CampoTexto Type="search" Placeholder="@Textos["BuscadorTrabajadores"]" aria-label="@Textos["BuscadorTrabajadores"]"
+                                Valor="@_busqueda" ValorChanged="BuscarAsync" />
+                </div>
                 <div class="empresa360-chips" role="group" aria-label="@Textos["EtiquetaFiltros"]">
                     @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
                     @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.Vencidos])
@@ -300,9 +304,16 @@
 
                 @if (TotalDelFiltro == 0)
                 {
-                    <EstadoVacio Titulo="@Textos["VacioFiltroTitulo"]">
+                    <EstadoVacio Titulo="@Textos[HayBusqueda ? "VacioBusquedaTitulo" : "VacioFiltroTitulo"]">
                         <Accion>
-                            <Boton Variante="VarianteBoton.Secundario" OnClick="() => CambiarFiltroAsync(FiltroTrabajadores.Todos)">@Textos["VerTodos"]</Boton>
+                            @if (HayBusqueda)
+                            {
+                                <Boton Variante="VarianteBoton.Secundario" OnClick="QuitarFiltrosAsync">@Textos["QuitarFiltros"]</Boton>
+                            }
+                            else
+                            {
+                                <Boton Variante="VarianteBoton.Secundario" OnClick="() => CambiarFiltroAsync(FiltroTrabajadores.Todos)">@Textos["VerTodos"]</Boton>
+                            }
                         </Accion>
                     </EstadoVacio>
                 }

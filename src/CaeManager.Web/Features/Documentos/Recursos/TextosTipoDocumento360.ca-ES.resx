@@ -87,33 +87,6 @@
   <data name="AccionEditarTipo" xml:space="preserve">
     <value>Edita el tipus de document</value>
   </data>
-  <data name="BandaVencidosUno" xml:space="preserve">
-    <value>{0} vençut:</value>
-  </data>
-  <data name="BandaVencidosVarios" xml:space="preserve">
-    <value>{0} vençuts:</value>
-  </data>
-  <data name="BandaPendientesUno" xml:space="preserve">
-    <value>{0} pendent:</value>
-  </data>
-  <data name="BandaPendientesVarios" xml:space="preserve">
-    <value>{0} pendents:</value>
-  </data>
-  <data name="BandaToleranciaUno" xml:space="preserve">
-    <value>{0} en tolerància:</value>
-  </data>
-  <data name="BandaToleranciaVarios" xml:space="preserve">
-    <value>{0} en tolerància:</value>
-  </data>
-  <data name="BandaYMas" xml:space="preserve">
-    <value>i {0} més</value>
-  </data>
-  <data name="BandaEnlacePeligro" xml:space="preserve">
-    <value>Mostra vençuts i pendents</value>
-  </data>
-  <data name="BandaEnlaceTolerancia" xml:space="preserve">
-    <value>Mostra en tolerància</value>
-  </data>
   <data name="EtiquetaGrupoPestanas" xml:space="preserve">
     <value>Seccions del tipus de document</value>
   </data>
@@ -154,7 +127,13 @@
     <value>Es mostren {0} de {1} · del pitjor estat al millor</value>
   </data>
   <data name="FiltroSinResultados" xml:space="preserve">
-    <value>Cap en els estats marcats.</value>
+    <value>Cap amb aquest filtre.</value>
+  </data>
+  <data name="BuscadorTrabajadores" xml:space="preserve">
+    <value>Cerca un treballador en aquest tipus de document…</value>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Treu els filtres</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
     <value>Cap Centre exigeix aquest document a cap treballador</value>

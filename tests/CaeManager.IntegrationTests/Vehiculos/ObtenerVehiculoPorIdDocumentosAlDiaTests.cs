@@ -15,7 +15,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Vehiculos;
 
 /// <summary>
-/// El detalle de un Vehículo trae lo que pinta el anillo y la banda de su ficha 360: cuántos de sus
+/// El detalle de un Vehículo trae lo que pinta el anillo de su ficha 360 y decide el aviso de vencidos de su lista: cuántos de sus
 /// documentos REGISTRADOS están al día y cuál es su peor estado. Contra PostgreSQL real, porque la
 /// propiedad que importa —que un documento sustituido no cuente y que el estado salga de la misma
 /// calculadora que la lista de documentos— vive en la consulta.
@@ -120,7 +120,7 @@ public class ObtenerVehiculoPorIdDocumentosAlDiaTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerVehiculoPorIdQueryHandler(
             contexto, contexto, new AlcanceDatosServiceFalso(vehiculoIds: [_todoAlDia]),
-            new CalculoEstadoDocumentalService(contexto, contexto));
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto));
 
         var detalle = await handler.Handle(new ObtenerVehiculoPorIdQuery(_camionGrua), CancellationToken.None);
 
@@ -131,7 +131,7 @@ public class ObtenerVehiculoPorIdDocumentosAlDiaTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerVehiculoPorIdQueryHandler(
-            contexto, contexto, new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto));
+            contexto, contexto, new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto));
 
         return await handler.Handle(new ObtenerVehiculoPorIdQuery(vehiculoId), CancellationToken.None);
     }

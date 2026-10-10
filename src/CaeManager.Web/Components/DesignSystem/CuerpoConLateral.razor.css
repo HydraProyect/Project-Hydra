@@ -1,4 +1,4 @@
-/* Las mismas medidas que .centro360-cuerpo (CentroDetalle.razor.css) y que el mockup. */
+/* Las medidas del cuerpo de Centro 360 (su antigua .centro360-cuerpo, que ya usa esta pieza) y del mockup. */
 .cuerpo-con-lateral {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 300px;

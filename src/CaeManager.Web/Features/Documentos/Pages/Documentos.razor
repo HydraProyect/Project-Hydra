@@ -117,11 +117,27 @@
                           OnLimpiarTodo="LimpiarFiltrosAsync"
                           OnGuardarFiltro="AbrirGuardarFiltro"
                           FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
-                          OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado">
+                          OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
+                          MasFiltrosActivos="@(!string.IsNullOrEmpty(_plataformaFiltro))"
+                          VistaRecordada="_vistaRecordada">
                 <Pastillas>
                     <PastillaFiltro Etiqueta="@Textos["ListaFiltroAmbito"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_ambitoFiltro"
                                     ValorChanged="CambiarAmbitoFiltroAsync" Opciones="OpcionesAmbitoListado" />
+                    <PastillaFiltro Etiqueta="@Textos["ListaFiltroTipo"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_tipoFiltro"
+                                    ValorChanged="CambiarTipoFiltroAsync" Opciones="_opcionesTipo" />
                 </Pastillas>
+                <MasFiltros>
+                    @* Sin plataformas en uso no hay nada que elegir; con el filtro llegado por URL sí se ofrece quitarlo. *@
+                    @if (_opcionesPlataforma.Count > 0 || !string.IsNullOrEmpty(_plataformaFiltro))
+                    {
+                        <span class="menu-filtros-titulo" role="presentation">@Textos["ListaFiltroPlataforma"]</span>
+                        <ItemMenuAccion Marcado="@string.IsNullOrEmpty(_plataformaFiltro)" OnClick="() => CambiarPlataformaFiltroAsync(string.Empty)">@Textos["ListaTodas"]</ItemMenuAccion>
+                        @foreach (var opcion in _opcionesPlataforma)
+                        {
+                            <ItemMenuAccion Marcado="@(opcion.Valor == _plataformaFiltro)" OnClick="() => CambiarPlataformaFiltroAsync(opcion.Valor)">@opcion.Texto</ItemMenuAccion>
+                        }
+                    }
+                </MasFiltros>
                 <Chips>
                     @if (!string.IsNullOrWhiteSpace(_busqueda))
                     {
@@ -131,8 +147,24 @@
                     {
                         <ChipFiltro Etiqueta="@EtiquetaFiltroAmbito" EtiquetaAccesible="@Textos["QuitarFiltroAmbito"]" OnQuitar="() => CambiarAmbitoFiltroAsync(string.Empty)" />
                     }
+                    @if (!string.IsNullOrWhiteSpace(_tipoFiltro))
+                    {
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroTipo" EtiquetaAccesible="@Textos["QuitarFiltroTipo"]" OnQuitar="() => CambiarTipoFiltroAsync(string.Empty)" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_plataformaFiltro))
+                    {
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroPlataforma" EtiquetaAccesible="@Textos["QuitarFiltroPlataforma"]" OnQuitar="() => CambiarPlataformaFiltroAsync(string.Empty)" />
+                    }
                 </Chips>
             </BarraFiltros>
+            @* Bajo la pestaña del listado: la vista recordada es la de esta rejilla, no la de las otras pestañas.
+               Retirada la página no se monta: pediría la vista recordada de una página que ya no existe
+               (misma guarda que el proveedor de la rejilla). *@
+            @if (!_desechado)
+            {
+                <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Documentos"
+                                         ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+            }
 
             @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez, viaja en la URL
                como «Estado» (estados de código separados por coma) y cada botón dice cuántos Documentos hay, con
@@ -154,7 +186,7 @@
             {
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                     <div class="documentos-tabla-desplazable" tabindex="0" role="region" aria-label="@Textos["TablaDesplazableEtiqueta"]">
-                    <QuickGrid @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                    <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                         @if (_seleccionMultiple)
                         {
                             <TemplateColumn Title="" Align="Align.Center">
@@ -169,7 +201,8 @@
                         @* PropietarioNombre es la entidad asociada al Documento, no el Tenant propietario.
                            Se conserva el identificador legacy y el rótulo de la maqueta; hay deuda terminológica. *@
                         <TemplateColumn @ref="_columnaEntidadAsociada" Title="@(_ordenEntidadAsociadaPorAmbito ? Textos["ListaEntidadAsociadaPorAmbito"].Value : Textos["ListaEntidadAsociada"].Value)"
-                                        Sortable="true" SortBy="@(_ordenEntidadAsociadaPorAmbito ? OrdenAmbitoListado : OrdenEntidadAsociadaListado)">
+                                        Sortable="true" SortBy="@(_ordenEntidadAsociadaPorAmbito ? OrdenAmbitoListado : OrdenEntidadAsociadaListado)"
+                                        IsDefaultSortColumn="@_orden.Es("entidad", "ambito")" InitialSortDirection="_orden.Direccion">
                             <ColumnOptions>
                                 <div class="documentos-opciones-orden" data-opciones-orden>
                                     <button type="button" @onclick="() => CambiarCampoOrdenEntidadAsociada(false)">@Textos["ListaOrdenarEntidadAsociada"]</button>
@@ -178,14 +211,18 @@
                             </ColumnOptions>
                             <ChildContent>
                                 <span class="documentos-propietario">
-                                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" @onclick="() => AbrirPanelAsync(context.Id)">@context.PropietarioNombre</button>
+                                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@context.PropietarioNombre" Termino="@_busqueda" /></button>
                                     <span class="documentos-ambito">@EtiquetaAmbitoListado(context.Ambito)</span>
                                 </span>
                             </ChildContent>
                         </TemplateColumn>
-                        <PropertyColumn Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" Sortable="true" />
+                        <TemplateColumn Title="Tipo de documento" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.TipoDocumentoNombre))"
+                                       IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion">
+                            <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
+                        </TemplateColumn>
                         <TemplateColumn @ref="_columnaVigencia" Title="@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVigenciaPorVencimiento"]"
-                                        Sortable="true" SortBy="@(_ordenVigenciaPorEmision ? OrdenEmisionListado : OrdenVencimientoListado)">
+                                        Sortable="true" SortBy="@(_ordenVigenciaPorEmision ? OrdenEmisionListado : OrdenVencimientoListado)"
+                                        IsDefaultSortColumn="@_orden.Es("vencimiento", "emision")" InitialSortDirection="_orden.Direccion">
                             <ColumnOptions>
                                 <div class="documentos-opciones-orden" data-opciones-orden>
                                     <button type="button" @onclick="() => CambiarCampoOrdenVigencia(true)">@Textos["ListaOrdenarEmision"]</button>
@@ -211,7 +248,8 @@
                         </TemplateColumn>
                         @* Urgente y Próximo se rotulan los dos «Por vencer»; el motivo de debajo dice los días, que es
                            lo que los distingue. Lo correcto (Vigente, Sin caducidad) va sin pastilla. *@
-                        <TemplateColumn Title="Estado" Sortable="true" Class="col-estado" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))">
+                        <TemplateColumn Title="Estado" Sortable="true" Class="col-estado" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))"
+                                        IsDefaultSortColumn="@_orden.Es("estado")" InitialSortDirection="_orden.Direccion">
                             <EstadoFila Tono="EstadoDocumentoUi.Tono(context.Estado)" Texto="@EstadoDocumentoUi.Texto(context.Estado)"
                                         Correcto="EstadoDocumentoUi.EsCorrecto(context.Estado)"
                                         Motivo="@EstadoDocumentoUi.MotivoDeDocumento(context.Estado, context.FechaVencimiento, _hoy)" />

@@ -35,7 +35,8 @@
                   HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
                   HayErroresDeCampo="_erroresCampo.Count > 0" OnGuardar="GuardarAsync"
                   MotivoGuardarDeshabilitado="@(_subiendoArchivo ? TextosDrawerGestionDocumento.Texto("GuardarEsperaSubida") : null)"
-                  TextoGuardar="Guardar" TextoCancelar="Cancelar">
+                  TextoGuardar="@TextoGuardarPrimario" TextoCancelar="Cancelar"
+                  PieExtra="@(HaySiguiente ? PieGuardarSinSeguir : null)">
     <ChildContent>
         @if (_editandoId is null)
         {
@@ -213,3 +214,13 @@
             OnConfirmar="() => _confirmarTipoSospechosoVisible = false" />
     </Dialogos>
 </DrawerFormulario>
+
+@code {
+    // Con más documentos con problema en la lista de la ficha, el primario es «Guardar y siguiente»
+    // y «Guardar» a secas —guarda y cierra— baja a secundario: un solo primario en el pie.
+    private RenderFragment PieGuardarSinSeguir => @<Boton Variante="VarianteBoton.Secundario" OnClick="GuardarSinSeguirAsync"
+                                                         Deshabilitado="_subiendoArchivo" Cargando="@(_guardando && !_seguirTrasGuardar)"
+                                                         title="@(_subiendoArchivo ? TextosDrawerGestionDocumento.Texto("GuardarEsperaSubida") : null)">
+        @TextosDrawerGestionDocumento.Texto(ClaveGuardar)
+    </Boton>;
+}

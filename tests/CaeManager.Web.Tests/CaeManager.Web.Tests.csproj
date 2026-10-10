@@ -29,6 +29,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Tarifa de Anthropic del banco de modelos de IA: se lee en ejecución (TarifasAnthropic). -->
+    <None Update="BancoModelosIa/tarifas-anthropic.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

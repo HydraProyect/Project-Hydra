@@ -48,6 +48,24 @@ public interface IAlcanceDatosService
     Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// ¿Quien mira opera <b>desde el lado de gestión CAE</b>? Falso para el rol
+    /// Cliente (usuario de portal). Es la misma frontera que trazan
+    /// <see cref="ObtenerEmpresaIdsParaGestionAsync"/> y sus gemelos, para un
+    /// artefacto interno que no cuelga de una lista sino de una fila que el
+    /// usuario de portal SÍ lee: su propio Cliente empresarial está en su
+    /// alcance de LECTURA —es lo que le deja abrir su ficha—, pero lo que el
+    /// equipo de gestión anota SOBRE él (la «Nota interna», «Solo visible para
+    /// tu equipo») no es contenido de portal.
+    ///
+    /// <b>No es una puerta de alcance y no falla cerrado por sí solo</b>: solo
+    /// distingue al rol Cliente del resto, así que sin rol de negocio (Sesión
+    /// Privilegiada) responde true. Se pregunta siempre DESPUÉS de comprobar
+    /// que la fila es visible (<c>…VisibleAsync</c>), que es quien deniega; a
+    /// diferencia de los <c>…ParaGestionAsync</c>, que llevan el alcance dentro.
+    /// </summary>
+    Task<bool> OperaDesdeElLadoDeGestionAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -59,7 +77,10 @@ public interface IAlcanceDatosService
     /// empresa cliente externa le salen sus propios Centros. Para LEER su
     /// estado eso es correcto; para un artefacto interno de gestión —el
     /// usuario y la contraseña con los que se entra al portal de la Plataforma
-    /// CAE de un canal— no lo es.
+    /// CAE de un canal— no lo es. Tampoco para escribir en el Centro: es la
+    /// segunda barrera de la edición y la baja (individual y en lote) del
+    /// Centro, de sus canales de gestión documental (alta, edición, baja y
+    /// marcar principal) y de su agenda de contactos (guardar y eliminar).
     /// </summary>
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default);

@@ -1,0 +1,17 @@
+/* Segunda línea bajo el nombre del documento: mismo peso visual que el detalle de FilaRelacion (caption, apagado).
+   La celda del nombre no parte línea y recorta con elipsis; esta sí parte: en una columna estrecha la elipsis se
+   comía justo la reclamación, que es el dato que se viene a leer. */
+.linea-plataforma-reclamacion {
+    display: block;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font: var(--font-caption);
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+/* Un rechazo en la plataforma es lo único que esta línea destaca: mismo tono que PlataformaTab. */
+.linea-plataforma-reclamacion--rechazada {
+    color: var(--color-danger-700);
+}

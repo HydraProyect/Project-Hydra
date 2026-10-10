@@ -200,6 +200,17 @@
     <value>No hay trabajadores de esta empresa en los centros que puedes ver.</value>
     <comment>El listado se acota a trabajadores con asignación activa en un centro visible.</comment>
   </data>
+  <data name="BuscadorTrabajadores" xml:space="preserve">
+    <value>Buscar trabajador de esta empresa…</value>
+  </data>
+  <data name="VacioBusquedaTitulo" xml:space="preserve">
+    <value>Ningún trabajador con ese filtro</value>
+    <comment>Estado vacío con texto en el buscador (con o sin chip).</comment>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Quitar filtros</value>
+    <comment>Quita el texto del buscador y el chip de estado.</comment>
+  </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
     <value>Ningún trabajador en este estado</value>
     <comment>Estado vacío con un chip de filtro activo.</comment>
@@ -418,5 +429,23 @@
   <data name="GestorCaeOtraSinPrincipal" xml:space="preserve">
     <value>Otra Asignación de Operación, sin principal</value>
     <comment>Hay más de una Asignación de Operación viva y alguna no tiene Gestor CAE principal.</comment>
+  </data>
+  <data name="GestorCaeMas" xml:space="preserve">
+    <value>+{0}</value>
+    <comment>Pastilla de la cabecera «Gestor CAE»: cuántas personas con cartera no caben en la línea. {0} = número.</comment>
+  </data>
+  <data name="GestorCaeMasEtiqueta" xml:space="preserve">
+    <value>{0} más. Lista completa de personas con Asignación de Cartera</value>
+    <comment>Nombre accesible de la pastilla «+N» de la cabecera «Gestor CAE». {0} = número de personas agrupadas.</comment>
+  </data>
+  <data name="ColDetecciones" xml:space="preserve">
+    <value>Detecciones</value>
+  </data>
+  <data name="ColCumplimiento" xml:space="preserve">
+    <value>Cumplimiento</value>
+  </data>
+  <data name="ColEstadoDocumental" xml:space="preserve">
+    <value>Estado documental</value>
+    <comment>Rótulo de la columna de estado del listado de Empresas: el peor estado de vigencia de los documentos de la Empresa.</comment>
   </data>
 </root>

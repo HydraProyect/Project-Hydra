@@ -458,6 +458,93 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerTrabajadoresParaSelectorQuery>().Should().ContainSingle();
     }
 
+    // --- Pestaña activa en la URL (criterio 3 de la homologación) -------------------------------
+
+    private IRenderedComponent<TrabajadorDetalle> RenderizarEn(Guid id, string consulta)
+    {
+        // El Historial es una pieza compartida con su propia consulta: aquí solo importa qué pestaña queda abierta.
+        ComponentFactories.AddStub<CaeManager.Web.Components.Workspace.PestanaHistorial>();
+        Navegacion.NavigateTo($"trabajadores/{id}{consulta}");
+        return Renderizar(id);
+    }
+
+    private static string PestanaSeleccionada(IRenderedComponent<TrabajadorDetalle> cut)
+    {
+        var activa = cut.FindAll("[role=tab][aria-selected=true]").Should().ContainSingle().Subject;
+        return activa.QuerySelector(".pestanas-contador") is null ? activa.TextContent.Trim() : activa.FirstChild!.TextContent.Trim();
+    }
+
+    [Theory]
+    [InlineData("", "Operación")]
+    [InlineData("?pestana=documentacion", "Documentación")]
+    [InlineData("?pestana=historial", "Historial")]
+    [InlineData("?pestana=operacion", "Operación")]
+    [InlineData("?pestana=no-existe", "Operación")]
+    [InlineData("?pestana=Documentacion", "Operación")]
+    public void La_pestana_de_la_url_abre_esa_pestana_y_un_valor_desconocido_abre_Operacion(string consulta, string esperada)
+    {
+        var id = Guid.NewGuid();
+        ConTrabajador(id);
+
+        var cut = RenderizarEn(id, consulta);
+
+        PestanaSeleccionada(cut).Should().Be(esperada);
+    }
+
+    [Fact]
+    public async Task Cambiar_de_pestana_la_deja_en_la_url_sin_recargar_la_ficha_ni_pisar_ctx()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var cut = RenderizarEn(id, "?ctx=Trabajador");
+        await cut.Find(".trabajador360-centro-disparador").ClickAsync(new MouseEventArgs());
+        cut.Find(".trabajador360-centro-disparador").GetAttribute("aria-expanded").Should().Be("true");
+
+        await cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Documentación")).ClickAsync(new MouseEventArgs());
+
+        Navegacion.Uri.Should().Contain("pestana=documentacion").And.Contain("ctx=Trabajador", "la pestaña no pisa el panel abierto");
+        PestanaSeleccionada(cut).Should().Be("Documentación");
+
+        await cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Operación")).ClickAsync(new MouseEventArgs());
+
+        Navegacion.Uri.Should().NotContain("pestana=", "Operación es la pestaña de entrada: no ensucia la URL");
+        Navegacion.Uri.Should().Contain("ctx=Trabajador");
+        mediador.Enviadas.OfType<ObtenerTrabajadorPorIdQuery>().Should().ContainSingle(
+            "la pestaña viaja en la URL y vuelve como parámetro: eso no es otra pregunta por el trabajador");
+        cut.Find(".trabajador360-centro-disparador").GetAttribute("aria-expanded").Should().Be("true",
+            "una recarga cerraría el acordeón; cambiar de pestaña no recarga");
+    }
+
+    [Fact]
+    public void La_pestana_que_cambia_en_la_url_desde_fuera_se_adopta_sin_recargar()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        var cut = RenderizarEn(id, "?pestana=historial");
+
+        Navegacion.NavigateTo($"trabajadores/{id}?pestana=documentacion");
+
+        cut.WaitForAssertion(() => PestanaSeleccionada(cut).Should().Be("Documentación"));
+        mediador.Enviadas.OfType<ObtenerTrabajadorPorIdQuery>().Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Pasar_a_otro_trabajador_sin_pestana_en_la_url_vuelve_a_Operacion_y_carga_al_nuevo()
+    {
+        var (a, b) = (Guid.NewGuid(), Guid.NewGuid());
+        var mediador = ConTrabajador(a);
+        mediador.Detalles[b] = Detalle(b, "Eider", "Lasa Arrieta");
+        mediador.Centros[b] = [];
+        var cut = RenderizarEn(a, "?pestana=historial");
+
+        Navegacion.NavigateTo($"trabajadores/{b}");
+        cut.Render(p => p.Add(x => x.TrabajadorId, b));
+
+        cut.WaitForAssertion(() => cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta"));
+        PestanaSeleccionada(cut).Should().Be("Operación");
+        mediador.Enviadas.OfType<ObtenerTrabajadorPorIdQuery>().Select(q => q.Id).Should().Equal([a, b]);
+    }
+
     [Fact]
     public async Task La_pestana_Documentacion_vacia_ofrece_Subir_documento()
     {

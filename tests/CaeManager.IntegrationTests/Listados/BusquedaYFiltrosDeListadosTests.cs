@@ -198,7 +198,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerEmpresasQueryHandler(
             contexto, alcance,
-            new CalculoEstadoDocumentalService(contexto, contexto),
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
             new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto));
 
@@ -210,7 +210,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerEmpresasQueryHandler(
             contexto, new AlcanceDatosServiceFalso(),
-            new CalculoEstadoDocumentalService(contexto, contexto),
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
             new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto));
 

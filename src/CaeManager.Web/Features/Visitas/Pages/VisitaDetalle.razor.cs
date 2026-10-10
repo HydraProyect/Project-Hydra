@@ -26,7 +26,7 @@ namespace CaeManager.Web.Features.Visitas.Pages;
 /// <summary>
 /// Visita 360, primer incremento («con lo que ya viaja»). Compone con las MISMAS consultas y
 /// comandos que el Drawer «Detalle de la visita» del listado —mismo alcance y misma RLS— la
-/// tarjeta de identidad, la banda, las pestañas y el lateral. El Drawer se conserva como
+/// tarjeta de identidad, las pestañas y el lateral. El Drawer se conserva como
 /// consulta rápida desde «Ver».
 ///
 /// <para>
@@ -48,6 +48,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     internal const string PestanaComprobacion = "comprobacion";
     internal const string PestanaPaquete = "paquete";
     internal const string PestanaAviso = "aviso";
+    internal const string PestanaFicha = "ficha";
 
     [Parameter] public Guid VisitaId { get; set; }
 
@@ -158,7 +159,17 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Con gestión CAE y sin cancelar: la única rama que comprueba documentación.</summary>
     private bool CompruebaDocumentacion => _detalle is { EstaCancelada: false, CentroRequiereGestionCae: true };
 
-    private IReadOnlyList<PestanaDefinicion> Pestanas
+    /// <summary>La antelación solo existe con tramo calculado y sin cancelar; es la única caja de «Ficha».</summary>
+    private bool HayAntelacion => _detalle is { EstaCancelada: false, Tramo: not null };
+
+    /// <summary>
+    /// Las pestañas de la rama de la visita y, la última, «Ficha» cuando tiene alguna caja que
+    /// enseñar: una pestaña vacía no se pinta.
+    /// </summary>
+    private IReadOnlyList<PestanaDefinicion> Pestanas =>
+        HayAntelacion ? [.. PestanasDeLaRama, new PestanaDefinicion(PestanaFicha, Comunes["PestanaFicha"])] : PestanasDeLaRama;
+
+    private IReadOnlyList<PestanaDefinicion> PestanasDeLaRama
     {
         get
         {
@@ -360,13 +371,6 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
         };
     }
 
-    /// <summary>La banda empieza por el plazo, como frase: «Termina hoy.»</summary>
-    private string TextoPlazoBanda(DetalleVisitaDto visita)
-    {
-        var plazo = TextoPlazo(visita);
-        return plazo.Length == 0 ? plazo : char.ToUpper(plazo[0], System.Globalization.CultureInfo.CurrentCulture) + plazo[1..] + ".";
-    }
-
     private string TextoOrigen(OrigenVisita origen) => origen switch
     {
         OrigenVisita.Correo => Textos["OrigenCorreo"].Value,
@@ -375,7 +379,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
         _ => Textos["OrigenPlataforma"].Value
     };
 
-    // ---------------------------------------------------------------- Anillo y banda
+    // ---------------------------------------------------------------- Anillo
 
     /// <summary>
     /// Un Trabajador está «listo» cuando toda la documentación que el Centro le exige está al
@@ -390,12 +394,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
 
     private bool HayFiltrosActivos => _estadosMarcados.Count > 0;
 
-    /// <summary>Las incidencias de un titular con la coma que las separa en la banda.</summary>
-    private static IEnumerable<(string Separador, DocumentoVisitaItemDto Documento)> ConSeparador(
-        IReadOnlyList<DocumentoVisitaItemDto> documentos) =>
-        documentos.Select((documento, indice) => (indice > 0 ? ", " : string.Empty, documento));
-
-    /// <summary>Algún documento exigido vencido o sin presentar: lo que la banda nombra y lo que pone en alerta el contador.</summary>
+    /// <summary>Algún documento exigido vencido o sin presentar: lo que pone en alerta el contador.</summary>
     public static bool NoPuedeAcreditarse(SeccionDocumentacionDto documentacion) =>
         documentacion.Documentos.Any(EsIncidencia);
 
@@ -414,37 +413,6 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
             return (listos, total, (int)Math.Round(listos * 100d / total, MidpointRounding.AwayFromZero));
         }
     }
-
-    /// <summary>Quién tiene incidencias y cuáles, en el orden de la lista: del peor estado al mejor.</summary>
-    private IReadOnlyList<(string Titular, IReadOnlyList<DocumentoVisitaItemDto> Incidencias)> IncidenciasDeBanda
-    {
-        get
-        {
-            if (!CompruebaDocumentacion || _documentacion is not { Trabajadores.Count: > 0 } documentacion)
-                return [];
-
-            var partes = new List<(string, IReadOnlyList<DocumentoVisitaItemDto>)>();
-            foreach (var trabajador in documentacion.Trabajadores.OrderBy(t => SeveridadEstadoDocumento.Rango(t.Documentacion.PeorEstado)))
-            {
-                var incidencias = trabajador.Documentacion.Documentos.Where(EsIncidencia).ToList();
-                if (incidencias.Count > 0)
-                    partes.Add((trabajador.NombreCompleto, incidencias));
-            }
-
-            var deEmpresa = documentacion.Empresa.Documentos.Where(EsIncidencia).ToList();
-            if (deEmpresa.Count > 0)
-                partes.Add((Textos["SeccionDocumentacionEmpresa"].Value, deEmpresa));
-
-            return partes;
-        }
-    }
-
-    /// <summary>Sin escritura la incidencia no lleva delegado y la banda la pinta como texto.</summary>
-    private EventCallback AlPulsarIncidencia(DocumentoVisitaItemDto documento) =>
-        _puedeEscribir ? EventCallback.Factory.Create(this, () => AbrirDocumento(documento)) : default;
-
-    private string TextoIncidencia(DocumentoVisitaItemDto documento) =>
-        Textos["Visita360BandaIncidencia", documento.TipoDocumentoNombre, EstadoDocumentoVisitaUi.Texto(documento.Estado, Textos)].Value;
 
     // ---------------------------------------------------------------- Comprobación previa
 

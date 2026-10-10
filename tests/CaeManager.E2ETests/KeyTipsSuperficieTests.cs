@@ -14,17 +14,16 @@ namespace CaeManager.E2ETests;
 /// en Windows. Eso es de la ventana del navegador, no de la página, y se midió a mano con
 /// teclas del sistema sobre Chrome y Edge (Project-Hydra-Negocio/tecnico/CAPA-USUARIO-AVANZADO-TALVEG.md § 3.3).
 /// </remarks>
-public class KeyTipsSuperficieTests : IAsyncLifetime
+public class KeyTipsSuperficieTests(NavegadorSinAplicacionFixture navegador) : IClassFixture<NavegadorSinAplicacionFixture>, IAsyncLifetime
 {
-    private IPlaywright _playwright = null!;
-    private IBrowser _browser = null!;
+    // El navegador es de la clase; el contexto y la página, de cada test.
+    private IBrowserContext _context = null!;
     private IPage _page = null!;
 
     public async Task InitializeAsync()
     {
-        _playwright = await Playwright.CreateAsync();
-        _browser = await _playwright.Chromium.LaunchAsync(new() { Headless = true });
-        _page = await _browser.NewPageAsync();
+        _context = await navegador.Browser.NewContextAsync();
+        _page = await _context.NewPageAsync();
         var directorio = new DirectoryInfo(AppContext.BaseDirectory);
         while (directorio is not null && !File.Exists(Path.Combine(directorio.FullName, "CaeManager.slnx")))
             directorio = directorio.Parent;
@@ -402,7 +401,6 @@ public class KeyTipsSuperficieTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await _browser.DisposeAsync();
-        _playwright.Dispose();
+        if (_context is not null) await _context.DisposeAsync();
     }
 }
