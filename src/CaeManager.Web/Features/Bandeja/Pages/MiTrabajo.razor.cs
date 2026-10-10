@@ -34,6 +34,15 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     /// severidad, un Tenant que no es un Guid) se ignora: la URL es entrada del usuario.
     /// </summary>
     [SupplyParameterFromQuery(Name = "severidad")] public string? SeveridadUrl { get; set; }
+
+    /// <summary>
+    /// Llega de «Desasignarme» en Empresas (<c>/mi-trabajo?sinAcceso=true</c>): quien mira acaba de dejar el Tenant
+    /// que tenía abierto. Sin nombre de Tenant ni dato personal en la URL.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "sinAcceso")] public bool? SinAccesoUrl { get; set; }
+
+    [Inject] private ToastService ToastService { get; set; } = default!;
+    private bool _sinAccesoAvisado;
     [SupplyParameterFromQuery(Name = "empresa")] public string? EmpresaUrl { get; set; }
     [SupplyParameterFromQuery(Name = "q")] public string? BusquedaUrl { get; set; }
     [SupplyParameterFromQuery(Name = "agrupar")] public string? AgruparUrl { get; set; }
@@ -208,9 +217,23 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
         if (EstadoAutenticacion is not null)
             _esCoordinadorCae = (await EstadoAutenticacion).User.IsInRole(Roles.CoordinadorCae);
+        AvisarSinAccesoDeLaUrl();
         // En serie, no en paralelo: las dos Queries comparten el ámbito del circuito.
         await CargarAsync();
         await CargarCandidatosCarteraAsync();
+    }
+
+    /// <summary>
+    /// <c>/mi-trabajo?sinAcceso=true</c> avisa una sola vez: el parámetro sigue en la URL mientras la pantalla vive,
+    /// y sin esta marca cada recarga repetiría el toast.
+    /// </summary>
+    private void AvisarSinAccesoDeLaUrl()
+    {
+        if (_sinAccesoAvisado || SinAccesoUrl != true || _desechado)
+            return;
+
+        _sinAccesoAvisado = true;
+        ToastService.Mostrar(TextosMiTrabajo.Texto("AvisoSinAccesoTenant"), TonoToast.Advertencia);
     }
 
     private async Task CargarCandidatosCarteraAsync()

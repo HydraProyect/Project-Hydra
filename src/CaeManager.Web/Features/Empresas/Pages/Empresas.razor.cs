@@ -93,11 +93,11 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// <summary>
     /// Quien mira acaba de desasignarse, desde la cabecera «Gestor CAE», de su apoyo sobre el Tenant
     /// propietario activo: todo lo que esta página tiene pintado es de un Tenant al que ya no accede.
-    /// Aquí no se decide adónde va: se recarga la lista entera, sin filtros (<c>forceLoad</c>), y es
-    /// el arranque normal de la aplicación quien resuelve de nuevo el Tenant activo y el acceso.
+    /// Va a «Mi trabajo» con <c>sinAcceso=true</c> para avisarlo; <c>forceLoad</c> hace que el arranque
+    /// normal de la aplicación vuelva a resolver el Tenant activo y el acceso.
     /// Tras «+ Dar acceso» no se llama: ahí basta con que la cabecera relea su dato.
     /// </summary>
-    private void RecargarTrasDesasignarme() => NavigationManager.NavigateTo(RutaLista, forceLoad: true);
+    private void IrAMiTrabajoTrasDesasignarme() => NavigationManager.NavigateTo("/mi-trabajo?sinAcceso=true", forceLoad: true);
 
     /// <summary>
     /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera

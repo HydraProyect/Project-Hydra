@@ -216,7 +216,7 @@
   <data name="ListaAmbitoEmpresa" xml:space="preserve"><value>Empresa</value></data>
   <data name="ListaAmbitoVehiculo" xml:space="preserve"><value>Vehículo</value></data>
   <data name="ListaAmbitoProyecto" xml:space="preserve"><value>Proyecto</value></data>
-  <data name="ListaEntidadAsociadaPorAmbito" xml:space="preserve"><value>Entidad asociada · Ámbito</value></data>
+  <data name="ListaEntidadAsociadaPorAmbito" xml:space="preserve"><value>Pertenece a · Ámbito</value></data>
   <data name="ListaVigenciaPorEmision" xml:space="preserve"><value>Vigencia · Emisión</value></data>
   <data name="ListaVigenciaPorVencimiento" xml:space="preserve"><value>Vigencia · Vencimiento</value></data>
   <data name="ListaOrdenarEntidadAsociada" xml:space="preserve"><value>Ordenar por entidad asociada</value></data>
@@ -224,7 +224,7 @@
   <data name="ListaOrdenarEmision" xml:space="preserve"><value>Ordenar por emisión</value></data>
   <data name="ListaOrdenarVencimiento" xml:space="preserve"><value>Ordenar por vencimiento</value></data>
   <data name="ListaEmitido" xml:space="preserve"><value>Emitido {0}</value></data>
-  <data name="ListaEntidadAsociada" xml:space="preserve"><value>Entidad asociada</value></data>
+  <data name="ListaEntidadAsociada" xml:space="preserve"><value>Pertenece a</value></data>
   <data name="FiltroGuardadoBorrarTitulo" xml:space="preserve">
     <value>¿Borrar el filtro guardado «{0}»?</value>
   </data>

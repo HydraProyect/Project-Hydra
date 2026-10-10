@@ -1491,7 +1491,7 @@ public partial class DocumentosGen2Tests : BunitContext
     {
         var (cut, m) = Renderizar(ConDocumentos(Documento("Contrato de prueba")));
         var entidad = campo is "PropietarioNombre" or "Ambito";
-        var titulo = entidad ? "Entidad asociada" : "Vigencia";
+        var titulo = entidad ? "Pertenece a" : "Vigencia";
         var previo = campo switch
         {
             "PropietarioNombre" => "Ambito",
@@ -1601,7 +1601,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
     private static async Task ElegirOrdenDocumentoFase1(IRenderedComponent<PaginaDocumentos> cut, string campo)
     {
-        var titulo = campo is "PropietarioNombre" or "Ambito" ? "Entidad asociada" : "Vigencia";
+        var titulo = campo is "PropietarioNombre" or "Ambito" ? "Pertenece a" : "Vigencia";
         var texto = campo switch
         {
             "PropietarioNombre" => "Ordenar por entidad asociada",

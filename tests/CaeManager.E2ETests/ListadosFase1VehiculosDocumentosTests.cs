@@ -72,7 +72,7 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         await page.Locator("table.tabla-datos").WaitForAsync();
         // Las dos direcciones hacen visibles los extremos de la unión, aunque una página
         // completa pueda contener solo Trabajadores. No se afirma un número fijo de documentos.
-        var entidad = Cabecera(page, "Entidad asociada");
+        var entidad = Cabecera(page, "Pertenece a");
         await ElegirOpcionDocumentoAsync(entidad, "Ordenar por ámbito");
         await ComprobarOrdenDocumentoAsync(page, entidad, "ambito");
 

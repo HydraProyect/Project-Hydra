@@ -35,7 +35,7 @@ public partial class EmpresasListaGen2Tests
     private int RecargasCompletas() => Historial.History.Count(h => h.Options.ForceLoad);
 
     [Fact]
-    public async Task Desasignarme_desde_la_cabecera_recarga_la_pagina_entera_en_su_ruta_sin_filtros()
+    public async Task Desasignarme_desde_la_cabecera_lleva_a_Mi_trabajo_con_el_aviso_de_acceso_perdido()
     {
         var tenant = Guid.NewGuid();
         Seleccion = new SeleccionEmpresaGestionadaDePrueba(tenant);
@@ -63,8 +63,8 @@ public partial class EmpresasListaGen2Tests
             .Which.Should().Be(new DesasignarmeDeApoyoCommand(mio.PropuestaId), "control: la acción se envió");
         Historial.History.Where(h => h.Options.ForceLoad).Should().ContainSingle(
             "quien mira ya no tiene acceso a este Tenant: la página no puede seguir pintando sus datos")
-            .Which.Uri.Should().Be("/empresas", "a la lista, sin los filtros que tenía puestos");
-        new Uri(Navegacion.Uri).PathAndQuery.Should().Be("/empresas");
+            .Which.Uri.Should().Be("/mi-trabajo?sinAcceso=true", "a Mi trabajo, con el aviso de que ya no hay acceso a ese Tenant");
+        new Uri(Navegacion.Uri).PathAndQuery.Should().Be("/mi-trabajo?sinAcceso=true");
     }
 
     [Fact]
