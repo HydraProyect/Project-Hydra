@@ -118,7 +118,8 @@
                           OnGuardarFiltro="AbrirGuardarFiltro"
                           FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
                           OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
-                          MasFiltrosActivos="@(!string.IsNullOrEmpty(_plataformaFiltro))">
+                          MasFiltrosActivos="@(!string.IsNullOrEmpty(_plataformaFiltro))"
+                          VistaRecordada="_vistaRecordada">
                 <Pastillas>
                     <PastillaFiltro Etiqueta="@Textos["ListaFiltroAmbito"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_ambitoFiltro"
                                     ValorChanged="CambiarAmbitoFiltroAsync" Opciones="OpcionesAmbitoListado" />
@@ -156,6 +157,9 @@
                     }
                 </Chips>
             </BarraFiltros>
+            @* Bajo la pestaña del listado: la vista recordada es la de esta rejilla, no la de las otras pestañas. *@
+            <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Documentos"
+                                     ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 
             @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez, viaja en la URL
                como «Estado» (estados de código separados por coma) y cada botón dice cuántos Documentos hay, con

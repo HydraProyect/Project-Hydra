@@ -100,7 +100,8 @@
                   HayFiltrosActivos="HayFiltrosActivos"
                   OnLimpiarTodo="LimpiarFiltrosAsync" OnGuardarFiltro="AbrirGuardarFiltro"
                   FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
-                  OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado">
+                  OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
+                  VistaRecordada="_vistaRecordada">
         <Pastillas>
             <PastillaFiltro Etiqueta="Gestor CAE" Valor="@_ejecutivoFiltro" ValorChanged="CambiarEjecutivoFiltroAsync" Opciones="OpcionesGestorCae" />
             <PastillaFiltro Etiqueta="@Textos["ListaFiltroCriticidad"]" Valor="@(_soloCriticos ? ValorSoloCriticos : string.Empty)"
@@ -129,6 +130,8 @@
             }
         </Resumen>
     </BarraFiltros>
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Clientes"
+                             ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 
     @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez y viaja en la URL como
        «estado». Aquí un botón pregunta si el Cliente empresarial tiene ALGUNA alerta en ese estado, así que uno

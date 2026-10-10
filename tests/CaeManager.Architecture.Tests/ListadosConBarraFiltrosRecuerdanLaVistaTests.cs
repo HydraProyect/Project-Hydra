@@ -9,23 +9,13 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// Visitas no tiene <c>&lt;BarraFiltros&gt;</c> todavía (su cabecera se está reescribiendo): cuando la
-/// tenga entrará sola en la medida. <see cref="AunSinVistaRecordada"/> congela los listados con barra
-/// que aún no montan la pieza; solo puede bajar.
+/// tenga entrará sola en la medida. Los nueve listados con barra montan ya la pieza: no queda
+/// ninguno congelado.
 /// </para>
 /// </summary>
 public class ListadosConBarraFiltrosRecuerdanLaVistaTests
 {
     private const string Paginas = "src/CaeManager.Web/Features";
-
-    /// <summary>
-    /// Pendientes de este mismo incremento (cierre N 2/2): sus filtros guardados son anteriores a la pieza
-    /// compartida y aún no tienen <c>ParametrosDeVista</c> ni <c>AplicarVistaGuardadaAsync</c>.
-    /// </summary>
-    private static readonly string[] AunSinVistaRecordada =
-    [
-        "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor",
-        "src/CaeManager.Web/Features/Documentos/Pages/Documentos.razor",
-    ];
 
     private static Dictionary<string, string> ListadosConBarra()
     {
@@ -51,13 +41,14 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
     }
 
     [Fact]
-    public void Todo_listado_con_barra_de_filtros_monta_la_vista_recordada_salvo_los_congelados()
+    public void Todo_listado_con_barra_de_filtros_monta_la_vista_recordada()
     {
+        // No vale por vacío: el control positivo de arriba fija que el recorrido ve los nueve.
         var sinPieza = ListadosConBarra().Where(l => !RecuerdaLaVista(l.Value)).Select(l => l.Key).ToList();
 
-        sinPieza.Should().BeEquivalentTo(AunSinVistaRecordada,
+        sinPieza.Should().BeEmpty(
             "un listado con <BarraFiltros> monta <VistaRecordadaDeListado Conexion=\"_vistaRecordada\" ParametrosDeVista=\"ParametrosDeVista\" …> "
-            + "y pasa VistaRecordada=\"_vistaRecordada\" a la barra; y quien ya lo hace sale de AunSinVistaRecordada");
+            + "y pasa VistaRecordada=\"_vistaRecordada\" a la barra");
     }
 
     [Fact]

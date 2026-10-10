@@ -475,9 +475,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         // Lo que no sea un estado conocido, o un Gestor CAE que el directorio visible de este
         // usuario no ofrece, es «sin filtro»: un Id en la URL no es autoridad, y la pantalla
         // no filtra por alguien a quien no puede nombrar (misma regla que el filtro guardado).
-        var gestorDeLaUrl = Guid.TryParse(GestorCaeInicial, out var gestorId) && _ejecutivosParaFiltro.Any(g => g.Id == gestorId)
-            ? gestorId.ToString()
-            : string.Empty;
+        var gestorDeLaUrl = GestorVisible(GestorCaeInicial);
         var estadoDeLaUrl = EstadosValidos(EstadoDocumentalInicial);
         var cambio = deLaUrl != _busqueda || soloCriticosDeLaUrl != _soloCriticos
             || gestorDeLaUrl != _ejecutivoFiltro || estadoDeLaUrl != _estadoDocumentalFiltro;
@@ -1306,6 +1304,46 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         });
         await RecargarAsync();
     }
+
+    // --- Vista recordada (pieza compartida VistaRecordadaDeListado) ---
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que recuerda y restaura la vista recordada
+    /// (<see cref="VistaRecordadaDeListado"/>). Los filtros guardados de esta pantalla son anteriores a la
+    /// pieza compartida y conservan su propio JSON (<see cref="LeerFiltroGuardado"/>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "critico", "gestor", "estado"];
+
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// La vista recordada (o la de inicio, al restablecer) define la vista entera: lo que no trae se quita.
+    /// Cada valor pasa por la misma validación que el de la URL en <see cref="OnParametersSetAsync"/>: un
+    /// estado que la franja no conoce se descarta y un Gestor CAE que el directorio visible de este usuario
+    /// no ofrece es «sin filtro» (lo recordado no es autoridad). La URL se escribe en una sola navegación y
+    /// se recarga aquí.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _soloCriticos = bool.TryParse(vista.GetValueOrDefault("critico"), out var soloCriticos) && soloCriticos;
+        _ejecutivoFiltro = GestorVisible(vista.GetValueOrDefault("gestor"));
+        _estadoDocumentalFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["critico"] = _soloCriticos ? "true" : null,
+            ["gestor"] = _ejecutivoFiltro,
+            ["estado"] = _estadoDocumentalFiltro,
+        });
+        await RecargarAsync();
+    }
+
+    /// <summary>El Id de Gestor CAE que llega de fuera, si el directorio visible de este usuario lo ofrece; si no, vacío.</summary>
+    private string GestorVisible(string? valor) =>
+        Guid.TryParse(valor, out var gestorId) && _ejecutivosParaFiltro.Any(g => g.Id == gestorId)
+            ? gestorId.ToString()
+            : string.Empty;
 
     private void CerrarModalGuardarFiltro(bool visible)
     {

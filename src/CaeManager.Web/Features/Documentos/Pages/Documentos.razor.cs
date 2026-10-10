@@ -1226,6 +1226,44 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         await RecargarAsync();
     }
 
+    // --- Vista recordada (pieza compartida VistaRecordadaDeListado) ---
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL del listado principal: lo que recuerda y restaura
+    /// la vista recordada (<see cref="VistaRecordadaDeListado"/>), con la grafía con la que esta página los
+    /// escribe. No son vista <c>Pestana</c> ni los enlaces profundos (<see cref="DocumentoId"/>,
+    /// <see cref="TipoDocumentoId"/>…). Los filtros guardados de esta pantalla son anteriores a la pieza
+    /// compartida y conservan su propio JSON.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista =
+        ["q", nameof(Estado), nameof(Ambito), nameof(Tipo), nameof(Plataforma)];
+
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// La vista recordada (o la de inicio, al restablecer) define la vista entera: lo que no trae se quita.
+    /// Cada valor pasa por la misma validación que el de la URL en <see cref="OnParametersSet"/> (un estado
+    /// que ya no existe o un Id que no es Guid se ignoran). La URL se escribe en una sola navegación y se
+    /// recarga aquí.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadosValidos(vista.GetValueOrDefault(nameof(Estado)));
+        _ambitoFiltro = vista.GetValueOrDefault(nameof(Ambito)) ?? string.Empty;
+        _tipoFiltro = IdValido(vista.GetValueOrDefault(nameof(Tipo)));
+        _plataformaFiltro = IdValido(vista.GetValueOrDefault(nameof(Plataforma)));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            [nameof(Estado)] = _estadoFiltro,
+            [nameof(Ambito)] = _ambitoFiltro,
+            [nameof(Tipo)] = _tipoFiltro,
+            [nameof(Plataforma)] = _plataformaFiltro,
+        });
+        await RecargarAsync();
+    }
+
     /// <summary>
     /// P1-E2b: el modal «Guardar filtro» abre siempre con el nombre vacío, así que hay algo
     /// que perder en cuanto se ha escrito uno. Lo lee el ModalFormulario (guardián de la X, Escape, el fondo y «Cancelar», y aviso de
