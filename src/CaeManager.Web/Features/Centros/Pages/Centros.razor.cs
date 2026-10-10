@@ -56,7 +56,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private bool _opcionesFiltroCargadas;
 
-    /// <summary>Agrupación visual por Cliente empresarial: de serie, sí.</summary>
+    /// <summary>Agrupación por Cliente empresarial: de serie, sí.</summary>
     private bool _agruparPorCliente = true;
 
     /// <summary>
@@ -64,6 +64,13 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// entre páginas y filtros) y se vacía al cambiar la agrupación.
     /// </summary>
     private readonly HashSet<Guid> _gruposAbiertos = [];
+
+    /// <summary>
+    /// Total y Centros por estado de cada Cliente empresarial, contando todas las páginas: lo da la consulta
+    /// (<c>ResultadoPaginado.ResumenPorGrupo</c>) con los mismos filtros y alcance que la lista. Es lo que
+    /// pinta la cabecera de grupo, que no puede deducirse de las filas de la página.
+    /// </summary>
+    private IReadOnlyDictionary<string, ResumenDeGrupo>? _resumenPorGrupo;
     private Guid? _centroIdFiltro;
     private bool _cargando = true;
     private bool _errorCarga;
@@ -191,18 +198,39 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     public string? EmpresaFiltroInicial { get; set; }
 
     /// <summary>
-    /// Agrupación por Cliente empresarial. Nace activa: en la URL solo viaja
-    /// cuando se quita (<c>?agrupar=no</c>), para que la dirección sin
-    /// parámetros siga siendo la vista de fábrica.
+    /// Agrupación de la lista, como la lee <see cref="Agrupacion"/>: ausente, la de fábrica (por Cliente
+    /// empresarial); <c>no</c>, sin agrupar; <c>cliente</c>, por Cliente empresarial; otro valor, la de fábrica.
     /// </summary>
-    [SupplyParameterFromQuery(Name = "agrupar")]
+    [SupplyParameterFromQuery(Name = AgrupacionDeLista.Parametro)]
     public string? AgruparInicial { get; set; }
 
     /// <summary>Orden pedido: <c>cumplimiento</c> (peores primero) o <c>cumplimiento-desc</c>. Sin él, el orden de catálogo.</summary>
     [SupplyParameterFromQuery(Name = "orden")]
     public string? OrdenInicial { get; set; }
 
-    private const string AgruparNoEnUrl = "no";
+    /// <summary>Clave en la URL de la única agrupación que ofrece Centros: por Cliente empresarial.</summary>
+    private const string AgruparPorClienteClave = "cliente";
+
+    /// <summary>Centros nace agrupado por Cliente empresarial y no ofrece otra agrupación.</summary>
+    private static readonly AgrupacionDeLista Agrupacion = new(AgruparPorClienteClave, AgruparPorClienteClave);
+
+    /// <summary>
+    /// Opciones del desplegable «Agrupar». El campo se rotula con el mismo texto que su pastilla de filtro,
+    /// así que los dos dicen siempre lo mismo.
+    /// </summary>
+    private IReadOnlyList<OpcionAgrupar> OpcionesAgrupar => [new(AgruparPorClienteClave, Textos["FiltroClienteEmpresarial"])];
+
+    private bool AgrupaPorClienteSegunLaUrl => AgrupaPorCliente(AgruparInicial);
+
+    /// <summary>
+    /// Único lector del valor de <c>agrupar</c>, venga de la URL o de un filtro guardado: los dos pasan por
+    /// <see cref="AgrupacionDeLista.Leer"/>.
+    /// </summary>
+    private static bool AgrupaPorCliente(string? valorDeAgrupar) => Agrupacion.Leer(valorDeAgrupar) == AgruparPorClienteClave;
+
+    /// <summary>La agrupación vigente como clave de <see cref="AgrupacionDeLista"/>: <c>null</c> es «sin agrupar».</summary>
+    private string? ClaveDeAgrupacion => _agruparPorCliente ? AgruparPorClienteClave : null;
+
     private const string OrdenCumplimientoEnUrl = "cumplimiento";
     private const string OrdenCumplimientoDescendenteEnUrl = "cumplimiento-desc";
 
@@ -306,7 +334,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         _empresaFiltro = IdDesdeUrl(EmpresaFiltroInicial);
         _centroIdFiltro = CentroId;
         (_ordenarPor, _ordenDescendente) = OrdenDesdeUrl();
-        _agruparPorCliente = AgruparInicial != AgruparNoEnUrl;
+        _agruparPorCliente = AgrupaPorClienteSegunLaUrl;
         _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
         await CargarAsync();
 
@@ -366,8 +394,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         var empresaDeLaUrl = IdDesdeUrl(EmpresaFiltroInicial);
         var (ordenarPorDeLaUrl, descendenteDeLaUrl) = OrdenDesdeUrl();
 
-        // La agrupación es solo visual: se aplica sin volver a pedir la lista.
-        AplicarAgrupacion(AgruparInicial != AgruparNoEnUrl);
+        // La agrupación no cambia qué se lista (el resumen por grupo viaja siempre con la página): se aplica
+        // sin volver a pedir la lista.
+        AplicarAgrupacion(AgrupaPorClienteSegunLaUrl);
 
         if (deLaUrl == _busqueda && estadoDeLaUrl == _estadoFiltro && clienteDeLaUrl == _clienteFiltro
             && empresaDeLaUrl == _empresaFiltro && CentroId == _centroIdFiltro
@@ -446,7 +475,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         CentroId: _centroIdFiltro,
         EmpresaId: IdDeFiltro(_empresaFiltro),
         Estados: SeleccionEstados.Separar<EstadoCentro>(_estadoFiltro) is { Count: > 0 } estados ? estados : null,
-        ConRecuentosPorEstado: true);
+        ConRecuentosPorEstado: true,
+        ConResumenPorGrupo: true);
 
     private async Task CargarAsync(bool resetPagina = false)
     {
@@ -463,6 +493,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
+            _resumenPorGrupo = resultado.ResumenPorGrupo;
             _elementosPagina = resultado.Elementos.ToList();
             _seleccionados.Clear();
             _expandidos.Clear();
@@ -497,7 +528,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// ESA fila — pero CargarAsync() completo colapsaría el acordeón que el
     /// usuario acaba de usar (limpia _expandidos). Un CentroId filtrado
     /// devuelve solo esa fila y se sustituye en sitio, sin tocar expansión ni
-    /// selección ni paginación.
+    /// selección ni paginación. Si la fila cambió de estado, el resumen de su
+    /// grupo se corrige en la misma cifra (<see cref="CorregirResumenDeGrupo"/>).
     /// </summary>
     private async Task RefrescarCentroAsync(Guid centroId)
     {
@@ -507,7 +539,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         var indice = _elementosPagina.FindIndex(c => c.Id == centroId);
         if (indice >= 0)
+        {
+            CorregirResumenDeGrupo(_elementosPagina[indice], actualizado);
             _elementosPagina[indice] = actualizado;
+        }
 
         StateHasChanged();
     }
@@ -544,6 +579,23 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             // El guardado ya es firme: que falle la relectura no es un error que enseñar. La
             // fila conserva el dato anterior hasta la siguiente carga, como antes de este aviso.
         }
+    }
+
+    /// <summary>
+    /// El resumen de un grupo es del grupo entero y vino con la página: al refrescar UNA fila en sitio no se
+    /// vuelve a pedir, así que el Centro que cambió de estado se pasa de una cifra a la otra. El total no cambia.
+    /// </summary>
+    private void CorregirResumenDeGrupo(CentroListaDto anterior, CentroListaDto actualizado)
+    {
+        var clave = ClaveDeGrupo(ClienteEmpresarialDe(actualizado));
+        if (anterior.Estado == actualizado.Estado || _resumenPorGrupo is null || !_resumenPorGrupo.TryGetValue(clave, out var resumen))
+            return;
+
+        var (antes, ahora) = (anterior.Estado.ToString(), actualizado.Estado.ToString());
+        var porEstado = new Dictionary<string, int>(resumen.PorEstado);
+        porEstado[antes] = Math.Max(0, porEstado.GetValueOrDefault(antes) - 1);
+        porEstado[ahora] = porEstado.GetValueOrDefault(ahora) + 1;
+        _resumenPorGrupo = new Dictionary<string, ResumenDeGrupo>(_resumenPorGrupo) { [clave] = resumen with { PorEstado = porEstado } };
     }
 
     private DrawerAsignacionMasiva _drawerAsignacion = default!;
@@ -606,6 +658,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         _totalElementos = resultado.TotalElementos;
         _recuentosPorEstado = resultado.RecuentosPorEstado;
+        _resumenPorGrupo = resultado.ResumenPorGrupo;
         _elementosPagina = resultado.Elementos.ToList();
         _seleccionados.IntersectWith(_elementosPagina.Select(c => c.Id));
         _expandidos.Clear();
@@ -713,7 +766,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         _clienteFiltro = IdDesdeUrl(vista.GetValueOrDefault("cliente"));
         _empresaFiltro = IdDesdeUrl(vista.GetValueOrDefault("empresa"));
         (_ordenarPor, _ordenDescendente) = OrdenDesde(vista.GetValueOrDefault("orden"));
-        AplicarAgrupacion(vista.GetValueOrDefault("agrupar") != AgruparNoEnUrl);
+        AplicarAgrupacion(AgrupaPorCliente(vista.GetValueOrDefault(AgrupacionDeLista.Parametro)));
 
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
@@ -721,7 +774,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             ["estado"] = _estadoFiltro,
             ["cliente"] = _clienteFiltro,
             ["empresa"] = _empresaFiltro,
-            ["agrupar"] = _agruparPorCliente ? null : AgruparNoEnUrl,
+            [AgrupacionDeLista.Parametro] = Agrupacion.ParaUrl(ClaveDeAgrupacion),
             ["orden"] = _ordenarPor is null
                 ? null
                 : _ordenDescendente ? OrdenCumplimientoDescendenteEnUrl : OrdenCumplimientoEnUrl,
@@ -732,14 +785,36 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private bool MostrarPaginador =>
         _totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _tamanoPagina > TamanoPaginaMinimo);
 
-    // --- Agrupación visual por Cliente empresarial y filas tintadas (rediseño de listados, fase 1) ---
+    // --- Agrupación por Cliente empresarial y filas tintadas (rediseño de listados, fase 1) ---
 
-    /// <summary>Un grupo de la página: los Centros de un Cliente empresarial y su resumen.</summary>
-    private sealed record GrupoCentros(Guid ClienteEmpresarialId, string Nombre, IReadOnlyList<CentroListaDto> Centros)
+    /// <summary>
+    /// Un grupo: los Centros de un Cliente empresarial que hay en la página (<paramref name="Centros"/>) y el
+    /// resumen del grupo ENTERO, en todas las páginas (<paramref name="Total"/> y <paramref name="PorEstado"/>,
+    /// Centros por nombre de <see cref="EstadoCentro"/>).
+    /// </summary>
+    private sealed record GrupoCentros(
+        Guid ClienteEmpresarialId, string Nombre, IReadOnlyList<CentroListaDto> Centros,
+        int Total, IReadOnlyDictionary<string, int> PorEstado)
     {
-        public int ConProblema => Centros.Count(c => NivelProblema(c) == 2);
-        public int PorVencer => Centros.Count(c => NivelProblema(c) == 1);
-        public int Peor => Centros.Max(NivelProblema);
+        /// <summary>El nivel del peor Centro del grupo entero, con el criterio que tiñe la fila (<see cref="NivelProblema"/>).</summary>
+        public int Peor => Enum.GetValues<EstadoCentro>()
+            .Where(estado => PorEstado.GetValueOrDefault(estado.ToString()) > 0)
+            .Select(NivelProblema)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        /// <summary>
+        /// Blanca salvo que el grupo contenga algún Centro cuya fila se tiñe; entonces, el tinte del peor.
+        /// El resumen de la cabecera dice «N por vencer» sumando Urgente y Próximo, como la franja de estado, pero
+        /// el tinte y el orden del grupo (<see cref="Peor"/>) solo reaccionan a Urgente: la cabecera se tiñe con el
+        /// criterio de sus filas, y la fila de un Centro «Próximo» no se tiñe.
+        /// </summary>
+        public TinteGrupoLista Tinte => Peor switch
+        {
+            2 => TinteGrupoLista.Peligro,
+            1 => TinteGrupoLista.Aviso,
+            _ => TinteGrupoLista.Ninguno,
+        };
     }
 
     /// <summary>
@@ -748,12 +823,16 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private static Guid ClienteEmpresarialDe(CentroListaDto centro) => centro.ClienteId;
 
+    /// <summary>La clave del grupo en <c>ResultadoPaginado.ResumenPorGrupo</c>: el Id del Cliente empresarial, como lo escribe la consulta.</summary>
+    private static string ClaveDeGrupo(Guid clienteEmpresarialId) => clienteEmpresarialId.ToString();
+
     /// <summary>
-    /// Grupos de la página. Con el orden de serie, primero el de peor estado (como la maqueta aprobada) y,
-    /// a igual estado, en el orden en que aparece su primer Centro. Con un orden pedido (cumplimiento), en
-    /// el orden en que aparece su primer Centro: el grupo de la primera fila pedida va primero y dentro de
-    /// cada grupo se respeta ese orden, así que la agrupación no lo contradice (GroupBy conserva la primera
-    /// aparición y OrderByDescending es estable).
+    /// Grupos con alguna fila en la página, cada uno con el resumen de su grupo entero. Con el orden de serie,
+    /// primero el de peor estado —el del grupo entero, no el de las filas que cayeron en esta página— (como la
+    /// maqueta aprobada) y, a igual estado, en el orden en que aparece su primer Centro. Con un orden pedido
+    /// (cumplimiento), en el orden en que aparece su primer Centro: el grupo de la primera fila pedida va primero
+    /// y dentro de cada grupo se respeta ese orden, así que la agrupación no lo contradice (GroupBy conserva la
+    /// primera aparición y OrderByDescending es estable).
     /// </summary>
     private IReadOnlyList<GrupoCentros> Grupos
     {
@@ -761,10 +840,47 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         {
             var grupos = _elementosPagina
                 .GroupBy(ClienteEmpresarialDe)
-                .Select(g => new GrupoCentros(g.Key, g.First().ClienteRazonSocial, g.ToList()));
+                .Select(g => CrearGrupo(g.Key, g.ToList()));
             return (_ordenarPor is null ? grupos.OrderByDescending(g => g.Peor) : grupos).ToList();
         }
     }
+
+    /// <summary>
+    /// El resumen lo da la consulta. Si no trajera el de este grupo (la página lo pide siempre, así que no
+    /// debería ocurrir), la cabecera describe lo único que tiene: las filas de la página.
+    /// </summary>
+    private GrupoCentros CrearGrupo(Guid clienteEmpresarialId, IReadOnlyList<CentroListaDto> centros)
+    {
+        var nombre = centros[0].ClienteRazonSocial;
+        return _resumenPorGrupo is not null && _resumenPorGrupo.TryGetValue(ClaveDeGrupo(clienteEmpresarialId), out var resumen)
+            ? new GrupoCentros(clienteEmpresarialId, nombre, centros, resumen.Total, resumen.PorEstado)
+            : new GrupoCentros(clienteEmpresarialId, nombre, centros, centros.Count,
+                centros.GroupBy(c => c.Estado.ToString()).ToDictionary(porEstado => porEstado.Key, porEstado => porEstado.Count()));
+    }
+
+    /// <summary>
+    /// Resumen por estado de la cabecera de grupo: un punto y «N estado» por cada botón de la franja de estado
+    /// (<see cref="EstadoCentroUi.Franja"/>: mismo orden, de peor a mejor, y misma agrupación, «por vencer»
+    /// suma Urgente y Próximo) que tenga algún Centro. Lo que no es un problema no se lista: ni lo vigente ni lo
+    /// que no requiere gestión CAE.
+    /// </summary>
+    private IReadOnlyList<ResumenEstadoGrupo> ResumenDe(GrupoCentros grupo) =>
+        EstadoCentroUi.Franja
+            .Where(opcion => opcion.Tono is not (TonoBadge.Exito or TonoBadge.Neutro))
+            .Select(opcion => (Opcion: opcion, Cuantos: opcion.Valores.Sum(estado => grupo.PorEstado.GetValueOrDefault(estado))))
+            .Where(estado => estado.Cuantos > 0)
+            .Select(estado => new ResumenEstadoGrupo(estado.Opcion.Tono, TextoDeResumen(estado.Opcion, estado.Cuantos)))
+            .ToList();
+
+    /// <summary>«1 vencido», «3 vencidos»: el rótulo del estado en minúscula y en su número. «Por vencer» no varía.</summary>
+    private string TextoDeResumen(OpcionFranjaEstado opcion, int cuantos) => opcion.Valores[0] switch
+    {
+        nameof(EstadoCentro.Bloqueado) => Textos[cuantos == 1 ? "GrupoResumenBloqueoUno" : "GrupoResumenBloqueoVarios", cuantos],
+        nameof(EstadoCentro.Vencido) => Textos[cuantos == 1 ? "GrupoResumenVencidoUno" : "GrupoResumenVencidoVarios", cuantos],
+        nameof(EstadoCentro.Faltante) => Textos[cuantos == 1 ? "GrupoResumenPendienteUno" : "GrupoResumenPendienteVarios", cuantos],
+        nameof(EstadoCentro.Urgente) => Textos["GrupoPorVencer", cuantos],
+        _ => $"{cuantos} {opcion.Texto}",
+    };
 
     /// <summary>Filas en el orden en que se pintan: agrupadas, las de cada grupo seguidas.</summary>
     private IEnumerable<CentroListaDto> FilasEnOrden(IReadOnlyList<GrupoCentros> grupos) =>
@@ -811,11 +927,17 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             _idEnfocado = null;
     }
 
-    /// <summary>El conmutador de la barra: cambia la agrupación y la escribe en la URL.</summary>
-    private void CambiarAgrupacion(bool agrupar)
+    /// <summary>
+    /// El desplegable «Agrupar»: cambia la agrupación y la escribe en la URL en una sola navegación
+    /// (<see cref="AgrupacionDeLista.ParaUrl"/>: la de fábrica no deja rastro, sin agrupar es <c>agrupar=no</c>).
+    /// </summary>
+    private void CambiarAgrupacion(string? clave)
     {
-        AplicarAgrupacion(agrupar);
-        NavigationManager.ActualizarFiltroEnUrl("agrupar", agrupar ? null : AgruparNoEnUrl);
+        AplicarAgrupacion(clave == AgruparPorClienteClave);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            [AgrupacionDeLista.Parametro] = Agrupacion.ParaUrl(clave),
+        });
     }
 
     private void AplicarAgrupacion(bool agrupar)
@@ -831,9 +953,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private string ClaseTarjeta(CentroListaDto centro) =>
         "tarjeta-fila-acordeon"
         + (centro.Id == _idEnfocado ? " fila-enfocada" : string.Empty)
-        + ClaseTinte(NivelProblema(centro));
-
-    private static string ClaseTinteGrupo(GrupoCentros grupo) => ClaseTinte(grupo.Peor);
+        + ClaseTinte(NivelProblema(centro.Estado));
 
     private static string ClaseTinte(int nivel) => nivel switch
     {
@@ -845,9 +965,10 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>
     /// Fila con problema: 2 = bloqueo de la plataforma CAE, vencido o falta documentación
     /// (tinte de peligro, «con problema»); 1 = urgente (tinte de aviso, «por vencer»); 0 = el resto.
-    /// Se lee del estado del Centro, el mismo que pinta su badge.
+    /// Se lee del estado del Centro, el mismo que pinta su badge. Es también el criterio del tinte de la cabecera
+    /// de grupo (<see cref="GrupoCentros.Tinte"/>): «Próximo» se rotula «Por vencer» pero no tiñe ni fila ni grupo.
     /// </summary>
-    private static int NivelProblema(CentroListaDto centro) => centro.Estado switch
+    private static int NivelProblema(EstadoCentro estado) => estado switch
     {
         EstadoCentro.Bloqueado or EstadoCentro.Vencido or EstadoCentro.Faltante => 2,
         EstadoCentro.Urgente => 1,

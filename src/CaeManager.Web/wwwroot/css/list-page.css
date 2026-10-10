@@ -335,43 +335,10 @@
     margin-bottom: 0;
 }
 
-/* Control segmentado de la fila de filtros («Sin agrupar / Por Cliente»): la opción
-   vigente lleva aria-pressed="true". */
-.segmentado-lista {
-    display: inline-flex;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
-    overflow: hidden;
-}
-
-.segmentado-lista-opcion {
-    padding: var(--space-1) var(--space-3);
-    border: 0;
-    background-color: var(--color-surface);
-    color: var(--color-text-muted);
-    font: var(--font-caption);
-    cursor: pointer;
-}
-
-.segmentado-lista-opcion + .segmentado-lista-opcion {
-    border-left: 1px solid var(--color-border);
-}
-
-.segmentado-lista-opcion[aria-pressed="true"] {
-    background-color: var(--color-primary-50);
-    color: var(--color-primary-700);
-    font-weight: 600;
-}
-
-.segmentado-lista-opcion:focus-visible {
-    outline: 2px solid var(--color-primary-400);
-    outline-offset: -2px;
-}
-
-/* Cabecera de grupo de un listado de acordeón agrupado (Centros por Cliente empresarial): fila
-   entera pulsable con chevron, nombre, contador y resumen. Blanca, con el gris de fila al pasar
-   el puntero; si el grupo contiene vencidos o urgentes lleva el mismo degradado que las filas
-   (regla única de «Fila con problema», arriba). */
+/* Cabecera de grupo de un listado agrupado (CabeceraGrupoLista; hoy, Centros por Cliente
+   empresarial): fila entera pulsable con chevron, nombre, contador y resumen por estado. Blanca,
+   con el gris de fila al pasar el puntero; si el grupo contiene vencidos o urgentes lleva el mismo
+   degradado que las filas (regla única de «Fila con problema», arriba). */
 .grupo-lista {
     border-top: 1px solid var(--color-fila-divisor);
 }
@@ -405,10 +372,6 @@
     visibility: hidden;
 }
 
-.nota-grupos-pagina {
-    margin: 0 0 var(--space-2);
-}
-
 .grupo-lista-cabecera:focus-visible {
     outline: 2px solid var(--color-primary-400);
     outline-offset: -2px;
@@ -429,15 +392,48 @@
     color: var(--color-text-muted);
 }
 
+/* Resumen por estado del grupo entero: un punto del color del estado y «N estado» por cada uno
+   con cifra. El punto usa los mismos tonos que el de la franja de estado y, como él, se pinta con
+   currentColor: el token es de texto y sigue su variante por tema. */
 .grupo-lista-resumen {
     display: inline-flex;
-    gap: var(--space-2);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-1) var(--space-3);
     margin-left: auto;
+    font: var(--font-caption);
     font-weight: 500;
+    color: var(--color-text-muted);
+}
+
+.grupo-lista-resumen-estado {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    white-space: nowrap;
+}
+
+.grupo-lista-punto {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    color: var(--color-text-muted);
+    background-color: currentColor;
+}
+
+.grupo-lista-punto-peligro {
+    color: var(--color-danger-700);
+}
+
+.grupo-lista-punto-advertencia {
+    color: var(--color-warning-700);
 }
 
 .grupo-lista.fila-tintada-peligro .grupo-lista-contador,
-.grupo-lista.fila-tintada-aviso .grupo-lista-contador {
+.grupo-lista.fila-tintada-aviso .grupo-lista-contador,
+.grupo-lista.fila-tintada-peligro .grupo-lista-resumen,
+.grupo-lista.fila-tintada-aviso .grupo-lista-resumen {
     color: var(--color-text);
 }
 
