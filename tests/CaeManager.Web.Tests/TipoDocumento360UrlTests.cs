@@ -66,7 +66,8 @@ public class TipoDocumento360UrlTests : BunitContext
                 q.TipoDocumentoId, "Formación PRL", 12, true, default, default, null, [],
                 new FraccionCumplimiento(Filas.Count(f => f.CentrosAlDia > 0), Filas.Count),
                 Centros: 1, Trabajadores: Filas.Count, EstadoTipoDocumentoCalculo.Recuentos(Filas),
-                lista.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList(), lista.Count, q.Pagina, q.TamanoPagina);
+                lista.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList(), lista.Count, q.Pagina, q.TamanoPagina,
+                Notas: null);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
