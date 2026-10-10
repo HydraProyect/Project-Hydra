@@ -394,6 +394,29 @@ public class PanelDarAccesoTests : BunitContext
             .Should().NotContain(["Desasignarme", "Retirar acceso", "Revocar"]);
     }
 
+    /// <summary>
+    /// Tampoco «+ Dar acceso»: <c>ProponerApoyoCarteraCommand</c> es un Command y un rol efectivo de solo
+    /// consulta no lo puede ejecutar. Vale para las dos formas del panel. La fila de la operación, sus apoyos y
+    /// el botón con un rol que sí escribe son los controles positivos.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Con_un_rol_sin_escritura_no_se_ofrece_Dar_acceso(bool enCabecera)
+    {
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo, "Lucía")];
+
+        var conEscritura = Render<PanelDarAcceso>(p => p.Add(c => c.EnCabecera, enCabecera));
+        conEscritura.FindAll("button").Select(b => b.TextContent.Trim()).Should().Equal(["+ Dar acceso"], "control positivo: quien escribe sí lo ve");
+
+        _fijarRol("Consulta");
+        var cut = Render<PanelDarAcceso>(p => p.Add(c => c.EnCabecera, enCabecera));
+
+        cut.FindAll("button").Should().BeEmpty("un rol de solo consulta no puede proponer un apoyo: no se le ofrece");
+        if (!enCabecera)
+            cut.Find("[data-dar-acceso-operacion]").TextContent.Should().Contain("Empresa Mía").And.Contain("Lucía", "se sigue viendo quién tiene acceso");
+    }
+
     // ---- Forma de cabecera (dato «Gestor CAE» de la pantalla Empresas) ----
 
     /// <summary>
@@ -426,6 +449,62 @@ public class PanelDarAccesoTests : BunitContext
             ], "un botón por operación de la que soy principal y otro por apoyo mío, y nada más");
         cut.FindAll("[data-testid]").Should().BeEmpty("sin tarjetas");
         cut.Markup.Should().NotContain("Nuria").And.NotContain("Pau", "ni propuestas sin responder ni apoyos revocables");
+    }
+
+    /// <summary>
+    /// En la cabecera las propuestas sin responder no se pintan, así que no se piden: una consulta menos en
+    /// cada carga de la pantalla Empresas. La forma completa, que sí las pinta, las sigue pidiendo.
+    /// </summary>
+    [Fact]
+    public void En_cabecera_no_se_piden_las_propuestas_sin_responder_que_no_se_pintan()
+    {
+        var mia = Operacion("Empresa Mía", Yo);
+        _mediador.Operaciones = [mia];
+        _mediador.MisPropuestas = [Enviada(mia, "Nuria")];
+
+        Render<PanelDarAcceso>();
+        _mediador.Enviadas.Select(p => p.GetType()).Should().Equal(
+            [typeof(ObtenerPersonasConCarteraQuery), typeof(ObtenerPropuestasApoyoPendientesQuery), typeof(ObtenerApoyosDeCarteraQuery)],
+            "control positivo: la forma completa pinta las propuestas y por eso las pide");
+        _mediador.Enviadas.Clear();
+
+        var cut = Render<PanelDarAcceso>(p => p.Add(c => c.EnCabecera, true));
+
+        cut.FindAll("[data-dar-acceso-cabecera]").Should().ContainSingle("control: soy el principal y el botón está");
+        _mediador.Enviadas.Select(p => p.GetType()).Should().Equal(
+            [typeof(ObtenerPersonasConCarteraQuery), typeof(ObtenerApoyosDeCarteraQuery)],
+            "en la cabecera solo se lee lo que decide los dos botones");
+    }
+
+    /// <summary>
+    /// <c>AlDesasignarme</c> avisa solo cuando quien mira se quitó su propio acceso y el Command lo aceptó: es
+    /// lo que hace que la pantalla Empresas se recargue. Revocar el apoyo de otra persona no lo dispara, y un
+    /// «Desasignarme» rechazado tampoco: en ninguno de los dos casos quien mira ha perdido nada.
+    /// </summary>
+    [Theory]
+    [InlineData("Desasignarme", true, 1)]
+    [InlineData("Desasignarme", false, 0)]
+    [InlineData("Revocar", true, 0)]
+    public async Task AlDesasignarme_avisa_solo_cuando_quien_mira_se_quito_su_propio_acceso(string accion, bool elHandlerAcepta, int esperados)
+    {
+        var ajena = Operacion("Empresa Ajena", Guid.NewGuid());
+        _mediador.Apoyos = new ApoyosDeCarteraDto(
+            [Apoyo(ajena, Yo, "Yo", Guid.NewGuid(), "Marta")],
+            [],
+            [Apoyo(ajena, Guid.NewGuid(), "Pau", Guid.NewGuid(), "Marta")]);
+        if (!elHandlerAcepta)
+            _mediador.AlTerminar = Result.Fallo(ErroresPropuestaApoyo.EresElPrincipal);
+        var cambios = 0;
+        var desasignaciones = 0;
+        var cut = Render<PanelDarAcceso>(p => p.Add(c => c.AlCambiar, () => cambios++).Add(c => c.AlDesasignarme, () => desasignaciones++));
+
+        await cut.InvokeAsync(() => Boton(cut, accion).Click());
+        desasignaciones.Should().Be(0, "preguntar no es desasignarse");
+        await cut.InvokeAsync(() => cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Visible).Instance.OnConfirmar.InvokeAsync());
+
+        _mediador.Enviadas.Should().ContainSingle(e => e is DesasignarmeDeApoyoCommand || e is RevocarApoyoCarteraCommand, "control: la acción se envió");
+        cambios.Should().Be(1, "control: AlCambiar avisa siempre que una acción termina");
+        desasignaciones.Should().Be(esperados);
     }
 
     /// <summary>Control de la otra forma: sin <c>EnCabecera</c>, el panel no pinta los botones de cabecera.</summary>
@@ -476,7 +555,9 @@ public class PanelDarAccesoTests : BunitContext
         _mediador.Operaciones = [mia];
         _mediador.Destinatarios = [lucia];
         var avisos = 0;
-        var cut = Render<PanelDarAcceso>(p => p.Add(c => c.EnCabecera, true).Add(c => c.AlCambiar, () => avisos++));
+        var desasignaciones = 0;
+        var cut = Render<PanelDarAcceso>(p => p.Add(c => c.EnCabecera, true)
+            .Add(c => c.AlCambiar, () => avisos++).Add(c => c.AlDesasignarme, () => desasignaciones++));
 
         await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-cabecera]").Click());
         cut.Find("select").Change(lucia.UsuarioId.ToString());
@@ -486,6 +567,7 @@ public class PanelDarAccesoTests : BunitContext
         _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().ContainSingle()
             .Which.Should().Be(new ProponerApoyoCarteraCommand(mia.AsignacionOperacionId, lucia.UsuarioId));
         avisos.Should().Be(1);
+        desasignaciones.Should().Be(0, "proponer un apoyo no quita el acceso a quien mira");
     }
 
     // ---- Recursos: cada código PropuestaApoyo.X tiene su ErrorX en es y en ca-ES ----

@@ -87,6 +87,18 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private Task AbrirVistaRapidaAsync(Guid id) =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, NombreDe(id), "informacion");
 
+    /// <summary>Ruta de esta lista, sin filtros: la del <c>@page</c>.</summary>
+    private const string RutaLista = "/empresas";
+
+    /// <summary>
+    /// Quien mira acaba de desasignarse, desde la cabecera «Gestor CAE», de su apoyo sobre el Tenant
+    /// propietario activo: todo lo que esta página tiene pintado es de un Tenant al que ya no accede.
+    /// Aquí no se decide adónde va: se recarga la lista entera, sin filtros (<c>forceLoad</c>), y es
+    /// el arranque normal de la aplicación quien resuelve de nuevo el Tenant activo y el acceso.
+    /// Tras «+ Dar acceso» no se llama: ahí basta con que la cabecera relea su dato.
+    /// </summary>
+    private void RecargarTrasDesasignarme() => NavigationManager.NavigateTo(RutaLista, forceLoad: true);
+
     /// <summary>
     /// Tecla «e»: la vista rápida de la fila enfocada, ya en edición (el lápiz de la cabecera
     /// del panel). Si el rol no puede escribir, el panel se abre y se queda en lectura.

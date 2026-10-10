@@ -67,10 +67,12 @@ public class CabeceraGestorCaeTests : BunitContext
     /// <param name="apoyos">Los apoyos vivos sobre los que quien mira puede hacer algo.</param>
     /// <param name="rol">Rol de la sesión: decide lo que <c>SoloConEscritura</c> deja ver.</param>
     /// <param name="otras">Respuesta a los Commands y a las lecturas del formulario; sin ella, cualquier otra petición es un fallo.</param>
+    /// <param name="alDesasignarme">Lo que la página que monta la cabecera hace cuando quien mira se desasigna.</param>
     private IRenderedComponent<CabeceraGestorCae> Renderizar(
         Func<ObtenerPersonasConCarteraQuery, IReadOnlyList<CarterasDeOperacion>> responder, Guid? tenant = null, bool sinTenant = false,
         Func<IReadOnlyList<CarterasDeOperacion>>? comoPropietario = null,
-        Func<ApoyosDeCarteraDto>? apoyos = null, string rol = Roles.GestorCae, Func<object, object?>? otras = null)
+        Func<ApoyosDeCarteraDto>? apoyos = null, string rol = Roles.GestorCae, Func<object, object?>? otras = null,
+        Action? alDesasignarme = null)
     {
         this.ConRolDeEscritura(rol);
         Services.AddLocalization();
@@ -86,7 +88,9 @@ public class CabeceraGestorCaeTests : BunitContext
             _ => otras?.Invoke(p) ?? throw new InvalidOperationException($"Consulta inesperada: {p.GetType().Name}")
         });
         Services.AddScoped<IMediator>(_ => _mediador);
-        return Render<CabeceraGestorCae>();
+        return alDesasignarme is null
+            ? Render<CabeceraGestorCae>()
+            : Render<CabeceraGestorCae>(p => p.Add(c => c.AlDesasignarme, alDesasignarme));
     }
 
     private static PersonaConCartera Persona(string nombre, string rol = Roles.GestorCae, DateTime? hasta = null, string? avatar = null) =>
@@ -352,6 +356,23 @@ public class CabeceraGestorCaeTests : BunitContext
     }
 
     /// <summary>
+    /// Con un rol efectivo que no escribe, tampoco se ofrece «+ Dar acceso» al principal:
+    /// <c>ProponerApoyoCarteraCommand</c> es un Command y <c>AutorizacionEscrituraBehavior</c> lo denegaría.
+    /// El control con un rol que sí escribe es <see cref="El_principal_de_la_operacion_ve_Dar_acceso_y_no_Desasignarme"/>.
+    /// </summary>
+    [Fact]
+    public void Con_un_rol_sin_escritura_no_se_ofrece_Dar_acceso_ni_al_principal()
+    {
+        var mia = Operacion(YoComo(), Persona("Ane Larrea"));
+        var cut = Renderizar(_ => [mia], rol: Roles.Consulta);
+
+        cut.Find("[data-gestor-cae='principal'] strong").TextContent.Trim().Should().Be("Nahia Urrutia", "control positivo: quien mira es el principal y el dato se ve");
+        cut.FindComponents<PanelDarAcceso>().Should().ContainSingle("control positivo: el panel de acciones se montó");
+        cut.FindAll("[data-dar-acceso-cabecera]").Should().BeEmpty("un rol de solo consulta no puede proponer un apoyo: no se le ofrece");
+        cut.FindAll("button").Should().BeEmpty();
+    }
+
+    /// <summary>
     /// «+ Dar acceso» abre el mismo formulario y envía el mismo Command que en /cartera/solicitudes; al
     /// terminar, la cabecera vuelve a leer la cartera.
     /// </summary>
@@ -361,6 +382,7 @@ public class CabeceraGestorCaeTests : BunitContext
         var mia = Operacion(YoComo());
         var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía Garmendia");
         var propuesto = false;
+        var alDesasignarme = 0;
         // Tras proponer, la lectura trae un apoyo más: solo una cabecera que relee puede pintarlo.
         var cut = Renderizar(
             _ => [propuesto ? mia with { Apoyos = [Persona("Lucía Garmendia")] } : mia],
@@ -369,7 +391,8 @@ public class CabeceraGestorCaeTests : BunitContext
                 ObtenerDestinatariosDeApoyoQuery => (IReadOnlyList<DestinatarioDeApoyoDto>)[lucia],
                 ProponerApoyoCarteraCommand => PropuestaHecha(),
                 _ => null
-            });
+            },
+            alDesasignarme: () => alDesasignarme++);
         Result<Guid> PropuestaHecha()
         {
             propuesto = true;
@@ -377,7 +400,11 @@ public class CabeceraGestorCaeTests : BunitContext
         }
 
         cut.FindAll("[data-gestor-cae='apoyo']").Should().BeEmpty("punto de partida: sin apoyos");
+        _mediador.Enviadas.Select(p => p.GetType()).Should().Equal(
+            [typeof(ObtenerPersonasConCarteraQuery), typeof(ObtenerPersonasConCarteraQuery), typeof(ObtenerApoyosDeCarteraQuery)],
+            "al montar: la cartera la leen la cabecera y el panel, y el panel además sus apoyos; las propuestas sin responder no se pintan aquí y no se piden");
         var lecturasAntes = LecturasDeLaCartera();
+        var enviadasAntes = _mediador.Enviadas.Count;
 
         await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-cabecera]").Click());
 
@@ -394,6 +421,15 @@ public class CabeceraGestorCaeTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("[data-gestor-cae='apoyo']").Should().ContainSingle()
             .Which.TextContent.Should().Contain("Lucía Garmendia", "la cabecera releyó la cartera al terminar la acción"));
         LecturasDeLaCartera().Should().Be(lecturasAntes + 2, "una relectura del panel y otra de la cabecera, ni más ni menos");
+        _mediador.Enviadas.Skip(enviadasAntes).Select(p => p.GetType()).Should().Equal(
+            [
+                typeof(ObtenerDestinatariosDeApoyoQuery), typeof(ProponerApoyoCarteraCommand),
+                typeof(ObtenerPersonasConCarteraQuery), typeof(ObtenerApoyosDeCarteraQuery), typeof(ObtenerPersonasConCarteraQuery)
+            ],
+            "abrir, proponer, la relectura del panel (cartera y apoyos) y la de la cabecera: ninguna petición más");
+        _mediador.Enviadas.OfType<ObtenerPropuestasApoyoPendientesQuery>().Should().BeEmpty(
+            "la cabecera no pinta las propuestas sin responder: no paga su consulta");
+        alDesasignarme.Should().Be(0, "dar acceso no quita el acceso a quien mira: la página no tiene que recargarse");
     }
 
     /// <summary>
@@ -407,10 +443,12 @@ public class CabeceraGestorCaeTests : BunitContext
         var ajena = Operacion(marta, YoComo());
         var mio = ApoyoVivo(ajena, YoComo(), marta);
         var desasignado = false;
+        var alDesasignarme = 0;
         var cut = Renderizar(
             _ => [desasignado ? ajena with { Apoyos = [] } : ajena],
             apoyos: () => desasignado ? ApoyosDeCarteraDto.Vacio : new ApoyosDeCarteraDto([mio], [], []),
-            otras: p => p is DesasignarmeDeApoyoCommand ? Hecho() : null);
+            otras: p => p is DesasignarmeDeApoyoCommand ? Hecho() : null,
+            alDesasignarme: () => alDesasignarme++);
         Result Hecho()
         {
             desasignado = true;
@@ -424,11 +462,13 @@ public class CabeceraGestorCaeTests : BunitContext
         _mediador.Enviadas.OfType<DesasignarmeDeApoyoCommand>().Should().BeEmpty("quitarse un Tenant no se deshace: pregunta antes");
         var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Visible);
         dialogo.Instance.Mensaje.Should().Contain("Talleres Norte");
+        alDesasignarme.Should().Be(0, "preguntar no es desasignarse");
 
         await cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
 
         _mediador.Enviadas.OfType<DesasignarmeDeApoyoCommand>().Should().ContainSingle()
             .Which.Should().Be(new DesasignarmeDeApoyoCommand(mio.PropuestaId));
+        alDesasignarme.Should().Be(1, "quien mira ya no tiene acceso al Tenant: la cabecera se lo dice a la página, una vez");
         cut.WaitForAssertion(() => cut.FindAll("[data-gestor-cae='apoyo']").Should().BeEmpty(
             "la cabecera releyó la cartera: quien se desasignó ya no sale"));
         cut.FindAll("[data-desasignarme-cabecera]").Should().BeEmpty("ya no hay apoyo del que desasignarse");

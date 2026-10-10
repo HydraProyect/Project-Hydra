@@ -22,8 +22,14 @@
     (CabeceraGestorCae): en vez de las tarjetas, solo los dos botones —«+ Dar acceso» por cada
     operación de la que quien mira es el principal y «Desasignarme» por cada apoyo suyo—, con el
     mismo formulario, la misma confirmación y los mismos Commands. Retirar una propuesta, retirar
-    un apoyo concedido y revocar siguen en /cartera/solicitudes. AlCambiar avisa a quien lo monta
-    de que una acción terminó, para que refresque lo que enseña.
+    un apoyo concedido y revocar siguen en /cartera/solicitudes. En esta forma no se leen las
+    propuestas sin responder: no se pintan. AlCambiar avisa a quien lo monta de que una acción
+    terminó, para que refresque lo que enseña; AlDesasignarme, además, de que quien mira acaba de
+    quitarse su propio acceso.
+
+    «+ Dar acceso», «Desasignarme», «Retirar acceso» y «Revocar» van dentro de SoloConEscritura: con
+    un rol efectivo de solo consulta el Command los denegaría (AutorizacionEscrituraBehavior), así
+    que no se ofrecen.
 *@
 @using CaeManager.Application.Operaciones.ApoyoCartera.Queries
 @using CaeManager.Web.Components.DesignSystem
@@ -35,12 +41,14 @@
     {
         @foreach (var operacion in _operaciones)
         {
-            <Boton @key="operacion.AsignacionOperacionId" Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                   OnClick="() => AbrirDrawerAsync(operacion)" Deshabilitado="_enCurso"
-                   data-dar-acceso-cabecera="@operacion.AsignacionOperacionId"
-                   aria-label="@Textos["BotonDarAccesoEtiqueta", operacion.NombreTenant]">
-                <span aria-hidden="true">+</span> @Textos["BotonDarAcceso"]
-            </Boton>
+            <SoloConEscritura @key="operacion.AsignacionOperacionId">
+                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                       OnClick="() => AbrirDrawerAsync(operacion)" Deshabilitado="_enCurso"
+                       data-dar-acceso-cabecera="@operacion.AsignacionOperacionId"
+                       aria-label="@Textos["BotonDarAccesoEtiqueta", operacion.NombreTenant]">
+                    <span aria-hidden="true">+</span> @Textos["BotonDarAcceso"]
+                </Boton>
+            </SoloConEscritura>
         }
     }
     else
@@ -87,11 +95,13 @@
                             </span>
                         }
                     </div>
-                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                           OnClick="() => AbrirDrawerAsync(operacion)" Deshabilitado="_enCurso"
-                           aria-label="@Textos["BotonDarAccesoEtiqueta", operacion.NombreTenant]">
-                        <span aria-hidden="true">+</span> @Textos["BotonDarAcceso"]
-                    </Boton>
+                    <SoloConEscritura>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                               OnClick="() => AbrirDrawerAsync(operacion)" Deshabilitado="_enCurso"
+                               aria-label="@Textos["BotonDarAccesoEtiqueta", operacion.NombreTenant]">
+                            <span aria-hidden="true">+</span> @Textos["BotonDarAcceso"]
+                        </Boton>
+                    </SoloConEscritura>
                 </li>
             }
         </ul>

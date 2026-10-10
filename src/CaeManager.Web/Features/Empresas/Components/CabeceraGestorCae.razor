@@ -17,14 +17,23 @@
     El dato es de lectura para las dos miradas. Las dos acciones que acompañan al dato —«+ Dar
     acceso» y «Desasignarme»— no las decide este componente: las pinta PanelDarAcceso en su forma
     de cabecera, con sus propias lecturas (a quien es el principal de la operación, la primera; a
-    quien tiene un apoyo propio, la segunda) y sus Commands, que lo vuelven a comprobar todo. Solo
-    se monta para una cuenta de gestión CAE del Operador CAE: al Administrador del Tenant
-    propietario no se le ofrece nada sobre la cartera. Retirar una propuesta, retirar un apoyo
-    concedido, revocar y «Asumir» siguen en sus pantallas.
+    quien tiene un apoyo propio, la segunda; a ninguno con un rol efectivo de solo consulta) y sus
+    Commands, que lo vuelven a comprobar todo. El panel se monta cuando
+    ObtenerPersonasConCarteraQuery devuelve filas de este Tenant, es decir, cuando el dato no se
+    mira desde el Tenant propietario: para cualquier cuenta del Operador CAE a la que esa consulta
+    responde, que incluye a su Administrador y a su Dirección CAE además de Coordinadores y
+    Gestores CAE. Montarlo no es ofrecer nada: los botones los filtra el propio panel. Al
+    Administrador del Tenant propietario no se le monta ni se le ofrece nada sobre la cartera.
+    Retirar una propuesta, retirar un apoyo concedido, revocar y «Asumir» siguen en sus pantallas.
+
+    Tras «+ Dar acceso» basta con releer este dato. Tras «Desasignarme», quien mira ya no tiene
+    acceso al Tenant propietario cuyos datos pinta la pantalla: además de releer, la cabecera lo
+    avisa por AlDesasignarme y la página decide qué hace (Empresas se recarga entera).
 
     Quién recibe datos lo deciden las consultas, no este componente:
-    - ObtenerPersonasConCarteraQuery responde a una cuenta de gestión CAE del Operador CAE
-      externo que gestiona este Tenant: ve a los suyos, sin nombrarle su propia organización.
+    - ObtenerPersonasConCarteraQuery responde a una cuenta activa del Operador CAE externo que
+      gestiona este Tenant (Administrador, Dirección CAE, Coordinador CAE o Gestor CAE de esa
+      organización): ve a los suyos, sin nombrarle su propia organización.
     - ObtenerOperadoresCaeDeMiTenantQuery responde al Administrador del Tenant propietario: ve,
       por cada Asignación de Operación, qué Operador CAE lo gestiona y quién es el principal. Una
       operación sin principal se dice junto a su organización.
@@ -151,7 +160,7 @@ else if (_grupos.Count > 0)
     {
         @* Fuera del grupo a propósito: su formulario y su confirmación no deben heredar la
            tipografía ni el recorte de la línea. En pantalla quedan a continuación, en la misma línea. *@
-        <PanelDarAcceso TenantId="tenantId" EnCabecera="true" AlCambiar="CargarAsync" />
+        <PanelDarAcceso TenantId="tenantId" EnCabecera="true" AlCambiar="CargarAsync" AlDesasignarme="AlDesasignarme" />
     }
 }
 
@@ -161,6 +170,13 @@ else if (_grupos.Count > 0)
     /// que cabe junto al título, con sus rótulos y los botones de la cabecera, a 1280 px de ancho.
     /// </summary>
     public const int PersonasALaVista = 2;
+
+    /// <summary>
+    /// Quien mira acaba de desasignarse de su apoyo sobre el Tenant propietario activo (el Command lo
+    /// aceptó) y ya no tiene acceso a él. La cabecera ya releyó su dato; la página que pinta datos
+    /// de ese Tenant decide qué hace con los suyos. Nunca llega tras «+ Dar acceso».
+    /// </summary>
+    [Parameter] public EventCallback AlDesasignarme { get; set; }
 
     private readonly CancellationTokenSource _ciclo = new();
     private IReadOnlyList<Grupo> _grupos = [];

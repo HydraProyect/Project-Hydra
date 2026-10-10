@@ -41,7 +41,8 @@ public partial class PanelDarAcceso
     /// Forma compacta para la cabecera «Gestor CAE» de la pantalla Empresas: solo los botones
     /// «+ Dar acceso» (uno por operación de la que quien mira es el principal) y «Desasignarme»
     /// (uno por apoyo suyo), sin las tarjetas. Qué botón se pinta sale de las mismas lecturas que
-    /// la forma completa, y lo que hace cada uno, de los mismos Commands.
+    /// la forma completa —menos la de propuestas sin responder, que aquí no se pintan—, y lo que
+    /// hace cada uno, de los mismos Commands.
     /// </summary>
     [Parameter] public bool EnCabecera { get; set; }
 
@@ -50,6 +51,14 @@ public partial class PanelDarAcceso
     /// panel ya releyó lo suyo: quien lo monta refresca lo que enseña.
     /// </summary>
     [Parameter] public EventCallback AlCambiar { get; set; }
+
+    /// <summary>
+    /// Quien mira se desasignó de un apoyo suyo y el Command lo aceptó: acaba de perder ese acceso al
+    /// Tenant propietario. Llega después de <see cref="AlCambiar"/> y solo por «Desasignarme»: nunca
+    /// al proponer, retirar o revocar, ni si el Command lo rechazó. Es para quien tenga pintados
+    /// datos de ese Tenant (la pantalla Empresas); quien no lo pasa no nota nada.
+    /// </summary>
+    [Parameter] public EventCallback AlDesasignarme { get; set; }
 
     private IReadOnlyList<CarterasDeOperacion> _operaciones = [];
     private IReadOnlyList<PropuestaApoyoDto> _enviadas = [];
@@ -126,7 +135,8 @@ public partial class PanelDarAcceso
         _operaciones = (await Mediator.Send(new ObtenerPersonasConCarteraQuery(TenantId)))
             .Where(o => o.Principal?.UsuarioId == usuarioId.Value)
             .ToList();
-        _enviadas = _operaciones.Count == 0
+        // Las propuestas sin responder solo se pintan en la forma completa: en la cabecera no se leen.
+        _enviadas = EnCabecera || _operaciones.Count == 0
             ? []
             : (await Mediator.Send(new ObtenerPropuestasApoyoPendientesQuery())).Enviadas;
         _apoyos = await Mediator.Send(new ObtenerApoyosDeCarteraQuery(TenantId));
@@ -308,6 +318,8 @@ public partial class PanelDarAcceso
             // Siempre: si otro lo terminó antes, la recarga lo enseña.
             await CargarAsync();
             await AlCambiar.InvokeAsync();
+            if (via == ViaFinDeApoyo.Desasignarme && resultado.EsExitoso)
+                await AlDesasignarme.InvokeAsync();
         }
         finally
         {
