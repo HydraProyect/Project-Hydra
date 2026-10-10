@@ -1501,7 +1501,8 @@
 
 /* Fila enfocada con j/k en una ficha 360 (atajos-ficha.js pone el atributo; Blazor no lo
    pinta). La barra interior es la señal: el tinte de una fila con problema no la tapa. La fila
-   tiene además el foco real, así que se le quita el anillo por defecto para no doblar la señal. */
+   tiene además el foco real, así que el anillo por defecto se deja transparente para no doblar
+   la señal: en contraste forzado (forced-colors) el navegador sí lo pinta, y ahí la barra no. */
 [data-fila-enfocada] {
     background-color: var(--color-surface-hover);
     box-shadow: inset 3px 0 0 var(--color-primary-500);
@@ -1509,7 +1510,8 @@
 
 [data-fila-enfocada]:focus,
 [data-fila-enfocada]:focus-visible {
-    outline: none;
+    outline: 2px solid transparent;
+    outline-offset: -2px;
 }
 
 /* La fila de documento es «display: contents»: no tiene caja, la señal va en sus celdas. */

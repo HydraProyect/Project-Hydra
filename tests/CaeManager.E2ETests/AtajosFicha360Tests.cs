@@ -41,9 +41,8 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         {
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}{ruta}?pestana=supervision");
             await Assertions.Expect(page.Locator("[data-atajos-ficha]")).ToBeVisibleAsync(new() { Timeout = 30_000 });
-            await EsperarAsync(page, $"{PestanaActiva} === 1");
             // La pestaña carga su lista por el circuito: se da margen a que pinte alguna fila.
-            try { await EsperarAsync(page, $"{FilaConBoton} >= 0", 5_000); }
+            try { await EsperarAsync(page, $"{PestanaActiva} === 1 && {FilaConBoton} >= 0", 5_000); }
             catch (TimeoutException) { continue; }
             encontrada = true;
             break;

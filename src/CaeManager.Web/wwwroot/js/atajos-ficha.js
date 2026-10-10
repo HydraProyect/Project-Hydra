@@ -35,7 +35,10 @@ const SELECTOR_NO_ES_ACCION = '.boton-360';
 
 const SELECTOR_BUSCADOR = '[data-buscador-ficha], [data-filtro-pantalla], input[type="search"]';
 const SELECTOR_ACCIONES_CABECERA = '.cabecera-identidad-acciones, .acciones-cabecera';
-const SELECTOR_SUPERFICIE_AJENA = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]';
+// El panel Context Workspace es un <aside role="complementary"> no modal: con el foco dentro,
+// sus pestañas y sus filas son suyas. El lateral de la ficha es un <aside> sin role explícito.
+const SELECTOR_SUPERFICIE_AJENA = '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="complementary"]';
+const SELECTOR_CONTROL = 'button, a[href], select, summary, input, textarea, [role="button"], [role="tab"]';
 
 const TIPOS_INPUT_NO_TEXTO = new Set([
     'checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image'
@@ -138,7 +141,11 @@ function accionDeFila(fila) {
         esVisible(control) && estaHabilitado(control)) ?? null;
 }
 
+// Con el foco en un control de fuera de toda fila (un botón de la cabecera al que se llegó con
+// Tab), «e» no es de la fila marcada: quien mira el foco esperaría que actuase ahí.
 function accionDeFilaActual() {
+    const activo = document.activeElement;
+    if (activo?.matches?.(SELECTOR_CONTROL) && !activo.closest(SELECTOR_FILA)) return null;
     const filas = filasVisibles();
     const fila = filaActual(filas);
     return fila ? accionDeFila(fila) : null;
@@ -209,6 +216,10 @@ export function registrarAtajosFicha() {
         if (activo?.closest?.(SELECTOR_SUPERFICIE_AJENA)) return;
         if (document.querySelector('[aria-haspopup="menu"][aria-expanded="true"]')) return;
         if (!fichaVisible()) return;
+
+        // Una tecla mantenida no repite un clic: «e» sobre una acción directa la lanzaría varias
+        // veces antes de que el servidor deshabilite el botón.
+        if (evento.repeat && (esCifra || evento.key === 'e')) return;
 
         if (esCifra) {
             const pestana = pestanasDeFicha()[Number(evento.key) - 1];
