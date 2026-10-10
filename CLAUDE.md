@@ -209,12 +209,12 @@ Anclas que aplican siempre, aunque la skill no se haya activado sola:
   delegar lecturas masivas en Gemini, están en `protocolo-hydra-multimodelo` (§ 24). **Sin esa skill
   no se invoca `agy`**, pero la revisión con Codex y la PR siguen adelante. El resultado —aceptado o
   rechazado, con motivo— va en el **cuerpo** de la PR, en una sección titulada exactamente
-  `## Revisión Codex` (turno 2026-09-18, T3): al menos una línea de hallazgos, o «sin hallazgos» si
+  `## Revisión Codex`: al menos una línea de hallazgos, o «sin hallazgos» si
   no tocaba superficie sensible; sin marcadores provisionales («resultado abajo», «pendiente»,
-  «TODO» — el mismo que #673 dejó sin rellenar). Exime solo `dependabot[bot]`. Si además el
+  «TODO»). Exime solo `dependabot[bot]`. Si además el
   incremento toca `deploy/bootstrap/roles-de-cluster.sql`, el cuerpo lleva otra sección,
-  `## Paso operativo en servidores`, que nombre staging y producción (#674 rompió staging al
-  saltarse este paso: ningún adaptador de despliegue ejecuta ese fichero). Lo exigen dos pasos del
+  `## Paso operativo en servidores`, que nombre staging y producción (ningún adaptador de
+  despliegue ejecuta ese fichero). Lo exigen dos pasos del
   check «Gobernanza — metadatos de PR» (job `gobernanza-pr`, `.github/workflows/gobernanza-pr.yml`,
   lógica en `scripts/verificar-gobernanza-pr.sh`); ninguno de los dos es `required`, así que en rojo
   no bloquea la cola de fusión, pero queda visible.
