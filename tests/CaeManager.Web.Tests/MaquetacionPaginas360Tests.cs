@@ -21,7 +21,8 @@ namespace CaeManager.Web.Tests;
 /// 360 abra lo que dice abrir y lo anuncie con el nombre de la entidad en el
 /// idioma de la cuenta. Lo que NO observan: el estilo calculado (bUnit no
 /// aplica CSS). Las medidas de los .razor.css se copiaron de los mockups y de
-/// CentroDetalle.razor.css; que se vean igual se comprueba en el navegador.
+/// la maquetación propia que tenía Centro 360 (hoy usa estas piezas); que se
+/// vean igual se comprueba en el navegador.
 /// </para>
 /// </summary>
 public class MaquetacionPaginas360Tests : BunitContext

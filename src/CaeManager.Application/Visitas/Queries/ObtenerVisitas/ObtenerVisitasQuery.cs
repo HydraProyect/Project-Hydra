@@ -15,6 +15,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 
+/// <param name="VisitaId">
+/// Solo esa Visita: lo usa /visitas para refrescar una fila en sitio tras guardar su edición. Se
+/// aplica después del alcance, así que solo puede estrechar: un id fuera del alcance devuelve vacío.
+/// </param>
 /// <param name="EstadosDocumentacion">
 /// Estados de la columna «Documentación» que se quieren ver (franja de estado del listado). Vacío o
 /// <c>null</c>: todos. Se combina con los demás filtros: con <c>SoloActivas</c> una cancelada no sale
@@ -26,7 +30,7 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 /// </param>
 public record ObtenerVisitasQuery(
     string? Busqueda, bool SoloActivas, bool? NotificadoCliente, bool SoloUrgentes = false, int Pagina = 1, int TamanoPagina = 20,
-    string? OrdenarPor = null, bool Descendente = false,
+    string? OrdenarPor = null, bool Descendente = false, Guid? VisitaId = null,
     IReadOnlyCollection<EstadoDocumentacionVisita>? EstadosDocumentacion = null, bool ConRecuentosPorEstado = false)
     : IRequest<ResultadoPaginado<VisitaListaDto>>;
 
@@ -116,6 +120,9 @@ public class ObtenerVisitasQueryHandler(ICentrosQueryContext centrosContext, ICo
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         if (centroIdsVisibles is not null)
             consulta = consulta.Where(x => centroIdsVisibles.Contains(x.centro.Id));
+
+        if (request.VisitaId is { } visitaId)
+            consulta = consulta.Where(x => x.visita.Id == visitaId);
 
         // FS-11: una Visita cancelada no está activa ni es urgente, aunque sus
         // fechas lo digan. Sale de la lista activa, de Mi trabajo y de la

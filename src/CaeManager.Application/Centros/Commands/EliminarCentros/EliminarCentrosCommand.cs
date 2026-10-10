@@ -39,7 +39,8 @@ public class EliminarCentrosCommandHandler(
         foreach (var id in request.Ids)
         {
             var centro = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
-            if (centro is null || !await alcanceDatos.CentroVisibleAsync(centro.Id, cancellationToken))
+            // Alcance de gestión, no de lectura — ver IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync.
+            if (centro is null || !await alcanceDatos.CentroParaGestionVisibleAsync(centro.Id, cancellationToken))
             {
                 errores.Add("Un centro ya no existía.");
                 continue;

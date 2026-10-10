@@ -231,7 +231,7 @@ public class OrdenacionTrabajadoresConEstadoDocumentalTests : IAsyncLifetime
 
     private static ObtenerTrabajadoresQueryHandler CrearHandler(CaeManagerDbContext contexto) =>
         new(contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
-            new CalculoEstadoDocumentalService(contexto, contexto));
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto);
 
     private CaeManagerDbContext CrearContexto()
     {

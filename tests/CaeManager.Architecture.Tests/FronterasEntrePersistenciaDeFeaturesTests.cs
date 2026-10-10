@@ -604,6 +604,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Módulo 8 § 4.1 (2026-09-17): mismo motivo que Empresas.ObtenerEmpresasQueryHandler arriba.
         // Opciones de la pastilla «Empresa» de /trabajadores: los empleadores de los Trabajadores visibles.
         ("Trabajadores.ObtenerEmpleadoresDeTrabajadoresVisiblesQueryHandler", "IEmpresasQueryContext"),
+        // Filtro «Centro» de /trabajadores: Trabajadores con una Asignación activa en ese Centro (lectura, EXISTS
+        // correlacionado en la misma consulta). Solo estrecha: se compone con el alcance.
+        ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IAsignacionesQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IConfiguracionQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IDocumentosQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IEmpresasQueryContext"),

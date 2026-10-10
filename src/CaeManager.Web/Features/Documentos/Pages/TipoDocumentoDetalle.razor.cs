@@ -190,9 +190,18 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
     /// La corrección en esta misma ficha: el formulario de documento con el documento de la fila (renovar, o fijar la
     /// fecha de uno sin confirmar) o, si no hay ninguno, el alta con Trabajador y tipo ya elegidos.
     /// </summary>
-    private Task CorregirAsync(FilaTrabajadorTipoDocumentoDto fila) => fila.DocumentoId is { } documentoId
-        ? _drawerGestion.AbrirEditarAsync(documentoId)
-        : _drawerGestion.AbrirCrearParaFaltanteAsync(fila.TrabajadorId, TipoDocumentoId);
+    private Task CorregirAsync(FilaTrabajadorTipoDocumentoDto fila) =>
+        _drawerGestion.AbrirSerieAsync(SerieDeDocumentos, PasoDe(fila));
+
+    private PasoSerieDocumento PasoDe(FilaTrabajadorTipoDocumentoDto fila) =>
+        PasoSerieDocumento.DeFilaDeTrabajador(fila.DocumentoId, fila.TrabajadorId, TipoDocumentoId);
+
+    /// <summary>
+    /// «Guardar y siguiente»: las filas que piden «Renovar» o «Subir», en el orden en que la lista las pinta. Son las
+    /// de la página que se está viendo: la serie no sigue por páginas que no se han cargado.
+    /// </summary>
+    private IReadOnlyList<PasoSerieDocumento> SerieDeDocumentos =>
+        (_estado?.Filas ?? []).Where(f => PasoSerieDocumento.EsDeSerie(f.PeorEstado)).Select(PasoDe).ToList();
 
     // ----- Presentación -----
 
