@@ -247,7 +247,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         ComprobarPorcentaje("Estado del Centro C (panel)", (await panel.Handle(new ObtenerEstadoCentroQuery(_centroC), CancellationToken.None))?.CumplimientoPorcentaje, 40);
 
         // 2. Acordeón de Trabajadores del Centro 360: la suma de las fracciones de los Trabajadores es la del Centro.
-        var acordeon = new ObtenerAsignacionesDocumentacionPorCentroQueryHandler(c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance));
+        var acordeon = new ObtenerAsignacionesDocumentacionPorCentroQueryHandler(c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }));
         foreach (var (centro, alDia, requeridos) in new[] { (_centroA, 6, 10), (_centroB, 2, 2), (_centroC, 2, 5) })
         {
             var trabajadores = await acordeon.Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(centro), CancellationToken.None);
@@ -256,7 +256,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         }
 
         // 3. Contexto Trabajador (Trabajador 360): un par por Centro que lo exige, al día si el documento cuenta.
-        var documentacion = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance));
+        var documentacion = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }));
         var esperadosPorTrabajador = _casos.Select(x => (x.Nombre, x.TrabajadorId, x.Centros, x.AlDia))
             .Concat(_trabajadoresExtra.Select(x => ("extra", x.TrabajadorId, x.Centros, x.AlDia)));
         foreach (var (nombre, trabajadorId, centros, alDia) in esperadosPorTrabajador)

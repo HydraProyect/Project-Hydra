@@ -1,4 +1,6 @@
+using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Comunicaciones;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
@@ -248,14 +250,138 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryTests : IAsyncLifetim
         documentoVisto.UltimaReclamacion.Should().BeNull();
     }
 
+    [Theory]
+    [InlineData("Consulta")]
+    [InlineData("Cliente")]
+    [InlineData(null)]
+    public async Task Quien_no_gestiona_documentacion_no_lee_la_reclamacion_pero_si_el_estado_en_la_plataforma(string? rol)
+    {
+        await SembrarVencidoConPlataformaYReclamacionAsync();
+
+        // Control positivo: con los mismos datos, un rol de gestión documental sí la recibe.
+        (await EjecutarAsync(rol: "GestorCae")).Single().Documentos.Single().UltimaReclamacion.Should().NotBeNull();
+
+        var documento = (await EjecutarAsync(rol: rol)).Single().Documentos.Single();
+
+        documento.UltimaReclamacion.Should().BeNull("la pestaña Reclamaciones tampoco se la enseña a ese rol");
+        documento.AcreditacionesEnElCentro.Should().ContainSingle("el estado en la plataforma no es historial de reclamaciones");
+    }
+
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public async Task Los_roles_de_gestion_documental_leen_la_reclamacion(string rol)
+    {
+        await SembrarVencidoConPlataformaYReclamacionAsync();
+
+        (await EjecutarAsync(rol: rol)).Single().Documentos.Single().UltimaReclamacion.Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(1, false)]
+    public async Task Sin_respuesta_lo_decide_un_entrante_de_la_Conversacion_posterior_al_envio(int diasDelEntranteRespectoAlEnvio, bool sinRespuesta)
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var envio = new DateTime(2026, 10, 2, 9, 30, 0, DateTimeKind.Utc);
+        await using (var contexto = CrearContexto())
+        {
+            var documento = Documento.DeTrabajador(_trabajadorId, _tipoId, hoy.AddYears(-2), VigenciaDocumento.VenceEl(hoy.AddDays(-10)));
+            contexto.Documentos.Add(documento);
+
+            var conversacion = new Conversacion("Documentación pendiente", _clienteEmpresarialId);
+            conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "cae@buzon.local", "<p>Reclamación</p>", envio);
+            conversacion.AgregarMensaje(
+                DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>Recibido</p>", envio.AddDays(diasDelEntranteRespectoAlEnvio));
+            // Un entrante posterior en OTRA Conversación no contesta esta reclamación.
+            var otraConversacion = new Conversacion("Otro asunto", _clienteEmpresarialId);
+            otraConversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "cliente@ejemplo.com", "<p>Hola</p>", envio.AddDays(2));
+            contexto.Conversaciones.AddRange(conversacion, otraConversacion);
+            await contexto.SaveChangesAsync();
+
+            contexto.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaCliente(
+                _clienteEmpresarialId, Guid.NewGuid(), "cliente@ejemplo.com", envio, [documento.Id], conversacion.Id));
+            await contexto.SaveChangesAsync();
+        }
+
+        var visto = (await EjecutarAsync()).Single().Documentos.Single();
+
+        visto.UltimaReclamacion.Should().Be(new UltimaReclamacionDocumentoDto(envio, sinRespuesta));
+    }
+
+    [Fact]
+    public async Task Centro_360_trae_para_cada_documento_del_Trabajador_su_plataforma_en_ESE_Centro_y_la_ultima_reclamacion()
+    {
+        var (documentoId, envio) = await SembrarVencidoConPlataformaYReclamacionAsync();
+        await using (var siembra = CrearContexto())
+        {
+            // El mismo documento, acreditado también en la plataforma de OTRO Centro: no es de esta ficha.
+            var otroCentro = new Centro(_clienteEmpresarialId, _empresaId, "Otro Centro Trabajador 360");
+            siembra.Centros.Add(otroCentro);
+            await siembra.SaveChangesAsync();
+            var proveedorId = await siembra.ProveedoresPlataformaCae.Where(p => p.Nombre == "Portal de prueba").Select(p => p.Id).SingleAsync();
+            var canalAjeno = CanalGestionDocumental.DePlataforma(otroCentro.Id, "Portal", proveedorId, null, null, null);
+            siembra.CanalesGestionDocumental.Add(canalAjeno);
+            await siembra.SaveChangesAsync();
+            siembra.AcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(documentoId, canalAjeno.Id));
+            await siembra.SaveChangesAsync();
+        }
+
+        await using var contexto = CrearContexto();
+        var handler = new ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
+            contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
+            new SituacionDocumentosEnCentrosService(
+                contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
+                new CurrentUserServiceMutable { Rol = "GestorCae" }));
+
+        var trabajador = (await handler.Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(_centroId), CancellationToken.None))
+            .Should().ContainSingle().Subject;
+        var documento = trabajador.Documentos.Should().ContainSingle(d => d.DocumentoId == documentoId).Subject;
+
+        documento.AcreditacionesEnElCentro.Should().ContainSingle("solo cuenta el canal de ESTE Centro")
+            .Which.Estado.Should().Be(EstadoAcreditacion.Subida);
+        documento.UltimaReclamacion.Should().Be(new UltimaReclamacionDocumentoDto(envio, SinRespuesta: null));
+    }
+
+    /// <summary>Un documento vencido del Trabajador, subido a la plataforma de su Centro y reclamado una vez al Cliente empresarial.</summary>
+    private async Task<(Guid DocumentoId, DateTime Envio)> SembrarVencidoConPlataformaYReclamacionAsync()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var envio = new DateTime(2026, 10, 2, 9, 30, 0, DateTimeKind.Utc);
+        await using var contexto = CrearContexto();
+        var documento = Documento.DeTrabajador(_trabajadorId, _tipoId, hoy.AddYears(-2), VigenciaDocumento.VenceEl(hoy.AddDays(-10)));
+        var proveedor = new ProveedorPlataformaCae($"prueba-{Guid.NewGuid():N}", "Portal de prueba");
+        contexto.Documentos.Add(documento);
+        contexto.ProveedoresPlataformaCae.Add(proveedor);
+        await contexto.SaveChangesAsync();
+
+        var canal = CanalGestionDocumental.DePlataforma(_centroId, "Portal", proveedor.Id, null, null, null);
+        contexto.CanalesGestionDocumental.Add(canal);
+        await contexto.SaveChangesAsync();
+
+        var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
+        acreditacion.MarcarSubida();
+        contexto.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+        contexto.ReclamacionesDocumentales.Add(ReclamacionDocumental.ParaCliente(
+            _clienteEmpresarialId, Guid.NewGuid(), "cliente@ejemplo.com", envio, [documento.Id]));
+        await contexto.SaveChangesAsync();
+
+        return (documento.Id, envio);
+    }
+
     /// <param name="alcanceDeReclamaciones">Alcance con el que se acotan las reclamaciones; el handler ve siempre al Trabajador.</param>
-    private async Task<IReadOnlyList<CentroDocumentacionTrabajadorDto>> EjecutarAsync(AlcanceDatosServiceFalso? alcanceDeReclamaciones = null)
+    /// <param name="rol">Rol efectivo de quien mira: solo los de gestión documental leen las reclamaciones.</param>
+    private async Task<IReadOnlyList<CentroDocumentacionTrabajadorDto>> EjecutarAsync(
+        AlcanceDatosServiceFalso? alcanceDeReclamaciones = null, string? rol = "GestorCae")
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
             contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
             new SituacionDocumentosEnCentrosService(
-                contexto, contexto, contexto, contexto, contexto, alcanceDeReclamaciones ?? new AlcanceDatosServiceFalso()));
+                contexto, contexto, contexto, contexto, contexto, alcanceDeReclamaciones ?? new AlcanceDatosServiceFalso(),
+                new CurrentUserServiceMutable { Rol = rol }));
 
         return await handler.Handle(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(_trabajadorId), CancellationToken.None);
     }

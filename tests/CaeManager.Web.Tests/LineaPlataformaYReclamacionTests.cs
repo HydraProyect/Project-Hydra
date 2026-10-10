@@ -156,7 +156,7 @@ public class LineaPlataformaYReclamacionTests : BunitContext
 
     // ── Regla de no redundancia, en el código fuente ───────────────────────
 
-    private static readonly Regex UsoDeLaLinea = new(@"<[\w.]*LineaPlataformaYReclamacion\b[^>]*>", RegexOptions.Compiled);
+    private static readonly Regex UsoDeLaLinea = new(@"<[\w.]*LineaPlataformaYReclamacion\b[\s\S]*?/>", RegexOptions.Compiled);
 
     /// <summary>Otras formas con las que una fila ya dice la plataforma: los badges de acreditación y el «Rechazado» de plataforma.</summary>
     private static readonly Regex OtraFormaDeDecirLaPlataforma = new(@"<BadgesAcreditacion\b|BadgeRechazadoPlataforma", RegexOptions.Compiled);

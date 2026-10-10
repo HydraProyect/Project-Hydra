@@ -63,8 +63,9 @@ public interface ISituacionDocumentosEnCentrosService
 {
     /// <summary>
     /// Un número fijo de consultas para toda la lista, sin importar cuántos documentos tenga. Quien llama ya ha
-    /// comprobado que el usuario ve esos Centros y esos documentos; las reclamaciones se acotan además aquí a los
-    /// titulares que el usuario puede gestionar.
+    /// comprobado que el usuario ve esos Centros y esos documentos. Las reclamaciones se acotan además aquí: solo las
+    /// leen los roles de gestión documental (los mismos de la pestaña Reclamaciones de Documentos; ni Consulta ni el
+    /// Usuario de Cliente), y solo las de los titulares que el usuario puede gestionar.
     /// </summary>
     /// <param name="trabajadorIdsConAusentes">Trabajadores a los que les falta algún documento exigido.</param>
     /// <param name="tipoDocumentoIdsDeAusentes">Tipos de documento que pueden faltar.</param>
@@ -82,8 +83,15 @@ public class SituacionDocumentosEnCentrosService(
     IProveedoresPlataformaCaeQueryContext proveedoresContext,
     IReclamacionesQueryContext reclamacionesContext,
     IComunicacionesQueryContext comunicacionesContext,
-    IAlcanceDatosService alcanceDatos) : ISituacionDocumentosEnCentrosService
+    IAlcanceDatosService alcanceDatos,
+    ICurrentUserService currentUserService) : ISituacionDocumentosEnCentrosService
 {
+    // Quién lee el historial de reclamaciones: mismos roles que la pestaña Reclamaciones de Documentos
+    // (Documentos.RolesDeGestionDocumental). A Consulta y al Usuario de Cliente esa pestaña les dice «sin permiso»;
+    // la segunda línea de una ficha no puede ser una puerta lateral al mismo dato.
+    private static readonly string[] RolesQueLeenReclamaciones =
+        ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
+
     public async Task<SituacionDocumentosEnCentros> CargarAsync(
         IReadOnlyCollection<Guid> centroIds,
         IReadOnlyCollection<Guid> documentoIds,
@@ -159,6 +167,9 @@ public class SituacionDocumentosEnCentrosService(
     {
         var buscaAusentes = trabajadorIdsConAusentes.Count > 0 && tipoDocumentoIdsDeAusentes.Count > 0;
         if (documentoIds.Count == 0 && !buscaAusentes) return ([], []);
+
+        if (await currentUserService.ObtenerRolEfectivoAsync() is not { } rol || !RolesQueLeenReclamaciones.Contains(rol))
+            return ([], []);
 
         // Mismo alcance que la pestaña de reclamaciones enviadas: lo que se le ha reclamado a un titular es de
         // gestión, no contenido de portal. Ver un documento no da derecho a ver a quién se le reclamó.
