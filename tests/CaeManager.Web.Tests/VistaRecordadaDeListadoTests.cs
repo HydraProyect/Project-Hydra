@@ -369,7 +369,10 @@ public class VistaRecordadaDeListadoTests : BunitContext
         await VencerElReboteAsync(cut);
 
         _mediador.Escritura = () => throw new InvalidOperationException("sin base");
-        Navegacion.NavigateTo("/vehiculos?estado=Vigente");
+        // Tras un await, el despachador puede seguir cerrando el trabajo anterior: una navegación suelta se
+        // encolaría y el reloj avanzaría antes de que existiera su temporizador (rojo intermitente bajo carga,
+        // medido 2026-10-10). Dentro del despachador y esperada, el cambio de dirección ya ocurrió al seguir.
+        await cut.InvokeAsync(() => Navegacion.NavigateTo("/vehiculos?estado=Vigente"));
         await VencerElReboteAsync(cut);
 
         Escrituras.Should().HaveCount(2, "se intentó las dos veces");

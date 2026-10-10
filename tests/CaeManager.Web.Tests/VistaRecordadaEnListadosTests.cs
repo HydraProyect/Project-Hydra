@@ -1,0 +1,503 @@
+using System.Text.Json;
+using System.Web;
+using Bunit;
+using CaeManager.Application.Centros.Commands.CrearCentro;
+using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
+using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
+using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Configuracion.Commands.GuardarVistaRecordada;
+using CaeManager.Application.Configuracion.Commands.OlvidarVistaRecordada;
+using CaeManager.Application.Configuracion.Queries;
+using CaeManager.Application.Empresas.Commands.CrearEmpresa;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
+using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
+using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
+using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratasParaSelector;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
+using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
+using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
+using CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant;
+using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
+using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
+using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
+using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
+using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Gestiones;
+using CaeManager.Domain.Subcontratas;
+using CaeManager.Domain.Tenants;
+using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Centros.Pages;
+using CaeManager.Web.Features.Empresas.Pages;
+using CaeManager.Web.Features.Gestiones.Pages;
+using CaeManager.Web.Features.Proyectos.Pages;
+using CaeManager.Web.Features.Subcontratas.Pages;
+using CaeManager.Web.Features.Trabajadores.Pages;
+using CaeManager.Web.Features.Vehiculos.Pages;
+using FluentAssertions;
+using FluentValidation;
+using MediatR;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace CaeManager.Web.Tests;
+
+/// <summary>
+/// La vista recordada (<see cref="VistaRecordadaDeListado"/>) conectada a cada página. La pieza sola
+/// —cuándo restaura, cuándo escribe, el rebote— está en <see cref="VistaRecordadaDeListadoTests"/>; aquí se
+/// mira que cada página le pasa su lista blanca completa y aplica lo que recibe:
+/// <list type="bullet">
+/// <item><description>al llegar <b>sin parámetros</b> y con una vista recordada, la URL y la consulta quedan con
+/// todos los valores de su lista blanca;</description></item>
+/// <item><description><b>«Restablecer vista»</b> deja la URL sin parámetros de vista y olvida lo recordado;</description></item>
+/// <item><description>donde el orden de columna viaja en la URL, <c>?orden=</c> ordena la consulta y un valor que
+/// no existe se ignora.</description></item>
+/// </list>
+/// Siete de las nueve páginas van aquí. Clientes y Documentos necesitan un arnés más caro y llevan los
+/// mismos casos en <c>ClientesListaGen2Tests.VistaRecordada.cs</c> y <c>DocumentosGen2Tests.VistaRecordada.cs</c>.
+/// </summary>
+public class VistaRecordadaEnListadosTests : BunitContext
+{
+    private static readonly Guid ClienteA = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private static readonly Guid ClienteB = Guid.Parse("22222222-2222-2222-2222-222222222222");
+    private static readonly Guid EmpresaE = Guid.Parse("33333333-3333-3333-3333-333333333333");
+    private static readonly Guid SubcontrataS = Guid.Parse("44444444-4444-4444-4444-444444444444");
+
+    private readonly MediatorDeListado _mediador = new();
+
+    public VistaRecordadaEnListadosTests()
+    {
+        // Las páginas montan AtajosListaTeclado, que importa ./js/atajos-lista.js: fuera de lo que se observa aquí.
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+        this.ConRolDeEscritura();
+        Services.AddScoped<IMediator>(_ => _mediador);
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<ContextWorkspaceService>();
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
+        Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
+        Services.AddScoped<IValidator<CrearEmpresaCommand>>(_ => new InlineValidator<CrearEmpresaCommand>());
+        Services.AddScoped<IValidator<CrearCentroCommand>>(_ => new InlineValidator<CrearCentroCommand>());
+        Services.AddScoped<IValidator<CrearSubcontrataCommand>>(_ => new InlineValidator<CrearSubcontrataCommand>());
+        Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
+        Services.AddScoped<IValidator<CrearTrabajadorCommand>>(_ => new InlineValidator<CrearTrabajadorCommand>());
+    }
+
+    /// <summary>
+    /// Responde a las consultas de los siete listados con listas vacías, guarda una vista recordada por
+    /// pantalla y apunta todo lo que se le envía.
+    /// </summary>
+    private sealed class MediatorDeListado : IMediator
+    {
+        public List<object> Enviadas { get; } = [];
+
+        /// <summary>Lo que devuelve <see cref="ObtenerVistaRecordadaQuery"/> por pantalla. Sin entrada: nada recordado.</summary>
+        public Dictionary<string, string> VistasRecordadas { get; } = [];
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Enviadas.Add(request);
+            object? respuesta = request switch
+            {
+                ObtenerVistaRecordadaQuery v => VistasRecordadas.GetValueOrDefault(v.Pantalla),
+                GuardarVistaRecordadaCommand => Result.Exito(),
+                OlvidarVistaRecordadaCommand => Result.Exito(),
+                ObtenerFiltrosGuardadosQuery => (IReadOnlyList<FiltroGuardadoDto>)[],
+
+                ObtenerEmpresasQuery q => new ResultadoPaginado<EmpresaListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerSubcontratasQuery q => new ResultadoPaginado<SubcontrataListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerVehiculosQuery q => new ResultadoPaginado<VehiculoListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerGestionesQuery q => new ResultadoPaginado<GestionListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerTrabajadoresQuery q => new ResultadoPaginado<TrabajadorListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerProyectosQuery => (IReadOnlyList<ProyectoListaDto>)[],
+
+                ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)
+                    [new ClienteSelectorDto(ClienteA, "Refrielectric S.L."), new ClienteSelectorDto(ClienteB, "Frigoríficos Arcos S.A.")],
+                ObtenerCentrosParaSelectorQuery => (IReadOnlyList<CentroSelectorDto>)[],
+                ObtenerEmpresasParaSelectorQuery => new[] { new EmpresaSelectorDto(EmpresaE, "Montajes Ebro S.L.") },
+                ObtenerSubcontratasParaSelectorQuery => new[] { new SubcontrataSelectorDto(SubcontrataS, "Aislamientos Nervión S.L.") },
+                ObtenerProximaVisitaPorCentroQuery =>
+                    (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>(),
+
+                ObtenerPerfilVocabularioActualQuery => PerfilVocabularioTenant.Consultora,
+                UsaRotulosPrimeraPersonaQuery => false,
+                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new(Guid.NewGuid(), "Propia", EsOrigen: true)],
+                ObtenerAlcanceCeroQuery => false,
+                ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
+                ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)[],
+                ObtenerOperadoresCaeDeMiTenantQuery => (IReadOnlyList<CarterasDeOperacion>)[],
+                _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
+            };
+            return Task.FromResult((TResponse)respuesta!);
+        }
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            Task.CompletedTask;
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<object?>(null);
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
+
+    private sealed class UsuarioActualFalso : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    // ------------------------------------------------------------ ayudantes
+
+    private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
+
+    /// <summary>Los parámetros de vista son [SupplyParameterFromQuery]: se llega a ellos navegando a la URI, como en el producto.</summary>
+    private IRenderedComponent<TPagina> Renderizar<TPagina>(string ruta) where TPagina : IComponent
+    {
+        Navegacion.NavigateTo(ruta);
+        return Render<TPagina>();
+    }
+
+    private static string Json(params (string Parametro, string Valor)[] vista) =>
+        JsonSerializer.Serialize(vista.ToDictionary(p => p.Parametro, p => p.Valor));
+
+    /// <summary>Lo que el Usuario dejó recordado en esa pantalla, y lo mismo como diccionario para comparar con la URL.</summary>
+    private Dictionary<string, string> ConVistaRecordada(string pantalla, params (string Parametro, string Valor)[] vista)
+    {
+        _mediador.VistasRecordadas[pantalla] = Json(vista);
+        return vista.ToDictionary(p => p.Parametro, p => p.Valor);
+    }
+
+    private Dictionary<string, string> ParametrosDeLaUrl()
+    {
+        var consulta = HttpUtility.ParseQueryString(new Uri(Navegacion.Uri).Query);
+        return consulta.AllKeys.ToDictionary(k => k!, k => consulta[k]!);
+    }
+
+    private TConsulta Ultima<TConsulta>() => _mediador.Enviadas.OfType<TConsulta>().Last();
+
+    /// <summary>La pieza leyó lo recordado de ESA pantalla (una vez) y la página dejó la URL con la vista entera.</summary>
+    private void LaUrlQuedaCon<TPagina>(IRenderedComponent<TPagina> cut, string pantalla, Dictionary<string, string> esperada)
+        where TPagina : IComponent
+    {
+        cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(esperada));
+        _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().Equal([new ObtenerVistaRecordadaQuery(pantalla)]);
+    }
+
+    /// <summary>
+    /// Pulsa «Restablecer vista» y afirma lo común: la URL sin parámetros de vista y lo recordado olvidado,
+    /// no guardado como una vista vacía.
+    /// </summary>
+    private async Task RestablecerYOlvidarAsync<TPagina>(IRenderedComponent<TPagina> cut, string pantalla) where TPagina : IComponent
+    {
+        ParametrosDeLaUrl().Should().NotBeEmpty("control: la página se abre con una vista propia");
+        _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().BeEmpty("con parámetros manda la URL: no se lee lo recordado");
+
+        await cut.Find("button.restablecer-vista-barra").ClickAsync(new MouseEventArgs());
+
+        ParametrosDeLaUrl().Should().BeEmpty("«Restablecer vista» quita todos los parámetros de vista, el orden incluido");
+        _mediador.Enviadas.OfType<OlvidarVistaRecordadaCommand>().Should().Equal([new OlvidarVistaRecordadaCommand(pantalla)]);
+        _mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().BeEmpty("la vista de inicio se olvida, no se guarda vacía");
+        cut.FindAll("button.restablecer-vista-barra").Should().BeEmpty("ya en la vista de inicio no hay nada que restablecer");
+    }
+
+    // ------------------------------------------------------------- Empresas
+
+    [Fact]
+    public void Empresas_sin_parametros_restaura_la_vista_recordada()
+    {
+        var recordada = ConVistaRecordada(PantallasConVistaRecordada.Empresas, ("q", "Ebro"), ("estado", "Vencido"));
+
+        var cut = Renderizar<Empresas>("empresas");
+
+        LaUrlQuedaCon(cut, PantallasConVistaRecordada.Empresas, recordada);
+        Ultima<ObtenerEmpresasQuery>().Should().Match<ObtenerEmpresasQuery>(q => q.Busqueda == "Ebro" && q.EstadoDocumental == "Vencido" && q.Pagina == 1);
+    }
+
+    [Fact]
+    public async Task Empresas_restablecer_vista_limpia_la_url_y_olvida()
+    {
+        var cut = Renderizar<Empresas>("empresas?q=Ebro&estado=Vencido");
+
+        await RestablecerYOlvidarAsync(cut, PantallasConVistaRecordada.Empresas);
+
+        Ultima<ObtenerEmpresasQuery>().Should().Match<ObtenerEmpresasQuery>(q => q.Busqueda == null && q.EstadoDocumental == null);
+    }
+
+    // -------------------------------------------------------------- Centros
+
+    [Fact]
+    public void Centros_sin_parametros_restaura_la_vista_recordada()
+    {
+        var recordada = ConVistaRecordada(PantallasConVistaRecordada.Centros,
+            ("q", "Nave"), ("estado", "Vencido"), ("cliente", ClienteA.ToString()), ("empresa", EmpresaE.ToString()),
+            ("agrupar", "no"), ("orden", "cumplimiento-desc"));
+
+        var cut = Renderizar<Centros>("centros");
+
+        LaUrlQuedaCon(cut, PantallasConVistaRecordada.Centros, recordada);
+        Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
+            q.Busqueda == "Nave" && q.ClienteId == ClienteA && q.EmpresaId == EmpresaE
+            && q.OrdenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) && q.Descendente && q.Pagina == 1);
+        Ultima<ObtenerCentrosQuery>().Estados.Should().Equal(EstadoCentro.Vencido);
+    }
+
+    [Fact]
+    public async Task Centros_restablecer_vista_limpia_la_url_y_olvida()
+    {
+        var cut = Renderizar<Centros>($"centros?q=Nave&estado=Vencido&cliente={ClienteA}&agrupar=no&orden=cumplimiento-desc");
+
+        await RestablecerYOlvidarAsync(cut, PantallasConVistaRecordada.Centros);
+
+        Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
+            q.Busqueda == null && q.ClienteId == null && q.Estados == null && q.OrdenarPor == null);
+    }
+
+    // --------------------------------------------------------- Subcontratas
+
+    [Fact]
+    public void Subcontratas_sin_parametros_restaura_la_vista_recordada()
+    {
+        var recordada = ConVistaRecordada(PantallasConVistaRecordada.Subcontratas, ("q", "Nervión"), ("nivel", "Gestionada"));
+
+        var cut = Renderizar<Subcontratas>("subcontratas");
+
+        LaUrlQuedaCon(cut, PantallasConVistaRecordada.Subcontratas, recordada);
+        Ultima<ObtenerSubcontratasQuery>().Should().Match<ObtenerSubcontratasQuery>(q =>
+            q.Busqueda == "Nervión" && q.NivelServicio == NivelServicioSubcontrata.Gestionada && q.Pagina == 1);
+    }
+
+    [Fact]
+    public async Task Subcontratas_restablecer_vista_limpia_la_url_y_olvida()
+    {
+        var cut = Renderizar<Subcontratas>("subcontratas?q=Nervión&nivel=Gestionada");
+
+        await RestablecerYOlvidarAsync(cut, PantallasConVistaRecordada.Subcontratas);
+
+        Ultima<ObtenerSubcontratasQuery>().Should().Match<ObtenerSubcontratasQuery>(q => q.Busqueda == null && q.NivelServicio == null);
+    }
+
+    // ------------------------------------------------------------ Vehículos
+
+    /// <summary>Empresa y subcontrata son excluyentes, así que la lista blanca completa se restaura en dos casos.</summary>
+    [Theory]
+    [InlineData("empresa")]
+    [InlineData("subcontrata")]
+    public void Vehiculos_sin_parametros_restaura_la_vista_recordada(string empleador)
+    {
+        Guid? empresa = empleador == "empresa" ? EmpresaE : null;
+        Guid? subcontrata = empleador == "subcontrata" ? SubcontrataS : null;
+        var recordada = ConVistaRecordada(PantallasConVistaRecordada.Vehiculos,
+            ("q", "Transit"), ("estado", "Vencido"), (empleador, (empresa ?? subcontrata).ToString()!), ("orden", "matricula-desc"));
+
+        var cut = Renderizar<Vehiculos>("vehiculos");
+
+        LaUrlQuedaCon(cut, PantallasConVistaRecordada.Vehiculos, recordada);
+        cut.WaitForAssertion(() => Ultima<ObtenerVehiculosQuery>().Should().Match<ObtenerVehiculosQuery>(q =>
+            q.Busqueda == "Transit" && q.EstadoDocumental == "Vencido" && q.EmpresaId == empresa && q.SubcontrataId == subcontrata
+            && q.OrdenarPor == nameof(VehiculoListaDto.NumeroPlaca) && q.Descendente));
+    }
+
+    [Fact]
+    public async Task Vehiculos_restablecer_vista_limpia_la_url_y_olvida()
+    {
+        var cut = Renderizar<Vehiculos>($"vehiculos?q=Transit&estado=Vencido&empresa={EmpresaE}&orden=matricula-desc");
+
+        await RestablecerYOlvidarAsync(cut, PantallasConVistaRecordada.Vehiculos);
+
+        cut.WaitForAssertion(() => Ultima<ObtenerVehiculosQuery>().Should().Match<ObtenerVehiculosQuery>(q =>
+            q.Busqueda == null && q.EstadoDocumental == null && q.EmpresaId == null && q.OrdenarPor == null));
+    }
+
+    [Fact]
+    public void Vehiculos_el_orden_de_la_url_ordena_la_consulta()
+    {
+        var cut = Renderizar<Vehiculos>("vehiculos?orden=matricula-desc");
+
+        cut.WaitForAssertion(() => Ultima<ObtenerVehiculosQuery>().Should().Match<ObtenerVehiculosQuery>(q =>
+            q.OrdenarPor == nameof(VehiculoListaDto.NumeroPlaca) && q.Descendente));
+    }
+
+    [Fact]
+    public void Vehiculos_un_orden_que_no_existe_se_ignora()
+    {
+        var cut = Renderizar<Vehiculos>("vehiculos?orden=inventada-desc");
+
+        cut.WaitForAssertion(() => Ultima<ObtenerVehiculosQuery>().Should().Match<ObtenerVehiculosQuery>(q =>
+            q.OrdenarPor == null && !q.Descendente, "sin un orden válido la rejilla nace con el de fábrica: sin ordenar"));
+    }
+
+    // ------------------------------------------------------------ Gestiones
+
+    [Fact]
+    public void Gestiones_sin_parametros_restaura_la_vista_recordada()
+    {
+        var recordada = ConVistaRecordada(PantallasConVistaRecordada.Gestiones, ("q", "Salas"), ("estado", "Pendiente"), ("orden", "creada-desc"));
+
+        var cut = Renderizar<Gestiones>("gestiones");
+
+        LaUrlQuedaCon(cut, PantallasConVistaRecordada.Gestiones, recordada);
+        cut.WaitForAssertion(() => Ultima<ObtenerGestionesQuery>().Should().Match<ObtenerGestionesQuery>(q =>
+            q.Busqueda == "Salas" && q.Estado == EstadoGestion.Pendiente
+            && q.OrdenarPor == nameof(GestionListaDto.CreadoEnUtc) && q.Descendente));
+    }
+
+    [Fact]
+    public async Task Gestiones_restablecer_vista_limpia_la_url_y_olvida()
+    {
+        var cut = Renderizar<Gestiones>("gestiones?q=Salas&estado=Pendiente&orden=creada-desc");
+
+        await RestablecerYOlvidarAsync(cut, PantallasConVistaRecordada.Gestiones);
+
+        cut.WaitForAssertion(() => Ultima<ObtenerGestionesQuery>().Should().Match<ObtenerGestionesQuery>(q =>
+            q.Busqueda == null && q.Estado == null && q.OrdenarPor == nameof(GestionListaDto.Estado) && !q.Descendente,
+            "vuelve el orden de fábrica: por estado"));
+    }
+
+    [Fact]
+    public void Gestiones_el_orden_de_la_url_ordena_la_consulta()
+    {
+        var cut = Renderizar<Gestiones>("gestiones?orden=creada-desc");
+
+        cut.WaitForAssertion(() => Ultima<ObtenerGestionesQuery>().Should().Match<ObtenerGestionesQuery>(q =>
+            q.OrdenarPor == nameof(GestionListaDto.CreadoEnUtc) && q.Descendente));
+    }
+
+    [Fact]
+    public void Gestiones_un_orden_que_no_existe_se_ignora()
+    {
+        var cut = Renderizar<Gestiones>("gestiones?orden=inventada-desc");
+
+        cut.WaitForAssertion(() => Ultima<ObtenerGestionesQuery>().Should().Match<ObtenerGestionesQuery>(q =>
+            q.OrdenarPor == nameof(GestionListaDto.Estado) && !q.Descendente, "sin un orden válido la rejilla nace con el de fábrica: por estado"));
+    }
+
+    // ------------------------------------------------------------ Proyectos
+
+    [Fact]
+    public void Proyectos_sin_parametros_restaura_el_Cliente_empresarial_la_busqueda_y_el_estado()
+    {
+        var recordada = ConVistaRecordada(PantallasConVistaRecordada.Proyectos,
+            ("cliente", ClienteA.ToString()), ("q", "Nave"), ("estado", "abiertos"));
+
+        var cut = Renderizar<Proyectos>("proyectos");
+
+        LaUrlQuedaCon(cut, PantallasConVistaRecordada.Proyectos, recordada);
+        Ultima<ObtenerProyectosQuery>().ClienteId.Should().Be(ClienteA, "la lista que se pide es la del Cliente empresarial recordado");
+        cut.FindAll(".chip-filtro").Should().ContainSingle("la búsqueda recordada está a la vista en su chip");
+    }
+
+    /// <summary>
+    /// El Cliente empresarial elegido es contexto, no desviación: «Restablecer vista» lo conserva (sin él la
+    /// pantalla no tiene lista) y lo que queda recordado es solo él.
+    /// </summary>
+    [Fact]
+    public async Task Proyectos_restablecer_vista_conserva_el_Cliente_empresarial_y_recuerda_solo_eso()
+    {
+        var cut = Renderizar<Proyectos>($"proyectos?cliente={ClienteA}&q=Nave&estado=abiertos");
+
+        await cut.Find("button.restablecer-vista-barra").ClickAsync(new MouseEventArgs());
+
+        ParametrosDeLaUrl().Should().BeEquivalentTo(new Dictionary<string, string> { ["cliente"] = ClienteA.ToString() });
+        _mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().Equal(
+            [new GuardarVistaRecordadaCommand(PantallasConVistaRecordada.Proyectos, $"{{\"cliente\":\"{ClienteA}\"}}")]);
+        _mediador.Enviadas.OfType<OlvidarVistaRecordadaCommand>().Should().BeEmpty("queda el Cliente empresarial por recordar");
+        Ultima<ObtenerProyectosQuery>().ClienteId.Should().Be(ClienteA);
+        cut.FindAll(".chip-filtro").Should().BeEmpty("la búsqueda se quitó con el resto de la vista");
+    }
+
+    // --------------------------------------------------------- Trabajadores
+
+    /// <summary>Empresa y subcontrata son excluyentes, así que la lista blanca completa se restaura en dos casos.</summary>
+    [Theory]
+    [InlineData("empresa")]
+    [InlineData("subcontrata")]
+    public void Trabajadores_sin_parametros_restaura_la_vista_recordada(string empleador)
+    {
+        Guid? empresa = empleador == "empresa" ? EmpresaE : null;
+        Guid? subcontrata = empleador == "subcontrata" ? SubcontrataS : null;
+        var recordada = ConVistaRecordada(PantallasConVistaRecordada.Trabajadores,
+            ("q", "Vega"), ("estado", "Vencido"), (empleador, (empresa ?? subcontrata).ToString()!), ("orden", "trabajador-desc"));
+
+        var cut = Renderizar<Trabajadores>("trabajadores");
+
+        LaUrlQuedaCon(cut, PantallasConVistaRecordada.Trabajadores, recordada);
+        cut.WaitForAssertion(() => Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>
+            q.Busqueda == "Vega" && q.EstadoDocumental == "Vencido" && q.EmpresaId == empresa && q.SubcontrataId == subcontrata
+            && q.OrdenarPor == nameof(TrabajadorListaDto.Apellidos) && q.Descendente));
+    }
+
+    [Fact]
+    public async Task Trabajadores_restablecer_vista_limpia_la_url_y_olvida()
+    {
+        var cut = Renderizar<Trabajadores>($"trabajadores?q=Vega&estado=Vencido&empresa={EmpresaE}&orden=trabajador-desc");
+
+        await RestablecerYOlvidarAsync(cut, PantallasConVistaRecordada.Trabajadores);
+
+        cut.WaitForAssertion(() => Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>
+            q.Busqueda == null && q.EstadoDocumental == null && q.EmpresaId == null
+            && q.OrdenarPor == nameof(TrabajadorListaDto.EstadoDocumental) && !q.Descendente,
+            "vuelve el orden de fábrica: por documentación"));
+    }
+
+    [Fact]
+    public async Task Trabajadores_el_orden_de_la_url_ordena_la_consulta_y_la_exportacion()
+    {
+        var cut = Renderizar<Trabajadores>("trabajadores?orden=trabajador-desc");
+
+        cut.WaitForAssertion(() => Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>
+            q.OrdenarPor == nameof(TrabajadorListaDto.Apellidos) && q.Descendente));
+
+        // «Exportar esta vista» sale en el mismo orden que se ve, venga de un clic o de la URL.
+        await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
+        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").First().GetAttribute("href")
+            .Should().StartWith("/trabajadores/exportar.xlsx?")
+            .And.Contain($"orden={nameof(TrabajadorListaDto.Apellidos)}").And.Contain("desc=true");
+    }
+
+    [Fact]
+    public void Trabajadores_un_orden_que_no_existe_se_ignora()
+    {
+        var cut = Renderizar<Trabajadores>("trabajadores?orden=inventada-desc");
+
+        cut.WaitForAssertion(() => Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>
+            q.OrdenarPor == nameof(TrabajadorListaDto.EstadoDocumental) && !q.Descendente,
+            "sin un orden válido la rejilla nace con el de fábrica: por documentación"));
+    }
+
+    /// <summary>La otra dirección: sin el orden en la URL la vista recordada no tendría qué recordar.</summary>
+    [Fact]
+    public async Task Trabajadores_ordenar_por_una_columna_lo_escribe_en_la_url()
+    {
+        var cut = Renderizar<Trabajadores>("trabajadores");
+        ParametrosDeLaUrl().Should().NotContainKey("orden", "control: el orden de fábrica no viaja");
+
+        await cut.FindAll("thead th button.col-title").First().ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().Contain("orden", "trabajador"));
+        Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>
+            q.OrdenarPor == nameof(TrabajadorListaDto.Apellidos) && !q.Descendente);
+    }
+}
