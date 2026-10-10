@@ -11,7 +11,7 @@
 # .trx del job E2E en runs verdes de `merge_group`.
 #
 # Medido el 2026-10-10 sobre 6 runs de `merge_group` verdes posteriores a #1271
-# (los primeros con AppCollection ya partida en dos): p50 del tramo de reloj de
+# (los seis con AppCollection ya partida en dos, #1263): p50 del tramo de reloj de
 # cada colección en el .trx (del primer inicio al último fin de sus tests) más
 # 42 s de arranque de la aplicación, que es lo que el .trx no atribuye a ningún
 # test (resto medido por bloque: ~88 s con dos colecciones, ~200 s con cinco).
