@@ -144,7 +144,7 @@ public class DesactivarCortaLaSesionTests(WebAppFixtureConRevalidacionRapida fix
             // sin quitar a Acme de la lista si el circuito siguiera sirviendo datos. Antes se
             // cambiaba el tamaño de página, pero desde el rediseño de listados (fase 1) el
             // paginador no aparece con 20 Clientes empresariales o menos, y la siembra tiene 9.
-            await paginaVictima.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Razón social", Exact = true })
+            await paginaVictima.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Cliente", Exact = true })
                 .ClickAsync();
 
             await Assertions.Expect(principal).Not.ToContainTextAsync("Acme",

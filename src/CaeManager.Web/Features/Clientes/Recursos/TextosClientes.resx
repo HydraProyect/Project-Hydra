@@ -357,6 +357,9 @@
   <data name="ListaTitulo" xml:space="preserve">
     <value>Clientes</value>
   </data>
+  <data name="ListaColumnaCliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
   <data name="ListaExportarExcel" xml:space="preserve">
     <value>Exportar a Excel</value>
   </data>

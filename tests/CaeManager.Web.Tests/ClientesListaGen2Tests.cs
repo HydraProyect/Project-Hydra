@@ -1167,13 +1167,13 @@ public partial class ClientesListaGen2Tests : BunitContext
         UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(ClienteListaDto.EstadoDocumentalPeor),
             "control: la carga inicial ordena por la columna por defecto, no por razón social");
 
-        await CabeceraOrdenable(cut, "Razón social").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Cliente").ClickAsync(new MouseEventArgs());
 
         var ascendente = UltimaConsulta(mediador);
         ascendente.OrdenarPor.Should().Be(nameof(ClienteListaDto.RazonSocial));
         ascendente.Descendente.Should().BeFalse();
 
-        await CabeceraOrdenable(cut, "Razón social").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Cliente").ClickAsync(new MouseEventArgs());
 
         var descendente = UltimaConsulta(mediador);
         descendente.OrdenarPor.Should().Be(nameof(ClienteListaDto.RazonSocial));
@@ -1193,9 +1193,9 @@ public partial class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Montajes Ebro S.L.", cif: "B-50.123.456") } });
 
         cut.FindAll("thead th").Select(th => th.TextContent.Trim())
-            .Should().Equal("Razón social", "Gestor CAE", "Centros", "Estado documental", "");
+            .Should().Equal("Cliente", "Gestor CAE", "Centros", "Estado documental", "");
         cut.FindAll("thead th button.col-title").Select(b => b.TextContent.Trim())
-            .Should().Equal("Razón social", "Estado documental");
+            .Should().Equal("Cliente", "Estado documental");
         Fila(cut, "Montajes Ebro S.L.").QuerySelectorAll("td").Should().HaveCount(5, "una celda por cabecera: el CIF no ocupa celda propia");
     }
 

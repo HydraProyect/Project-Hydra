@@ -125,7 +125,8 @@ public class MiTrabajoGen2Tests : BunitContext
         Func<MiTrabajoAgregadoDto>? respuesta = null,
         Func<Result<IReadOnlyList<CandidatoIncorporacionCarteraDto>>>? candidatos = null,
         string? rol = null,
-        string? url = null)
+        string? url = null,
+        bool interactivo = false)
     {
         _mediador = new MediadorFijo(respuesta ?? Cartera, candidatos ?? SinPermiso);
         Services.AddScoped<IMediator>(_ => _mediador);
@@ -133,6 +134,8 @@ public class MiTrabajoGen2Tests : BunitContext
         Services.AddSingleton<ToastService>();
         Services.AddLocalization();
         if (url is not null) Services.GetRequiredService<NavigationManager>().NavigateTo(url);
+        // El aviso de «sin acceso» necesita el renderizado interactivo que pinta la pila de toasts.
+        if (interactivo) SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         if (rol is null) return Render<MiTrabajoPagina>();
         var estado = Task.FromResult(new Microsoft.AspNetCore.Components.Authorization.AuthenticationState(
             new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
@@ -155,6 +158,38 @@ public class MiTrabajoGen2Tests : BunitContext
 
     private static IReadOnlyList<string> TitulosVisibles(IRenderedComponent<MiTrabajoPagina> cut) =>
         cut.FindAll(".mi-trabajo-fila-titulo").Select(e => e.TextContent).ToList();
+
+    [Fact]
+    public void Llegar_con_sinAcceso_avisa_una_vez_de_que_ya_no_hay_acceso_al_Tenant()
+    {
+        Services.AddSingleton<CaeManager.Application.Common.IAlertaOperativa>(new AlertaMudaMiTrabajo());
+        var cut = Renderizar(url: "mi-trabajo?sinAcceso=true", interactivo: true);
+
+        var toasts = Services.GetRequiredService<ToastService>().Mensajes;
+        toasts.Should().ContainSingle("llegar desde Desasignarme avisa de que el Tenant ya no es accesible")
+            .Which.Should().Match<ToastMensaje>(m => m.Tono == TonoToast.Advertencia && m.Mensaje == "Ya no tienes acceso a esa organización.");
+
+        cut.Render();
+        Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle("re-render no repite el aviso");
+    }
+
+    [Fact]
+    public void Sin_sinAcceso_no_hay_aviso_de_acceso()
+    {
+        Services.AddSingleton<CaeManager.Application.Common.IAlertaOperativa>(new AlertaMudaMiTrabajo());
+        Renderizar(interactivo: true);
+
+        Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty("control: la página sin el parámetro no avisa");
+    }
+
+    private sealed class AlertaMudaMiTrabajo : CaeManager.Application.Common.IAlertaOperativa
+    {
+        public void Emitir(string mensaje, CaeManager.Application.Common.NivelAlertaOperativa nivel) { }
+        public void CapturarExcepcion(Exception excepcion) { }
+        public void DejarMigaDePan(string mensaje) { }
+        public IDisposable IniciarAmbitoDeCaptura() => new Nada();
+        private sealed class Nada : IDisposable { public void Dispose() { } }
+    }
 
     [Fact]
     public void Cada_accion_entra_por_POST_con_antiforgery_en_el_Tenant_de_su_fila_y_en_la_pantalla_exacta()

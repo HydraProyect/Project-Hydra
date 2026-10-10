@@ -18,6 +18,9 @@
   <data name="TodaMiCartera" xml:space="preserve">
     <value>Toda mi cartera</value>
   </data>
+  <data name="AvisoSinAccesoTenant" xml:space="preserve">
+    <value>Ya no tienes acceso a esa organización.</value>
+  </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
     <value>No pudimos consultar tu cartera</value>
   </data>

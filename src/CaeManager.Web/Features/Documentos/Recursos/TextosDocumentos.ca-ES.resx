@@ -216,7 +216,7 @@
   <data name="ListaAmbitoEmpresa" xml:space="preserve"><value>Empresa</value></data>
   <data name="ListaAmbitoVehiculo" xml:space="preserve"><value>Vehicle</value></data>
   <data name="ListaAmbitoProyecto" xml:space="preserve"><value>Projecte</value></data>
-  <data name="ListaEntidadAsociadaPorAmbito" xml:space="preserve"><value>Entitat associada · Àmbit</value></data>
+  <data name="ListaEntidadAsociadaPorAmbito" xml:space="preserve"><value>Pertany a · Àmbit</value></data>
   <data name="ListaVigenciaPorEmision" xml:space="preserve"><value>Vigència · Emissió</value></data>
   <data name="ListaVigenciaPorVencimiento" xml:space="preserve"><value>Vigència · Venciment</value></data>
   <data name="ListaOrdenarEntidadAsociada" xml:space="preserve"><value>Ordenar per entitat associada</value></data>
@@ -224,7 +224,7 @@
   <data name="ListaOrdenarEmision" xml:space="preserve"><value>Ordenar per emissió</value></data>
   <data name="ListaOrdenarVencimiento" xml:space="preserve"><value>Ordenar per venciment</value></data>
   <data name="ListaEmitido" xml:space="preserve"><value>Emès {0}</value></data>
-  <data name="ListaEntidadAsociada" xml:space="preserve"><value>Entitat associada</value></data>
+  <data name="ListaEntidadAsociada" xml:space="preserve"><value>Pertany a</value></data>
   <data name="FiltroGuardadoBorrarTitulo" xml:space="preserve">
     <value>Vols esborrar el filtre desat «{0}»?</value>
   </data>

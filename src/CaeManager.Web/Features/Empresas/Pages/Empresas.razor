@@ -46,9 +46,9 @@
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
             @* «Gestor CAE» es dato de cabecera, no columna: la Asignación de Cartera es sobre el
                Tenant entero, así que es el mismo para todas las filas. Si quien mira se desasigna
-               desde ahí, la página se recarga entera (RecargarTrasDesasignarme). *@
+               desde ahí, quien mira va a Mi trabajo con un aviso (IrAMiTrabajoTrasDesasignarme). *@
             <DatoCabecera>
-                <CabeceraGestorCae AlDesasignarme="RecargarTrasDesasignarme" />
+                <CabeceraGestorCae AlDesasignarme="IrAMiTrabajoTrasDesasignarme" />
             </DatoCabecera>
             <Menu>
                 <CaeManager.Web.Exportacion.EntradasExportar Ruta="/empresas/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
