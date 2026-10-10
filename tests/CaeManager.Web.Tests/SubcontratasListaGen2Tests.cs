@@ -414,16 +414,19 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     /// cumplimiento…»: un número que no existe.
     /// </summary>
     [Fact]
-    public void Sin_universo_de_requisitos_el_anillo_no_se_anuncia_como_un_porcentaje()
+    public void Sin_universo_de_requisitos_la_barra_no_se_anuncia_como_un_porcentaje()
     {
         var cut = Renderizar(new MediatorFalso
         {
             Subcontratas = [Subcontrata("Limpiezas Goiko S.L.U.", cumplimiento: null), Subcontrata("Soldaduras Iparra S. Coop.", cumplimiento: 84)]
         });
 
-        cut.Find(".anillo-cumplimiento-sin-universo").GetAttribute("aria-label").Should()
+        cut.Find(".barra-cumplimiento-sin-universo").GetAttribute("aria-label").Should()
             .Be("Sin trabajadores con documentos exigidos por algún centro activo");
-        cut.Markup.Should().Contain("84% de cumplimiento", "con universo el anillo sigue diciendo su porcentaje");
+        cut.Markup.Should().Contain("84% de cumplimiento", "con universo la barra sigue diciendo su porcentaje");
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera [data-pieza=anillo]")
+            .Should().BeEmpty("en los listados el cumplimiento es barra con cifra, no anillo");
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera [data-pieza=barra-cumplimiento]").Should().HaveCount(2);
     }
 
     /// <summary>

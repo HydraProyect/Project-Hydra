@@ -722,7 +722,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     }
 
     /// <summary>
-    /// Nombre accesible del anillo. Antes se interpolaba el porcentaje sin
+    /// Nombre accesible de la barra de cumplimiento. Antes se interpolaba el porcentaje sin
     /// mirar si existía, y una subcontrata sin universo de requisitos se
     /// anunciaba como «% de cumplimiento…» — un número que no hay. Null
     /// significa que ningún trabajador tiene un documento exigido por un

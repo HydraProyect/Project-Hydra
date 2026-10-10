@@ -38,20 +38,12 @@ public record ObtenerEstadoTipoDocumentoQuery(
 {
     public const int TamanoPaginaPorDefecto = 20;
     public const int TamanoPaginaMaximo = 100;
-
-    /// <summary>
-    /// Nombres que la banda de cabecera puede llegar a enseñar de cada grupo (vencidos, pendientes, en tolerancia); el
-    /// resto se resume en el recuento. El tope va por grupo: con uno solo para todos, muchos vencidos dejaban sin nombre
-    /// a los pendientes.
-    /// </summary>
-    public const int MaximoIncidenciasPorGrupo = 3;
 }
 
 /// <param name="Cumplimiento">Pares al día sobre pares exigidos. 0 de 0 (porcentaje <c>null</c>) si ningún Centro lo exige a nadie.</param>
 /// <param name="Centros">Centros distintos que lo exigen a algún Trabajador.</param>
 /// <param name="Trabajadores">Trabajadores distintos a los que se exige: el total de filas sin filtrar.</param>
 /// <param name="Recuentos">Filas por grupo de su peor estado, sobre todas las filas.</param>
-/// <param name="Incidencias">Las primeras filas de cada grupo con el documento vencido, pendiente o en tolerancia, de la peor a la mejor.</param>
 /// <param name="Filas">La página pedida de las filas que casan con <c>Estados</c>.</param>
 /// <param name="TotalFiltradas">Filas que casan con <c>Estados</c>, en todas las páginas.</param>
 public record EstadoTipoDocumentoDto(
@@ -67,7 +59,6 @@ public record EstadoTipoDocumentoDto(
     int Centros,
     int Trabajadores,
     IReadOnlyList<RecuentoGrupoEstadoDto> Recuentos,
-    IReadOnlyList<FilaTrabajadorTipoDocumentoDto> Incidencias,
     IReadOnlyList<FilaTrabajadorTipoDocumentoDto> Filas,
     int TotalFiltradas,
     int Pagina,
@@ -161,11 +152,6 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
             Centros: pares.Select(p => p.CentroId).Distinct().Count(),
             Trabajadores: filas.Count,
             Recuentos: EstadoTipoDocumentoCalculo.Recuentos(filas),
-            Incidencias: filas
-                .Where(f => f.PeorEstado is EstadoDocumento.Vencido or EstadoDocumento.Faltante or EstadoDocumento.EnTolerancia)
-                .GroupBy(f => EstadoTipoDocumentoCalculo.Grupo(f.PeorEstado))
-                .SelectMany(grupo => grupo.Take(ObtenerEstadoTipoDocumentoQuery.MaximoIncidenciasPorGrupo))
-                .ToList(),
             Filas: filtradas.Skip((pagina - 1) * tamano).Take(tamano).ToList(),
             TotalFiltradas: filtradas.Count,
             Pagina: pagina,

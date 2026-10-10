@@ -506,7 +506,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         _totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _tamanoPagina > TamanoPaginaMinimo);
 
     /// <summary>
-    /// Nombre accesible del anillo. Antes se interpolaba el porcentaje sin
+    /// Nombre accesible de la barra de cumplimiento. Antes se interpolaba el porcentaje sin
     /// mirar si existía, y una empresa sin cumplimiento calculable se anunciaba
     /// como «% de cumplimiento…» — un número que no hay. Null significa que no
     /// tiene actividad en ningún Centro o que ninguno tiene requisitos

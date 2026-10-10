@@ -185,7 +185,12 @@
                        contrato con el oyente delegado de atajos-lista.js, que convierte el
                        clic en un punto sin controles de la fila en un clic sobre este botón.
                        A la página Cliente 360 (/clientes/{id}) se va con el icono 360 del
-                       final de la fila y con el del panel. *@
+                       final de la fila y con el del panel.
+
+                       Identidad en dos líneas, como la celda «Trabajador» de /trabajadores: arriba la
+                       razón social con sus avisos («⚑ Crítico», «Sin contacto») y debajo el CIF. *@
+                    <span class="celda-cliente-empresarial">
+                    <span class="celda-cliente-empresarial-nombre">
                     <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
                             aria-label="@Textos["AbrirVistaRapidaDe", context.RazonSocial]"
                             @onclick="() => AbrirVistaRapidaAsync(context.Id)" @onclick:stopPropagation="true">@context.RazonSocial</button>
@@ -206,18 +211,22 @@
                             Sin contacto
                         </button>
                     }
-                </TemplateColumn>
-                @* El CIF se copia con un clic, sin abrir la fila. Sigue ordenando por CIF. *@
-                <TemplateColumn Title="CIF" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.Cif))">
-                    @if (string.IsNullOrWhiteSpace(context.Cif))
-                    {
-                        <span class="texto-vacio-celda">—</span>
-                    }
-                    else
-                    {
-                        <BotonCopiar EnLinea="true" Valor="@context.Cif" Texto="@context.Cif" Etiqueta="@Textos["EtiquetaCif"]"
-                                     NombreAccesible="@Textos["CopiarCif", context.Cif]" />
-                    }
+                    </span>
+                    @* Segunda línea: el CIF, que se copia con un clic sin abrir la fila; sin CIF,
+                       una raya. No tiene cabecera propia, así que la pantalla no ofrece ordenar
+                       por CIF (ObtenerClientesQuery sí admite ese orden). *@
+                    <span class="celda-cliente-empresarial-cif">
+                        @if (string.IsNullOrWhiteSpace(context.Cif))
+                        {
+                            <span class="texto-vacio-celda">—</span>
+                        }
+                        else
+                        {
+                            <BotonCopiar EnLinea="true" Valor="@context.Cif" Texto="@context.Cif" Etiqueta="@Textos["EtiquetaCif"]"
+                                         NombreAccesible="@Textos["CopiarCif", context.Cif]" />
+                        }
+                    </span>
+                    </span>
                 </TemplateColumn>
                 <TemplateColumn Title="Gestor CAE">
                     @* Decisión del propietario (2026-10-09): el formulario «Editar Cliente

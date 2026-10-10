@@ -1,0 +1,62 @@
+.barra-cumplimiento {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+    font-variant-numeric: tabular-nums;
+}
+
+.barra-cumplimiento-pista {
+    display: block;
+    flex: none;
+    width: 64px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-anillo-pista);
+    overflow: hidden;
+}
+
+.barra-cumplimiento-relleno {
+    display: block;
+    height: 100%;
+    border-radius: var(--radius-full);
+    /* El tramo fija `color` y el relleno lo toma: los *-700 son tokens de texto, con variante por tema. */
+    background-color: currentColor;
+}
+
+.barra-cumplimiento-cifra {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text);
+    white-space: nowrap;
+}
+
+/* *-700, no *-500 — mismo motivo que AnilloCumplimiento y Badge: contraste sobre fondo claro. */
+.barra-cumplimiento-exito .barra-cumplimiento-relleno {
+    color: var(--color-success-700);
+}
+
+.barra-cumplimiento-advertencia .barra-cumplimiento-relleno {
+    color: var(--color-warning-700);
+}
+
+.barra-cumplimiento-peligro .barra-cumplimiento-relleno {
+    color: var(--color-danger-700);
+}
+
+.barra-cumplimiento-marca .barra-cumplimiento-relleno {
+    background: var(--color-primary-500);
+}
+
+/* Sin universo: «—» en gris, sin pista — nunca 0 % ni 100 %. */
+.barra-cumplimiento-sin-universo .barra-cumplimiento-cifra {
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+/* Estrecho o táctil: la cifra es el dato; la pista no cabe junto al nombre. */
+@media (max-width: 767px) {
+    .barra-cumplimiento-pista {
+        display: none;
+    }
+}

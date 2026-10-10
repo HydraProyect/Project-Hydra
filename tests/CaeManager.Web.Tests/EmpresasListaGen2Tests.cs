@@ -664,19 +664,21 @@ public partial class EmpresasListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Sin cumplimiento calculable el anillo pinta «—», y su nombre accesible
+    /// Sin cumplimiento calculable la barra pinta «—», y su nombre accesible
     /// no puede anunciar un porcentaje: antes decía «% de cumplimiento…» sin
     /// número.
     /// </summary>
     [Fact]
-    public void El_anillo_de_cumplimiento_no_anuncia_un_porcentaje_que_no_existe()
+    public void La_barra_de_cumplimiento_no_anuncia_un_porcentaje_que_no_existe()
     {
         var cut = Renderizar(new MediatorFalso
         {
             Almacen = { Empresa("Aislamientos Nervión S.L.", cumplimiento: 72), Empresa("Talleres Berriz S. Coop.", cumplimiento: null) }
         });
 
-        cut.FindAll(".tarjeta-fila-acordeon-cabecera [role=img]").Select(a => a.GetAttribute("aria-label")).Should().Equal(
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera [data-pieza=anillo]")
+            .Should().BeEmpty("en los listados el cumplimiento es barra con cifra, no anillo");
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera [data-pieza=barra-cumplimiento]").Select(a => a.GetAttribute("aria-label")).Should().Equal(
             [
                 "72% de cumplimiento acumulado en los centros donde esta empresa tiene actividad",
                 "Sin actividad en ningún centro con requisitos aplicables"

@@ -47,7 +47,6 @@
     {
         var visita = _detalle;
         var anillo = Anillo;
-        var incidencias = IncidenciasDeBanda;
 
         <CabeceraIdentidad Titulo="@visita.CentroNombre" Kicker="@Textos["Visita360Kicker"]">
             <Datos>@DatosDeCabecera(visita)</Datos>
@@ -148,20 +147,6 @@
             <BandaAccion Tono="TonoBanda.Neutro">
                 <b>@(string.IsNullOrWhiteSpace(visita.MotivoCancelacion) ? Textos["DetalleCancelada"] : Textos["DetalleCanceladaMotivo", visita.MotivoCancelacion])</b>
                 <span>@Textos["DetalleCanceladaSinAcciones"]</span>
-            </BandaAccion>
-        }
-        else if (incidencias.Count > 0)
-        {
-            @* Cada incidencia hace lo mismo que su fila: abre el documento, o lleva a
-               subirlo si no lo hay. Sin escritura se leen como texto. *@
-            <BandaAccion Tono="TonoBanda.Peligro">
-                @* Cada tramo va en una sola línea de marcado: un salto de línea entre una
-                   incidencia y su coma o su punto se pintaría como un espacio. *@
-                <span>@TextoPlazoBanda(visita)</span>
-                @foreach (var (titular, documentos) in incidencias)
-                {
-                    <span class="visita360-banda-tramo">@(Textos["Visita360BandaTitular", titular].Value + " ")@foreach (var (separador, documento) in ConSeparador(documentos)) { @separador<IncidenciaBanda Texto="@TextoIncidencia(documento)" OnClick="@AlPulsarIncidencia(documento)" /> }@(".")</span>
-                }
             </BandaAccion>
         }
 

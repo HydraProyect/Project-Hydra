@@ -80,6 +80,14 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private static DateOnly Hoy => DiaDeNegocio.Hoy();
 
+    private static int? PorcentajeDelPlazo(ProyectoListaDto proyecto) =>
+        PlazoProyecto.PorcentajeDelPlazo(proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, Hoy);
+
+    private string EtiquetaPlazoTranscurrido(ProyectoListaDto proyecto) =>
+        PorcentajeDelPlazo(proyecto) is { } porcentaje
+            ? Textos["EtiquetaPlazoTranscurrido", porcentaje]
+            : Textos["EtiquetaPlazoSinMedida"];
+
     protected override async Task OnInitializedAsync()
     {
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en

@@ -15,7 +15,7 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Vehiculos;
 
 /// <summary>
-/// El detalle de un Vehículo trae lo que pinta el anillo y la banda de su ficha 360: cuántos de sus
+/// El detalle de un Vehículo trae lo que pinta el anillo de su ficha 360 y decide el aviso de vencidos de su lista: cuántos de sus
 /// documentos REGISTRADOS están al día y cuál es su peor estado. Contra PostgreSQL real, porque la
 /// propiedad que importa —que un documento sustituido no cuente y que el estado salga de la misma
 /// calculadora que la lista de documentos— vive en la consulta.
