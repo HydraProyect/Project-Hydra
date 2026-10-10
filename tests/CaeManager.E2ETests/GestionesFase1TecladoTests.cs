@@ -4,8 +4,8 @@ using static Microsoft.Playwright.Assertions;
 
 namespace CaeManager.E2ETests;
 
-[Collection("AppCollection")]
-public class GestionesFase1TecladoTests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class GestionesFase1TecladoTests(WebAppFixtureListados fixture)
 {
     [Fact]
     public async Task Opciones_Centro_y_teclado_nativo_conservan_foco_e_identidad_de_la_fila()

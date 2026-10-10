@@ -42,7 +42,7 @@
 # R_INTEGRACION, R_E2E, R_ALCANCE, ALCANCE_INTEGRACION, ALCANCE_E2E.
 #
 # MODO SOLO_E2E=1. Lo usa el job «Tests E2E (Playwright)», check obligatorio
-# de main, que agrega los tres bloques de E2E: aplica la regla de los pesados
+# de main, que agrega los bloques de E2E: aplica la regla de los pesados
 # a R_E2E (resultado de la matriz de bloques) y nada más. Entradas: EVENTO,
 # R_E2E, R_ALCANCE, ALCANCE_E2E. Salida: solo `e2e`. Desde ese cambio el job
 # «Build, format y tests» recibe en R_E2E el resultado del agregador, que ya
@@ -98,7 +98,7 @@ pesado() {
 }
 
 # SOLO_E2E=1: el mismo guion, usado por el job «Tests E2E (Playwright)», que
-# desde que los E2E corren en tres bloques es un agregador de esos bloques.
+# desde que los E2E corren en bloques es un agregador de esos bloques.
 # R_E2E es entonces el resultado agregado de la matriz de bloques y solo se
 # aplica la regla de los pesados a los E2E; no hay nada más que exigir.
 if [[ "${SOLO_E2E:-}" == "1" ]]; then

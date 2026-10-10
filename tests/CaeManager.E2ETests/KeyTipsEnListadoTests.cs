@@ -14,8 +14,8 @@ namespace CaeManager.E2ETests;
 /// cuando llegue se declara igual (<c>data-keytip="T" data-keytip-grupo</c>) y baja de nivel
 /// por este mismo camino.
 /// </remarks>
-[Collection("AppCollection")]
-public class KeyTipsEnListadoTests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
 {
     [Fact]
     public async Task Alt_enciende_las_letras_baja_a_un_grupo_abre_un_menu_ejecuta_y_sale_en_Centros()

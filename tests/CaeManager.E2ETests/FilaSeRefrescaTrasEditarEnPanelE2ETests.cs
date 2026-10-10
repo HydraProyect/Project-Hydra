@@ -13,8 +13,8 @@ namespace CaeManager.E2ETests;
 /// Centros; la sustitución en sitio de los demás la prueban sus tests de bUnit. Visitas edita en
 /// un Drawer de su propia página: su recorrido está en <c>VisitasFilaSinMenuE2ETests</c>.
 /// </summary>
-[Collection("AppCollection")]
-public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixture)
 {
     private static readonly LocatorGetByLabelOptions Exacto = new() { Exact = true };
 

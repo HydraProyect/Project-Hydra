@@ -12,8 +12,8 @@ namespace CaeManager.E2ETests;
 /// de la fila («Completar», «Reabrir») hacen lo suyo sin abrir la vista rápida. Una Gestión no
 /// tiene página propia (decisión D7): no hay icono 360 que probar.
 /// </summary>
-[Collection("AppCollection")]
-public class GestionesFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class GestionesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private static ILocator VistaRapida(IPage page) =>
         page.GetByRole(AriaRole.Complementary, new PageGetByRoleOptions { Name = "Vista rápida de la gestión", Exact = true });

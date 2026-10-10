@@ -507,7 +507,7 @@ jobs:
     # «skipped» SOLO si el job `alcance` termino en success con la salida de
     # ese job en `false`, es decir, si lo salto a proposito (ver el bloque
     # ALCANCE mas arriba). Los E2E estan en `needs` como segunda barrera.
-    # `e2e-tests` es desde el reparto en tres bloques un agregador que corre
+    # `e2e-tests` es desde el reparto en bloques un agregador que corre
     # siempre y aplica el mismo en su primer paso: aqui llega `success` tanto
     # si los bloques corrieron como si se saltaron con permiso, y cualquier
     # otra cosa es rojo.
@@ -994,10 +994,10 @@ jobs:
   # separado y se queda con su parte.
   #
   # El check OBLIGATORIO de main sigue siendo «Tests E2E (Playwright)», que
-  # ahora es el job `e2e-tests` de más abajo: agrega estos tres bloques y
+  # ahora es el job `e2e-tests` de más abajo: agrega estos cuatro bloques y
   # comprueba que entre los tres ejecutaron la suite entera, una sola vez.
   e2e-bloques:
-    name: Tests E2E (bloque ${{ matrix.bloque }} de 3)
+    name: Tests E2E (bloque ${{ matrix.bloque }} de 4)
     runs-on: ubuntu-latest
     # Ver el bloque ALCANCE sobre el job `alcance`: los bloques solo se saltan
     # fuera de `merge_group` y con un `false` explícito de `alcance`. Que ese
@@ -1009,7 +1009,7 @@ jobs:
       # que está roto, no solo lo primero.
       fail-fast: false
       matrix:
-        bloque: [1, 2, 3]
+        bloque: [1, 2, 3, 4]
     # WebAppFixture arranca la app real contra una base PostgreSQL propia
     # (creada y borrada por test, ver BaseDatosPostgresDePruebas) — mismo
     # servicio que usa el job tests-integracion.
@@ -1096,7 +1096,7 @@ jobs:
       #
       # El filtro sale del reparto por colección. El descubrimiento se hace
       # sobre el árbol recién compilado y se publica con el reparto: el
-      # agregador exige que los tres bloques descubrieran lo mismo.
+      # agregador exige que los cuatro bloques descubrieran lo mismo.
       # MINIMO_CLASES es el suelo del descubrimiento (77 clases el 2026-10-10):
       # un `--list-tests` truncado repartiría una suite incompleta en verde.
       - name: Repartir las colecciones de E2E en este bloque
@@ -1106,7 +1106,7 @@ jobs:
         run: |
           mkdir -p reparto-e2e
           dotnet test tests/CaeManager.E2ETests --no-build --list-tests > reparto-e2e/listado-bloque-${{ matrix.bloque }}.txt
-          filtro=$(LISTADO_DE_TESTS=reparto-e2e/listado-bloque-${{ matrix.bloque }}.txt REPARTO_SALIDA=reparto-e2e/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-e2e-por-coleccion.sh 3 ${{ matrix.bloque }})
+          filtro=$(LISTADO_DE_TESTS=reparto-e2e/listado-bloque-${{ matrix.bloque }}.txt REPARTO_SALIDA=reparto-e2e/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-e2e-por-coleccion.sh 4 ${{ matrix.bloque }})
           echo "FILTRO_E2E=$filtro" >> "$GITHUB_ENV"
 
       - name: Tests E2E
@@ -1134,7 +1134,7 @@ jobs:
           cp "$trx" reparto-e2e/
 
       # Lo que este bloque descubrió, lo que dijo suyo y lo que ejecutó. El
-      # agregador `e2e-tests` lo recoge de los tres para comprobar que la
+      # agregador `e2e-tests` lo recoge de los cuatro para comprobar que la
       # unión es la suite entera.
       - name: Publicar el reparto del bloque
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1208,8 +1208,8 @@ jobs:
   # bloque saltado, cancelado o fallido es rojo.
   #
   # Cuando los bloques corrieron, comprueba además lo que ningún bloque puede
-  # ver por sí solo: que los tres descubrieron la misma suite, que cada clase
-  # cayó en un bloque y solo en uno, y que entre los tres ejecutaron tantos
+  # ver por sí solo: que los cuatro descubrieron la misma suite, que cada clase
+  # cayó en un bloque y solo en uno, y que entre los cuatro ejecutaron tantos
   # tests como se descubrieron.
   e2e-tests:
     name: Tests E2E (Playwright)
@@ -1237,13 +1237,13 @@ jobs:
           path: reparto-e2e
           merge-multiple: true
 
-      # Los tres bloques descubren por separado. Solo se comparan las líneas
+      # Los cuatro bloques descubren por separado. Solo se comparan las líneas
       # de tests (las sangradas): las cabeceras de `dotnet test` llevan rutas
       # y tiempos que no tienen por qué coincidir.
-      - name: Comprobar que los tres bloques descubrieron lo mismo
+      - name: Comprobar que los cuatro bloques descubrieron lo mismo
         if: steps.exigir.outputs.e2e != 'saltada'
         run: |
-          for b in 1 2 3; do
+          for b in 1 2 3 4; do
             f="reparto-e2e/listado-bloque-$b.txt"
             if [ ! -f "$f" ]; then
               echo "::error::Falta el listado del bloque $b."
@@ -1251,14 +1251,14 @@ jobs:
             fi
             grep -E "^[[:space:]]+CaeManager\.E2ETests\." "$f" | sort > "/tmp/listado-e2e-$b.txt"
           done
-          for b in 2 3; do
+          for b in 2 3 4; do
             if ! diff -q /tmp/listado-e2e-1.txt "/tmp/listado-e2e-$b.txt" > /dev/null; then
               echo "::error::El bloque $b descubrió una lista distinta a la del bloque 1. El denominador no sería fiable."
               diff /tmp/listado-e2e-1.txt "/tmp/listado-e2e-$b.txt" | head -20
               exit 1
             fi
           done
-          echo "Los tres bloques descubrieron la misma lista: $(wc -l < /tmp/listado-e2e-1.txt) tests."
+          echo "Los cuatro bloques descubrieron la misma lista: $(wc -l < /tmp/listado-e2e-1.txt) tests."
 
       # La lista esperada sale del mismo guion con UN solo bloque: ahí todas
       # las clases del listado son suyas, sin reparto de por medio.
@@ -1298,7 +1298,7 @@ jobs:
             exit 1
           fi
           sumados=0
-          for b in 1 2 3; do
+          for b in 1 2 3 4; do
             f="reparto-e2e/e2e-bloque-$b.trx"
             if [ ! -f "$f" ]; then
               echo "::error::Falta el .trx del bloque $b."
