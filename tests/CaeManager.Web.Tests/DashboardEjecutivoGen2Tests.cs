@@ -61,8 +61,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
     private const string NombreA = "Refrielectric S.A.";
     private const string NombreB = "Montajes Ebro S.L.";
 
-    private static readonly Guid GestoraMarta = Guid.Parse("cc000000-0000-0000-0000-000000000001");
-    private static readonly Guid GestorIker = Guid.Parse("cc000000-0000-0000-0000-000000000002");
     private static readonly Guid ClienteBeroa = Guid.Parse("dd000000-0000-0000-0000-000000000001");
     private static readonly Guid ClienteTuria = Guid.Parse("dd000000-0000-0000-0000-000000000002");
 
@@ -100,7 +98,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         Bpo: new KpisBpoDto(
             SugerenciasConfirmadasSinEdicion: 30,
             TotalSugerenciasResueltas: 40,
-            OcupacionPorGestor: [new OcupacionGestorDto(GestoraMarta, "Marta Ruiz", 309600, 86)],
             HorasPorCliente: [new HorasClienteDto(ClienteBeroa, "Instalaciones Beroa", 149400)],
             DistribucionAntelacion:
             [
@@ -144,8 +141,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         Bpo: new KpisBpoDto(
             SugerenciasConfirmadasSinEdicion: 7,
             TotalSugerenciasResueltas: 10,
-            // Sin jornada mensual configurada: PorcentajeOcupacion llega null.
-            OcupacionPorGestor: [new OcupacionGestorDto(GestorIker, "Iker Mendia", 0, null)],
             HorasPorCliente: [new HorasClienteDto(ClienteTuria, "Calderería Turia", 119520)],
             DistribucionAntelacion: [new TramoAntelacionConteoDto(TramoAntelacion.Expres, 3)],
             VisitasConFalsoAviso: 2,
@@ -526,24 +521,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
             .Should().Equal("segmento-peligro", "segmento-advertencia");
     }
 
-    /// <summary>
-    /// <see cref="OcupacionGestorDto.PorcentajeOcupacion"/> es nullable: sin
-    /// jornada mensual configurada no hay ocupación que calcular. Dibujarlo como
-    /// 0% lo haría indistinguible de un Gestor CAE que no ha registrado tiempo.
-    /// </summary>
-    [Fact]
-    public void Una_ocupacion_sin_jornada_configurada_no_se_dibuja_como_cero()
-    {
-        var cut = Renderizar(new Escenario()).Cut;
-        var tarjeta = TarjetaKpi(cut, "Ocupación por Gestor CAE");
-
-        Barras(tarjeta).Should().Equal(
-            ("Marta Ruiz", "86%", "width:86%"),
-            ("Iker Mendia", "Sin jornada mensual configurada", string.Empty));
-        tarjeta.QuerySelectorAll(".barra-kpi")[1].QuerySelectorAll(".barra-kpi-relleno").Should().BeEmpty(
-            "sin dato no hay barra: una barra vacía y un 0% se leen igual");
-    }
-
     // ---------------------------------------------------------------- tablas
 
     /// <summary>
@@ -655,6 +632,27 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         Texto(cut.Find(".resumen-seleccion")).Should().Be($"2 de {CatalogoKpis.Todos.Count} KPI mostrados");
         cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// <c>"ope.ocupacion-gestores"</c> (ocupación por Gestor CAE) se retiró del catálogo
+    /// con preferencias guardadas que aún lo contienen. La página las pinta sin él, sin
+    /// tarjeta huérfana, y sin dejar de pintar el resto de lo elegido.
+    /// </summary>
+    [Fact]
+    public void Una_preferencia_con_el_KPI_de_ocupacion_retirado_se_pinta_sin_el()
+    {
+        var escenario = new Escenario
+        {
+            Seleccion = [CatalogoKpis.PalancaIa, "ope.ocupacion-gestores", CatalogoKpis.HorasPorCliente]
+        };
+
+        var cut = Renderizar(escenario).Cut;
+
+        Texto(cut.Find(".resumen-seleccion")).Should().Be($"2 de {CatalogoKpis.Todos.Count} KPI mostrados");
+        cut.FindAll(".tarjeta-kpi .tarjeta-titulo").Select(Texto).Should().Equal("Horas de gestión por Cliente");
+        cut.FindAll(".rejilla-kpis-criticos .tarjeta-metrica").Select(t => Tile(t).Etiqueta)
+            .Should().Equal("Índice de palanca IA");
     }
 
     [Fact]
@@ -894,7 +892,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
 
         // Las del periodo no llevan rótulo temporal: el silencio ya dice «del periodo».
         Aviso("Distribución por tramo de antelación").Should().BeNull();
-        Aviso("Ocupación por Gestor CAE").Should().BeNull();
         Aviso("Horas de gestión por Cliente").Should().BeNull();
         Aviso("Urgencias por atribución").Should().BeNull();
     }
@@ -991,8 +988,6 @@ public class DashboardEjecutivoGen2Tests : BunitContext
         Vacio("Incidencias por gravedad").Should().Be("No hay incidencias registradas.");
         Vacio("Distribución por tramo de antelación").Should().Be("Todavía no hay visitas con la antelación medida.");
         Vacio("Urgencias por atribución").Should().Be("Todavía no hay visitas con la antelación medida.");
-        Vacio("Ocupación por Gestor CAE").Should().Be(
-            "No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.");
         Vacio("Horas de gestión por Cliente").Should().Be(
             "No hay tiempo de gestión registrado este mes. La medición de tiempo se activa en Configuración.");
         Vacio("Empresas con más riesgo").Should().Be("Ninguna empresa tiene documentación urgente o vencida.");

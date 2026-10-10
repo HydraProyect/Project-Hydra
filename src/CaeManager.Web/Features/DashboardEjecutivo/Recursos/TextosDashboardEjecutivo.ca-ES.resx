@@ -183,9 +183,6 @@
   <data name="LeyendaDesgloseConTotal" xml:space="preserve">
     <value>{0}: {1} de {2} {3}, el {4}% del total.</value>
   </data>
-  <data name="BarraSinJornada" xml:space="preserve">
-    <value>Sin jornada mensual configurada</value>
-  </data>
   <data name="GravedadLeve" xml:space="preserve">
     <value>Leve</value>
   </data>

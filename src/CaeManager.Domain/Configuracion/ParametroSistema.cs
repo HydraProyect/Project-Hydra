@@ -24,7 +24,7 @@ public class ParametroSistema : EntidadConTenant
     /// <summary>Hora de cierre de la jornada — ver <see cref="HoraInicioJornada"/>.</summary>
     public TimeOnly HoraFinJornada { get; private set; } = new(18, 0);
 
-    /// <summary>Horas de jornada disponibles al mes por Gestor CAE — denominador del KPI de ocupación. No es un dato contractual: es el divisor que la consultora considera representativo de una jornada completa.</summary>
+    /// <summary>Horas de jornada disponibles al mes por Gestor CAE. Era el denominador del KPI de ocupación por Gestor CAE, retirado del catálogo del Dashboard Ejecutivo: hoy ninguna consulta lo lee, aunque se sigue editando y validando en Configuración. No es un dato contractual.</summary>
     public int HorasJornadaMensualGestor { get; private set; } = 160;
 
     /// <summary>

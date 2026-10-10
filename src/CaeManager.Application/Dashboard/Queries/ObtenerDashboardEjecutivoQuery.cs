@@ -145,26 +145,11 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator) : IReques
     /// numerador y el denominador ya sumados, que es lo correcto — sumar porcentajes de
     /// varios tenants sería exactamente el error que <see cref="PromedioPonderado"/>
     /// evita en el resto del panel.
-    ///
-    /// Ocupación por gestor NO se suma entre tenants: un Operador Delegado que trabaja
-    /// para varios Clientes Delegantes aparecería duplicado. Se concatena y se agrupa
-    /// por usuario, que es lo que hace legible la carga real de una persona.
     /// </summary>
     private static KpisBpoDto FusionarBpo(IReadOnlyList<(ClienteAutorizadoDto Cliente, CatalogoKpisValoresDto Valores)> porTenant)
     {
         var bpo = porTenant.Select(p => p.Valores.Bpo).ToList();
         if (bpo.Count == 0) return KpisBpoDto.Vacio;
-
-        var ocupacion = bpo
-            .SelectMany(b => b.OcupacionPorGestor)
-            .GroupBy(o => o.UsuarioId)
-            .Select(g => new OcupacionGestorDto(
-                g.Key,
-                g.First().Nombre,
-                g.Sum(o => o.SegundosActivos),
-                g.Any(o => o.PorcentajeOcupacion is not null) ? g.Sum(o => o.PorcentajeOcupacion ?? 0) : null))
-            .OrderByDescending(o => o.SegundosActivos)
-            .ToList();
 
         var horasPorCliente = bpo
             .SelectMany(b => b.HorasPorCliente)
@@ -191,7 +176,6 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator) : IReques
         return new KpisBpoDto(
             SugerenciasConfirmadasSinEdicion: bpo.Sum(b => b.SugerenciasConfirmadasSinEdicion),
             TotalSugerenciasResueltas: bpo.Sum(b => b.TotalSugerenciasResueltas),
-            OcupacionPorGestor: ocupacion,
             HorasPorCliente: horasPorCliente,
             DistribucionAntelacion: distribucion,
             VisitasConFalsoAviso: bpo.Sum(b => b.VisitasConFalsoAviso),

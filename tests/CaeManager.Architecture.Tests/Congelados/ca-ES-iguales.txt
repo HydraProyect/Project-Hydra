@@ -284,7 +284,6 @@ src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: AvisoOrganizacionActivaUnica = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: AvisoTemporalAcumulado = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: AvisoTemporalEstadoActual = 1
-src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: BarraSinJornada = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: BotonGuardarKpis = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: ColumnaHorasGestion = 1
 src/CaeManager.Web/Features/DashboardEjecutivo/Recursos/TextosDashboardEjecutivo.resx :: ColumnaRepartoMostrados = 1
