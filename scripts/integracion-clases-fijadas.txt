@@ -1,0 +1,19 @@
+# Clases de integración fijadas a un bloque (scripts/repartir-clases-de-test.sh,
+# variable REPARTO_FIJADAS). Formato: <Clase.Completa> <bloque>. El bloque va
+# de 1 al número de bloques de la matriz de ci.yml (hoy 4).
+#
+# Todo lo que no está aquí se reparte por hash del nombre. Aquí solo van las
+# clases muy pesadas que el hash juntó por azar.
+#
+# Medido el 2026-10-10 en el grupo de fusión del run 38038470777 (suma de las
+# duraciones de sus tests): el hash dejó en el bloque 1 las tres clases más
+# pesadas de la suite, SiembraDemoDireccionAdministrativaSobreBaseTests
+# (319 s), SeedersBajoRuntimeTests (236 s) y
+# DelegacionDemoSeederSobreBaseConDatosPreviosTests (213 s). El paso de tests
+# tardó 507, 442, 309 y 299 s por bloque. Se sacan dos del bloque 1 a los dos
+# bloques más cortos; la primera se queda donde la deja su hash.
+#
+# Antes de añadir una línea: mide. Una clase fijada a un bloque nuevo corre con
+# vecinas con las que nunca había corrido.
+CaeManager.IntegrationTests.Arranque.SeedersBajoRuntimeTests 3
+CaeManager.IntegrationTests.Arranque.DelegacionDemoSeederSobreBaseConDatosPreviosTests 4
