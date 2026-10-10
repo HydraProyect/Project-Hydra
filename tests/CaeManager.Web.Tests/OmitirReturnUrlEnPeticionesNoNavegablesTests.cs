@@ -14,7 +14,7 @@ namespace CaeManager.Web.Tests;
 /// LV-2: una sesión que caduca con la página abierta convierte el siguiente POST de
 /// formulario (cambiar de Tenant activo, cerrar sesión, cambiar de idioma…) en un desafío de
 /// autenticación. El handler de cookies guardaba la ruta de ese POST como <c>ReturnUrl</c>, y
-/// al volver a entrar el navegador la pedía por GET: un 405 en vez de la aplicación.
+/// al volver a entrar el navegador la pedía por GET: un 404 en vez de la aplicación.
 ///
 /// <para>
 /// Se observa con el <c>CookieAuthenticationHandler</c> real del framework desafiando una

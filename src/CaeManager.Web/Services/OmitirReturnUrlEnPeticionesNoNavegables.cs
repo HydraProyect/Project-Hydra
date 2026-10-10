@@ -15,7 +15,8 @@ namespace CaeManager.Web.Services;
 /// Si la petición desafiada era el POST de un formulario contra un endpoint que
 /// solo admite POST —cambiar de Tenant activo, cerrar sesión, cambiar de idioma,
 /// abrir o cerrar una Sesión Privilegiada—, ese GET no tiene quien lo atienda y
-/// el usuario aterriza en un 405 en vez de en la aplicación (LV-2). Basta con
+/// el usuario aterriza en «Página no encontrada» (404) en vez de en la
+/// aplicación (LV-2, medido el 2026-10-10 sobre la aplicación real). Basta con
 /// que la sesión caduque, o se cierre en otra pestaña, con la página todavía
 /// abierta.
 /// </para>

@@ -8,7 +8,7 @@ namespace CaeManager.Architecture.Tests;
 /// <c>Program.cs</c> envuelve el desafío de la cookie de sesión para que la ruta de un POST no
 /// se guarde como <c>ReturnUrl</c> (LV-2). Sin la llamada, una sesión caducada seguida del envío
 /// de un formulario —cambiar de Tenant activo, cerrar sesión— devuelve al usuario, tras volver a
-/// entrar, a un endpoint que solo admite POST: un 405. El comportamiento de
+/// entrar, a un endpoint que solo admite POST: un 404. El comportamiento de
 /// <c>OmitirReturnUrlEnPeticionesNoNavegables.Configurar</c> lo prueba
 /// <c>OmitirReturnUrlEnPeticionesNoNavegablesTests</c> en Web.Tests; este trinquete solo vigila
 /// que <c>Program.cs</c> lo llame dentro de <c>ConfigureApplicationCookie</c>, porque el

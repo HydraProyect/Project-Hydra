@@ -352,7 +352,7 @@ builder.Services.ConfigureApplicationCookie(options =>
     // LV-2: el desafío solo guarda como ReturnUrl la URL de una navegación (GET
     // o HEAD). La ruta de un POST —cambiar de Tenant activo, cerrar sesión— no
     // es un sitio al que volver tras iniciar sesión: el navegador la pediría por
-    // GET y recibiría un 405 (ver OmitirReturnUrlEnPeticionesNoNavegables).
+    // GET y recibiría un 404 (ver OmitirReturnUrlEnPeticionesNoNavegables).
     OmitirReturnUrlEnPeticionesNoNavegables.Configurar(options);
 
     // D-3 (Sentry DOTNET-8, confirmado contra el evento real, no solo el
