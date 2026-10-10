@@ -240,12 +240,13 @@
                             }
                             break;
 
-                        case "blindaje42":
-                            <PestanaBlindaje42 EntidadId="ClienteId" />
-                            break;
-
                         case "documentacion":
-                            <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="ClienteId" />
+                            <div class="cliente360-documentacion">
+                                <Tarjeta Titulo="@Textos["CertificadoSeguridadSocialTitulo"]">
+                                    <PestanaBlindaje42 EntidadId="ClienteId" />
+                                </Tarjeta>
+                                <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="ClienteId" />
+                            </div>
                             break;
 
                         case "agenda":

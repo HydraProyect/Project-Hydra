@@ -1,5 +1,11 @@
 using AngleSharp.Dom;
 using Bunit;
+using Bunit.TestDoubles;
+using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
+using CaeManager.Application.Blindaje42.Commands.SolicitarCertificacionTgss;
+using CaeManager.Application.Blindaje42.Queries.ObtenerBlindajeEmpresasDeCliente;
+using CaeManager.Application.Blindaje42.Queries.ObtenerHistorialCertificacionesTgss;
+using CaeManager.Web.Features.Blindaje42.Components;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
@@ -34,9 +40,9 @@ namespace CaeManager.Web.Tests;
 /// a qué URL se va); bUnit no evalúa CSS.
 ///
 /// <para>
-/// Solo se pintan las pestañas propias (Centros, Empresas, Subcontratas): las
-/// compartidas (Blindaje 42.1, Documentación, Agenda, Historial) son los
-/// mismos componentes del panel, con sus propios tests.
+/// Centros, Empresas y Subcontratas conservan sus listas. Documentación
+/// compone la certificación TGSS y los documentos con los mismos componentes
+/// del panel; sus acciones conservan los permisos de escritura.
 /// </para>
 /// </summary>
 public class Cliente360PaginaTests : BunitContext
@@ -67,6 +73,7 @@ public class Cliente360PaginaTests : BunitContext
         public Dictionary<Guid, List<EmpresaDeClienteDto>> EmpresasPorCliente { get; } = [];
         public Dictionary<Guid, List<CentroListaDto>> CentrosPorCliente { get; } = [];
         public List<SubcontrataDeClienteDto> Subcontratas { get; } = [];
+        public List<BlindajeEmpresaDto> Certificaciones { get; } = [];
 
         /// <summary>Los bloqueos de acceso visibles (la consulta sin Centro): la página se queda con los de su Cliente empresarial.</summary>
         public List<DocumentacionBloqueantePendienteDto> Bloqueos { get; } = [];
@@ -92,6 +99,9 @@ public class Cliente360PaginaTests : BunitContext
             ObtenerEmpresasDeClienteQuery q when EmpresasPorCliente.TryGetValue(q.ClienteId, out var propias) => propias,
             ObtenerEmpresasDeClienteQuery => Empresas,
             ObtenerSubcontratasDeClienteQuery => Subcontratas,
+            ObtenerBlindajeEmpresasDeClienteQuery => Certificaciones,
+            ObtenerHistorialCertificacionesTgssQuery => (IReadOnlyList<SolicitudCertificacionTgssDto>)[],
+            SolicitarCertificacionTgssCommand => Result.Exito(Guid.NewGuid()),
             ObtenerDocumentacionBloqueantePendienteQuery => (IReadOnlyList<DocumentacionBloqueantePendienteDto>)Bloqueos.ToList(),
             ObtenerToleranciasClienteEmpresarialQuery => (IReadOnlyList<ToleranciaTipoDocumentoDto>)
                 [new ToleranciaTipoDocumentoDto(Guid.NewGuid(), "Formación PRL", AmbitoAplicacion.Trabajador, 0)],
@@ -127,6 +137,7 @@ public class Cliente360PaginaTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        Services.AddSingleton(TimeProvider.System);
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddLocalization();
         this.ConRolDeEscritura(rol);
@@ -449,8 +460,106 @@ public class Cliente360PaginaTests : BunitContext
 
         Textos(cut.FindAll("[role=tab]")).Should().Equal([
             "Centros2 centros", "Empresas1 empresa", "Subcontratas0 subcontratas",
-            "Blindaje 42.1", "Documentación", "Agenda", "Historial"]);
+            "Documentación", "Agenda", "Historial"]);
+        cut.FindAll("[role=tab]").Should().HaveCount(6);
+        cut.FindAll("[role=tab]").Select(t => t.TextContent).Should().NotContain(t => t.Contains("Blindaje"));
         cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Centros");
+    }
+
+    [Theory]
+    [InlineData("agenda", "Agenda")]
+    [InlineData("historial", "Historial")]
+    public void Agenda_e_Historial_se_abren_por_URL_con_la_entidad_original(string pestana, string titulo)
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador);
+        ComponentFactories.AddStub<PestanaAgendaContactos>();
+        ComponentFactories.AddStub<PestanaHistorial>();
+
+        var cut = Renderizar(id, $"?pestana={pestana}");
+
+        cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().Be(titulo);
+        if (pestana == "agenda")
+        {
+            var parametros = cut.FindComponent<Stub<PestanaAgendaContactos>>().Instance.Parameters;
+            parametros.Get(p => p.PropietarioId).Should().Be(id);
+            parametros.Get(p => p.Tipo).Should().Be(TipoPropietarioAgenda.Cliente);
+        }
+        else
+        {
+            var parametros = cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters;
+            parametros.Get(p => p.EntidadId).Should().Be(id);
+            parametros.Get(p => p.EntidadTipo).Should().Be("Cliente");
+        }
+    }
+
+    [Theory]
+    [InlineData("documentacion")]
+    [InlineData("blindaje42")]
+    public void Documentacion_y_el_enlace_antiguo_abren_el_certificado_como_primer_bloque(string pestana)
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Certificaciones.Add(new BlindajeEmpresaDto(Guid.NewGuid(), "Ibertec GmbH", null, 0, null));
+        Registrar(mediador);
+        ComponentFactories.AddStub<PestanaDocumentacion>("<div data-testid='documentacion-original'></div>");
+
+        var cut = Renderizar(id, $"?pestana={pestana}");
+
+        cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().Be("Documentación");
+        cut.FindAll("[role=tab]").Should().HaveCount(6);
+        cut.Find("[role=tab][aria-selected=true]").QuerySelector(".pestanas-contador").Should().BeNull();
+        var bloques = cut.Find(".cliente360-documentacion").Children;
+        bloques.Should().HaveCount(2);
+        bloques[0].QuerySelector(".tarjeta-titulo")!.TextContent.Should()
+            .Be("Certificado de estar al corriente con la Seguridad Social");
+        bloques[0].TextContent.Should().Contain("Ibertec GmbH").And.Contain("Sin solicitar");
+        bloques[1].GetAttribute("data-testid").Should().Be("documentacion-original");
+        cut.FindComponent<PestanaBlindaje42>().Instance.EntidadId.Should().Be(id);
+        mediador.Enviadas.OfType<ObtenerBlindajeEmpresasDeClienteQuery>().Should()
+            .ContainSingle(q => q.ClienteId == id);
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public async Task El_certificado_en_Documentacion_conserva_solicitar_solo_con_escritura(string rol, bool puedeEscribir)
+    {
+        var (id, mediador) = ClienteBase();
+        var empresaId = Guid.NewGuid();
+        mediador.Certificaciones.Add(new BlindajeEmpresaDto(empresaId, "Ibertec GmbH", null, 0, null));
+        Registrar(mediador, rol);
+        ComponentFactories.AddStub<PestanaDocumentacion>("<div data-testid='documentacion-original'></div>");
+        var cut = Renderizar(id, "?pestana=documentacion");
+
+        await cut.Find(".cliente360-documentacion .workspace-fila-entidad").ClickAsync(new MouseEventArgs());
+
+        var drawer = cut.FindComponent<DrawerBlindaje42>();
+        drawer.Instance.Visible.Should().BeTrue();
+        var solicitar = drawer.FindAll("button").Where(b => b.TextContent.Trim() == "Registrar solicitud").ToList();
+        solicitar.Should().HaveCount(puedeEscribir ? 1 : 0);
+        mediador.Enviadas.OfType<ObtenerHistorialCertificacionesTgssQuery>().Should().ContainSingle();
+        if (puedeEscribir)
+        {
+            await solicitar.Single().ClickAsync(new MouseEventArgs());
+            mediador.Enviadas.OfType<SolicitarCertificacionTgssCommand>().Should()
+                .ContainSingle(c => c.ClienteId == id && c.EmpresaId == empresaId);
+        }
+        else
+        {
+            mediador.Enviadas.OfType<SolicitarCertificacionTgssCommand>().Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public void La_certificacion_no_se_precarga_desde_Centros()
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador);
+
+        Renderizar(id);
+
+        mediador.Enviadas.OfType<ObtenerBlindajeEmpresasDeClienteQuery>().Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerHistorialCertificacionesTgssQuery>().Should().BeEmpty();
     }
 
     [Fact]
