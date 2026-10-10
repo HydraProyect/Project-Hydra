@@ -295,7 +295,7 @@
                     (rol Cliente), que abre la ficha de su propio Cliente
                     empresarial, no se le pinta. Quien decide de verdad es el
                     handler, que a ese rol no le entrega la nota; esto evita
-                    enseñarle una caja vacía con «Solo visible para tu equipo».
+                    enseñarle una caja vacía con «No la ve el cliente».
                 *@
                 <AuthorizeView Roles="@CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.Gestion" Context="autorizacionNota">
                 <Tarjeta Compacta="true" Titulo="@Textos["TarjetaNota"]">
@@ -313,7 +313,7 @@
                         {
                             <p class="cliente360-nota">@_detalle.Notas</p>
                         }
-                        <p class="cliente360-nota-pie">@Textos["NotaSoloEquipo"]</p>
+                        <p class="cliente360-nota-pie">@Textos["NotaNoLaVeCliente"]</p>
                     </ChildContent>
                 </Tarjeta>
                 </AuthorizeView>

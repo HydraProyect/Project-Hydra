@@ -311,10 +311,10 @@ else
                     <div class="alerta-formulario" role="alert">@_mensajeErrorNota</div>
                 }
                 <CampoTextarea Etiqueta="Nota interna" Valor="@_notaEditada" ValorChanged="v => _notaEditada = v" Filas="4"
-                               Placeholder="Solo la ve tu equipo. No se envía al Cliente." />
+                               Placeholder="No la ve el cliente." />
                 <div class="acciones-cliente-360">
                     <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoNota" OnClick="GuardarNotaAsync">Guardar nota</Boton>
-                    <span class="recuentos-cliente-360">Solo visible para tu equipo.</span>
+                    <span class="recuentos-cliente-360">No la ve el cliente.</span>
                 </div>
                 </AuthorizeView>
                 break;

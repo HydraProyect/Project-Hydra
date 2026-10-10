@@ -272,8 +272,8 @@
   <data name="SinNota" xml:space="preserve">
     <value>Sin nota interna.</value>
   </data>
-  <data name="NotaSoloEquipo" xml:space="preserve">
-    <value>Solo visible para tu equipo.</value>
+  <data name="NotaNoLaVeCliente" xml:space="preserve">
+    <value>No la ve el cliente.</value>
   </data>
   <data name="AltaGuiadaTitulo" xml:space="preserve">
     <value>Alta guiada de Cliente</value>
