@@ -35,3 +35,12 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+
+/*
+  Un motivo que lleva una ventana de contexto no recorta: el panel de la ventana sale de la caja y, recortado,
+  no se vería. Quien lo pone (p. ej. MotivoIncidenciasDocumentales) recorta entonces el texto de su disparador,
+  para que la línea siga sin ensanchar la columna.
+*/
+.estado-fila-motivo:has(.ventana-contexto) {
+    overflow: visible;
+}

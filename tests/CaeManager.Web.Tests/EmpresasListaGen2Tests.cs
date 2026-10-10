@@ -68,6 +68,9 @@ public partial class EmpresasListaGen2Tests : BunitContext
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> ClientesDe { get; } = [];
         public HashSet<Guid> ClientesQueFallan { get; } = [];
 
+        /// <summary>Lo que devuelve la lectura del documento que abre el formulario de corrección de una incidencia.</summary>
+        public CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.DocumentoDetalleDto? Documento { get; set; }
+
         /// <summary>Lo que devuelve la consulta de la cabecera «Gestor CAE» a una cuenta del Operador CAE.</summary>
         public List<CarterasDeOperacion> Carteras { get; } = [];
 
@@ -76,6 +79,13 @@ public partial class EmpresasListaGen2Tests : BunitContext
         /// propietario. Con las dos vacías la cabecera no se pinta.
         /// </summary>
         public List<CarterasDeOperacion> CarterasComoPropietario { get; } = [];
+
+        /// <summary>Los apoyos vivos de quien mira: lo que decide si la cabecera le ofrece «Desasignarme».</summary>
+        public CaeManager.Application.Operaciones.ApoyoCartera.Queries.ApoyosDeCarteraDto Apoyos { get; set; } =
+            CaeManager.Application.Operaciones.ApoyoCartera.Queries.ApoyosDeCarteraDto.Vacio;
+
+        /// <summary>A quién se le puede proponer un apoyo desde «+ Dar acceso».</summary>
+        public List<CaeManager.Application.Operaciones.ApoyoCartera.Queries.DestinatarioDeApoyoDto> DestinatariosDeApoyo { get; } = [];
 
         /// <summary>
         /// Empresas fuera del alcance de gestión: la consulta de la fila desplegada devuelve vacío aunque
@@ -131,6 +141,25 @@ public partial class EmpresasListaGen2Tests : BunitContext
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Array.Empty<ClienteSelectorDto>(),
             ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)Carteras,
             CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant.ObtenerOperadoresCaeDeMiTenantQuery => (IReadOnlyList<CarterasDeOperacion>)CarterasComoPropietario,
+            // Los botones de la cabecera «Gestor CAE» (PanelDarAcceso en su forma de cabecera): aquí, sin apoyos.
+            CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerPropuestasApoyoPendientesQuery =>
+                new CaeManager.Application.Operaciones.ApoyoCartera.Queries.PropuestasApoyoPendientesDto([], []),
+            CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerApoyosDeCarteraQuery => Apoyos,
+            CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerDestinatariosDeApoyoQuery =>
+                (IReadOnlyList<CaeManager.Application.Operaciones.ApoyoCartera.Queries.DestinatarioDeApoyoDto>)DestinatariosDeApoyo,
+            CaeManager.Application.Operaciones.ApoyoCartera.Commands.ProponerApoyoCarteraCommand => Result.Exito(Guid.NewGuid()),
+            CaeManager.Application.Operaciones.ApoyoCartera.Commands.DesasignarmeDeApoyoCommand => Desasignar(),
+            // El formulario de corrección de una incidencia (DrawerGestionDocumento).
+            CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery => Documento!,
+            CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.ObtenerTrabajadoresParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.TrabajadorSelectorDto>)[],
+            CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector.ObtenerVehiculosParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector.VehiculoSelectorDto>)[],
+            CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector.ObtenerEmpresasParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector.EmpresaSelectorDto>)[],
+            CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.ObtenerTiposDocumentoQuery =>
+                (IReadOnlyList<CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.TipoDocumentoListaDto>)[],
+            CaeManager.Application.Documentos.Commands.RenovarDocumento.RenovarDocumentoCommand renovar => Result.Exito(renovar.Id),
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
             EliminarEmpresaCommand => Result.Exito(),
             EliminarEmpresasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(
@@ -141,18 +170,28 @@ public partial class EmpresasListaGen2Tests : BunitContext
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
+        /// <summary>Como el handler cuando acepta: el apoyo deja de estar vivo y la lectura siguiente ya no lo trae.</summary>
+        private Result Desasignar()
+        {
+            Apoyos = CaeManager.Application.Operaciones.ApoyoCartera.Queries.ApoyosDeCarteraDto.Vacio;
+            return Result.Exito();
+        }
+
         /// <summary>Mismo orden de pasos que el handler: filtra, ordena por razón social y desempata por Id, pagina.</summary>
         public ResultadoPaginado<EmpresaListaDto> Filtrar(ObtenerEmpresasQuery q)
         {
             var coincidentes = Almacen
                 .Where(e => q.EmpresaId is null || e.Id == q.EmpresaId)
                 .Where(e => string.IsNullOrWhiteSpace(q.Busqueda)
-                    || e.RazonSocial.ToUpperInvariant().Contains(q.Busqueda.ToUpperInvariant()))
+                    || TextoDeBusqueda.Contiene(e.RazonSocial, q.Busqueda))
                 .Where(e => EstadoDocumentalFiltro.Coincide(e.EstadoDocumental, q.EstadoDocumental))
                 .OrderBy(e => e.RazonSocial, StringComparer.Ordinal).ThenBy(e => e.Id)
                 .ToList();
 
-            var pagina = coincidentes.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList();
+            // Como el handler: sin pedir el desglose, las filas llegan sin incidencias.
+            var pagina = coincidentes.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina)
+                .Select(e => q.ConDesgloseDocumental ? e : e with { Incidencias = [] })
+                .ToList();
             return new ResultadoPaginado<EmpresaListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina);
         }
 
@@ -174,9 +213,12 @@ public partial class EmpresasListaGen2Tests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
+    /// <summary>La persona que mira la pantalla: la misma en todas las lecturas, como en una sesión real.</summary>
+    private static readonly Guid Yo = Guid.NewGuid();
+
     private sealed class UsuarioActualFalso : ICurrentUserService
     {
-        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Yo);
         public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
         public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
         public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
@@ -664,19 +706,21 @@ public partial class EmpresasListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Sin cumplimiento calculable el anillo pinta «—», y su nombre accesible
+    /// Sin cumplimiento calculable la barra pinta «—», y su nombre accesible
     /// no puede anunciar un porcentaje: antes decía «% de cumplimiento…» sin
     /// número.
     /// </summary>
     [Fact]
-    public void El_anillo_de_cumplimiento_no_anuncia_un_porcentaje_que_no_existe()
+    public void La_barra_de_cumplimiento_no_anuncia_un_porcentaje_que_no_existe()
     {
         var cut = Renderizar(new MediatorFalso
         {
             Almacen = { Empresa("Aislamientos Nervión S.L.", cumplimiento: 72), Empresa("Talleres Berriz S. Coop.", cumplimiento: null) }
         });
 
-        cut.FindAll(".tarjeta-fila-acordeon-cabecera [role=img]").Select(a => a.GetAttribute("aria-label")).Should().Equal(
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera [data-pieza=anillo]")
+            .Should().BeEmpty("en los listados el cumplimiento es barra con cifra, no anillo");
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera [data-pieza=barra-cumplimiento]").Select(a => a.GetAttribute("aria-label")).Should().Equal(
             [
                 "72% de cumplimiento acumulado en los centros donde esta empresa tiene actividad",
                 "Sin actividad en ningún centro con requisitos aplicables"

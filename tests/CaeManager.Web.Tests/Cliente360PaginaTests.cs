@@ -253,12 +253,13 @@ public class Cliente360PaginaTests : BunitContext
         var ventanas = cut.FindAll(".cliente360-indicadores .ventana-contexto");
         ventanas.Should().HaveCount(3);
         ventanas[0].QuerySelector(".ventana-contexto-titulo")!.TextContent.Should().Be("1 centro con bloqueo de la plataforma CAE");
-        Textos(ventanas[0].QuerySelectorAll(".ventana-linea")).Should().Equal(["Planta Barakaldo · Montajes Ebro S.L."]);
+        Textos(ventanas[0].QuerySelectorAll(".ventana-linea")).Should().Equal(["Planta Barakaldo"],
+            "el Centro es del Cliente: con una sola Empresa contratista a la vista no se nombra ninguna");
         Textos(ventanas[1].QuerySelectorAll(".ventana-linea")).Should().Equal([
             "Planta Barakaldo · 2 vencidos", "Almacén Getafe · 1 vencido"]);
         Textos(ventanas[2].QuerySelectorAll(".ventana-linea")).Should().Equal(["Almacén Getafe · 1 próximo"]);
         ventanas[0].GetAttribute("aria-label").Should().Be(
-            "Bloqueo de la plataforma CAE en 1 de 3 centros: Planta Barakaldo · Montajes Ebro S.L.. Pulsa para ver los centros");
+            "Bloqueo de la plataforma CAE en 1 de 3 centros: Planta Barakaldo. Pulsa para ver los centros");
     }
 
     /// <summary>
@@ -439,6 +440,97 @@ public class Cliente360PaginaTests : BunitContext
 
     // ── Filas ─────────────────────────────────────────────────────────────
 
+    // Decisión del 2026-10-09: los Centros son del Cliente de la ficha, que es su titular. «Empresa: X» bajo el Centro se
+    // leía como si la Empresa fuera la dueña.
+    [Fact]
+    public void Con_una_sola_Empresa_contratista_la_fila_del_centro_no_nombra_ninguna_Empresa()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.AddRange([
+            Centro("Planta Barakaldo", EstadoCentro.Bloqueado, vencidas: 3, empresa: "Montajes Ebro S.L."),
+            Centro("Oficinas Bilbao", EstadoCentro.Vigente, empresa: "Montajes Ebro S.L.")]);
+        mediador.Empresas.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Montajes Ebro S.L.", null));
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        // El contador de la pestaña solo existe con las Empresas ya cargadas: sin esperarlo, «no nombra ninguna» daría
+        // verde también con la lista sin llegar.
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerEmpresasDeClienteQuery>().Should().NotBeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll(".pestanas-boton").Select(b => b.TextContent)
+            .Should().Contain(t => t.Contains("Empresas") && t.Contains("1")));
+        var filas = cut.FindAll("li.fila-relacion");
+        filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("3 vencidos");
+        filas[1].QuerySelector(".fila-relacion-detalle").Should().BeNull();
+        Textos(cut.FindAll(".cliente360-indicadores .ventana-linea")).Should().NotContain(l => l.Contains("Montajes Ebro"));
+        cut.FindAll("li.fila-relacion").Select(f => f.TextContent).Should().NotContain(t => t.Contains("Empresa:") || t.Contains("Montajes Ebro"));
+    }
+
+    [Fact]
+    public void Con_varias_Empresas_contratistas_la_fila_dice_cual_entra_como_contratista_nunca_como_duena()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.AddRange([
+            Centro("Planta Barakaldo", EstadoCentro.Bloqueado, vencidas: 3, proximas: 1, empresa: "Montajes Ebro S.L."),
+            Centro("Oficinas Bilbao", EstadoCentro.Vigente)]);
+        mediador.Empresas.AddRange([
+            new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", null),
+            new EmpresaDeClienteDto(Guid.NewGuid(), "Montajes Ebro S.L.", null)]);
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => Textos(cut.FindAll("li.fila-relacion .fila-relacion-detalle")).Should().Equal([
+            "Entra como contratista: Montajes Ebro S.L. · 3 vencidos · 1 próximo",
+            "Entra como contratista: Ibertec GmbH"]));
+        Textos(cut.FindAll(".cliente360-indicadores .ventana-contexto")[0].QuerySelectorAll(".ventana-linea"))
+            .Should().Equal(["Planta Barakaldo · Entra como contratista: Montajes Ebro S.L."]);
+        cut.FindAll("li.fila-relacion").Select(f => f.TextContent).Should().NotContain(t => t.Contains("Empresa:"));
+    }
+
+    [Fact]
+    public void Al_pasar_de_un_Cliente_con_varias_Empresas_a_otro_con_una_no_queda_ningun_Entra_como_contratista()
+    {
+        var (idA, mediador) = ClienteBase();
+        mediador.CentrosPorCliente[idA] = [Centro("Planta Barakaldo", EstadoCentro.Vigente, empresa: "Montajes Ebro S.L.")];
+        mediador.EmpresasPorCliente[idA] = [
+            new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", null),
+            new EmpresaDeClienteDto(Guid.NewGuid(), "Montajes Ebro S.L.", null)];
+        var idB = Guid.NewGuid();
+        mediador.Detalles[idB] = new ClienteDetalleDto(idB, "Aislamientos Nervión S.L.", "B-99.000.111", false, null, Alta, null, Guid.NewGuid());
+        mediador.Resumenes[idB] = new ResumenClienteDto(idB, "Aislamientos Nervión S.L.", "B-99.000.111", false, Alta, null, 1, 7);
+        mediador.CentrosPorCliente[idB] = [Centro("Nave logística Tudela", EstadoCentro.Vigente, empresa: "Montajes Ebro S.L.")];
+        mediador.EmpresasPorCliente[idB] = [new EmpresaDeClienteDto(Guid.NewGuid(), "Montajes Ebro S.L.", null)];
+        Registrar(mediador);
+        var cut = Renderizar(idA);
+        cut.WaitForAssertion(() => cut.Find("li.fila-relacion .fila-relacion-detalle").TextContent
+            .Should().Be("Entra como contratista: Montajes Ebro S.L."));
+
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"clientes/{idB}");
+        cut.Render(p => p.Add(x => x.ClienteId, idB));
+
+        cut.WaitForAssertion(() => cut.Find("li.fila-relacion .fila-relacion-nombre").TextContent.Should().Contain("Nave logística Tudela"));
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerEmpresasDeClienteQuery>().Should().Contain(new ObtenerEmpresasDeClienteQuery(idB)));
+        cut.FindAll("li.fila-relacion .fila-relacion-detalle").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Entra como contratista");
+    }
+
+    // Una sola medida de pastilla en la ficha (13 px): la pequeña de 11 px convivía con la normal.
+    [Fact]
+    public void Ninguna_pastilla_de_la_ficha_usa_la_medida_pequena()
+    {
+        var (id, mediador) = ClienteBase(critico: true);
+        mediador.Centros.AddRange([
+            Centro("Planta Barakaldo", EstadoCentro.Bloqueado, vencidas: 2),
+            Centro("Almacén Getafe", EstadoCentro.Vencido, vencidas: 1, proximas: 1)]);
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        cut.FindAll(".badge").Should().HaveCountGreaterThan(4, "Crítico, tres indicadores y dos estados de Centro");
+        cut.FindAll(".badge-pequeno").Should().BeEmpty();
+    }
+
     [Fact]
     public void Cada_centro_enlaza_a_su_pagina_y_su_boton_360_abre_su_panel()
     {
@@ -455,8 +547,8 @@ public class Cliente360PaginaTests : BunitContext
         var filas = cut.FindAll("li.fila-relacion");
         filas.Select(f => f.QuerySelector("a.fila-relacion-nombre")!.GetAttribute("href"))
             .Should().Equal([$"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}"], "el orden es el de la consulta: peor primero");
-        filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresa: Montajes Ebro S.L. · 3 vencidos · 1 próximo");
-        filas[1].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresa: Ibertec GmbH");
+        filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("3 vencidos · 1 próximo");
+        filas[1].QuerySelector(".fila-relacion-detalle").Should().BeNull("sin recuentos ni Empresa que distinguir no hay segunda línea");
         filas[0].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("40 %");
         filas[1].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("Sin requisitos");
         filas[0].QuerySelector(".badge")!.TextContent.Trim().Should().Be(Features.Centros.EstadoCentroUi.Texto(EstadoCentro.Bloqueado));
@@ -581,5 +673,116 @@ public class Cliente360PaginaTests : BunitContext
         cut.FindAll(".menu-acciones").Should().BeEmpty("con su único elemento oculto quedaría un «⋯» vacío");
         cut.FindAll("button").Where(b => b.TextContent.Trim() == "Editar →").Should().BeEmpty();
         cut.Find(".cliente360-nota").TextContent.Should().Be("Sin nota interna.");
+    }
+
+    [Fact]
+    public void Al_Usuario_de_Cliente_no_se_le_pinta_la_caja_de_la_nota_interna()
+    {
+        // El DTO lleva la nota a propósito: el handler ya no se la entrega a
+        // este rol, y aquí se mide la segunda barrera, la de la página sola.
+        var (id, mediador) = ClienteBase(notas: "Llamar antes de ir.");
+        Registrar(mediador, Roles.Cliente);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-pagina").TextContent.Should().Contain("Refrielectric S.A.", "la ficha de su Cliente sí se le pinta");
+        cut.FindAll(".cliente360-nota").Should().BeEmpty();
+        cut.FindAll(".cliente360-nota-pie").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Llamar antes de ir.");
+    }
+
+    [Fact]
+    public void El_rol_Consulta_del_lado_de_gestion_si_ve_la_nota_interna()
+    {
+        var (id, mediador) = ClienteBase(notas: "Llamar antes de ir.");
+        Registrar(mediador, Roles.Consulta);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cliente360-nota").TextContent.Should().Be("Llamar antes de ir.");
+    }
+
+    // ── Buscador de la pestaña Centros y ?q= ──────────────────────────────
+
+    private static List<string> NombresDeCentro(IRenderedComponent<ClienteDetalle> cut) =>
+        Textos(cut.FindAll(".fila-relacion-nombre"));
+
+    private (Guid Id, MediatorFalso Mediador) ClienteConTresCentros()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.AddRange([
+            Centro("Almacén Getafe", EstadoCentro.Faltante, vencidas: 1),
+            Centro("Planta Vigo", EstadoCentro.Bloqueado, vencidas: 2),
+            Centro("Almacén Vigo", EstadoCentro.Vigente)]);
+        Registrar(mediador);
+        return (id, mediador);
+    }
+
+    [Fact]
+    public async Task El_buscador_de_Centros_filtra_por_nombre_lo_deja_en_la_URL_y_no_toca_el_contador_ni_los_indicadores()
+    {
+        var (id, _) = ClienteConTresCentros();
+        var cut = Renderizar(id);
+        var indicadoresAntes = Textos(cut.FindAll(".cliente360-indicador-boton"));
+        indicadoresAntes.Should().NotBeEmpty("el control: sin indicadores, «no cambian» no probaría nada");
+
+        await cut.Find("input[type=search]").InputAsync("VIGO");
+
+        cut.WaitForAssertion(() => NombresDeCentro(cut).Should().BeEquivalentTo(["Planta Vigo", "Almacén Vigo"]));
+        cut.Find(".cliente360-resumen-lista").TextContent.Should().Contain("Mostrando 2 de 3");
+        cut.FindAll("[role=tab]").First().TextContent.Should().Be("Centros3 centros");
+        Textos(cut.FindAll(".cliente360-indicador-boton")).Should().Equal(indicadoresAntes);
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().Be("?q=VIGO");
+    }
+
+    [Fact]
+    public void Un_enlace_con_q_abre_la_lista_de_Centros_ya_buscada_junto_a_la_pestana()
+    {
+        var (id, _) = ClienteConTresCentros();
+
+        var cut = Renderizar(id, "?pestana=centros&q=getafe");
+
+        NombresDeCentro(cut).Should().Equal(["Almacén Getafe"]);
+        cut.Find("input[type=search]").GetAttribute("value").Should().Be("getafe");
+    }
+
+    [Fact]
+    public async Task Sin_coincidencias_Quitar_filtros_devuelve_los_Centros_y_limpia_la_URL()
+    {
+        var (id, _) = ClienteConTresCentros();
+        var cut = Renderizar(id, "?q=no-existe");
+        NombresDeCentro(cut).Should().BeEmpty();
+        cut.Find(".cliente360-resumen-lista").TextContent.Should().Contain("Mostrando 0 de 3");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Quitar filtros").ClickAsync(new MouseEventArgs());
+
+        NombresDeCentro(cut).Should().HaveCount(3);
+        cut.Find("input[type=search]").GetAttribute("value").Should().BeEmpty();
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().BeEmpty("si la URL conservara q, recargar lo repondría");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Quitar filtros");
+    }
+
+    [Fact]
+    public async Task Cambiar_de_pestana_conserva_el_texto_buscado_en_la_URL()
+    {
+        var (id, _) = ClienteConTresCentros();
+        var cut = Renderizar(id, "?q=vigo");
+
+        await cut.FindAll("[role=tab]").Single(t => t.TextContent.StartsWith("Empresas")).ClickAsync(new MouseEventArgs());
+
+        var consulta = new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query;
+        consulta.Should().Contain("pestana=empresas").And.Contain("q=vigo");
+    }
+
+    [Fact]
+    public void Con_la_lista_de_Centros_cortada_el_resumen_de_la_busqueda_sigue_diciendo_que_no_estan_todos()
+    {
+        var (id, mediador) = ClienteConTresCentros();
+        mediador.TotalCentros = 250;
+
+        var cut = Renderizar(id, "?q=no-existe");
+
+        cut.Find(".cliente360-resumen-lista").TextContent.Should()
+            .Contain("Mostrando 0 de los 3 centros con peor estado").And.Contain("tiene 250");
     }
 }

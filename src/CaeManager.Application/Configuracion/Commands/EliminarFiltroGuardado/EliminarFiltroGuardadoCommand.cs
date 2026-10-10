@@ -6,6 +6,11 @@ using MediatR;
 
 namespace CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado;
 
+/// <summary>
+/// Elimina un filtro con nombre del usuario actual. Responde «no encontrado» por
+/// igual si el Id no existe, si es de otro usuario, si se guardó en otro Tenant
+/// (no lo ve el filtro global) o si es la fila reservada de la vista recordada.
+/// </summary>
 public record EliminarFiltroGuardadoCommand(Guid Id) : ICommand, IComandoDeAutoservicio;
 
 public class EliminarFiltroGuardadoCommandValidator : AbstractValidator<EliminarFiltroGuardadoCommand>
@@ -26,8 +31,10 @@ public class EliminarFiltroGuardadoCommandHandler(
         var filtro = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
 
         // Mismo mensaje para "no existe" y "no es tuyo": no revela si el filtro
-        // de otro usuario existe o no.
-        if (filtro is null || filtro.UsuarioId != usuarioId.Value)
+        // de otro usuario existe o no. La vista recordada tampoco existe para este
+        // comando, ni siquiera para su dueño: no es un filtro con nombre y solo la
+        // borra OlvidarVistaRecordadaCommand.
+        if (filtro is null || filtro.UsuarioId != usuarioId.Value || filtro.EsVistaRecordada)
             return Result.Fallo(Error.Crear("FiltroGuardado.NoEncontrado", "No encontramos ese filtro guardado."));
 
         repositorio.Eliminar(filtro);

@@ -28,12 +28,12 @@ public partial class ProyectosGen2Tests
     }
 
     [Fact]
-    public void Sin_Cliente_elegido_no_hay_leyenda_de_atajos()
+    public void Sin_Cliente_elegido_la_tabla_y_la_leyenda_se_pintan_con_todos_los_proyectos()
     {
         _mediator.Proyectos = [ProyectoAbierto];
         var cut = Renderizar();
 
-        cut.FindAll(".tabla-proyectos").Should().BeEmpty("sin Cliente no se pinta la tabla");
-        cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().BeEmpty();
+        cut.FindAll(".tabla-proyectos").Should().NotBeEmpty("sin Cliente el filtro lista los Proyectos de todos los Clientes");
+        cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().NotBeEmpty("la leyenda acompaña a la tabla que se pinta");
     }
 }

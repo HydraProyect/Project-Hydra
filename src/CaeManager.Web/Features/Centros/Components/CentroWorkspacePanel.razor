@@ -1133,8 +1133,11 @@ else
             var contacto = string.IsNullOrWhiteSpace(_contactoInfo) ? null : _contactoInfo;
             var contratoVigenteHasta = DateOnly.TryParse(_contratoVigenteHastaInfo, out var fecha) ? fecha : (DateOnly?)null;
 
+            // Se captura antes del await: si el panel cambia de Centro mientras se guarda, el aviso
+            // de guardado tiene que seguir siendo el del Centro que se envió.
+            var idGuardado = _detalle.Id;
             var resultado = await Mediator.Send(new EditarCentroCommand(
-                _detalle.Id, _nombreInfo, codigoCentro, direccion, contacto, contratoVigenteHasta, _detalle.Version));
+                idGuardado, _nombreInfo, codigoCentro, direccion, contacto, contratoVigenteHasta, _detalle.Version));
 
             if (resultado.EsFallido)
             {
@@ -1144,6 +1147,8 @@ else
 
             ToastService.Mostrar("Centro actualizado correctamente.", TonoToast.Exito);
             _editandoInformacion = false;
+            // El listado de Centros no se entera de este guardado si no se le avisa: refresca su fila.
+            WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Centro, idGuardado);
             await CargarCabeceraAsync();
         }
         catch (ValidationException ex)

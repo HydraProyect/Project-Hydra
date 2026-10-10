@@ -69,12 +69,6 @@
   <data name="BotonLimpiarTodo" xml:space="preserve">
     <value>Limpiar todo</value>
   </data>
-  <data name="SinClienteTitulo" xml:space="preserve">
-    <value>Tria un Client per veure els seus projectes</value>
-  </data>
-  <data name="SinClienteDescripcion" xml:space="preserve">
-    <value>Cada proyecto de obra o instalación pertenece a un centro de un Cliente concreto.</value>
-  </data>
   <data name="ErrorProyectosTitulo" xml:space="preserve">
     <value>No pudimos cargar los proyectos</value>
   </data>
@@ -88,16 +82,10 @@
     <value>Ningún proyecto con este filtro</value>
   </data>
   <data name="VacioFiltroDescripcion" xml:space="preserve">
-    <value>Este Cliente sí tiene proyectos, pero ninguno coincide con la búsqueda ni con el estado seleccionado.</value>
+    <value>Cap projecte coincideix amb la cerca ni amb l'estat seleccionat.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
     <value>Quitar los filtros</value>
-  </data>
-  <data name="ConteoConFiltro" xml:space="preserve">
-    <value>{0} de {1} proyecto(s) de este Cliente</value>
-  </data>
-  <data name="ConteoSinFiltro" xml:space="preserve">
-    <value>{0} proyecto(s) de este Cliente</value>
   </data>
   <data name="EtiquetaNombre" xml:space="preserve">
     <value>Nombre</value>
@@ -333,9 +321,11 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Els projectes es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
   </data>
-  <data name="ListaElegirClienteEmpresarial" xml:space="preserve"><value>Selecciona un Client</value></data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar aquesta pantalla: nom o centre</value></data>
+  <data name="EtiquetaPlazoSinMedida" xml:space="preserve"><value>Sense termini per mesurar: no hi ha una data de fi prevista vàlida o el projecte no ha començat</value></data>
+  <data name="EtiquetaPlazoTranscurrido" xml:space="preserve"><value>{0} % del termini previst transcorregut</value></data>
   <data name="ListaPlazo" xml:space="preserve"><value>Termini</value></data>
+  <data name="ListaPlazoTranscurrido" xml:space="preserve"><value>Termini transcorregut</value></data>
   <data name="ListaProyecto" xml:space="preserve"><value>Projecte</value></data>
   <data name="ListaSinFechaFinPrevista" xml:space="preserve"><value>Sense data de fi prevista</value></data>
   <data name="MigaProyectos" xml:space="preserve"><value>Projectes (obres)</value></data>
@@ -390,4 +380,13 @@
   <data name="VentanaTecnicoAyuda" xml:space="preserve"><value>Obrir la pestanya Tècnics del projecte</value></data>
   <data name="AriaEditarProyecto" xml:space="preserve"><value>Editar la informació del projecte</value></data>
   <data name="TituloEditarConAtajo" xml:space="preserve"><value>Editar (e)</value></data>
+  <data name="ListaFechas" xml:space="preserve"><value>Dates</value></data>
+  <data name="ListaSinFechaFin" xml:space="preserve"><value>sense data de fi</value></data>
+  <data name="MotivoDuroUno" xml:space="preserve"><value>Va durar {0} dia</value></data>
+  <data name="MotivoDuroVarios" xml:space="preserve"><value>Va durar {0} dies</value></data>
+  <data name="VacioDescripcionTodos" xml:space="preserve"><value>Encara no hi ha cap projecte d'obra o instal·lació.</value></data>
+  <data name="EtiquetaPaginador" xml:space="preserve"><value>projecte(s)</value></data>
+  <data name="AccionRapidaReabrirAria" xml:space="preserve"><value>Reobrir el projecte {0}</value></data>
+  <data name="ErrorFaltaCliente" xml:space="preserve"><value>Selecciona un Client.</value></data>
+  <data name="ErrorCargarCentros" xml:space="preserve"><value>No hem pogut carregar els centres d'aquest Client. Torna a triar-lo per reintentar-ho.</value></data>
 </root>

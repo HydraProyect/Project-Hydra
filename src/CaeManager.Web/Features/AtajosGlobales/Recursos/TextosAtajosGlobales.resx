@@ -24,6 +24,21 @@
   <data name="SeccionLista" xml:space="preserve">
     <value>Dentro de una lista</value>
   </data>
+  <data name="SeccionFicha" xml:space="preserve">
+    <value>Dentro de una ficha</value>
+  </data>
+  <data name="FichaFilaSiguienteAnterior" xml:space="preserve">
+    <value>Fila siguiente / anterior de la lista</value>
+  </data>
+  <data name="FichaAccionDeFila" xml:space="preserve">
+    <value>Pulsar el botón de la fila enfocada</value>
+  </data>
+  <data name="FichaBuscador" xml:space="preserve">
+    <value>Ir al buscador de la lista</value>
+  </data>
+  <data name="FichaCambiarPestana" xml:space="preserve">
+    <value>Cambiar de pestaña</value>
+  </data>
   <data name="SeccionFecha" xml:space="preserve">
     <value>Sobre una fecha</value>
   </data>

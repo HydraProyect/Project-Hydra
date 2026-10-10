@@ -14,7 +14,8 @@ namespace CaeManager.E2ETests.Rendimiento;
 /// prerender y otra al conectar el circuito, cada una con su
 /// <c>DbContext</c>—. La consulta de la lista son dos comandos por pasada
 /// (el <c>count(*)</c> y la página), es decir 2 en un GET crudo y 4 en la
-/// navegación; esta prueba cuenta el <c>count(*)</c>, que es <b>1 por pasada:
+/// navegación; esta prueba cuenta el <c>count(*)</c> (en Subcontratas, el <c>SELECT</c>
+/// de la lista, que ya no lleva <c>count(*)</c>), que es <b>1 por pasada:
 /// 1 en el prerender y 2 en la navegación</b>, en las tres pantallas. Es el
 /// coste de hoy y la prueba lo fija como techo.
 /// </para>
@@ -53,7 +54,11 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
     public static TheoryData<string, string, string> Pantallas => new()
     {
         { "empresas", "SELECT count(*)::int FROM \"Empresas\" AS e", ".tarjeta-fila-acordeon" },
-        { "subcontratas", "SELECT count(*)::int FROM \"Empresas\" AS e", ".tarjeta-fila-acordeon" },
+        // Subcontratas no ejecuta count(*) desde que tiene franja de estado: el estado documental no está
+        // persistido, así que la consulta trae todas las filas que pasan los filtros, las cuenta por estado
+        // y pagina en memoria (ObtenerSubcontratasQuery, camino con estado). Su comando de lista es ese
+        // SELECT, uno por pasada, y es el que se cuenta.
+        { "subcontratas", "SELECT e.\"Id\", e.\"RazonSocial\", e.\"Cif\", e.\"CreadoEnUtc\", e.\"NivelServicio\"", ".tarjeta-fila-acordeon" },
         { "incidencias", "SELECT count(*)::int FROM \"Incidencias\" AS i", "table.tabla-datos tbody tr" },
     };
 

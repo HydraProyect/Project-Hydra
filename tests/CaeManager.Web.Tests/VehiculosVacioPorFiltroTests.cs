@@ -360,4 +360,22 @@ public class VehiculosVacioPorFiltroTests : BunitContext
 
         navegacion.Uri.Should().EndWith(AvisoCambiosSinGuardarPrueba.DestinoFuera);
     }
+
+    // ---- Exportar (decisión D2 del 2026-10-08): dos entradas en el «⋯» de la cabecera ----
+
+    [Fact]
+    public void El_menu_de_cabecera_ofrece_exportar_esta_vista_con_sus_criterios_y_exportar_todo()
+    {
+        var cut = Renderizar(busqueda: "Transit", estado: null,
+            new VehiculoListaDto(Guid.NewGuid(), "Furgón Uno", "Transit", "1111AAA", "Montajes Ebro S.L."));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("1111AAA"));
+
+        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
+
+        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
+            .Should().Equal("Exportar esta vista (filas: 1)", "Exportar todo");
+        var enlaces = cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href")).ToList();
+        enlaces[0].Should().StartWith("/vehiculos/exportar.xlsx?q=Transit");
+        enlaces[1].Should().Be("/vehiculos/exportar.xlsx");
+    }
 }

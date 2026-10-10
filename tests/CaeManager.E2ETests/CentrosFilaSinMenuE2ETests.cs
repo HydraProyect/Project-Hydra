@@ -16,8 +16,8 @@ namespace CaeManager.E2ETests;
 /// prueban <c>EmpresasFilaSinMenuE2ETests</c> y <c>AtajosSuperficiesTests</c>.
 /// </para>
 /// </summary>
-[Collection("AppCollection")]
-public class CentrosFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private const string Lapiz = "button[aria-label='Editar información del centro']";
 

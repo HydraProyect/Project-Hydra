@@ -381,6 +381,14 @@ else
                                                     </Authorized>
                                                     <NotAuthorized>@documento.TipoDocumentoNombre</NotAuthorized>
                                                 </AuthorizeView>
+                                                @* Estado en las plataformas de ESTE Centro y última reclamación. La fila del documento de
+                                                   un Trabajador no dice nada de la plataforma en ninguna otra celda (el «Rechazado» de
+                                                   plataforma es de las incidencias de Empresa, arriba), así que no hay dato repetido. *@
+                                                <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion
+                                                    LaFilaYaDiceLaPlataforma="false"
+                                                    Acreditaciones="documento.AcreditacionesEnElCentro"
+                                                    UltimaReclamacion="documento.UltimaReclamacion"
+                                                    Estado="documento.Estado" />
                                             </span>
                                             <span role="cell">
                                                 @if (documento.DocumentoId is null)

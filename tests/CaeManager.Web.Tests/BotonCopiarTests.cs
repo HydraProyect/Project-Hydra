@@ -86,4 +86,50 @@ public class BotonCopiarTests : BunitContext
         var mensaje = Toasts().Should().ContainSingle().Which.Mensaje;
         mensaje.Should().Contain("la contraseña").And.NotContain("Selecciónalo y cópialo a mano");
     }
+
+    private IRenderedComponent<BotonCopiar> IdentificadorEnLinea(string? termino) =>
+        Render<BotonCopiar>(p => p
+            .Add(c => c.EnLinea, true)
+            .Add(c => c.Valor, "12345678Z")
+            .Add(c => c.Texto, "12345678Z")
+            .Add(c => c.Etiqueta, "el DNI")
+            .Add(c => c.NombreAccesible, "Copiar el DNI 12345678Z")
+            .Add(c => c.TerminoResaltado, termino));
+
+    /// <summary>
+    /// Resaltado de la búsqueda sobre un identificador copiable: la marca solo cambia lo que se ve.
+    /// El clic cae en el <c>&lt;mark&gt;</c> —es lo que hay bajo el cursor— y lo que se copia sigue
+    /// saliendo de <c>Valor</c>, entero, no del trozo marcado ni del DOM.
+    /// </summary>
+    [Fact]
+    public async Task Con_termino_resaltado_el_clic_sobre_la_marca_copia_el_valor_integro()
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
+
+        var cut = IdentificadorEnLinea("5678");
+        var marca = cut.Find("button mark");
+        marca.TextContent.Should().Be("5678");
+
+        await marca.ClickAsync(new MouseEventArgs());
+
+        modulo.VerifyInvoke("copiarAlPortapapeles").Arguments.Should().Equal("12345678Z");
+        Toasts().Should().ContainSingle(t => t.Tono == TonoToast.Exito && t.Mensaje.Contains("el DNI"));
+    }
+
+    [Fact]
+    public void Con_termino_resaltado_el_nombre_accesible_y_el_texto_del_boton_no_cambian()
+    {
+        JSInterop.SetupModule(Modulo);
+
+        var sinTermino = IdentificadorEnLinea(null).Find("button");
+        var conTermino = IdentificadorEnLinea("5678").Find("button");
+
+        sinTermino.QuerySelectorAll("mark").Should().BeEmpty("sin término el botón se pinta como antes");
+        conTermino.QuerySelectorAll("mark").Should().ContainSingle();
+
+        conTermino.TextContent.Should().Be("12345678Z").And.Be(sinTermino.TextContent);
+        conTermino.GetAttribute("aria-label").Should().Be("Copiar el DNI 12345678Z").And.Be(sinTermino.GetAttribute("aria-label"));
+        conTermino.GetAttribute("title").Should().Be("Copiar el DNI 12345678Z").And.Be(sinTermino.GetAttribute("title"));
+    }
 }

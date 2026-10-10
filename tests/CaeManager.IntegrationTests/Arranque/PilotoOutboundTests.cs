@@ -1,6 +1,9 @@
 using System.IO.Compression;
+using CaeManager.Application.AsistenteIa.Candidatos;
+using CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
+using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
@@ -8,6 +11,7 @@ using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Cumplimiento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Visitas;
@@ -109,6 +113,39 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
 
         PilotoOutboundAutoverificacion.Discrepancias(fixture.Informe).Should().BeEmpty();
         fixture.Informe.Tenants.Should().HaveCount(6);
+    }
+
+    /// <summary>
+    /// Lo que el Asistente IA comprueba antes de enviar nada al proveedor, con la identidad de las dos cuentas que
+    /// lo usan en la demostración: el Tenant en pantalla y toda la cartera tienen instrucción de tratamiento de IA
+    /// vigente. Se afirma por nombre contra los siete del catálogo: una cartera vacía también «pasaría».
+    /// </summary>
+    [Fact]
+    public async Task El_asistente_IA_no_falla_cerrado_para_la_Gestora_CAE_ni_para_la_Coordinadora_CAE()
+    {
+        var asistenteIa = fixture.Informe.AsistenteIa;
+        asistenteIa.Should().NotBeNull("control: la autoverificación midió la comprobación de cartera");
+        CatalogoPilotoOutbound.NombresTenants.Should().HaveCount(7, "control: el Operador CAE externo y los seis Tenants propietarios");
+
+        foreach (var (cuenta, cartera) in new[] { ("Gestora CAE", asistenteIa!.Gestora), ("Coordinadora CAE", asistenteIa.Coordinadora) })
+        {
+            salida.WriteLine($"MEDIDO cartera de la {cuenta}: con instrucción {cartera.ConInstruccion.Count}, sin instrucción {cartera.SinInstruccion.Count}");
+            cartera.SinInstruccion.Should().BeEmpty($"MEDIDO: ningún Tenant de la cartera de la {cuenta} está sin instrucción");
+            cartera.ConInstruccion.Should().BeEquivalentTo(
+                CatalogoPilotoOutbound.NombresTenants, $"MEDIDO: la cartera de la {cuenta} son los siete Tenants del piloto, todos con instrucción");
+        }
+
+        // Las dos condiciones que el modo Preguntar exige antes de llamar al proveedor, con la Gestora CAE dentro de T1.
+        var (enPantalla, errorDeCartera) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(T1.Nombre, async sp =>
+        {
+            var tenantId = sp.GetRequiredService<ITenantActual>().TenantId;
+            tenantId.Should().NotBeNull("control: dentro de T1 hay Tenant en pantalla");
+            return (
+                await sp.GetRequiredService<IInstruccionTratamientoIaService>().EstaHabilitadaAsync(tenantId!.Value),
+                (await sp.GetRequiredService<ISender>().Send(new ComprobarInstruccionIaCarteraQuery())).ErrorSiFalta());
+        });
+        enPantalla.Should().BeTrue("MEDIDO: T1, el Tenant en pantalla, tiene instrucción vigente");
+        errorDeCartera.Should().BeNull("MEDIDO: la comprobación de cartera no devuelve el error que impide enviar el mensaje");
     }
 
     [Fact]
@@ -276,7 +313,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     {
         var prefijo = $"T4 «{CatalogoPilotoOutbound.NombreTenantT4}» · ";
         Informe ConT4(Func<PilotoOutboundAutoverificacion.MedicionTenant, PilotoOutboundAutoverificacion.MedicionTenant> cambio) =>
-            new([.. fixture.Informe.Tenants.Select(t => t.Clave == T4.Clave ? cambio(t) : t)]);
+            fixture.Informe with { Tenants = [.. fixture.Informe.Tenants.Select(t => t.Clave == T4.Clave ? cambio(t) : t)] };
 
         // Si Inicio volviera a dar el 100 % de «ningún documento», la autoverificación lo dice, con el contador.
         PilotoOutboundAutoverificacion.Discrepancias(ConT4(t => t with { InicioCumplimiento = 100 }))
@@ -1806,6 +1843,135 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         await retirada.Should().ThrowAsync<InvalidOperationException>("la retirada tampoco toca un Tenant sin marcador");
         (await arnes.RecuentoAsync()).Should().BeEquivalentTo(antes);
     }
+
+    /// <summary>
+    /// El lote que sembró esta versión antes de que la siembra llevara la instrucción de tratamiento de IA: los
+    /// siete Tenants con todos sus datos y ninguno con instrucción. El asistente falla cerrado —es el estado que
+    /// este paso corrige—, la resiembra añade las siete instrucciones sin tocar nada más, repetirla no añade
+    /// ninguna, y la retirada se las lleva.
+    /// </summary>
+    [Fact]
+    public async Task A_un_lote_ya_sembrado_sin_instruccion_de_tratamiento_de_IA_la_resiembra_solo_le_anade_la_instruccion_y_la_retirada_la_borra()
+    {
+        const string Clave = "Instrucciones de tratamiento de IA";
+        await using var arnes = await ArnesPilotoOutbound.CrearAsync();
+        var configuracion = ArnesPilotoOutbound.Configurar(ArnesPilotoOutbound.FechaDemostracion());
+        var sinPiloto = await arnes.RecuentoAsync();
+
+        (await arnes.SembrarAsync(configuracion))!.Escribio.Should().BeTrue("control: la primera siembra escribe");
+        await arnes.BackfillAsync();
+        var completa = await arnes.RecuentoAsync();
+        salida.WriteLine("MEDIDO lote completo: " + Texto(completa));
+
+        // 1. Qué deja la siembra: una por Tenant, vigente, con las versiones Draft de la demo y atribuida a una cuenta del lote.
+        var administradorDelOperador = await arnes.ComoBootstrapAsync(b => b.Users.IgnoreQueryFilters()
+            .Where(u => u.Email == CuentasPilotoOutbound.Locales.AdministradorOperador).Select(u => u.Id).SingleAsync());
+        var sembradas = await InstruccionesDelPilotoAsync(arnes);
+        sembradas.Select(i => i.Tenant).Should().BeEquivalentTo(
+            CatalogoPilotoOutbound.NombresTenants, "MEDIDO: exactamente una por Tenant del piloto, el Operador CAE externo y los seis propietarios");
+        sembradas.Should().OnlyContain(i => i.Vigente, "MEDIDO: todas vigentes");
+        sembradas.Should().OnlyContain(
+            i => i.Dpa == "Draft-2026-09-03" && i.Anexo == "Draft-2026-09-03",
+            "MEDIDO: las versiones son las Draft de la siembra de demo: un borrador, nunca una aceptación real");
+        sembradas.Should().OnlyContain(i => i.Origen == OrigenInstruccionTratamientoIa.AltaManualPlataforma, "MEDIDO: el origen de la siembra de demo");
+        sembradas.Should().OnlyContain(i => i.RegistradaPor == administradorDelOperador, "MEDIDO: la registra el Administrador del Operador CAE externo del lote");
+
+        // 2. El lote tal como lo dejó la siembra anterior a este paso: sin ninguna instrucción.
+        (await arnes.ComoBootstrapAsync(async b =>
+        {
+            var ids = await IdsDelPilotoAsync(b);
+            return await b.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters().Where(i => ids.Contains(i.TenantId)).ExecuteDeleteAsync();
+        })).Should().Be(7, "control: se han quitado las siete");
+        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(
+            new Dictionary<string, int>(completa) { [Clave] = 0 }, "control: lo único que cambia respecto del lote completo es que no hay instrucciones");
+
+        // 3. Así, el modo Preguntar se niega antes de llamar al proveedor, y la autoverificación lo dice.
+        var pregunta = new PreguntarAlAsistenteQuery([new MensajeChatDto(RolMensajeChat.Usuario, "¿Qué vence esta semana?")]);
+        var negativa = await arnes.ComoGestoraPrimeraEnAsync(
+            CatalogoPilotoOutbound.NombreTenantT1, sp => sp.GetRequiredService<ISender>().Send(pregunta));
+        negativa.EsFallido.Should().BeTrue("MEDIDO: sin instrucción en el Tenant en pantalla, el asistente no procesa el mensaje");
+        negativa.Error.Codigo.Should().Be("AsistenteIa.SinInstruccion", "MEDIDO: y falla por la instrucción, no por otra cosa");
+
+        var carteraSinInstruccion = await arnes.ComoGestoraPrimeraEnAsync(
+            CatalogoPilotoOutbound.NombreTenantT1, sp => sp.GetRequiredService<ISender>().Send(new ComprobarInstruccionIaCarteraQuery()));
+        carteraSinInstruccion.SinInstruccion.Select(t => t.Nombre).Should().BeEquivalentTo(
+            CatalogoPilotoOutbound.NombresTenants, "MEDIDO: los siete Tenants de la cartera de la Gestora CAE están sin instrucción");
+        carteraSinInstruccion.ErrorSiFalta()!.Codigo.Should().Be(InstruccionIaCarteraDto.CodigoError);
+
+        var discrepancias = PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion));
+        foreach (var linea in discrepancias) salida.WriteLine("MEDIDO " + linea);
+        discrepancias.Should().HaveCount(14, "MEDIDO: una por Tenant y por cuenta, siete de la Gestora CAE y siete de la Coordinadora CAE");
+        discrepancias.Should().OnlyContain(l => l.StartsWith("Asistente IA · "), "control: del lote solo falla el Asistente IA");
+        discrepancias.Should().Contain(
+            $"Asistente IA · cartera de la Coordinadora CAE · «{CatalogoPilotoOutbound.NombreTenantT1}»: medido sin instrucción de tratamiento de IA " +
+            "vigente, esperado con instrucción de tratamiento de IA vigente.");
+
+        // 4. La resiembra: no hay nada que sembrar salvo la instrucción.
+        var resiembra = await arnes.SembrarAsync(configuracion);
+        resiembra!.Escribio.Should().BeFalse("MEDIDO: añadir la instrucción que faltaba no cuenta como haber escrito el lote");
+        resiembra.TenantsConDatosNuevos.Should().BeEmpty();
+        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(completa, "MEDIDO: vuelve a haber siete instrucciones y nada más ha cambiado");
+        (await InstruccionesDelPilotoAsync(arnes)).Select(i => i.Tenant).Should().BeEquivalentTo(
+            CatalogoPilotoOutbound.NombresTenants, "MEDIDO: una por Tenant, no siete en uno");
+        PilotoOutboundAutoverificacion.Exigir(await arnes.MedirAsync(configuracion));
+
+        var carteraConInstruccion = await arnes.ComoCuentaAsync(
+            CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.Coordinadora,
+            sp => sp.GetRequiredService<ISender>().Send(new ComprobarInstruccionIaCarteraQuery()));
+        carteraConInstruccion.ErrorSiFalta().Should().BeNull("MEDIDO: la comprobación de cartera pasa para la Coordinadora CAE");
+        carteraConInstruccion.ConInstruccion.Should().HaveCount(7, "control: y pasa con los siete en la cartera, no con una cartera vacía");
+
+        // 5. Repetirla no añade ninguna.
+        await arnes.SembrarAsync(configuracion);
+        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(completa, "MEDIDO: idempotente, siguen siendo siete");
+
+        // 6. Una instrucción revocada a propósito en un ensayo no se repone: el Tenant ya tiene la suya, cerrada.
+        var t2Id = await arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantT2);
+        (await arnes.EnTenantAsync(t2Id, async (db, _) =>
+        {
+            (await db.InstruccionesTratamientoIaTenantPropietario.SingleAsync()).Revocar("Ensayo del fallo cerrado.", DateTime.UtcNow);
+            return await db.SaveChangesAsync();
+        })).Should().BeGreaterThan(0, "control: la revocación se guardó");
+        await arnes.SembrarAsync(configuracion);
+        var trasRevocar = await InstruccionesDelPilotoAsync(arnes);
+        trasRevocar.Should().HaveCount(7, "MEDIDO: la siembra no añade otra al Tenant cuya instrucción se revocó");
+        trasRevocar.Where(i => !i.Vigente).Select(i => i.Tenant).Should().Equal(
+            [CatalogoPilotoOutbound.NombreTenantT2], "MEDIDO: y la revocada sigue revocada");
+        PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion)).Should().HaveCount(2, "MEDIDO: la autoverificación lo dice, una vez por cuenta")
+            .And.OnlyContain(l => l.StartsWith("Asistente IA · ") && l.Contains($"«{CatalogoPilotoOutbound.NombreTenantT2}»: medido sin instrucción"));
+
+        // 7. La retirada se las lleva con el resto del lote, también la revocada.
+        completa[Clave].Should().Be(7, "control positivo: antes de retirar hay siete que borrar");
+        (await arnes.RetirarAsync()).Should().HaveCount(7);
+        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(sinPiloto);
+        // El recuento del arnés cuenta por los Tenants del piloto que existen, y ya no existe ninguno: daría cero aunque
+        // las filas siguieran ahí. Lo que mide la retirada es este, sobre la tabla entera de una base recién creada.
+        (await arnes.ComoBootstrapAsync(b => b.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters().CountAsync()))
+            .Should().Be(0, "MEDIDO: la retirada no deja ninguna instrucción, tampoco huérfana de un Tenant que ya no existe");
+    }
+
+    private sealed record InstruccionSembrada(string Tenant, bool Vigente, string Dpa, string Anexo, OrigenInstruccionTratamientoIa Origen, Guid RegistradaPor);
+
+    private static Task<List<Guid>> IdsDelPilotoAsync(CaeManager.Infrastructure.Persistence.CaeManagerDbContext bootstrap)
+    {
+        var nombres = CatalogoPilotoOutbound.NombresTenants.ToList();
+        return bootstrap.Tenants.Where(t => nombres.Contains(t.Nombre)).Select(t => t.Id).ToListAsync();
+    }
+
+    /// <summary>Las instrucciones de los Tenants del piloto, también las revocadas, leídas con la identidad de bootstrap y sin filtros.</summary>
+    private static Task<List<InstruccionSembrada>> InstruccionesDelPilotoAsync(ArnesPilotoOutbound arnes) =>
+        arnes.ComoBootstrapAsync(async b =>
+        {
+            var nombres = CatalogoPilotoOutbound.NombresTenants.ToList();
+            var nombrePorId = await b.Tenants.Where(t => nombres.Contains(t.Nombre)).ToDictionaryAsync(t => t.Id, t => t.Nombre);
+            var ids = nombrePorId.Keys.ToList();
+            var filas = await b.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters()
+                .Where(i => ids.Contains(i.TenantId)).ToListAsync();
+
+            return filas.Select(i => new InstruccionSembrada(
+                nombrePorId[i.TenantId], i.EstaVigente, i.VersionDpaAceptada, i.VersionAnexoSubencargadosAceptada,
+                i.OrigenInstruccion, i.RegistradaPorUsuarioId)).ToList();
+        });
 
     private static string Texto(Dictionary<string, int> recuento) => string.Join(", ", recuento.Select(p => $"{p.Key} {p.Value}"));
 

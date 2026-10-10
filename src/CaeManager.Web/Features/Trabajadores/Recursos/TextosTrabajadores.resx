@@ -687,4 +687,19 @@
   <data name="TituloEditarConAtajo" xml:space="preserve">
     <value>Editar (e)</value>
   </data>
+  <data name="ListaColumnaEstadoDocumental" xml:space="preserve">
+    <value>Estado documental</value>
+  </data>
+  <data name="ListaColumnaRegistradosVigentes" xml:space="preserve">
+    <value>Registrados vigentes</value>
+  </data>
+  <data name="OpcionTodosLosCentros" xml:space="preserve">
+    <value>Todos</value>
+  </data>
+  <data name="AriaQuitarFiltroCentro" xml:space="preserve">
+    <value>Quitar filtro de centro</value>
+  </data>
+  <data name="ListaOpcionCentroDeCliente" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
 </root>

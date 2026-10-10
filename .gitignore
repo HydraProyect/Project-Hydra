@@ -47,3 +47,6 @@ web-*/
 !/CLAUDE.md
 !/AGENTS.md
 docs/
+
+# Informe del banco de modelos de IA (scripts/banco-ia.sh): se genera en cada ejecución.
+resultados-banco-ia/

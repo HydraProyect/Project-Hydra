@@ -21,7 +21,7 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Vehículo 360, página (<see cref="VehiculoDetalle"/>) contra su mockup
 /// «Vehiculo 360 página TALVEG.dc.html», primer incremento: identidad con
-/// anillo de documentos registrados al día, banda de documentos vencidos,
+/// anillo de documentos registrados al día, sin banda de incidencias,
 /// pestañas Documentación e Historial con la activa en <c>?pestana=</c>,
 /// lateral Información, y lo que pierde el rol Consulta. Prueban efectos (qué
 /// se ve, qué consultas salen, qué panel queda abierto); bUnit no evalúa CSS.
@@ -236,76 +236,32 @@ public class Vehiculo360PaginaTests : BunitContext
         anillo.GetAttribute("aria-label").Should().Be("2 de 4 documentos registrados al día");
     }
 
-    // ── Banda ─────────────────────────────────────────────────────────────
+    // ── Sin banda de incidencias ──────────────────────────────────────────
 
+    /// <summary>
+    /// Decisión de producto del 2026-10-09: la cabecera no repite en una banda lo que la lista ya
+    /// dice. Lo que la banda dejaba hacer —abrir el documento vencido, que es donde se renueva—
+    /// sigue en la fila de ese documento.
+    /// </summary>
     [Fact]
-    public async Task Con_un_documento_vencido_la_banda_lo_nombra_dice_cuando_vencio_y_ofrece_renovarlo()
-    {
-        var (id, mediador) = CamionGrua();
-        Registrar(mediador);
-        var itv = mediador.Documentos[0];
-
-        var cut = Renderizar(id);
-
-        var banda = cut.Find("[data-pieza='banda']");
-        banda.GetAttribute("data-tono").Should().Be("peligro");
-        SinEspaciosDeMas(banda.QuerySelector(".banda-accion-texto")!.TextContent)
-            .Should().Be($"ITV venció el {Hoy.AddDays(-36):dd/MM/yyyy}, hace 36 días.");
-        banda.QuerySelector(".banda-accion-enlace")!.TextContent.Trim().Should().Be("Renovar ITV");
-
-        await banda.QuerySelector("button.incidencia-banda")!.ClickAsync(new());
-
-        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(
-            new WorkspaceFrame(EntidadWorkspace.Documento, itv.Id, "ITV", "informacion"),
-            "la incidencia abre el panel del Documento, que es donde hoy se renueva");
-    }
-
-    [Fact]
-    public async Task El_enlace_Renovar_de_la_banda_abre_el_panel_del_documento_vencido()
-    {
-        var (id, mediador) = CamionGrua();
-        Registrar(mediador);
-        var itv = mediador.Documentos[0];
-        var cut = Renderizar(id);
-
-        await cut.Find(".banda-accion-enlace").ClickAsync(new());
-
-        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(
-            new WorkspaceFrame(EntidadWorkspace.Documento, itv.Id, "ITV", "informacion"));
-    }
-
-    [Fact]
-    public void Con_varios_vencidos_cada_uno_es_una_incidencia_y_no_hay_enlace_general()
+    public async Task Con_documentos_vencidos_no_hay_banda_y_la_fila_del_vencido_abre_su_documento()
     {
         var (id, mediador) = CamionGrua();
         mediador.Documentos[1] = Documento("Seguro", EstadoDocumento.Vencido, Hoy.AddDays(-1));
         Registrar(mediador);
+        var itv = mediador.Documentos[0];
 
         var cut = Renderizar(id);
 
-        var banda = cut.Find("[data-pieza='banda']");
-        Textos(banda.QuerySelectorAll("button.incidencia-banda")).Should().Equal(["ITV", "Seguro"]);
-        banda.TextContent.Should().Contain("hace 1 día.");
-        banda.QuerySelectorAll(".banda-accion-enlace").Should().BeEmpty(
-            "«Renovar {tipo}» solo tiene sentido con un único documento vencido");
-    }
+        cut.FindAll("[data-pieza='banda']").Should().BeEmpty("los vencidos ya se ven en su fila");
+        var vencidas = cut.FindAll("[data-pieza='fila'][data-tono='peligro']");
+        Textos(vencidas.Select(f => f.QuerySelector(".fila-relacion-nombre")!)).Should().Equal(["ITV", "Seguro"]);
 
-    [Fact]
-    public void Sin_documentos_vencidos_no_hay_banda()
-    {
-        var (id, mediador) = CamionGrua();
-        mediador.Detalles[id] = mediador.Detalles[id] with
-        {
-            DocumentosAlDia = new FraccionCumplimiento(3, 4),
-            PeorEstadoDocumental = EstadoDocumento.SinConfirmar
-        };
-        mediador.Documentos[0] = Documento("ITV", EstadoDocumento.Vigente, Hoy.AddDays(200));
-        Registrar(mediador);
+        await vencidas[0].QuerySelector("button.fila-relacion-nombre")!.ClickAsync(new());
 
-        var cut = Renderizar(id);
-
-        cut.FindAll("[data-pieza='banda']").Should().BeEmpty(
-            "la banda es de documentos vencidos; por vencer y sin confirmar se ven en su fila");
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(
+            new WorkspaceFrame(EntidadWorkspace.Documento, itv.Id, "ITV", "informacion"),
+            "la fila abre el panel del Documento, que es donde hoy se renueva");
     }
 
     // ── Documentación ─────────────────────────────────────────────────────
@@ -401,7 +357,6 @@ public class Vehiculo360PaginaTests : BunitContext
         Textos(error.QuerySelectorAll("button")).Should().Equal(["Reintentar"]);
         cut.Find(".pestanas-boton-activa").QuerySelectorAll(".pestanas-contador").Should().BeEmpty(
             "un fallo no se disfraza de «0 documentos»");
-        cut.FindAll("[data-pieza='banda']").Should().BeEmpty("sin lista no hay con qué nombrar el documento vencido");
     }
 
     // ── Pestañas y lateral ────────────────────────────────────────────────
@@ -465,7 +420,7 @@ public class Vehiculo360PaginaTests : BunitContext
         await cut.InvokeAsync(panel.CerrarAsync);
 
         cut.WaitForAssertion(() => cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().Be("Camión grúa 2"));
-        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().HaveCount(2, "anillo, banda y lista salen de la misma relectura");
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().HaveCount(2, "anillo y lista salen de la misma relectura");
     }
 
     [Fact]
@@ -545,7 +500,7 @@ public class Vehiculo360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Si_el_vencido_no_cabe_en_la_lista_la_banda_lo_dice_sin_nombrarlo()
+    public void Si_el_vencido_no_cabe_en_la_lista_su_encabezado_lo_dice_sin_nombrarlo()
     {
         var (id, mediador) = CamionGrua();
         mediador.Documentos[0] = Documento("ITV", EstadoDocumento.Vigente, Hoy.AddDays(200));
@@ -554,9 +509,9 @@ public class Vehiculo360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.WaitForAssertion(() => cut.Find("[data-pieza='banda']").TextContent.Should()
-            .Contain("Hay documentos vencidos que no caben en esta lista."));
-        cut.Find("[data-pieza='banda']").QuerySelectorAll("button").Should().BeEmpty();
+        cut.WaitForAssertion(() => cut.Find(".lista-relaciones-encabezado [data-vencidos-fuera]").TextContent.Should()
+            .Be("Hay documentos vencidos que no caben en esta lista."));
+        cut.FindAll("[data-pieza='banda']").Should().BeEmpty();
     }
 
     // ── Permisos ──────────────────────────────────────────────────────────
@@ -577,7 +532,7 @@ public class Vehiculo360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void En_Consulta_desaparece_la_escritura_y_la_banda_conserva_el_texto_sin_botones()
+    public void En_Consulta_desaparece_la_escritura()
     {
         var (id, mediador) = CamionGrua();
         Registrar(mediador, Roles.Consulta);
@@ -590,10 +545,6 @@ public class Vehiculo360PaginaTests : BunitContext
         cabecera.QuerySelector(".vehiculo360-placa button").Should().NotBeNull("copiar la matrícula no es escritura");
         cut.FindAll("[data-pieza='lateral'] button.boton").Should().BeEmpty();
         cut.FindComponents<DrawerGestionDocumento>().Should().BeEmpty();
-
-        var banda = cut.FindAll("[data-pieza='banda']").Should().ContainSingle().Subject;
-        banda.QuerySelectorAll("button").Should().BeEmpty();
-        SinEspaciosDeMas(banda.TextContent).Should().Be($"ITV venció el {Hoy.AddDays(-36):dd/MM/yyyy}, hace 36 días.");
     }
 
     // ── Error ─────────────────────────────────────────────────────────────

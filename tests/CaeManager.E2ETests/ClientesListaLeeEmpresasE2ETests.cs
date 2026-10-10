@@ -11,8 +11,8 @@ namespace CaeManager.E2ETests;
 /// UI real (no por seeder) para demostrar el contrato correcto extremo a
 /// extremo, no solo a nivel de query.
 /// </summary>
-[Collection("AppCollection")]
-public class ClientesListaLeeEmpresasE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class ClientesListaLeeEmpresasE2ETests(WebAppFixtureListados fixture)
 {
     [Fact]
     public async Task Un_Cliente_creado_desde_el_formulario_real_aparece_de_inmediato_en_su_propio_listado()

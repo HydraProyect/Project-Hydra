@@ -160,9 +160,9 @@
     <value>Se muestran los {0} centros con peor estado de {1}.</value>
     <comment>La lista se corta en MaximoCentros; los indicadores se cuentan sobre lo mostrado.</comment>
   </data>
-  <data name="DetalleEmpresa" xml:space="preserve">
-    <value>Empresa: {0}</value>
-    <comment>Empresa contratista que opera el Centro.</comment>
+  <data name="DetalleEntraComoContratista" xml:space="preserve">
+    <value>Entra como contratista: {0}</value>
+    <comment>Empresa del Tenant que trabaja en el Centro. El Centro es del Cliente (su titular): nunca «Empresa: X», que se lee como si fuera la dueña. Solo se pinta si el usuario ve más de una Empresa contratista.</comment>
   </data>
   <data name="DetalleVencidosUno" xml:space="preserve">
     <value>1 vencido</value>
@@ -224,6 +224,19 @@
   </data>
   <data name="ErrorSubcontratasTitulo" xml:space="preserve">
     <value>No pudimos cargar las subcontratas</value>
+  </data>
+  <data name="BuscadorCentros" xml:space="preserve">
+    <value>Buscar centro de este cliente…</value>
+  </data>
+  <data name="ResumenCentrosBuscados" xml:space="preserve">
+    <value>Mostrando {0} de {1}.</value>
+  </data>
+  <data name="ResumenCentrosBuscadosTruncado" xml:space="preserve">
+    <value>Mostrando {0} de los {1} centros con peor estado; este Cliente tiene {2} y el buscador solo mira esos {1}.</value>
+    <comment>Buscador activo con la lista cortada en MaximoCentros.</comment>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Quitar filtros</value>
   </data>
   <data name="ListaCentros" xml:space="preserve">
     <value>Centros de este Cliente</value>
@@ -460,6 +473,18 @@
   </data>
   <data name="MotivoDocumentos" xml:space="preserve">
     <value>{0} documentos</value>
+  </data>
+  <data name="IncidenciasTituloUna" xml:space="preserve">
+    <value>1 documento con incidencia entre sus trabajadores</value>
+  </data>
+  <data name="IncidenciasTitulo" xml:space="preserve">
+    <value>{0} documentos con incidencia entre sus trabajadores</value>
+  </data>
+  <data name="IncidenciasPieMas" xml:space="preserve">
+    <value>Y {0} más.</value>
+  </data>
+  <data name="IncidenciasPieMasAlCorregir" xml:space="preserve">
+    <value>Y {0} más: aparecen aquí al corregir estas.</value>
   </data>
   <data name="TituloSinIncidencias" xml:space="preserve">
     <value>Sin alertas de vigencia abiertas entre sus trabajadores</value>

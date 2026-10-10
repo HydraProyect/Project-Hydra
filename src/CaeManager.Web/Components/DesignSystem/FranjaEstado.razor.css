@@ -38,7 +38,7 @@
     font-variant-numeric: tabular-nums;
 }
 
-/* Marcado: mismo acento que el control segmentado de la fila de filtros. */
+/* Marcado: acento primario (fondo --color-primary-50, texto y borde --color-primary-700). */
 .franja-estado-boton[aria-pressed="true"] {
     background-color: var(--color-primary-50);
     border-color: var(--color-primary-700);

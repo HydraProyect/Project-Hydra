@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Security.Claims;
+using CaeManager.Application.AsistenteIa.Candidatos;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
@@ -98,7 +99,19 @@ public static class PilotoOutboundAutoverificacion
         int ExigidosDeTrabajador, int ExigidosDeEmpresa, int PdfDeTrabajador, int PdfDeEmpresa, int FicherosEnElZip,
         IReadOnlyList<string> Faltan, IReadOnlyList<string> Sobran);
 
-    public sealed record Informe(IReadOnlyList<MedicionTenant> Tenants)
+    /// <summary>
+    /// Lo que la comprobación de cartera del Asistente IA (<see cref="ComprobarInstruccionIaCarteraQuery"/>, la que
+    /// decide si el texto del usuario sale hacia el proveedor) da a una cuenta: los Tenants de su cartera, por su
+    /// nombre, según tengan o no una instrucción de tratamiento de IA vigente. Con uno solo sin ella, el asistente
+    /// falla cerrado para esa cuenta.
+    /// </summary>
+    public sealed record CarteraDelAsistenteIa(IReadOnlyList<string> ConInstruccion, IReadOnlyList<string> SinInstruccion);
+
+    /// <summary>La comprobación de cartera del Asistente IA, medida como la Gestora CAE primera y como la Coordinadora CAE.</summary>
+    public sealed record MedicionAsistenteIa(CarteraDelAsistenteIa Gestora, CarteraDelAsistenteIa Coordinadora);
+
+    /// <param name="AsistenteIa">Nulo si no se midió: <see cref="Repartir"/> lo da por discrepancia, no por bueno.</param>
+    public sealed record Informe(IReadOnlyList<MedicionTenant> Tenants, MedicionAsistenteIa? AsistenteIa = null)
     {
         public MedicionTenant De(TenantPilotoOutbound tenant) => Tenants.Single(t => t.Clave == tenant.Clave);
     }
@@ -137,24 +150,45 @@ public static class PilotoOutboundAutoverificacion
     {
         var comoGestora = await ComoCuentaDelPilotoAsync(
             fabricaDeAmbitos, cuentas.GestoraPrimera, Roles.GestorCae,
-            servicios => MedirComoGestoraAsync(servicios, opciones, tenantsQueNoSeMiden, cancellationToken), cancellationToken);
-
-        var visionCartera = await ComoCuentaDelPilotoAsync(
-            fabricaDeAmbitos, cuentas.Coordinadora, Roles.CoordinadorCae,
-            async servicios => (await servicios.GetRequiredService<ISender>().Send(new ObtenerKpisGlobalesQuery(), cancellationToken))
-                .ClientesConMasRiesgo.ToDictionary(c => c.Nombre),
+            async servicios => (
+                Tenants: await MedirComoGestoraAsync(servicios, opciones, tenantsQueNoSeMiden, cancellationToken),
+                AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken)),
             cancellationToken);
+
+        var comoCoordinadora = await ComoCuentaDelPilotoAsync(
+            fabricaDeAmbitos, cuentas.Coordinadora, Roles.CoordinadorCae,
+            async servicios => (
+                VisionCartera: (await servicios.GetRequiredService<ISender>().Send(new ObtenerKpisGlobalesQuery(), cancellationToken))
+                    .ClientesConMasRiesgo.ToDictionary(c => c.Nombre),
+                AsistenteIa: await MedirCarteraDelAsistenteIaAsync(servicios, cancellationToken)),
+            cancellationToken);
+        var visionCartera = comoCoordinadora.VisionCartera;
 
         return new Informe(
         [
-            .. comoGestora.Select(m => m with
+            .. comoGestora.Tenants.Select(m => m with
             {
                 VisionCarteraPresente = visionCartera.ContainsKey(m.Nombre),
                 VisionCarteraCumplimiento = visionCartera.GetValueOrDefault(m.Nombre)?.TasaCumplimientoDocumental,
                 VisionCarteraSinCartera = visionCartera.GetValueOrDefault(m.Nombre)?.SinCarteraAsignada ?? false,
                 VisionCarteraSinDatos = visionCartera.GetValueOrDefault(m.Nombre)?.SinDatos ?? false
             })
-        ]);
+        ],
+        new MedicionAsistenteIa(comoGestora.AsistenteIa, comoCoordinadora.AsistenteIa));
+    }
+
+    /// <summary>
+    /// La comprobación de cartera del Asistente IA con la identidad en curso: la misma consulta que el asistente
+    /// hace antes de enviar nada al proveedor. Recorre la cartera entera, también los Tenants que esta medición
+    /// deja sin medir, porque no se parte; de cada uno lee solo si tiene una instrucción vigente.
+    /// </summary>
+    private static async Task<CarteraDelAsistenteIa> MedirCarteraDelAsistenteIaAsync(
+        IServiceProvider servicios, CancellationToken cancellationToken)
+    {
+        var cartera = await servicios.GetRequiredService<ISender>().Send(new ComprobarInstruccionIaCarteraQuery(), cancellationToken);
+
+        return new CarteraDelAsistenteIa(
+            [.. cartera.ConInstruccion.Select(t => t.Nombre)], [.. cartera.SinInstruccion.Select(t => t.Nombre)]);
     }
 
     /// <summary>
@@ -262,7 +296,56 @@ public static class PilotoOutboundAutoverificacion
             ? ["Mi trabajo · control positivo: ningún Tenant del piloto trae filas, así que un cero no demuestra nada."]
             : [];
 
-        return tenantsQueNoSeMiden.Count == 0 ? ([.. d, .. delLoteEntero], []) : (d, delLoteEntero);
+        var (asistenteExigidas, asistenteSoloAvisadas) = RepartirAsistenteIa(informe.AsistenteIa, tenantsQueNoSeMiden);
+        d.AddRange(asistenteExigidas);
+
+        return tenantsQueNoSeMiden.Count == 0
+            ? ([.. d, .. delLoteEntero], asistenteSoloAvisadas)
+            : (d, [.. delLoteEntero, .. asistenteSoloAvisadas]);
+    }
+
+    /// <summary>
+    /// Lo que se exige del Asistente IA: que su comprobación de cartera pase para la Gestora CAE y para la
+    /// Coordinadora CAE. Para cada una, el Tenant del Operador CAE externo y cada Tenant propietario que se mide
+    /// tienen que estar en su cartera con una instrucción de tratamiento de IA vigente —por nombre, no por
+    /// recuento: una cartera vacía también «pasaría»—, y no puede haber en ella ningún otro Tenant sin instrucción,
+    /// porque con uno basta para que el asistente falle cerrado.
+    ///
+    /// <para>
+    /// La única que solo se avisa es la de un Tenant de <paramref name="tenantsQueNoSeMiden"/> sin instrucción: la
+    /// siembra no escribe en él, tampoco su instrucción, y mientras siga en la cartera el asistente falla cerrado.
+    /// No haber medido se exige como discrepancia.
+    /// </para>
+    /// </summary>
+    private static (IReadOnlyList<string> Exigidas, IReadOnlyList<string> SoloAvisadas) RepartirAsistenteIa(
+        MedicionAsistenteIa? asistenteIa, IReadOnlyCollection<string> tenantsQueNoSeMiden)
+    {
+        if (asistenteIa is null)
+            return (["Asistente IA · instrucción de tratamiento de IA de la cartera: no se midió."], []);
+
+        var exigidas = new List<string>();
+        var soloAvisadas = new List<string>();
+        List<string> esperados =
+        [
+            CatalogoPilotoOutbound.NombreTenantOperador,
+            .. CatalogoPilotoOutbound.Tenants.Select(t => t.Nombre).Where(n => !tenantsQueNoSeMiden.Contains(n))
+        ];
+
+        foreach (var (cuenta, cartera) in new[] { ("Gestora CAE", asistenteIa.Gestora), ("Coordinadora CAE", asistenteIa.Coordinadora) })
+        {
+            foreach (var nombre in esperados.Where(n => !cartera.ConInstruccion.Contains(n)))
+                exigidas.Add(
+                    $"Asistente IA · cartera de la {cuenta} · «{nombre}»: medido " +
+                    (cartera.SinInstruccion.Contains(nombre) ? "sin instrucción de tratamiento de IA vigente" : "fuera de la cartera") +
+                    ", esperado con instrucción de tratamiento de IA vigente.");
+
+            foreach (var nombre in cartera.SinInstruccion.Where(n => !esperados.Contains(n)))
+                (tenantsQueNoSeMiden.Contains(nombre) ? soloAvisadas : exigidas).Add(
+                    $"Asistente IA · cartera de la {cuenta} · «{nombre}»: está en la cartera sin instrucción de tratamiento de IA " +
+                    "vigente, y con eso el asistente no envía ningún mensaje.");
+        }
+
+        return (exigidas, soloAvisadas);
     }
 
     /// <summary>

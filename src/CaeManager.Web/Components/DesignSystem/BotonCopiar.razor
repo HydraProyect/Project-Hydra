@@ -1,5 +1,5 @@
 <button type="button" class="@(EnLinea ? "boton-copiar boton-copiar-en-linea" : "boton-copiar")" disabled="@Deshabilitado"
         aria-label="@NombreAccesible" title="@(EnLinea ? NombreAccesible : null)"
         @onclick="CopiarAsync" @onclick:stopPropagation="EnLinea">
-    @Texto
+    <TextoResaltado Texto="@Texto" Termino="@TerminoResaltado" />
 </button>

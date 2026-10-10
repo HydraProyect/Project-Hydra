@@ -416,7 +416,13 @@ fase_checks() {
     for nombre in "${esperados[@]}"; do
       if [[ -z "${vistos[$nombre]+x}" ]]; then
         faltan+=("$nombre")
-      elif [[ "${vistos[$nombre]}" != "pass" ]]; then
+      elif [[ "${vistos[$nombre]}" != "pass" && "${vistos[$nombre]}" != "skipping" ]]; then
+        # `skipping` cuenta como satisfecho, igual que para GitHub: desde el
+        # alcance del CI (scripts/ci-alcance.sh, 2026-10-09) una PR ligera
+        # deja «Tests E2E (Playwright)» saltado a propósito, y exigir `pass`
+        # dejaría este vigía esperando hasta el timeout. Solo afecta a los
+        # checks del HEAD de la PR: en el grupo de fusión los pesados corren
+        # siempre y el rollup de su commit se lee aparte, sin este permiso.
         pendientes+=("$nombre=${vistos[$nombre]}")
       fi
     done

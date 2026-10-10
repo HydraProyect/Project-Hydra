@@ -48,31 +48,76 @@
     deuda terminológica y no se renombran aquí.
 *@
 <div class="contenedor-pagina">
-    <CabeceraPagina Kicker="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]">
-        <Acciones>
-            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync" data-keytip="N">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
-        </Acciones>
-    </CabeceraPagina>
+    @* Cabecera y barra de filtros comunes de los listados. El recuento va junto al título y el
+       conmutador de selección múltiple (☑) en la cabecera, como en las otras nueve pantallas. *@
+    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_errorCarga || _cargando ? null : _totalElementos)"
+                     SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+        <Menu>
+            <CaeManager.Web.Exportacion.EntradasExportar Ruta="/visitas/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : (int?)_totalElementos)" Criterios="CriteriosExportar" />
+        </Menu>
+        <Primaria>
+            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
+        </Primaria>
+    </CabeceraListado>
 
-    <div class="barra-filtros">
-        <CampoTexto Placeholder="@Textos["PlaceholderBusqueda"]" Valor="@_busqueda" ValorChanged="BuscarAsync" data-keytip="F" />
-        <label class="filtro-critico">
-            <input type="checkbox" @bind="_soloActivas" @bind:after="CambiarSoloActivasAsync" /> @Textos["FiltroSoloActivas"]
-        </label>
-        <label class="filtro-critico">
-            <input type="checkbox" @bind="_soloUrgentes" @bind:after="CambiarSoloUrgentesAsync" /> @Textos["FiltroSoloUrgentes"]
-        </label>
-        <CampoSelect Etiqueta="@Textos["EtiquetaNotificadaTitular"]" Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync">
-            <option value="">@Textos["OpcionTodas"]</option>
-            <option value="si">@Textos["OpcionSi"]</option>
-            <option value="no">@Textos["OpcionNo"]</option>
-        </CampoSelect>
-        @* No es un filtro (no recorta la lista): por eso no cuenta en HayFiltrosActivos. *@
-        <CampoSelect Etiqueta="@Textos["EtiquetaOrden"]" Valor="@_orden" ValorChanged="OrdenarAsync">
-            <option value="">@Textos["OpcionOrdenFechas"]</option>
-            <option value="documentacion">@Textos["OpcionOrdenDocumentacion"]</option>
-        </CampoSelect>
-    </div>
+    @* Los mismos filtros que tenía la barra antigua, uno por pastilla: «Solo activas» (marcado de
+       fábrica), «Solo urgentes» y «Notificada…». El orden no es un filtro (no recorta la lista: por
+       eso no cuenta en HayFiltrosActivos ni lleva chip) y vive en «Más filtros». Todos viajan en la URL. *@
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
+                  VistaRecordada="_vistaRecordada"
+                  MasFiltrosActivos="@(_orden == OrdenPorDocumentacion)">
+        <Pastillas>
+            <PastillaFiltro Etiqueta="@Textos["FiltroSoloActivas"]" TextoTodos="@Textos["OpcionNo"]"
+                            Valor="@(_soloActivas ? ValorSi : string.Empty)" ValorChanged="v => CambiarSoloActivasAsync(v == ValorSi)" Opciones="OpcionesSi" />
+            <PastillaFiltro Etiqueta="@Textos["FiltroSoloUrgentes"]" TextoTodos="@Textos["OpcionNo"]"
+                            Valor="@(_soloUrgentes ? ValorSi : string.Empty)" ValorChanged="v => CambiarSoloUrgentesAsync(v == ValorSi)" Opciones="OpcionesSi" />
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaNotificadaTitular"]" TextoTodos="@Textos["OpcionTodas"]"
+                            Valor="@_filtroNotificado" ValorChanged="FiltrarPorNotificadoAsync" Opciones="OpcionesNotificado" />
+        </Pastillas>
+        <MasFiltros>
+            <span class="menu-filtros-titulo" role="presentation">@Textos["EtiquetaOrden"]</span>
+            <ItemMenuAccion Marcado="@(_orden != OrdenPorDocumentacion)" OnClick="() => OrdenarAsync(string.Empty)">@Textos["OpcionOrdenFechas"]</ItemMenuAccion>
+            <ItemMenuAccion Marcado="@(_orden == OrdenPorDocumentacion)" OnClick="() => OrdenarAsync(OrdenPorDocumentacion)">@Textos["OpcionOrdenDocumentacion"]</ItemMenuAccion>
+        </MasFiltros>
+        <Chips>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <ChipFiltro Etiqueta="@Textos["ChipBusqueda", _busqueda]" EtiquetaAccesible="@Textos["QuitarFiltroBusqueda"]" OnQuitar="() => BuscarAsync(string.Empty)" />
+            }
+            @if (_soloUrgentes)
+            {
+                <ChipFiltro Etiqueta="@Textos["FiltroSoloUrgentes"]" EtiquetaAccesible="@Textos["QuitarFiltroUrgentes"]" OnQuitar="() => CambiarSoloUrgentesAsync(false)" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_filtroNotificado))
+            {
+                <ChipFiltro Etiqueta="@($"{Textos["EtiquetaNotificadaTitular"].Value}: {Textos[_filtroNotificado == ValorSi ? "OpcionSi" : "OpcionNo"].Value}")" EtiquetaAccesible="@Textos["QuitarFiltroNotificada"]" OnQuitar="() => FiltrarPorNotificadoAsync(string.Empty)" />
+            }
+        </Chips>
+        <Resumen>
+            @* Lo que la pantalla puede afirmar, comprobado en
+               ObtenerVisitasQueryHandler: la urgencia se calcula en cada
+               consulta con la fecha de hoy y las fechas de la visita
+               (CalculadoraUrgenciaVisita). El mockup dice «recalculada cada
+               hora sobre la fecha de entrada»: no hay tal proceso horario, y
+               la calculadora no mira la hora de entrada. *@
+            <span class="visitas-nota-sistema">
+                <span class="visitas-nota-sistema-punto" aria-hidden="true"></span>
+                @Textos["NotaUrgenciaCalculada"]
+            </span>
+        </Resumen>
+    </BarraFiltros>
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Visitas"
+                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    @* Franja de estado sobre la columna «Documentación», con sus cuatro valores reales y los mismos
+       rótulos que la celda. Admite varios a la vez, viaja en la URL como «estado» y cada botón dice
+       cuántas visitas hay con los demás filtros aplicados: con «Solo activas» puesto, «Cancelada» es 0. *@
+    <FranjaEstado Opciones="OpcionesEstadoDocumentacion" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["OpcionTodas"]" EtiquetaAccesible="@Textos["ColumnaDocumentacion"]" />
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
@@ -89,25 +134,6 @@
         @* El grid se mantiene siempre montado (solo se oculta con CSS) para que la
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
-        <BarraHerramientasLista SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
-            <Extra>
-                @if (!_cargando && _totalElementos > 0)
-                {
-                    <span class="visitas-recuento">@TextoRecuento</span>
-                }
-                @* Lo que la pantalla puede afirmar, comprobado en
-                   ObtenerVisitasQueryHandler: la urgencia se calcula en cada
-                   consulta con la fecha de hoy y las fechas de la visita
-                   (CalculadoraUrgenciaVisita). El mockup dice «recalculada cada
-                   hora sobre la fecha de entrada»: no hay tal proceso horario, y
-                   la calculadora no mira la hora de entrada. *@
-                <span class="visitas-nota-sistema">
-                    <span class="visitas-nota-sistema-punto" aria-hidden="true"></span>
-                    @Textos["NotaUrgenciaCalculada"]
-                </span>
-            </Extra>
-        </BarraHerramientasLista>
-
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
             <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
@@ -121,19 +147,21 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn Title="@Textos["EtiquetaCentro"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
-                        @context.CentroNombre
-                    </button>
-                </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaTitularEmpresa"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.ClienteRazonSocial))">
+                @* Columna «Visita»: el Centro es la identidad de la fila y, debajo, el titular del Centro y la
+                   Empresa que entra. Los tres nombres siguen abriendo cada uno su panel. *@
+                <TemplateColumn Title="@Textos["ColumnaVisita"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
                     <span class="visitas-celda-apilada">
-                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
-                            @context.ClienteRazonSocial
+                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
+                            <TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" />
                         </button>
-                        <button type="button" class="enlace-nombre-fila visitas-celda-secundaria" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
-                            @context.EmpresaRazonSocial
-                        </button>
+                        <span class="visitas-celda-secundaria visitas-celda-titular-empresa">
+                            <button type="button" class="enlace-nombre-fila" title="@Textos["DetalleTitularCentro"]" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
+                                <TextoResaltado Texto="@context.ClienteRazonSocial" Termino="@_busqueda" />
+                            </button>
+                            <button type="button" class="enlace-nombre-fila" title="@Textos["DetalleEmpresa"]" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
+                                <TextoResaltado Texto="@context.EmpresaRazonSocial" Termino="@_busqueda" />
+                            </button>
+                        </span>
                     </span>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaFechas"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
@@ -149,11 +177,11 @@
                                 @onclick="() => AbrirDetalleAsync(context.Id)">@TextoFechas(context.FechaInicio, context.FechaFin)</button>
                         @if (!context.EstaCancelada)
                         {
-                            <span class="visitas-celda-secundaria">@TextoPlazo(context)</span>
+                            <span class="visitas-celda-secundaria" data-pieza="plazo">@TextoPlazo(context)</span>
                         }
                     </span>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["EtiquetaTrabajadores"]" Align="Align.Center">
+                <TemplateColumn Title="@Textos["ColumnaTrabajadores"]" Align="Align.Center">
                     @{
                         var nombres = context.Trabajadores ?? [];
                     }
@@ -176,31 +204,16 @@
                         </Detalle>
                     </VentanaContexto>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaUrgencia"]" Align="Align.Center">
-                    @* Los cuatro valores de NivelUrgenciaVisita, «Normal» incluido:
-                       una celda vacía no distingue «normal» de «sin calcular». *@
-                    <span class="visitas-celda-apilada">
-                        <Badge Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)</Badge>
-                        @if (context.Tramo is { } tramo)
-                        {
-                            @* Misma matriz y mismo vocabulario que el detalle (AntelacionVisitaUi);
-                               null = sin solicitud de origen medida o expediente aún incompleto. *@
-                            <span title="@TituloTramo(context)" data-antelacion-tramo="@tramo">
-                                <Badge Tono="@AntelacionVisitaUi.Tono(tramo)">@AntelacionVisitaUi.Texto(tramo)</Badge>
-                            </span>
-                        }
-                    </span>
+                @* El origen es un dato, no un estado: texto, sin pastilla. *@
+                <TemplateColumn Title="@Textos["EtiquetaOrigen"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
+                    <span class="visitas-celda-secundaria" data-pieza="origen">@TextoOrigen(context.Origen)</span>
                 </TemplateColumn>
-                @* El mockup lleva el origen solo al detalle; aquí se conserva
-                   también en la lista porque ya existía y se ordena por él. *@
-                <TemplateColumn Title="@Textos["EtiquetaOrigen"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
-                    <Badge Tono="TonoOrigen(context.Origen)">@TextoOrigen(context.Origen)</Badge>
-                </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaDocumentacion"]" Class="col-estado">
+                <TemplateColumn Title="@Textos["ColumnaDocumentacion"]">
                     @if (context.EstaCancelada)
                     {
-                        @* FS-11: una Visita cancelada no tiene documentación que gestionar; el motivo va en el title. *@
-                        <span title="@context.MotivoCancelacion"><Badge Tono="TonoBadge.Neutro">@Textos["BadgeCancelada"]</Badge></span>
+                        @* FS-11: una Visita cancelada no tiene documentación que gestionar. Que está cancelada, y por
+                           qué, lo dice la columna «Estado». *@
+                        <span class="visitas-celda-secundaria" data-pieza="sin-documentacion" aria-hidden="true">—</span>
                     }
                     else if (!context.CentroRequiereGestionCae)
                     {
@@ -216,10 +229,11 @@
                     else
                     {
                         @* «Por gestionar» aunque los documentos estén vigentes: el title dice si ya se puede enviar o falta papel. *@
-                        <span title="@(context.DocumentacionCompleta ? Textos["TituloPorGestionarDocumentosVigentes"] : Textos["TituloPorGestionarFaltanDocumentos"])"><Badge Tono="TonoBadge.Peligro">@Textos["BadgeDocumentacionPorGestionar"]</Badge></span>
+                        <EstadoFila Tono="TonoBadge.Peligro" Texto="@Textos["BadgeDocumentacionPorGestionar"]"
+                                    Titulo="@(context.DocumentacionCompleta ? Textos["TituloPorGestionarDocumentosVigentes"] : Textos["TituloPorGestionarFaltanDocumentos"])" />
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["EtiquetaNotificadaTitular"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
+                <TemplateColumn Title="@Textos["ColumnaAvisada"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
                     @* El interruptor es a la vez el dato y el disparador de MarcarNotificadoClienteCommand
                        (ICommand que AutorizacionEscrituraBehavior deniega a Consulta). Ocultarlo, como hace
                        SoloConEscritura, dejaría la columna sin dato: a Consulta se le pinta deshabilitado. *@
@@ -238,6 +252,36 @@
                                    disabled />
                         </NotAuthorized>
                     </AuthorizeView>
+                </TemplateColumn>
+                @* «Estado» de la fila, en el mismo sitio que en las demás pantallas: la urgencia (se recalcula en
+                   cada carga) es la pastilla y el tramo de antelación sellado es el motivo. «Normal» es lo
+                   correcto: punto y texto, sin pastilla de color. Una cancelada dice «Cancelada» y su motivo. *@
+                <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado">
+                    @if (context.EstaCancelada)
+                    {
+                        @* El motivo se recorta a una línea: su title lo da entero. *@
+                        <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCancelada"]">
+                            <MotivoContenido>
+                                <span title="@context.MotivoCancelacion" data-pieza="motivo-cancelacion">@context.MotivoCancelacion</span>
+                            </MotivoContenido>
+                        </EstadoFila>
+                    }
+                    else if (context.Tramo is { } tramo)
+                    {
+                        @* Misma matriz y mismo vocabulario que el detalle (AntelacionVisitaUi). *@
+                        <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
+                                    Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)">
+                            <MotivoContenido>
+                                <span title="@TituloTramo(context)" data-antelacion-tramo="@tramo">@Textos["MotivoTramo", AntelacionVisitaUi.Texto(tramo)]</span>
+                            </MotivoContenido>
+                        </EstadoFila>
+                    }
+                    else
+                    {
+                        @* Sin tramo: no hay solicitud de origen medida o el expediente aún no está completo. *@
+                        <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
+                                    Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)" />
+                    }
                 </TemplateColumn>
                 @* Sin menú «⋯». Lo que hacía ese menú: «Ver» es el clic en la fila, sus fechas o Enter;
                    «Editar», el lápiz de la cabecera del panel y la tecla «e»; «Cancelar visita», la selección
@@ -264,7 +308,7 @@
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                               Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-            <LeyendaAtajosLista Omitir="@(["f"])" HayFilas="@(_totalElementos > 0)" />
+            <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
         </div>
 
         @* TRES estados vacíos, no dos, y la razón es que "Solo activas" viene

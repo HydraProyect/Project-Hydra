@@ -147,8 +147,8 @@
   <data name="ResumenCentrosTruncado" xml:space="preserve">
     <value>Es mostren els {0} centres amb pitjor estat de {1}.</value>
   </data>
-  <data name="DetalleEmpresa" xml:space="preserve">
-    <value>Empresa: {0}</value>
+  <data name="DetalleEntraComoContratista" xml:space="preserve">
+    <value>Entra com a contractista: {0}</value>
   </data>
   <data name="DetalleVencidosUno" xml:space="preserve">
     <value>1 vençut</value>
@@ -209,6 +209,18 @@
   </data>
   <data name="ErrorSubcontratasTitulo" xml:space="preserve">
     <value>No hem pogut carregar les subcontractes</value>
+  </data>
+  <data name="BuscadorCentros" xml:space="preserve">
+    <value>Cerca un centre d’aquest client…</value>
+  </data>
+  <data name="ResumenCentrosBuscados" xml:space="preserve">
+    <value>Es mostren {0} de {1}.</value>
+  </data>
+  <data name="ResumenCentrosBuscadosTruncado" xml:space="preserve">
+    <value>Es mostren {0} dels {1} centres amb pitjor estat; aquest Client en té {2} i el cercador només mira aquests {1}.</value>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Treu els filtres</value>
   </data>
   <data name="ListaCentros" xml:space="preserve">
     <value>Centres d’aquest Client</value>
@@ -437,6 +449,18 @@
   </data>
   <data name="MotivoDocumentos" xml:space="preserve">
     <value>{0} documents</value>
+  </data>
+  <data name="IncidenciasTituloUna" xml:space="preserve">
+    <value>1 document amb incidència entre els seus treballadors</value>
+  </data>
+  <data name="IncidenciasTitulo" xml:space="preserve">
+    <value>{0} documents amb incidència entre els seus treballadors</value>
+  </data>
+  <data name="IncidenciasPieMas" xml:space="preserve">
+    <value>I {0} més.</value>
+  </data>
+  <data name="IncidenciasPieMasAlCorregir" xml:space="preserve">
+    <value>I {0} més: apareixen aquí en corregir aquestes.</value>
   </data>
   <data name="TituloSinIncidencias" xml:space="preserve">
     <value>Sense alertes de vigència obertes entre els seus treballadors</value>

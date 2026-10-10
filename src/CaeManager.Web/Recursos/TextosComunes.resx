@@ -56,6 +56,9 @@
     <value>Abrir el panel de {0}</value>
     <comment>Título del nombre que abre el panel en una fila de relación sin página 360 (FilaRelacion). {0}: nombre de la entidad.</comment>
   </data>
+  <data name="PestanaFicha" xml:space="preserve">
+    <value>Ficha</value>
+  </data>
   <data name="Consultar360" xml:space="preserve">
     <value>Consultar de un vistazo</value>
   </data>
@@ -192,6 +195,43 @@
   </data>
   <data name="BorrarFiltroGuardado" xml:space="preserve">
     <value>Borrar filtro guardado {0}</value>
+  </data>
+  <data name="FiltroGuardadoModalTitulo" xml:space="preserve">
+    <value>Guardar filtro actual</value>
+    <comment>Título del modal de FiltrosGuardadosDeListado.</comment>
+  </data>
+  <data name="FiltroGuardadoNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="FiltroGuardadoNombrePlaceholder" xml:space="preserve">
+    <value>Pendientes de revisar</value>
+  </data>
+  <data name="FiltroGuardadoSinNombre" xml:space="preserve">
+    <value>Escribe un nombre para el filtro</value>
+  </data>
+  <data name="FiltroGuardadoGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="FiltroGuardadoCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="FiltroGuardadoToast" xml:space="preserve">
+    <value>Filtro guardado.</value>
+  </data>
+  <data name="FiltroGuardadoBorrarTitulo" xml:space="preserve">
+    <value>¿Borrar el filtro guardado «{0}»?</value>
+  </data>
+  <data name="FiltroGuardadoBorrarMensaje" xml:space="preserve">
+    <value>Desaparecerá de tus filtros guardados de esta pantalla. No borra ningún dato ni cambia lo que la lista enseña ahora.</value>
+  </data>
+  <data name="FiltroGuardadoBorrarBoton" xml:space="preserve">
+    <value>Borrar filtro</value>
+  </data>
+  <data name="FiltroGuardadoBorrarError" xml:space="preserve">
+    <value>No pudimos borrar el filtro guardado. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="FiltroGuardadoGuardarError" xml:space="preserve">
+    <value>No pudimos guardar el filtro. Si ya tienes uno con ese nombre, elige otro; si no, intenta nuevamente en unos segundos.</value>
   </data>
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
     <value>Logo de la organización</value>
@@ -343,6 +383,28 @@
   <data name="ContraerTodo" xml:space="preserve">
     <value>Contraer todo</value>
   </data>
+  <data name="AgruparRotulo" xml:space="preserve">
+    <value>Agrupar: {0}</value>
+    <comment>Pastilla del desplegable «Agrupar» de un listado con una agrupación aplicada; {0} es el campo («Cliente»).</comment>
+  </data>
+  <data name="AgruparRotuloNo" xml:space="preserve">
+    <value>Agrupar: no</value>
+    <comment>Pastilla del desplegable «Agrupar» de un listado sin agrupar.</comment>
+  </data>
+  <data name="AgruparSin" xml:space="preserve">
+    <value>Sin agrupar</value>
+  </data>
+  <data name="AgruparPor" xml:space="preserve">
+    <value>Por {0}</value>
+    <comment>Opción del desplegable «Agrupar»; {0} es el campo («Cliente»).</comment>
+  </data>
+  <data name="GrupoContadorParcial" xml:space="preserve">
+    <value>{0} de {1}</value>
+    <comment>Contador de la cabecera de grupo cuando la página solo enseña parte del grupo: {0} filas en esta página de las {1} del grupo.</comment>
+  </data>
+  <data name="GrupoContadorParcialTitulo" xml:space="preserve">
+    <value>{0} de {1} en esta página</value>
+  </data>
   <data name="FranjaEstadoEtiqueta" xml:space="preserve">
     <value>Filtrar por estado</value>
   </data>
@@ -398,5 +460,21 @@
   </data>
   <data name="ExtensionInstalarPista" xml:space="preserve">
     <value>Si todavía no la tienes instalada, mira «Instalar la extensión», más abajo.</value>
+  </data>
+  <data name="CumplimientoEtiqueta" xml:space="preserve">
+    <value>{0} % de cumplimiento</value>
+    <comment>{0}: porcentaje de 0 a 100. Nombre accesible por defecto de BarraCumplimiento.</comment>
+  </data>
+  <data name="CumplimientoSinRequisitos" xml:space="preserve">
+    <value>Sin requisitos</value>
+  </data>
+  <data name="RestablecerVista" xml:space="preserve">
+    <value>Restablecer vista</value>
+  </data>
+  <data name="RestablecerVistaTitulo" xml:space="preserve">
+    <value>Esta vista se recuerda para tu usuario en esta organización. Pulsa para volver a la vista de fábrica.</value>
+  </data>
+  <data name="VistaRestablecidaToast" xml:space="preserve">
+    <value>Vista de fábrica restablecida.</value>
   </data>
 </root>

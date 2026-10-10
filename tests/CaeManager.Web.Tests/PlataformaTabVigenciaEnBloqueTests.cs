@@ -40,7 +40,7 @@ public sealed class PlataformaTabVigenciaEnBloqueTests : BunitContext
     {
         var cut = Render<PlataformaTab>();
 
-        cut.Find(".plataforma-proveedor-resumen").TextContent.Should().Contain("2 aceptada(s) sin vigencia");
+        cut.Find(".plataforma-proveedor-resumen").TextContent.Should().Contain("2 validada(s) sin vigencia");
     }
 
     [Fact]

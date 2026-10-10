@@ -6,19 +6,20 @@ namespace CaeManager.E2ETests;
 /// KeyTips sobre un listado real (Centros): las letras las declaran los componentes compartidos
 /// (CabeceraListado, BarraFiltros) y la propia página («Agrupar»), y los menús los abre Blazor
 /// por el circuito, que es justo lo que <see cref="KeyTipsSuperficieTests"/> solo puede imitar.
-/// Un único recorrido encadenado: encender, bajar a un grupo y elegir, subir, abrir un menú,
-/// ejecutar una letra y salir.
+/// Un único recorrido encadenado: encender, abrir un menú de opciones y elegir, abrir otro menú y
+/// subir, ejecutar una letra y salir.
 /// </summary>
 /// <remarks>
-/// El «grupo» es «Agrupar» porque la franja de estado (letra T) todavía no existe en el código:
-/// cuando llegue se declara igual (<c>data-keytip="T" data-keytip-grupo</c>) y baja de nivel
-/// por este mismo camino.
+/// «Agrupar» es un desplegable (<c>DesplegableAgrupar</c>, letra A): un menú que abre Blazor, cuyas
+/// opciones reciben letra al llegar el panel y que apaga el modo al elegir. Ningún control del código
+/// se declara hoy como grupo (<c>data-keytip-grupo</c>): ese nivel, en el que elegir no apaga, lo
+/// cubre <see cref="KeyTipsSuperficieTests"/> con HTML estático.
 /// </remarks>
-[Collection("AppCollection")]
-public class KeyTipsEnListadoTests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
 {
     [Fact]
-    public async Task Alt_enciende_las_letras_baja_a_un_grupo_abre_un_menu_ejecuta_y_sale_en_Centros()
+    public async Task Alt_enciende_las_letras_elige_en_el_menu_Agrupar_abre_otro_menu_ejecuta_y_sale_en_Centros()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -29,13 +30,14 @@ public class KeyTipsEnListadoTests(WebAppFixture fixture)
 
         var html = page.Locator("html");
         var letras = page.Locator(".keytip");
-        var agrupar = page.Locator("[data-keytip-grupo]");
-        var sinAgrupar = agrupar.GetByRole(AriaRole.Button, new() { Name = "Sin agrupar", Exact = true });
+        var agrupar = Ayudas.DesplegableAgrupar(page);
         var filtro = page.Locator("[data-filtro-pantalla]");
+        var apagado = new System.Text.RegularExpressions.Regex(".+");
 
-        // «Agrupar» solo se pinta con centros en la página: sin él no hay grupo al que bajar.
+        // «Agrupar» solo se pinta con centros en la página; de serie la lista llega agrupada.
         await Assertions.Expect(agrupar).ToBeVisibleAsync(new() { Timeout = 30_000 });
-        await Assertions.Expect(sinAgrupar).ToHaveAttributeAsync("aria-pressed", "false");
+        await Assertions.Expect(agrupar).ToHaveAttributeAsync("aria-expanded", "false");
+        await Assertions.Expect(page.Locator(".grupo-lista")).Not.ToHaveCountAsync(0);
 
         // --- Encender: Alt pulsada y soltada sola. ---
         await page.Keyboard.PressAsync("Alt");
@@ -46,16 +48,21 @@ public class KeyTipsEnListadoTests(WebAppFixture fixture)
         foreach (var letra in new[] { "K", "F", "L", "A" })
             Assert.Single(pintadas, l => l == letra);
 
-        // --- Bajar a un grupo y elegir dentro: el modo sigue encendido. ---
+        // --- A abre el desplegable «Agrupar» por el circuito: las letras pasan a sus dos opciones. ---
         await page.Keyboard.PressAsync("a");
-        await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "grupo");
+        await Assertions.Expect(agrupar).ToHaveAttributeAsync("aria-expanded", "true");
+        await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "menu");
         await Assertions.Expect(letras).ToHaveCountAsync(2);
-        await page.Keyboard.PressAsync("s");
-        await Assertions.Expect(sinAgrupar).ToHaveAttributeAsync("aria-pressed", "true");
-        await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "grupo");
 
-        // --- Retroceso sube a la raíz. ---
-        await page.Keyboard.PressAsync("Backspace");
+        // --- Elegir una opción la aplica y apaga el modo: «Sin agrupar» quita los grupos. ---
+        await page.Keyboard.PressAsync("s");
+        await Assertions.Expect(agrupar).ToHaveTextAsync("Agrupar: no");
+        await Assertions.Expect(page.Locator(".grupo-lista")).ToHaveCountAsync(0);
+        await Assertions.Expect(html).Not.ToHaveAttributeAsync("data-keytips", apagado);
+        await Assertions.Expect(letras).ToHaveCountAsync(0);
+
+        // --- Encender otra vez (el foco volvió a la pastilla, que no es un campo de texto). ---
+        await page.Keyboard.PressAsync("Alt");
         await Assertions.Expect(html).ToHaveAttributeAsync("data-keytips", "raiz");
 
         // --- La letra de un menú: lo abre el servidor y las letras pasan a sus opciones. ---
@@ -75,7 +82,7 @@ public class KeyTipsEnListadoTests(WebAppFixture fixture)
         await page.Keyboard.PressAsync("f");
         await Assertions.Expect(filtro).ToBeFocusedAsync();
         await Assertions.Expect(filtro).ToHaveValueAsync(string.Empty);
-        await Assertions.Expect(html).Not.ToHaveAttributeAsync("data-keytips", new System.Text.RegularExpressions.Regex(".+"));
+        await Assertions.Expect(html).Not.ToHaveAttributeAsync("data-keytips", apagado);
         await Assertions.Expect(letras).ToHaveCountAsync(0);
 
         // --- Dentro del campo, Alt no enciende. Fuera, enciende y Esc sale. ---

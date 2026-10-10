@@ -34,13 +34,27 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 /// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Documentos por estado con todos los demás filtros
 /// aplicados y sin el de estado. Solo lo pide el listado, que es quien pinta la franja: cuesta una consulta más.
 /// </param>
+/// <param name="TipoDocumentoId">Solo los Documentos de ese Tipo de documento.</param>
+/// <param name="ProveedorPlataformaCaeId">
+/// Solo los Documentos con alguna acreditación en un canal de esa plataforma CAE, en cualquier estado: los mismos
+/// que pintan esa plataforma en la columna «Plataformas» del listado.
+/// </param>
 public record ObtenerDocumentosQuery(
     Guid? TrabajadorId, AmbitoAplicacion? Ambito, string? Busqueda, EstadoDocumento? Estado = null,
     int Pagina = 1, int TamanoPagina = 20, Guid? PropietarioId = null,
     string? OrdenarPor = null, bool Descendente = false, DateOnly? FechaVencimientoHasta = null,
     IReadOnlyCollection<EstadoDocumento>? Estados = null, bool ConRecuentosPorEstado = false,
-    Guid? DocumentoId = null)
-    : IRequest<ResultadoPaginado<DocumentoListaDto>>;
+    Guid? DocumentoId = null, Guid? TipoDocumentoId = null, Guid? ProveedorPlataformaCaeId = null)
+    : IRequest<ResultadoPaginado<DocumentoListaDto>>
+{
+    /// <summary>
+    /// Valor de <see cref="OrdenarPor"/> para el orden de inicio del listado: lo que más urge primero (la clave de
+    /// <c>EstadoDocumentalFiltro.ClaveOrden</c>) y, dentro de cada estado, por vencimiento. No es una columna:
+    /// lo pide el listado mientras el usuario no elige orden. Sin <see cref="OrdenarPor"/> el orden sigue siendo
+    /// el de siempre (emisión más reciente primero), que es el que conocen la API y las fichas.
+    /// </summary>
+    public const string OrdenPorSeveridad = "Severidad";
+}
 
 /// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
 public record AcreditacionResumenDto(Guid Id, string NombrePlataforma, EstadoAcreditacion Estado);
@@ -202,12 +216,26 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         if (request.PropietarioId is not null)
             consulta = consulta.Where(x => x.PropietarioId == request.PropietarioId);
 
+        // Los dos filtros recortan la unión ya limitada al alcance del usuario: nunca la amplían.
+        if (request.TipoDocumentoId is { } tipoDocumentoId)
+            consulta = consulta.Where(x => x.TipoDocumentoId == tipoDocumentoId);
+
+        if (request.ProveedorPlataformaCaeId is { } proveedorPlataformaCaeId)
+        {
+            var documentosEnPlataforma =
+                from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
+                join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
+                where canal.ProveedorPlataformaCaeId == proveedorPlataformaCaeId
+                select acreditacion.DocumentoId;
+            consulta = consulta.Where(x => documentosEnPlataforma.Contains(x.Id));
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
+            var busqueda = request.Busqueda;
             consulta = consulta.Where(x =>
-                x.PropietarioNombre.ToUpper().Contains(busqueda) ||
-                x.TipoDocumentoNombre.ToUpper().Contains(busqueda));
+                TextoDeBusqueda.Contiene(x.PropietarioNombre, busqueda) ||
+                TextoDeBusqueda.Contiene(x.TipoDocumentoNombre, busqueda));
         }
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -317,6 +345,14 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 : x.FechaVencimiento <= limiteRojo ? 1
                 : x.FechaVencimiento <= limiteAmbar ? 2
                 : 4),
+            // Orden de inicio del listado: la misma clave de estado y, dentro de cada estado, lo que antes vence.
+            (ObtenerDocumentosQuery.OrdenPorSeveridad, _) => consulta.OrderBy(x =>
+                x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
+                : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
+                : x.FechaVencimiento < hoy ? 0
+                : x.FechaVencimiento <= limiteRojo ? 1
+                : x.FechaVencimiento <= limiteAmbar ? 2
+                : 4).ThenBy(x => x.FechaVencimiento),
             _ => consulta.OrderByDescending(x => x.FechaEmision)
         };
         // Desempate estable: sin un criterio total, PostgreSQL puede devolver

@@ -73,7 +73,7 @@ public class ObtenerVehiculosPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto(sqlCapturado.Add);
         var handler = new ObtenerVehiculosQueryHandler(
             contexto, contexto, new AlcanceDatosServiceFalso(), contexto, contexto,
-            new CalculoEstadoDocumentalService(contexto, contexto));
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto));
 
         var resultado = await handler.Handle(
             new ObtenerVehiculosQuery(
@@ -100,7 +100,7 @@ public class ObtenerVehiculosPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerVehiculosQueryHandler(
             contexto, contexto, new AlcanceDatosServiceFalso(), contexto, contexto,
-            new CalculoEstadoDocumentalService(contexto, contexto));
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto));
 
         var resultado = await handler.Handle(
             new ObtenerVehiculosQuery(null, Pagina: 1, TamanoPagina: 50, EstadoDocumental: nameof(EstadoDocumento.Faltante)),

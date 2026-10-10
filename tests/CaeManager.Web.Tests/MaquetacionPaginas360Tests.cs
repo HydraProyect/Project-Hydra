@@ -21,7 +21,8 @@ namespace CaeManager.Web.Tests;
 /// 360 abra lo que dice abrir y lo anuncie con el nombre de la entidad en el
 /// idioma de la cuenta. Lo que NO observan: el estilo calculado (bUnit no
 /// aplica CSS). Las medidas de los .razor.css se copiaron de los mockups y de
-/// CentroDetalle.razor.css; que se vean igual se comprueba en el navegador.
+/// la maquetación propia que tenía Centro 360 (hoy usa estas piezas); que se
+/// vean igual se comprueba en el navegador.
 /// </para>
 /// </summary>
 public class MaquetacionPaginas360Tests : BunitContext
@@ -105,6 +106,17 @@ public class MaquetacionPaginas360Tests : BunitContext
         cut.FindAll("aside").Should().BeEmpty();
         cut.Find(".cuerpo-con-lateral").ClassList.Should().Contain("cuerpo-con-lateral-sin-lateral",
             "sin esa clase la rejilla reservaría 300 px vacíos a la derecha");
+    }
+
+    [Fact]
+    public void El_cuerpo_lleva_la_marca_por_la_que_los_atajos_de_teclado_reconocen_una_ficha()
+    {
+        var cut = Render<CuerpoConLateral>(p => p.AddChildContent("<p>Pestañas</p>"));
+
+        cut.Find(".cuerpo-con-lateral").HasAttribute("data-atajos-ficha").Should().BeTrue(
+            "atajos-ficha.js solo reparte j/k/e/f y 1–9 donde encuentra data-atajos-ficha");
+        cut.FindAll("[data-atajos-ficha] > .cuerpo-con-lateral-principal").Should().ContainSingle(
+            "las filas que recorre j/k se buscan dentro de la columna principal, no en el lateral");
     }
 
     // ── Tarjeta compacta ───────────────────────────────────────────────────
@@ -209,7 +221,7 @@ public class MaquetacionPaginas360Tests : BunitContext
                 .Add(x => x.Nombre, "Planta Barakaldo")
                 .Add(x => x.Href, "/centros/5")
                 .Add(x => x.NombreIcono, "centros")
-                .Add(x => x.Detalle, (RenderFragment)(b => b.AddContent(0, "Empresa: Montajes Ebro S.L.")))
+                .Add(x => x.Detalle, (RenderFragment)(b => b.AddContent(0, "3 vencidos · 1 próximo")))
                 .Add(x => x.Derecha, (RenderFragment)(b => b.AddMarkupContent(0, "<span id='estado'>Bloqueado</span>")))
                 .Add(x => x.OnAbrir360, () => abiertos++)));
 
@@ -220,7 +232,7 @@ public class MaquetacionPaginas360Tests : BunitContext
         nombre.TextContent.Should().Be("Planta Barakaldo");
         nombre.GetAttribute("href").Should().Be("/centros/5");
         fila.QuerySelector(".fila-relacion-icono svg").Should().NotBeNull();
-        fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresa: Montajes Ebro S.L.");
+        fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("3 vencidos · 1 próximo");
 
         var derecha = fila.QuerySelector(".fila-relacion-derecha")!;
         derecha.QuerySelector("#estado").Should().NotBeNull();

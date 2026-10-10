@@ -270,12 +270,12 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
 
         await using var c = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso();
-        var calculoDocumental = new CalculoEstadoDocumentalService(c, c);
+        var calculoDocumental = new CalculoEstadoDocumentalService(c, c, c);
         var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c);
 
         // 1-3. Listas de Trabajadores, Empresas y Vehículos: el estado que rotula cada fila Y el filtro por estado
         //      (que repite los umbrales en SQL) dan el estado de la tabla.
-        var trabajadores = new ObtenerTrabajadoresQueryHandler(c, c, c, c, alcance, calculoDocumental);
+        var trabajadores = new ObtenerTrabajadoresQueryHandler(c, c, c, c, alcance, calculoDocumental, c);
         var empresas = new ObtenerEmpresasQueryHandler(c, alcance, calculoDocumental, c, c, c, c, calculoCentro);
         var vehiculos = new ObtenerVehiculosQueryHandler(c, c, alcance, c, c, calculoDocumental);
 
@@ -362,7 +362,7 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
         }
 
         // 6. Documentación por Centro de un Trabajador (Trabajador 360).
-        var documentacionPorCentro = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(c, c, c, c, c, c, alcance);
+        var documentacionPorCentro = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }));
         foreach (var caso in _casos)
         {
             var centros = await documentacionPorCentro.Handle(
@@ -498,9 +498,9 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
     {
         await using var c = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso();
-        var calculoDocumental = new CalculoEstadoDocumentalService(c, c);
+        var calculoDocumental = new CalculoEstadoDocumentalService(c, c, c);
         var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c);
-        var trabajadores = new ObtenerTrabajadoresQueryHandler(c, c, c, c, alcance, calculoDocumental);
+        var trabajadores = new ObtenerTrabajadoresQueryHandler(c, c, c, c, alcance, calculoDocumental, c);
         var empresas = new ObtenerEmpresasQueryHandler(c, alcance, calculoDocumental, c, c, c, c, calculoCentro);
         var vehiculos = new ObtenerVehiculosQueryHandler(c, c, alcance, c, c, calculoDocumental);
         var documentos = new ObtenerDocumentosQueryHandler(c, c, c, c, c, c, c, alcance, c, c);

@@ -34,4 +34,19 @@ public static class PlazoProyecto
         var total = fin.DayNumber - inicio.DayNumber + 1;
         return Math.Clamp((int)Math.Round(abiertos * 100d / total, MidpointRounding.AwayFromZero), 0, 100);
     }
+
+    /// <summary>
+    /// Días que un proyecto ABIERTO lleva pasado de su fin previsto. Sin valor si está cerrado, si aún no
+    /// lo ha superado (el propio día del fin previsto no cuenta como retraso) o si no hay plazo que medir
+    /// (<see cref="PorcentajeDelPlazo"/>). Es la condición con la que la ficha 360 dice «fin previsto
+    /// superado hace N días»: el porcentaje se queda en 100 y no distingue un día de retraso de un mes.
+    /// </summary>
+    public static int? DiasDeRetraso(DateOnly inicio, DateOnly? finPrevisto, DateOnly? cierre, DateOnly hoy)
+    {
+        if (cierre is not null || finPrevisto is not { } fin || PorcentajeDelPlazo(inicio, finPrevisto, cierre, hoy) is null)
+            return null;
+
+        var retraso = hoy.DayNumber - fin.DayNumber;
+        return retraso > 0 ? retraso : null;
+    }
 }

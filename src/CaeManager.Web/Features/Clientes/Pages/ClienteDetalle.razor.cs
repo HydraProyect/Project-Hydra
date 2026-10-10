@@ -80,6 +80,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// </summary>
     [Parameter, SupplyParameterFromQuery(Name = "pestana")] public string? Pestana { get; set; }
 
+    /// <summary>Texto del buscador de la pestaña Centros, en la URL (<c>?q=</c>), como en Centro 360.</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Busqueda { get; set; }
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -111,6 +114,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     private string _pestanaActiva = PestanaPorDefecto;
     private string? _pestanaDeLaUrl;
+    private string _busqueda = string.Empty;
+    private string? _busquedaDeLaUrl;
 
     /// <summary>
     /// Cliente que esta instancia tiene cargado. Blazor reutiliza la instancia
@@ -148,6 +153,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     protected override async Task OnParametersSetAsync()
     {
         AdoptarPestanaDeLaUrl();
+        AdoptarBusquedaDeLaUrl();
 
         if (_clienteCargado == ClienteId)
             return;
@@ -170,6 +176,40 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _pestanaDeLaUrl = Pestana;
         _pestanaActiva = Normalizar(Pestana);
     }
+
+    /// <summary>
+    /// Igual que la pestaña: el texto de la URL se adopta cuando cambia ahí fuera, no en cada repintado, que pisaría
+    /// lo que se está tecleando (<c>CampoTexto</c> avisa con 300 ms de retraso).
+    /// </summary>
+    private void AdoptarBusquedaDeLaUrl()
+    {
+        if (string.Equals(_busquedaDeLaUrl, Busqueda, StringComparison.Ordinal))
+            return;
+
+        _busquedaDeLaUrl = Busqueda;
+        _busqueda = Busqueda ?? string.Empty;
+    }
+
+    private void BuscarCentros(string valor)
+    {
+        _busqueda = valor;
+        _busquedaDeLaUrl = string.IsNullOrWhiteSpace(valor) ? null : valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
+    }
+
+    /// <summary>Quitar el filtro lo quita también de la URL: si no, recargar o compartir el enlace lo repone.</summary>
+    private void QuitarFiltros() => BuscarCentros(string.Empty);
+
+    private bool HayBusqueda => !string.IsNullOrWhiteSpace(_busqueda);
+
+    /// <summary>
+    /// Los Centros que casan con el buscador, por nombre y sin distinguir mayúsculas. Filtra lo ya cargado, sin consulta
+    /// nueva: los indicadores de la cabecera y el contador de la pestaña siguen contando todos.
+    /// </summary>
+    private IReadOnlyList<CentroListaDto> CentrosVisibles =>
+        _centros is null ? []
+        : !HayBusqueda ? _centros
+        : _centros.Where(c => c.Nombre.Contains(_busqueda.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
 
     private static string Normalizar(string? pestana) =>
         _pestanas.Any(p => p.Id == pestana) ? pestana! : PestanaPorDefecto;
@@ -460,21 +500,49 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         get
         {
             var mostrados = _centros?.Count ?? 0;
+            // El buscador filtra lo cargado: con la lista cortada en MaximoCentros hay que seguir diciéndolo, o «0 de 200»
+            // se leería como «este Cliente no tiene ese Centro».
+            if (HayBusqueda)
+                return _totalCentros > mostrados
+                    ? Textos["ResumenCentrosBuscadosTruncado", CentrosVisibles.Count, mostrados, _totalCentros]
+                    : Textos["ResumenCentrosBuscados", CentrosVisibles.Count, mostrados];
+
             return _totalCentros > mostrados
                 ? Textos["ResumenCentrosTruncado", mostrados, _totalCentros]
                 : Plural(mostrados, "ResumenCentrosUno", "ResumenCentrosVarios");
         }
     }
 
-    /// <summary>«Empresa: Ibertec GmbH · 3 vencidos · 1 próximo», sin partes en cero.</summary>
+    /// <summary>
+    /// El Centro es del Cliente empresarial de esta ficha, que es su titular: la fila nunca rotula una Empresa como si
+    /// fuera la dueña. La Empresa del Tenant solo «entra como contratista», y solo se dice cuando el usuario ve más de
+    /// una Empresa contratista de este Cliente empresarial; con una sola no distingue nada (decisión del 2026-10-09).
+    /// </summary>
+    private bool VariasEmpresasContratistas => _empresas is { Count: > 1 };
+
+    private string? EntraComoContratista(CentroListaDto centro) =>
+        VariasEmpresasContratistas && !string.IsNullOrWhiteSpace(centro.EmpresaRazonSocial)
+            ? Textos["DetalleEntraComoContratista", centro.EmpresaRazonSocial].Value
+            : null;
+
+    /// <summary>«Entra como contratista: Ibertec GmbH · 3 vencidos · 1 próximo», sin partes en cero; vacío si no queda ninguna.</summary>
     private string DetalleCentro(CentroListaDto centro)
     {
-        var partes = new List<string> { Textos["DetalleEmpresa", centro.EmpresaRazonSocial] };
+        var partes = new List<string>();
+        if (EntraComoContratista(centro) is { } contratista)
+            partes.Add(contratista);
         if (centro.Recuentos.TotalVencidas > 0)
             partes.Add(Plural(centro.Recuentos.TotalVencidas, "DetalleVencidosUno", "DetalleVencidosVarios"));
         if (centro.Recuentos.TotalProximas > 0)
             partes.Add(Plural(centro.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios"));
         return string.Join(" · ", partes);
+    }
+
+    /// <summary>Sin partes no se pasa la ranura: FilaRelacion pintaría una segunda línea vacía.</summary>
+    private RenderFragment? FragmentoDetalleCentro(CentroListaDto centro)
+    {
+        var detalle = DetalleCentro(centro);
+        return detalle.Length == 0 ? null : builder => builder.AddContent(0, detalle);
     }
 
     private IReadOnlyList<PestanaDefinicion> PestanasConRecuento =>
@@ -496,7 +564,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// <summary>Un indicador de la cabecera y el desglose literal de su ventana de contexto.</summary>
     private sealed record Indicador(
         string Clave, string Texto, string Titulo, string Etiqueta, IReadOnlyList<string> Lineas,
-        TonoBadge Tono, TamanoBadge Tamano);
+        TonoBadge Tono);
 
     /// <summary>
     /// Los centros de este cliente, no documentos sumados: un documento de
@@ -520,7 +588,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
                     Plural(trabajadoresBloqueados, "IndicadorTrabajadoresBloqueadosUno", "IndicadorTrabajadoresBloqueadosVarios"),
                     Plural(trabajadoresBloqueados, "VentanaTrabajadoresBloqueadosUno", "VentanaTrabajadoresBloqueadosVarios"),
                     _bloqueos.Select(b => $"{b.TrabajadorNombre} · {b.CentroNombre}").Distinct().ToList(),
-                    TonoBadge.Peligro, TamanoBadge.Medio));
+                    TonoBadge.Peligro));
             }
 
             // El Centro solo está «Bloqueado» por la plataforma del Cliente empresarial (D-7), no por documentos.
@@ -532,8 +600,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
                     : Textos["IndicadorBloqueados", bloqueados.Count, _totalCentros];
                 indicadores.Add(Crear("bloqueados", texto,
                     Plural(bloqueados.Count, "VentanaBloqueadosUno", "VentanaBloqueadosVarios"),
-                    bloqueados.Select(c => $"{c.Nombre} · {c.EmpresaRazonSocial}").ToList(),
-                    TonoBadge.Peligro, TamanoBadge.Medio));
+                    bloqueados.Select(c => EntraComoContratista(c) is { } contratista ? $"{c.Nombre} · {contratista}" : c.Nombre).ToList(),
+                    TonoBadge.Peligro));
             }
 
             var conVencidos = _centros.Where(c => c.Recuentos.TotalVencidas > 0).ToList();
@@ -543,7 +611,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
                     Plural(conVencidos.Count, "IndicadorVencidosUno", "IndicadorVencidosVarios"),
                     Plural(conVencidos.Count, "VentanaVencidosUno", "VentanaVencidosVarios"),
                     conVencidos.Select(c => $"{c.Nombre} · {Plural(c.Recuentos.TotalVencidas, "DetalleVencidosUno", "DetalleVencidosVarios")}").ToList(),
-                    TonoBadge.Peligro, TamanoBadge.Pequeno));
+                    TonoBadge.Peligro));
             }
 
             var conProximos = _centros.Where(c => c.Recuentos.TotalProximas > 0).ToList();
@@ -553,15 +621,15 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
                     Plural(conProximos.Count, "IndicadorProximosUno", "IndicadorProximosVarios"),
                     Plural(conProximos.Count, "VentanaProximosUno", "VentanaProximosVarios"),
                     conProximos.Select(c => $"{c.Nombre} · {Plural(c.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios")}").ToList(),
-                    TonoBadge.Advertencia, TamanoBadge.Pequeno));
+                    TonoBadge.Advertencia));
             }
 
             return indicadores;
         }
     }
 
-    private Indicador Crear(string clave, string texto, string titulo, IReadOnlyList<string> lineas, TonoBadge tono, TamanoBadge tamano) =>
-        new(clave, texto, titulo, Textos["AriaIndicador", texto, string.Join("; ", lineas)], lineas, tono, tamano);
+    private Indicador Crear(string clave, string texto, string titulo, IReadOnlyList<string> lineas, TonoBadge tono) =>
+        new(clave, texto, titulo, Textos["AriaIndicador", texto, string.Join("; ", lineas)], lineas, tono);
 
     // ── Navegación ────────────────────────────────────────────────────────
 

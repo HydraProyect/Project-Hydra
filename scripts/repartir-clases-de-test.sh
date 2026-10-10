@@ -4,11 +4,16 @@
 #
 # El reparto se calcula a partir de la lista real de tests, no de una lista
 # escrita a mano: una clase nueva cae en su bloque sola. Como los N bloques
-# ordenan la misma lista y usan el mismo criterio de posición, la partición
-# cubre todas las clases y no solapa ninguna.
+# leen la misma lista y aplican el mismo criterio (hash del nombre, salvo las
+# clases fijadas), la partición cubre todas las clases y no solapa ninguna.
 #
 # Uso:   repartir-clases-de-test.sh <proyecto> <total-bloques> <bloque>
 # Sale:  el filtro por stdout; 1 si el bloque quedaría vacío.
+#
+# REPARTO_FIJADAS (opcional): fichero con líneas "<Clase.Completa> <bloque>".
+# Las clases que nombra van al bloque que dice en vez de al de su hash. Sirve
+# para separar las pocas clases muy pesadas que el hash juntó por azar; el
+# resto sigue por hash. Sin la variable, todo va por hash.
 #
 # Por qué falla cuando el bloque queda vacío: `dotnet test --filter` con un
 # patrón que no casa con nada TERMINA EN VERDE sin ejecutar un solo test. Un
@@ -86,10 +91,58 @@ fi
 # El hash de una clase depende solo de su propio nombre: anadir, quitar o
 # renombrar OTRA clase nunca lo cambia, asi que una clase nueva cae en su
 # bloque sola y el resto del reparto queda exactamente como estaba.
+#
+# CLASES FIJADAS. El hash reparte bien el número de clases, pero no su peso:
+# medido el 2026-10-10 (run 38038470777), las tres clases más pesadas de la
+# suite cayeron juntas en el bloque 1 y lo dejaron como camino crítico del
+# grupo de fusión. Una clase nombrada en REPARTO_FIJADAS va al bloque que el
+# fichero dice. Conserva la propiedad de arriba: fijar una clase no mueve a
+# ninguna otra, y una clase nueva sigue cayendo sola por su hash.
+#
+# Lo que se rechaza, porque repartiría mal sin avisar:
+#   - un bloque que no es un entero de una a cuatro cifras, sin ceros a la
+#     izquierda, entre 1 y el total (las cuatro cifras evitan que un numero
+#     enorme desborde la comparacion y pase por valido; fichero escrito para
+#     otro número de bloques: con menos bloques la clase no correría en
+#     ninguno);
+#   - la misma clase fijada dos veces.
+# Una clase fijada que ya no existe en el listado solo avisa: es una línea
+# caducada tras un renombrado, y la clase nueva corre por su hash.
+declare -A fijadas=()
+if [ -n "${REPARTO_FIJADAS:-}" ]; then
+  if [ ! -f "$REPARTO_FIJADAS" ]; then
+    echo "No existe el fichero de clases fijadas: $REPARTO_FIJADAS" >&2
+    exit 2
+  fi
+  while read -r nombre destino resto || [ -n "${nombre:-}" ]; do
+    nombre=${nombre%$'\r'}; destino=${destino%$'\r'}; resto=${resto%$'\r'}
+    case "$nombre" in ''|'#'*) continue ;; esac
+    if [ -n "$resto" ] || ! [[ "$destino" =~ ^[1-9][0-9]{0,3}$ ]] || [ "$destino" -gt "$total" ]; then
+      echo "Línea inválida en $REPARTO_FIJADAS: '$nombre $destino $resto'." >&2
+      echo "Se espera '<Clase.Completa> <bloque>' con el bloque entre 1 y $total." >&2
+      exit 2
+    fi
+    if [ -n "${fijadas[$nombre]:-}" ]; then
+      echo "La clase $nombre está fijada dos veces en $REPARTO_FIJADAS." >&2
+      exit 2
+    fi
+    fijadas[$nombre]=$destino
+  done < "$REPARTO_FIJADAS"
+  for nombre in "${!fijadas[@]}"; do
+    if ! printf '%s\n' "$clases" | grep -qxF "$nombre"; then
+      echo "Aviso: la clase fijada $nombre no está en el listado; su línea de $REPARTO_FIJADAS ha caducado." >&2
+    fi
+  done
+fi
+
 mias=$(printf '%s\n' "$clases" | while IFS= read -r clase; do
-  bucket=$(( $(printf '%s' "$clase" | cksum | cut -d' ' -f1) % total ))
-  # Bloques numerados 1..total; el bucket 0..total-1 es bloque bucket+1.
-  if [ "$bucket" -eq $(( bloque - 1 )) ]; then
+  if [ -n "${fijadas[$clase]:-}" ]; then
+    destino=${fijadas[$clase]}
+  else
+    # Bloques numerados 1..total; el bucket 0..total-1 es bloque bucket+1.
+    destino=$(( $(printf '%s' "$clase" | cksum | cut -d' ' -f1) % total + 1 ))
+  fi
+  if [ "$destino" -eq "$bloque" ]; then
     printf '%s\n' "$clase"
   fi
 done)

@@ -1,0 +1,18 @@
+/* .ficha-cols de la maqueta «Páginas 360 nuevas»: un solo flujo de dos columnas, 12 px entre
+   columnas y entre cajas. Una caja nunca se parte entre columnas. */
+.cajas-ficha {
+    columns: 2;
+    column-gap: var(--space-3);
+}
+
+.cajas-ficha-caja {
+    break-inside: avoid;
+    margin: 0 0 var(--space-3);
+}
+
+/* Mismo corte que CuerpoConLateral: cuando el lateral baja, las cajas van en una columna. */
+@media (max-width: 900px) {
+    .cajas-ficha {
+        columns: 1;
+    }
+}

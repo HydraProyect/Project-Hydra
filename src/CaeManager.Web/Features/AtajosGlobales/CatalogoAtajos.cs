@@ -112,6 +112,20 @@ public static class CatalogoAtajos
     ];
 
     /// <summary>
+    /// Atajos dentro de una ficha 360: las teclas que reparte <c>atajos-ficha.js</c> (su array
+    /// <c>TECLAS_FICHA</c> lleva las letras; las cifras son un rango aparte;
+    /// <c>CatalogoAtajosSincronizadoConJsTests</c> lo vigila). <c>e</c> pulsa el botón de la fila
+    /// enfocada, el mismo que se ve: sin botón (rol Consulta) no hace nada.
+    /// </summary>
+    public static readonly IReadOnlyList<DefinicionAtajo> Ficha =
+    [
+        new("j / k", "FichaFilaSiguienteAnterior"),
+        new("e", "FichaAccionDeFila"),
+        new("f", "FichaBuscador"),
+        new("1 – 9", "FichaCambiarPestana")
+    ];
+
+    /// <summary>
     /// Gestos del modo KeyTips (<c>keytips.js</c>): Alt pulsada y soltada sola lo enciende;
     /// con el modo encendido cada control declarado enseña una letra.
     /// </summary>

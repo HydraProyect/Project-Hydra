@@ -90,6 +90,94 @@ comprobar "sin MINIMO_CLASES no se aplica suelo" "0" "$?"
 LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 4 5 >/dev/null 2>&1
 comprobar "bloque fuera de rango sale con error de uso" "2" "$?"
 
+# CLASES FIJADAS (REPARTO_FIJADAS). Una clase nombrada va al bloque que dice el
+# fichero; el resto no se mueve de donde lo deja su hash.
+FIJADAS=$(mktemp)
+bloque_de() {
+  # bloque_de <clase> [fichero de fijadas]: en que bloque de 2 cae la clase.
+  local b
+  for b in 1 2; do
+    if REPARTO_FIJADAS="${2:-}" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 "$b" 2>/dev/null \
+         | tr '|' '\n' | grep -qxF "FullyQualifiedName~$1."; then
+      printf '%s' "$b"
+    fi
+  done
+}
+ALFA=CaeManager.IntegrationTests.Alertas.AlfaTests
+por_hash=$(bloque_de "$ALFA")
+otro=$(( 3 - por_hash ))
+printf '# comentario\r\n\r\n%s %s\r\n' "$ALFA" "$otro" > "$FIJADAS"
+comprobar "una clase fijada va al bloque del fichero, no al de su hash" "$otro" "$(bloque_de "$ALFA" "$FIJADAS")"
+
+# Fijar una clase no mueve a ninguna otra.
+movidas=0
+for c in CaeManager.IntegrationTests.BetaTests CaeManager.IntegrationTests.GammaTests CaeManager.IntegrationTests.DeltaTests; do
+  [ "$(bloque_de "$c")" = "$(bloque_de "$c" "$FIJADAS")" ] || movidas=$((movidas + 1))
+done
+comprobar "las clases no fijadas siguen en el bloque de su hash" "0" "$movidas"
+
+# Con fijadas la particion sigue cubriendo todo sin repetir.
+union=""
+for b in 1 2; do
+  union+=$(REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 "$b" 2>/dev/null | tr '|' '\n')$'\n'
+done
+comprobar "con fijadas, 2 bloques cubren las 4 clases sin repetir" "4 4" \
+  "$(printf '%s' "$union" | grep -c .) $(printf '%s' "$union" | grep . | sort -u | wc -l | tr -d ' ')"
+
+# Un bloque mayor que el total dejaria la clase sin correr en ninguno.
+printf '%s 3\n' "$ALFA" > "$FIJADAS"
+REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 1 >/dev/null 2>&1
+comprobar "una clase fijada a un bloque que no existe sale con error de uso" "2" "$?"
+
+printf '%s uno\n' "$ALFA" > "$FIJADAS"
+REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 1 >/dev/null 2>&1
+comprobar "un bloque que no es un numero sale con error de uso" "2" "$?"
+
+for malo in 0 01 99999999999999999999; do
+  printf '%s %s\n' "$ALFA" "$malo" > "$FIJADAS"
+  REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 1 >/dev/null 2>&1
+  comprobar "el bloque '$malo' sale con error de uso" "2" "$?"
+done
+
+printf '%s 1 sobra\n' "$ALFA" > "$FIJADAS"
+REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 1 >/dev/null 2>&1
+comprobar "una linea con texto de mas sale con error de uso" "2" "$?"
+
+# La ultima linea sin salto final tambien cuenta.
+printf '# cabecera\n%s %s' "$ALFA" "$otro" > "$FIJADAS"
+comprobar "la ultima linea sin salto final se aplica" "$otro" "$(bloque_de "$ALFA" "$FIJADAS")"
+
+printf '%s 1\n%s 2\n' "$ALFA" "$ALFA" > "$FIJADAS"
+REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 1 >/dev/null 2>&1
+comprobar "la misma clase fijada dos veces sale con error de uso" "2" "$?"
+
+REPARTO_FIJADAS="$FIJADAS.no-existe" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 1 >/dev/null 2>&1
+comprobar "un fichero de fijadas que no existe sale con error de uso" "2" "$?"
+
+# Una linea caducada (clase que ya no esta en el listado) avisa y no rompe.
+printf 'CaeManager.IntegrationTests.YaNoExisteTests 1\n' > "$FIJADAS"
+aviso=$(REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 1 1 2>&1 >/dev/null | grep -c 'ha caducado')
+comprobar "una clase fijada que ya no existe avisa" "1" "$aviso"
+REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 1 1 >/dev/null 2>&1
+comprobar "y no rompe el reparto" "0" "$?"
+rm -f "$FIJADAS"
+
+# El fichero real: cada linea nombra una clase que existe en el arbol y un
+# bloque de la matriz de ci.yml. No detecta una clase movida de espacio de
+# nombres sin renombrar el fichero; eso lo cubre el aviso de arriba en CI.
+REAL="$AQUI/integracion-clases-fijadas.txt"
+malas=0; lineas=0
+while read -r nombre destino _; do
+  case "$nombre" in ''|'#'*) continue ;; esac
+  lineas=$((lineas + 1))
+  corto=${nombre##*.}
+  grep -rqE "class $corto\b" "$AQUI/../tests/CaeManager.IntegrationTests" --include='*.cs' || malas=$((malas + 1))
+  case "$destino" in 1|2|3|4) ;; *) malas=$((malas + 1)) ;; esac
+done < "$REAL"
+comprobar "el fichero real nombra clases que existen y bloques de 1 a 4" "0" "$malas"
+[ "$lineas" -ge 1 ]
+comprobar "el fichero real tiene al menos una clase fijada" "0" "$?"
+
 if [ "$fallos" -gt 0 ]; then
   echo "$fallos comprobacion(es) fallaron."
   exit 1
