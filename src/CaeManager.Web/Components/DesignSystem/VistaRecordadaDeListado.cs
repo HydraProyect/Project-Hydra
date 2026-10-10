@@ -165,7 +165,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
     /// <summary>La vista que espera al rebote para escribirse, o <c>null</c>.</summary>
     private string? _pendiente;
-    private CancellationTokenSource? _temporizador;
+    private int _turno;
 
     /// <summary>Hubo un cambio de dirección antes de restaurar (la página no estaba lista, o se leía lo recordado): el usuario ya actuó y no se le pisa.</summary>
     private bool _huboCambios;
@@ -395,18 +395,16 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
     private void Programar(string serializada)
     {
-        CancelarTemporizador();
         _pendiente = serializada;
-        var temporizador = _temporizador = new CancellationTokenSource();
-        _ = EsperarYPersistirAsync(serializada, temporizador.Token);
+        _ = EsperarYPersistirAsync(serializada, ++_turno, _ciclo.Token);
     }
 
-    private async Task EsperarYPersistirAsync(string serializada, CancellationToken token)
+    private async Task EsperarYPersistirAsync(string serializada, int turno, CancellationToken token)
     {
         try
         {
             await Task.Delay(Rebote, Tiempo, token);
-            await InvokeAsync(() => token.IsCancellationRequested || _desechado ? Task.CompletedTask : PersistirAsync(serializada));
+            await InvokeAsync(() => turno != _turno || _desechado ? Task.CompletedTask : PersistirAsync(serializada));
         }
         catch (OperationCanceledException)
         {
@@ -444,15 +442,15 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         }
     }
 
-    private void CancelarTemporizador()
-    {
-        if (_temporizador is not { } temporizador)
-            return;
-
-        _temporizador = null;
-        temporizador.Cancel();
-        temporizador.Dispose();
-    }
+    /// <summary>
+    /// Deja sin efecto la escritura programada SIN cancelar su espera: avanza el turno, y la espera que
+    /// venza con un turno viejo no escribe. Cancelar el <c>Task.Delay</c> pendiente reencolaba su
+    /// continuación en el <c>Dispatcher</c> con un salto de hilo real en cada cambio de la URL (la misma
+    /// trampa que documenta <c>CampoTexto.ManejarBlurAsync</c>), y con ella un <c>Click()</c> de bUnit
+    /// devolvía el control antes de que su manejador terminase: 2 rojos en 13 500 repeticiones de un test de
+    /// Visitas, 0 en 42 000 sin la cancelación. Las esperas solo se cancelan al desechar la pieza.
+    /// </summary>
+    private void CancelarTemporizador() => _turno++;
 
     private void ActualizarDiferencia(IReadOnlyDictionary<string, string> vista)
     {
