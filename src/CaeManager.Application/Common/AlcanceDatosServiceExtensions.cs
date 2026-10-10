@@ -26,6 +26,18 @@ public static class AlcanceDatosServiceExtensions
     }
 
     /// <summary>
+    /// Variante de GESTIÓN de <see cref="ClienteVisibleAsync"/>: falso para el
+    /// usuario de portal (rol Cliente) aunque el Cliente empresarial sea el
+    /// suyo. Ver <see cref="IAlcanceDatosService.ObtenerClienteIdsParaGestionAsync"/>.
+    /// </summary>
+    public static async Task<bool> ClienteParaGestionVisibleAsync(
+        this IAlcanceDatosService alcance, Guid clienteId, CancellationToken cancellationToken = default)
+    {
+        var ids = await alcance.ObtenerClienteIdsParaGestionAsync(cancellationToken);
+        return ids is null || ids.Contains(clienteId);
+    }
+
+    /// <summary>
     /// Alcance sobre una entidad cuyo cliente es opcional: una
     /// <c>Conversacion</c> todavía en la cola de triage (§ 12.4) o una
     /// <c>MacroRespuesta</c> genérica del tenant. En ambos casos "sin cliente"

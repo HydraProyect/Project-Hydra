@@ -48,6 +48,18 @@ public interface IAlcanceDatosService
     Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Los Clientes empresariales visibles <b>desde el lado de gestión CAE</b>:
+    /// igual que <see cref="ObtenerClienteIdsVisiblesAsync"/> salvo para el rol
+    /// Cliente (usuario de portal), que obtiene lista vacía. Mismo contrato que
+    /// <see cref="ObtenerEmpresaIdsParaGestionAsync"/>: el Usuario de Cliente
+    /// tiene a su propio Cliente empresarial en el alcance de LECTURA —es lo
+    /// que le deja abrir su ficha—, pero lo que el equipo de gestión anota
+    /// SOBRE él (la «Nota interna», «Solo visible para tu equipo») es un
+    /// artefacto interno, no contenido de portal.
+    /// </summary>
+    Task<IReadOnlyList<Guid>?> ObtenerClienteIdsParaGestionAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

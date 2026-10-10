@@ -505,6 +505,18 @@ public class AlcanceDatosService(
         return resultado;
     }
 
+    public async Task<IReadOnlyList<Guid>?> ObtenerClienteIdsParaGestionAsync(CancellationToken cancellationToken = default)
+    {
+        // Mismo criterio que ObtenerEmpresaIdsParaGestionAsync: el rol Cliente
+        // es un usuario de portal y ve la ficha de su Cliente empresarial, pero
+        // no lo que el equipo de gestión anota sobre él. Lista vacía y no null
+        // (fallo cerrado).
+        if (await currentUserService.ObtenerRolEfectivoAsync() == Roles.Cliente)
+            return [];
+
+        return await ObtenerClienteIdsVisiblesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken cancellationToken = default)
     {
         // Mismo criterio que ObtenerEmpresaIdsParaGestionAsync (REC-153): el rol

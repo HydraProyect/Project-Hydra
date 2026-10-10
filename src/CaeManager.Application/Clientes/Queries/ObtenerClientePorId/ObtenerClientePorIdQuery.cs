@@ -13,6 +13,14 @@ public record ObtenerClientePorIdQuery(Guid Id) : IRequest<ClienteDetalleDto?>;
 /// tanto. Sin ella, el handler recarga la fila justo antes de escribir y el
 /// token de concurrencia compara el valor consigo mismo — la columna existe,
 /// pero nunca choca (ver EditarClienteCommandHandler).
+///
+/// <paramref name="Notas"/> es la «Nota interna» del equipo de gestión sobre el
+/// Cliente empresarial: solo viaja a quien lo tiene en su alcance de GESTIÓN
+/// (<see cref="IAlcanceDatosService.ObtenerClienteIdsParaGestionAsync"/>). Al
+/// Usuario de Cliente, que abre su propia ficha por alcance de lectura, le
+/// llega <c>null</c>. Quien reenvía este campo a <c>EditarClienteCommand</c>
+/// necesita un rol con escritura, y todos ellos son de gestión: ningún
+/// llamador que pueda guardar recibe la nota vaciada.
 /// </summary>
 public record ClienteDetalleDto(
     Guid Id, string RazonSocial, string Cif, bool EsCritico, string? Notas, DateTime CreadoEnUtc,
@@ -30,10 +38,15 @@ public class ObtenerClientePorIdQueryHandler(IEmpresasQueryContext dbContext, IA
     {
         if (!await alcanceDatos.ClienteVisibleAsync(request.Id, cancellationToken)) return null;
 
+        // Alcance de GESTIÓN para la nota, no de lectura: la ficha le llega al
+        // usuario de portal porque es la de su Cliente empresarial; la nota no.
+        var conNotaInterna = await alcanceDatos.ClienteParaGestionVisibleAsync(request.Id, cancellationToken);
+
         return await dbContext.Empresas
             .Where(c => c.Id == request.Id)
             .Select(c => new ClienteDetalleDto(
-                c.Id, c.RazonSocial, c.Cif!, c.EsCritico ?? false, c.Notas, c.CreadoEnUtc, c.EjecutivoUsuarioId, c.Version))
+                c.Id, c.RazonSocial, c.Cif!, c.EsCritico ?? false, conNotaInterna ? c.Notas : null, c.CreadoEnUtc,
+                c.EjecutivoUsuarioId, c.Version))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }
