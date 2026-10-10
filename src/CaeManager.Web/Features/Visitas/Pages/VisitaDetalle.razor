@@ -300,17 +300,16 @@
 
                 @if (!string.IsNullOrWhiteSpace(visita.Notas) || (_puedeEscribir && !EsCancelada))
                 {
-                    <Tarjeta Titulo="@Textos["EtiquetaNotas"]">
-                        <AccionesHeader>
-                            @if (_puedeEscribir && !EsCancelada)
-                            {
-                                <button type="button" class="visita360-enlace" @onclick="() => _editarVisible = true">@Textos["Visita360EditarEnlace"]</button>
-                            }
-                        </AccionesHeader>
-                        <ChildContent>
-                            <p class="visita360-texto visita360-notas">@(string.IsNullOrWhiteSpace(visita.Notas) ? Textos["Visita360SinNotas"] : visita.Notas)</p>
-                        </ChildContent>
-                    </Tarjeta>
+                    <NotaInterna Texto="@visita.Notas">
+                        <Acciones>
+                            <SoloConEscritura>
+                                @if (_puedeEscribir && !EsCancelada)
+                                {
+                                    <button type="button" class="visita360-enlace" @onclick="() => _editarVisible = true">@Textos["Visita360EditarEnlace"]</button>
+                                }
+                            </SoloConEscritura>
+                        </Acciones>
+                    </NotaInterna>
                 }
             </Lateral>
         </CuerpoConLateral>

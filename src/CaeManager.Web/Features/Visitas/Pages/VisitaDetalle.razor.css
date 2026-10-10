@@ -200,11 +200,6 @@
     font: var(--font-body-md);
 }
 
-.visita360-notas {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-}
-
 .visita360-nota {
     margin: 0 0 var(--space-3);
     font: var(--font-caption);
