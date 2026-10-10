@@ -455,7 +455,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
-            ["q"] = _busqueda, ["nivel"] = _nivelFiltro, ["estado"] = _estadoFiltro
+            ["q"] = _busqueda,
+            ["nivel"] = _nivelFiltro,
+            ["estado"] = _estadoFiltro
         });
         await CargarAsync(resetPagina: true);
     }
