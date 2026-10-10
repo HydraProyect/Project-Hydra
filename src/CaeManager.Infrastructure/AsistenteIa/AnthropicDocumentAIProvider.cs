@@ -321,10 +321,12 @@ public class AnthropicDocumentAIProvider(
         [property: JsonPropertyName("role")] string Role,
         [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenido> Content);
 
+    // Un bloque lleva `source` (documento o imagen) o `text`, nunca los dos. El que no aplica se
+    // omite: la API rechaza con 400 un miembro que no es del tipo del bloque, aunque valga null.
     private sealed record BloqueContenido(
         [property: JsonPropertyName("type")] string Type,
-        [property: JsonPropertyName("source")] FuenteArchivo? Source,
-        [property: JsonPropertyName("text")] string? Text);
+        [property: JsonPropertyName("source"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FuenteArchivo? Source,
+        [property: JsonPropertyName("text"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Text);
 
     private sealed record FuenteArchivo(
         [property: JsonPropertyName("type")] string Type,

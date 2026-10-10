@@ -147,6 +147,50 @@ public sealed class AnthropicParadaRespuestaTests
         solicitud.RootElement.TryGetProperty("output_config", out _).Should().BeFalse();
     }
 
+    /// <summary>
+    /// La API rechaza con 400 («Extra inputs are not permitted») un bloque de
+    /// contenido que lleve un miembro que no es de su tipo, aunque valga
+    /// <c>null</c>: un bloque <c>document</c> con <c>"text": null</c> o un
+    /// bloque <c>text</c> con <c>"source": null</c>. Se mira la solicitud que el
+    /// servicio envía de verdad, no un JSON escrito a mano.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(TodasLasRutas))]
+    public async Task Ninguna_ruta_envia_un_miembro_nulo_en_la_solicitud(string ruta)
+    {
+        var manejador = new ManejadorFijo(Respuesta("end_turn", "{}"));
+
+        await LlamarAsync(ruta, manejador);
+
+        using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
+        MiembrosNulos(solicitud.RootElement, "$").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task El_Ocr_de_una_imagen_tampoco_envia_un_miembro_nulo_y_manda_el_bloque_de_imagen()
+    {
+        var manejador = new ManejadorFijo(Respuesta("end_turn", "Texto"));
+        var proveedor = new AnthropicDocumentAIProvider(new HttpClient(manejador), Opciones, NullLogger<AnthropicDocumentAIProvider>.Instance);
+
+        await proveedor.ExtraerTextoAsync([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], "escaneo.png");
+
+        using var solicitud = JsonDocument.Parse(manejador.CuerpoRecibido!);
+        MiembrosNulos(solicitud.RootElement, "$").Should().BeEmpty();
+        var bloques = solicitud.RootElement.GetProperty("messages")[0].GetProperty("content");
+        bloques[0].GetProperty("type").GetString().Should().Be("image");
+        bloques[0].GetProperty("source").GetProperty("media_type").GetString().Should().Be("image/png");
+        bloques[0].GetProperty("source").GetProperty("data").GetString().Should().NotBeNullOrEmpty();
+        bloques[1].GetProperty("text").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    private static IEnumerable<string> MiembrosNulos(JsonElement elemento, string ruta) => elemento.ValueKind switch
+    {
+        JsonValueKind.Object => elemento.EnumerateObject().SelectMany(p =>
+            p.Value.ValueKind == JsonValueKind.Null ? [$"{ruta}.{p.Name}"] : MiembrosNulos(p.Value, $"{ruta}.{p.Name}")),
+        JsonValueKind.Array => elemento.EnumerateArray().SelectMany((hijo, indice) => MiembrosNulos(hijo, $"{ruta}[{indice}]")),
+        _ => [],
+    };
+
     [Theory]
     [MemberData(nameof(TodasLasRutas))]
     public async Task Con_el_esfuerzo_general_configurado_toda_ruta_lo_envia(string ruta)
