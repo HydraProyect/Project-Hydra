@@ -76,6 +76,24 @@ public class ObtenerBandejaGestorQueryHandlerTests
             pendientesPlataforma ?? [],
             Hoy, HorasAvisoVisita, HorasCriticasVisita);
 
+    /// <summary>
+    /// Pendiente en la plataforma (2026-10-10): un Trabajador bloqueado porque su documento bloqueante está sin subir o sin
+    /// validar en la plataforma del Centro no es una fila más de la cola: el trabajo ya sale como su acreditación pendiente.
+    /// </summary>
+    [Theory]
+    [InlineData(SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma)]
+    [InlineData(SituacionDeRequisitoBloqueante.SinValidarEnPlataforma)]
+    public void Un_bloqueo_por_pendiente_en_la_plataforma_no_duplica_la_fila_de_la_acreditacion(SituacionDeRequisitoBloqueante situacion)
+    {
+        var resultado = Fusionar(
+            requisitos: [Requisito() with { Situacion = situacion }, Requisito()],
+            pendientesPlataforma: [PendientePlataforma()]);
+
+        resultado.Where(i => i.Tipo == TipoItemBandeja.RequisitoPendiente).Should().ContainSingle(
+            "solo el requisito ausente; el pendiente en la plataforma ya está en la cola como su acreditación");
+        resultado.Where(i => i.Tipo != TipoItemBandeja.RequisitoPendiente).Should().NotBeEmpty("control positivo: la acreditación sí sale");
+    }
+
     [Fact]
     public void Excluye_las_alertas_en_estado_Proximo()
     {
