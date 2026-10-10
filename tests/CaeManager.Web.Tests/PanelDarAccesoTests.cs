@@ -394,6 +394,100 @@ public class PanelDarAccesoTests : BunitContext
             .Should().NotContain(["Desasignarme", "Retirar acceso", "Revocar"]);
     }
 
+    // ---- Forma de cabecera (dato «Gestor CAE» de la pantalla Empresas) ----
+
+    /// <summary>
+    /// En la cabecera solo van «+ Dar acceso» (por operación de la que soy principal) y «Desasignarme» (por
+    /// apoyo mío). Las tarjetas, retirar una propuesta, retirar un apoyo concedido y revocar siguen en
+    /// /cartera/solicitudes: aquí no se pintan aunque las lecturas los traigan.
+    /// </summary>
+    [Fact]
+    public void En_cabecera_solo_pinta_Dar_acceso_y_Desasignarme_sin_tarjetas_ni_el_resto_de_acciones()
+    {
+        var lucia = Guid.NewGuid();
+        var mia = new CarterasDeOperacion(Guid.NewGuid(), Guid.NewGuid(), "Empresa Mía", Persona(Yo, "Yo"), [Persona(lucia, "Lucía")]);
+        var ajena = Operacion("Empresa Ajena", Guid.NewGuid());
+        var mio = Apoyo(ajena, Yo, "Yo", Guid.NewGuid(), "Marta");
+        _fijarRol("CoordinadorCae");
+        _mediador.Operaciones = [mia, ajena];
+        _mediador.MisPropuestas = [Enviada(mia, "Nuria")];
+        _mediador.Apoyos = new ApoyosDeCarteraDto(
+            [mio],
+            [Apoyo(mia, lucia, "Lucía", Yo, "Yo")],
+            [Apoyo(ajena, Guid.NewGuid(), "Pau", Guid.NewGuid(), "Marta")]);
+
+        var cut = Render<PanelDarAcceso>(p => p.Add(c => c.EnCabecera, true));
+
+        cut.FindAll("button").Select(b => (b.TextContent.Trim(), b.GetAttribute("data-dar-acceso-cabecera"), b.GetAttribute("data-desasignarme-cabecera")))
+            .Should().Equal(
+            [
+                ("+ Dar acceso", mia.AsignacionOperacionId.ToString(), null),
+                ("Desasignarme", null, mio.PropuestaId.ToString())
+            ], "un botón por operación de la que soy principal y otro por apoyo mío, y nada más");
+        cut.FindAll("[data-testid]").Should().BeEmpty("sin tarjetas");
+        cut.Markup.Should().NotContain("Nuria").And.NotContain("Pau", "ni propuestas sin responder ni apoyos revocables");
+    }
+
+    /// <summary>Control de la otra forma: sin <c>EnCabecera</c>, el panel no pinta los botones de cabecera.</summary>
+    [Fact]
+    public void Fuera_de_la_cabecera_no_se_pintan_los_botones_de_cabecera()
+    {
+        var ajena = Operacion("Empresa Ajena", Guid.NewGuid());
+        _mediador.Operaciones = [Operacion("Empresa Mía", Yo), ajena];
+        _mediador.Apoyos = new ApoyosDeCarteraDto([Apoyo(ajena, Yo, "Yo", Guid.NewGuid(), "Marta")], [], []);
+
+        var cut = Render<PanelDarAcceso>();
+
+        cut.FindAll("[data-dar-acceso-operacion], [data-mi-apoyo]").Should().HaveCount(2, "control positivo: las tarjetas siguen ahí");
+        cut.FindAll("[data-dar-acceso-cabecera], [data-desasignarme-cabecera]").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// <c>AlCambiar</c> avisa a quien monta el panel cuando una acción terminó —nunca al cargar—, para que
+    /// refresque lo que enseña. Avisa también si el handler la rechazó: otro pudo terminarla antes.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AlCambiar_avisa_una_vez_al_terminar_una_accion_y_nunca_al_cargar(bool elHandlerAcepta)
+    {
+        var ajena = Operacion("Empresa Ajena", Guid.NewGuid());
+        _mediador.Apoyos = new ApoyosDeCarteraDto([Apoyo(ajena, Yo, "Yo", Guid.NewGuid(), "Marta")], [], []);
+        if (!elHandlerAcepta)
+            _mediador.AlTerminar = Result.Fallo(ErroresPropuestaApoyo.EresElPrincipal);
+        var avisos = 0;
+        var cut = Render<PanelDarAcceso>(p => p.Add(c => c.EnCabecera, true).Add(c => c.AlCambiar, () => avisos++));
+
+        avisos.Should().Be(0, "cargar no es cambiar");
+
+        await cut.InvokeAsync(() => cut.Find("[data-desasignarme-cabecera]").Click());
+        avisos.Should().Be(0, "preguntar tampoco");
+        await cut.InvokeAsync(() => cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Visible).Instance.OnConfirmar.InvokeAsync());
+
+        _mediador.Enviadas.OfType<DesasignarmeDeApoyoCommand>().Should().ContainSingle("control: la acción se envió");
+        avisos.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AlCambiar_avisa_tras_proponer_un_apoyo()
+    {
+        var mia = Operacion("Empresa Mía", Yo);
+        var lucia = new DestinatarioDeApoyoDto(Guid.NewGuid(), "Lucía");
+        _mediador.Operaciones = [mia];
+        _mediador.Destinatarios = [lucia];
+        var avisos = 0;
+        var cut = Render<PanelDarAcceso>(p => p.Add(c => c.EnCabecera, true).Add(c => c.AlCambiar, () => avisos++));
+
+        await cut.InvokeAsync(() => cut.Find("[data-dar-acceso-cabecera]").Click());
+        cut.Find("select").Change(lucia.UsuarioId.ToString());
+        avisos.Should().Be(0, "abrir el formulario y elegir no es cambiar");
+        await cut.InvokeAsync(() => Boton(cut, "Proponer").Click());
+
+        _mediador.Enviadas.OfType<ProponerApoyoCarteraCommand>().Should().ContainSingle()
+            .Which.Should().Be(new ProponerApoyoCarteraCommand(mia.AsignacionOperacionId, lucia.UsuarioId));
+        avisos.Should().Be(1);
+    }
+
     // ---- Recursos: cada código PropuestaApoyo.X tiene su ErrorX en es y en ca-ES ----
 
     public static TheoryData<string> Culturas => new() { "", "ca-ES" };

@@ -15,10 +15,15 @@
     y RevocarApoyoCarteraCommand, que lo vuelven a leer todo. El rol del apoyo no se elige aquí ni
     viaja en ninguna petición: lo fija el catálogo al aceptar.
 
-    Reutilizable: sin TenantId lista todo lo de quien mira (así se monta, de forma provisional, en
-    /cartera/solicitudes); con TenantId, solo ese Tenant propietario. «Desasignarme» vive aquí de
-    forma provisional: su sitio es la cabecera de la Empresa. No pinta nada si no hay nada que
-    enseñar.
+    Reutilizable: sin TenantId lista todo lo de quien mira (así se monta en /cartera/solicitudes);
+    con TenantId, solo ese Tenant propietario. No pinta nada si no hay nada que enseñar.
+
+    EnCabecera es la forma compacta para el dato «Gestor CAE» de la pantalla Empresas
+    (CabeceraGestorCae): en vez de las tarjetas, solo los dos botones —«+ Dar acceso» por cada
+    operación de la que quien mira es el principal y «Desasignarme» por cada apoyo suyo—, con el
+    mismo formulario, la misma confirmación y los mismos Commands. Retirar una propuesta, retirar
+    un apoyo concedido y revocar siguen en /cartera/solicitudes. AlCambiar avisa a quien lo monta
+    de que una acción terminó, para que refresque lo que enseña.
 *@
 @using CaeManager.Application.Operaciones.ApoyoCartera.Queries
 @using CaeManager.Web.Components.DesignSystem
@@ -26,6 +31,20 @@
 
 @if (_operaciones.Count > 0)
 {
+    @if (EnCabecera)
+    {
+        @foreach (var operacion in _operaciones)
+        {
+            <Boton @key="operacion.AsignacionOperacionId" Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                   OnClick="() => AbrirDrawerAsync(operacion)" Deshabilitado="_enCurso"
+                   data-dar-acceso-cabecera="@operacion.AsignacionOperacionId"
+                   aria-label="@Textos["BotonDarAccesoEtiqueta", operacion.NombreTenant]">
+                <span aria-hidden="true">+</span> @Textos["BotonDarAcceso"]
+            </Boton>
+        }
+    }
+    else
+    {
     <Tarjeta Titulo="@Textos["PanelTitulo"]" NivelTitulo="2">
         <p class="dar-acceso-descripcion">@Textos["PanelDescripcion"]</p>
         <ul class="dar-acceso-lista" data-testid="panel-dar-acceso">
@@ -77,6 +96,7 @@
             }
         </ul>
     </Tarjeta>
+    }
 
     <DrawerFormulario Visible="_operacionDelDrawer is not null" VisibleChanged="CerrarDrawer"
                       Titulo="@TituloDrawer" HayCambios="() => _destinatarioId.Length > 0 || _ultimoDia.Length > 0"
@@ -109,7 +129,19 @@
                          OnConfirmar="RetirarAsync" />
 }
 
-@if (_apoyos.Mios.Count > 0)
+@if (EnCabecera)
+{
+    @foreach (var apoyo in _apoyos.Mios)
+    {
+        <SoloConEscritura @key="apoyo.PropuestaId">
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                   OnClick="() => PedirTerminar(apoyo, ViaFinDeApoyo.Desasignarme)" Deshabilitado="_enCurso"
+                   data-desasignarme-cabecera="@apoyo.PropuestaId"
+                   aria-label="@Textos["DesasignarmeEtiqueta", apoyo.NombreEmpresa]">@Textos["Desasignarme"]</Boton>
+        </SoloConEscritura>
+    }
+}
+else if (_apoyos.Mios.Count > 0)
 {
     <Tarjeta Titulo="@Textos["MisApoyosTitulo"]" NivelTitulo="2">
         <p class="dar-acceso-descripcion">@Textos["MisApoyosDescripcion"]</p>
@@ -132,7 +164,7 @@
     </Tarjeta>
 }
 
-@if (_apoyos.Revocables.Count > 0)
+@if (!EnCabecera && _apoyos.Revocables.Count > 0)
 {
     <Tarjeta Titulo="@Textos["ApoyosRevocablesTitulo"]" NivelTitulo="2">
         <p class="dar-acceso-descripcion">@Textos["ApoyosRevocablesDescripcion"]</p>

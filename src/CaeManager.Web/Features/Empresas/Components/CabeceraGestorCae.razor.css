@@ -1,9 +1,21 @@
-/* Dato de cabecera «Gestor CAE»: una línea de apoyo junto al título, separada por una raya. */
+/*
+  Dato de cabecera «Gestor CAE»: UNA línea junto al título, separada por una raya.
+
+  No envuelve nunca. Lo que cede cuando falta sitio son los nombres (.cabecera-gestor-cae-nombre), que
+  se recortan con puntos suspensivos; el rótulo, los avatares, las pastillas y «+N» conservan su ancho.
+  Para que el recorte llegue hasta el nombre, cada caja intermedia tiene que poder encoger
+  (min-width: 0): sin eso, una caja flexible no baja del ancho de su contenido.
+
+  white-space no se fija en el contenedor: se hereda, y este componente no debe decidir cómo envuelve
+  lo que cuelgue de él.
+*/
 .cabecera-gestor-cae {
     display: inline-flex;
     align-items: center;
-    flex-wrap: wrap;
+    flex: 0 1 auto;
+    flex-wrap: nowrap;
     gap: var(--space-2);
+    min-width: 0;
     margin-left: var(--space-2);
     padding-left: var(--space-3);
     border-left: var(--border-default);
@@ -12,27 +24,67 @@
 }
 
 .cabecera-gestor-cae-rotulo {
+    flex: none;
     color: var(--color-text-muted);
     font-weight: 600;
+    white-space: nowrap;
 }
 
-.cabecera-gestor-cae-persona {
+/* La parte que encoge. Recorta como último recurso: la ventana de «+N» va fuera de esta caja para
+   que su panel no quede recortado. */
+.cabecera-gestor-cae-personas {
     display: inline-flex;
     align-items: center;
+    flex: 0 1 auto;
+    gap: var(--space-2);
+    min-width: 0;
+    overflow: hidden;
+}
+
+.cabecera-gestor-cae-persona,
+.cabecera-gestor-cae-operador {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 1 auto;
     gap: var(--space-1);
+    min-width: 0;
+}
+
+.cabecera-gestor-cae-nombre {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cabecera-gestor-cae-persona ::deep .avatar-usuario {
+    flex: none;
 }
 
 .cabecera-gestor-cae-separador,
 .cabecera-gestor-cae-sin-dato {
+    flex: none;
     color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+/* Un aviso largo («Otra Asignación de Operación, sin principal») también cede antes de desbordar. */
+.cabecera-gestor-cae-aviso {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .cabecera-gestor-cae-pastilla {
+    flex: none;
     padding: 1px var(--space-2);
     border: var(--border-default);
     border-radius: var(--radius-full);
     color: var(--color-text-muted);
     font: var(--font-body-sm);
+    white-space: nowrap;
 }
 
 .cabecera-gestor-cae-principal {
@@ -42,9 +94,12 @@
     font-weight: 700;
 }
 
-/* Desde el Tenant propietario: el Operador CAE (organización) antecede a sus personas. */
-.cabecera-gestor-cae-operador {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
+/* «+N»: las personas que no caben en la línea. Abre la ventana con la cartera entera. */
+.cabecera-gestor-cae-mas {
+    cursor: default;
+    font-variant-numeric: tabular-nums;
+}
+
+.cabecera-gestor-cae ::deep .ventana-contexto {
+    flex: none;
 }
