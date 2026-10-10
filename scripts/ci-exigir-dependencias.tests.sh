@@ -164,7 +164,7 @@ contrato "ningún paso exige == 'ejecutada' (fallaría abierto si faltara la sal
 for paso in "Recoger el reparto de los bloques" "Comprobar que los cuatro bloques descubrieron lo mismo" "Comprobar que el reparto cubrio todas las clases" "Recoger la cobertura de los bloques de integración" "Comprobar que se ejecutaron todos los tests" "Umbral de cobertura del núcleo (ratchet)"; do
   contrato "«$paso» lleva la condición justo debajo" 1 "$(grep -FA1 -- "      - name: $paso" <<< "$yml" | grep -cF "if: steps.exigir.outputs.integracion != 'saltada'" || true)"
 done
-contrato "el agregador corre siempre y depende de alcance, integración y E2E" 1 "$(grep -FA22 -- '    needs: [alcance, compilacion-y-unitarios, formato, tests-integracion, e2e-tests, bunit-tests, extension-arneses]' <<< "$yml" | grep -cE '^    if: always\(\)$' || true)"
+contrato "el agregador corre siempre y depende de alcance, integración y E2E" 1 "$(sed -n '/^    needs: \[alcance, compilacion-y-unitarios, formato, tests-integracion, e2e-tests, bunit-tests, extension-arneses\]$/,/^    steps:$/p' <<< "$yml" | grep -cE '^    if: always\(\)$' || true)"
 for par in "R_INTEGRACION: \${{ needs.tests-integracion.result }}" "R_E2E: \${{ needs.e2e-tests.result }}" "R_ALCANCE: \${{ needs.alcance.result }}" "ALCANCE_INTEGRACION: \${{ needs.alcance.outputs.integracion }}" "ALCANCE_E2E: \${{ needs.alcance.outputs.e2e }}" "EVENTO: \${{ github.event_name }}"; do
   contrato "el paso recibe $par" 1 "$([[ "$(cuenta "          $par")" -ge 1 ]] && echo 1 || echo 0)"
 done
