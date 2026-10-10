@@ -17,6 +17,7 @@
 @using FluentValidation
 @using MediatR
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using CaeManager.Web.Features.Trabajadores.Components
 @using Microsoft.AspNetCore.Components.QuickGrid
 @using CaeManager.Web.Features.IncorporacionCartera.Components
@@ -73,7 +74,7 @@
     else
     {
     @* Barra de filtros en modo pastillas: el buscador «Filtrar esta pantalla» (tecla f), las
-       pastillas «Documentación» y «Empresa», y «Más filtros» con los filtros guardados y
+       pastillas «Empresa» y «Centro», y «Más filtros» con los filtros guardados y
        «Guardar filtro». Debajo, los chips y «Limpiar todo».
 
        - El buscador busca en nombre, apellidos, DNI y alias (ObtenerTrabajadoresQuery).
@@ -81,8 +82,11 @@
        - «Empresa» lleva dentro también las subcontratas: son dos parámetros distintos de la
          consulta (EmpresaId, SubcontrataId) y se excluyen, así que una sola pastilla dice la
          verdad. Las subcontratas llevan «(subcontrata)» detrás del nombre.
-       - La maqueta dibuja además «Centro» y «Cliente» como fase 2: la consulta no
-         sabe filtrar por ellos, y una pastilla que no filtra nada mentiría. *@
+       - «Centro» viaja en la URL como «centro» y deja a quienes tienen una Asignación activa en
+         ese Centro. Ofrece los Centros que el usuario ya puede ver (ObtenerCentrosParaSelectorQuery,
+         el mismo alcance que la consulta comprueba: un Centro fuera de él no devuelve a nadie).
+       - La maqueta dibuja además el filtro por «Cliente»: la consulta no sabe filtrar
+         por él, y una pastilla que no filtra nada mentiría. *@
     @* D-15: sin alcance (Asignación de Cartera) no hay lista que filtrar, guardar ni seleccionar. *@
     @if (!_alcanceCero)
     {
@@ -94,6 +98,8 @@
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpresa"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@ValorFiltroEmpleador"
                             ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaCentro"]" TextoTodos="@Textos["OpcionTodosLosCentros"]" Valor="@_filtroCentroId"
+                            ValorChanged="FiltrarPorCentroAsync" Opciones="OpcionesFiltroCentro" />
         </Pastillas>
         @* Lo que está filtrando se ve y se quita de uno en uno: el valor de cada pastilla vive
            dentro de un menú cerrado, y sin esto no hay forma de ver desde fuera por qué la lista
@@ -110,6 +116,10 @@
             @if (!string.IsNullOrWhiteSpace(_filtroSubcontrataId))
             {
                 <ChipFiltro Etiqueta="@EtiquetaFiltroSubcontrata" EtiquetaAccesible="@Textos["AriaQuitarFiltroSubcontrata"]" OnQuitar="QuitarFiltroSubcontrataAsync" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_filtroCentroId))
+            {
+                <ChipFiltro Etiqueta="@EtiquetaFiltroCentro" EtiquetaAccesible="@Textos["AriaQuitarFiltroCentro"]" OnQuitar="QuitarFiltroCentroAsync" />
             }
         </Chips>
     </BarraFiltros>
@@ -186,16 +196,47 @@
                    TrabajadorListaDto no dice si el empleador es subcontrata ni de quién, así que no
                    se pinta (cambiaría la consulta: Application). *@
                 <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="@Textos["EtiquetaEmpresa"]" Sortable="true" />
+                @* «Registrados vigentes», de ancho fijo: de los documentos registrados del Trabajador,
+                   cuántos están al día («8/10»; raya si no tiene ninguno). Es una fracción sobre lo
+                   REGISTRADO (DesgloseDocumentalDto), no sobre lo exigido. La pinta la barra de cumplimiento compartida
+                   (BarraCumplimiento) con la fracción como cifra; sin documentos, «—». No ordena: la consulta no sabe ordenar por ella. *@
+                <TemplateColumn Title="@Textos["ListaColumnaRegistradosVigentes"]" Class="col-registrados-vigentes">
+                    <span class="celda-registrados-vigentes">
+                        <BarraCumplimiento Porcentaje="@PorcentajeRegistradosVigentes(context)"
+                                           Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados)"
+                                           Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)" />
+                    </span>
+                </TemplateColumn>
                 @* Columna de estado, de ancho fijo. Orden por defecto: el peor estado primero
                    (Vencido → Urgente → Próximo → Sin confirmar → Vigente → Sin caducidad), que
                    ObtenerTrabajadoresQuery ya resuelve en SQL. Urgente y Próximo se rotulan los dos
-                   «Por vencer»; lo correcto va sin pastilla. El documento que causa el estado (el
-                   motivo bajo la pastilla) y «vigentes/total» no viajan en TrabajadorListaDto. *@
-                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" IsDefaultSortColumn="true" Class="col-estado"
+                   «Por vencer»; lo correcto va sin pastilla.
+
+                   Bajo la pastilla, el motivo (MotivoIncidenciasDocumentales): el documento que causa
+                   el estado o, si son varios, cuántos hay de cada clase. Abre una ventana de contexto
+                   con una línea por incidencia; quien puede escribir la pulsa y la corrige aquí
+                   (CorreccionIncidenciaDocumental), sin salir del listado. Es lo que la maqueta
+                   resuelve con una fila desplegable, que QuickGrid no tiene. *@
+                <TemplateColumn Title="@Textos["ListaColumnaEstadoDocumental"]" Sortable="true" IsDefaultSortColumn="true" Class="col-estado"
                                 SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.EstadoDocumental))">
-                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)"
-                                Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"
-                                Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" />
+                    @if (context.Incidencias.Count > 0)
+                    {
+                        var trabajador = context;
+                        <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(trabajador.EstadoDocumental)"
+                                    Texto="@EstadoDocumentoUi.TextoDocumental(trabajador.EstadoDocumental)"
+                                    Correcto="EstadoDocumentoUi.EsCorrecto(trabajador.EstadoDocumental)">
+                            <MotivoContenido>
+                                <MotivoIncidenciasDocumentales Incidencias="trabajador.Incidencias" Interactiva="_puedeEscribir"
+                                                               AlPulsar="incidencia => CorregirIncidenciaAsync(trabajador, incidencia)" />
+                            </MotivoContenido>
+                        </EstadoFila>
+                    }
+                    else
+                    {
+                        <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)"
+                                    Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"
+                                    Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" />
+                    }
                 </TemplateColumn>
                 @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Detalles» es el clic en
                    la fila; «Abrir Trabajador 360», este icono, que lleva a la página completa
@@ -248,6 +289,9 @@
     }
     }
 </div>
+
+@* Corrección de una incidencia desde la ventana del motivo. Monta su formulario al primer uso. *@
+<CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
 
 <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]"
                  HayCambios="() => HayCambiosAlta" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"

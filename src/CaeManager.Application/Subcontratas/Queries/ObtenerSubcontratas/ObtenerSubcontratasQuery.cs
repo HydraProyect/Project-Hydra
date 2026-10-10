@@ -1,6 +1,8 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Subcontratas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -8,10 +10,20 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 
 /// <param name="NivelServicio">Filtro exacto por nivel de servicio (Gestionada / Supervisada).</param>
+/// <param name="EstadoDocumental">
+/// Filtro de la franja de estado: nombres de <see cref="EstadoDocumento"/> separados por coma (el mismo valor
+/// que viaja en la URL), sobre <see cref="SubcontrataListaDto.EstadoDocumental"/>. Un valor que no es un
+/// estado se ignora; si ninguno lo es, no filtra (ver <see cref="EstadoDocumentalFiltro.Coincide"/>).
+/// </param>
+/// <param name="ConRecuentosPorEstado">
+/// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Subcontratas por estado documental con los demás
+/// filtros aplicados y sin el de estado.
+/// </param>
 public record ObtenerSubcontratasQuery(
     string? Busqueda, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, Guid? SubcontrataId = null,
-    NivelServicioSubcontrata? NivelServicio = null)
+    NivelServicioSubcontrata? NivelServicio = null,
+    string? EstadoDocumental = null, bool ConRecuentosPorEstado = false)
     : IRequest<ResultadoPaginado<SubcontrataListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -22,7 +34,14 @@ public record ObtenerSubcontratasQuery(
 /// </param>
 public record SubcontrataListaDto(
     Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, NivelServicioSubcontrata NivelServicio,
-    int? CumplimientoPorcentaje, RecuentosSubcontrataDto Recuentos);
+    int? CumplimientoPorcentaje, RecuentosSubcontrataDto Recuentos)
+{
+    /// <summary>
+    /// Estado documental de la fila: el peor de sus incidencias (<see cref="RecuentosSubcontrataDto.PeorEstado"/>).
+    /// No está persistido; por eso filtrar por él obliga a calcularlo para todas las filas.
+    /// </summary>
+    public EstadoDocumento EstadoDocumental => Recuentos.PeorEstado;
+}
 
 /// <summary>
 /// F3b-Subcontrata (revisión adversaria del 2026-08-26, evidencia real de
@@ -65,8 +84,6 @@ public class ObtenerSubcontratasQueryHandler(
         if (nivelTexto is not null)
             consulta = consulta.Where(s => s.NivelServicio == nivelTexto);
 
-        var total = await consulta.CountAsync(cancellationToken);
-
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery.
         var ordenada = (request.OrdenarPor, request.Descendente) switch
         {
@@ -84,25 +101,67 @@ public class ObtenerSubcontratasQueryHandler(
         // el orden que haya elegido el usuario.
         ordenada = ordenada.ThenBy(s => s.Id);
 
+        // Camino con estado (franja de estado): el estado documental no está persistido, así que para
+        // filtrar por él o contar por él hay que calcularlo para TODAS las filas que pasan los demás
+        // filtros, y paginar después en memoria — mismo planteamiento que ObtenerCentrosQuery. El
+        // alcance es el de arriba: no se calcula nada de una Subcontrata que el usuario no ve.
+        var filtraPorEstado = EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental) is not null;
+        if (filtraPorEstado || request.ConRecuentosPorEstado)
+        {
+            var todas = await ordenada
+                .Select(s => new FilaSubcontrata(s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, s.NivelServicio!))
+                .ToListAsync(cancellationToken);
+            var conEstado = await ConEstadoAsync(todas, cancellationToken);
+
+            IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
+            if (request.ConRecuentosPorEstado)
+            {
+                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(conEstado
+                    .GroupBy(s => EstadoDocumentalFiltro.ClaveOrden(s.EstadoDocumental))
+                    .ToDictionary(grupo => grupo.Key, grupo => grupo.Count()));
+            }
+
+            var filtradas = filtraPorEstado
+                ? conEstado.Where(s => EstadoDocumentalFiltro.Coincide(s.EstadoDocumental, request.EstadoDocumental)).ToList()
+                : conEstado;
+
+            return new ResultadoPaginado<SubcontrataListaDto>(
+                filtradas.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList(),
+                filtradas.Count, request.Pagina, request.TamanoPagina)
+            {
+                RecuentosPorEstado = recuentosPorEstado
+            };
+        }
+
+        var total = await consulta.CountAsync(cancellationToken);
+
         var pagina = await ordenada
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
-            .Select(s => new { s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, s.NivelServicio })
+            .Select(s => new FilaSubcontrata(s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, s.NivelServicio!))
             .ToListAsync(cancellationToken);
 
-        var idsPagina = pagina.Select(s => s.Id).ToList();
-        var cumplimiento = await calculoEstado.CalcularCumplimientoAsync(idsPagina, cancellationToken);
-        var causas = await calculoEstado.CalcularAsync(idsPagina, cancellationToken);
-
-        var elementos = pagina
-            .Select(s => new SubcontrataListaDto(
-                s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, Enum.Parse<NivelServicioSubcontrata>(s.NivelServicio!),
-                cumplimiento.TryGetValue(s.Id, out var fraccion) ? fraccion.Porcentaje : null,
-                causas.TryGetValue(s.Id, out var incidencias) ? Desglosar(incidencias) : RecuentosSubcontrataDto.Vacio))
-            .ToList();
-
-        return new ResultadoPaginado<SubcontrataListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
+        return new ResultadoPaginado<SubcontrataListaDto>(
+            await ConEstadoAsync(pagina, cancellationToken), total, request.Pagina, request.TamanoPagina);
     }
+
+    private async Task<List<SubcontrataListaDto>> ConEstadoAsync(IReadOnlyList<FilaSubcontrata> filas, CancellationToken cancellationToken)
+    {
+        var resumenes = await calculoEstado.CalcularResumenAsync(filas.Select(s => s.Id).ToList(), cancellationToken);
+
+        return filas
+            .Select(s =>
+            {
+                var resumen = resumenes.GetValueOrDefault(s.Id);
+                return new SubcontrataListaDto(
+                    s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, Enum.Parse<NivelServicioSubcontrata>(s.NivelServicio),
+                    resumen?.Fraccion.Porcentaje,
+                    resumen is null ? RecuentosSubcontrataDto.Vacio : Desglosar(resumen));
+            })
+            .ToList();
+    }
+
+    private record FilaSubcontrata(Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, string NivelServicio);
 
     /// <summary>
     /// "Faltante" cuenta como vencido, y Urgente va con "próximas" — mismo
@@ -117,10 +176,10 @@ public class ObtenerSubcontratasQueryHandler(
     /// comentario afirmaba paridad mientras Urgente se descartaba en silencio
     /// aquí igual que allí.
     /// </summary>
-    private static RecuentosSubcontrataDto Desglosar(IReadOnlyList<IncidenciaSubcontrataDto> incidencias)
+    private static RecuentosSubcontrataDto Desglosar(ResumenEstadoSubcontrata resumen)
     {
-        var vencidas = incidencias.Where(i => i.Estado is Domain.Documentos.EstadoDocumento.Vencido or Domain.Documentos.EstadoDocumento.Faltante).ToList();
-        var proximas = incidencias.Where(i => i.Estado is Domain.Documentos.EstadoDocumento.Urgente or Domain.Documentos.EstadoDocumento.Proximo).ToList();
-        return new RecuentosSubcontrataDto(vencidas, proximas);
+        var vencidas = resumen.Incidencias.Where(i => i.Estado is EstadoDocumento.Vencido or EstadoDocumento.Faltante).ToList();
+        var proximas = resumen.Incidencias.Where(i => i.Estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo).ToList();
+        return new RecuentosSubcontrataDto(vencidas, proximas) { SinConfirmar = resumen.SinConfirmar };
     }
 }

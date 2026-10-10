@@ -80,6 +80,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// </summary>
     [Parameter, SupplyParameterFromQuery(Name = "pestana")] public string? Pestana { get; set; }
 
+    /// <summary>Texto del buscador de la pestaña Centros, en la URL (<c>?q=</c>), como en Centro 360.</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Busqueda { get; set; }
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -111,6 +114,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     private string _pestanaActiva = PestanaPorDefecto;
     private string? _pestanaDeLaUrl;
+    private string _busqueda = string.Empty;
+    private string? _busquedaDeLaUrl;
 
     /// <summary>
     /// Cliente que esta instancia tiene cargado. Blazor reutiliza la instancia
@@ -148,6 +153,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     protected override async Task OnParametersSetAsync()
     {
         AdoptarPestanaDeLaUrl();
+        AdoptarBusquedaDeLaUrl();
 
         if (_clienteCargado == ClienteId)
             return;
@@ -170,6 +176,40 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _pestanaDeLaUrl = Pestana;
         _pestanaActiva = Normalizar(Pestana);
     }
+
+    /// <summary>
+    /// Igual que la pestaña: el texto de la URL se adopta cuando cambia ahí fuera, no en cada repintado, que pisaría
+    /// lo que se está tecleando (<c>CampoTexto</c> avisa con 300 ms de retraso).
+    /// </summary>
+    private void AdoptarBusquedaDeLaUrl()
+    {
+        if (string.Equals(_busquedaDeLaUrl, Busqueda, StringComparison.Ordinal))
+            return;
+
+        _busquedaDeLaUrl = Busqueda;
+        _busqueda = Busqueda ?? string.Empty;
+    }
+
+    private void BuscarCentros(string valor)
+    {
+        _busqueda = valor;
+        _busquedaDeLaUrl = string.IsNullOrWhiteSpace(valor) ? null : valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
+    }
+
+    /// <summary>Quitar el filtro lo quita también de la URL: si no, recargar o compartir el enlace lo repone.</summary>
+    private void QuitarFiltros() => BuscarCentros(string.Empty);
+
+    private bool HayBusqueda => !string.IsNullOrWhiteSpace(_busqueda);
+
+    /// <summary>
+    /// Los Centros que casan con el buscador, por nombre y sin distinguir mayúsculas. Filtra lo ya cargado, sin consulta
+    /// nueva: los indicadores de la cabecera y el contador de la pestaña siguen contando todos.
+    /// </summary>
+    private IReadOnlyList<CentroListaDto> CentrosVisibles =>
+        _centros is null ? []
+        : !HayBusqueda ? _centros
+        : _centros.Where(c => c.Nombre.Contains(_busqueda.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
 
     private static string Normalizar(string? pestana) =>
         _pestanas.Any(p => p.Id == pestana) ? pestana! : PestanaPorDefecto;
@@ -460,6 +500,13 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         get
         {
             var mostrados = _centros?.Count ?? 0;
+            // El buscador filtra lo cargado: con la lista cortada en MaximoCentros hay que seguir diciéndolo, o «0 de 200»
+            // se leería como «este Cliente no tiene ese Centro».
+            if (HayBusqueda)
+                return _totalCentros > mostrados
+                    ? Textos["ResumenCentrosBuscadosTruncado", CentrosVisibles.Count, mostrados, _totalCentros]
+                    : Textos["ResumenCentrosBuscados", CentrosVisibles.Count, mostrados];
+
             return _totalCentros > mostrados
                 ? Textos["ResumenCentrosTruncado", mostrados, _totalCentros]
                 : Plural(mostrados, "ResumenCentrosUno", "ResumenCentrosVarios");

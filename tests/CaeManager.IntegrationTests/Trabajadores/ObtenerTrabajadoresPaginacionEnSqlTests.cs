@@ -88,7 +88,7 @@ public class ObtenerTrabajadoresPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto(sqlCapturado.Add);
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto));
+            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto);
 
         var resultado = await handler.Handle(
             new ObtenerTrabajadoresQuery(
@@ -130,7 +130,7 @@ public class ObtenerTrabajadoresPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto));
+            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto);
 
         var resultado = await handler.Handle(
             new ObtenerTrabajadoresQuery(
@@ -148,7 +148,7 @@ public class ObtenerTrabajadoresPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto(sqlCapturado.Add);
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto));
+            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto);
 
         var resultado = await handler.Handle(
             new ObtenerTrabajadoresQuery(

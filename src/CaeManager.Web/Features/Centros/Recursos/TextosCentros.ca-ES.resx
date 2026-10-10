@@ -16,6 +16,14 @@
     <value>Client:</value>
     <comment>Rètol en pantalla del Client empresarial del Centre (CONTRATO_TERMINOLOGIA § 3.2; decisió de rètol del 2026-10-09).</comment>
   </data>
+  <data name="KickerCentro360" xml:space="preserve">
+    <value>Centre</value>
+    <comment>Què és la fitxa, en versaletes sobre el nom del Centre (capçalera d&apos;identitat de Centre 360).</comment>
+  </data>
+  <data name="EtiquetaLateral360" xml:space="preserve">
+    <value>Context del centre</value>
+    <comment>Nom accessible del lateral de Centre 360 (canals de gestió i propera visita).</comment>
+  </data>
   <data name="CabeceraEmpresa" xml:space="preserve">
     <value>Empresa:</value>
     <comment>Empresa contractista que treballa al Centre.</comment>

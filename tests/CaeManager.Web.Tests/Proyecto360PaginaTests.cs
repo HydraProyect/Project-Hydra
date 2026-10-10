@@ -247,7 +247,15 @@ public class Proyecto360PaginaTests : BunitContext
         cut.Find("[data-pieza=cabecera-identidad]").TextContent.Should().Contain("Cerrado (04/03/2026)");
         Botones(cut, "[data-pieza=cabecera-identidad] button").Should().Contain("Reabrir").And.NotContain("Asignar técnico");
         (await AbrirMenuAsync(cut)).Should().Equal("Editar proyecto", "Eliminar proyecto");
-        cut.Find("[data-pieza=lateral]").TextContent.Should().Contain("Cerrado el 04/03/2026").And.Contain("55 días abierto");
+    }
+
+    [Fact]
+    public void El_plazo_de_un_proyecto_cerrado_dice_cuando_se_cerro_y_cuanto_estuvo_abierto()
+    {
+        var cut = Renderizar(CerradoId, "?pestana=ficha");
+
+        cut.Find("[data-pieza=cajas-ficha] [data-caja=plazo]").TextContent
+            .Should().Contain("Cerrado el 04/03/2026").And.Contain("55 días abierto");
     }
 
     /// <summary>Con el proyecto cerrado las listas quedan en solo lectura, como dibuja el mockup.</summary>
@@ -283,17 +291,46 @@ public class Proyecto360PaginaTests : BunitContext
         conFallo.Find(".estado-vacio").TextContent.Should().Be(textoSinProyecto);
     }
 
+    // Decisión del 2026-10-09: el lateral lleva dos o tres cajas como mucho; «Plazo» vive en «Ficha».
     [Fact]
-    public void Lateral_informacion_plazo_y_notas()
+    public void Lateral_informacion_y_notas_sin_el_plazo()
     {
         var cut = Renderizar(AbiertoId);
         var lateral = cut.Find("[data-pieza=lateral]");
 
         lateral.QuerySelectorAll("[data-pieza=tarjeta] .tarjeta-titulo").Select(t => t.TextContent.Trim())
-            .Should().Equal("Información", "Plazo", "Notas");
+            .Should().Equal("Información", "Notas");
         lateral.TextContent.Should().Contain("Cliente").And.NotContain("Cliente empresarial").And.Contain("Sede Sevilla")
-            .And.Contain("Acceso por muelle 3.").And.Contain("Los días abiertos son la base de la facturación del proyecto.");
+            .And.Contain("Acceso por muelle 3.").And.NotContain("Los días abiertos son la base de la facturación del proyecto.");
         Botones(cut, "[data-pieza=lateral] button").Should().Equal("Editar →", "Editar →");
+        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty("sin pedir la pestaña, la ficha abre en Técnicos");
+    }
+
+    [Fact]
+    public void La_pestana_ficha_va_la_ultima_llega_por_la_url_y_lleva_el_plazo()
+    {
+        var cut = Renderizar(AbiertoId, "?pestana=ficha");
+
+        var pestanas = cut.FindAll("[role=tab]");
+        pestanas.Should().HaveCount(3);
+        pestanas[2].TextContent.Trim().Should().Be("Ficha");
+        pestanas[2].GetAttribute("aria-selected").Should().Be("true");
+
+        var cajas = cut.FindAll("[data-pieza=cajas-ficha] > [data-caja]");
+        cajas.Select(c => c.GetAttribute("data-caja")).Should().Equal("plazo");
+        cajas[0].QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Plazo");
+        cajas[0].TextContent.Should().Contain("Los días abiertos son la base de la facturación del proyecto.");
+        cut.FindAll("[data-pieza=fila]").Should().BeEmpty("la pestaña «Ficha» no pinta la lista de técnicos");
+    }
+
+    [Fact]
+    public void Pulsar_ficha_la_deja_en_la_url()
+    {
+        var cut = Renderizar(AbiertoId);
+
+        cut.FindAll("[role=tab]").Single(p => p.TextContent.Trim() == "Ficha").Click();
+
+        Navegacion.Uri.Should().EndWith($"proyectos/{AbiertoId}?pestana=ficha");
     }
 
     [Fact]

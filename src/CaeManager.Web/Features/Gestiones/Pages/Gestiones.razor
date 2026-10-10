@@ -85,14 +85,22 @@
                         </span>
                     </ChildContent>
                 </TemplateColumn>
+                @* Orden de columnas del patrón de listados: Trabajador (con su Centro debajo) · Tipo de documento ·
+                   Creada · Estado, y al final el hueco de acción rápida. La segunda columna dice «Tipo de documento»
+                   y no «Documento»: una Gestión referencia un Tipo de documento, no un Documento (Gestion.cs). *@
                 <TemplateColumn Title="@Textos["ListaTipoDocumento"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TipoDocumentoNombre))" Class="gestion-tipo-documento">
                     <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
                 </TemplateColumn>
+                @* La fecha es el día de negocio (hora peninsular) del instante de creación, el mismo día que
+                   enseña la vista rápida y del que sale el motivo «Abierta hace N días»; se ordena por el instante. *@
+                <TemplateColumn Title="@Textos["ColumnaCreada"]" Class="gestion-creada" Sortable="true" SortBy="OrdenCreadaListado">
+                    @(context.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy"))
+                </TemplateColumn>
+                @* El motivo dice cuánto lleva abierta la Gestión pendiente; la completada no lleva motivo. *@
                 <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado" Sortable="true" IsDefaultSortColumn="true" InitialSortDirection="SortDirection.Ascending" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
                     <EstadoFila Tono="@TonoEstado(context.Estado)" Texto="@TextoEstado(context.Estado)"
-                                Correcto="@(context.Estado == EstadoGestion.Completada)" />
+                                Correcto="@(context.Estado == EstadoGestion.Completada)" Motivo="@MotivoEstado(context)" />
                 </TemplateColumn>
-                <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="@Textos["ColumnaCreada"]" Sortable="true" />
                 @* Patrón de listados (2026-10-08): la fila no lleva menú «⋯». Su hueco de acción rápida es
                    completar o reabrir; la vista rápida se abre con un clic en la fila, el nombre o Enter, y
                    «Eliminar» vive en el pie de la vista rápida (decisión D1: esta pantalla no tiene selección

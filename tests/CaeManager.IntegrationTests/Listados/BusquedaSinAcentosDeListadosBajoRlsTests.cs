@@ -241,7 +241,8 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
     {
         var handler = new ObtenerTrabajadoresQueryHandler(
-            contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto));
+            contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto),
+            contexto);
         var resultado = await handler.Handle(new ObtenerTrabajadoresQuery(termino), CancellationToken.None);
         return resultado.Elementos.Select(t => t.Id).ToList();
     }
@@ -250,7 +251,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
     {
         var handler = new ObtenerEmpresasQueryHandler(
-            contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto),
+            contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
             new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto));
         var resultado = await handler.Handle(new ObtenerEmpresasQuery(termino), CancellationToken.None);
@@ -261,7 +262,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
     {
         var handler = new ObtenerVehiculosQueryHandler(
-            contexto, contexto, alcance, contexto, contexto, new CalculoEstadoDocumentalService(contexto, contexto));
+            contexto, contexto, alcance, contexto, contexto, new CalculoEstadoDocumentalService(contexto, contexto, contexto));
         var resultado = await handler.Handle(new ObtenerVehiculosQuery(termino), CancellationToken.None);
         return resultado.Elementos.Select(v => v.Id).ToList();
     }

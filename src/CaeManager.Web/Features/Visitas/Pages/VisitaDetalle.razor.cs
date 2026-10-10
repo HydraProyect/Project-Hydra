@@ -48,6 +48,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     internal const string PestanaComprobacion = "comprobacion";
     internal const string PestanaPaquete = "paquete";
     internal const string PestanaAviso = "aviso";
+    internal const string PestanaFicha = "ficha";
 
     [Parameter] public Guid VisitaId { get; set; }
 
@@ -158,7 +159,17 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Con gestión CAE y sin cancelar: la única rama que comprueba documentación.</summary>
     private bool CompruebaDocumentacion => _detalle is { EstaCancelada: false, CentroRequiereGestionCae: true };
 
-    private IReadOnlyList<PestanaDefinicion> Pestanas
+    /// <summary>La antelación solo existe con tramo calculado y sin cancelar; es la única caja de «Ficha».</summary>
+    private bool HayAntelacion => _detalle is { EstaCancelada: false, Tramo: not null };
+
+    /// <summary>
+    /// Las pestañas de la rama de la visita y, la última, «Ficha» cuando tiene alguna caja que
+    /// enseñar: una pestaña vacía no se pinta.
+    /// </summary>
+    private IReadOnlyList<PestanaDefinicion> Pestanas =>
+        HayAntelacion ? [.. PestanasDeLaRama, new PestanaDefinicion(PestanaFicha, Comunes["PestanaFicha"])] : PestanasDeLaRama;
+
+    private IReadOnlyList<PestanaDefinicion> PestanasDeLaRama
     {
         get
         {

@@ -1207,4 +1207,147 @@ public partial class GestionesListaGen2Tests : BunitContext
         enlaces[0].Should().StartWith("/gestiones/exportar.xlsx?q=Juan&estado=Pendiente");
         enlaces[1].Should().Be("/gestiones/exportar.xlsx");
     }
+
+    // ---- Orden de columnas y motivo bajo la pastilla (cierre J de la auditoría de listados, 2026-10-09) ----
+
+    private sealed class RelojFijo(DateTime ahoraUtc) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(ahoraUtc, TimeSpan.Zero);
+
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+    }
+
+    /// <summary>
+    /// Mediodía en Madrid del 18/03/2026: lejos de cualquier frontera de día y de la fecha real en que
+    /// corre la suite, para que un reloj fijado que no llegase a la pantalla no dé verde por casualidad.
+    /// </summary>
+    private static readonly DateTime MediodiaUtc = new(2026, 3, 18, 11, 0, 0, DateTimeKind.Utc);
+
+    private static string? MotivoDeLaFila(IRenderedComponent<Gestiones> cut, string trabajador) =>
+        FilaGestionFase1(cut, trabajador).QuerySelector("td.col-estado .estado-fila-motivo")?.TextContent.Trim();
+
+    /// <summary>
+    /// El orden se lee de la cabecera Y de las celdas de una fila: son la misma lista de columnas de
+    /// QuickGrid, pero afirmar las dos impide dar por bueno un rótulo movido sin su contenido.
+    /// </summary>
+    [Fact]
+    public void Las_columnas_van_Trabajador_Tipo_de_documento_Creada_Estado_y_al_final_la_accion_rapida()
+    {
+        using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(MediodiaUtc));
+        var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra", centro: "Centro Norte", documento: "Formación PRL específica") } };
+        var cut = Renderizar(m);
+
+        cut.FindAll("thead th .col-title-text").Select(t => t.TextContent.Trim())
+            .Should().Equal("Trabajador", "Tipo de documento", "Creada", "Estado", "Acciones");
+
+        var celdas = FilaGestionFase1(cut, "Juan Pérez Ibarra").QuerySelectorAll("td");
+        celdas.Should().HaveCount(5);
+        celdas[0].QuerySelectorAll(".gestion-trabajador-centro .enlace-nombre-fila").Select(b => b.TextContent.Trim())
+            .Should().Equal(["Juan Pérez Ibarra", "Centro Norte"], "el Centro va en la segunda línea de la celda del Trabajador");
+        celdas[1].TextContent.Trim().Should().Be("Formación PRL específica");
+        celdas[2].TextContent.Trim().Should().Be("14/08/2026");
+        celdas[3].ClassList.Should().Contain("col-estado");
+        celdas[3].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Pendiente");
+        celdas[4].QuerySelector("button.gestion-completar").Should().NotBeNull("la acción rápida de la fila es la última columna");
+    }
+
+    [Theory]
+    [InlineData(0, "Abierta hoy")]
+    [InlineData(1, "Abierta hace 1 día")]
+    [InlineData(2, "Abierta hace 2 días")]
+    [InlineData(57, "Abierta hace 57 días")]
+    public void La_gestion_pendiente_dice_bajo_la_pastilla_cuantos_dias_lleva_abierta(int diasAtras, string motivo)
+    {
+        using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(MediodiaUtc));
+        var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") with { CreadoEnUtc = MediodiaUtc.AddDays(-diasAtras) } } };
+        var cut = Renderizar(m);
+
+        MotivoDeLaFila(cut, "Juan Pérez Ibarra").Should().Be(motivo);
+        FilaGestionFase1(cut, "Juan Pérez Ibarra").QuerySelector("td.col-estado .badge")!.TextContent.Trim()
+            .Should().Be("Pendiente", "el motivo va debajo de la pastilla, no en su lugar");
+    }
+
+    [Fact]
+    public void La_gestion_completada_no_lleva_motivo_aunque_lleve_dias_creada()
+    {
+        using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(MediodiaUtc));
+        var m = new MediatorFalso
+        {
+            Almacen =
+            {
+                Gestion("Ana pendiente") with { CreadoEnUtc = MediodiaUtc.AddDays(-9) },
+                Gestion("Carla completada", EstadoGestion.Completada) with { CreadoEnUtc = MediodiaUtc.AddDays(-9) },
+            }
+        };
+        var cut = Renderizar(m);
+
+        // Control positivo: con la misma antigüedad, la pendiente sí lo lleva.
+        MotivoDeLaFila(cut, "Ana pendiente").Should().Be("Abierta hace 9 días");
+        MotivoDeLaFila(cut, "Carla completada").Should().BeNull();
+        FilaGestionFase1(cut, "Carla completada").QuerySelector("td.col-estado [data-pieza='estado-correcto']")!.TextContent.Trim()
+            .Should().Be("Completada");
+    }
+
+    /// <summary>
+    /// Los días se cuentan entre días de negocio (Europe/Madrid), no entre fechas UTC. Cada caso está a un
+    /// lado de la medianoche de Madrid, donde el día UTC y el de negocio no coinciden: restar la fecha UTC
+    /// de la creación da un día de más en los dos primeros, y leer «hoy» en UTC da uno de menos en el tercero.
+    /// La columna «Creada» enseña ese mismo día de negocio.
+    /// </summary>
+    [Theory]
+    // Verano (UTC+2): creada el 15 a las 22:30 UTC, que en Madrid ya es el 16 a las 00:30; se mira el 16 a las 23:00 de Madrid.
+    [InlineData("2026-07-15T22:30:00", "2026-07-16T21:00:00", "16/07/2026", "Abierta hoy")]
+    // Invierno (UTC+1): creada el 14 a las 23:30 UTC, que en Madrid ya es el 15 a las 00:30; se mira el 15 a mediodía.
+    [InlineData("2026-01-14T23:30:00", "2026-01-15T11:00:00", "15/01/2026", "Abierta hoy")]
+    // Verano: creada el 16 a las 23:00 de Madrid (21:00 UTC) y mirada el 17 a las 00:30 de Madrid, que en UTC sigue siendo el 16.
+    [InlineData("2026-07-16T21:00:00", "2026-07-16T22:30:00", "16/07/2026", "Abierta hace 1 día")]
+    public void Los_dias_abierta_y_la_fecha_de_creacion_se_cuentan_en_el_dia_de_negocio_de_Madrid(
+        string creadaUtc, string ahoraUtc, string fechaEsperada, string motivoEsperado)
+    {
+        var creada = DateTime.SpecifyKind(DateTime.Parse(creadaUtc, System.Globalization.CultureInfo.InvariantCulture), DateTimeKind.Utc);
+        var ahora = DateTime.SpecifyKind(DateTime.Parse(ahoraUtc, System.Globalization.CultureInfo.InvariantCulture), DateTimeKind.Utc);
+        using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(ahora));
+        var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") with { CreadoEnUtc = creada } } };
+        var cut = Renderizar(m);
+
+        MotivoDeLaFila(cut, "Juan Pérez Ibarra").Should().Be(motivoEsperado);
+        FilaGestionFase1(cut, "Juan Pérez Ibarra").QuerySelector("td.gestion-creada")!.TextContent.Trim().Should().Be(fechaEsperada);
+    }
+
+    [Fact]
+    public void Una_creacion_posterior_a_hoy_se_lee_como_abierta_hoy_y_no_con_dias_negativos()
+    {
+        using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(MediodiaUtc));
+        var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") with { CreadoEnUtc = MediodiaUtc.AddDays(2) } } };
+        var cut = Renderizar(m);
+
+        MotivoDeLaFila(cut, "Juan Pérez Ibarra").Should().Be("Abierta hoy");
+    }
+
+    /// <summary>
+    /// Los tres textos del motivo existen también en <c>TextosGestiones.ca-ES.resx</c> y están traducidos:
+    /// con una clave ausente en el satélite, el catalán caería al castellano sin que nada lo dijera.
+    /// </summary>
+    [Theory]
+    [InlineData(0, "Oberta avui")]
+    [InlineData(1, "Oberta fa 1 dia")]
+    [InlineData(12, "Oberta fa 12 dies")]
+    public void El_motivo_tiene_su_texto_en_catalan(int diasAtras, string motivo)
+    {
+        var (cultura, culturaUi) = (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture);
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.CurrentUICulture =
+                System.Globalization.CultureInfo.GetCultureInfo("ca-ES");
+            using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(MediodiaUtc));
+            var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") with { CreadoEnUtc = MediodiaUtc.AddDays(-diasAtras) } } };
+            var cut = Renderizar(m);
+
+            MotivoDeLaFila(cut, "Juan Pérez Ibarra").Should().Be(motivo);
+        }
+        finally
+        {
+            (System.Globalization.CultureInfo.CurrentCulture, System.Globalization.CultureInfo.CurrentUICulture) = (cultura, culturaUi);
+        }
+    }
 }

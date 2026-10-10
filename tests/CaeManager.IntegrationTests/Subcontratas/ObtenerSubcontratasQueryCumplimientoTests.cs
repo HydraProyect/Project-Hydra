@@ -258,16 +258,159 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         fila.Recuentos.TotalVencidas.Should().Be(0);
     }
 
+    /// <summary>
+    /// Sin confirmar no es incidencia de color (no entra en Vencidas ni en Próximas, como antes), pero
+    /// viaja aparte y decide el estado documental de la fila cuando no hay nada peor.
+    /// </summary>
+    [Fact]
+    public async Task Un_documento_sin_confirmar_no_es_vencido_ni_proximo_pero_decide_el_estado_de_la_fila()
+    {
+        Guid trabajadorId;
+        await using (var contexto = CrearContexto())
+        {
+            trabajadorId = await AnadirTrabajadorAsync(contexto, _subcontrataId, "Sara", "Sinconfirmar", "11223344B", VigenciaDocumento.SinConfirmar);
+        }
+
+        var fila = (await EjecutarAsync()).Elementos.Should().ContainSingle().Subject;
+
+        fila.Recuentos.TotalVencidas.Should().Be(0);
+        fila.Recuentos.TotalProximas.Should().Be(0);
+        var sinConfirmar = fila.Recuentos.SinConfirmar.Should().ContainSingle().Subject;
+        sinConfirmar.Estado.Should().Be(EstadoDocumento.SinConfirmar);
+        sinConfirmar.TrabajadorId.Should().Be(trabajadorId);
+        sinConfirmar.DocumentoId.Should().NotBeNull("es el documento cuya vigencia hay que confirmar");
+        fila.EstadoDocumental.Should().Be(EstadoDocumento.SinConfirmar);
+        fila.CumplimientoPorcentaje.Should().Be(0, "sin confirmar no es conforme (decisión del 2026-10-03)");
+
+        // Quien lee solo las causas (Subcontrata 360, supervisión) sigue sin recibirlo como incidencia.
+        await using var lectura = CrearContexto();
+        var alcance = new AlcanceDatosServiceFalso();
+        var causas = await new CalculoEstadoSubcontrataService(lectura, lectura, lectura, lectura, lectura, lectura, alcance)
+            .CalcularAsync([_subcontrataId], CancellationToken.None);
+        causas[_subcontrataId].Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Franja de estado: cuatro Subcontratas, una por estado. El filtro acepta varios estados, los recuentos
+    /// no cuentan el propio filtro de estado y la paginación se aplica DESPUÉS de filtrar (el estado no está
+    /// persistido: paginar antes dejaría páginas a medias y un total falso).
+    /// </summary>
+    [Fact]
+    public async Task El_filtro_de_estado_filtra_cuenta_y_pagina_sobre_el_estado_calculado()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        await using (var contexto = CrearContexto())
+        {
+            // «Subcontrata Cumplimiento S.L.» (la de la siembra): un requisito sin documento → Vencido.
+            await AnadirTrabajadorAsync(contexto, _subcontrataId, "Vera", "Faltante", "10000001S", vigencia: null);
+
+            var urgente = Empresa.CrearComoSubcontrata("Subcontrata B Urgente S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
+            var sinConfirmar = Empresa.CrearComoSubcontrata("Subcontrata C Sin Confirmar S.L.", null, NivelServicioSubcontrata.Supervisada.ToString());
+            var alCorriente = Empresa.CrearComoSubcontrata("Subcontrata D Al Corriente S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(urgente, sinConfirmar, alCorriente);
+            await contexto.SaveChangesAsync();
+
+            await AnadirTrabajadorAsync(contexto, urgente.Id, "Ugo", "Urgente", "10000002Q", VigenciaDocumento.VenceEl(hoy.AddDays(10)));
+            await AnadirTrabajadorAsync(contexto, sinConfirmar.Id, "Sira", "Sinconfirmar", "10000003V", VigenciaDocumento.SinConfirmar);
+            await AnadirTrabajadorAsync(contexto, alCorriente.Id, "Alba", "Aldia", "10000004H", VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+        }
+
+        var todas = await EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null, ConRecuentosPorEstado: true));
+
+        todas.TotalElementos.Should().Be(4);
+        todas.RecuentosPorEstado.Should().BeEquivalentTo(new Dictionary<string, int>
+        {
+            ["Vencido"] = 1,
+            ["Urgente"] = 1,
+            ["Proximo"] = 0,
+            ["SinConfirmar"] = 1,
+            ["Vigente"] = 1,
+            ["SinCaducidad"] = 0
+        });
+
+        var porVencer = await EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null, EstadoDocumental: "Urgente,Proximo", ConRecuentosPorEstado: true));
+
+        porVencer.Elementos.Select(s => s.RazonSocial).Should().Equal("Subcontrata B Urgente S.L.");
+        porVencer.TotalElementos.Should().Be(1);
+        porVencer.RecuentosPorEstado.Should().BeEquivalentTo(todas.RecuentosPorEstado, "los recuentos no cuentan el filtro de estado");
+
+        // Dos estados y página de 1: la segunda página es la segunda fila FILTRADA, por razón social.
+        var pagina2 = await EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null, Pagina: 2, TamanoPagina: 1, EstadoDocumental: "Vencido,SinConfirmar"));
+
+        pagina2.TotalElementos.Should().Be(2);
+        pagina2.Elementos.Select(s => s.RazonSocial).Should().Equal("Subcontrata Cumplimiento S.L.");
+        pagina2.RecuentosPorEstado.Should().BeNull("no se pidieron");
+
+        // Con los demás filtros: el nivel de servicio se aplica antes de contar.
+        var supervisadas = await EjecutarAsync(new ObtenerSubcontratasQuery(
+            Busqueda: null, NivelServicio: NivelServicioSubcontrata.Supervisada, ConRecuentosPorEstado: true));
+
+        supervisadas.RecuentosPorEstado!.Where(par => par.Value > 0).Select(par => (par.Key, par.Value)).Should().Equal(("SinConfirmar", 1));
+
+        // Un valor que no es un estado no filtra: la coordenada de la URL no inventa una lista vacía.
+        (await EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null, EstadoDocumental: "Inventado"))).TotalElementos.Should().Be(4);
+    }
+
+    /// <summary>
+    /// El camino con estado calcula para TODAS las filas, no solo para la página: tiene que respetar el mismo
+    /// alcance que el camino paginado. Una Subcontrata fuera del alcance no aparece ni se cuenta.
+    /// </summary>
+    [Fact]
+    public async Task El_camino_con_estado_no_devuelve_ni_cuenta_subcontratas_fuera_del_alcance()
+    {
+        Guid fueraDeAlcanceId;
+        await using (var contexto = CrearContexto())
+        {
+            await AnadirTrabajadorAsync(contexto, _subcontrataId, "Vera", "Faltante", "10000001S", vigencia: null);
+
+            var fuera = Empresa.CrearComoSubcontrata("Subcontrata Fuera De Alcance S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.Add(fuera);
+            await contexto.SaveChangesAsync();
+            fueraDeAlcanceId = fuera.Id;
+            await AnadirTrabajadorAsync(contexto, fuera.Id, "Fidel", "Fuera", "10000005L", vigencia: null);
+        }
+
+        var resultado = await EjecutarAsync(
+            new ObtenerSubcontratasQuery(Busqueda: null, EstadoDocumental: "Vencido", ConRecuentosPorEstado: true),
+            new AlcanceDatosServiceFalso(subcontrataIds: [_subcontrataId]));
+
+        resultado.Elementos.Select(s => s.Id).Should().Equal(_subcontrataId);
+        resultado.Elementos.Should().NotContain(s => s.Id == fueraDeAlcanceId);
+        resultado.TotalElementos.Should().Be(1);
+        resultado.RecuentosPorEstado!["Vencido"].Should().Be(1, "la que está fuera del alcance tampoco se cuenta en la franja");
+    }
+
+    /// <summary>Trabajador de la Subcontrata asignado al Centro; con <paramref name="vigencia"/> se le da el documento exigido.</summary>
+    private async Task<Guid> AnadirTrabajadorAsync(
+        CaeManagerDbContext contexto, Guid subcontrataId, string nombre, string apellidos, string dni, VigenciaDocumento? vigencia)
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var trabajador = Trabajador.DeSubcontrata(subcontrataId, nombre, apellidos, dni);
+        contexto.Trabajadores.Add(trabajador);
+        await contexto.SaveChangesAsync();
+
+        contexto.Asignaciones.Add(new Asignacion(trabajador.Id, _centroId, hoy));
+        if (vigencia is { } conVigencia)
+            contexto.Documentos.Add(Documento.DeTrabajador(trabajador.Id, _tipoObligatorioId, hoy.AddYears(-1), conVigencia));
+        await contexto.SaveChangesAsync();
+        return trabajador.Id;
+    }
+
     private Task<CaeManager.Application.Common.ResultadoPaginado<SubcontrataListaDto>> EjecutarAsync() =>
         EjecutarAsync(new AlcanceDatosServiceFalso());
 
-    private async Task<CaeManager.Application.Common.ResultadoPaginado<SubcontrataListaDto>> EjecutarAsync(AlcanceDatosServiceFalso alcance)
+    private Task<CaeManager.Application.Common.ResultadoPaginado<SubcontrataListaDto>> EjecutarAsync(AlcanceDatosServiceFalso alcance) =>
+        EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null), alcance);
+
+    private async Task<CaeManager.Application.Common.ResultadoPaginado<SubcontrataListaDto>> EjecutarAsync(
+        ObtenerSubcontratasQuery consulta, AlcanceDatosServiceFalso? alcance = null)
     {
+        alcance ??= new AlcanceDatosServiceFalso();
         await using var contexto = CrearContexto();
         var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance);
         var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio);
 
-        return await handler.Handle(new ObtenerSubcontratasQuery(Busqueda: null), CancellationToken.None);
+        return await handler.Handle(consulta, CancellationToken.None);
     }
 
     private CaeManagerDbContext CrearContexto()
