@@ -94,6 +94,8 @@ namespace CaeManager.Infrastructure.MultiTenancy;
 /// borra el bucle. Los que sus usuarios guardaron en OTROS tenants — un Gestor
 /// CAE con Asignación de Cartera — se borran aparte, por usuario y sin el
 /// filtro global; no tienen FK, así que dejarlos sería basura huérfana.
+/// <c>OrdenesCajasFicha</c> (orden personal de las cajas de una ficha 360) tiene
+/// la misma forma y se trata igual.
 /// </para>
 /// </summary>
 public static class RetiradaTenantDemoService
@@ -283,6 +285,8 @@ public static class RetiradaTenantDemoService
                 // abortaría la retirada entera, así que se borran con una sentencia directa, acotada por
                 // usuario. No tienen FK entrante ni saliente: no participan en el orden del guardado final.
                 await dbContext.FiltrosGuardados.IgnoreQueryFilters().Where(f => idsUsuarios.Contains(f.UsuarioId) && f.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);
+                // Orden de cajas de las fichas 360: misma forma (por Tenant, de un usuario, sin FK) y mismo motivo.
+                await dbContext.OrdenesCajasFicha.IgnoreQueryFilters().Where(o => idsUsuarios.Contains(o.UsuarioId) && o.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);
                 dbContext.RemoveRange(await dbContext.PreferenciasDashboardUsuario.Where(p => idsUsuarios.Contains(p.UsuarioId)).ToListAsync(cancellationToken));
                 dbContext.RemoveRange(await dbContext.AsignacionesOperadorDelegadoConRevocadas.Where(a => idsUsuarios.Contains(a.UsuarioId)).ToListAsync(cancellationToken));
             }
