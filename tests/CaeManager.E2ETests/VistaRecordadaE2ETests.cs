@@ -201,8 +201,10 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
             await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Gestor, Ayudas.ContrasenaUsuariosPrueba);
             await Ayudas.NavegarYEsperarAsync(page, listado);
             await CircuitoAtendiendoAsync(page, pastilla);
-            var sinAgrupar = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Sin agrupar", Exact = true });
-            await sinAgrupar.ClickAsync();
+            // Recién cargada en frío, la página aún se repinta al terminar de inicializarse y un clic suelto en
+            // «Sin agrupar» puede perderse (visto 1 de 5 veces): la ayuda de la suite insiste hasta que el
+            // botón dice que está pulsado.
+            await Ayudas.MostrarCentrosSinAgruparAsync(page);
             await EsperarVistaEnLaUrlAsync(page, ("agrupar", "no"));
             await SalirAOtraPantallaAsync(page, placeholder);
 
