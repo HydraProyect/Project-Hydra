@@ -32,6 +32,8 @@ namespace CaeManager.E2ETests;
 public class VistaRecordadaE2ETests(WebAppFixture fixture)
 {
     private static readonly string Gestor = Ayudas.EmailPrueba("gestorcae", 3);
+    private static readonly Regex AgrupadoPorCliente = new("^Agrupar: Cliente$");
+    private static readonly Regex SinAgrupar = new("^Agrupar: no$");
 
     private const string ToastRestablecida = "Vista de fábrica restablecida.";
 
@@ -124,15 +126,16 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
             await OlvidarLoRecordadoAsync(page, conUnaVista, pastilla);
 
             var buscador = page.GetByPlaceholder(placeholder);
-            var sinAgrupar = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Sin agrupar", Exact = true });
+            // El desplegable «Agrupar» dice en su pastilla la agrupación vigente («Agrupar: Cliente», «Agrupar: no»).
+            var agrupar = Ayudas.DesplegableAgrupar(page);
             var conteo = page.Locator(".conteo-centros");
-            await Expect(sinAgrupar).ToHaveAttributeAsync("aria-pressed", "false");
+            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
             var conteoDeInicio = (await conteo.InnerTextAsync()).Trim();
 
             // --- Una vista propia: sin agrupar y buscando un Centro por su nombre. La siembra no da un
             //     nombre estable, así que se lee de la lista el de un Centro cualquiera. ---
-            await sinAgrupar.ClickAsync();
-            await Expect(sinAgrupar).ToHaveAttributeAsync("aria-pressed", "true");
+            await Ayudas.ElegirAgrupacionAsync(page, "Sin agrupar", SinAgrupar);
+            await Expect(agrupar).ToHaveTextAsync(SinAgrupar);
             var nombresDeCentro = page.Locator(".lista-filas-acordeon .fila-pulsable .enlace-nombre-fila");
             await Expect(nombresDeCentro).Not.ToHaveCountAsync(0);
             var nombre = (await nombresDeCentro.AllInnerTextsAsync()).Select(n => n.Trim()).Last(n => n.Length > 0);
@@ -150,13 +153,13 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
             await Ayudas.NavegarYEsperarAsync(page, listado);
             await EsperarVistaEnLaUrlAsync(page, ("agrupar", "no"));
             await Expect(buscador).ToHaveValueAsync(string.Empty);
-            await Expect(sinAgrupar).ToHaveAttributeAsync("aria-pressed", "true");
+            await Expect(agrupar).ToHaveTextAsync(SinAgrupar);
             await Expect(conteo).ToHaveTextAsync(new Regex($@"^{cifraDeInicio.Value}\b"));
 
             // --- Con parámetros manda la URL: agrupado y sin búsqueda, como dice ella. ---
             await Ayudas.NavegarYEsperarAsync(page, $"{listado}?orden=cumplimiento-desc");
             await CircuitoAtendiendoAsync(page, pastilla);
-            await Expect(sinAgrupar).ToHaveAttributeAsync("aria-pressed", "false");
+            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
             await Expect(conteo).ToHaveTextAsync(conteoDeInicio);
             await Expect(buscador).ToHaveValueAsync(string.Empty);
             Assert.Equal(new Dictionary<string, string> { ["orden"] = "cumplimiento-desc" }, ParametrosDe(page.Url));
@@ -172,7 +175,7 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
             await CircuitoAtendiendoAsync(page, pastilla);
             Assert.Empty(ParametrosDe(page.Url));
             await Expect(EnlaceRestablecer(page)).ToHaveCountAsync(0);
-            await Expect(sinAgrupar).ToHaveAttributeAsync("aria-pressed", "false");
+            await Expect(agrupar).ToHaveTextAsync(AgrupadoPorCliente);
         }
         catch
         {
@@ -203,7 +206,7 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
             await CircuitoAtendiendoAsync(page, pastilla);
             // Recién cargada en frío, la página aún se repinta al terminar de inicializarse y un clic suelto en
             // «Sin agrupar» puede perderse (visto 1 de 5 veces): la ayuda de la suite insiste hasta que el
-            // botón dice que está pulsado.
+            // desplegable dice «Agrupar: no».
             await Ayudas.MostrarCentrosSinAgruparAsync(page);
             await EsperarVistaEnLaUrlAsync(page, ("agrupar", "no"));
             await SalirAOtraPantallaAsync(page, placeholder);
