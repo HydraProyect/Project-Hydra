@@ -300,7 +300,12 @@ else
                     con fecha y autor. El historial no existe: «Notas» es una
                     sola columna de la Empresa. Se construye el editor —que sí
                     escribe— y no se finge el historial.
+
+                    Solo para el lado de gestión: al Usuario de Cliente (rol
+                    Cliente) el handler no le entrega la nota, y sin esto vería
+                    un editor vacío de una nota que no es suya.
                 *@
+                <AuthorizeView Roles="@CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.Gestion" Context="autorizacionNota">
                 @if (_mensajeErrorNota is not null)
                 {
                     <div class="alerta-formulario" role="alert">@_mensajeErrorNota</div>
@@ -311,6 +316,7 @@ else
                     <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoNota" OnClick="GuardarNotaAsync">Guardar nota</Boton>
                     <span class="recuentos-cliente-360">Solo visible para tu equipo.</span>
                 </div>
+                </AuthorizeView>
                 break;
         }
     </Pestanas>

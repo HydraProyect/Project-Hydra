@@ -69,6 +69,9 @@
   <data name="ColumnaEmpleador" xml:space="preserve">
     <value>Empresa / Subcontrata</value>
   </data>
+  <data name="ListaColumnaEstadoDocumental" xml:space="preserve">
+    <value>Estat documental</value>
+  </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
     <value>vehículo(s)</value>
   </data>

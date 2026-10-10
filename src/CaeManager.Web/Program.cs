@@ -29,6 +29,9 @@ using CaeManager.Web.Features.Incidencias;
 using CaeManager.Web.Features.Integraciones.Endpoints;
 using CaeManager.Web.Features.Subcontratas;
 using CaeManager.Web.Features.Visitas;
+using CaeManager.Web.Features.Vehiculos;
+using CaeManager.Web.Features.Proyectos;
+using CaeManager.Web.Features.Gestiones;
 using CaeManager.Web.Features.Plataforma;
 using CaeManager.Web.Features.Tenants;
 using CaeManager.Web.Features.Trabajadores;
@@ -348,6 +351,12 @@ builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/cuenta/iniciar-sesion";
     options.AccessDeniedPath = "/acceso-denegado";
+
+    // LV-2: el desafío solo guarda como ReturnUrl la URL de una navegación (GET
+    // o HEAD). La ruta de un POST —cambiar de Tenant activo, cerrar sesión— no
+    // es un sitio al que volver tras iniciar sesión: el navegador la pediría por
+    // GET y recibiría un 404 (ver OmitirReturnUrlEnPeticionesNoNavegables).
+    OmitirReturnUrlEnPeticionesNoNavegables.Configurar(options);
 
     // D-3 (Sentry DOTNET-8, confirmado contra el evento real, no solo el
     // informe): el crash no nace en MainLayout/Blazor — Error.razor ya no
@@ -1196,6 +1205,9 @@ app.MapRequisitosDocumentalesEndpoints();
 app.MapComunicacionesEndpoints();
 app.MapSubcontratasEndpoints();
 app.MapVisitasEndpoints();
+app.MapVehiculosEndpoints();
+app.MapProyectosEndpoints();
+app.MapGestionesEndpoints();
 app.MapReportesEndpoints();
 app.MapAuditoriaEndpoints();
 app.MapClienteActivoEndpoints();

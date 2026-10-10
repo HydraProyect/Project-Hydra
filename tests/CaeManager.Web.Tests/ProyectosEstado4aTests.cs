@@ -68,7 +68,7 @@ public class ProyectosEstado4aTests : BunitContext
                 ObtenerClientesAutorizadosQuery => (object)(IReadOnlyList<ClienteAutorizadoDto>)Autorizados.ToList(),
                 ObtenerClientesParaSelectorQuery => new[] { new ClienteSelectorDto(Guid.NewGuid(), "Refrielectric S.L.") },
                 ObtenerCentrosParaSelectorQuery => (IReadOnlyList<CentroSelectorDto>)[],
-                ObtenerProyectosQuery => (IReadOnlyList<ProyectoListaDto>)[],
+                ObtenerProyectosQuery q => new ResultadoPaginado<ProyectoListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             });
         }

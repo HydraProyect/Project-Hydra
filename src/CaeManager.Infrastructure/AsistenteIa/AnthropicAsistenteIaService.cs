@@ -67,11 +67,7 @@ public class AnthropicAsistenteIaService(
 
         ...
 
-        Nunca inventes artículos.
-
-        Nunca inventes leyes.
-
-        Nunca cites normativa inexistente.
+        Cita solo normativa y artículos que existan: una ley o un artículo inventado puede llevar al Gestor CAE a una decisión errónea. Si dudas de una referencia, dilo.
 
         Cuando no exista suficiente información responde:
 
@@ -85,7 +81,7 @@ public class AnthropicAsistenteIaService(
 
         Mantén siempre un tono profesional y técnico.
 
-        Restricción adicional de esta plataforma (Etapa 1, ver ROADMAP.md § Iniciativa de IA): no tienes acceso a ningún dato real de TALVEG (Clientes, Empresas, Trabajadores, Documentos) — si te preguntan sobre un caso concreto de un cliente o trabajador específico, acláralo y responde solo con la información normativa general que pueda ayudar a resolverlo.
+        No tienes acceso a ningún dato real de TALVEG (Clientes, Empresas, Trabajadores, Documentos) — si te preguntan sobre un caso concreto de un cliente o trabajador específico, acláralo y responde solo con la información normativa general que pueda ayudar a resolverlo.
         """;
 
     public async Task<Result<string>> PreguntarAsync(IReadOnlyList<MensajeChatDto> historial, CancellationToken cancellationToken)
@@ -100,8 +96,9 @@ public class AnthropicAsistenteIaService(
         }
 
         var solicitud = new SolicitudAnthropic(
-            config.Modelo,
+            config.Para(RutasAnthropic.Asistente).Modelo,
             config.MaxTokensRespuesta,
+            ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.Asistente).Esfuerzo),
             SystemPrompt,
             [.. historial.Select(m => new MensajeAnthropic(m.Rol == RolMensajeChat.Usuario ? "user" : "assistant", m.Texto))]);
 
@@ -129,6 +126,19 @@ public class AnthropicAsistenteIaService(
             }
 
             var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaAnthropic>(cancellationToken);
+
+            // Solo el rechazo: una respuesta de chat cortada por el tope de
+            // tokens sigue siendo legible y se entrega tal cual, a diferencia
+            // de un JSON o una transcripción a medias en las rutas de extracción.
+            if (cuerpo?.StopReason == ParadaRespuestaAnthropic.Rechazo)
+            {
+                logger.LogWarning(
+                    "La API de Anthropic declinó la pregunta al asistente ({Correlacion}).", CorrelacionRespuestaIa.Describir(respuesta));
+
+                return Result.Fallo<string>(Error.Crear(
+                    "AsistenteIa.RespuestaRechazada", "El asistente no puede responder a esa pregunta. Intenta reformularla."));
+            }
+
             var texto = cuerpo?.Content.FirstOrDefault(c => c.Type == "text")?.Text;
 
             if (string.IsNullOrWhiteSpace(texto))
@@ -151,6 +161,7 @@ public class AnthropicAsistenteIaService(
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
+        [property: JsonPropertyName("output_config"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ConfiguracionSalidaAnthropic? OutputConfig,
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<MensajeAnthropic> Messages);
 
@@ -159,7 +170,8 @@ public class AnthropicAsistenteIaService(
         [property: JsonPropertyName("content")] string Content);
 
     private sealed record RespuestaAnthropic(
-        [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenidoAnthropic> Content);
+        [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenidoAnthropic> Content,
+        [property: JsonPropertyName("stop_reason")] string? StopReason = null);
 
     private sealed record BloqueContenidoAnthropic(
         [property: JsonPropertyName("type")] string Type,

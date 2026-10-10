@@ -351,6 +351,22 @@ public partial class Cliente360Gen2Tests : BunitContext
     // ─────────── Notas ───────────
 
     [Fact]
+    public void Al_Usuario_de_Cliente_la_pestana_Notas_no_le_ofrece_el_editor_de_la_nota_interna()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        // La última inscripción gana: sustituye al rol con escritura de Registrar.
+        this.ConRolDeEscritura(CaeManager.Infrastructure.Identity.Roles.Cliente);
+        mediador.Detalles[id] = Detalle(id, "Refrielectric S.A.", esCritico: true, version: Guid.NewGuid());
+        mediador.Resumenes[id] = Resumen(id, 3, 42);
+
+        var cut = Renderizar(id, "notas");
+
+        cut.FindAll("textarea").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Guardar nota").And.NotContain("Solo visible para tu equipo.");
+    }
+
+    [Fact]
     public async Task Guardar_la_nota_reenvia_la_identidad_vigente_y_la_Version()
     {
         var id = Guid.NewGuid();

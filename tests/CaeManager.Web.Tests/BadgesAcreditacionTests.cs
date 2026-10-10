@@ -29,9 +29,11 @@ public class BadgesAcreditacionTests : BunitContext
         // Femenino: concuerda con «acreditación», que es lo que el badge
         // nombra, y con el propio enum (Rechazada/Aceptada). Decisión del
         // propietario, 2026-08-29 — antes decía «rechazado»/«aceptado» y
-        // código e interfaz discrepaban sobre el mismo valor.
+        // código e interfaz discrepaban sobre el mismo valor. Desde el
+        // 2026-10-10 el valor Aceptada se rotula «validada».
         cut.Markup.Should().Contain("Nalanda").And.Contain("rechazada");
-        cut.Markup.Should().Contain("Dokify").And.Contain("aceptada");
+        cut.Markup.Should().Contain("Dokify").And.Contain("validada");
+        cut.Markup.Should().NotContain("aceptada");
     }
 
     /// <summary>

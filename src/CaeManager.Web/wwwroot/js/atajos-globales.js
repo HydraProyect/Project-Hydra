@@ -7,6 +7,7 @@
 // (C# no puede leer este array ni viceversa — CatalogoAtajosSincronizadoConJsTests
 // vigila el emparejamiento leyendo este fichero como texto).
 import { hayDialogoModalAbierto } from './atajos-contexto.js';
+import { registrarAtajosFicha } from './atajos-ficha.js';
 
 const TECLAS_DESTINO = ['c', 'e', 't', 'd', 'a', 'b', 'p', 'i', 'v', 'm'];
 const VENTANA_PREFIJO_MS = 900;
@@ -77,10 +78,13 @@ export function registrarAtajosGlobales(dotNetRef) {
 
     document.addEventListener('keydown', manejador);
     document.addEventListener('click', alHacerClic);
+    // Los atajos de las fichas 360 no necesitan C#: viajan con este registro, que es único.
+    const atajosFicha = registrarAtajosFicha();
 
     return {
         dispose: () => {
             limpiarPrefijo();
+            atajosFicha.dispose();
             document.removeEventListener('keydown', manejador);
             document.removeEventListener('click', alHacerClic);
         }

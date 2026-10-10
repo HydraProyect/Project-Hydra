@@ -256,11 +256,15 @@ public class TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests : IAsyncLifetime
 
         var panel = await new ObtenerTecnicosProyectoQueryHandler(contexto, contexto, alcance)
             .Handle(new ObtenerTecnicosProyectoQuery(_proyectoDelOtroTenant), CancellationToken.None);
-        var lista = await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, alcance)
+        var lista = await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, alcance)
             .Handle(new ObtenerProyectosQuery(_clienteDelOtroTenant), CancellationToken.None);
+        // Sin Cliente empresarial la lista es la de todos los del Tenant en el que se opera: tampoco por ahí.
+        var listaDeTodos = await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, alcance)
+            .Handle(new ObtenerProyectosQuery(TamanoPagina: 100), CancellationToken.None);
 
         panel.Should().BeEmpty();
-        lista.Should().BeEmpty();
+        lista.Elementos.Should().BeEmpty();
+        listaDeTodos.Elementos.Select(p => p.Id).Should().Equal(_proyectoA);
         // La fila no llega a la conexión de runtime: no es solo que el handler la descarte.
         (await contexto.ProyectosTecnicos.IgnoreQueryFilters().CountAsync(pt => pt.ProyectoId == _proyectoDelOtroTenant))
             .Should().Be(0, "RLS acota la conexión al Tenant propietario en el que se opera");
@@ -303,8 +307,8 @@ public class TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests : IAsyncLifetime
         await using var contexto = ContextoRuntime(usuarioId, rol, tenantOrigen);
         var alcance = Alcance(contexto, usuarioId, rol, tenantOrigen);
 
-        var lista = await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, alcance)
-            .Handle(new ObtenerProyectosQuery(_clienteA), CancellationToken.None);
+        var lista = (await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, alcance)
+            .Handle(new ObtenerProyectosQuery(_clienteA), CancellationToken.None)).Elementos;
         var panel = await new ObtenerTecnicosProyectoQueryHandler(contexto, contexto, alcance)
             .Handle(new ObtenerTecnicosProyectoQuery(_proyectoA), CancellationToken.None);
 

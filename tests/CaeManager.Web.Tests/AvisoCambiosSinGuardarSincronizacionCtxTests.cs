@@ -72,6 +72,93 @@ public class AvisoCambiosSinGuardarSincronizacionCtxTests : BunitContext
         cut.FindAll(".modal-contenido").Should().ContainSingle();
     }
 
+    // --- La página de debajo escribe su pestaña o un filtro en la URL con la ficha abierta ---
+
+    [Theory]
+    [InlineData("trabajadores/x?ctx=Centro:{0}:informacion", "trabajadores/x?ctx=Centro:{0}:informacion&pestana=documentacion", true)]
+    [InlineData("trabajadores/x?pestana=historial&ctx=Centro:{0}:informacion", "trabajadores/x?ctx=Centro:{0}:informacion", true)]
+    [InlineData("centros?q=norte&ctx=Centro:{0}:informacion", "centros?q=sur&ctx=Centro:{0}:informacion", true)]
+    [InlineData("centros?ctx=Centro:{0}:informacion", "centros?ctx=Centro:{0}:documentacion&pestana=x", false)]
+    [InlineData("centros?ctx=Centro:{0}:informacion", "centros?ctx=Centro:{1}:informacion&pestana=x", false)]
+    [InlineData("centros?ctx=Centro:{0}:informacion", "centros?pestana=x", false)]
+    [InlineData("centros?pestana=y", "centros?pestana=x", false)]
+    [InlineData("centros?ctx=Centro:{0}:informacion", "trabajadores?ctx=Centro:{0}:informacion", false)]
+    public void La_ficha_sigue_abierta_solo_si_no_cambian_ni_la_pagina_ni_el_ctx(string actual, string destino, bool esperado)
+    {
+        ContextWorkspace.ConservaLaFichaAbierta(
+                U(string.Format(actual, Centro, OtroCentro)), U(string.Format(destino, Centro, OtroCentro)))
+            .Should().Be(esperado);
+    }
+
+    /// <summary>El aviso de un formulario de la ficha del Context Workspace: recibe el ámbito de ficha en cascada, como dentro del panel.</summary>
+    private (IRenderedComponent<AvisoCambiosSinGuardar> Cut, NavigationManager Navegacion) RenderizarConCambiosDentroDeLaFicha()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo($"trabajadores/x?ctx=Centro:{Centro}:informacion");
+        var cut = Render<AvisoCambiosSinGuardar>(p => p
+            .Add(x => x.HayCambios, () => true)
+            .AddCascadingValue(AmbitoCambiosSinGuardar.NombreAmbitoFicha, new AmbitoCambiosSinGuardar()));
+        return (cut, navegacion);
+    }
+
+    [Fact]
+    public async Task La_pestana_de_la_pagina_con_la_ficha_a_medio_editar_no_pregunta()
+    {
+        var (cut, navegacion) = RenderizarConCambiosDentroDeLaFicha();
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo($"trabajadores/x?ctx=Centro:{Centro}:informacion&pestana=documentacion", replace: true));
+
+        navegacion.Uri.Should().EndWith("pestana=documentacion", "la ficha del panel sigue montada: la página solo apuntó su pestaña");
+        cut.FindAll(".modal-contenido").Should().BeEmpty();
+    }
+
+    /// <summary>Revisión puente: el formulario dentro de una pestaña del panel (ámbito de pestañas y de ficha a la vez) tampoco se desmonta.</summary>
+    [Fact]
+    public async Task El_filtro_de_la_pagina_con_un_formulario_de_pestana_del_panel_a_medio_editar_no_pregunta()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo($"centros?q=norte&ctx=Centro:{Centro}:informacion");
+        var ficha = new AmbitoCambiosSinGuardar();
+        var cut = Render<AvisoCambiosSinGuardar>(p => p
+            .Add(x => x.HayCambios, () => true)
+            .AddCascadingValue(new AmbitoCambiosSinGuardar(ficha))
+            .AddCascadingValue(AmbitoCambiosSinGuardar.NombreAmbitoFicha, ficha));
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo($"centros?q=sur&ctx=Centro:{Centro}:informacion", replace: true));
+
+        navegacion.Uri.Should().Contain("q=sur");
+        cut.FindAll(".modal-contenido").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Cerrar_la_ficha_a_medio_editar_sigue_preguntando_aunque_la_pagina_cambie_de_pestana()
+    {
+        var (cut, navegacion) = RenderizarConCambiosDentroDeLaFicha();
+        var origen = navegacion.Uri;
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo("trabajadores/x?pestana=documentacion", replace: true));
+
+        navegacion.Uri.Should().Be(origen);
+        cut.FindAll(".modal-contenido").Should().ContainSingle();
+    }
+
+    /// <summary>Un formulario de la propia página (sin ámbito de ficha) sí puede desmontarse con un filtro o una pestaña de la página: sigue preguntando.</summary>
+    [Fact]
+    public async Task Un_formulario_de_la_pagina_sigue_preguntando_si_cambia_la_consulta_de_la_pagina()
+    {
+        var (cut, navegacion) = RenderizarConCambiosEnFicha();
+        var origen = navegacion.Uri;
+
+        await cut.InvokeAsync(() => navegacion.NavigateTo($"centros?ctx=Centro:{Centro}:informacion&pestana=documentacion", replace: true));
+
+        navegacion.Uri.Should().Be(origen);
+        cut.FindAll(".modal-contenido").Should().ContainSingle();
+    }
+
     private static readonly IReadOnlyList<PestanaDefinicion> PestanasFicha =
     [
         new("informacion", "Información"),

@@ -13,6 +13,7 @@
 @using FluentValidation
 @using MediatR
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using CaeManager.Web.Features.Vehiculos.Components
 @using Microsoft.AspNetCore.Components.QuickGrid
 @using CaeManager.Web.Features.Vehiculos.Recursos
@@ -33,7 +34,8 @@
     {
         <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple"
-                         SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)">
+                         SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)"
+                         Menu="@(_alcanceCero ? null : MenuCabecera)">
             <Primaria>
                 @if (!_alcanceCero)
                 {
@@ -63,7 +65,10 @@
     @if (!_alcanceCero)
     {
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
-                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
+                  VistaRecordada="_vistaRecordada">
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpleador"]" TextoTodos="@Textos["ListaFiltroTodos"]"
                             Valor="@ValorFiltroEmpleador" ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
@@ -83,6 +88,10 @@
             }
         </Chips>
     </BarraFiltros>
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Vehiculos"
+                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
@@ -103,7 +112,7 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+            <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
                     <TemplateColumn Title="" Align="Align.Center">
@@ -115,7 +124,8 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn @ref="_columnaVehiculo" Title="@TituloColumnaVehiculo" Sortable="true" SortBy="@OrdenColumnaVehiculo">
+                <TemplateColumn @ref="_columnaVehiculo" Title="@TituloColumnaVehiculo" Sortable="true" SortBy="@OrdenColumnaVehiculo"
+                                IsDefaultSortColumn="@_orden.Es("vehiculo", "modelo")" InitialSortDirection="_orden.Direccion">
                     <ColumnOptions>
                         @* El botón de orden y su dirección accesible siguen siendo los nativos de QuickGrid.
                            Solo se escoge cuál de los dos campos de esta celda se ordena. *@
@@ -130,27 +140,51 @@
                         <span class="celda-vehiculo">
                             <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
                                     aria-label="@Textos["AbrirVistaRapidaDe", context.Nombre]"
-                                    @onclick="() => AbrirVistaRapidaAsync(context.Id)">@context.Nombre</button>
-                            <span class="celda-vehiculo-modelo">@context.Modelo</span>
+                                    @onclick="() => AbrirVistaRapidaAsync(context.Id)"><TextoResaltado Texto="@context.Nombre" Termino="@_busqueda" /></button>
+                            <span class="celda-vehiculo-modelo"><TextoResaltado Texto="@context.Modelo" Termino="@_busqueda" /></span>
                         </span>
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["EtiquetaMatricula"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.NumeroPlaca))">
+                @* Orden de la maqueta de listados: Vehículo · Empleador · Matrícula · Estado documental. *@
+                <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["EtiquetaEmpleador"]" Sortable="true"
+                               IsDefaultSortColumn="@_orden.Es("empleador")" InitialSortDirection="_orden.Direccion" />
+                <TemplateColumn Title="@Textos["EtiquetaMatricula"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.NumeroPlaca))"
+                               IsDefaultSortColumn="@_orden.Es("matricula")" InitialSortDirection="_orden.Direccion">
                     @if (!string.IsNullOrWhiteSpace(context.NumeroPlaca))
                     {
                         <span class="celda-vehiculo-matricula">
-                            <BotonCopiar EnLinea="true" Valor="@context.NumeroPlaca" Texto="@context.NumeroPlaca" Etiqueta="@Textos["FichaCopiarLaMatricula"]"
+                            <BotonCopiar EnLinea="true" Valor="@context.NumeroPlaca" Texto="@context.NumeroPlaca" TerminoResaltado="@_busqueda" Etiqueta="@Textos["FichaCopiarLaMatricula"]"
                                          NombreAccesible="@Textos["FichaCopiarMatricula", context.NumeroPlaca]" />
                         </span>
                     }
                 </TemplateColumn>
-                <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true" />
-                @* Columna de estado, de ancho fijo. El documento que causa el estado (el motivo bajo la pastilla)
-                   no viaja en VehiculoListaDto. *@
-                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" Class="col-estado" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
-                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)"
-                                Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"
-                                Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" />
+                @* Columna de estado, de ancho fijo: la pastilla se pinta siempre.
+
+                   Bajo la pastilla, el motivo (MotivoIncidenciasDocumentales): el documento que causa el
+                   estado o, si son varios, cuántos hay de cada clase. Abre una ventana de contexto con una
+                   línea por incidencia; quien puede escribir la pulsa y la corrige aquí
+                   (CorreccionIncidenciaDocumental), sin salir del listado. Las incidencias viajan en
+                   VehiculoListaDto porque esta página pide el desglose (ConDesgloseDocumental). *@
+                <TemplateColumn Title="@Textos["ListaColumnaEstadoDocumental"]" Sortable="true" Class="col-estado" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))"
+                               IsDefaultSortColumn="@_orden.Es("documentacion")" InitialSortDirection="_orden.Direccion">
+                    @if (context.Incidencias.Count > 0)
+                    {
+                        var vehiculo = context;
+                        <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(vehiculo.EstadoDocumental)"
+                                    Texto="@EstadoDocumentoUi.TextoDocumental(vehiculo.EstadoDocumental)"
+                                    Correcto="EstadoDocumentoUi.EsCorrecto(vehiculo.EstadoDocumental)">
+                            <MotivoContenido>
+                                <MotivoIncidenciasDocumentales Incidencias="vehiculo.Incidencias" Interactiva="_puedeEscribir"
+                                                               AlPulsar="CorregirIncidenciaAsync" />
+                            </MotivoContenido>
+                        </EstadoFila>
+                    }
+                    else
+                    {
+                        <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)"
+                                    Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"
+                                    Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" />
+                    }
                 </TemplateColumn>
                 @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Ver» es el clic en la
                    fila; «Eliminar», la selección múltiple (☑ de la cabecera o tecla «x»), con su
@@ -249,6 +283,9 @@
     <CampoTexto Etiqueta="@Textos["EtiquetaMatricula"]" Valor="@_numeroPlaca" ValorChanged="v => _numeroPlaca = v" OnBlur="ValidarNumeroPlacaAsync" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.NumeroPlaca))" />
 </DrawerFormulario>
 
+@* Corrección de una incidencia desde la ventana del motivo. Monta su formulario al primer uso. *@
+<CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
+
 @* EliminarVehiculosCommand es ICommand, denegado a Consulta. *@
 <SoloConEscritura>
     <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_eliminandoLote"
@@ -264,3 +301,11 @@
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
 </LimiteDeErrores>
+
+@code {
+    /// <summary>
+    /// El «⋯» de la cabecera: las dos entradas de exportación, que son lectura y las ve cualquier rol
+    /// de la página. Con alcance cero no se pasa (D-15: daría un fichero vacío).
+    /// </summary>
+    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/vehiculos/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />;
+}

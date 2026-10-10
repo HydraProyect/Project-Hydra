@@ -100,6 +100,13 @@ public class ObtenerEstadoTipoDocumentoQueryTests
         var dto = await escenario.Handler(calculo, rol).Handle(new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id), CancellationToken.None);
 
         dto.Should().BeNull("un rol sin acceso recibe lo mismo que un tipo inexistente");
+
+        // Los filtros que la página lleva en la URL (?estado=, ?q=) no abren la puerta: el rol se mira antes que la petición.
+        var conFiltros = await escenario.Handler(calculo, rol).Handle(
+            new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id, [GrupoEstadoTipoDocumento.Vencido], Busqueda: "Pedro"),
+            CancellationToken.None);
+
+        conFiltros.Should().BeNull();
         calculo.CentrosPedidos.Should().BeEmpty();
     }
 
@@ -238,6 +245,38 @@ public class ObtenerEstadoTipoDocumentoQueryTests
         var fueraDeRango = await handler.Handle(
             new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id, Pagina: 99, TamanoPagina: 4), CancellationToken.None);
         fueraDeRango!.Pagina.Should().Be(2, "una página que ya no existe cae en la última, no en una lista vacía");
+    }
+
+    [Fact]
+    public async Task El_buscador_recorta_las_filas_por_nombre_sin_tocar_el_anillo_ni_los_recuentos_y_se_suma_al_filtro_de_estados()
+    {
+        var escenario = new Escenario();
+        var vigo = escenario.Centro("Almacén Vigo");
+        var handler = escenario.Handler(new CalculoFalso(
+            escenario.Par(vigo, escenario.Trabajador("Marta", "Ruiz"), EstadoDocumento.Vencido),
+            escenario.Par(vigo, escenario.Trabajador("Martín", "Soto"), EstadoDocumento.Vigente),
+            escenario.Par(vigo, escenario.Trabajador("Lucía", "Peña"), EstadoDocumento.Vencido)));
+
+        var porTexto = await handler.Handle(
+            new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id, Busqueda: "  mart "), CancellationToken.None);
+
+        porTexto!.Filas.Select(f => f.Nombre).Should().Equal("Marta Ruiz", "Martín Soto");
+        porTexto.TotalFiltradas.Should().Be(2);
+        porTexto.Trabajadores.Should().Be(3, "el total de la pestaña no depende de lo que se busque");
+        porTexto.Recuentos.Sum(r => r.Filas).Should().Be(3, "los contadores cuentan todas las filas, no las buscadas");
+        porTexto.Cumplimiento.Should().Be(new FraccionCumplimiento(1, 3));
+
+        var porTextoYEstado = await handler.Handle(
+            new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id, [GrupoEstadoTipoDocumento.Vencido], Busqueda: "MART"),
+            CancellationToken.None);
+
+        porTextoYEstado!.Filas.Select(f => f.Nombre).Should().Equal("Marta Ruiz");
+
+        var sinCoincidencias = await handler.Handle(
+            new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id, Busqueda: "zzz"), CancellationToken.None);
+
+        sinCoincidencias!.Filas.Should().BeEmpty();
+        sinCoincidencias.Trabajadores.Should().Be(3);
     }
 
     [Fact]

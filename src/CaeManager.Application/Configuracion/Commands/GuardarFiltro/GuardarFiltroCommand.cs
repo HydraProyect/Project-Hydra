@@ -13,16 +13,37 @@ namespace CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 /// <see cref="ValoresJson"/> lo serializa y
 /// entiende la propia pantalla — este Command no conoce la forma de los
 /// filtros de cada feature.
+///
+/// <para>
+/// El nombre reservado de la vista recordada
+/// (<see cref="FiltroGuardado.NombreVistaRecordada"/>) no se puede usar aquí: esa
+/// fila solo la escribe <c>GuardarVistaRecordadaCommand</c>. Lo rechaza el
+/// validador, con o sin espacios alrededor y en cualquier capitalización, y por
+/// debajo el constructor de <see cref="FiltroGuardado"/>.
+/// </para>
 /// </summary>
 public record GuardarFiltroCommand(string Pantalla, string Nombre, string ValoresJson) : ICommand<Guid>, IComandoDeAutoservicio;
 
+/// <summary>
+/// Los listados que guardan filtros. Trabajadores, Clientes empresariales y Documentos llevan su
+/// propia forma de <see cref="GuardarFiltroCommand.ValoresJson"/>; los demás guardan los parámetros
+/// de vista de su URL con la pieza compartida <c>FiltrosGuardadosDeListado</c> (Web).
+/// </summary>
 public static class PantallasConFiltrosGuardados
 {
     public const string Clientes = "Clientes";
     public const string Documentos = "Documentos";
     public const string Trabajadores = "Trabajadores";
+    public const string Empresas = "Empresas";
+    public const string Centros = "Centros";
+    public const string Subcontratas = "Subcontratas";
+    public const string Vehiculos = "Vehiculos";
+    public const string Proyectos = "Proyectos";
+    public const string Visitas = "Visitas";
+    public const string Gestiones = "Gestiones";
 
-    public static readonly string[] Admitidas = [Clientes, Documentos, Trabajadores];
+    public static readonly string[] Admitidas =
+        [Clientes, Documentos, Trabajadores, Empresas, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones];
 }
 
 public class GuardarFiltroCommandValidator : AbstractValidator<GuardarFiltroCommand>
@@ -32,6 +53,8 @@ public class GuardarFiltroCommandValidator : AbstractValidator<GuardarFiltroComm
         RuleFor(c => c.Pantalla).Must(p => PantallasConFiltrosGuardados.Admitidas.Contains(p))
             .WithMessage("Esa pantalla no admite filtros guardados.");
         RuleFor(c => c.Nombre).NotEmpty().WithMessage("Ponle un nombre a este filtro.").MaximumLength(100);
+        RuleFor(c => c.Nombre).Must(nombre => !FiltroGuardado.EsNombreReservado(nombre))
+            .WithMessage("Ese nombre está reservado. Elige otro nombre.");
         RuleFor(c => c.ValoresJson).NotEmpty();
     }
 }

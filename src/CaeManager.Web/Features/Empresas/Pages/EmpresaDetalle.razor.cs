@@ -67,6 +67,9 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// <summary>Chip de estado de la pestaña Trabajadores, en la URL (sin parámetro = Todos).</summary>
     [Parameter, SupplyParameterFromQuery(Name = "estado")] public string? Estado { get; set; }
 
+    /// <summary>Texto del buscador de la pestaña Trabajadores, en la URL (<c>?q=</c>), como en Centro 360.</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Busqueda { get; set; }
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -77,7 +80,14 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _cargando = true;
     private bool _error;
 
+    /// <summary>Todos los Trabajadores de la Empresa: lo que cuentan la cabecera y el contador de la pestaña.</summary>
     private RecuentoTrabajadores? _recuentos;
+
+    /// <summary>
+    /// Los que casan con el buscador: lo que cuentan los chips y de donde salen los tramos de la lista. Sin texto en
+    /// el buscador es el mismo recuento que <see cref="_recuentos"/>.
+    /// </summary>
+    private RecuentoTrabajadores? _recuentosLista;
     private IReadOnlyList<TrabajadorListaDto> _filas = [];
     private bool _cargandoTrabajadores = true;
     private bool _errorTrabajadores;
@@ -107,6 +117,8 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private FiltroTrabajadores _filtro = FiltroTrabajadores.Todos;
     private string? _pestanaDeLaUrl;
     private string? _estadoDeLaUrl;
+    private string _busqueda = string.Empty;
+    private string? _busquedaDeLaUrl;
     private bool _urlAdoptada;
 
     /// <summary>
@@ -143,7 +155,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
-        var filtroCambio = AdoptarUrl();
+        var (filtroCambio, busquedaCambio) = AdoptarUrl();
 
         if (_empresaCargada != EmpresaId)
         {
@@ -153,7 +165,12 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             return;
         }
 
-        if (filtroCambio && _recuentos is not null)
+        if (busquedaCambio && _recuentos is not null)
+        {
+            _pagina = 1;
+            await CargarTrabajadoresAsync(soloLaLista: true);
+        }
+        else if (filtroCambio && _recuentos is not null)
         {
             _pagina = 1;
             await MostrarPaginaAsync();
@@ -165,11 +182,12 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// <summary>
     /// Adopta pestaña y chip cuando cambian en la URL AHÍ FUERA —un enlace, el
     /// botón «atrás»—; lo que cambia la propia página ya lo apuntó antes de
-    /// navegar. Devuelve si el chip cambió.
+    /// navegar. Devuelve si el chip cambió y si cambió el texto del buscador.
     /// </summary>
-    private bool AdoptarUrl()
+    private (bool Filtro, bool Busqueda) AdoptarUrl()
     {
         var filtroCambio = false;
+        var busquedaCambio = false;
         if (!_urlAdoptada || !string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
@@ -184,8 +202,16 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             _filtro = filtro;
         }
 
+        if (!_urlAdoptada || !string.Equals(_busquedaDeLaUrl, Busqueda, StringComparison.Ordinal))
+        {
+            _busquedaDeLaUrl = Busqueda;
+            var busqueda = Busqueda ?? string.Empty;
+            busquedaCambio = !string.Equals(busqueda, _busqueda, StringComparison.Ordinal);
+            _busqueda = busqueda;
+        }
+
         _urlAdoptada = true;
-        return filtroCambio;
+        return (filtroCambio, busquedaCambio);
     }
 
     private void InvalidarCargas()
@@ -206,6 +232,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cumplimiento = null;
         _error = false;
         _recuentos = null;
+        _recuentosLista = null;
         _filas = [];
         _paginasOrdenadas.Clear();
         _cargandoTrabajadores = true;
@@ -273,28 +300,50 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// <summary>
     /// Recuentos por estado y la página visible. Un fallo aquí no tumba la
     /// página: la Empresa sí cargó, y la pestaña enseña su propio error.
+    /// <para>
+    /// Con texto en el buscador se cuentan dos cosas: los que casan (chips y tramos de la lista) y todos (cabecera y
+    /// contador de la pestaña). <paramref name="soloLaLista"/> reutiliza el recuento de todos que ya se tiene: es lo
+    /// que cambia al teclear. Con una lista ya pintada, esta se queda a la vista hasta que llega la nueva, para no
+    /// desmontar el buscador mientras se escribe.
+    /// </para>
     /// </summary>
-    private async Task CargarTrabajadoresAsync()
+    private Task CargarTrabajadoresAsync() => CargarTrabajadoresAsync(soloLaLista: false);
+
+    private async Task CargarTrabajadoresAsync(bool soloLaLista)
     {
         var carga = ++_cargaTrabajadores;
+        // Una página pedida con el texto anterior ya no vale: que no escriba en la caché que se vacía aquí.
+        _cargaPagina++;
         var empresaId = EmpresaId;
-        _cargandoTrabajadores = true;
+        var busqueda = TextoBuscado;
+        _cargandoTrabajadores = _recuentos is null;
         _errorTrabajadores = false;
         _paginasOrdenadas.Clear();
 
         try
         {
-            var primera = await Mediator.Send(ConsultaOrdenada(empresaId, 1), _cancelacion);
-            if (carga != _cargaTrabajadores) return;
-            var vencidos = await ContarAsync(empresaId, EstadoDocumento.Vencido);
-            if (carga != _cargaTrabajadores) return;
-            var urgentes = await ContarAsync(empresaId, EstadoDocumento.Urgente);
-            if (carga != _cargaTrabajadores) return;
-            var proximos = await ContarAsync(empresaId, EstadoDocumento.Proximo);
-            if (carga != _cargaTrabajadores) return;
+            var deLaLista = await ContarTodosLosEstadosAsync(empresaId, busqueda, carga);
+            if (deLaLista is null) return;
+            var (recuentoDeLaLista, primera) = deLaLista.Value;
 
-            _paginasOrdenadas[1] = primera.Elementos;
-            _recuentos = new RecuentoTrabajadores(primera.TotalElementos, vencidos, urgentes, proximos);
+            var todos = recuentoDeLaLista;
+            if (busqueda is not null)
+            {
+                if (soloLaLista && _recuentos is { } yaContados)
+                {
+                    todos = yaContados;
+                }
+                else
+                {
+                    var deTodos = await ContarTodosLosEstadosAsync(empresaId, null, carga);
+                    if (deTodos is null) return;
+                    todos = deTodos.Value.Recuento;
+                }
+            }
+
+            _paginasOrdenadas[1] = primera;
+            _recuentos = todos;
+            _recuentosLista = recuentoDeLaLista;
             await MostrarPaginaAsync();
         }
         catch (Exception)
@@ -302,6 +351,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (carga == _cargaTrabajadores)
             {
                 _recuentos = null;
+                _recuentosLista = null;
                 _errorTrabajadores = true;
             }
         }
@@ -313,15 +363,34 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     }
 
     /// <summary>Total de un solo estado: el handler cuenta en SQL y devuelve una fila, que se descarta.</summary>
-    private async Task<int> ContarAsync(Guid empresaId, EstadoDocumento estado)
+    private async Task<int> ContarAsync(Guid empresaId, EstadoDocumento estado, string? busqueda)
     {
         var resultado = await Mediator.Send(new ObtenerTrabajadoresQuery(
-            null, EmpresaId: empresaId, Pagina: 1, TamanoPagina: 1, EstadoDocumental: estado.ToString()), _cancelacion);
+            busqueda, EmpresaId: empresaId, Pagina: 1, TamanoPagina: 1, EstadoDocumental: estado.ToString()), _cancelacion);
         return resultado.TotalElementos;
     }
 
-    private static ObtenerTrabajadoresQuery ConsultaOrdenada(Guid empresaId, int pagina) =>
-        new(null, EmpresaId: empresaId, Pagina: pagina, TamanoPagina: TamanoPagina,
+    /// <summary>
+    /// Recuento por estado de los Trabajadores que casan con <paramref name="busqueda"/> (<c>null</c>, todos) y su
+    /// primera página ordenada. <c>null</c> si mientras tanto empezó otra carga: quien llama no escribe nada.
+    /// </summary>
+    private async Task<(RecuentoTrabajadores Recuento, IReadOnlyList<TrabajadorListaDto> PrimeraPagina)?> ContarTodosLosEstadosAsync(
+        Guid empresaId, string? busqueda, int carga)
+    {
+        var primera = await Mediator.Send(ConsultaOrdenada(empresaId, 1, busqueda), _cancelacion);
+        if (carga != _cargaTrabajadores) return null;
+        var vencidos = await ContarAsync(empresaId, EstadoDocumento.Vencido, busqueda);
+        if (carga != _cargaTrabajadores) return null;
+        var urgentes = await ContarAsync(empresaId, EstadoDocumento.Urgente, busqueda);
+        if (carga != _cargaTrabajadores) return null;
+        var proximos = await ContarAsync(empresaId, EstadoDocumento.Proximo, busqueda);
+        if (carga != _cargaTrabajadores) return null;
+
+        return (new RecuentoTrabajadores(primera.TotalElementos, vencidos, urgentes, proximos), primera.Elementos);
+    }
+
+    private static ObtenerTrabajadoresQuery ConsultaOrdenada(Guid empresaId, int pagina, string? busqueda) =>
+        new(busqueda, EmpresaId: empresaId, Pagina: pagina, TamanoPagina: TamanoPagina,
             OrdenarPor: nameof(TrabajadorListaDto.EstadoDocumental));
 
     /// <summary>
@@ -333,11 +402,12 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// </summary>
     private async Task MostrarPaginaAsync()
     {
-        if (_recuentos is not { } recuentos) return;
+        if (_recuentosLista is not { } recuentos) return;
 
         var carga = ++_cargaPagina;
         var generacion = _generacion;
         var empresaId = EmpresaId;
+        var busqueda = TextoBuscado;
         var filtro = _filtro;
         var (desde, cantidad) = Tramo(recuentos, filtro, _pagina, TamanoPagina);
         if (cantidad <= 0)
@@ -355,7 +425,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             {
                 if (!_paginasOrdenadas.TryGetValue(pagina, out var elementos))
                 {
-                    var resultado = await Mediator.Send(ConsultaOrdenada(empresaId, pagina), _cancelacion);
+                    var resultado = await Mediator.Send(ConsultaOrdenada(empresaId, pagina, busqueda), _cancelacion);
                     if (carga != _cargaPagina || generacion != _generacion) return;
                     elementos = resultado.Elementos;
                     _paginasOrdenadas[pagina] = elementos;
@@ -408,7 +478,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _ => true
     };
 
-    private int TotalDelFiltro => _recuentos is not { } r ? 0 : _filtro switch
+    private int TotalDelFiltro => _recuentosLista is not { } r ? 0 : _filtro switch
     {
         FiltroTrabajadores.SinDocumentacionValida => r.Vencidos,
         FiltroTrabajadores.PorVencer => r.PorVencer,
@@ -424,6 +494,35 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         await MostrarPaginaAsync();
     }
 
+    private bool HayBusqueda => !string.IsNullOrWhiteSpace(_busqueda);
+
+    /// <summary>Lo que se pide a la consulta: el texto del buscador sin espacios alrededor, o <c>null</c> si no hay.</summary>
+    private string? TextoBuscado => HayBusqueda ? _busqueda.Trim() : null;
+
+    private async Task BuscarAsync(string valor)
+    {
+        _busqueda = valor;
+        _pagina = 1;
+        _busquedaDeLaUrl = string.IsNullOrWhiteSpace(valor) ? null : valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
+        await CargarTrabajadoresAsync(soloLaLista: true);
+    }
+
+    /// <summary>
+    /// Quita el texto y el chip, también de la URL y en una sola navegación: una lista sin filtro cuya URL siga
+    /// llevándolos los repone en cuanto alguien recarga o comparte el enlace.
+    /// </summary>
+    private async Task QuitarFiltrosAsync()
+    {
+        _busqueda = string.Empty;
+        _filtro = FiltroTrabajadores.Todos;
+        _pagina = 1;
+        _busquedaDeLaUrl = null;
+        _estadoDeLaUrl = null;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
+        await CargarTrabajadoresAsync(soloLaLista: true);
+    }
+
     private async Task CambiarFiltroAsync(FiltroTrabajadores filtro)
     {
         _filtro = filtro;
@@ -435,7 +534,9 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     /// <summary>
     /// Pulsar un indicador de la cabecera lleva a la pestaña Trabajadores con
-    /// su chip puesto: pestaña y chip en una sola navegación.
+    /// su chip puesto: pestaña y chip en una sola navegación. El indicador cuenta
+    /// a todos, así que el texto del buscador se quita: si no, la lista enseñaría
+    /// menos de lo que el indicador dice.
     /// </summary>
     private async Task FiltrarDesdeIndicadorAsync(FiltroTrabajadores filtro)
     {
@@ -444,12 +545,19 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _filtro = filtro;
         _pagina = 1;
         _estadoDeLaUrl = FiltroEnUrl(filtro);
+        var habiaBusqueda = HayBusqueda;
+        _busqueda = string.Empty;
+        _busquedaDeLaUrl = null;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["pestana"] = null,
-            ["estado"] = _estadoDeLaUrl
+            ["estado"] = _estadoDeLaUrl,
+            ["q"] = null
         });
-        await MostrarPaginaAsync();
+        if (habiaBusqueda)
+            await CargarTrabajadoresAsync(soloLaLista: true);
+        else
+            await MostrarPaginaAsync();
     }
 
     private async Task CambiarPestanaAsync(string pestana)

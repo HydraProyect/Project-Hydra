@@ -1,0 +1,19 @@
+/* Una incidencia: pastilla del estado, nombre del Tipo y, al final, la fecha. */
+.motivo-incidencias-linea {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.motivo-incidencias-tipo {
+    min-width: 0;
+    white-space: normal;
+}
+
+.motivo-incidencias-fecha {
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}

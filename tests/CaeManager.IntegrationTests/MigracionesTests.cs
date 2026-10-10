@@ -20,7 +20,8 @@ namespace CaeManager.IntegrationTests;
 /// </summary>
 public class MigracionesTests : IAsyncLifetime
 {
-    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
+    // Base sin crear, no un clon de la plantilla: aquí aplicar las migraciones es lo que se prueba.
+    private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionDeBaseVacia();
     private CaeManagerDbContext _dbContext = null!;
 
     public async Task InitializeAsync()

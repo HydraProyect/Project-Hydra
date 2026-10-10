@@ -150,6 +150,15 @@
   <data name="VacioTrabajadoresDescripcion" xml:space="preserve">
     <value>No hi ha treballadors d'aquesta empresa als centres que pots veure.</value>
   </data>
+  <data name="BuscadorTrabajadores" xml:space="preserve">
+    <value>Cerca un treballador d'aquesta empresa…</value>
+  </data>
+  <data name="VacioBusquedaTitulo" xml:space="preserve">
+    <value>Cap treballador amb aquest filtre</value>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Treu els filtres</value>
+  </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
     <value>Cap treballador en aquest estat</value>
   </data>
@@ -326,5 +335,20 @@
   </data>
   <data name="GestorCaeOtraSinPrincipal" xml:space="preserve">
     <value>Una altra Assignació d’Operació, sense principal</value>
+  </data>
+  <data name="GestorCaeMas" xml:space="preserve">
+    <value>+{0}</value>
+  </data>
+  <data name="GestorCaeMasEtiqueta" xml:space="preserve">
+    <value>{0} més. Llista completa de persones amb Assignació de Cartera</value>
+  </data>
+  <data name="ColDetecciones" xml:space="preserve">
+    <value>Deteccions</value>
+  </data>
+  <data name="ColCumplimiento" xml:space="preserve">
+    <value>Compliment</value>
+  </data>
+  <data name="ColEstadoDocumental" xml:space="preserve">
+    <value>Estat documental</value>
   </data>
 </root>

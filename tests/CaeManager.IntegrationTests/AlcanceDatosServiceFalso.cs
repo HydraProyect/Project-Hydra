@@ -19,7 +19,8 @@ public class AlcanceDatosServiceFalso(
     IReadOnlyList<Guid>? conexionesIntegracionAjenas = null,
     IReadOnlyList<Guid>? empresaIdsParaGestion = null,
     IReadOnlyList<Guid>? subcontrataIdsParaGestion = null,
-    IReadOnlyList<Guid>? centroIdsParaGestion = null) : IAlcanceDatosService
+    IReadOnlyList<Guid>? centroIdsParaGestion = null,
+    bool ladoDeGestion = true) : IAlcanceDatosService
 {
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(
         clienteIds is null && centroIds is null && empresaIds is null &&
@@ -27,6 +28,9 @@ public class AlcanceDatosServiceFalso(
 
     public Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(clienteIds);
+
+    /// <summary>Por defecto true — solo el test que simule a un usuario de portal (rol Cliente) pasa <paramref name="ladoDeGestion"/> en false.</summary>
+    public Task<bool> OperaDesdeElLadoDeGestionAsync(CancellationToken cancellationToken = default) => Task.FromResult(ladoDeGestion);
 
     public Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(centroIds);

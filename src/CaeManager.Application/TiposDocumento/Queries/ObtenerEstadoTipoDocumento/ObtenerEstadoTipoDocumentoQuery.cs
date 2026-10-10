@@ -30,11 +30,16 @@ namespace CaeManager.Application.TiposDocumento.Queries.ObtenerEstadoTipoDocumen
 /// </para>
 /// </summary>
 /// <param name="Estados">Grupos de estado marcados; vacío o <c>null</c>, todos. Filtra las filas, no el anillo ni los recuentos.</param>
+/// <param name="Busqueda">
+/// Texto del buscador de la lista; vacío o <c>null</c>, todos. Casa con el nombre del Trabajador, sin distinguir mayúsculas
+/// (como el buscador de Centro 360). Igual que <c>Estados</c>, filtra las filas, no el anillo ni los recuentos.
+/// </param>
 public record ObtenerEstadoTipoDocumentoQuery(
     Guid TipoDocumentoId,
     IReadOnlyCollection<GrupoEstadoTipoDocumento>? Estados = null,
     int Pagina = 1,
-    int TamanoPagina = ObtenerEstadoTipoDocumentoQuery.TamanoPaginaPorDefecto) : IRequest<EstadoTipoDocumentoDto?>
+    int TamanoPagina = ObtenerEstadoTipoDocumentoQuery.TamanoPaginaPorDefecto,
+    string? Busqueda = null) : IRequest<EstadoTipoDocumentoDto?>
 {
     public const int TamanoPaginaPorDefecto = 20;
     public const int TamanoPaginaMaximo = 100;
@@ -44,8 +49,8 @@ public record ObtenerEstadoTipoDocumentoQuery(
 /// <param name="Centros">Centros distintos que lo exigen a algún Trabajador.</param>
 /// <param name="Trabajadores">Trabajadores distintos a los que se exige: el total de filas sin filtrar.</param>
 /// <param name="Recuentos">Filas por grupo de su peor estado, sobre todas las filas.</param>
-/// <param name="Filas">La página pedida de las filas que casan con <c>Estados</c>.</param>
-/// <param name="TotalFiltradas">Filas que casan con <c>Estados</c>, en todas las páginas.</param>
+/// <param name="Filas">La página pedida de las filas que casan con <c>Estados</c> y con <c>Busqueda</c>.</param>
+/// <param name="TotalFiltradas">Filas que casan con <c>Estados</c> y con <c>Busqueda</c>, en todas las páginas.</param>
 /// <param name="Notas">
 /// La «Nota interna» del lateral (<c>TipoDocumento.Notas</c>). No necesita corte propio: la consulta entera ya responde
 /// <c>null</c> a quien no es de <see cref="ObtenerEstadoTipoDocumentoQueryHandler.RolesQueVenLaPagina"/>.
@@ -143,9 +148,13 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
         var filas = EstadoTipoDocumentoCalculo.Agrupar(pares);
 
         var estados = request.Estados is { Count: > 0 } marcados ? marcados.ToHashSet() : null;
-        var filtradas = estados is null
+        var busqueda = string.IsNullOrWhiteSpace(request.Busqueda) ? null : request.Busqueda.Trim();
+        var filtradas = estados is null && busqueda is null
             ? filas
-            : filas.Where(f => estados.Contains(EstadoTipoDocumentoCalculo.Grupo(f.PeorEstado))).ToList();
+            : filas
+                .Where(f => estados is null || estados.Contains(EstadoTipoDocumentoCalculo.Grupo(f.PeorEstado)))
+                .Where(f => busqueda is null || f.Nombre.Contains(busqueda, StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
         var tamano = Math.Clamp(request.TamanoPagina, 1, ObtenerEstadoTipoDocumentoQuery.TamanoPaginaMaximo);
         var totalPaginas = Math.Max(1, (int)Math.Ceiling(filtradas.Count / (double)tamano));

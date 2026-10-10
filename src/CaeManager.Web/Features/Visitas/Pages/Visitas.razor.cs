@@ -4,6 +4,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerSugerenciaVisitaCorreo;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
@@ -64,6 +65,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private bool _soloUrgentes;
     private string _filtroNotificado = string.Empty;
     private string _orden = string.Empty;
+    private string _estadoFiltro = string.Empty;
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -231,7 +234,35 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = "orden")]
     public string? OrdenInicial { get; set; }
 
+    /// <summary>
+    /// Franja de estado: estados de la columna «Documentación» separados por coma
+    /// (<c>?estado=PorGestionar,Gestionada</c>), con los nombres de <see cref="EstadoDocumentacionVisita"/>.
+    /// </summary>
+    [SupplyParameterFromQuery(Name = "estado")]
+    public string? EstadoInicial { get; set; }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+
+    private const string ValorSi = "si";
+    private const string ValorNo = "no";
+
+    /// <summary>La única opción de las pastillas «Solo activas» y «Solo urgentes»; quitarla es «No».</summary>
+    private IReadOnlyList<OpcionEstado> OpcionesSi => [new(ValorSi, Textos["OpcionSi"])];
+
+    private IReadOnlyList<OpcionEstado> OpcionesNotificado =>
+        [new(ValorSi, Textos["OpcionSi"]), new("no", Textos["OpcionNo"])];
+
+    /// <summary>
+    /// Los cuatro valores de la columna «Documentación», con el mismo rótulo que la celda y de lo que
+    /// pide acción a lo que no.
+    /// </summary>
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesEstadoDocumentacion =>
+    [
+        new(Textos["BadgeDocumentacionPorGestionar"], TonoBadge.Peligro, nameof(EstadoDocumentacionVisita.PorGestionar)),
+        new(Textos["BadgeDocumentacionGestionada"], TonoBadge.Exito, nameof(EstadoDocumentacionVisita.Gestionada)),
+        new(Textos["BadgeSinGestionCae"], TonoBadge.Neutro, nameof(EstadoDocumentacionVisita.SinGestionCae)),
+        new(Textos["BadgeCancelada"], TonoBadge.Neutro, nameof(EstadoDocumentacionVisita.Cancelada)),
+    ];
 
     private GridItemsProvider<VisitaListaDto>? _proveedorElementos;
 
@@ -256,13 +287,25 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// en el primer render — la URL como fuente de verdad de los filtros
     /// (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
-    protected override void OnParametersSet()
+    protected override void OnParametersSet() =>
+        FijarFiltros(TerminoBusquedaInicial, SoloActivasInicial, SoloUrgentesInicial, NotificadoInicial, OrdenInicial, EstadoInicial);
+
+    /// <summary>
+    /// ÚNICO sitio que valida y asigna los campos de vista: lo usan la URL (<see cref="OnParametersSet"/>) y
+    /// una vista guardada o recordada (<see cref="AplicarVistaGuardadaAsync"/>), porque un valor guardado no
+    /// es autoridad. Define la vista entera: lo que no llega vuelve a su valor de fábrica.
+    /// </summary>
+    private void FijarFiltros(string? busqueda, bool? soloActivas, bool? soloUrgentes, string? notificado, string? orden, string? estado)
     {
-        _busqueda = TerminoBusquedaInicial ?? string.Empty;
-        _filtroNotificado = NotificadoInicial ?? string.Empty;
-        _soloActivas = SoloActivasInicial ?? true;
-        _soloUrgentes = SoloUrgentesInicial ?? false;
-        _orden = OrdenInicial == OrdenPorDocumentacion ? OrdenPorDocumentacion : string.Empty;
+        _busqueda = busqueda ?? string.Empty;
+        _soloActivas = soloActivas ?? true;
+        _soloUrgentes = soloUrgentes ?? false;
+        // Solo «si» / «no»: otro valor ni filtra ni se queda marcado.
+        _filtroNotificado = notificado is ValorSi or ValorNo ? notificado : string.Empty;
+        _orden = orden == OrdenPorDocumentacion ? OrdenPorDocumentacion : string.Empty;
+        // Solo nombres del enum: lo que la URL traiga y la franja no conozca no filtra ni se queda marcado.
+        _estadoFiltro = SeleccionEstados.Unir(
+            SeleccionEstados.Separar<EstadoDocumentacionVisita>(estado).Select(e => e.ToString())) ?? string.Empty;
     }
 
     /// <summary>
@@ -278,6 +321,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private async ValueTask<GridItemsProviderResult<VisitaListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<VisitaListaDto> request)
     {
+        if (_servirPaginaEnMemoria)
+        {
+            // Refresco de una fila tras guardar su edición (ver RefrescarFilaAsync).
+            _servirPaginaEnMemoria = false;
+            return GridItemsProviderResult.From(_elementosPagina.ToList(), _totalElementos);
+        }
+
         var carga = ++_cargaLista;
         _cargando = true;
         _errorCarga = false;
@@ -287,6 +337,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         // son los verdaderos (descendente).
         if (_orden == OrdenPorDocumentacion)
             (ordenarPor, descendente) = (nameof(VisitaListaDto.PorGestionar), true);
+        (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         var consulta = new ObtenerVisitasQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             SoloActivas: _soloActivas,
@@ -295,7 +346,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
             TamanoPagina: _paginacion.ItemsPerPage,
             OrdenarPor: ordenarPor,
-            Descendente: descendente);
+            Descendente: descendente,
+            EstadosDocumentacion: SeleccionEstados.Separar<EstadoDocumentacionVisita>(_estadoFiltro),
+            ConRecuentosPorEstado: true);
 
         try
         {
@@ -306,6 +359,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
                 return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
 
             _totalElementos = resultado.TotalElementos;
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
             _elementosPagina = elementos;
             _seleccionados.Clear();
             _idEnfocado = null;
@@ -342,14 +396,16 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// recargar o compartir el enlace los perdía, y ahora además los pisaría
     /// <see cref="OnParametersSet"/> en la siguiente navegación dentro de la página.
     /// </summary>
-    private async Task CambiarSoloActivasAsync()
+    private async Task CambiarSoloActivasAsync(bool soloActivas)
     {
+        _soloActivas = soloActivas;
         NavigationManager.ActualizarFiltroEnUrl("activas", _soloActivas ? null : "false");
         await RecargarAsync();
     }
 
-    private async Task CambiarSoloUrgentesAsync()
+    private async Task CambiarSoloUrgentesAsync(bool soloUrgentes)
     {
+        _soloUrgentes = soloUrgentes;
         NavigationManager.ActualizarFiltroEnUrl("urgentes", _soloUrgentes ? "true" : null);
         await RecargarAsync();
     }
@@ -360,6 +416,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     {
         _orden = valor == OrdenPorDocumentacion ? valor : string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("orden", _orden);
+        await RecargarAsync();
+    }
+
+    private async Task CambiarEstadoAsync(string? valor)
+    {
+        _estadoFiltro = valor ?? string.Empty;
+        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await RecargarAsync();
     }
 
@@ -388,13 +451,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || _soloUrgentes
-        || !string.IsNullOrWhiteSpace(_filtroNotificado);
+        || !string.IsNullOrWhiteSpace(_filtroNotificado) || !string.IsNullOrWhiteSpace(_estadoFiltro);
 
     private async Task LimpiarFiltrosAsync()
     {
         _busqueda = string.Empty;
         _soloUrgentes = false;
         _filtroNotificado = string.Empty;
+        _estadoFiltro = string.Empty;
         // "notificado" también viaja por la URL y OnParametersSet lo
         // re-sincroniza desde ella: dejarlo puesto lo devolvía en la siguiente
         // pasada de parámetros, y "Quitar los filtros" no lo quitaba. Mismo
@@ -407,6 +471,50 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             ["q"] = null,
             ["notificado"] = null,
             ["urgentes"] = null,
+            ["estado"] = null,
+        });
+        await RecargarAsync();
+    }
+
+    // ---- Filtros guardados y vista recordada (piezas compartidas) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Visitas;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado, y lo que
+    /// recuerda la vista recordada (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>).
+    /// Quedan fuera los de «Nueva visita» prellenada (<c>sugerenciaId</c>, <c>centroId</c>, <c>fechaInicio</c>,
+    /// <c>fechaFin</c>): ni se guardan ni se tocan al aplicar una vista.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "activas", "urgentes", "notificado", "orden", "estado"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// Un filtro guardado o la vista recordada definen la vista entera: lo que no traen se quita. Cada valor
+    /// pasa por la misma validación que el de la URL (<see cref="FijarFiltros"/>). La URL se escribe en una
+    /// sola navegación y se recarga una vez aquí: <see cref="OnParametersSet"/> sincroniza los campos, pero
+    /// no recarga.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        FijarFiltros(
+            vista.GetValueOrDefault("q"),
+            bool.TryParse(vista.GetValueOrDefault("activas"), out var activas) ? activas : null,
+            bool.TryParse(vista.GetValueOrDefault("urgentes"), out var urgentes) ? urgentes : null,
+            vista.GetValueOrDefault("notificado"),
+            vista.GetValueOrDefault("orden"),
+            vista.GetValueOrDefault("estado"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["activas"] = _soloActivas ? null : "false",
+            ["urgentes"] = _soloUrgentes ? "true" : null,
+            ["notificado"] = _filtroNotificado,
+            ["orden"] = _orden,
+            ["estado"] = _estadoFiltro,
         });
         await RecargarAsync();
     }
@@ -414,8 +522,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Desmarca el filtro de fábrica para que aparezcan las finalizadas.</summary>
     private async Task VerTambienFinalizadasAsync()
     {
-        _soloActivas = false;
-        await CambiarSoloActivasAsync();
+        await CambiarSoloActivasAsync(false);
     }
 
     /// <summary>
@@ -433,6 +540,56 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             await _paginacion.SetCurrentPageIndexAsync(0);
 
         StateHasChanged();
+    }
+
+    // ── La fila se refresca tras guardar su edición ─────────────────────────────────────────────
+    // Editar una Visita no es motivo para perder el sitio: se vuelve a pedir SOLO esa fila y se
+    // sustituye en sitio (mismo criterio que Trabajadores.RefrescarFilaAsync). Filtros, orden,
+    // página, selección, fila enfocada y desplazamiento no se tocan, y la fila permanece aunque
+    // el cambio la saque del filtro activo o del orden, hasta la siguiente carga. El alta sí
+    // recarga: la fila nueva no tiene sitio en la página que se está viendo.
+
+    /// <summary>
+    /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
+    /// QuickGrid solo repinta sus filas cuando su proveedor le entrega una página, y una carga
+    /// de verdad limpiaría la selección y la fila enfocada. El total no cambia, así que no hay
+    /// segunda petición (ver <see cref="RecargarAsync"/>).
+    /// </summary>
+    private bool _servirPaginaEnMemoria;
+
+    /// <returns>
+    /// <c>false</c> si la fila no se sustituyó (no está en la página, hay una carga en vuelo o la
+    /// relectura falló): quien llama recarga la lista, que es lo que se hacía antes.
+    /// </returns>
+    private async Task<bool> RefrescarFilaAsync(Guid id)
+    {
+        if (_grid is null || _cargando || !_elementosPagina.Any(e => e.Id == id))
+            return false;
+
+        var carga = _cargaLista;
+        try
+        {
+            // Sin los filtros de la página: la fila se pide por su id y permanece aunque ya no los cumpla.
+            var resultado = await Mediator.Send(
+                new ObtenerVisitasQuery(Busqueda: null, SoloActivas: false, NotificadoCliente: null, VisitaId: id));
+            var indice = _elementosPagina.FindIndex(e => e.Id == id);
+            if (_grid is null || _cargando || carga != _cargaLista || indice < 0
+                || resultado.Elementos.FirstOrDefault() is not { } actualizada)
+                return false;
+
+            _elementosPagina[indice] = actualizada;
+            _servirPaginaEnMemoria = true;
+            await _grid.RefreshDataAsync();
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+        finally
+        {
+            _servirPaginaEnMemoria = false;
+        }
     }
 
     private Task AbrirCrearAsync() => PrepararCrearAsync();
@@ -1131,16 +1288,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _ => Textos["OrigenPlataforma"].Value
     };
 
-    private static TonoBadge TonoOrigen(OrigenVisita origen) => origen switch
-    {
-        OrigenVisita.Correo => TonoBadge.Info,
-        OrigenVisita.WhatsApp => TonoBadge.Exito,
-        _ => TonoBadge.Neutro
-    };
-
-    private string TextoRecuento => _totalElementos == 1
-        ? Textos["RecuentoUno", _totalElementos].Value
-        : Textos["RecuentoVarios", _totalElementos].Value;
 
     /// <summary>
     /// Un Documento existente abre el visor inline. Un hueco "Faltante" lleva
@@ -1315,8 +1462,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             TimeOnly? horaEstimada = TimeOnly.TryParse(_horaEstimadaAcceso, out var hora) ? hora : null;
             var trabajadorIds = _trabajadorIdsSeleccionados.ToList();
             string? mensajeError;
+            // Se captura antes del await: es la Visita que se envía y la fila que se refresca después.
+            var editandoId = _editandoId;
 
-            if (_editandoId is null)
+            if (editandoId is null)
             {
                 if (!Guid.TryParse(_centroId, out var centroId))
                 {
@@ -1329,7 +1478,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             }
             else
             {
-                var resultado = await Mediator.Send(new EditarVisitaCommand(_editandoId.Value, fechaInicio, fechaFin, trabajadorIds, notas, _versionEditando, horaEstimada));
+                var resultado = await Mediator.Send(new EditarVisitaCommand(editandoId.Value, fechaInicio, fechaFin, trabajadorIds, notas, _versionEditando, horaEstimada));
                 mensajeError = resultado.EsFallido ? resultado.Error.Mensaje : null;
             }
 
@@ -1340,11 +1489,12 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             }
 
             ToastService.Mostrar(
-                _editandoId is null ? Textos["ToastCreada"].Value : Textos["ToastActualizada"].Value,
+                editandoId is null ? Textos["ToastCreada"].Value : Textos["ToastActualizada"].Value,
                 TonoToast.Exito);
 
             _drawerVisible = false;
-            await RecargarAsync();
+            if (editandoId is not { } editada || !await RefrescarFilaAsync(editada))
+                await RecargarAsync();
         }
         catch (ValidationException ex)
         {
@@ -1611,4 +1761,26 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
         StateHasChanged();
     }
+
+    // ---- Exportar esta vista ----
+
+    private string? _ordenExportar;
+    private bool _descendenteExportar;
+
+    /// <summary>
+    /// Los criterios de la vista con los nombres de parámetro de <c>/visitas/exportar.xlsx</c>: los
+    /// mismos que <see cref="ProveerElementosAsync"/> pasa a la consulta del listado. <c>activas</c>
+    /// viaja siempre que la vista sea la de activas (la de por defecto): sin él, el endpoint
+    /// exporta también el historial, que es «Exportar todo».
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["activas"] = _soloActivas ? "true" : null,
+        ["notificado"] = _filtroNotificado,
+        ["urgentes"] = _soloUrgentes ? "true" : null,
+        ["estado"] = string.IsNullOrEmpty(_estadoFiltro) ? null : _estadoFiltro,
+        ["orden"] = _ordenExportar,
+        ["desc"] = _descendenteExportar ? "true" : null,
+    };
 }

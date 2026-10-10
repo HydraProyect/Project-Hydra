@@ -10,8 +10,8 @@ namespace CaeManager.E2ETests;
 /// Los botones de orden siguen siendo los de QuickGrid: se observan sus datos y clases actuales,
 /// sin fijar qué dirección debe anunciar el nombre accesible del botón.
 /// </summary>
-[Collection("AppCollection")]
-public class ListadosFase1VehiculosDocumentosTests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture)
 {
     [Fact]
     public async Task Vehiculos_las_opciones_nativas_conservan_el_orden_por_Modelo_en_ambos_sentidos()

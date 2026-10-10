@@ -582,4 +582,115 @@ public class Cliente360PaginaTests : BunitContext
         cut.FindAll("button").Where(b => b.TextContent.Trim() == "Editar →").Should().BeEmpty();
         cut.Find(".cliente360-nota").TextContent.Should().Be("Sin nota interna.");
     }
+
+    [Fact]
+    public void Al_Usuario_de_Cliente_no_se_le_pinta_la_caja_de_la_nota_interna()
+    {
+        // El DTO lleva la nota a propósito: el handler ya no se la entrega a
+        // este rol, y aquí se mide la segunda barrera, la de la página sola.
+        var (id, mediador) = ClienteBase(notas: "Llamar antes de ir.");
+        Registrar(mediador, Roles.Cliente);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-pagina").TextContent.Should().Contain("Refrielectric S.A.", "la ficha de su Cliente sí se le pinta");
+        cut.FindAll(".cliente360-nota").Should().BeEmpty();
+        cut.FindAll(".cliente360-nota-pie").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Llamar antes de ir.");
+    }
+
+    [Fact]
+    public void El_rol_Consulta_del_lado_de_gestion_si_ve_la_nota_interna()
+    {
+        var (id, mediador) = ClienteBase(notas: "Llamar antes de ir.");
+        Registrar(mediador, Roles.Consulta);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cliente360-nota").TextContent.Should().Be("Llamar antes de ir.");
+    }
+
+    // ── Buscador de la pestaña Centros y ?q= ──────────────────────────────
+
+    private static List<string> NombresDeCentro(IRenderedComponent<ClienteDetalle> cut) =>
+        Textos(cut.FindAll(".fila-relacion-nombre"));
+
+    private (Guid Id, MediatorFalso Mediador) ClienteConTresCentros()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.AddRange([
+            Centro("Almacén Getafe", EstadoCentro.Faltante, vencidas: 1),
+            Centro("Planta Vigo", EstadoCentro.Bloqueado, vencidas: 2),
+            Centro("Almacén Vigo", EstadoCentro.Vigente)]);
+        Registrar(mediador);
+        return (id, mediador);
+    }
+
+    [Fact]
+    public async Task El_buscador_de_Centros_filtra_por_nombre_lo_deja_en_la_URL_y_no_toca_el_contador_ni_los_indicadores()
+    {
+        var (id, _) = ClienteConTresCentros();
+        var cut = Renderizar(id);
+        var indicadoresAntes = Textos(cut.FindAll(".cliente360-indicador-boton"));
+        indicadoresAntes.Should().NotBeEmpty("el control: sin indicadores, «no cambian» no probaría nada");
+
+        await cut.Find("input[type=search]").InputAsync("VIGO");
+
+        cut.WaitForAssertion(() => NombresDeCentro(cut).Should().BeEquivalentTo(["Planta Vigo", "Almacén Vigo"]));
+        cut.Find(".cliente360-resumen-lista").TextContent.Should().Contain("Mostrando 2 de 3");
+        cut.FindAll("[role=tab]").First().TextContent.Should().Be("Centros3 centros");
+        Textos(cut.FindAll(".cliente360-indicador-boton")).Should().Equal(indicadoresAntes);
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().Be("?q=VIGO");
+    }
+
+    [Fact]
+    public void Un_enlace_con_q_abre_la_lista_de_Centros_ya_buscada_junto_a_la_pestana()
+    {
+        var (id, _) = ClienteConTresCentros();
+
+        var cut = Renderizar(id, "?pestana=centros&q=getafe");
+
+        NombresDeCentro(cut).Should().Equal(["Almacén Getafe"]);
+        cut.Find("input[type=search]").GetAttribute("value").Should().Be("getafe");
+    }
+
+    [Fact]
+    public async Task Sin_coincidencias_Quitar_filtros_devuelve_los_Centros_y_limpia_la_URL()
+    {
+        var (id, _) = ClienteConTresCentros();
+        var cut = Renderizar(id, "?q=no-existe");
+        NombresDeCentro(cut).Should().BeEmpty();
+        cut.Find(".cliente360-resumen-lista").TextContent.Should().Contain("Mostrando 0 de 3");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Quitar filtros").ClickAsync(new MouseEventArgs());
+
+        NombresDeCentro(cut).Should().HaveCount(3);
+        cut.Find("input[type=search]").GetAttribute("value").Should().BeEmpty();
+        new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().BeEmpty("si la URL conservara q, recargar lo repondría");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Quitar filtros");
+    }
+
+    [Fact]
+    public async Task Cambiar_de_pestana_conserva_el_texto_buscado_en_la_URL()
+    {
+        var (id, _) = ClienteConTresCentros();
+        var cut = Renderizar(id, "?q=vigo");
+
+        await cut.FindAll("[role=tab]").Single(t => t.TextContent.StartsWith("Empresas")).ClickAsync(new MouseEventArgs());
+
+        var consulta = new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query;
+        consulta.Should().Contain("pestana=empresas").And.Contain("q=vigo");
+    }
+
+    [Fact]
+    public void Con_la_lista_de_Centros_cortada_el_resumen_de_la_busqueda_sigue_diciendo_que_no_estan_todos()
+    {
+        var (id, mediador) = ClienteConTresCentros();
+        mediador.TotalCentros = 250;
+
+        var cut = Renderizar(id, "?q=no-existe");
+
+        cut.Find(".cliente360-resumen-lista").TextContent.Should()
+            .Contain("Mostrando 0 de los 3 centros con peor estado").And.Contain("tiene 250");
+    }
 }

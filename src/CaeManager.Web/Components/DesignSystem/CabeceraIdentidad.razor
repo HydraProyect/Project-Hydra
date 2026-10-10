@@ -8,8 +8,12 @@
     (h1 de 36/44, con entradilla); esta ES la tarjeta, y por eso lleva ella
     el data-pieza="cabecera-identidad" que el comparador de fidelidad busca
     dentro de una tarjeta.
+
+    Lleva la clase compartida velo-cumplimiento (base.css): con anillo de
+    cumplimiento, la tarjeta toma un degradado suave de su color; sin anillo
+    —o con el anillo sin universo— queda en la superficie lisa.
 *@
-<header class="cabecera-identidad" data-pieza="cabecera-identidad">
+<header class="cabecera-identidad velo-cumplimiento" data-pieza="cabecera-identidad">
     @if (Anillo is not null)
     {
         <div class="cabecera-identidad-anillo">@Anillo</div>

@@ -16,6 +16,14 @@
     <value>Client:</value>
     <comment>Rètol en pantalla del Client empresarial del Centre (CONTRATO_TERMINOLOGIA § 3.2; decisió de rètol del 2026-10-09).</comment>
   </data>
+  <data name="KickerCentro360" xml:space="preserve">
+    <value>Centre</value>
+    <comment>Què és la fitxa, en versaletes sobre el nom del Centre (capçalera d&apos;identitat de Centre 360).</comment>
+  </data>
+  <data name="EtiquetaLateral360" xml:space="preserve">
+    <value>Context del centre</value>
+    <comment>Nom accessible del lateral de Centre 360 (canals de gestió i propera visita).</comment>
+  </data>
   <data name="CabeceraEmpresa" xml:space="preserve">
     <value>Empresa:</value>
     <comment>Empresa contractista que treballa al Centre.</comment>
@@ -279,29 +287,32 @@
   <data name="QuitarFiltroEmpresa" xml:space="preserve">
     <value>Treu el filtre d'empresa</value>
   </data>
-  <data name="AgruparEtiqueta" xml:space="preserve">
-    <value>Agrupa</value>
-  </data>
-  <data name="AgruparNo" xml:space="preserve">
-    <value>Sense agrupar</value>
-  </data>
-  <data name="AgruparPorCliente" xml:space="preserve">
-    <value>Per Client</value>
-  </data>
   <data name="OrdenCumplimiento" xml:space="preserve">
     <value>Compliment</value>
-  </data>
-  <data name="GrupoConProblema" xml:space="preserve">
-    <value>{0} amb problema</value>
   </data>
   <data name="GrupoPorVencer" xml:space="preserve">
     <value>{0} per vèncer</value>
   </data>
-  <data name="GrupoNotaEstaPagina" xml:space="preserve">
-    <value>Grups d'aquesta pàgina: els recomptes de cada grup només compten els centres que es veuen aquí.</value>
-  </data>
   <data name="GrupoContadorTitulo" xml:space="preserve">
-    <value>{0} centre(s) en aquesta pàgina</value>
+    <value>{0} centre(s)</value>
+  </data>
+  <data name="GrupoResumenBloqueoUno" xml:space="preserve">
+    <value>{0} bloqueig de la plataforma CAE</value>
+  </data>
+  <data name="GrupoResumenBloqueoVarios" xml:space="preserve">
+    <value>{0} bloquejos de la plataforma CAE</value>
+  </data>
+  <data name="GrupoResumenVencidoUno" xml:space="preserve">
+    <value>{0} vençut</value>
+  </data>
+  <data name="GrupoResumenVencidoVarios" xml:space="preserve">
+    <value>{0} vençuts</value>
+  </data>
+  <data name="GrupoResumenPendienteUno" xml:space="preserve">
+    <value>{0} pendent</value>
+  </data>
+  <data name="GrupoResumenPendienteVarios" xml:space="preserve">
+    <value>{0} pendents</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
     <value>Cap centre amb aquests filtres</value>

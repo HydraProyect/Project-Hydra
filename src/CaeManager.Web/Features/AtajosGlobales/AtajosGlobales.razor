@@ -38,6 +38,16 @@
                     </div>
                 }
             </section>
+            <section>
+                <h3>@Textos["SeccionFicha"]</h3>
+                @foreach (var atajo in CatalogoAtajos.Ficha)
+                {
+                    <div class="chuleta-atajos-fila">
+                        <kbd>@atajo.Tecla</kbd>
+                        <span>@Textos[atajo.ClaveDescripcion]</span>
+                    </div>
+                }
+            </section>
             @* KeyTips: los gestos, las letras estables que hoy tienen control y, para quien no
                usa el teclado, un botón que enciende el modo (cierra la chuleta primero). *@
             <section>

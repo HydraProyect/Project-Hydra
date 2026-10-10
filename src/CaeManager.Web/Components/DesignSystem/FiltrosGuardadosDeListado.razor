@@ -1,0 +1,273 @@
+@*
+    Filtros guardados de un listado — la pieza compartida. Lleva dentro lo que antes repetía cada
+    pantalla: la lista del usuario (ObtenerFiltrosGuardadosQuery), el modal «Guardar filtro» con su
+    nombre y su error legible, y la confirmación de borrado.
+
+    QUÉ GUARDA: exactamente lo que viaja en la URL. ValoresJson es un diccionario
+    { "<parámetro>": "<valor>" } con los parámetros de VISTA de la página que están en la URL en
+    ese momento. La página declara cuáles son en «ParametrosDeVista», una lista blanca: lo que no
+    esté en ella (accion, ids de fila abierta, precargas de un alta) ni se guarda ni se aplica.
+
+    QUÉ APLICA: la vista entera. «OnAplicar» recibe un valor por CADA parámetro de la lista blanca
+    —null si el filtro no lo trae— y la página hace tres cosas, en este orden:
+      1. pasa cada valor por la MISMA validación que usa para la URL (un valor guardado no es
+         autoridad: un Id que no es Guid o un estado que ya no existe se ignoran);
+      2. escribe la URL con todos los parámetros de la lista en UNA navegación
+         (ActualizarFiltrosEnUrl; los que quedan vacíos se quitan);
+      3. recarga.
+    Navegar no basta: hay páginas cuyo OnParametersSet sincroniza los campos y no recarga.
+
+    Uso (la página enlaza la barra con la conexión y monta la pieza junto a ella):
+
+        <BarraFiltros … FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                      OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
+            …
+        </BarraFiltros>
+        <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallasConFiltrosGuardados.Empresas"
+                                   ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+
+    «Guardar filtro» es un formulario de un campo: ModalFormulario trae el guardián de cerrar y el
+    aviso de navegación (un nombre escrito no se pierde en silencio). Trabajadores, Clientes
+    empresariales y Documentos conservan su código propio, anterior a esta pieza.
+*@
+@implements IDisposable
+@using System.Text.Json
+@using CaeManager.Application.Configuracion.Commands.EliminarFiltroGuardado
+@using CaeManager.Application.Configuracion.Commands.GuardarFiltro
+@using CaeManager.Application.Configuracion.Queries
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject NavigationManager Navegacion
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosComunes> Comunes
+@inject ILogger<FiltrosGuardadosDeListado> Logger
+
+<ModalFormulario Visible="_mostrarGuardar" VisibleChanged="v => { if (!v) CerrarGuardar(); }" Titulo="@Comunes["FiltroGuardadoModalTitulo"]"
+                 Ancho="AnchoModal.Pequeno" HayCambios="() => HayCambiosFiltro" Guardando="_guardando"
+                 MensajeError="@_mensajeError" OnGuardar="GuardarAsync"
+                 MotivoGuardarDeshabilitado="@(string.IsNullOrWhiteSpace(_nombre) ? Comunes["FiltroGuardadoSinNombre"].Value : null)"
+                 TextoGuardar="@Comunes["FiltroGuardadoGuardar"]" TextoCancelar="@Comunes["FiltroGuardadoCancelar"]">
+    <CampoTexto Etiqueta="@Comunes["FiltroGuardadoNombre"]" Valor="@_nombre" ValorChanged="v => { _nombre = v; _mensajeError = null; }"
+                Placeholder="@Comunes["FiltroGuardadoNombrePlaceholder"]" />
+</ModalFormulario>
+
+@* Borrar un filtro guardado pregunta antes: no se puede deshacer. *@
+<DialogoConfirmacion Visible="_aBorrar is not null"
+                     VisibleChanged="v => { if (!v) _aBorrar = null; }"
+                     Titulo="@Comunes["FiltroGuardadoBorrarTitulo", _aBorrar?.Nombre ?? string.Empty]"
+                     Mensaje="@Comunes["FiltroGuardadoBorrarMensaje"]"
+                     TextoBotonConfirmar="@Comunes["FiltroGuardadoBorrarBoton"]"
+                     EnProgreso="_borrando"
+                     OnConfirmar="ConfirmarBorrarAsync" />
+
+@code {
+    /// <summary>Lo que la página enlaza con su <see cref="BarraFiltros"/>.</summary>
+    [Parameter, EditorRequired] public ConexionFiltrosGuardados Conexion { get; set; } = default!;
+
+    /// <summary>Una de <see cref="PantallasConFiltrosGuardados"/>: la clave bajo la que se guardan.</summary>
+    [Parameter, EditorRequired] public string Pantalla { get; set; } = string.Empty;
+
+    /// <summary>Lista blanca de parámetros de vista de la URL de la página. Lo demás ni se guarda ni se aplica.</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<string> ParametrosDeVista { get; set; } = [];
+
+    /// <summary>
+    /// Un filtro guardado elegido: un valor por cada parámetro de <see cref="ParametrosDeVista"/>, <c>null</c> los que
+    /// el filtro no trae. La página valida como valida la URL, escribe la URL en una navegación y recarga.
+    /// </summary>
+    [Parameter, EditorRequired] public EventCallback<IReadOnlyDictionary<string, string?>> OnAplicar { get; set; }
+
+    /// <summary>La lista de filtros guardados cambió (carga, alta, borrado): la página se repinta para que la barra la vea.</summary>
+    [Parameter, EditorRequired] public EventCallback AlCambiar { get; set; }
+
+    private IReadOnlyList<FiltroGuardadoDto> _filtros = [];
+    /// <summary>La lectura inicial falló y aún no se ha podido releer: <see cref="_filtros"/> no es la lista del usuario.</summary>
+    private bool _cargaFallida;
+    private bool _desechado;
+
+    private bool _mostrarGuardar;
+    private string _nombre = string.Empty;
+    private bool _guardando;
+    private string? _mensajeError;
+
+    private FiltroGuardadoDto? _aBorrar;
+    private bool _borrando;
+
+    /// <summary>«Guardar filtro» abre siempre con el nombre vacío: hay algo que perder en cuanto se ha escrito uno.</summary>
+    private bool HayCambiosFiltro => _mostrarGuardar && !string.IsNullOrWhiteSpace(_nombre);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Conexion.Conectar(this);
+
+        // Los filtros guardados son un accesorio de la lista: si no se pueden leer, la barra sale sin
+        // ellos y la lista sigue siendo la lista. Se recuerda que falló: ver GuardarAsync.
+        var leidos = await LeerAsync();
+        _cargaFallida = leidos is null;
+        _filtros = leidos ?? [];
+
+        if (_desechado)
+            return;
+
+        await PublicarAsync();
+    }
+
+    /// <summary>Los filtros guardados del usuario en esta pantalla, o <c>null</c> si no se pudieron leer.</summary>
+    private async Task<IReadOnlyList<FiltroGuardadoDto>?> LeerAsync()
+    {
+        try
+        {
+            return await Mediator.Send(new ObtenerFiltrosGuardadosQuery(Pantalla)) ?? [];
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public void Dispose()
+    {
+        _desechado = true;
+        Conexion.Desconectar(this);
+    }
+
+    private Task PublicarAsync()
+    {
+        Conexion.Opciones = _filtros.Select(f => new OpcionEstado(f.Id.ToString(), f.Nombre)).ToList();
+        return AlCambiar.InvokeAsync();
+    }
+
+    internal void AbrirGuardar()
+    {
+        _nombre = string.Empty;
+        _mensajeError = null;
+        _mostrarGuardar = true;
+        StateHasChanged();
+    }
+
+    /// <summary>Cancelar descarta el nombre: reabrir el modal sin tocarlo no es un cambio.</summary>
+    private void CerrarGuardar()
+    {
+        _mostrarGuardar = false;
+        _nombre = string.Empty;
+        _mensajeError = null;
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_nombre) || _guardando)
+            return;
+
+        _guardando = true;
+        _mensajeError = null;
+
+        try
+        {
+            var valoresJson = JsonSerializer.Serialize(VistaDeLaUrl());
+
+            Result<Guid> resultado;
+            try
+            {
+                resultado = await Mediator.Send(new GuardarFiltroCommand(Pantalla, _nombre, valoresJson));
+            }
+            catch (Exception ex)
+            {
+                // El guardado lanzó (dos pestañas guardando el mismo nombre a la vez chocan en el índice
+                // único; la base no responde): se dice dentro del modal, que sigue abierto con el nombre
+                // escrito. Sin esto la excepción sube al límite de errores y sustituye la página entera.
+                // Al registro va la pantalla, no el nombre ni el contenido del filtro.
+                Logger.LogError(ex, "No se pudo guardar un filtro guardado de la pantalla {Pantalla}", Pantalla);
+                _mensajeError = Comunes["FiltroGuardadoGuardarError"];
+                return;
+            }
+
+            // P. ej. el nombre repetido: se dice dentro del modal, con lo escrito intacto.
+            if (resultado.EsFallido)
+            {
+                _mensajeError = resultado.Error.Mensaje;
+                return;
+            }
+
+            // Si la lectura inicial falló, la lista en pantalla no es la del usuario: añadirle solo el nuevo
+            // haría parecer borrados los que ya tenía. Se relee entera ahora que hay algo que enseñar.
+            var releidos = _cargaFallida ? await LeerAsync() : null;
+            if (releidos is not null)
+            {
+                _filtros = releidos;
+                _cargaFallida = false;
+            }
+            else
+            {
+                // Ya está guardado: se añade a la lista sin releerla, para que un fallo de la relectura no
+                // deje el modal abierto sobre un filtro que ya existe. El nombre se guarda sin espacios de borde.
+                _filtros = _filtros
+                    .Append(new FiltroGuardadoDto(resultado.Valor, _nombre.Trim(), valoresJson, DateTime.UtcNow))
+                    .OrderBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase)
+                    .ToList();
+            }
+
+            CerrarGuardar();
+            ToastService.Mostrar(Comunes["FiltroGuardadoToast"], TonoToast.Exito);
+            await PublicarAsync();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    /// <summary>Los parámetros de la lista blanca que la URL lleva ahora (<see cref="VistaDeListado.DeLaUrl"/>).</summary>
+    private Dictionary<string, string> VistaDeLaUrl() =>
+        VistaDeListado.DeLaUrl(Navegacion.ToAbsoluteUri(Navegacion.Uri), ParametrosDeVista);
+
+    internal async Task AplicarAsync(string idTexto)
+    {
+        var filtro = _filtros.FirstOrDefault(f => f.Id.ToString() == idTexto);
+        if (filtro is null || VistaDeListado.Leer(filtro.ValoresJson) is not { } guardada)
+            return;
+
+        // La vista entera: un valor por cada parámetro de la lista blanca, null el que el filtro no
+        // trae (la página lo quita). Lo que el JSON traiga fuera de la lista no llega a la página.
+        await OnAplicar.InvokeAsync(VistaDeListado.Completa(ParametrosDeVista, guardada));
+    }
+
+    internal void PedirBorrar(string idTexto)
+    {
+        _aBorrar = _filtros.FirstOrDefault(f => f.Id.ToString() == idTexto);
+        StateHasChanged();
+    }
+
+    private async Task ConfirmarBorrarAsync()
+    {
+        if (_borrando || _aBorrar is not { } filtro)
+            return;
+
+        _borrando = true;
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarFiltroGuardadoCommand(filtro.Id));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            // Ya está borrado: se cierra el diálogo y se quita de la lista sin releerla, para que
+            // un fallo de la relectura no deje la confirmación abierta sobre un filtro que no existe.
+            _aBorrar = null;
+            _filtros = _filtros.Where(f => f.Id != filtro.Id).ToList();
+            await PublicarAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "No se pudo borrar un filtro guardado de la pantalla {Pantalla}", Pantalla);
+            ToastService.Mostrar(Comunes["FiltroGuardadoBorrarError"], TonoToast.Error);
+        }
+        finally
+        {
+            _borrando = false;
+        }
+    }
+}

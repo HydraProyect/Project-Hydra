@@ -12,8 +12,8 @@ namespace CaeManager.E2ETests;
 /// comparten los mismos dos Clientes de prueba y probarlas por separado
 /// solo duplicaría la creación de datos sin ganar aislamiento real.
 /// </summary>
-[Collection("AppCollection")]
-public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
 {
     // F3b/D2 (2026-08-26) retiró este test porque los dos Clientes que crea no
     // llegaban a aparecer en /clientes: ObtenerClientesQuery seguía leyendo la

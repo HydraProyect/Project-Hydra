@@ -48,16 +48,65 @@ jobs:
   # corren a la vez.
   #
   # El reparto se CALCULA, no se escribe: cada bloque lista las clases de
-  # test, las ordena y se queda con las que le tocan por posición. Una clase
+  # test y se queda con las que le tocan por el hash de su nombre. Una clase
   # nueva cae en un bloque sola, sin que nadie mantenga una lista que se
-  # desincronice.
+  # desincronice. La única excepción escrita a mano son las pocas clases muy
+  # pesadas de scripts/integracion-clases-fijadas.txt, que se fijan a un
+  # bloque para que el hash no las junte.
   #
   # Los minutos de Actions son gratis en un repositorio público, así que
   # comprar tiempo de reloj con paralelismo aquí no cuesta dinero — al revés
   # que apilar PRs, que sí multiplica ejecuciones completas (§ 22).
+  #
+  # ALCANCE (2026-10-09). Este job, los E2E y la prueba de carga son los
+  # «pesados»: el 74 % de los minutos de un run. Corrían tres veces por PR
+  # fusionada —en la PR, en el grupo de la cola de fusión y en el `push` a
+  # main—, las dos últimas sobre el mismo commit. Ahora:
+  #
+  #   - en `merge_group` corren SIEMPRE: el grupo es la puerta, y lo que llega
+  #     a main pasa exactamente lo mismo que antes;
+  #   - en `push` a main se saltan solo si la API confirma que ese mismo SHA ya
+  #     pasó el CI completo en un grupo de fusión;
+  #   - en `pull_request` corren si el diff toca rutas sensibles o la PR lleva
+  #     la etiqueta «CI: completo».
+  #
+  # La decisión vive en scripts/ci-alcance.sh (job `alcance`, abajo), y la
+  # condición de cada job pesado está escrita para CORRER ante la duda: solo
+  # se salta con un `false` explícito. Si `alcance` falla, se cancela o no
+  # emite nada, la comparación `!= 'false'` es cierta y el job corre. Y en
+  # `merge_group` ni siquiera se mira esa salida.
+  #
+  # `!cancelled()` y no `always()`: hace falta una función de estado para que
+  # el job no se salte cuando `alcance` falla, pero con `always()` un run
+  # cancelado por un push nuevo arrancaría igualmente los pesados.
+  alcance:
+    name: Alcance del CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      integracion: ${{ steps.decidir.outputs.integracion }}
+      e2e: ${{ steps.decidir.outputs.e2e }}
+      carga: ${{ steps.decidir.outputs.carga }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Decidir qué jobs pesados corren en este run
+        id: decidir
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENTO: ${{ github.event_name }}
+          PR_NUMERO: ${{ github.event.pull_request.number }}
+        run: bash scripts/ci-alcance.sh
+
   tests-integracion:
     name: Tests de integración (bloque ${{ matrix.bloque }} de 4)
     runs-on: ubuntu-latest
+    needs: alcance
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.integracion != 'false') }}
     strategy:
       # Un bloque que falla no cancela a los demás: de una ejecución interesa
       # ver TODOS los fallos, no solo el primero que aparezca.
@@ -194,6 +243,8 @@ jobs:
       # descubrimiento degradado contra una ejecucion completa.
       - name: Repartir las clases de test en este bloque
         id: reparto
+        env:
+          REPARTO_FIJADAS: scripts/integracion-clases-fijadas.txt
         run: |
           mkdir -p reparto
           dotnet test tests/CaeManager.IntegrationTests --no-build --list-tests > reparto/listado-bloque-${{ matrix.bloque }}.txt
@@ -442,34 +493,48 @@ jobs:
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
-    needs: [compilacion-y-unitarios, formato, tests-integracion, bunit-tests, extension-arneses]
+    needs: [alcance, compilacion-y-unitarios, formato, tests-integracion, e2e-tests, bunit-tests, extension-arneses]
     # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
     # un job que se salta reporta su check como "skipped", y la proteccion de
     # rama trata un check obligatorio omitido como aprobado. Sin esto, un bloque
     # de integracion en rojo dejaria este job sin correr y la rama quedaria
     # MERGEABLE — el gate desaparece justo cuando hace falta.
     #
-    # Con `always()` el job siempre reporta, y el primer paso exige explicitamente
-    # que las dependencias hayan salido en success. Cierra en fallo, no en
+    # Con `always()` el job siempre reporta, y el paso «Exigir…» comprueba
+    # explicitamente como terminaron las dependencias. Cierra en fallo, no en
     # silencio, y no depende de como interprete GitHub un check omitido.
+    #
+    # La regla vive en scripts/ci-exigir-dependencias.sh (tabla de verdad
+    # entera en su .tests.sh). Resumen: compilacion, formato y arneses, siempre
+    # success; integracion y E2E, success — y en `merge_group` nada mas vale.
+    # Fuera del grupo de fusion se admite que integracion o E2E esten
+    # «skipped» SOLO si el job `alcance` termino en success con la salida de
+    # ese job en `false`, es decir, si lo salto a proposito (ver el bloque
+    # ALCANCE mas arriba). Los E2E estan en `needs` como segunda barrera.
+    # `e2e-tests` es desde el reparto en bloques un agregador que corre
+    # siempre y aplica el mismo en su primer paso: aqui llega `success` tanto
+    # si los bloques corrieron como si se saltaron con permiso, y cualquier
+    # otra cosa es rojo.
+    #
+    # El checkout va antes porque el guion vive en el repositorio; si el
+    # checkout falla, el job falla, que es el lado seguro.
     if: always()
     steps:
-      - name: Exigir que las dependencias hayan pasado
-        run: |
-          compilacion="${{ needs.compilacion-y-unitarios.result }}"
-          integracion="${{ needs.tests-integracion.result }}"
-          formato="${{ needs.formato.result }}"
-          extension="${{ needs.extension-arneses.result }}"
-          echo "Compilación y tests unitarios: $compilacion"
-          echo "Tests de integración (4 bloques): $integracion"
-          echo "Verificar formato: $formato"
-          echo "Arneses de la extensión: $extension"
-          if [ "$compilacion" != "success" ] || [ "$formato" != "success" ] || [ "$integracion" != "success" ] || [ "$extension" != "success" ]; then
-            echo "::error::Una dependencia no termino en success. Este check obligatorio falla a proposito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado."
-            exit 1
-          fi
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Exigir que las dependencias hayan pasado
+        id: exigir
+        env:
+          EVENTO: ${{ github.event_name }}
+          R_COMPILACION: ${{ needs.compilacion-y-unitarios.result }}
+          R_FORMATO: ${{ needs.formato.result }}
+          R_EXTENSION: ${{ needs.extension-arneses.result }}
+          R_INTEGRACION: ${{ needs.tests-integracion.result }}
+          R_E2E: ${{ needs.e2e-tests.result }}
+          R_ALCANCE: ${{ needs.alcance.result }}
+          ALCANCE_INTEGRACION: ${{ needs.alcance.outputs.integracion }}
+          ALCANCE_E2E: ${{ needs.alcance.outputs.e2e }}
+        run: bash scripts/ci-exigir-dependencias.sh
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
@@ -494,7 +559,18 @@ jobs:
           name: cobertura-web
           path: coverage-web
 
+      # ALCANCE: este paso y los que llevan la misma condicion leen artefactos
+      # que solo existen si los bloques de integracion corrieron. En una PR
+      # ligera o en un `push` ya verificado por la cola no corren, y entonces
+      # no hay reparto que comprobar ni cobertura de integracion que sumar: el
+      # trinquete del nucleo, medido sobre dos suites en vez de tres, caeria
+      # por un motivo que no es una perdida de cobertura. Se saltan de forma
+      # explicita; en `merge_group` la salida vale siempre `ejecutada` (si no,
+      # el paso «Exigir…» ya habria fallado) y todo corre como antes. La
+      # condicion es `!= 'saltada'`: si la salida faltara, corren. Lo vigila
+      # scripts/ci-exigir-dependencias.tests.sh leyendo este fichero.
       - name: Recoger el reparto de los bloques
+        if: steps.exigir.outputs.integracion != 'saltada'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: reparto-bloque-*
@@ -505,6 +581,7 @@ jobs:
       # denominador dependeria de cual se mirase, asi que se exige que los
       # cuatro listados sean identicos antes de usar el del bloque 1.
       - name: Comprobar que los cuatro bloques descubrieron lo mismo
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           for b in 2 3 4; do
             if ! diff -q reparto/listado-bloque-1.txt "reparto/listado-bloque-$b.txt" > /dev/null; then
@@ -538,6 +615,7 @@ jobs:
       # es el que crees ejecuta MENOS tests, en verde y sin decir nada. De ahi
       # que el paso de ejecucion tome el recuento del .trx.
       - name: Comprobar que el reparto cubrio todas las clases
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           LISTADO_DE_TESTS=reparto/listado-bloque-1.txt REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh sin-compilar 1 1 > /dev/null
           sort /tmp/esperadas-sin-ordenar.txt > /tmp/esperadas.txt
@@ -569,6 +647,7 @@ jobs:
       # una perdida de cobertura del producto. Un gate que cambia de
       # significado sin que nadie lo decida es peor que no tenerlo.
       - name: Recoger la cobertura de los bloques de integración
+        if: steps.exigir.outputs.integracion != 'saltada'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: cobertura-integracion-*
@@ -595,6 +674,7 @@ jobs:
       # sobre un ensamblado rancio devolvio una vez un test fantasma que ya no
       # existia en el codigo.
       - name: Comprobar que se ejecutaron todos los tests
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           esperados=$(grep -cE "^[[:space:]]+CaeManager\.IntegrationTests\." reparto/listado-bloque-1.txt)
           sumados=0
@@ -634,9 +714,14 @@ jobs:
       - name: Informe de cobertura
         if: always()
         continue-on-error: true
+        env:
+          INTEGRACION: ${{ steps.exigir.outputs.integracion }}
         run: |
           dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:"MarkdownSummaryGithub;JsonSummary;XmlSummary"
           echo "## Núcleo (Domain + Application + Infrastructure)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$INTEGRACION" != "ejecutada" ]; then
+            echo "> **Cifra parcial**: en este run no corrieron los tests de integración (alcance del CI), así que el núcleo solo cuenta las suites unitarias. El trinquete del núcleo se mide en el grupo de fusión." >> "$GITHUB_STEP_SUMMARY"
+          fi
           cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
           dotnet reportgenerator -reports:"coverage-web/**/coverage.cobertura.xml" -targetdir:coveragereport-web -reporttypes:"MarkdownSummaryGithub;JsonSummary;XmlSummary"
           echo "## Web (bUnit, CaeManager.Web)" >> "$GITHUB_STEP_SUMMARY"
@@ -770,6 +855,7 @@ jobs:
       # — menos 0,2, igual criterio que el resto de este fichero). El núcleo
       # no se toca en este cambio.
       - name: Umbral de cobertura del núcleo (ratchet)
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
           umbral="64.8"  # núcleo: 65 % medido (run 34547527082) − 0,2
@@ -900,9 +986,34 @@ jobs:
           dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:MarkdownSummaryGithub
           cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
 
-  e2e-tests:
-    name: Tests E2E (Playwright)
+  # E2E EN CUATRO BLOQUES, POR COLECCIÓN DE XUNIT.
+  #
+  # La suite E2E corre con el paralelismo de xUnit desactivado y tardaba ~23
+  # minutos en un solo runner: era lo que marcaba el reloj de la cola de
+  # fusión. Aquí se reparte en cuatro runners. La unidad de reparto es la
+  # COLECCIÓN, no la clase: cada colección comparte una fixture que arranca la
+  # aplicación real, y partirla entre dos bloques la arrancaría dos veces. El
+  # reparto lo calcula scripts/repartir-e2e-por-coleccion.sh con los pesos de
+  # scripts/e2e-pesos-por-coleccion.txt; cada bloque calcula el mismo plan por
+  # separado y se queda con su parte.
+  #
+  # El check OBLIGATORIO de main sigue siendo «Tests E2E (Playwright)», que
+  # ahora es el job `e2e-tests` de más abajo: agrega estos cuatro bloques y
+  # comprueba que entre los cuatro ejecutaron la suite entera, una sola vez.
+  e2e-bloques:
+    name: Tests E2E (bloque ${{ matrix.bloque }} de 4)
     runs-on: ubuntu-latest
+    # Ver el bloque ALCANCE sobre el job `alcance`: los bloques solo se saltan
+    # fuera de `merge_group` y con un `false` explícito de `alcance`. Que ese
+    # salto sea legítimo lo decide el agregador `e2e-tests`.
+    needs: alcance
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.e2e != 'false') }}
+    strategy:
+      # Un bloque que falla no cancela a los demás: interesa saber todo lo
+      # que está roto, no solo lo primero.
+      fail-fast: false
+      matrix:
+        bloque: [1, 2, 3, 4]
     # WebAppFixture arranca la app real contra una base PostgreSQL propia
     # (creada y borrada por test, ver BaseDatosPostgresDePruebas) — mismo
     # servicio que usa el job tests-integracion.
@@ -986,10 +1097,56 @@ jobs:
       # así que las líneas de un fichero salen de un solo proceso y, dentro de
       # una colección, los tests son secuenciales — cada línea cae en la
       # ventana de UN test, no de hasta cuatro simultáneos.
+      #
+      # El filtro sale del reparto por colección. El descubrimiento se hace
+      # sobre el árbol recién compilado y se publica con el reparto: el
+      # agregador exige que los cuatro bloques descubrieran lo mismo.
+      # MINIMO_CLASES es el suelo del descubrimiento (77 clases el 2026-10-10):
+      # un `--list-tests` truncado repartiría una suite incompleta en verde.
+      - name: Repartir las colecciones de E2E en este bloque
+        env:
+          MINIMO_CLASES: "70"
+          MINIMO_PARES: "60"
+        run: |
+          mkdir -p reparto-e2e
+          dotnet test tests/CaeManager.E2ETests --no-build --list-tests > reparto-e2e/listado-bloque-${{ matrix.bloque }}.txt
+          filtro=$(LISTADO_DE_TESTS=reparto-e2e/listado-bloque-${{ matrix.bloque }}.txt REPARTO_SALIDA=reparto-e2e/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-e2e-por-coleccion.sh 4 ${{ matrix.bloque }})
+          echo "FILTRO_E2E=$filtro" >> "$GITHUB_ENV"
+
       - name: Tests E2E
         run: >
-          dotnet test tests/CaeManager.E2ETests --no-build --logger "console;verbosity=normal"
-          --logger "trx;LogFileName=e2e.trx"
+          dotnet test tests/CaeManager.E2ETests --no-build --filter "$FILTRO_E2E"
+          --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=e2e-bloque-${{ matrix.bloque }}.trx"
+
+      # `dotnet test --filter` con un patrón que no casa con nada termina en
+      # 0 sin ejecutar un solo test: un bloque mudo se leería como uno que
+      # pasa. El recuento sale del .trx, no de la salida de consola.
+      - name: Comprobar que el bloque ejecutó tests de verdad
+        run: |
+          trx=tests/CaeManager.E2ETests/TestResults/e2e-bloque-${{ matrix.bloque }}.trx
+          if [ ! -f "$trx" ]; then
+            echo "::error::No se generó $trx: no hay prueba de que este bloque ejecutara nada."
+            exit 1
+          fi
+          total=$(grep -o "total=\"[0-9]*\"" "$trx" | head -1 | grep -o "[0-9]*")
+          echo "Tests del bloque ${{ matrix.bloque }}: ${total:-0}"
+          if [ "${total:-0}" -eq 0 ]; then
+            echo "::error::El bloque ${{ matrix.bloque }} no ejecutó ningún test. El filtro no casó con nada y dotnet test habría salido en verde."
+            exit 1
+          fi
+          cp "$trx" reparto-e2e/
+
+      # Lo que este bloque descubrió, lo que dijo suyo y lo que ejecutó. El
+      # agregador `e2e-tests` lo recoge de los cuatro para comprobar que la
+      # unión es la suite entera.
+      - name: Publicar el reparto del bloque
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reparto-e2e-bloque-${{ matrix.bloque }}
+          path: reparto-e2e/
+          retention-days: 7
+          if-no-files-found: error
 
       # WebAppFixture no reenvía stdout del proceso de CaeManager.Web (ver su
       # comentario) porque Serilog ya escribe lo mismo en su sink de fichero,
@@ -1035,17 +1192,142 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: logs-caemanager-web-e2e
+          name: logs-caemanager-web-e2e-bloque-${{ matrix.bloque }}
           path: |
             src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/
-            tests/CaeManager.E2ETests/TestResults/e2e.trx
+            tests/CaeManager.E2ETests/TestResults/e2e-bloque-${{ matrix.bloque }}.trx
             /tmp/diagnostico-e2e/manifiesto.txt
           retention-days: 7
           if-no-files-found: warn
 
+  # AGREGADOR DE LOS BLOQUES DE E2E. Conserva el nombre «Tests E2E
+  # (Playwright)», que es un check obligatorio de main.
+  #
+  # `if: always()` es deliberado, por el mismo motivo que en «Build, format y
+  # tests»: un job obligatorio que se salta cuenta como aprobado. Aquí el job
+  # corre siempre y es su primer paso el que decide: los bloques en `success`,
+  # o saltados SOLO fuera de `merge_group`, con `alcance` en success y su
+  # salida `e2e` en `false` (scripts/ci-exigir-dependencias.sh en modo
+  # SOLO_E2E; tabla de verdad en su .tests.sh). En el grupo de fusión, un
+  # bloque saltado, cancelado o fallido es rojo.
+  #
+  # Cuando los bloques corrieron, comprueba además lo que ningún bloque puede
+  # ver por sí solo: que los cuatro descubrieron la misma suite, que cada clase
+  # cayó en un bloque y solo en uno, y que entre los cuatro ejecutaron tantos
+  # tests como se descubrieron.
+  e2e-tests:
+    name: Tests E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: [alcance, e2e-bloques]
+    if: always()
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Exigir que los bloques de E2E terminaron como deben
+        id: exigir
+        env:
+          SOLO_E2E: "1"
+          EVENTO: ${{ github.event_name }}
+          R_E2E: ${{ needs.e2e-bloques.result }}
+          R_ALCANCE: ${{ needs.alcance.result }}
+          ALCANCE_E2E: ${{ needs.alcance.outputs.e2e }}
+        run: bash scripts/ci-exigir-dependencias.sh
+
+      - name: Recoger el reparto de los bloques de E2E
+        if: steps.exigir.outputs.e2e != 'saltada'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: reparto-e2e-bloque-*
+          path: reparto-e2e
+          merge-multiple: true
+
+      # Los cuatro bloques descubren por separado. Solo se comparan las líneas
+      # de tests (las sangradas): las cabeceras de `dotnet test` llevan rutas
+      # y tiempos que no tienen por qué coincidir.
+      - name: Comprobar que los cuatro bloques descubrieron lo mismo
+        if: steps.exigir.outputs.e2e != 'saltada'
+        run: |
+          for b in 1 2 3 4; do
+            f="reparto-e2e/listado-bloque-$b.txt"
+            if [ ! -f "$f" ]; then
+              echo "::error::Falta el listado del bloque $b."
+              exit 1
+            fi
+            grep -E "^[[:space:]]+CaeManager\.E2ETests\." "$f" | sort > "/tmp/listado-e2e-$b.txt"
+          done
+          for b in 2 3 4; do
+            if ! diff -q /tmp/listado-e2e-1.txt "/tmp/listado-e2e-$b.txt" > /dev/null; then
+              echo "::error::El bloque $b descubrió una lista distinta a la del bloque 1. El denominador no sería fiable."
+              diff /tmp/listado-e2e-1.txt "/tmp/listado-e2e-$b.txt" | head -20
+              exit 1
+            fi
+          done
+          echo "Los cuatro bloques descubrieron la misma lista: $(wc -l < /tmp/listado-e2e-1.txt) tests."
+
+      # La lista esperada sale del mismo guion con UN solo bloque: ahí todas
+      # las clases del listado son suyas, sin reparto de por medio.
+      - name: Comprobar que el reparto cubrió todas las clases
+        if: steps.exigir.outputs.e2e != 'saltada'
+        # Los mismos suelos que en los bloques: sin ellos este paso heredaría el
+        # MINIMO_CLASES global, que es el de integración, y fallaría siempre.
+        env:
+          MINIMO_CLASES: "70"
+          MINIMO_PARES: "60"
+        run: |
+          LISTADO_DE_TESTS=reparto-e2e/listado-bloque-1.txt REPARTO_SALIDA=/tmp/esperadas-e2e-sin-ordenar.txt bash scripts/repartir-e2e-por-coleccion.sh 1 1 > /dev/null
+          sort /tmp/esperadas-e2e-sin-ordenar.txt > /tmp/esperadas-e2e.txt
+          cat reparto-e2e/bloque-*.txt | sort > /tmp/repartidas-e2e.txt
+          esperadas=$(wc -l < /tmp/esperadas-e2e.txt)
+          repartidas=$(wc -l < /tmp/repartidas-e2e.txt)
+          unicas=$(sort -u /tmp/repartidas-e2e.txt | wc -l)
+          echo "Clases de la suite E2E: $esperadas — repartidas: $repartidas — distintas: $unicas"
+          if [ "$esperadas" -ne "$unicas" ] || [ "$repartidas" -ne "$unicas" ]; then
+            echo "::error::El reparto no cubre la suite E2E exactamente una vez. Alguna clase no se ejecutó en ningún bloque, o se ejecutó en dos."
+            diff /tmp/esperadas-e2e.txt /tmp/repartidas-e2e.txt || true
+            exit 1
+          fi
+
+      # Que cada clase esté en un bloque no implica que corriera entera. Los
+      # dos lados se miden en este run: lo descubierto y el `total` de cada
+      # .trx (que incluye los omitidos). Menos ejecutados que descubiertos es
+      # rojo: algún filtro no casó con todo lo suyo. Más no puede venir de una
+      # clase repetida (lo impide el paso anterior): sería una teoría que en
+      # ejecución da más filas que en el descubrimiento, y solo se avisa.
+      - name: Comprobar que se ejecutaron todos los tests de E2E
+        if: steps.exigir.outputs.e2e != 'saltada'
+        run: |
+          esperados=$(wc -l < /tmp/listado-e2e-1.txt)
+          if [ "$esperados" -le 0 ]; then
+            echo "::error::El listado de tests de E2E esta vacio: no hay con que comparar lo ejecutado. Un recuento contra cero daria verde sin medir nada."
+            exit 1
+          fi
+          sumados=0
+          for b in 1 2 3 4; do
+            f="reparto-e2e/e2e-bloque-$b.trx"
+            if [ ! -f "$f" ]; then
+              echo "::error::Falta el .trx del bloque $b."
+              exit 1
+            fi
+            n=$(grep -o "total=\"[0-9]*\"" "$f" | head -1 | grep -o "[0-9]*")
+            echo "  bloque $b: ${n:-0}"
+            sumados=$((sumados + ${n:-0}))
+          done
+          echo "Tests descubiertos: $esperados — ejecutados entre los bloques: $sumados"
+          if [ "$sumados" -lt "$esperados" ]; then
+            echo "::error::Los bloques ejecutaron $sumados tests de $esperados descubiertos: alguna clase corrió a medias o un filtro no casó con todo lo suyo."
+            exit 1
+          fi
+          if [ "$sumados" -gt "$esperados" ]; then
+            echo "::warning::Los bloques ejecutaron $sumados tests y se descubrieron $esperados. Ninguna clase está repetida; revisar si una teoría expande más casos al ejecutarse."
+          fi
+
   load-test:
     name: Prueba de carga base (k6)
     runs-on: ubuntu-latest
+    # Ver el bloque ALCANCE sobre el job `alcance`: en una PR solo corre con
+    # la etiqueta «CI: completo» o si cambia la infraestructura de CI.
+    needs: alcance
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.carga != 'false') }}
     # No bloqueante a propósito (P1-5 de la revisión de madurez): es la
     # primera cifra real de carga que existe en el repo (P1-19 de
     # Project-Hydra-Negocio/MATURITY_REVIEW.md, antes no había ninguna) — sin un
@@ -1392,6 +1674,31 @@ jobs:
       # con su mutación. No ejecuta .NET real: el gate real corre en la máquina de quien programa.
       - name: scripts/gate.tests.sh
         run: bash scripts/gate.tests.sh
+
+      # Alcance del CI y agregador «Build, format y tests» (2026-10-09): con un
+      # `gh` falso. ci-alcance fija que un `push` solo se salta los jobs
+      # pesados con un run `merge_group` verde de ESTE workflow, repositorio y
+      # SHA, y que cualquier duda es «corre todo»; ci-exigir-dependencias
+      # recorre la tabla de verdad entera del check obligatorio.
+      - name: scripts/ci-alcance.tests.sh
+        run: bash scripts/ci-alcance.tests.sh
+
+      - name: scripts/ci-exigir-dependencias.tests.sh
+        run: bash scripts/ci-exigir-dependencias.tests.sh
+
+      # Reparto de los E2E en bloques por colección: fuentes sintéticos
+      # (partial, dos clases en un fichero, subespacios, clase sin colección,
+      # colección sin peso) y el árbol real de tests/CaeManager.E2ETests.
+      - name: scripts/repartir-e2e-por-coleccion.tests.sh
+        run: bash scripts/repartir-e2e-por-coleccion.tests.sh
+
+      # Lanzador del banco de modelos de IA (#1235), con un `dotnet` falso que
+      # imprime la clave a propósito: fija que la clave no sale por la salida
+      # ni por los artefactos, que solo la recibe la medición (no la
+      # compilación, ni estimar, ni anotar) y que un test omitido o un .trx
+      # viejo no cuentan como medición. Sin .NET, sin red y sin clave.
+      - name: scripts/banco-ia.tests.sh
+        run: bash scripts/banco-ia.tests.sh
 
       # Métricas de proceso M1..M22 (S15): cifras exactas sobre datos sintéticos, fuente ausente =
       # NO_MEDIDA (nunca 0) y once mutantes del propio guion que deben poner en rojo su prueba.

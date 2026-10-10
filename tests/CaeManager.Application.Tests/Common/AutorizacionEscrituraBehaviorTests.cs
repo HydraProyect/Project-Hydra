@@ -1,7 +1,17 @@
 using CaeManager.Application.Asignaciones.Commands.CrearAsignacion;
 using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
+using CaeManager.Application.Centros.Commands.CrearCanalGestion;
+using CaeManager.Application.Centros.Commands.EditarCanalGestion;
+using CaeManager.Application.Centros.Commands.EditarCentro;
+using CaeManager.Application.Centros.Commands.EliminarCanalGestion;
+using CaeManager.Application.Centros.Commands.EliminarCentro;
+using CaeManager.Application.Centros.Commands.EliminarCentros;
+using CaeManager.Application.Centros.Commands.MarcarCanalGestionPrincipal;
 using CaeManager.Application.Common;
+using CaeManager.Application.Contactos.Commands.EliminarContactoAgenda;
+using CaeManager.Application.Contactos.Commands.GuardarContactoAgenda;
+using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
 using CaeManager.Application.Documentos.Commands.GuardarSelloEmpresa;
 using CaeManager.Application.Plataforma;
@@ -10,6 +20,7 @@ using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
 using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente;
 using CaeManager.Application.Trabajadores.Commands.ResolverDeteccionNuevo;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Common;
 using FluentAssertions;
@@ -486,6 +497,11 @@ public class AutorizacionEscrituraBehaviorTests
     // pero ocultar no autoriza: quien deniega es este behavior, y aquí se prueba con el tipo real de cada
     // Command, no con un doble. Si alguno dejara de ser ICommand o pasara a IComandoDeAutoservicio, su caso
     // se pone en rojo.
+    //
+    // Los nueve últimos son las escrituras propias del Centro (su ficha, sus canales de gestión documental,
+    // su agenda de contactos y la baja en lote que ofrece el listado de Centros). Su segunda barrera es el
+    // alcance de gestión del handler, que el rol Cliente no pasa; la primera, para el rol Consulta y para
+    // el rol Cliente por igual, es esta.
     public static TheoryData<object> EscriturasDeLasFichas360 =>
     [
         new CrearAsignacionCommand(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 10, 9)),
@@ -498,6 +514,16 @@ public class AutorizacionEscrituraBehaviorTests
         new GuardarSelloEmpresaCommand(Guid.NewGuid(), [1, 2, 3]),
         new ResolverDeteccionNuevoCommand(Guid.NewGuid(), true),
         new ResolverDeteccionAusenteCommand(Guid.NewGuid(), true),
+        new EditarCentroCommand(Guid.NewGuid(), "Planta de Getafe", null, null, null, null),
+        new EliminarCentroCommand(Guid.NewGuid()),
+        new EliminarCentrosCommand([Guid.NewGuid()]),
+        new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Email, "Envío de documentación", null, null, null, null, "cae@ejemplo.test", null, null),
+        new EditarCanalGestionCommand(Guid.NewGuid(), "Envío de documentación", null, null, "cae@ejemplo.test", null, null),
+        new EliminarCanalGestionCommand(Guid.NewGuid()),
+        new MarcarCanalGestionPrincipalCommand(Guid.NewGuid()),
+        new GuardarContactoAgendaCommand(
+            TipoPropietarioAgenda.Centro, Guid.NewGuid(), null, "Marta Ruiz", "marta@ejemplo.test", null, null, null, false, false, false, [], []),
+        new EliminarContactoAgendaCommand(TipoPropietarioAgenda.Centro, Guid.NewGuid(), Guid.NewGuid()),
     ];
 
     [Theory]
@@ -505,6 +531,19 @@ public class AutorizacionEscrituraBehaviorTests
     public async Task Las_escrituras_de_las_fichas_360_se_deniegan_al_rol_Consulta_sin_llegar_al_handler(object comando)
     {
         var (resultado, siguienteFueLlamado) = await PasarPorElBehaviorAsync(comando, "Consulta");
+
+        siguienteFueLlamado.Should().BeFalse();
+        resultado!.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Autorizacion.SoloLectura");
+    }
+
+    // El rol Cliente es el usuario de portal de un Cliente empresarial: ve el estado de sus Centros
+    // (por eso el alcance de LECTURA se los devuelve), pero no escribe en ellos.
+    [Theory]
+    [MemberData(nameof(EscriturasDeLasFichas360))]
+    public async Task Las_escrituras_de_las_fichas_360_se_deniegan_al_rol_Cliente_sin_llegar_al_handler(object comando)
+    {
+        var (resultado, siguienteFueLlamado) = await PasarPorElBehaviorAsync(comando, "Cliente");
 
         siguienteFueLlamado.Should().BeFalse();
         resultado!.EsFallido.Should().BeTrue();

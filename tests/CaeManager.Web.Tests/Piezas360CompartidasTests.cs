@@ -3,6 +3,7 @@ using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
+using System.Text.RegularExpressions;
 
 namespace CaeManager.Web.Tests;
 
@@ -56,6 +57,102 @@ public class Piezas360CompartidasTests : BunitContext
 
         cut.FindAll(".cabecera-identidad-anillo, .cabecera-identidad-kicker, .cabecera-identidad-datos, .cabecera-identidad-acciones, .cabecera-identidad-titular")
             .Should().BeEmpty();
+    }
+
+    // El velo de cumplimiento vive en base.css y casa por :has() con las clases que pinta
+    // AnilloCumplimiento. Lo que este test observa: que cada regla de color del velo encuentra
+    // el anillo que dice buscar dentro de la cabecera, y que sin anillo ninguna casa. Lo que NO
+    // observa: el degradado pintado; eso se mide en el navegador.
+    [Theory]
+    [InlineData(100, "--color-success-700")]
+    [InlineData(75, "--color-warning-700")]
+    [InlineData(10, "--color-danger-700")]
+    public void El_velo_de_cumplimiento_toma_el_color_del_anillo_de_la_cabecera(int porcentaje, string colorEsperado)
+    {
+        var cut = Render<CabeceraIdentidad>(p => p
+            .Add(x => x.Titulo, "Camión grúa")
+            .Add(x => x.Anillo, AnilloDeCabecera(porcentaje)));
+
+        var cabecera = cut.Find("header.velo-cumplimiento");
+        var reglas = ReglasDeColorDelVelo();
+
+        // Control positivo: el lector ve las tres reglas de color (verde, ámbar y rojo).
+        reglas.Should().HaveCount(3);
+        reglas.Where(r => cabecera.QuerySelector(r.SelectorDelAnillo) is not null)
+            .Select(r => r.Color).Should().Equal(colorEsperado);
+    }
+
+    [Fact]
+    public void Sin_anillo_o_con_el_anillo_sin_universo_ninguna_regla_del_velo_casa()
+    {
+        var sinAnillo = Render<CabeceraIdentidad>(p => p.Add(x => x.Titulo, "Reforma nave 3"));
+        var sinUniverso = Render<CabeceraIdentidad>(p => p
+            .Add(x => x.Titulo, "Reforma nave 3")
+            .Add(x => x.Anillo, AnilloDeCabecera(null)));
+
+        foreach (var cabecera in new[] { sinAnillo.Find("header.velo-cumplimiento"), sinUniverso.Find("header.velo-cumplimiento") })
+            ReglasDeColorDelVelo().Where(r => cabecera.QuerySelector(r.SelectorDelAnillo) is not null).Should().BeEmpty();
+    }
+
+    // La regla que pinta: un solo degradado, como background-image, al 9 %, plano hasta 128 px
+    // y fundido al 62 %, para los tres tonos y solo para ellos.
+    [Fact]
+    public void La_regla_que_pinta_el_velo_casa_con_los_tres_tonos_y_con_ninguna_cabecera_sin_color()
+    {
+        var regla = Regex.Match(LeerDeWeb("wwwroot", "css", "base.css"),
+            @"\.velo-cumplimiento:has\((?<anillo>[^{]+)\)\s*\{(?<cuerpo>[^}]*background-image:[^}]*)\}");
+
+        regla.Success.Should().BeTrue("el velo se pinta como background-image en una regla propia");
+        var cuerpo = regla.Groups["cuerpo"].Value;
+        cuerpo.Should().Contain("color-mix(in srgb, var(--velo-cumplimiento-color) 9%, var(--color-surface))");
+        cuerpo.Should().Contain("linear-gradient(90deg, var(--velo-cumplimiento) 0, var(--velo-cumplimiento) 128px, var(--color-surface) 62%)");
+
+        var anillo = regla.Groups["anillo"].Value;
+        foreach (var porcentaje in new[] { 100, 75, 10 })
+        {
+            Render<CabeceraIdentidad>(p => p.Add(x => x.Titulo, "Camión grúa").Add(x => x.Anillo, AnilloDeCabecera(porcentaje)))
+                .Find("header.velo-cumplimiento").QuerySelector(anillo).Should().NotBeNull($"el velo se pinta con el anillo al {porcentaje} %");
+        }
+
+        Render<CabeceraIdentidad>(p => p.Add(x => x.Titulo, "Reforma nave 3").Add(x => x.Anillo, AnilloDeCabecera(null)))
+            .Find("header.velo-cumplimiento").QuerySelector(anillo).Should().BeNull();
+        Render<CabeceraIdentidad>(p => p.Add(x => x.Titulo, "Reforma nave 3"))
+            .Find("header.velo-cumplimiento").QuerySelector(anillo).Should().BeNull();
+    }
+
+    [Fact]
+    public void La_cabecera_no_fija_su_fondo_con_el_atajo_que_borraria_el_velo()
+    {
+        var hoja = LeerDeWeb("Components", "DesignSystem", "CabeceraIdentidad.razor.css");
+
+        hoja.Should().Contain("background-color:");
+        Regex.IsMatch(hoja, @"(?m)^\s*background\s*:").Should().BeFalse(
+            "el atajo background borra el background-image con el que base.css pinta el velo de cumplimiento");
+    }
+
+    private static RenderFragment AnilloDeCabecera(int? porcentaje) => b =>
+    {
+        b.OpenComponent<AnilloCumplimiento>(0);
+        b.AddAttribute(1, nameof(AnilloCumplimiento.Porcentaje), porcentaje);
+        b.AddAttribute(2, nameof(AnilloCumplimiento.Tamano), TamanoAnillo.Cabecera);
+        b.CloseComponent();
+    };
+
+    /// <summary>Las reglas <c>.velo-cumplimiento:has(…) { --velo-cumplimiento-color: var(…) }</c> de base.css.</summary>
+    private static List<(string SelectorDelAnillo, string Color)> ReglasDeColorDelVelo()
+        => Regex
+            .Matches(LeerDeWeb("wwwroot", "css", "base.css"),
+                @"\.velo-cumplimiento:has\((?<anillo>[^()]+)\)\s*\{\s*--velo-cumplimiento-color:\s*var\((?<color>--[a-z0-9-]+)\);\s*\}")
+            .Select(m => (m.Groups["anillo"].Value, m.Groups["color"].Value))
+            .ToList();
+
+    private static string LeerDeWeb(params string[] partes)
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir is not null && !File.Exists(Path.Combine(dir, "CaeManager.slnx")))
+            dir = Path.GetDirectoryName(dir);
+
+        return File.ReadAllText(Path.Combine([dir!, "src", "CaeManager.Web", .. partes]));
     }
 
     [Fact]
