@@ -95,8 +95,53 @@ public class CalculadoraEstadoCentroTests
         var dePeorAMejor = Enum.GetValues<EstadoCentro>().OrderByDescending(CalculadoraEstadoCentro.Gravedad);
 
         dePeorAMejor.Should().Equal(
-            EstadoCentro.Bloqueado, EstadoCentro.Vencido, EstadoCentro.Faltante, EstadoCentro.Urgente,
-            EstadoCentro.Proximo, EstadoCentro.Vigente, EstadoCentro.SinGestionCae);
+            EstadoCentro.Bloqueado, EstadoCentro.Vencido, EstadoCentro.Faltante, EstadoCentro.Pendiente,
+            EstadoCentro.Urgente, EstadoCentro.Proximo, EstadoCentro.Vigente, EstadoCentro.SinGestionCae);
+    }
+
+    // --- Pendiente en la plataforma CAE del Centro (decisión del propietario, 2026-10-10) ---
+
+    [Fact]
+    public void Un_documento_pendiente_en_la_plataforma_pone_el_Centro_Pendiente()
+    {
+        CalculadoraEstadoCentro.Calcular([EstadoDocumento.Vigente], tieneRequisitoBloqueanteSinCumplir: false, tienePendienteEnPlataforma: true)
+            .Should().Be(EstadoCentro.Pendiente);
+    }
+
+    [Fact]
+    public void Sin_plataforma_no_hay_Pendiente_y_el_Centro_no_cambia()
+    {
+        // Un Centro sin plataforma nunca trae un pendiente: su estado es el de siempre.
+        CalculadoraEstadoCentro.Calcular([EstadoDocumento.Vigente], tieneRequisitoBloqueanteSinCumplir: false, tienePendienteEnPlataforma: false)
+            .Should().Be(EstadoCentro.Vigente);
+        CalculadoraEstadoCentro.Calcular([EstadoDocumento.Vigente], tieneRequisitoBloqueanteSinCumplir: false)
+            .Should().Be(EstadoCentro.Vigente, "el valor por defecto es «sin pendiente»");
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Urgente)]
+    [InlineData(EstadoDocumento.Proximo)]
+    [InlineData(EstadoDocumento.SinConfirmar)]
+    public void Pendiente_en_la_plataforma_prevalece_sobre_lo_que_esta_por_vencer(EstadoDocumento porVencer)
+    {
+        CalculadoraEstadoCentro.Calcular([porVencer], tieneRequisitoBloqueanteSinCumplir: false, tienePendienteEnPlataforma: true)
+            .Should().Be(EstadoCentro.Pendiente);
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Faltante, EstadoCentro.Faltante)]
+    [InlineData(EstadoDocumento.Vencido, EstadoCentro.Vencido)]
+    public void Lo_faltante_y_lo_vencido_prevalecen_sobre_el_Pendiente_en_la_plataforma(EstadoDocumento peor, EstadoCentro esperado)
+    {
+        CalculadoraEstadoCentro.Calcular([peor], tieneRequisitoBloqueanteSinCumplir: false, tienePendienteEnPlataforma: true)
+            .Should().Be(esperado);
+    }
+
+    [Fact]
+    public void El_bloqueo_de_la_plataforma_prevalece_sobre_el_Pendiente()
+    {
+        CalculadoraEstadoCentro.Calcular([], tieneRequisitoBloqueanteSinCumplir: true, tienePendienteEnPlataforma: true)
+            .Should().Be(EstadoCentro.Bloqueado, "Rechazada sigue siendo causa propia de Bloqueado (D-7), por encima del Pendiente");
     }
 
     [Fact]

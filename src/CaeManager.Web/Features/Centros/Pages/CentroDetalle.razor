@@ -137,6 +137,25 @@
                                 </Detalle>
                             </VentanaContexto>
                         }
+                        @if (_resumen.Recuentos.TotalPendientes > 0)
+                        {
+                            @* Pendiente en la plataforma CAE del Centro (2026-10-10): el documento vale, falta acreditarlo allí. *@
+                            var pendientesPlataforma = _resumen.Recuentos.TotalPendientes;
+                            var tituloPendientes = pendientesPlataforma == 1
+                                ? Textos["TituloPendientesPlataformaUno"].Value
+                                : Textos["TituloPendientesPlataformaVarios", pendientesPlataforma].Value;
+                            <VentanaContexto Etiqueta="@tituloPendientes" Titulo="@tituloPendientes">
+                                <Disparador>
+                                    <Badge Tono="EstadoCentroUi.Tono(EstadoCentro.Pendiente)" Tamano="TamanoBadge.Pequeno">@(pendientesPlataforma == 1 ? Textos["MotivoUnPendientePlataforma"].Value : Textos["MotivoPendientesPlataforma", pendientesPlataforma].Value)</Badge>
+                                </Disparador>
+                                <Detalle>
+                                    @foreach (var incidencia in _resumen.Recuentos.Pendientes)
+                                    {
+                                        <span class="ventana-linea">@incidencia.Descripcion</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
+                        }
                     </span>
                 }
             </JuntoAlTitulo>

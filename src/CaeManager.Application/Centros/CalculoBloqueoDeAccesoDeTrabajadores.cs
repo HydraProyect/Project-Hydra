@@ -22,6 +22,14 @@ public readonly record struct DocumentoParaBloqueo(
     Guid? TrabajadorId, Guid? EmpresaId, Guid TipoDocumentoId, DocumentoParaAcceso Documento);
 
 /// <summary>
+/// Un documento pendiente en la plataforma CAE de un Centro (<see cref="ReglaPendienteEnPlataforma"/>), ya filtrado por su
+/// contexto (<c>PendientesEnPlataformaDeCentros</c>): de un Trabajador (<paramref name="TrabajadorId"/>) o de una Empresa
+/// (<paramref name="EmpresaId"/>).
+/// </summary>
+public readonly record struct PendienteParaBloqueo(
+    Guid CentroId, Guid? TrabajadorId, Guid? EmpresaId, Guid TipoDocumentoId);
+
+/// <summary>
 /// Un requisito bloqueante evaluado para un Trabajador en un Centro, bloquee o no. Lleva la tolerancia con la que se
 /// evaluó para que una vista pueda decir «en tolerancia hasta X» sin recalcular (<see cref="ResultadoDeRequisito.EnToleranciaHasta"/>).
 /// </summary>
@@ -52,6 +60,10 @@ public record BloqueoDeAccesoDeTrabajador(
 /// <item>Todos los Trabajadores de la Empresa E bloqueados en C: a E le falta, o no vale en C, algún documento bloqueante de
 /// Empresa que C exige. Un requisito de Empresa que C no exige no bloquea en C.</item>
 /// <item>Un Trabajador sin ningún documento está bloqueado en los Centros que exigen algo: no hay «alta nueva» exenta.</item>
+/// <item>Pendiente en la plataforma CAE de C (decisión 2026-10-10): un documento de Trabajador sin subir o sin validar allí
+/// bloquea a ese Trabajador en C; uno de Empresa, a todos los Trabajadores de esa Empresa asignados a C. Aunque el tipo no
+/// sea bloqueante en C, y sin tolerancia. Si el tipo sí es bloqueante en C y ya bloquea por ausente o vencido, manda esa
+/// situación; si lo cumple, el requisito pasa a <see cref="SituacionDeRequisitoBloqueante.PendienteEnPlataforma"/>.</item>
 /// </list>
 /// </summary>
 public static class CalculoBloqueoDeAccesoDeTrabajadores
@@ -61,8 +73,9 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
         IReadOnlyCollection<AsignacionParaBloqueo> asignaciones,
         IReadOnlyCollection<RequisitoBloqueanteDelCentro> requisitos,
         IReadOnlyCollection<DocumentoParaBloqueo> documentos,
-        DateOnly hoy) =>
-        Evaluar(asignaciones, requisitos, documentos, hoy)
+        DateOnly hoy,
+        IReadOnlyCollection<PendienteParaBloqueo>? pendientesEnPlataforma = null) =>
+        Evaluar(asignaciones, requisitos, documentos, hoy, pendientesEnPlataforma)
             .Where(e => ReglaBloqueoDeAcceso.Bloquea(e.Resultado.Situacion))
             .Select(e => new BloqueoDeAccesoDeTrabajador(
                 e.CentroId, e.TrabajadorId, e.TipoDocumentoId, e.Ambito, e.EmpresaId,
@@ -74,7 +87,8 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
         IReadOnlyCollection<AsignacionParaBloqueo> asignaciones,
         IReadOnlyCollection<RequisitoBloqueanteDelCentro> requisitos,
         IReadOnlyCollection<DocumentoParaBloqueo> documentos,
-        DateOnly hoy)
+        DateOnly hoy,
+        IReadOnlyCollection<PendienteParaBloqueo>? pendientesEnPlataforma = null)
     {
         var documentosDeTrabajador = documentos
             .Where(d => d.TrabajadorId is not null)
@@ -85,6 +99,7 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
         var requisitosPorCentro = requisitos
             .Where(r => ReglaBloqueoDeAcceso.AmbitoPuedeBloquear(r.Ambito))
             .ToLookup(r => r.CentroId);
+        var pendientesPorCentro = (pendientesEnPlataforma ?? []).ToLookup(p => p.CentroId);
 
         var resultado = new List<RequisitoEvaluado>();
 
@@ -94,6 +109,7 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
         // no se depende de ello: el resultado es único por (Centro, Trabajador, Tipo) por construcción.
         foreach (var asignacion in asignaciones.DistinctBy(a => (a.CentroId, a.TrabajadorId)))
         {
+            var inicioDeLaAsignacion = resultado.Count;
             foreach (var requisito in requisitosPorCentro[asignacion.CentroId])
             {
                 if (requisito.Ambito == AmbitoAplicacion.Trabajador)
@@ -113,8 +129,55 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
                         requisito.Condiciones.ToleranciaDias));
                 }
             }
+
+            AplicarPendientesEnPlataforma(asignacion, pendientesPorCentro[asignacion.CentroId], resultado, inicioDeLaAsignacion);
         }
 
         return resultado;
+    }
+
+    /// <summary>
+    /// Los pendientes en la plataforma del Centro que afectan a esta Asignación: los del propio Trabajador y los de su
+    /// Empresa. Una sola fila por (Centro, Trabajador, Tipo): si el tipo ya se evaluó como requisito bloqueante, un
+    /// cumplido pasa a pendiente y un ausente o vencido se queda como está (ya bloquea y es lo más urgente); si no, se
+    /// añade el pendiente, sin tolerancia.
+    /// </summary>
+    private static void AplicarPendientesEnPlataforma(
+        AsignacionParaBloqueo asignacion, IEnumerable<PendienteParaBloqueo> pendientesDelCentro, List<RequisitoEvaluado> resultado,
+        int inicioDeLaAsignacion)
+    {
+        foreach (var pendiente in pendientesDelCentro)
+        {
+            AmbitoAplicacion ambito;
+            Guid? empresaId;
+            if (pendiente.TrabajadorId is { } trabajadorId)
+            {
+                if (trabajadorId != asignacion.TrabajadorId) continue;
+                ambito = AmbitoAplicacion.Trabajador;
+                empresaId = null;
+            }
+            else if (pendiente.EmpresaId is { } empresaDelPendiente && empresaDelPendiente == asignacion.EmpresaDelTrabajadorId)
+            {
+                ambito = AmbitoAplicacion.Empresa;
+                empresaId = empresaDelPendiente;
+            }
+            else
+            {
+                continue;
+            }
+
+            var comoPendiente = new ResultadoDeRequisito(SituacionDeRequisitoBloqueante.PendienteEnPlataforma, null, null);
+            // Las filas de esta Asignación son las últimas añadidas: se busca solo entre ellas.
+            var indice = resultado.FindIndex(inicioDeLaAsignacion, r => r.TipoDocumentoId == pendiente.TipoDocumentoId);
+            if (indice < 0)
+            {
+                resultado.Add(new RequisitoEvaluado(
+                    asignacion.CentroId, asignacion.TrabajadorId, pendiente.TipoDocumentoId, ambito, empresaId, comoPendiente, ToleranciaDias: 0));
+            }
+            else if (resultado[indice].Resultado.Situacion == SituacionDeRequisitoBloqueante.Cumplido)
+            {
+                resultado[indice] = resultado[indice] with { Resultado = comoPendiente, ToleranciaDias = 0 };
+            }
+        }
     }
 }

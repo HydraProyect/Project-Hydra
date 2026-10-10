@@ -40,5 +40,16 @@ public enum EstadoCentro
     /// ordenar por gravedad va antes que <see cref="Vigente"/>
     /// (<see cref="CalculadoraEstadoCentro.Gravedad"/>).
     /// </summary>
-    SinGestionCae = 6
+    SinGestionCae = 6,
+
+    /// <summary>
+    /// Pendiente en la plataforma CAE del Centro (decisión del propietario, 2026-10-10): un documento que todavía vale en
+    /// TALVEG está, en la plataforma de este Centro, sin subir o subido y sin validar
+    /// (<see cref="Documentos.ReglaPendienteEnPlataforma"/>). Solo lo causa un Centro con plataforma: uno sin acceso de
+    /// tipo Plataforma nunca está Pendiente. En gravedad va entre <see cref="Faltante"/> y <see cref="Urgente"/>
+    /// (<see cref="CalculadoraEstadoCentro.Gravedad"/>); su valor numérico va al final porque los anteriores están
+    /// congelados por la API v1. No pone el Centro en <see cref="Bloqueado"/>: el Pendiente bloquea a PERSONAS en ese
+    /// Centro (al Trabajador del documento, o a todos los de la Empresa si el documento es de Empresa).
+    /// </summary>
+    Pendiente = 7
 }

@@ -19,6 +19,9 @@ namespace CaeManager.Application.Centros;
 /// por Trabajador del Centro 360) y NUNCA pone el Centro en Bloqueado (decisión del propietario, 2026-10-03): «Bloqueado» es un
 /// estado del Trabajador. <see cref="CausaEstadoCentro.Bloqueante"/> queda solo para las causas que vienen de la plataforma
 /// del Cliente empresarial (vigencia vencida y acreditación rechazada, D-7).
+/// <see cref="CausaEstadoCentro.PendienteEnPlataforma"/> marca un documento que vale pero está sin subir o sin validar en la
+/// plataforma CAE de ese Centro (<see cref="ReglaPendienteEnPlataforma"/>, decisión del 2026-10-10): pone el Centro en
+/// <see cref="EstadoCentro.Pendiente"/> y bloquea a personas en ese Centro, nunca el Centro entero.
 /// Solo se generan causas para lo que efectivamente aporta al peor caso —
 /// nada Vigente aparece aquí, igual que ObtenerAlertasQuery no lista
 /// Documentos al día.
@@ -57,9 +60,15 @@ public enum AmbitoCausa
 /// localizar el formulario, no autoridad: el comando que guarda vuelve a
 /// comprobar el alcance.
 /// </param>
+/// <param name="PendienteEnPlataforma">
+/// La causa es un documento pendiente en la plataforma CAE de este Centro (sin subir o subido sin validar). Llega con
+/// <paramref name="Estado"/> en <c>null</c>: no describe la vigencia del documento, que vale, sino el trabajo que falta
+/// en la plataforma; y sin <paramref name="Bloqueante"/>, porque no pone el Centro en Bloqueado.
+/// </param>
 public record CausaEstadoCentro(
     string Descripcion, EstadoDocumento? Estado, bool Bloqueante, AmbitoCausa Ambito,
-    Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento, Guid? TrabajadorId = null);
+    Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento, Guid? TrabajadorId = null,
+    bool PendienteEnPlataforma = false);
 
 public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentro> Causas);
 
@@ -74,7 +83,9 @@ public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEsta
 /// Documentos de Empresa aquí solo aportan su vigencia, sin detección de
 /// falta total, mismo alcance que esa Query). Además, dos causas bloqueantes que
 /// vienen de la plataforma del Cliente empresarial y no del archivo documental: la
-/// vigencia vencida en la plataforma y la acreditación rechazada por ella.
+/// vigencia vencida en la plataforma y la acreditación rechazada por ella; y una
+/// no bloqueante para el Centro, el documento pendiente en su plataforma (sin
+/// subir o subido sin validar), que lo pone en <see cref="EstadoCentro.Pendiente"/>.
 /// </summary>
 public interface ICalculoEstadoCentroService
 {
@@ -138,6 +149,7 @@ public class CalculoEstadoCentroService(
             await AgregarCausasDeTrabajadorAsync(conGestionCae, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, causasPorCentro, cancellationToken);
             await AgregarCausasDeVigenciaEnPlataformaAsync(conGestionCae, hoy, causasPorCentro, cancellationToken);
             await AgregarCausasDeRechazoEnPlataformaAsync(conGestionCae, causasPorCentro, cancellationToken);
+            await AgregarCausasPendientesEnPlataformaAsync(conGestionCae, hoy, causasPorCentro, cancellationToken);
         }
 
         var resultado = causasPorCentro.ToDictionary(
@@ -145,7 +157,8 @@ public class CalculoEstadoCentroService(
             par => new ResultadoEstadoCentro(
                 CalculadoraEstadoCentro.Calcular(
                     par.Value.Where(c => c.Estado is not null).Select(c => c.Estado!.Value).ToList(),
-                    par.Value.Any(c => c.Bloqueante)),
+                    par.Value.Any(c => c.Bloqueante),
+                    par.Value.Any(c => c.PendienteEnPlataforma)),
                 par.Value));
 
         foreach (var centroId in sinGestionCae)
@@ -257,7 +270,10 @@ public class CalculoEstadoCentroService(
     ///
     /// <para>
     /// Solo <c>Rechazada</c>. Pendiente de subir y Subida (esperando respuesta)
-    /// son trabajo y seguimiento, no un «no» de la plataforma, y no bloquean.
+    /// no son un «no» de la plataforma y no ponen el Centro en Bloqueado: desde
+    /// el 2026-10-10 son su propia causa, <see cref="EstadoCentro.Pendiente"/>,
+    /// que bloquea a personas en ese Centro
+    /// (<see cref="AgregarCausasPendientesEnPlataformaAsync"/>).
     /// Rechazar reinicia la vigencia en plataforma, así que esta causa y la de
     /// vigencia vencida nunca cuentan la misma acreditación dos veces; renovar el
     /// documento reinicia la acreditación a Pendiente y retira el bloqueo.
@@ -343,6 +359,47 @@ public class CalculoEstadoCentroService(
                 Bloqueante: true,
                 fila.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
                 fila.Id, fila.TipoDocumentoId, FechaVencimiento: null, fila.TrabajadorId));
+        }
+    }
+
+    /// <summary>
+    /// Un documento que todavía vale en TALVEG y que en la plataforma CAE de ESTE Centro está sin subir o subido sin
+    /// validar (<see cref="ReglaPendienteEnPlataforma"/>, decisión del propietario, 2026-10-10) pone el Centro en
+    /// <see cref="EstadoCentro.Pendiente"/>. No es <see cref="CausaEstadoCentro.Bloqueante"/>: el Centro no queda Bloqueado;
+    /// quien queda bloqueado es la persona, en ese Centro (<see cref="IEvaluacionDeAccesoPorCentroService"/>).
+    ///
+    /// <para>
+    /// Mismo contexto que el rechazo: solo accesos de tipo Plataforma de este Centro (un Centro sin plataforma nunca tiene
+    /// un Pendiente), un tipo que le aplique (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>) y un propietario con
+    /// actividad allí — el Trabajador con Asignación activa, o la Empresa con algún Trabajador suyo con Asignación activa:
+    /// la acreditación sobrevive a la baja y a que el tipo deje de exigirse (<see cref="PendientesEnPlataformaDeCentros"/>, la
+    /// misma carga que usa el acceso por Centro). Una causa por Centro, sujeto y tipo, aunque el Centro tenga varios accesos
+    /// de plataforma o el sujeto copias duplicadas del documento.
+    /// </para>
+    /// </summary>
+    private async Task AgregarCausasPendientesEnPlataformaAsync(
+        IReadOnlyList<Guid> centroIds, DateOnly hoy,
+        Dictionary<Guid, List<CausaEstadoCentro>> causasPorCentro, CancellationToken cancellationToken)
+    {
+        var pendientes = await PendientesEnPlataformaDeCentros.CargarAsync(
+            centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+            centroIds, hoy, cancellationToken);
+
+        foreach (var pendiente in pendientes)
+        {
+            if (!causasPorCentro.TryGetValue(pendiente.CentroId, out var causas)) continue;
+
+            var propietario = pendiente.TrabajadorNombre is { } nombre ? $" — {nombre}" : " — Empresa";
+            var queFalta = pendiente.EstadoAcreditacion == EstadoAcreditacion.Subida
+                ? "subido, sin validar en la plataforma"
+                : "sin subir a la plataforma";
+            causas.Add(new CausaEstadoCentro(
+                $"{pendiente.TipoDocumentoNombre}{propietario} — {queFalta}",
+                Estado: null,
+                Bloqueante: false,
+                pendiente.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
+                pendiente.DocumentoId, pendiente.TipoDocumentoId, pendiente.FechaVencimiento, pendiente.TrabajadorId,
+                PendienteEnPlataforma: true));
         }
     }
 
@@ -566,11 +623,25 @@ public class CalculoEstadoCentroService(
         // Un solo documento operativo por par en el caso normal (el vencido y su renovación ya no coexisten: el
         // anterior pasa al historial); con duplicados aún sin resolver manda el documento efectivo (DocumentoEfectivo),
         // el mismo que elige el paquete de acreditación de la Visita.
-        var estadosPorPareja = DocumentoEfectivo.UnoPorClave(
+        var efectivos = DocumentoEfectivo.UnoPorClave(
                 documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy)
             .ToDictionary(
                 p => p.Key,
-                p => CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+                p => (p.Value.Id, Estado: CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)));
+
+        // Pendiente en la plataforma (decisión 2026-10-10): el documento efectivo del par, sin subir o subido sin validar
+        // en un acceso de tipo Plataforma de ESE Centro. Un Centro sin plataforma no tiene ninguna fila aquí.
+        var documentoIdsEfectivos = efectivos.Values.Select(e => e.Id).ToList();
+        var estadosPendientes = ReglaPendienteEnPlataforma.EstadosPendientes.ToArray();
+        var pendientesEnPlataforma = (await (
+            from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
+            where estadosPendientes.Contains(acreditacion.Estado) && documentoIdsEfectivos.Contains(acreditacion.DocumentoId)
+            join canal in centrosContext.CanalesGestionDocumental
+                on acreditacion.CanalGestionDocumentalId equals canal.Id
+            where canal.Tipo == TipoCanalGestion.Plataforma && conGestionCae.Contains(canal.CentroId)
+            select new { canal.CentroId, acreditacion.DocumentoId, acreditacion.Estado })
+            .ToListAsync(cancellationToken))
+            .ToLookup(p => (p.CentroId, p.DocumentoId), p => p.Estado);
 
         var pares = new List<ParDocumentalExigido>();
         foreach (var asignacion in asignacionesActivas)
@@ -581,12 +652,15 @@ public class CalculoEstadoCentroService(
                     continue;
 
                 // Sin documento del par, Faltante. El estado lo cuenta CumplimientoDocumental, no esta clase.
-                var estado = estadosPorPareja.TryGetValue((asignacion.TrabajadorId, tipo.Id), out var calculado)
-                    ? calculado
-                    : EstadoDocumento.Faltante;
+                var tieneEfectivo = efectivos.TryGetValue((asignacion.TrabajadorId, tipo.Id), out var efectivo);
+                var estado = tieneEfectivo ? efectivo.Estado : EstadoDocumento.Faltante;
+                var pendienteEnPlataforma = tieneEfectivo
+                    && pendientesEnPlataforma[(asignacion.CentroId, efectivo.Id)]
+                        .Any(estadoAcreditacion => ReglaPendienteEnPlataforma.CuentaEnElCentro(estadoAcreditacion, estado));
 
                 pares.Add(new ParDocumentalExigido(
-                    asignacion.CentroId, asignacion.ClienteEmpresarialId, asignacion.EmpresaId, asignacion.TrabajadorId, tipo.Id, estado));
+                    asignacion.CentroId, asignacion.ClienteEmpresarialId, asignacion.EmpresaId, asignacion.TrabajadorId, tipo.Id, estado,
+                    pendienteEnPlataforma));
             }
         }
 

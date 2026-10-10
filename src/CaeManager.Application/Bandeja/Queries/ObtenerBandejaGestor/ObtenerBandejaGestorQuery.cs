@@ -283,7 +283,9 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             // Documento de Empresa no tiene Trabajador, se queda sin este dato.
             TrabajadorNombre: r.TrabajadorId is not null ? r.PropietarioNombre : null)));
 
-        items.AddRange(requisitos.Select(rq => new ItemBandejaDto(
+        // Un bloqueo por Pendiente en la plataforma (decisión 2026-10-10) no es una fila más de la cola: el trabajo ya
+        // aparece como su acreditación pendiente (pendientesPlataforma), y repetirlo como requisito duplicaría la tarea.
+        items.AddRange(requisitos.Where(rq => rq.Situacion != SituacionDeRequisitoBloqueante.PendienteEnPlataforma).Select(rq => new ItemBandejaDto(
             Id: IdDeFilaDeCola.Requisito(rq.CentroId, rq.TrabajadorId, rq.TipoDocumentoId),
             Tipo: TipoItemBandeja.RequisitoPendiente,
             // Un requisito de Empresa bloquea al Trabajador por un documento que NO es suyo: el título lo dice

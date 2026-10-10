@@ -16,7 +16,15 @@ public enum SituacionDeRequisitoBloqueante
     /// Existen Documentos del tipo pero ninguno vale ya para acceder a ese Centro: todos vencieron y, si el Centro
     /// concede tolerancia, esta ya se agotó. Bloquea igual que el ausente.
     /// </summary>
-    Vencido = 2
+    Vencido = 2,
+
+    /// <summary>
+    /// El documento vale, pero en la plataforma CAE de ese Centro está sin subir o subido sin validar
+    /// (<see cref="ReglaPendienteEnPlataforma"/>, decisión del propietario, 2026-10-10). Bloquea al sujeto en ese Centro
+    /// aunque el tipo no esté marcado <see cref="TipoDocumentoCentro.BloqueaAcceso"/>: la plataforma no deja entrar a quien
+    /// no está acreditado en ella. Sin tolerancia: el Pendiente no tiene fecha a la que sumarle días.
+    /// </summary>
+    PendienteEnPlataforma = 3
 }
 
 /// <summary>Un Documento visto desde la regla de acceso: su vigencia y la fecha de emisión (base de la periodicidad especial de un Centro).</summary>
@@ -63,6 +71,10 @@ public readonly record struct ResultadoDeRequisito(
 /// bloqueados y por qué.</item>
 /// <item><b>Una alta nueva sin documentación está bloqueada</b> (sustituye a la advertencia de «alta nueva» del
 /// 2026-08-16): no hay excepción por no haber completado el alta.</item>
+/// <item><b>Pendiente en la plataforma</b> (decisión del 2026-10-10, <see cref="ReglaPendienteEnPlataforma"/>): un
+/// documento que vale pero está sin subir o sin validar en la plataforma CAE del Centro bloquea al sujeto en ese Centro
+/// (<see cref="SituacionDeRequisitoBloqueante.PendienteEnPlataforma"/>) aunque el tipo no sea bloqueante allí. No lo
+/// decide esta función, que solo mira documentos: lo añade <c>CalculoBloqueoDeAccesoDeTrabajadores</c>.</item>
 /// </list>
 ///
 /// <para>
@@ -200,7 +212,7 @@ public static class ReglaBloqueoDeAcceso
             : new ResultadoDeRequisito(SituacionDeRequisitoBloqueante.Vencido, mejorVencimiento, null);
     }
 
-    /// <summary>Ausente y vencido bloquean por igual; solo cumplido no bloquea.</summary>
+    /// <summary>Ausente, vencido y pendiente en la plataforma bloquean por igual; solo cumplido no bloquea.</summary>
     public static bool Bloquea(SituacionDeRequisitoBloqueante situacion) =>
         situacion != SituacionDeRequisitoBloqueante.Cumplido;
 

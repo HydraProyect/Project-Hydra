@@ -66,18 +66,28 @@ public record IncidenciaCentroDto(
     Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento, Guid? TrabajadorId = null);
 
 /// <summary>
-/// Desglose de las incidencias de un centro por estado. No lleva contadores
+/// Desglose de las incidencias de un centro por causa. No lleva contadores
 /// propios: se derivan de las listas, para que no puedan desincronizarse del
 /// detalle que muestra la ventana de contexto.
 /// </summary>
+/// <param name="PendientesEnPlataforma">
+/// Documentos pendientes en la plataforma CAE del Centro (sin subir o subidos sin validar; decisión del 2026-10-10). Su
+/// propio grupo, nunca dentro de <paramref name="Vencidas"/> ni de <paramref name="Proximas"/>: el documento vale, lo que
+/// falta es acreditarlo allí. Vacío en un Centro sin plataforma (y en el constructor de dos listas).
+/// </param>
 public record RecuentosCentroDto(
     IReadOnlyList<IncidenciaCentroDto> Vencidas,
-    IReadOnlyList<IncidenciaCentroDto> Proximas)
+    IReadOnlyList<IncidenciaCentroDto> Proximas,
+    IReadOnlyList<IncidenciaCentroDto> PendientesEnPlataforma)
 {
-    public static readonly RecuentosCentroDto Vacio = new([], []);
+    public static readonly RecuentosCentroDto Vacio = new([], [], []);
+
+    public RecuentosCentroDto(IReadOnlyList<IncidenciaCentroDto> vencidas, IReadOnlyList<IncidenciaCentroDto> proximas)
+        : this(vencidas, proximas, []) { }
 
     public int TotalVencidas => Vencidas.Count;
     public int TotalProximas => Proximas.Count;
+    public int TotalPendientesEnPlataforma => PendientesEnPlataforma.Count;
 
     /// <summary>
     /// Causas separadas dentro de <see cref="Vencidas"/> (el motivo de Centros las
@@ -94,8 +104,8 @@ public record RecuentosCentroDto(
 
     /// <summary>
     /// Causas bloqueantes sin vigencia documental (rechazo en la plataforma, D-7).
-    /// Hueco: la causa «Pendiente por plataforma de Centro» (decisión del 2026-10-10)
-    /// tendrá su propia lista cuando su regla esté en main; hoy no existe.
+    /// El Pendiente en la plataforma del Centro (decisión del 2026-10-10) tiene su propia lista,
+    /// <see cref="PendientesEnPlataforma"/>: el documento vale, lo que falta es acreditarlo allí.
     /// </summary>
     public IReadOnlyList<IncidenciaCentroDto> Bloqueos =>
         Vencidas.Where(i => i.Estado is null).ToList();
@@ -292,7 +302,7 @@ public class ObtenerCentrosQueryHandler(
     /// ya viajaba, que hasta ahora la lista descartaba.
     /// "Faltante" cuenta como vencido en el total — un requisito sin documento no
     /// está al día — y el motivo de Centros lo separa por causa (ver
-    /// <see cref="RecuentosCentroDto.Pendientes"/>).
+    /// <see cref="RecuentosCentroDto.PendientesEnPlataforma"/>).
     ///
     /// <para>
     /// <see cref="EstadoDocumento.Urgente"/> antes se descartaba en silencio
@@ -319,16 +329,28 @@ public class ObtenerCentrosQueryHandler(
     /// sin estado sería un defecto en su origen, no un caso más que enmascarar
     /// aquí.
     /// </para>
+    /// <para>
+    /// El documento pendiente en la plataforma (<see cref="CausaEstadoCentro.PendienteEnPlataforma"/>, decisión del
+    /// 2026-10-10) va a su propio grupo, <see cref="RecuentosCentroDto.PendientesEnPlataforma"/>: no es un vencimiento ni algo por
+    /// vencer, el documento vale y lo que falta es acreditarlo en la plataforma del Centro.
+    /// </para>
     /// </summary>
     private static RecuentosCentroDto Desglosar(ResultadoEstadoCentro resultado)
     {
         var vencidas = new List<IncidenciaCentroDto>();
         var proximas = new List<IncidenciaCentroDto>();
+        var pendientesEnPlataforma = new List<IncidenciaCentroDto>();
 
         foreach (var causa in resultado.Causas)
         {
             var incidencia = new IncidenciaCentroDto(
                 causa.Descripcion, causa.Ambito, causa.Estado, causa.DocumentoId, causa.TipoDocumentoId, causa.FechaVencimiento, causa.TrabajadorId);
+            if (causa.PendienteEnPlataforma)
+            {
+                pendientesEnPlataforma.Add(incidencia);
+                continue;
+            }
+
             switch (causa.Estado)
             {
                 case EstadoDocumento.Vencido or EstadoDocumento.Faltante:
@@ -343,7 +365,7 @@ public class ObtenerCentrosQueryHandler(
             }
         }
 
-        return new RecuentosCentroDto(vencidas, proximas);
+        return new RecuentosCentroDto(vencidas, proximas, pendientesEnPlataforma);
     }
 
     private static IOrderedEnumerable<CentroListaDto> OrdenarEnMemoria(
@@ -358,7 +380,7 @@ public class ObtenerCentrosQueryHandler(
             (nameof(CentroListaDto.ClienteRazonSocial), true) => elementos.OrderByDescending(x => x.ClienteRazonSocial).ThenBy(x => x.Nombre),
             (nameof(CentroListaDto.EmpresaRazonSocial), false) => elementos.OrderBy(x => x.EmpresaRazonSocial).ThenBy(x => x.Nombre),
             (nameof(CentroListaDto.EmpresaRazonSocial), true) => elementos.OrderByDescending(x => x.EmpresaRazonSocial).ThenBy(x => x.Nombre),
-            // La gravedad va de mejor a peor (Vigente … Faltante, Vencido,
+            // La gravedad va de mejor a peor (Vigente … Pendiente, Faltante, Vencido,
             // Bloqueado; no es el valor numérico del enum), así que descendente
             // deja arriba lo que más urge — que es lo que el Gestor CAE espera
             // al ordenar por cumplimiento.
