@@ -8,6 +8,8 @@
       con el mismo criterio con el que tiñe sus filas.
     - Total es el del grupo ENTERO (todas las páginas). Si la página solo enseña parte (EnPagina < Total) el
       contador lo dice: «3 de 12», con «3 de 12 en esta página» de título.
+    - Con Termino (lo escrito en el buscador de la pantalla), la parte del nombre que casa sale marcada con
+      TextoResaltado, igual que en las filas. Solo tiene sentido si la consulta busca por ese nombre.
     - Es un botón con aria-expanded que abre y contrae el grupo. Si algo ajeno al grupo lo mantiene abierto
       (búsqueda, selección múltiple…), Fijo: no es un botón ni lleva aria-expanded, porque no podría contraerlo.
 
@@ -15,7 +17,7 @@
 
     Uso (dentro del foreach de la lista, con @key por grupo):
 
-        <CabeceraGrupoLista @key="clavesDeGrupo.De(grupo.Clave)" Nombre="@grupo.Nombre" Total="grupo.Total"
+        <CabeceraGrupoLista @key="clavesDeGrupo.De(grupo.Clave)" Nombre="@grupo.Nombre" Termino="@_busqueda" Total="grupo.Total"
                             EnPagina="grupo.Filas.Count" Resumen="grupo.Resumen" Tinte="grupo.Tinte"
                             Abierto="abierto" Fijo="GruposForzadosAbiertos" OnAlternar="() => AlternarGrupo(grupo.Clave)" />
 *@
@@ -40,6 +42,12 @@
 @code {
     /// <summary>Nombre del grupo («Astilleros Orion»).</summary>
     [Parameter, EditorRequired] public string Nombre { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Lo escrito en el buscador de la pantalla, si la consulta busca también por el nombre del grupo: la
+    /// parte que casa sale marcada (<see cref="TextoResaltado"/>). Sin valor, el nombre se pinta sin marca.
+    /// </summary>
+    [Parameter] public string? Termino { get; set; }
 
     /// <summary>Filas del grupo entero, en todas las páginas.</summary>
     [Parameter, EditorRequired] public int Total { get; set; }
@@ -73,7 +81,7 @@
 
     private RenderFragment Contenido => @<text>
         <span class="grupo-lista-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
-        <span class="grupo-lista-nombre">@Nombre</span>
+        <span class="grupo-lista-nombre"><TextoResaltado Texto="@Nombre" Termino="@Termino" /></span>
         @if (EsParcial)
         {
             <span class="grupo-lista-contador" title="@Comunes["GrupoContadorParcialTitulo", EnPagina!.Value, Total]">@Comunes["GrupoContadorParcial", EnPagina!.Value, Total]</span>

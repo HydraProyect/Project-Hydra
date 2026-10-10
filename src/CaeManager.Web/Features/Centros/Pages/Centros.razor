@@ -252,7 +252,7 @@
             {
                 @if (_agruparPorCliente && cabecerasDeGrupo.TryGetValue(centro.Id, out var grupo))
                 {
-                    <CabeceraGrupoLista @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)" Nombre="@grupo.Nombre"
+                    <CabeceraGrupoLista @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)" Nombre="@grupo.Nombre" Termino="@_busqueda"
                                         Total="grupo.Total" EnPagina="grupo.Centros.Count" TituloContador="@Textos["GrupoContadorTitulo", grupo.Total]"
                                         Resumen="ResumenDe(grupo)" Tinte="grupo.Tinte"
                                         Abierto="GrupoAbierto(grupo.ClienteEmpresarialId)" Fijo="GruposForzadosAbiertos"
@@ -296,12 +296,12 @@
                                se va con el icono 360 del final de la fila y con el del panel. *@
                             <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida"
                                     @onclick="() => AbrirPanelAsync(centro.Id)" @onclick:stopPropagation="true">
-                                @centro.Nombre
+                                <TextoResaltado Texto="@centro.Nombre" Termino="@_busqueda" />
                             </button>
-                            @{ var meta = MetaCentro(centro); }
-                            <span class="tarjeta-fila-acordeon-meta">@meta<span class="meta-empresa-movil">@(meta.Length > 0 ? " · " : "")@centro.EmpresaRazonSocial</span></span>
+                            @{ var partesMeta = PartesMetaCentro(centro); var meta = string.Join(" · ", partesMeta); }
+                            <span class="tarjeta-fila-acordeon-meta"><TextoResaltado Texto="@partesMeta.ElementAtOrDefault(0)" Termino="@_busqueda" />@(partesMeta.Count == 2 ? " · " : "")<TextoResaltado Texto="@partesMeta.ElementAtOrDefault(1)" Termino="@_busqueda" /><span class="meta-empresa-movil">@(meta.Length > 0 ? " · " : "")<TextoResaltado Texto="@centro.EmpresaRazonSocial" Termino="@_busqueda" /></span></span>
                         </span>
-                        <span class="columna-empresa-centro" title="@centro.EmpresaRazonSocial">@centro.EmpresaRazonSocial</span>
+                        <span class="columna-empresa-centro" title="@centro.EmpresaRazonSocial"><TextoResaltado Texto="@centro.EmpresaRazonSocial" Termino="@_busqueda" /></span>
                         <span class="columna-cumplimiento-centro">
                             <BarraCumplimiento Porcentaje="centro.CumplimientoPorcentaje"
                                                Etiqueta="@(centro.CumplimientoPorcentaje is { } cumplimiento ? $"{cumplimiento}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro" : null)" />

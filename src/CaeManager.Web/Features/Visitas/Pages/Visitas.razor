@@ -127,16 +127,16 @@
                 }
                 <TemplateColumn Title="@Textos["EtiquetaCentro"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
                     <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
-                        @context.CentroNombre
+                        <TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" />
                     </button>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaTitularEmpresa"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.ClienteRazonSocial))">
                     <span class="visitas-celda-apilada">
                         <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
-                            @context.ClienteRazonSocial
+                            <TextoResaltado Texto="@context.ClienteRazonSocial" Termino="@_busqueda" />
                         </button>
                         <button type="button" class="enlace-nombre-fila visitas-celda-secundaria" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
-                            @context.EmpresaRazonSocial
+                            <TextoResaltado Texto="@context.EmpresaRazonSocial" Termino="@_busqueda" />
                         </button>
                     </span>
                 </TemplateColumn>

@@ -99,7 +99,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
             // en la vista rápida» pide UNA fila y se prueba desde la página 2.
             var coincidentes = Subcontratas
                 .Where(s => q.SubcontrataId is null || s.Id == q.SubcontrataId)
-                .Where(s => q.Busqueda is null || s.RazonSocial.Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase))
+                .Where(s => q.Busqueda is null || TextoDeBusqueda.Contiene(s.RazonSocial, q.Busqueda))
                 .Where(s => q.NivelServicio is null || s.NivelServicio == q.NivelServicio)
                 .ToList();
             // Como el handler: los recuentos de la franja se cuentan ANTES de filtrar por estado.

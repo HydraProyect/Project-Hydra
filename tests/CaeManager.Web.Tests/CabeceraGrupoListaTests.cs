@@ -24,9 +24,11 @@ public class CabeceraGrupoListaTests : BunitContext
 
     private IRenderedComponent<CabeceraGrupoLista> Renderizar(
         int total = 12, int? enPagina = null, IReadOnlyList<ResumenEstadoGrupo>? resumen = null,
-        TinteGrupoLista tinte = TinteGrupoLista.Ninguno, bool abierto = false, bool fijo = false, string? tituloContador = null) =>
+        TinteGrupoLista tinte = TinteGrupoLista.Ninguno, bool abierto = false, bool fijo = false, string? tituloContador = null,
+        string? termino = null) =>
         Render<CabeceraGrupoLista>(p => p
             .Add(c => c.Nombre, "Astilleros Orion")
+            .Add(c => c.Termino, termino)
             .Add(c => c.Total, total)
             .Add(c => c.EnPagina, enPagina)
             .Add(c => c.TituloContador, tituloContador)
@@ -49,6 +51,38 @@ public class CabeceraGrupoListaTests : BunitContext
         contador.TextContent.Trim().Should().Be("12");
         contador.GetAttribute("title").Should().Be("12 centro(s)");
         grupo.QuerySelectorAll(".grupo-lista-resumen").Should().BeEmpty("sin resumen no se pinta su hueco");
+    }
+
+    /// <summary>
+    /// Con el término del buscador, la parte del nombre que casa sale marcada (mismo criterio que las filas:
+    /// sin distinguir mayúsculas ni acentos) y el texto del nombre no cambia. Sin término, o con uno que no
+    /// casa, no hay ninguna marca.
+    /// </summary>
+    [Theory]
+    [InlineData("orion", "Orion")]
+    [InlineData("ORIÓN", "Orion")]
+    [InlineData("astilleros", "Astilleros")]
+    public void Con_termino_marca_la_coincidencia_en_el_nombre(string termino, string marcado)
+    {
+        var cut = Renderizar(termino: termino);
+
+        var nombre = cut.Find(".grupo-lista-nombre");
+        nombre.QuerySelectorAll("mark").Select(m => m.TextContent).Should().Equal(marcado);
+        nombre.TextContent.Should().Be("Astilleros Orion", "la marca no añade ni quita un carácter");
+        cut.FindAll("mark").Should().HaveCount(1, "solo se marca el nombre: ni el contador ni el resumen");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("pegaso")]
+    public void Sin_termino_o_sin_coincidencia_el_nombre_no_lleva_marca(string? termino)
+    {
+        var cut = Renderizar(termino: termino);
+
+        cut.FindAll("mark").Should().BeEmpty();
+        cut.Find(".grupo-lista-nombre").TextContent.Should().Be("Astilleros Orion");
     }
 
     [Theory]

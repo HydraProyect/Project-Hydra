@@ -135,8 +135,8 @@
                         <span class="celda-vehiculo">
                             <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
                                     aria-label="@Textos["AbrirVistaRapidaDe", context.Nombre]"
-                                    @onclick="() => AbrirVistaRapidaAsync(context.Id)">@context.Nombre</button>
-                            <span class="celda-vehiculo-modelo">@context.Modelo</span>
+                                    @onclick="() => AbrirVistaRapidaAsync(context.Id)"><TextoResaltado Texto="@context.Nombre" Termino="@_busqueda" /></button>
+                            <span class="celda-vehiculo-modelo"><TextoResaltado Texto="@context.Modelo" Termino="@_busqueda" /></span>
                         </span>
                     </ChildContent>
                 </TemplateColumn>
@@ -144,7 +144,7 @@
                     @if (!string.IsNullOrWhiteSpace(context.NumeroPlaca))
                     {
                         <span class="celda-vehiculo-matricula">
-                            <BotonCopiar EnLinea="true" Valor="@context.NumeroPlaca" Texto="@context.NumeroPlaca" Etiqueta="@Textos["FichaCopiarLaMatricula"]"
+                            <BotonCopiar EnLinea="true" Valor="@context.NumeroPlaca" Texto="@context.NumeroPlaca" TerminoResaltado="@_busqueda" Etiqueta="@Textos["FichaCopiarLaMatricula"]"
                                          NombreAccesible="@Textos["FichaCopiarMatricula", context.NumeroPlaca]" />
                         </span>
                     }

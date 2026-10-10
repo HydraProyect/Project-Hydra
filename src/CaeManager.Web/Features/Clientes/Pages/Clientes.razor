@@ -193,7 +193,7 @@
                     <span class="celda-cliente-empresarial-nombre">
                     <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
                             aria-label="@Textos["AbrirVistaRapidaDe", context.RazonSocial]"
-                            @onclick="() => AbrirVistaRapidaAsync(context.Id)" @onclick:stopPropagation="true">@context.RazonSocial</button>
+                            @onclick="() => AbrirVistaRapidaAsync(context.Id)" @onclick:stopPropagation="true"><TextoResaltado Texto="@context.RazonSocial" Termino="@_busqueda" /></button>
                     @* «⚑ Crítico» junto al nombre, en lugar de la antigua columna «Crítico». *@
                     @if (context.EsCritico)
                     {

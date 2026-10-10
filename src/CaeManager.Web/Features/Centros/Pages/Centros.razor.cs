@@ -1453,16 +1453,17 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Segunda línea de la identidad: el código, y además el Cliente empresarial cuando no se agrupa (agrupado,
-    /// ya lo dice la cabecera del grupo). Vacía si no hay nada que decir.
+    /// ya lo dice la cabecera del grupo). Vacía si no hay nada que decir. Van por separado, y la página las
+    /// une con « · », porque el resaltado de la búsqueda se aplica campo a campo.
     /// </summary>
-    private string MetaCentro(CentroListaDto centro)
+    private List<string> PartesMetaCentro(CentroListaDto centro)
     {
         var partes = new List<string>(2);
         if (!_agruparPorCliente)
             partes.Add(centro.ClienteRazonSocial);
         if (!string.IsNullOrEmpty(centro.CodigoCentro))
             partes.Add(centro.CodigoCentro);
-        return string.Join(" · ", partes);
+        return partes;
     }
 
     private async Task CambiarOrdenAsync(string? ordenarPor)
