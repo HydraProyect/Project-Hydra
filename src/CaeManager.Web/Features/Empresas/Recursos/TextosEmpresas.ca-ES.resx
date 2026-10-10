@@ -150,6 +150,15 @@
   <data name="VacioTrabajadoresDescripcion" xml:space="preserve">
     <value>No hi ha treballadors d'aquesta empresa als centres que pots veure.</value>
   </data>
+  <data name="BuscadorTrabajadores" xml:space="preserve">
+    <value>Cerca un treballador d'aquesta empresa…</value>
+  </data>
+  <data name="VacioBusquedaTitulo" xml:space="preserve">
+    <value>Cap treballador amb aquest filtre</value>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Treu els filtres</value>
+  </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
     <value>Cap treballador en aquest estat</value>
   </data>

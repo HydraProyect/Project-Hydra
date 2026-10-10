@@ -14,6 +14,8 @@ using CaeManager.Application.Subcontratas.Queries.ObtenerCumplimientoSubcontrata
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerTrabajadoresDocumentacionPorSubcontrata;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Usuarios.Queries.ObtenerDobleFactorPropio;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -83,6 +85,9 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerCumplimientoSubcontrataQuery => Cumplimiento,
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[],
             ObtenerEmpresasParaSelectorQuery => (IReadOnlyList<EmpresaSelectorDto>)[],
+            // Los catálogos del formulario de documento al abrirlo desde una subfila.
+            ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[],
+            ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
             ObtenerTrabajadoresDocumentacionPorSubcontrataQuery => (IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>)Trabajadores,
             ObtenerSupervisionSubcontrataQuery => Supervision,
             ObtenerCentrosConActividadDeSubcontrataQuery => (IReadOnlyList<CentroConActividadDto>)Centros,
@@ -324,6 +329,34 @@ public class Subcontrata360PaginaTests : BunitContext
     }
 
     /// <summary>
+    /// Tanda 2: la acción de una subfila abre el formulario con la serie de la lista, para «Guardar y siguiente». La
+    /// serie son los documentos que piden «Renovar» o «Subir», en el orden en que la lista los pinta (Vencido,
+    /// Pendiente, Por vencer urgente); Próximo y Vigente no entran. Abierto por el segundo, sigue por el tercero y
+    /// después por el primero.
+    /// </summary>
+    [Fact]
+    public async Task La_accion_de_una_subfila_abre_el_formulario_con_el_resto_de_la_lista_por_delante()
+    {
+        var mediador = Montar();
+        var cut = Renderizar();
+        Guid DocumentoDe(string nombre) => mediador.Trabajadores.Single(t => t.TrabajadorNombre == nombre).Documentos.Single().DocumentoId!.Value;
+
+        cut.FindAll(".fila-relacion-desplegar")[1].Click(); // Fabio Faltante
+        await cut.Find(".subcontrata360-subfila-accion button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.Find(".drawer-header").TextContent.Should().Contain("Nuevo documento");
+        cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar", "Guardar", "Guardar y siguiente");
+
+        var drawer = cut.FindComponent<DrawerGestionDocumento>().Instance;
+        var pendientes = (IReadOnlyList<PasoSerieDocumento>)typeof(DrawerGestionDocumento)
+            .GetField("_pasosPendientes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(drawer)!;
+        pendientes.Should().Equal(
+            PasoSerieDocumento.Renovar(DocumentoDe("Úrsula Urgente")),
+            PasoSerieDocumento.Renovar(DocumentoDe("Víctor Vencido")));
+    }
+
+    /// <summary>
     /// Revisión puente: la consulta entrega una fila por documento operativo, y dos copias del mismo tipo pueden
     /// coexistir. Con la clave por tipo eran dos hermanos con la misma @key, que mata el circuito.
     /// </summary>
@@ -555,5 +588,90 @@ public class Subcontrata360PaginaTests : BunitContext
         EstadoDocumentoFicha360.Tono(estado).Should().Be(tono);
         EstadoDocumentoFicha360.TonoFila(estado).Should().Be(tonoFila);
         EstadoDocumentoFicha360.Accion(estado).Should().Be(accion);
+    }
+
+    // ── Contadores de estado en ?estado= ──────────────────────────────────
+
+    private static List<string> ContadoresMarcados(IRenderedComponent<SubcontrataDetalle> cut) =>
+        cut.FindAll(".filtro-estados-opcion[aria-pressed=true]").Select(b => b.TextContent.Trim()).ToList();
+
+    [Fact]
+    public void Marcar_contadores_los_deja_en_la_URL_separados_por_coma_y_Todos_quita_el_parametro()
+    {
+        Montar();
+        var cut = Renderizar();
+
+        // Se marcan en desorden: la URL los lleva en el orden de gravedad, para que el mismo filtro dé el mismo enlace.
+        cut.FindAll(".filtro-estados-opcion").First(b => b.TextContent.StartsWith("Por vencer")).Click();
+        cut.FindAll(".filtro-estados-opcion").First(b => b.TextContent.StartsWith("Vencido")).Click();
+
+        new Uri(Navegacion.Uri).Query.Should().Be("?estado=Vencido%2CPorVencer");
+        NombresDeFila(cut).Should().Equal("Víctor Vencido", "Úrsula Urgente", "Pablo Próximo");
+
+        cut.FindAll(".filtro-estados-opcion").First(b => b.TextContent.StartsWith("Todos")).Click();
+
+        new Uri(Navegacion.Uri).Query.Should().BeEmpty("si la URL conservara el estado, recargar lo repondría");
+        NombresDeFila(cut).Should().HaveCount(5);
+    }
+
+    [Fact]
+    public void Un_enlace_con_estado_abre_la_lista_filtrada_y_lo_desconocido_no_filtra()
+    {
+        Montar();
+
+        var cut = Renderizar("?estado=Vencido,PorVencer,Inventado,7");
+
+        NombresDeFila(cut).Should().Equal("Víctor Vencido", "Úrsula Urgente", "Pablo Próximo");
+        ContadoresMarcados(cut).Should().Equal("Vencido · 1", "Por vencer · 2");
+    }
+
+    [Fact]
+    public void Un_estado_que_no_existe_deja_la_lista_entera()
+    {
+        Montar();
+
+        var cut = Renderizar("?estado=Inventado");
+
+        NombresDeFila(cut).Should().HaveCount(5);
+        ContadoresMarcados(cut).Should().Equal("Todos · 5");
+    }
+
+    [Fact]
+    public void Cambiar_el_estado_desde_fuera_se_adopta_y_convive_con_la_pestana()
+    {
+        Montar();
+        var cut = Renderizar("?estado=Vencido");
+        NombresDeFila(cut).Should().Equal("Víctor Vencido");
+
+        Navegacion.NavigateTo($"subcontratas/{SubcontrataId}?estado=Pendiente");
+        cut.WaitForAssertion(() => ContadoresMarcados(cut).Should().Equal("Pendiente · 1"));
+
+        cut.FindAll("[role=tab]").First(t => t.TextContent.StartsWith("Centros")).Click();
+        new Uri(Navegacion.Uri).Query.Should().Contain("pestana=centros").And.Contain("estado=Pendiente");
+    }
+
+    [Theory]
+    [InlineData(null, "")]
+    [InlineData("Vigente,Vencido", "Ficha360Vencido,Ficha360Vigente")]
+    [InlineData("EnTolerancia,SinConfirmar,Pendiente,PorVencer", "EnTolerancia,Ficha360Pendiente,Ficha360PorVencer,SinConfirmar")]
+    [InlineData("Ficha360Vencido,Desconocido,vencido,3", "")]
+    public void Las_claves_de_contador_se_leen_de_la_URL_por_su_nombre_y_lo_demas_se_descarta(string? valor, string esperadas)
+    {
+        var claves = EstadoDocumentoFicha360.ClavesDesdeUrl(valor);
+
+        claves.Order(StringComparer.Ordinal).Should().Equal(esperadas.Split(',', StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    [Fact]
+    public void Las_claves_de_contador_van_y_vuelven_de_la_URL_sin_perderse()
+    {
+        var todas = Enum.GetValues<EstadoDocumento>().Select(EstadoDocumentoFicha360.Clave)
+            .Where(c => c != "Ficha360Desconocido").ToHashSet();
+
+        var enUrl = EstadoDocumentoFicha360.ClavesEnUrl(todas);
+
+        enUrl.Should().Be("Vencido,Pendiente,EnTolerancia,PorVencer,SinConfirmar,Vigente");
+        EstadoDocumentoFicha360.ClavesDesdeUrl(enUrl).Should().BeEquivalentTo(todas);
+        EstadoDocumentoFicha360.ClavesEnUrl(new HashSet<string>()).Should().BeNull("sin contadores el parámetro desaparece de la URL");
     }
 }

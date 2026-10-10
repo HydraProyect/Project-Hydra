@@ -924,6 +924,53 @@
 }
 
 /*
+  Fila continua para las listas de acordeón (propuesta de listados, 2026-10-09): la lista es UNA
+  tarjeta, con la cabecera de columnas arriba y las filas pegadas, separadas por una línea, en vez de
+  una tarjeta suelta por fila. Se usa envolviendo la cabecera de columnas de la pantalla y
+  .lista-filas-acordeon en un <div class="marco-lista-acordeon">. La cabecera de columnas sigue en el
+  CSS de cada pantalla (su rejilla es propia). Sin overflow: recortaría las ventanas de contexto.
+*/
+.marco-lista-acordeon {
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.marco-lista-acordeon .lista-filas-acordeon {
+    gap: 0;
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon {
+    border: 0;
+    border-bottom: 1px solid var(--color-fila-divisor);
+    border-radius: 0;
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon:last-child {
+    border-bottom: 0;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon-cabecera {
+    min-height: 48px;
+    border-bottom: 0;
+    border-radius: 0;
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon:last-child > .tarjeta-fila-acordeon-cabecera:last-child {
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon-contenido {
+    border-top: var(--border-default);
+    border-radius: 0;
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon:last-child > .tarjeta-fila-acordeon-contenido {
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/*
   Guía de lectura (Tier A, 07 § 3 / ESPECIFICACION-VISUAL-HYDRA (documento que ya no existe) § 3.7):
   la fila entera se resalta al apuntarla o enfocarla — sin ella, en una fila
   ancha hay que recorrer el renglón dos veces para confirmar que se está en
@@ -1525,6 +1572,30 @@
 /* Misma señal de foco que .fila-enfocada, para una tarjeta en vez de un <tr> (Centro 360). */
 .tarjeta-fila-acordeon.fila-enfocada {
     box-shadow: 0 0 0 1px var(--color-primary-400);
+}
+
+/* Fila enfocada con j/k en una ficha 360 (atajos-ficha.js pone el atributo; Blazor no lo
+   pinta). La barra interior es la señal: el tinte de una fila con problema no la tapa. La fila
+   tiene además el foco real, así que el anillo por defecto se deja transparente para no doblar
+   la señal: en contraste forzado (forced-colors) el navegador sí lo pinta, y ahí la barra no. */
+[data-fila-enfocada] {
+    background-color: var(--color-surface-hover);
+    box-shadow: inset 3px 0 0 var(--color-primary-500);
+}
+
+[data-fila-enfocada]:focus,
+[data-fila-enfocada]:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+}
+
+/* La fila de documento es «display: contents»: no tiene caja, la señal va en sus celdas. */
+.fila-documento-requerido[data-fila-enfocada] > * {
+    background-color: var(--color-surface-hover);
+}
+
+.fila-documento-requerido[data-fila-enfocada] > :first-child {
+    box-shadow: inset 3px 0 0 var(--color-primary-500);
 }
 
 .celda-acciones-revision {

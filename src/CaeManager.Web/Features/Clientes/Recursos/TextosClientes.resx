@@ -225,6 +225,19 @@
   <data name="ErrorSubcontratasTitulo" xml:space="preserve">
     <value>No pudimos cargar las subcontratas</value>
   </data>
+  <data name="BuscadorCentros" xml:space="preserve">
+    <value>Buscar centro de este cliente…</value>
+  </data>
+  <data name="ResumenCentrosBuscados" xml:space="preserve">
+    <value>Mostrando {0} de {1}.</value>
+  </data>
+  <data name="ResumenCentrosBuscadosTruncado" xml:space="preserve">
+    <value>Mostrando {0} de los {1} centros con peor estado; este Cliente tiene {2} y el buscador solo mira esos {1}.</value>
+    <comment>Buscador activo con la lista cortada en MaximoCentros.</comment>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Quitar filtros</value>
+  </data>
   <data name="ListaCentros" xml:space="preserve">
     <value>Centros de este Cliente</value>
   </data>
