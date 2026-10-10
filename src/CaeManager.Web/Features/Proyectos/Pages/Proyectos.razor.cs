@@ -95,7 +95,10 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool _listaCargada;
 
     private int _paginaActual = 1;
-    private int _tamanoPagina = 20;
+    /// <summary>El tamaño de página más pequeño que ofrece el paginador: hasta ahí, la lista cabe sin él.</summary>
+    private const int TamanoPaginaMinimo = 20;
+
+    private int _tamanoPagina = TamanoPaginaMinimo;
 
     private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
 

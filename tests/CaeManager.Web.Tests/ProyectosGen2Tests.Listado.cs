@@ -201,15 +201,16 @@ public partial class ProyectosGen2Tests
         NombresEnLaTabla(cut).Should().Equal("Obra 41", "Obra 42", "Obra 43", "Obra 44", "Obra 45");
     }
 
-    [Fact]
-    public async Task Con_una_sola_pagina_no_hay_paginador()
+    [Theory]
+    [InlineData(20, false)]
+    [InlineData(21, true)]
+    public async Task El_paginador_solo_aparece_cuando_la_lista_no_cabe_en_la_pagina_mas_pequena(int proyectos, bool conPaginador)
     {
-        _mediator.Proyectos = Obras(3);
+        _mediator.Proyectos = Obras(proyectos);
         var cut = await RenderizarConClienteAsync();
 
-        NombresEnLaTabla(cut).Should().HaveCount(3, "control positivo: la lista está pintada");
-        cut.FindAll(".paginador button").Where(b => b.TextContent.Trim() == "Siguiente" && !b.HasAttribute("disabled"))
-            .Should().BeEmpty("no hay página siguiente a la que ir");
+        NombresEnLaTabla(cut).Should().HaveCount(20, "control positivo: la lista está pintada");
+        cut.FindAll(".paginador").Any().Should().Be(conPaginador);
     }
 
     /// <summary>Un filtro cambia el conjunto: la página 2 del anterior no es la página 2 del nuevo.</summary>
@@ -275,6 +276,8 @@ public partial class ProyectosGen2Tests
 
         UltimaConsultaDeProyectos.Should().Match<ObtenerProyectosQuery>(q => q.Pagina == 1 && q.TamanoPagina == 50);
         NombresEnLaTabla(cut).Should().HaveCount(45);
+        cut.FindAll(".paginador-tamano-select").Should().ContainSingle(
+            "con todo en una página el paginador se queda: sin él no habría cómo volver a bajar el tamaño");
     }
 
     // ------------------------------------------------------------------ estado de la franja → consulta

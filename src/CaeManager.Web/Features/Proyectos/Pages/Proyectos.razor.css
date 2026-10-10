@@ -56,6 +56,15 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* «inicio → fin» va en una línea donde la tabla tiene ancho para ello; por debajo, parte tras la flecha
+   para no estrechar la columna del nombre. */
+@media (min-width: 1400px) {
+    .celda-fecha-proyecto .proyecto-plazo {
+        flex-wrap: nowrap;
+        white-space: nowrap;
+    }
+}
+
 .fin-indefinido {
     color: var(--color-text-muted);
 }

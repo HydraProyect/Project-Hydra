@@ -230,9 +230,14 @@
                 </table>
             </div>
 
-            <PaginadorSimple PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                             Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                             TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+            @* Sin paginador mientras todo cabe en la página más pequeña. Si el usuario subió el tamaño,
+               se queda para que pueda volver a bajarlo. *@
+            @if (_totalElementos > TamanoPaginaMinimo || _tamanoPagina > TamanoPaginaMinimo)
+            {
+                <PaginadorSimple PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                 Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
+                                 TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+            }
         }
     }
 </div>
