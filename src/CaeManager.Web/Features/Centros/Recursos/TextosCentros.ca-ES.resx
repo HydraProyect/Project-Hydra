@@ -152,6 +152,18 @@
   <data name="MotivoProximos" xml:space="preserve">
     <value>{0} per vèncer</value>
   </data>
+  <data name="MotivoUnPendiente" xml:space="preserve">
+    <value>1 pendent</value>
+  </data>
+  <data name="MotivoPendientes" xml:space="preserve">
+    <value>{0} pendents</value>
+  </data>
+  <data name="MotivoUnBloqueo" xml:space="preserve">
+    <value>1 bloqueig de plataforma</value>
+  </data>
+  <data name="MotivoBloqueos" xml:space="preserve">
+    <value>{0} bloqueigs de plataforma</value>
+  </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al dia: no cal intervenir-hi, però el pots substituir</value>
   </data>
