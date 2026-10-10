@@ -272,7 +272,43 @@ public class Centro360Gen2Tests : BunitContext
         // Por componente, no por clase: con porcentaje null el anillo pinta «—»
         // sin su svg, y la clase no distinguiría si la página lo monta o no.
         cut.FindComponents<AnilloCumplimiento>().Should().BeEmpty();
+        cut.FindAll(".cabecera-identidad-anillo").Should().BeEmpty("sin anillo la tarjeta no reserva su hueco");
         cut.Find(".centro360-sin-gestion-cae").TextContent.Should().Contain("no requiere gestión CAE");
+    }
+
+    /// <summary>
+    /// Centro 360 usa la maquetación compartida de las fichas 360: la cabecera
+    /// de identidad en tarjeta (con qué es, «Centro», sobre el nombre), el
+    /// cuerpo con lateral y las dos cajas del lateral como tarjetas compactas,
+    /// con «Gestionar →» en la cabecera de «Canales de gestión». Observa la
+    /// estructura del DOM, no el estilo: cómo se ve se comprueba en el navegador.
+    /// </summary>
+    [Fact]
+    public void La_ficha_usa_la_cabecera_en_tarjeta_y_el_cuerpo_con_lateral_de_las_fichas_360()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", porcentaje: 61);
+
+        var cut = Renderizar(id);
+
+        var cabecera = cut.Find("header.cabecera-identidad[data-pieza='cabecera-identidad']");
+        cabecera.QuerySelector(".cabecera-identidad-kicker")!.TextContent.Should().Be("Centro");
+        cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Centro Norte");
+        cabecera.QuerySelector(".cabecera-identidad-anillo [role=img]").Should().NotBeNull();
+        cut.FindAll("h1").Should().ContainSingle("la ficha tiene un solo título de página");
+
+        var lateral = cut.Find(".cuerpo-con-lateral > aside[data-pieza='lateral']");
+        lateral.GetAttribute("aria-label").Should().Be("Contexto del centro");
+        var tarjetas = lateral.QuerySelectorAll(":scope > .tarjeta-compacta[data-pieza='tarjeta']");
+        tarjetas.Select(t => t.QuerySelector(".tarjeta-titulo")!.TextContent.Trim())
+            .Should().Equal("Canales de gestión", "Próxima visita");
+        tarjetas[0].QuerySelector(".tarjeta-acciones button")!.TextContent.Trim().Should().Be("Gestionar →");
+
+        cut.Find(".cuerpo-con-lateral-principal").QuerySelector("aside").Should().BeNull();
+        cut.FindAll(".centro360-cuerpo, .centro360-lateral, .centro360-tarjeta-lateral, .cabecera-pagina")
+            .Should().BeEmpty("la maquetación propia de la ficha se sustituyó por las piezas compartidas");
     }
 
     [Fact]
@@ -468,7 +504,7 @@ public class Centro360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         cut.Find("h1").TextContent.Trim().Should().Be("Centro Norte");
-        var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
+        var entradilla = cut.Find(".cabecera-identidad-datos").TextContent;
         entradilla.Should().Contain("Cliente: Refrielectric S.A.")
             .And.Contain("Empresa: Ibertec GmbH")
             .And.Contain("21/08–23/08");
@@ -478,8 +514,8 @@ public class Centro360Gen2Tests : BunitContext
         cut.Markup.Should().Contain("61");
         // El anillo va a la izquierda de la identidad, como en las cuatro páginas 360
         // (decisión del propietario 2026-09-24), no entre las acciones.
-        cut.Find(".cabecera-pagina-inicio [role=img]").GetAttribute("aria-label").Should().StartWith("61% de cumplimiento");
-        cut.Find(".acciones-cabecera").QuerySelector("[role=img]").Should().BeNull();
+        cut.Find(".cabecera-identidad-anillo [role=img]").GetAttribute("aria-label").Should().StartWith("61% de cumplimiento");
+        cut.Find(".cabecera-identidad-acciones").QuerySelector("[role=img]").Should().BeNull();
     }
 
     /// <summary>
@@ -499,7 +535,7 @@ public class Centro360Gen2Tests : BunitContext
         mediador.Resumenes[id] = Resumen(id, "Centro Norte", porcentaje: 61);
 
         var cut = Renderizar(id);
-        var entradilla = cut.Find(".cabecera-pagina-descripcion");
+        var entradilla = cut.Find(".cabecera-identidad-datos");
 
         var enlaces = entradilla.QuerySelectorAll("a");
         enlaces.Select(a => (a.TextContent.Trim(), a.GetAttribute("href"))).Should().Equal(
