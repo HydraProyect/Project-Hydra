@@ -14,7 +14,7 @@ namespace CaeManager.E2ETests;
 /// icono 360) no abren la vista rápida. El resto lo prueba <c>VisitasGen2Tests</c> (bUnit).
 /// </summary>
 [Collection("AppCollection")]
-public class VisitasFilaSinMenuE2ETests(WebAppFixture fixture)
+public partial class VisitasFilaSinMenuE2ETests(WebAppFixture fixture)
 {
     private static readonly Regex PaginaVisita = new(@"/visitas/[0-9a-f-]{36}$");
 
