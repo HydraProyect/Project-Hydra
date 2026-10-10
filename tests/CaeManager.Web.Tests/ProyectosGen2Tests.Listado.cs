@@ -136,10 +136,17 @@ public partial class ProyectosGen2Tests
 
     /// <summary>
     /// «Reabrir» es la acción rápida de la fila del Proyecto cerrado: el mismo comando, con la misma
-    /// confirmación que el pie del panel, y sin abrir la vista rápida. «Eliminar» sigue solo en el pie.
+    /// confirmación que el pie del panel. «Eliminar» sigue solo en el pie.
+    ///
+    /// <para>
+    /// <b>Lo que esto NO observa:</b> que el clic no llegue a la fila y abra la vista rápida. Tras el
+    /// repintado que provoca el manejador del botón, bUnit da por desconocido el manejador de la fila y no
+    /// lo despacha, así que aquí el panel no se abriría ni sin el corte del clic (medido por mutación). Esa
+    /// propiedad la fija <c>ProyectosFilaSinMenuE2ETests</c> en un navegador.
+    /// </para>
     /// </summary>
     [Fact]
-    public async Task Reabrir_de_la_fila_solo_esta_en_los_cerrados_pide_la_misma_confirmacion_y_no_abre_el_panel()
+    public async Task Reabrir_de_la_fila_solo_esta_en_los_cerrados_y_pide_la_misma_confirmacion_que_el_panel()
     {
         _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
         var cut = await RenderizarConClienteAsync();
@@ -152,7 +159,6 @@ public partial class ProyectosGen2Tests
 
         await reabrir.ClickAsync(new MouseEventArgs());
 
-        cut.FindAll("aside.panel-proyecto").Should().BeEmpty("la acción rápida no abre la vista rápida de la fila");
         _mediator.Enviados.OfType<ReabrirProyectoCommand>().Should().BeEmpty("el primer clic solo pide confirmación");
         cut.Find("[role=dialog]").TextContent.Should()
             .Contain(ProyectoCerrado.Nombre)

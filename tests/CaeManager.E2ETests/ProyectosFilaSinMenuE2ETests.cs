@@ -8,9 +8,9 @@ namespace CaeManager.E2ETests;
 /// <summary>
 /// Patrón de listados sin menú «⋯» (decisión 2026-10-08), en Proyectos: un clic en la fila abre la
 /// vista rápida, el recuento de técnicos enseña su lista y cada técnico abre el panel en la pestaña
-/// «Técnicos», el icono 360 lleva a la página completa y la tecla «e» edita la fila enfocada. Lo
-/// que bUnit no ve y aquí sí: que el clic de un control de dentro de la fila (el recuento, el
-/// icono 360) no llega a la fila en un navegador real.
+/// «Técnicos», el icono 360 lleva a la página completa, «Reabrir» pide su confirmación y la tecla «e»
+/// edita la fila enfocada. Lo que bUnit no ve y aquí sí: que el clic de un control de dentro de la
+/// fila (el recuento, el icono 360, «Reabrir») no llega a la fila en un navegador real.
 /// </summary>
 [Collection("AppCollection")]
 public class ProyectosFilaSinMenuE2ETests(WebAppFixture fixture)
@@ -141,6 +141,50 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixture fixture)
         await fila.Locator("a.boton-360-pagina").ClickAsync();
         await page.WaitForURLAsync(PaginaProyecto);
         await Expect(panel).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
+    /// «Reabrir» de la fila del Proyecto cerrado es un control de dentro: abre su confirmación y el clic no
+    /// llega a la fila. bUnit no lo ve (tras el repintado del primer manejador no despacha el de la fila).
+    /// No confirma: la siembra es compartida y el Proyecto se queda cerrado.
+    /// </summary>
+    [Fact]
+    public async Task Reabrir_de_la_fila_pide_confirmacion_sin_abrir_la_vista_rapida()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await page.SetViewportSizeAsync(1280, 800);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/proyectos?estado=cerrados");
+        var panel = page.Locator("aside.panel-proyecto");
+
+        await Expect(Filas(page)).Not.ToHaveCountAsync(0);
+        var nombre = (await Filas(page).Locator("button.nombre-proyecto").AllTextContentsAsync())
+            .Select(n => n.Trim()).FirstOrDefault(n => n.Length > 0);
+        Assert.False(string.IsNullOrWhiteSpace(nombre), "Control positivo: la siembra tiene algún Proyecto cerrado.");
+
+        await page.EvaluateAsync(@"() => {
+            window.__pulsacionesDelNombre = 0;
+            document.addEventListener('click', e => {
+                if (e.target.closest?.('.nombre-abre-vista-rapida')) window.__pulsacionesDelNombre++;
+            }, true);
+        }");
+
+        await FilaDe(page, nombre!).GetByRole(AriaRole.Button,
+            new LocatorGetByRoleOptions { Name = $"Reabrir el proyecto {nombre}", Exact = true }).ClickAsync();
+
+        // La confirmación es la barrera: sale del mismo clic que, sin el corte, abriría también el panel.
+        var confirmacion = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions
+        { Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Reabrir proyecto", Exact = true }) });
+        await Expect(confirmacion).ToBeVisibleAsync();
+        await Expect(confirmacion).ToContainTextAsync(nombre!);
+        Assert.Equal(0, await PulsacionesDelNombreAsync(page));
+        await Expect(panel).ToHaveCountAsync(0);
+
+        await confirmacion.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar", Exact = true }).ClickAsync();
+        await Expect(confirmacion).ToBeHiddenAsync();
+        await Expect(panel).ToHaveCountAsync(0);
+        await Expect(FilaDe(page, nombre!)).ToHaveCountAsync(1);
     }
 
     [Fact]
