@@ -66,7 +66,7 @@ public class RolesDelegadosSoloDeOperacionTests : IAsyncLifetime
         contexto.DelegacionesTenant.Add(delegacion);
         _delegacionId = delegacion.Id;
 
-        var cliente = Empresa.CrearComoCliente("Cliente empresarial de Refrielectric", "B12345674", false, null, null);
+        var cliente = Empresa.CrearComoCliente("Cliente de Refrielectric", "B12345674", false, null, null);
         contexto.Empresas.Add(cliente);
 
         contexto.AsignacionesOperacion.Add(

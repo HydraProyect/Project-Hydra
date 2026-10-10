@@ -41,7 +41,7 @@ namespace CaeManager.Web.Tests;
 /// la vista previa antigua lo prueba ahora <see cref="Subcontrata360Gen2Tests"/> en el panel.
 /// </para>
 /// </summary>
-public class SubcontratasListaGen2Tests : BunitContext
+public partial class SubcontratasListaGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado, que importa ./js/atajos-lista.js.</summary>
     public SubcontratasListaGen2Tests()
@@ -95,11 +95,15 @@ public class SubcontratasListaGen2Tests : BunitContext
         /// </summary>
         private ResultadoPaginado<SubcontrataListaDto> FiltrarPorBusqueda(ObtenerSubcontratasQuery q)
         {
+            // El filtro por id y la paginación, como el handler: «la fila se refresca tras guardar
+            // en la vista rápida» pide UNA fila y se prueba desde la página 2.
             var coincidentes = Subcontratas
+                .Where(s => q.SubcontrataId is null || s.Id == q.SubcontrataId)
                 .Where(s => q.Busqueda is null || s.RazonSocial.Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase))
                 .Where(s => q.NivelServicio is null || s.NivelServicio == q.NivelServicio)
                 .ToList();
-            return new ResultadoPaginado<SubcontrataListaDto>(coincidentes, coincidentes.Count, q.Pagina, q.TamanoPagina);
+            var pagina = coincidentes.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList();
+            return new ResultadoPaginado<SubcontrataListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina);
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -410,16 +414,19 @@ public class SubcontratasListaGen2Tests : BunitContext
     /// cumplimiento…»: un número que no existe.
     /// </summary>
     [Fact]
-    public void Sin_universo_de_requisitos_el_anillo_no_se_anuncia_como_un_porcentaje()
+    public void Sin_universo_de_requisitos_la_barra_no_se_anuncia_como_un_porcentaje()
     {
         var cut = Renderizar(new MediatorFalso
         {
             Subcontratas = [Subcontrata("Limpiezas Goiko S.L.U.", cumplimiento: null), Subcontrata("Soldaduras Iparra S. Coop.", cumplimiento: 84)]
         });
 
-        cut.Find(".anillo-cumplimiento-sin-universo").GetAttribute("aria-label").Should()
+        cut.Find(".barra-cumplimiento-sin-universo").GetAttribute("aria-label").Should()
             .Be("Sin trabajadores con documentos exigidos por algún centro activo");
-        cut.Markup.Should().Contain("84% de cumplimiento", "con universo el anillo sigue diciendo su porcentaje");
+        cut.Markup.Should().Contain("84% de cumplimiento", "con universo la barra sigue diciendo su porcentaje");
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera [data-pieza=anillo]")
+            .Should().BeEmpty("en los listados el cumplimiento es barra con cifra, no anillo");
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera [data-pieza=barra-cumplimiento]").Should().HaveCount(2);
     }
 
     /// <summary>

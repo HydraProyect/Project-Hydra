@@ -178,7 +178,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
 
             if (!nombresVistos.Add(nombre))
             {
-                omitidos.Add(new ItemImportacionDto(HojaCentros, fila, nombre, "Nombre de Cliente empresarial/centro duplicado dentro del propio archivo."));
+                omitidos.Add(new ItemImportacionDto(HojaCentros, fila, nombre, "Nombre de Cliente/centro duplicado dentro del propio archivo."));
                 continue;
             }
 
@@ -191,7 +191,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
                 advertencias.Add(new ItemImportacionDto(
                     HojaCentros, fila, nombre,
                     "El nombre indica un centro genérico, sin confirmar, o que fusiona varios centros reales. " +
-                    "Se importó tal cual (un Cliente empresarial y un Centro con este mismo nombre) — revisa manualmente si conviene " +
+                    "Se importó tal cual (un Cliente y un Centro con este mismo nombre) — revisa manualmente si conviene " +
                     "desglosarlo en varios Centros después de importar."));
             }
 

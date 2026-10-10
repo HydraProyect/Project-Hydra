@@ -93,7 +93,7 @@ public class EditarEmpresaCommandHandler(
             .CountAsync(cancellationToken);
 
         if (clientesNuevosEncontrados != clienteIdsNuevos.Count)
-            return Result.Fallo(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los Clientes empresariales seleccionados no existe."));
+            return Result.Fallo(Error.Crear("Empresa.ClienteNoEncontrado", "Alguno de los Clientes seleccionados no existe."));
 
         // Solo el diff de ClienteIds toca la arista. Los campos de identidad
         // actualizados arriba (RazonSocial/Cif/Cnae/ConvenioAplicable/
@@ -111,7 +111,7 @@ public class EditarEmpresaCommandHandler(
             if (await guardDeCierre.TieneOperacionVivaAsync(empresa.Id, clienteId, cancellationToken))
                 return Result.Fallo(Error.Crear(
                     "Empresa.AristaConOperacionViva",
-                    "No podemos desvincular a este Cliente empresarial: la empresa todavía tiene centros o trabajadores activos con él. Retira primero esa operación."));
+                    "No podemos desvincular a este Cliente: la empresa todavía tiene centros o trabajadores activos con él. Retira primero esa operación."));
 
         foreach (var clienteId in bajas)
             await relacionEmpresarialRepositorio.CerrarVigenteAsync(empresa.Id, clienteId, ahora, cancellationToken);

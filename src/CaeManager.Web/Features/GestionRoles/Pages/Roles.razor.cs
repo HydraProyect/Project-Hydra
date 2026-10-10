@@ -29,11 +29,11 @@ public partial class Roles : CaeManager.Web.Components.PaginaIntegrableConfigura
         [CaeManager.Infrastructure.Identity.Roles.Administrador] =
             "Acceso completo: gestión de usuarios, roles, configuración y auditoría, además de todo el contenido operativo y de negocio, sin restricción de cartera.",
         [CaeManager.Infrastructure.Identity.Roles.DireccionCae] =
-            "Ve todo el negocio igual que Administrador (Clientes empresariales, Empresas, Documentos, Visitas, Reportes…), sin acceso a las pantallas de configuración del sistema. Junto a Administrador, asigna Gestores CAE a cada Coordinador CAE.",
+            "Ve todo el negocio igual que Administrador (Clientes, Empresas, Documentos, Visitas, Reportes…), sin acceso a las pantallas de configuración del sistema. Junto a Administrador, asigna Gestores CAE a cada Coordinador CAE.",
         [CaeManager.Infrastructure.Identity.Roles.CoordinadorCae] =
-            "Ve la cartera combinada de los Gestores CAE que tiene asignados: comparativa de cumplimiento y rendimiento, y puede reasignar Clientes empresariales entre ellos (pantalla Supervisión).",
+            "Ve la cartera combinada de los Gestores CAE que tiene asignados: comparativa de cumplimiento y rendimiento, y puede reasignar Clientes entre ellos (pantalla Supervisión).",
         [CaeManager.Infrastructure.Identity.Roles.GestorCae] =
-            "Ve únicamente sus propios Clientes empresariales (creados o asignados) y todo lo asociado a ellos: Empresas, Trabajadores, Subcontratas, Asignaciones, Vehículos, Documentos, Reportes y Dashboard.",
+            "Ve únicamente sus propios Clientes (creados o asignados) y todo lo asociado a ellos: Empresas, Trabajadores, Subcontratas, Asignaciones, Vehículos, Documentos, Reportes y Dashboard.",
         [CaeManager.Infrastructure.Identity.Roles.Consulta] =
             "Solo lectura de todos los datos de negocio, sin ninguna acción de creación, edición o eliminación.",
         [CaeManager.Infrastructure.Identity.Roles.Cliente] =

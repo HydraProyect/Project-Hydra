@@ -525,12 +525,6 @@
   <data name="Visita360CancelarVisita" xml:space="preserve">
     <value>Cancel·lar visita…</value>
   </data>
-  <data name="Visita360BandaTitular" xml:space="preserve">
-    <value>{0} no es pot acreditar:</value>
-  </data>
-  <data name="Visita360BandaIncidencia" xml:space="preserve">
-    <value>{0} · {1}</value>
-  </data>
   <data name="Visita360EtiquetaLateral" xml:space="preserve">
     <value>Context</value>
   </data>

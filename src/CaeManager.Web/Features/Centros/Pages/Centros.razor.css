@@ -10,7 +10,7 @@
 /*
   Cabecera de columnas (pieza 4). Mismo esqueleto que la cabecera de la fila
   (.tarjeta-fila-acordeon-cabecera, list-page.css): huecos fijos para lo de
-  tamaño fijo (casilla, chevron, cumplimiento, indicadores de 200 px, icono 360)
+  tamaño fijo (casilla, chevron, cumplimiento, indicadores de 320 px, icono 360)
   y dos columnas elásticas, la identidad y la Empresa (en Centros la identidad
   deja de ser la única zona elástica de la fila). Versalitas, como el resto de
   listas del patrón. Los anchos de casilla y chevron son los de sus
@@ -38,7 +38,21 @@
     flex-shrink: 0;
 }
 
-/* chevron (24 px); el aro de cumplimiento tiene ahora su propia columna */
+/*
+  Casilla de selección de la fila, con la misma caja que su hueco de la cabecera (16 px, regla de
+  arriba). Sin esto la casilla medía lo que diga el navegador —en Chromium, 13 px más 4 y 3 de
+  margen: 20 px—, y con la selección múltiple puesta «Centro» quedaba 4 px a la izquierda de sus
+  celdas y «Empresa» 1,6 px (medido a 1266 px, 2026-10-09; sin selección la cabecera y las filas ya
+  coincidían). Lo fija CentrosCabeceraAlineadaE2ETests.
+*/
+.tarjeta-fila-acordeon-cabecera > input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+/* chevron (24 px); la barra de cumplimiento tiene su propia columna */
 .cabecera-columnas-centros-inicio {
     width: 24px;
     flex-shrink: 0;
@@ -65,7 +79,7 @@
 .columna-cumplimiento-centro {
     display: flex;
     align-items: center;
-    width: 112px;
+    width: 132px;
     flex-shrink: 0;
 }
 
@@ -103,7 +117,7 @@
 
 /*
   En pantallas estrechas solo caben los anchos fijos imprescindibles: la columna Empresa se oculta
-  y la de Cumplimiento se queda en el ancho del aro, con su rótulo recortado (el nombre accesible
+  y la de Cumplimiento se queda en el ancho de la cifra (la barra oculta su pista), con su rótulo recortado (el nombre accesible
   del botón no cambia). Sin esto la fila desbordaba ~100 px en un móvil de 375 px y la identidad
   quedaba sin sitio.
 */
@@ -113,7 +127,7 @@
     }
 
     .columna-cumplimiento-centro {
-        width: 28px;
+        width: 44px;
     }
 
     .cabecera-columna-orden {
@@ -127,13 +141,17 @@
     }
 }
 
+/*
+  Dos ranuras: estado (pastilla y, debajo, el motivo «N vencidos · M por vencer») y visita. La fila usa
+  las mismas columnas y el mismo ancho (regla de abajo), para que cada una caiga bajo su rótulo.
+  320 px: la ranura de estado queda en 200, lo que mide la pastilla más larga («Bloqueo de la
+  plataforma CAE», 193 px medidos el 2026-10-09); con menos se metía en la ranura de la visita.
+*/
 .cabecera-columnas-centros-indicadores {
     display: grid;
-    /* 40 px por recuento: «VENC.» y «PRÓX.» en versalitas no caben en 26 px y se pisaban
-       («VENCPRÓXESTADO / VISITA»). La fila usa las mismas columnas (regla de abajo). */
-    grid-template-columns: 40px 40px minmax(0, 1fr);
-    gap: var(--space-1);
-    width: 200px;
+    grid-template-columns: minmax(0, 1fr) 112px;
+    gap: var(--space-2);
+    width: 320px;
     flex-shrink: 0;
     white-space: nowrap;
     letter-spacing: .03em;
@@ -145,9 +163,59 @@
     text-overflow: ellipsis;
 }
 
-/* Mismas columnas que la cabecera, para que cada recuento caiga bajo su rótulo. */
 .tarjeta-fila-acordeon-indicadores {
-    grid-template-columns: 40px 40px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 112px;
+    gap: var(--space-2);
+    width: 320px;
+}
+
+/*
+  El motivo de EstadoFila recorta lo que no cabe (una línea con puntos suspensivos). Aquí contiene
+  las ventanas de contexto de las incidencias, cuyo panel sale de la caja: recortado no se vería.
+*/
+.tarjeta-fila-acordeon-indicadores ::deep .estado-fila-motivo {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    overflow: visible;
+}
+
+/* El color no es el único portador: el texto ya dice «vencidos» o «por vencer». */
+.motivo-recuento {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.motivo-recuento-vencidos {
+    color: var(--color-danger-700);
+}
+
+.motivo-recuento-proximos {
+    color: var(--color-warning-700);
+}
+
+/*
+  En pantallas estrechas la zona de indicadores no cabe junto al nombre: en un móvil de 375 px la
+  identidad se quedaba en 0 px de ancho (medido el 2026-10-09, también con los 200 px de antes). Baja
+  a una segunda línea de la fila, sangrada hasta el nombre (chevron de 24 px más la separación), y la
+  cabecera de columnas deja de rotularla porque ya no hay vertical que compartir.
+*/
+@media (max-width: 767px) {
+    .tarjeta-fila-acordeon-cabecera {
+        flex-wrap: wrap;
+    }
+
+    .tarjeta-fila-acordeon-indicadores {
+        order: 1;
+        flex-basis: 100%;
+        width: auto;
+        padding-left: calc(24px + var(--space-2));
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+
+    .cabecera-columnas-centros-indicadores {
+        display: none;
+    }
 }
 
 .cabecera-columnas-centros-acciones,

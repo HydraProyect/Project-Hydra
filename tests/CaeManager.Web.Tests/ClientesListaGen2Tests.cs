@@ -65,7 +65,7 @@ namespace CaeManager.Web.Tests;
 /// y ningún Operador Delegado.
 /// </para>
 /// </summary>
-public class ClientesListaGen2Tests : BunitContext
+public partial class ClientesListaGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado y QuickGrid, que importan módulos JS.</summary>
     public ClientesListaGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
@@ -202,6 +202,7 @@ public class ClientesListaGen2Tests : BunitContext
         public ResultadoPaginado<ClienteListaDto> Filtrar(ObtenerClientesQuery q)
         {
             var sinEstado = Almacen
+                .Where(c => q.Id is null || c.Id == q.Id)
                 .Where(c => string.IsNullOrWhiteSpace(q.Busqueda)
                     || c.RazonSocial.ToUpperInvariant().Contains(q.Busqueda.ToUpperInvariant()))
                 .Where(c => q.SoloCriticos != true || c.EsCritico)
@@ -630,14 +631,14 @@ public class ClientesListaGen2Tests : BunitContext
 
         var cabecera = cut.Find("header.cabecera-pagina");
         cabecera.QuerySelector(".cabecera-pagina-kicker").Should().BeNull("el grupo del menú ya está en las migas");
-        cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Clientes empresariales");
+        cabecera.QuerySelector("h1.titulo-pagina")!.TextContent.Trim().Should().Be("Clientes");
         cabecera.QuerySelector(".cabecera-listado-contador")!.TextContent.Trim().Should().Be("2");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
 
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
         acciones.QuerySelectorAll("a").Should().BeEmpty("Exportar a Excel vive ahora dentro del «⋯»");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo Cliente empresarial");
+            .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo Cliente");
     }
 
     [Fact]
@@ -648,7 +649,7 @@ public class ClientesListaGen2Tests : BunitContext
         await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
 
         cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar esta vista (filas: 0)", "Exportar todo", "Importar Clientes empresariales", "Importación combinada", "Alta guiada");
+            .Should().Equal("Exportar esta vista (filas: 0)", "Exportar todo", "Importar Clientes", "Importación combinada", "Alta guiada");
         cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
             .Should().HaveCount(2, "la exportación es una descarga del servidor: enlaces, no navegación interna")
             .And.OnlyContain(h => h!.StartsWith("/clientes/exportar.xlsx"));
@@ -677,7 +678,7 @@ public class ClientesListaGen2Tests : BunitContext
 
         cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
             .Should().Equal("Exportar esta vista (filas: 0)", "Exportar todo");
-        cut.Find("header.cabecera-pagina .acciones-cabecera").TextContent.Should().NotContain("Nuevo Cliente empresarial");
+        cut.Find("header.cabecera-pagina .acciones-cabecera").TextContent.Should().NotContain("Nuevo Cliente");
     }
 
     [Fact]
@@ -686,9 +687,9 @@ public class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(new MediatorFalso());
         cut.FindAll(".drawer-panel").Should().BeEmpty("punto de partida: el drawer está cerrado");
 
-        await cut.FindAll("header.cabecera-pagina .acciones-cabecera button").Single(b => b.TextContent.Trim() == "+ Nuevo Cliente empresarial").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("header.cabecera-pagina .acciones-cabecera button").Single(b => b.TextContent.Trim() == "+ Nuevo Cliente").ClickAsync(new MouseEventArgs());
 
-        cut.Find(".drawer-panel h2").TextContent.Trim().Should().Be("Nuevo Cliente empresarial");
+        cut.Find(".drawer-panel h2").TextContent.Trim().Should().Be("Nuevo Cliente");
     }
 
     [Fact]
@@ -771,7 +772,7 @@ public class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador, "clientes?critico=true");
 
         UltimaConsulta(mediador).SoloCriticos.Should().BeTrue();
-        cut.Find(".conteo-clientes").TextContent.Trim().Should().Be("1 Cliente empresarial con estos filtros");
+        cut.Find(".conteo-clientes").TextContent.Trim().Should().Be("1 Cliente con estos filtros");
         NombresDeLasFilas(cut).Should().Equal(["Refrielectric S.A."]);
     }
 
@@ -1061,7 +1062,7 @@ public class ClientesListaGen2Tests : BunitContext
         consulta.TamanoPagina.Should().Be(20);
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(
             ["Cliente 21", "Cliente 22", "Cliente 23", "Cliente 24", "Cliente 25"]));
-        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 2 de 2").And.Contain("25 Cliente(s) empresarial(es)");
+        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 2 de 2").And.Contain("25 Cliente(s)");
     }
 
     [Fact]
@@ -1135,19 +1136,20 @@ public class ClientesListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.MarcadosEnFranja().Should().Equal("Vencidos", "Por vencer"));
         NombresDeLasFilas(cut).Should().Equal("Refrielectric S.A.");
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
-            "los dos filtros devuelven un Cliente empresarial: la única consulta que cabe contar es la del filtro nuevo");
+            "los dos filtros devuelven un Cliente: la única consulta que cabe contar es la del filtro nuevo");
     }
 
     private static IElement CabeceraOrdenable(IRenderedComponent<Clientes> cut, string titulo) =>
         cut.FindAll("thead th").Single(th => th.TextContent.Trim() == titulo).QuerySelector("button")!;
 
     /// <summary>
-    /// El orden por defecto (razón social) no coincide con el de CIF ni con su
-    /// inverso: si la pantalla no enviara el orden de la cabecera, las filas no
-    /// cambiarían.
+    /// La cabecera «Razón social» manda su orden en la consulta. La primera pulsación pide el
+    /// ascendente (el mismo que el doble aplica por defecto, así que las filas no se mueven);
+    /// la segunda lo invierte, y ahí las filas cambian: si la pantalla no enviara el orden de
+    /// la cabecera, seguirían como estaban.
     /// </summary>
     [Fact]
-    public async Task Pulsar_la_cabecera_CIF_ordena_la_consulta_por_CIF_y_la_segunda_vez_al_reves()
+    public async Task Pulsar_la_cabecera_Razon_social_ordena_la_consulta_y_la_segunda_vez_al_reves()
     {
         var mediador = new MediatorFalso
         {
@@ -1160,22 +1162,39 @@ public class ClientesListaGen2Tests : BunitContext
         };
         var cut = Renderizar(mediador);
         NombresDeLasFilas(cut).Should().Equal(["Aislamientos Nervión S.L.", "Montajes Ebro S.L.", "Refrielectric S.A."]);
+        UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(ClienteListaDto.EstadoDocumentalPeor),
+            "control: la carga inicial ordena por la columna por defecto, no por razón social");
 
-        await CabeceraOrdenable(cut, "CIF").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Razón social").ClickAsync(new MouseEventArgs());
 
         var ascendente = UltimaConsulta(mediador);
-        ascendente.OrdenarPor.Should().Be(nameof(ClienteListaDto.Cif));
+        ascendente.OrdenarPor.Should().Be(nameof(ClienteListaDto.RazonSocial));
         ascendente.Descendente.Should().BeFalse();
-        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(
-            ["Refrielectric S.A.", "Montajes Ebro S.L.", "Aislamientos Nervión S.L."]));
 
-        await CabeceraOrdenable(cut, "CIF").ClickAsync(new MouseEventArgs());
+        await CabeceraOrdenable(cut, "Razón social").ClickAsync(new MouseEventArgs());
 
         var descendente = UltimaConsulta(mediador);
-        descendente.OrdenarPor.Should().Be(nameof(ClienteListaDto.Cif));
+        descendente.OrdenarPor.Should().Be(nameof(ClienteListaDto.RazonSocial));
         descendente.Descendente.Should().BeTrue("la segunda pulsación invierte el orden");
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(
-            ["Aislamientos Nervión S.L.", "Montajes Ebro S.L.", "Refrielectric S.A."]));
+            ["Refrielectric S.A.", "Montajes Ebro S.L.", "Aislamientos Nervión S.L."]));
+    }
+
+    /// <summary>
+    /// Cierre de listados: el CIF deja de ser columna propia (va bajo el nombre) y con ella se
+    /// retira de la pantalla el orden por CIF. Las cabeceras son exactamente estas, y solo dos
+    /// ordenan. La consulta conserva el orden por CIF; lo que se retira es quien lo pedía.
+    /// </summary>
+    [Fact]
+    public void No_hay_columna_CIF_y_solo_Razon_social_y_Estado_documental_ordenan()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { Cliente("Montajes Ebro S.L.", cif: "B-50.123.456") } });
+
+        cut.FindAll("thead th").Select(th => th.TextContent.Trim())
+            .Should().Equal("Razón social", "Gestor CAE", "Centros", "Estado documental", "");
+        cut.FindAll("thead th button.col-title").Select(b => b.TextContent.Trim())
+            .Should().Equal("Razón social", "Estado documental");
+        Fila(cut, "Montajes Ebro S.L.").QuerySelectorAll("td").Should().HaveCount(5, "una celda por cabecera: el CIF no ocupa celda propia");
     }
 
     // ------------------------------------------------------------ Carreras
@@ -1206,7 +1225,7 @@ public class ClientesListaGen2Tests : BunitContext
         var cut = Render<Clientes>();
 
         await ElegirEnLaPastilla(cut, "Criticidad", "Solo críticos");
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ningún Cliente empresarial con estos filtros"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ningún Cliente con estos filtros"));
 
         await cut.InvokeAsync(() => respuestaVieja.SetResult(
             mediador.Filtrar(new ObtenerClientesQuery(null, null))));
@@ -1215,7 +1234,7 @@ public class ClientesListaGen2Tests : BunitContext
         // vieja; se fuerza uno para no depender de cuál llegue.
         cut.Render();
 
-        cut.Markup.Should().Contain("Ningún Cliente empresarial con estos filtros",
+        cut.Markup.Should().Contain("Ningún Cliente con estos filtros",
             "la respuesta vieja era de la lista sin filtrar, no de la pregunta vigente");
         cut.FindAll(".conteo-clientes").Should().BeEmpty("no hay coincidencias con el filtro vigente");
     }
@@ -1274,7 +1293,7 @@ public class ClientesListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Retener = p => p is CrearClienteCommand ? respuesta.Task : null };
         var cut = Renderizar(mediador);
 
-        await cut.FindAll("header.cabecera-pagina .acciones-cabecera button").Single(b => b.TextContent.Trim() == "+ Nuevo Cliente empresarial").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("header.cabecera-pagina .acciones-cabecera button").Single(b => b.TextContent.Trim() == "+ Nuevo Cliente").ClickAsync(new MouseEventArgs());
         var primero = cut.FindAll(".drawer-pie button.boton-espera-boton").Single() /* mientras guarda, su texto es «Guardando…» */.ClickAsync(new MouseEventArgs());
         var segundo = cut.FindAll(".drawer-pie button.boton-espera-boton").Single() /* mientras guarda, su texto es «Guardando…» */.ClickAsync(new MouseEventArgs());
 
@@ -1300,14 +1319,14 @@ public class ClientesListaGen2Tests : BunitContext
         cut.FindAll(".drawer-panel").Should().BeEmpty("punto de partida");
 
         await cut.InvokeAsync(() => navegacion.NavigateTo("clientes?accion=crear"));
-        cut.WaitForAssertion(() => cut.Find(".drawer-panel h2").TextContent.Trim().Should().Be("Nuevo Cliente empresarial"));
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel h2").TextContent.Trim().Should().Be("Nuevo Cliente"));
 
         await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
         cut.FindAll(".drawer-panel").Should().BeEmpty();
         navegacion.Uri.Should().NotContain("accion=", "si se quedara, el siguiente «n» navegaría a la misma URL y no abriría nada");
 
         await cut.InvokeAsync(() => navegacion.NavigateTo("clientes?accion=crear"));
-        cut.WaitForAssertion(() => cut.Find(".drawer-panel h2").TextContent.Trim().Should().Be("Nuevo Cliente empresarial"));
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel h2").TextContent.Trim().Should().Be("Nuevo Cliente"));
     }
 
     /// <summary>
@@ -1534,7 +1553,7 @@ public class ClientesListaGen2Tests : BunitContext
         await PulsarGestorCaeDeLaFila(cut, sinGestor.RazonSocial);
 
         cut.WaitForAssertion(() => cut.Find(".drawer-panel input").GetAttribute("value").Should().Be(sinGestor.RazonSocial));
-        cut.Find(".drawer-panel").TextContent.Should().Contain("Editar Cliente empresarial");
+        cut.Find(".drawer-panel").TextContent.Should().Contain("Editar Cliente");
         var selector = cut.Find(".drawer-panel select");
         selector.Closest("label, .campo")!.TextContent.Should().Contain("Gestor CAE asignado");
         selector.QuerySelectorAll("option").Select(o => o.TextContent.Trim())
@@ -1586,7 +1605,7 @@ public class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.FindAll("tbody a[href^='/centros']").Should().BeEmpty(
-            "/centros no filtra por Cliente empresarial: un enlace llevaría a todos los centros");
+            "/centros no filtra por Cliente: un enlace llevaría a todos los centros");
         cut.FindAll("tbody .ranura-centros-cliente").Should().ContainSingle("solo una fila tiene centros que enseñar");
         cut.Find("tbody button.ventana-contexto-disparador").GetAttribute("aria-label").Should().Be("Ver los 2 centros de Refrielectric S.A.");
         cut.Find("tbody .ventana-contexto-titulo").TextContent.Trim().Should().Be("2 centros");
@@ -1758,6 +1777,41 @@ public class ClientesListaGen2Tests : BunitContext
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "Se copió el CIF al portapapeles.",
             "control positivo: el clic llegó al botón de copiar");
         FrameAbierto.Should().BeNull("el clic se queda en el control");
+    }
+
+    /// <summary>
+    /// Identidad en dos líneas (cierre de listados): la primera celda lleva arriba la razón social
+    /// con sus avisos y debajo el CIF copiable. El orden en el DOM es el de lectura: una celda que
+    /// pusiera el CIF antes del nombre, o fuera de la celda del nombre, no es «bajo el nombre».
+    /// </summary>
+    [Fact]
+    public void El_cif_va_en_la_segunda_linea_de_la_celda_del_nombre()
+    {
+        var cliente = Cliente("Montajes Ebro S.L.", cif: "B-50.123.456", critico: true) with { SinContactoEnAgenda = true };
+        var cut = Renderizar(new MediatorFalso { Almacen = { cliente } });
+
+        var celda = Fila(cut, cliente.RazonSocial).QuerySelectorAll("td")[0];
+        var lineas = celda.QuerySelector(".celda-cliente-empresarial")!.Children;
+        lineas.Select(l => l.ClassName).Should().Equal("celda-cliente-empresarial-nombre", "celda-cliente-empresarial-cif");
+        lineas[0].QuerySelector(".enlace-nombre-fila")!.TextContent.Trim().Should().Be("Montajes Ebro S.L.");
+        lineas[0].QuerySelector(".insignia-critico").Should().NotBeNull("«⚑ Crítico» sigue en la línea del nombre");
+        lineas[0].QuerySelector(".aviso-sin-agenda").Should().NotBeNull("«Sin contacto» sigue en la línea del nombre");
+        lineas[0].TextContent.Should().NotContain("B-50.123.456", "el CIF no va en la línea del nombre");
+        lineas[1].TextContent.Trim().Should().Be("B-50.123.456");
+        lineas[1].QuerySelector("button.boton-copiar-en-linea").Should().NotBeNull("el CIF de la segunda línea es el botón de copiar");
+    }
+
+    /// <summary>Sin CIF, la segunda línea conserva la raya que llevaba la antigua columna: no desaparece ni queda en blanco.</summary>
+    [Fact]
+    public void Sin_cif_la_segunda_linea_lleva_la_raya_y_nada_que_copiar()
+    {
+        var sinCif = Cliente("Refrielectric S.A.", cif: "");
+        var cut = Renderizar(new MediatorFalso { Almacen = { sinCif } });
+
+        var segundaLinea = Fila(cut, sinCif.RazonSocial).QuerySelector("td .celda-cliente-empresarial-cif")!;
+        segundaLinea.TextContent.Trim().Should().Be("—", "sin CIF la segunda línea dice que no lo hay, no se queda en blanco");
+        segundaLinea.QuerySelector(".texto-vacio-celda").Should().NotBeNull("la raya va atenuada, como el resto de celdas sin dato");
+        segundaLinea.QuerySelectorAll("button").Should().BeEmpty("sin CIF no hay nada que copiar");
     }
 
     /// <summary>
@@ -1954,7 +2008,7 @@ public class ClientesListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
 
         mediador.Enviadas.OfType<RestaurarClienteCommand>().Select(r => r.Id).Should().BeEquivalentTo([a.Id, c.Id]);
-        avisos.Mensajes.Should().Contain(m => m.Mensaje == "2 Cliente(s) empresarial(es) restaurado(s).");
+        avisos.Mensajes.Should().Contain(m => m.Mensaje == "2 Cliente(s) restaurado(s).");
     }
 
     [Fact]
@@ -1972,7 +2026,7 @@ public class ClientesListaGen2Tests : BunitContext
         await cut.FindAll(".barra-acciones-lote button").Single(x => x.TextContent.Trim() == "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<EliminarClientesCommand>().Should().BeEmpty("abrir el diálogo no borra nada");
-        cut.Find("[role=dialog] h2").TextContent.Should().Be("¿Dar de baja 2 Cliente(s) empresarial(es)?");
+        cut.Find("[role=dialog] h2").TextContent.Should().Be("¿Dar de baja 2 Cliente(s)?");
 
         await BotonDelDialogo(cut, "Dar de baja").ClickAsync(new MouseEventArgs());
 
@@ -2221,7 +2275,7 @@ public class ClientesListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<EliminarFiltroGuardadoCommand>().Should().BeEmpty("pulsar el aspa solo pide confirmación");
         var dialogo = cut.Find("[role=dialog]");
         dialogo.QuerySelector("h2")!.TextContent.Should().Be("¿Borrar el filtro guardado «Cartera Levante»?");
-        dialogo.TextContent.Should().Contain("No borra ningún Cliente empresarial");
+        dialogo.TextContent.Should().Contain("No borra ningún Cliente");
 
         await BotonDelDialogo(cut, "Borrar filtro").ClickAsync(new MouseEventArgs());
 

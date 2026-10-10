@@ -67,7 +67,7 @@ public class AbrirAccesoSoporteCommandValidator : AbstractValidator<AbrirAccesoS
         RuleFor(c => c.DelegacionTenantId).NotEmpty();
 
         RuleFor(c => c.Motivo)
-            .NotEmpty().WithMessage("Indica por qué necesitas entrar en los datos de este cliente.")
+            .NotEmpty().WithMessage("Indica por qué necesitas entrar en los datos de esta organización.")
             .MaximumLength(500);
 
         RuleFor(c => c.HorasDeVentana)

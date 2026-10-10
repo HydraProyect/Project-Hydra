@@ -80,6 +80,14 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private static DateOnly Hoy => DiaDeNegocio.Hoy();
 
+    private static int? PorcentajeDelPlazo(ProyectoListaDto proyecto) =>
+        PlazoProyecto.PorcentajeDelPlazo(proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, Hoy);
+
+    private string EtiquetaPlazoTranscurrido(ProyectoListaDto proyecto) =>
+        PorcentajeDelPlazo(proyecto) is { } porcentaje
+            ? Textos["EtiquetaPlazoTranscurrido", porcentaje]
+            : Textos["EtiquetaPlazoSinMedida"];
+
     protected override async Task OnInitializedAsync()
     {
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
@@ -138,7 +146,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>
     /// Cliente empresarial elegido, en la URL (<c>?cliente=</c>) como en Centros:
     /// es el maestro de la lista, y sin él recargar o compartir el enlace
-    /// volvía a «Elige un Cliente empresarial».
+    /// volvía a «Elige un Cliente».
     /// </summary>
     [SupplyParameterFromQuery(Name = "cliente")]
     public string? ClienteInicial { get; set; }
@@ -311,8 +319,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     // ---- Filtros (estado y búsqueda, en la URL) ----
 
-    private const string EstadoAbiertos = "abiertos";
-    private const string EstadoCerrados = "cerrados";
+    private const string EstadoAbiertos = FiltroProyectos.EstadoAbiertos;
+    private const string EstadoCerrados = FiltroProyectos.EstadoCerrados;
 
     // De instancia, no static: las etiquetas salen del localizador inyectado.
     private IReadOnlyList<OpcionFranjaEstado> OpcionesEstado =>
@@ -322,8 +330,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// La selección de estados que llega de la URL reducida a los dos que existen; lo demás se descarta.
     /// Cadena vacía si no queda ninguno.
     /// </summary>
-    private static string EstadosValidos(string? seleccion) =>
-        SeleccionEstados.Unir(SeleccionEstados.Separar(seleccion).Where(v => v is EstadoAbiertos or EstadoCerrados)) ?? string.Empty;
+    private static string EstadosValidos(string? seleccion) => FiltroProyectos.EstadosValidos(seleccion);
 
     /// <summary>Proyectos por estado para la franja: con la búsqueda aplicada y sin el filtro de estado.</summary>
     private IReadOnlyDictionary<string, int> RecuentosPorEstado
@@ -381,23 +388,10 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private IReadOnlyList<ProyectoListaDto> ProyectosVisibles => _proyectos.Where(CumpleFiltros).ToList();
 
-    private bool CumpleFiltros(ProyectoListaDto proyecto)
-    {
-        // Varios estados marcados: pasa el Proyecto que esté en cualquiera. Sin ninguno, todos.
-        var marcados = SeleccionEstados.Separar(_estadoFiltro);
-        var cumpleEstado = marcados.Count == 0
-            || marcados.Contains(proyecto.EstaAbierto ? EstadoAbiertos : EstadoCerrados);
+    // Los dos filtros viven en FiltroProyectos: los comparte /proyectos/exportar.xlsx.
+    private bool CumpleFiltros(ProyectoListaDto proyecto) => FiltroProyectos.Cumple(proyecto, _estadoFiltro, _busqueda);
 
-        return cumpleEstado && CumpleBusqueda(proyecto);
-    }
-
-    private bool CumpleBusqueda(ProyectoListaDto proyecto)
-    {
-        var termino = _busqueda.Trim();
-        return termino.Length == 0
-            || proyecto.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase)
-            || proyecto.CentroNombre.Contains(termino, StringComparison.OrdinalIgnoreCase);
-    }
+    private bool CumpleBusqueda(ProyectoListaDto proyecto) => FiltroProyectos.CumpleBusqueda(proyecto, _busqueda);
 
     private string TextoConteo => HayFiltrosActivos
         ? Textos["ConteoConFiltro", ProyectosVisibles.Count, _proyectos.Count].Value
@@ -432,6 +426,72 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _estadoFiltro = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
         return Task.CompletedTask;
+    }
+
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Proyectos;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado. El
+    /// Cliente empresarial elegido es parte de la vista: sin él no hay lista que filtrar.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["cliente", "q", "estado"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita, también el Cliente empresarial.
+    /// Cada valor pasa por la misma validación que el de la URL: el estado por <see cref="EstadosValidos"/>
+    /// y el Cliente empresarial solo si es uno de los que el selector ofrece (un Id guardado no es
+    /// autoridad; uno que ya no se ofrece cuenta como ausente).
+    ///
+    /// <para>
+    /// Con algo a medias en el panel de detalle se pregunta UNA vez y antes de tocar nada, cambie o no el
+    /// Cliente empresarial: aplicar la vista reescribe la URL, y una navegación con el panel sin guardar la
+    /// detendría el aviso de la página, que al descartar la repite él y sin reemplazo (una entrada de más
+    /// en el historial). Preguntando aquí, la navegación del filtro sale una vez y con reemplazo. «Seguir
+    /// editando» deja la vista como estaba.
+    /// </para>
+    ///
+    /// <para>
+    /// Después, en este orden: campos, panel cerrado (solo si cambia el Cliente empresarial), URL y, solo
+    /// entonces, la carga. La URL va antes de la carga para que no diga el Cliente empresarial anterior
+    /// mientras llegan los datos (teclear en el buscador en esa ventana navegaba conservándolo y lo devolvía a
+    /// la pantalla), y con los campos ya puestos <see cref="OnParametersSetAsync"/> los encuentra iguales y no
+    /// carga otra vez.
+    /// </para>
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
+            return;
+
+        var cliente = Guid.TryParse(vista.GetValueOrDefault("cliente"), out var id) && _clientes.Any(c => c.Id == id)
+            ? id
+            : Guid.Empty;
+        var cambiaDeCliente = cliente != _clienteSeleccionadoId;
+
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
+        if (cambiaDeCliente)
+        {
+            _clienteSeleccionadoId = cliente;
+            // El panel era de un proyecto del Cliente empresarial anterior.
+            CerrarDetalle();
+        }
+
+        // Una sola navegación, con todos los parámetros de la vista y sin nada pendiente de guardar.
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["cliente"] = cliente == Guid.Empty ? null : cliente.ToString(),
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro,
+        });
+
+        if (cambiaDeCliente)
+            await OnClienteChangedAsync();
     }
 
     // ---- Nuevo proyecto (Drawer) ----
@@ -1220,4 +1280,17 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             ToastService.Mostrar(Textos["ErrorDarDeBaja"], TonoToast.Error);
         }
     }
+
+    // ---- Exportar esta vista ----
+
+    /// <summary>
+    /// Los criterios de la vista con los nombres de parámetro de <c>/proyectos/exportar.xlsx</c>:
+    /// el Cliente empresarial del selector y los dos filtros de <see cref="CumpleFiltros"/>.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["cliente"] = _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString(),
+        ["q"] = _busqueda,
+        ["estado"] = _estadoFiltro,
+    };
 }

@@ -55,7 +55,7 @@
     <value>Ámbito: {0}</value>
   </data>
   <data name="ChipAmbitoCliente" xml:space="preserve">
-    <value>Cliente empresarial</value>
+    <value>Cliente</value>
     <comment>Valor del chip «Ámbito: …» cuando el filtro es el Cliente empresarial (CONTRATO_TERMINOLOGIA § 3.2).</comment>
   </data>
   <data name="ChipEstado" xml:space="preserve">
@@ -201,10 +201,18 @@
   </data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar esta pantalla: propietario o tipo de documento</value></data>
   <data name="ListaFiltroAmbito" xml:space="preserve"><value>Ámbito</value></data>
+  <data name="ListaFiltroTipo" xml:space="preserve"><value>Tipo de documento</value></data>
+  <data name="ListaFiltroPlataforma" xml:space="preserve"><value>Plataforma</value></data>
+  <data name="ListaTodas" xml:space="preserve"><value>Todas</value></data>
+  <data name="ChipTipo" xml:space="preserve"><value>Tipo: {0}</value></data>
+  <data name="ChipPlataforma" xml:space="preserve"><value>Plataforma: {0}</value></data>
+  <data name="ChipOpcionDesconocida" xml:space="preserve"><value>ya no existe</value></data>
+  <data name="QuitarFiltroTipo" xml:space="preserve"><value>Quitar filtro de tipo de documento</value></data>
+  <data name="QuitarFiltroPlataforma" xml:space="preserve"><value>Quitar filtro de plataforma</value></data>
   <data name="ListaFiltroEstado" xml:space="preserve"><value>Estado</value></data>
   <data name="ListaTodos" xml:space="preserve"><value>Todos</value></data>
   <data name="ListaAmbitoTrabajador" xml:space="preserve"><value>Trabajador</value></data>
-  <data name="ListaAmbitoClienteEmpresarial" xml:space="preserve"><value>Cliente empresarial</value></data>
+  <data name="ListaAmbitoClienteEmpresarial" xml:space="preserve"><value>Cliente</value></data>
   <data name="ListaAmbitoEmpresa" xml:space="preserve"><value>Empresa</value></data>
   <data name="ListaAmbitoVehiculo" xml:space="preserve"><value>Vehículo</value></data>
   <data name="ListaAmbitoProyecto" xml:space="preserve"><value>Proyecto</value></data>

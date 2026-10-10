@@ -199,7 +199,7 @@ else
     /// </summary>
     [Parameter] public RenderFragment? Herramientas { get; set; }
 
-    /// <summary>Modo pastillas: texto a la derecha de la fila («3 Clientes empresariales con estos filtros»).</summary>
+    /// <summary>Modo pastillas: texto a la derecha de la fila («3 Clientes con estos filtros»).</summary>
     [Parameter] public RenderFragment? Resumen { get; set; }
 
     private bool HayMasFiltros => MasFiltros is not null || FiltrosGuardados.Count > 0 || OnGuardarFiltro.HasDelegate;

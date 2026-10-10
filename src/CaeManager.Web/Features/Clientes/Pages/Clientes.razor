@@ -26,7 +26,7 @@
 @inject ContextWorkspaceService WorkspaceService
 
 <LimiteDeErrores Pagina="this">
-<PageTitle>Clientes empresariales — @Marca.Nombre</PageTitle>
+<PageTitle>Clientes — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina">
     @* Rediseño de listados, fase 1 (piloto): cabecera de una línea (CabeceraListado) con el
@@ -140,7 +140,7 @@
 
     @if (_errorCarga)
     {
-        <EstadoVacio Titulo="No pudimos cargar los Clientes empresariales" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="No pudimos cargar los Clientes" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
                 <Boton Variante="VarianteBoton.Primario" OnClick="RecargarAsync">Reintentar</Boton>
             </Accion>
@@ -185,7 +185,12 @@
                        contrato con el oyente delegado de atajos-lista.js, que convierte el
                        clic en un punto sin controles de la fila en un clic sobre este botón.
                        A la página Cliente 360 (/clientes/{id}) se va con el icono 360 del
-                       final de la fila y con el del panel. *@
+                       final de la fila y con el del panel.
+
+                       Identidad en dos líneas, como la celda «Trabajador» de /trabajadores: arriba la
+                       razón social con sus avisos («⚑ Crítico», «Sin contacto») y debajo el CIF. *@
+                    <span class="celda-cliente-empresarial">
+                    <span class="celda-cliente-empresarial-nombre">
                     <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
                             aria-label="@Textos["AbrirVistaRapidaDe", context.RazonSocial]"
                             @onclick="() => AbrirVistaRapidaAsync(context.Id)" @onclick:stopPropagation="true">@context.RazonSocial</button>
@@ -200,24 +205,28 @@
                     @if (context.SinContactoEnAgenda)
                     {
                         <button type="button" class="aviso-sin-agenda"
-                                title="Sin contacto en la agenda: no se puede reclamar documentación a este Cliente empresarial"
+                                title="Sin contacto en la agenda: no se puede reclamar documentación a este Cliente"
                                 @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.Id, context.RazonSocial, "agenda")'
                                 @onclick:stopPropagation="true">
                             Sin contacto
                         </button>
                     }
-                </TemplateColumn>
-                @* El CIF se copia con un clic, sin abrir la fila. Sigue ordenando por CIF. *@
-                <TemplateColumn Title="CIF" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.Cif))">
-                    @if (string.IsNullOrWhiteSpace(context.Cif))
-                    {
-                        <span class="texto-vacio-celda">—</span>
-                    }
-                    else
-                    {
-                        <BotonCopiar EnLinea="true" Valor="@context.Cif" Texto="@context.Cif" Etiqueta="@Textos["EtiquetaCif"]"
-                                     NombreAccesible="@Textos["CopiarCif", context.Cif]" />
-                    }
+                    </span>
+                    @* Segunda línea: el CIF, que se copia con un clic sin abrir la fila; sin CIF,
+                       una raya. No tiene cabecera propia, así que la pantalla no ofrece ordenar
+                       por CIF (ObtenerClientesQuery sí admite ese orden). *@
+                    <span class="celda-cliente-empresarial-cif">
+                        @if (string.IsNullOrWhiteSpace(context.Cif))
+                        {
+                            <span class="texto-vacio-celda">—</span>
+                        }
+                        else
+                        {
+                            <BotonCopiar EnLinea="true" Valor="@context.Cif" Texto="@context.Cif" Etiqueta="@Textos["EtiquetaCif"]"
+                                         NombreAccesible="@Textos["CopiarCif", context.Cif]" />
+                        }
+                    </span>
+                    </span>
                 </TemplateColumn>
                 <TemplateColumn Title="Gestor CAE">
                     @* Decisión del propietario (2026-10-09): el formulario «Editar Cliente
@@ -334,7 +343,7 @@
             @if (_totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _paginacion.ItemsPerPage > TamanoPaginaMinimo))
             {
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="Cliente(s) empresarial(es)" PaginaActualChanged="CambiarPaginaAsync"
+                              Etiqueta="Cliente(s)" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
             }
         </div>
@@ -348,7 +357,7 @@
                La copia no afirma que HAYA registros dados de alta: el filtrado
                es de servidor y la consulta solo devuelve el total ya filtrado,
                así que la pantalla no sabe cuántos hay sin filtro. *@
-            <EstadoVacio NombreIcono="vacio" Titulo="Ningún Cliente empresarial con estos filtros"
+            <EstadoVacio NombreIcono="vacio" Titulo="Ningún Cliente con estos filtros"
                          Descripcion="Ninguno coincide con la búsqueda ni con los filtros de criticidad, gestor o documentación.">
                 <Accion>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">Quitar los filtros</Boton>
@@ -359,11 +368,11 @@
         {
             @* Con alcance cero no se invita a crear lo que quizá ya existe fuera de la cartera (P0-9a, FS-05). *@
             <VacioSegunAlcance @bind-AlcanceCero="_alcanceCero">
-                <EstadoVacio NombreIcono="clientes" Titulo="Aún no hay Clientes empresariales" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
+                <EstadoVacio NombreIcono="clientes" Titulo="Aún no hay Clientes" Descripcion="Crea el primero para empezar a organizar tus centros de trabajo.">
                     <Accion>
-                        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nuevo Cliente empresarial</Boton></SoloConEscritura>
+                        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nuevo Cliente</Boton></SoloConEscritura>
                         <Boton Variante="VarianteBoton.Secundario" OnClick='() => NavigationManager.NavigateTo("/clientes/alta-guiada")'>
-                            Alta guiada (Cliente empresarial + Empresa + Centro)
+                            Alta guiada (Cliente + Empresa + Centro)
                         </Boton>
                     </Accion>
                 </EstadoVacio>
@@ -374,7 +383,7 @@
 </div>
 
 <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"
-                 Titulo="@(_editandoId is null ? "Nuevo Cliente empresarial" : "Editar Cliente empresarial")"
+                 Titulo="@(_editandoId is null ? "Nuevo Cliente" : "Editar Cliente")"
                  HayCambios="() => HayCambiosCliente" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
                  HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
                  AlDescartarPorNavegacion="CerrarClienteDescartando"
@@ -384,7 +393,7 @@
         <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cif" ValorChanged="v => _cif = v" OnBlur="ValidarCifAsync" MensajeError="@ObtenerError(nameof(CrearClienteCommand.Cif))" />
 
         <label class="campo-checkbox">
-            <input type="checkbox" @bind="_esCritico" /> Cliente empresarial crítico
+            <input type="checkbox" @bind="_esCritico" /> Cliente crítico
         </label>
 
         <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => _notas = v" Filas="4" />
@@ -398,7 +407,7 @@
                     <option value="@gestor.Id">@gestor.NombreCompleto (@gestor.Email)</option>
                 }
             </CampoSelect>
-            <p class="texto-vacio-seccion">Al cambiarlo, se avisa al Gestor CAE anterior y al nuevo. Es el Gestor CAE de referencia del Cliente empresarial: no cambia lo que cada uno puede ver.</p>
+            <p class="texto-vacio-seccion">Al cambiarlo, se avisa al Gestor CAE anterior y al nuevo. Es el Gestor CAE de referencia del Cliente: no cambia lo que cada uno puede ver.</p>
         }
     
     </ChildContent>
@@ -424,7 +433,7 @@
 <DialogoConfirmacion
     Visible="_confirmarEliminarLoteVisible"
     VisibleChanged="v => _confirmarEliminarLoteVisible = v"
-    Titulo="@($"¿Dar de baja {_seleccionados.Count} Cliente(s) empresarial(es)?")"
+    Titulo="@($"¿Dar de baja {_seleccionados.Count} Cliente(s)?")"
     Mensaje="Se ocultarán de las listas activas. Los que tengan centros activos no se podrán dar de baja."
     TextoBotonConfirmar="@Textos["DarDeBaja"]"
     EnProgreso="_eliminandoLote"
@@ -438,7 +447,7 @@
     Visible="_filtroGuardadoAEliminar is not null"
     VisibleChanged="v => { if (!v) _filtroGuardadoAEliminar = null; }"
     Titulo="@($"¿Borrar el filtro guardado «{_filtroGuardadoAEliminar?.Nombre}»?")"
-    Mensaje="Desaparecerá de tus filtros guardados de Clientes empresariales. No borra ningún Cliente empresarial ni cambia lo que la lista enseña ahora."
+    Mensaje="Desaparecerá de tus filtros guardados de Clientes. No borra ningún Cliente ni cambia lo que la lista enseña ahora."
     TextoBotonConfirmar="Borrar filtro"
     EnProgreso="_eliminandoFiltroGuardado"
     OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />

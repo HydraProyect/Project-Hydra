@@ -190,7 +190,6 @@ public class ObtenerEstadoTipoDocumentoQueryTests
             new RecuentoGrupoEstadoDto(GrupoEstadoTipoDocumento.Vencido, 1),
             new RecuentoGrupoEstadoDto(GrupoEstadoTipoDocumento.PorVencer, 1),
             new RecuentoGrupoEstadoDto(GrupoEstadoTipoDocumento.Vigente, 1));
-        dto.Incidencias.Should().ContainSingle().Which.Nombre.Should().Be("Mateo Soler Vidal");
     }
 
     [Fact]
@@ -292,23 +291,5 @@ public class ObtenerEstadoTipoDocumentoQueryTests
             ("Almacén Vigo", EstadoDocumento.EnTolerancia, (DateOnly?)hoy.AddDays(7)));
         // Hoy ningún porcentaje cuenta «En tolerancia» como al día (CumplimientoDocumental): el anillo dice lo mismo que el resto.
         dto.Cumplimiento.Should().Be(new FraccionCumplimiento(0, 2));
-    }
-
-    [Fact]
-    public async Task La_banda_recibe_nombres_de_cada_grupo_aunque_el_peor_tenga_muchos()
-    {
-        var escenario = new Escenario();
-        var vigo = escenario.Centro("Almacén Vigo");
-        var pares = Enumerable.Range(1, 7)
-            .Select(n => escenario.Par(vigo, escenario.Trabajador($"Vencido{n}", "Uno"), EstadoDocumento.Vencido))
-            .Append(escenario.Par(vigo, escenario.Trabajador("Paula", "Campos Lara"), EstadoDocumento.Faltante))
-            .Append(escenario.Par(vigo, escenario.Trabajador("Sonia", "Cano Prieto"), EstadoDocumento.EnTolerancia))
-            .ToArray();
-
-        var dto = await escenario.Handler(new CalculoFalso(pares)).Handle(new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id), CancellationToken.None);
-
-        dto!.Incidencias.Count(f => f.PeorEstado == EstadoDocumento.Vencido).Should().Be(ObtenerEstadoTipoDocumentoQuery.MaximoIncidenciasPorGrupo);
-        dto.Incidencias.Select(f => f.Nombre).Should().Contain(["Paula Campos Lara", "Sonia Cano Prieto"],
-            "siete vencidos no pueden dejar sin nombre a la pendiente ni a la que está en tolerancia");
     }
 }

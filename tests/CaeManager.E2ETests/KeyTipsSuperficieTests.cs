@@ -14,17 +14,16 @@ namespace CaeManager.E2ETests;
 /// en Windows. Eso es de la ventana del navegador, no de la página, y se midió a mano con
 /// teclas del sistema sobre Chrome y Edge (Project-Hydra-Negocio/tecnico/CAPA-USUARIO-AVANZADO-TALVEG.md § 3.3).
 /// </remarks>
-public class KeyTipsSuperficieTests : IAsyncLifetime
+public class KeyTipsSuperficieTests(NavegadorSinAplicacionFixture navegador) : IClassFixture<NavegadorSinAplicacionFixture>, IAsyncLifetime
 {
-    private IPlaywright _playwright = null!;
-    private IBrowser _browser = null!;
+    // El navegador es de la clase; el contexto y la página, de cada test.
+    private IBrowserContext _context = null!;
     private IPage _page = null!;
 
     public async Task InitializeAsync()
     {
-        _playwright = await Playwright.CreateAsync();
-        _browser = await _playwright.Chromium.LaunchAsync(new() { Headless = true });
-        _page = await _browser.NewPageAsync();
+        _context = await navegador.Browser.NewContextAsync();
+        _page = await _context.NewPageAsync();
         var directorio = new DirectoryInfo(AppContext.BaseDirectory);
         while (directorio is not null && !File.Exists(Path.Combine(directorio.FullName, "CaeManager.slnx")))
             directorio = directorio.Parent;
@@ -57,7 +56,7 @@ public class KeyTipsSuperficieTests : IAsyncLifetime
                     <button id="pastilla-s" data-keytip="" onclick="registrar('subcontrata')">Subcontrata</button>
                     <span id="agrupar" role="group" aria-label="Agrupar" data-keytip="A" data-keytip-grupo>
                         <button id="sin-agrupar" aria-pressed="true" onclick="registrar('sin')">Sin agrupar</button>
-                        <button id="por-cliente" aria-pressed="false" onclick="registrar('cliente')">Por Cliente empresarial</button>
+                        <button id="por-cliente" aria-pressed="false" onclick="registrar('cliente')">Por Cliente</button>
                     </span>
                     <button id="oculto" data-keytip="X" style="display:none" onclick="registrar('X')">Exportar</button>
                     <select id="tamano" data-keytip="" aria-label="Mostrar"><option>20</option><option>50</option></select>
@@ -402,7 +401,6 @@ public class KeyTipsSuperficieTests : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
-        await _browser.DisposeAsync();
-        _playwright.Dispose();
+        if (_context is not null) await _context.DisposeAsync();
     }
 }

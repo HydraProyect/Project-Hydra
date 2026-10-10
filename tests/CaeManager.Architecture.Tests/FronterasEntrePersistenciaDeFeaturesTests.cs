@@ -358,6 +358,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "ITiposDocumentoQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "ITrabajadoresQueryContext"),
+        ("Documentos.ObtenerPlataformasEnUsoQueryHandler", "ICentrosQueryContext"),
+        ("Documentos.ObtenerPlataformasEnUsoQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Documentos.ObtenerDocumentacionBaseTrabajadoresQueryHandler", "IConfiguracionQueryContext"),
         ("Documentos.ObtenerDocumentacionBaseTrabajadoresQueryHandler", "ITiposDocumentoQueryContext"),
         ("Documentos.ObtenerDocumentoPorIdQueryHandler", "IClientesQueryContext"),

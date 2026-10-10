@@ -26,7 +26,7 @@
                        aria-expanded="@(grupos.Count > 0 ? "true" : "false")"
                        aria-controls="buscador-lista"
                        aria-activedescendant="@(_indiceSeleccionado >= 0 ? $"buscador-item-{_indiceSeleccionado}" : null)"
-                       placeholder="Buscar o ejecutar… (clientes empresariales, trabajadores, documentos, acciones)"
+                       placeholder="Buscar o ejecutar… (clientes, trabajadores, documentos, acciones)"
                        value="@_valorMostrado"
                        @oninput="ManejarEntradaAsync"
                        @onkeydown="ManejarTeclaAsync" />

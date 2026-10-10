@@ -20,7 +20,7 @@ public class VerificacionConcurrenciaTests
     {
         var cliente = CrearCliente();
 
-        ConcurrenciaOptimista.Verificar(cliente, cliente.Version, "este Cliente empresarial").Should().BeNull();
+        ConcurrenciaOptimista.Verificar(cliente, cliente.Version, "este Cliente").Should().BeNull();
     }
 
     [Fact]
@@ -28,11 +28,11 @@ public class VerificacionConcurrenciaTests
     {
         var cliente = CrearCliente();
 
-        var error = ConcurrenciaOptimista.Verificar(cliente, Guid.NewGuid(), "este Cliente empresarial");
+        var error = ConcurrenciaOptimista.Verificar(cliente, Guid.NewGuid(), "este Cliente");
 
         error.Should().NotBeNull();
         error!.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
-        error.Mensaje.Should().Contain("Otra persona modificó este Cliente empresarial");
+        error.Mensaje.Should().Contain("Otra persona modificó este Cliente");
     }
 
     [Fact]
@@ -43,7 +43,7 @@ public class VerificacionConcurrenciaTests
         // llamador que aún no propague la versión quedaría bloqueado.
         var cliente = CrearCliente();
 
-        ConcurrenciaOptimista.Verificar(cliente, Guid.Empty, "este Cliente empresarial").Should().BeNull();
+        ConcurrenciaOptimista.Verificar(cliente, Guid.Empty, "este Cliente").Should().BeNull();
     }
 
     [Fact]

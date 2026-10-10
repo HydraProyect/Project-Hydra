@@ -454,10 +454,11 @@ def metricas_de_repo(raiz: Path):
     else:
         filas.append(no_medida("M15", "Locators por texto o posicionales en E2E", "no hay ningún .cs en tests/CaeManager.E2ETests"))
 
-    # M16: «Cliente» a secas en pantalla. El patrón sale de Vocabulario.json (S1, fuente única) si existe; si no,
+    # M16: «Cliente empresarial» en pantalla (desde la decisión de rótulo del 2026-10-09 la interfaz dice «Cliente»; antes
+    # esta métrica contaba lo contrario, «Cliente» a secas, y sus cifras anteriores no son comparables). El patrón sale de Vocabulario.json (S1, fuente única) si existe; si no,
     # una aproximación local. En ambos casos esta cifra es una estimación: el instrumento que manda es
     # VocabularioDePantallaTests (que ve los satélites ca-ES y el detector de texto de los .razor).
-    patron = re.compile(r"\bClientes?\b(?!\s+(?:empresarial|empresariales|comercial|de servicio|delegante))")
+    patron = re.compile(r"\bClientes?\s+empresarial(?:es)?\b", re.IGNORECASE)
     nota_m16 = "S1 (vocabulario ejecutable) no está en este árbol: regex local sobre texto de marcado fuera de @code; ni ve texto montado en C#"
     vocabulario = raiz / "tests" / "CaeManager.Architecture.Tests" / "Vocabulario" / "Vocabulario.json"
     descartes = []
@@ -465,12 +466,12 @@ def metricas_de_repo(raiz: Path):
         try:
             datos_vocabulario = json.loads(vocabulario.read_text(encoding="utf-8"))
             descartes = [re.compile(d) for d in datos_vocabulario.get("descartarAntesDeCasar", [])]
-            regla = next(r for r in datos_vocabulario["prohibidos"] if r["id"] == "cliente-a-secas")
+            regla = next(r for r in datos_vocabulario["prohibidos"] if r["id"] == "cliente-empresarial-en-pantalla")
             patron = re.compile(regla["patron"], re.IGNORECASE if regla.get("ignorarMayusculas") else 0)
-            nota_m16 = ("patrón «cliente-a-secas» de Vocabulario.json (S1); sobre texto de marcado fuera de @code, sin satélites ca-ES ni las "
-                        "excepciones por contexto (texto legal, plantillas, accesos de plataforma); el instrumento que manda es VocabularioDePantallaTests")
+            nota_m16 = ("patrón «cliente-empresarial-en-pantalla» de Vocabulario.json (S1); sobre texto de marcado fuera de @code, sin satélites ca-ES ni las "
+                        "excepciones por contexto; el instrumento que manda es VocabularioDePantallaTests")
         except (ValueError, KeyError, StopIteration, re.error) as e:
-            filas.append(no_medida("M16", "«Cliente» a secas en pantalla", f"Vocabulario.json ilegible o sin «cliente-a-secas»: {e}"))
+            filas.append(no_medida("M16", "«Cliente empresarial» en pantalla", f"Vocabulario.json ilegible o sin «cliente-empresarial-en-pantalla»: {e}"))
             patron = None
     en_resx = 0
     for p in (ficheros(raiz / "src", "*.resx") if patron is not None else []):
@@ -487,9 +488,9 @@ def metricas_de_repo(raiz: Path):
     if patron is None:
         pass  # la fila NO_MEDIDA ya se añadió arriba
     elif not razor:
-        filas.append(no_medida("M16", "«Cliente» a secas en pantalla", sin_razor))
+        filas.append(no_medida("M16", "«Cliente empresarial» en pantalla", sin_razor))
     else:
-        filas.append(fila("M16", "«Cliente» a secas en pantalla", f"{en_resx} valores .resx + {en_marcado} en marcado", "ESTIMACION",
+        filas.append(fila("M16", "«Cliente empresarial» en pantalla", f"{en_resx} valores .resx + {en_marcado} en marcado", "ESTIMACION",
                           nota_m16, en_resx + en_marcado))
 
     # M17: trinquete de deuda terminológica (TerminologiaCanonicaTests)

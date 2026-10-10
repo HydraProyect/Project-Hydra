@@ -108,7 +108,7 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
         // Control de que el arnés sembró de verdad el estado previo: carteras por Cliente empresarial no cerradas.
         await using (var contexto = NuevoContexto(null))
             (await contexto.AsignacionesCartera.CountAsync(c => c.AmbitoRelacionClienteId != null && c.Estado != EstadoAsignacion.Cerrada))
-                .Should().BeGreaterThan(0, "el estado previo tiene carteras repartidas por Cliente empresarial");
+                .Should().BeGreaterThan(0, "el estado previo tiene carteras repartidas por Cliente");
 
         await using (var contexto = ContextoParaMigrar())
             await contexto.GetService<IMigrator>().MigrateAsync();
@@ -130,7 +130,7 @@ public class AlcanceDespuesDeConvertirLasCarterasTests : IAsyncLifetime
         // Quién NO gana nada: sin cartera, con la cartera caducada, equipo sin cartera, otro Tenant.
         foreach (var sinCambios in new[] { _gestorSinCartera, _gestorCaducado, _coordinadorSinCartera, _gestorDeOtroTenant })
         {
-            despues[sinCambios].Clientes.Should().BeEmpty($"{Nombre(sinCambios)} no tenía cartera por Cliente empresarial vigente: no gana nada");
+            despues[sinCambios].Clientes.Should().BeEmpty($"{Nombre(sinCambios)} no tenía cartera por Cliente vigente: no gana nada");
             despues[sinCambios].Centros.Should().BeEmpty();
             despues[sinCambios].AccesoTotal.Should().BeFalse();
         }

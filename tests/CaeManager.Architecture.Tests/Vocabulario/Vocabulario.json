@@ -8,21 +8,21 @@
   "canonicos": [
     {
       "id": "cliente-empresarial",
-      "forma": "Cliente empresarial",
-      "plural": "Clientes empresariales",
+      "forma": "Cliente",
+      "plural": "Clientes",
       "formasCortasPermitidas": [],
-      "significado": "Empresa que ocupa la posición cliente en una Relación Empresarial dirigida. En pantalla es el único rótulo para esa organización: nunca «Cliente» a secas.",
+      "significado": "Rótulo de interfaz del Cliente empresarial: la Empresa que ocupa la posición cliente en una Relación Empresarial dirigida. La pantalla dice «Cliente» («Clientes», «Cliente 360»); «Cliente empresarial» es el término canónico fuera de la interfaz (documentación, análisis y código).",
       "contrato": "§ 3.2",
-      "noConfundirCon": "Cliente comercial TALVEG; Cliente de servicio CAE Outbound o Inbound"
+      "noConfundirCon": "Cliente comercial TALVEG; Cliente de servicio CAE Outbound o Inbound; Tenant propietario"
     },
     {
       "id": "usuario-de-cliente-empresarial",
-      "forma": "Usuario de Cliente empresarial",
-      "plural": "Usuarios de Cliente empresarial",
+      "forma": "Usuario de Cliente",
+      "plural": "Usuarios de Cliente",
       "formasCortasPermitidas": [],
-      "significado": "Rótulo en pantalla del rol de autorización Roles.Cliente: usuario externo que ve en solo lectura su propio Cliente empresarial. Es un rol, no una organización.",
+      "significado": "Rótulo en pantalla del rol de autorización Roles.Cliente (decisión del propietario del 2026-10-09; antes, «Usuario de Cliente empresarial»): usuario externo que ve en solo lectura su propio Cliente empresarial. Es un rol, no una organización.",
       "contrato": "§ 3.2",
-      "noConfundirCon": "Cliente empresarial (organización)"
+      "noConfundirCon": "Cliente (la organización, rótulo de interfaz del Cliente empresarial)"
     },
     {
       "id": "cliente-comercial-talveg",
@@ -204,33 +204,37 @@
   ],
   "prohibidos": [
     {
-      "id": "cliente-a-secas",
-      "termino": "Cliente",
-      "patron": "\\bclient(?:es?|s)?\\b(?!\\s+(?:empresarial(?:s|es)?|comercial(?:es)?|de\\s+servicio|de\\s+servei)\\b|\\(s\\)\\s+empresarial)",
+      "id": "cliente-empresarial-en-pantalla",
+      "termino": "Cliente empresarial",
+      "patron": "\\bclient(?:es?|s)?(?:\\(s\\))?\\s+empresarial(?:s|es)?\\b",
       "ignorarMayusculas": true,
-      "sustitucion": "Cliente empresarial (Clientes empresariales); Usuario de Cliente empresarial si es el rol",
-      "motivo": "«Cliente» tiene siete sentidos (§ 3.2) y la interfaz nombra uno solo: la organización en posición cliente de una Relación Empresarial. Costó tres PR y 239 toques de fichero retirarlo a mano (D-07 y D-27).",
+      "sustitucion": "Cliente (Clientes); la ficha es «Cliente 360»; Usuario de Cliente si es el rol",
+      "motivo": "Decisión del propietario del 2026-10-09, que anula la de rótulo del 2026-10-02: «Cliente empresarial» es un nombre demasiado largo e innecesario para la interfaz. La pantalla dice «Cliente»; el apellido se queda en documentación, análisis y código.",
       "contrato": "§ 3.2",
-      "sentido": "Cualquiera de los siete sentidos de «Cliente». Quedan fuera del patrón «Cliente empresarial», «Cliente comercial TALVEG» y «Cliente de servicio».",
+      "sentido": "El rótulo largo del Cliente empresarial en texto visible, en castellano y en catalán, también dentro del rótulo del rol Roles.Cliente («Usuario de Cliente empresarial»), que desde el 2026-10-09 es «Usuario de Cliente».",
       "casa": [
-        "Cliente",
-        "Dar de alta un cliente",
-        "Los clientes",
-        "Cliente y Empresa son obligatorios",
-        "Cliente(s) sin cartera",
-        "Client"
-      ],
-      "noCasa": [
         "Cliente empresarial",
         "Clientes empresariales",
-        "Usuario de Cliente empresarial",
+        "del cliente empresarial",
         "Cliente(s) empresarial(es)",
-        "Cliente comercial TALVEG",
-        "Cliente de servicio CAE Inbound",
-        "https://portal-del-cliente.com/login",
+        "Sin Cliente empresarial asignado",
+        "Cliente empresarial 360",
         "Client empresarial",
         "Clients empresarials",
-        "relación con el Cliente empresarial"
+        "Usuario de Cliente empresarial",
+        "Usuaris de Client empresarial"
+      ],
+      "noCasa": [
+        "Cliente",
+        "Clientes",
+        "Cliente 360",
+        "Usuario de Cliente",
+        "Usuarios de Cliente",
+        "Usuari de Client",
+        "Cliente comercial TALVEG",
+        "Cliente de servicio CAE Inbound",
+        "Relación Empresarial con el Cliente",
+        "https://portal-del-cliente-empresarial.com/login"
       ]
     },
     {
@@ -331,7 +335,7 @@
       "termino": "alcance",
       "patron": "\\b(?:alcances?|abast)\\b",
       "ignorarMayusculas": true,
-      "sustitucion": "En pantalla, la dimensión concreta que se filtra (Centro, Trabajador, Cliente empresarial, cartera, organizaciones…), nunca «ámbito» como relleno; Ámbito efectivo, de Operación o de Cartera solo si el texto habla de ese concepto del modelo",
+      "sustitucion": "En pantalla, la dimensión concreta que se filtra (Centro, Trabajador, Cliente, cartera, organizaciones…), nunca «ámbito» como relleno; Ámbito efectivo, de Operación o de Cartera solo si el texto habla de ese concepto del modelo",
       "motivo": "El contrato prohíbe «alcance» a secas: nombra tres ámbitos distintos y solo uno, el efectivo, es lo que el usuario puede gestionar.",
       "contrato": "§ 3.5",
       "sentido": "Ámbito de Operación, de Cartera o efectivo cuando es ese concepto del modelo. En pantalla se nombra la dimensión concreta que se filtra (decisión de Chris, 2026-10-03); «organizaciones visibles en un panel ejecutivo» se dice «las organizaciones de este panel».",
@@ -435,19 +439,10 @@
   ],
   "excepciones": [
     {
-      "id": "cliente-por-tenant-en-acceso-de-plataforma",
-      "prohibidos": ["cliente-a-secas"],
-      "ficheros": [
-        "src/CaeManager.Application/Plataforma/Commands/AbrirSesionPrivilegiada/AbrirSesionPrivilegiadaCommand.cs",
-        "src/CaeManager.Application/Tenants/Commands/AbrirAccesoSoporte/AbrirAccesoSoporteCommand.cs"
-      ],
-      "claves": ["WithMessage"],
-      "contexto": "acceso de plataforma",
-      "motivo": "Mensaje que ve el Actor de Plataforma TALVEG al pedir una Sesión Privilegiada o un acceso de soporte («datos de este cliente»): ahí «cliente» nombra el Tenant propietario, y el contrato (§ 3.2, «Rótulo en pantalla») lo deja fuera de la regla de «Cliente empresarial»."
-    },
-    {
       "id": "tenant-en-comandos-de-plataforma",
-      "prohibidos": ["tenant-a-secas"],
+      "prohibidos": [
+        "tenant-a-secas"
+      ],
       "ficheros": [
         "src/CaeManager.Application/Comercial/Commands/ActualizarEstadoComercialTenant/ActualizarEstadoComercialTenantCommand.cs",
         "src/CaeManager.Application/Comercial/Commands/RegistrarSuscripcionTenant/RegistrarSuscripcionTenantCommand.cs",
@@ -456,46 +451,6 @@
       "claves": null,
       "contexto": "acceso de plataforma",
       "motivo": "Tres comandos que solo ejecuta un Actor de Plataforma TALVEG (plano 3): el estado comercial de un Tenant, el registro de su suscripción y la concesión de privilegios. Sus mensajes de error nombran el Tenant porque es el objeto de ese trabajo («No tienes autorización de plataforma sobre ese tenant»). Un comando nuevo con la misma necesidad se registra aquí, fichero a fichero."
-    },
-    {
-      "id": "plantilla-de-importacion",
-      "prohibidos": [
-        "cliente-a-secas"
-      ],
-      "ficheros": [
-        "src/CaeManager.Web/Features/Importacion/Recursos/TextosImportacion*.resx"
-      ],
-      "claves": [
-        "ReglaHojaCentros"
-      ],
-      "contexto": "plantillas de importación",
-      "motivo": "La regla describe las columnas Cliente y Empresa de la hoja Centros de la plantilla Excel. El rótulo reproduce el nombre de la columna del fichero, que es un formato y no vocabulario de pantalla: el contrato (§ 3.2, «Rótulo en pantalla») deja fuera las hojas y columnas de las plantillas de importación."
-    },
-    {
-      "id": "texto-legal-razor",
-      "prohibidos": [
-        "cliente-a-secas"
-      ],
-      "ficheros": [
-        "src/CaeManager.Web/Components/Legal/*.razor"
-      ],
-      "claves": null,
-      "contexto": "texto legal",
-      "motivo": "Términos y Condiciones y Política de Privacidad: «Cliente» es la parte contratante, y el contrato de terminología (§ 3.2, «Rótulo en pantalla») la deja fuera de la regla. El resto del vocabulario legacy que contienen estos textos (Tenant, Operador, Workspace, Hydra, CAE Manager) NO está cubierto: es deuda congelada o falla, y su cambio exige revisión legal."
-    },
-    {
-      "id": "texto-legal-consentimiento",
-      "prohibidos": [
-        "cliente-a-secas"
-      ],
-      "ficheros": [
-        "src/CaeManager.Web/Features/Cumplimiento/Recursos/TextosCumplimiento*.resx"
-      ],
-      "claves": [
-        "TextoConsentimiento"
-      ],
-      "contexto": "texto legal",
-      "motivo": "Texto de consentimiento a los Términos y a la Política de Privacidad: nombra los datos «de sus clientes y trabajadores» como responsabilidad de la organización que los introduce, redacción jurídica que no se cambia sin revisión legal."
     },
     {
       "id": "buzon-de-correo-de-comunicaciones",

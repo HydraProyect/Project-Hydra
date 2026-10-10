@@ -52,6 +52,9 @@
        conmutador de selección múltiple (☑) en la cabecera, como en las otras nueve pantallas. *@
     <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_errorCarga || _cargando ? null : _totalElementos)"
                      SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+        <Menu>
+            <CaeManager.Web.Exportacion.EntradasExportar Ruta="/visitas/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : (int?)_totalElementos)" Criterios="CriteriosExportar" />
+        </Menu>
         <Primaria>
             <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
         </Primaria>

@@ -31,7 +31,7 @@ public class CrearPlantillaDocumentoCommandHandler(
         {
             var clientesVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
             if (clientesVisibles is not null && !clientesVisibles.Contains(clienteId))
-                return Result.Fallo<CrearPlantillaDocumentoResultadoDto>(Error.Crear("Plantilla.ClienteSinAcceso", "No encontramos este Cliente empresarial."));
+                return Result.Fallo<CrearPlantillaDocumentoResultadoDto>(Error.Crear("Plantilla.ClienteSinAcceso", "No encontramos este Cliente."));
         }
 
         var tipoDocumento = await tiposDocumentoContext.TiposDocumento

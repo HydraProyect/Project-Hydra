@@ -147,7 +147,7 @@ public class LecturaIaGen2Tests : BunitContext
             $"/clientes/{Dexter.Id}/lectura-ia",
             $"/clientes/{MontajesEbro.Id}/lectura-ia",
             $"/clientes/{Refrielectric.Id}/lectura-ia",
-        ], "cada fila navega de verdad a la configuración de SU Cliente empresarial, no a la de otro");
+        ], "cada fila navega de verdad a la configuración de SU Cliente, no a la de otro");
     }
 
     [Fact]
@@ -174,7 +174,7 @@ public class LecturaIaGen2Tests : BunitContext
 
         cut.FindAll(".lista-seleccion-cliente").Should().BeEmpty();
         cut.Find(".sin-coincidencias-lectura-ia").TextContent.Trim()
-            .Should().Be("Ningún Cliente empresarial coincide con «zzz».");
+            .Should().Be("Ningún Cliente coincide con «zzz».");
         cut.FindAll("input.campo-input").Should().ContainSingle("el buscador sigue ahí para corregir la búsqueda");
     }
 
@@ -185,7 +185,7 @@ public class LecturaIaGen2Tests : BunitContext
         escenario.Clientes.Clear();
         var (cut, _) = Renderizar(escenario);
 
-        cut.Find(".estado-vacio h3").TextContent.Trim().Should().Be("Todavía no hay ningún Cliente empresarial");
+        cut.Find(".estado-vacio h3").TextContent.Trim().Should().Be("Todavía no hay ningún Cliente");
         cut.FindAll("input.campo-input").Should().BeEmpty("filtrar una lista vacía no lleva a ninguna parte");
         cut.FindAll(".lista-seleccion-cliente").Should().BeEmpty();
     }
@@ -203,7 +203,7 @@ public class LecturaIaGen2Tests : BunitContext
         var (cut, mediador) = Renderizar(escenario);
 
         var alerta = cut.Find("[role=alert]");
-        alerta.QuerySelector(".estado-vacio h3")!.TextContent.Trim().Should().Be("No pudimos cargar los Clientes empresariales");
+        alerta.QuerySelector(".estado-vacio h3")!.TextContent.Trim().Should().Be("No pudimos cargar los Clientes");
         Filas(cut).Should().BeEmpty();
 
         await BotonReintentar(cut).ClickAsync(new MouseEventArgs());
@@ -295,12 +295,12 @@ public class LecturaIaGen2Tests : BunitContext
         Registrar(escenario);
 
         var integrada = Render<SeleccionarClienteLecturaIa>(p => p.Add(x => x.IntegradaEnConfiguracion, true));
-        integrada.Find("h2").TextContent.Trim().Should().Be("Lectura IA por Cliente empresarial");
+        integrada.Find("h2").TextContent.Trim().Should().Be("Lectura IA por Cliente");
         integrada.FindAll("h1").Should().BeEmpty("en el hub el h1 es «Configuración»");
         integrada.FindAll("a.enlace-volver-configuracion").Should().BeEmpty("la subnavegación del hub ya está a la izquierda");
 
         var suelta = Render<SeleccionarClienteLecturaIa>(p => p.Add(x => x.IntegradaEnConfiguracion, false));
-        suelta.Find("h1").TextContent.Trim().Should().Be("Lectura IA por Cliente empresarial");
+        suelta.Find("h1").TextContent.Trim().Should().Be("Lectura IA por Cliente");
         suelta.Find("a.enlace-volver-configuracion").GetAttribute("href").Should().Be("/configuracion/ia");
     }
 
@@ -329,11 +329,11 @@ public class LecturaIaGen2Tests : BunitContext
         var hub = Render<Configuracion>(p => p.Add(x => x.EntradaRuta, "ia"));
 
         var entrada = hub.Find(".entrada-subnav[aria-current=page]");
-        entrada.QuerySelector(".nombre-entrada-subnav")!.TextContent.Trim().Should().Be("Lectura IA por Cliente empresarial");
+        entrada.QuerySelector(".nombre-entrada-subnav")!.TextContent.Trim().Should().Be("Lectura IA por Cliente");
         entrada.QuerySelector(".descripcion-entrada-subnav")!.TextContent.Should().NotContainEquivalentOf("umbral");
 
         var panel = hub.Find(".panel-configuracion-host");
-        panel.QuerySelector("h2")!.TextContent.Trim().Should().Be("Lectura IA por Cliente empresarial");
+        panel.QuerySelector("h2")!.TextContent.Trim().Should().Be("Lectura IA por Cliente");
         panel.QuerySelectorAll("a.item-seleccion-cliente").Should().HaveCount(3);
         hub.FindAll("h1").Select(h => h.TextContent.Trim()).Should().Equal(["Configuración"]);
     }

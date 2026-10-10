@@ -136,9 +136,9 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     /// <summary>Escribe en el selector de Cliente algo que no existe y pulsa su «+ Crear «…»».</summary>
     private static async Task CrearClienteDesdeElSelectorAsync(IRenderedComponent<Centros> cut, string texto)
     {
-        await cut.Find("input[placeholder='Busca o crea un Cliente empresarial…']").InputAsync(new ChangeEventArgs { Value = texto });
+        await cut.Find("input[placeholder='Busca o crea un Cliente…']").InputAsync(new ChangeEventArgs { Value = texto });
         await cut.Find("li.selector-entidad-opcion-crear").ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial"));
+        cut.WaitForAssertion(() => cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nuevo Cliente"));
     }
 
     private static async Task ElegirEnElSelectorAsync(IRenderedComponent<Centros> cut, string placeholder, string opcion)
@@ -204,7 +204,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         // Cliente y Empresa elegidos a mano (no traídos por la URL): quedan puestos para el
         // siguiente centro, y la instantánea tiene que tomarse otra vez con ellos.
         var cut = await AbrirAltaAsync(Renderizar());
-        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente…", "Refrielectric S.A.");
         await ElegirEnElSelectorAsync(cut, "Busca o crea una empresa…", "Montajes Ebro S.L.");
         await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
 
@@ -253,9 +253,9 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
 
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?",
             "«Cancelar» del modal con algo escrito pregunta antes de tirarlo");
-        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial", "hasta que se confirme, el modal sigue abierto");
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nuevo Cliente", "hasta que se confirme, el modal sigue abierto");
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
-        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial");
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente");
     }
 
     [Fact]
@@ -268,7 +268,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
         await cut.PulsarEnElAvisoAsync("Seguir editando");
 
-        var modalCliente = cut.FindAll(".modal-contenido").Single(m => m.QuerySelector("h2")?.TextContent.Trim() == "Nuevo Cliente empresarial");
+        var modalCliente = cut.FindAll(".modal-contenido").Single(m => m.QuerySelector("h2")?.TextContent.Trim() == "Nuevo Cliente");
         await modalCliente.QuerySelector("button.modal-cerrar")!.ClickAsync(new MouseEventArgs());
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?",
             "la X del modal con algo escrito pregunta antes de tirarlo");
@@ -299,7 +299,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         // Una salida a la propia página: descartar cierra el drawer y el modal sin desmontar la página.
         await cut.InvokeAsync(() => Navegacion.NavigateTo("centros?q=zaragoza"));
         await cut.PulsarEnElAvisoAsync("Salir y descartar");
-        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial");
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente");
 
         await AbrirAltaAsync(cut);
         await CrearClienteDesdeElSelectorAsync(cut, "Aceros Ebro");
@@ -321,7 +321,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         PreguntasDeSalida(cut).Should().Be(1);
         await cut.PulsarEnElAvisoAsync("Salir y descartar");
 
-        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial",
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente",
             "el modal que abrió el alta no sobrevive a su descarte");
         cut.FindAll(".drawer-panel").Should().BeEmpty();
     }
@@ -330,7 +330,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     public async Task Lo_escrito_en_el_modal_de_crear_Empresa_pregunta_una_vez_y_lo_traido_del_selector_no()
     {
         var cut = await AbrirAltaAsync(Renderizar());
-        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente…", "Refrielectric S.A.");
         await cut.Find("input[placeholder='Busca o crea una empresa…']").InputAsync(new ChangeEventArgs { Value = "Aceros Ebro" });
         await cut.Find("li.selector-entidad-opcion-crear").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nueva empresa"));
@@ -403,7 +403,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
 
         _mediador.Enviadas.OfType<CrearClienteCommand>().Should().ContainSingle("barrera: el Cliente se creó");
-        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente empresarial");
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Nuevo Cliente");
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
         PreguntasDeSalida(cut).Should().Be(1);
     }
@@ -415,7 +415,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     public async Task El_aviso_de_empresa_sin_elegir_desaparece_al_elegir_la_empresa()
     {
         var cut = await AbrirAltaAsync(Renderizar());
-        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente…", "Refrielectric S.A.");
         await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
@@ -433,15 +433,15 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         var cut = await AbrirAltaAsync(Renderizar());
         await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
-        cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona un Cliente empresarial.", "barrera: sin Cliente avisa del Cliente");
+        cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona un Cliente.", "barrera: sin Cliente avisa del Cliente");
 
-        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente…", "Refrielectric S.A.");
         cut.FindAll(".alerta-formulario").Should().BeEmpty("el Cliente ya está elegido");
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
         cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.", "barrera: ahora falta la Empresa");
 
-        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente empresarial…", "Refrielectric S.A.");
+        await ElegirEnElSelectorAsync(cut, "Busca o crea un Cliente…", "Refrielectric S.A.");
         cut.Find(".alerta-formulario").TextContent.Trim().Should().Be("Selecciona una empresa.",
             "cambiar de Cliente no rellena la Empresa: su aviso sigue siendo verdad");
     }

@@ -181,10 +181,10 @@
     <value>CIF, DNI o NIE</value>
   </data>
   <data name="EtiquetaClientesQueLaContrataron" xml:space="preserve">
-    <value>Clientes empresariales que la contrataron</value>
+    <value>Clientes que la contrataron</value>
   </data>
   <data name="VacioClientesSelector" xml:space="preserve">
-    <value>Todavía no hay Clientes empresariales creados.</value>
+    <value>Todavía no hay Clientes creados.</value>
   </data>
   <data name="EtiquetaEmpresaPrestaServicio" xml:space="preserve">
     <value>Empresa a la que presta servicio</value>
@@ -364,10 +364,10 @@
     <value>{0} centros sin verificar</value>
   </data>
   <data name="RotuloClientesEmpresariales" xml:space="preserve">
-    <value>Clientes empresariales para los que trabaja</value>
+    <value>Clientes para los que trabaja</value>
   </data>
   <data name="VacioClientesEmpresarialesSelector" xml:space="preserve">
-    <value>Todavía no hay Clientes empresariales creados.</value>
+    <value>Todavía no hay Clientes creados.</value>
   </data>
   <data name="RotuloCredencialesPlataformaExterna" xml:space="preserve">
     <value>Credenciales de acceso a plataforma externa</value>
@@ -379,7 +379,7 @@
     <value>la URL</value>
   </data>
   <data name="RotuloCampoEmpresa" xml:space="preserve">
-    <value>Empresa / Cliente empresarial / Proveedor</value>
+    <value>Empresa / Cliente / Proveedor</value>
   </data>
   <data name="CopiarEsteCampo" xml:space="preserve">
     <value>este campo</value>
@@ -457,7 +457,7 @@
     <value>Documentación no modelada a nivel de Subcontrata</value>
   </data>
   <data name="DocumentacionNoModeladaDescripcion" xml:space="preserve">
-    <value>El modelo de datos actual solo asocia Documentos a Trabajador, Cliente empresarial, Empresa o Vehículo — consulta la pestaña Documentación de cada Trabajador de esta subcontrata.</value>
+    <value>El modelo de datos actual solo asocia Documentos a Trabajador, Cliente, Empresa o Vehículo — consulta la pestaña Documentación de cada Trabajador de esta subcontrata.</value>
   </data>
   <data name="BotonVerSusTrabajadores" xml:space="preserve">
     <value>Ver sus trabajadores</value>
@@ -475,7 +475,7 @@
     <value>Sin supervisión registrada</value>
   </data>
   <data name="SupervisionVacioSinCentros" xml:space="preserve">
-    <value>Vincula la subcontrata a un Cliente empresarial con Centros para poder verificar su cumplimiento.</value>
+    <value>Vincula la subcontrata a un Cliente con Centros para poder verificar su cumplimiento.</value>
   </data>
   <data name="SupervisionVacioSinVerificaciones" xml:space="preserve">
     <value>Registra la primera verificación para empezar a seguir su cumplimiento externo.</value>
@@ -711,21 +711,6 @@
   <data name="AriaVerificar" xml:space="preserve">
     <value>Verifica {0} a {1}</value>
   </data>
-  <data name="BandaTrabajadoresUno" xml:space="preserve">
-    <value>1 treballador amb documentació vençuda o pendent:</value>
-  </data>
-  <data name="BandaTrabajadoresVarios" xml:space="preserve">
-    <value>{0} treballadors amb documentació vençuda o pendent:</value>
-  </data>
-  <data name="BandaVerEnSupervision" xml:space="preserve">
-    <value>Veure a Supervisió</value>
-  </data>
-  <data name="BandaY" xml:space="preserve">
-    <value>i</value>
-  </data>
-  <data name="BandaYMas" xml:space="preserve">
-    <value>i {0} més</value>
-  </data>
   <data name="BotonCopiarContrasena" xml:space="preserve">
     <value>Copia la contrasenya</value>
   </data>
@@ -832,7 +817,7 @@
     <value>S'exigeix i no hi ha document</value>
   </data>
   <data name="ExplicacionSupervisada360" xml:space="preserve">
-    <value>Supervisada: la subcontracta puja la seva documentació a la plataforma del Client empresarial titular del Centre i el teu equip hi comprova que és vàlida. La comprovació caduca i s'ha de repetir.</value>
+    <value>Supervisada: la subcontracta puja la seva documentació a la plataforma del Client titular del Centre i el teu equip hi comprova que és vàlida. La comprovació caduca i s'ha de repetir.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>

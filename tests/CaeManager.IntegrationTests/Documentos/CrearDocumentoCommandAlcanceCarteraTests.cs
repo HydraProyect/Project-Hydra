@@ -271,8 +271,8 @@ public class CrearDocumentoCommandAlcanceCarteraTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto(tenant);
 
-        var clienteDentro = Empresa.CrearComoCliente($"Cliente empresarial dentro {sufijo}", cifs[0], false, null, null);
-        var clienteFuera = Empresa.CrearComoCliente($"Cliente empresarial fuera {sufijo}", cifs[1], false, null, null);
+        var clienteDentro = Empresa.CrearComoCliente($"Cliente dentro {sufijo}", cifs[0], false, null, null);
+        var clienteFuera = Empresa.CrearComoCliente($"Cliente fuera {sufijo}", cifs[1], false, null, null);
         var propia = new Empresa($"Empresa propia {sufijo}", cifs[2]);
         var subcontrataFuera = Empresa.CrearComoSubcontrata($"Subcontrata fuera {sufijo}", null, NivelServicioSubcontrata.Gestionada.ToString());
         contexto.Empresas.AddRange(clienteDentro, clienteFuera, propia, subcontrataFuera);

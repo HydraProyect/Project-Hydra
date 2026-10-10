@@ -121,7 +121,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             await contexto.SaveChangesAsync();
         }
 
-        (await ClientesVisiblesParaElGestorDelegadoAsync()).Should().HaveCount(3, "el Tenant entero: los tres Clientes empresariales");
+        (await ClientesVisiblesParaElGestorDelegadoAsync()).Should().HaveCount(3, "el Tenant entero: los tres Clientes");
     }
 
     [Fact]

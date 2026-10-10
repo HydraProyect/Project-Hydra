@@ -120,7 +120,7 @@ public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosConte
             {
                 omitidos.Add(new ItemImportacionDto(
                     NombreHoja, fila, nombre,
-                    "Este Cliente empresarial no existe todavía. Ahora requiere una identificación fiscal (CIF, DNI o NIE), que esta plantilla no recoge — créalo manualmente en Clientes empresariales."));
+                    "Este Cliente no existe todavía. Ahora requiere una identificación fiscal (CIF, DNI o NIE), que esta plantilla no recoge — créalo manualmente en Clientes."));
                 continue;
             }
 

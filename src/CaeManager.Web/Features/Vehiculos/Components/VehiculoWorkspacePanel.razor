@@ -282,6 +282,9 @@ else
         {
             var resultado = await Mediator.Send(new EditarVehiculoCommand(
                 detalle.Id, _nombreInfo, _modeloInfo, _numeroPlacaInfo, detalle.Version));
+            // El guardado ya es firme aunque el panel haya pasado a otra ficha: el listado que
+            // tenga esta fila a la vista la vuelve a pedir y la sustituye en sitio.
+            if (!resultado.EsFallido) WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Vehiculo, detalle.Id);
 
             if (resultado.EsFallido)
             {
