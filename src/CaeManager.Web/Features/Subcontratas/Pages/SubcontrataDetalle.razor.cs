@@ -74,6 +74,12 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     /// <summary>Pestaña activa, en la URL (sin parámetro = Trabajadores), como en las demás fichas 360.</summary>
     [Parameter, SupplyParameterFromQuery(Name = "pestana")] public string? Pestana { get; set; }
 
+    /// <summary>
+    /// Contadores de estado marcados en la pestaña Trabajadores, en la URL y separados por coma
+    /// (<see cref="EstadoDocumentoFicha360.ClavesDesdeUrl"/>); sin parámetro, todos.
+    /// </summary>
+    [Parameter, SupplyParameterFromQuery(Name = "estado")] public string? Estado { get; set; }
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -131,6 +137,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     private string _pestana = PestanaTrabajadores;
     private string? _pestanaDeLaUrl;
+    private string? _estadoDeLaUrl;
     private bool _urlAdoptada;
 
     /// <summary>
@@ -181,13 +188,22 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         await CargarTodoAsync();
     }
 
-    /// <summary>Adopta la pestaña cuando cambia en la URL ahí fuera (un enlace, el botón «atrás»).</summary>
+    /// <summary>
+    /// Adopta la pestaña y los contadores de estado cuando cambian en la URL ahí fuera (un enlace, el botón «atrás»);
+    /// lo que cambia la propia página ya lo apuntó antes de navegar.
+    /// </summary>
     private void AdoptarUrl()
     {
         if (!_urlAdoptada || !string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
             _pestana = PestanasValidas.Contains(Pestana) ? Pestana! : PestanaTrabajadores;
+        }
+
+        if (!_urlAdoptada || !string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
+        {
+            _estadoDeLaUrl = Estado;
+            _estadosMarcados = EstadoDocumentoFicha360.ClavesDesdeUrl(Estado);
         }
 
         _urlAdoptada = true;
@@ -215,7 +231,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         _trabajadores = null;
         _cargandoTrabajadores = true;
         _errorTrabajadores = false;
-        _estadosMarcados = new HashSet<string>();
+        // Los contadores marcados no se reinician aquí: los fija la URL de la subcontrata que se abre (AdoptarUrl).
         _trabajadoresDesplegados.Clear();
         _supervision = null;
         _cargandoSupervision = true;
@@ -525,7 +541,13 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     private bool HayFiltrosActivos => _estadosMarcados.Count > 0;
 
-    private void CambiarEstadosMarcados(IReadOnlySet<string> seleccion) => _estadosMarcados = seleccion;
+    /// <summary>Marcar o quitar un contador lo apunta también en la URL; quitarlos todos retira el parámetro.</summary>
+    private void CambiarEstadosMarcados(IReadOnlySet<string> seleccion)
+    {
+        _estadosMarcados = seleccion;
+        _estadoDeLaUrl = EstadoDocumentoFicha360.ClavesEnUrl(seleccion);
+        NavigationManager.ActualizarFiltroEnUrl("estado", _estadoDeLaUrl);
+    }
 
     private string TextoResumenTrabajadores =>
         Textos["ResumenListaOrdenada", TrabajadoresVisibles.Count, _trabajadores?.Count ?? 0];

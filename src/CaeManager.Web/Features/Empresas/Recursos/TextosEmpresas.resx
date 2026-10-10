@@ -196,6 +196,17 @@
     <value>No hay trabajadores de esta empresa en los centros que puedes ver.</value>
     <comment>El listado se acota a trabajadores con asignación activa en un centro visible.</comment>
   </data>
+  <data name="BuscadorTrabajadores" xml:space="preserve">
+    <value>Buscar trabajador de esta empresa…</value>
+  </data>
+  <data name="VacioBusquedaTitulo" xml:space="preserve">
+    <value>Ningún trabajador con ese filtro</value>
+    <comment>Estado vacío con texto en el buscador (con o sin chip).</comment>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Quitar filtros</value>
+    <comment>Quita el texto del buscador y el chip de estado.</comment>
+  </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
     <value>Ningún trabajador en este estado</value>
     <comment>Estado vacío con un chip de filtro activo.</comment>

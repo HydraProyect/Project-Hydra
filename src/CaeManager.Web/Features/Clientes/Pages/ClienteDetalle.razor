@@ -135,9 +135,20 @@
                             }
                             else if (_centros is not null)
                             {
-                                <p class="cliente360-resumen-lista">@ResumenCentros</p>
+                                var centrosVisibles = CentrosVisibles;
+                                <div class="cliente360-buscador">
+                                    <CampoTexto Type="search" Placeholder="@Textos["BuscadorCentros"]" aria-label="@Textos["BuscadorCentros"]"
+                                                Valor="@_busqueda" ValorChanged="BuscarCentros" />
+                                </div>
+                                <p class="cliente360-resumen-lista">
+                                    @ResumenCentros
+                                    @if (centrosVisibles.Count == 0)
+                                    {
+                                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarFiltros">@Textos["QuitarFiltros"]</Boton>
+                                    }
+                                </p>
                                 <ListaRelaciones Etiqueta="@Textos["ListaCentros"]">
-                                    @foreach (var centro in _centros)
+                                    @foreach (var centro in centrosVisibles)
                                     {
                                         <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" NombreIcono="centros"
                                                       OnAbrir360="() => AbrirCentroAsync(centro)">

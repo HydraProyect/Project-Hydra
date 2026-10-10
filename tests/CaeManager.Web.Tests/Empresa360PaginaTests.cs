@@ -87,6 +87,8 @@ public class Empresa360PaginaTests : BunitContext
         private ResultadoPaginado<TrabajadorListaDto> ResponderTrabajadores(ObtenerTrabajadoresQuery q)
         {
             IEnumerable<TrabajadorListaDto> filas = q.EmpresaId is { } id ? Trabajadores.GetValueOrDefault(id) ?? [] : [];
+            if (!string.IsNullOrWhiteSpace(q.Busqueda))
+                filas = filas.Where(t => $"{t.Nombre} {t.Apellidos}".Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase));
             if (!string.IsNullOrWhiteSpace(q.EstadoDocumental))
                 filas = Enum.TryParse<EstadoDocumento>(q.EstadoDocumental, out var estado)
                     ? filas.Where(t => t.EstadoDocumental == estado)
@@ -772,5 +774,87 @@ public class Empresa360PaginaTests : BunitContext
         cut.FindAll("a").Should().Contain(a => a.GetAttribute("href") == $"/empresas/{EmpresaId}/deteccion-trabajadores");
         cut.FindAll(".menu-acciones-disparador").Should().BeEmpty();
         cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Editar →");
+    }
+
+    // ── Buscador de la pestaña Trabajadores y ?q= ─────────────────────────
+
+    private static IElement Buscador(IRenderedComponent<EmpresaDetalle> cut) => cut.Find("input[type=search]");
+
+    private static List<string> NombresDeLasFilas(IRenderedComponent<EmpresaDetalle> cut) =>
+        cut.FindAll(".fila-relacion-nombre").Select(n => n.TextContent.Trim()).ToList();
+
+    [Fact]
+    public async Task El_buscador_recorta_la_lista_y_los_chips_lo_deja_en_la_url_y_la_cabecera_sigue_contando_a_todos()
+    {
+        var mediador = Registrar(Empresa());
+        var cut = Renderizar();
+
+        await Buscador(cut).InputAsync("vencido");
+
+        cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(3));
+        Chips(cut).Should().Equal(["Todos · 3", "Sin documentación válida · 3", "Por vencer · 0", "Al día · 0"]);
+        Pestana(cut, "Trabajadores").TextContent.Should().Contain("25", "el contador de la pestaña cuenta a todos, no a los buscados");
+        new Uri(Navegacion.Uri).Query.Should().Be("?q=vencido");
+        mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Should().Contain(q => q.Busqueda == "vencido" && q.OrdenarPor != null);
+    }
+
+    [Fact]
+    public void Un_enlace_con_q_y_estado_abre_la_lista_ya_buscada_y_filtrada()
+    {
+        Registrar(Empresa());
+
+        var cut = Renderizar("?q=uno&estado=por-vencer");
+
+        Buscador(cut).GetAttribute("value").Should().Be("uno");
+        ChipPulsado(cut).Should().StartWith("Por vencer");
+        EstadosDeLasFilas(cut).Should().Equal(["Por vencer", "Por vencer"], "«Urgente Uno» y «Próximo Uno»; «Vencido Uno» no es de este chip");
+        Chips(cut).Should().Equal(["Todos · 3", "Sin documentación válida · 1", "Por vencer · 2", "Al día · 0"]);
+        Pestana(cut, "Trabajadores").TextContent.Should().Contain("25");
+    }
+
+    [Fact]
+    public async Task Sin_coincidencias_Quitar_filtros_limpia_el_texto_y_el_chip_tambien_de_la_url()
+    {
+        Registrar(Empresa());
+        var cut = Renderizar("?q=nadie-se-llama-asi&estado=por-vencer");
+        cut.FindAll(".fila-relacion").Should().BeEmpty();
+        Buscador(cut).GetAttribute("value").Should().Be("nadie-se-llama-asi", "sin coincidencias el buscador sigue ahí para corregir el texto");
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Quitar filtros").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => Chips(cut)[0].Should().Be("Todos · 25"));
+        ChipPulsado(cut).Should().StartWith("Todos");
+        Buscador(cut).GetAttribute("value").Should().BeEmpty();
+        new Uri(Navegacion.Uri).Query.Should().BeEmpty("si la URL conservara q o estado, recargar los repondría");
+    }
+
+    [Fact]
+    public void Cambiar_q_desde_fuera_vuelve_a_buscar_y_quitarlo_devuelve_la_lista_entera()
+    {
+        Registrar(Empresa());
+        var cut = Renderizar("?q=vencido");
+        NombresDeLasFilas(cut).Should().HaveCount(3);
+
+        Navegacion.NavigateTo($"empresas/{EmpresaId}?q=urgente");
+        cut.WaitForAssertion(() => EstadosDeLasFilas(cut).Should().Equal(["Por vencer", "Por vencer"]));
+        Buscador(cut).GetAttribute("value").Should().Be("urgente");
+
+        Navegacion.NavigateTo($"empresas/{EmpresaId}");
+        cut.WaitForAssertion(() => Chips(cut)[0].Should().Be("Todos · 25"));
+        Buscador(cut).GetAttribute("value").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Pulsar_un_indicador_de_la_cabecera_quita_el_texto_buscado_porque_el_indicador_cuenta_a_todos()
+    {
+        Registrar(Empresa());
+        var cut = Renderizar("?q=uno");
+        Chips(cut)[1].Should().Be("Sin documentación válida · 1");
+
+        await cut.FindAll(".empresa360-indicador")[0].ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => EstadosDeLasFilas(cut).Should().Equal(["Vencido", "Vencido", "Vencido"]));
+        new Uri(Navegacion.Uri).Query.Should().Be("?estado=sin-documentacion-valida");
+        Buscador(cut).GetAttribute("value").Should().BeEmpty();
     }
 }

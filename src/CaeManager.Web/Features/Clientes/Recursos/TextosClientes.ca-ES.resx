@@ -210,6 +210,18 @@
   <data name="ErrorSubcontratasTitulo" xml:space="preserve">
     <value>No hem pogut carregar les subcontractes</value>
   </data>
+  <data name="BuscadorCentros" xml:space="preserve">
+    <value>Cerca un centre d’aquest client…</value>
+  </data>
+  <data name="ResumenCentrosBuscados" xml:space="preserve">
+    <value>Es mostren {0} de {1}.</value>
+  </data>
+  <data name="ResumenCentrosBuscadosTruncado" xml:space="preserve">
+    <value>Es mostren {0} dels {1} centres amb pitjor estat; aquest Client en té {2} i el cercador només mira aquests {1}.</value>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Treu els filtres</value>
+  </data>
   <data name="ListaCentros" xml:space="preserve">
     <value>Centres d’aquest Client</value>
   </data>

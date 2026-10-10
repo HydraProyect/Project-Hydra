@@ -127,7 +127,13 @@
     <value>Mostrando {0} de {1} · del peor estado al mejor</value>
   </data>
   <data name="FiltroSinResultados" xml:space="preserve">
-    <value>Ninguno en los estados marcados.</value>
+    <value>Ninguno con ese filtro.</value>
+  </data>
+  <data name="BuscadorTrabajadores" xml:space="preserve">
+    <value>Buscar trabajador en este tipo de documento…</value>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Quitar filtros</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
     <value>Ningún Centro exige este documento a ningún trabajador</value>
