@@ -127,6 +127,15 @@ public static class EstadoDocumentalFiltro
             .Where(estado => ClaveOrden(estado) < ClaveSinEstadoDePropietario)
             .ToDictionary(estado => estado.ToString(), estado => filasPorClave.GetValueOrDefault(ClaveOrden(estado)));
 
+    /// <summary>
+    /// El estado al que corresponde una <see cref="ClaveOrden"/>: lo que hace falta para leer un <c>GROUP BY</c>
+    /// sobre la clave con el estado tipado. <c>null</c> si la clave no es la de un estado de propietario.
+    /// </summary>
+    public static EstadoDocumento? EstadoDeClave(int clave) =>
+        clave < ClaveSinEstadoDePropietario
+            ? Enum.GetValues<EstadoDocumento>().Cast<EstadoDocumento?>().FirstOrDefault(estado => ClaveOrden(estado) == clave)
+            : null;
+
     /// <summary>Un número no es un nombre: <c>Enum.TryParse</c> aceptaría "4" como Vencido.</summary>
     private static bool EsNombreDeEstado(string valor, out EstadoDocumento estado)
     {

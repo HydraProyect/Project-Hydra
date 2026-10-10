@@ -167,7 +167,9 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Centros/CalculoEstadoCentroService.cs"] = 1,
         // Filtros y orden por estado que clasifican EN SQL (limiteRojo y limiteAmbar): la calculadora no cabe en
         // una expresión de EF. Atados a CalculadoraEstadoDocumento por CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests.
-        ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs"] = 2,
+        // La de Documentos es la clave de estado de DocumentosFiltrados, que comparten el listado y su resumen por
+        // Tipo de documento: el resumen queda atado al listado por ObtenerResumenDocumentosPorTipoQueryBajoRlsTests.
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/DocumentosFiltrados.cs"] = 2,
         ["src/CaeManager.Application/Empresas/Queries/ObtenerEmpresas/ObtenerEmpresasQuery.cs"] = 2,
         ["src/CaeManager.Application/Trabajadores/Queries/ObtenerTrabajadores/ObtenerTrabajadoresQuery.cs"] = 2,
         ["src/CaeManager.Application/Vehiculos/Queries/ObtenerVehiculos/ObtenerVehiculosQuery.cs"] = 2,

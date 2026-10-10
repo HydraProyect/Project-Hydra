@@ -54,6 +54,11 @@ public record ObtenerDocumentosQuery(
     /// el de siempre (emisión más reciente primero), que es el que conocen la API y las fichas.
     /// </summary>
     public const string OrdenPorSeveridad = "Severidad";
+
+    /// <summary>Lo que decide qué Documentos se listan: todos los parámetros menos el orden, la paginación y el interruptor de los recuentos.</summary>
+    internal FiltrosDeDocumentos Filtros() => new(
+        TrabajadorId, Ambito, Busqueda, Estado, Estados, PropietarioId, FechaVencimientoHasta, DocumentoId,
+        TipoDocumentoId, ProveedorPlataformaCaeId);
 }
 
 /// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
@@ -74,247 +79,48 @@ public record DocumentoListaDto(
     Guid TipoDocumentoId = default);
 
 /// <summary>
-/// Une los Documentos de Trabajador/Cliente/Empresa (cada uno vive en la
-/// misma tabla pero con un único FK de propietario relleno) en una sola
-/// lista paginada — se resuelven por separado (cada ámbito hace su propio
-/// join al propietario que le corresponde) y se combinan con Concat antes
-/// de paginar, en vez de un LEFT JOIN triple. El semáforo (Estado) se
-/// calcula en memoria con CalculadoraEstadoDocumento — la misma función que
-/// usan el Dashboard y RenovarDocumentoCommand — para que nunca haya dos
-/// sitios de la aplicación mostrando vigencias distintas (ver Project-Hydra-Negocio/tecnico/DATABASE.md).
+/// La lista paginada de Documentos. Qué Documentos entran —la unión de los cinco ámbitos, el alcance del usuario,
+/// los filtros y la clave de estado en SQL— lo decide <see cref="DocumentosFiltrados"/>, el mismo punto del que sale
+/// el resumen por Tipo de documento de la lista agrupada; aquí solo se cuenta, se ordena, se pagina y se proyecta.
+/// El semáforo (Estado) de cada fila se calcula en memoria con CalculadoraEstadoDocumento — la misma función que
+/// usan el Dashboard y RenovarDocumentoCommand — para que nunca haya dos sitios de la aplicación mostrando
+/// vigencias distintas (ver Project-Hydra-Negocio/tecnico/DATABASE.md).
 /// </summary>
 public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, IProyectosQueryContext proyectosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos, ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext)
     : IRequestHandler<ObtenerDocumentosQuery, ResultadoPaginado<DocumentoListaDto>>
 {
     public async Task<ResultadoPaginado<DocumentoListaDto>> Handle(ObtenerDocumentosQuery request, CancellationToken cancellationToken)
     {
-        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
-        var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-        var vehiculoIdsVisibles = await alcanceDatos.ObtenerVehiculoIdsVisiblesAsync(cancellationToken);
+        var documentos = await DocumentosFiltrados.ComponerAsync(
+            new FuentesDeDocumentos(
+                configuracionContext, documentosContext, empresasContext, proyectosContext, tiposDocumentoContext,
+                trabajadoresContext, vehiculosContext, alcanceDatos, centrosContext),
+            request.Filtros(),
+            cancellationToken);
+        var claveDeEstado = documentos.ClaveDeEstado;
 
-        var deTrabajador =
-            from documento in documentosContext.Documentos.Operativos()
-            where documento.TrabajadorId != null
-            where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
-            join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            select new
-            {
-                documento.Id,
-                Ambito = AmbitoAplicacion.Trabajador,
-                TrabajadorId = (Guid?)documento.TrabajadorId,
-                PropietarioId = (Guid?)documento.TrabajadorId,
-                PropietarioNombre = trabajador.Nombre + " " + trabajador.Apellidos,
-                TipoDocumentoNombre = tipoDocumento.Nombre,
-                TipoDocumentoId = tipoDocumento.Id,
-                documento.FechaEmision,
-                documento.EstadoVigencia,
-                documento.FechaVencimiento,
-                documento.ArchivoUrl
-            };
-
-        var deCliente =
-            from documento in documentosContext.Documentos.Operativos()
-            where documento.ClienteId != null
-            where clienteIdsVisibles == null || clienteIdsVisibles.Contains(documento.ClienteId!.Value)
-            // Documento.ClienteId ya apunta a Empresas (F3): el propietario "Cliente"
-            // de un Documento se resuelve contra Empresas, no contra Clientes (congelada).
-            join cliente in empresasContext.Empresas on documento.ClienteId!.Value equals cliente.Id
-            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            select new
-            {
-                documento.Id,
-                Ambito = AmbitoAplicacion.Cliente,
-                TrabajadorId = (Guid?)null,
-                PropietarioId = (Guid?)documento.ClienteId,
-                PropietarioNombre = cliente.RazonSocial,
-                TipoDocumentoNombre = tipoDocumento.Nombre,
-                TipoDocumentoId = tipoDocumento.Id,
-                documento.FechaEmision,
-                documento.EstadoVigencia,
-                documento.FechaVencimiento,
-                documento.ArchivoUrl
-            };
-
-        var deEmpresa =
-            from documento in documentosContext.Documentos.Operativos()
-            where documento.EmpresaId != null
-            where empresaIdsVisibles == null || empresaIdsVisibles.Contains(documento.EmpresaId!.Value)
-            join empresa in empresasContext.Empresas on documento.EmpresaId!.Value equals empresa.Id
-            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            select new
-            {
-                documento.Id,
-                Ambito = AmbitoAplicacion.Empresa,
-                TrabajadorId = (Guid?)null,
-                PropietarioId = (Guid?)documento.EmpresaId,
-                PropietarioNombre = empresa.RazonSocial,
-                TipoDocumentoNombre = tipoDocumento.Nombre,
-                TipoDocumentoId = tipoDocumento.Id,
-                documento.FechaEmision,
-                documento.EstadoVigencia,
-                documento.FechaVencimiento,
-                documento.ArchivoUrl
-            };
-
-        var deVehiculo =
-            from documento in documentosContext.Documentos.Operativos()
-            where documento.VehiculoId != null
-            where vehiculoIdsVisibles == null || vehiculoIdsVisibles.Contains(documento.VehiculoId!.Value)
-            join vehiculo in vehiculosContext.Vehiculos on documento.VehiculoId!.Value equals vehiculo.Id
-            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            select new
-            {
-                documento.Id,
-                Ambito = AmbitoAplicacion.Vehiculo,
-                TrabajadorId = (Guid?)null,
-                PropietarioId = (Guid?)documento.VehiculoId,
-                PropietarioNombre = vehiculo.Nombre + " (" + vehiculo.NumeroPlaca + ")",
-                TipoDocumentoNombre = tipoDocumento.Nombre,
-                TipoDocumentoId = tipoDocumento.Id,
-                documento.FechaEmision,
-                documento.EstadoVigencia,
-                documento.FechaVencimiento,
-                documento.ArchivoUrl
-            };
-
-        var deProyecto =
-            from documento in documentosContext.Documentos.Operativos()
-            where documento.ProyectoId != null
-            join proyecto in proyectosContext.Proyectos on documento.ProyectoId!.Value equals proyecto.Id
-            where clienteIdsVisibles == null || clienteIdsVisibles.Contains(proyecto.ClienteId)
-            join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
-            select new
-            {
-                documento.Id,
-                Ambito = AmbitoAplicacion.Proyecto,
-                TrabajadorId = (Guid?)null,
-                PropietarioId = (Guid?)documento.ProyectoId,
-                PropietarioNombre = proyecto.Nombre,
-                TipoDocumentoNombre = tipoDocumento.Nombre,
-                TipoDocumentoId = tipoDocumento.Id,
-                documento.FechaEmision,
-                documento.EstadoVigencia,
-                documento.FechaVencimiento,
-                documento.ArchivoUrl
-            };
-
-        var consulta = deTrabajador.Concat(deCliente).Concat(deEmpresa).Concat(deVehiculo).Concat(deProyecto);
-
-        // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
-        // Las cinco ramas de arriba ya están acotadas al alcance: solo estrecha.
-        if (request.DocumentoId is not null)
-            consulta = consulta.Where(x => x.Id == request.DocumentoId);
-
-        if (request.TrabajadorId is not null)
-            consulta = consulta.Where(x => x.TrabajadorId == request.TrabajadorId);
-
-        if (request.Ambito is not null)
-            consulta = consulta.Where(x => x.Ambito == request.Ambito);
-
-        if (request.PropietarioId is not null)
-            consulta = consulta.Where(x => x.PropietarioId == request.PropietarioId);
-
-        // Los dos filtros recortan la unión ya limitada al alcance del usuario: nunca la amplían.
-        if (request.TipoDocumentoId is { } tipoDocumentoId)
-            consulta = consulta.Where(x => x.TipoDocumentoId == tipoDocumentoId);
-
-        if (request.ProveedorPlataformaCaeId is { } proveedorPlataformaCaeId)
-        {
-            var documentosEnPlataforma =
-                from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
-                join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
-                where canal.ProveedorPlataformaCaeId == proveedorPlataformaCaeId
-                select acreditacion.DocumentoId;
-            consulta = consulta.Where(x => documentosEnPlataforma.Contains(x.Id));
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Busqueda))
-        {
-            var busqueda = request.Busqueda;
-            consulta = consulta.Where(x =>
-                TextoDeBusqueda.Contiene(x.PropietarioNombre, busqueda) ||
-                TextoDeBusqueda.Contiene(x.TipoDocumentoNombre, busqueda));
-        }
-
-        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-        var hoy = DiaDeNegocio.Hoy();
-
-        // Equivalencias con CalculadoraEstadoDocumento, que compara "días
-        // restantes" contra los umbrales: días <= umbral es lo mismo que
-        // fechaVencimiento <= hoy + umbral. Las usan tanto el filtro por
-        // Estado como el orden por Estado, así que se calculan una vez.
-        var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
-        var limiteAmbar = hoy.AddDays(parametros.UmbralAmbarDias);
-
-        // El Estado se sigue calculando con CalculadoraEstadoDocumento —
-        // fuente única de verdad, ver el comentario de clase—, pero el
-        // *filtro* por Estado se traduce a un rango de fechas equivalente
-        // para que SQL pueda hacerlo. Antes no se traducía, y eso obligaba a
-        // materializar todos los Documentos del tenant en cada carga de la
-        // pantalla para paginar en memoria.
-        if (request.FechaVencimientoHasta is { } hasta)
-            consulta = consulta.Where(x => x.FechaVencimiento != null && x.FechaVencimiento >= hoy && x.FechaVencimiento <= hasta);
-
-        // La clave de estado es el mismo CASE de umbrales con el que se ordena más abajo (el orden de
-        // EstadoDocumentalFiltro.ClaveOrden: 0 Vencido, 1 Urgente, 2 Próximo, 3 Sin confirmar, 4 Vigente,
-        // 5 Sin caducidad). «No caduca» y «sin confirmar» se distinguen por EstadoVigencia, nunca por una fecha
-        // nula. Contar, filtrar y ordenar por la misma expresión garantiza que parten los Documentos igual.
-        //
         // Los recuentos se toman ANTES de filtrar por estado y después de todos los demás filtros: cada cifra
-        // de la franja dice cuántos Documentos quedarían al marcar solo ese estado.
+        // de la franja dice cuántos Documentos quedarían al marcar solo ese estado. Se cuentan con la misma clave
+        // con la que se filtra y se ordena, así que parten los Documentos igual.
         IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
         if (request.ConRecuentosPorEstado)
         {
-            recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await consulta
-                .GroupBy(x =>
-                    x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
-                : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
-                : x.FechaVencimiento < hoy ? 0
-                : x.FechaVencimiento <= limiteRojo ? 1
-                : x.FechaVencimiento <= limiteAmbar ? 2
-                : 4)
+            recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await documentos.SinFiltroDeEstado
+                .GroupBy(claveDeEstado)
                 .Select(grupo => new { Clave = grupo.Key, Filas = grupo.Count() })
                 .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken));
         }
 
-        // El Estado se sigue calculando con CalculadoraEstadoDocumento —
-        // fuente única de verdad, ver el comentario de clase—, pero el
-        // *filtro* por Estado se traduce a esa clave, equivalente a un rango
-        // de fechas, para que SQL pueda hacerlo. Antes no se traducía, y eso
-        // obligaba a materializar todos los Documentos del tenant en cada
-        // carga de la pantalla para paginar en memoria. Si alguna vez cambia
-        // la calculadora, la clave cambia con ella —
-        // DocumentosPaginacionEnSqlTests compara ambas para que no se separen
-        // en silencio.
-        var estadosPedidos = (request.Estados ?? []).ToList();
-        if (request.Estado is { } unEstado && !estadosPedidos.Contains(unEstado))
-            estadosPedidos.Add(unEstado);
-
-        if (estadosPedidos.Count > 0)
-        {
-            // «En tolerancia» es un estado de contexto de Centro (VigenciaEnCentro) y Faltante solo lo emiten las
-            // Alertas: esta lista nunca los produce, así que su clave (6) no coincide con ninguna fila. Filtrar
-            // solo por ellos no devuelve nada (y no «todo», que sacaría los vencidos con otro rótulo).
-            var clavesPedidas = estadosPedidos.Select(estado => EstadoDocumentalFiltro.ClaveOrden(estado)).Distinct().ToList();
-            consulta = consulta.Where(x => clavesPedidas.Contains(
-                x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
-                : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
-                : x.FechaVencimiento < hoy ? 0
-                : x.FechaVencimiento <= limiteRojo ? 1
-                : x.FechaVencimiento <= limiteAmbar ? 2
-                : 4));
-        }
-
+        var consulta = documentos.Filtrados;
         var total = await consulta.CountAsync(cancellationToken);
 
         // Lista blanca de columnas ordenables (nombres de propiedad de
         // DocumentoListaDto, que es lo que envía QuickGrid): un OrdenarPor
         // desconocido cae al orden por defecto, nunca se interpola en SQL.
         // "Estado" no está persistido, pero sí lo está FechaVencimiento, así
-        // que se ordena por el mismo CASE de umbrales que usa el filtro de
-        // arriba — exacto y resuelto en la base de datos. Ascendente deja
+        // que se ordena por la clave de estado de DocumentosFiltrados, la
+        // misma expresión con la que se filtra y se cuenta — exacta y
+        // resuelta en la base de datos. Ascendente deja
         // primero lo que más urge, que es lo que el gestor espera del primer
         // clic en esa cabecera; el orden es el de
         // EstadoDocumentalFiltro.ClaveOrden (lo sin confirmar entre lo malo
@@ -331,28 +137,10 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             (nameof(DocumentoListaDto.FechaEmision), true) => consulta.OrderByDescending(x => x.FechaEmision),
             (nameof(DocumentoListaDto.FechaVencimiento), false) => consulta.OrderBy(x => x.FechaVencimiento),
             (nameof(DocumentoListaDto.FechaVencimiento), true) => consulta.OrderByDescending(x => x.FechaVencimiento),
-            (nameof(DocumentoListaDto.Estado), false) => consulta.OrderBy(x =>
-                x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
-                : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
-                : x.FechaVencimiento < hoy ? 0
-                : x.FechaVencimiento <= limiteRojo ? 1
-                : x.FechaVencimiento <= limiteAmbar ? 2
-                : 4),
-            (nameof(DocumentoListaDto.Estado), true) => consulta.OrderByDescending(x =>
-                x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
-                : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
-                : x.FechaVencimiento < hoy ? 0
-                : x.FechaVencimiento <= limiteRojo ? 1
-                : x.FechaVencimiento <= limiteAmbar ? 2
-                : 4),
+            (nameof(DocumentoListaDto.Estado), false) => consulta.OrderBy(claveDeEstado),
+            (nameof(DocumentoListaDto.Estado), true) => consulta.OrderByDescending(claveDeEstado),
             // Orden de inicio del listado: la misma clave de estado y, dentro de cada estado, lo que antes vence.
-            (ObtenerDocumentosQuery.OrdenPorSeveridad, _) => consulta.OrderBy(x =>
-                x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
-                : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
-                : x.FechaVencimiento < hoy ? 0
-                : x.FechaVencimiento <= limiteRojo ? 1
-                : x.FechaVencimiento <= limiteAmbar ? 2
-                : 4).ThenBy(x => x.FechaVencimiento),
+            (ObtenerDocumentosQuery.OrdenPorSeveridad, _) => consulta.OrderBy(claveDeEstado).ThenBy(x => x.FechaVencimiento),
             _ => consulta.OrderByDescending(x => x.FechaEmision)
         };
         // Desempate estable: sin un criterio total, PostgreSQL puede devolver
@@ -387,7 +175,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
             .Select(d => new DocumentoListaDto(
                 d.Id, d.Ambito, d.PropietarioNombre, d.TipoDocumentoNombre, d.FechaEmision, d.FechaVencimiento,
                 CalculadoraEstadoDocumento.Calcular(
-                    d.EstadoVigencia, d.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                    d.EstadoVigencia, d.FechaVencimiento, documentos.Hoy, documentos.UmbralAmbarDias, documentos.UmbralRojoDias),
                 d.ArchivoUrl,
                 acreditacionesPorDocumento.GetValueOrDefault(d.Id, []),
                 d.TipoDocumentoId))

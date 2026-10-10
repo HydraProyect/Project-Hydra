@@ -362,6 +362,16 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "ITrabajadoresQueryContext"),
         ("Documentos.ObtenerPlataformasEnUsoQueryHandler", "ICentrosQueryContext"),
         ("Documentos.ObtenerPlataformasEnUsoQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
+        // Resumen por Tipo de documento del listado agrupado: cuenta sobre la misma consulta que pagina
+        // ObtenerDocumentosQueryHandler (DocumentosFiltrados), así que lee las mismas fuentes que él; las
+        // inyecta el handler, no la composición compartida, para que esta lista las siga viendo.
+        ("Documentos.ObtenerResumenDocumentosPorTipoQueryHandler", "ICentrosQueryContext"),
+        ("Documentos.ObtenerResumenDocumentosPorTipoQueryHandler", "IConfiguracionQueryContext"),
+        ("Documentos.ObtenerResumenDocumentosPorTipoQueryHandler", "IEmpresasQueryContext"),
+        ("Documentos.ObtenerResumenDocumentosPorTipoQueryHandler", "IProyectosQueryContext"),
+        ("Documentos.ObtenerResumenDocumentosPorTipoQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Documentos.ObtenerResumenDocumentosPorTipoQueryHandler", "ITrabajadoresQueryContext"),
+        ("Documentos.ObtenerResumenDocumentosPorTipoQueryHandler", "IVehiculosQueryContext"),
         ("Documentos.ObtenerDocumentacionBaseTrabajadoresQueryHandler", "IConfiguracionQueryContext"),
         ("Documentos.ObtenerDocumentacionBaseTrabajadoresQueryHandler", "ITiposDocumentoQueryContext"),
         ("Documentos.ObtenerDocumentoPorIdQueryHandler", "IClientesQueryContext"),
