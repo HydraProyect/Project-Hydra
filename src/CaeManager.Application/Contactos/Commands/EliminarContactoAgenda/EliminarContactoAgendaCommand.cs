@@ -37,7 +37,9 @@ public class EliminarContactoAgendaCommandHandler(
             // como segunda barrera independiente.
             TipoPropietarioAgenda.Empresa => await alcanceDatos.EmpresaParaGestionVisibleAsync(request.PropietarioId, cancellationToken),
             TipoPropietarioAgenda.Subcontrata => await alcanceDatos.SubcontrataVisibleAsync(request.PropietarioId, cancellationToken),
-            // Mismo criterio que la rama Empresa: alcance de gestión.
+            // Solo la rama Centro: alcance de gestión, como la rama Empresa (ver
+            // IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync). Las ramas
+            // Cliente empresarial y Subcontrata siguen con el alcance de lectura.
             TipoPropietarioAgenda.Centro => await alcanceDatos.CentroParaGestionVisibleAsync(request.PropietarioId, cancellationToken),
             _ => false
         };

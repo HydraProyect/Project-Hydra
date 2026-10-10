@@ -6,6 +6,7 @@ using CaeManager.Application.Centros.Commands.EditarCanalGestion;
 using CaeManager.Application.Centros.Commands.EditarCentro;
 using CaeManager.Application.Centros.Commands.EliminarCanalGestion;
 using CaeManager.Application.Centros.Commands.EliminarCentro;
+using CaeManager.Application.Centros.Commands.EliminarCentros;
 using CaeManager.Application.Centros.Commands.MarcarCanalGestionPrincipal;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Commands.EliminarContactoAgenda;
@@ -497,9 +498,10 @@ public class AutorizacionEscrituraBehaviorTests
     // Command, no con un doble. Si alguno dejara de ser ICommand o pasara a IComandoDeAutoservicio, su caso
     // se pone en rojo.
     //
-    // Los ocho últimos son las escrituras propias del Centro (su ficha, sus canales de gestión documental
-    // y su agenda de contactos). Su segunda barrera es el alcance de gestión del handler, que el rol
-    // Cliente no pasa; la primera, para el rol Consulta y para el rol Cliente por igual, es esta.
+    // Los nueve últimos son las escrituras propias del Centro (su ficha, sus canales de gestión documental,
+    // su agenda de contactos y la baja en lote que ofrece el listado de Centros). Su segunda barrera es el
+    // alcance de gestión del handler, que el rol Cliente no pasa; la primera, para el rol Consulta y para
+    // el rol Cliente por igual, es esta.
     public static TheoryData<object> EscriturasDeLasFichas360 =>
     [
         new CrearAsignacionCommand(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 10, 9)),
@@ -514,6 +516,7 @@ public class AutorizacionEscrituraBehaviorTests
         new ResolverDeteccionAusenteCommand(Guid.NewGuid(), true),
         new EditarCentroCommand(Guid.NewGuid(), "Planta de Getafe", null, null, null, null),
         new EliminarCentroCommand(Guid.NewGuid()),
+        new EliminarCentrosCommand([Guid.NewGuid()]),
         new CrearCanalGestionCommand(Guid.NewGuid(), TipoCanalGestion.Email, "Envío de documentación", null, null, null, null, "cae@ejemplo.test", null, null),
         new EditarCanalGestionCommand(Guid.NewGuid(), "Envío de documentación", null, null, "cae@ejemplo.test", null, null),
         new EliminarCanalGestionCommand(Guid.NewGuid()),

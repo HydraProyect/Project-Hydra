@@ -60,9 +60,9 @@ public interface IAlcanceDatosService
     /// estado eso es correcto; para un artefacto interno de gestión —el
     /// usuario y la contraseña con los que se entra al portal de la Plataforma
     /// CAE de un canal— no lo es. Tampoco para escribir en el Centro: es la
-    /// segunda barrera de la edición y la baja del Centro, de sus canales de
-    /// gestión documental (alta, edición, baja y marcar principal) y de su
-    /// agenda de contactos (guardar y eliminar).
+    /// segunda barrera de la edición y la baja (individual y en lote) del
+    /// Centro, de sus canales de gestión documental (alta, edición, baja y
+    /// marcar principal) y de su agenda de contactos (guardar y eliminar).
     /// </summary>
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken cancellationToken = default);

@@ -3,6 +3,7 @@ using CaeManager.Application.Centros.Commands.EditarCanalGestion;
 using CaeManager.Application.Centros.Commands.EditarCentro;
 using CaeManager.Application.Centros.Commands.EliminarCanalGestion;
 using CaeManager.Application.Centros.Commands.EliminarCentro;
+using CaeManager.Application.Centros.Commands.EliminarCentros;
 using CaeManager.Application.Centros.Commands.MarcarCanalGestionPrincipal;
 using CaeManager.Application.Common;
 using CaeManager.Application.Contactos.Commands.EliminarContactoAgenda;
@@ -22,15 +23,19 @@ using Xunit;
 namespace CaeManager.Application.Tests.Centros;
 
 /// <summary>
-/// Segunda barrera de las ocho escrituras propias de un Centro (su ficha, sus canales de gestión
-/// documental y su agenda de contactos): el alcance de GESTIÓN
+/// Segunda barrera de las escrituras propias de un Centro (su ficha, sus canales de gestión
+/// documental, su agenda de contactos y la baja en lote del listado): el alcance de GESTIÓN
 /// (<see cref="AlcanceDatosServiceExtensions.CentroParaGestionVisibleAsync"/>), no el de lectura.
 ///
 /// La diferencia entre los dos es el rol Cliente —el usuario de portal de un Cliente empresarial—,
 /// al que la cartera de lectura le devuelve sus propios Centros y la de gestión, ninguno. La primera
 /// barrera (<c>AutorizacionEscrituraBehavior</c>) ya no le deja llegar al handler; aquí se prueba que
-/// el handler, por sí solo, tampoco le deja escribir. Con el alcance de lectura como puerta, los ocho
-/// handlers escribirían.
+/// el handler, por sí solo, tampoco le deja escribir. Con el alcance de lectura como puerta, todos
+/// estos handlers escribirían.
+///
+/// La baja en lote va aparte de la teoría: su contrato es de éxito parcial (ver
+/// <c>EliminarClientesCommand</c>), así que un Centro fuera de alcance no hace fallar el comando,
+/// se cuenta como error y el resto del lote sigue.
 /// </summary>
 public class EscriturasDeCentroAlcanceGestionTests
 {
@@ -107,6 +112,44 @@ public class EscriturasDeCentroAlcanceGestionTests
         resultado.EsExitoso.Should().BeTrue($"con gestión sobre el Centro no debe responder {codigoSinGestion}");
         _unitOfWork.VecesGuardado.Should().Be(1);
     }
+
+    [Fact]
+    public async Task La_baja_en_lote_no_elimina_un_Centro_visible_en_lectura_pero_sin_alcance_de_gestion()
+    {
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, centroIdsVisibles: [_centro.Id], centroIdsParaGestion: []);
+
+        var resultado = await BajaEnLote(alcance).Handle(new EliminarCentrosCommand([_centro.Id]), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("el lote es de éxito parcial: lo que no se gestiona se cuenta como error");
+        resultado.Valor.Eliminados.Should().Be(0);
+        resultado.Valor.Errores.Should().ContainSingle();
+        _centro.EstaEliminado.Should().BeFalse();
+    }
+
+    // Control positivo y semántica del lote mixto: quien gestiona un Centro del lote y no el otro
+    // elimina solo el suyo, y el ajeno sale como error sin abortar el resto.
+    [Fact]
+    public async Task La_baja_en_lote_elimina_solo_los_Centros_dentro_del_alcance_de_gestion()
+    {
+        var ajeno = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Planta de Leganés");
+        _centros.Agregar(ajeno);
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, centroIdsVisibles: [_centro.Id, ajeno.Id], centroIdsParaGestion: [_centro.Id]);
+
+        var resultado = await BajaEnLote(alcance).Handle(
+            new EliminarCentrosCommand([ajeno.Id, _centro.Id]), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Eliminados.Should().Be(1);
+        resultado.Valor.IdsEliminados.Should().BeEquivalentTo([_centro.Id]);
+        resultado.Valor.Errores.Should().ContainSingle();
+        _centro.EstaEliminado.Should().BeTrue();
+        ajeno.EstaEliminado.Should().BeFalse();
+    }
+
+    private EliminarCentrosCommandHandler BajaEnLote(IAlcanceDatosService alcance) =>
+        new(_centros, new AsignacionRepositorioFalso(), alcance, _unitOfWork, _usuario);
 
     private async Task<Result> EjecutarAsync(string escritura, IAlcanceDatosService alcance) => escritura switch
     {

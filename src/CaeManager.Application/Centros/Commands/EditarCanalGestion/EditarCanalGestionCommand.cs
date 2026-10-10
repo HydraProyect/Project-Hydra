@@ -66,9 +66,7 @@ public class EditarCanalGestionCommandHandler(
     public async Task<Result> Handle(EditarCanalGestionCommand request, CancellationToken cancellationToken)
     {
         var canal = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        // Defensa en profundidad (mismo criterio que REC-149): inalcanzable para
-        // el rol Cliente vía AutorizacionEscrituraBehavior; alcance de gestión
-        // como segunda barrera independiente.
+        // Alcance de gestión, no de lectura — ver IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync.
         if (canal is null || !await alcanceDatos.CentroParaGestionVisibleAsync(canal.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("CanalGestion.NoEncontrado", "No encontramos este acceso."));
 
