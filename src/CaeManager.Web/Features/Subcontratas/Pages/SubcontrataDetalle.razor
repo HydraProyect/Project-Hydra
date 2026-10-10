@@ -419,6 +419,20 @@
                         </ChildContent>
                     </Tarjeta>
                 </SoloConEscritura>
+
+                @* La nota es del equipo del Tenant propietario. Quién es «del equipo» lo decide el servidor
+                   (ObtenerSubcontrataPorIdQuery): a un usuario de Cliente, que también lee esta ficha, le llega
+                   NotaInternaVisible = false y la tarjeta no existe, ni siquiera vacía. Consulta la lee sin «Editar». *@
+                @if (_detalle.NotaInternaVisible)
+                {
+                    <NotaInterna Texto="@_detalle.Notas">
+                        <Acciones>
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorNota">@Textos["EditarFlecha"]</Boton>
+                            </SoloConEscritura>
+                        </Acciones>
+                    </NotaInterna>
+                }
             </Lateral>
         </CuerpoConLateral>
 
@@ -443,6 +457,16 @@
                                               OnRegistrada="CargarSupervisionAsync" />
 
         <DrawerGestionDocumento @ref="_drawerDocumento" OnGuardado="ManejarDocumentoGuardadoAsync" />
+
+        @* Editor de la nota interna: solo se abre desde «Editar →» de su tarjeta, que ya está tras SoloConEscritura. *@
+        <DrawerFormulario Visible="_editorNotaVisible" VisibleChanged="CambiarVisibilidadEditorNota" Titulo="@Comunes["NotaInternaTitulo"]"
+                          HayCambios="() => HayCambiosEnLaNota" Guardando="_guardandoNota" MensajeError="@_mensajeErrorNota"
+                          HayErroresDeCampo="@(_errorCampoNota is not null)" OnGuardar="GuardarNotaAsync"
+                          TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+            <CampoTextarea Etiqueta="@Comunes["NotaInternaTitulo"]" Valor="@_notaEnEdicion" ValorChanged="v => _notaEnEdicion = v"
+                           Filas="8" MensajeError="@_errorCampoNota" />
+            <p class="subcontrata360-nota">@Comunes["NotaInternaNoLaVeCliente"]</p>
+        </DrawerFormulario>
     }
 </div>
 </LimiteDeErrores>

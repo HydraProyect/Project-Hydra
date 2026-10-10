@@ -1,0 +1,40 @@
+@*
+    Tarjeta «Nota interna» del lateral de una ficha 360 (CuerpoConLateral): el texto libre que el equipo guarda sobre el
+    registro, o «Sin nota interna.» si no hay, y el pie «No la ve el cliente.».
+
+    Es la tarjeta de Cliente 360 (ClienteDetalle, .cliente360-nota) hecha pieza: mismos textos, misma Tarjeta compacta.
+
+    Lo que NO decide esta pieza, porque no puede saberlo:
+      - quién la ve. La nota es del equipo del Tenant propietario: quien la usa solo la pinta si el servidor le dijo que
+        el lector es del equipo (en Subcontrata 360, SubcontrataDetalleDto.NotaInternaVisible). Pintarla vacía a un usuario
+        de Cliente ya le diría que existe una nota que no puede leer;
+      - quién la edita ni cómo. La acción de la cabecera («Editar →») llega en Acciones, con su puerta puesta por quien
+        la usa (SoloConEscritura, AuthorizeView…) y su destino (un DrawerFormulario, otra página).
+
+    El texto conserva los saltos de línea que escribió quien la guardó (white-space: pre-line).
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<div class="nota-interna" data-pieza="nota-interna">
+    <Tarjeta Compacta="true" Titulo="@Comunes["NotaInternaTitulo"]" AccionesHeader="Acciones">
+        @if (string.IsNullOrWhiteSpace(Texto))
+        {
+            <p class="texto-vacio-seccion nota-interna-texto" data-vacia="true">@Comunes["NotaInternaVacia"]</p>
+        }
+        else
+        {
+            <p class="nota-interna-texto">@Texto</p>
+        }
+        <p class="nota-interna-pie">@Comunes["NotaInternaNoLaVeCliente"]</p>
+    </Tarjeta>
+</div>
+
+@code {
+    /// <summary>La nota. Nula, vacía o solo espacios: se pinta el vacío.</summary>
+    [Parameter] public string? Texto { get; set; }
+
+    /// <summary>La acción de la cabecera de la tarjeta, ya con la puerta que le corresponda. Sin ella, la tarjeta es de solo lectura.</summary>
+    [Parameter] public RenderFragment? Acciones { get; set; }
+}

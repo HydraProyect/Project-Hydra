@@ -51,7 +51,8 @@ public class SubcontrataWorkspacePanelLapizTests : BunitContext
             ObtenerSubcontrataPorIdQuery when _cargasQueFallan-- > 0 => throw new InvalidOperationException("Fallo simulado de la carga."),
             ObtenerSubcontrataPorIdQuery when _cargasSinFicha-- > 0 => null,
             ObtenerSubcontrataPorIdQuery => new SubcontrataDetalleDto(
-                Id, "Pinturas Lauburu S.A.", "A-48.007.615", DateTime.UtcNow, [], [], Guid.NewGuid(), NivelServicioSubcontrata.Gestionada),
+                Id, "Pinturas Lauburu S.A.", "A-48.007.615", DateTime.UtcNow, [], [], Guid.NewGuid(), NivelServicioSubcontrata.Gestionada,
+                Notas: null, NotaInternaVisible: true),
             ObtenerSubcontratasQuery q => new ResultadoPaginado<SubcontrataListaDto>([], 0, q.Pagina, q.TamanoPagina),
             ObtenerTrabajadoresQuery q => new ResultadoPaginado<TrabajadorListaDto>([], 0, q.Pagina, q.TamanoPagina),
             ObtenerCentrosConActividadDeSubcontrataQuery => (IReadOnlyList<CentroConActividadDto>)[],

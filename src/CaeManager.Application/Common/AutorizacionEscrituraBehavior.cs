@@ -116,7 +116,8 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
 {
     // Consulta y Cliente quedan fuera por ser de solo lectura; cualquier otro
     // valor —incluido null— tampoco escribe.
-    private static readonly string[] RolesConEscritura =
+    // internal: lo leen los tests que exigen que quien puede escribir un dato pueda también leerlo.
+    internal static readonly string[] RolesConEscritura =
         ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
 
     // Todos los roles que existen (Roles.Todos): un IComandoDeAutoservicio pasa con

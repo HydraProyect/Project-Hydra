@@ -18,7 +18,7 @@ namespace CaeManager.IntegrationTests.Clientes;
 ///
 /// <para>
 /// La nota la escribe el equipo que gestiona la cartera sobre el propio Cliente
-/// empresarial («Solo visible para tu equipo»). El Usuario de Cliente (rol
+/// empresarial («No la ve el cliente»). El Usuario de Cliente (rol
 /// Cliente) tiene a su Cliente empresarial dentro del alcance de LECTURA, así
 /// que la ficha le llega; la nota no. Mismo criterio que el resto de artefactos
 /// internos de gestión: <c>OperaDesdeElLadoDeGestionAsync</c>.

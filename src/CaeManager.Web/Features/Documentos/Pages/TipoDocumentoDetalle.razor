@@ -191,6 +191,16 @@
                         </RejillaDatos>
                     </ChildContent>
                 </Tarjeta>
+
+                @* TipoDocumento.Notas: la página entera ya es solo de roles de gestión (RolesDeLaPagina), así que la
+                   nota no necesita corte propio. Se edita donde el resto del tipo, y solo el Administrador. *@
+                <NotaInterna Texto="@estado.Notas">
+                    <Acciones>
+                        <AuthorizeView Roles="@Roles.Administrador">
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IrAConfiguracionDelTipo">@Textos["InfoEditar"]</Boton>
+                        </AuthorizeView>
+                    </Acciones>
+                </NotaInterna>
             </Lateral>
         </CuerpoConLateral>
     }

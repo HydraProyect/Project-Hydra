@@ -468,6 +468,17 @@
   <data name="CumplimientoSinRequisitos" xml:space="preserve">
     <value>Sin requisitos</value>
   </data>
+  <data name="NotaInternaTitulo" xml:space="preserve">
+    <value>Nota interna</value>
+    <comment>Título de la tarjeta NotaInterna del lateral de las fichas 360 y de su editor.</comment>
+  </data>
+  <data name="NotaInternaVacia" xml:space="preserve">
+    <value>Sin nota interna.</value>
+  </data>
+  <data name="NotaInternaNoLaVeCliente" xml:space="preserve">
+    <value>No la ve el cliente.</value>
+    <comment>Pie de la tarjeta NotaInterna: la nota no la ve el usuario de un Cliente. La ven el equipo y el Gestor CAE de un Operador CAE externo.</comment>
+  </data>
   <data name="RestablecerVista" xml:space="preserve">
     <value>Restablecer vista</value>
   </data>

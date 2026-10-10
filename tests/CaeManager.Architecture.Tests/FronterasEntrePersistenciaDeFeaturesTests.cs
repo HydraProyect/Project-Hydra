@@ -211,6 +211,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Subcontratas.RestaurarSubcontrataCommandHandler", "IEmpresasQueryContext"),
         ("Subcontratas.CambiarNivelServicioSubcontrataCommandHandler", "IEmpresaRepository"),
         ("Subcontratas.GuardarCredencialAccesoSubcontrataCommandHandler", "IEmpresaRepository"),
+        // «Nota interna» de Subcontrata 360: escribe Empresa.Notas, por el mismo motivo que sus vecinos.
+        ("Subcontratas.GuardarNotaInternaSubcontrataCommandHandler", "IEmpresaRepository"),
         ("Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler", "IEmpresaRepository"),
         // F3b-Subcontrata: el detalle de Subcontrata (RazonSocial/Cif/NivelServicio)
         // ahora vive en Empresas; ISubcontratasQueryContext se conserva en este
