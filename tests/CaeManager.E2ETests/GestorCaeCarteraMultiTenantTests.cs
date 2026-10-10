@@ -198,13 +198,13 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
         var filaVisita = page.Locator("tr", new() { HasText = CentroB }).Filter(new() { HasText = fechaVisita.ToString("dd/MM/yyyy") });
         await Expect(filaVisita).ToHaveCountAsync(1);
-        // La fila no lleva menú «⋯»: cancelar una Visita, también una sola, va por la selección múltiple.
-        await page.GetByRole(AriaRole.Button, new() { Name = "Selección múltiple", Exact = true }).ClickAsync();
-        await filaVisita.Locator("input[type=checkbox]:not(.visitas-interruptor)").CheckAsync();
-        await page.Locator(".barra-acciones-lote").GetByRole(AriaRole.Button, new() { Name = "Cancelar seleccionadas", Exact = true }).ClickAsync();
+        // La fila no lleva menú «⋯»: cancelar una sola Visita se hace desde el pie de su panel.
+        await filaVisita.Locator("button.nombre-abre-vista-rapida").ClickAsync();
+        var panel = page.Locator(".drawer-panel");
+        await panel.GetByRole(AriaRole.Button, new() { Name = "Cancelar visita", Exact = true }).ClickAsync();
         var confirmacion = page.GetByRole(AriaRole.Dialog, new() { Name = "¿Cancelar 1 visita(s)?", Exact = true });
-        await confirmacion.GetByRole(AriaRole.Button, new() { Name = "Cancelar seleccionadas", Exact = true }).ClickAsync();
-        await Expect(page.GetByText("1 visita(s) cancelada(s).", new() { Exact = true })).ToBeVisibleAsync();
+        await confirmacion.GetByRole(AriaRole.Button, new() { Name = "Cancelar visita", Exact = true }).ClickAsync();
+        await Expect(page.GetByText("Visita cancelada.", new() { Exact = true })).ToBeVisibleAsync();
         // Con «Solo activas» (marcado por defecto) la cancelada sale del listado. Barrera
         // antes de la ausencia: la Visita sembrada de mañana, en el mismo Centro, sigue.
         await Expect(page.Locator("tr", new() { HasText = CentroB }).Filter(new() { HasText = hoy.AddDays(1).ToString("dd/MM/yyyy") }))

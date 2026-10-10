@@ -395,7 +395,7 @@ public partial class VisitasGen2Tests : BunitContext
     private static IElement? BotonReactivarDeFila(IRenderedComponent<Visitas> cut, string centro) =>
         Fila(cut, centro).QuerySelectorAll(".visitas-celda-acciones button").FirstOrDefault(b => b.TextContent.Trim() == "Reactivar");
 
-    /// <summary>Cancelar una Visita solo existe en la selección múltiple: la enciende, marca la fila y pulsa «Cancelar seleccionadas».</summary>
+    /// <summary>Cancelar desde la barra de lote: enciende la selección múltiple, marca la fila y pulsa «Cancelar seleccionadas».</summary>
     private static async Task AbrirCancelarPorSeleccionAsync(IRenderedComponent<Visitas> cut, string centro)
     {
         await cut.FindAll("button").First(b => b.GetAttribute("aria-label") == "Selección múltiple").ClickAsync(new MouseEventArgs());
@@ -918,9 +918,9 @@ public partial class VisitasGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// FS-11 y fila sin menú: cancelar una sola Visita se hace desde la selección múltiple. Pide
-    /// confirmación con motivo opcional, deja la Visita fuera de la lista activa y el aviso ofrece
-    /// «Deshacer», que la reactiva.
+    /// FS-11 y fila sin menú: cancelar desde la barra de lote (selección múltiple). Pide confirmación con
+    /// motivo opcional, deja la Visita fuera de la lista activa y el aviso ofrece «Deshacer», que la reactiva.
+    /// La vía de una sola Visita por el pie del panel es la del test siguiente.
     /// </summary>
     [Fact]
     public async Task Cancelar_una_visita_va_por_la_seleccion_multiple_con_confirmacion_motivo_y_deshacer()
@@ -951,6 +951,34 @@ public partial class VisitasGen2Tests : BunitContext
 
         mediator.Comandos.OfType<ReactivarVisitaCommand>().Should().ContainSingle().Which.Id.Should().Be(zaragoza.Id);
         cut.WaitForAssertion(() => cut.FindAll("tbody tr").Should().Contain(tr => tr.TextContent.Contains("Planta Zaragoza")));
+    }
+
+    /// <summary>
+    /// Cancelar una sola Visita desde el pie de su panel: un clic para pedirlo, la misma confirmación con motivo
+    /// opcional, y el comando solo para esa Visita (la otra, sin seleccionar, no se toca).
+    /// </summary>
+    [Fact]
+    public async Task Cancelar_una_visita_desde_el_pie_del_panel_pregunta_con_motivo_y_manda_solo_esa()
+    {
+        var norte = Visita("Centro Norte");
+        var zaragoza = Visita("Planta Zaragoza");
+        var mediator = new MediatorVisitas();
+        mediator.Visitas.AddRange([norte, zaragoza]);
+        var cut = Renderizar(mediator);
+
+        await BotonVistaRapida(cut, "Planta Zaragoza").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().Contain("Planta Zaragoza"));
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Cancelar visita").ClickAsync(new MouseEventArgs());
+
+        cut.Markup.Should().Contain("¿Cancelar 1 visita(s)?");
+        mediator.Comandos.Should().BeEmpty("abrir el diálogo no cancela nada");
+
+        await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = "Obra aplazada" });
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar visita").ClickAsync(new MouseEventArgs());
+
+        var comando = mediator.Comandos.Should().ContainSingle().Which.Should().BeOfType<CancelarVisitasCommand>().Subject;
+        comando.Ids.Should().Equal(zaragoza.Id);
+        comando.Motivo.Should().Be("Obra aplazada");
     }
 
     /// <summary>
