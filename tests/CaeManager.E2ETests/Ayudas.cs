@@ -1,4 +1,6 @@
-﻿using System.Security.Cryptography;
+﻿using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
 using PdfSharp.Pdf;
@@ -705,7 +707,45 @@ public static class Ayudas
         return false;
     }
 
-    public static async Task IniciarSesionAsync(IPage page, string baseUrl, string email, string password)
+    /// <summary>
+    /// Deja <paramref name="page"/> con la sesión de la cuenta iniciada, en la
+    /// página a la que lleva el formulario de acceso y con <c>.nav-principal</c>
+    /// visible. No todos los tests teclean las credenciales: los ficheros de la
+    /// lista de <see cref="SesionReutilizada"/> reutilizan la sesión que dejó el
+    /// primer inicio de sesión de esa cuenta en su fixture, y el resto —toda clase
+    /// de autorización, sesión, segundo factor, multi-Tenant, soporte o auditoría,
+    /// y cualquier fichero que nadie haya añadido a la lista— sigue entrando por
+    /// la interfaz en cada llamada. La postcondición es la misma por las dos vías,
+    /// salvo una: la vía rápida no espera <c>NetworkIdle</c>, así que un test que
+    /// use la página de aterrizaje sin navegar antes no debe estar en la lista.
+    /// Los dos últimos parámetros los rellena el compilador; no se pasan a mano.
+    /// </summary>
+    public static async Task IniciarSesionAsync(
+        IPage page, string baseUrl, string email, string password,
+        [CallerFilePath] string ficheroLlamante = "", [CallerMemberName] string miembroLlamante = "")
+    {
+        var cronometro = Stopwatch.StartNew();
+        var via = "interfaz-fuera-de-lista";
+
+        if (!SesionReutilizada.Aplica(ficheroLlamante, miembroLlamante))
+        {
+            await IniciarSesionPorInterfazAsync(page, baseUrl, email, password);
+        }
+        else
+        {
+            (var reutilizada, via) = await SesionReutilizada.IntentarAsync(page, baseUrl, email, password);
+            if (!reutilizada)
+            {
+                await SesionReutilizada.CapturarAsync(
+                    page, baseUrl, email, password,
+                    () => IniciarSesionPorInterfazAsync(page, baseUrl, email, password));
+            }
+        }
+
+        SesionReutilizada.Registrar(via, cronometro.Elapsed, baseUrl, email, ficheroLlamante, miembroLlamante);
+    }
+
+    private static async Task IniciarSesionPorInterfazAsync(IPage page, string baseUrl, string email, string password)
     {
         await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
         await page.FillAsync("#email", email);
@@ -722,8 +762,15 @@ public static class Ayudas
             await page.ClickAsync("button[type=\"submit\"]");
         }
 
-        await page.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+        await EsperarNavegacionPrincipalAsync(page);
     }
+
+    /// <summary>
+    /// Condición final de un inicio de sesión, definida una sola vez para que la
+    /// vía de la interfaz y la de <see cref="SesionReutilizada"/> terminen en la misma.
+    /// </summary>
+    internal static Task EsperarNavegacionPrincipalAsync(IPage page) =>
+        page.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
 
     /// <summary>
     /// TOTP de 6 dígitos (RFC 6238, HMAC-SHA1, paso de 30s) — el mismo
