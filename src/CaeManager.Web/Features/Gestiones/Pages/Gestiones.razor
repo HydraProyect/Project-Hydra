@@ -92,7 +92,7 @@
                 @* La fecha es el día de negocio (hora peninsular) del instante de creación, el mismo día que
                    enseña la vista rápida y del que sale el motivo «Abierta hace N días»; se ordena por el instante. *@
                 <TemplateColumn Title="@Textos["ColumnaCreada"]" Class="gestion-creada" Sortable="true" SortBy="OrdenCreadaListado">
-                    @context.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
+                    @(context.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy"))
                 </TemplateColumn>
                 @* El motivo dice cuánto lleva abierta la Gestión pendiente; la completada no lleva motivo. *@
                 <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado" Sortable="true" IsDefaultSortColumn="true" InitialSortDirection="SortDirection.Ascending" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
