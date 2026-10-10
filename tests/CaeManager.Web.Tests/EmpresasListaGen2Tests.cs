@@ -68,6 +68,9 @@ public partial class EmpresasListaGen2Tests : BunitContext
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> ClientesDe { get; } = [];
         public HashSet<Guid> ClientesQueFallan { get; } = [];
 
+        /// <summary>Lo que devuelve la lectura del documento que abre el formulario de corrección de una incidencia.</summary>
+        public CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.DocumentoDetalleDto? Documento { get; set; }
+
         /// <summary>Lo que devuelve la consulta de la cabecera «Gestor CAE» a una cuenta del Operador CAE.</summary>
         public List<CarterasDeOperacion> Carteras { get; } = [];
 
@@ -131,6 +134,22 @@ public partial class EmpresasListaGen2Tests : BunitContext
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)Array.Empty<ClienteSelectorDto>(),
             ObtenerPersonasConCarteraQuery => (IReadOnlyList<CarterasDeOperacion>)Carteras,
             CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant.ObtenerOperadoresCaeDeMiTenantQuery => (IReadOnlyList<CarterasDeOperacion>)CarterasComoPropietario,
+            // Los botones de la cabecera «Gestor CAE» (PanelDarAcceso en su forma de cabecera): aquí, sin apoyos.
+            CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerPropuestasApoyoPendientesQuery =>
+                new CaeManager.Application.Operaciones.ApoyoCartera.Queries.PropuestasApoyoPendientesDto([], []),
+            CaeManager.Application.Operaciones.ApoyoCartera.Queries.ObtenerApoyosDeCarteraQuery =>
+                CaeManager.Application.Operaciones.ApoyoCartera.Queries.ApoyosDeCarteraDto.Vacio,
+            // El formulario de corrección de una incidencia (DrawerGestionDocumento).
+            CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId.ObtenerDocumentoPorIdQuery => Documento!,
+            CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.ObtenerTrabajadoresParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector.TrabajadorSelectorDto>)[],
+            CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector.ObtenerVehiculosParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Vehiculos.Queries.ObtenerVehiculosParaSelector.VehiculoSelectorDto>)[],
+            CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector.ObtenerEmpresasParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector.EmpresaSelectorDto>)[],
+            CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.ObtenerTiposDocumentoQuery =>
+                (IReadOnlyList<CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento.TipoDocumentoListaDto>)[],
+            CaeManager.Application.Documentos.Commands.RenovarDocumento.RenovarDocumentoCommand renovar => Result.Exito(renovar.Id),
             CrearEmpresaCommand => Result.Exito(Guid.NewGuid()),
             EliminarEmpresaCommand => Result.Exito(),
             EliminarEmpresasCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(
@@ -152,7 +171,10 @@ public partial class EmpresasListaGen2Tests : BunitContext
                 .OrderBy(e => e.RazonSocial, StringComparer.Ordinal).ThenBy(e => e.Id)
                 .ToList();
 
-            var pagina = coincidentes.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList();
+            // Como el handler: sin pedir el desglose, las filas llegan sin incidencias.
+            var pagina = coincidentes.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina)
+                .Select(e => q.ConDesgloseDocumental ? e : e with { Incidencias = [] })
+                .ToList();
             return new ResultadoPaginado<EmpresaListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina);
         }
 

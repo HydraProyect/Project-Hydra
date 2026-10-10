@@ -21,35 +21,71 @@
 
 .rejilla-empresas {
     /*
-      chevron · empresa (razón social y CIF) · cumplimiento · documentación · detecciones · acciones
+      chevron · empresa (razón social y CIF) · detecciones · cumplimiento · estado documental · acciones
+      (orden de la maqueta aprobada)
 
       Ninguna pista se resuelve por contenido. La cabecera y cada fila son rejillas DISTINTAS que solo
       comparten esta definición: con la última pista en «auto», la fila la medía por su disparador «⋯»
       (44 px) y la cabecera, cuya celda está vacía, la dejaba en 0, así que la pista elástica de la
-      cabecera era 44 px más ancha y «Cumplimiento», «Documentación» y «Detecciones» quedaban 44 px a la
-      derecha de sus celdas (medido a 1280 px, 2026-10-09). 44 px es lo que mide hoy el disparador «⋯»
+      cabecera era 44 px más ancha y los rótulos de las columnas quedaban 44 px a la derecha de sus
+      celdas (medido a 1280 px, 2026-10-09). 44 px es lo que mide hoy el disparador «⋯»
       de MenuAcciones; si ese ancho cambia, las columnas siguen alineadas y solo cambia el aire de la
       última. Lo fija EmpresasCabeceraAlineadaE2ETests.
+
+      La columna de estado mide 200 px, como «col-estado» de list-page.css en los listados con tabla: es
+      el ancho que necesita el motivo bajo la pastilla.
     */
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) 132px 132px 116px 44px;
+    grid-template-columns: 28px minmax(0, 1fr) 116px 132px 200px 44px;
     gap: var(--space-2);
     align-items: center;
 }
 
 /* Con selección múltiple entra una casilla delante y las columnas se corren. */
 .rejilla-empresas-seleccion {
-    grid-template-columns: 24px 28px minmax(0, 1fr) 132px 132px 116px 44px;
+    grid-template-columns: 24px 28px minmax(0, 1fr) 116px 132px 200px 44px;
 }
 
-/* Estrecho: la barra oculta su pista y la columna de cumplimiento se queda en el ancho de la cifra. */
+/* Estrecho: la barra oculta su pista y la columna de cumplimiento se queda en el ancho de la cifra; la
+   de estado vuelve a su ancho mínimo, y el motivo se recorta antes. */
 @media (max-width: 767px) {
     .rejilla-empresas {
-        grid-template-columns: 28px minmax(0, 1fr) 48px 132px 116px 44px;
+        grid-template-columns: 28px minmax(0, 1fr) 116px 48px 132px 44px;
     }
 
     .rejilla-empresas-seleccion {
-        grid-template-columns: 24px 28px minmax(0, 1fr) 48px 132px 116px 44px;
+        grid-template-columns: 24px 28px minmax(0, 1fr) 116px 48px 132px 44px;
+    }
+}
+
+/* La celda de estado no desborda su pista: el motivo se recorta dentro (MotivoIncidenciasDocumentales). */
+.celda-estado-empresa {
+    min-width: 0;
+}
+
+/*
+  Cabecera de la página en UNA línea en escritorio: el dato «Gestor CAE» encoge (CabeceraGestorCae recorta
+  sus nombres y agrupa en «+N» a quien no cabe) en vez de empujar los botones a otra fila. Solo en esta
+  pantalla y por ::deep: la caja .cabecera-pagina es de CabeceraPagina y la comparten todas las demás, que
+  no llevan un dato largo junto al título. Por debajo de 1024 px la cabecera vuelve a partirse, como siempre.
+*/
+@media (min-width: 1024px) {
+    .contenedor-pagina ::deep .cabecera-pagina {
+        flex-wrap: nowrap;
+    }
+
+    .contenedor-pagina ::deep .cabecera-pagina-texto {
+        flex: 1 1 auto;
+    }
+
+    .contenedor-pagina ::deep .cabecera-pagina-titular {
+        flex-wrap: nowrap;
+    }
+
+    .contenedor-pagina ::deep .cabecera-pagina-titular .titulo-pagina,
+    .contenedor-pagina ::deep .acciones-cabecera {
+        flex: none;
+        white-space: nowrap;
     }
 }
 
@@ -135,7 +171,16 @@
     outline-offset: -2px;
 }
 
-/* Rótulo de la fila desplegada: «Clientes», sin recuento. */
+/* Incidencias documentales de la fila desplegada, antes de sus Clientes: una línea por documento. */
+.incidencias-fila-empresa {
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    margin-bottom: var(--space-3);
+}
+
+/* Rótulos de la fila desplegada: cuántas incidencias hay y «Clientes», sin recuento. */
+.titulo-incidencias-empresa,
 .titulo-clientes-empresa {
     display: block;
     margin-bottom: var(--space-2);
