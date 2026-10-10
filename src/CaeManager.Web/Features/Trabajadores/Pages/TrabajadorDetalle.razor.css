@@ -21,7 +21,7 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Operación: un centro, una tarjeta                                    */
+/* Centros: un centro, una tarjeta                                    */
 /* ------------------------------------------------------------------ */
 
 /*
@@ -57,6 +57,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    flex-wrap: wrap;
     min-height: 44px;
     padding: var(--space-2) var(--space-4);
 }
@@ -267,4 +268,9 @@
     font-weight: 600;
     color: var(--color-text);
     overflow-wrap: anywhere;
+}
+
+.trabajador360-centro-alta {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
 }

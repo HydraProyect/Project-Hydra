@@ -112,16 +112,16 @@
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
-        <PanelDocumentacionBase TrabajadorId="TrabajadorId" />
         <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestanaActiva" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["AriaSeccionesTrabajador360"]">
             @switch (_pestanaActiva)
             {
                 case PestanaOperacion:
+                    <PanelDocumentacionBase TrabajadorId="TrabajadorId" />
                     @*
                         Franja «Por vencer» (decisión del propietario 2026-09-24,
                         Q3 = (a)): los documentos del trabajador en Próximo o
-                        Urgente, con el umbral ámbar del tenant. Va antes que los
-                        Centros porque es lo que hay que renovar ya. Sin ninguno,
+                        Urgente, con el umbral ámbar del tenant. Va después de la
+                        documentación base en Operación. Sin ninguno,
                         la franja no se pinta.
                     *@
                     @if (DocumentosPorVencer is { Count: > 0 } porVencer)
@@ -140,6 +140,50 @@
                     }
 
                     @*
+                        Gestiones pendientes (solo si hay, 04 § 6 — un
+                        vacío nunca se presenta como éxito, pero tampoco se muestra
+                        un bloque vacío sin motivo: si no hay ninguna, el bloque
+                        entero no aparece).
+                    *@
+                    @if (_cargandoGestiones)
+                    {
+                        <div class="separador-ambito">@Textos["SeparadorGestionesPendientes"]</div>
+                        <EstadoCargando Filas="2" />
+                    }
+                    else if (_gestionesPendientes.Count > 0)
+                    {
+                        <div class="separador-ambito">@Textos["SeparadorGestionesPendientes"]</div>
+                        <div class="tabla-documentos-requeridos" role="table" aria-label="@Textos["SeparadorGestionesPendientes"]">
+                            <div class="documentos-requeridos-cabecera" role="row">
+                                <span role="columnheader">@Textos["ColumnaGestion"]</span>
+                                <span role="columnheader">@Textos["ColumnaCentro"]</span>
+                                <span role="columnheader">@Textos["ColumnaCreada"]</span>
+                                <span role="columnheader" class="columna-accion">@Textos["ColumnaAccion"]</span>
+                            </div>
+                            @foreach (var gestion in _gestionesPendientes)
+                            {
+                                <div class="fila-documento-requerido" role="row" @key="gestion.Id">
+                                    <span class="celda-documento-nombre" role="cell">@gestion.TipoDocumentoNombre</span>
+                                    <span role="cell">@gestion.CentroNombre</span>
+                                    <span role="cell">@gestion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</span>
+                                    <span class="columna-accion" role="cell">
+                                        @* CompletarGestionCommand es ICommand, denegado a Consulta. *@
+                                        <SoloConEscritura>
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                   Cargando="_completandoGestion.Contains(gestion.Id)"
+                                                   OnClick="() => CompletarGestionAsync(gestion.Id)">
+                                                @Textos["AccionCompletar"]
+                                            </Boton>
+                                        </SoloConEscritura>
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    break;
+
+                case PestanaCentros:
+                    @*
                         Ámbito 1: Documentación por centro (completo — es lo que se
                         opera aquí, a diferencia de la pestaña "Documentación" plana
                         del Workspace Panel). Acordeón por centro, mismo lenguaje que
@@ -154,7 +198,7 @@
                     {
                         <div class="separador-ambito">@Textos["SeparadorDocumentacionPorCentro"]</div>
                         @*
-                            Mockup Gen 2 § Operación: lo primero que hay que
+                            Mockup Gen 2 § Centros: lo primero que hay que
                             entender de esta lista es por qué el mismo
                             trabajador puede estar completo en una fila y
                             bloqueado en la de al lado.
@@ -191,6 +235,13 @@
                                                 </span>
                                             </span>
                                         </button>
+                                        <span class="trabajador360-centro-alta">@Textos["ColumnaDesde"] @centro.FechaAlta.ToString("dd/MM/yyyy")</span>
+                                        <SoloConEscritura>
+                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="trabajador360-centro-baja accion-fila-enlace"
+                                                   OnClick="() => AbrirBajaAsignacionConfirm(centro.AsignacionId, centro.CentroNombre)">
+                                                @Textos["AccionDarDeBajaDeCentro"]
+                                            </Boton>
+                                        </SoloConEscritura>
                                         <Badge Tono="EstadoDocumentoUi.Tono(centro.PeorEstado)" Tamano="TamanoBadge.Pequeno">
                                             @(incidencias == 0
                                                 ? (sinConfirmarCentro != 0 ? Textos["BadgeAlDiaSinConfirmar"] : Textos["BadgeCompleto"])
@@ -269,81 +320,6 @@
                             }
                         </div>
 
-                        @*
-                            Ámbito 2: Asignaciones (compacto) — mismos centros de
-                            arriba, sin volver a consultar el servidor: es el mismo
-                            AsignacionId/CentroNombre/ClienteRazonSocial/FechaAlta ya
-                            cargado para la Documentación por centro.
-                        *@
-                        <div class="separador-ambito">@Textos["SeparadorAsignaciones"]</div>
-                        <div class="tabla-documentos-requeridos" role="table" aria-label="@Textos["AriaAsignacionesActivas"]">
-                            <div class="documentos-requeridos-cabecera" role="row">
-                                <span role="columnheader">@Textos["ColumnaCentro"]</span>
-                                <span role="columnheader">@Textos["ColumnaClienteEmpresarial"]</span>
-                                <span role="columnheader">@Textos["ColumnaDesde"]</span>
-                                <span role="columnheader" class="columna-accion">@Textos["ColumnaAccion"]</span>
-                            </div>
-                            @foreach (var centro in _centros)
-                            {
-                                <div class="fila-documento-requerido" role="row" @key="centro.AsignacionId">
-                                    <span class="celda-documento-nombre" role="cell">@centro.CentroNombre</span>
-                                    <span role="cell">@centro.ClienteRazonSocial</span>
-                                    <span role="cell">@centro.FechaAlta.ToString("dd/MM/yyyy")</span>
-                                    <span class="columna-accion" role="cell">
-                                        @* DarDeBajaAsignacionesCommand es ICommand, denegado a Consulta. La celda se
-                                           queda (vacía) para no desalinear la rejilla con la cabecera. *@
-                                        <SoloConEscritura>
-                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                   OnClick="() => AbrirBajaAsignacionConfirm(centro.AsignacionId, centro.CentroNombre)">
-                                                @Textos["AccionDarDeBaja"]
-                                            </Boton>
-                                        </SoloConEscritura>
-                                    </span>
-                                </div>
-                            }
-                        </div>
-                    }
-
-                    @*
-                        Ámbito 3: Gestiones pendientes (solo si hay, 04 § 6 — un
-                        vacío nunca se presenta como éxito, pero tampoco se muestra
-                        un bloque vacío sin motivo: si no hay ninguna, el bloque
-                        entero no aparece).
-                    *@
-                    @if (_cargandoGestiones)
-                    {
-                        <div class="separador-ambito">@Textos["SeparadorGestionesPendientes"]</div>
-                        <EstadoCargando Filas="2" />
-                    }
-                    else if (_gestionesPendientes.Count > 0)
-                    {
-                        <div class="separador-ambito">@Textos["SeparadorGestionesPendientes"]</div>
-                        <div class="tabla-documentos-requeridos" role="table" aria-label="@Textos["SeparadorGestionesPendientes"]">
-                            <div class="documentos-requeridos-cabecera" role="row">
-                                <span role="columnheader">@Textos["ColumnaGestion"]</span>
-                                <span role="columnheader">@Textos["ColumnaCentro"]</span>
-                                <span role="columnheader">@Textos["ColumnaCreada"]</span>
-                                <span role="columnheader" class="columna-accion">@Textos["ColumnaAccion"]</span>
-                            </div>
-                            @foreach (var gestion in _gestionesPendientes)
-                            {
-                                <div class="fila-documento-requerido" role="row" @key="gestion.Id">
-                                    <span class="celda-documento-nombre" role="cell">@gestion.TipoDocumentoNombre</span>
-                                    <span role="cell">@gestion.CentroNombre</span>
-                                    <span role="cell">@gestion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</span>
-                                    <span class="columna-accion" role="cell">
-                                        @* CompletarGestionCommand es ICommand, denegado a Consulta. *@
-                                        <SoloConEscritura>
-                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                   Cargando="_completandoGestion.Contains(gestion.Id)"
-                                                   OnClick="() => CompletarGestionAsync(gestion.Id)">
-                                                @Textos["AccionCompletar"]
-                                            </Boton>
-                                        </SoloConEscritura>
-                                    </span>
-                                </div>
-                            }
-                        </div>
                     }
                     break;
 

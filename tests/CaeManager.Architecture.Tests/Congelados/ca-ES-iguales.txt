@@ -940,7 +940,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Acc
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AccionReclamarFaltantes = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AnilloCumplimiento = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaAbrirCentro360 = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaAsignacionesActivas = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaDocumentacionExigida = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaEditarInformacion = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaMigas = 1
@@ -1028,7 +1027,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Pre
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ResumenExigidosCorrectos = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ResumenSinExigencia = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: SeparadorAgendaEmpleador = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: SeparadorAsignaciones = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: SeparadorDatosTrabajador = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: SeparadorDocumentacionPorCentro = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: SeparadorGestionesPendientes = 1

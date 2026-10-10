@@ -318,9 +318,6 @@
   <data name="ColumnaCentro" xml:space="preserve">
     <value>Centro</value>
   </data>
-  <data name="ColumnaClienteEmpresarial" xml:space="preserve">
-    <value>Cliente</value>
-  </data>
   <data name="ColumnaDesde" xml:space="preserve">
     <value>Desde</value>
   </data>
@@ -329,12 +326,6 @@
   </data>
   <data name="ColumnaCreada" xml:space="preserve">
     <value>Creada</value>
-  </data>
-  <data name="SeparadorAsignaciones" xml:space="preserve">
-    <value>Asignaciones</value>
-  </data>
-  <data name="AriaAsignacionesActivas" xml:space="preserve">
-    <value>Asignaciones activas</value>
   </data>
   <data name="AccionDarDeBaja" xml:space="preserve">
     <value>Dar de baja</value>
@@ -701,5 +692,11 @@
   </data>
   <data name="ListaOpcionCentroDeCliente" xml:space="preserve">
     <value>{0} ({1})</value>
+  </data>
+  <data name="PestanaCentros" xml:space="preserve">
+    <value>Centros</value>
+  </data>
+  <data name="AccionDarDeBajaDeCentro" xml:space="preserve">
+    <value>Dar de baja de este centro</value>
   </data>
 </root>
