@@ -474,6 +474,18 @@
   <data name="MotivoDocumentos" xml:space="preserve">
     <value>{0} documentos</value>
   </data>
+  <data name="IncidenciasTituloUna" xml:space="preserve">
+    <value>1 documento con incidencia entre sus trabajadores</value>
+  </data>
+  <data name="IncidenciasTitulo" xml:space="preserve">
+    <value>{0} documentos con incidencia entre sus trabajadores</value>
+  </data>
+  <data name="IncidenciasPieMas" xml:space="preserve">
+    <value>Y {0} más.</value>
+  </data>
+  <data name="IncidenciasPieMasAlCorregir" xml:space="preserve">
+    <value>Y {0} más: aparecen aquí al corregir estas.</value>
+  </data>
   <data name="TituloSinIncidencias" xml:space="preserve">
     <value>Sin alertas de vigencia abiertas entre sus trabajadores</value>
   </data>

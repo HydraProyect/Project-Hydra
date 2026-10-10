@@ -241,9 +241,11 @@ public partial class ClientesListaGen2Tests : BunitContext
                         : Presentes(c).Overlaps(estadosPedidos))
                     .ToList();
 
+            // Como el handler: las incidencias de la fila solo viajan si la consulta las pide.
             var pagina = coincidentes
                 .Skip((q.Pagina - 1) * q.TamanoPagina)
                 .Take(q.TamanoPagina)
+                .Select(c => q.ConDesgloseDocumental ? c : c with { Incidencias = [], IncidenciasTotales = 0 })
                 .ToList();
 
             return new ResultadoPaginado<ClienteListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina)
@@ -1350,7 +1352,9 @@ public partial class ClientesListaGen2Tests : BunitContext
     /// <summary>
     /// La celda de estado (EstadoFila): la pastilla dice el peor estado con el vocabulario único («Vencido»,
     /// «Por vencer»), el motivo de debajo dice cuántos documentos —concordado— sin repetir el estado, y quien
-    /// no tiene alertas no lleva pastilla: «Sin incidencias» con punto verde.
+    /// no tiene alertas no lleva pastilla: «Sin incidencias» con punto verde. Las filas llevan sus incidencias,
+    /// como las entrega la consulta de la página: el motivo es el disparador de su ventana
+    /// (<c>ClientesListaGen2Tests.Incidencias.cs</c>).
     /// </summary>
     [Fact]
     public void El_estado_documental_dice_el_peor_estado_concuerda_el_recuento_debajo_y_explica_de_donde_sale()
@@ -1359,9 +1363,9 @@ public partial class ClientesListaGen2Tests : BunitContext
         {
             Almacen =
             {
-                Cliente("Aislamientos Nervión S.L.", peor: EstadoDocumento.Vencido, cantidad: 1),
-                Cliente("Montajes Ebro S.L.", peor: EstadoDocumento.Proximo, cantidad: 9),
-                Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 12),
+                ConAlertas(Cliente("Aislamientos Nervión S.L.", peor: EstadoDocumento.Vencido, cantidad: 1), EstadoDocumento.Vencido, 1),
+                ConAlertas(Cliente("Montajes Ebro S.L.", peor: EstadoDocumento.Proximo, cantidad: 9), EstadoDocumento.Proximo, 9),
+                ConAlertas(Cliente("Refrielectric S.A.", peor: EstadoDocumento.Vencido, cantidad: 12), EstadoDocumento.Vencido, 12),
                 Cliente("Talleres Berriz Coop."),
             }
         });
@@ -1370,7 +1374,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         var celdas = cut.FindAll("tbody .estado-fila");
         celdas.Select(c => (
                 Pastilla: c.QuerySelector(".badge")?.TextContent.Trim(),
-                Motivo: c.QuerySelector(".estado-fila-motivo")?.TextContent.Trim(),
+                Motivo: c.QuerySelector(".estado-fila-motivo .motivo-incidencias-cliente")?.TextContent.Trim(),
                 Correcto: c.QuerySelector("[data-pieza=estado-correcto]")?.TextContent.Trim()))
             .Should().Equal(
                 ("Vencido", "1 documento", null),

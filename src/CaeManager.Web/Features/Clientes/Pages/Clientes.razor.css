@@ -99,3 +99,15 @@
 .texto-vacio-celda {
     color: var(--color-text-muted);
 }
+
+/* Una alerta de la ventana del motivo: tras la pastilla de su estado, «Documento — Trabajador». */
+.incidencia-cliente-texto {
+    margin-left: var(--space-2);
+}
+
+/* Solo en la línea de quien consulta (la pulsable lleva su «Secundario» del kit): la fecha de vencimiento o
+   el Centro donde falta, atenuado. */
+.incidencia-cliente-secundario {
+    margin-left: var(--space-2);
+    color: var(--color-text-muted);
+}

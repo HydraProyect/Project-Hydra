@@ -74,7 +74,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         var carga = _cargaVigente;
         try
         {
-            var resultado = await Mediator.Send(new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, Id: id), _ciclo.Token);
+            // Con el desglose: la fila sustituida conserva la ventana de incidencias de su motivo.
+            var resultado = await Mediator.Send(
+                new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, Id: id, ConDesgloseDocumental: true), _ciclo.Token);
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
             if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
@@ -430,6 +432,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         // clientes.
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         _puedeReasignarEjecutivo = RolesQuePuedenReasignar.Any(estadoAutenticacion.User.IsInRole);
+        _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(estadoAutenticacion.User.IsInRole);
 
         _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
 
@@ -530,6 +533,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         // Todo lo que define la pregunta se lee ANTES del await.
         var carga = ++_cargaVigente;
+        // Vale para UNA carga, la que pidió la corrección: cualquier otra recarga suelta la selección.
+        var conservarSeleccion = _conservarSeleccionEnLaProximaCarga;
+        _conservarSeleccionEnLaProximaCarga = false;
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
         (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         var estadosFiltro = SeleccionEstados.Separar<EstadoDocumento>(_estadoDocumentalFiltro);
@@ -543,7 +549,10 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadosDocumentales: estadosFiltro.Count == 0 ? null : estadosFiltro,
-            ConRecuentosPorEstado: true);
+            ConRecuentosPorEstado: true,
+            // Las incidencias de cada fila, para la ventana del motivo. Solo lo piden esta carga y el
+            // refresco de una fila: la exportación y la API no lo pintan.
+            ConDesgloseDocumental: true);
 
         _cargando = true;
         _errorCarga = false;
@@ -561,8 +570,20 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
-            _seleccionados.Clear();
-            _idEnfocado = null;
+            if (conservarSeleccion)
+            {
+                // Corregir un documento no es cambiar de lista: lo marcado y la fila enfocada siguen,
+                // salvo lo que ya no esté en la página.
+                _seleccionados.IntersectWith(elementos.Select(e => e.Id));
+                if (_idEnfocado is { } enfocado && elementos.All(e => e.Id != enfocado))
+                    _idEnfocado = null;
+            }
+            else
+            {
+                _seleccionados.Clear();
+                _idEnfocado = null;
+            }
+
             OlvidarCentrosDeFila();
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
@@ -713,14 +734,88 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private string MotivoEstadoDocumental(int cantidad) =>
         cantidad == 1 ? Textos["MotivoUnDocumento"].Value : Textos["MotivoDocumentos", cantidad].Value;
 
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes { get; set; } = default!;
+
     /// <summary>
-    /// Lo que de verdad cuenta el agregado de ObtenerClientesQuery: las
-    /// alertas de vigencia de los trabajadores cuyo cliente principal es este,
-    /// en su peor estado. El mockup dice «entre los trabajadores y centros»;
-    /// los centros no entran en ese agregado, así que no se nombran.
+    /// El rol efectivo puede escribir (mismos roles que <c>SoloConEscritura</c>). Decide si las incidencias de
+    /// la ventana del motivo se ofrecen como pulsables: a quien solo consulta no se le ofrece un formulario
+    /// que el comando le va a denegar.
+    /// </summary>
+    private bool _puedeEscribir;
+
+    private CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental _correccion = default!;
+
+    /// <summary>La carga que pide <see cref="RefrescarTrasCorreccionAsync"/> conserva la selección y la fila enfocada.</summary>
+    private bool _conservarSeleccionEnLaProximaCarga;
+
+    /// <summary>
+    /// Título de la ventana: cuántas alertas tiene el Cliente empresarial en total. No es la cifra del motivo,
+    /// que cuenta solo las del peor estado; la ventana las lista todas, cada una con la pastilla de su estado.
+    /// </summary>
+    private string TituloDeIncidencias(int total) =>
+        total == 1 ? Textos["IncidenciasTituloUna"].Value : Textos["IncidenciasTitulo", total].Value;
+
+    /// <summary>Nombre accesible del disparador: el estado, lo que dice el motivo y lo que hay dentro.</summary>
+    private string EtiquetaDeIncidencias(ClienteListaDto cliente, EstadoDocumento peor, string motivo) =>
+        $"{EstadoDocumentoUi.Texto(peor)}: {motivo}. {TituloDeIncidencias(cliente.IncidenciasTotales)}";
+
+    /// <summary>
+    /// Pie de la ventana: cómo se corrige (solo a quien puede) y, si no caben todas, cuántas quedan fuera. A
+    /// quien corrige se le dice que las siguientes van entrando: la lista se relee tras cada corrección y la
+    /// consulta entrega primero las más graves. Ninguna pantalla lista hoy las alertas de un solo Cliente
+    /// empresarial, así que el pie no remite a otra.
+    /// </summary>
+    private string? PieDeIncidencias(ClienteListaDto cliente)
+    {
+        var fuera = cliente.IncidenciasTotales - cliente.Incidencias.Count;
+        if (!_puedeEscribir)
+            return fuera > 0 ? Textos["IncidenciasPieMas", fuera].Value : null;
+
+        var comoCorregir = Comunes["VentanaIncidenciasPie"].Value;
+        return fuera > 0 ? $"{comoCorregir}. {Textos["IncidenciasPieMasAlCorregir", fuera].Value}" : comoCorregir;
+    }
+
+    /// <summary>«Documento — Trabajador», como las incidencias de Trabajador en la ventana de Centros.</summary>
+    private static string TextoDeIncidencia(IncidenciaClienteDto incidencia) =>
+        $"{incidencia.TipoDocumentoNombre} — {incidencia.TrabajadorNombre}";
+
+    /// <summary>Lo que distingue la línea: cuándo vence el documento o, si falta, en qué Centro se pide.</summary>
+    private static string? SecundarioDeIncidencia(IncidenciaClienteDto incidencia) =>
+        incidencia.FechaVencimiento?.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)
+        ?? incidencia.CentroNombre;
+
+    /// <summary>
+    /// Con documento abre su renovación; sin él (Faltante), el alta del que falta para ese Trabajador y ese
+    /// Tipo. No decide permisos: lo que se guarde pasa por el comando, con su autorización y su alcance.
+    /// </summary>
+    private Task CorregirIncidenciaAsync(IncidenciaClienteDto incidencia) =>
+        _correccion.AbrirAsync(incidencia.DocumentoId, incidencia.TipoDocumentoId, incidencia.TrabajadorId, null);
+
+    /// <summary>
+    /// Tras corregir una incidencia: se vuelve a pedir la página tal como está (mismos filtros, orden y página).
+    /// No basta con la fila pulsada: el documento que se da de alta para un Trabajador deja de faltar en todos
+    /// los Centros donde se pedía, que pueden ser de otros Clientes empresariales de la página. La selección y
+    /// la fila enfocada se conservan.
+    /// </summary>
+    private async Task RefrescarTrasCorreccionAsync()
+    {
+        if (_desechado || _grid is null)
+            return;
+
+        _conservarSeleccionEnLaProximaCarga = true;
+        await _grid.RefreshDataAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Lo que de verdad cuenta el agregado de ObtenerClientesQuery: las alertas documentales abiertas de sus
+    /// Trabajadores, en su peor estado. Son las de vigencia (vencido o por vencer), atribuidas al Cliente
+    /// empresarial principal del Trabajador, y los documentos que faltan en un Centro suyo. Por eso no dice
+    /// «de vigencia»: con lo peor en «Pendiente» el texto se contradiría. El mockup dice «entre los trabajadores
+    /// y centros»; los documentos propios del Centro no entran en ese agregado, así que no se nombran.
     /// </summary>
     private static string TituloEstadoDocumental(EstadoDocumento peor) =>
-        $"Peor estado entre las alertas de vigencia abiertas de sus trabajadores: {EstadoDocumentoUi.Texto(peor).ToLowerInvariant()}";
+        $"Peor estado entre las alertas documentales abiertas de sus trabajadores: {EstadoDocumentoUi.Texto(peor).ToLowerInvariant()}";
 
     /// <summary>
     /// Quita los cuatro filtros en una sola recarga. Encadenar los setters
