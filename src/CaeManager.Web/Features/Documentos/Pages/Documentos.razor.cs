@@ -1265,7 +1265,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>
     /// Lista blanca de los parámetros de VISTA de la URL del listado principal: lo que recuerda y restaura
     /// la vista recordada (<see cref="VistaRecordadaDeListado"/>), con la grafía con la que esta página los
-    /// escribe. No son vista <c>Pestana</c> ni los enlaces profundos (<see cref="DocumentoId"/>,
+    /// escribe; la búsqueda libre (<c>q</c>) es de la vista pero no se recuerda. No son vista <c>Pestana</c> ni los enlaces profundos (<see cref="DocumentoId"/>,
     /// <see cref="TipoDocumentoId"/>…). Los filtros guardados de esta pantalla son anteriores a la pieza
     /// compartida y conservan su propio JSON, sin el orden de columna.
     /// </summary>

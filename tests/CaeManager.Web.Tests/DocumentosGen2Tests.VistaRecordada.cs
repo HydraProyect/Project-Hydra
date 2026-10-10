@@ -44,7 +44,7 @@ public partial class DocumentosGen2Tests
     }
 
     [Fact]
-    public void Sin_parametros_restaura_la_vista_recordada_con_toda_su_lista_blanca()
+    public void Sin_parametros_restaura_la_vista_recordada_con_toda_su_lista_blanca_menos_la_busqueda()
     {
         var recordada = new Dictionary<string, string>
         {
@@ -59,10 +59,12 @@ public partial class DocumentosGen2Tests
 
         var (cut, _) = Renderizar(mediador);
 
+        // La búsqueda viene en lo recordado (una fila escrita antes de que dejara de recordarse) y no vuelve.
+        recordada.Remove("q");
         cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(recordada));
         mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().Equal([new ObtenerVistaRecordadaQuery(PantallasConVistaRecordada.Documentos)]);
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Should().Match<ObtenerDocumentosQuery>(q =>
-            q.Busqueda == "Salas" && q.Ambito == AmbitoAplicacion.Trabajador
+            q.Busqueda == null && q.Ambito == AmbitoAplicacion.Trabajador
             && q.TipoDocumentoId == TipoSeguroId && q.ProveedorPlataformaCaeId == PlataformaNalandaId
             && q.OrdenarPor == nameof(DocumentoListaDto.FechaEmision) && q.Descendente && q.Pagina == 1));
         UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(EstadoDocumento.Vencido);

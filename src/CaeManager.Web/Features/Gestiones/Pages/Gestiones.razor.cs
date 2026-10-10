@@ -349,7 +349,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
 
     /// <summary>
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado, y lo que
-    /// recuerda la vista recordada (<see cref="VistaRecordadaDeListado"/>).
+    /// recuerda la vista recordada (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>).
     /// </summary>
     public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "orden"];
 

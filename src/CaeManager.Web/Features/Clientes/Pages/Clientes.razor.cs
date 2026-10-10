@@ -1331,8 +1331,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
     /// <summary>
     /// Lista blanca de los parámetros de VISTA de la URL: lo que recuerda y restaura la vista recordada
-    /// (<see cref="VistaRecordadaDeListado"/>). Los filtros guardados de esta pantalla son anteriores a la
-    /// pieza compartida y conservan su propio JSON (<see cref="LeerFiltroGuardado"/>), sin el orden de columna.
+    /// (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>), que es de la vista pero
+    /// no se recuerda. Los filtros guardados de esta pantalla son anteriores a la pieza compartida y
+    /// conservan su propio JSON (<see cref="LeerFiltroGuardado"/>), sin el orden de columna.
     /// </summary>
     public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "critico", "gestor", "estado", "orden"];
 

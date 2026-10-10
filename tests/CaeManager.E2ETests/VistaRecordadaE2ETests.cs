@@ -16,7 +16,8 @@ namespace CaeManager.E2ETests;
 /// Dos recorridos, uno por familia de listado: Vehículos (rejilla, con el orden de columna en la
 /// URL) y Centros (acordeón, con la agrupación). Cada uno pone una vista, sale, vuelve sin
 /// parámetros y la encuentra; abre el listado con otra vista en la URL y manda la URL; pulsa
-/// «Restablecer vista» y, al volver sin parámetros, sigue la vista de inicio.
+/// «Restablecer vista» y, al volver sin parámetros, sigue la vista de inicio. La vista de los dos
+/// lleva además una búsqueda, y al volver NO está: la búsqueda libre es de la vista pero no se recuerda.
 /// </para>
 ///
 /// <para>
@@ -35,7 +36,7 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
     private const string ToastRestablecida = "Vista de fábrica restablecida.";
 
     [Fact]
-    public async Task Vehiculos_recuerda_busqueda_y_orden_la_URL_manda_y_Restablecer_vista_la_olvida()
+    public async Task Vehiculos_recuerda_el_orden_y_no_la_busqueda_la_URL_manda_y_Restablecer_vista_la_olvida()
     {
         const string pastilla = "Empleador";
         const string placeholder = "Filtrar esta pantalla: nombre, modelo o matrícula";
@@ -71,12 +72,13 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
             await Expect(nombres).ToHaveTextAsync([beta, alfa]);
             await EsperarVistaEnLaUrlAsync(page, ("q", prefijo), ("orden", "matricula-desc"));
 
-            // --- Salir por el menú escribe la vista en el acto; al volver sin parámetros, está. ---
+            // --- Salir por el menú escribe la vista en el acto; al volver sin parámetros, está el orden
+            //     y no la búsqueda, que no se recuerda. ---
             await SalirAOtraPantallaAsync(page, placeholder);
             await Ayudas.NavegarYEsperarAsync(page, listado);
-            await EsperarVistaEnLaUrlAsync(page, ("q", prefijo), ("orden", "matricula-desc"));
-            await Expect(buscador).ToHaveValueAsync(prefijo);
-            await Expect(nombres).ToHaveTextAsync([beta, alfa]);
+            await EsperarVistaEnLaUrlAsync(page, ("orden", "matricula-desc"));
+            await Expect(cabeceraMatricula).ToHaveClassAsync(new Regex(@"\bcol-sort-desc\b"));
+            await Expect(buscador).ToHaveValueAsync(string.Empty);
 
             // --- Con parámetros manda la URL: ni se añade el orden recordado ni se cambia la búsqueda. ---
             await Ayudas.NavegarYEsperarAsync(page, $"{listado}?q={Uri.EscapeDataString(alfa)}");
@@ -106,7 +108,7 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
     }
 
     [Fact]
-    public async Task Centros_recuerda_busqueda_y_agrupacion_la_URL_manda_y_Restablecer_vista_la_olvida()
+    public async Task Centros_recuerda_la_agrupacion_y_no_la_busqueda_la_URL_manda_y_Restablecer_vista_la_olvida()
     {
         const string pastilla = "Cliente";
         const string placeholder = "Filtrar esta pantalla: centro, código, Cliente o empresa";
@@ -140,16 +142,16 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
             var cifraDeInicio = Regex.Match(conteoDeInicio, @"^\d+");
             Assert.True(cifraDeInicio.Success, $"el recuento de Centros debe empezar por su cifra: «{conteoDeInicio}»");
             await Expect(conteo).Not.ToHaveTextAsync(new Regex($@"^{cifraDeInicio.Value}\b"));
-            var conteoFiltrado = (await conteo.InnerTextAsync()).Trim();
             await EsperarVistaEnLaUrlAsync(page, ("q", nombre), ("agrupar", "no"));
 
-            // --- Salir por el menú escribe la vista en el acto; al volver sin parámetros, está. ---
+            // --- Salir por el menú escribe la vista en el acto; al volver sin parámetros, está la
+            //     agrupación y no la búsqueda, que no se recuerda: la lista vuelve a ser la entera. ---
             await SalirAOtraPantallaAsync(page, placeholder);
             await Ayudas.NavegarYEsperarAsync(page, listado);
-            await EsperarVistaEnLaUrlAsync(page, ("q", nombre), ("agrupar", "no"));
-            await Expect(buscador).ToHaveValueAsync(nombre);
+            await EsperarVistaEnLaUrlAsync(page, ("agrupar", "no"));
+            await Expect(buscador).ToHaveValueAsync(string.Empty);
             await Expect(sinAgrupar).ToHaveAttributeAsync("aria-pressed", "true");
-            await Expect(conteo).ToHaveTextAsync(conteoFiltrado);
+            await Expect(conteo).ToHaveTextAsync(new Regex($@"^{cifraDeInicio.Value}\b"));
 
             // --- Con parámetros manda la URL: agrupado y sin búsqueda, como dice ella. ---
             await Ayudas.NavegarYEsperarAsync(page, $"{listado}?orden=cumplimiento-desc");

@@ -23,6 +23,15 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// </para>
 ///
 /// <para>
+/// LA BÚSQUEDA LIBRE NO SE RECUERDA: <see cref="ParametroDeBusqueda"/> es de la vista —cuenta para
+/// ofrecer «Restablecer vista» y ese gesto la quita— pero ni se escribe ni se restaura. En el buscador
+/// se teclean nombres y DNI, y recordarlo sin que nadie lo pida dejaría ese texto guardado (y en la
+/// auditoría de cada escritura) más allá de la vida del dato buscado. Un filtro guardado sí la lleva:
+/// lo guarda el usuario a propósito y con nombre. Una vista recordada escrita antes de esta regla
+/// puede traerla: se restaura sin ella.
+/// </para>
+///
+/// <para>
 /// RESTAURAR: una vez, al montarse con circuito (nunca en el prerender: allí una navegación es una
 /// redirección) y solo si la URL llega SIN cadena de consulta. Con cualquier parámetro manda la
 /// URL: un enlace compartido se ve como se compartió. La vista recordada se entrega a la página por
@@ -36,7 +45,8 @@ namespace CaeManager.Web.Components.DesignSystem;
 ///
 /// <para>
 /// RECORDAR: cada cambio de dirección dentro de la página se compara con lo último recordado. Si la
-/// vista cambió, se escribe pasado <see cref="Rebote"/> sin más cambios —cada escritura deja una
+/// vista cambió —sin contar la búsqueda libre: teclear en el buscador no escribe nada—, se escribe
+/// pasado <see cref="Rebote"/> sin más cambios —cada escritura deja una
 /// fila de auditoría, así que una ráfaga de filtros es una sola—; si volvió a la de inicio, se
 /// olvida en vez de guardar un diccionario vacío. Restaurar no escribe.
 /// </para>
@@ -61,7 +71,8 @@ namespace CaeManager.Web.Components.DesignSystem;
 ///
 /// &lt;BarraFiltros … VistaRecordada="_vistaRecordada"&gt; … &lt;/BarraFiltros&gt;
 /// &lt;VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@PantallasConVistaRecordada.Empresas"
-///                          ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" /&gt;
+///                          ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q"
+///                          OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" /&gt;
 /// </code>
 /// </summary>
 public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
@@ -87,6 +98,13 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
     /// <summary>Lista blanca de parámetros de vista de la URL de la página. Lo demás ni se recuerda ni se restaura.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<string> ParametrosDeVista { get; set; } = [];
+
+    /// <summary>
+    /// El parámetro de <see cref="ParametrosDeVista"/> que lleva la búsqueda libre de la página (vacío si
+    /// no tiene buscador). Es de la vista para «Restablecer vista», pero no se recuerda ni se restaura:
+    /// ver «LA BÚSQUEDA LIBRE NO SE RECUERDA» en el resumen de la clase.
+    /// </summary>
+    [Parameter, EditorRequired] public string ParametroDeBusqueda { get; set; } = string.Empty;
 
     /// <summary>
     /// Parámetros de la lista blanca que forman parte de la vista de inicio: se recuerdan y se
@@ -125,7 +143,8 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     private bool _huboCambios;
 
     /// <summary>
-    /// «Restablecer vista» pulsado y la vista de inicio que se espera ver en la URL. La página puede
+    /// «Restablecer vista» pulsado y la vista de inicio que se espera ver en la URL (entera: con la
+    /// búsqueda, que ese gesto también quita). La página puede
     /// no aplicarla (Proyectos pregunta antes si hay algo a medias), y con circuito la URL cambia
     /// después de que la página haya terminado: lo recordado se sustituye cuando la URL lo confirma.
     /// </summary>
@@ -194,7 +213,9 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         if (VistaDeListado.Leer(valoresJson) is not { } leida)
             return;
 
-        var recordada = leida.Where(p => ParametrosDeVista.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
+        // Tampoco la búsqueda libre que pueda traer una fila escrita antes de dejar de recordarla.
+        var recordables = ParametrosRecordados;
+        var recordada = leida.Where(p => recordables.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
         if (recordada.Count == 0)
             return;
 
@@ -252,10 +273,9 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         var vista = VistaDeListado.DeLaUrl(new Uri(e.Location), ParametrosDeVista);
         ActualizarDiferencia(vista);
 
-        var serializada = Serializar(vista);
         if (_restableciendo is { } esperada)
         {
-            if (serializada == esperada)
+            if (SerializarEntera(vista) == esperada)
             {
                 _ = InvokeAsync(CompletarRestablecerAsync);
                 return;
@@ -265,6 +285,8 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             _restableciendo = null;
         }
 
+        // Sin la búsqueda libre: un cambio que solo la toque deja la vista recordable como estaba.
+        var serializada = Serializar(vista);
         if (serializada == _recordada)
         {
             // Volvió a lo ya recordado antes de que venciera el rebote: no hay nada que escribir.
@@ -287,25 +309,26 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             return;
 
         var inicio = VistaDeLaUrl().Where(p => ParametrosDeContexto.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
-        var serializada = Serializar(inicio);
+        var esperada = SerializarEntera(inicio);
 
         CancelarTemporizador();
         _pendiente = null;
-        _restableciendo = serializada;
+        _restableciendo = esperada;
 
         await OnAplicar.InvokeAsync(VistaDeListado.Completa(ParametrosDeVista, inicio));
 
         // Sin circuito de por medio la URL ya cambió; con él, lo completa el aviso de cambio de dirección.
-        if (Serializar(VistaDeLaUrl()) == serializada)
+        if (SerializarEntera(VistaDeLaUrl()) == esperada)
             await CompletarRestablecerAsync();
     }
 
     /// <summary>La URL ya muestra la vista de inicio: lo recordado pasa a ser esa vista, sin esperar al rebote.</summary>
     private async Task CompletarRestablecerAsync()
     {
-        if (_restableciendo is not { } serializada)
+        if (_restableciendo is null)
             return;
 
+        var serializada = Serializar(VistaDeLaUrl());
         _restableciendo = null;
         CancelarTemporizador();
         _pendiente = null;
@@ -389,7 +412,15 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     private Dictionary<string, string> VistaDeLaUrl() =>
         VistaDeListado.DeLaUrl(Navegacion.ToAbsoluteUri(Navegacion.Uri), ParametrosDeVista);
 
-    private string Serializar(IReadOnlyDictionary<string, string> vista) => VistaDeListado.Serializar(ParametrosDeVista, vista);
+    /// <summary>La lista blanca sin la búsqueda libre: lo único que se escribe, se compara y se restaura.</summary>
+    private IReadOnlyList<string> ParametrosRecordados =>
+        [.. ParametrosDeVista.Where(p => !string.Equals(p, ParametroDeBusqueda,StringComparison.OrdinalIgnoreCase))];
+
+    /// <summary>La vista tal como se recuerda: sin la búsqueda libre.</summary>
+    private string Serializar(IReadOnlyDictionary<string, string> vista) => VistaDeListado.Serializar(ParametrosRecordados, vista);
+
+    /// <summary>La vista entera de la URL, con la búsqueda: solo para saber si «Restablecer vista» ya se ve en ella.</summary>
+    private string SerializarEntera(IReadOnlyDictionary<string, string> vista) => VistaDeListado.Serializar(ParametrosDeVista, vista);
 
     private bool EsMiRuta(string direccion) => string.Equals(RutaDe(direccion), _ruta, StringComparison.OrdinalIgnoreCase);
 

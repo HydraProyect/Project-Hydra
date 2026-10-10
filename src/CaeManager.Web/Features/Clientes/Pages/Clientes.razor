@@ -131,7 +131,7 @@
         </Resumen>
     </BarraFiltros>
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Clientes"
-                             ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
 
     @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez y viaja en la URL como
        «estado». Aquí un botón pregunta si el Cliente empresarial tiene ALGUNA alerta en ese estado, así que uno

@@ -226,10 +226,16 @@ public class VistaRecordadaEnListadosTests : BunitContext
 
     private TConsulta Ultima<TConsulta>() => _mediador.Enviadas.OfType<TConsulta>().Last();
 
-    /// <summary>La pieza leyó lo recordado de ESA pantalla (una vez) y la página dejó la URL con la vista entera.</summary>
-    private void LaUrlQuedaCon<TPagina>(IRenderedComponent<TPagina> cut, string pantalla, Dictionary<string, string> esperada)
+    /// <summary>
+    /// La pieza leyó lo recordado de ESA pantalla (una vez) y la página dejó la URL con la vista recordada,
+    /// menos la búsqueda libre: las vistas de estos tests la traen, como una fila escrita antes de que
+    /// dejara de recordarse, y ninguna página la restaura.
+    /// </summary>
+    private void LaUrlQuedaCon<TPagina>(IRenderedComponent<TPagina> cut, string pantalla, Dictionary<string, string> recordada)
         where TPagina : IComponent
     {
+        recordada.Should().ContainKey("q", "control: la vista recordada del test trae una búsqueda que no debe volver");
+        var esperada = recordada.Where(p => p.Key != "q").ToDictionary(p => p.Key, p => p.Value);
         cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(esperada));
         _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().Equal([new ObtenerVistaRecordadaQuery(pantalla)]);
     }
@@ -261,7 +267,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
         var cut = Renderizar<Empresas>("empresas");
 
         LaUrlQuedaCon(cut, PantallasConVistaRecordada.Empresas, recordada);
-        Ultima<ObtenerEmpresasQuery>().Should().Match<ObtenerEmpresasQuery>(q => q.Busqueda == "Ebro" && q.EstadoDocumental == "Vencido" && q.Pagina == 1);
+        Ultima<ObtenerEmpresasQuery>().Should().Match<ObtenerEmpresasQuery>(q => q.Busqueda == null && q.EstadoDocumental == "Vencido" && q.Pagina == 1);
     }
 
     [Fact]
@@ -287,7 +293,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
 
         LaUrlQuedaCon(cut, PantallasConVistaRecordada.Centros, recordada);
         Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
-            q.Busqueda == "Nave" && q.ClienteId == ClienteA && q.EmpresaId == EmpresaE
+            q.Busqueda == null && q.ClienteId == ClienteA && q.EmpresaId == EmpresaE
             && q.OrdenarPor == nameof(CentroListaDto.CumplimientoPorcentaje) && q.Descendente && q.Pagina == 1);
         Ultima<ObtenerCentrosQuery>().Estados.Should().Equal(EstadoCentro.Vencido);
     }
@@ -314,7 +320,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
 
         LaUrlQuedaCon(cut, PantallasConVistaRecordada.Subcontratas, recordada);
         Ultima<ObtenerSubcontratasQuery>().Should().Match<ObtenerSubcontratasQuery>(q =>
-            q.Busqueda == "Nervión" && q.NivelServicio == NivelServicioSubcontrata.Gestionada && q.Pagina == 1);
+            q.Busqueda == null && q.NivelServicio == NivelServicioSubcontrata.Gestionada && q.Pagina == 1);
     }
 
     [Fact]
@@ -344,7 +350,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
 
         LaUrlQuedaCon(cut, PantallasConVistaRecordada.Vehiculos, recordada);
         cut.WaitForAssertion(() => Ultima<ObtenerVehiculosQuery>().Should().Match<ObtenerVehiculosQuery>(q =>
-            q.Busqueda == "Transit" && q.EstadoDocumental == "Vencido" && q.EmpresaId == empresa && q.SubcontrataId == subcontrata
+            q.Busqueda == null && q.EstadoDocumental == "Vencido" && q.EmpresaId == empresa && q.SubcontrataId == subcontrata
             && q.OrdenarPor == nameof(VehiculoListaDto.NumeroPlaca) && q.Descendente));
     }
 
@@ -388,7 +394,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
 
         LaUrlQuedaCon(cut, PantallasConVistaRecordada.Gestiones, recordada);
         cut.WaitForAssertion(() => Ultima<ObtenerGestionesQuery>().Should().Match<ObtenerGestionesQuery>(q =>
-            q.Busqueda == "Salas" && q.Estado == EstadoGestion.Pendiente
+            q.Busqueda == null && q.Estado == EstadoGestion.Pendiente
             && q.OrdenarPor == nameof(GestionListaDto.CreadoEnUtc) && q.Descendente));
     }
 
@@ -425,7 +431,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
     // ------------------------------------------------------------ Proyectos
 
     [Fact]
-    public void Proyectos_sin_parametros_restaura_el_Cliente_empresarial_la_busqueda_y_el_estado()
+    public void Proyectos_sin_parametros_restaura_el_Cliente_empresarial_y_el_estado_sin_la_busqueda()
     {
         var recordada = ConVistaRecordada(PantallasConVistaRecordada.Proyectos,
             ("cliente", ClienteA.ToString()), ("q", "Nave"), ("estado", "abiertos"));
@@ -434,7 +440,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
 
         LaUrlQuedaCon(cut, PantallasConVistaRecordada.Proyectos, recordada);
         Ultima<ObtenerProyectosQuery>().ClienteId.Should().Be(ClienteA, "la lista que se pide es la del Cliente empresarial recordado");
-        cut.FindAll(".chip-filtro").Should().ContainSingle("la búsqueda recordada está a la vista en su chip");
+        cut.FindAll(".chip-filtro").Should().BeEmpty("la búsqueda no se recuerda: no hay chip de búsqueda que enseñar");
     }
 
     /// <summary>
@@ -473,7 +479,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
 
         LaUrlQuedaCon(cut, PantallasConVistaRecordada.Trabajadores, recordada);
         cut.WaitForAssertion(() => Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>
-            q.Busqueda == "Vega" && q.EstadoDocumental == "Vencido" && q.EmpresaId == empresa && q.SubcontrataId == subcontrata
+            q.Busqueda == null && q.EstadoDocumental == "Vencido" && q.EmpresaId == empresa && q.SubcontrataId == subcontrata
             && q.OrdenarPor == nameof(TrabajadorListaDto.Apellidos) && q.Descendente));
     }
 

@@ -163,7 +163,7 @@
             @if (!_desechado)
             {
                 <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Documentos"
-                                         ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+                                         ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
             }
 
             @* Franja de estado: sustituye a la pastilla «Estado». Admite varios estados a la vez, viaja en la URL

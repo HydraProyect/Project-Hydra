@@ -42,7 +42,7 @@ public partial class ClientesListaGen2Tests
     }
 
     [Fact]
-    public void Sin_parametros_restaura_la_vista_recordada_con_toda_su_lista_blanca()
+    public void Sin_parametros_restaura_la_vista_recordada_con_toda_su_lista_blanca_menos_la_busqueda()
     {
         var marta = GestorCae("Marta Ibarra");
         var recordada = new Dictionary<string, string>
@@ -57,10 +57,12 @@ public partial class ClientesListaGen2Tests
 
         var cut = Renderizar(mediador, "clientes", gestores: [marta]);
 
+        // La búsqueda viene en lo recordado (una fila escrita antes de que dejara de recordarse) y no vuelve.
+        recordada.Remove("q");
         cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(recordada));
         mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().Equal([new ObtenerVistaRecordadaQuery(PantallasConVistaRecordada.Clientes)]);
         cut.WaitForAssertion(() => UltimaConsulta(mediador).Should().Match<ObtenerClientesQuery>(q =>
-            q.Busqueda == "Refri" && q.SoloCriticos == true && q.EjecutivoUsuarioId == marta.Id
+            q.Busqueda == null && q.SoloCriticos == true && q.EjecutivoUsuarioId == marta.Id
             && q.OrdenarPor == nameof(ClienteListaDto.RazonSocial) && q.Descendente && q.Pagina == 1));
         UltimaConsulta(mediador).EstadosDocumentales.Should().Equal(EstadoDocumento.Vencido);
     }
@@ -70,13 +72,13 @@ public partial class ClientesListaGen2Tests
     public void Un_Gestor_CAE_recordado_que_el_directorio_visible_ya_no_ofrece_no_se_restaura()
     {
         var marta = GestorCae("Marta Ibarra");
-        var mediador = ConVistaRecordada($"{{\"q\":\"Refri\",\"gestor\":\"{Guid.NewGuid()}\",\"estado\":\"Inventado\"}}");
+        var mediador = ConVistaRecordada($"{{\"critico\":\"true\",\"gestor\":\"{Guid.NewGuid()}\",\"estado\":\"Inventado\"}}");
 
         var cut = Renderizar(mediador, "clientes", gestores: [marta]);
 
-        cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(new Dictionary<string, string> { ["q"] = "Refri" },
+        cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(new Dictionary<string, string> { ["critico"] = "true" },
             "ni el Gestor CAE que el directorio no ofrece ni un estado que la franja no conoce llegan a la URL"));
-        UltimaConsulta(mediador).Should().Match<ObtenerClientesQuery>(q => q.Busqueda == "Refri" && q.EjecutivoUsuarioId == null);
+        UltimaConsulta(mediador).Should().Match<ObtenerClientesQuery>(q => q.SoloCriticos == true && q.EjecutivoUsuarioId == null);
     }
 
     [Fact]

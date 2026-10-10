@@ -152,6 +152,7 @@ public class VistaRecordadaDeListadoTests : BunitContext
             builder.AddComponentParameter(12, nameof(VistaRecordadaDeListado.Pantalla), "Vehiculos");
             builder.AddComponentParameter(13, nameof(VistaRecordadaDeListado.ParametrosDeVista), ListaBlanca);
             builder.AddComponentParameter(14, nameof(VistaRecordadaDeListado.ParametrosDeContexto), Contexto);
+            builder.AddComponentParameter(17, nameof(VistaRecordadaDeListado.ParametroDeBusqueda), "q");
             builder.AddComponentParameter(15, nameof(VistaRecordadaDeListado.OnAplicar),
                 EventCallback.Factory.Create<IReadOnlyDictionary<string, string?>>(this, AlAplicar));
             builder.AddComponentParameter(16, nameof(VistaRecordadaDeListado.AlCambiar), EventCallback.Factory.Create(this, StateHasChanged));
@@ -237,7 +238,8 @@ public class VistaRecordadaDeListadoTests : BunitContext
     [InlineData("[1,2]")]
     [InlineData("""{"intruso":"x"}""")]
     [InlineData("""{"estado":7}""")]
-    public async Task Una_vista_recordada_ilegible_o_sin_nada_de_la_lista_blanca_se_ignora(string recordada)
+    [InlineData("""{"q":"12345678Z"}""")]
+    public async Task Una_vista_recordada_ilegible_o_sin_nada_que_recordar_se_ignora(string recordada)
     {
         _mediador.Recordada = recordada;
 
@@ -309,8 +311,8 @@ public class VistaRecordadaDeListadoTests : BunitContext
 
         var guardado = Escrituras.Should().ContainSingle("una escritura por ráfaga").Which.Should().BeOfType<GuardarVistaRecordadaCommand>().Subject;
         guardado.Pantalla.Should().Be("Vehiculos");
-        guardado.ValoresJson.Should().Be("""{"q":"grua","estado":"Vencido","orden":"matricula"}""",
-            "se guarda la lista blanca presente en la URL, en el orden de la lista, y nada más");
+        guardado.ValoresJson.Should().Be("""{"estado":"Vencido","orden":"matricula"}""",
+            "se guarda la lista blanca presente en la URL, en el orden de la lista y sin la búsqueda libre, y nada más");
 
         await VencerElReboteAsync(cut);
         Escrituras.Should().ContainSingle();
@@ -345,17 +347,17 @@ public class VistaRecordadaDeListadoTests : BunitContext
     [Fact]
     public async Task Si_la_pagina_descarta_un_valor_recordado_que_ya_no_vale_lo_recordado_se_corrige_una_vez()
     {
-        _mediador.Recordada = """{"estado":"YaNoExiste","q":"grua"}""";
+        _mediador.Recordada = """{"estado":"YaNoExiste","orden":"matricula"}""";
         var cut = Montar("/vehiculos", alAplicar: vista =>
         {
             // Como una página: el estado no pasa su validación de la URL y se queda fuera.
-            Navegacion.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = vista["q"], ["estado"] = null });
+            Navegacion.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["orden"] = vista["orden"], ["estado"] = null });
             return Task.CompletedTask;
         });
 
         await VencerElReboteAsync(cut);
 
-        Escrituras.Should().ContainSingle().Which.Should().BeEquivalentTo(new GuardarVistaRecordadaCommand("Vehiculos", """{"q":"grua"}"""));
+        Escrituras.Should().ContainSingle().Which.Should().BeEquivalentTo(new GuardarVistaRecordadaCommand("Vehiculos", """{"orden":"matricula"}"""));
     }
 
     [Fact]
@@ -377,6 +379,105 @@ public class VistaRecordadaDeListadoTests : BunitContext
 
         Escrituras.Should().HaveCount(2, "se intentó las dos veces");
         Toasts.Mensajes.Should().BeEmpty("ni aviso ni excepción: recordar la vista es una comodidad");
+    }
+
+    // ------------------------------------------------------------ la búsqueda libre no se recuerda
+
+    /// <summary>
+    /// En el buscador se teclean nombres y DNI: recordarlo sin que nadie lo pida lo dejaría guardado, y en
+    /// la auditoría de cada escritura. Teclear solo ahí no escribe nada, ni desde la vista de inicio ni
+    /// sobre una vista recordada.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "/vehiculos")]
+    [InlineData("""{"estado":"Vencido"}""", "/vehiculos?estado=Vencido")]
+    public async Task Teclear_solo_en_el_buscador_no_escribe_nada(string? recordada, string rutaDePartida)
+    {
+        _mediador.Recordada = recordada;
+        var cut = Montar("/vehiculos");
+        new Uri(Navegacion.Uri).PathAndQuery.Should().Be(rutaDePartida, "control: la vista de partida");
+
+        Navegacion.NavigateTo(Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(Navegacion.Uri, "q", "1234"));
+        Navegacion.NavigateTo(Navegacion.Uri.Replace("q=1234", "q=12345678Z"));
+        Consulta.Should().Contain("q=12345678Z", "control: la búsqueda sí está en la URL");
+        await VencerElReboteAsync(cut);
+        Navegacion.NavigateTo(Navegacion.Uri.Replace("q=12345678Z", "q="));
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().BeEmpty("la búsqueda libre no es parte de lo que se recuerda");
+    }
+
+    [Fact]
+    public async Task Una_vista_con_filtro_y_busqueda_se_guarda_sin_la_busqueda()
+    {
+        var cut = Montar("/vehiculos");
+
+        Navegacion.NavigateTo("/vehiculos?q=12345678Z&estado=Vencido");
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().ContainSingle().Which.Should()
+            .BeEquivalentTo(new GuardarVistaRecordadaCommand("Vehiculos", """{"estado":"Vencido"}"""));
+    }
+
+    [Fact]
+    public async Task Al_salir_con_filtro_y_busqueda_pendientes_tampoco_se_escribe_la_busqueda()
+    {
+        var cut = Montar("/vehiculos");
+        Navegacion.NavigateTo("/vehiculos?estado=Vencido&q=12345678Z");
+
+        Navegacion.NavigateTo("/centros");
+        await cut.InvokeAsync(() => { });
+
+        Escrituras.Should().ContainSingle().Which.Should()
+            .BeEquivalentTo(new GuardarVistaRecordadaCommand("Vehiculos", """{"estado":"Vencido"}"""));
+    }
+
+    /// <summary>Una fila escrita antes de esta regla puede traer la búsqueda: se restaura sin ella y no se reescribe por eso.</summary>
+    [Fact]
+    public async Task Una_vista_recordada_que_trae_busqueda_se_restaura_sin_ella()
+    {
+        _mediador.Recordada = """{"q":"12345678Z","estado":"Vencido"}""";
+
+        var cut = Montar("/vehiculos");
+
+        var vista = _aplicadas.Should().ContainSingle().Subject;
+        vista["q"].Should().BeNull("la búsqueda recordada no llega a la página");
+        vista["estado"].Should().Be("Vencido");
+        Consulta.Should().Be("?estado=Vencido");
+
+        await VencerElReboteAsync(cut);
+        Escrituras.Should().BeEmpty("restaurar no es un cambio del usuario");
+    }
+
+    [Fact]
+    public async Task Restablecer_vista_tambien_quita_una_busqueda_sola_de_la_url()
+    {
+        var cut = Montar("/vehiculos?q=grua");
+
+        await Restablecer(cut)!.ClickAsync(new MouseEventArgs());
+
+        Consulta.Should().BeEmpty("la búsqueda es de la vista para «Restablecer vista»");
+        _aplicadas.Should().ContainSingle().Which["q"].Should().BeNull();
+        Restablecer(cut).Should().BeNull();
+        Toasts.Mensajes.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// La página no restableció (Proyectos pregunta antes) y el usuario sigue tecleando: que la vista
+    /// recordable coincida con la de inicio no es que la URL ya la muestre.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_pagina_no_restablece_seguir_buscando_no_lo_da_por_restablecido()
+    {
+        var cut = Montar("/vehiculos?q=grua", alAplicar: _ => Task.CompletedTask);
+        await Restablecer(cut)!.ClickAsync(new MouseEventArgs());
+
+        Navegacion.NavigateTo("/vehiculos?q=gruas");
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().BeEmpty();
+        Toasts.Mensajes.Should().BeEmpty("la vista no se restableció");
+        Restablecer(cut).Should().NotBeNull();
     }
 
     // ------------------------------------------------------------ al salir
@@ -434,6 +535,7 @@ public class VistaRecordadaDeListadoTests : BunitContext
     [InlineData("/vehiculos?estado=Vencido", true)]
     [InlineData("/vehiculos?agrupar=no", true)]
     [InlineData("/vehiculos?orden=matricula", true)]
+    [InlineData("/vehiculos?q=grua", true)]
     public void Restablecer_vista_solo_se_ofrece_cuando_la_vista_difiere_de_la_de_inicio(string ruta, bool seOfrece)
     {
         var cut = Montar(ruta);

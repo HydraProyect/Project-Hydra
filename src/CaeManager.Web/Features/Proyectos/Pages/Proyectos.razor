@@ -72,7 +72,7 @@
         <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
                                    OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
         <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Proyectos"
-                                 ParametrosDeVista="ParametrosDeVista" ParametrosDeContexto="ParametrosDeContexto" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+                                 ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" ParametrosDeContexto="ParametrosDeContexto" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
         @if (_clienteSeleccionadoId != Guid.Empty && _proyectos.Count > 0)
         {
             @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
