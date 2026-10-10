@@ -1,13 +1,15 @@
 #!/bin/bash
 # Tests de scripts/ci-exigir-dependencias.sh: recorre la tabla de verdad del
-# agregador «Build, format y tests».
+# agregador «Build, format y tests», y comprueba que ci.yml lo usa como el
+# guion supone.
 #
-# Dos barridos:
-#   1. Producto completo de evento × resultado de integración × resultado de
-#      `alcance` × salida `integracion` de alcance, con el resto en success
-#      (4 × 5 × 5 × 3 = 300 combinaciones).
-#   2. Cada una de las otras tres dependencias en cada valor distinto de
-#      success, en dos contextos que por lo demás darían verde.
+# Barridos:
+#   1. Integración: producto completo de evento × resultado de integración ×
+#      resultado de `alcance` × salida `integracion` de alcance, con el resto
+#      en success (4 × 5 × 5 × 3 = 300 combinaciones).
+#   2. E2E: el mismo producto para el resultado de E2E y la salida `e2e`.
+#   3. Compilación, formato y arneses en cada valor distinto de success, en dos
+#      contextos que por lo demás darían verde.
 #
 # El oráculo NO reutiliza el guion: enumera las únicas combinaciones que valen
 # y da todo lo demás por rojo. Los casos con nombre del final son los que la
@@ -16,44 +18,52 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/ci-exigir-dependencias.sh"
+CI_YML="${CI_YML:-$SCRIPT_DIR/../.github/workflows/ci.yml}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 PRUEBAS=0
 FALLOS=0
 
-# correr EVENTO COMPILACION FORMATO EXTENSION INTEGRACION ALCANCE ALC_INT
-# deja CODIGO y ESTADO (valor de la salida `integracion`, vacío si no la emitió)
+# correr EVENTO COMPILACION FORMATO EXTENSION INTEGRACION E2E ALCANCE ALC_INT ALC_E2E
+# deja CODIGO, E_INT y E_E2E (valores de las salidas; vacíos si no las emitió)
 correr() {
   : > "$TMP/out"
-  EVENTO="$1" R_COMPILACION="$2" R_FORMATO="$3" R_EXTENSION="$4" R_INTEGRACION="$5" \
-    R_ALCANCE="$6" ALCANCE_INTEGRACION="$7" GITHUB_OUTPUT="$TMP/out" \
+  EVENTO="$1" R_COMPILACION="$2" R_FORMATO="$3" R_EXTENSION="$4" R_INTEGRACION="$5" R_E2E="$6" \
+    R_ALCANCE="$7" ALCANCE_INTEGRACION="$8" ALCANCE_E2E="$9" GITHUB_OUTPUT="$TMP/out" \
     bash "$SCRIPT" > "$TMP/stdout" 2>&1
   CODIGO=$?
-  ESTADO="$(sed -n 's/^integracion=//p' "$TMP/out" | tail -1)"
+  E_INT=""; E_E2E=""
+  local linea
+  while IFS= read -r linea; do
+    case "$linea" in
+      integracion=*) E_INT="${linea#integracion=}" ;;
+      e2e=*)         E_E2E="${linea#e2e=}" ;;
+    esac
+  done < "$TMP/out"
 }
 
-# esperado EVENTO INTEGRACION ALCANCE ALC_INT (resto en success) -> ejecutada|saltada|rojo
+# esperado EVENTO RESULTADO ALCANCE SALIDA -> deja ESP en ejecutada|saltada|rojo
 esperado() {
-  local ev="$1" int="$2" alc="$3" alc_int="$4"
-  [[ -z "$ev" ]] && { echo rojo; return; }
-  [[ "$int" == "success" ]] && { echo ejecutada; return; }
-  if [[ "$ev" != "merge_group" && "$int" == "skipped" && "$alc" == "success" && "$alc_int" == "false" ]]; then
-    echo saltada; return
-  fi
-  echo rojo
+  ESP=rojo
+  [[ -z "$1" ]] && return
+  if [[ "$2" == "success" ]]; then ESP=ejecutada; return; fi
+  if [[ "$1" != "merge_group" && "$2" == "skipped" && "$3" == "success" && "$4" == "false" ]]; then ESP=saltada; fi
 }
 
+# comprobar DESCRIPCION ESPERADO_INT ESPERADO_E2E   (rojo en cualquiera = rojo)
 comprobar() {
-  local desc="$1" esp="$2"
+  local desc="$1" esp_int="$2" esp_e2e="$3"
   PRUEBAS=$((PRUEBAS + 1))
-  local obtenido="rojo"
-  [[ "$CODIGO" == 0 ]] && obtenido="$ESTADO"
+  local esp="$esp_int $esp_e2e" obtenido="rojo"
+  [[ "$esp_int" == rojo || "$esp_e2e" == rojo ]] && esp="rojo"
+  [[ "$CODIGO" == 0 ]] && obtenido="$E_INT $E_E2E"
   # Un rojo no puede dejar escrita la salida: un paso posterior la leería.
-  if [[ "$CODIGO" != 0 && -n "$ESTADO" ]]; then obtenido="rojo-con-salida"; fi
+  if [[ "$CODIGO" != 0 && -n "$E_INT$E_E2E" ]]; then obtenido="rojo-con-salida"; fi
   if [[ "$obtenido" != "$esp" ]]; then
     FALLOS=$((FALLOS + 1))
-    echo "FALLO: $desc — esperado $esp, obtenido $obtenido (código $CODIGO)" >&2
+    echo "FALLO: $desc — esperado '$esp', obtenido '$obtenido' (código $CODIGO)" >&2
+    return 1
   fi
 }
 
@@ -61,56 +71,107 @@ RESULTADOS=(success failure cancelled skipped "")
 EVENTOS=(merge_group pull_request push "")
 SALIDAS=(true false "")
 
-echo "=== Barrido 1: evento × integración × alcance × salida de alcance ==="
+echo "=== Barrido 1: evento × integración × alcance × salida de alcance (E2E en success) ==="
 for ev in "${EVENTOS[@]}"; do
-  for int in "${RESULTADOS[@]}"; do
+  for res in "${RESULTADOS[@]}"; do
     for alc in "${RESULTADOS[@]}"; do
-      for alc_int in "${SALIDAS[@]}"; do
-        correr "$ev" success success success "$int" "$alc" "$alc_int"
-        comprobar "evento='$ev' integracion='$int' alcance='$alc' salida='$alc_int'" "$(esperado "$ev" "$int" "$alc" "$alc_int")"
+      for sal in "${SALIDAS[@]}"; do
+        correr "$ev" success success success "$res" success "$alc" "$sal" true
+        esperado "$ev" "$res" "$alc" "$sal"; esp_int="$ESP"
+        esp_e2e=ejecutada; [[ -z "$ev" ]] && esp_e2e=rojo
+        comprobar "evento='$ev' integracion='$res' alcance='$alc' salida='$sal'" "$esp_int" "$esp_e2e"
       done
     done
   done
 done
-echo "Barrido 1: $PRUEBAS combinaciones"
 
-echo "=== Barrido 2: compilación, formato y arneses solo valen en success ==="
+echo "=== Barrido 2: evento × E2E × alcance × salida de alcance (integración en success) ==="
+for ev in "${EVENTOS[@]}"; do
+  for res in "${RESULTADOS[@]}"; do
+    for alc in "${RESULTADOS[@]}"; do
+      for sal in "${SALIDAS[@]}"; do
+        correr "$ev" success success success success "$res" "$alc" true "$sal"
+        esperado "$ev" "$res" "$alc" "$sal"; esp_e2e="$ESP"
+        esp_int=ejecutada; [[ -z "$ev" ]] && esp_int=rojo
+        comprobar "evento='$ev' e2e='$res' alcance='$alc' salida='$sal'" "$esp_int" "$esp_e2e"
+      done
+    done
+  done
+done
+echo "Barridos 1 y 2: $PRUEBAS combinaciones"
+
+echo "=== Barrido 3: compilación, formato y arneses solo valen en success ==="
 for malo in failure cancelled skipped ""; do
   for pos in 2 3 4; do
-    for contexto in "merge_group success success true" "pull_request skipped success false"; do
-      read -r ev int alc alc_int <<< "$contexto"
-      args=("$ev" success success success "$int" "$alc" "$alc_int")
+    for contexto in "merge_group success success success true true" "pull_request skipped skipped success false false"; do
+      read -r ev int e2e alc alc_int alc_e2e <<< "$contexto"
+      args=("$ev" success success success "$int" "$e2e" "$alc" "$alc_int" "$alc_e2e")
       args[$((pos - 1))]="$malo"
       correr "${args[@]}"
-      comprobar "dependencia nº $pos en '$malo' ($contexto)" rojo
+      comprobar "dependencia nº $pos en '$malo' ($contexto)" rojo rojo
     done
   done
 done
 
 echo "=== Casos con nombre ==="
+# caso DESCRIPCION ESP_INT ESP_E2E  EVENTO COMP FORM EXT INT E2E ALCANCE ALC_INT ALC_E2E
 caso() {
-  local desc="$1" esp="$2"; shift 2
+  local desc="$1" esp_int="$2" esp_e2e="$3"; shift 3
   correr "$@"
-  comprobar "$desc" "$esp"
-  local obtenido="rojo"; [[ "$CODIGO" == 0 ]] && obtenido="$ESTADO"
-  [[ "$obtenido" == "$esp" ]] && echo "OK: $desc -> $esp"
+  comprobar "$desc" "$esp_int" "$esp_e2e" && echo "OK: $desc -> $esp_int / $esp_e2e"
 }
-caso "grupo de fusión, todo en verde"                         ejecutada merge_group  success success success success   success true
-caso "grupo de fusión, integración saltada aunque alcance diga false" rojo merge_group  success success success skipped   success false
-caso "grupo de fusión, integración cancelada"                 rojo      merge_group  success success success cancelled success true
-caso "grupo de fusión, integración fallida"                   rojo      merge_group  success success success failure   success true
-caso "grupo de fusión, alcance fallido pero integración verde" ejecutada merge_group  success success success success   failure ""
-caso "PR ligera: integración saltada por alcance"             saltada   pull_request success success success skipped   success false
-caso "PR con ruta sensible: integración verde"                ejecutada pull_request success success success success   success true
-caso "PR: integración saltada pero alcance dijo true"         rojo      pull_request success success success skipped   success true
-caso "PR: integración saltada y alcance falló"                rojo      pull_request success success success skipped   failure false
-caso "PR: integración saltada y alcance sin salida"           rojo      pull_request success success success skipped   success ""
-caso "PR: integración cancelada con alcance false"            rojo      pull_request success success success cancelled success false
-caso "PR: integración fallida"                                rojo      pull_request success success success failure   success true
-caso "push verificado por la cola: integración saltada"       saltada   push         success success success skipped   success false
-caso "push no verificable: integración verde"                 ejecutada push         success success success success   success true
-caso "push: integración fallida"                              rojo      push         success success success failure   success true
-caso "evento vacío"                                           rojo      ""           success success success success   success true
+V=success
+caso "grupo de fusión, todo en verde"                              ejecutada ejecutada merge_group  $V $V $V success   success   success true  true
+caso "grupo de fusión, integración saltada aunque alcance diga false" rojo   ejecutada merge_group  $V $V $V skipped   success   success false true
+caso "grupo de fusión, E2E saltados aunque alcance diga false"     ejecutada rojo      merge_group  $V $V $V success   skipped   success true  false
+caso "grupo de fusión, integración cancelada"                      rojo      ejecutada merge_group  $V $V $V cancelled success   success true  true
+caso "grupo de fusión, E2E cancelados"                             ejecutada rojo      merge_group  $V $V $V success   cancelled success true  true
+caso "grupo de fusión, integración fallida"                        rojo      ejecutada merge_group  $V $V $V failure   success   success true  true
+caso "grupo de fusión, alcance fallido pero pesados en verde"      ejecutada ejecutada merge_group  $V $V $V success   success   failure ""    ""
+caso "PR ligera: integración y E2E saltados por alcance"           saltada   saltada   pull_request $V $V $V skipped   skipped   success false false
+caso "PR que toca tests E2E: integración saltada, E2E en verde"    saltada   ejecutada pull_request $V $V $V skipped   success   success false true
+caso "PR con ruta sensible o etiqueta: todo en verde"              ejecutada ejecutada pull_request $V $V $V success   success   success true  true
+caso "PR: integración saltada pero alcance dijo true"              rojo      saltada   pull_request $V $V $V skipped   skipped   success true  false
+caso "PR: E2E saltados pero alcance dijo true"                     saltada   rojo      pull_request $V $V $V skipped   skipped   success false true
+caso "PR: pesados saltados y alcance falló"                        rojo      rojo      pull_request $V $V $V skipped   skipped   failure false false
+caso "PR: pesados saltados y alcance sin salida"                   rojo      rojo      pull_request $V $V $V skipped   skipped   success ""    ""
+caso "PR: integración cancelada con alcance false"                 rojo      saltada   pull_request $V $V $V cancelled skipped   success false false
+caso "PR: E2E fallidos"                                            ejecutada rojo      pull_request $V $V $V success   failure   success true  true
+caso "push verificado por la cola: pesados saltados"               saltada   saltada   push         $V $V $V skipped   skipped   success false false
+caso "push no verificable: todo en verde"                          ejecutada ejecutada push         $V $V $V success   success   success true  true
+caso "push: integración fallida"                                   rojo      ejecutada push         $V $V $V failure   success   success true  true
+caso "evento vacío"                                                rojo      rojo      ""           $V $V $V success   success   success true  true
+
+echo "=== Contrato con ci.yml ==="
+# El guion no sirve de nada si el workflow deja de llamarlo como él supone.
+# Estas comprobaciones leen el fichero real; no validan la semántica de GitHub
+# Actions, solo que las piezas de las que depende la regla siguen escritas.
+contrato() {
+  local desc="$1" esperado="$2" obtenido="$3"
+  PRUEBAS=$((PRUEBAS + 1))
+  if [[ "$obtenido" == "$esperado" ]]; then
+    echo "OK: $desc"
+  else
+    FALLOS=$((FALLOS + 1)); echo "FALLO: $desc — esperado $esperado, obtenido $obtenido" >&2
+  fi
+}
+yml="$(tr -d '\r' < "$CI_YML")"
+cuenta() { grep -cF -- "$1" <<< "$yml" || true; }
+contrato "el paso que ejecuta el guion tiene id: exigir" 1 "$(grep -cE '^        id: exigir$' <<< "$yml" || true)"
+contrato "el guion se ejecuta en un único paso" 1 "$(cuenta 'run: bash scripts/ci-exigir-dependencias.sh')"
+contrato "seis pasos se saltan solo con integracion == saltada" 6 "$(cuenta "if: steps.exigir.outputs.integracion != 'saltada'")"
+contrato "ningún paso exige == 'ejecutada' (fallaría abierto si faltara la salida)" 0 "$(cuenta "steps.exigir.outputs.integracion == 'ejecutada'")"
+for paso in "Recoger el reparto de los bloques" "Comprobar que los cuatro bloques descubrieron lo mismo" "Comprobar que el reparto cubrio todas las clases" "Recoger la cobertura de los bloques de integración" "Comprobar que se ejecutaron todos los tests" "Umbral de cobertura del núcleo (ratchet)"; do
+  contrato "«$paso» lleva la condición justo debajo" 1 "$(grep -FA1 -- "      - name: $paso" <<< "$yml" | grep -cF "if: steps.exigir.outputs.integracion != 'saltada'" || true)"
+done
+contrato "el agregador corre siempre y depende de alcance, integración y E2E" 1 "$(grep -FA22 -- '    needs: [alcance, compilacion-y-unitarios, formato, tests-integracion, e2e-tests, bunit-tests, extension-arneses]' <<< "$yml" | grep -cE '^    if: always\(\)$' || true)"
+for par in "R_INTEGRACION: \${{ needs.tests-integracion.result }}" "R_E2E: \${{ needs.e2e-tests.result }}" "R_ALCANCE: \${{ needs.alcance.result }}" "ALCANCE_INTEGRACION: \${{ needs.alcance.outputs.integracion }}" "ALCANCE_E2E: \${{ needs.alcance.outputs.e2e }}" "EVENTO: \${{ github.event_name }}"; do
+  contrato "el paso recibe $par" 1 "$([[ "$(cuenta "          $par")" -ge 1 ]] && echo 1 || echo 0)"
+done
+for salida in integracion e2e carga; do
+  contrato "un job pesado solo se salta con $salida == 'false' y nunca en merge_group" 1 "$(cuenta "    if: \${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.$salida != 'false') }}")"
+done
+contrato "los tres jobs pesados dependen de alcance" 3 "$(grep -cE '^    needs: alcance$' <<< "$yml" || true)"
 
 echo
 echo "Pruebas: $PRUEBAS · Fallos: $FALLOS"

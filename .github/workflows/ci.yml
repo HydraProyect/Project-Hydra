@@ -489,7 +489,7 @@ jobs:
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
-    needs: [alcance, compilacion-y-unitarios, formato, tests-integracion, bunit-tests, extension-arneses]
+    needs: [alcance, compilacion-y-unitarios, formato, tests-integracion, e2e-tests, bunit-tests, extension-arneses]
     # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
     # un job que se salta reporta su check como "skipped", y la proteccion de
     # rama trata un check obligatorio omitido como aprobado. Sin esto, un bloque
@@ -502,10 +502,13 @@ jobs:
     #
     # La regla vive en scripts/ci-exigir-dependencias.sh (tabla de verdad
     # entera en su .tests.sh). Resumen: compilacion, formato y arneses, siempre
-    # success; integracion, success — y en `merge_group` nada mas vale. Fuera
-    # del grupo de fusion se admite que la integracion este «skipped» SOLO si
-    # el job `alcance` termino en success con `integracion == 'false'`, es
-    # decir, si la salto a proposito (ver el bloque ALCANCE mas arriba).
+    # success; integracion y E2E, success — y en `merge_group` nada mas vale.
+    # Fuera del grupo de fusion se admite que integracion o E2E esten
+    # «skipped» SOLO si el job `alcance` termino en success con la salida de
+    # ese job en `false`, es decir, si lo salto a proposito (ver el bloque
+    # ALCANCE mas arriba). Los E2E estan en `needs` como segunda barrera: son
+    # un check obligatorio propio, pero un obligatorio saltado cuenta como
+    # aprobado y este es el unico sitio que puede negarlo en el grupo.
     #
     # El checkout va antes porque el guion vive en el repositorio; si el
     # checkout falla, el job falla, que es el lado seguro.
@@ -521,8 +524,10 @@ jobs:
           R_FORMATO: ${{ needs.formato.result }}
           R_EXTENSION: ${{ needs.extension-arneses.result }}
           R_INTEGRACION: ${{ needs.tests-integracion.result }}
+          R_E2E: ${{ needs.e2e-tests.result }}
           R_ALCANCE: ${{ needs.alcance.result }}
           ALCANCE_INTEGRACION: ${{ needs.alcance.outputs.integracion }}
+          ALCANCE_E2E: ${{ needs.alcance.outputs.e2e }}
         run: bash scripts/ci-exigir-dependencias.sh
 
       - name: Instalar .NET SDK
@@ -555,9 +560,11 @@ jobs:
       # trinquete del nucleo, medido sobre dos suites en vez de tres, caeria
       # por un motivo que no es una perdida de cobertura. Se saltan de forma
       # explicita; en `merge_group` la salida vale siempre `ejecutada` (si no,
-      # el paso «Exigir…» ya habria fallado) y todo corre como antes.
+      # el paso «Exigir…» ya habria fallado) y todo corre como antes. La
+      # condicion es `!= 'saltada'`: si la salida faltara, corren. Lo vigila
+      # scripts/ci-exigir-dependencias.tests.sh leyendo este fichero.
       - name: Recoger el reparto de los bloques
-        if: steps.exigir.outputs.integracion == 'ejecutada'
+        if: steps.exigir.outputs.integracion != 'saltada'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: reparto-bloque-*
@@ -568,7 +575,7 @@ jobs:
       # denominador dependeria de cual se mirase, asi que se exige que los
       # cuatro listados sean identicos antes de usar el del bloque 1.
       - name: Comprobar que los cuatro bloques descubrieron lo mismo
-        if: steps.exigir.outputs.integracion == 'ejecutada'
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           for b in 2 3 4; do
             if ! diff -q reparto/listado-bloque-1.txt "reparto/listado-bloque-$b.txt" > /dev/null; then
@@ -602,7 +609,7 @@ jobs:
       # es el que crees ejecuta MENOS tests, en verde y sin decir nada. De ahi
       # que el paso de ejecucion tome el recuento del .trx.
       - name: Comprobar que el reparto cubrio todas las clases
-        if: steps.exigir.outputs.integracion == 'ejecutada'
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           LISTADO_DE_TESTS=reparto/listado-bloque-1.txt REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh sin-compilar 1 1 > /dev/null
           sort /tmp/esperadas-sin-ordenar.txt > /tmp/esperadas.txt
@@ -634,7 +641,7 @@ jobs:
       # una perdida de cobertura del producto. Un gate que cambia de
       # significado sin que nadie lo decida es peor que no tenerlo.
       - name: Recoger la cobertura de los bloques de integración
-        if: steps.exigir.outputs.integracion == 'ejecutada'
+        if: steps.exigir.outputs.integracion != 'saltada'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: cobertura-integracion-*
@@ -661,7 +668,7 @@ jobs:
       # sobre un ensamblado rancio devolvio una vez un test fantasma que ya no
       # existia en el codigo.
       - name: Comprobar que se ejecutaron todos los tests
-        if: steps.exigir.outputs.integracion == 'ejecutada'
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           esperados=$(grep -cE "^[[:space:]]+CaeManager\.IntegrationTests\." reparto/listado-bloque-1.txt)
           sumados=0
@@ -842,7 +849,7 @@ jobs:
       # — menos 0,2, igual criterio que el resto de este fichero). El núcleo
       # no se toca en este cambio.
       - name: Umbral de cobertura del núcleo (ratchet)
-        if: steps.exigir.outputs.integracion == 'ejecutada'
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
           umbral="64.8"  # núcleo: 65 % medido (run 34547527082) − 0,2

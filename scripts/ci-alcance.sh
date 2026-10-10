@@ -45,6 +45,12 @@ set -uo pipefail
 ETIQUETA_COMPLETO="CI: completo"
 WORKFLOW_FICHERO="ci.yml"
 WORKFLOW_RUTA=".github/workflows/ci.yml"
+# La API de ficheros de una PR devuelve como mucho 3000: a partir de ahí la
+# lista llega truncada y una ruta sensible podría quedar fuera.
+MAX_FICHEROS_API=3000
+INTENTOS_PUSH=3
+# Solo los tests lo ponen a 0.
+ESPERA_PUSH_S="${CI_ALCANCE_ESPERA_PUSH_S:-15}"
 
 EVENTO="${EVENTO:-}"
 REPO="${GITHUB_REPOSITORY:-}"
@@ -91,23 +97,37 @@ alcance_push() {
   if [[ -z "$REPO" || -z "$SHA" ]]; then
     todo "sin repositorio o sin SHA: corre todo."
   fi
-  local runs
-  # El filtro de la consulta acota; la decisión NO se fía de él: cada campo se
-  # vuelve a comprobar abajo, línea a línea.
-  if ! runs="$(gh api "repos/$REPO/actions/workflows/$WORKFLOW_FICHERO/runs?head_sha=$SHA&event=merge_group&status=success&per_page=20" \
-      --jq '.workflow_runs[] | [.head_sha, .event, .conclusion, .path, .repository.full_name, .head_repository.full_name] | @tsv')"; then
+  local runs intento ultimo_error=""
+  local sha_run evento concl ruta repo repo_cabeza
+  # La cola fusiona en cuanto el run del grupo termina, y el `push` nace
+  # segundos después (medido: 13 s y 34 s de margen). Si la API todavía no
+  # lista ese run como terminado, se reintenta un par de veces antes de
+  # rendirse: rendirse es «corre todo», que es seguro pero tira el ahorro.
+  for (( intento = 1; intento <= INTENTOS_PUSH; intento++ )); do
+    # El filtro de la consulta acota; la decisión NO se fía de él: cada campo
+    # se vuelve a comprobar abajo, línea a línea. Separador `|` y no tabulador:
+    # con IFS de espacio en blanco `read` colapsa los campos vacíos y los
+    # desplaza; con `|` un campo vacío sigue siendo un campo.
+    if runs="$(gh api "repos/$REPO/actions/workflows/$WORKFLOW_FICHERO/runs?head_sha=$SHA&event=merge_group&status=success&per_page=20" \
+        --jq '.workflow_runs[] | [.head_sha, .event, .conclusion, .path, .repository.full_name, .head_repository.full_name] | map(. // "") | join("|")')"; then
+      ultimo_error=""
+      while IFS='|' read -r sha_run evento concl ruta repo repo_cabeza; do
+        [[ -z "$sha_run" ]] && continue
+        if [[ "$sha_run" == "$SHA" && "$evento" == "merge_group" && "$concl" == "success" \
+              && "$ruta" == "$WORKFLOW_RUTA" && "$repo" == "$REPO" && "$repo_cabeza" == "$REPO" ]]; then
+          integracion=false; e2e=false; carga=false
+          motivo="el commit $SHA ya pasó el CI completo en el grupo de fusión: los jobs pesados no se repiten."
+          emitir
+        fi
+      done <<< "$runs"
+    else
+      ultimo_error=1
+    fi
+    if (( intento < INTENTOS_PUSH )); then sleep "$ESPERA_PUSH_S"; fi
+  done
+  if [[ -n "$ultimo_error" ]]; then
     todo "no se pudo consultar los runs del grupo de fusión: corre todo."
   fi
-  local sha_run evento concl ruta repo repo_cabeza
-  while IFS=$'\t' read -r sha_run evento concl ruta repo repo_cabeza; do
-    [[ -z "$sha_run" ]] && continue
-    if [[ "$sha_run" == "$SHA" && "$evento" == "merge_group" && "$concl" == "success" \
-          && "$ruta" == "$WORKFLOW_RUTA" && "$repo" == "$REPO" && "$repo_cabeza" == "$REPO" ]]; then
-      integracion=false; e2e=false; carga=false
-      motivo="el commit $SHA ya pasó el CI completo en el grupo de fusión: los jobs pesados no se repiten."
-      emitir
-    fi
-  done <<< "$runs"
   todo "ningún run del grupo de fusión en verde para $SHA (push directo, revert o commit ajeno a la cola): corre todo."
 }
 
@@ -134,8 +154,15 @@ alcance_pr() {
     todo "la lista de ficheros de la PR llegó vacía: corre todo."
   fi
 
-  # Infraestructura del propio CI y del despliegue: activa los tres.
-  local re_infra='^(\.github/workflows/|deploy/)|(^|/)Dockerfile[^/]*$'
+  if (( $(grep -c . <<< "$ficheros") >= MAX_FICHEROS_API )); then
+    todo "la PR toca $MAX_FICHEROS_API ficheros o más y la API trunca la lista: corre todo."
+  fi
+
+  # Infraestructura del propio CI y del despliegue, y lo que cambia la
+  # compilación o las dependencias de TODOS los proyectos (un salto de versión
+  # de Npgsql o de EF en un .csproj no toca ninguna ruta «de integración» y
+  # rompe la integración igual): activa los tres.
+  local re_infra='^(\.github/workflows/|deploy/|\.config/)|(^|/)(Dockerfile[^/]*|docker-[^/]*|Directory\.[^/]*|global\.json|packages\.lock\.json|[^/]*\.(csproj|props|targets|slnx?))$'
   # Integración: lo que toca base de datos, RLS, migraciones, guiones y
   # autorización. Los directorios de tests entran porque los 6 rojos propios
   # de integración medidos en PR tocaban tests/CaeManager.IntegrationTests/.
@@ -154,7 +181,7 @@ alcance_pr() {
       porque_integracion="${porque_integracion:-$f}"; porque_e2e="${porque_e2e:-$f}"
       continue
     fi
-    if [[ "$f" =~ $re_integracion ]] || grep -qiE "$re_nombre" <<< "$f"; then
+    if [[ "$f" =~ $re_integracion ]] || [[ "${f,,}" =~ $re_nombre ]]; then
       integracion=true; porque_integracion="${porque_integracion:-$f}"
     fi
     if [[ "$f" =~ $re_e2e ]]; then

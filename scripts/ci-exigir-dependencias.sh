@@ -13,24 +13,33 @@
 # REGLA.
 #   - Compilación y unitarios, formato y arneses de la extensión: `success`,
 #     en todo evento. Nada más vale.
-#   - Tests de integración (los 4 bloques, resultado agregado de la matriz):
+#   - Tests de integración (los 4 bloques, resultado agregado de la matriz) y
+#     tests E2E, cada uno por separado:
 #       · en `merge_group`: `success`. Nada más vale. El grupo de fusión es la
-#         puerta y ahí la integración corre siempre.
+#         puerta y ahí los dos corren siempre.
 #       · fuera de `merge_group`: `success`, o bien `skipped` ÚNICAMENTE si el
-#         job `alcance` terminó en `success` y su salida `integracion` es
-#         exactamente `false` (la saltó a propósito, ver ci-alcance.sh).
+#         job `alcance` terminó en `success` y su salida para ese job
+#         (`integracion` o `e2e`) es exactamente `false`: lo saltó a propósito
+#         (ver ci-alcance.sh).
 #   - Cualquier otra combinación —failure, cancelled, skipped sin ese permiso,
 #     vacío, un valor que no se conoce— es rojo.
 #
-# Salida `integracion` en $GITHUB_OUTPUT: `ejecutada` o `saltada`. Los pasos
-# del agregador que leen artefactos de integración (reparto de bloques,
-# recuento de tests, cobertura del núcleo y su trinquete) se condicionan a
-# `ejecutada`: sin integración no hay nada que recoger, y medir el trinquete
-# del núcleo sobre dos suites en vez de tres lo haría caer por un motivo que
-# no es una pérdida de cobertura.
+# Los E2E ya son un check obligatorio por sí mismos; se exigen también aquí
+# como segunda barrera, porque un job obligatorio que se salta cuenta como
+# aprobado y este agregador es el único sitio que puede decir «en el grupo de
+# fusión, saltado es rojo».
+#
+# Salida `integracion` en $GITHUB_OUTPUT: `ejecutada` o `saltada` (y `e2e`,
+# igual). Los pasos del agregador que leen artefactos de integración (reparto
+# de bloques, recuento de tests, cobertura del núcleo y su trinquete) se
+# saltan solo con `saltada`: sin integración no hay nada que recoger, y medir
+# el trinquete del núcleo sobre dos suites en vez de tres lo haría caer por un
+# motivo que no es una pérdida de cobertura. La condición de esos pasos es
+# `!= 'saltada'` y no `== 'ejecutada'` a propósito: si esta salida faltara
+# (paso renombrado, escritura fallida), corren.
 #
 # Entradas (entorno): EVENTO, R_COMPILACION, R_FORMATO, R_EXTENSION,
-# R_INTEGRACION, R_ALCANCE, ALCANCE_INTEGRACION.
+# R_INTEGRACION, R_E2E, R_ALCANCE, ALCANCE_INTEGRACION, ALCANCE_E2E.
 set -uo pipefail
 
 EVENTO="${EVENTO:-}"
@@ -38,15 +47,18 @@ R_COMPILACION="${R_COMPILACION:-}"
 R_FORMATO="${R_FORMATO:-}"
 R_EXTENSION="${R_EXTENSION:-}"
 R_INTEGRACION="${R_INTEGRACION:-}"
+R_E2E="${R_E2E:-}"
 R_ALCANCE="${R_ALCANCE:-}"
 ALCANCE_INTEGRACION="${ALCANCE_INTEGRACION:-}"
+ALCANCE_E2E="${ALCANCE_E2E:-}"
 
 echo "Evento: ${EVENTO:-<vacío>}"
 echo "Compilación y tests unitarios: ${R_COMPILACION:-<vacío>}"
 echo "Verificar formato: ${R_FORMATO:-<vacío>}"
 echo "Arneses de la extensión: ${R_EXTENSION:-<vacío>}"
 echo "Tests de integración (4 bloques): ${R_INTEGRACION:-<vacío>}"
-echo "Alcance del CI: ${R_ALCANCE:-<vacío>} (integracion=${ALCANCE_INTEGRACION:-<vacío>})"
+echo "Tests E2E: ${R_E2E:-<vacío>}"
+echo "Alcance del CI: ${R_ALCANCE:-<vacío>} (integracion=${ALCANCE_INTEGRACION:-<vacío>}, e2e=${ALCANCE_E2E:-<vacío>})"
 
 rojo() {
   echo "::error::$1 Este check obligatorio falla a propósito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado."
@@ -61,26 +73,41 @@ if [[ "$R_COMPILACION" != "success" || "$R_FORMATO" != "success" || "$R_EXTENSIO
   rojo "Una dependencia no terminó en success."
 fi
 
-estado=""
-if [[ "$R_INTEGRACION" == "success" ]]; then
-  estado="ejecutada"
-elif [[ "$EVENTO" != "merge_group" && "$R_INTEGRACION" == "skipped" \
-        && "$R_ALCANCE" == "success" && "$ALCANCE_INTEGRACION" == "false" ]]; then
-  estado="saltada"
-elif [[ "$EVENTO" == "merge_group" ]]; then
-  rojo "En el grupo de fusión los tests de integración tienen que terminar en success (terminaron en «${R_INTEGRACION:-vacío}»)."
-elif [[ "$R_INTEGRACION" == "skipped" ]]; then
-  rojo "Los tests de integración se saltaron sin que el alcance del CI lo decidiera (alcance: «${R_ALCANCE:-vacío}», integracion=«${ALCANCE_INTEGRACION:-vacío}»)."
-else
-  rojo "Los tests de integración no terminaron en success (terminaron en «${R_INTEGRACION:-vacío}»)."
-fi
+# pesado NOMBRE RESULTADO SALIDA_DE_ALCANCE -> deja ESTADO en ejecutada|saltada, o rojo
+pesado() {
+  local nombre="$1" resultado="$2" salida="$3"
+  if [[ "$resultado" == "success" ]]; then
+    ESTADO="ejecutada"
+  elif [[ "$EVENTO" != "merge_group" && "$resultado" == "skipped" \
+          && "$R_ALCANCE" == "success" && "$salida" == "false" ]]; then
+    ESTADO="saltada"
+  elif [[ "$EVENTO" == "merge_group" ]]; then
+    rojo "En el grupo de fusión los $nombre tienen que terminar en success (terminaron en «${resultado:-vacío}»)."
+  elif [[ "$resultado" == "skipped" ]]; then
+    rojo "Los $nombre se saltaron sin que el alcance del CI lo decidiera (alcance: «${R_ALCANCE:-vacío}», salida «${salida:-vacío}»)."
+  else
+    rojo "Los $nombre no terminaron en success (terminaron en «${resultado:-vacío}»)."
+  fi
+}
 
-if [[ "$estado" == "saltada" ]]; then
+pesado "tests de integración" "$R_INTEGRACION" "$ALCANCE_INTEGRACION"
+estado_integracion="$ESTADO"
+pesado "tests E2E" "$R_E2E" "$ALCANCE_E2E"
+estado_e2e="$ESTADO"
+
+if [[ "$estado_integracion" == "saltada" ]]; then
   echo "Integración saltada por el alcance del CI: corre en el grupo de fusión. Los pasos que leen sus artefactos (reparto, recuento, cobertura y trinquete del núcleo) no se ejecutan en este run."
-else
+fi
+if [[ "$estado_e2e" == "saltada" ]]; then
+  echo "E2E saltados por el alcance del CI: corren en el grupo de fusión."
+fi
+if [[ "$estado_integracion" == "ejecutada" && "$estado_e2e" == "ejecutada" ]]; then
   echo "Todas las dependencias terminaron en success."
 fi
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-  echo "integracion=$estado" >> "$GITHUB_OUTPUT"
+  if ! { echo "integracion=$estado_integracion"; echo "e2e=$estado_e2e"; } >> "$GITHUB_OUTPUT"; then
+    rojo "No se pudo escribir la salida del paso."
+  fi
 fi
-echo "integracion=$estado"
+echo "integracion=$estado_integracion"
+echo "e2e=$estado_e2e"
