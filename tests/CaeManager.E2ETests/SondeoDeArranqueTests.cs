@@ -42,6 +42,21 @@ public class SondeoDeArranqueTests
         () => Task.FromException<HttpResponseMessage>(excepcion);
 
     /// <summary>
+    /// Tope de peticiones de un caso. El reloj falso solo avanza dentro de la pausa y las respuestas falsas ya llegan
+    /// completadas: si un cambio futuro quita la comparación con el límite o la llamada a la pausa, el bucle giraría sin
+    /// fin y sin ceder el hilo, y xUnit 2 no tiene tiempo máximo por test: el job E2E se quedaría colgado en vez de
+    /// ponerse en rojo. Ningún caso legítimo pasa de un puñado de peticiones. El fallo es una excepción de xUnit, que el
+    /// sondeo no captura (no es de red ni una cancelación), así que sale tal cual.
+    /// </summary>
+    private static void ExigirQueElSondeoRespetaSuPlazo(int peticionesHechas, int tope)
+    {
+        if (peticionesHechas >= tope)
+            Assert.Fail(
+                $"El sondeo no respeta su plazo: lleva {peticionesHechas} peticiones con un reloj falso que ya debería " +
+                "haberlo agotado. ¿Sigue comparando con el límite y llamando a la pausa en cada vuelta?");
+    }
+
+    /// <summary>
     /// Ejecuta el sondeo con un reloj que solo avanza en la pausa (250 ms por intento) y con las respuestas dadas, una por
     /// intento; agotadas, repite la última. Devuelve cuántas peticiones se hicieron.
     /// </summary>
@@ -56,7 +71,11 @@ public class SondeoDeArranqueTests
         try
         {
             await SondeoDeArranque.EsperarAsync(
-                pedirSalud: () => respuestas[Math.Min(peticiones++, respuestas.Length - 1)](),
+                pedirSalud: () =>
+                {
+                    ExigirQueElSondeoRespetaSuPlazo(peticiones, tope: 10_000);
+                    return respuestas[Math.Min(peticiones++, respuestas.Length - 1)]();
+                },
                 codigoDeSalidaSiElProcesoTermino: codigoDeSalida ?? (() => null),
                 plazo: plazo,
                 ahora: () => ahora,
@@ -208,6 +227,9 @@ public class SondeoDeArranqueTests
             () => SondeoDeArranque.EsperarAsync(
                 pedirSalud: async () =>
                 {
+                    // Aquí cada petición cuesta 100 ms de verdad: el tope es corto para que un bucle sin fin falle en 2 s.
+                    ExigirQueElSondeoRespetaSuPlazo(lanzadas.Count, tope: 20);
+
                     try
                     {
                         return await cliente.GetAsync(url);
