@@ -25,8 +25,12 @@ namespace CaeManager.Architecture.Tests;
 /// ámbito es el último del selector, o el anterior a <c>::deep</c> si lo hay.
 /// NO ve clases compuestas en ejecución, ni elementos de un
 /// <c>MarkupString</c>, ni un fragmento construido en una clase base o en otro
-/// fichero, ni el estilo calculado. Un selector que alcanza la clase tras
-/// <c>::deep</c>, o desde un <c>.css</c> global, es correcto y no se marca.
+/// fichero, ni el estilo calculado; tampoco mira dentro de los paréntesis de
+/// <c>:not(…)</c>/<c>:is(…)</c> ni de los selectores de atributo. Si la misma
+/// clase se escribe además como marcado en el componente, la regla se marca
+/// igual: el elemento del builder sigue sin recibirla. Un selector que alcanza
+/// la clase tras <c>::deep</c>, o desde un <c>.css</c> global, es correcto y no
+/// se marca.
 /// </para>
 /// </summary>
 public class SelectoresAisladosNoApuntanAElementosDeRenderTreeBuilderTests
@@ -60,11 +64,12 @@ public class SelectoresAisladosNoApuntanAElementosDeRenderTreeBuilderTests
 
     /// <summary>
     /// Prueba de que el instrumento mira donde dice mirar: ve las hojas del
-    /// sistema de diseño y de las features, empareja el code-behind, y hay en
-    /// el repositorio al menos una clase creada con builder que extraer.
+    /// sistema de diseño y de las features, y empareja el code-behind. La
+    /// extracción de clases se prueba con texto fijo más abajo, no contra el
+    /// árbol: el remedio que pide este trinquete es justo retirar esos casos.
     /// </summary>
     [Fact]
-    public void El_escaner_encuentra_hojas_aisladas_code_behind_y_clases_de_builder()
+    public void El_escaner_encuentra_hojas_aisladas_y_su_code_behind()
     {
         var hojas = HojasAisladasConSuComponente();
 
@@ -74,12 +79,6 @@ public class SelectoresAisladosNoApuntanAElementosDeRenderTreeBuilderTests
         var centros = hojas.Single(h => Path.GetFileName(h.Css) == "Centros.razor.css");
         centros.Fuentes.Select(Path.GetFileName)
             .Should().Contain("Centros.razor").And.Contain("Centros.razor.cs");
-
-        centros.Fuentes.SelectMany(f => ClasesCreadasConBuilder(File.ReadAllText(f)))
-            .Should().Contain("ventana-grupo",
-                "Centros.razor.cs pinta esa clase con builder.OpenElement (su regla es global, en "
-                + "list-page.css); si deja de hacerlo, pon aquí otro caso real para que la extracción "
-                + "siga probada contra el árbol");
     }
 
     /// <summary>
@@ -107,6 +106,9 @@ public class SelectoresAisladosNoApuntanAElementosDeRenderTreeBuilderTests
             .tarjeta-header ::deep .tarjeta-titulo { margin: 0; }
             .tarjeta-titulo ::deep .icono { margin: 0; }
             .tarjeta-titulo-largo { margin: 0; }
+            .tarjeta-titulo:nth-child(2n + 1) { margin: 0; }
+            .tarjeta-header:is(.a, .b) > .icono { margin: 0; }
+            a[href$=".tarjeta-titulo"] { margin: 0; }
             """;
 
         var clases = ClasesCreadasConBuilder(razor).ToHashSet(StringComparer.Ordinal);
@@ -118,6 +120,7 @@ public class SelectoresAisladosNoApuntanAElementosDeRenderTreeBuilderTests
                 ".tarjeta-compacta .tarjeta-titulo",
                 ".tarjeta-titulo:hover",
                 ".tarjeta-titulo ::deep .icono",
+                ".tarjeta-titulo:nth-child(2n + 1)",
             ],
             "el ámbito cae en el último compuesto, o en el anterior a ::deep; la clase como ancestro "
             + "sin ámbito, tras ::deep, o como prefijo de otro nombre, sí casa");
@@ -146,7 +149,7 @@ public class SelectoresAisladosNoApuntanAElementosDeRenderTreeBuilderTests
     {
         foreach (var bloque in BloquesDeSelector(css))
         {
-            foreach (var selector in bloque.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0))
+            foreach (var selector in SelectoresDeLaLista(bloque).Select(s => s.Trim()).Where(s => s.Length > 0))
             {
                 var compuesto = CompuestoConAmbito(selector);
                 if (compuesto is null) continue;
@@ -167,11 +170,53 @@ public class SelectoresAisladosNoApuntanAElementosDeRenderTreeBuilderTests
     /// </summary>
     private static string? CompuestoConAmbito(string selector)
     {
-        var deep = selector.IndexOf("::deep", StringComparison.Ordinal);
-        var propio = (deep >= 0 ? selector[..deep] : selector).Trim();
+        var plano = SinParentesisNiAtributos(selector);
+        var deep = plano.IndexOf("::deep", StringComparison.Ordinal);
+        var propio = (deep >= 0 ? plano[..deep] : plano).Trim();
         if (propio.Length == 0) return null;
 
         return Regex.Split(propio, @"[\s>+~]+").LastOrDefault(c => c.Length > 0);
+    }
+
+    /// <summary>
+    /// Parte una lista de selectores por las comas de primer nivel: las de
+    /// dentro de <c>:is(.a, .b)</c> no separan selectores.
+    /// </summary>
+    private static IEnumerable<string> SelectoresDeLaLista(string bloque)
+    {
+        var nivel = 0;
+        var inicio = 0;
+        for (var i = 0; i <= bloque.Length; i++)
+        {
+            if (i < bloque.Length)
+            {
+                if (bloque[i] is '(' or '[') nivel++;
+                else if (bloque[i] is ')' or ']') nivel--;
+                if (bloque[i] != ',' || nivel != 0) continue;
+            }
+
+            var selector = bloque[inicio..i].Trim();
+            if (selector.Length > 0) yield return selector;
+            inicio = i + 1;
+        }
+    }
+
+    /// <summary>
+    /// Quita el contenido de paréntesis y de selectores de atributo, que lleva
+    /// espacios, signos y puntos que no son combinadores ni clases del
+    /// compuesto (<c>:nth-child(2n + 1)</c>, <c>[href$=".pdf"]</c>).
+    /// </summary>
+    private static string SinParentesisNiAtributos(string selector)
+    {
+        string anterior;
+        do
+        {
+            anterior = selector;
+            selector = Regex.Replace(selector, @"\([^()]*\)|\[[^\[\]]*\]", "");
+        }
+        while (selector != anterior);
+
+        return selector;
     }
 
     /// <summary>Clases literales de <c>AddAttribute(n, "class", …)</c>.</summary>
