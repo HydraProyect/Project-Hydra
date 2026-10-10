@@ -220,7 +220,16 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private IReadOnlyList<OpcionAgrupar> OpcionesAgrupar => [new(AgruparPorClienteClave, Textos["FiltroClienteEmpresarial"])];
 
-    private bool AgrupaPorClienteSegunLaUrl => Agrupacion.Leer(AgruparInicial) == AgruparPorClienteClave;
+    private bool AgrupaPorClienteSegunLaUrl => AgrupaPorCliente(AgruparInicial);
+
+    /// <summary>
+    /// Único lector del valor de <c>agrupar</c>, venga de la URL o de un filtro guardado: los dos pasan por
+    /// <see cref="AgrupacionDeLista.Leer"/>.
+    /// </summary>
+    private static bool AgrupaPorCliente(string? valorDeAgrupar) => Agrupacion.Leer(valorDeAgrupar) == AgruparPorClienteClave;
+
+    /// <summary>La agrupación vigente como clave de <see cref="AgrupacionDeLista"/>: <c>null</c> es «sin agrupar».</summary>
+    private string? ClaveDeAgrupacion => _agruparPorCliente ? AgruparPorClienteClave : null;
 
     private const string OrdenCumplimientoEnUrl = "cumplimiento";
     private const string OrdenCumplimientoDescendenteEnUrl = "cumplimiento-desc";
@@ -757,7 +766,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         _clienteFiltro = IdDesdeUrl(vista.GetValueOrDefault("cliente"));
         _empresaFiltro = IdDesdeUrl(vista.GetValueOrDefault("empresa"));
         (_ordenarPor, _ordenDescendente) = OrdenDesde(vista.GetValueOrDefault("orden"));
-        AplicarAgrupacion(vista.GetValueOrDefault("agrupar") != AgruparNoEnUrl);
+        AplicarAgrupacion(AgrupaPorCliente(vista.GetValueOrDefault(AgrupacionDeLista.Parametro)));
 
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
@@ -765,7 +774,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             ["estado"] = _estadoFiltro,
             ["cliente"] = _clienteFiltro,
             ["empresa"] = _empresaFiltro,
-            ["agrupar"] = _agruparPorCliente ? null : AgruparNoEnUrl,
+            [AgrupacionDeLista.Parametro] = Agrupacion.ParaUrl(ClaveDeAgrupacion),
             ["orden"] = _ordenarPor is null
                 ? null
                 : _ordenDescendente ? OrdenCumplimientoDescendenteEnUrl : OrdenCumplimientoEnUrl,
@@ -794,7 +803,12 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             .DefaultIfEmpty(0)
             .Max();
 
-        /// <summary>Blanca salvo que el grupo contenga algún Centro cuya fila se tiñe; entonces, el tinte del peor.</summary>
+        /// <summary>
+        /// Blanca salvo que el grupo contenga algún Centro cuya fila se tiñe; entonces, el tinte del peor.
+        /// El resumen de la cabecera dice «N por vencer» sumando Urgente y Próximo, como la franja de estado, pero
+        /// el tinte y el orden del grupo (<see cref="Peor"/>) solo reaccionan a Urgente: la cabecera se tiñe con el
+        /// criterio de sus filas, y la fila de un Centro «Próximo» no se tiñe.
+        /// </summary>
         public TinteGrupoLista Tinte => Peor switch
         {
             2 => TinteGrupoLista.Peligro,

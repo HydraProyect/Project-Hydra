@@ -105,7 +105,7 @@
         <Herramientas>
             @if (_elementosPagina.Count > 0)
             {
-                <DesplegableAgrupar Opciones="OpcionesAgrupar" Valor="@(_agruparPorCliente ? AgruparPorClienteClave : null)" ValorChanged="CambiarAgrupacion" />
+                <DesplegableAgrupar Opciones="OpcionesAgrupar" Valor="@ClaveDeAgrupacion" ValorChanged="CambiarAgrupacion" />
                 <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
             }
         </Herramientas>

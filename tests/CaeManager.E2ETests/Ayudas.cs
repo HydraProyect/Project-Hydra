@@ -801,7 +801,7 @@ public static class Ayudas
     /// </summary>
     public static async Task MostrarCentrosSinAgruparAsync(IPage page)
     {
-        await ElegirAgrupacionAsync(page, new Regex("^Sin agrupar$"), new Regex("^Agrupar: no$"));
+        await ElegirAgrupacionAsync(page, "Sin agrupar", new Regex("^Agrupar: no$"));
         await Assertions.Expect(page.Locator(".grupo-lista")).ToHaveCountAsync(0);
     }
 
@@ -809,32 +809,19 @@ public static class Ayudas
     public static ILocator DesplegableAgrupar(IPage page) => page.Locator("[data-keytip='A']");
 
     /// <summary>
-    /// Elige una opción del desplegable «Agrupar» y espera a que su pastilla diga el rótulo esperado.
+    /// Elige una opción del desplegable «Agrupar» por su texto («Sin agrupar», «Por Cliente») y espera a que
+    /// su pastilla diga el rótulo esperado.
     ///
-    /// El desplegable llega con el prerender antes que el circuito y un clic en esa ventana se pierde
-    /// (el menú no se abre): se repite hasta que la propia pastilla dice la agrupación elegida. El
-    /// disparador alterna el menú, así que solo se pulsa si la opción no está ya a la vista.
+    /// El desplegable es un <c>MenuAcciones</c> y llega con el prerender antes que el circuito: lo abre y
+    /// pulsa la opción <see cref="PulsarAccionDeMenuAsync"/>, que solo pulsa el disparador si el menú está
+    /// cerrado, confirma <c>aria-expanded</c> antes de tocar la opción y da la acción por hecha cuando el
+    /// panel se cierra.
     /// </summary>
-    public static async Task ElegirAgrupacionAsync(IPage page, Regex opcion, Regex rotuloEsperado)
+    public static async Task ElegirAgrupacionAsync(IPage page, string opcion, Regex rotuloEsperado)
     {
         var agrupar = DesplegableAgrupar(page);
-        var item = page.GetByRole(AriaRole.Menuitemradio, new PageGetByRoleOptions { NameRegex = opcion });
-        await agrupar.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
-        for (var intento = 1; !rotuloEsperado.IsMatch((await agrupar.InnerTextAsync()).Trim()); intento++)
-        {
-            Assert.True(intento <= 10, $"«Agrupar» no llegó a decir «{rotuloEsperado}» tras 10 intentos.");
-            if (!await item.IsVisibleAsync())
-                await agrupar.ClickAsync();
-            try
-            {
-                await item.ClickAsync(new LocatorClickOptions { Timeout = 2_000 });
-            }
-            catch (TimeoutException)
-            {
-                // El menú no se abrió (clic perdido antes del circuito): la vuelta siguiente lo reintenta.
-            }
-            await page.WaitForTimeoutAsync(1_000);
-        }
+        await PulsarAccionDeMenuAsync(agrupar, opcion);
+        await Assertions.Expect(agrupar).ToHaveTextAsync(rotuloEsperado, new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
     }
 
     /// <summary>

@@ -1222,14 +1222,19 @@ public class CentrosListaPatronTests : BunitContext
     }
 
     [Fact]
-    public void Abrir_un_grupo_muestra_solo_sus_Centros()
+    public void Abrir_un_grupo_muestra_solo_sus_Centros_y_volver_a_pulsar_su_cabecera_los_esconde()
     {
         var cut = RenderizarConGruposContraidos(ConDosClientes());
 
         cut.FindAll(".grupo-lista-cabecera")[1].Click();
 
         cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim()).Should().Equal("Planta Bilbao");
-        cut.FindAll(".grupo-lista-cabecera")[1].GetAttribute("aria-expanded").Should().Be("true");
+        cut.FindAll(".grupo-lista-cabecera").Select(c => c.GetAttribute("aria-expanded")).Should().Equal("false", "true");
+
+        cut.FindAll(".grupo-lista-cabecera")[1].Click();
+
+        cut.FindAll(".tarjeta-fila-acordeon").Should().BeEmpty();
+        cut.FindAll(".grupo-lista-cabecera").Select(c => c.GetAttribute("aria-expanded")).Should().Equal("false", "false");
     }
 
     /// <summary>
