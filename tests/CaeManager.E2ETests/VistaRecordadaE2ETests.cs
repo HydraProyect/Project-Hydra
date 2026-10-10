@@ -22,14 +22,14 @@ namespace CaeManager.E2ETests;
 ///
 /// <para>
 /// La vista recordada es estado persistente del Usuario. Estos recorridos usan un Gestor CAE de la
-/// siembra con el que no entra ningún otro recorrido de <c>AppCollection</c>, empiezan olvidando
+/// siembra con el que no entra ningún otro recorrido de <c>AppCollectionListados</c>, empiezan olvidando
 /// por la interfaz lo que hubiera (no dependen de cómo lo dejó una ejecución anterior) y, si se
 /// quedan a medias, lo olvidan antes de fallar. El aislamiento entre recorridos de toda la suite
 /// no depende de eso: lo da el inicio de sesión del arnés, y su control es el tercer test.
 /// </para>
 /// </summary>
-[Collection("AppCollection")]
-public class VistaRecordadaE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
 {
     private static readonly string Gestor = Ayudas.EmailPrueba("gestorcae", 3);
     private static readonly Regex AgrupadoPorCliente = new("^Agrupar: Cliente$");
