@@ -5,14 +5,16 @@ namespace CaeManager.E2ETests;
 
 /// <summary>
 /// Pendiente en la plataforma CAE del Centro (decisión del 2026-10-10), de punta a punta: un Centro sin plataforma no
-/// tiene ese motivo; en cuanto su documento vigente queda sin subir en la plataforma del Centro, la fila de /centros
-/// dice «1 pendiente en la plataforma» bajo la pastilla «Pendiente», y la ficha 360 del Centro lo repite. Lo que bUnit
-/// no ve: que la consulta real (RLS, alcance, documentos efectivos) llega a esas dos pantallas.
+/// tiene ese motivo; en cuanto el documento vigente de su Trabajador queda sin subir en la plataforma del Centro, la fila
+/// de /centros dice «1 pendiente en la plataforma», con su ventana de contexto, y la ficha 360 del Centro lo repite. Lo
+/// que bUnit no ve: que la consulta real (RLS, alcance, documento efectivo, canal del Centro) llega a esas dos pantallas.
 ///
 /// <para>
-/// El escenario se monta como el de <see cref="VisitaCentroGestionadoPorCorreoE2ETests"/>: Empresa, Cliente, Centro,
-/// Trabajador y documento con archivo por la interfaz. El canal de plataforma y la acreditación sin subir se escriben
-/// por SQL: la interfaz de canales no es lo que se mide, y escribirlos así no dispara ningún envío. No se envía nada.
+/// El escenario es propio y se escribe por SQL en el Tenant del Administrador: un Centro nuevo (del primer Cliente
+/// empresarial y la primera Empresa ya sembrados en ese Tenant), un Trabajador nuevo de esa Empresa asignado a él y su
+/// documento vigente de un tipo que se pide siempre; después, el acceso de plataforma del Centro y la acreditación de ese
+/// documento sin subir. Darlos de alta por la interfaz no es lo que se mide, y escribirlos así no dispara ningún envío:
+/// no se envía nada. Ningún otro E2E lee este Centro ni este Trabajador.
 /// </para>
 /// </summary>
 [Collection("AppCollection")]
@@ -22,112 +24,62 @@ public class CentroPendienteEnPlataformaE2ETests(WebAppFixture fixture)
     public async Task Un_documento_sin_subir_a_la_plataforma_del_Centro_lo_deja_pendiente_en_la_lista_y_en_la_ficha()
     {
         var sufijo = Guid.NewGuid().ToString("N")[..8];
-        var nombreTipoDocumento = $"EnPlataforma Tipo {sufijo}";
-        var razonSocialCliente = $"EnPlataforma Cliente {sufijo}";
-        var razonSocialEmpresa = $"EnPlataforma Empresa {sufijo}";
         var nombreCentro = $"EnPlataforma Centro {sufijo}";
-        var nombreTrabajador = "EnPlataforma";
+        const string nombreTrabajador = "EnPlataforma";
         var apellidosTrabajador = $"E2E {sufijo}";
+        var hoy = Ayudas.HoyDeNegocio();
+
+        // --- Centro sin plataforma, con un Trabajador asignado y su documento vigente ---
+        // Requerido y AmbitoAplicacion se guardan como texto; EstadoVigencia 2 = VenceEnFecha; GestionCae 0 = con gestión.
+        var documentos = await fixture.EjecutarSqlAsync("""
+            WITH tenant AS (
+                SELECT "TenantId" AS "Id" FROM "AspNetUsers" WHERE "Email" = @email),
+            base AS (
+                SELECT c."ClienteId", c."EmpresaId", c."TenantId"
+                FROM "Centros" c JOIN tenant ON c."TenantId" = tenant."Id"
+                WHERE NOT c."EstaEliminado"
+                ORDER BY c."CreadoEnUtc", c."Id" LIMIT 1),
+            centro AS (
+                INSERT INTO "Centros" ("Id", "ClienteId", "EmpresaId", "TenantId", "Nombre", "GestionCae", "EstaEliminado", "CreadoEnUtc", "Version")
+                SELECT gen_random_uuid(), "ClienteId", "EmpresaId", "TenantId", @centro, 0, false, now(), gen_random_uuid() FROM base
+                RETURNING "Id", "TenantId", "EmpresaId"),
+            trabajador AS (
+                INSERT INTO "Trabajadores" ("Id", "TenantId", "EmpresaId", "Nombre", "Apellidos", "Dni", "EstaEliminado", "CreadoEnUtc", "Version")
+                SELECT gen_random_uuid(), "TenantId", "EmpresaId", @nombre, @apellidos, @dni, false, now(), gen_random_uuid() FROM centro
+                RETURNING "Id", "TenantId"),
+            asignacion AS (
+                INSERT INTO "Asignaciones" ("Id", "CentroId", "TrabajadorId", "TenantId", "FechaAlta")
+                SELECT gen_random_uuid(), centro."Id", trabajador."Id", trabajador."TenantId", @hoy::date FROM centro, trabajador
+                RETURNING 1),
+            tipo AS (
+                SELECT t."Id" FROM "TiposDocumento" t JOIN tenant ON t."TenantId" = tenant."Id"
+                WHERE t."Requerido" = 'Si' AND t."AmbitoAplicacion" = 'Trabajador'
+                ORDER BY t."Orden", t."Nombre" LIMIT 1)
+            INSERT INTO "Documentos"
+                ("Id", "TenantId", "TipoDocumentoId", "TrabajadorId", "FechaEmision", "FechaVencimiento", "EstadoVigencia",
+                 "EstaEliminado", "CreadoEnUtc", "Version")
+            SELECT gen_random_uuid(), trabajador."TenantId", tipo."Id", trabajador."Id", @hoy::date - 5, @hoy::date + 180, 2,
+                   false, now(), gen_random_uuid()
+            FROM trabajador, tipo, (SELECT count(*) FROM asignacion) AS asignada
+            """,
+            ("email", Ayudas.EmailAdministrador), ("centro", nombreCentro), ("nombre", nombreTrabajador),
+            ("apellidos", apellidosTrabajador), ("dni", Ayudas.GenerarDniValido(88_100_981)), ("hoy", hoy.ToString("yyyy-MM-dd")));
+        Assert.Equal(1, documentos);
+        var centroId = await fixture.LeerValorSqlAsync("""SELECT "Id"::text FROM "Centros" WHERE "Nombre" = @centro""", ("centro", nombreCentro));
 
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
-        var drawer = page.Locator(".drawer-panel");
 
-        // --- Tipo de documento requerido ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/tipos-documento");
-        await page.GetByText("+ Nuevo tipo").ClickAsync();
-        await drawer.GetByLabel("Nombre").FillAsync(nombreTipoDocumento);
-        await drawer.GetByLabel("¿Se pide?").SelectOptionAsync("Si");
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
-        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Guardar y aplicar" }).ClickAsync();
-        await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
-
-        // --- Empresa → Cliente → Centro ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Empresa" }).WaitForAsync();
-        await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-        await page.GetByLabel("Identificación fiscal (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_802));
-        await page.GetByText("Guardar y continuar").ClickAsync();
-
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
-        await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
-        await page.GetByLabel("Identificación fiscal", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_801));
-        await page.GetByText("Guardar y continuar a Centro").ClickAsync();
-
-        await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "3. Centro" }).WaitForAsync();
-        await page.GetByLabel("Nombre", new PageGetByLabelOptions { Exact = true }).FillAsync(nombreCentro);
-        await page.GetByText("Guardar centro").ClickAsync();
-        await Expect(page.GetByText("Terminar aquí")).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-
-        // --- Trabajador asignado al Centro ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
-        var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
-        await page.WaitForTimeoutAsync(300);
-        if (await comboEmpresa.IsVisibleAsync())
-            await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
-        else
-            await drawer.GetByText(razonSocialEmpresa).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(Ayudas.GenerarDniValido(88_100_981));
-        await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
-        await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
-        await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
-
-        await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(apellidosTrabajador);
-        var filaTrabajador = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
-        await filaTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await Expect(page.Locator("tbody tr.fila-pulsable")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
-        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
-        await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
-        await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…").ClickAsync();
-        await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
-            .FillAsync($"{nombreCentro} ({razonSocialCliente})");
-        await page.WaitForTimeoutAsync(500);
-        await page.Locator(".modal-pie").GetByText(new System.Text.RegularExpressions.Regex("^Asignar")).ClickAsync();
-        await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
-
-        // --- Documento vigente, subido desde /centros ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa");
-        await buscador.FillAsync(nombreCentro);
-        var botonExpandir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}" });
-        await botonExpandir.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await buscador.BlurAsync();
-        await page.WaitForTimeoutAsync(500);
-        await botonExpandir.ClickAsync();
-        await Expect(botonExpandir).ToHaveAttributeAsync("aria-expanded", "true", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
-        var botonExpandirTrabajador = page.GetByRole(AriaRole.Button,
-            new PageGetByRoleOptions { Name = $"Documentos exigidos a {nombreTrabajador} {apellidosTrabajador}" });
-        await botonExpandirTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await page.WaitForTimeoutAsync(300);
-        await botonExpandirTrabajador.ClickAsync();
-        var filaDocumento = page.GetByRole(AriaRole.Table,
-                new PageGetByRoleOptions { Name = $"Documentación exigida a {nombreTrabajador} {apellidosTrabajador}" })
-            .Locator(".fila-documento-requerido", new LocatorLocatorOptions { HasText = nombreTipoDocumento });
-        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
-        await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-
-        var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
-        await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(180).ToString("yyyy-MM-dd"));
-        var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco($"enplataforma-{sufijo}.pdf");
-        try
+        var urlLista = $"{fixture.BaseUrl}/centros?q={Uri.EscapeDataString(nombreCentro)}";
+        var filaCentro = page.Locator(".tarjeta-fila-acordeon").Filter(new LocatorFilterOptions
         {
-            await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaPdf);
-            await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
-            await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
-        }
-        finally
-        {
-            File.Delete(rutaPdf);
-        }
+            Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}", Exact = true }),
+        });
+        var cabeceraFila = filaCentro.Locator(".tarjeta-fila-acordeon-cabecera");
 
         // --- Sin plataforma: la fila no tiene el motivo (control negativo, con barrera: la fila ya está pintada) ---
-        var filaCentro = page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = nombreCentro });
-        var cabeceraFila = filaCentro.Locator(".tarjeta-fila-acordeon-cabecera");
+        await Ayudas.NavegarYEsperarAsync(page, urlLista);
         await Expect(cabeceraFila.Locator(".ranura-estado-centro")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await Expect(cabeceraFila.Locator(".motivo-recuento-pendientes")).ToHaveCountAsync(0);
 
@@ -142,7 +94,7 @@ public class CentroPendienteEnPlataformaE2ETests(WebAppFixture fixture)
                 SELECT gen_random_uuid(), c."Id", c."TenantId", 0, true, false, 'Gestión general',
                        (SELECT p."Id" FROM "ProveedoresPlataformaCae" p WHERE p."Activo" ORDER BY p."Codigo" LIMIT 1),
                        now(), gen_random_uuid()
-                FROM "Centros" c WHERE c."Nombre" = @centro
+                FROM "Centros" c WHERE c."Id" = @centro::uuid
                 RETURNING "Id", "TenantId")
             INSERT INTO "AcreditacionesDocumentoPlataforma"
                 ("Id", "CanalGestionDocumentalId", "DocumentoId", "TenantId", "Estado", "EstadoVigencia",
@@ -151,28 +103,23 @@ public class CentroPendienteEnPlataformaE2ETests(WebAppFixture fixture)
             FROM canal
             JOIN "Documentos" d ON d."TenantId" = canal."TenantId" AND NOT d."EstaEliminado"
             JOIN "Trabajadores" t ON t."Id" = d."TrabajadorId" AND t."Apellidos" = @apellidos
-            JOIN "TiposDocumento" td ON td."Id" = d."TipoDocumentoId" AND td."Nombre" = @tipo
-            """, ("centro", nombreCentro), ("apellidos", apellidosTrabajador), ("tipo", nombreTipoDocumento));
+            """, ("centro", centroId), ("apellidos", apellidosTrabajador));
         Assert.Equal(1, acreditaciones);
 
-        // --- /centros: «Pendiente» con su motivo «1 pendiente en la plataforma» ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        await buscador.FillAsync(nombreCentro);
-        var motivoPendientes = cabeceraFila.Locator(".motivo-recuento-pendientes");
-        await Expect(motivoPendientes).ToHaveTextAsync("1 pendiente en la plataforma", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+        // --- /centros: el motivo «1 pendiente en la plataforma», con su ventana ---
+        await Ayudas.NavegarYEsperarAsync(page, urlLista);
+        await Expect(cabeceraFila.Locator(".motivo-recuento-pendientes"))
+            .ToHaveTextAsync("1 pendiente en la plataforma", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+        // La pastilla dice «Pendiente» (con mayúscula; el motivo, en minúscula): el Trabajador tiene además otros tipos que
+        // faltan, y Faltante se rotula igual.
         await Expect(cabeceraFila.Locator(".ranura-estado-centro")).ToContainTextAsync("Pendiente");
-        var ventana = cabeceraFila.Locator(".ventana-contexto", new LocatorLocatorOptions { Has = page.Locator(".motivo-recuento-pendientes") });
+        var ventana = cabeceraFila.Locator(".ventana-contexto").Filter(new LocatorFilterOptions { Has = page.Locator(".motivo-recuento-pendientes") });
         await Expect(ventana).ToHaveAttributeAsync("aria-label", "1 pendiente en la plataforma. 1 documento pendiente en la plataforma");
         await Expect(ventana.Locator(".ventana-linea")).ToHaveTextAsync(
-            $"{nombreTipoDocumento} — {nombreTrabajador} {apellidosTrabajador} — sin subir a la plataforma");
+            new System.Text.RegularExpressions.Regex($"— {nombreTrabajador} {apellidosTrabajador} — sin subir a la plataforma$"));
 
         // --- Ficha 360 del Centro: el mismo recuento junto al título ---
-        await buscador.BlurAsync();
-        await page.WaitForTimeoutAsync(500);
-        await botonExpandir.ClickAsync();
-        await Expect(botonExpandir).ToHaveAttributeAsync("aria-expanded", "true", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
-        await filaCentro.GetByRole(AriaRole.Link, new LocatorGetByRoleOptions { Name = "Ver el centro completo →" }).ClickAsync();
-        await page.WaitForURLAsync(url => url.Contains("/centros/"), new PageWaitForURLOptions { Timeout = 15_000 });
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros/{centroId}");
         await Expect(page.Locator("[data-recuento='pendientes-plataforma']"))
             .ToHaveTextAsync("1 pendiente en la plataforma", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
     }
