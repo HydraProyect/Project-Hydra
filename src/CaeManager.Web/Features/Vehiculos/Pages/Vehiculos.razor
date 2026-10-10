@@ -33,7 +33,8 @@
     {
         <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple"
-                         SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)">
+                         SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)"
+                         Menu="@(_alcanceCero ? null : MenuCabecera)">
             <Primaria>
                 @if (!_alcanceCero)
                 {
@@ -63,7 +64,9 @@
     @if (!_alcanceCero)
     {
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
-                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpleador"]" TextoTodos="@Textos["ListaFiltroTodos"]"
                             Valor="@ValorFiltroEmpleador" ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
@@ -83,6 +86,8 @@
             }
         </Chips>
     </BarraFiltros>
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
@@ -264,3 +269,11 @@
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
 </LimiteDeErrores>
+
+@code {
+    /// <summary>
+    /// El «⋯» de la cabecera: las dos entradas de exportación, que son lectura y las ve cualquier rol
+    /// de la página. Con alcance cero no se pasa (D-15: daría un fichero vacío).
+    /// </summary>
+    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/vehiculos/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />;
+}

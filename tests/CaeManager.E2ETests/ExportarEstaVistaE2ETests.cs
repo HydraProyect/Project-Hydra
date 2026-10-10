@@ -93,6 +93,63 @@ public class ExportarEstaVistaE2ETests(WebAppFixture fixture)
         Assert.Contains("acceso-denegado", respuesta.Headers.GetValueOrDefault("location") ?? string.Empty);
     }
 
+    /// <summary>
+    /// Las cuatro exportaciones del cierre de listados: quien entra en la página descarga el libro
+    /// con su hoja, con y sin criterios. No se afirma el número de filas: la siembra de los E2E no
+    /// garantiza datos en estas cuatro pantallas (el subconjunto y el aislamiento los mide
+    /// <c>ExportacionVehiculosProyectosVisitasGestionesTests</c> contra PostgreSQL).
+    /// </summary>
+    [Theory]
+    [InlineData("/vehiculos/exportar.xlsx", "Vehículos")]
+    [InlineData("/proyectos/exportar.xlsx", "Proyectos")]
+    [InlineData("/visitas/exportar.xlsx", "Visitas")]
+    [InlineData("/gestiones/exportar.xlsx", "Gestiones")]
+    public async Task Un_Gestor_CAE_descarga_el_libro_del_listado_con_y_sin_criterios(string ruta, string hoja)
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+
+        foreach (var consulta in new[] { string.Empty, $"?q={BusquedaSinCoincidencias}" })
+        {
+            var respuesta = await contexto.APIRequest.GetAsync(
+                $"{fixture.BaseUrl}{ruta}{consulta}", new APIRequestContextOptions { MaxRedirects = 0 });
+            Assert.Equal(200, respuesta.Status);
+
+            using var stream = new MemoryStream(await respuesta.BodyAsync());
+            using var libro = new XLWorkbook(stream);
+            var filas = libro.Worksheet(hoja).RangeUsed()!.RowCount() - 1;
+            if (consulta.Length > 0)
+                Assert.Equal(0, filas);
+        }
+    }
+
+    /// <summary>
+    /// El rol Cliente no entra en estas cuatro páginas (su <c>[Authorize(Roles = …)]</c>) y
+    /// tampoco descarga su listado, ni entero ni «esta vista». Sin los roles declarados en el
+    /// endpoint, la política por defecto lo dejaría pasar.
+    /// </summary>
+    [Theory]
+    [InlineData("/vehiculos/exportar.xlsx")]
+    [InlineData("/proyectos/exportar.xlsx")]
+    [InlineData("/visitas/exportar.xlsx")]
+    [InlineData("/gestiones/exportar.xlsx")]
+    public async Task Rol_Cliente_no_puede_exportar_los_listados_operativos(string ruta)
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("cliente", 1), Ayudas.ContrasenaUsuariosPrueba);
+
+        foreach (var consulta in new[] { string.Empty, "?q=a" })
+        {
+            var respuesta = await contexto.APIRequest.GetAsync(
+                $"{fixture.BaseUrl}{ruta}{consulta}", new APIRequestContextOptions { MaxRedirects = 0 });
+
+            Assert.True(respuesta.Status is >= 300 and < 400, $"GET {ruta}{consulta} devolvió {respuesta.Status} para el rol Cliente.");
+            Assert.Contains("acceso-denegado", respuesta.Headers.GetValueOrDefault("location") ?? string.Empty);
+        }
+    }
+
     private async Task<List<List<string>>> FilasAsync(IBrowserContext contexto, string rutaConQuery, string hoja)
     {
         var respuesta = await contexto.APIRequest.GetAsync(
