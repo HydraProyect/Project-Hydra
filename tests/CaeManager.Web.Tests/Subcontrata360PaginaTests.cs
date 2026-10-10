@@ -14,6 +14,8 @@ using CaeManager.Application.Subcontratas.Queries.ObtenerCumplimientoSubcontrata
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerTrabajadoresDocumentacionPorSubcontrata;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Usuarios.Queries.ObtenerDobleFactorPropio;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -83,6 +85,9 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerCumplimientoSubcontrataQuery => Cumplimiento,
             ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)[],
             ObtenerEmpresasParaSelectorQuery => (IReadOnlyList<EmpresaSelectorDto>)[],
+            // Los catálogos del formulario de documento al abrirlo desde una subfila.
+            ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[],
+            ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
             ObtenerTrabajadoresDocumentacionPorSubcontrataQuery => (IReadOnlyList<TrabajadorDocumentacionSubcontrataDto>)Trabajadores,
             ObtenerSupervisionSubcontrataQuery => Supervision,
             ObtenerCentrosConActividadDeSubcontrataQuery => (IReadOnlyList<CentroConActividadDto>)Centros,
@@ -321,6 +326,34 @@ public class Subcontrata360PaginaTests : BunitContext
         subfilas[0].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Renovar");
         subfilas[1].TextContent.Should().Contain("Pendiente").And.Contain("Se exige y no hay documento");
         subfilas[1].QuerySelector(".subcontrata360-subfila-accion button")!.TextContent.Trim().Should().Be("Subir");
+    }
+
+    /// <summary>
+    /// Tanda 2: la acción de una subfila abre el formulario con la serie de la lista, para «Guardar y siguiente». La
+    /// serie son los documentos que piden «Renovar» o «Subir», en el orden en que la lista los pinta (Vencido,
+    /// Pendiente, Por vencer urgente); Próximo y Vigente no entran. Abierto por el segundo, sigue por el tercero y
+    /// después por el primero.
+    /// </summary>
+    [Fact]
+    public async Task La_accion_de_una_subfila_abre_el_formulario_con_el_resto_de_la_lista_por_delante()
+    {
+        var mediador = Montar();
+        var cut = Renderizar();
+        Guid DocumentoDe(string nombre) => mediador.Trabajadores.Single(t => t.TrabajadorNombre == nombre).Documentos.Single().DocumentoId!.Value;
+
+        cut.FindAll(".fila-relacion-desplegar")[1].Click(); // Fabio Faltante
+        await cut.Find(".subcontrata360-subfila-accion button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.Find(".drawer-header").TextContent.Should().Contain("Nuevo documento");
+        cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar", "Guardar", "Guardar y siguiente");
+
+        var drawer = cut.FindComponent<DrawerGestionDocumento>().Instance;
+        var pendientes = (IReadOnlyList<PasoSerieDocumento>)typeof(DrawerGestionDocumento)
+            .GetField("_pasosPendientes", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(drawer)!;
+        pendientes.Should().Equal(
+            PasoSerieDocumento.Renovar(DocumentoDe("Úrsula Urgente")),
+            PasoSerieDocumento.Renovar(DocumentoDe("Víctor Vencido")));
     }
 
     /// <summary>

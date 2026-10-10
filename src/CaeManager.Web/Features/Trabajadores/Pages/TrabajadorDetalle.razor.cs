@@ -544,9 +544,18 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     }
 
     private Task GestionarDocumentoAsync(DocumentoRequeridoDto documento) =>
-        documento.DocumentoId is { } documentoId
-            ? _drawerGestion.AbrirEditarAsync(documentoId)
-            : _drawerGestion.AbrirCrearParaFaltanteAsync(TrabajadorId, documento.TipoDocumentoId);
+        _drawerGestion.AbrirSerieAsync(SerieDeDocumentos, PasoDe(documento));
+
+    private PasoSerieDocumento PasoDe(DocumentoRequeridoDto documento) =>
+        PasoSerieDocumento.DeFilaDeTrabajador(documento.DocumentoId, TrabajadorId, documento.TipoDocumentoId);
+
+    /// <summary>
+    /// «Guardar y siguiente»: los documentos que piden «Renovar» o «Subir», en el orden en que la pestaña
+    /// Documentación los pinta (Centro a Centro, y dentro de cada uno como llegan). Un mismo Documento exigido por
+    /// dos Centros cuenta una vez.
+    /// </summary>
+    private IReadOnlyList<PasoSerieDocumento> SerieDeDocumentos =>
+        _centros.SelectMany(c => c.Documentos).Where(d => PasoSerieDocumento.EsDeSerie(d.Estado)).Select(PasoDe).ToList();
 
     /// <summary>
     /// «Subir documento» de la cabecera y del estado vacío de la pestaña Documentación. Con una
