@@ -351,6 +351,33 @@
   <data name="VacioFiltrosQuitar" xml:space="preserve">
     <value>Quitar los filtros</value>
   </data>
+  <data name="PestanaTrabajadores" xml:space="preserve">
+    <value>Trabajadores</value>
+  </data>
+  <data name="PestanaVisitas" xml:space="preserve">
+    <value>Visitas</value>
+  </data>
+  <data name="EtiquetaGrupoPestanas" xml:space="preserve">
+    <value>Secciones del centro</value>
+  </data>
+  <data name="GlosaTrabajadorConIncidencias" xml:space="preserve">
+    <value>trabajador con incidencias</value>
+  </data>
+  <data name="GlosaTrabajadoresConIncidencias" xml:space="preserve">
+    <value>trabajadores con incidencias</value>
+  </data>
+  <data name="VacioVisitasTitulo" xml:space="preserve">
+    <value>Sin visitas programadas</value>
+  </data>
+  <data name="VacioVisitasDescripcion" xml:space="preserve">
+    <value>Este centro no tiene visitas en curso ni futuras.</value>
+  </data>
+  <data name="VisitaTrabajador" xml:space="preserve">
+    <value>{0} trabajador</value>
+  </data>
+  <data name="VisitaTrabajadores" xml:space="preserve">
+    <value>{0} trabajadores</value>
+  </data>
   <data name="SeparadorMotivo" xml:space="preserve">
     <value>·</value>
   </data>

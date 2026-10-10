@@ -169,7 +169,7 @@
             que el acordeón ya cargó —ninguna consulta nueva— y los dos filtros
             viajan en la URL para que un centro filtrado se pueda enlazar.
         *@
-        <div class="barra-filtros">
+        <div class="barra-filtros" hidden="@(_pestana != PestanaTrabajadores)">
             <CampoTexto Placeholder="Buscar trabajador en este centro…" Valor="@_busqueda" ValorChanged="Buscar" />
             <FiltroEstado Etiqueta="Estado" TextoTodos="Todos" Valor="@_estadoFiltro" ValorChanged="CambiarEstado"
                           Opciones="AcordeonAsignacionesCentro.OpcionesEstadoDocumental" />
@@ -181,16 +181,43 @@
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral360"]">
             <ChildContent>
-                <AcordeonAsignacionesCentro CentroId="_detalle.Id" CentroNombre="@_detalle.Nombre"
-                                              VisitaId="_visitas.Count > 0 ? _visitas[0].VisitaId : null"
-                                              VisitaFechaFin="_visitas.Count > 0 ? _visitas[0].FechaFin : null"
-                                              EmpresaId="_detalle.EmpresaId" EmpresaNombre="@_detalle.EmpresaRazonSocial"
-                                              IncidenciasEmpresa="IncidenciasEmpresaHeader"
-                                              SoloIncidencias="false"
-                                              FiltroTexto="@_busqueda" FiltroEstado="@_estadoFiltro"
-                                              MostrarTotales="true"
-                                              Bloqueos="_bloqueos"
-                                              OnCambio="CargarAsync" />
+                <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestana"
+                          EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]">
+                    @* Conservar la instancia mantiene filtros, selección y filas expandidas sin recargar al cambiar de pestaña. *@
+                    <div hidden="@(_pestana != PestanaTrabajadores)">
+                        <AcordeonAsignacionesCentro CentroId="_detalle.Id" CentroNombre="@_detalle.Nombre"
+                                                      VisitaId="_visitas.Count > 0 ? _visitas[0].VisitaId : null"
+                                                      VisitaFechaFin="_visitas.Count > 0 ? _visitas[0].FechaFin : null"
+                                                      EmpresaId="_detalle.EmpresaId" EmpresaNombre="@_detalle.EmpresaRazonSocial"
+                                                      IncidenciasEmpresa="IncidenciasEmpresaHeader"
+                                                      SoloIncidencias="false"
+                                                      FiltroTexto="@_busqueda" FiltroEstado="@_estadoFiltro"
+                                                      MostrarTotales="true"
+                                                      Bloqueos="_bloqueos"
+                                                      OnCambio="CargarAsync" />
+                    </div>
+                    @if (_pestana == PestanaVisitas)
+                    {
+                        @if (_visitas.Count == 0)
+                        {
+                            <EstadoVacio Titulo="@Textos["VacioVisitasTitulo"]" Descripcion="@Textos["VacioVisitasDescripcion"]" />
+                        }
+                        else
+                        {
+                            <Tarjeta Titulo="@Textos["PestanaVisitas"]">
+                                <ListaLateral>
+                                    @foreach (var visita in _visitas)
+                                    {
+                                        <ElementoListaLateral @key="visita.VisitaId">
+                                            <Etiqueta>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy")</Etiqueta>
+                                            <ChildContent><span>@Textos[visita.TrabajadoresCount == 1 ? "VisitaTrabajador" : "VisitaTrabajadores", visita.TrabajadoresCount]</span></ChildContent>
+                                        </ElementoListaLateral>
+                                    }
+                                </ListaLateral>
+                            </Tarjeta>
+                        }
+                    }
+                </Pestanas>
             </ChildContent>
             <Lateral>
                 <Tarjeta Compacta="true" Titulo="Canales de gestión">

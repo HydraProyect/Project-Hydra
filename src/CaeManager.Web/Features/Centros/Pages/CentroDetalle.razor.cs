@@ -35,6 +35,7 @@ namespace CaeManager.Web.Features.Centros.Pages;
 public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
     [Parameter] public Guid CentroId { get; set; }
+    [Parameter, SupplyParameterFromQuery(Name = "pestana")] public string? Pestana { get; set; }
 
     /// <summary>
     /// Filtros de la barra de trabajo, en la URL. Viajan ahí para que un
@@ -50,6 +51,36 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+
+    private const string PestanaTrabajadores = "trabajadores";
+    private const string PestanaVisitas = "visitas";
+    private string _pestana = PestanaTrabajadores;
+    private string? _pestanaDeLaUrl;
+
+    private int TrabajadoresConIncidencias => _resumen is null ? 0 : _resumen.Recuentos.Vencidas
+        .Concat(_resumen.Recuentos.Proximas)
+        .Where(i => i.Ambito == AmbitoCausa.Trabajador && i.TrabajadorId is not null)
+        .Select(i => i.TrabajadorId)
+        .Distinct()
+        .Count();
+
+    private IReadOnlyList<PestanaDefinicion> Pestanas =>
+    [
+        new(PestanaTrabajadores, Textos["PestanaTrabajadores"])
+        {
+            Contador = new ContadorPestana(TrabajadoresConIncidencias,
+                Textos[TrabajadoresConIncidencias == 1 ? "GlosaTrabajadorConIncidencias" : "GlosaTrabajadoresConIncidencias"],
+                EnAlerta: TrabajadoresConIncidencias > 0)
+        },
+        new(PestanaVisitas, Textos["PestanaVisitas"])
+    ];
+
+    private void CambiarPestana(string pestana)
+    {
+        _pestana = pestana;
+        _pestanaDeLaUrl = pestana == PestanaTrabajadores ? null : pestana;
+        NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+    }
 
     private CentroDetalleDto? _detalle;
     private CentroListaDto? _resumen;
@@ -117,6 +148,12 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
+        if (!string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
+        {
+            _pestanaDeLaUrl = Pestana;
+            _pestana = Pestana == PestanaVisitas ? PestanaVisitas : PestanaTrabajadores;
+        }
+
         AdoptarFiltrosDeLaUrl();
 
         if (_centroCargado == CentroId)
