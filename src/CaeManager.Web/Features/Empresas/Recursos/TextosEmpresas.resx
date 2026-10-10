@@ -434,6 +434,12 @@
     <value>{0} más. Lista completa de personas con Asignación de Cartera</value>
     <comment>Nombre accesible de la pastilla «+N» de la cabecera «Gestor CAE». {0} = número de personas agrupadas.</comment>
   </data>
+  <data name="ColDetecciones" xml:space="preserve">
+    <value>Detecciones</value>
+  </data>
+  <data name="ColCumplimiento" xml:space="preserve">
+    <value>Cumplimiento</value>
+  </data>
   <data name="ColEstadoDocumental" xml:space="preserve">
     <value>Estado documental</value>
     <comment>Rótulo de la columna de estado del listado de Empresas: el peor estado de vigencia de los documentos de la Empresa.</comment>
