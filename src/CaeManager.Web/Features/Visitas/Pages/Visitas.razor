@@ -284,8 +284,8 @@
                     }
                 </TemplateColumn>
                 @* Sin menú «⋯». Lo que hacía ese menú: «Ver» es el clic en la fila, sus fechas o Enter;
-                   «Editar», el lápiz de la cabecera del panel y la tecla «e»; «Cancelar visita», la selección
-                   múltiple (☑ de la barra o tecla «x»), con su pregunta, su motivo y su «Deshacer»; «Reactivar»
+                   «Editar», el lápiz de la cabecera del panel y la tecla «e»; «Cancelar visita», el pie del panel
+                   o la selección múltiple (☑ de la barra o tecla «x»), con su pregunta, su motivo y su «Deshacer»; «Reactivar»
                    es la acción rápida de la fila cancelada y sigue en el pie del panel. El icono lleva a la
                    página Visita 360 (/visitas/{id}). *@
                 <TemplateColumn Title="" Align="Align.End">
@@ -777,6 +777,8 @@
                         @(_detalle.NotificadoCliente ? Textos["BotonQuitarMarcaNotificada"].Value : Textos["BotonMarcarNotificada"].Value)
                     </Boton>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="EditarDesdeDetalleAsync">@Textos["AccionEditar"]</Boton>
+                    @* Cancelar una sola Visita desde el pie (decisión del propietario, 2026-10-10); la selección múltiple sigue en la barra de lote. *@
+                    <Boton Variante="VarianteBoton.Destructivo" OnClick="() => AbrirCancelarDesdePanel(_detalle.Id)">@Textos["AccionCancelar"]</Boton>
                 </Authorized>
                 <NotAuthorized>
                     <Boton Variante="VarianteBoton.Secundario" OnClick="() => _detalleVisible = false">@Textos["BotonCerrar"]</Boton>
@@ -817,10 +819,11 @@
     <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoReactivacion" ValorChanged="v => _motivoReactivacion = v" Filas="2" />
 </DialogoConfirmacion>
 
-@* Cancelar una Visita solo se hace desde aquí, también cuando es una sola (la fila no lleva menú): pregunta, admite
-   motivo y ofrece «Deshacer». La única acción del lote es cancelar (ICommand que AutorizacionEscrituraBehavior deniega a
-   Consulta): la barra no se le ofrece. La palanca de selección múltiple sigue visible porque
-   vive en BarraHerramientasLista, compartida y con contenido de lectura, y seleccionar no escribe. *@
+@* Cancelar una Visita se hace desde aquí: en la barra de lote (la selección múltiple, varias o una) o en el pie
+   del panel (una sola, la que se mira). Pregunta, admite motivo y ofrece «Deshacer». La única acción del lote es
+   cancelar (ICommand que AutorizacionEscrituraBehavior deniega a Consulta): la barra no se le ofrece. La palanca de
+   selección múltiple sigue visible porque vive en BarraHerramientasLista, compartida y con contenido de lectura, y
+   seleccionar no escribe. *@
 <SoloConEscritura>
     <BarraAccionesLote Cantidad="_seleccionados.Count" Eliminando="_cancelandoLote" TextoAccion="@Textos["BotonCancelarSeleccionadas"]" TextoLimpiar="@Textos["BotonQuitarSeleccion"]"
                         OnLimpiar="() => _seleccionados.Clear()" OnEliminar="AbrirCancelarLote" />
@@ -830,9 +833,9 @@
     Visible="_confirmarCancelarLoteVisible"
     VisibleChanged="v => _confirmarCancelarLoteVisible = v"
     HayCambios="() => HayMotivoSinConfirmar(_confirmarCancelarLoteVisible, _motivoCancelacion)"
-    Titulo="@Textos["ConfirmarCancelarLoteTitulo", _seleccionados.Count]"
+    Titulo="@Textos["ConfirmarCancelarLoteTitulo", _idsACancelar.Count]"
     Mensaje="@Textos["ConfirmarCancelarLoteMensaje"]"
-    TextoBotonConfirmar="@Textos["BotonCancelarSeleccionadas"]"
+    TextoBotonConfirmar="@(_cancelarDesdePanel ? Textos["AccionCancelar"] : Textos["BotonCancelarSeleccionadas"])"
     TextoBotonDescartar="@Textos["BotonVolver"]"
     EnProgreso="_cancelandoLote"
     OnConfirmar="ConfirmarCancelarLoteAsync">
