@@ -707,6 +707,11 @@ public static class Ayudas
 
     public static async Task IniciarSesionAsync(IPage page, string baseUrl, string email, string password)
     {
+        // Cada recorrido empieza con la vista de fábrica en todos los listados, la dejara como la dejara
+        // el anterior que entró con esta cuenta (ver WebAppFixture.OlvidarVistasRecordadasAsync).
+        if (WebAppFixture.DeLaUrl(baseUrl) is { } fixture)
+            await fixture.OlvidarVistasRecordadasAsync(email);
+
         await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
         await page.FillAsync("#email", email);
         await page.FillAsync("#password", password);

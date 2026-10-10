@@ -22,8 +22,9 @@ namespace CaeManager.E2ETests;
 /// <para>
 /// La vista recordada es estado persistente del Usuario. Estos recorridos usan un Gestor CAE de la
 /// siembra con el que no entra ningún otro recorrido de <c>AppCollection</c>, empiezan olvidando
-/// lo que hubiera (no dependen de cómo lo dejó una ejecución anterior) y, si se quedan a medias,
-/// lo olvidan antes de fallar.
+/// por la interfaz lo que hubiera (no dependen de cómo lo dejó una ejecución anterior) y, si se
+/// quedan a medias, lo olvidan antes de fallar. El aislamiento entre recorridos de toda la suite
+/// no depende de eso: lo da el inicio de sesión del arnés, y su control es el tercer test.
 /// </para>
 /// </summary>
 [Collection("AppCollection")]
@@ -173,6 +174,45 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
             await OlvidarSinTaparElFalloAsync(contexto, conUnaVista, pastilla);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Control del arnés, no del producto. Los recorridos comparten cuentas de la siembra, y lo que uno deja
+    /// recordado se le restauraría al siguiente: <see cref="Ayudas.IniciarSesionAsync"/> lo olvida antes de
+    /// entrar (<see cref="WebAppFixture.OlvidarVistasRecordadasAsync"/>). Aquí se comprueba que ese borrado
+    /// borra de verdad: una vista que consta recordada —se restauró en una carga en frío— deja de
+    /// restaurarse tras un inicio de sesión nuevo. Sin él, el orden de los tests decidiría quién falla.
+    /// </summary>
+    [Fact]
+    public async Task Un_inicio_de_sesion_del_arnes_deja_al_Usuario_sin_vista_recordada()
+    {
+        const string pastilla = "Cliente";
+        const string placeholder = "Filtrar esta pantalla: centro, código, Cliente o empresa";
+        var listado = $"{fixture.BaseUrl}/centros";
+
+        await using (var contexto = await fixture.Browser.NewContextAsync())
+        {
+            var page = await contexto.NewPageAsync();
+            await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Gestor, Ayudas.ContrasenaUsuariosPrueba);
+            await Ayudas.NavegarYEsperarAsync(page, listado);
+            await CircuitoAtendiendoAsync(page, pastilla);
+            var sinAgrupar = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Sin agrupar", Exact = true });
+            await sinAgrupar.ClickAsync();
+            await EsperarVistaEnLaUrlAsync(page, ("agrupar", "no"));
+            await SalirAOtraPantallaAsync(page, placeholder);
+
+            // Control: la vista consta recordada, porque una carga en frío sin parámetros la restaura.
+            await Ayudas.NavegarYEsperarAsync(page, listado);
+            await EsperarVistaEnLaUrlAsync(page, ("agrupar", "no"));
+        }
+
+        await using var otroContexto = await fixture.Browser.NewContextAsync();
+        var otraPagina = await otroContexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(otraPagina, fixture.BaseUrl, Gestor, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.NavegarYEsperarAsync(otraPagina, listado);
+        await CircuitoAtendiendoAsync(otraPagina, pastilla);
+        Assert.Empty(ParametrosDe(otraPagina.Url));
+        await Expect(EnlaceRestablecer(otraPagina)).ToHaveCountAsync(0);
     }
 
     private static ILocator EnlaceRestablecer(IPage page) =>
