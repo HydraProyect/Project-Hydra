@@ -1587,6 +1587,61 @@ public partial class ProyectosGen2Tests : BunitContext
         ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre");
     }
 
+    /// <summary>
+    /// Una navegación de la aplicación (<c>NavigateTo</c>) a la misma pantalla con otro Cliente empresarial,
+    /// otra búsqueda y otro estado, con la edición del panel a medias. La búsqueda y el estado los filtra la
+    /// consulta: una pantalla que tomase los filtros de la URL nueva sin pedir la lista enseñaría las
+    /// pastillas de una vista con las filas, el contador y la franja de otra. «Seguir editando» lo deja todo
+    /// como estaba y «Salir y descartar» lo cambia todo a la vez; la segunda mitad es además el control
+    /// positivo de la primera: esa misma navegación, cuando pasa, sí llega a la página. Aquí quien detiene
+    /// la navegación es el aviso; «atrás» del navegador no pasa por él y lo mide el E2E
+    /// <c>ProyectosFase1SelectorTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task Aviso_navegar_a_otros_filtros_con_la_edicion_a_medias_no_separa_la_url_las_pastillas_y_la_lista()
+    {
+        var cut = await AbrirLaEdicionDelDetalleAsync();
+        await EscribirEnElPanelAsync(cut, "Otro nombre");
+        var uriAntes = Uri;
+        var consultasAntes = _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count();
+        var destino = $"proyectos?cliente={ClienteBId}&q=nave&estado=cerrados";
+
+        // Sin esperar la navegación: se afirma que pregunta antes de esperar nada que dependa de la respuesta.
+        var navegacion = cut.InvokeAsync(() => Navegacion.NavigateTo(destino));
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue("la navegación iba a tirar lo escrito"));
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasAntes,
+            "no se pide otra lista mientras pregunta");
+
+        await PulsarEnLaPreguntaAsync(cut, "Seguir editando");
+        await navegacion.WaitAsync(Paciencia);
+
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeFalse());
+        Uri.Should().Be(uriAntes, "«Seguir editando» deja la URL diciendo la vista que sigue en pantalla");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Refrielectric S.L.");
+        ValorDelBuscador(cut).Should().BeEmpty("la búsqueda de la URL que no se aceptó no se queda en el campo");
+        cut.MarcadosEnFranja().Should().Equal("Todos");
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasAntes,
+            "la lista a la vista es la de la consulta anterior: no se ha pedido otra");
+        UltimaConsultaDeProyectos.Should().Match<ObtenerProyectosQuery>(
+            q => q.ClienteId == ClienteId && q.Busqueda == null && q.SoloAbiertos == null,
+            "y esa consulta es la de las pastillas y la URL");
+        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "«Seguir editando» conserva lo escrito");
+
+        var segunda = cut.InvokeAsync(() => Navegacion.NavigateTo(destino));
+        cut.WaitForAssertion(() => PreguntaAbierta(cut).Should().BeTrue());
+        await PulsarEnLaPreguntaAsync(cut, "Salir y descartar");
+        await segunda.WaitAsync(Paciencia);
+
+        cut.WaitForAssertion(() => UltimaConsultaDeProyectos.Should().Match<ObtenerProyectosQuery>(
+            q => q.ClienteId == ClienteBId && q.Busqueda == "nave" && q.SoloAbiertos == false,
+            "descartando, la navegación llega y la lista se pide con los tres filtros de la URL"));
+        Uri.Should().EndWith(destino);
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Frigoríficos Arcos S.A.");
+        ValorDelBuscador(cut).Should().Be("nave");
+        cut.MarcadosEnFranja().Should().Equal("Cerrados");
+        PanelDeDetalleAbierto(cut).Should().BeFalse("el panel era de un Proyecto de la lista anterior");
+    }
+
     [Fact]
     public async Task Aviso_abrir_otro_proyecto_con_la_edicion_a_medias_pregunta_y_descartar_abre_el_otro()
     {

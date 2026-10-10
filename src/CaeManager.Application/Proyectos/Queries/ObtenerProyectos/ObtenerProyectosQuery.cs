@@ -74,8 +74,17 @@ public class ObtenerProyectosQueryHandler(
 {
     public async Task<ResultadoPaginado<ProyectoListaDto>> Handle(ObtenerProyectosQuery request, CancellationToken cancellationToken)
     {
-        // El join con Empresas es interno a propósito: un Proyecto cuyo Cliente empresarial está dado de
-        // baja no se lista, igual que el filtro de Cliente empresarial de la pantalla no lo ofrece.
+        // El join con Empresas es interno a propósito, y Empresas lleva sus filtros de consulta (Tenant
+        // propietario y baja lógica): un Proyecto cuyo Cliente empresarial está dado de baja no se lista ni
+        // se cuenta, y el filtro de Cliente empresarial de la pantalla tampoco lo ofrece. El detalle no se
+        // comporta igual: ObtenerProyectoPorIdQueryHandler lee la razón social con FirstAsync y lanza para
+        // ese Proyecto. Desde este listado no se llega a él, porque aquí no sale.
+        //
+        // Hueco conocido: el join no exige que la Empresa sea Cliente empresarial (EsCritico != null) y el
+        // selector del filtro (ObtenerClientesParaSelectorQuery) sí. Un Proyecto cuyo ClienteId apunte a una
+        // Empresa con EsCritico nulo sale en «Todos» y no se puede aislar con el filtro. No es una fuga: el
+        // alcance filtra por proyecto.ClienteId y el join va por esa misma clave. Igualarlo aquí sería una
+        // lectura nueva del rol por discriminador, que el trinquete Discriminador-nulo no admite.
         var consulta =
             from proyecto in proyectosContext.Proyectos
             join centro in centrosContext.Centros on proyecto.CentroId equals centro.Id

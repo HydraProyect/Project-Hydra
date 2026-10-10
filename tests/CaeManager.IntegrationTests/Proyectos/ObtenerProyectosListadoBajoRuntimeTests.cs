@@ -53,6 +53,7 @@ public class ObtenerProyectosListadoBajoRuntimeTests : IAsyncLifetime
     private Guid _clienteA;
     private Guid _clienteB;
     private Guid _clienteDelOtroTenant;
+    private Guid _empresaPropia;
 
     // Por fecha de inicio descendente, que es el orden de la lista.
     private Guid _ampliacionA;      // 01/05/2026, abierto
@@ -139,6 +140,7 @@ public class ObtenerProyectosListadoBajoRuntimeTests : IAsyncLifetime
 
             _clienteA = clienteA.Id;
             _clienteB = clienteB.Id;
+            _empresaPropia = propia.Id;
             _ampliacionA = ampliacion.Id;
             _incendiosB = incendios.Id;
             _reformaNaveA = reformaNave.Id;
@@ -251,6 +253,86 @@ public class ObtenerProyectosListadoBajoRuntimeTests : IAsyncLifetime
         cerradosDeA.RecuentosPorEstado.Should().Equal(Recuentos(abiertos: 0, cerrados: 1));
     }
 
+    // ── Lo que solo PostgreSQL puede decir: empates, comodines y baja lógica ──
+
+    [Fact]
+    public async Task Los_Proyectos_con_la_misma_fecha_de_inicio_salen_por_Id_y_en_el_mismo_orden_en_todas_las_paginas()
+    {
+        var (cliente, centro) = await SembrarClienteAparteAsync();
+        var inicio = new DateOnly(2026, 7, 1);
+        var empatados = Enumerable.Range(1, 6)
+            .Select(n => Proyecto.Crear(cliente, centro, $"Empatado {n}", inicio, null, null))
+            .ToList();
+        // PostgreSQL ordena un uuid por sus bytes, que es el orden de su texto en hexadecimal.
+        var porId = empatados.Select(p => p.Id).OrderBy(id => id.ToString("N"), StringComparer.Ordinal).ToList();
+        // Se guardan al revés, uno a uno: el orden físico de la tabla es el contrario del esperado, así que
+        // la lista solo sale por Id si la consulta lo pide.
+        await GuardarUnoAUnoAsync(empatados.OrderByDescending(p => p.Id.ToString("N"), StringComparer.Ordinal));
+
+        var deUnaVez = await PedirAsync(_administrador, Roles.Administrador, new ObtenerProyectosQuery(cliente, TamanoPagina: 6));
+        deUnaVez.Elementos.Select(p => p.Id).Should().Equal(porId);
+
+        var paginas = new List<ResultadoPaginado<ProyectoListaDto>>();
+        for (var pagina = 1; pagina <= 3; pagina++)
+            paginas.Add(await PedirAsync(_administrador, Roles.Administrador, new ObtenerProyectosQuery(cliente, Pagina: pagina, TamanoPagina: 2)));
+
+        paginas.SelectMany(p => p.Elementos).Select(p => p.Id).Should().Equal(porId,
+            "con las seis filas empatadas, cada página tiene que cortar la misma ordenación: ni repetir ni perder");
+        paginas.Should().OnlyContain(p => p.TotalElementos == 6);
+    }
+
+    [Fact]
+    public async Task El_guion_bajo_y_el_porcentaje_de_la_busqueda_son_caracteres_y_no_comodines()
+    {
+        var (cliente, centro) = await SembrarClienteAparteAsync();
+        var conGuion = Proyecto.Crear(cliente, centro, "Lote_1", new DateOnly(2026, 7, 4), null, null);
+        var sinGuion = Proyecto.Crear(cliente, centro, "LoteX1", new DateOnly(2026, 7, 3), null, null);
+        var conPorcentaje = Proyecto.Crear(cliente, centro, "Avance 50%hecho", new DateOnly(2026, 7, 2), null, null);
+        var sinPorcentaje = Proyecto.Crear(cliente, centro, "Avance 50 no hecho", new DateOnly(2026, 7, 1), null, null);
+        await GuardarUnoAUnoAsync([conGuion, sinGuion, conPorcentaje, sinPorcentaje]);
+
+        async Task<IEnumerable<Guid>> BuscarAsync(string texto) =>
+            (await PedirAsync(_administrador, Roles.Administrador, new ObtenerProyectosQuery(cliente, Busqueda: texto)))
+            .Elementos.Select(p => p.Id);
+
+        // Control positivo: están los cuatro y una búsqueda corriente los encuentra de dos en dos.
+        (await BuscarAsync("lote")).Should().Equal(conGuion.Id, sinGuion.Id);
+        (await BuscarAsync("avance 50")).Should().Equal(conPorcentaje.Id, sinPorcentaje.Id);
+
+        // «_» como comodín de LIKE valdría por cualquier carácter: «e_1» traería también «LoteX1».
+        (await BuscarAsync("e_1")).Should().Equal(conGuion.Id);
+        (await BuscarAsync("_")).Should().Equal(conGuion.Id);
+        // «%» como comodín valdría por cualquier tramo: «50%hecho» traería también «50 no hecho».
+        (await BuscarAsync("50%hecho")).Should().Equal(conPorcentaje.Id);
+        (await BuscarAsync("%")).Should().Equal(conPorcentaje.Id);
+    }
+
+    [Fact]
+    public async Task El_Proyecto_de_un_Cliente_empresarial_dado_de_baja_no_se_lista_ni_se_cuenta()
+    {
+        var (cliente, centro) = await SembrarClienteAparteAsync();
+        await GuardarUnoAUnoAsync([Proyecto.Crear(cliente, centro, "Obra del Cliente que se da de baja", new DateOnly(2026, 8, 1), null, null)]);
+
+        // Control positivo: antes de la baja se lista.
+        var antes = await PedirAsync(_administrador, Roles.Administrador, new ObtenerProyectosQuery(ConRecuentosPorEstado: true));
+        antes.TotalElementos.Should().Be(6);
+        antes.Elementos.Should().Contain(p => p.ClienteId == cliente);
+
+        await using (var contexto = ContextoDeSiembra(_propietario.Id))
+        {
+            var empresa = await contexto.Empresas.SingleAsync(e => e.Id == cliente);
+            empresa.MarcarComoEliminado(_administrador);
+            await contexto.SaveChangesAsync();
+        }
+
+        var despues = await PedirAsync(_administrador, Roles.Administrador, new ObtenerProyectosQuery(ConRecuentosPorEstado: true));
+        despues.Elementos.Select(p => p.Id).Should().Equal(LosCincoPorOrdenDeLaLista);
+        despues.TotalElementos.Should().Be(5);
+        despues.RecuentosPorEstado.Should().Equal(Recuentos(abiertos: 3, cerrados: 2));
+        // Pedido por su Id tampoco: el join interno lo deja fuera.
+        (await PedirAsync(_administrador, Roles.Administrador, new ObtenerProyectosQuery(cliente))).TotalElementos.Should().Be(0);
+    }
+
     // ── Alcance ───────────────────────────────────────────────────────────
 
     [Fact]
@@ -335,6 +417,32 @@ public class ObtenerProyectosListadoBajoRuntimeTests : IAsyncLifetime
     }
 
     // ── Arnés ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Siembra aparte, para los casos cuyas filas descuadrarían las cuentas de los demás: un tercer Cliente
+    /// empresarial del Tenant propietario con su Centro. Los Proyectos los pone cada caso.
+    /// </summary>
+    private async Task<(Guid ClienteId, Guid CentroId)> SembrarClienteAparteAsync()
+    {
+        await using var contexto = ContextoDeSiembra(_propietario.Id);
+        var cliente = Empresa.CrearComoCliente("Cliente empresarial aparte", "B10380210", false, null, null);
+        contexto.Empresas.Add(cliente);
+        var centro = new Centro(cliente.Id, _empresaPropia, "Centro aparte");
+        contexto.Centros.Add(centro);
+        await contexto.SaveChangesAsync();
+        return (cliente.Id, centro.Id);
+    }
+
+    /// <summary>Guarda cada Proyecto en su propia escritura y en el orden recibido: el caso decide el orden físico.</summary>
+    private async Task GuardarUnoAUnoAsync(IEnumerable<Proyecto> proyectos)
+    {
+        await using var contexto = ContextoDeSiembra(_propietario.Id);
+        foreach (var proyecto in proyectos)
+        {
+            contexto.Proyectos.Add(proyecto);
+            await contexto.SaveChangesAsync();
+        }
+    }
 
     private async Task<ResultadoPaginado<ProyectoListaDto>> PedirAsync(Guid usuarioId, string rol, ObtenerProyectosQuery consulta)
     {

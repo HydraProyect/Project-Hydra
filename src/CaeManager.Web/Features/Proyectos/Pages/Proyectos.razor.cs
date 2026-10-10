@@ -226,20 +226,19 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             "cliente", _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString());
 
     private Task OnClienteSeleccionadoAsync(string valor) =>
-        SeleccionarClienteAsync(Guid.TryParse(valor, out var id) ? id : Guid.Empty, pedidoPorLaUrl: false);
+        SeleccionarClienteAsync(Guid.TryParse(valor, out var id) ? id : Guid.Empty);
 
     /// <summary>
-    /// Cambia el Cliente empresarial del filtro («Todos» es <see cref="Guid.Empty"/>) y pide su lista.
+    /// El selector cambia el Cliente empresarial del filtro («Todos» es <see cref="Guid.Empty"/>) y pide
+    /// su lista. Cuando quien lo cambia es la URL, ver <see cref="AtenderOtroClienteEnLaUrlAsync"/>.
     ///
     /// <para>
-    /// Pedido por la URL <b>no escribe en ella</b>: ya lo dice, y un <c>NavigateTo</c> a la misma
-    /// dirección no aporta nada. Pedido desde el selector, la URL se escribe con el panel ya cerrado
-    /// (sin nada pendiente de guardar que detenga la navegación) y ANTES de la carga, para que no diga el
-    /// Cliente empresarial anterior mientras llegan los datos: teclear en el buscador en esa ventana
-    /// navegaba conservándolo y lo devolvía a la pantalla.
+    /// La URL se escribe con el panel ya cerrado (sin nada pendiente de guardar que detenga la navegación)
+    /// y ANTES de la carga, para que no diga el Cliente empresarial anterior mientras llegan los datos:
+    /// teclear en el buscador en esa ventana navegaba conservándolo y lo devolvía a la pantalla.
     /// </para>
     /// </summary>
-    private async Task SeleccionarClienteAsync(Guid nuevo, bool pedidoPorLaUrl)
+    private async Task SeleccionarClienteAsync(Guid nuevo)
     {
         // Cambiar de Cliente empresarial cierra el panel de detalle: si tenía algo escrito, se pregunta
         // antes y, si se sigue editando, la selección vuelve al Cliente empresarial anterior y se
@@ -249,22 +248,80 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
         if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
         {
+            // No se navega: la URL no ha cambiado, y una navegación con el panel todavía sin guardar
+            // volvería a preguntar «¿Salir sin guardar?».
             _versionSelectorCliente++;
             _focoSelectorClienteEmpresarialPendiente = true;
-            // Si el cambio lo pedía la URL, vuelve a decir el Cliente empresarial que sigue en pantalla.
-            // Pedido desde el selector no se navega: la URL no ha cambiado, y una navegación con el
-            // panel todavía sin guardar volvería a preguntar «¿Salir sin guardar?».
-            if (pedidoPorLaUrl)
-                EscribirClienteEnUrl();
             return;
         }
 
         _clienteSeleccionadoId = nuevo;
         DescartarListaPorCambioDeCliente();
-        if (!pedidoPorLaUrl)
-            EscribirClienteEnUrl();
+        EscribirClienteEnUrl();
         await CargarProyectosAsync();
     }
+
+    /// <summary>
+    /// La URL ha pasado a decir otro Cliente empresarial y la navegación ya ocurrió. «Atrás» del navegador
+    /// llega aquí sin que el aviso de cambios sin guardar la detenga antes (lo fija el E2E
+    /// <c>ProyectosFase1SelectorTests</c>); la que pide la aplicación con <c>NavigateTo</c> sí la detiene
+    /// el aviso, y aquí solo llega ya descartada. Cambiar de Cliente empresarial cierra el panel de detalle,
+    /// así que con algo escrito en él se pregunta, y se pregunta ANTES de tomar nada de la URL: mientras la
+    /// pregunta está abierta, las pastillas, la franja y la lista siguen siendo las de la vista que hay en
+    /// pantalla.
+    ///
+    /// <para>
+    /// «Seguir editando» deja esa vista entera y devuelve la URL a ella (Cliente empresarial, búsqueda y
+    /// estado, en una sola navegación). La búsqueda y el estado los filtra la consulta: tomarlos de la URL
+    /// nueva sin pedir la lista dejaba las pastillas de una vista sobre las filas, el contador y la franja
+    /// de otra. «Salir y descartar» toma los tres de la URL y pide la lista una vez.
+    /// </para>
+    /// </summary>
+    private async Task AtenderOtroClienteEnLaUrlAsync()
+    {
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
+        {
+            DevolverLaUrlALaVista();
+            return;
+        }
+
+        // Tras la espera se lee la URL otra vez: es la que haya ahora, no la que había al preguntar.
+        SincronizarFiltrosConLaUrl();
+        var clienteDeLaUrl = ClienteDeLaUrl();
+        if (clienteDeLaUrl != _clienteSeleccionadoId)
+        {
+            _clienteSeleccionadoId = clienteDeLaUrl;
+            DescartarListaPorCambioDeCliente();
+        }
+
+        await RecargarDesdeLaPrimeraPaginaAsync();
+    }
+
+    /// <summary>
+    /// La página reescribe su propia URL para que diga la vista que sigue en pantalla. No es una salida y
+    /// no se pierde nada de lo escrito, pero es una navegación con el panel sin guardar y el aviso la
+    /// detendría para volver a preguntar: mientras dura, la página no declara cambios. El aviso los lee
+    /// dentro del propio <c>NavigateTo</c>, así que basta con que la marca dure lo que la llamada.
+    /// </summary>
+    private void DevolverLaUrlALaVista()
+    {
+        _devolviendoLaUrlALaVista = true;
+        try
+        {
+            NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+            {
+                ["cliente"] = _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString(),
+                ["q"] = _busqueda,
+                ["estado"] = _estadoFiltro
+            });
+        }
+        finally
+        {
+            _devolviendoLaUrlALaVista = false;
+        }
+    }
+
+    private bool _devolviendoLaUrlALaVista;
 
     private int _versionSelectorCliente;
     private PastillaFiltro? _selectorClienteEmpresarial;
@@ -455,22 +512,24 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada)
             return;
 
-        var cambiaronLosFiltros = SincronizarFiltrosConLaUrl();
-
         // Con el selector aún cargando (o caído) no hay lista: la primera carga leerá estos campos.
         if (_cargando || _errorCarga)
-            return;
-
-        // El Cliente empresarial pasa por SeleccionarClienteAsync, así que pregunta antes de perder lo
-        // escrito en el panel de detalle; su carga ya lleva la búsqueda y el estado recién leídos.
-        var clienteDeLaUrl = ClienteDeLaUrl();
-        if (clienteDeLaUrl != _clienteSeleccionadoId)
         {
-            await SeleccionarClienteAsync(clienteDeLaUrl, pedidoPorLaUrl: true);
+            SincronizarFiltrosConLaUrl();
             return;
         }
 
-        if (cambiaronLosFiltros)
+        // Otro Cliente empresarial cierra el panel de detalle: pregunta antes de tomar nada de la URL, y su
+        // carga lleva la búsqueda y el estado que la URL diga entonces.
+        if (ClienteDeLaUrl() != _clienteSeleccionadoId)
+        {
+            await AtenderOtroClienteEnLaUrlAsync();
+            return;
+        }
+
+        // Solo cambian la búsqueda o el estado: el panel de detalle no se cierra, así que no hay nada que
+        // preguntar.
+        if (SincronizarFiltrosConLaUrl())
             await RecargarDesdeLaPrimeraPaginaAsync();
     }
 
@@ -683,7 +742,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// drawer o modal pregunta solo por su propio contenido (HayCambiosEnElDrawer, HayCambiosEnElModalDeCierre).
     /// </summary>
     private bool HayCambiosSinGuardar =>
-        HayCambiosEnElDrawer || HayCambiosEnElDetalle;
+        !_devolviendoLaUrlALaVista && (HayCambiosEnElDrawer || HayCambiosEnElDetalle);
 
     private bool HayCambiosEnElDrawer => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
 
