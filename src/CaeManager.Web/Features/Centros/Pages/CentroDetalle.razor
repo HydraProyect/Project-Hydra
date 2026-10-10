@@ -169,7 +169,7 @@
             que el acordeón ya cargó —ninguna consulta nueva— y los dos filtros
             viajan en la URL para que un centro filtrado se pueda enlazar.
         *@
-        <div class="barra-filtros">
+        <div class="barra-filtros" hidden="@(_pestana != PestanaTrabajadores)">
             <CampoTexto Placeholder="Buscar trabajador en este centro…" Valor="@_busqueda" ValorChanged="Buscar" />
             <FiltroEstado Etiqueta="Estado" TextoTodos="Todos" Valor="@_estadoFiltro" ValorChanged="CambiarEstado"
                           Opciones="AcordeonAsignacionesCentro.OpcionesEstadoDocumental" />

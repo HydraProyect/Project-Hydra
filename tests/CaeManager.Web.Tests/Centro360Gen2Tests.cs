@@ -323,6 +323,21 @@ public class Centro360Gen2Tests : BunitContext
     }
 
     [Theory]
+    [InlineData("trabajadores", false)]
+    [InlineData("visitas", true)]
+    public void La_barra_de_filtros_solo_se_ve_en_Trabajadores(string pestana, bool oculta)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana={pestana}");
+
+        var cut = Renderizar(id);
+
+        cut.Find(".barra-filtros").HasAttribute("hidden").Should().Be(oculta);
+    }
+
+    [Theory]
     [InlineData("trabajadores")]
     [InlineData("visitas")]
     public void Las_tarjetas_de_canales_y_proxima_visita_siguen_en_el_lateral(string pestana)
