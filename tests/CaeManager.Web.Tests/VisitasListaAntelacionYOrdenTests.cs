@@ -117,11 +117,13 @@ public class VisitasListaAntelacionYOrdenTests : BunitContext
 
         var filas = cut.FindAll("tbody tr");
         var span = filas.Single(f => f.TextContent.Contains("Con tramo")).QuerySelector("[data-antelacion-tramo]")!;
-        span.TextContent.Trim().Should().Be(AntelacionVisitaUi.Texto(TramoAntelacion.Expres));
-        var badgeEsperado = Render<Badge>(p => p.Add(b => b.Tono, AntelacionVisitaUi.Tono(TramoAntelacion.Expres)));
-        span.QuerySelector("span")!.ClassName.Should().Be(badgeEsperado.Find("span").ClassName);
+        span.TextContent.Trim().Should().Be("Tramo " + AntelacionVisitaUi.Texto(TramoAntelacion.Expres));
+        span.ParentElement!.ClassName.Should().Be("estado-fila-motivo", "el tramo es el motivo bajo el estado de la fila");
+        span.QuerySelector(".badge").Should().BeNull("el motivo es texto: la pastilla de color es solo el nivel de urgencia");
         span.GetAttribute("title").Should().Contain("71,5 h").And.Contain("15 h");
-        filas.Single(f => f.TextContent.Contains("Sin tramo")).QuerySelector("[data-antelacion-tramo]").Should().BeNull();
+        var sinTramo = filas.Single(f => f.TextContent.Contains("Sin tramo"));
+        sinTramo.QuerySelector("[data-antelacion-tramo]").Should().BeNull();
+        sinTramo.QuerySelector(".estado-fila-motivo").Should().BeNull("sin tramo no queda un motivo vacío");
     }
 
     [Fact]
@@ -133,7 +135,7 @@ public class VisitasListaAntelacionYOrdenTests : BunitContext
         var cut = Renderizar(mediador);
 
         string Plazo(string centro) => cut.FindAll("tbody tr").Single(f => f.TextContent.Contains(centro))
-            .QuerySelector("span.visitas-celda-secundaria")?.TextContent.Trim() ?? "";
+            .QuerySelector("[data-pieza=plazo]")?.TextContent.Trim() ?? "";
         Plazo("Entra hoy").Should().Be("Hoy");
         Plazo("Entra manana").Should().Be("Mañana");
         Plazo("Entra en cinco").Should().Be("En 5 días");

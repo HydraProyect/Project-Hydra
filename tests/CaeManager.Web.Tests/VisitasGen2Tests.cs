@@ -1361,8 +1361,11 @@ public partial class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         var rotulos = new[] { "Manual", "Plataforma", "Correo", "WhatsApp" };
-        Fila(cut, "Centro Norte").QuerySelectorAll(".badge").Select(b => b.TextContent.Trim()).Where(rotulos.Contains)
+        var fila = Fila(cut, "Centro Norte");
+        fila.QuerySelectorAll("[data-pieza=origen]").Select(o => o.TextContent.Trim())
             .Should().ContainSingle("la fila pinta un solo rótulo de Origen").Which.Should().Be(rotulo);
+        fila.QuerySelectorAll(".badge").Select(b => b.TextContent.Trim()).Where(rotulos.Contains)
+            .Should().BeEmpty("el origen es un dato, no un estado: va como texto, sin pastilla");
     }
 
     // ── D-20, segunda parte: «relacionado» = Trabajador asignado al Centro de la Visita ──

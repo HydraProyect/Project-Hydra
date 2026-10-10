@@ -57,17 +57,11 @@
   <data name="EtiquetaCentro" xml:space="preserve">
     <value>Centro</value>
   </data>
-  <data name="ColumnaTitularEmpresa" xml:space="preserve">
-    <value>Titular del centro / Empresa</value>
-  </data>
   <data name="ColumnaFechas" xml:space="preserve">
     <value>Fechas</value>
   </data>
   <data name="EtiquetaTrabajadores" xml:space="preserve">
     <value>Trabajadores</value>
-  </data>
-  <data name="ColumnaUrgencia" xml:space="preserve">
-    <value>Urgencia</value>
   </data>
   <data name="EtiquetaOrigen" xml:space="preserve">
     <value>Origen</value>
@@ -671,5 +665,20 @@
   </data>
   <data name="QuitarFiltroNotificada" xml:space="preserve">
     <value>Treu el filtre de notificació</value>
+  </data>
+  <data name="ColumnaVisita" xml:space="preserve">
+    <value>Visita</value>
+  </data>
+  <data name="ColumnaTrabajadores" xml:space="preserve">
+    <value>Treb.</value>
+  </data>
+  <data name="ColumnaAvisada" xml:space="preserve">
+    <value>Avisada</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estat</value>
+  </data>
+  <data name="MotivoTramo" xml:space="preserve">
+    <value>Tram {0}</value>
   </data>
 </root>
