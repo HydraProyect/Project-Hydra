@@ -329,4 +329,99 @@ public class CalculoBloqueoDeAccesoDeTrabajadoresTests
         enTolerancia.ToleranciaDias.Should().Be(15);
         evaluados.Single(e => e.TipoDocumentoId == TipoApto).Resultado.EnToleranciaHasta.Should().BeNull();
     }
+
+    // ---------- Pendiente en la plataforma CAE del Centro (decisión del propietario, 2026-10-10) ----------
+
+    private static readonly Guid Carla = Guid.NewGuid();
+
+    private static IReadOnlyList<RequisitoEvaluado> EvaluarConPendientes(
+        IReadOnlyCollection<AsignacionParaBloqueo> asignaciones,
+        IReadOnlyCollection<RequisitoBloqueanteDelCentro> requisitos,
+        IReadOnlyCollection<PendienteParaBloqueo> pendientes,
+        params DocumentoParaBloqueo[] documentos) =>
+        CalculoBloqueoDeAccesoDeTrabajadores.Evaluar(asignaciones, requisitos, documentos, Hoy, pendientes);
+
+    [Fact]
+    public void P1_un_pendiente_de_Trabajador_bloquea_a_ese_Trabajador_en_ese_Centro_aunque_el_tipo_no_sea_bloqueante()
+    {
+        var evaluados = EvaluarConPendientes(
+            [new(CentroA, Ana, EmpresaX), new(CentroA, Beto, EmpresaX), new(CentroB, Ana, EmpresaX)],
+            [],
+            [new PendienteParaBloqueo(CentroA, Ana, null, TipoApto)]);
+
+        var bloqueo = evaluados.Should().ContainSingle().Subject;
+        bloqueo.CentroId.Should().Be(CentroA);
+        bloqueo.TrabajadorId.Should().Be(Ana, "solo a ese Trabajador, no a sus compañeros");
+        bloqueo.Ambito.Should().Be(AmbitoAplicacion.Trabajador);
+        bloqueo.Resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.PendienteEnPlataforma);
+        ReglaBloqueoDeAcceso.Bloquea(bloqueo.Resultado.Situacion).Should().BeTrue();
+        bloqueo.ToleranciaDias.Should().Be(0, "el Pendiente no tiene fecha: no le aplica tolerancia");
+    }
+
+    [Fact]
+    public void P2_un_pendiente_de_Empresa_bloquea_a_todos_los_Trabajadores_de_esa_Empresa_en_ese_Centro()
+    {
+        var evaluados = EvaluarConPendientes(
+            [new(CentroA, Ana, EmpresaX), new(CentroA, Beto, EmpresaX), new(CentroA, Carla, EmpresaY), new(CentroB, Ana, EmpresaX)],
+            [],
+            [new PendienteParaBloqueo(CentroA, null, EmpresaX, TipoCertificadoSs)]);
+
+        evaluados.Should().HaveCount(2);
+        evaluados.Select(e => e.TrabajadorId).Should().BeEquivalentTo([Ana, Beto], "Carla es de otra Empresa");
+        evaluados.Should().OnlyContain(e =>
+            e.CentroId == CentroA
+            && e.Ambito == AmbitoAplicacion.Empresa
+            && e.EmpresaId == EmpresaX
+            && e.Resultado.Situacion == SituacionDeRequisitoBloqueante.PendienteEnPlataforma);
+    }
+
+    [Fact]
+    public void P3_un_requisito_bloqueante_cumplido_pero_pendiente_en_la_plataforma_pasa_a_pendiente_sin_duplicar_la_fila()
+    {
+        var evaluados = EvaluarConPendientes(
+            [new(CentroA, Ana, EmpresaX)],
+            [DeTrabajadorEn(CentroA, TipoPss, toleranciaDias: 15)],
+            [new PendienteParaBloqueo(CentroA, Ana, null, TipoPss)],
+            DeTrabajador(Ana, TipoPss, VigenciaDocumento.VenceEl(Hoy.AddYears(1))));
+
+        var unico = evaluados.Should().ContainSingle("una sola fila por Centro, Trabajador y tipo: el Id de la fila de Mi trabajo depende de ello").Subject;
+        unico.Resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.PendienteEnPlataforma);
+        unico.ToleranciaDias.Should().Be(0);
+    }
+
+    [Fact]
+    public void P4_un_requisito_bloqueante_ausente_sigue_ausente_aunque_haya_un_pendiente_del_mismo_tipo()
+    {
+        var evaluados = EvaluarConPendientes(
+            [new(CentroA, Ana, EmpresaX)],
+            [DeTrabajadorEn(CentroA, TipoPss)],
+            [new PendienteParaBloqueo(CentroA, Ana, null, TipoPss)]);
+
+        evaluados.Should().ContainSingle().Which.Resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Ausente);
+    }
+
+    [Fact]
+    public void P5_sin_pendientes_la_evaluacion_es_la_de_siempre()
+    {
+        var conLista = EvaluarConPendientes(
+            [new(CentroA, Ana, EmpresaX)], [DeTrabajadorEn(CentroA, TipoPss)], [],
+            DeTrabajador(Ana, TipoPss, VigenciaDocumento.VenceEl(Hoy.AddYears(1))));
+        var sinLista = CalculoBloqueoDeAccesoDeTrabajadores.Evaluar(
+            [new(CentroA, Ana, EmpresaX)], [DeTrabajadorEn(CentroA, TipoPss)],
+            [DeTrabajador(Ana, TipoPss, VigenciaDocumento.VenceEl(Hoy.AddYears(1)))], Hoy);
+
+        conLista.Should().Equal(sinLista);
+        conLista.Should().ContainSingle().Which.Resultado.Situacion.Should().Be(SituacionDeRequisitoBloqueante.Cumplido);
+    }
+
+    [Fact]
+    public void P6_Calcular_lista_el_pendiente_entre_los_bloqueos()
+    {
+        var bloqueos = CalculoBloqueoDeAccesoDeTrabajadores.Calcular(
+            [new(CentroA, Ana, EmpresaX)], [], [], Hoy, [new PendienteParaBloqueo(CentroA, Ana, null, TipoApto)]);
+
+        var bloqueo = bloqueos.Should().ContainSingle().Subject;
+        bloqueo.Situacion.Should().Be(SituacionDeRequisitoBloqueante.PendienteEnPlataforma);
+        bloqueo.VencimientoEfectivo.Should().BeNull();
+    }
 }

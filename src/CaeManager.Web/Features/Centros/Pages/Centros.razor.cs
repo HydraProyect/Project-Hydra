@@ -964,14 +964,14 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     };
 
     /// <summary>
-    /// Fila con problema: 2 = bloqueo de la plataforma CAE, vencido o falta documentación
+    /// Fila con problema: 2 = bloqueo de la plataforma CAE, vencido, falta documentación o pendiente en la plataforma
     /// (tinte de peligro, «con problema»); 1 = urgente (tinte de aviso, «por vencer»); 0 = el resto.
     /// Se lee del estado del Centro, el mismo que pinta su badge. Es también el criterio del tinte de la cabecera
     /// de grupo (<see cref="GrupoCentros.Tinte"/>): «Próximo» se rotula «Por vencer» pero no tiñe ni fila ni grupo.
     /// </summary>
     private static int NivelProblema(EstadoCentro estado) => estado switch
     {
-        EstadoCentro.Bloqueado or EstadoCentro.Vencido or EstadoCentro.Faltante => 2,
+        EstadoCentro.Bloqueado or EstadoCentro.Vencido or EstadoCentro.Faltante or EstadoCentro.Pendiente => 2,
         EstadoCentro.Urgente => 1,
         _ => 0,
     };
@@ -1512,6 +1512,13 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     private string MotivoProximos(int cantidad) =>
         cantidad == 1 ? Textos["MotivoUnProximo"].Value : Textos["MotivoProximos", cantidad].Value;
+
+    /// <summary>«N pendientes en la plataforma»: documentos que valen pero están sin subir o sin validar en la plataforma CAE del Centro.</summary>
+    private string MotivoPendientesPlataforma(int cantidad) =>
+        cantidad == 1 ? Textos["MotivoUnPendientePlataforma"].Value : Textos["MotivoPendientesPlataforma", cantidad].Value;
+
+    private string TituloPendientesPlataforma(int cantidad) =>
+        cantidad == 1 ? Textos["TituloPendientesPlataformaUno"].Value : Textos["TituloPendientesPlataformaVarios", cantidad].Value;
 
     /// <summary>
     /// Nombre accesible del disparador del motivo. Empieza por el texto que se ve («2 vencidos») para que

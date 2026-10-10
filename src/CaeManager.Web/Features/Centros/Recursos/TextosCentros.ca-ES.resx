@@ -152,6 +152,18 @@
   <data name="MotivoProximos" xml:space="preserve">
     <value>{0} per vèncer</value>
   </data>
+  <data name="MotivoUnPendientePlataforma" xml:space="preserve">
+    <value>1 pendent a la plataforma</value>
+  </data>
+  <data name="MotivoPendientesPlataforma" xml:space="preserve">
+    <value>{0} pendents a la plataforma</value>
+  </data>
+  <data name="TituloPendientesPlataformaUno" xml:space="preserve">
+    <value>1 document pendent a la plataforma</value>
+  </data>
+  <data name="TituloPendientesPlataformaVarios" xml:space="preserve">
+    <value>{0} documents pendents a la plataforma</value>
+  </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al dia: no cal intervenir-hi, però el pots substituir</value>
   </data>
@@ -220,6 +232,9 @@
   </data>
   <data name="BloqueoSituacionAusente" xml:space="preserve">
     <value>no té el document</value>
+  </data>
+  <data name="BloqueoSituacionPendienteEnPlataforma" xml:space="preserve">
+    <value>pendent a la plataforma del Centre</value>
   </data>
   <data name="BloqueoSituacionVencido" xml:space="preserve">
     <value>va vèncer el {0}</value>

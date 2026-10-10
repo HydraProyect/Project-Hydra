@@ -194,6 +194,11 @@
     color: var(--color-warning-700);
 }
 
+/* Mismo tono que la pastilla «Pendiente» del Centro (EstadoCentroUi). */
+.motivo-recuento-pendientes {
+    color: var(--color-danger-700);
+}
+
 /*
   En pantallas estrechas la zona de indicadores no cabe junto al nombre: en un móvil de 375 px la
   identidad se quedaba en 0 px de ancho (medido el 2026-10-09, también con los 200 px de antes). Baja

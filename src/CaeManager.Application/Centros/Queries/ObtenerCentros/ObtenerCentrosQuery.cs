@@ -66,18 +66,28 @@ public record IncidenciaCentroDto(
     Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento, Guid? TrabajadorId = null);
 
 /// <summary>
-/// Desglose de las incidencias de un centro por estado. No lleva contadores
+/// Desglose de las incidencias de un centro por causa. No lleva contadores
 /// propios: se derivan de las listas, para que no puedan desincronizarse del
 /// detalle que muestra la ventana de contexto.
 /// </summary>
+/// <param name="Pendientes">
+/// Documentos pendientes en la plataforma CAE del Centro (sin subir o subidos sin validar; decisión del 2026-10-10). Su
+/// propio grupo, nunca dentro de <paramref name="Vencidas"/> ni de <paramref name="Proximas"/>: el documento vale, lo que
+/// falta es acreditarlo allí. Vacío en un Centro sin plataforma (y en el constructor de dos listas).
+/// </param>
 public record RecuentosCentroDto(
     IReadOnlyList<IncidenciaCentroDto> Vencidas,
-    IReadOnlyList<IncidenciaCentroDto> Proximas)
+    IReadOnlyList<IncidenciaCentroDto> Proximas,
+    IReadOnlyList<IncidenciaCentroDto> Pendientes)
 {
-    public static readonly RecuentosCentroDto Vacio = new([], []);
+    public static readonly RecuentosCentroDto Vacio = new([], [], []);
+
+    public RecuentosCentroDto(IReadOnlyList<IncidenciaCentroDto> vencidas, IReadOnlyList<IncidenciaCentroDto> proximas)
+        : this(vencidas, proximas, []) { }
 
     public int TotalVencidas => Vencidas.Count;
     public int TotalProximas => Proximas.Count;
+    public int TotalPendientes => Pendientes.Count;
 }
 
 public record CentroListaDto(
@@ -297,16 +307,28 @@ public class ObtenerCentrosQueryHandler(
     /// sin estado sería un defecto en su origen, no un caso más que enmascarar
     /// aquí.
     /// </para>
+    /// <para>
+    /// El documento pendiente en la plataforma (<see cref="CausaEstadoCentro.PendienteEnPlataforma"/>, decisión del
+    /// 2026-10-10) va a su propio grupo, <see cref="RecuentosCentroDto.Pendientes"/>: no es un vencimiento ni algo por
+    /// vencer, el documento vale y lo que falta es acreditarlo en la plataforma del Centro.
+    /// </para>
     /// </summary>
     private static RecuentosCentroDto Desglosar(ResultadoEstadoCentro resultado)
     {
         var vencidas = new List<IncidenciaCentroDto>();
         var proximas = new List<IncidenciaCentroDto>();
+        var pendientes = new List<IncidenciaCentroDto>();
 
         foreach (var causa in resultado.Causas)
         {
             var incidencia = new IncidenciaCentroDto(
                 causa.Descripcion, causa.Ambito, causa.Estado, causa.DocumentoId, causa.TipoDocumentoId, causa.FechaVencimiento, causa.TrabajadorId);
+            if (causa.PendienteEnPlataforma)
+            {
+                pendientes.Add(incidencia);
+                continue;
+            }
+
             switch (causa.Estado)
             {
                 case EstadoDocumento.Vencido or EstadoDocumento.Faltante:
@@ -321,7 +343,7 @@ public class ObtenerCentrosQueryHandler(
             }
         }
 
-        return new RecuentosCentroDto(vencidas, proximas);
+        return new RecuentosCentroDto(vencidas, proximas, pendientes);
     }
 
     private static IOrderedEnumerable<CentroListaDto> OrdenarEnMemoria(
@@ -336,7 +358,7 @@ public class ObtenerCentrosQueryHandler(
             (nameof(CentroListaDto.ClienteRazonSocial), true) => elementos.OrderByDescending(x => x.ClienteRazonSocial).ThenBy(x => x.Nombre),
             (nameof(CentroListaDto.EmpresaRazonSocial), false) => elementos.OrderBy(x => x.EmpresaRazonSocial).ThenBy(x => x.Nombre),
             (nameof(CentroListaDto.EmpresaRazonSocial), true) => elementos.OrderByDescending(x => x.EmpresaRazonSocial).ThenBy(x => x.Nombre),
-            // La gravedad va de mejor a peor (Vigente … Faltante, Vencido,
+            // La gravedad va de mejor a peor (Vigente … Pendiente, Faltante, Vencido,
             // Bloqueado; no es el valor numérico del enum), así que descendente
             // deja arriba lo que más urge — que es lo que el Gestor CAE espera
             // al ordenar por cumplimiento.

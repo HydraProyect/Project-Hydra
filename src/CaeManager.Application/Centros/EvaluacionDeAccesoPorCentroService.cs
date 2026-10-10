@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +28,14 @@ public record EvaluacionDeAccesoPorCentro(
 /// personaliza; si no, la de su Cliente empresarial titular; si no, 0 — <see cref="ReglaBloqueoDeAcceso.ResolverToleranciaDias"/>),
 /// y qué Asignaciones se consideran. Lo usan Mi trabajo (vía <c>ObtenerDocumentacionBloqueantePendienteQuery</c>) y el detalle
 /// por Trabajador del Centro 360, para que ninguna superficie recalcule el bloqueo.
+///
+/// <para>
+/// Desde el 2026-10-10 también aplica el Pendiente en la plataforma (<see cref="ReglaPendienteEnPlataforma"/>): un documento
+/// que vale pero está sin subir o sin validar en la plataforma CAE de un Centro bloquea a su sujeto en ese Centro
+/// (<see cref="SituacionDeRequisitoBloqueante.PendienteEnPlataforma"/>), con la misma carga que pone el Centro en
+/// <c>EstadoCentro.Pendiente</c> (<see cref="PendientesEnPlataformaDeCentros"/>). Por eso los Centros con plataforma entran en
+/// la evaluación aunque no marquen ningún tipo como bloqueante.
+/// </para>
 ///
 /// <para>
 /// Alcance: solo Centros visibles para el usuario (<see cref="IAlcanceDatosService"/>) y con gestión CAE (un Centro sin
@@ -68,22 +77,30 @@ public class EvaluacionDeAccesoPorCentroService(
             .Where(f => ReglaBloqueoDeAcceso.AmbitoPuedeBloquear(f.AmbitoAplicacion) && EnAlcance(f.CentroId))
             .ToList();
 
-        if (filas.Count == 0)
+        // Pendiente en la plataforma (decisión 2026-10-10): también bloquea en los Centros con plataforma que no marcan
+        // ningún tipo como bloqueante, así que esos Centros entran en la evaluación aunque no tengan filas.
+        var centrosConPlataforma = (await centrosContext.CanalesGestionDocumental
+            .Where(c => c.Tipo == TipoCanalGestion.Plataforma)
+            .Select(c => c.CentroId)
+            .Distinct()
+            .ToListAsync(cancellationToken))
+            .Where(EnAlcance)
+            .ToList();
+
+        var centrosCandidatos = filas.Select(f => f.CentroId).Concat(centrosConPlataforma).Distinct().ToList();
+        if (centrosCandidatos.Count == 0)
             return EvaluacionDeAccesoPorCentro.Vacia;
+
+        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(centrosContext, centrosCandidatos, cancellationToken);
+        filas = filas.Where(f => !sinGestionCae.Contains(f.CentroId)).ToList();
+        centrosConPlataforma = centrosConPlataforma.Where(id => !sinGestionCae.Contains(id)).ToList();
 
         var centrosDeFilas = filas.Select(f => f.CentroId).Distinct().ToList();
-        var centros = await centrosContext.Centros
+        var clientePorCentro = await centrosContext.Centros
             .Where(c => centrosDeFilas.Contains(c.Id))
             .Select(c => new { c.Id, Titular = c.ClienteId })
-            .ToListAsync(cancellationToken);
-        var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(centrosContext, centrosDeFilas, cancellationToken);
-        var clientePorCentro = centros
-            .Where(c => !sinGestionCae.Contains(c.Id))
-            .ToDictionary(c => c.Id, c => c.Titular);
+            .ToDictionaryAsync(c => c.Id, c => c.Titular, cancellationToken);
         filas = filas.Where(f => clientePorCentro.ContainsKey(f.CentroId)).ToList();
-
-        if (filas.Count == 0)
-            return EvaluacionDeAccesoPorCentro.Vacia;
 
         // Tolerancia por defecto del Cliente empresarial titular de cada Centro, para los Tipos de las filas.
         var titulares = clientePorCentro.Values.Distinct().ToList();
@@ -104,10 +121,19 @@ public class EvaluacionDeAccesoPorCentroService(
                         toleranciasDeCliente.TryGetValue((clientePorCentro[f.CentroId], f.TipoDocumentoId), out var delCliente) ? delCliente : null))))
             .ToList();
 
-        var centrosConRequisitos = requisitos.Select(r => r.CentroId).Distinct().ToList();
+        var pendientes = (await PendientesEnPlataformaDeCentros.CargarAsync(
+                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+                centrosConPlataforma, hoy, cancellationToken))
+            .Select(p => new PendienteParaBloqueo(p.CentroId, p.TrabajadorId, p.EmpresaId, p.TipoDocumentoId))
+            .ToList();
+
+        var centrosEvaluados = requisitos.Select(r => r.CentroId).Concat(pendientes.Select(p => p.CentroId)).Distinct().ToList();
+        if (centrosEvaluados.Count == 0)
+            return EvaluacionDeAccesoPorCentro.Vacia;
+
         var asignaciones = await (
             from asignacion in asignacionesContext.Asignaciones
-            where asignacion.FechaBaja == null && centrosConRequisitos.Contains(asignacion.CentroId)
+            where asignacion.FechaBaja == null && centrosEvaluados.Contains(asignacion.CentroId)
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             select new
             {
@@ -170,7 +196,8 @@ public class EvaluacionDeAccesoPorCentroService(
                 .ToList(),
             requisitos,
             documentos,
-            hoy);
+            hoy,
+            pendientes);
 
         return new EvaluacionDeAccesoPorCentro(asignacionesEvaluadas, evaluados);
     }
