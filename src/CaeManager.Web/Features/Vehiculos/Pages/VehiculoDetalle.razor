@@ -5,7 +5,9 @@
 
     Primer incremento («con lo que ya viaja»): identidad con anillo,
     pestañas Documentación e Historial y tarjeta lateral
-    Información. Quedan para los siguientes: contadores de estado, orden del
+    Información. El lateral se cierra con la «Nota interna» (pieza NotaInterna),
+    que se edita en su propio DrawerFormulario y se guarda con un comando
+    estrecho, no con el panel. Quedan para los siguientes: contadores de estado, orden del
     peor al mejor y «Renovar»/«Confirmar» en la fila (segundo); pestaña
     «Centros de su empleador» (tercero); fecha de alta, tarjeta lateral del
     empleador y «Eliminar vehículo» con «Deshacer».
@@ -30,8 +32,10 @@
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components
 @using CaeManager.Web.Features.Vehiculos.Recursos
+@using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosVehiculos> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.Nombre ?? Textos["FichaKicker"]) — @Marca.Nombre</PageTitle>
@@ -184,6 +188,19 @@
                             <p class="vehiculo360-nota">@Textos["FichaNotaEmpleador"]</p>
                         </ChildContent>
                     </Tarjeta>
+
+                    @* Quién ve la nota lo decide el servidor (ObtenerVehiculoPorIdQuery), no esta página: con
+                       NotaInternaVisible = false la tarjeta no existe, ni siquiera vacía. Consulta la lee sin «Editar». *@
+                    @if (_detalle.NotaInternaVisible)
+                    {
+                        <NotaInterna Texto="@_detalle.Notas">
+                            <Acciones>
+                                <SoloConEscritura>
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorNota">@Textos["FichaEditarEnlace"]</Boton>
+                                </SoloConEscritura>
+                            </Acciones>
+                        </NotaInterna>
+                    }
                 </Lateral>
             </CuerpoConLateral>
         </Pestanas>
@@ -191,6 +208,16 @@
         <SoloConEscritura>
             <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="RecargarTrasCambioAsync" />
         </SoloConEscritura>
+
+        @* Editor de la nota interna: solo se abre desde «Editar →» de su tarjeta, que ya está tras SoloConEscritura. *@
+        <DrawerFormulario Visible="_editorNotaVisible" VisibleChanged="CambiarVisibilidadEditorNota" Titulo="@Comunes["NotaInternaTitulo"]"
+                          HayCambios="() => HayCambiosEnLaNota" Guardando="_guardandoNota" MensajeError="@_mensajeErrorNota"
+                          HayErroresDeCampo="@(_errorCampoNota is not null)" OnGuardar="GuardarNotaAsync"
+                          TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+            <CampoTextarea Etiqueta="@Comunes["NotaInternaTitulo"]" Valor="@_notaEnEdicion" ValorChanged="v => _notaEnEdicion = v"
+                           Filas="8" MensajeError="@_errorCampoNota" />
+            <p class="vehiculo360-nota">@Comunes["NotaInternaNoLaVeCliente"]</p>
+        </DrawerFormulario>
     }
 </div>
 </LimiteDeErrores>

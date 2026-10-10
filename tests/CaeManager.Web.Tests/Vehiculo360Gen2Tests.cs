@@ -67,7 +67,7 @@ public partial class Vehiculo360Gen2Tests : BunitContext
 
     private static VehiculoDetalleDto Detalle(Guid id, string nombre) =>
         new(id, Guid.NewGuid(), null, "Montajes Ebro S.L.", nombre, "Transit", "1234-ABC", Guid.NewGuid(),
-            CaeManager.Domain.Documentos.FraccionCumplimiento.SinRequisitos, null);
+            CaeManager.Domain.Documentos.FraccionCumplimiento.SinRequisitos, null, Notas: null, NotaInternaVisible: true);
 
     private MediadorFalso Registrar(MediadorFalso m)
     {

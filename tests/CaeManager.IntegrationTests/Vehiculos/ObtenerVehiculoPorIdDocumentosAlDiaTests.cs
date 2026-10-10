@@ -1,4 +1,6 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Vehiculos.Commands.GuardarNotaInternaVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
@@ -7,6 +9,8 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Vehiculos;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Persistence.Interceptors;
+using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -120,18 +124,59 @@ public class ObtenerVehiculoPorIdDocumentosAlDiaTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerVehiculoPorIdQueryHandler(
             contexto, contexto, new AlcanceDatosServiceFalso(vehiculoIds: [_todoAlDia]),
-            new CalculoEstadoDocumentalService(contexto, contexto, contexto));
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto), new CurrentUserServiceFalso(rol: "GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerVehiculoPorIdQuery(_camionGrua), CancellationToken.None);
 
         detalle.Should().BeNull("no encontrado y sin acceso no se distinguen");
     }
 
-    private async Task<VehiculoDetalleDto?> ObtenerAsync(Guid vehiculoId)
+    /// <summary>
+    /// La «Nota interna» contra la columna real: el comando estrecho la persiste con el repositorio y el contexto de
+    /// verdad (interceptor de Tenant incluido), otro contexto la lee, y el corte por rol de la consulta se aplica
+    /// sobre el dato leído de PostgreSQL. Guardarla no toca los datos del vehículo y renueva su <c>Version</c>.
+    /// </summary>
+    [Fact]
+    public async Task La_nota_interna_se_persiste_con_el_comando_estrecho_y_solo_la_lee_el_equipo()
+    {
+        const string nota = "Aparca en la nave 2.\nLas llaves las tiene Leire.";
+        var antes = await ObtenerAsync(_recienCreado);
+        antes!.Notas.Should().BeNull();
+        antes.NotaInternaVisible.Should().BeTrue();
+
+        await using (var contexto = CrearContexto())
+        {
+            var guardar = new GuardarNotaInternaVehiculoCommandHandler(new VehiculoRepository(contexto), new AlcanceDatosServiceFalso(), contexto);
+            var resultado = await guardar.Handle(new GuardarNotaInternaVehiculoCommand(_recienCreado, nota, antes.Version), CancellationToken.None);
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        var despues = await ObtenerAsync(_recienCreado);
+        despues!.Notas.Should().Be(nota);
+        despues.Version.Should().NotBe(antes.Version, "la ficha tiene que mandar la versión nueva en el siguiente guardado");
+        (despues.Nombre, despues.Modelo, despues.NumeroPlaca).Should().Be((antes.Nombre, antes.Modelo, antes.NumeroPlaca));
+
+        var comoUsuarioDeCliente = await ObtenerAsync(_recienCreado, rol: "Cliente");
+        comoUsuarioDeCliente!.Nombre.Should().Be(antes.Nombre, "la ficha sí se lee: el corte es solo de la nota");
+        comoUsuarioDeCliente.NotaInternaVisible.Should().BeFalse();
+        comoUsuarioDeCliente.Notas.Should().BeNull();
+
+        await using (var contexto = CrearContexto())
+        {
+            var guardar = new GuardarNotaInternaVehiculoCommandHandler(new VehiculoRepository(contexto), new AlcanceDatosServiceFalso(), contexto);
+            var conVersionVieja = await guardar.Handle(new GuardarNotaInternaVehiculoCommand(_recienCreado, "Pisada.", antes.Version), CancellationToken.None);
+            conVersionVieja.EsFallido.Should().BeTrue();
+            conVersionVieja.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
+        }
+
+        (await ObtenerAsync(_recienCreado))!.Notas.Should().Be(nota);
+    }
+
+    private async Task<VehiculoDetalleDto?> ObtenerAsync(Guid vehiculoId, string rol = "GestorCae")
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerVehiculoPorIdQueryHandler(
-            contexto, contexto, new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto));
+            contexto, contexto, new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), new CurrentUserServiceFalso(rol: rol));
 
         return await handler.Handle(new ObtenerVehiculoPorIdQuery(vehiculoId), CancellationToken.None);
     }
@@ -141,7 +186,7 @@ public class ObtenerVehiculoPorIdDocumentosAlDiaTests : IAsyncLifetime
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var builder = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual));
+            .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor());
 
         return new CaeManagerDbContext(builder.Options, new EphemeralDataProtectionProvider(), tenantActual);
     }

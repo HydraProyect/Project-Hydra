@@ -1,4 +1,6 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Vehiculos.Commands.GuardarNotaInternaVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -6,6 +8,8 @@ using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Documentos.Components;
+using CaeManager.Web.Services;
+using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 
@@ -57,6 +61,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private ToastService ToastService { get; set; } = default!;
 
     private VehiculoDetalleDto? _detalle;
     private bool _cargando = true;
@@ -163,6 +168,12 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         _totalDocumentos = 0;
         _cargandoDocumentos = false;
         _errorDocumentos = false;
+        _editorNotaVisible = false;
+        _guardandoNota = false;
+        _notaEnEdicion = string.Empty;
+        _borradorNotaTrasConflicto = null;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
     }
 
     /// <summary>
@@ -346,6 +357,108 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     /// <summary>Editar vive en el panel del Vehículo, con su aviso de cambios sin guardar.</summary>
     private Task AbrirInformacionAsync() =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, VehiculoId, _detalle?.Nombre ?? string.Empty, "informacion");
+
+    // ── Nota interna ──────────────────────────────────────────────────────
+
+    private bool _editorNotaVisible;
+    private bool _guardandoNota;
+    private string _notaEnEdicion = string.Empty;
+    /// <summary>Lo que el usuario escribió cuando otra persona guardó antes: se recupera al reabrir el editor, nunca se reenvía solo.</summary>
+    private string? _borradorNotaTrasConflicto;
+    private string? _mensajeErrorNota;
+    private string? _errorCampoNota;
+    private readonly InstantaneaFormulario _instantaneaNota = new();
+
+    /// <summary>
+    /// La <c>Version</c> que la ficha enseñaba al abrirse el editor: es la que se manda. Con el editor abierto la ficha
+    /// puede releerse (al cerrarse el panel del Vehículo) y traer una versión posterior; mandar esa pisaría, sin
+    /// conflicto, una nota que quien edita no ha visto.
+    /// </summary>
+    private Guid _versionAlAbrirNota;
+
+    /// <summary>Lo lee DrawerFormulario, que lleva dentro el guardián de cerrar y de navegar; cerrado no hay nada que perder.</summary>
+    private bool HayCambiosEnLaNota => _editorNotaVisible && _instantaneaNota.Difiere(_notaEnEdicion);
+
+    private void AbrirEditorNota()
+    {
+        if (_detalle is null) return;
+
+        _notaEnEdicion = _borradorNotaTrasConflicto ?? _detalle.Notas ?? string.Empty;
+        _borradorNotaTrasConflicto = null;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
+        _versionAlAbrirNota = _detalle.Version;
+        _instantaneaNota.Fijar(_notaEnEdicion);
+        _editorNotaVisible = true;
+    }
+
+    private void CambiarVisibilidadEditorNota(bool visible) => _editorNotaVisible = visible;
+
+    /// <summary>
+    /// Manda solo la nota y la <c>Version</c> que la ficha enseñaba al abrir el editor. Si otra persona guardó entre medias —la nota o los
+    /// datos del vehículo, que comparten <c>Version</c>—, el servidor responde el conflicto: el editor se cierra, se
+    /// relee la cabecera (la tarjeta enseña lo que hay ahora) y el texto propio queda como borrador para reaplicarlo
+    /// al reabrir. Nunca se reenvía con la versión nueva sin pasar por ahí. Tras guardar bien también se relee, porque
+    /// la <c>Version</c> cambió. Otros fallos solo muestran el motivo.
+    /// </summary>
+    private async Task GuardarNotaAsync()
+    {
+        if (_detalle is null || _guardandoNota) return;
+
+        var generacion = _generacion;
+        var detalle = _detalle;
+        _guardandoNota = true;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(new GuardarNotaInternaVehiculoCommand(detalle.Id, _notaEnEdicion, _versionAlAbrirNota));
+
+            if (resultado.EsFallido)
+            {
+                if (generacion != _generacion) return;
+                // Un conflicto cierra el editor y relee: reenviar con la versión nueva sin mirarla pisaría en silencio
+                // la nota de la otra persona.
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                {
+                    _borradorNotaTrasConflicto = _notaEnEdicion;
+                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                    _editorNotaVisible = false;
+                    await CargarCabeceraAsync(silenciosa: true);
+                }
+                else
+                {
+                    _mensajeErrorNota = resultado.Error.Mensaje;
+                }
+                return;
+            }
+
+            // Lo guardado se confirma aunque la ficha ya enseñe otro vehículo.
+            ToastService.Mostrar(Textos["ToastNotaInternaGuardada"], TonoToast.Exito);
+            if (generacion != _generacion) return;
+            _editorNotaVisible = false;
+
+            // La tarjeta enseña ya lo guardado aunque la relectura de abajo falle; la Version buena la trae la relectura.
+            _detalle = detalle with { Notas = string.IsNullOrWhiteSpace(_notaEnEdicion) ? null : _notaEnEdicion.Trim() };
+            await CargarCabeceraAsync(silenciosa: true);
+        }
+        catch (ValidationException ex)
+        {
+            if (generacion == _generacion)
+                _errorCampoNota = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorGuardarNotaInterna"];
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                _mensajeErrorNota = Textos["ErrorGuardarNotaInterna"];
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _guardandoNota = false;
+        }
+    }
 
     /// <summary>La consulta rápida del documento: su panel, donde hoy se renueva y se confirma la vigencia.</summary>
     private Task AbrirDocumentoAsync(DocumentoListaDto documento) =>

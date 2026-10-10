@@ -7,7 +7,7 @@ public class AlcanceDatosServiceFalso(
     bool conexionIntegracionVisible = true, IReadOnlyList<Guid>? empresaIdsVisibles = null, IReadOnlyList<Guid>? centroIdsVisibles = null,
     IReadOnlyList<Guid>? subcontrataIdsVisibles = null, IReadOnlyList<Guid>? conexionesIntegracionAjenas = null,
     IReadOnlyList<Guid>? empresaIdsParaGestion = null, IReadOnlyList<Guid>? subcontrataIdsParaGestion = null,
-    IReadOnlyList<Guid>? centroIdsParaGestion = null, bool ladoDeGestion = true)
+    IReadOnlyList<Guid>? centroIdsParaGestion = null, bool ladoDeGestion = true, IReadOnlyList<Guid>? vehiculoIdsVisibles = null)
     : IAlcanceDatosService
 {
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(tieneAccesoTotal);
@@ -56,7 +56,8 @@ public class AlcanceDatosServiceFalso(
     public Task<IReadOnlyList<Guid>?> ObtenerTrabajadorIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(trabajadorIdsVisibles);
 
-    public Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<Guid>?>(null);
+    /// <summary>Por defecto null (sin restricción), como antes de que este parámetro existiera — solo lo controla el test que lo pase explícitamente.</summary>
+    public Task<IReadOnlyList<Guid>?> ObtenerVehiculoIdsVisiblesAsync(CancellationToken cancellationToken = default) => Task.FromResult(vehiculoIdsVisibles);
 
     /// <summary>Si el test pasa <c>conexionesIntegracionAjenas</c>, decide por Id (una conexión ajena, el resto visibles); si no, aplica el flag global de siempre.</summary>
     public Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default) =>
