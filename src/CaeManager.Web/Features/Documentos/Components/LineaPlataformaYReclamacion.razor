@@ -1,0 +1,73 @@
+@*
+    Segunda línea, discreta, bajo el nombre de un documento en las fichas 360 que fijan un Centro de Trabajo
+    (maqueta «Páginas 360 nuevas», función platDe): su estado en las plataformas de ese Centro y la última
+    reclamación. Por ejemplo: «Nalanda: pendiente de envío · Reclamado el 02/10/2026, sin respuesta».
+
+    Dos reglas que viven aquí para que ninguna ficha las reimplemente:
+
+    - Sin redundancia (decisión del propietario, 2026-10-09): si la fila ya dice algo sobre la plataforma
+      (LaFilaYaDiceLaPlataforma), no se pinta la segunda línea. Un mismo dato nunca aparece dos veces en la fila.
+    - La reclamación es contexto de un documento que no está al día (en la maqueta solo la llevan las filas
+      vencidas, pendientes y bloqueantes). «Al día» lo decide CumplimientoDocumental.EsConforme, la misma regla
+      de los porcentajes: con el documento conforme no se enseña.
+
+    El texto del estado de acreditación es el de EstadoAcreditacionUi, igual que en BadgesAcreditacion: un solo
+    vocabulario para la plataforma en toda la aplicación.
+*@
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Application.Documentos.SituacionEnCentro
+@using CaeManager.Domain.Common
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosDocumentos> Textos
+
+@if (_texto is not null)
+{
+    <span class="linea-plataforma-reclamacion @(_rechazada ? "linea-plataforma-reclamacion--rechazada" : null)" title="@_texto">@_texto</span>
+}
+
+@code {
+    /// <summary>Acreditaciones del documento en las plataformas del Centro de la fila; <c>null</c> o vacío si no hay.</summary>
+    [Parameter] public IReadOnlyList<AcreditacionResumenDto>? Acreditaciones { get; set; }
+
+    [Parameter] public UltimaReclamacionDocumentoDto? UltimaReclamacion { get; set; }
+
+    /// <summary>El estado que la fila ya pinta en su badge: decide si la reclamación sigue siendo contexto útil.</summary>
+    [Parameter, EditorRequired] public EstadoDocumento Estado { get; set; }
+
+    /// <summary>
+    /// La fila ya nombra la plataforma por su cuenta (un badge de acreditación, «Rechazado» de plataforma, un
+    /// detalle que la menciona): la segunda línea no se añade.
+    /// </summary>
+    [Parameter] public bool LaFilaYaDiceLaPlataforma { get; set; }
+
+    private string? _texto;
+    private bool _rechazada;
+
+    protected override void OnParametersSet()
+    {
+        _texto = null;
+        _rechazada = false;
+        if (LaFilaYaDiceLaPlataforma) return;
+
+        var partes = new List<string>();
+
+        foreach (var acreditacion in Acreditaciones ?? [])
+        {
+            partes.Add($"{acreditacion.NombrePlataforma}: {EstadoAcreditacionUi.Texto(acreditacion.Estado)}");
+            _rechazada |= acreditacion.Estado == EstadoAcreditacion.Rechazada;
+        }
+
+        if (UltimaReclamacion is { } reclamacion && !CumplimientoDocumental.EsConforme(Estado))
+        {
+            var fecha = reclamacion.FechaEnvioUtc.EnHoraPeninsular().ToString("dd/MM/yyyy");
+            partes.Add(reclamacion.SinRespuesta == true
+                ? Textos["SegundaLineaReclamadoSinRespuesta", fecha]
+                : Textos["SegundaLineaReclamado", fecha]);
+        }
+
+        if (partes.Count > 0)
+            _texto = string.Join(" · ", partes);
+    }
+}

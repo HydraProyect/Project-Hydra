@@ -221,7 +221,8 @@ public class ObtenerProyectosListadoBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task La_busqueda_y_el_estado_se_filtran_en_SQL_y_los_recuentos_no_llevan_el_filtro_de_estado()
     {
-        // Búsqueda por nombre del Proyecto, sin distinguir mayúsculas. «Reforma del otro Tenant» no entra.
+        // Búsqueda por nombre del Proyecto, sin distinguir mayúsculas ni contar los espacios de alrededor.
+        // «Reforma del otro Tenant» no entra.
         var reformas = await PedirAsync(_administrador, Roles.Administrador,
             new ObtenerProyectosQuery(Busqueda: " REFORMA ", ConRecuentosPorEstado: true));
         reformas.Elementos.Select(p => p.Id).Should().Equal(_reformaNaveA, _reformaCubiertaB);
@@ -279,6 +280,34 @@ public class ObtenerProyectosListadoBajoRuntimeTests : IAsyncLifetime
         paginas.SelectMany(p => p.Elementos).Select(p => p.Id).Should().Equal(porId,
             "con las seis filas empatadas, cada página tiene que cortar la misma ordenación: ni repetir ni perder");
         paginas.Should().OnlyContain(p => p.TotalElementos == 6);
+    }
+
+    /// <summary>
+    /// La búsqueda es la de todos los listados (<c>TextoDeBusqueda.Contiene</c>, traducida a
+    /// <c>texto_de_busqueda(columna) LIKE patron_de_busqueda(término)</c>): columna y término pasan los dos
+    /// por <c>unaccent</c> y <c>upper</c> en PostgreSQL. Con <c>upper(columna) LIKE upper(término)</c>,
+    /// «garcia» no encontraba «García».
+    /// </summary>
+    [Fact]
+    public async Task La_busqueda_no_distingue_acentos_ni_mayusculas_en_PostgreSQL()
+    {
+        var (cliente, centro) = await SembrarClienteAparteAsync();
+        var conAcento = Proyecto.Crear(cliente, centro, "Nave García", new DateOnly(2026, 7, 3), null, null);
+        var sinAcento = Proyecto.Crear(cliente, centro, "Muelle Garcia", new DateOnly(2026, 7, 2), null, null);
+        var otro = Proyecto.Crear(cliente, centro, "Cubierta norte", new DateOnly(2026, 7, 1), null, null);
+        await GuardarUnoAUnoAsync([conAcento, sinAcento, otro]);
+
+        async Task<IEnumerable<Guid>> BuscarAsync(string texto) =>
+            (await PedirAsync(_administrador, Roles.Administrador, new ObtenerProyectosQuery(cliente, Busqueda: texto)))
+            .Elementos.Select(p => p.Id);
+
+        // Control positivo: están los tres y una búsqueda sin acentos de por medio distingue entre ellos.
+        (await BuscarAsync("cubierta")).Should().Equal(otro.Id);
+
+        (await BuscarAsync("garcia")).Should().Equal([conAcento.Id, sinAcento.Id],
+            "sin acento en el término se encuentra el nombre que lo lleva y el que no");
+        (await BuscarAsync("GARCÍA")).Should().Equal([conAcento.Id, sinAcento.Id],
+            "y con acento en el término, también los dos");
     }
 
     [Fact]

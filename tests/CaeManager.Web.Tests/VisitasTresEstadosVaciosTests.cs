@@ -106,7 +106,7 @@ public class VisitasTresEstadosVaciosTests : BunitContext
         var cut = Renderizar();
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
-        cut.FindAll(".barra-filtros .filtro-critico input")[1].Change(true);
+        FiltrosVisitasDePrueba.Elegir(cut, "Solo urgentes", "Sí");
 
         navegacion.Uri.Should().Contain("urgentes=true");
         _mediator.UltimaConsulta!.SoloUrgentes.Should().BeTrue();
@@ -134,7 +134,7 @@ public class VisitasTresEstadosVaciosTests : BunitContext
         navegacion.Uri.Should().Contain("activas=false");
         _mediator.UltimaConsulta!.SoloActivas.Should().BeFalse();
 
-        cut.FindAll(".barra-filtros .filtro-critico input")[0].Change(true);
+        FiltrosVisitasDePrueba.Elegir(cut, "Solo activas", "Sí");
 
         navegacion.Uri.Should().NotContain("activas");
         _mediator.UltimaConsulta!.SoloActivas.Should().BeTrue();
@@ -219,7 +219,7 @@ public class VisitasTresEstadosVaciosTests : BunitContext
         var cut = Renderizar();
 
         // "Solo urgentes" sí lo pone el usuario.
-        cut.FindAll("input[type=checkbox]").Last().Change(true);
+        FiltrosVisitasDePrueba.Elegir(cut, "Solo urgentes", "Sí");
 
         cut.Markup.Should().Contain("Ninguna visita con estos filtros");
         cut.Markup.Should().Contain("Quitar los filtros");

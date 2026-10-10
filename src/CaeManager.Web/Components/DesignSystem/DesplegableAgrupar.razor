@@ -1,0 +1,47 @@
+@*
+    Desplegable «Agrupar» de un listado: una pastilla que dice la agrupación vigente («Agrupar: no»,
+    «Agrupar: Cliente») y abre un menú con «Sin agrupar» y una opción «Por <campo>» por cada agrupación
+    que ofrece la pantalla. Va en el slot «Herramientas» de <BarraFiltros>, antes de «Expandir todo».
+
+    Es un MenuAcciones con disparador de pastilla, como PastillaFiltro: hereda su teclado y su cierre,
+    cada opción es menuitemradio con aria-checked y la vigente recibe el foco al abrir. La pastilla se
+    marca cuando hay una agrupación aplicada. Su letra de KeyTips es la A (CatalogoAtajos.KeyTips).
+
+    No guarda estado ni toca la URL: recibe el valor y avisa del cambio. Cómo viaja en la URL lo dice
+    AgrupacionDeLista.
+
+    Uso:
+
+        <DesplegableAgrupar Opciones="_opcionesAgrupar" Valor="@_agruparPor" ValorChanged="CambiarAgrupacion" />
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<MenuAcciones Etiqueta="@TextoDisparador" Pastilla="true" Activa="@(Vigente is not null)" Keytip="A">
+    <ItemMenuAccion Marcado="@(Vigente is null)" OnClick="() => ElegirAsync(null)">@Comunes["AgruparSin"]</ItemMenuAccion>
+    @foreach (var opcion in Opciones)
+    {
+        <ItemMenuAccion Marcado="@(opcion == Vigente)" OnClick="() => ElegirAsync(opcion.Clave)">@Comunes["AgruparPor", opcion.Etiqueta]</ItemMenuAccion>
+    }
+</MenuAcciones>
+
+@code {
+    /// <summary>Agrupaciones que ofrece la pantalla, sin «Sin agrupar» (el desplegable la añade).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<OpcionAgrupar> Opciones { get; set; } = [];
+
+    /// <summary>Clave de la agrupación vigente; <c>null</c>, sin agrupar.</summary>
+    [Parameter] public string? Valor { get; set; }
+
+    /// <summary>La agrupación elegida (<c>null</c>: «Sin agrupar»). No avisa si se elige la vigente.</summary>
+    [Parameter] public EventCallback<string?> ValorChanged { get; set; }
+
+    /// <summary>Una clave que la pantalla no ofrece se lee como «sin agrupar»: el rótulo no puede decir un campo que no existe.</summary>
+    private OpcionAgrupar? Vigente => Valor is null ? null : Opciones.FirstOrDefault(o => o.Clave == Valor);
+
+    private string TextoDisparador =>
+        Vigente is { } vigente ? Comunes["AgruparRotulo", vigente.Etiqueta].Value : Comunes["AgruparRotuloNo"].Value;
+
+    private Task ElegirAsync(string? clave) =>
+        clave == Vigente?.Clave ? Task.CompletedTask : ValorChanged.InvokeAsync(clave);
+}

@@ -436,6 +436,75 @@ public class BancoModelosIaTests(ITestOutputHelper salida)
     }
 
     [Fact]
+    public async Task Un_rechazo_de_la_API_se_anota_con_su_motivo_y_sin_la_clave_aunque_la_API_la_repita()
+    {
+        var sonda = new SondaAnthropic(new EcoDeLaClave());
+        using var http = new HttpClient(sonda);
+        using var peticion = new HttpRequestMessage(HttpMethod.Post, "https://banco.invalid/v1/messages") { Content = new StringContent("{}") };
+        peticion.Headers.Add("x-api-key", "CANARIO-de-prueba");
+
+        using var respuesta = await http.SendAsync(peticion);
+
+        var llamada = sonda.Llamadas.Should().ContainSingle().Subject;
+        llamada.EstadoHttp.Should().Be(401);
+        llamada.MotivoDelRechazo.Should().StartWith("authentication_error: invalid x-api-key").And.NotContain("CANARIO");
+    }
+
+    [Theory]
+    [InlineData("""{"error":{"type":"invalid_request_error","message":"primera línea\nsegunda línea"}}""", "invalid_request_error: primera línea segunda línea")]
+    [InlineData("""{"error":{"type":123,"message":"sin tipo legible"}}""", "sin tipo legible")]
+    [InlineData("""{"error":{"type":7}}""", null)]
+    [InlineData("""{"error":"no es un objeto"}""", null)]
+    [InlineData("no es JSON", null)]
+    public async Task El_motivo_del_rechazo_queda_en_una_linea_y_tolera_un_cuerpo_de_error_inesperado(string cuerpo, string? esperado)
+    {
+        var sonda = new SondaAnthropic(new RechazoFijo(cuerpo));
+        using var http = new HttpClient(sonda);
+
+        using var respuesta = await http.PostAsync("https://banco.invalid/v1/messages", new StringContent("{}"));
+
+        var llamada = sonda.Llamadas.Should().ContainSingle().Subject;
+        llamada.EstadoHttp.Should().Be(400);
+        llamada.MotivoDelRechazo.Should().Be(esperado);
+    }
+
+    [Fact]
+    public async Task La_clave_se_tacha_antes_de_recortar_el_motivo_y_no_queda_ni_un_trozo()
+    {
+        const string clave = "CANARIO-0123456789-abcdefghij-no-es-una-clave";
+        var relleno = new string('x', 260);
+        var cuerpo = JsonSerializer.Serialize(new { error = new { type = "invalid_request_error", message = $"{relleno} {clave}" } });
+        var sonda = new SondaAnthropic(new RechazoFijo(cuerpo));
+        using var http = new HttpClient(sonda);
+        using var peticion = new HttpRequestMessage(HttpMethod.Post, "https://banco.invalid/v1/messages") { Content = new StringContent("{}") };
+        peticion.Headers.Add("x-api-key", clave);
+
+        using var respuesta = await http.SendAsync(peticion);
+
+        var motivo = sonda.Llamadas.Should().ContainSingle().Subject.MotivoDelRechazo;
+        motivo.Should().Contain(relleno).And.NotContain(clave[..8], "recortar antes de tachar dejaría el principio de la clave");
+        motivo!.Length.Should().BeLessThanOrEqualTo(301);
+    }
+
+    private sealed class RechazoFijo(string cuerpo) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest) { Content = new StringContent(cuerpo) });
+    }
+
+    [Fact]
+    public async Task El_motivo_del_rechazo_llega_a_los_problemas_del_instrumento()
+    {
+        var caso = CorpusBancoModelosIa.Casos.First();
+
+        var resultados = await EjecutorBancoModelosIa.EjecutarAsync(ParametrosDePrueba, "clave-de-prueba", [caso], _ => new EcoDeLaClave());
+
+        resultados.Should().ContainSingle().Which.MotivoDelRechazo.Should().StartWith("authentication_error");
+        ValidacionDelInstrumento.Problemas(ParametrosDePrueba, resultados)
+            .Should().Contain(problema => problema.StartsWith("Motivo que dio la API: «authentication_error"));
+    }
+
+    [Fact]
     public async Task Una_saturacion_que_no_cede_se_anota_con_su_estado_tras_tres_intentos()
     {
         var sonda = new SondaAnthropic(new SaturadoAlPrincipio(rechazos: 99)) { EsperaEntreIntentos = TimeSpan.Zero };

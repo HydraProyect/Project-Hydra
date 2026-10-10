@@ -143,8 +143,10 @@ public partial class ProyectosGen2Tests : BunitContext
 
         /// <summary>
         /// El contrato de <c>ObtenerProyectosQuery</c> en memoria: sin Cliente empresarial, los de los dos;
-        /// búsqueda por nombre o Centro; recuentos sin el filtro de estado; total y página con todos los
-        /// filtros. Conserva el orden en que el test dio la lista. Cada fila dice su Cliente empresarial.
+        /// búsqueda por nombre o Centro con el criterio de la consulta (<c>TextoDeBusqueda.Contiene</c>, aquí
+        /// en su implementación en memoria: sin acentos ni mayúsculas); recuentos sin el filtro de estado;
+        /// total y página con todos los filtros. Conserva el orden en que el test dio la lista. Cada fila dice
+        /// su Cliente empresarial.
         /// </summary>
         private ResultadoPaginado<ProyectoListaDto> Listar(ObtenerProyectosQuery q)
         {
@@ -152,8 +154,8 @@ public partial class ProyectosGen2Tests : BunitContext
             var deB = ProyectosClienteB.Select(p => p with { ClienteId = ClienteBId, ClienteRazonSocial = "Frigoríficos Arcos S.A." });
             var filas = (q.ClienteId is not { } cliente ? deA.Concat(deB) : cliente == ClienteBId ? deB : cliente == ClienteId ? deA : [])
                 .Where(p => string.IsNullOrWhiteSpace(q.Busqueda)
-                    || p.Nombre.Contains(q.Busqueda.Trim(), StringComparison.OrdinalIgnoreCase)
-                    || p.CentroNombre.Contains(q.Busqueda.Trim(), StringComparison.OrdinalIgnoreCase))
+                    || TextoDeBusqueda.Contiene(p.Nombre, q.Busqueda.Trim())
+                    || TextoDeBusqueda.Contiene(p.CentroNombre, q.Busqueda.Trim()))
                 .ToList();
 
             var recuentos = new Dictionary<string, int>
@@ -629,6 +631,25 @@ public partial class ProyectosGen2Tests : BunitContext
         var nombres = cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim()).ToList();
         nombres.Should().Equal(ProyectoCerrado.Nombre);
         UltimaConsultaDeProyectos.Busqueda.Should().Be("portugalete", "la búsqueda la aplica la consulta");
+    }
+
+    /// <summary>
+    /// El buscador ignora acentos y mayúsculas en el nombre del Proyecto y en el del Centro. Cada
+    /// término casa con uno solo de los dos Proyectos: un filtro que no filtrara daría los dos.
+    /// </summary>
+    [Theory]
+    [InlineData("AMPLIACION", true)]        // «Ampliación…»: sin acento y en otra caja
+    [InlineData("logistico", true)]         // Centro «Centro Logístico Norte»
+    [InlineData("almacen", false)]          // Centro «Almacén Portugalete»
+    [InlineData("contra incéndios", false)] // el acento sobra en el término, no en el dato
+    public async Task La_busqueda_ignora_acentos_y_mayusculas(string termino, bool encuentraElAbierto)
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+
+        var cut = await RenderizarConClienteAsync($"proyectos?q={System.Uri.EscapeDataString(termino)}");
+
+        var nombres = cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim()).ToList();
+        nombres.Should().Equal(encuentraElAbierto ? ProyectoAbierto.Nombre : ProyectoCerrado.Nombre);
     }
 
     // ----------------------- El Cliente empresarial elegido viaja en la URL (T20)

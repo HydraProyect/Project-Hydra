@@ -326,6 +326,23 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
         rastros.Should().OnlyContain(r => !r.DatosDespues!.Contains("Planta"));
     }
 
+    /// <summary>La selección de la franja de estado («estado», varios nombres separados por coma) recorta el Excel igual que la lista.</summary>
+    [Fact]
+    public async Task Visitas_esta_vista_respeta_el_estado_de_la_documentacion_que_marca_la_franja()
+    {
+        var porGestionar = await ExportarAsync("Visitas",
+            (m, r) => VisitasEndpoints.ExportarAsync(m, r, Eco<TextosVisitas>(), default, estado: "PorGestionar,Inventado"));
+        var gestionadas = await ExportarAsync("Visitas",
+            (m, r) => VisitasEndpoints.ExportarAsync(m, r, Eco<TextosVisitas>(), default, estado: "Gestionada,Cancelada"));
+
+        porGestionar.Should().HaveCount(3, "control: ninguna de las tres está gestionada ni cancelada");
+        gestionadas.Should().BeEmpty();
+
+        var rastros = await ExportacionesAsync(_tenant);
+        rastros.Should().Contain(r => r.DatosDespues!.Contains("Gestionada,Cancelada"))
+            .And.NotContain(r => r.DatosDespues!.Contains("Inventado"), "el rastro lleva los estados reconocidos, no el texto de la URL");
+    }
+
     [Fact]
     public async Task Visitas_de_un_Centro_fuera_del_alcance_no_salen()
     {

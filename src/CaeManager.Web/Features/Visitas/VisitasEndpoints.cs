@@ -1,8 +1,10 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Visitas;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Exportacion;
 using CaeManager.Web.Features.Visitas.Recursos;
 using ClosedXML.Excel;
@@ -64,10 +66,11 @@ public static class VisitasEndpoints
         IMediator mediator, IRegistroExportacionService registroExportacion,
         IStringLocalizer<TextosVisitas> textos, CancellationToken cancellationToken,
         string? q = null, string? activas = null, string? notificado = null, bool urgentes = false,
-        string? orden = null, bool desc = false)
+        string? orden = null, bool desc = false, string? estado = null)
     {
         var soloActivas = activas == "true";
         bool? notificadoAplicado = notificado switch { "si" => true, "no" => false, _ => null };
+        var estados = SeleccionEstados.Separar<EstadoDocumentacionVisita>(estado);
 
         var visitas = PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
             mediator.Send(
@@ -76,6 +79,7 @@ public static class VisitasEndpoints
                     SoloActivas: soloActivas,
                     NotificadoCliente: notificadoAplicado,
                     SoloUrgentes: urgentes,
+                    EstadosDocumentacion: estados,
                     Pagina: pagina,
                     TamanoPagina: tamanoPagina,
                     OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
@@ -99,6 +103,7 @@ public static class VisitasEndpoints
                 ("activas", soloActivas ? "true" : null),
                 ("notificado", notificadoAplicado switch { true => "si", false => "no", _ => null }),
                 ("urgentes", urgentes ? "true" : null),
+                ("estado", estados.Count == 0 ? null : SeleccionEstados.Unir(estados.Select(e => e.ToString()))),
                 ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),
             cancellationToken);
 

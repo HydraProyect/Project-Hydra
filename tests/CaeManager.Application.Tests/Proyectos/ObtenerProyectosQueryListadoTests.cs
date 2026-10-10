@@ -197,6 +197,28 @@ public class ObtenerProyectosQueryListadoTests
             .Should().BeEmpty("el placeholder del buscador promete nombre o centro; el Cliente empresarial tiene su propio filtro");
     }
 
+    /// <summary>
+    /// El criterio es el de todos los listados (<c>TextoDeBusqueda.Contiene</c>): «instalacion» encuentra
+    /// «Instalación», y un término con acento encuentra un texto que no lo lleva, en el nombre del Proyecto y
+    /// en el del Centro. Aquí corre la implementación en memoria de <c>Contiene</c>; la traducción a SQL la
+    /// mide <c>ObtenerProyectosListadoBajoRuntimeTests</c> contra PostgreSQL.
+    /// </summary>
+    [Theory]
+    [InlineData("instalacion")]
+    [InlineData("INSTALACIÓN")]
+    [InlineData("íncendios")]
+    [InlineData("almacen malaga")]
+    public async Task La_busqueda_no_distingue_acentos_en_el_nombre_del_Proyecto_ni_en_el_del_Centro(string termino)
+    {
+        NuevoProyecto(_obrasDelSur, "Reforma nave", "Sede Sevilla");
+        var conAcentos = NuevoProyecto(_montajesNorte, "Instalación contra incendios", "Almacén Málaga");
+
+        var resultado = await Pedir(new ObtenerProyectosQuery(Busqueda: termino));
+
+        resultado.Elementos.Select(p => p.Id).Should().Equal(conAcentos.Id);
+        resultado.TotalElementos.Should().Be(1);
+    }
+
     [Fact]
     public async Task El_estado_filtra_antes_de_paginar_y_el_total_es_el_del_estado_pedido()
     {

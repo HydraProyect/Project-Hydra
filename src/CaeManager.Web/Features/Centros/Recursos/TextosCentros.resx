@@ -289,29 +289,32 @@
   <data name="QuitarFiltroEmpresa" xml:space="preserve">
     <value>Quitar filtro de empresa</value>
   </data>
-  <data name="AgruparEtiqueta" xml:space="preserve">
-    <value>Agrupar</value>
-  </data>
-  <data name="AgruparNo" xml:space="preserve">
-    <value>Sin agrupar</value>
-  </data>
-  <data name="AgruparPorCliente" xml:space="preserve">
-    <value>Por Cliente</value>
-  </data>
   <data name="OrdenCumplimiento" xml:space="preserve">
     <value>Cumplimiento</value>
-  </data>
-  <data name="GrupoConProblema" xml:space="preserve">
-    <value>{0} con problema</value>
   </data>
   <data name="GrupoPorVencer" xml:space="preserve">
     <value>{0} por vencer</value>
   </data>
-  <data name="GrupoNotaEstaPagina" xml:space="preserve">
-    <value>Grupos de esta página: los recuentos de cada grupo solo cuentan los centros que se ven aquí.</value>
-  </data>
   <data name="GrupoContadorTitulo" xml:space="preserve">
-    <value>{0} centro(s) en esta página</value>
+    <value>{0} centro(s)</value>
+  </data>
+  <data name="GrupoResumenBloqueoUno" xml:space="preserve">
+    <value>{0} bloqueo de la plataforma CAE</value>
+  </data>
+  <data name="GrupoResumenBloqueoVarios" xml:space="preserve">
+    <value>{0} bloqueos de la plataforma CAE</value>
+  </data>
+  <data name="GrupoResumenVencidoUno" xml:space="preserve">
+    <value>{0} vencido</value>
+  </data>
+  <data name="GrupoResumenVencidoVarios" xml:space="preserve">
+    <value>{0} vencidos</value>
+  </data>
+  <data name="GrupoResumenPendienteUno" xml:space="preserve">
+    <value>{0} pendiente</value>
+  </data>
+  <data name="GrupoResumenPendienteVarios" xml:space="preserve">
+    <value>{0} pendientes</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
     <value>Ningún centro con estos filtros</value>

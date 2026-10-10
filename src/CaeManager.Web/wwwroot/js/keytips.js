@@ -370,7 +370,7 @@ function ejecutar(elemento) {
         return;
     }
 
-    // Dentro de un grupo (la franja de estado, «Agrupar») elegir no saca del modo: se puede
+    // Dentro de un grupo (un control con data-keytip-grupo) elegir no saca del modo: se puede
     // encadenar otra opción. En la raíz y en un menú, ejecutar apaga.
     const sigueEnGrupo = estado.nivel.tipo === 'grupo';
     if (!sigueEnGrupo) apagar();

@@ -135,10 +135,11 @@
                                     <span class="proyecto-nombre-centro">
                                         @* El nombre es el destino de teclado del clic en la fila (la fila no es focable con Tab). *@
                                         <button type="button" class="enlace-nombre-fila nombre-proyecto nombre-abre-vista-rapida"
-                                                @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)" @onclick:stopPropagation="true">@proyecto.Nombre</button>
+                                                @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)" @onclick:stopPropagation="true"><TextoResaltado Texto="@proyecto.Nombre" Termino="@_busqueda.Trim()" /></button>
                                         @* Con «Todos», dos filas pueden compartir nombre de Proyecto o de Centro: el
-                                           Cliente las distingue. Con un Cliente en el filtro sobraría en todas. *@
-                                        <span class="proyecto-centro">@(_clienteSeleccionadoId == Guid.Empty ? $"{proyecto.CentroNombre} · {proyecto.ClienteRazonSocial}" : proyecto.CentroNombre)</span>
+                                           Cliente las distingue. Con un Cliente en el filtro sobraría en todas. La
+                                           búsqueda no mira el Cliente, así que no se resalta. *@
+                                        <span class="proyecto-centro"><TextoResaltado Texto="@proyecto.CentroNombre" Termino="@_busqueda.Trim()" />@(_clienteSeleccionadoId == Guid.Empty ? $" · {proyecto.ClienteRazonSocial}" : string.Empty)</span>
                                     </span>
                                 </td>
                                 <td class="celda-fecha-proyecto">

@@ -68,9 +68,9 @@ public class ObtenerSubcontratasQueryHandler(
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
-            consulta = consulta.Where(s => s.RazonSocial.ToUpper().Contains(busqueda)
-                || (s.Cif != null && s.Cif.ToUpper().Contains(busqueda)));
+            var busqueda = request.Busqueda;
+            consulta = consulta.Where(s => TextoDeBusqueda.Contiene(s.RazonSocial, busqueda)
+                || (s.Cif != null && TextoDeBusqueda.Contiene(s.Cif, busqueda)));
         }
 
         // Drill-down por Id exacto — mismo criterio que ObtenerCentrosQuery.CentroId:

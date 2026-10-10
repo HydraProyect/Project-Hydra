@@ -91,6 +91,9 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         public List<object> Enviadas { get; } = [];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
 
+        /// <summary>Los Centros de la lista (por defecto, ninguno), con su resumen por grupo como la consulta real.</summary>
+        public List<CentroListaDto> Centros { get; } = [];
+
         /// <summary>Se llama al recibir cada petición, antes de responderla: para mirar cómo está la página en ese instante.</summary>
         public Action<object>? AlEnviar { get; set; }
 
@@ -104,7 +107,16 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
                 GuardarFiltroCommand => Result.Exito(Guid.NewGuid()),
 
                 ObtenerEmpresasQuery q => new ResultadoPaginado<EmpresaListaDto>([], 0, q.Pagina, q.TamanoPagina),
-                ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(Centros.ToList(), Centros.Count, q.Pagina, q.TamanoPagina)
+                {
+                    ResumenPorGrupo = q.ConResumenPorGrupo
+                        ? Centros.GroupBy(c => c.ClienteId).ToDictionary(
+                            grupo => grupo.Key.ToString(),
+                            grupo => new ResumenDeGrupo(
+                                grupo.Count(),
+                                grupo.GroupBy(c => c.Estado.ToString()).ToDictionary(porEstado => porEstado.Key, porEstado => porEstado.Count())))
+                        : null
+                },
                 ObtenerSubcontratasQuery q => new ResultadoPaginado<SubcontrataListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerVehiculosQuery q => new ResultadoPaginado<VehiculoListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerGestionesQuery q => new ResultadoPaginado<GestionListaDto>([], 0, q.Pagina, q.TamanoPagina),
@@ -336,6 +348,61 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         Ultima<ObtenerCentrosQuery>().Should().Match<ObtenerCentrosQuery>(q =>
             q.Busqueda == "Nave" && q.ClienteId == null && q.EmpresaId == null && q.Estados == null && q.OrdenarPor == null);
     }
+
+    /// <summary>
+    /// La agrupación de un filtro guardado se lee como la de la URL (AgrupacionDeLista): «no» la quita; la
+    /// clave explícita, la ausencia y un valor desconocido dan la de fábrica de Centros, por Cliente
+    /// empresarial. La página parte de la vista contraria, así que lo que se ve lo decide el filtro aplicado.
+    /// </summary>
+    [Theory]
+    [InlineData("{\"agrupar\":\"no\"}", false)]
+    [InlineData("{\"agrupar\":\"cliente\"}", true)]
+    [InlineData("{}", true)]
+    [InlineData("{\"agrupar\":\"inventada\"}", true)]
+    public async Task Centros_aplicar_lee_la_agrupacion_guardada_como_la_de_la_url(string valoresJson, bool agrupada)
+    {
+        ConCentrosDeDosClientesEmpresariales();
+        ConFiltroGuardado("Vista", valoresJson);
+        var cut = Renderizar<Centros>(agrupada ? "centros?agrupar=no" : "centros");
+        cut.FindAll(".grupo-lista").Should().HaveCount(agrupada ? 0 : 2, "control positivo: la página parte de la vista contraria");
+
+        var url = await AplicarAsync(cut, "Vista");
+
+        cut.FindAll(".grupo-lista").Should().HaveCount(agrupada ? 2 : 0);
+        cut.Find("[data-keytip='A']").TextContent.Trim().Should().Be(agrupada ? "Agrupar: Cliente" : "Agrupar: no");
+        url.Should().BeEquivalentTo(
+            agrupada ? [] : new Dictionary<string, string> { ["agrupar"] = "no" },
+            "la agrupación de fábrica no deja rastro en la URL, tampoco cuando el filtro guardado la nombra");
+    }
+
+    /// <summary>
+    /// Lo que se guarda es la URL, y «sin agrupar» llega a ella por el desplegable. La búsqueda está para
+    /// que «Guardar filtro» se ofrezca: la barra solo lo habilita con algún filtro aplicado.
+    /// </summary>
+    [Fact]
+    public async Task Centros_guardar_tras_quitar_la_agrupacion_con_el_desplegable_envia_agrupar_no()
+    {
+        ConCentrosDeDosClientesEmpresariales();
+        var cut = Renderizar<Centros>("centros?q=Planta");
+
+        await cut.Find("[data-keytip='A']").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitemradio]").Single(i => i.TextContent.Trim() == "Sin agrupar").ClickAsync(new MouseEventArgs());
+        var comando = await GuardarFiltroAsync(cut, "Sin agrupar");
+
+        comando.ValoresJson.Should().Be("{\"q\":\"Planta\",\"agrupar\":\"no\"}");
+    }
+
+    /// <summary>Dos Centros de <see cref="ClienteA"/> y uno de <see cref="ClienteB"/>: agrupada, la lista pinta dos grupos.</summary>
+    private void ConCentrosDeDosClientesEmpresariales() => _mediador.Centros.AddRange(
+    [
+        CentroDe("Almacén Vigo", ClienteA, "Orion Cliente S.L."),
+        CentroDe("Planta Murcia", ClienteA, "Orion Cliente S.L."),
+        CentroDe("Planta Bilbao", ClienteB, "Pegaso Cliente S.L."),
+    ]);
+
+    private static CentroListaDto CentroDe(string nombre, Guid clienteId, string cliente) => new(
+        Guid.NewGuid(), nombre, "C-001", clienteId, cliente, EmpresaE, "Montajes Ebro S.L.", EstadoCentro.Vigente,
+        CumplimientoPorcentaje: 87, RecuentosCentroDto.Vacio);
 
     // --------------------------------------------------------- Subcontratas
 

@@ -250,7 +250,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         /// </summary>
         private static bool CoincideBusqueda(Fila f, string busqueda) =>
             new[] { f.Dto.Nombre, f.Dto.Apellidos, f.Dto.Dni ?? string.Empty, f.Alias ?? string.Empty }
-                .Any(campo => campo.Contains(busqueda, StringComparison.OrdinalIgnoreCase));
+                .Any(campo => TextoDeBusqueda.Contiene(campo, busqueda));
 
         /// <summary>
         /// Mismo reparto en dos caminos que el handler. Con filtro de

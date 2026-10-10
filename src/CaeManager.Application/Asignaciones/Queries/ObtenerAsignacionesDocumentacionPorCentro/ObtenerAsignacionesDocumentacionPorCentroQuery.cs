@@ -3,6 +3,8 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -48,9 +50,20 @@ public record ObtenerAsignacionesDocumentacionPorCentroQuery(Guid CentroId, Date
 /// Solo con <see cref="EstadoDocumento.EnTolerancia"/> (vista con contexto de Centro, <see cref="VigenciaEnCentro"/>): el
 /// último día en que el Documento vencido aún vale para acceder a ese Centro. <c>null</c> en cualquier otro estado.
 /// </param>
+/// <param name="AcreditacionesEnElCentro">
+/// Estado del documento en las plataformas de ESE Centro (documento × canal de plataforma del Centro), el canal
+/// principal primero. <c>null</c> cuando no hay ninguna o cuando la vista no fija un Centro: sin Centro no se resume
+/// («validado en 3 de 4 centros» está sin decidir), así que quien agrupa por Trabajador sin Centro lo deja vacío.
+/// </param>
+/// <param name="UltimaReclamacion">
+/// La última vez que se reclamó este documento —o, si falta, este tipo a este Trabajador—, entre las reclamaciones
+/// que el usuario puede gestionar. <c>null</c> si nunca se reclamó.
+/// </param>
 public record DocumentoRequeridoDto(
     Guid? DocumentoId, Guid TipoDocumentoId, string TipoDocumentoNombre, EstadoDocumento Estado,
-    DateOnly? FechaVencimiento, bool CaducaEnVentanaVisita = false, DateOnly? EnToleranciaHasta = null);
+    DateOnly? FechaVencimiento, bool CaducaEnVentanaVisita = false, DateOnly? EnToleranciaHasta = null,
+    IReadOnlyList<AcreditacionResumenDto>? AcreditacionesEnElCentro = null,
+    UltimaReclamacionDocumentoDto? UltimaReclamacion = null);
 
 /// <param name="Documentos">
 /// Lo que se enseña al expandir al Trabajador: no lista «Sin caducidad» y, si hay un documento vencido y su
@@ -74,7 +87,8 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
     IDocumentosQueryContext documentosContext,
     IConfiguracionQueryContext configuracionContext,
     ICentrosQueryContext centrosContext,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    ISituacionDocumentosEnCentrosService situacionDocumentos)
     : IRequestHandler<ObtenerAsignacionesDocumentacionPorCentroQuery, IReadOnlyList<TrabajadorAsignacionDocumentacionDto>>
 {
     public async Task<IReadOnlyList<TrabajadorAsignacionDocumentacionDto>> Handle(
@@ -162,6 +176,15 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .GroupBy(d => d.TrabajadorId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
+        // Segunda línea de cada documento: estado en las plataformas de ESTE Centro y última reclamación. Una carga
+        // para todo el Centro, no una por Trabajador ni por documento.
+        var situacion = await situacionDocumentos.CargarAsync(
+            [request.CentroId],
+            documentosExistentes.Select(d => d.Id).ToList(),
+            trabajadorIds,
+            tipoIdsRequeridos,
+            cancellationToken);
+
         var resultado = new List<TrabajadorAsignacionDocumentacionDto>();
 
         foreach (var asignacion in asignaciones)
@@ -197,13 +220,17 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
 
                 var nombreTipo = tiposRequeridosPorCentro.First(t => t.Id == documento.TipoDocumentoId).Nombre;
                 items.Add(new DocumentoRequeridoDto(
-                    documento.Id, documento.TipoDocumentoId, nombreTipo, estadoEnCentro, documento.FechaVencimiento, caducaEnVentana, enToleranciaHasta));
+                    documento.Id, documento.TipoDocumentoId, nombreTipo, estadoEnCentro, documento.FechaVencimiento, caducaEnVentana, enToleranciaHasta,
+                    situacion.AcreditacionesEn(request.CentroId, documento.Id),
+                    situacion.UltimaReclamacionDe(documento.Id)));
             }
 
             foreach (var tipo in tiposRequeridosPorCentro)
             {
                 if (tipoIdsConDocumento.Contains(tipo.Id)) continue;
-                items.Add(new DocumentoRequeridoDto(null, tipo.Id, tipo.Nombre, EstadoDocumento.Faltante, null));
+                items.Add(new DocumentoRequeridoDto(
+                    null, tipo.Id, tipo.Nombre, EstadoDocumento.Faltante, null,
+                    UltimaReclamacion: situacion.UltimaReclamacionDeAusente(asignacion.TrabajadorId, tipo.Id)));
             }
 
             var ordenados = items.OrderBy(i => SeveridadEstadoDocumento.Rango(i.Estado)).ThenBy(i => i.TipoDocumentoNombre).ToList();

@@ -21,7 +21,10 @@ namespace CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 /// <param name="SoloAbiertos">
 /// <c>true</c>, solo los abiertos (sin fecha de cierre real); <c>false</c>, solo los cerrados; <c>null</c>, todos.
 /// </param>
-/// <param name="Busqueda">Texto que debe aparecer en el nombre del Proyecto o en el de su Centro, sin distinguir mayúsculas.</param>
+/// <param name="Busqueda">
+/// Texto que debe aparecer en el nombre del Proyecto o en el de su Centro, sin distinguir acentos ni
+/// mayúsculas y sin contar los espacios de alrededor (<see cref="TextoDeBusqueda.Contiene"/>).
+/// </param>
 /// <param name="ConRecuentosPorEstado">
 /// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Proyectos abiertos y cerrados con los demás filtros
 /// aplicados y sin el de estado, para la franja de estado del listado.
@@ -100,12 +103,13 @@ public class ObtenerProyectosQueryHandler(
         if (request.ClienteId is { } pedido)
             consulta = consulta.Where(x => x.proyecto.ClienteId == pedido);
 
-        var termino = request.Busqueda?.Trim();
-        if (!string.IsNullOrEmpty(termino))
+        // El criterio es el de todos los listados (TextoDeBusqueda): sin acentos ni mayúsculas, y con «%» y
+        // «_» literales. El Cliente empresarial no se busca.
+        var busqueda = request.Busqueda?.Trim();
+        if (!string.IsNullOrEmpty(busqueda))
         {
-            var busqueda = termino.ToUpper();
             consulta = consulta.Where(x =>
-                x.proyecto.Nombre.ToUpper().Contains(busqueda) || x.centro.Nombre.ToUpper().Contains(busqueda));
+                TextoDeBusqueda.Contiene(x.proyecto.Nombre, busqueda) || TextoDeBusqueda.Contiene(x.centro.Nombre, busqueda));
         }
 
         // Para la franja de estado: abiertos y cerrados con los demás filtros aplicados y ANTES de filtrar por
