@@ -1640,6 +1640,9 @@ public partial class ProyectosGen2Tests : BunitContext
         ValorDelBuscador(cut).Should().Be("nave");
         cut.MarcadosEnFranja().Should().Equal("Cerrados");
         PanelDeDetalleAbierto(cut).Should().BeFalse("el panel era de un Proyecto de la lista anterior");
+        // La última consulta no distingue una carga de dos con los mismos filtros: se cuentan.
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasAntes + 1,
+            "«Salir y descartar» pide la lista una sola vez, con los tres filtros de la URL ya tomados");
     }
 
     [Fact]

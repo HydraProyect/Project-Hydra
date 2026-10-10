@@ -218,6 +218,98 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
     }
 
     /// <summary>
+    /// La otra respuesta a la misma pregunta: «Salir y descartar» tras «atrás» del navegador. La página toma
+    /// de la URL de destino el Cliente empresarial, la búsqueda y el estado, cierra el panel de detalle y
+    /// enseña la lista de esa vista. El destino lleva búsqueda y estado para que no baste con cambiar de
+    /// Cliente empresarial: una página que no los leyese dejaría el buscador vacío y la franja en «Todos».
+    /// </summary>
+    [Fact]
+    public async Task Atras_hacia_otro_Cliente_empresarial_con_la_edicion_a_medias_y_salir_y_descartar_cierra_el_panel_y_toma_la_vista_de_la_url()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl,
+            Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        var filas = page.Locator("table.tabla-proyectos tbody tr");
+        var nombresDeLasFilas = filas.Locator("button.nombre-proyecto");
+        var todos = page.Locator(".franja-estado-boton:not([data-estado])");
+        var cerrados = page.Locator(".franja-estado-boton[data-estado='cerrados']");
+        var buscador = page.GetByPlaceholder("Filtrar esta pantalla: nombre o centro");
+
+        // La búsqueda del destino sale de la siembra: una palabra del nombre de un Proyecto cerrado, solo
+        // con letras sin acento para que viaje en la URL tal cual.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/proyectos?estado=cerrados");
+        await Expect(filas).Not.ToHaveCountAsync(0);
+        var termino = (await nombresDeLasFilas.AllTextContentsAsync())
+            .SelectMany(n => n.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .FirstOrDefault(palabra => Regex.IsMatch(palabra, "^[A-Za-z]{4,}$"));
+        Assert.False(string.IsNullOrWhiteSpace(termino),
+            "Control positivo: algún Proyecto cerrado de la siembra tiene una palabra buscable sin acentos.");
+
+        // Primera entrada del historial: la vista de destino (sin Cliente empresarial, con búsqueda y solo
+        // cerrados), y lo que enseña cuando se llega a ella con una carga directa.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/proyectos?q={termino}&estado=cerrados");
+        var urlDeDestino = new Regex(@"/proyectos\?q=" + termino + "&estado=cerrados$");
+        await Expect(buscador).ToHaveValueAsync(termino!);
+        await Expect(cerrados).ToHaveAttributeAsync("aria-pressed", "true");
+        await Expect(filas).Not.ToHaveCountAsync(0);
+        var nombresDeDestino = (await nombresDeLasFilas.AllTextContentsAsync()).Select(n => n.Trim()).ToArray();
+
+        // Segunda entrada, sin recargar el documento: una navegación dentro de la aplicación. La vista deja
+        // la búsqueda y el estado del destino, de modo que encontrarlos al final sea haberlos tomado de la URL.
+        await page.EvaluateAsync("() => Blazor.navigateTo('/proyectos')");
+        await Expect(page).ToHaveURLAsync(new Regex(@"/proyectos$"));
+        await Expect(todos).ToHaveAttributeAsync("aria-pressed", "true");
+        await Expect(buscador).ToHaveValueAsync(string.Empty);
+
+        var selector = SelectorCliente(page);
+        var cliente = await ElegirUnClienteConProyectosAsync(page, selector, filas);
+        await Expect(page).ToHaveURLAsync(new Regex(@"/proyectos\?cliente="));
+        var nombreProyecto = (await nombresDeLasFilas.AllTextContentsAsync()).Select(n => n.Trim()).First();
+        await filas.GetByRole(AriaRole.Button,
+            new LocatorGetByRoleOptions { Name = nombreProyecto, Exact = true }).ClickAsync();
+        var panel = page.Locator("aside.panel-proyecto");
+        await Expect(panel.Locator(".nombre-cabecera-panel-proyecto")).ToHaveTextAsync(nombreProyecto);
+        await panel.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Editar la información del proyecto", Exact = true }).ClickAsync();
+        var campoNombre = panel.GetByRole(AriaRole.Textbox, new LocatorGetByRoleOptions { Name = "Nombre", Exact = true });
+        await Expect(campoNombre).ToHaveValueAsync(nombreProyecto);
+        var nombreSinGuardar = nombreProyecto + " — edición sin guardar";
+        await campoNombre.FillAsync(nombreSinGuardar);
+        await selector.FocusAsync(); // El foco sale del input y notifica su cambio.
+
+        await page.EvaluateAsync("() => history.back()");
+
+        var pregunta = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions
+        { Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Salir y descartar", Exact = true }) });
+        // Control positivo: la edición estaba pendiente y «atrás» llegó a la página con la URL de destino.
+        await Expect(pregunta).ToBeVisibleAsync();
+        await Expect(page).ToHaveURLAsync(urlDeDestino);
+        // Mientras pregunta, la vista en pantalla no ha tomado nada de esa URL y el panel sigue con lo escrito.
+        await Expect(selector).ToHaveTextAsync("Cliente: " + cliente);
+        await Expect(todos).ToHaveAttributeAsync("aria-pressed", "true");
+        await Expect(buscador).ToHaveValueAsync(string.Empty);
+        await Expect(campoNombre).ToHaveValueAsync(nombreSinGuardar);
+
+        var salir = pregunta.GetByRole(AriaRole.Button,
+            new LocatorGetByRoleOptions { Name = "Salir y descartar", Exact = true });
+        await salir.FocusAsync();
+        await salir.PressAsync("Space");
+
+        await Expect(pregunta).ToBeHiddenAsync();
+        // La vista pasa a ser la de la URL de destino: sin Cliente empresarial, con su búsqueda y su estado.
+        // La franja, el buscador y las filas son además la barrera de la ausencia del panel, más abajo.
+        await Expect(cerrados).ToHaveAttributeAsync("aria-pressed", "true");
+        await Expect(todos).ToHaveAttributeAsync("aria-pressed", "false");
+        await Expect(buscador).ToHaveValueAsync(termino!);
+        await Expect(selector).ToHaveTextAsync("Cliente");
+        await Expect(nombresDeLasFilas).ToHaveTextAsync(nombresDeDestino);
+        // Descartar toma la URL que hay: no la reescribe.
+        await Expect(page).ToHaveURLAsync(urlDeDestino);
+        // El panel era de un Proyecto de la lista anterior.
+        await Expect(panel).ToHaveCountAsync(0);
+    }
+
+    /// <summary>
     /// Elige en el filtro el primer Cliente empresarial del catálogo con Proyectos a la vista y devuelve su
     /// nombre. El menú se cierra cuando la lista de ese Cliente empresarial ya está cargada.
     /// </summary>
