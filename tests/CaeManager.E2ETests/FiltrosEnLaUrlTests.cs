@@ -17,8 +17,8 @@ namespace CaeManager.E2ETests;
 /// nombre accesible y lee su Id de la URL.
 /// </para>
 /// </summary>
-[Collection("AppCollection")]
-public partial class FiltrosEnLaUrlTests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public partial class FiltrosEnLaUrlTests(WebAppFixtureListados fixture)
 {
     [GeneratedRegex(@"[?&]empresa=[0-9a-fA-F-]{36}(&|$)")]
     private static partial Regex EmpresaEnLaUrl();

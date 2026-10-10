@@ -13,8 +13,8 @@ namespace CaeManager.E2ETests;
 /// junto con que los controles de dentro (recuento de trabajadores con su ventana de contexto,
 /// icono 360) no abren la vista rápida. El resto lo prueba <c>VisitasGen2Tests</c> (bUnit).
 /// </summary>
-[Collection("AppCollection")]
-public partial class VisitasFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private static readonly Regex PaginaVisita = new(@"/visitas/[0-9a-f-]{36}$");
 

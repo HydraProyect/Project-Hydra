@@ -28,7 +28,7 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Nombres por igualdad exacta</b> (ordinal), nunca por prefijo ni por <c>Contains</c>: <c>AppCollection</c> es prefijo
-/// de las otras trece.
+/// de las otras catorce.
 /// </para>
 ///
 /// <para>
@@ -61,6 +61,7 @@ public class ColeccionesDeE2ECongeladasTests
         "AppCollectionEscenariosDireccion",
         "AppCollectionFichas360",
         "AppCollectionGestorCaeCarteraMultiTenant",
+        "AppCollectionListados",
         "AppCollectionMultiTenant",
         "AppCollectionRetencion",
         "AppCollectionRevalidacionRapida",

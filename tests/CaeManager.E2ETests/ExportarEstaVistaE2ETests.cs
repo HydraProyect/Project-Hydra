@@ -22,8 +22,8 @@ namespace CaeManager.E2ETests;
 /// <see cref="IncidenciasExportarAutorizacionE2ETests"/>.
 /// </para>
 /// </summary>
-[Collection("AppCollection")]
-public class ExportarEstaVistaE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class ExportarEstaVistaE2ETests(WebAppFixtureListados fixture)
 {
     private const string BusquedaSinCoincidencias = "zzqx-sin-coincidencias-9917";
 

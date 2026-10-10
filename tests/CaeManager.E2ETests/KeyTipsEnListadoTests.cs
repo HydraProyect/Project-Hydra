@@ -15,8 +15,8 @@ namespace CaeManager.E2ETests;
 /// se declara hoy como grupo (<c>data-keytip-grupo</c>): ese nivel, en el que elegir no apaga, lo
 /// cubre <see cref="KeyTipsSuperficieTests"/> con HTML estático.
 /// </remarks>
-[Collection("AppCollection")]
-public class KeyTipsEnListadoTests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class KeyTipsEnListadoTests(WebAppFixtureListados fixture)
 {
     [Fact]
     public async Task Alt_enciende_las_letras_elige_en_el_menu_Agrupar_abre_otro_menu_ejecuta_y_sale_en_Centros()

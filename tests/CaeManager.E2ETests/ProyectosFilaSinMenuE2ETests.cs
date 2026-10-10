@@ -12,8 +12,8 @@ namespace CaeManager.E2ETests;
 /// que bUnit no ve y aquí sí: que el clic de un control de dentro de la fila (el recuento, el
 /// icono 360) no llega a la fila en un navegador real.
 /// </summary>
-[Collection("AppCollection")]
-public class ProyectosFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class ProyectosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private static readonly Regex PaginaProyecto = new(@"/proyectos/[0-9a-f-]{36}$");
 

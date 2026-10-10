@@ -19,8 +19,8 @@ namespace CaeManager.E2ETests;
 /// <c>EmpresaWorkspacePanelLapizTests</c> (bUnit).
 /// </para>
 /// </summary>
-[Collection("AppCollection")]
-public class EmpresasFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class EmpresasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private const string Lapiz = "button[aria-label='Editar información de la empresa']";
     private static readonly Regex EntrarEnEdicion = new(@"/cuenta/configurar-2fa\?motivo=credenciales");
