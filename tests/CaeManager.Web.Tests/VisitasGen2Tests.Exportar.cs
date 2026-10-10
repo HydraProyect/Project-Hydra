@@ -18,12 +18,14 @@ public partial class VisitasGen2Tests
         var cut = Renderizar(mediator);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte"));
 
-        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
+        cut.Find(".franja-estado button[data-estado=PorGestionar]").Click();
+        cut.Find(".menu-acciones-disparador[data-keytip=M]").Click();
 
-        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
+        cut.FindAll(".menu-acciones-item").Select(i => i.TextContent.Trim())
             .Should().Equal("Exportar esta vista (filas: 2)", "Exportar todo");
-        var enlaces = cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href")).ToList();
-        enlaces[0].Should().StartWith("/visitas/exportar.xlsx?").And.Contain("activas=true");
+        var enlaces = cut.FindAll("a.menu-acciones-item").Select(i => i.GetAttribute("href")).ToList();
+        enlaces[0].Should().StartWith("/visitas/exportar.xlsx?").And.Contain("activas=true")
+            .And.Contain("estado=PorGestionar", "la selección de la franja es un criterio más de la vista");
         enlaces[1].Should().Be("/visitas/exportar.xlsx");
     }
 }
