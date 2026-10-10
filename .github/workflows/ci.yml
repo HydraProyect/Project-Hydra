@@ -55,9 +55,56 @@ jobs:
   # Los minutos de Actions son gratis en un repositorio público, así que
   # comprar tiempo de reloj con paralelismo aquí no cuesta dinero — al revés
   # que apilar PRs, que sí multiplica ejecuciones completas (§ 22).
+  #
+  # ALCANCE (2026-10-09). Este job, los E2E y la prueba de carga son los
+  # «pesados»: el 74 % de los minutos de un run. Corrían tres veces por PR
+  # fusionada —en la PR, en el grupo de la cola de fusión y en el `push` a
+  # main—, las dos últimas sobre el mismo commit. Ahora:
+  #
+  #   - en `merge_group` corren SIEMPRE: el grupo es la puerta, y lo que llega
+  #     a main pasa exactamente lo mismo que antes;
+  #   - en `push` a main se saltan solo si la API confirma que ese mismo SHA ya
+  #     pasó el CI completo en un grupo de fusión;
+  #   - en `pull_request` corren si el diff toca rutas sensibles o la PR lleva
+  #     la etiqueta «CI: completo».
+  #
+  # La decisión vive en scripts/ci-alcance.sh (job `alcance`, abajo), y la
+  # condición de cada job pesado está escrita para CORRER ante la duda: solo
+  # se salta con un `false` explícito. Si `alcance` falla, se cancela o no
+  # emite nada, la comparación `!= 'false'` es cierta y el job corre. Y en
+  # `merge_group` ni siquiera se mira esa salida.
+  #
+  # `!cancelled()` y no `always()`: hace falta una función de estado para que
+  # el job no se salte cuando `alcance` falla, pero con `always()` un run
+  # cancelado por un push nuevo arrancaría igualmente los pesados.
+  alcance:
+    name: Alcance del CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    outputs:
+      integracion: ${{ steps.decidir.outputs.integracion }}
+      e2e: ${{ steps.decidir.outputs.e2e }}
+      carga: ${{ steps.decidir.outputs.carga }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Decidir qué jobs pesados corren en este run
+        id: decidir
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENTO: ${{ github.event_name }}
+          PR_NUMERO: ${{ github.event.pull_request.number }}
+        run: bash scripts/ci-alcance.sh
+
   tests-integracion:
     name: Tests de integración (bloque ${{ matrix.bloque }} de 4)
     runs-on: ubuntu-latest
+    needs: alcance
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.integracion != 'false') }}
     strategy:
       # Un bloque que falla no cancela a los demás: de una ejecución interesa
       # ver TODOS los fallos, no solo el primero que aparezca.
@@ -442,34 +489,46 @@ jobs:
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
-    needs: [compilacion-y-unitarios, formato, tests-integracion, bunit-tests, extension-arneses]
+    needs: [alcance, compilacion-y-unitarios, formato, tests-integracion, e2e-tests, bunit-tests, extension-arneses]
     # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
     # un job que se salta reporta su check como "skipped", y la proteccion de
     # rama trata un check obligatorio omitido como aprobado. Sin esto, un bloque
     # de integracion en rojo dejaria este job sin correr y la rama quedaria
     # MERGEABLE — el gate desaparece justo cuando hace falta.
     #
-    # Con `always()` el job siempre reporta, y el primer paso exige explicitamente
-    # que las dependencias hayan salido en success. Cierra en fallo, no en
+    # Con `always()` el job siempre reporta, y el paso «Exigir…» comprueba
+    # explicitamente como terminaron las dependencias. Cierra en fallo, no en
     # silencio, y no depende de como interprete GitHub un check omitido.
+    #
+    # La regla vive en scripts/ci-exigir-dependencias.sh (tabla de verdad
+    # entera en su .tests.sh). Resumen: compilacion, formato y arneses, siempre
+    # success; integracion y E2E, success — y en `merge_group` nada mas vale.
+    # Fuera del grupo de fusion se admite que integracion o E2E esten
+    # «skipped» SOLO si el job `alcance` termino en success con la salida de
+    # ese job en `false`, es decir, si lo salto a proposito (ver el bloque
+    # ALCANCE mas arriba). Los E2E estan en `needs` como segunda barrera: son
+    # un check obligatorio propio, pero un obligatorio saltado cuenta como
+    # aprobado y este es el unico sitio que puede negarlo en el grupo.
+    #
+    # El checkout va antes porque el guion vive en el repositorio; si el
+    # checkout falla, el job falla, que es el lado seguro.
     if: always()
     steps:
-      - name: Exigir que las dependencias hayan pasado
-        run: |
-          compilacion="${{ needs.compilacion-y-unitarios.result }}"
-          integracion="${{ needs.tests-integracion.result }}"
-          formato="${{ needs.formato.result }}"
-          extension="${{ needs.extension-arneses.result }}"
-          echo "Compilación y tests unitarios: $compilacion"
-          echo "Tests de integración (4 bloques): $integracion"
-          echo "Verificar formato: $formato"
-          echo "Arneses de la extensión: $extension"
-          if [ "$compilacion" != "success" ] || [ "$formato" != "success" ] || [ "$integracion" != "success" ] || [ "$extension" != "success" ]; then
-            echo "::error::Una dependencia no termino en success. Este check obligatorio falla a proposito en vez de quedarse sin ejecutar, porque un check obligatorio omitido cuenta como aprobado."
-            exit 1
-          fi
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Exigir que las dependencias hayan pasado
+        id: exigir
+        env:
+          EVENTO: ${{ github.event_name }}
+          R_COMPILACION: ${{ needs.compilacion-y-unitarios.result }}
+          R_FORMATO: ${{ needs.formato.result }}
+          R_EXTENSION: ${{ needs.extension-arneses.result }}
+          R_INTEGRACION: ${{ needs.tests-integracion.result }}
+          R_E2E: ${{ needs.e2e-tests.result }}
+          R_ALCANCE: ${{ needs.alcance.result }}
+          ALCANCE_INTEGRACION: ${{ needs.alcance.outputs.integracion }}
+          ALCANCE_E2E: ${{ needs.alcance.outputs.e2e }}
+        run: bash scripts/ci-exigir-dependencias.sh
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
@@ -494,7 +553,18 @@ jobs:
           name: cobertura-web
           path: coverage-web
 
+      # ALCANCE: este paso y los que llevan la misma condicion leen artefactos
+      # que solo existen si los bloques de integracion corrieron. En una PR
+      # ligera o en un `push` ya verificado por la cola no corren, y entonces
+      # no hay reparto que comprobar ni cobertura de integracion que sumar: el
+      # trinquete del nucleo, medido sobre dos suites en vez de tres, caeria
+      # por un motivo que no es una perdida de cobertura. Se saltan de forma
+      # explicita; en `merge_group` la salida vale siempre `ejecutada` (si no,
+      # el paso «Exigir…» ya habria fallado) y todo corre como antes. La
+      # condicion es `!= 'saltada'`: si la salida faltara, corren. Lo vigila
+      # scripts/ci-exigir-dependencias.tests.sh leyendo este fichero.
       - name: Recoger el reparto de los bloques
+        if: steps.exigir.outputs.integracion != 'saltada'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: reparto-bloque-*
@@ -505,6 +575,7 @@ jobs:
       # denominador dependeria de cual se mirase, asi que se exige que los
       # cuatro listados sean identicos antes de usar el del bloque 1.
       - name: Comprobar que los cuatro bloques descubrieron lo mismo
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           for b in 2 3 4; do
             if ! diff -q reparto/listado-bloque-1.txt "reparto/listado-bloque-$b.txt" > /dev/null; then
@@ -538,6 +609,7 @@ jobs:
       # es el que crees ejecuta MENOS tests, en verde y sin decir nada. De ahi
       # que el paso de ejecucion tome el recuento del .trx.
       - name: Comprobar que el reparto cubrio todas las clases
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           LISTADO_DE_TESTS=reparto/listado-bloque-1.txt REPARTO_SALIDA=/tmp/esperadas-sin-ordenar.txt bash scripts/repartir-clases-de-test.sh sin-compilar 1 1 > /dev/null
           sort /tmp/esperadas-sin-ordenar.txt > /tmp/esperadas.txt
@@ -569,6 +641,7 @@ jobs:
       # una perdida de cobertura del producto. Un gate que cambia de
       # significado sin que nadie lo decida es peor que no tenerlo.
       - name: Recoger la cobertura de los bloques de integración
+        if: steps.exigir.outputs.integracion != 'saltada'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: cobertura-integracion-*
@@ -595,6 +668,7 @@ jobs:
       # sobre un ensamblado rancio devolvio una vez un test fantasma que ya no
       # existia en el codigo.
       - name: Comprobar que se ejecutaron todos los tests
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           esperados=$(grep -cE "^[[:space:]]+CaeManager\.IntegrationTests\." reparto/listado-bloque-1.txt)
           sumados=0
@@ -634,9 +708,14 @@ jobs:
       - name: Informe de cobertura
         if: always()
         continue-on-error: true
+        env:
+          INTEGRACION: ${{ steps.exigir.outputs.integracion }}
         run: |
           dotnet reportgenerator -reports:"coverage/**/coverage.cobertura.xml" -targetdir:coveragereport -reporttypes:"MarkdownSummaryGithub;JsonSummary;XmlSummary"
           echo "## Núcleo (Domain + Application + Infrastructure)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$INTEGRACION" != "ejecutada" ]; then
+            echo "> **Cifra parcial**: en este run no corrieron los tests de integración (alcance del CI), así que el núcleo solo cuenta las suites unitarias. El trinquete del núcleo se mide en el grupo de fusión." >> "$GITHUB_STEP_SUMMARY"
+          fi
           cat coveragereport/SummaryGithub.md >> "$GITHUB_STEP_SUMMARY"
           dotnet reportgenerator -reports:"coverage-web/**/coverage.cobertura.xml" -targetdir:coveragereport-web -reporttypes:"MarkdownSummaryGithub;JsonSummary;XmlSummary"
           echo "## Web (bUnit, CaeManager.Web)" >> "$GITHUB_STEP_SUMMARY"
@@ -770,6 +849,7 @@ jobs:
       # — menos 0,2, igual criterio que el resto de este fichero). El núcleo
       # no se toca en este cambio.
       - name: Umbral de cobertura del núcleo (ratchet)
+        if: steps.exigir.outputs.integracion != 'saltada'
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport/Summary.json)
           umbral="64.8"  # núcleo: 65 % medido (run 34547527082) − 0,2
@@ -903,6 +983,12 @@ jobs:
   e2e-tests:
     name: Tests E2E (Playwright)
     runs-on: ubuntu-latest
+    # Ver el bloque ALCANCE sobre el job `alcance`. Este es un check
+    # obligatorio: cuando se salta en una PR o en un `push` ya verificado,
+    # GitHub lo da por satisfecho, y por eso la condición solo admite el
+    # salto fuera de `merge_group` y con un `false` explícito de `alcance`.
+    needs: alcance
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.e2e != 'false') }}
     # WebAppFixture arranca la app real contra una base PostgreSQL propia
     # (creada y borrada por test, ver BaseDatosPostgresDePruebas) — mismo
     # servicio que usa el job tests-integracion.
@@ -1046,6 +1132,10 @@ jobs:
   load-test:
     name: Prueba de carga base (k6)
     runs-on: ubuntu-latest
+    # Ver el bloque ALCANCE sobre el job `alcance`: en una PR solo corre con
+    # la etiqueta «CI: completo» o si cambia la infraestructura de CI.
+    needs: alcance
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.carga != 'false') }}
     # No bloqueante a propósito (P1-5 de la revisión de madurez): es la
     # primera cifra real de carga que existe en el repo (P1-19 de
     # Project-Hydra-Negocio/MATURITY_REVIEW.md, antes no había ninguna) — sin un
@@ -1392,6 +1482,17 @@ jobs:
       # con su mutación. No ejecuta .NET real: el gate real corre en la máquina de quien programa.
       - name: scripts/gate.tests.sh
         run: bash scripts/gate.tests.sh
+
+      # Alcance del CI y agregador «Build, format y tests» (2026-10-09): con un
+      # `gh` falso. ci-alcance fija que un `push` solo se salta los jobs
+      # pesados con un run `merge_group` verde de ESTE workflow, repositorio y
+      # SHA, y que cualquier duda es «corre todo»; ci-exigir-dependencias
+      # recorre la tabla de verdad entera del check obligatorio.
+      - name: scripts/ci-alcance.tests.sh
+        run: bash scripts/ci-alcance.tests.sh
+
+      - name: scripts/ci-exigir-dependencias.tests.sh
+        run: bash scripts/ci-exigir-dependencias.tests.sh
 
       # Métricas de proceso M1..M22 (S15): cifras exactas sobre datos sintéticos, fuente ausente =
       # NO_MEDIDA (nunca 0) y once mutantes del propio guion que deben poner en rojo su prueba.

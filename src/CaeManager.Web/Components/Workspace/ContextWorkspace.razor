@@ -223,6 +223,27 @@
         return restoActual.SequenceEqual(restoDestino);
     }
 
+    /// <summary>
+    /// Si de <paramref name="actual"/> a <paramref name="destino"/> la página y la ficha
+    /// abierta en el Context Workspace son las mismas (mismo camino y mismo <c>?ctx=</c>) y
+    /// solo cambia el resto de la consulta: la pestaña o un filtro que la PÁGINA lleva en su
+    /// URL. El panel vive en el layout y no se desmonta con eso, así que para un formulario
+    /// de la ficha no es salir de nada (AvisoCambiosSinGuardar la deja pasar). Para un
+    /// formulario de la propia página sí puede serlo: esto no lo decide.
+    /// </summary>
+    public static bool ConservaLaFichaAbierta(Uri actual, Uri destino)
+    {
+        if (!string.Equals(actual.GetLeftPart(UriPartial.Path), destino.GetLeftPart(UriPartial.Path), StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var consultaActual = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(actual.Query);
+        var consultaDestino = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(destino.Query);
+
+        return consultaActual.TryGetValue(ParametroCtx, out var ctxActual)
+            && consultaDestino.TryGetValue(ParametroCtx, out var ctxDestino)
+            && string.Equals(ctxActual.ToString(), ctxDestino.ToString(), StringComparison.Ordinal);
+    }
+
     private static bool TryParsearCtx(string ctx, out EntidadWorkspace tipo, out Guid entidadId, out string pestana)
     {
         tipo = default;
