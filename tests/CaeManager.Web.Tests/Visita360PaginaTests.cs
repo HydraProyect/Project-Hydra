@@ -132,12 +132,13 @@ public class Visita360PaginaTests : BunitContext
     // ── Montaje ───────────────────────────────────────────────────────────
 
     private static DetalleVisitaDto Detalle(
-        Guid? id = null, string centro = "Sede Sevilla", bool requiereGestion = true, bool porCorreo = true, bool cancelada = false) => new(
+        Guid? id = null, string centro = "Sede Sevilla", bool requiereGestion = true, bool porCorreo = true, bool cancelada = false,
+        TramoAntelacion? tramo = null) => new(
         id ?? VisitaId, centro, "Titular Demo S.A.", Guid.NewGuid(), "Contratista Demo S.L.", Hoy, Hoy,
         Notas: "Puerta de servicio.", NotificadoCliente: false,
         Trabajadores: [new(Paula, "Paula Campos"), new(Diego, "Diego Ruiz")],
         HoraEstimadaAcceso: new TimeOnly(8, 0), FechaHoraSolicitudUtc: null, FechaHoraExpedienteCompletoUtc: null,
-        AntelacionNominalHoras: null, AntelacionEfectivaHoras: null, Tramo: null, AtribucionUrgencia.SinUrgencia,
+        AntelacionNominalHoras: tramo is null ? null : 15, AntelacionEfectivaHoras: tramo is null ? null : 15, Tramo: tramo, AtribucionUrgencia.SinUrgencia,
         CentroRequiereGestionCae: requiereGestion, CentroGestionadoPorCorreo: porCorreo,
         EstaCancelada: cancelada, MotivoCancelacion: cancelada ? "Aplazada" : null, Version: Guid.NewGuid(),
         CentroId: Guid.NewGuid(), EmpresaTitularId: Guid.NewGuid(), Origen: OrigenVisita.Correo, NivelUrgencia: NivelUrgenciaVisita.Normal);
@@ -165,7 +166,7 @@ public class Visita360PaginaTests : BunitContext
         ]);
 
     private (IRenderedComponent<VisitaDetalle> Cut, MediatorFalso Mediador) Montar(
-        DetalleVisitaDto? detalle, string rol = Roles.GestorCae, DocumentacionVisitaDto? documentacion = null)
+        DetalleVisitaDto? detalle, string rol = Roles.GestorCae, DocumentacionVisitaDto? documentacion = null, string? pestana = null)
     {
         var mediador = new MediatorFalso();
         if (detalle is not null)
@@ -178,12 +179,58 @@ public class Visita360PaginaTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddLocalization();
 
+        // La pestaña es un parámetro de consulta: llega por la URL, no como parámetro del componente.
+        if (pestana is not null)
+            Services.GetRequiredService<NavigationManager>().NavigateTo($"visitas/{detalle?.Id ?? VisitaId}?pestana={pestana}");
+
         var cut = Render<VisitaDetalle>(p => p.Add(x => x.VisitaId, detalle?.Id ?? VisitaId));
         return (cut, mediador);
     }
 
     private static IEnumerable<string> Botones(IRenderedComponent<VisitaDetalle> cut) =>
         cut.FindAll("button, a").Select(b => b.TextContent.Trim());
+
+    // ── Pestaña «Ficha» ───────────────────────────────────────────────────
+    // Decisión del 2026-10-09: el lateral lleva dos o tres cajas como mucho; «Antelación» vive en «Ficha».
+
+    [Fact]
+    public void Con_antelacion_la_ficha_va_la_ultima_y_el_lateral_ya_no_la_lleva()
+    {
+        var (cut, _) = Montar(Detalle(tramo: TramoAntelacion.Urgente), documentacion: DocumentacionConIncidencias());
+
+        var pestanas = cut.FindAll("[role=tab]");
+        pestanas.Should().HaveCount(3);
+        pestanas[2].TextContent.Trim().Should().Be("Ficha");
+        cut.Find("[data-pieza=lateral]").QuerySelectorAll(".tarjeta-titulo").Select(t => t.TextContent.Trim())
+            .Should().NotContain("Antelación").And.HaveCountLessThanOrEqualTo(3);
+        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty("sin pedirla, la visita abre en su primera pestaña");
+    }
+
+    [Fact]
+    public void La_pestana_ficha_llega_por_la_url_y_lleva_la_antelacion()
+    {
+        var (cut, _) = Montar(Detalle(tramo: TramoAntelacion.Urgente), documentacion: DocumentacionConIncidencias(), pestana: "ficha");
+
+        cut.FindAll("[role=tab]")[^1].GetAttribute("aria-selected").Should().Be("true");
+        var cajas = cut.FindAll("[data-pieza=cajas-ficha] > [data-caja]");
+        cajas.Select(c => c.GetAttribute("data-caja")).Should().Equal("antelacion");
+        cajas[0].QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Antelación");
+        cajas[0].TextContent.Should().Contain("15");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Sin_antelacion_que_ensenar_no_hay_pestana_ficha_y_pedirla_abre_la_primera(bool cancelada)
+    {
+        // Sin tramo calculado, o cancelada aunque lo tenga: la pestaña quedaría vacía y no se pinta.
+        var detalle = Detalle(cancelada: cancelada, tramo: cancelada ? TramoAntelacion.Urgente : null);
+        var (cut, _) = Montar(detalle, documentacion: DocumentacionConIncidencias(), pestana: "ficha");
+
+        cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).Should().NotContain("Ficha");
+        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Antelación");
+    }
 
     // ── Ramas ─────────────────────────────────────────────────────────────
 
@@ -259,9 +306,6 @@ public class Visita360PaginaTests : BunitContext
         Botones(cut).Should().NotContain(["Enviar por correo", "Descargar ZIP de documentación", "Editar →"]);
         cut.FindAll(".menu-acciones-boton").Should().BeEmpty();
         cut.Find("input[role=switch]").HasAttribute("disabled").Should().BeTrue();
-        // La banda nombra las incidencias, pero sin escritura no son botones.
-        cut.Find("[data-pieza=banda]").TextContent.Should().Contain("Aptitud médica · Vencido");
-        cut.FindAll("[data-pieza=banda] button").Should().BeEmpty();
 
         cut.FindAll("[role=tab]")[1].Click();
         Botones(cut).Should().Contain("Copiar solicitud");
@@ -305,6 +349,25 @@ public class Visita360PaginaTests : BunitContext
             [Documento("Formación PRL", EstadoDocumento.Vigente, Paula), Documento("Aptitud médica", estado, Paula)]);
 
         VisitaDetalle.EstaListo(seccion).Should().Be(listo);
+    }
+
+    /// <summary>
+    /// Decisión de producto del 2026-10-09: la cabecera no repite en una banda lo que la comprobación previa ya
+    /// dice. Cada documento vencido o sin presentar se ve —y se abre— en su fila.
+    /// </summary>
+    [Fact]
+    public void Con_incidencias_no_hay_banda_y_cada_una_esta_en_su_fila()
+    {
+        var (cut, _) = Montar(Detalle(), documentacion: DocumentacionConIncidencias());
+
+        cut.FindAll("[data-pieza=banda]").Should().BeEmpty();
+        var filas = cut.FindAll("[data-pieza=fila][data-tono=peligro] button.fila-relacion-nombre");
+        filas.Select(f => f.TextContent.Trim()).Should().Contain(["Aptitud médica", "Entrega de EPI"]);
+
+        // Lo que hacía la incidencia de la banda: la fila del documento sin presentar lleva a subirlo.
+        filas.Single(f => f.TextContent.Trim() == "Entrega de EPI").Click();
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain($"/documentos?trabajadorId={Paula}&tipoDocumentoId=");
     }
 
     [Fact]

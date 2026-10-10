@@ -13,8 +13,8 @@ namespace CaeManager.E2ETests;
 /// real, junto con que los controles de dentro (matrícula copiable, icono 360) no abren la
 /// vista rápida. El formulario de edición lo prueba <c>Vehiculo360Gen2Tests</c> (bUnit).
 /// </summary>
-[Collection("AppCollection")]
-public class VehiculosFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class VehiculosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private const string Lapiz = "button[aria-label='Editar información del vehículo']";
 

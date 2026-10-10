@@ -54,6 +54,9 @@
   <data name="AbrirPanelDe" xml:space="preserve">
     <value>Obrir el panell de {0}</value>
   </data>
+  <data name="PestanaFicha" xml:space="preserve">
+    <value>Fitxa</value>
+  </data>
   <data name="Consultar360" xml:space="preserve">
     <value>Consultar d’un cop d’ull</value>
   </data>
@@ -190,6 +193,42 @@
   </data>
   <data name="BorrarFiltroGuardado" xml:space="preserve">
     <value>Esborra el filtre desat {0}</value>
+  </data>
+  <data name="FiltroGuardadoModalTitulo" xml:space="preserve">
+    <value>Desa el filtre actual</value>
+  </data>
+  <data name="FiltroGuardadoNombre" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="FiltroGuardadoNombrePlaceholder" xml:space="preserve">
+    <value>Pendents de revisar</value>
+  </data>
+  <data name="FiltroGuardadoSinNombre" xml:space="preserve">
+    <value>Escriu un nom per al filtre</value>
+  </data>
+  <data name="FiltroGuardadoGuardar" xml:space="preserve">
+    <value>Desa</value>
+  </data>
+  <data name="FiltroGuardadoCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="FiltroGuardadoToast" xml:space="preserve">
+    <value>Filtre desat.</value>
+  </data>
+  <data name="FiltroGuardadoBorrarTitulo" xml:space="preserve">
+    <value>Vols esborrar el filtre desat «{0}»?</value>
+  </data>
+  <data name="FiltroGuardadoBorrarMensaje" xml:space="preserve">
+    <value>Desapareixerà dels teus filtres desats d'aquesta pantalla. No esborra cap dada ni canvia el que la llista mostra ara.</value>
+  </data>
+  <data name="FiltroGuardadoBorrarBoton" xml:space="preserve">
+    <value>Esborra el filtre</value>
+  </data>
+  <data name="FiltroGuardadoBorrarError" xml:space="preserve">
+    <value>No hem pogut esborrar el filtre desat. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="FiltroGuardadoGuardarError" xml:space="preserve">
+    <value>No hem pogut desar el filtre. Si ja en tens un amb aquest nom, tria'n un altre; si no, torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
     <value>Logo de la organización</value>
@@ -341,6 +380,24 @@
   <data name="ContraerTodo" xml:space="preserve">
     <value>Plegar-ho tot</value>
   </data>
+  <data name="AgruparRotulo" xml:space="preserve">
+    <value>Agrupa: {0}</value>
+  </data>
+  <data name="AgruparRotuloNo" xml:space="preserve">
+    <value>Agrupa: no</value>
+  </data>
+  <data name="AgruparSin" xml:space="preserve">
+    <value>Sense agrupar</value>
+  </data>
+  <data name="AgruparPor" xml:space="preserve">
+    <value>Per {0}</value>
+  </data>
+  <data name="GrupoContadorParcial" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="GrupoContadorParcialTitulo" xml:space="preserve">
+    <value>{0} de {1} en aquesta pàgina</value>
+  </data>
   <data name="FranjaEstadoEtiqueta" xml:space="preserve">
     <value>Filtra per estat</value>
   </data>
@@ -394,5 +451,21 @@
   </data>
   <data name="ExtensionInstalarPista" xml:space="preserve">
     <value>Si encara no la tens instal·lada, mira «Instal·la l'extensió», més avall.</value>
+  </data>
+  <data name="CumplimientoEtiqueta" xml:space="preserve">
+    <value>{0} % de compliment</value>
+    <comment>{0}: percentatge de 0 a 100. Nom accessible per defecte de BarraCumplimiento.</comment>
+  </data>
+  <data name="CumplimientoSinRequisitos" xml:space="preserve">
+    <value>Sense requisits</value>
+  </data>
+  <data name="RestablecerVista" xml:space="preserve">
+    <value>Restableix la vista</value>
+  </data>
+  <data name="RestablecerVistaTitulo" xml:space="preserve">
+    <value>Aquesta vista es recorda per al teu usuari en aquesta organització. Prem per tornar a la vista de fàbrica.</value>
+  </data>
+  <data name="VistaRestablecidaToast" xml:space="preserve">
+    <value>Vista de fàbrica restablerta.</value>
   </data>
 </root>

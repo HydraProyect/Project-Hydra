@@ -24,4 +24,13 @@
   <data name="HistorialNoEditable" xml:space="preserve">
     <value>Ese documento está en el historial y no se puede editar.</value>
   </data>
+  <data name="Guardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="GuardarYSiguiente" xml:space="preserve">
+    <value>Guardar y siguiente</value>
+  </data>
+  <data name="SiguienteNoDisponible" xml:space="preserve">
+    <value>El documento se guardó, pero no pudimos abrir el siguiente de la lista.</value>
+  </data>
 </root>

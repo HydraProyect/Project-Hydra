@@ -40,11 +40,18 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 # propietario (un proveedor caído bloquearía todas las fusiones). Como corre
 # DESPUÉS de fusionar, detecta una regresión de prompts, no la impide.
 #
-# SIN CLAVE: los jobs terminan en verde pero DECLARAN, con un aviso (`::warning`)
-# y un resumen en la ejecución, que los tests NO se ejecutaron. Un verde con esa
-# declaración no es cobertura. Con clave, un test que se salte igualmente
-# (variable mal nombrada, filtro que no casa) hace fallar el job: se cuenta
-# sobre el .trx, no sobre el código de salida de `dotnet test`.
+# SIN CLAVE: en `push` a `main` el job termina en ROJO y dice qué secreto falta.
+# La solución es crear el secreto en el environment `ci-integraciones`; relanzar
+# no lo arregla. Hasta el 2026-10-10 terminaba en verde con un aviso, y así
+# estuvo sin ejecutar nada sin que nadie lo viera (en siete ejecuciones de main
+# muestreadas desde el 2026-09-20, el paso de tests figura omitido en todas).
+# En cualquier otro caso —otra rama, donde la política del environment no
+# entrega el secreto, o un `workflow_dispatch` manual sobre `main`— sigue en
+# verde y DECLARA, con un aviso (`::warning`) y un resumen, que los tests NO se
+# ejecutaron: ese verde no es cobertura. El banco de modelos, que solo corre a
+# petición, sale en rojo sin clave en cualquier caso. Con clave, un test que se
+# salte igualmente (variable mal nombrada, filtro que no casa) hace fallar el
+# job: se cuenta sobre el .trx, no sobre el código de salida de `dotnet test`.
 #
 # NOMBRES DE SECRETO (secretos del environment `ci-integraciones`; los crea el
 # propietario — guía paso a paso en
@@ -54,17 +61,53 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 #                              environment `produccion`).
 #   CI_STRIPE_TEST_API_KEY   — clave de Stripe en MODO PRUEBA (sk_test_/rk_test_).
 #                              Una clave de producción hace fallar el job.
+#
+# BANCO DE MODELOS DE IA (job `banco-modelos-ia`). Mide, con modelo real, las
+# siete rutas Anthropic del producto por niveles de complejidad
+# (tests/CaeManager.Web.Tests/BancoModelosIa). NO corre en cada fusión: solo
+# cuando este workflow se lanza A MANO con la entrada `banco_modelos`, porque
+# cada combinación de modelo y esfuerzo gasta dinero de la clave de CI. Una
+# sola orden mide un modelo nuevo:
+#   gh workflow run integraciones-con-clave.yml --ref main \
+#     -f banco_modelos=claude-haiku-5-5 -f banco_esfuerzos=low,medium
+# Es el mismo lanzador que se usa en local (scripts/banco-ia.sh), y una
+# ejecución lanzada para el banco NO corre los otros dos jobs: no gasta en lo
+# que nadie ha pedido. El resultado (JSON, CSV y tabla) queda como artefacto de
+# la ejecución y en su resumen; el JSON se pasa al libro de gasto local con
+# `bash scripts/banco-ia.sh --anotar <json>`. El banco MIDE y no vigila: la nota que saque un modelo no pone el
+# job en rojo; sí lo pone un instrumento que no midió lo pedido (la API rechaza
+# casos, o el modelo o el esfuerzo pedidos no viajan en la petición).
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      banco_modelos:
+        description: "Banco de modelos de IA: modelos a medir, separados por comas (p. ej. claude-sonnet-5,claude-haiku-5-5). Vacío = el banco no se ejecuta."
+        required: false
+        default: ""
+      banco_esfuerzos:
+        description: "Banco: esfuerzos a medir, separados por comas (low, medium, high, xhigh, max). Vacío = el que el producto envíe por defecto."
+        required: false
+        default: ""
+      banco_rutas:
+        description: "Banco: rutas a medir, nombres de RutaIa separados por comas. Vacío = las siete."
+        required: false
+        default: ""
+      banco_max_tokens:
+        description: "Banco: tope de tokens de salida. Vacío = el del producto. El razonamiento cuenta contra él: súbelo al comparar esfuerzos."
+        required: false
+        default: ""
 
 # Ninguna de las dos claves necesita escribir en el repositorio.
 permissions:
   contents: read
 
+# Cada ejecución del banco va en su propio grupo: si compartiera el de la
+# vigilancia, una fusión a main que llegara mientras el banco espera turno lo
+# sustituiría en la cola y la medición se cancelaría sin aviso.
 concurrency:
-  group: integraciones-con-clave-${{ github.ref }}
+  group: integraciones-con-clave-${{ github.ref }}-${{ inputs.banco_modelos != '' && github.run_id || 'vigilancia' }}
   cancel-in-progress: false
 
 env:
@@ -74,6 +117,8 @@ env:
 jobs:
   regresion-prompts-ia:
     name: Regresión de prompts de IA (Anthropic, clave de CI)
+    # Una ejecución lanzada para el banco de modelos solo mide el banco.
+    if: github.event_name == 'push' || inputs.banco_modelos == ''
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: ci-integraciones
@@ -82,7 +127,10 @@ jobs:
     # bien los tests (ver el comentario de ci.yml, "Repartir las clases").
     services:
       postgres:
-        image: postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        # Misma imagen (mismo digest) que el servicio db de producción, servida
+        # desde el espejo de ECR Public y no desde Docker Hub: el motivo está en
+        # el servicio postgres del job tests-integracion de ci.yml.
+        image: public.ecr.aws/docker/library/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
         env:
           POSTGRES_PASSWORD: postgres
         ports:
@@ -107,13 +155,21 @@ jobs:
         run: |
           if [ -z "${CLAVE:-}" ]; then
             echo "hay_clave=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Regresión de prompts de IA NO ejecutada::El secreto CI_ANTHROPIC_API_KEY no existe en el environment ci-integraciones o no llega a esta rama. Los tests de RegresionPromptsIaTests NO se han ejecutado: este verde no es cobertura."
+            echo "::warning title=Regresión de prompts de IA NO ejecutada::El secreto CI_ANTHROPIC_API_KEY no existe en el environment ci-integraciones o no llega a esta rama. Los tests de RegresionPromptsIaTests NO se han ejecutado: esto no es cobertura."
             {
               echo "### 🟡 Regresión de prompts de IA — NO ejecutada"
               echo ""
               echo "El secreto \`CI_ANTHROPIC_API_KEY\` del environment \`ci-integraciones\` no está definido (o no llega a este disparador/rama: \`${EVENTO}\` en \`${RAMA}\`)."
-              echo "Los tests de \`RegresionPromptsIaTests\` no se han ejecutado; **este verde no es cobertura**."
+              echo "Los tests de \`RegresionPromptsIaTests\` no se han ejecutado; **esto no es cobertura**."
+              echo ""
+              echo "**Solución:** crear el secreto \`CI_ANTHROPIC_API_KEY\` en el environment \`ci-integraciones\`. Relanzar no lo arregla."
             } >> "$GITHUB_STEP_SUMMARY"
+            # En `push` a main la ausencia del secreto es un rojo; en el resto, un aviso
+            # (ver «SIN CLAVE» en la cabecera).
+            if [ "$EVENTO" = "push" ] && [ "$RAMA" = "main" ]; then
+              echo "::error title=Falta el secreto CI_ANTHROPIC_API_KEY::La regresión de prompts de IA NO se ha ejecutado en main. Solución: crear el secreto CI_ANTHROPIC_API_KEY en el environment ci-integraciones (Settings → Environments → ci-integraciones). Relanzar esta ejecución no lo arregla."
+              exit 1
+            fi
             exit 0
           fi
           # Una clave de administración de Anthropic puede crear y borrar claves
@@ -184,8 +240,161 @@ jobs:
             echo "### ✅ Regresión de prompts de IA (Anthropic) — $pasados casos ejecutados, 0 omitidos"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # Convierte las entradas en la matriz modelo × esfuerzo. No toca ningún
+  # secreto ni declara el environment: las entradas son texto de quien lanza el
+  # workflow y aquí solo se validan y se trocean, leídas siempre por `env:`.
+  banco-modelos-ia-matriz:
+    name: Banco de modelos de IA — matriz
+    if: github.event_name == 'workflow_dispatch' && inputs.banco_modelos != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matriz: ${{ steps.matriz.outputs.matriz }}
+    steps:
+      - name: Componer la matriz modelo × esfuerzo
+        id: matriz
+        env:
+          MODELOS: ${{ inputs.banco_modelos }}
+          ESFUERZOS: ${{ inputs.banco_esfuerzos }}
+          RUTAS: ${{ inputs.banco_rutas }}
+          MAX_TOKENS: ${{ inputs.banco_max_tokens }}
+        run: |
+          set -euo pipefail
+          # El valor ENTERO contra la expresión, no línea a línea con grep: con grep
+          # bastaría una línea válida para colar un salto de línea y lo que viniera detrás.
+          permitido='^[A-Za-z0-9._,\ -]*$'
+          for valor in "$MODELOS" "$ESFUERZOS" "$RUTAS" "$MAX_TOKENS"; do
+            if ! [[ $valor =~ $permitido ]]; then
+              echo "::error::Las entradas del banco solo admiten letras, cifras, punto, guion, coma y espacio."
+              exit 1
+            fi
+          done
+          if ! [[ $MAX_TOKENS =~ ^([1-9][0-9]*)?$ ]]; then
+            echo "::error::banco_max_tokens debe ser un entero positivo o ir vacío."
+            exit 1
+          fi
+          # Sin repetidos: dos pasadas del mismo par gastarían el doble y chocarían en el nombre del artefacto.
+          lista() { printf '%s' "$1" | tr ',' '\n' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | jq -R -s -c 'split("\n") | map(select(length > 0)) | reduce .[] as $x ([]; if any(.[]; . == $x) then . else . + [$x] end)'; }
+          modelos=$(lista "$MODELOS")
+          esfuerzos=$(lista "$ESFUERZOS")
+          # Un esfuerzo que la API no conoce daría un 400 en cada caso, después de montar todo el entorno.
+          desconocidos=$(jq -r '. - ["low", "medium", "high", "xhigh", "max"] | join(", ")' <<<"$esfuerzos")
+          if [ -n "$desconocidos" ]; then
+            echo "::error::Esfuerzo desconocido en banco_esfuerzos: $desconocidos. Los válidos son low, medium, high, xhigh y max."
+            exit 1
+          fi
+          # Sin esfuerzos, una sola pasada por modelo con el esfuerzo por defecto del producto.
+          matriz=$(jq -c -n --argjson m "$modelos" --argjson e "$esfuerzos" \
+            '{include: [ $m[] as $modelo | (if ($e | length) == 0 then [""] else $e end)[] as $esfuerzo | {modelo: $modelo, esfuerzo: $esfuerzo} ]}')
+          if [ "$(jq '.include | length' <<<"$matriz")" -eq 0 ]; then
+            echo "::error::La entrada banco_modelos no contiene ningún modelo."
+            exit 1
+          fi
+          echo "matriz=$matriz" >> "$GITHUB_OUTPUT"
+          echo "Combinaciones: $matriz"
+
+  banco-modelos-ia:
+    name: Banco de modelos de IA — ${{ matrix.modelo }} / ${{ matrix.esfuerzo || 'esfuerzo por defecto' }}
+    needs: banco-modelos-ia-matriz
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: ci-integraciones
+    strategy:
+      fail-fast: false
+      # De dos en dos: no dispara el límite de peticiones de la clave de CI y
+      # la latencia que se mide no compite con otras cinco pasadas a la vez.
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.banco-modelos-ia-matriz.outputs.matriz) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Comprobar la clave de Anthropic de CI
+        id: clave
+        env:
+          CLAVE: ${{ secrets.CI_ANTHROPIC_API_KEY }}
+          RAMA: ${{ github.ref_name }}
+        run: |
+          if [ -z "${CLAVE:-}" ]; then
+            echo "hay_clave=false" >> "$GITHUB_OUTPUT"
+            echo "::error title=Banco de modelos de IA NO ejecutado::El secreto CI_ANTHROPIC_API_KEY no llega a esta rama (${RAMA}): el banco solo puede lanzarse sobre main. No se ha medido nada."
+            {
+              echo "### 🔴 Banco de modelos de IA — NO ejecutado"
+              echo ""
+              echo "El secreto \`CI_ANTHROPIC_API_KEY\` del environment \`ci-integraciones\` no llega a la rama \`${RAMA}\`. **No se ha medido nada.**"
+            } >> "$GITHUB_STEP_SUMMARY"
+            # En rojo, no en verde con aviso: este job solo existe porque alguien pidió una medición,
+            # y una ejecución entera en verde sin haber medido nada se leería como hecha.
+            exit 1
+          fi
+          case "$CLAVE" in
+            sk-ant-admin*)
+              echo "::error title=Clave de administración::CI_ANTHROPIC_API_KEY es una clave de ADMINISTRACIÓN de Anthropic. Usa una clave de la API de un workspace acotado."
+              exit 1
+              ;;
+            sk-ant-api*) ;;
+            *)
+              echo "::error title=Formato de clave inesperado::CI_ANTHROPIC_API_KEY no empieza por sk-ant-api. No se ejecuta nada con una clave que no se reconoce."
+              exit 1
+              ;;
+          esac
+          echo "hay_clave=true" >> "$GITHUB_OUTPUT"
+
+      - name: Instalar .NET SDK
+        if: steps.clave.outputs.hay_clave == 'true'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Restaurar y compilar los tests de la Web
+        if: steps.clave.outputs.hay_clave == 'true'
+        run: |
+          dotnet restore CaeManager.slnx
+          dotnet build tests/CaeManager.Web.Tests --no-restore -warnaserror
+
+      # La clave entra con el nombre que espera la aplicación y solo en este
+      # paso. El lanzador es el mismo que en local: la pasa únicamente al
+      # proceso del banco, la tacha de la salida y comprueba en el .trx que el
+      # test se ejecutó de verdad (un test omitido también sale con 0).
+      - name: Medir las rutas con modelo real
+        if: steps.clave.outputs.hay_clave == 'true'
+        env:
+          Anthropic__ApiKey: ${{ secrets.CI_ANTHROPIC_API_KEY }}
+          MODELO: ${{ matrix.modelo }}
+          ESFUERZO: ${{ matrix.esfuerzo }}
+          RUTAS: ${{ inputs.banco_rutas }}
+          MAX_TOKENS: ${{ inputs.banco_max_tokens }}
+        run: >
+          bash scripts/banco-ia.sh --sin-compilar --salida resultados-banco-ia
+          --modelo "$MODELO" --esfuerzo "$ESFUERZO" --rutas "$RUTAS" --max-tokens "$MAX_TOKENS"
+
+      # Se publica aunque el paso anterior acabe en rojo: un instrumento que
+      # se declara inválido deja escrito por qué, y eso es lo que hay que leer.
+      - name: Publicar la tabla en el resumen
+        if: always() && steps.clave.outputs.hay_clave == 'true'
+        run: |
+          informe=""
+          if [ -d resultados-banco-ia ]; then
+            informe=$(find resultados-banco-ia -maxdepth 1 -name 'banco-ia-*.md' | head -1)
+          fi
+          if [ -z "$informe" ]; then
+            echo "::error::El banco no escribió ningún informe: no hay medición."
+            exit 1
+          fi
+          cat "$informe" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Guardar el informe (JSON, CSV y Markdown)
+        if: always() && steps.clave.outputs.hay_clave == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: banco-ia-${{ matrix.modelo }}-${{ matrix.esfuerzo || 'por-defecto' }}
+          path: resultados-banco-ia/banco-ia-*
+          if-no-files-found: error
+          retention-days: 90
+
   stripe-modo-prueba:
     name: Stripe en modo prueba (clave de CI)
+    # Una ejecución lanzada para el banco de modelos solo mide el banco.
+    if: github.event_name == 'push' || inputs.banco_modelos == ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: ci-integraciones
@@ -201,13 +410,21 @@ jobs:
         run: |
           if [ -z "${CLAVE:-}" ]; then
             echo "hay_clave=false" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Stripe modo prueba NO ejecutado::El secreto CI_STRIPE_TEST_API_KEY no existe en el environment ci-integraciones o no llega a esta rama. Los tests de StripeModoPruebaTests que usan la API real NO se han ejecutado: este verde no es cobertura."
+            echo "::warning title=Stripe modo prueba NO ejecutado::El secreto CI_STRIPE_TEST_API_KEY no existe en el environment ci-integraciones o no llega a esta rama. Los tests de StripeModoPruebaTests que usan la API real NO se han ejecutado: esto no es cobertura."
             {
               echo "### 🟡 Stripe en modo prueba — NO ejecutado"
               echo ""
               echo "El secreto \`CI_STRIPE_TEST_API_KEY\` del environment \`ci-integraciones\` no está definido (o no llega a este disparador/rama: \`${EVENTO}\` en \`${RAMA}\`)."
-              echo "Los tests contra la API de Stripe no se han ejecutado; **este verde no es cobertura**."
+              echo "Los tests contra la API de Stripe no se han ejecutado; **esto no es cobertura**."
+              echo ""
+              echo "**Solución:** crear el secreto \`CI_STRIPE_TEST_API_KEY\` en el environment \`ci-integraciones\`. Relanzar no lo arregla."
             } >> "$GITHUB_STEP_SUMMARY"
+            # En `push` a main la ausencia del secreto es un rojo; en el resto, un aviso
+            # (ver «SIN CLAVE» en la cabecera).
+            if [ "$EVENTO" = "push" ] && [ "$RAMA" = "main" ]; then
+              echo "::error title=Falta el secreto CI_STRIPE_TEST_API_KEY::Los tests de Stripe contra la API real NO se han ejecutado en main. Solución: crear el secreto CI_STRIPE_TEST_API_KEY en el environment ci-integraciones (Settings → Environments → ci-integraciones). Relanzar esta ejecución no lo arregla."
+              exit 1
+            fi
             exit 0
           fi
           # Rechazo de producción ANTES de que ningún paso posterior use la clave.

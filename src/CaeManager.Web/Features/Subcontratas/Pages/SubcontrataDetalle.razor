@@ -68,44 +68,6 @@
             </Acciones>
         </CabeceraIdentidad>
 
-        @if (HayBanda)
-        {
-            var conProblema = TrabajadoresConProblema;
-            var nombrados = conProblema.Take(NombresEnLaBanda).ToList();
-            var sinNombrar = conProblema.Count - nombrados.Count;
-            <BandaAccion Tono="TonoBanda.Peligro" TextoEnlace="@Textos["BandaVerEnSupervision"]" OnEnlace="IrASupervision">
-                @if (conProblema.Count > 0)
-                {
-                    <span>@Plural(conProblema.Count, "BandaTrabajadoresUno", "BandaTrabajadoresVarios")</span>
-                    @foreach (var (trabajador, indice) in nombrados.Select((t, i) => (t, i)))
-                    {
-                        @if (indice > 0)
-                        {
-                            <span>@(indice == nombrados.Count - 1 && sinNombrar == 0 ? Textos["BandaY"] : ",")</span>
-                        }
-                        @* En Consulta el nombre es texto: la corrección solo crea o renueva. *@
-                        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionBanda">
-                            <Authorized>
-                                <IncidenciaBanda Texto="@trabajador.TrabajadorNombre" OnClick="() => CorregirTrabajadorAsync(trabajador)" />
-                            </Authorized>
-                            <NotAuthorized>
-                                <IncidenciaBanda Texto="@trabajador.TrabajadorNombre" />
-                            </NotAuthorized>
-                        </AuthorizeView>
-                    }
-                    @if (sinNombrar > 0)
-                    {
-                        <span>@Textos["BandaYMas", sinNombrar]</span>
-                    }
-                    <span>@(CentrosSinVerificar > 0 ? "·" : ".")</span>
-                }
-                @if (CentrosSinVerificar > 0)
-                {
-                    <span>@Plural(CentrosSinVerificar, "CentrosSinVerificarUno", "CentrosSinVerificarVarios").</span>
-                }
-            </BandaAccion>
-        }
-
         <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestana" EtiquetaGrupo="@Textos["AriaSeccionesSubcontrata"]" />
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral360"]">
@@ -295,7 +257,7 @@
                                                         @* Dos copias operativas del mismo tipo son dos filas: la clave no puede ser solo el tipo. *@
                                                         var clavesDocumentos = new ClavesDeHermanos();
                                                         <ul class="subcontrata360-subfilas" aria-label="@Textos["AriaDocumentacionExigidaA", trabajador.TrabajadorNombre]">
-                                                            @foreach (var documento in trabajador.Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)))
+                                                            @foreach (var documento in DocumentosOrdenados(trabajador))
                                                             {
                                                                 var rotuloAccion = RotuloAccion(documento);
                                                                 <li class="subcontrata360-subfila" data-pieza="fila" @key="clavesDocumentos.De(documento.DocumentoId ?? documento.TipoDocumentoId)">

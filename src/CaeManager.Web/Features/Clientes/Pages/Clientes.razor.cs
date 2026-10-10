@@ -41,6 +41,62 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private readonly CancellationTokenSource _ciclo = new();
     private bool _desechado;
 
+    // ── La fila se refresca tras guardar en la vista rápida ─────────────────────────────────────
+    // El panel vive en MainLayout y guarda sin pasar por esta página: avisa por
+    // ContextWorkspaceService.OnEntidadGuardada. Se vuelve a pedir SOLO esa fila y se sustituye
+    // en sitio (mismo criterio que Centros.RefrescarCentroAsync): filtros, orden, página,
+    // selección, fila enfocada y desplazamiento no se tocan, y la fila permanece aunque el
+    // cambio la saque del filtro activo, hasta la siguiente carga. Los recuentos de la franja
+    // tampoco se recalculan hasta entonces.
+
+    /// <summary>
+    /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
+    /// QuickGrid solo repinta sus filas cuando su proveedor le entrega una página, y una carga
+    /// de verdad limpiaría la selección y la fila enfocada. El total no cambia, así que no hay
+    /// segunda petición (ver RecargarAsync).
+    /// </summary>
+    private bool _servirPaginaEnMemoria;
+
+    private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
+    {
+        if (tipo == EntidadWorkspace.Cliente)
+            _ = InvokeAsync(() => RefrescarFilaAsync(id));
+    }
+
+    private async Task RefrescarFilaAsync(Guid id)
+    {
+        // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
+        // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
+        // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
+        if (_desechado || _grid is null || _cargando || !_elementosPagina.Any(e => e.Id == id))
+            return;
+
+        var carga = _cargaVigente;
+        try
+        {
+            // Con el desglose: la fila sustituida conserva la ventana de incidencias de su motivo.
+            var resultado = await Mediator.Send(
+                new ObtenerClientesQuery(Busqueda: null, SoloCriticos: null, Id: id, ConDesgloseDocumental: true), _ciclo.Token);
+            var indice = _elementosPagina.FindIndex(e => e.Id == id);
+            if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
+                || resultado.Elementos.FirstOrDefault() is not { } actualizada)
+                return;
+
+            _elementosPagina[indice] = actualizada;
+            _servirPaginaEnMemoria = true;
+            await _grid.RefreshDataAsync();
+        }
+        catch (Exception)
+        {
+            // El guardado ya es firme: que falle la relectura no es un error que enseñar. La
+            // fila conserva el dato anterior hasta la siguiente carga, como antes de este aviso.
+        }
+        finally
+        {
+            _servirPaginaEnMemoria = false;
+        }
+    }
+
     public void Dispose()
     {
         if (_desechado)
@@ -48,6 +104,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
         _desechado = true;
         WorkspaceService.OnCambio -= AlCambiarWorkspace;
+        WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -109,6 +166,13 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// <summary>Cifra de «Todos» en la franja: aquí los recuentos por estado se solapan y no suman el total.</summary>
     private int? _totalSinFiltroDeEstado;
     private IReadOnlyList<GestorCaeSelectorDto> _ejecutivosParaFiltro = [];
+
+    /// <summary>
+    /// El directorio de arriba ya está cargado. Hasta entonces <see cref="GestorVisible"/> descarta a
+    /// cualquier Gestor CAE, así que la vista recordada no se restaura antes
+    /// (<c>ListoParaRestaurar</c> de <see cref="VistaRecordadaDeListado"/>): se perdería el suyo.
+    /// </summary>
+    private bool _directorioDeGestoresCargado;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -257,6 +321,21 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoDocumentalInicial { get; set; }
 
+    /// <summary>Orden de columna (<c>?orden=cliente-desc</c>). Sin él, el de fábrica: por estado documental.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    /// <summary>
+    /// El orden de columna viaja en la URL y forma parte de la vista. La rejilla nace ordenada por
+    /// estado documental. «Exportar esta vista» sigue leyendo el orden de la última petición de la
+    /// rejilla (<see cref="_ordenExportar"/>), venga de un clic en la cabecera o de la URL.
+    /// </summary>
+    private readonly OrdenDeRejilla _orden = new(
+    [
+        ("cliente", nameof(ClienteListaDto.RazonSocial)),
+        ("documentacion", nameof(ClienteListaDto.EstadoDocumentalPeor)),
+    ], claveDeFabrica: "documentacion");
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     /// <summary>
@@ -334,6 +413,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     {
         // «e» sin fila enfocada edita la ficha abierta: la página se entera de cuál es.
         WorkspaceService.OnCambio += AlCambiarWorkspace;
+        WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
@@ -374,6 +454,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         // clientes.
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         _puedeReasignarEjecutivo = RolesQuePuedenReasignar.Any(estadoAutenticacion.User.IsInRole);
+        _puedeEscribir = Roles.ConEscrituraCsv.Split(',').Any(estadoAutenticacion.User.IsInRole);
 
         _filtrosGuardados = await Mediator.Send(new ObtenerFiltrosGuardadosQuery(PantallasConFiltrosGuardados.Clientes));
 
@@ -386,6 +467,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty, u.Avatar))
             .OrderBy(g => g.NombreCompleto)
             .ToList();
+        _directorioDeGestoresCargado = true;
     }
 
     /// <summary>
@@ -419,9 +501,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         // Lo que no sea un estado conocido, o un Gestor CAE que el directorio visible de este
         // usuario no ofrece, es «sin filtro»: un Id en la URL no es autoridad, y la pantalla
         // no filtra por alguien a quien no puede nombrar (misma regla que el filtro guardado).
-        var gestorDeLaUrl = Guid.TryParse(GestorCaeInicial, out var gestorId) && _ejecutivosParaFiltro.Any(g => g.Id == gestorId)
-            ? gestorId.ToString()
-            : string.Empty;
+        var gestorDeLaUrl = GestorVisible(GestorCaeInicial);
         var estadoDeLaUrl = EstadosValidos(EstadoDocumentalInicial);
         var cambio = deLaUrl != _busqueda || soloCriticosDeLaUrl != _soloCriticos
             || gestorDeLaUrl != _ejecutivoFiltro || estadoDeLaUrl != _estadoDocumentalFiltro;
@@ -447,7 +527,12 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
                 _mostrarGuardarFiltro = true;
         }
 
-        return cambio && _grid is not null ? RecargarAsync() : Task.CompletedTask;
+        // Con otro orden la rejilla se remonta ya ordenada y pide ella los datos: refrescar además la
+        // saliente sería pedirlos dos veces.
+        var cambiaElOrden = _orden.Leer(OrdenInicial);
+        return cambio && _grid is not null && !(cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+            ? RecargarAsync()
+            : Task.CompletedTask;
     }
 
     /// <summary>
@@ -465,9 +550,21 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private async ValueTask<GridItemsProviderResult<ClienteListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<ClienteListaDto> request)
     {
+        if (_servirPaginaEnMemoria)
+        {
+            // Refresco de una fila tras guardar en la vista rápida (ver RefrescarFilaAsync).
+            _servirPaginaEnMemoria = false;
+            return GridItemsProviderResult.From(_elementosPagina.ToList(), _totalElementos);
+        }
+
         // Todo lo que define la pregunta se lee ANTES del await.
         var carga = ++_cargaVigente;
+        // Vale para UNA carga, la que pidió la corrección: cualquier otra recarga suelta la selección.
+        var conservarSeleccion = _conservarSeleccionEnLaProximaCarga;
+        _conservarSeleccionEnLaProximaCarga = false;
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        if (_orden.Anotar(ordenarPor, descendente))
+            NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
         (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         var estadosFiltro = SeleccionEstados.Separar<EstadoDocumento>(_estadoDocumentalFiltro);
         var consulta = new ObtenerClientesQuery(
@@ -480,7 +577,10 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadosDocumentales: estadosFiltro.Count == 0 ? null : estadosFiltro,
-            ConRecuentosPorEstado: true);
+            ConRecuentosPorEstado: true,
+            // Las incidencias de cada fila, para la ventana del motivo. Solo lo piden esta carga y el
+            // refresco de una fila: la exportación y la API no lo pintan.
+            ConDesgloseDocumental: true);
 
         _cargando = true;
         _errorCarga = false;
@@ -498,8 +598,20 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
-            _seleccionados.Clear();
-            _idEnfocado = null;
+            if (conservarSeleccion)
+            {
+                // Corregir un documento no es cambiar de lista: lo marcado y la fila enfocada siguen,
+                // salvo lo que ya no esté en la página.
+                _seleccionados.IntersectWith(elementos.Select(e => e.Id));
+                if (_idEnfocado is { } enfocado && elementos.All(e => e.Id != enfocado))
+                    _idEnfocado = null;
+            }
+            else
+            {
+                _seleccionados.Clear();
+                _idEnfocado = null;
+            }
+
             OlvidarCentrosDeFila();
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
@@ -650,14 +762,88 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     private string MotivoEstadoDocumental(int cantidad) =>
         cantidad == 1 ? Textos["MotivoUnDocumento"].Value : Textos["MotivoDocumentos", cantidad].Value;
 
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes { get; set; } = default!;
+
     /// <summary>
-    /// Lo que de verdad cuenta el agregado de ObtenerClientesQuery: las
-    /// alertas de vigencia de los trabajadores cuyo cliente principal es este,
-    /// en su peor estado. El mockup dice «entre los trabajadores y centros»;
-    /// los centros no entran en ese agregado, así que no se nombran.
+    /// El rol efectivo puede escribir (mismos roles que <c>SoloConEscritura</c>). Decide si las incidencias de
+    /// la ventana del motivo se ofrecen como pulsables: a quien solo consulta no se le ofrece un formulario
+    /// que el comando le va a denegar.
+    /// </summary>
+    private bool _puedeEscribir;
+
+    private CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental _correccion = default!;
+
+    /// <summary>La carga que pide <see cref="RefrescarTrasCorreccionAsync"/> conserva la selección y la fila enfocada.</summary>
+    private bool _conservarSeleccionEnLaProximaCarga;
+
+    /// <summary>
+    /// Título de la ventana: cuántas alertas tiene el Cliente empresarial en total. No es la cifra del motivo,
+    /// que cuenta solo las del peor estado; la ventana las lista todas, cada una con la pastilla de su estado.
+    /// </summary>
+    private string TituloDeIncidencias(int total) =>
+        total == 1 ? Textos["IncidenciasTituloUna"].Value : Textos["IncidenciasTitulo", total].Value;
+
+    /// <summary>Nombre accesible del disparador: el estado, lo que dice el motivo y lo que hay dentro.</summary>
+    private string EtiquetaDeIncidencias(ClienteListaDto cliente, EstadoDocumento peor, string motivo) =>
+        $"{EstadoDocumentoUi.Texto(peor)}: {motivo}. {TituloDeIncidencias(cliente.IncidenciasTotales)}";
+
+    /// <summary>
+    /// Pie de la ventana: cómo se corrige (solo a quien puede) y, si no caben todas, cuántas quedan fuera. A
+    /// quien corrige se le dice que las siguientes van entrando: la lista se relee tras cada corrección y la
+    /// consulta entrega primero las más graves. Ninguna pantalla lista hoy las alertas de un solo Cliente
+    /// empresarial, así que el pie no remite a otra.
+    /// </summary>
+    private string? PieDeIncidencias(ClienteListaDto cliente)
+    {
+        var fuera = cliente.IncidenciasTotales - cliente.Incidencias.Count;
+        if (!_puedeEscribir)
+            return fuera > 0 ? Textos["IncidenciasPieMas", fuera].Value : null;
+
+        var comoCorregir = Comunes["VentanaIncidenciasPie"].Value;
+        return fuera > 0 ? $"{comoCorregir}. {Textos["IncidenciasPieMasAlCorregir", fuera].Value}" : comoCorregir;
+    }
+
+    /// <summary>«Documento — Trabajador», como las incidencias de Trabajador en la ventana de Centros.</summary>
+    private static string TextoDeIncidencia(IncidenciaClienteDto incidencia) =>
+        $"{incidencia.TipoDocumentoNombre} — {incidencia.TrabajadorNombre}";
+
+    /// <summary>Lo que distingue la línea: cuándo vence el documento o, si falta, en qué Centro se pide.</summary>
+    private static string? SecundarioDeIncidencia(IncidenciaClienteDto incidencia) =>
+        incidencia.FechaVencimiento?.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture)
+        ?? incidencia.CentroNombre;
+
+    /// <summary>
+    /// Con documento abre su renovación; sin él (Faltante), el alta del que falta para ese Trabajador y ese
+    /// Tipo. No decide permisos: lo que se guarde pasa por el comando, con su autorización y su alcance.
+    /// </summary>
+    private Task CorregirIncidenciaAsync(IncidenciaClienteDto incidencia) =>
+        _correccion.AbrirAsync(incidencia.DocumentoId, incidencia.TipoDocumentoId, incidencia.TrabajadorId, null);
+
+    /// <summary>
+    /// Tras corregir una incidencia: se vuelve a pedir la página tal como está (mismos filtros, orden y página).
+    /// No basta con la fila pulsada: el documento que se da de alta para un Trabajador deja de faltar en todos
+    /// los Centros donde se pedía, que pueden ser de otros Clientes empresariales de la página. La selección y
+    /// la fila enfocada se conservan.
+    /// </summary>
+    private async Task RefrescarTrasCorreccionAsync()
+    {
+        if (_desechado || _grid is null)
+            return;
+
+        _conservarSeleccionEnLaProximaCarga = true;
+        await _grid.RefreshDataAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Lo que de verdad cuenta el agregado de ObtenerClientesQuery: las alertas documentales abiertas de sus
+    /// Trabajadores, en su peor estado. Son las de vigencia (vencido o por vencer), atribuidas al Cliente
+    /// empresarial principal del Trabajador, y los documentos que faltan en un Centro suyo. Por eso no dice
+    /// «de vigencia»: con lo peor en «Pendiente» el texto se contradiría. El mockup dice «entre los trabajadores
+    /// y centros»; los documentos propios del Centro no entran en ese agregado, así que no se nombran.
     /// </summary>
     private static string TituloEstadoDocumental(EstadoDocumento peor) =>
-        $"Peor estado entre las alertas de vigencia abiertas de sus trabajadores: {EstadoDocumentoUi.Texto(peor).ToLowerInvariant()}";
+        $"Peor estado entre las alertas documentales abiertas de sus trabajadores: {EstadoDocumentoUi.Texto(peor).ToLowerInvariant()}";
 
     /// <summary>
     /// Quita los cuatro filtros en una sola recarga. Encadenar los setters
@@ -1243,6 +1429,55 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         });
         await RecargarAsync();
     }
+
+    // --- Vista recordada (pieza compartida VistaRecordadaDeListado) ---
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que recuerda y restaura la vista recordada
+    /// (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>), que es de la vista pero
+    /// no se recuerda. Los filtros guardados de esta pantalla son anteriores a la pieza compartida y
+    /// conservan su propio JSON (<see cref="LeerFiltroGuardado"/>), sin el orden de columna.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "critico", "gestor", "estado", "orden"];
+
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// La vista recordada (o la de inicio, al restablecer) define la vista entera: lo que no trae se quita.
+    /// Cada valor pasa por la misma validación que el de la URL en <see cref="OnParametersSetAsync"/>: un
+    /// estado que la franja no conoce se descarta y un Gestor CAE que el directorio visible de este usuario
+    /// no ofrece es «sin filtro» (lo recordado no es autoridad). La URL se escribe en una sola navegación y
+    /// se recarga aquí.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _soloCriticos = bool.TryParse(vista.GetValueOrDefault("critico"), out var soloCriticos) && soloCriticos;
+        _ejecutivoFiltro = GestorVisible(vista.GetValueOrDefault("gestor"));
+        _estadoDocumentalFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
+        var cambiaElOrden = _orden.Leer(vista.GetValueOrDefault("orden"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["critico"] = _soloCriticos ? "true" : null,
+            ["gestor"] = _ejecutivoFiltro,
+            ["estado"] = _estadoDocumentalFiltro,
+            ["orden"] = _orden.EnUrl,
+        });
+
+        // Con otro orden la rejilla se remonta en el siguiente render y pide ella los datos:
+        // refrescar además la saliente sería pedirlos dos veces.
+        if (cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+            StateHasChanged();
+        else
+            await RecargarAsync();
+    }
+
+    /// <summary>El Id de Gestor CAE que llega de fuera, si el directorio visible de este usuario lo ofrece; si no, vacío.</summary>
+    private string GestorVisible(string? valor) =>
+        Guid.TryParse(valor, out var gestorId) && _ejecutivosParaFiltro.Any(g => g.Id == gestorId)
+            ? gestorId.ToString()
+            : string.Empty;
 
     private void CerrarModalGuardarFiltro(bool visible)
     {

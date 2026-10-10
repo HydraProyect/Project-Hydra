@@ -1,9 +1,11 @@
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
@@ -12,11 +14,12 @@ namespace CaeManager.Application.Tests.Proyectos;
 
 /// <summary>
 /// La fila del listado de Proyectos enseña el recuento de técnicos activos y, al pasar el cursor,
-/// sus nombres: la consulta de la lista los trae en una sola lectura para todos los proyectos.
+/// sus nombres: la consulta de la lista los trae en una sola lectura para los proyectos de la página.
 /// </summary>
 public class ObtenerProyectosQueryTecnicosActivosTests
 {
-    private static readonly Guid ClienteId = Guid.NewGuid();
+    private static readonly Empresa ClienteEmpresarial = Empresa.CrearComoCliente("Obras del Sur S.L.", "B12345674", false, null, null);
+    private static readonly Guid ClienteId = ClienteEmpresarial.Id;
     private static readonly Guid EmpresaId = Guid.NewGuid();
     private static readonly DateOnly Inicio = new(2026, 3, 12);
 
@@ -30,17 +33,20 @@ public class ObtenerProyectosQueryTecnicosActivosTests
     }
 
     private readonly CentrosQueryContextFalso _centros = new();
+    private readonly EmpresasQueryContextFalso _empresas = new();
     private readonly ProyectosContextoAsincrono _proyectos = new();
     private readonly TrabajadoresQueryContextFalso _trabajadores = new();
 
-    private ObtenerProyectosQueryHandler Handler() =>
-        new(_centros, _proyectos, _trabajadores, new AlcanceDatosServiceFalso());
+    public ObtenerProyectosQueryTecnicosActivosTests() => _empresas.ListaEmpresas.Add(ClienteEmpresarial);
 
-    private Proyecto NuevoProyecto(string nombre)
+    private ObtenerProyectosQueryHandler Handler() =>
+        new(_centros, _empresas, _proyectos, _trabajadores, new AlcanceDatosServiceFalso());
+
+    private Proyecto NuevoProyecto(string nombre, DateOnly? inicio = null)
     {
         var centro = new Centro(ClienteId, EmpresaId, "Sede Sevilla");
         _centros.ListaCentros.Add(centro);
-        var proyecto = Proyecto.Crear(ClienteId, centro.Id, nombre, Inicio, null, null);
+        var proyecto = Proyecto.Crear(ClienteId, centro.Id, nombre, inicio ?? Inicio, null, null);
         _proyectos.ListaProyectos.Add(proyecto);
         return proyecto;
     }
@@ -68,7 +74,7 @@ public class ObtenerProyectosQueryTecnicosActivosTests
         _proyectos.ListaProyectosTecnicos.Add(deBaja);
         _proyectos.ListaProyectosTecnicos.Add(new ProyectoTecnico(incendios.Id, oscar.Id, Inicio));
 
-        var lista = await Handler().Handle(new ObtenerProyectosQuery(ClienteId), CancellationToken.None);
+        var lista = (await Handler().Handle(new ObtenerProyectosQuery(ClienteId), CancellationToken.None)).Elementos;
 
         lista.Single(p => p.Id == reforma.Id).TecnicosActivos
             .Should().Equal(
@@ -87,9 +93,29 @@ public class ObtenerProyectosQueryTecnicosActivosTests
         // propietario, baja lógica) dejen fuera a un Trabajador no se observa en esta capa.
         _proyectos.ListaProyectosTecnicos.Add(new ProyectoTecnico(reforma.Id, Guid.NewGuid(), Inicio));
 
-        var lista = await Handler().Handle(new ObtenerProyectosQuery(ClienteId), CancellationToken.None);
+        var lista = (await Handler().Handle(new ObtenerProyectosQuery(ClienteId), CancellationToken.None)).Elementos;
 
         lista.Single().TecnicosActivos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Los_tecnicos_que_se_nombran_son_los_de_la_pagina_devuelta()
+    {
+        // Dos proyectos y página de uno: el técnico del que queda fuera no viaja con la respuesta.
+        var reciente = NuevoProyecto("Reforma nave", Inicio.AddDays(1));
+        var antiguo = NuevoProyecto("Instalación contra incendios", Inicio);
+        var paula = NuevoTrabajador("Paula", "Campos Lara", "60005002A");
+        var oscar = NuevoTrabajador("Óscar", "Ferrer Pons", "60005104J");
+        _proyectos.ListaProyectosTecnicos.Add(new ProyectoTecnico(reciente.Id, paula.Id, Inicio));
+        _proyectos.ListaProyectosTecnicos.Add(new ProyectoTecnico(antiguo.Id, oscar.Id, Inicio));
+
+        var primera = await Handler().Handle(new ObtenerProyectosQuery(ClienteId, TamanoPagina: 1), CancellationToken.None);
+        var segunda = await Handler().Handle(new ObtenerProyectosQuery(ClienteId, Pagina: 2, TamanoPagina: 1), CancellationToken.None);
+
+        primera.Elementos.Should().ContainSingle().Which.TecnicosActivos
+            .Should().Equal(new TecnicoActivoListaDto(paula.Id, "Paula Campos Lara"));
+        segunda.Elementos.Should().ContainSingle().Which.TecnicosActivos
+            .Should().Equal(new TecnicoActivoListaDto(oscar.Id, "Óscar Ferrer Pons"));
     }
 
     [Fact]
@@ -97,7 +123,7 @@ public class ObtenerProyectosQueryTecnicosActivosTests
     {
         NuevoProyecto("Reforma nave");
 
-        var lista = await Handler().Handle(new ObtenerProyectosQuery(ClienteId), CancellationToken.None);
+        var lista = (await Handler().Handle(new ObtenerProyectosQuery(ClienteId), CancellationToken.None)).Elementos;
 
         lista.Single().TecnicosActivos.Should().BeEmpty();
     }

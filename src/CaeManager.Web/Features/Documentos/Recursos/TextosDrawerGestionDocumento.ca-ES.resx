@@ -24,4 +24,13 @@
   <data name="HistorialNoEditable" xml:space="preserve">
     <value>Aquest document és a l'historial i no es pot editar.</value>
   </data>
+  <data name="Guardar" xml:space="preserve">
+    <value>Desa</value>
+  </data>
+  <data name="GuardarYSiguiente" xml:space="preserve">
+    <value>Desa i següent</value>
+  </data>
+  <data name="SiguienteNoDisponible" xml:space="preserve">
+    <value>El document s'ha desat, però no hem pogut obrir el següent de la llista.</value>
+  </data>
 </root>

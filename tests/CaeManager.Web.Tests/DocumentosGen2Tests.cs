@@ -11,6 +11,8 @@ using CaeManager.Application.Documentos.Commands.EliminarDocumentos;
 using CaeManager.Application.Documentos.Commands.RestaurarDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Documentos.Queries.ObtenerPlataformasEnUso;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components.DesignSystem;
@@ -56,7 +58,7 @@ using EstadoAcreditacionUi = CaeManager.Web.Features.Documentos.EstadoAcreditaci
 /// ni el aislamiento por tenant.
 /// </para>
 /// </summary>
-public class DocumentosGen2Tests : BunitContext
+public partial class DocumentosGen2Tests : BunitContext
 {
     /// <summary>La página monta AtajosListaTeclado y Modal, que importan sus módulos JS.</summary>
     public DocumentosGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
@@ -81,6 +83,10 @@ public class DocumentosGen2Tests : BunitContext
 
         public Func<EliminarDocumentosCommand, Result<ResultadoEliminacionLoteDto>>? AlEliminarLote { get; set; }
 
+        /// <summary>Opciones de los filtros «Tipo de documento» y «Plataforma».</summary>
+        public IReadOnlyList<TipoDocumentoListaDto> TiposDocumento { get; set; } = [];
+        public IReadOnlyList<PlataformaEnUsoDto> Plataformas { get; set; } = [];
+
 
         /// <summary>
         /// Tenants que alcanza el usuario. Por defecto uno solo (el de origen): sin selector ni cabecera
@@ -104,6 +110,8 @@ public class DocumentosGen2Tests : BunitContext
             ObtenerFiltrosGuardadosQuery => Array.Empty<FiltroGuardadoDto>(),
             ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)Autorizados.ToList(),
             ObtenerDocumentosQuery q => Pagina(q),
+            ObtenerTiposDocumentoQuery => TiposDocumento,
+            ObtenerPlataformasEnUsoQuery => Plataformas,
             GuardarFiltroCommand => Result.Exito(Guid.NewGuid()),
             EliminarDocumentosCommand c => AlEliminarLote?.Invoke(c)
                 ?? Result.Exito(new ResultadoEliminacionLoteDto(c.Ids.Count, [])),
@@ -1654,6 +1662,172 @@ public class DocumentosGen2Tests : BunitContext
         cabecera.TextContent.Should().NotContain("Importar documentos").And.NotContain("Subida múltiple");
         cabecera.QuerySelectorAll("button[aria-label='Selección múltiple']").Should().BeEmpty();
         cabecera.TextContent.Should().NotContain("Nuevo documento");
+    }
+
+    // --- Cierre L: filtros «Tipo de documento» y «Plataforma» en la URL, y orden de inicio ---
+
+    private static readonly Guid TipoMedicoId = Guid.NewGuid();
+    private static readonly Guid TipoSeguroId = Guid.NewGuid();
+    private static readonly Guid PlataformaNalandaId = Guid.NewGuid();
+
+    private static TipoDocumentoListaDto TipoDeFiltro(Guid id, string nombre) => new(
+        id, nombre, 12, true, 1, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si, default, null, null, null, null,
+        false, false, false, default, []);
+
+    private static MediadorControlado ConOpcionesDeFiltro()
+    {
+        var mediador = ConDocumentos(Documento("Reconocimiento médico"));
+        mediador.TiposDocumento = [TipoDeFiltro(TipoSeguroId, "Seguro RC"), TipoDeFiltro(TipoMedicoId, "Reconocimiento médico")];
+        mediador.Plataformas = [new PlataformaEnUsoDto(PlataformaNalandaId, "Nalanda")];
+        return mediador;
+    }
+
+    [Fact]
+    public async Task El_listado_abre_con_el_orden_de_inicio_por_severidad_y_el_orden_que_elige_el_usuario_lo_sustituye()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro());
+
+        UltimaConsultaDeDocumentos(mediador).OrdenarPor.Should().Be(ObtenerDocumentosQuery.OrdenPorSeveridad);
+
+        await FijarSentidoDocumentoFase1(cut, mediador, "Tipo de documento", descendente: true);
+
+        UltimaConsultaDeDocumentos(mediador).OrdenarPor.Should().Be(nameof(DocumentoListaDto.TipoDocumentoNombre));
+        UltimaConsultaDeDocumentos(mediador).Descendente.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Tipo_y_plataforma_llegan_de_la_url_a_la_consulta_y_salen_como_chips_con_su_nombre()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(),
+            url: $"documentos?Tipo={TipoMedicoId}&Plataforma={PlataformaNalandaId}");
+
+        var consulta = UltimaConsultaDeDocumentos(mediador);
+        consulta.TipoDocumentoId.Should().Be(TipoMedicoId);
+        consulta.ProveedorPlataformaCaeId.Should().Be(PlataformaNalandaId);
+        cut.WaitForAssertion(() => cut.FindAll(".barra-filtros-pastillas .chip-filtro").Select(c => c.TextContent.Trim())
+            .Should().Contain(c => c.Contains("Tipo: Reconocimiento médico")).And.Contain(c => c.Contains("Plataforma: Nalanda")));
+    }
+
+    [Fact]
+    public void Un_tipo_o_una_plataforma_que_no_son_un_id_se_ignoran()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(), url: "documentos?Tipo=seguro&Plataforma=1");
+
+        var consulta = UltimaConsultaDeDocumentos(mediador);
+        consulta.TipoDocumentoId.Should().BeNull();
+        consulta.ProveedorPlataformaCaeId.Should().BeNull();
+        cut.FindAll(".barra-filtros-pastillas .chip-filtro").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Elegir_un_tipo_de_documento_lo_manda_en_la_consulta_y_lo_escribe_en_la_url()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro());
+        UltimaConsultaDeDocumentos(mediador).TipoDocumentoId.Should().BeNull("control: sin elegir no hay filtro");
+
+        cut.WaitForAssertion(() => PastillaDocumentoFase1(cut, "Tipo de documento").Should().NotBeNull());
+        await PastillaDocumentoFase1(cut, "Tipo de documento").ClickAsync(new MouseEventArgs());
+        var opciones = cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Select(b => b.TextContent.Trim()).ToList();
+        opciones.Should().ContainInOrder("Reconocimiento médico", "Seguro RC");
+        await cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]")
+            .Single(b => b.TextContent.Trim() == "Seguro RC").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).TipoDocumentoId.Should().Be(TipoSeguroId));
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain($"Tipo={TipoSeguroId}");
+    }
+
+    [Fact]
+    public async Task Elegir_una_plataforma_en_Mas_filtros_la_manda_en_la_consulta_y_la_escribe_en_la_url()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro());
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Should().NotBeNull());
+        await cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Más filtros")
+            .ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]")
+            .Single(b => b.TextContent.Trim() == "Nalanda").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).ProveedorPlataformaCaeId.Should().Be(PlataformaNalandaId));
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain($"Plataforma={PlataformaNalandaId}");
+    }
+
+    [Fact]
+    public void Limpiar_todo_quita_tambien_tipo_y_plataforma_de_la_url_y_de_la_consulta()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(),
+            url: $"documentos?Tipo={TipoMedicoId}&Plataforma={PlataformaNalandaId}");
+        UltimaConsultaDeDocumentos(mediador).TipoDocumentoId.Should().Be(TipoMedicoId, "control positivo: el filtro llegó");
+
+        cut.Find(".limpiar-filtros-barra").Click();
+
+        var url = Services.GetRequiredService<NavigationManager>().Uri;
+        url.Should().NotContain("Tipo=").And.NotContain("Plataforma=");
+        UltimaConsultaDeDocumentos(mediador).TipoDocumentoId.Should().BeNull();
+        UltimaConsultaDeDocumentos(mediador).ProveedorPlataformaCaeId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Guardar_filtro_guarda_tambien_tipo_y_plataforma()
+    {
+        var (cut, mediador) = Renderizar(ConOpcionesDeFiltro(),
+            url: $"documentos?Tipo={TipoMedicoId}&Plataforma={PlataformaNalandaId}");
+
+        await GuardarFiltroDocumentoFase1(cut);
+        var campoNombre = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Nombre");
+        await cut.InvokeAsync(() => campoNombre.Instance.ValorChanged.InvokeAsync("Médicos en Nalanda"));
+        await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        var guardado = mediador.Enviadas.OfType<GuardarFiltroCommand>().Should().ContainSingle().Subject;
+        guardado.ValoresJson.Should().Contain($"\"Tipo\":\"{TipoMedicoId}\"").And.Contain($"\"Plataforma\":\"{PlataformaNalandaId}\"");
+    }
+
+    [Fact]
+    public async Task Aplicar_un_filtro_guardado_pone_su_tipo_y_su_plataforma_y_uno_antiguo_sin_ellos_los_quita()
+    {
+        var nuevo = new FiltroGuardadoDto(Guid.NewGuid(), "Médicos en Nalanda",
+            $"{{\"Tipo\":\"{TipoMedicoId}\",\"Plataforma\":\"{PlataformaNalandaId}\"}}", DateTime.UtcNow);
+        var antiguo = new FiltroGuardadoDto(Guid.NewGuid(), "Vencidos", "{\"Busqueda\":null,\"Ambito\":null,\"Estado\":\"Vencido\"}", DateTime.UtcNow);
+        var mediador = ConOpcionesDeFiltro();
+        mediador.Interceptar = p => p is ObtenerFiltrosGuardadosQuery
+            ? Task.FromResult<object?>(new[] { nuevo, antiguo })
+            : null;
+        var (cut, _) = Renderizar(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+
+        await AplicarGuardado("Médicos en Nalanda");
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).TipoDocumentoId.Should().Be(TipoMedicoId));
+        UltimaConsultaDeDocumentos(mediador).ProveedorPlataformaCaeId.Should().Be(PlataformaNalandaId);
+        navegacion.Uri.Should().Contain($"Tipo={TipoMedicoId}").And.Contain($"Plataforma={PlataformaNalandaId}");
+
+        await AplicarGuardado("Vencidos");
+
+        cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).Estados.Should().Equal(EstadoDocumento.Vencido));
+        UltimaConsultaDeDocumentos(mediador).TipoDocumentoId.Should().BeNull("el filtro antiguo no llevaba tipo");
+        UltimaConsultaDeDocumentos(mediador).ProveedorPlataformaCaeId.Should().BeNull();
+        navegacion.Uri.Should().NotContain("Tipo=").And.NotContain("Plataforma=");
+
+        async Task AplicarGuardado(string nombre)
+        {
+            await cut.FindAll(".menu-acciones-disparador").Single(d => d.GetAttribute("aria-label") == "Más filtros")
+                .ClickAsync(new MouseEventArgs());
+            await cut.FindAll(".barra-filtros-pastillas .menu-filtro-guardado [role=menuitem]")
+                .First(b => b.TextContent.Trim() == nombre).ClickAsync(new MouseEventArgs());
+        }
+    }
+
+    [Fact]
+    public void Exportar_esta_vista_lleva_tipo_plataforma_y_el_orden_de_inicio()
+    {
+        var (cut, _) = Renderizar(ConOpcionesDeFiltro(),
+            url: $"documentos?Tipo={TipoMedicoId}&Plataforma={PlataformaNalandaId}");
+
+        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
+
+        var vista = cut.FindAll("header.cabecera-pagina a.menu-acciones-item")
+            .First(i => i.TextContent.Trim().StartsWith("Exportar esta vista")).GetAttribute("href");
+        vista.Should().StartWith("/documentos/exportar.xlsx?")
+            .And.Contain($"tipo={TipoMedicoId}").And.Contain($"plataforma={PlataformaNalandaId}").And.Contain("orden=Severidad");
     }
 
 }

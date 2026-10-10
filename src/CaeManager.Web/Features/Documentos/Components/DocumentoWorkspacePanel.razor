@@ -144,7 +144,7 @@ else
                         <div class="celda-info-documento-360"><span>CIF detectado</span><strong>@(_validacion.CifDetectado ?? "—")</strong></div>
                         <div class="celda-info-documento-360"><span>Fecha de emisión detectada</span><strong>@(_validacion.FechaEmisionDetectada?.ToString("dd/MM/yyyy") ?? "—")</strong></div>
                         <div class="celda-info-documento-360"><span>Periodo detectado</span><strong>@(_validacion.PeriodoDetectado ?? "—")</strong></div>
-                        <div class="celda-info-documento-360 celda-info-documento-360-ancha"><span>Validado el</span><strong>@_validacion.CreadaEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</strong></div>
+                        <div class="celda-info-documento-360 celda-info-documento-360-ancha"><span>Verificado el</span><strong>@_validacion.CreadaEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</strong></div>
                     </div>
                     @if (_validacion.Firmas.Count > 0)
                     {
@@ -334,6 +334,9 @@ else
                 else Avisar($"No pudimos renovar {detalle.TipoDocumentoNombre}: {resultado.Error.Mensaje}", TonoToast.Error);
                 return;
             }
+            // El guardado ya es firme aunque el panel haya pasado a otra ficha: el listado que
+            // tenga esta fila a la vista la vuelve a pedir y la sustituye en sitio.
+            ServiceProvider.GetService<ContextWorkspaceService>()?.NotificarEntidadGuardada(EntidadWorkspace.Documento, detalle.Id);
             Avisar($"{detalle.TipoDocumentoNombre}: fechas y comentarios actualizados; el archivo no se ha sustituido.", TonoToast.Exito);
             if (generacion != _generacion) return;
             _editandoInformacion = false;
@@ -369,7 +372,7 @@ else
     {
         NivelConfianzaDocumental.VerificadoOficialmente => "Verificado oficialmente", NivelConfianzaDocumental.FirmaValida => "Firma válida", NivelConfianzaDocumental.FirmaValidaSinRevocacion => "Firma válida (revocación no comprobada)", NivelConfianzaDocumental.FirmaIntegraEmisorNoConfiable => "Firma íntegra, emisor no reconocido", NivelConfianzaDocumental.Manipulado => "Documento manipulado", _ => "Sin firma digital",
     };
-    private static string TextoDeDecision(DecisionValidacionOficial decision) => decision switch { DecisionValidacionOficial.AutoValidado => "Auto-validado", DecisionValidacionOficial.RevisionRequerida => "Revisión requerida", _ => "Sin firma válida" };
+    private string TextoDeDecision(DecisionValidacionOficial decision) => decision switch { DecisionValidacionOficial.AutoValidado => TextosDocumento["ValDecisionVerificadoAutomaticamente"], DecisionValidacionOficial.RevisionRequerida => "Revisión requerida", _ => "Sin firma válida" };
 
     private void Avisar(string mensaje, TonoToast tono) => ServiceProvider.GetService<ToastService>()?.Mostrar(mensaje, tono);
 

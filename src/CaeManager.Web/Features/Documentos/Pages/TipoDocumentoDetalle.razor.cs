@@ -2,6 +2,7 @@ using CaeManager.Application.TiposDocumento.Queries.ObtenerEstadoTipoDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Documentos.Components;
@@ -40,16 +41,20 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
 
     internal const string PestanaTrabajadores = "trabajadores";
 
-    /// <summary>Nombres que la banda enseña por cada grupo de estado; el resto se resume en «y N más».</summary>
-    private const int NombresPorParteDeBanda = 3;
-
-    /// <summary>La banda de cabecera: sus partes («2 vencidos: …»), su tono y los contadores que marca su enlace.</summary>
-    private sealed record Banda(
-        TonoBanda Tono, IReadOnlyList<ParteDeBanda> Partes, string TextoEnlace, IReadOnlyList<GrupoEstadoTipoDocumento> Grupos);
-
-    private sealed record ParteDeBanda(string Recuento, IReadOnlyList<FilaTrabajadorTipoDocumentoDto> Nombradas, int Resto);
-
     [Parameter] public Guid TipoDocumentoId { get; set; }
+
+    /// <summary>
+    /// La vista, en la URL, como en el resto de fichas 360: recargar, compartir el enlace o volver atrás recupera lo
+    /// que se estaba mirando. Ninguno de los tres decide quién entra: eso lo fijan <see cref="RolesDeLaPagina"/> y la
+    /// consulta de Application.
+    /// </summary>
+    [Parameter, SupplyParameterFromQuery(Name = "pestana")] public string? Pestana { get; set; }
+
+    /// <summary>Contadores de estado marcados, separados por coma (<see cref="SeleccionEstados"/>); sin parámetro, todos.</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "estado")] public string? Estado { get; set; }
+
+    /// <summary>Texto del buscador de la lista.</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Busqueda { get; set; }
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
@@ -65,6 +70,10 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
     private int _carga;
 
     private IReadOnlySet<string> _estadosMarcados = new HashSet<string>();
+    private string _busqueda = string.Empty;
+    private string? _estadoDeLaUrl;
+    private string? _busquedaDeLaUrl;
+    private bool _urlAdoptada;
     private int _pagina = 1;
     private int _tamanoPagina = ObtenerEstadoTipoDocumentoQuery.TamanoPaginaPorDefecto;
     private readonly HashSet<Guid> _desplegadas = [];
@@ -83,25 +92,73 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         }
     ];
 
-    /// <summary>Con algún contador marcado, una lista vacía es «nada con ese filtro», no «nadie lo tiene exigido».</summary>
-    private bool HayFiltrosActivos => _estadosMarcados.Count > 0;
+    /// <summary>
+    /// La pestaña que se enseña. Hoy solo hay una: un <c>?pestana=</c> desconocido cae en ella, igual que en las demás
+    /// fichas, y como es la de por defecto no se escribe en la URL.
+    /// </summary>
+    private string PestanaActiva => Pestanas.Any(p => p.Id == Pestana) ? Pestana! : PestanaTrabajadores;
+
+    /// <summary>Con algún contador marcado o texto en el buscador, una lista vacía es «nada con ese filtro», no «nadie lo tiene exigido».</summary>
+    private bool HayFiltrosActivos => _estadosMarcados.Count > 0 || !string.IsNullOrWhiteSpace(_busqueda);
 
     private IReadOnlyList<OpcionEstadoRecuento> OpcionesDeEstado =>
         (_estado?.Recuentos ?? [])
         .Select(r => new OpcionEstadoRecuento(r.Grupo.ToString(), TextoGrupo(r.Grupo), r.Filas))
         .ToList();
 
+    /// <summary>
+    /// Recarga al cambiar de tipo de documento, y también cuando el filtro cambia en la URL ahí fuera (un enlace, el
+    /// botón «atrás»). Lo que cambia la propia página ya lo apuntó antes de navegar y no vuelve a pedir nada.
+    /// </summary>
     protected override async Task OnParametersSetAsync()
     {
-        if (_tipoCargado == TipoDocumentoId)
-            return;
+        var filtroCambio = AdoptarFiltrosDeLaUrl();
 
-        _tipoCargado = TipoDocumentoId;
-        _estado = null;
-        _estadosMarcados = new HashSet<string>();
-        _pagina = 1;
-        _desplegadas.Clear();
-        await CargarAsync();
+        if (_tipoCargado != TipoDocumentoId)
+        {
+            _tipoCargado = TipoDocumentoId;
+            _estado = null;
+            _pagina = 1;
+            _desplegadas.Clear();
+            await CargarAsync();
+            return;
+        }
+
+        if (filtroCambio)
+        {
+            _pagina = 1;
+            await CargarAsync();
+        }
+    }
+
+    /// <summary>
+    /// Los filtros de la URL se adoptan cuando cambian AHÍ FUERA, no cada vez que se repinta: releerlos siempre pisaría
+    /// lo que se está tecleando, porque <c>CampoTexto</c> tarda 300 ms en avisar y la URL va por detrás de la tecla.
+    /// <c>?estado=</c> se lee con <see cref="SeleccionEstados.Separar{TEnum}"/>: lo que no es un grupo conocido no filtra.
+    /// Devuelve si el filtro que se aplica cambió.
+    /// </summary>
+    private bool AdoptarFiltrosDeLaUrl()
+    {
+        var cambio = false;
+
+        if (!_urlAdoptada || !string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
+        {
+            _estadoDeLaUrl = Estado;
+            var marcados = SeleccionEstados.Separar<GrupoEstadoTipoDocumento>(Estado).Select(g => g.ToString()).ToHashSet();
+            cambio |= !marcados.SetEquals(_estadosMarcados);
+            _estadosMarcados = marcados;
+        }
+
+        if (!_urlAdoptada || !string.Equals(_busquedaDeLaUrl, Busqueda, StringComparison.Ordinal))
+        {
+            _busquedaDeLaUrl = Busqueda;
+            var busqueda = Busqueda ?? string.Empty;
+            cambio |= !string.Equals(busqueda, _busqueda, StringComparison.Ordinal);
+            _busqueda = busqueda;
+        }
+
+        _urlAdoptada = true;
+        return cambio;
     }
 
     /// <summary>
@@ -119,7 +176,7 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         {
             var estados = _estadosMarcados.Select(Enum.Parse<GrupoEstadoTipoDocumento>).ToList();
             var estado = await Mediator.Send(
-                new ObtenerEstadoTipoDocumentoQuery(TipoDocumentoId, estados, _pagina, _tamanoPagina), _ciclo.Token);
+                new ObtenerEstadoTipoDocumentoQuery(TipoDocumentoId, estados, _pagina, _tamanoPagina, _busqueda), _ciclo.Token);
             if (carga != _carga) return;
 
             // null = no existe, no se pide a Trabajadores o quien pregunta no puede leerla: la página no distingue.
@@ -150,11 +207,35 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
     {
         _estadosMarcados = marcados;
         _pagina = 1;
+        // En el orden de gravedad del enum, no en el del clic: el mismo filtro da siempre el mismo enlace.
+        _estadoDeLaUrl = SeleccionEstados.Unir(Enum.GetNames<GrupoEstadoTipoDocumento>().Where(marcados.Contains));
+        NavigationManager.ActualizarFiltroEnUrl("estado", _estadoDeLaUrl);
         await CargarAsync();
     }
 
-    private Task VerDesdeLaBandaAsync(IEnumerable<GrupoEstadoTipoDocumento> grupos) =>
-        CambiarEstadosAsync(grupos.Select(g => g.ToString()).ToHashSet());
+    private async Task BuscarAsync(string valor)
+    {
+        _busqueda = valor;
+        _pagina = 1;
+        _busquedaDeLaUrl = string.IsNullOrWhiteSpace(valor) ? null : valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
+        await CargarAsync();
+    }
+
+    /// <summary>
+    /// Quitar los filtros también los quita de la URL, en una sola navegación: una lista sin filtro cuya URL siga
+    /// llevándolos los repone en cuanto alguien recarga o comparte el enlace.
+    /// </summary>
+    private async Task QuitarFiltrosAsync()
+    {
+        _estadosMarcados = new HashSet<string>();
+        _busqueda = string.Empty;
+        _pagina = 1;
+        _estadoDeLaUrl = null;
+        _busquedaDeLaUrl = null;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["estado"] = null, ["q"] = null });
+        await CargarAsync();
+    }
 
     private async Task CambiarPaginaAsync(int pagina)
     {
@@ -202,46 +283,20 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
     /// La corrección en esta misma ficha: el formulario de documento con el documento de la fila (renovar, o fijar la
     /// fecha de uno sin confirmar) o, si no hay ninguno, el alta con Trabajador y tipo ya elegidos.
     /// </summary>
-    private Task CorregirAsync(FilaTrabajadorTipoDocumentoDto fila) => fila.DocumentoId is { } documentoId
-        ? _drawerGestion.AbrirEditarAsync(documentoId)
-        : _drawerGestion.AbrirCrearParaFaltanteAsync(fila.TrabajadorId, TipoDocumentoId);
+    private Task CorregirAsync(FilaTrabajadorTipoDocumentoDto fila) =>
+        _drawerGestion.AbrirSerieAsync(SerieDeDocumentos, PasoDe(fila));
 
-    // ----- Presentación -----
+    private PasoSerieDocumento PasoDe(FilaTrabajadorTipoDocumentoDto fila) =>
+        PasoSerieDocumento.DeFilaDeTrabajador(fila.DocumentoId, fila.TrabajadorId, TipoDocumentoId);
 
     /// <summary>
-    /// Banda de peligro si hay filas vencidas o pendientes; si no, de advertencia con las que están en tolerancia; sin
-    /// ninguna de las tres no hay banda. Cada nombre abre la corrección de esa fila; el enlace marca esos contadores.
+    /// «Guardar y siguiente»: las filas que piden «Renovar» o «Subir», en el orden en que la lista las pinta. Son las
+    /// de la página que se está viendo: la serie no sigue por páginas que no se han cargado.
     /// </summary>
-    private Banda? BandaDeCabecera(EstadoTipoDocumentoDto estado)
-    {
-        var peligro = new[]
-            {
-                ParteDe(estado, GrupoEstadoTipoDocumento.Vencido, "BandaVencidosUno", "BandaVencidosVarios"),
-                ParteDe(estado, GrupoEstadoTipoDocumento.Pendiente, "BandaPendientesUno", "BandaPendientesVarios")
-            }
-            .OfType<ParteDeBanda>()
-            .ToList();
-        if (peligro.Count > 0)
-            return new Banda(TonoBanda.Peligro, peligro, Textos["BandaEnlacePeligro"],
-                [GrupoEstadoTipoDocumento.Vencido, GrupoEstadoTipoDocumento.Pendiente]);
+    private IReadOnlyList<PasoSerieDocumento> SerieDeDocumentos =>
+        (_estado?.Filas ?? []).Where(f => PasoSerieDocumento.EsDeSerie(f.PeorEstado)).Select(PasoDe).ToList();
 
-        return ParteDe(estado, GrupoEstadoTipoDocumento.EnTolerancia, "BandaToleranciaUno", "BandaToleranciaVarios") is { } tolerancia
-            ? new Banda(TonoBanda.Advertencia, [tolerancia], Textos["BandaEnlaceTolerancia"], [GrupoEstadoTipoDocumento.EnTolerancia])
-            : null;
-    }
-
-    private ParteDeBanda? ParteDe(EstadoTipoDocumentoDto estado, GrupoEstadoTipoDocumento grupo, string claveUno, string claveVarios)
-    {
-        var filas = estado.Recuentos.FirstOrDefault(r => r.Grupo == grupo)?.Filas ?? 0;
-        if (filas == 0)
-            return null;
-
-        var nombradas = estado.Incidencias
-            .Where(f => EstadoTipoDocumentoCalculo.Grupo(f.PeorEstado) == grupo)
-            .Take(NombresPorParteDeBanda)
-            .ToList();
-        return new ParteDeBanda(Plural(filas, claveUno, claveVarios), nombradas, filas - nombradas.Count);
-    }
+    // ----- Presentación -----
 
     private static int TotalPaginas(EstadoTipoDocumentoDto estado) =>
         Math.Max(1, (int)Math.Ceiling(estado.TotalFiltradas / (double)estado.TamanoPagina));
@@ -269,9 +324,6 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         .Split(' ', StringSplitOptions.RemoveEmptyEntries)
         .Take(2)
         .Select(palabra => char.ToUpperInvariant(palabra[0])));
-
-    private string Plural(int cantidad, string claveUno, string claveVarios) =>
-        Textos[cantidad == 1 ? claveUno : claveVarios, cantidad];
 
     private string TextoVigencia(int? meses) => meses switch
     {

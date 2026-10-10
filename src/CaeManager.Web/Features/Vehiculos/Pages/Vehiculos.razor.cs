@@ -168,6 +168,34 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     [SupplyParameterFromQuery(Name = "subcontrata")]
     public string? SubcontrataInicial { get; set; }
 
+    /// <summary>Orden de columna (<c>?orden=matricula-desc</c>). Sin él, el de fábrica: ver <see cref="_orden"/>.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    /// <summary>
+    /// El orden de columna viaja en la URL y forma parte de la vista. La rejilla nace sin ordenar
+    /// (el orden de fábrica es el de la consulta); «vehiculo» y «modelo» son la misma columna.
+    /// </summary>
+    private readonly OrdenDeRejilla _orden = new(
+    [
+        ("vehiculo", nameof(VehiculoListaDto.Nombre)),
+        ("modelo", nameof(VehiculoListaDto.Modelo)),
+        ("matricula", nameof(VehiculoListaDto.NumeroPlaca)),
+        ("empleador", nameof(VehiculoListaDto.EmpleadorNombre)),
+        ("documentacion", nameof(VehiculoListaDto.EstadoDocumental)),
+    ]);
+
+    /// <summary>El orden que llega (URL, filtro guardado o vista recordada). Si cambia, la rejilla se remonta ya ordenada.</summary>
+    private bool LeerOrden(string? valor)
+    {
+        if (!_orden.Leer(valor))
+            return false;
+
+        if (_orden.Propiedad is nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.Modelo))
+            _campoOrdenVehiculo = _orden.Propiedad;
+        return true;
+    }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IValidator<CrearVehiculoCommand> ValidadorCrear { get; set; } = default!;
@@ -195,18 +223,81 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>La respuesta es de la pregunta vigente y la página sigue viva.</summary>
     private bool EsVigente(int carga) => !_desechado && carga == _cargaVigente;
 
+    // ── La fila se refresca tras guardar en la vista rápida ─────────────────────────────────────
+    // El panel vive en MainLayout y guarda sin pasar por esta página: avisa por
+    // ContextWorkspaceService.OnEntidadGuardada. Se vuelve a pedir SOLO esa fila y se sustituye
+    // en sitio (mismo criterio que Centros.RefrescarCentroAsync): filtros, orden, página,
+    // selección, fila enfocada y desplazamiento no se tocan, y la fila permanece aunque el
+    // cambio la saque del filtro activo, hasta la siguiente carga. Los recuentos de la franja
+    // tampoco se recalculan hasta entonces.
+
+    /// <summary>
+    /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
+    /// QuickGrid solo repinta sus filas cuando su proveedor le entrega una página, y una carga
+    /// de verdad limpiaría la selección y la fila enfocada. El total no cambia, así que no hay
+    /// segunda petición (ver RecargarAsync).
+    /// </summary>
+    private bool _servirPaginaEnMemoria;
+
+    private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
+    {
+        if (tipo == EntidadWorkspace.Vehiculo)
+            _ = InvokeAsync(() => RefrescarFilaAsync(id));
+    }
+
+    private async Task RefrescarFilaAsync(Guid id)
+    {
+        // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
+        // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
+        // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
+        if (_desechado || _grid is null || _cargando || !_elementosPagina.Any(e => e.Id == id))
+            return;
+
+        var carga = _cargaVigente;
+        try
+        {
+            // Misma pregunta de estado que la carga de página (ConRecuentosPorEstado): sin ella el
+            // handler toma el camino que deja sin estado a quien no tiene documentos, y la fila
+            // pasaría de «Sin incidencias» a «Sin documentos» al refrescarla. Y el desglose se pide
+            // igual que allí: sin él la fila refrescada perdería el motivo bajo la pastilla.
+            var resultado = await Mediator.Send(
+                new ObtenerVehiculosQuery(
+                    Busqueda: null, ConRecuentosPorEstado: true, VehiculoId: id, ConDesgloseDocumental: true),
+                _ciclo.Token);
+            var indice = _elementosPagina.FindIndex(e => e.Id == id);
+            if (_desechado || _grid is null || _cargando || carga != _cargaVigente || indice < 0
+                || resultado.Elementos.FirstOrDefault() is not { } actualizada)
+                return;
+
+            _elementosPagina[indice] = actualizada;
+            _servirPaginaEnMemoria = true;
+            await _grid.RefreshDataAsync();
+        }
+        catch (Exception)
+        {
+            // El guardado ya es firme: que falle la relectura no es un error que enseñar. La
+            // fila conserva el dato anterior hasta la siguiente carga, como antes de este aviso.
+        }
+        finally
+        {
+            _servirPaginaEnMemoria = false;
+        }
+    }
+
     public void Dispose()
     {
         if (_desechado)
             return;
 
         _desechado = true;
+        WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
 
     protected override async Task OnInitializedAsync()
     {
+        WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
         if (EstadoAutenticacion is not null)
         {
             var usuario = (await EstadoAutenticacion).User;
@@ -274,6 +365,8 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             _filtroSubcontrataId = subcontrataDeLaUrl;
         if (empresaDeLaUrl != _filtroEmpresaId)
             _filtroEmpresaId = empresaDeLaUrl;
+
+        LeerOrden(OrdenInicial);
     }
 
     /// <summary>Un Id de la URL solo vale si es un Guid; cualquier otra cosa es «sin filtro».</summary>
@@ -301,6 +394,13 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     private async ValueTask<GridItemsProviderResult<VehiculoListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<VehiculoListaDto> request)
     {
+        if (_servirPaginaEnMemoria)
+        {
+            // Refresco de una fila tras guardar en la vista rápida (ver RefrescarFilaAsync).
+            _servirPaginaEnMemoria = false;
+            return GridItemsProviderResult.From(_elementosPagina.ToList(), _totalElementos);
+        }
+
         if (_desechado)
             return GridItemsProviderResult.From(new List<VehiculoListaDto>(), 0);
 
@@ -314,26 +414,40 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         using var cancelacion = CancellationTokenSource.CreateLinkedTokenSource(_ciclo.Token, request.CancellationToken);
         var token = cancelacion.Token;
 
+        // La pregunta se compone entera ANTES del await, como el número de carga y el token.
+        var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        var consulta = new ObtenerVehiculosQuery(
+            Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+            EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
+            SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
+            Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
+            TamanoPagina: _paginacion.ItemsPerPage,
+            OrdenarPor: ordenarPor,
+            Descendente: descendente,
+            EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+            ConRecuentosPorEstado: true,
+            // Esta página pinta el motivo del estado: es quien pide el desglose.
+            ConDesgloseDocumental: true);
+
+        // La misma pregunta que la carga anterior conserva la selección y la fila enfocada (es el refresco
+        // tras corregir una incidencia, ver RefrescarTrasCorreccionAsync); cualquier otra las limpia.
+        var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
+        if (!conservarSeleccion)
+            _consultaQueConservaSeleccion = null;
+        _ultimaConsulta = consulta;
+
         _cargando = true;
         _errorCarga = false;
 
         try
         {
-            var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
-            var (ordenarPor, descendente) = LecturaOrden.Leer(request);
             _ultimaColumnaOrden = request.SortByColumn;
             _ultimoOrdenAscendente = request.SortByAscending;
+            if (_orden.Anotar(ordenarPor, descendente))
+                NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
+            (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
 
-            var resultado = await Mediator.Send(new ObtenerVehiculosQuery(
-                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
-                EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
-                SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
-                Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage,
-                OrdenarPor: ordenarPor,
-                Descendente: descendente,
-                EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
-                ConRecuentosPorEstado: true), token);
+            var resultado = await Mediator.Send(consulta, token);
 
             // La respuesta de una búsqueda ya abandonada no puede pisar el
             // total, las filas ni la selección de la pregunta que sí se está
@@ -347,8 +461,18 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
-            _seleccionados.Clear();
-            _idEnfocado = null;
+            if (conservarSeleccion)
+            {
+                // Lo que ya no está en la página (la corrección lo sacó del filtro) deja de estar seleccionado.
+                _seleccionados.IntersectWith(elementos.Select(v => v.Id));
+                if (_idEnfocado is { } enfocado && elementos.All(v => v.Id != enfocado))
+                    _idEnfocado = null;
+            }
+            else
+            {
+                _seleccionados.Clear();
+                _idEnfocado = null;
+            }
 
             return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
         }
@@ -482,6 +606,95 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         await RecargarAsync();
     }
 
+    // ── Corrección de una incidencia desde la ventana del motivo ────────────────────────────────
+
+    private CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental _correccion = default!;
+
+    /// <summary>La consulta de la última carga de la rejilla: la pregunta que hay en pantalla.</summary>
+    private ObtenerVehiculosQuery? _ultimaConsulta;
+
+    /// <summary>
+    /// Si la siguiente carga hace esta misma pregunta (mismos filtros, orden y página), conserva la selección y
+    /// la fila enfocada en vez de limpiarlas. La fija <see cref="RefrescarTrasCorreccionAsync"/> y vale solo para
+    /// ese refresco: la sueltan una carga con otra pregunta y toda recarga que pida la página
+    /// (<see cref="RecargarAsync"/>: alta, baja, reintento tras un error), aunque repita la pregunta.
+    ///
+    /// <para>
+    /// No se suelta al leerla: si la corrección cambia el total (la fila corregida sale del filtro activo),
+    /// QuickGrid vuelve a pedir la misma página por su cuenta en el render siguiente, y esa segunda petición es
+    /// el mismo refresco, no una recarga nueva. Mismo patrón que <c>Trabajadores.razor.cs</c>.
+    /// </para>
+    /// </summary>
+    private ObtenerVehiculosQuery? _consultaQueConservaSeleccion;
+
+    /// <summary>
+    /// Abre, sin salir del listado, el formulario del documento de la incidencia pulsada. Una incidencia es
+    /// siempre un documento que existe, así que basta su Id: el formulario lo abre en renovación y lee de él a
+    /// qué Vehículo pertenece. Solo llega aquí quien puede escribir (la ventana no ofrece botones a los demás);
+    /// quién puede guardar lo decide el comando.
+    /// </summary>
+    private Task CorregirIncidenciaAsync(CaeManager.Application.Documentos.IncidenciaDocumentalDto incidencia) =>
+        _correccion.AbrirAsync(incidencia.DocumentoId, incidencia.TipoDocumentoId, null, null);
+
+    /// <summary>
+    /// Tras corregir una incidencia: se vuelve a pedir la página tal como está (mismos filtros, orden y página)
+    /// para que la fila, su motivo y los recuentos de la franja digan lo de ahora. La selección y la fila
+    /// enfocada se conservan.
+    /// </summary>
+    private async Task RefrescarTrasCorreccionAsync()
+    {
+        if (_desechado || _grid is null)
+            return;
+
+        _consultaQueConservaSeleccion = _ultimaConsulta;
+        await _grid.RefreshDataAsync();
+        StateHasChanged();
+    }
+
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Vehiculos;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado, y lo que
+    /// recuerda la vista recordada (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "orden"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. Cada valor pasa por la misma
+    /// validación que el de la URL en <see cref="OnParametersSet"/> (un Id que no es Guid o un estado que ya
+    /// no existe se ignoran; con Empresa y subcontrata gana la subcontrata). La URL se escribe en una sola
+    /// navegación y se recarga aquí: <see cref="OnParametersSet"/> sincroniza los campos, pero no recarga.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
+        _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
+        var cambiaElOrden = LeerOrden(vista.GetValueOrDefault("orden"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro,
+            ["empresa"] = _filtroEmpresaId,
+            ["subcontrata"] = _filtroSubcontrataId,
+            ["orden"] = _orden.EnUrl,
+        });
+
+        // Con otro orden la rejilla se remonta en el siguiente render y pide ella los datos:
+        // refrescar además la saliente sería pedirlos dos veces.
+        if (cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+            StateHasChanged();
+        else
+            await RecargarAsync();
+    }
+
     /// <summary>
     /// Vuelve a la página 1 y pide la lista UNA vez.
     /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> no lleva guarda de
@@ -491,6 +704,10 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// </summary>
     private async Task RecargarAsync()
     {
+        // Una recarga pedida por la página no es el refresco tras corregir una incidencia: aunque repita la
+        // pregunta, limpia la selección y la fila enfocada.
+        _consultaQueConservaSeleccion = null;
+
         if (_grid is not null && _paginacion.CurrentPageIndex == 0)
             await _grid.RefreshDataAsync();
         else
@@ -787,4 +1004,23 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
         StateHasChanged();
     }
+
+    // ---- Exportar esta vista ----
+
+    private string? _ordenExportar;
+    private bool _descendenteExportar;
+
+    /// <summary>
+    /// Los criterios de la vista con los nombres de parámetro de <c>/vehiculos/exportar.xlsx</c>:
+    /// los mismos que <see cref="ProveerElementosAsync"/> pasa a la consulta del listado.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["estado"] = _estadoFiltro,
+        ["empresa"] = _filtroEmpresaId,
+        ["subcontrata"] = _filtroSubcontrataId,
+        ["orden"] = _ordenExportar,
+        ["desc"] = _descendenteExportar ? "true" : null,
+    };
 }

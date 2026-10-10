@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261009203453_AnadeOrdenCajasFicha")]
-    partial class AnadeOrdenCajasFicha
+    [Migration("20261009205856_AnadeBusquedaSinAcentosEnListados")]
+    partial class AnadeBusquedaSinAcentosEnListados
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -1390,38 +1390,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique();
 
                     b.ToTable("FiltrosGuardados", (string)null);
-                });
-
-            modelBuilder.Entity("CaeManager.Domain.Configuracion.OrdenCajasFicha", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("ActualizadoEnUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.PrimitiveCollection<List<string>>("Claves")
-                        .IsRequired()
-                        .HasColumnType("text[]");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("TipoFicha")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
-
-                    b.Property<Guid>("UsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TenantId", "UsuarioId", "TipoFicha")
-                        .IsUnique();
-
-                    b.ToTable("OrdenesCajasFicha", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Configuracion.ParametroSistema", b =>

@@ -1,0 +1,7 @@
+/* <mark> trae de fábrica el amarillo y el negro del navegador, iguales en los dos temas. Aquí el
+   fondo es el token (con variante oscura) y la letra es la de la celda: nombre, texto secundario
+   o identificador copiable conservan su color y su peso. */
+.texto-resaltado {
+    background-color: var(--color-resaltado-busqueda);
+    color: inherit;
+}

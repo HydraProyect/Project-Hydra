@@ -200,6 +200,7 @@ public class CandidatosAsistenteMultiTenantTests : IAsyncLifetime
         public Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken c = default) => Actual.ObtenerClienteIdsVisiblesAsync(c);
         public Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken c = default) => Actual.ObtenerCentroIdsVisiblesAsync(c);
         public Task<IReadOnlyList<Guid>?> ObtenerCentroIdsParaGestionAsync(CancellationToken c = default) => Actual.ObtenerCentroIdsParaGestionAsync(c);
+        public Task<bool> OperaDesdeElLadoDeGestionAsync(CancellationToken c = default) => Actual.OperaDesdeElLadoDeGestionAsync(c);
         public Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsVisiblesAsync(CancellationToken c = default) => Actual.ObtenerEmpresaIdsVisiblesAsync(c);
         public Task<IReadOnlyList<Guid>?> ObtenerEmpresaIdsParaGestionAsync(CancellationToken c = default) => Actual.ObtenerEmpresaIdsParaGestionAsync(c);
         public Task<IReadOnlyList<Guid>?> ObtenerSubcontrataIdsVisiblesAsync(CancellationToken c = default) => Actual.ObtenerSubcontrataIdsVisiblesAsync(c);

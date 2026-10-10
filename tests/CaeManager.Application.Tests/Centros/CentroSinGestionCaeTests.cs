@@ -120,7 +120,7 @@ public class CentroSinGestionCaeTests
     public async Task El_acordeon_de_centro_360_no_exige_documentos_en_un_centro_sin_gestion_cae()
     {
         var handler = new ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
-            _asignaciones, _trabajadores, _tipos, _documentos, _configuracion, _centros, new AlcanceDatosServiceFalso());
+            _asignaciones, _trabajadores, _tipos, _documentos, _configuracion, _centros, new AlcanceDatosServiceFalso(), new SituacionDocumentosSinDatos());
 
         var sin = await handler.Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(_sinGestion.Id), CancellationToken.None);
         var con = await handler.Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(_conGestion.Id), CancellationToken.None);
@@ -168,7 +168,7 @@ public class CentroSinGestionCaeTests
     public async Task La_documentacion_por_centro_del_trabajador_no_exige_nada_en_el_centro_sin_gestion_cae()
     {
         var resultado = await new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
-                _asignaciones, _centros, _empresas, _tipos, _documentos, _configuracion, new AlcanceDatosServiceFalso())
+                _asignaciones, _centros, _empresas, _tipos, _documentos, _configuracion, new AlcanceDatosServiceFalso(), new SituacionDocumentosSinDatos())
             .Handle(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(_ana.Id), CancellationToken.None);
 
         resultado.Single(c => c.CentroId == _sinGestion.Id).Documentos.Should().BeEmpty();

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -27,12 +28,27 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientes;
 /// no suman el total. Por eso la clave <see cref="ClavePorVencer"/> cuenta aparte a quien tiene urgentes o
 /// próximos, sin sumarlo dos veces.
 /// </param>
+/// <param name="ConDesgloseDocumental">
+/// Rellena, para las filas de la página, <see cref="ClienteListaDto.Incidencias"/> y
+/// <see cref="ClienteListaDto.IncidenciasTotales"/>: las MISMAS alertas que dan el peor estado y su recuento,
+/// una por una. Es opt-in porque solo lo pinta el listado (carga de página y refresco de una fila por
+/// <paramref name="Id"/>): la API, la exportación y los demás llamadores no lo piden y reciben la lista vacía
+/// (y la API, además, no serializa esos dos campos).
+/// </param>
 public record ObtenerClientesQuery(
     string? Busqueda, bool? SoloCriticos, Guid? EjecutivoUsuarioId = null, EstadoDocumento? EstadoDocumental = null,
     int Pagina = 1, int TamanoPagina = 20, string? OrdenarPor = null, bool Descendente = false,
-    IReadOnlyCollection<EstadoDocumento>? EstadosDocumentales = null, bool ConRecuentosPorEstado = false)
+    IReadOnlyCollection<EstadoDocumento>? EstadosDocumentales = null, bool ConRecuentosPorEstado = false,
+    Guid? Id = null, bool ConDesgloseDocumental = false)
     : IRequest<ResultadoPaginado<ClienteListaDto>>
 {
+    /// <summary>
+    /// Tope de incidencias que viajan por fila con <see cref="ConDesgloseDocumental"/>. Un Cliente empresarial
+    /// agrega las alertas de todos los Trabajadores que se le atribuyen, sin límite natural; la ventana del
+    /// listado enseña las más graves y dice cuántas quedan fuera (<see cref="ClienteListaDto.IncidenciasTotales"/>).
+    /// </summary>
+    public const int MaximoIncidenciasPorFila = 10;
+
     /// <summary>
     /// Clave de <c>RecuentosPorEstado</c> para «tiene alguna alerta Urgente o Próxima»: los dos estados que la
     /// interfaz rotula «Por vencer», unidos con el separador de la selección de estados.
@@ -48,9 +64,10 @@ public record ObtenerClientesQuery(
 /// </param>
 /// <param name="Centros">Centros propios de este Cliente (mockup "Lista Clientes TALVEG") — mismo alcance que ObtenerCentrosDeClienteQuery, aquí en recuento por lote.</param>
 /// <param name="EstadoDocumentalPeor">
-/// El peor estado entre todas las alertas de vigencia (Vencido/Urgente/Próximo)
-/// de los Trabajadores cuyo Cliente principal es este (ver AlertaDto.ClienteId,
-/// IResolverClientePrincipalService) — null si no tiene ninguna alerta abierta
+/// El peor estado entre todas las alertas atribuidas a este Cliente empresarial: las de vigencia
+/// (Vencido/Urgente/Próximo) de los Trabajadores cuyo Cliente principal es este (ver AlertaDto.ClienteId,
+/// IResolverClientePrincipalService) y las de documento faltante (Faltante) de los Trabajadores asignados a
+/// sus Centros — null si no tiene ninguna alerta abierta
 /// ("Al corriente", mismo criterio que "nada pendiente" en Inicio/Mi trabajo: la
 /// ausencia se lee como estado, no como "sin datos").
 /// </param>
@@ -61,7 +78,51 @@ public record ClienteListaDto(
     Guid? EjecutivoUsuarioId = null,
     int Centros = 0,
     EstadoDocumento? EstadoDocumentalPeor = null,
-    int EstadoDocumentalCantidad = 0);
+    int EstadoDocumentalCantidad = 0)
+{
+    /// <summary>
+    /// Las alertas que dan <see cref="EstadoDocumentalPeor"/>, una por una y de la más grave a la menos, hasta
+    /// <see cref="ObtenerClientesQuery.MaximoIncidenciasPorFila"/>. Solo se rellena con
+    /// <see cref="ObtenerClientesQuery.ConDesgloseDocumental"/>; vacía si no se pidió o si no hay ninguna.
+    /// Son todas las alertas del Cliente empresarial, no solo las del peor estado que cuenta
+    /// <see cref="EstadoDocumentalCantidad"/>.
+    ///
+    /// <para>
+    /// No se serializa: este record es también el cuerpo de <c>GET /api/v1/clientes</c>, un contrato publicado
+    /// que no gana campos porque los gane el listado, y las incidencias nombran Trabajadores. Lo fija
+    /// <c>ClienteApiDtosTests</c>.
+    /// </para>
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<IncidenciaClienteDto> Incidencias { get; init; } = [];
+
+    /// <summary>
+    /// Cuántas alertas tiene en total; las que no caben en <see cref="Incidencias"/> son la diferencia. Tampoco
+    /// se serializa, por lo mismo.
+    /// </summary>
+    [JsonIgnore]
+    public int IncidenciasTotales { get; init; }
+}
+
+/// <summary>
+/// Una alerta documental atribuida a un Cliente empresarial, tal como la calcula <c>ObtenerAlertasQuery</c>: un
+/// documento de un Trabajador que está Vencido, Urgente o Próximo, o un Tipo de documento que le falta a un
+/// Trabajador en un Centro de ese Cliente empresarial (<see cref="EstadoDocumento.Faltante"/>, sin documento).
+/// No es un documento propio del Cliente empresarial: esos no generan alerta.
+///
+/// <para>
+/// Lleva lo justo para nombrarla en la ventana del listado y para corregirla sin salir de él: con
+/// <see cref="DocumentoId"/> se renueva ese documento; sin él, se da de alta el que falta con
+/// <see cref="TrabajadorId"/> y <see cref="TipoDocumentoId"/>. La atribución es la de la alerta: una de
+/// vigencia va al Cliente empresarial «principal» del Trabajador (<c>IResolverClientePrincipalService</c>);
+/// una de documento faltante, al del Centro donde falta.
+/// </para>
+/// </summary>
+/// <param name="Clave">Identidad de la alerta entre las de su fila (<c>AlertaDto.IdDeFila</c>): sirve de <c>@key</c>.</param>
+/// <param name="CentroNombre">Centro donde falta el documento; solo en <see cref="EstadoDocumento.Faltante"/>.</param>
+public sealed record IncidenciaClienteDto(
+    string Clave, EstadoDocumento Estado, Guid? DocumentoId, Guid TipoDocumentoId, string TipoDocumentoNombre,
+    Guid TrabajadorId, string TrabajadorNombre, DateOnly? FechaVencimiento, string? CentroNombre);
 
 /// <summary>
 /// F4-P0 (2026-08-27): congelada desde F3b-Cliente (PR #279), esta consulta
@@ -88,10 +149,15 @@ public class ObtenerClientesQueryHandler(
         if (clienteIdsVisibles is not null)
             consulta = consulta.Where(c => clienteIdsVisibles.Contains(c.Id));
 
+        // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
+        // Va después del alcance: solo estrecha.
+        if (request.Id is { } id)
+            consulta = consulta.Where(c => c.Id == id);
+
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
-            consulta = consulta.Where(c => c.RazonSocial.ToUpper().Contains(busqueda));
+            var busqueda = request.Busqueda;
+            consulta = consulta.Where(c => TextoDeBusqueda.Contiene(c.RazonSocial, busqueda));
         }
 
         if (request.SoloCriticos == true)
@@ -126,7 +192,7 @@ public class ObtenerClientesQueryHandler(
 
         // El estado documental es un agregado calculado (no una columna): sale de las alertas
         // de vigencia, que se resuelven una vez por petición.
-        var estadoPorCliente = await ObtenerEstadoDocumentalPorClienteAsync(cancellationToken);
+        var (estadoPorCliente, alertasPorCliente) = await ObtenerEstadoDocumentalPorClienteAsync(cancellationToken);
         var ordenarPorEstado = request.OrdenarPor == nameof(ClienteListaDto.EstadoDocumentalPeor);
 
         var estadosPedidos = (request.EstadosDocumentales ?? []).ToHashSet();
@@ -211,6 +277,7 @@ public class ObtenerClientesQueryHandler(
                 SinContactoEnAgenda = !conAgenda.Contains(c.Id),
                 Centros = centrosPorCliente.GetValueOrDefault(c.Id)
             })
+            .Select(c => request.ConDesgloseDocumental ? ConDesglose(c, alertasPorCliente) : c)
             .ToList();
 
         return new ResultadoPaginado<ClienteListaDto>(enriquecidos, total, request.Pagina, request.TamanoPagina)
@@ -265,6 +332,36 @@ public class ObtenerClientesQueryHandler(
                 ? c with { EstadoDocumentalPeor = estado.Peor, EstadoDocumentalCantidad = estado.Cantidad }
                 : c)
             .ToList();
+
+    /// <summary>
+    /// Las incidencias de una fila de la página: sus alertas, de la más grave a la menos (el mismo orden que
+    /// <see cref="PrioridadEstado"/> da a la pastilla), y dentro de un estado la que antes vence. El resto de
+    /// claves solo fijan el orden entre empates. No decide qué cuenta: son las alertas que ya agrupó
+    /// <see cref="ObtenerEstadoDocumentalPorClienteAsync"/>, y la fila ya pasó el alcance de quien consulta.
+    /// </summary>
+    private static ClienteListaDto ConDesglose(ClienteListaDto fila, Dictionary<Guid, List<AlertaDto>> alertasPorCliente)
+    {
+        if (!alertasPorCliente.TryGetValue(fila.Id, out var alertas))
+            return fila;
+
+        return fila with
+        {
+            IncidenciasTotales = alertas.Count,
+            Incidencias = alertas
+                .OrderBy(a => PrioridadEstado(a.Estado))
+                .ThenBy(a => a.FechaVencimiento)
+                .ThenBy(a => a.TrabajadorNombre, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(a => a.TipoDocumentoNombre, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(a => a.IdDeFila(PrefijoDeClave), StringComparer.Ordinal)
+                .Take(ObtenerClientesQuery.MaximoIncidenciasPorFila)
+                .Select(a => new IncidenciaClienteDto(
+                    a.IdDeFila(PrefijoDeClave), a.Estado, a.DocumentoId, a.TipoDocumentoId, a.TipoDocumentoNombre,
+                    a.TrabajadorId, a.TrabajadorNombre, a.FechaVencimiento, a.CentroNombre))
+                .ToList()
+        };
+    }
+
+    private const string PrefijoDeClave = "incidencia";
 
     /// <summary>
     /// «Peor estado primero» (rediseño de listados, fase 1): ascendente es Vencido → Faltante →
@@ -329,22 +426,31 @@ public class ObtenerClientesQueryHandler(
     /// desde cero, para no duplicar la lógica de umbrales/estados. Vencido
     /// pesa más que Urgente, que pesa más que Próximo — el mismo orden que
     /// ObtenerBandejaGestorQueryHandler ya usa para priorizar.
+    ///
+    /// Devuelve además las alertas de cada Cliente empresarial, del mismo agrupado: el desglose de la fila
+    /// (<see cref="ConDesglose"/>) no puede contar otra cosa que la pastilla.
     /// </summary>
-    private async Task<Dictionary<Guid, (EstadoDocumento Peor, int Cantidad, HashSet<EstadoDocumento> EstadosPresentes)>> ObtenerEstadoDocumentalPorClienteAsync(
+    private async Task<(
+        Dictionary<Guid, (EstadoDocumento Peor, int Cantidad, HashSet<EstadoDocumento> EstadosPresentes)> Estados,
+        Dictionary<Guid, List<AlertaDto>> Alertas)> ObtenerEstadoDocumentalPorClienteAsync(
         CancellationToken cancellationToken)
     {
         var alertas = await mediator.Send(new ObtenerAlertasQuery(), cancellationToken);
 
-        return alertas
+        var grupos = alertas
             .Where(a => a.ClienteId is not null)
             .GroupBy(a => a.ClienteId!.Value)
-            .ToDictionary(g => g.Key, g =>
-            {
-                var peor = g.Min(a => PrioridadEstado(a.Estado));
-                var cantidad = g.Count(a => PrioridadEstado(a.Estado) == peor);
-                var presentes = g.Select(a => a.Estado).ToHashSet();
-                return (EstadoDeLaPrioridad(peor), cantidad, presentes);
-            });
+            .ToList();
+
+        var estados = grupos.ToDictionary(g => g.Key, g =>
+        {
+            var peor = g.Min(a => PrioridadEstado(a.Estado));
+            var cantidad = g.Count(a => PrioridadEstado(a.Estado) == peor);
+            var presentes = g.Select(a => a.Estado).ToHashSet();
+            return (EstadoDeLaPrioridad(peor), cantidad, presentes);
+        });
+
+        return (estados, grupos.ToDictionary(g => g.Key, g => g.ToList()));
     }
 
     /// <summary>Sin alertas abiertas («Al corriente») pesa lo mismo que Vigente: va el último.</summary>

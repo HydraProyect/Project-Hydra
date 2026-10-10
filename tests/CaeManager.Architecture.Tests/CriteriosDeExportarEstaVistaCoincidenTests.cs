@@ -27,6 +27,10 @@ public class CriteriosDeExportarEstaVistaCoincidenTests
         { "Centros", "/centros/exportar.xlsx" },
         { "Subcontratas", "/subcontratas/exportar.xlsx" },
         { "Documentos", "/documentos/exportar.xlsx" },
+        { "Vehiculos", "/vehiculos/exportar.xlsx" },
+        { "Proyectos", "/proyectos/exportar.xlsx" },
+        { "Visitas", "/visitas/exportar.xlsx" },
+        { "Gestiones", "/gestiones/exportar.xlsx" },
     };
 
     [Theory]
@@ -41,7 +45,7 @@ public class CriteriosDeExportarEstaVistaCoincidenTests
         var leidos = ParametrosDeConsulta(endpoint, ruta);
 
         enviados.Should().NotBeEmpty("toda página con exportación declara CriteriosExportar");
-        enviados.Should().Contain("q", "control positivo: los seis listados tienen buscador");
+        enviados.Should().Contain("q", "control positivo: los diez listados tienen buscador");
         enviados.Should().BeEquivalentTo(leidos,
             $"«Exportar esta vista» de {listado} debe llevar a {ruta} los mismos criterios que el endpoint lee");
     }

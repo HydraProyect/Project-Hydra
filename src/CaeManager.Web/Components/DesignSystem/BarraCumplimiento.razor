@@ -1,0 +1,67 @@
+@*
+    Cumplimiento en una fila de listado: una barra con la cifra escrita al lado (decisión del propietario,
+    2026-10-08: en los listados el cumplimiento es barra, no anillo; AnilloCumplimiento se queda en las
+    fichas 360 y en los paneles).
+
+    - El color va por tramo con los mismos umbrales que el anillo (100 % éxito, ≥ 50 % advertencia, resto
+      peligro). Con Marca la barra es azul: mide otra cosa que conformidad (p. ej. plazo transcurrido de un
+      Proyecto) y no debe leerse como «bien» o «mal».
+    - Sin universo (Porcentaje null) pinta «—», nunca 0 % ni 100 %: «sin requisitos» es un estado que hay
+      que decir.
+    - La cifra visible es decorativa para el lector de pantalla: el nombre accesible lo da Etiqueta (por
+      defecto «N % de cumplimiento»).
+    - En pantallas estrechas la pista se oculta y queda la cifra, que es el dato.
+
+    La columna que la contiene mide 132 px (maqueta «Listados interactivos», rejilla común).
+
+    Uso:
+
+        <BarraCumplimiento Porcentaje="empresa.CumplimientoPorcentaje" Etiqueta="@etiqueta" />
+        <BarraCumplimiento Porcentaje="plazo" Marca="true" Etiqueta="@etiquetaPlazo" />
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+@if (Porcentaje is { } porcentaje)
+{
+    var acotado = Math.Clamp(porcentaje, 0, 100);
+    <span class="barra-cumplimiento barra-cumplimiento-@Tono(acotado)" data-pieza="barra-cumplimiento"
+          role="img" aria-label="@(Etiqueta ?? Comunes["CumplimientoEtiqueta", porcentaje])" title="@Etiqueta">
+        <span class="barra-cumplimiento-pista" aria-hidden="true">
+            <span class="barra-cumplimiento-relleno" style="width:@(acotado)%"></span>
+        </span>
+        <span class="barra-cumplimiento-cifra" aria-hidden="true">@(Texto ?? $"{acotado} %")</span>
+    </span>
+}
+else
+{
+    <span class="barra-cumplimiento barra-cumplimiento-sin-universo" data-pieza="barra-cumplimiento"
+          role="img" aria-label="@(Etiqueta ?? Comunes["CumplimientoSinRequisitos"])" title="@Etiqueta">
+        <span class="barra-cumplimiento-cifra" aria-hidden="true">—</span>
+    </span>
+}
+
+@code {
+    /// <summary>De 0 a 100. Con <c>null</c> no hay universo sobre el que medir y se pinta «—».</summary>
+    [Parameter] public int? Porcentaje { get; set; }
+
+    /// <summary>Nombre accesible y texto al pasar el cursor. Por defecto «N % de cumplimiento».</summary>
+    [Parameter] public string? Etiqueta { get; set; }
+
+    /// <summary>Cifra visible cuando no es el porcentaje (p. ej. la fracción «8/10»). Por defecto «N %».</summary>
+    [Parameter] public string? Texto { get; set; }
+
+    /// <summary>Barra azul de marca, sin tramos: la medida no es de conformidad.</summary>
+    [Parameter] public bool Marca { get; set; }
+
+    /// <summary>Mismos umbrales que <c>AnilloCumplimiento</c>: una fracción, no el peor caso documental.</summary>
+    private string Tono(int porcentaje) => Marca
+        ? "marca"
+        : porcentaje switch
+        {
+            100 => "exito",
+            >= 50 => "advertencia",
+            _ => "peligro"
+        };
+}

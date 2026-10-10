@@ -44,6 +44,11 @@
 
 /* «3 centros de este cliente, del peor estado al mejor.» sobre la lista
    (.texto-apoyo del mockup, body-md). */
+/* Buscador de la pestaña Centros, sobre el resumen de la lista. */
+.cliente360-buscador {
+    margin-bottom: var(--space-3);
+}
+
 .cliente360-resumen-lista {
     margin: 0 0 var(--space-3);
     font: var(--font-body-md);

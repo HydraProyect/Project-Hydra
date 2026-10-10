@@ -393,6 +393,7 @@ public class CaeManagerDbContext(
         base.OnModelCreating(builder);
 
         builder.ApplyConfigurationsFromAssembly(typeof(CaeManagerDbContext).Assembly);
+        builder.MapearTextoDeBusqueda();
 
         // Cifrado en reposo de credenciales de plataformas externas (ver Project-Hydra-Negocio/tecnico/ARCHITECTURE.md, "Datos sensibles").
         var conversorCredenciales = new ValueConverter<string?, string?>(

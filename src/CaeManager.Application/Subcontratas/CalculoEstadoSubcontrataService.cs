@@ -28,9 +28,35 @@ public record RecuentosSubcontrataDto(
 {
     public static readonly RecuentosSubcontrataDto Vacio = new([], []);
 
+    /// <summary>
+    /// Documentos exigidos cuya vigencia nadie ha confirmado. No son incidencia de color (no tiñen la fila
+    /// ni entran en <see cref="Vencidas"/> o <see cref="Proximas"/>), pero deciden el estado documental de la
+    /// Subcontrata cuando no hay nada peor y se dicen en el motivo del listado.
+    /// </summary>
+    public IReadOnlyList<IncidenciaSubcontrataDto> SinConfirmar { get; init; } = [];
+
     public int TotalVencidas => Vencidas.Count;
     public int TotalProximas => Proximas.Count;
+    public int TotalSinConfirmar => SinConfirmar.Count;
+
+    /// <summary>
+    /// Estado documental de la Subcontrata: el peor de sus incidencias. «Faltante» viaja en
+    /// <see cref="Vencidas"/> y se lee como Vencido (mismo criterio que el desglose del listado). Sin nada
+    /// pendiente es <see cref="EstadoDocumento.Vigente"/>, también cuando ningún Centro exige nada.
+    /// </summary>
+    public EstadoDocumento PeorEstado =>
+        TotalVencidas > 0 ? EstadoDocumento.Vencido
+        : Proximas.Any(p => p.Estado == EstadoDocumento.Urgente) ? EstadoDocumento.Urgente
+        : TotalProximas > 0 ? EstadoDocumento.Proximo
+        : TotalSinConfirmar > 0 ? EstadoDocumento.SinConfirmar
+        : EstadoDocumento.Vigente;
 }
+
+/// <summary>Lo que el listado necesita de una Subcontrata, calculado en una sola pasada.</summary>
+public record ResumenEstadoSubcontrata(
+    FraccionCumplimiento Fraccion,
+    IReadOnlyList<IncidenciaSubcontrataDto> Incidencias,
+    IReadOnlyList<IncidenciaSubcontrataDto> SinConfirmar);
 
 /// <summary>
 /// Cálculo de cumplimiento documental de una Subcontrata ("Subcontrata 360",
@@ -50,6 +76,13 @@ public interface ICalculoEstadoSubcontrataService
 
     Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(
         IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Cumplimiento, incidencias y documentos sin confirmar de cada Subcontrata, con el mismo alcance y las
+    /// mismas reglas que los otros dos métodos, en una sola pasada por los datos.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, ResumenEstadoSubcontrata>> CalcularResumenAsync(
+        IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken);
 }
 
 public class CalculoEstadoSubcontrataService(
@@ -65,27 +98,41 @@ public class CalculoEstadoSubcontrataService(
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<IncidenciaSubcontrataDto>>> CalcularAsync(
         IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken)
     {
-        var (_, causasPorSubcontrata) = await CalcularBaseAsync(subcontrataIds, cancellationToken);
+        var (_, causasPorSubcontrata, _) = await CalcularBaseAsync(subcontrataIds, cancellationToken);
         return causasPorSubcontrata.ToDictionary(p => p.Key, p => (IReadOnlyList<IncidenciaSubcontrataDto>)p.Value);
     }
 
     public async Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(
         IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken)
     {
-        var (fraccionPorSubcontrata, _) = await CalcularBaseAsync(subcontrataIds, cancellationToken);
+        var (fraccionPorSubcontrata, _, _) = await CalcularBaseAsync(subcontrataIds, cancellationToken);
         return fraccionPorSubcontrata.ToDictionary(p => p.Key, p => new FraccionCumplimiento(p.Value.AlDia, p.Value.Requeridos));
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, ResumenEstadoSubcontrata>> CalcularResumenAsync(
+        IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken)
+    {
+        var (fraccionPorSubcontrata, causasPorSubcontrata, sinConfirmarPorSubcontrata) = await CalcularBaseAsync(subcontrataIds, cancellationToken);
+        return fraccionPorSubcontrata.ToDictionary(
+            p => p.Key,
+            p => new ResumenEstadoSubcontrata(
+                new FraccionCumplimiento(p.Value.AlDia, p.Value.Requeridos),
+                causasPorSubcontrata[p.Key],
+                sinConfirmarPorSubcontrata[p.Key]));
     }
 
     private async Task<(
         Dictionary<Guid, (int AlDia, int Requeridos)> Fraccion,
-        Dictionary<Guid, List<IncidenciaSubcontrataDto>> Causas)> CalcularBaseAsync(
+        Dictionary<Guid, List<IncidenciaSubcontrataDto>> Causas,
+        Dictionary<Guid, List<IncidenciaSubcontrataDto>> SinConfirmar)> CalcularBaseAsync(
         IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken)
     {
         var fraccionPorSubcontrata = subcontrataIds.Distinct().ToDictionary(id => id, _ => (AlDia: 0, Requeridos: 0));
         var causasPorSubcontrata = subcontrataIds.Distinct().ToDictionary(id => id, _ => new List<IncidenciaSubcontrataDto>());
+        var sinConfirmarPorSubcontrata = subcontrataIds.Distinct().ToDictionary(id => id, _ => new List<IncidenciaSubcontrataDto>());
 
         if (subcontrataIds.Count == 0)
-            return (fraccionPorSubcontrata, causasPorSubcontrata);
+            return (fraccionPorSubcontrata, causasPorSubcontrata, sinConfirmarPorSubcontrata);
 
         var consultaTrabajadores = trabajadoresContext.Trabajadores
             .Where(t => t.SubcontrataId != null && subcontrataIds.Contains(t.SubcontrataId!.Value));
@@ -102,7 +149,7 @@ public class CalculoEstadoSubcontrataService(
             .ToListAsync(cancellationToken);
 
         if (trabajadores.Count == 0)
-            return (fraccionPorSubcontrata, causasPorSubcontrata);
+            return (fraccionPorSubcontrata, causasPorSubcontrata, sinConfirmarPorSubcontrata);
 
         var subcontrataPorTrabajador = trabajadores.ToDictionary(t => t.Id, t => t.SubcontrataId);
         var nombrePorTrabajador = trabajadores.ToDictionary(t => t.Id, t => t.Nombre);
@@ -114,7 +161,7 @@ public class CalculoEstadoSubcontrataService(
             .ToListAsync(cancellationToken);
 
         if (asignacionesActivas.Count == 0)
-            return (fraccionPorSubcontrata, causasPorSubcontrata);
+            return (fraccionPorSubcontrata, causasPorSubcontrata, sinConfirmarPorSubcontrata);
 
         var centrosPorTrabajador = asignacionesActivas
             .GroupBy(a => a.TrabajadorId)
@@ -132,7 +179,7 @@ public class CalculoEstadoSubcontrataService(
             .ToListAsync(cancellationToken);
 
         if (tiposCandidatos.Count == 0)
-            return (fraccionPorSubcontrata, causasPorSubcontrata);
+            return (fraccionPorSubcontrata, causasPorSubcontrata, sinConfirmarPorSubcontrata);
 
         var tipoIdsCandidatos = tiposCandidatos.Select(t => t.Id).ToHashSet();
         var nombrePorTipo = tiposCandidatos.ToDictionary(t => t.Id, t => t.Nombre);
@@ -163,7 +210,7 @@ public class CalculoEstadoSubcontrataService(
 
         var tipoIdsRequeridosGlobal = tiposRequeridosPorTrabajador.Values.SelectMany(t => t).Distinct().ToList();
         if (tipoIdsRequeridosGlobal.Count == 0)
-            return (fraccionPorSubcontrata, causasPorSubcontrata);
+            return (fraccionPorSubcontrata, causasPorSubcontrata, sinConfirmarPorSubcontrata);
 
         var documentosExistentes = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null
@@ -198,16 +245,19 @@ public class CalculoEstadoSubcontrataService(
                 // tampoco es incidencia de color: mismo criterio que el Centro
                 // (CalculoEstadoCentroService.AgregarCausasDeEmpresaAsync). Próximo y Urgente suman al día
                 // y siguen siendo incidencia: son dos preguntas distintas.
-                if (estado is EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente or EstadoDocumento.SinConfirmar) continue;
+                // Lo sin confirmar se apunta aparte: decide el estado documental del listado cuando no hay
+                // nada peor, sin pasar a ser incidencia para quien lee solo las causas.
+                if (estado is EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente) continue;
 
-                causasPorSubcontrata[subcontrataId].Add(new IncidenciaSubcontrataDto(
+                var incidencia = new IncidenciaSubcontrataDto(
                     $"{nombrePorTipo[tipoId]} — {nombrePorTrabajador[trabajadorId]}", estado,
-                    tieneDocumento ? documento!.Id : null, tipoId, tieneDocumento ? documento!.FechaVencimiento : null, trabajadorId));
+                    tieneDocumento ? documento!.Id : null, tipoId, tieneDocumento ? documento!.FechaVencimiento : null, trabajadorId);
+                (estado is EstadoDocumento.SinConfirmar ? sinConfirmarPorSubcontrata : causasPorSubcontrata)[subcontrataId].Add(incidencia);
             }
 
             fraccionPorSubcontrata[subcontrataId] = actual;
         }
 
-        return (fraccionPorSubcontrata, causasPorSubcontrata);
+        return (fraccionPorSubcontrata, causasPorSubcontrata, sinConfirmarPorSubcontrata);
     }
 }

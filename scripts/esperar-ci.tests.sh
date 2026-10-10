@@ -107,6 +107,29 @@ ejecutar 100 --hasta checks
 assert_veredicto "los tres obligatorios en verde -> VERDE" VERDE 0 "AAA"
 
 echo
+echo "=== Alcance del CI (2026-10-09): un obligatorio saltado cuenta como satisfecho; cancelado o pendiente, no ==="
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 $'Check A	pass' $'Check B	skipping' $'Check C	pass'
+ejecutar 150 --hasta checks
+assert_veredicto "dos en pass y uno en skipping -> VERDE" VERDE 0 "AAA"
+
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 $'Check A	pass' $'Check B	skipping' $'Check C	cancel'
+ejecutar 151 --hasta checks
+assert_veredicto "skipping no tapa un cancel -> ROJO" ROJO 1 "Check C"
+
+nueva_fixture_dir
+fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"
+fixture_branch_protection 1
+fixture PR_CHECKS 1 $'Check A	pass' $'Check B	skipping' $'Check C	pending'
+ejecutar 152 --hasta checks
+assert_veredicto "skipping no tapa un pending -> TIMEOUT, no VERDE" TIMEOUT 3 ""
+
+echo
 echo "=== 'Condición que termina antes': NO da VERDE con checks solo parcialmente en pass ==="
 nueva_fixture_dir
 fixture PR_VIEW 1 "OPEN	AAA	CLEAN		"

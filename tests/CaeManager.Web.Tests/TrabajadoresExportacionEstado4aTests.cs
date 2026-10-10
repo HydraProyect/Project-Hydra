@@ -145,16 +145,20 @@ public class TrabajadoresExportacionEstado4aTests
         var mediador = new MediatorFalso([Propio()], DosTrabajadores);
         var empresa = Guid.NewGuid();
         var subcontrata = Guid.NewGuid();
+        var centro = Guid.NewGuid();
 
         await TrabajadoresEndpoints.ExportarAsync(
             mediador, new TenantActualFalso(Origen), new RegistroFalso(), default,
             q: "prieto", estado: "Vencido", empresa: empresa.ToString(), subcontrata: subcontrata.ToString(),
-            orden: nameof(TrabajadorListaDto.Apellidos), desc: true);
+            orden: nameof(TrabajadorListaDto.Apellidos), desc: true, centro: centro.ToString());
 
+        // El Excel no lleva columnas del desglose documental: se pide sin él. El «false» va escrito aquí aunque
+        // sea el valor por defecto de la consulta: así este test no depende de cuál sea ese valor.
         mediador.UltimaConsulta.Should().BeEquivalentTo(
             new ObtenerTrabajadoresQuery(
                 Busqueda: "prieto", EmpresaId: empresa, SubcontrataId: subcontrata,
-                OrdenarPor: nameof(TrabajadorListaDto.Apellidos), Descendente: true, EstadoDocumental: "Vencido"),
+                OrdenarPor: nameof(TrabajadorListaDto.Apellidos), Descendente: true, EstadoDocumental: "Vencido",
+                CentroId: centro, ConDesgloseDocumental: false),
             o => o.Excluding(c => c.Pagina).Excluding(c => c.TamanoPagina));
     }
 
@@ -166,7 +170,7 @@ public class TrabajadoresExportacionEstado4aTests
         await TrabajadoresEndpoints.ExportarAsync(mediador, new TenantActualFalso(Origen), new RegistroFalso(), default);
 
         mediador.UltimaConsulta.Should().BeEquivalentTo(
-            new ObtenerTrabajadoresQuery(Busqueda: null),
+            new ObtenerTrabajadoresQuery(Busqueda: null, ConDesgloseDocumental: false),
             o => o.Excluding(c => c.Pagina).Excluding(c => c.TamanoPagina));
     }
 

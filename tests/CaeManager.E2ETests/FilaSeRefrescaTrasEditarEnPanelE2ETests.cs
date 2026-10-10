@@ -1,0 +1,252 @@
+using Microsoft.Playwright;
+using Xunit;
+using static Microsoft.Playwright.Assertions;
+
+namespace CaeManager.E2ETests;
+
+/// <summary>
+/// Tras guardar desde el lápiz de la vista rápida (Context Workspace), la fila del listado
+/// enseña el dato nuevo sin recargar la página. El panel vive en MainLayout y guarda sin pasar
+/// por la página del listado: avisa por <c>ContextWorkspaceService.OnEntidadGuardada</c> y la
+/// página vuelve a pedir solo esa fila y la sustituye en sitio. Aquí se recorre entero, en un
+/// navegador real, en los dos listados donde se declaró el hueco (Trabajadores y Vehículos) y en
+/// Centros; la sustitución en sitio de los demás la prueban sus tests de bUnit. Visitas edita en
+/// un Drawer de su propia página: su recorrido está en <c>VisitasFilaSinMenuE2ETests</c>.
+/// </summary>
+[Collection("AppCollectionListados")]
+public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixture)
+{
+    private static readonly LocatorGetByLabelOptions Exacto = new() { Exact = true };
+
+    private async Task<IPage> AbrirAsync(IBrowserContext contexto, string ruta)
+    {
+        var page = await contexto.NewPageAsync();
+        await page.SetViewportSizeAsync(1280, 800);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/{ruta}");
+        return page;
+    }
+
+    /// <summary>Lápiz de la cabecera del panel → campo «Nombre» → Guardar.</summary>
+    private static Task GuardarNombreEnElPanelAsync(ILocator panel, string lapiz, string nombre) =>
+        GuardarCampoEnElPanelAsync(panel, lapiz, "Nombre", nombre);
+
+    /// <summary>Lápiz de la cabecera del panel → el campo de esa etiqueta → Guardar.</summary>
+    private static async Task GuardarCampoEnElPanelAsync(ILocator panel, string lapiz, string etiqueta, string valor)
+    {
+        await panel.Locator(lapiz).ClickAsync();
+        await panel.GetByLabel(etiqueta, Exacto).FillAsync(valor);
+        await panel.Locator(".workspace-acciones-edicion").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
+        // El panel vuelve a la lectura: el lápiz reaparece cuando el guardado terminó.
+        await Expect(panel.Locator(lapiz)).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Trabajadores_la_fila_ensena_el_nombre_guardado_en_el_panel_sin_recargar()
+    {
+        const string lapiz = "button[aria-label='Editar información del trabajador']";
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await AbrirAsync(contexto, "trabajadores");
+        var filas = page.Locator("tbody tr.fila-pulsable");
+        await Expect(filas).Not.ToHaveCountAsync(0);
+
+        // Se aísla un trabajador sembrado por su DNI, que la edición no toca: la fila sigue
+        // cumpliendo el filtro y ningún localizador depende de qué más haya en la lista. Vale
+        // cualquier fila: se toma la primera (único localizador posicional del fichero).
+        var dni = (await filas.First.Locator(".boton-copiar-en-linea").InnerTextAsync()).Trim();
+        var filtro = page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias");
+        await filtro.FillAsync(dni);
+        await Expect(filas).ToHaveCountAsync(1);
+        var nombreEnFila = filas.Locator(".nombre-abre-vista-rapida");
+        var nombreCompletoOriginal = (await nombreEnFila.InnerTextAsync()).Trim();
+
+        await nombreEnFila.ClickAsync();
+        var panel = page.Locator(".workspace-panel");
+        await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(nombreCompletoOriginal);
+        await panel.Locator(lapiz).ClickAsync();
+        var nombreOriginal = await panel.GetByLabel("Nombre", Exacto).InputValueAsync();
+        await panel.Locator(".workspace-acciones-edicion").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar", Exact = true }).ClickAsync();
+
+        var nombreEditado = $"{nombreOriginal} E2E{Guid.NewGuid().ToString("N")[..6]}";
+        var restaurado = false;
+        try
+        {
+            await GuardarNombreEnElPanelAsync(panel, lapiz, nombreEditado);
+
+            // La fila cambia sola, sin recargar ni tocar la lista…
+            await Expect(nombreEnFila).ToContainTextAsync(nombreEditado);
+            // …y lo demás sigue como estaba: el filtro, la única fila y el panel sobre la misma ficha.
+            await Expect(filtro).ToHaveValueAsync(dni);
+            await Expect(filas).ToHaveCountAsync(1);
+            await Expect(panel.Locator(".workspace-titulo-entidad")).ToContainTextAsync(nombreEditado);
+
+            // De vuelta al nombre sembrado: segunda edición sobre el mismo panel, mismo refresco.
+            await GuardarNombreEnElPanelAsync(panel, lapiz, nombreOriginal);
+            await Expect(nombreEnFila).ToHaveTextAsync(nombreCompletoOriginal);
+            restaurado = true;
+        }
+        finally
+        {
+            // La siembra es compartida por la colección: si algo falló a medias, se intenta
+            // dejar el nombre como estaba sin tapar el fallo original.
+            if (!restaurado)
+            {
+                try
+                {
+                    await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
+                    await page.GetByPlaceholder("Filtrar esta pantalla: nombre, DNI o alias").FillAsync(dni);
+                    await Expect(page.Locator("tbody tr.fila-pulsable")).ToHaveCountAsync(1);
+                    await page.Locator("tbody tr.fila-pulsable .nombre-abre-vista-rapida").ClickAsync();
+                    await GuardarNombreEnElPanelAsync(page.Locator(".workspace-panel"), lapiz, nombreOriginal);
+                }
+                catch (Exception)
+                {
+                    // Mejor esfuerzo.
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Vehiculos_la_fila_ensena_el_nombre_guardado_en_el_panel_y_conserva_el_filtro_y_la_fila_enfocada()
+    {
+        const string lapiz = "button[aria-label='Editar información del vehículo']";
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await AbrirAsync(contexto, "vehiculos");
+
+        // Un vehículo propio del test, filtrado por su prefijo: una sola fila, sin depender de la siembra.
+        var prefijo = $"FRP-{Guid.NewGuid().ToString("N")[..8]}";
+        var nombre = $"{prefijo} Furgoneta";
+        await ListadosFase1VehiculosDocumentosTests.CrearVehiculoAsync(page, nombre, "Modelo de prueba", $"{prefijo}-M");
+        var filtro = page.GetByPlaceholder("Filtrar esta pantalla: nombre, modelo o matrícula");
+        await filtro.FillAsync(prefijo);
+        var fila = page.Locator("tbody tr").Filter(new LocatorFilterOptions { Has = page.Locator(".celda-vehiculo") });
+        await Expect(fila).ToHaveCountAsync(1);
+        var nombreEnFila = fila.Locator(".nombre-abre-vista-rapida");
+        await Expect(nombreEnFila).ToHaveTextAsync(nombre);
+
+        await EnfocarLaFilaConJAsync(page);
+        await page.Keyboard.PressAsync("Enter");
+        var panel = page.Locator(".workspace-panel");
+        await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(nombre);
+
+        var nombreEditado = $"{prefijo} Camión grúa";
+        await GuardarNombreEnElPanelAsync(panel, lapiz, nombreEditado);
+
+        // La fila cambia sola…
+        await Expect(nombreEnFila).ToHaveTextAsync(nombreEditado);
+        // …sin perder el filtro, la fila enfocada ni el panel, que sigue sobre la misma ficha.
+        await Expect(filtro).ToHaveValueAsync(prefijo);
+        await Expect(fila).ToHaveCountAsync(1);
+        await Expect(page.Locator("tbody tr.fila-enfocada")).ToHaveCountAsync(1);
+        await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(nombreEditado);
+    }
+
+    /// <summary>
+    /// Centros pinta con una lista propia, no con QuickGrid. Se edita el código de un Centro
+    /// sembrado (su nombre no se toca: otros tests eligen Centro en selectores) y se restaura,
+    /// también si el test falla a medias. La fila se aísla filtrando por el nombre de un Centro
+    /// cualquiera de los que hay a la vista.
+    /// </summary>
+    [Fact]
+    public async Task Centros_la_fila_ensena_el_codigo_guardado_en_el_panel_y_conserva_el_filtro_y_el_acordeon()
+    {
+        const string lapiz = "button[aria-label='Editar información del centro']";
+        const string campo = "Código de centro";
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await AbrirAsync(contexto, "centros");
+        await Ayudas.MostrarCentrosSinAgruparAsync(page);
+        var filas = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon");
+        await Expect(filas).Not.ToHaveCountAsync(0);
+
+        // Un nombre que no esté contenido en el de otro Centro a la vista: el filtro es por «contiene».
+        var nombres = (await filas.Locator(".enlace-nombre-fila").AllInnerTextsAsync()).Select(n => n.Trim()).ToArray();
+        var nombre = Array.Find(nombres, n => nombres.Count(otro => otro.Contains(n, StringComparison.OrdinalIgnoreCase)) == 1);
+        Assert.NotNull(nombre);
+        var filtro = page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa");
+        await filtro.FillAsync(nombre);
+        await Expect(filas).ToHaveCountAsync(1);
+        // Todo se busca en la cabecera de la fila: el acordeón desplegado trae sus propios botones.
+        var cabeceraDeLaFila = filas.Locator(".tarjeta-fila-acordeon-cabecera");
+        var desplegable = cabeceraDeLaFila.Locator(".boton-expandir-fila");
+        await desplegable.ClickAsync();
+        await Expect(desplegable).ToHaveAttributeAsync("aria-expanded", "true");
+
+        await cabeceraDeLaFila.Locator(".nombre-abre-vista-rapida").ClickAsync();
+        var panel = page.Locator(".workspace-panel");
+        await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(nombre);
+        await panel.Locator(lapiz).ClickAsync();
+        var codigoOriginal = await panel.GetByLabel(campo, Exacto).InputValueAsync();
+        await panel.Locator(".workspace-acciones-edicion").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar", Exact = true }).ClickAsync();
+
+        var codigoEditado = $"E2E-{Guid.NewGuid().ToString("N")[..8]}";
+        var restaurado = false;
+        try
+        {
+            await Expect(cabeceraDeLaFila).Not.ToContainTextAsync(codigoEditado);
+            await GuardarCampoEnElPanelAsync(panel, lapiz, campo, codigoEditado);
+
+            // La fila cambia sola, sin recargar ni tocar la lista…
+            await Expect(cabeceraDeLaFila).ToContainTextAsync(codigoEditado);
+            // …y lo demás sigue como estaba: el filtro, la única fila, su acordeón desplegado y el panel.
+            await Expect(filtro).ToHaveValueAsync(nombre);
+            await Expect(filas).ToHaveCountAsync(1);
+            await Expect(desplegable).ToHaveAttributeAsync("aria-expanded", "true");
+            await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(nombre);
+
+            // De vuelta al código sembrado: segunda edición sobre el mismo panel, mismo refresco.
+            await GuardarCampoEnElPanelAsync(panel, lapiz, campo, codigoOriginal);
+            await Expect(cabeceraDeLaFila).Not.ToContainTextAsync(codigoEditado);
+            restaurado = true;
+        }
+        finally
+        {
+            // La siembra es compartida por la colección: si algo falló a medias, se intenta
+            // dejar el código como estaba sin tapar el fallo original.
+            if (!restaurado)
+            {
+                try
+                {
+                    await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
+                    await Ayudas.MostrarCentrosSinAgruparAsync(page);
+                    await page.GetByPlaceholder("Filtrar esta pantalla: centro, código, Cliente o empresa").FillAsync(nombre);
+                    await Expect(filas).ToHaveCountAsync(1);
+                    await filas.Locator(".nombre-abre-vista-rapida").ClickAsync();
+                    await GuardarCampoEnElPanelAsync(page.Locator(".workspace-panel"), lapiz, campo, codigoOriginal);
+                }
+                catch (Exception)
+                {
+                    // Mejor esfuerzo.
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// «j» enfoca la única fila. Se reintenta porque QuickGrid vuelve a pedir la página por su
+    /// cuenta cuando el total cambia (aquí, al filtrar), y cada carga limpia la fila enfocada
+    /// (misma espera que <c>VehiculosFilaSinMenuE2ETests</c>). El foco se saca antes del campo
+    /// de filtro, donde «j» sería texto.
+    /// </summary>
+    private static async Task EnfocarLaFilaConJAsync(IPage page)
+    {
+        var enfocada = page.Locator("tbody tr.fila-enfocada");
+        for (var intento = 0; intento < 5; intento++)
+        {
+            if (await enfocada.CountAsync() == 0)
+            {
+                await page.Locator("thead th.col-estado button.col-title").FocusAsync();
+                await page.Keyboard.PressAsync("j");
+            }
+
+            await page.WaitForTimeoutAsync(400);
+            if (await enfocada.CountAsync() == 1)
+            {
+                await page.WaitForTimeoutAsync(600);
+                if (await enfocada.CountAsync() == 1) return;
+            }
+        }
+
+        await Expect(enfocada).ToHaveCountAsync(1);
+    }
+}
