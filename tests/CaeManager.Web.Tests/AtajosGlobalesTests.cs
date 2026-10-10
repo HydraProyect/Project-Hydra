@@ -105,6 +105,7 @@ public class AtajosGlobalesTests : BunitContext
         var sinTexto = CatalogoAtajos.Navegacion
             .Concat(CatalogoAtajos.Acciones)
             .Concat(CatalogoAtajos.Lista)
+            .Concat(CatalogoAtajos.Ficha)
             .Where(a => textos[a.ClaveDescripcion].ResourceNotFound)
             .Select(a => a.ClaveDescripcion);
 
@@ -135,12 +136,27 @@ public class AtajosGlobalesTests : BunitContext
         // pintaría tal cual sin poner nada en rojo.
         cut.Find("h2").TextContent.Should().Be("Atajos de teclado");
         cut.FindAll("h3").Select(h => h.TextContent).Should().Equal(
-            "Navegación", "Acciones", "Dentro de una lista", "Letras sobre los controles (KeyTips)", "Sobre una fecha");
+            "Navegación", "Acciones", "Dentro de una lista", "Dentro de una ficha", "Letras sobre los controles (KeyTips)", "Sobre una fecha");
         cut.FindAll("kbd").Select(k => k.TextContent).Should().Contain(["Clic", "Alt/Option + clic"]);
         cut.Markup.Should().Contain("Copiar vencimiento")
             .And.Contain("Copiar emisión, cuando esté disponible")
             .And.Contain("Marcar/desmarcar la fila enfocada");
         cut.Markup.Should().NotContain("SeccionLista").And.NotContain("ListaMarcarFila");
+    }
+
+    /// <summary>La chuleta anuncia los atajos de las fichas 360 con su texto, no con la clave.</summary>
+    [Fact]
+    public async Task La_chuleta_anuncia_los_atajos_de_ficha()
+    {
+        var cut = Render<AtajosGlobales>();
+
+        await cut.InvokeAsync(cut.Instance.AlternarAyuda);
+
+        cut.FindAll("kbd").Select(k => k.TextContent).Should().Contain("1 – 9");
+        cut.Markup.Should().Contain("Cambiar de pestaña")
+            .And.Contain("Pulsar el botón de la fila enfocada")
+            .And.Contain("Ir al buscador de la lista")
+            .And.NotContain("SeccionFicha").And.NotContain("FichaCambiarPestana");
     }
 
     [Fact]

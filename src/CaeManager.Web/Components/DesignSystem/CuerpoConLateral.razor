@@ -7,8 +7,12 @@
     Cliente 360 y Empresa 360 no la copien: una clase de un .razor.css no
     viaja a otro componente (ClasesDeCssAisladoNoViajanEntreComponentesTests).
     Las tarjetas del lateral son <Tarjeta Compacta="true">.
+
+    data-atajos-ficha es la marca por la que atajos-ficha.js reconoce una ficha
+    360: j/k recorren las filas de la columna principal, «e» pulsa el botón de
+    la fila enfocada, «f» va al buscador y 1–9 cambian de pestaña.
 *@
-<div class="cuerpo-con-lateral @(Lateral is null ? "cuerpo-con-lateral-sin-lateral" : null)">
+<div class="cuerpo-con-lateral @(Lateral is null ? "cuerpo-con-lateral-sin-lateral" : null)" data-atajos-ficha="">
     <div class="cuerpo-con-lateral-principal">@ChildContent</div>
 
     @if (Lateral is not null)
