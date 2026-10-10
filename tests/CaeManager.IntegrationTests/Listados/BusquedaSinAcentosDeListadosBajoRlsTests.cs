@@ -43,10 +43,16 @@ namespace CaeManager.IntegrationTests.Listados;
 ///
 /// Hay tres copias de los mismos datos, con los mismos nombres acentuados: una dentro de la
 /// Asignación de Cartera del usuario, otra en su mismo Tenant propietario pero fuera de ella, y
-/// otra en un Tenant propietario ajeno. Cada término casa con las tres. Por eso cada caso mide
-/// dos cosas a la vez: sin restricción de cartera vuelven las dos del Tenant de la sesión
-/// (control positivo: el término casa con la de fuera de la cartera, y RLS oculta la ajena), y
-/// con la cartera puesta vuelve solo la de dentro.
+/// otra en un Tenant propietario ajeno, que repite además el DNI, los CIF, la matrícula y el
+/// código de Centro de la primera. Dos familias de casos:
+/// <list type="bullet">
+/// <item><c>…_no_sale_de_la_cartera</c>: sin restricción de cartera vuelven las dos del Tenant de
+/// la sesión (control positivo: el término casa con la de fuera de la cartera, y RLS oculta la
+/// ajena), y con la cartera puesta vuelve solo la de dentro.</item>
+/// <item><c>…_por_cada_columna</c>: un término por cada brazo del predicado de búsqueda, sin
+/// acento y en otra caja, que solo aparece en esa columna. Sin él, un brazo que siguiera
+/// comparando solo mayúsculas pasaría inadvertido detrás de otro que sí casa.</item>
+/// </list>
 /// </summary>
 public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListadosBajoRlsTests.Escenario escenario)
     : IClassFixture<BusquedaSinAcentosDeListadosBajoRlsTests.Escenario>
@@ -67,127 +73,126 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         segunElRuntime.Should().Be(2, "sin el filtro global de EF, solo RLS puede ocultar el Centro del Tenant ajeno");
     }
 
-    [Fact]
-    public async Task Trabajadores_encuentra_sin_acentos_y_no_sale_de_la_cartera()
-    {
-        var ids = await BuscarAsync(async (contexto, alcance) =>
-        {
-            var handler = new ObtenerTrabajadoresQueryHandler(
-                contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto));
-            var resultado = await handler.Handle(new ObtenerTrabajadoresQuery("NUNEZ IBANEZ"), CancellationToken.None);
-            return resultado.Elementos.Select(t => t.Id);
-        });
-
-        DebeEstrecharSinSalirDeLaCartera(ids, b => b.TrabajadorId);
-    }
+    // ------------------------------------------------------------ Buscar solo estrecha
 
     [Fact]
-    public async Task Empresas_encuentra_sin_acentos_y_no_sale_de_la_cartera()
-    {
-        var ids = await BuscarAsync((contexto, alcance) => BuscarEmpresasAsync(contexto, alcance, "montajes aragon"));
-
-        DebeEstrecharSinSalirDeLaCartera(ids, b => b.EmpresaId);
-    }
+    public async Task Trabajadores_encuentra_sin_acentos_y_no_sale_de_la_cartera() =>
+        DebeEstrecharSinSalirDeLaCartera(
+            await BuscarAsync((contexto, alcance) => BuscarTrabajadoresAsync(contexto, alcance, "NUNEZ IBANEZ")),
+            b => b.TrabajadorId);
 
     [Fact]
-    public async Task Vehiculos_encuentra_sin_acentos_y_no_sale_de_la_cartera()
-    {
-        var ids = await BuscarAsync(async (contexto, alcance) =>
-        {
-            var handler = new ObtenerVehiculosQueryHandler(
-                contexto, contexto, alcance, contexto, contexto, new CalculoEstadoDocumentalService(contexto, contexto));
-            var resultado = await handler.Handle(new ObtenerVehiculosQuery("camion grua"), CancellationToken.None);
-            return resultado.Elementos.Select(v => v.Id);
-        });
-
-        DebeEstrecharSinSalirDeLaCartera(ids, b => b.VehiculoId);
-    }
+    public async Task Empresas_encuentra_sin_acentos_y_no_sale_de_la_cartera() =>
+        DebeEstrecharSinSalirDeLaCartera(
+            await BuscarAsync((contexto, alcance) => BuscarEmpresasAsync(contexto, alcance, "montajes aragon")),
+            b => b.EmpresaId);
 
     [Fact]
-    public async Task Subcontratas_encuentra_sin_acentos_y_no_sale_de_la_cartera()
-    {
-        var ids = await BuscarAsync(async (contexto, alcance) =>
-        {
-            var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance);
-            var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio);
-            var resultado = await handler.Handle(new ObtenerSubcontratasQuery("INSTALACIONES CACERES"), CancellationToken.None);
-            return resultado.Elementos.Select(s => s.Id);
-        });
+    public async Task Vehiculos_encuentra_sin_acentos_y_no_sale_de_la_cartera() =>
+        DebeEstrecharSinSalirDeLaCartera(
+            await BuscarAsync((contexto, alcance) => BuscarVehiculosAsync(contexto, alcance, "camion grua")),
+            b => b.VehiculoId);
 
-        DebeEstrecharSinSalirDeLaCartera(ids, b => b.SubcontrataId);
-    }
+    [Fact]
+    public async Task Subcontratas_encuentra_sin_acentos_y_no_sale_de_la_cartera() =>
+        DebeEstrecharSinSalirDeLaCartera(
+            await BuscarAsync((contexto, alcance) => BuscarSubcontratasAsync(contexto, alcance, "INSTALACIONES CACERES")),
+            b => b.SubcontrataId);
+
+    [Fact]
+    public async Task Gestiones_encuentra_sin_acentos_y_no_sale_de_la_cartera() =>
+        DebeEstrecharSinSalirDeLaCartera(
+            await BuscarAsync((contexto, alcance) => BuscarGestionesAsync(contexto, alcance, "jose maria nunez")),
+            b => b.GestionId);
+
+    [Fact]
+    public async Task Visitas_encuentra_sin_acentos_y_no_sale_de_la_cartera() =>
+        DebeEstrecharSinSalirDeLaCartera(
+            await BuscarAsync((contexto, alcance) => BuscarVisitasAsync(contexto, alcance, "almacen logrono")),
+            b => b.VisitaId);
+
+    [Fact]
+    public async Task Documentos_encuentra_sin_acentos_y_no_sale_de_la_cartera() =>
+        DebeEstrecharSinSalirDeLaCartera(
+            await BuscarAsync((contexto, alcance) => BuscarDocumentosAsync(contexto, alcance, "FORMACION ESPECIFICA")),
+            b => b.DocumentoId);
+
+    [Fact]
+    public async Task Clientes_encuentra_sin_acentos_y_no_sale_de_la_cartera() =>
+        DebeEstrecharSinSalirDeLaCartera(
+            await BuscarAsync((contexto, alcance) => BuscarClientesAsync(contexto, alcance, "canon iberica")),
+            b => b.ClienteEmpresarialId);
+
+    [Fact]
+    public async Task Centros_encuentra_sin_acentos_y_no_sale_de_la_cartera() =>
+        DebeEstrecharSinSalirDeLaCartera(
+            await BuscarAsync((contexto, alcance) => BuscarCentrosAsync(contexto, alcance, "ALMACEN LOGRONO")),
+            b => b.CentroId);
+
+    // ------------------------------------------- Cada brazo del predicado, por separado
+
+    [Theory]
+    [InlineData("Nombre", "JOSE MARIA")]
+    [InlineData("Apellidos", "nunez ibanez")]
+    [InlineData("Dni", "12345678z")]
+    [InlineData("Alias", "PEPON")]
+    public async Task Trabajadores_busca_sin_acentos_por_cada_columna(string columna, string termino) =>
+        DebeEncontrarLaDeLaCartera(await BuscarSinRestriccionAsync(BuscarTrabajadoresAsync, termino), b => b.TrabajadorId, columna);
+
+    [Theory]
+    [InlineData("RazonSocial", "MONTAJES ARAGON")]
+    [InlineData("Cif", "b10380186")]
+    public async Task Empresas_busca_sin_acentos_por_cada_columna(string columna, string termino) =>
+        DebeEncontrarLaDeLaCartera(await BuscarSinRestriccionAsync(BuscarEmpresasAsync, termino), b => b.EmpresaId, columna);
+
+    [Theory]
+    [InlineData("Nombre", "CAMION GRUA")]
+    [InlineData("Modelo", "citroen jumper")]
+    [InlineData("NumeroPlaca", "1234bcd")]
+    public async Task Vehiculos_busca_sin_acentos_por_cada_columna(string columna, string termino) =>
+        DebeEncontrarLaDeLaCartera(await BuscarSinRestriccionAsync(BuscarVehiculosAsync, termino), b => b.VehiculoId, columna);
+
+    [Theory]
+    [InlineData("RazonSocial", "instalaciones caceres")]
+    [InlineData("Cif", "b10380236")]
+    public async Task Subcontratas_busca_sin_acentos_por_cada_columna(string columna, string termino) =>
+        DebeEncontrarLaDeLaCartera(await BuscarSinRestriccionAsync(BuscarSubcontratasAsync, termino), b => b.SubcontrataId, columna);
 
     /// <summary>En Gestiones el nombre buscado es «Nombre Apellidos», concatenado en la consulta.</summary>
-    [Fact]
-    public async Task Gestiones_encuentra_sin_acentos_y_no_sale_de_la_cartera()
-    {
-        var ids = await BuscarAsync(async (contexto, alcance) =>
-        {
-            var handler = new ObtenerGestionesQueryHandler(contexto, contexto, contexto, contexto, alcance);
-            var resultado = await handler.Handle(
-                new ObtenerGestionesQuery("jose maria nunez", Estado: null, TrabajadorId: null), CancellationToken.None);
-            return resultado.Elementos.Select(g => g.Id);
-        });
+    [Theory]
+    [InlineData("Trabajador (Nombre y Apellidos)", "MARIA NUNEZ")]
+    [InlineData("Centro.Nombre", "almacen logrono")]
+    [InlineData("TipoDocumento.Nombre", "FORMACION ESPECIFICA")]
+    public async Task Gestiones_busca_sin_acentos_por_cada_columna(string columna, string termino) =>
+        DebeEncontrarLaDeLaCartera(await BuscarSinRestriccionAsync(BuscarGestionesAsync, termino), b => b.GestionId, columna);
 
-        DebeEstrecharSinSalirDeLaCartera(ids, b => b.GestionId);
-    }
+    [Theory]
+    [InlineData("Centro.Nombre", "ALMACEN LOGRONO")]
+    [InlineData("Cliente empresarial (RazonSocial)", "canon iberica")]
+    [InlineData("Empresa.RazonSocial", "MONTAJES ARAGON")]
+    public async Task Visitas_busca_sin_acentos_por_cada_columna(string columna, string termino) =>
+        DebeEncontrarLaDeLaCartera(await BuscarSinRestriccionAsync(BuscarVisitasAsync, termino), b => b.VisitaId, columna);
 
-    [Fact]
-    public async Task Visitas_encuentra_sin_acentos_y_no_sale_de_la_cartera()
-    {
-        var ids = await BuscarAsync(async (contexto, alcance) =>
-        {
-            var handler = new ObtenerVisitasQueryHandler(
-                contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto);
-            var resultado = await handler.Handle(
-                new ObtenerVisitasQuery("almacen logrono", SoloActivas: false, NotificadoCliente: null), CancellationToken.None);
-            return resultado.Elementos.Select(v => v.Id);
-        });
+    [Theory]
+    [InlineData("PropietarioNombre", "maria nunez")]
+    [InlineData("TipoDocumentoNombre", "formacion especifica")]
+    public async Task Documentos_busca_sin_acentos_por_cada_columna(string columna, string termino) =>
+        DebeEncontrarLaDeLaCartera(await BuscarSinRestriccionAsync(BuscarDocumentosAsync, termino), b => b.DocumentoId, columna);
 
-        DebeEstrecharSinSalirDeLaCartera(ids, b => b.VisitaId);
-    }
+    [Theory]
+    [InlineData("RazonSocial", "CANON IBERICA")]
+    public async Task Clientes_busca_sin_acentos_por_cada_columna(string columna, string termino) =>
+        DebeEncontrarLaDeLaCartera(await BuscarSinRestriccionAsync(BuscarClientesAsync, termino), b => b.ClienteEmpresarialId, columna);
 
-    [Fact]
-    public async Task Documentos_encuentra_sin_acentos_y_no_sale_de_la_cartera()
-    {
-        var ids = await BuscarAsync(async (contexto, alcance) =>
-        {
-            var handler = new ObtenerDocumentosQueryHandler(
-                contexto, contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
-            var resultado = await handler.Handle(
-                new ObtenerDocumentosQuery(TrabajadorId: null, Ambito: null, Busqueda: "FORMACION ESPECIFICA"), CancellationToken.None);
-            return resultado.Elementos.Select(d => d.Id);
-        });
+    [Theory]
+    [InlineData("Nombre", "almacen logrono")]
+    [InlineData("CodigoCentro", "AREA-UNO")]
+    [InlineData("Cliente empresarial (RazonSocial)", "CANON IBERICA")]
+    [InlineData("Empresa.RazonSocial", "montajes aragon")]
+    public async Task Centros_busca_sin_acentos_por_cada_columna(string columna, string termino) =>
+        DebeEncontrarLaDeLaCartera(await BuscarSinRestriccionAsync(BuscarCentrosAsync, termino), b => b.CentroId, columna);
 
-        DebeEstrecharSinSalirDeLaCartera(ids, b => b.DocumentoId);
-    }
-
-    [Fact]
-    public async Task Clientes_encuentra_sin_acentos_y_no_sale_de_la_cartera()
-    {
-        var ids = await BuscarAsync(async (contexto, alcance) =>
-        {
-            var handler = new ObtenerClientesQueryHandler(contexto, contexto, contexto, new MediadorSinAlertas(), alcance);
-            var resultado = await handler.Handle(new ObtenerClientesQuery("canon iberica", SoloCriticos: null), CancellationToken.None);
-            return resultado.Elementos.Select(c => c.Id);
-        });
-
-        DebeEstrecharSinSalirDeLaCartera(ids, b => b.ClienteEmpresarialId);
-    }
-
-    [Fact]
-    public async Task Centros_encuentra_sin_acentos_y_no_sale_de_la_cartera()
-    {
-        var ids = await BuscarAsync(async (contexto, alcance) =>
-        {
-            var handler = new ObtenerCentrosQueryHandler(
-                contexto, contexto, alcance, new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto));
-            var resultado = await handler.Handle(new ObtenerCentrosQuery("ALMACEN LOGRONO", ClienteId: null), CancellationToken.None);
-            return resultado.Elementos.Select(c => c.Id);
-        });
-
-        DebeEstrecharSinSalirDeLaCartera(ids, b => b.CentroId);
-    }
+    // ------------------------------------------------------- El término, en PostgreSQL
 
     /// <summary>
     /// Acentos y caja no cuentan en ninguno de los dos lados. «weiß» y «weiss» fijan que el
@@ -230,6 +235,17 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         control.Should().HaveCount(2, "control positivo: el buscador encuentra las dos Empresas del Tenant de la sesión");
     }
 
+    // --------------------------------------------------------------------- Listados
+
+    private static async Task<IEnumerable<Guid>> BuscarTrabajadoresAsync(
+        CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
+    {
+        var handler = new ObtenerTrabajadoresQueryHandler(
+            contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto));
+        var resultado = await handler.Handle(new ObtenerTrabajadoresQuery(termino), CancellationToken.None);
+        return resultado.Elementos.Select(t => t.Id).ToList();
+    }
+
     private static async Task<IEnumerable<Guid>> BuscarEmpresasAsync(
         CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
     {
@@ -240,6 +256,72 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         var resultado = await handler.Handle(new ObtenerEmpresasQuery(termino), CancellationToken.None);
         return resultado.Elementos.Select(e => e.Id).ToList();
     }
+
+    private static async Task<IEnumerable<Guid>> BuscarVehiculosAsync(
+        CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
+    {
+        var handler = new ObtenerVehiculosQueryHandler(
+            contexto, contexto, alcance, contexto, contexto, new CalculoEstadoDocumentalService(contexto, contexto));
+        var resultado = await handler.Handle(new ObtenerVehiculosQuery(termino), CancellationToken.None);
+        return resultado.Elementos.Select(v => v.Id).ToList();
+    }
+
+    private static async Task<IEnumerable<Guid>> BuscarSubcontratasAsync(
+        CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
+    {
+        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance);
+        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio);
+        var resultado = await handler.Handle(new ObtenerSubcontratasQuery(termino), CancellationToken.None);
+        return resultado.Elementos.Select(s => s.Id).ToList();
+    }
+
+    private static async Task<IEnumerable<Guid>> BuscarGestionesAsync(
+        CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
+    {
+        var handler = new ObtenerGestionesQueryHandler(contexto, contexto, contexto, contexto, alcance);
+        var resultado = await handler.Handle(
+            new ObtenerGestionesQuery(termino, Estado: null, TrabajadorId: null), CancellationToken.None);
+        return resultado.Elementos.Select(g => g.Id).ToList();
+    }
+
+    private static async Task<IEnumerable<Guid>> BuscarVisitasAsync(
+        CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
+    {
+        var handler = new ObtenerVisitasQueryHandler(
+            contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto);
+        var resultado = await handler.Handle(
+            new ObtenerVisitasQuery(termino, SoloActivas: false, NotificadoCliente: null), CancellationToken.None);
+        return resultado.Elementos.Select(v => v.Id).ToList();
+    }
+
+    private static async Task<IEnumerable<Guid>> BuscarDocumentosAsync(
+        CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
+    {
+        var handler = new ObtenerDocumentosQueryHandler(
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
+        var resultado = await handler.Handle(
+            new ObtenerDocumentosQuery(TrabajadorId: null, Ambito: null, Busqueda: termino), CancellationToken.None);
+        return resultado.Elementos.Select(d => d.Id).ToList();
+    }
+
+    private static async Task<IEnumerable<Guid>> BuscarClientesAsync(
+        CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
+    {
+        var handler = new ObtenerClientesQueryHandler(contexto, contexto, contexto, new MediadorSinAlertas(), alcance);
+        var resultado = await handler.Handle(new ObtenerClientesQuery(termino, SoloCriticos: null), CancellationToken.None);
+        return resultado.Elementos.Select(c => c.Id).ToList();
+    }
+
+    private static async Task<IEnumerable<Guid>> BuscarCentrosAsync(
+        CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
+    {
+        var handler = new ObtenerCentrosQueryHandler(
+            contexto, contexto, alcance, new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto));
+        var resultado = await handler.Handle(new ObtenerCentrosQuery(termino, ClienteId: null), CancellationToken.None);
+        return resultado.Elementos.Select(c => c.Id).ToList();
+    }
+
+    // ------------------------------------------------------------------ Afirmaciones
 
     private sealed record Resultados(IReadOnlyList<Guid> SinRestriccion, IReadOnlyList<Guid> ConCartera);
 
@@ -254,6 +336,14 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         return new Resultados(sinRestriccion, conCartera);
     }
 
+    private async Task<IReadOnlyList<Guid>> BuscarSinRestriccionAsync(
+        Func<CaeManagerDbContext, IAlcanceDatosService, string, Task<IEnumerable<Guid>>> buscar, string termino)
+    {
+        await using var contexto = escenario.ContextoRuntime();
+
+        return (await buscar(contexto, new AlcanceDatosServiceFalso(), termino)).ToList();
+    }
+
     private void DebeEstrecharSinSalirDeLaCartera(Resultados resultados, Func<Bloque, Guid> id)
     {
         resultados.SinRestriccion.Should().BeEquivalentTo(
@@ -264,13 +354,28 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
             "buscar solo estrecha: lo que está fuera de la Asignación de Cartera no vuelve aunque case con el término");
     }
 
+    private void DebeEncontrarLaDeLaCartera(IReadOnlyList<Guid> ids, Func<Bloque, Guid> id, string columna)
+    {
+        ids.Should().Contain(id(escenario.EnCartera), $"el término, sin acentos y en otra caja, casa por {columna}");
+        ids.Should().NotContain(id(escenario.Ajeno), "la fila del Tenant ajeno lleva el mismo valor y no se ve");
+    }
+
     public sealed record Bloque(
         Guid ClienteEmpresarialId, Guid EmpresaId, Guid SubcontrataId, Guid CentroId, Guid TrabajadorId,
         Guid VehiculoId, Guid DocumentoId, Guid GestionId, Guid VisitaId);
 
+    /// <summary>Lo que distingue un bloque de otro; el resto de los datos es idéntico en los tres.</summary>
+    private sealed record Identificadores(
+        string Sufijo, string CifCliente, string CifEmpresa, string CifSubcontrata, string Dni, string Matricula);
+
     /// <summary>Una base para toda la clase: los tests solo leen.</summary>
     public sealed class Escenario : IAsyncLifetime
     {
+        // El bloque del Tenant ajeno repite los identificadores del de la cartera: un término que
+        // case por DNI, CIF, matrícula o código casa también con su fila.
+        private static readonly Identificadores DeLaCartera = new("Uno", "B12345674", "B10380186", "B10380236", "12345678Z", "1234BCD");
+        private static readonly Identificadores DeFuera = new("Dos", "B87654323", "B10380194", "B10380251", "87654321X", "5678FGH");
+
         private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
         private Guid _tenantSesion;
 
@@ -298,9 +403,9 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
             var tipoSesion = await SembrarCatalogoAsync(tenantSesion.Id);
             var tipoAjeno = await SembrarCatalogoAsync(tenantAjeno.Id);
 
-            EnCartera = await SembrarBloqueAsync(tenantSesion.Id, tipoSesion, "Uno", "B12345674", "12345678Z", "1234BCD");
-            FueraDeCartera = await SembrarBloqueAsync(tenantSesion.Id, tipoSesion, "Dos", "B87654323", "87654321X", "5678FGH");
-            Ajeno = await SembrarBloqueAsync(tenantAjeno.Id, tipoAjeno, "Tres", "B12345674", "77189989B", "9012JKL");
+            EnCartera = await SembrarBloqueAsync(tenantSesion.Id, tipoSesion, DeLaCartera);
+            FueraDeCartera = await SembrarBloqueAsync(tenantSesion.Id, tipoSesion, DeFuera);
+            Ajeno = await SembrarBloqueAsync(tenantAjeno.Id, tipoAjeno, DeLaCartera);
         }
 
         public async Task DisposeAsync()
@@ -346,22 +451,25 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
             return tipo.Id;
         }
 
-        /// <summary>Los mismos nombres acentuados en cada bloque; solo cambia el sufijo que los distingue.</summary>
-        private async Task<Bloque> SembrarBloqueAsync(
-            Guid tenantId, Guid tipoDocumentoId, string sufijo, string cifCliente, string dni, string matricula)
+        /// <summary>
+        /// Los mismos nombres acentuados en cada bloque. Cada valor aparece en una sola columna de
+        /// su listado, para que el término que lo busca solo pueda casar por ella.
+        /// </summary>
+        private async Task<Bloque> SembrarBloqueAsync(Guid tenantId, Guid tipoDocumentoId, Identificadores i)
         {
             using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
             var hoy = DiaDeNegocio.Hoy();
 
-            var cliente = Empresa.CrearComoCliente($"Cañón Ibérica {sufijo} S.A.", cifCliente, false, null, null);
-            var empresa = new Empresa($"Montajes Aragón Weiß {sufijo} S.L.");
-            var subcontrata = Empresa.CrearComoSubcontrata($"Instalaciones Cáceres {sufijo} S.L.", null, "Gestionada");
+            var cliente = Empresa.CrearComoCliente($"Cañón Ibérica {i.Sufijo} S.A.", i.CifCliente, false, null, null);
+            var empresa = new Empresa($"Montajes Aragón Weiß {i.Sufijo} S.L.", i.CifEmpresa);
+            var subcontrata = Empresa.CrearComoSubcontrata($"Instalaciones Cáceres {i.Sufijo} S.L.", i.CifSubcontrata, "Gestionada");
             Propietario.Empresas.AddRange(cliente, empresa, subcontrata);
             await Propietario.SaveChangesAsync();
 
-            var centro = new Centro(cliente.Id, empresa.Id, $"Almacén Logroño {sufijo}");
-            var trabajador = Trabajador.DeEmpresa(empresa.Id, "José María", $"Núñez Ibáñez {sufijo}", dni);
-            var vehiculo = Vehiculo.DeEmpresa(empresa.Id, $"Camión grúa {sufijo}", "Citroën Jumper", matricula);
+            var centro = new Centro(cliente.Id, empresa.Id, $"Almacén Logroño {i.Sufijo}", $"Área-{i.Sufijo}");
+            var trabajador = Trabajador.DeEmpresa(empresa.Id, "José María", $"Núñez Ibáñez {i.Sufijo}", i.Dni);
+            trabajador.AsignarAlias("Pepón");
+            var vehiculo = Vehiculo.DeEmpresa(empresa.Id, $"Camión grúa {i.Sufijo}", "Citroën Jumper", i.Matricula);
             Propietario.Centros.Add(centro);
             Propietario.Trabajadores.Add(trabajador);
             Propietario.Vehiculos.Add(vehiculo);

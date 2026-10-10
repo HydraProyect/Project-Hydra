@@ -18,6 +18,8 @@ public class TextoDeBusquedaTests
     [InlineData("GARCÍA NÚÑEZ", "nuñez")]
     [InlineData("Almacén Logístico", "cen log")]
     [InlineData("Pingüino", "PINGUINO")]
+    [InlineData("Nuñez", "nunez")] // descompuesto (NFD): «n» + virgulilla combinante U+0303
+    [InlineData("Núñez", "nuñez")]
     public void Contiene_ignora_acentos_y_mayusculas(string texto, string termino)
     {
         TextoDeBusqueda.Contiene(texto, termino).Should().BeTrue();
@@ -35,6 +37,22 @@ public class TextoDeBusquedaTests
     public void Un_texto_nulo_no_contiene_nada()
     {
         TextoDeBusqueda.Contiene(null, "a").Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Divergencia conocida con PostgreSQL, fijada para que no cambie sin que nadie lo decida: en
+    /// memoria «ß» se queda como está y «ø» también, mientras que <c>unaccent</c> las convierte en
+    /// «ss» y «o» (lo mide <c>AnadeBusquedaSinAcentosEnListadosTests</c>). Por eso las consultas
+    /// normalizan columna y término en PostgreSQL, y este cuerpo solo sirve a listas ya cargadas.
+    /// </summary>
+    [Fact]
+    public void En_memoria_la_eszett_y_la_o_barrada_no_se_transliteran()
+    {
+        TextoDeBusqueda.Normalizar("Weiß").Should().Be("WEIß");
+        TextoDeBusqueda.Contiene("Weiß", "weiß").Should().BeTrue();
+        TextoDeBusqueda.Contiene("Weiß", "weiss").Should().BeFalse();
+        TextoDeBusqueda.Contiene("Weiss", "weiß").Should().BeFalse();
+        TextoDeBusqueda.Contiene("Søren", "soren").Should().BeFalse();
     }
 
     /// <summary>El término es literal: «%» y «_» no son comodines, tampoco en memoria.</summary>

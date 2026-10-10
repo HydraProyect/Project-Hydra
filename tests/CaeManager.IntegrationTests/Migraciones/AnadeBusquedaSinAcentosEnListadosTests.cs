@@ -72,11 +72,14 @@ public class AnadeBusquedaSinAcentosEnListadosTests : IAsyncLifetime
     /// <summary>
     /// <c>unaccent</c> va antes que <c>upper</c> («ß» pasa a «SS»), y el patrón escapa los tres
     /// caracteres con significado en <c>LIKE … ESCAPE '\'</c> después de normalizar.
+    /// El último caso es texto descompuesto (NFD), como el que llega pegado desde macOS o desde
+    /// algunos PDF: «n» seguida de la virgulilla combinante U+0303, no la «ñ» de un solo carácter.
     /// </summary>
     [Theory]
     [InlineData("García Núñez", "GARCIA NUNEZ")]
     [InlineData("PINGÜINO çedilla", "PINGUINO CEDILLA")]
     [InlineData("Weiß", "WEISS")]
+    [InlineData("Nuñez", "NUNEZ")]
     public async Task La_funcion_de_texto_quita_acentos_y_pasa_a_mayusculas(string texto, string esperado)
     {
         (await EscalarAsync<string>("SELECT public.texto_de_busqueda(@texto)", ("texto", texto))).Should().Be(esperado);

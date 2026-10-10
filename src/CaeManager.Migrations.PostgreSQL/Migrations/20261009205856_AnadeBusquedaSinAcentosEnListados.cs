@@ -43,7 +43,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// puede evaluarse antes que la política de la tabla. Sirven a quien consulta sin RLS; en
     /// el tráfico de la aplicación la búsqueda filtra las filas que la política ya dejó pasar.
     /// Marcar algo <c>LEAKPROOF</c> para cambiarlo es una decisión de seguridad, no un ajuste
-    /// de rendimiento.
+    /// de rendimiento. <b>No está medido en PostgreSQL 18.6</b>, que es la imagen de CI, de
+    /// staging y de producción: la medición es del clúster local, y lo que haga el planificador
+    /// de la 18 con estos índices bajo RLS está por comprobar.
     /// </para>
     /// </summary>
     public partial class AnadeBusquedaSinAcentosEnListados : Migration
