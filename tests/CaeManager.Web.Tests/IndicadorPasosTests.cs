@@ -109,4 +109,33 @@ public class IndicadorPasosTests : BunitContext
 
         cut.FindAll(".indicador-pasos-item")[0].QuerySelector("button").Should().BeNull();
     }
+
+    /// <summary>
+    /// El círculo tiene que llevar el atributo de ámbito del CSS aislado
+    /// (<c>b-…</c>), en el paso con botón y en el fijo: se pintaba con
+    /// <c>RenderTreeBuilder</c>, que no lo recibe, y ninguna regla de
+    /// <c>.indicador-pasos-circulo</c> le llegaba. bUnit no aplica CSS: esto
+    /// observa el atributo, no el estilo calculado.
+    /// </summary>
+    [Fact]
+    public void Los_circulos_llevan_el_atributo_de_ambito_del_css_aislado()
+    {
+        var cut = Render<IndicadorPasos>(parametros => parametros
+            .Add(p => p.Pasos, TresPasos)
+            .Add(p => p.PasoActual, "empresa")
+            .Add(p => p.PasosCompletados, new HashSet<string> { "cliente" })
+            .Add(p => p.PermitirVolver, true));
+
+        var ambito = cut.Find(".indicador-pasos").Attributes
+            .Select(a => a.Name)
+            .Where(n => n.StartsWith("b-", StringComparison.Ordinal))
+            .ToList();
+
+        ambito.Should().ContainSingle(
+            "sin atributo de ámbito en la raíz, esta prueba estaría en verde por no mirar nada");
+        cut.FindAll("button .indicador-pasos-circulo").Should().ContainSingle();
+        var circulos = cut.FindAll(".indicador-pasos-circulo");
+        circulos.Should().HaveCount(3);
+        circulos.Should().OnlyContain(c => c.HasAttribute(ambito[0]));
+    }
 }

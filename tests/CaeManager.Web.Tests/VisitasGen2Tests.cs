@@ -20,6 +20,7 @@ using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitaPorId;
+using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -95,6 +96,18 @@ public partial class VisitasGen2Tests : BunitContext
 
         public int ConsultasVisitas { get; private set; }
 
+        /// <summary>Cada consulta de lista, en orden: las de página y las de una sola fila por id.</summary>
+        public List<ObtenerVisitasQuery> ConsultasDeLista { get; } = [];
+
+        /// <summary>Trabajadores con los que se abre el formulario de edición; sin ninguno, guardar se rechaza en la página.</summary>
+        public Guid[] TrabajadoresAlEditar { get; set; } = [];
+
+        /// <summary>Lo que <see cref="EditarVisitaCommand"/> deja guardado en la fila; null = el mediador no conoce el comando.</summary>
+        public Func<VisitaListaDto, EditarVisitaCommand, VisitaListaDto>? AlEditar { get; set; }
+
+        /// <summary>Si es cierto, la consulta de una sola fila por id falla.</summary>
+        public bool FallarConsultaPorId { get; set; }
+
         public TaskCompletionSource<Result>? NotificacionDiferida { get; set; }
 
         public Exception? ErrorNotificacion { get; set; }
@@ -130,6 +143,7 @@ public partial class VisitasGen2Tests : BunitContext
             TrabajadorIds: [], v.NotificadoCliente, Notas: null, HoraEstimadaAcceso: null, Version: Guid.NewGuid());
 
         private List<VisitaListaDto> Aplicar(ObtenerVisitasQuery consulta) => Visitas
+            .Where(v => consulta.VisitaId is null || v.Id == consulta.VisitaId)
             .Where(v => consulta.NotificadoCliente is null || v.NotificadoCliente == consulta.NotificadoCliente)
             .Where(v => !consulta.SoloUrgentes || v.NivelUrgencia != NivelUrgenciaVisita.Normal)
             .Where(v => !consulta.SoloActivas || (v.FechaFin >= Hoy && !v.EstaCancelada))
@@ -145,6 +159,10 @@ public partial class VisitasGen2Tests : BunitContext
             {
                 case ObtenerVisitasQuery consulta:
                     ConsultasVisitas++;
+                    ConsultasDeLista.Add(consulta);
+                    if (FallarConsultaPorId && consulta.VisitaId is not null)
+                        return Task.FromException<TResponse>(new InvalidOperationException("Fallo simulado de la relectura."));
+
                     if (DiferirLista)
                     {
                         var pendiente = new TaskCompletionSource<ResultadoPaginado<VisitaListaDto>>();
@@ -153,7 +171,17 @@ public partial class VisitasGen2Tests : BunitContext
                     }
 
                     var filas = Aplicar(consulta);
-                    return Respuesta<TResponse>(new ResultadoPaginado<VisitaListaDto>(filas, filas.Count, consulta.Pagina, consulta.TamanoPagina));
+                    return Respuesta<TResponse>(new ResultadoPaginado<VisitaListaDto>(
+                        filas.Skip((consulta.Pagina - 1) * consulta.TamanoPagina).Take(consulta.TamanoPagina).ToList(),
+                        filas.Count, consulta.Pagina, consulta.TamanoPagina));
+
+                case EditarVisitaCommand editar when AlEditar is not null:
+                    {
+                        Comandos.Add(editar);
+                        var i = Visitas.FindIndex(v => v.Id == editar.Id);
+                        Visitas[i] = AlEditar(Visitas[i], editar);
+                        return Respuesta<TResponse>(Result.Exito());
+                    }
 
                 case ObtenerDetalleVisitaQuery detalle:
                     return DetallesDiferidos.TryGetValue(detalle.Id, out var detalleDiferido)
@@ -163,7 +191,7 @@ public partial class VisitasGen2Tests : BunitContext
                 case ObtenerVisitaPorIdQuery edicion:
                     return EdicionesDiferidas.TryGetValue(edicion.Id, out var edicionDiferida)
                         ? (Task<TResponse>)(object)edicionDiferida.Task
-                        : Respuesta<TResponse>(ParaEditar(Visitas.Single(v => v.Id == edicion.Id)));
+                        : Respuesta<TResponse>(ParaEditar(Visitas.Single(v => v.Id == edicion.Id)) with { TrabajadorIds = TrabajadoresAlEditar });
 
                 case ObtenerSolicitudAccesoCorreoQuery:
                     ConsultasSolicitud++;

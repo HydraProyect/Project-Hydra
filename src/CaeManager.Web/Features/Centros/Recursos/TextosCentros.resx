@@ -16,6 +16,14 @@
     <value>Cliente:</value>
     <comment>Rótulo en pantalla del Cliente empresarial del Centro (contrato Gen2 § 14: Cliente empresarial se rotula «Cliente», decisión de rótulo del 2026-10-09).</comment>
   </data>
+  <data name="KickerCentro360" xml:space="preserve">
+    <value>Centro</value>
+    <comment>Qué es la ficha, en versalitas sobre el nombre del Centro (cabecera de identidad de Centro 360).</comment>
+  </data>
+  <data name="EtiquetaLateral360" xml:space="preserve">
+    <value>Contexto del centro</value>
+    <comment>Nombre accesible del lateral de Centro 360 (canales de gestión y próxima visita).</comment>
+  </data>
   <data name="CabeceraEmpresa" xml:space="preserve">
     <value>Empresa:</value>
     <comment>Empresa contratista que trabaja en el Centro.</comment>

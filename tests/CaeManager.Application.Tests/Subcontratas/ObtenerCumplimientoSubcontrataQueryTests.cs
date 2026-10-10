@@ -63,6 +63,10 @@ public class ObtenerCumplimientoSubcontrataQueryTests
             IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken) =>
             throw new NotSupportedException("El anillo no pide incidencias.");
 
+        public Task<IReadOnlyDictionary<Guid, ResumenEstadoSubcontrata>> CalcularResumenAsync(
+            IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("El anillo no pide el resumen del listado.");
+
         public Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(
             IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken)
         {

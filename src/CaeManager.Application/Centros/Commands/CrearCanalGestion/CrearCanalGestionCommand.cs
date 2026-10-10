@@ -78,7 +78,8 @@ public class CrearCanalGestionCommandHandler(
     public async Task<Result<Guid>> Handle(CrearCanalGestionCommand request, CancellationToken cancellationToken)
     {
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
-        if (!await alcanceDatos.CentroVisibleAsync(request.CentroId, cancellationToken))
+        // Alcance de gestión, no de lectura — ver IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync.
+        if (!await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("CanalGestion.CentroNoEncontrado", "No encontramos este centro."));
 
         // P1-X2: un Centro sin gestión CAE no recibe documentación, así que un
