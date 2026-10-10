@@ -133,6 +133,20 @@ printf '%s uno\n' "$ALFA" > "$FIJADAS"
 REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 1 >/dev/null 2>&1
 comprobar "un bloque que no es un numero sale con error de uso" "2" "$?"
 
+for malo in 0 01 99999999999999999999; do
+  printf '%s %s\n' "$ALFA" "$malo" > "$FIJADAS"
+  REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 1 >/dev/null 2>&1
+  comprobar "el bloque '$malo' sale con error de uso" "2" "$?"
+done
+
+printf '%s 1 sobra\n' "$ALFA" > "$FIJADAS"
+REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 1 >/dev/null 2>&1
+comprobar "una linea con texto de mas sale con error de uso" "2" "$?"
+
+# La ultima linea sin salto final tambien cuenta.
+printf '# cabecera\n%s %s' "$ALFA" "$otro" > "$FIJADAS"
+comprobar "la ultima linea sin salto final se aplica" "$otro" "$(bloque_de "$ALFA" "$FIJADAS")"
+
 printf '%s 1\n%s 2\n' "$ALFA" "$ALFA" > "$FIJADAS"
 REPARTO_FIJADAS="$FIJADAS" LISTADO_DE_TESTS="$LISTADO" bash "$GUION" proyecto 2 1 >/dev/null 2>&1
 comprobar "la misma clase fijada dos veces sale con error de uso" "2" "$?"

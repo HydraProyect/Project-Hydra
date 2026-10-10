@@ -100,7 +100,9 @@ fi
 # ninguna otra, y una clase nueva sigue cayendo sola por su hash.
 #
 # Lo que se rechaza, porque repartiría mal sin avisar:
-#   - un bloque que no es un entero entre 1 y el total (fichero escrito para
+#   - un bloque que no es un entero de una a cuatro cifras, sin ceros a la
+#     izquierda, entre 1 y el total (las cuatro cifras evitan que un numero
+#     enorme desborde la comparacion y pase por valido; fichero escrito para
 #     otro número de bloques: con menos bloques la clase no correría en
 #     ninguno);
 #   - la misma clase fijada dos veces.
@@ -115,7 +117,7 @@ if [ -n "${REPARTO_FIJADAS:-}" ]; then
   while read -r nombre destino resto || [ -n "${nombre:-}" ]; do
     nombre=${nombre%$'\r'}; destino=${destino%$'\r'}; resto=${resto%$'\r'}
     case "$nombre" in ''|'#'*) continue ;; esac
-    if [ -n "$resto" ] || ! [[ "$destino" =~ ^[0-9]+$ ]] || [ "$destino" -lt 1 ] || [ "$destino" -gt "$total" ]; then
+    if [ -n "$resto" ] || ! [[ "$destino" =~ ^[1-9][0-9]{0,3}$ ]] || [ "$destino" -gt "$total" ]; then
       echo "Línea inválida en $REPARTO_FIJADAS: '$nombre $destino $resto'." >&2
       echo "Se espera '<Clase.Completa> <bloque>' con el bloque entre 1 y $total." >&2
       exit 2
