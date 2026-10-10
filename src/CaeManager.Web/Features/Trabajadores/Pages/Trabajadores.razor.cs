@@ -238,6 +238,22 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     [SupplyParameterFromQuery(Name = "subcontrata")]
     public string? SubcontrataInicial { get; set; }
 
+    /// <summary>Orden de columna (<c>?orden=trabajador-desc</c>). Sin él, el de fábrica: por documentación.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    /// <summary>
+    /// El orden de columna viaja en la URL y forma parte de la vista. La rejilla nace ordenada por
+    /// documentación. «Exportar esta vista» sigue leyendo el orden de la última petición de la rejilla
+    /// (<see cref="_ordenExportar"/>), venga de un clic en la cabecera o de la URL.
+    /// </summary>
+    private readonly OrdenDeRejilla _orden = new(
+    [
+        ("trabajador", nameof(TrabajadorListaDto.Apellidos)),
+        ("empleador", nameof(TrabajadorListaDto.EmpleadorNombre)),
+        ("documentacion", nameof(TrabajadorListaDto.EstadoDocumental)),
+    ], claveDeFabrica: "documentacion");
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
@@ -419,7 +435,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroEmpresaId = empresaDeLaUrl;
         _filtroSubcontrataId = subcontrataDeLaUrl;
 
-        if (cambiaronLosFiltros && _grid is not null)
+        // Con otro orden la rejilla se remonta ya ordenada y pide ella los datos: refrescar además la
+        // saliente sería pedirlos dos veces.
+        var cambiaElOrden = _orden.Leer(OrdenInicial);
+        if (cambiaronLosFiltros && _grid is not null && !(cambiaElOrden && _paginacion.CurrentPageIndex == 0))
             await RecargarAsync();
 
         // A diferencia de "accion=crear" (OnInitializedAsync, solo se
@@ -469,6 +488,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         // Todo lo que define la pregunta se lee ANTES del await.
         var carga = ++_cargaVigente;
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        if (_orden.Anotar(ordenarPor, descendente))
+            NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
         (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         var consulta = new ObtenerTrabajadoresQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
@@ -1273,9 +1294,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// <summary>
     /// Lista blanca de los parámetros de VISTA de la URL: lo que recuerda y restaura la vista recordada
     /// (<see cref="VistaRecordadaDeListado"/>). Los filtros guardados de esta pantalla son anteriores a la
-    /// pieza compartida y conservan su propio JSON. El orden de columna aún no viaja en la URL aquí.
+    /// pieza compartida y conservan su propio JSON, sin el orden de columna.
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "orden"];
 
     private readonly ConexionVistaRecordada _vistaRecordada = new();
 
@@ -1291,14 +1312,22 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
         _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
+        var cambiaElOrden = _orden.Leer(vista.GetValueOrDefault("orden"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
             ["estado"] = _estadoFiltro,
             ["empresa"] = _filtroEmpresaId,
             ["subcontrata"] = _filtroSubcontrataId,
+            ["orden"] = _orden.EnUrl,
         });
-        await RecargarAsync();
+
+        // Con otro orden la rejilla se remonta en el siguiente render y pide ella los datos:
+        // refrescar además la saliente sería pedirlos dos veces.
+        if (cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+            StateHasChanged();
+        else
+            await RecargarAsync();
     }
 
     private async Task GuardarFiltroActualAsync()

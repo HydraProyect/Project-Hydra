@@ -104,6 +104,12 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     private bool _escuchando;
     private bool _desechado;
 
+    /// <summary>
+    /// Vida de la pieza: corta la LECTURA de la vista recordada si la pieza se retira con ella en vuelo.
+    /// Las escrituras no lo llevan: la de salida se lanza justo antes de que la pieza se retire.
+    /// </summary>
+    private readonly CancellationTokenSource _ciclo = new();
+
     /// <summary>La vista que se da por recordada: con ella se compara cada cambio de dirección.</summary>
     private string _recordada = SinVista;
 
@@ -163,7 +169,12 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         string? valoresJson;
         try
         {
-            valoresJson = await Mediator.Send(new ObtenerVistaRecordadaQuery(Pantalla));
+            valoresJson = await Mediator.Send(new ObtenerVistaRecordadaQuery(Pantalla), _ciclo.Token);
+        }
+        catch (OperationCanceledException) when (_desechado)
+        {
+            // La pieza se retiró con la lectura en vuelo: no queda a quién restaurarle nada.
+            return;
         }
         catch (Exception ex)
         {
@@ -203,6 +214,8 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             return;
 
         _desechado = true;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
         if (_escuchando)
             Navegacion.LocationChanged -= AlCambiarDireccion;
 

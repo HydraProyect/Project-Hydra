@@ -146,7 +146,7 @@
            enseñar, y en su lugar se ve el esqueleto o el estado vacío que
            toque. *@
         <div class="contenido-entra" style="display:@(_totalElementos == 0 ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+            <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
                     @* La casilla de cabecera solo marca los de la página
@@ -171,7 +171,8 @@
                    teclean al dar de alta en una plataforma, y el DNI debajo, que se copia con un
                    clic. Sigue ordenando por apellidos y, a igualdad, por nombre
                    (ObtenerTrabajadoresQuery). *@
-                <TemplateColumn Title="@Textos["ListaColumnaTrabajador"]" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))">
+                <TemplateColumn Title="@Textos["ListaColumnaTrabajador"]" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))"
+                                IsDefaultSortColumn="@_orden.Es("trabajador")" InitialSortDirection="_orden.Direccion">
                     <span class="celda-trabajador">
                         <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
                                 aria-label="@Textos["AbrirVistaRapidaDe", NombreCompleto(context)]"
@@ -188,13 +189,14 @@
                 @* La maqueta añade una segunda línea («Subcontrata de …») a las subcontratas:
                    TrabajadorListaDto no dice si el empleador es subcontrata ni de quién, así que no
                    se pinta (cambiaría la consulta: Application). *@
-                <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="@Textos["EtiquetaEmpresa"]" Sortable="true" />
+                <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="@Textos["EtiquetaEmpresa"]" Sortable="true"
+                                IsDefaultSortColumn="@_orden.Es("empleador")" InitialSortDirection="_orden.Direccion" />
                 @* Columna de estado, de ancho fijo. Orden por defecto: el peor estado primero
                    (Vencido → Urgente → Próximo → Sin confirmar → Vigente → Sin caducidad), que
                    ObtenerTrabajadoresQuery ya resuelve en SQL. Urgente y Próximo se rotulan los dos
                    «Por vencer»; lo correcto va sin pastilla. El documento que causa el estado (el
                    motivo bajo la pastilla) y «vigentes/total» no viajan en TrabajadorListaDto. *@
-                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" IsDefaultSortColumn="true" Class="col-estado"
+                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" IsDefaultSortColumn="@_orden.Es("documentacion")" InitialSortDirection="_orden.Direccion" Class="col-estado"
                                 SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.EstadoDocumental))">
                     <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)"
                                 Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"

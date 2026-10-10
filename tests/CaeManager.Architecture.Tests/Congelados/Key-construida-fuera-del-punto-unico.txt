@@ -3,8 +3,8 @@
 # Medida: 'ruta :: expresión = n'. Clasificación de cada una (revisada a mano al congelar, 2026-10-03):
 #   - Reinicio de UN hijo (sin hermanos con clave: la clave solo fuerza recrear el elemento/componente). No compiten con nadie:
 #       CampoTexto._generacionValor, Proyectos._versionSelectorCliente, DocumentoWorkspacePanel.titular, ContextWorkspace (tipo, entidad)
-#       y las dos GeneracionDe(...) de TiposDocumento (un select/checkbox por celda). Desde 2026-10-10, también la rejilla de
-#       Vehículos y la de Gestiones (_orden.Version): QuickGrid no ofrece volver a «sin orden», así que al cambiar el orden que
+#       y las dos GeneracionDe(...) de TiposDocumento (un select/checkbox por celda). Desde 2026-10-10, también las rejillas de
+#       Vehículos, Gestiones, Trabajadores, Clientes y Documentos (_orden.Version): QuickGrid no ofrece volver a «sin orden», así que al cambiar el orden que
 #       trae la URL la rejilla se remonta ya ordenada (OrdenDeRejilla). Una rejilla por página, sin hermanos.
 #   - Clave de agrupación o lista fija, única por construcción en su productor: Alertas grupo.Clave y Inicio GrupoId (GroupBy),
 #       OrdenMenuLateral Fila.Clave ($"{Tipo}:{GrupoId}:{Id}", Id de fila de configuración), ventana.Etiqueta (4 ventanas constantes),
@@ -13,15 +13,18 @@
 src/CaeManager.Web/Components/DesignSystem/CampoTexto.razor :: _generacionValor = 1
 src/CaeManager.Web/Components/Workspace/ContextWorkspace.razor :: (frame.Tipo, frame.EntidadId) = 1
 src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor :: grupo.Clave = 1
+src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor :: _orden.Version = 1
 src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor :: enlace.Fila.Clave = 1
 src/CaeManager.Web/Features/Configuracion/Pages/OrdenMenuLateral.razor :: grupo.Cabecera.Fila.Clave = 1
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor :: bandeja.Grupos[i].GrupoId = 1
 src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor :: titular = 1
 src/CaeManager.Web/Features/Documentos/Components/SugerenciasPreventivasTab.razor :: ventana.Etiqueta = 1
+src/CaeManager.Web/Features/Documentos/Pages/Documentos.razor :: _orden.Version = 1
 src/CaeManager.Web/Features/Documentos/Pages/SubidaMasiva.razor :: item.ClaveLocal = 1
 src/CaeManager.Web/Features/Gestiones/Pages/Gestiones.razor :: _orden.Version = 1
 src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: _versionSelectorCliente = 1
 src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor :: GeneracionDe(clave) = 1
 src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor :: GeneracionDe(claveOficial) = 1
 src/CaeManager.Web/Features/Trabajadores/Components/PanelDocumentacionBase.razor :: indicador.Tipo = 2
+src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor :: _orden.Version = 1
 src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor :: _orden.Version = 1

@@ -168,7 +168,7 @@
         }
 
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+            <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="ClienteListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
                     <TemplateColumn Title="" Align="Align.Center">
@@ -180,7 +180,8 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))">
+                <TemplateColumn Title="Razón social" Sortable="true" SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.RazonSocial))"
+                                IsDefaultSortColumn="@_orden.Es("cliente")" InitialSortDirection="_orden.Direccion">
                     @* Patrón de listados: la fila no lleva menú «⋯». El nombre es un botón
                        que abre la vista rápida (el panel del Context Workspace), igual que
                        Enter sobre la fila enfocada. QuickGrid no expone el clic de la fila: la
@@ -315,7 +316,7 @@
                 @* Columna de orden por defecto: el peor estado primero (Vencido → Faltante →
                    Urgente → Próximo → sin incidencias), resuelto en ObtenerClientesQuery. La pastilla dice el peor
                    estado y el motivo de debajo cuántas alertas hay en él; lo correcto va sin pastilla. *@
-                <TemplateColumn Title="Estado documental" Sortable="true" IsDefaultSortColumn="true" Class="col-estado"
+                <TemplateColumn Title="Estado documental" Sortable="true" IsDefaultSortColumn="@_orden.Es("documentacion")" InitialSortDirection="_orden.Direccion" Class="col-estado"
                                 SortBy="@(GridSort<ClienteListaDto>.ByAscending(c => c.EstadoDocumentalPeor))">
                     @if (context.EstadoDocumentalPeor is { } peor)
                     {

@@ -105,6 +105,37 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Filtro «Plataforma» de la rejilla: el Id de la plataforma CAE.</summary>
     [SupplyParameterFromQuery] public string? Plataforma { get; set; }
 
+    /// <summary>Orden de columna de la rejilla (<c>?orden=vencimiento-desc</c>). Sin él, el de inicio: por severidad.</summary>
+    [SupplyParameterFromQuery(Name = "orden")] public string? OrdenInicial { get; set; }
+
+    /// <summary>
+    /// El orden de columna viaja en la URL y forma parte de la vista. La rejilla nace sin ordenar: el
+    /// orden de inicio lo pone la consulta (<see cref="ObtenerDocumentosQuery.OrdenPorSeveridad"/>).
+    /// «entidad» y «ambito» son la misma columna, y «vencimiento» y «emision» también.
+    /// </summary>
+    private readonly OrdenDeRejilla _orden = new(
+    [
+        ("entidad", nameof(DocumentoListaDto.PropietarioNombre)),
+        ("ambito", nameof(DocumentoListaDto.Ambito)),
+        ("tipo", nameof(DocumentoListaDto.TipoDocumentoNombre)),
+        ("vencimiento", nameof(DocumentoListaDto.FechaVencimiento)),
+        ("emision", nameof(DocumentoListaDto.FechaEmision)),
+        ("estado", nameof(DocumentoListaDto.Estado)),
+    ]);
+
+    /// <summary>El orden que llega (URL o vista recordada). Si cambia, la rejilla se remonta ya ordenada.</summary>
+    private bool LeerOrden(string? valor)
+    {
+        if (!_orden.Leer(valor))
+            return false;
+
+        if (_orden.Propiedad is nameof(DocumentoListaDto.PropietarioNombre) or nameof(DocumentoListaDto.Ambito))
+            _ordenEntidadAsociadaPorAmbito = _orden.Propiedad == nameof(DocumentoListaDto.Ambito);
+        if (_orden.Propiedad is nameof(DocumentoListaDto.FechaVencimiento) or nameof(DocumentoListaDto.FechaEmision))
+            _ordenVigenciaPorEmision = _orden.Propiedad == nameof(DocumentoListaDto.FechaEmision);
+        return true;
+    }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosDocumentos> Textos { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
@@ -597,6 +628,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _ambitoFiltro = Ambito ?? string.Empty;
         _tipoFiltro = IdValido(Tipo);
         _plataformaFiltro = IdValido(Plataforma);
+        LeerOrden(OrdenInicial);
 
         // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
         // desde el evento de reclamación enviada a su pestaña. Se ignora un
@@ -774,6 +806,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _ultimaColumnaOrden = request.SortByColumn;
             _ultimoOrdenAscendente = request.SortByAscending;
             var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+            if (_orden.Anotar(ordenarPor, descendente))
+                NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
             // Orden de inicio: lo que más urge primero. En cuanto el usuario ordena por una columna, manda la suya.
             ordenarPor ??= ObtenerDocumentosQuery.OrdenPorSeveridad;
             (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
@@ -1233,10 +1267,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// la vista recordada (<see cref="VistaRecordadaDeListado"/>), con la grafía con la que esta página los
     /// escribe. No son vista <c>Pestana</c> ni los enlaces profundos (<see cref="DocumentoId"/>,
     /// <see cref="TipoDocumentoId"/>…). Los filtros guardados de esta pantalla son anteriores a la pieza
-    /// compartida y conservan su propio JSON.
+    /// compartida y conservan su propio JSON, sin el orden de columna.
     /// </summary>
     public static readonly IReadOnlyList<string> ParametrosDeVista =
-        ["q", nameof(Estado), nameof(Ambito), nameof(Tipo), nameof(Plataforma)];
+        ["q", nameof(Estado), nameof(Ambito), nameof(Tipo), nameof(Plataforma), "orden"];
 
     private readonly ConexionVistaRecordada _vistaRecordada = new();
 
@@ -1253,6 +1287,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _ambitoFiltro = vista.GetValueOrDefault(nameof(Ambito)) ?? string.Empty;
         _tipoFiltro = IdValido(vista.GetValueOrDefault(nameof(Tipo)));
         _plataformaFiltro = IdValido(vista.GetValueOrDefault(nameof(Plataforma)));
+        var cambiaElOrden = LeerOrden(vista.GetValueOrDefault("orden"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
@@ -1260,8 +1295,15 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             [nameof(Ambito)] = _ambitoFiltro,
             [nameof(Tipo)] = _tipoFiltro,
             [nameof(Plataforma)] = _plataformaFiltro,
+            ["orden"] = _orden.EnUrl,
         });
-        await RecargarAsync();
+
+        // Con otro orden la rejilla se remonta en el siguiente render y pide ella los datos:
+        // refrescar además la saliente sería pedirlos dos veces.
+        if (cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+            StateHasChanged();
+        else
+            await RecargarAsync();
     }
 
     /// <summary>
