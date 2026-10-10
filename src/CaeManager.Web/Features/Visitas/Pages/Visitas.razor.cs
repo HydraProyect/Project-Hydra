@@ -1628,6 +1628,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             // También con errores: un rechazo por versión significa que la Visita cambió y la lista no lo sabe.
             if (r.Restaurados > 0 || r.Errores.Count > 0)
                 await RecargarAsync();
+
+            // Un panel abierto sobre una de ellas enseñaba «Visita cancelada» y «Reactivar»: se relee, como al cancelar.
+            if (_detalle is not null && recibos.Any(x => x.Id == _detalle.Id))
+                await AbrirDetalleAsync(_detalle.Id, _pestanaDetalle);
         }
         finally
         {
