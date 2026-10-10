@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Exportacion;
@@ -67,7 +68,12 @@ public static class GestionesEndpoints
         return Results.File(libro, LibroDeListado.TipoContenido, "gestiones.xlsx");
     }
 
-    private static async IAsyncEnumerable<IReadOnlyList<XLCellValue>> FilasAsync(
+    /// <summary>
+    /// Las celdas de cada Gestión, en el orden de las columnas del libro. «Creada» es el día de negocio
+    /// del instante de creación, el mismo que pinta la columna del listado: una Gestión creada pasada la
+    /// medianoche peninsular no puede salir con un día en pantalla y el anterior en el Excel.
+    /// </summary>
+    public static async IAsyncEnumerable<IReadOnlyList<XLCellValue>> FilasAsync(
         IAsyncEnumerable<GestionListaDto> gestiones, IStringLocalizer<TextosGestiones> textos)
     {
         await foreach (var gestion in gestiones)
@@ -76,7 +82,7 @@ public static class GestionesEndpoints
             [
                 gestion.TrabajadorNombre, gestion.CentroNombre, gestion.TipoDocumentoNombre,
                 textos[gestion.Estado == EstadoGestion.Completada ? "EstadoCompletada" : "EstadoPendiente"].Value,
-                LibroDeListado.Fecha(DateOnly.FromDateTime(gestion.CreadoEnUtc))
+                LibroDeListado.Fecha(DiaDeNegocio.De(gestion.CreadoEnUtc))
             ];
         }
     }
