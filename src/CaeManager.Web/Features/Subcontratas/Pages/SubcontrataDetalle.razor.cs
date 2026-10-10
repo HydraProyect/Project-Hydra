@@ -38,7 +38,7 @@ namespace CaeManager.Web.Features.Subcontratas.Pages;
 /// <para>
 /// Compone, con las MISMAS consultas que <c>SubcontrataWorkspacePanel</c> y que la fila desplegada del listado
 /// (<c>AcordeonTrabajadoresSubcontrata</c>) —mismo alcance y misma RLS—, la identidad con el anillo
-/// y las pestañas Trabajadores, Supervisión, Centros, Agenda e Historial. La edición de la identidad y
+/// y las pestañas Trabajadores, Supervisión, Centros, Agenda, Ficha e Historial. La edición de la identidad y
 /// de las credenciales sigue viviendo en el panel: «Editar» lo abre.
 /// </para>
 ///
@@ -63,13 +63,14 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     internal const string PestanaSupervision = "supervision";
     internal const string PestanaCentros = "centros";
     internal const string PestanaAgenda = "agenda";
+    internal const string PestanaFicha = "ficha";
     internal const string PestanaHistorial = "historial";
 
     /// <summary>Tope de filas de la pestaña Trabajadores: si hay más, el resumen lo dice (mismo tope que el panel).</summary>
     internal const int TamanoPaginaTrabajadores = 50;
 
     private static readonly string[] PestanasValidas =
-        [PestanaTrabajadores, PestanaSupervision, PestanaCentros, PestanaAgenda, PestanaHistorial];
+        [PestanaTrabajadores, PestanaSupervision, PestanaCentros, PestanaAgenda, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid SubcontrataId { get; set; }
 
@@ -883,6 +884,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             Contador = _centros is { } centros ? new ContadorPestana(centros.Count, Textos["GlosaCentros"]) : null
         },
         new(PestanaAgenda, Textos["PestanaAgenda"]),
+        new(PestanaFicha, Comunes["PestanaFicha"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
 

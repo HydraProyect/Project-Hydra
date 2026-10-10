@@ -179,6 +179,9 @@
                             <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Subcontrata" PropietarioId="_detalle.Id" />
                         </Tarjeta>
                         break;
+                    case PestanaFicha:
+                        <CajasFicha Cajas="@(new CajaFicha[] { new("cadena", FichaSinCadena) })" />
+                        break;
                     case PestanaHistorial:
                         <Tarjeta>
                             <PestanaHistorial EntidadTipo="Subcontrata" EntidadId="_detalle.Id" />
@@ -540,4 +543,11 @@
             </ListaRelaciones>
         }
     </section>;
+}
+
+@code {
+    // La posición en la cadena no viaja en los datos actuales de la ficha.
+    private RenderFragment FichaSinCadena => @<Tarjeta>
+        <EstadoVacio Titulo="@Textos["FichaSinCadenaTitulo"]" Descripcion="@Textos["FichaSinCadenaDescripcion"]" />
+    </Tarjeta>;
 }

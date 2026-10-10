@@ -142,6 +142,28 @@ public class Subcontrata360PaginaTests : BunitContext
             throw new NotSupportedException("Con el drawer cerrado no se convierte nada.");
     }
 
+    [Fact]
+    public void Ficha_es_penultima_y_no_hay_cadena_en_el_lateral()
+    {
+        Montar();
+        var cut = Renderizar();
+        var tabs = cut.FindAll("[role=tab]");
+        tabs[^2].TextContent.Trim().Should().Be("Ficha");
+        tabs[^1].TextContent.Trim().Should().Be("Historial");
+        cut.Find(".cuerpo-con-lateral-lateral").TextContent.Should().NotContain("Cadena de subcontratación");
+        tabs[^2].Click();
+        Navegacion.Uri.Should().Contain("pestana=ficha");
+        cut.Find("[data-pieza=cajas-ficha]").TextContent.Should().Contain("No hay cadena de subcontratación disponible");
+    }
+
+    [Fact]
+    public void La_URL_ficha_abre_el_estado_vacio_de_la_cadena()
+    {
+        Montar();
+        var cut = Renderizar("?pestana=ficha");
+        cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().Be("Ficha");
+        cut.Find("[data-pieza=cajas-ficha]").TextContent.Should().Contain("No hay cadena de subcontratación disponible");
+    }
     // ── Montaje ───────────────────────────────────────────────────────────
 
     private static readonly Guid SubcontrataId = Guid.NewGuid();
