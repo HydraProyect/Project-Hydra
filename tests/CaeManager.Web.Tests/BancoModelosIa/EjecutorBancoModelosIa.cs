@@ -63,7 +63,8 @@ public sealed record ParametrosBanco(
 public sealed record LlamadaObservada(
     string? ModeloEnviado, string? EsfuerzoEnviado, int? MaxTokensEnviado,
     int EstadoHttp, long LatenciaMs, int Intentos,
-    int TokensEntrada, int TokensSalida, string? StopReason, string? ModeloQueRespondio, int TokensEntradaCota);
+    int TokensEntrada, int TokensSalida, string? StopReason, string? ModeloQueRespondio, int TokensEntradaCota,
+    string? MotivoDelRechazo = null);
 
 /// <summary>
 /// Sonda entre el servicio del producto y la API. Lee de la PETICIÓN el
@@ -133,16 +134,17 @@ public sealed class SondaAnthropic(HttpMessageHandler interno) : DelegatingHandl
                 continue;
             }
 
-            Llamadas.Add(Observar(await respuesta.Content.ReadAsStringAsync(cancellationToken), modelo, esfuerzo, maxTokens, estado, reloj.ElapsedMilliseconds, intento, cotaEntrada));
+            var clave = request.Headers.TryGetValues("x-api-key", out var claves) ? claves.FirstOrDefault() : null;
+            Llamadas.Add(Observar(await respuesta.Content.ReadAsStringAsync(cancellationToken), modelo, esfuerzo, maxTokens, estado, reloj.ElapsedMilliseconds, intento, cotaEntrada, clave));
             return respuesta;
         }
     }
 
     private static LlamadaObservada Observar(
-        string cuerpo, string? modelo, string? esfuerzo, int? maxTokens, int estado, long latenciaMs, int intentos, int cotaEntrada)
+        string cuerpo, string? modelo, string? esfuerzo, int? maxTokens, int estado, long latenciaMs, int intentos, int cotaEntrada, string? clave)
     {
         int entrada = 0, salida = 0;
-        string? stop = null, modeloRespuesta = null;
+        string? stop = null, modeloRespuesta = null, rechazo = null;
         try
         {
             using var respuesta = JsonDocument.Parse(cuerpo);
@@ -155,14 +157,31 @@ public sealed class SondaAnthropic(HttpMessageHandler interno) : DelegatingHandl
 
             stop = raiz.TryGetProperty("stop_reason", out var s) ? s.GetString() : null;
             modeloRespuesta = raiz.TryGetProperty("model", out var m) ? m.GetString() : null;
+
+            // Sin el motivo, un 400 no distingue una petición que el modelo no admite de una cuenta sin saldo.
+            if (raiz.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object)
+            {
+                var tipo = error.TryGetProperty("type", out var t) ? t.GetString() : null;
+                var mensaje = error.TryGetProperty("message", out var msj) ? msj.GetString() : null;
+                rechazo = $"{tipo}: {mensaje}";
+
+                // El mensaje lo escribe la API y acaba en el informe: si repite la clave, se tacha antes de guardarlo.
+                if (!string.IsNullOrEmpty(clave))
+                    rechazo = rechazo.Replace(clave, "[clave tachada]", StringComparison.Ordinal);
+                rechazo = Recortar(rechazo, LongitudMaximaDelRechazo);
+            }
         }
         catch (JsonException)
         {
             // Un cuerpo que no es JSON (una página de error de un proxy) deja los campos vacíos; el estado HTTP ya lo delata.
         }
 
-        return new LlamadaObservada(modelo, esfuerzo, maxTokens, estado, latenciaMs, intentos, entrada, salida, stop, modeloRespuesta, cotaEntrada);
+        return new LlamadaObservada(modelo, esfuerzo, maxTokens, estado, latenciaMs, intentos, entrada, salida, stop, modeloRespuesta, cotaEntrada, rechazo);
     }
+
+    private const int LongitudMaximaDelRechazo = 300;
+
+    private static string Recortar(string texto, int maximo) => texto.Length <= maximo ? texto : texto[..maximo] + "…";
 }
 
 /// <summary>
@@ -240,7 +259,7 @@ public sealed record ResultadoCaso(
     IReadOnlyDictionary<string, double> Medidas, string? ErrorServicio,
     string? ModeloEnviado, string? EsfuerzoEnviado, int? MaxTokensEnviado, string? ModeloQueRespondio,
     int EstadoHttp, long LatenciaMs, int Intentos, int TokensEntrada, int TokensSalida, string? StopReason, decimal? CosteUsd,
-    int TokensEntradaCota = 0);
+    int TokensEntradaCota = 0, string? MotivoDelRechazo = null);
 
 public static class EjecutorBancoModelosIa
 {
@@ -301,7 +320,7 @@ public static class EjecutorBancoModelosIa
                 llamada?.EstadoHttp ?? 0, llamada?.LatenciaMs ?? 0, llamada?.Intentos ?? 0,
                 llamada?.TokensEntrada ?? 0, llamada?.TokensSalida ?? 0, llamada?.StopReason,
                 llamada is null ? null : tarifa?.Coste(llamada.TokensEntrada, llamada.TokensSalida),
-                llamada?.TokensEntradaCota ?? 0));
+                llamada?.TokensEntradaCota ?? 0, llamada?.MotivoDelRechazo));
         }
 
         return resultados;
@@ -385,6 +404,10 @@ public static class ValidacionDelInstrumento
         var conErrorHttp = resultados.Where(r => r.Intentos > 0 && r.EstadoHttp is not (0 or 200)).Select(r => $"{r.Caso} ({r.EstadoHttp})").ToList();
         if (conErrorHttp.Count > 0)
             problemas.Add($"Casos que la API rechazó, sin medición de calidad: {string.Join(", ", conErrorHttp)}.");
+
+        var motivos = resultados.Where(r => r.MotivoDelRechazo is not null).GroupBy(r => r.MotivoDelRechazo!).Select(g => $"«{g.Key}» ×{g.Count()}").ToList();
+        if (motivos.Count > 0)
+            problemas.Add($"Motivo que dio la API: {string.Join("; ", motivos)}.");
 
         if (parametros.MaxTokens is { } tope)
         {
