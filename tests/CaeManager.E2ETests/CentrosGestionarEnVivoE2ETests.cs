@@ -145,17 +145,16 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // "1": se captura el valor real de partida y se compara contra sí
         // mismo tras resolver únicamente el tipo de este test, en vez de
         // asumir un número fijo.
-        // El recuento de vencidos del Centro es el motivo bajo la pastilla de
-        // estado («6 vencidos»), no un badge con la cifra: la columna «Venc.»
-        // se retiró el 2026-10-09. Se localiza por su clase propia y no por
-        // .badge-peligro, que en la cabecera de la fila es ahora la pastilla
-        // de estado («Pendiente») y dentro del acordeón, el badge de cada
-        // Trabajador.
+        // El recuento de pendientes del Centro (Faltante) es su propio motivo
+        // bajo la pastilla de estado («1 pendiente»), separado de los vencidos
+        // desde el 2026-10-10. Se localiza por su clase propia y no por
+        // .badge-peligro, que en la cabecera de la fila es la pastilla de
+        // estado y dentro del acordeón, el badge de cada Trabajador.
         var filaCentro = page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = nombreCentro });
-        var motivoVencidas = filaCentro.Locator(".tarjeta-fila-acordeon-cabecera .motivo-recuento-vencidos");
-        await Expect(motivoVencidas).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        var vencidasAntes = await LeerRecuentoAsync(motivoVencidas);
-        Assert.True(vencidasAntes >= 1, "El Trabajador recién asignado debería tener al menos el Faltante de este test.");
+        var motivoPendientes = filaCentro.Locator(".tarjeta-fila-acordeon-cabecera .motivo-recuento-pendientes");
+        await Expect(motivoPendientes).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        var pendientesAntes = await LeerRecuentoAsync(motivoPendientes);
+        Assert.True(pendientesAntes >= 1, "El Trabajador recién asignado debería tener al menos el Faltante de este test.");
 
         // Blur explícito del buscador ANTES de expandir — ver el GAP
         // documentado arriba: sin esto, el re-disparo redundante de
@@ -235,8 +234,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // (el resto de tipos obligatorios del catálogo compartido siguen
         // pendientes, así que no llega a desaparecer del todo).
         await Expect(badgeFalta).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        var vencidasDespues = await LeerRecuentoAsync(motivoVencidas);
-        Assert.Equal(vencidasAntes - 1, vencidasDespues);
+        var pendientesDespues = await LeerRecuentoAsync(motivoPendientes);
+        Assert.Equal(pendientesAntes - 1, pendientesDespues);
     }
 
     /// <summary>La cifra con la que empieza el motivo («6 vencidos» → 6). Falla si el texto no empieza por un número.</summary>

@@ -1501,14 +1501,21 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             .ToList();
 
     /// <summary>
-    /// Motivo bajo la pastilla de estado del Centro: cuántos documentos hay en
-    /// «vencidas» y cuántos en «próximas» (el reparto de
-    /// <c>ObtenerCentrosQuery.Desglosar</c>). Es lo que decían las columnas
-    /// «Venc.» y «Próx.», retiradas el 2026-10-09; cada parte abre su ventana de
-    /// contexto con las incidencias.
+    /// Motivo bajo la pastilla de estado del Centro: cuántos documentos hay por
+    /// causa (vencidos, pendientes, bloqueados) y cuántos próximos a vencer (el
+    /// reparto de <c>ObtenerCentrosQuery.Desglosar</c>, separado por causa el
+    /// 2026-10-10: «2 vencidos · 1 pendiente · 3 por vencer»). Es lo que decían las
+    /// columnas «Venc.» y «Próx.», retiradas el 2026-10-09; cada parte abre su
+    /// ventana de contexto con las incidencias.
     /// </summary>
     private string MotivoVencidos(int cantidad) =>
         cantidad == 1 ? Textos["MotivoUnVencido"].Value : Textos["MotivoVencidos", cantidad].Value;
+
+    private string MotivoPendientes(int cantidad) =>
+        cantidad == 1 ? Textos["MotivoUnPendiente"].Value : Textos["MotivoPendientes", cantidad].Value;
+
+    private string MotivoBloqueos(int cantidad) =>
+        cantidad == 1 ? Textos["MotivoUnBloqueo"].Value : Textos["MotivoBloqueos", cantidad].Value;
 
     private string MotivoProximos(int cantidad) =>
         cantidad == 1 ? Textos["MotivoUnProximo"].Value : Textos["MotivoProximos", cantidad].Value;
@@ -1533,7 +1540,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         var deTrabajadores = incidencias.Count - deEmpresa;
         var cabeza = incidencias.Count == 1
             ? $"1 documento {calificativo}"
-            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
+            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') || calificativo.EndsWith('e') ? calificativo + "s" : calificativo)}";
 
         var partes = new List<string>();
         if (deEmpresa > 0) partes.Add(deEmpresa == 1 ? "1 de empresa" : $"{deEmpresa} de empresa");

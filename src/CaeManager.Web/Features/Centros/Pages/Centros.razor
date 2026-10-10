@@ -332,18 +332,57 @@
                                                 Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
                                                 Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)">
                                         <MotivoContenido>
-                                            @if (centro.Recuentos.TotalVencidas > 0)
+                                            @* Vencidas, pendientes y bloqueos: causas separadas dentro del total «vencidas» de Desglosar (decisión 2026-10-10). *@
+                                            @if (centro.Recuentos.VencidasPorFecha.Count > 0)
                                             {
-                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoVencidos(centro.Recuentos.TotalVencidas), centro.Recuentos.Vencidas, "vencido")"
+                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoVencidos(centro.Recuentos.VencidasPorFecha.Count), centro.Recuentos.VencidasPorFecha, "vencido")"
                                                                  Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                                 Interactiva="HayCorregibles(centro, centro.Recuentos.Vencidas)"
-                                                                 Pie="@PieDeIncidencias(centro, centro.Recuentos.Vencidas)"
-                                                                 Titulo="@($"{centro.Recuentos.TotalVencidas} {(centro.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                                                 Interactiva="HayCorregibles(centro, centro.Recuentos.VencidasPorFecha)"
+                                                                 Pie="@PieDeIncidencias(centro, centro.Recuentos.VencidasPorFecha)"
+                                                                 Titulo="@($"{centro.Recuentos.VencidasPorFecha.Count} {(centro.Recuentos.VencidasPorFecha.Count == 1 ? "documento vencido" : "documentos vencidos")}")">
                                                     <Disparador>
-                                                        <span class="motivo-recuento motivo-recuento-vencidos">@MotivoVencidos(centro.Recuentos.TotalVencidas)</span>
+                                                        <span class="motivo-recuento motivo-recuento-vencidos">@MotivoVencidos(centro.Recuentos.VencidasPorFecha.Count)</span>
                                                     </Disparador>
                                                     <Detalle>
-                                                        @DesgloseIncidencias(centro, centro.Recuentos.Vencidas)
+                                                        @DesgloseIncidencias(centro, centro.Recuentos.VencidasPorFecha)
+                                                    </Detalle>
+                                                </VentanaContexto>
+                                            }
+                                            @if (centro.Recuentos.VencidasPorFecha.Count > 0 && centro.Recuentos.Pendientes.Count > 0)
+                                            {
+                                                <span class="motivo-recuento-separador" aria-hidden="true">·</span>
+                                            }
+                                            @if (centro.Recuentos.Pendientes.Count > 0)
+                                            {
+                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoPendientes(centro.Recuentos.Pendientes.Count), centro.Recuentos.Pendientes, "pendiente")"
+                                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                                 Interactiva="HayCorregibles(centro, centro.Recuentos.Pendientes)"
+                                                                 Pie="@PieDeIncidencias(centro, centro.Recuentos.Pendientes)"
+                                                                 Titulo="@($"{centro.Recuentos.Pendientes.Count} {(centro.Recuentos.Pendientes.Count == 1 ? "documento pendiente" : "documentos pendientes")}")">
+                                                    <Disparador>
+                                                        <span class="motivo-recuento motivo-recuento-pendientes">@MotivoPendientes(centro.Recuentos.Pendientes.Count)</span>
+                                                    </Disparador>
+                                                    <Detalle>
+                                                        @DesgloseIncidencias(centro, centro.Recuentos.Pendientes)
+                                                    </Detalle>
+                                                </VentanaContexto>
+                                            }
+                                            @if (centro.Recuentos.Bloqueos.Count > 0 && (centro.Recuentos.VencidasPorFecha.Count > 0 || centro.Recuentos.Pendientes.Count > 0))
+                                            {
+                                                <span class="motivo-recuento-separador" aria-hidden="true">·</span>
+                                            }
+                                            @if (centro.Recuentos.Bloqueos.Count > 0)
+                                            {
+                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoBloqueos(centro.Recuentos.Bloqueos.Count), centro.Recuentos.Bloqueos, "bloqueado")"
+                                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                                 Interactiva="HayCorregibles(centro, centro.Recuentos.Bloqueos)"
+                                                                 Pie="@PieDeIncidencias(centro, centro.Recuentos.Bloqueos)"
+                                                                 Titulo="@($"{centro.Recuentos.Bloqueos.Count} {(centro.Recuentos.Bloqueos.Count == 1 ? "documento bloqueado" : "documentos bloqueados")}")">
+                                                    <Disparador>
+                                                        <span class="motivo-recuento motivo-recuento-bloqueos">@MotivoBloqueos(centro.Recuentos.Bloqueos.Count)</span>
+                                                    </Disparador>
+                                                    <Detalle>
+                                                        @DesgloseIncidencias(centro, centro.Recuentos.Bloqueos)
                                                     </Detalle>
                                                 </VentanaContexto>
                                             }

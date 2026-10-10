@@ -190,6 +190,11 @@
     color: var(--color-danger-700);
 }
 
+.motivo-recuento-pendientes,
+.motivo-recuento-bloqueos {
+    color: var(--color-danger-700);
+}
+
 .motivo-recuento-proximos {
     color: var(--color-warning-700);
 }

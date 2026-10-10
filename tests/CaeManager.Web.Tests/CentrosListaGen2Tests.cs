@@ -325,6 +325,30 @@ public class CentrosListaGen2Tests : BunitContext
         cut.FindAll(".badge-solo-recuento").Should().BeEmpty("la cifra suelta de las columnas retiradas ya no se pinta");
     }
 
+    /// <summary>
+    /// El motivo separa las causas dentro de «vencidas» (decisión del 2026-10-10): vencido por fecha, pendiente
+    /// (Faltante) y bloqueado (rechazo sin vigencia), y después las próximas. Un Faltante no se cuenta como vencido.
+    /// </summary>
+    [Fact]
+    public void El_motivo_separa_vencidos_pendientes_y_bloqueos_por_causa()
+    {
+        IncidenciaCentroDto Causa(EstadoDocumento? estado) =>
+            new("Causa", AmbitoCausa.Trabajador, estado, Guid.NewGuid(), Guid.NewGuid(), null);
+        var centro = Centro("Centro Logístico Norte", EstadoCentro.Vencido) with
+        {
+            Recuentos = new RecuentosCentroDto(
+                [Causa(EstadoDocumento.Vencido), Causa(EstadoDocumento.Vencido), Causa(EstadoDocumento.Faltante), Causa(null)],
+                [Causa(EstadoDocumento.Proximo), Causa(EstadoDocumento.Proximo), Causa(EstadoDocumento.Proximo)])
+        };
+
+        var cut = Renderizar(centro);
+
+        var motivo = cut.Find(".ranura-estado-centro .estado-fila-motivo");
+        motivo.QuerySelectorAll(".motivo-recuento").Select(m => m.TextContent.Trim())
+            .Should().Equal("2 vencidos", "1 pendiente", "1 bloqueado", "3 por vencer");
+        motivo.QuerySelectorAll(".motivo-recuento-separador").Should().HaveCount(3);
+    }
+
     [Theory]
     [InlineData(1, 0, "1 vencido")]
     [InlineData(0, 3, "3 por vencer")]
@@ -402,21 +426,28 @@ public class CentrosListaGen2Tests : BunitContext
 
         var cut = Renderizar(centro);
 
+        // Vencido, pendiente y próximo: cada causa abre su propia ventana (el faltante ya no va con los vencidos).
         var ventanas = cut.FindAll(".ranura-recuento .ventana-contexto");
-        ventanas.Should().HaveCount(2);
+        ventanas.Should().HaveCount(3);
         // En este listado el panel abre hacia abajo (list-page.css): el puente que deja cruzar el
         // cursor del disparador al panel tiene que ir en ese mismo lado.
         ventanas.Should().OnlyContain(v => v.ClassList.Contains("ventana-contexto-abajo"));
 
         ventanas[0].ClassList.Should().Contain("ventana-contexto-interactiva");
         ventanas[0].QuerySelectorAll("button.ventana-contexto-elemento").Select(b => b.TextContent.Trim())
-            .Should().Equal("Aptitud médica — Sonia Cano", "Formación Art. 19 — Pedro Gil");
+            .Should().Equal("Aptitud médica — Sonia Cano");
         ventanas[0].QuerySelector(".ventana-contexto-pie")!.TextContent.Should().Be("Clic en una para corregirla aquí");
 
-        ventanas[1].ClassList.Should().NotContain("ventana-contexto-interactiva");
-        ventanas[1].QuerySelectorAll("button").Should().BeEmpty();
-        ventanas[1].QuerySelector(".ventana-linea:not(.ventana-grupo)")!.TextContent.Should().Be("Causa antigua sin identificadores");
-        ventanas[1].QuerySelector(".ventana-contexto-pie").Should().BeNull();
+        // El faltante tiene Tipo de documento: se puede corregir, así que su ventana también es pulsable.
+        ventanas[1].ClassList.Should().Contain("ventana-contexto-interactiva");
+        ventanas[1].QuerySelectorAll("button.ventana-contexto-elemento").Select(b => b.TextContent.Trim())
+            .Should().Equal("Formación Art. 19 — Pedro Gil");
+        ventanas[1].QuerySelector(".ventana-contexto-pie")!.TextContent.Should().Be("Clic en una para corregirla aquí");
+
+        ventanas[2].ClassList.Should().NotContain("ventana-contexto-interactiva");
+        ventanas[2].QuerySelectorAll("button").Should().BeEmpty();
+        ventanas[2].QuerySelector(".ventana-linea:not(.ventana-grupo)")!.TextContent.Should().Be("Causa antigua sin identificadores");
+        ventanas[2].QuerySelector(".ventana-contexto-pie").Should().BeNull();
     }
 
     [Fact]
