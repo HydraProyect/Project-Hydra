@@ -25,7 +25,8 @@ public class EliminarCanalGestionCommandHandler(
     public async Task<Result> Handle(EliminarCanalGestionCommand request, CancellationToken cancellationToken)
     {
         var canal = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (canal is null || !await alcanceDatos.CentroVisibleAsync(canal.CentroId, cancellationToken))
+        // Alcance de gestión, no de lectura — ver IAlcanceDatosService.ObtenerCentroIdsParaGestionAsync.
+        if (canal is null || !await alcanceDatos.CentroParaGestionVisibleAsync(canal.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("CanalGestion.NoEncontrado", "No encontramos este acceso."));
 
         if (canal.EsPrincipal)

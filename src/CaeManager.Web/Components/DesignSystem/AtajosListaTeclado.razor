@@ -9,20 +9,41 @@
     private IJSObjectReference? _modulo;
     private IJSObjectReference? _suscripcion;
     private DotNetObjectReference<AtajosListaTeclado>? _referenciaDotNet;
+    private bool _desechado;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
 
         _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/atajos-lista.js");
-        _referenciaDotNet = DotNetObjectReference.Create(this);
-        _suscripcion = await _modulo.InvokeAsync<IJSObjectReference>("registrarAtajosLista", _referenciaDotNet);
+        if (!_desechado)
+        {
+            _referenciaDotNet = DotNetObjectReference.Create(this);
+            _suscripcion = await _modulo.InvokeAsync<IJSObjectReference>("registrarAtajosLista", _referenciaDotNet);
+        }
+
+        // Se salió de la página mientras llegaba el módulo o el registro: DisposeAsync ya pasó
+        // sin nada que retirar. Sin esto el manejador se quedaba escuchando y la lista seguía
+        // contando como montada (atajos-contexto.js), con lo que las fichas 360 cedían j/k/e/f
+        // para el resto del circuito.
+        if (_desechado)
+        {
+            await RetirarAsync();
+            _referenciaDotNet?.Dispose();
+        }
     }
 
     [JSInvokable]
     public Task RecibirAtajo(string tecla) => OnAtajo.InvokeAsync(tecla);
 
     public async ValueTask DisposeAsync()
+    {
+        _desechado = true;
+        await RetirarAsync();
+        _referenciaDotNet?.Dispose();
+    }
+
+    private async Task RetirarAsync()
     {
         // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/16-transversales.md): el circuito ya puede estar
         // desconectado cuando Blazor llama a Dispose en una navegación (el
@@ -31,19 +52,21 @@
         // en los logs del servidor.
         try
         {
-            if (_suscripcion is not null)
+            if (_suscripcion is { } suscripcion)
             {
-                await _suscripcion.InvokeVoidAsync("dispose");
-                await _suscripcion.DisposeAsync();
+                _suscripcion = null;
+                await suscripcion.InvokeVoidAsync("dispose");
+                await suscripcion.DisposeAsync();
             }
 
-            if (_modulo is not null)
-                await _modulo.DisposeAsync();
+            if (_modulo is { } modulo)
+            {
+                _modulo = null;
+                await modulo.DisposeAsync();
+            }
         }
         catch (JSDisconnectedException)
         {
         }
-
-        _referenciaDotNet?.Dispose();
     }
 }

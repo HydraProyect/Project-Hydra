@@ -54,6 +54,9 @@
   <data name="AbrirPanelDe" xml:space="preserve">
     <value>Obrir el panell de {0}</value>
   </data>
+  <data name="PestanaFicha" xml:space="preserve">
+    <value>Fitxa</value>
+  </data>
   <data name="Consultar360" xml:space="preserve">
     <value>Consultar d’un cop d’ull</value>
   </data>

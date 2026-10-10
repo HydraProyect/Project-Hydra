@@ -67,6 +67,77 @@ public class CatalogoAtajosSincronizadoConJsTests
     }
 
     /// <summary>
+    /// Mismo riesgo para la sección «Dentro de una ficha»: <see cref="CatalogoAtajos.Ficha"/> anuncia
+    /// las letras de <c>TECLAS_FICHA</c> de <c>atajos-ficha.js</c> y, aparte, el rango «1 – 9», que
+    /// en el JS no es una lista sino la expresión <c>/^[1-9]$/</c>.
+    /// </summary>
+    [Fact]
+    public void Teclas_del_js_de_ficha_coinciden_con_CatalogoAtajos_Ficha()
+    {
+        var contenidoJs = LeerJs("atajos-ficha.js");
+        var match = Regex.Match(contenidoJs, @"TECLAS_FICHA\s*=\s*\[(?<teclas>[^\]]*)\]");
+
+        match.Success.Should().BeTrue("atajos-ficha.js debe declarar TECLAS_FICHA como un array literal — si cambió de forma, actualiza este test");
+
+        var teclasJs = Regex.Matches(match.Groups["teclas"].Value, @"'(\w+)'")
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet();
+
+        var teclasCatalogo = CatalogoAtajos.Ficha
+            .SelectMany(a => a.Tecla.Split(" / ", StringSplitOptions.TrimEntries))
+            .ToHashSet();
+
+        teclasCatalogo.Should().Contain("1 – 9", "la chuleta anuncia el cambio de pestaña por cifra");
+        contenidoJs.Should().Contain("/^[1-9]$/", "es como atajos-ficha.js reconoce las cifras que la chuleta anuncia como «1 – 9»");
+        teclasCatalogo.Remove("1 – 9");
+
+        teclasJs.Should().BeEquivalentTo(teclasCatalogo,
+            "la chuleta solo puede anunciar teclas de ficha que atajos-ficha.js reparte, y al revés");
+    }
+
+    /// <summary>
+    /// Los atajos de ficha no tienen componente propio: viajan con el registro único de
+    /// <c>atajos-globales.js</c>. Si ese registro deja de llamarlos, ninguna ficha tiene teclado y
+    /// ningún test de componente lo nota.
+    /// </summary>
+    [Fact]
+    public void Atajos_globales_registra_y_retira_los_atajos_de_ficha()
+    {
+        var contenidoJs = LeerAtajosGlobalesJs();
+
+        contenidoJs.Should().Contain("registrarAtajosFicha()");
+        contenidoJs.Should().Contain("atajosFicha.dispose()");
+    }
+
+    /// <summary>
+    /// <c>atajos-ficha.js</c> trabaja sobre el DOM: reconoce la ficha, sus filas y sus botones por
+    /// marcas y clases que pintan otros componentes. Un renombrado en cualquiera de ellos dejaría
+    /// el teclado sin efecto y sin error; este test falla en su lugar.
+    /// </summary>
+    [Theory]
+    [InlineData("SELECTOR_FICHA", "data-atajos-ficha", "Components/DesignSystem/CuerpoConLateral.razor")]
+    [InlineData("SELECTOR_COLUMNA", "cuerpo-con-lateral-principal", "Components/DesignSystem/CuerpoConLateral.razor")]
+    [InlineData("SELECTOR_LATERAL", "cuerpo-con-lateral-lateral", "Components/DesignSystem/CuerpoConLateral.razor")]
+    [InlineData("SELECTOR_FILA", "data-pieza=\"fila\"", "Components/DesignSystem/FilaRelacion.razor")]
+    [InlineData("SELECTOR_FILA", "fila-documento-requerido", "Features/Trabajadores/Pages/TrabajadorDetalle.razor")]
+    [InlineData("SELECTOR_ACCION_DE_FILA", "fila-relacion-acciones", "Components/DesignSystem/FilaRelacion.razor")]
+    [InlineData("SELECTOR_ACCION_DE_FILA", "accion-fila-enlace", "Features/Trabajadores/Pages/TrabajadorDetalle.razor")]
+    [InlineData("SELECTOR_ACCION_DE_FILA", "tipo360-subfila-accion", "Features/Documentos/Pages/TipoDocumentoDetalle.razor")]
+    [InlineData("SELECTOR_NO_ES_ACCION", "boton-360", "Components/DesignSystem/Boton360.razor")]
+    [InlineData("SELECTOR_ACCIONES_CABECERA", "cabecera-identidad-acciones", "Components/DesignSystem/CabeceraIdentidad.razor")]
+    [InlineData("SELECTOR_ACCIONES_CABECERA", "acciones-cabecera", "Components/DesignSystem/CabeceraPagina.razor")]
+    public void Lo_que_el_js_de_ficha_busca_en_el_DOM_lo_pinta_algun_componente(string constante, string marca, string componente)
+    {
+        var declaracion = Regex.Match(LeerJs("atajos-ficha.js"), $@"const {constante}\s*=\s*(?<valor>[^;]+);");
+        declaracion.Success.Should().BeTrue($"atajos-ficha.js debe declarar {constante}");
+        declaracion.Groups["valor"].Value.Should().Contain(marca);
+
+        var ruta = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", componente);
+        File.ReadAllText(ruta).Should().Contain(marca,
+            $"{componente} es quien pinta «{marca}», que atajos-ficha.js busca con {constante}");
+    }
+
+    /// <summary>
     /// KeyTips: <c>keytips.js</c> veta sus <c>LETRAS_ESTABLES</c> a los controles que deducen la
     /// letra. Si el catálogo gana una letra y el JS no, una pastilla de filtro puede quedarse con
     /// ella en una pantalla y el control compartido con otra distinta en la siguiente.

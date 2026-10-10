@@ -927,6 +927,53 @@
 }
 
 /*
+  Fila continua para las listas de acordeón (propuesta de listados, 2026-10-09): la lista es UNA
+  tarjeta, con la cabecera de columnas arriba y las filas pegadas, separadas por una línea, en vez de
+  una tarjeta suelta por fila. Se usa envolviendo la cabecera de columnas de la pantalla y
+  .lista-filas-acordeon en un <div class="marco-lista-acordeon">. La cabecera de columnas sigue en el
+  CSS de cada pantalla (su rejilla es propia). Sin overflow: recortaría las ventanas de contexto.
+*/
+.marco-lista-acordeon {
+    background-color: var(--color-surface);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.marco-lista-acordeon .lista-filas-acordeon {
+    gap: 0;
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon {
+    border: 0;
+    border-bottom: 1px solid var(--color-fila-divisor);
+    border-radius: 0;
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon:last-child {
+    border-bottom: 0;
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon-cabecera {
+    min-height: 48px;
+    border-bottom: 0;
+    border-radius: 0;
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon:last-child > .tarjeta-fila-acordeon-cabecera:last-child {
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon-contenido {
+    border-top: var(--border-default);
+    border-radius: 0;
+}
+
+.marco-lista-acordeon .tarjeta-fila-acordeon:last-child > .tarjeta-fila-acordeon-contenido {
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+/*
   Guía de lectura (Tier A, 07 § 3 / ESPECIFICACION-VISUAL-HYDRA (documento que ya no existe) § 3.7):
   la fila entera se resalta al apuntarla o enfocarla — sin ella, en una fila
   ancha hay que recorrer el renglón dos veces para confirmar que se está en
@@ -1481,6 +1528,34 @@
     font: var(--font-body-md);
 }
 
+/*
+  Relleno de las tablas que pinta QuickGrid. El tema por defecto del paquete trae sus propias reglas, sin
+  capa y con más especificidad que las de arriba, así que ganaban ellas:
+
+      .quickgrid[theme=default] > tbody > tr > td   { padding: 0.1rem calc(0.4rem + var(--col-gap)) 0.1rem 0.4rem }   (0,2,3)
+      .quickgrid[theme=default] .col-title          { padding: 0.1rem 0.4rem }                                        (0,3,0)
+      .quickgrid[theme=default] .col-header-content { padding-right: var(--col-gap) }                                 (0,3,0)
+
+  El resultado eran filas de 44 px con el contenido pegado al borde, y el rótulo de cada cabecera desplazado
+  respecto al contenido de su columna (la celda sangraba 0.4rem; la cabecera, los 16 px del <th> más los
+  0.4rem del título). Estas tres reglas añaden «.tabla-datos» al mismo selector para superarlas (0,3,3 y
+  0,4,0) sin !important, y dejan UNA sola sangría horizontal, la del <th> (--space-4), para celda y cabecera:
+  el rótulo cae sobre el contenido. Arriba y abajo, 7 px y un alto mínimo de 54 px: la fila de dos líneas
+  de la maqueta de listados (identidad y dato de apoyo). En una celda de tabla, «height» es un mínimo.
+*/
+.quickgrid[theme=default].tabla-datos > tbody > tr > td {
+    height: 54px;
+    padding: 7px var(--space-4);
+}
+
+.quickgrid[theme=default].tabla-datos .col-title {
+    padding: 0;
+}
+
+.quickgrid[theme=default].tabla-datos .col-header-content {
+    padding-right: 0;
+}
+
 .tabla-datos tr:last-child td {
     border-bottom: none;
 }
@@ -1500,6 +1575,30 @@
 /* Misma señal de foco que .fila-enfocada, para una tarjeta en vez de un <tr> (Centro 360). */
 .tarjeta-fila-acordeon.fila-enfocada {
     box-shadow: 0 0 0 1px var(--color-primary-400);
+}
+
+/* Fila enfocada con j/k en una ficha 360 (atajos-ficha.js pone el atributo; Blazor no lo
+   pinta). La barra interior es la señal: el tinte de una fila con problema no la tapa. La fila
+   tiene además el foco real, así que el anillo por defecto se deja transparente para no doblar
+   la señal: en contraste forzado (forced-colors) el navegador sí lo pinta, y ahí la barra no. */
+[data-fila-enfocada] {
+    background-color: var(--color-surface-hover);
+    box-shadow: inset 3px 0 0 var(--color-primary-500);
+}
+
+[data-fila-enfocada]:focus,
+[data-fila-enfocada]:focus-visible {
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+}
+
+/* La fila de documento es «display: contents»: no tiene caja, la señal va en sus celdas. */
+.fila-documento-requerido[data-fila-enfocada] > * {
+    background-color: var(--color-surface-hover);
+}
+
+.fila-documento-requerido[data-fila-enfocada] > :first-child {
+    box-shadow: inset 3px 0 0 var(--color-primary-500);
 }
 
 .celda-acciones-revision {
@@ -1822,4 +1921,24 @@
     min-width: 200px;
     max-width: 200px;
     text-align: left;
+}
+
+/*
+  Columna «Registrados vigentes» de un listado de propietarios: ancho fijo, justo antes de la de estado, para
+  que caiga en el mismo sitio de fila en fila. La regla es compartida (vive aquí, no en el CSS de una
+  pantalla); hoy solo la usa el listado de Trabajadores. La celda aloja la barra de cumplimiento compartida, con la
+  fracción («8/10») como cifra.
+*/
+.tabla-datos th.col-registrados-vigentes,
+.tabla-datos td.col-registrados-vigentes {
+    width: 176px;
+    min-width: 176px;
+    max-width: 176px;
+    text-align: left;
+}
+
+.celda-registrados-vigentes {
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }

@@ -4,6 +4,7 @@ using CaeManager.Application.Gestiones.Commands.EliminarGestion;
 using CaeManager.Application.Gestiones.Commands.RestaurarGestion;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Gestiones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Layout;
@@ -42,6 +43,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     private List<GestionListaDto> _elementosPagina = [];
     private static readonly GridSort<GestionListaDto> OrdenTrabajadorListado = GridSort<GestionListaDto>.ByAscending(g => g.TrabajadorNombre);
     private static readonly GridSort<GestionListaDto> OrdenCentroListado = GridSort<GestionListaDto>.ByAscending(g => g.CentroNombre);
+    private static readonly GridSort<GestionListaDto> OrdenCreadaListado = GridSort<GestionListaDto>.ByAscending(g => g.CreadoEnUtc);
 
     public void Dispose() => _desechado = true;
 
@@ -429,6 +431,32 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private string TextoEstado(EstadoGestion estado) =>
         estado == EstadoGestion.Completada ? Textos["EstadoCompletada"] : Textos["EstadoPendiente"];
+
+    /// <summary>
+    /// Motivo bajo la pastilla de estado: cuánto lleva abierta una Gestión pendiente. La completada no
+    /// lleva motivo (no pide acción).
+    /// </summary>
+    private string? MotivoEstado(GestionListaDto gestion)
+    {
+        if (gestion.Estado != EstadoGestion.Pendiente)
+            return null;
+
+        return DiasAbierta(gestion.CreadoEnUtc, DiaDeNegocio.Hoy()) switch
+        {
+            0 => Textos["MotivoAbiertaHoy"],
+            1 => Textos["MotivoAbiertaHaceUnDia"],
+            var dias => Textos["MotivoAbiertaHaceDias", dias]
+        };
+    }
+
+    /// <summary>
+    /// Días naturales que lleva abierta una Gestión, contados entre días de negocio (Europe/Madrid): el
+    /// instante de creación se lleva a su día de negocio antes de restar, así que una Gestión creada a las
+    /// 23:30 UTC —ya el día siguiente en Madrid— no cuenta un día de más. Nunca negativo: una creación
+    /// posterior a «hoy» (relojes desacompasados) se lee como abierta hoy.
+    /// </summary>
+    private static int DiasAbierta(DateTime creadoEnUtc, DateOnly hoy) =>
+        Math.Max(0, hoy.DayNumber - DiaDeNegocio.De(creadoEnUtc).DayNumber);
 
     private async Task ManejarAtajoAsync(string tecla)
     {

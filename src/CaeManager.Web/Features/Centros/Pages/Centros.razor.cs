@@ -239,6 +239,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             return;
 
         _desechado = true;
+        WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -271,6 +272,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     protected override async Task OnInitializedAsync()
     {
+        WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
+
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
         var token = _ciclo.Token;
@@ -500,13 +503,47 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     {
         var resultado = await Mediator.Send(new ObtenerCentrosQuery(Busqueda: null, ClienteId: null, CentroId: centroId));
         var actualizado = resultado.Elementos.FirstOrDefault();
-        if (actualizado is null) return;
+        if (actualizado is null || _desechado) return;
 
         var indice = _elementosPagina.FindIndex(c => c.Id == centroId);
         if (indice >= 0)
             _elementosPagina[indice] = actualizado;
 
         StateHasChanged();
+    }
+
+    // ── La fila se refresca tras guardar en la vista rápida ─────────────────────────────────────
+    // El panel vive en MainLayout y guarda sin pasar por esta página: avisa por
+    // ContextWorkspaceService.OnEntidadGuardada. Se vuelve a pedir SOLO esa fila y se sustituye
+    // en sitio con RefrescarCentroAsync: filtros, orden, página, selección, fila enfocada,
+    // acordeones y desplazamiento no se tocan, y la fila permanece aunque el cambio la saque del
+    // filtro activo, hasta la siguiente carga. La consulta por id no lleva ConRecuentosPorEstado
+    // y no le hace falta: los dos caminos del handler calculan el estado y el cumplimiento de la
+    // fila con el mismo servicio, así que sale igual que en la carga de página.
+
+    private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
+    {
+        if (tipo == EntidadWorkspace.Centro)
+            _ = InvokeAsync(() => RefrescarFilaAsync(id));
+    }
+
+    private async Task RefrescarFilaAsync(Guid id)
+    {
+        // Con una carga en vuelo no se sustituye nada: la sustitución caería sobre una página que
+        // está a punto de cambiar. Hueco conocido: si esa carga leyó antes de que el guardado
+        // fuera firme, la fila conserva el dato anterior hasta la siguiente carga.
+        if (_desechado || _cargando || !_elementosPagina.Any(c => c.Id == id))
+            return;
+
+        try
+        {
+            await RefrescarCentroAsync(id);
+        }
+        catch (Exception)
+        {
+            // El guardado ya es firme: que falle la relectura no es un error que enseñar. La
+            // fila conserva el dato anterior hasta la siguiente carga, como antes de este aviso.
+        }
     }
 
     private DrawerAsignacionMasiva _drawerAsignacion = default!;
