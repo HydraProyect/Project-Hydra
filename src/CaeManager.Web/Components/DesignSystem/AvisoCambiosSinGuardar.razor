@@ -198,6 +198,15 @@
                 Navegacion.ToAbsoluteUri(Navegacion.Uri), Navegacion.ToAbsoluteUri(contexto.TargetLocation)))
             return false;
 
+        // Un formulario de la ficha del Context Workspace no se desmonta porque la PÁGINA
+        // de debajo escriba su pestaña o un filtro en la URL (misma página, mismo ?ctx=):
+        // no es una salida. Sin esto, cambiar de pestaña en una ficha 360 con el panel a
+        // medio editar preguntaba sin motivo y «Seguir editando» dejaba la URL desincronizada.
+        if (AmbitoFicha is not null
+            && ContextWorkspace.ConservaLaFichaAbierta(
+                Navegacion.ToAbsoluteUri(Navegacion.Uri), Navegacion.ToAbsoluteUri(contexto.TargetLocation)))
+            return false;
+
         return HayCambios();
     }
 
