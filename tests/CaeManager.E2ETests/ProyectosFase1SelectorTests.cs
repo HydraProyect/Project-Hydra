@@ -148,10 +148,11 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
     }
 
     /// <summary>
-    /// «Atrás» del navegador llega a la página con la URL ya cambiada, sin que el aviso de cambios sin
-    /// guardar la detenga antes. Si esa URL dice otro Cliente empresarial y el panel de detalle tiene algo
-    /// escrito, la página pregunta; «Seguir editando» tiene que dejar la URL, los filtros y la lista de la
-    /// vista que sigue en pantalla, y sin volver a preguntar por reescribir la URL.
+    /// «Atrás» del navegador hacia una URL de la misma pantalla con otro Cliente empresarial, con el panel de
+    /// detalle a medias: lo detiene el aviso de cambios sin guardar antes de que la página vea esa URL
+    /// (<c>aviso-salida-navegador.js</c>; hasta entonces «atrás» no pasaba por el aviso y preguntaba la página,
+    /// ya con la URL cambiada). «Seguir editando» deja la URL, los filtros y la lista de la vista que sigue
+    /// en pantalla.
     /// </summary>
     [Fact]
     public async Task Atras_hacia_otro_Cliente_empresarial_con_la_edicion_a_medias_y_seguir_editando_deja_la_vista_y_la_url_como_estaban()
@@ -193,10 +194,11 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
 
         var pregunta = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions
         { Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Seguir editando", Exact = true }) });
-        // Control positivo: la edición estaba pendiente y «atrás» llegó a la página con la otra URL.
+        // Control positivo: la edición estaba pendiente y «atrás» se detuvo. La barra de direcciones vuelve a
+        // decir la vista que sigue en pantalla mientras se pregunta.
         await Expect(pregunta).ToBeVisibleAsync();
-        await Expect(page).ToHaveURLAsync(new Regex(@"/proyectos\?estado=cerrados$"));
-        // Mientras pregunta, la vista en pantalla no ha tomado nada de esa URL.
+        await Expect(page).ToHaveURLAsync(urlDeLaVista);
+        // Mientras pregunta, la vista en pantalla no ha tomado nada de la URL de destino.
         await Expect(todos).ToHaveAttributeAsync("aria-pressed", "true");
         await Expect(cerrados).ToHaveAttributeAsync("aria-pressed", "false");
 
@@ -205,7 +207,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await seguir.FocusAsync();
         await seguir.PressAsync("Space");
 
-        // La URL vuelve a decir la vista que sigue en pantalla, y reescribirla no vuelve a preguntar.
+        // La URL sigue diciendo la vista que sigue en pantalla.
         await Expect(page).ToHaveURLAsync(urlDeLaVista);
         await Expect(pregunta).ToBeHiddenAsync();
         await Expect(selector).ToHaveTextAsync("Cliente: " + cliente);
@@ -265,6 +267,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         var selector = SelectorCliente(page);
         var cliente = await ElegirUnClienteConProyectosAsync(page, selector, filas);
         await Expect(page).ToHaveURLAsync(new Regex(@"/proyectos\?cliente="));
+        var urlDeLaVista = new Regex(Regex.Escape(page.Url) + "$");
         var nombreProyecto = (await nombresDeLasFilas.AllTextContentsAsync()).Select(n => n.Trim()).First();
         await filas.GetByRole(AriaRole.Button,
             new LocatorGetByRoleOptions { Name = nombreProyecto, Exact = true }).ClickAsync();
@@ -281,10 +284,10 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
 
         var pregunta = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions
         { Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Salir y descartar", Exact = true }) });
-        // Control positivo: la edición estaba pendiente y «atrás» llegó a la página con la URL de destino.
+        // Control positivo: la edición estaba pendiente y «atrás» se detuvo, con la URL de vuelta en la vista.
         await Expect(pregunta).ToBeVisibleAsync();
-        await Expect(page).ToHaveURLAsync(urlDeDestino);
-        // Mientras pregunta, la vista en pantalla no ha tomado nada de esa URL y el panel sigue con lo escrito.
+        await Expect(page).ToHaveURLAsync(urlDeLaVista);
+        // Mientras pregunta, la vista en pantalla no ha tomado nada de la URL de destino y el panel sigue con lo escrito.
         await Expect(selector).ToHaveTextAsync("Cliente: " + cliente);
         await Expect(todos).ToHaveAttributeAsync("aria-pressed", "true");
         await Expect(buscador).ToHaveValueAsync(string.Empty);
@@ -303,7 +306,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await Expect(buscador).ToHaveValueAsync(termino!);
         await Expect(selector).ToHaveTextAsync("Cliente");
         await Expect(nombresDeLasFilas).ToHaveTextAsync(nombresDeDestino);
-        // Descartar toma la URL que hay: no la reescribe.
+        // Descartar repite «atrás»: la URL es la de destino, tal cual estaba en el historial.
         await Expect(page).ToHaveURLAsync(urlDeDestino);
         // El panel era de un Proyecto de la lista anterior.
         await Expect(panel).ToHaveCountAsync(0);

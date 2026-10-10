@@ -262,13 +262,14 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     }
 
     /// <summary>
-    /// La URL ha pasado a decir otro Cliente empresarial y la navegación ya ocurrió. «Atrás» del navegador
-    /// llega aquí sin que el aviso de cambios sin guardar la detenga antes (lo fija el E2E
-    /// <c>ProyectosFase1SelectorTests</c>); la que pide la aplicación con <c>NavigateTo</c> sí la detiene
-    /// el aviso, y aquí solo llega ya descartada. Cambiar de Cliente empresarial cierra el panel de detalle,
-    /// así que con algo escrito en él se pregunta, y se pregunta ANTES de tomar nada de la URL: mientras la
-    /// pregunta está abierta, las pastillas, la franja y la lista siguen siendo las de la vista que hay en
-    /// pantalla.
+    /// La URL ha pasado a decir otro Cliente empresarial y la navegación ya ocurrió. Con el panel de detalle
+    /// a medias, lo normal es que no llegue hasta aquí: «atrás» y «adelante» del navegador, los enlaces y
+    /// <c>NavigateTo</c> los detiene antes el aviso de cambios sin guardar (lo fija el E2E
+    /// <c>ProyectosFase1SelectorTests</c>), y aquí solo llegan ya descartados. Queda como segunda línea para
+    /// la navegación que el aviso no llegue a ver (un circuito que no contesta a tiempo al navegador):
+    /// cambiar de Cliente empresarial cierra el panel de detalle, así que con algo escrito en él se pregunta,
+    /// y se pregunta ANTES de tomar nada de la URL: mientras la pregunta está abierta, las pastillas, la
+    /// franja y la lista siguen siendo las de la vista que hay en pantalla.
     ///
     /// <para>
     /// «Seguir editando» deja esa vista entera y devuelve la URL a ella (Cliente empresarial, búsqueda y
@@ -299,29 +300,16 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     /// <summary>
     /// La página reescribe su propia URL para que diga la vista que sigue en pantalla. No es una salida y
-    /// no se pierde nada de lo escrito, pero es una navegación con el panel sin guardar y el aviso la
-    /// detendría para volver a preguntar: mientras dura, la página no declara cambios. El aviso los lee
-    /// dentro del propio <c>NavigateTo</c>, así que basta con que la marca dure lo que la llamada.
+    /// no se pierde nada de lo escrito: el aviso de cambios sin guardar no pregunta por la escritura de
+    /// filtros de la propia página (<see cref="CaeManager.Web.Components.NavigationManagerExtensions.EstadoEscrituraDeFiltros"/>).
     /// </summary>
-    private void DevolverLaUrlALaVista()
-    {
-        _devolviendoLaUrlALaVista = true;
-        try
+    private void DevolverLaUrlALaVista() =>
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
-            NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
-            {
-                ["cliente"] = _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString(),
-                ["q"] = _busqueda,
-                ["estado"] = _estadoFiltro
-            });
-        }
-        finally
-        {
-            _devolviendoLaUrlALaVista = false;
-        }
-    }
-
-    private bool _devolviendoLaUrlALaVista;
+            ["cliente"] = _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString(),
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro
+        });
 
     private int _versionSelectorCliente;
     private PastillaFiltro? _selectorClienteEmpresarial;
@@ -614,9 +602,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     ///
     /// <para>
     /// Con algo a medias en el panel de detalle se pregunta UNA vez y antes de tocar nada, cambie o no el
-    /// Cliente empresarial: aplicar la vista reescribe la URL, y una navegación con el panel sin guardar la
-    /// detendría el aviso de la página, que al descartar la repite él y sin reemplazo (una entrada de más
-    /// en el historial). Preguntando aquí, la navegación del filtro sale una vez y con reemplazo. «Seguir
+    /// Cliente empresarial. La pregunta es de la página: la escritura de filtros en la URL ya no la detiene
+    /// el aviso de cambios sin guardar (antes sí, y al descartar repetía la navegación sin reemplazo). «Seguir
     /// editando» deja la vista como estaba.
     /// </para>
     ///
@@ -749,7 +736,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// drawer o modal pregunta solo por su propio contenido (HayCambiosEnElDrawer, HayCambiosEnElModalDeCierre).
     /// </summary>
     private bool HayCambiosSinGuardar =>
-        !_devolviendoLaUrlALaVista && (HayCambiosEnElDrawer || HayCambiosEnElDetalle);
+        HayCambiosEnElDrawer || HayCambiosEnElDetalle;
 
     private bool HayCambiosEnElDrawer => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
 

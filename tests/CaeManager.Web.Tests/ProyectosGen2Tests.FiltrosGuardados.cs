@@ -17,12 +17,13 @@ namespace CaeManager.Web.Tests;
 /// <see cref="FiltrosGuardadosEnListadosTests"/>; aquí hace falta el panel editado, que es lo que monta esta clase.
 ///
 /// <para>
-/// Aplicar un filtro guardado pregunta UNA vez y antes de tocar nada, cambie o no de Cliente empresarial. El
-/// gesto manual equivalente también pregunta: cambiar de Cliente empresarial cierra el panel
-/// (<c>Aviso_cambiar_de_Cliente_empresarial_…</c>), y cambiar la búsqueda o el estado navega y el aviso de la
-/// página detiene esa navegación (<see cref="Escribir_en_el_buscador_con_la_edicion_a_medias_pregunta_al_navegar"/>).
-/// La diferencia es quién repite la navegación al descartar: si la detuviera el aviso, la repetiría él y sin
-/// reemplazo; preguntando antes, la navegación del filtro sale una vez y con reemplazo.
+/// Aplicar un filtro guardado pregunta UNA vez y antes de tocar nada, cambie o no de Cliente empresarial: la
+/// pregunta es de la página. Del gesto manual equivalente, cambiar de Cliente empresarial cierra el panel y
+/// también pregunta (<c>Aviso_cambiar_de_Cliente_empresarial_…</c>); cambiar la búsqueda o el estado ya no: el
+/// panel sigue abierto con lo escrito y el aviso de la página no detiene la escritura de filtros en la URL
+/// (<see cref="Escribir_en_el_buscador_con_la_edicion_a_medias_no_pregunta_y_la_url_toma_la_busqueda"/>). Que el
+/// filtro guardado del mismo Cliente empresarial siga preguntando es, desde entonces, más de lo necesario; no se
+/// ha tocado.
 /// </para>
 /// </summary>
 public partial class ProyectosGen2Tests
@@ -48,21 +49,25 @@ public partial class ProyectosGen2Tests
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count(q => q.ClienteId == clienteId);
 
     /// <summary>
-    /// La referencia: el cambio MANUAL de la búsqueda con la edición del panel a medias pregunta «¿Salir sin
-    /// guardar?», porque navega y el aviso de la página detiene la navegación. Por eso aplicar un filtro
-    /// guardado del mismo Cliente empresarial no puede dejar de preguntar: solo elige preguntar antes de navegar.
+    /// El cambio MANUAL de la búsqueda con la edición del panel a medias no pregunta: buscar no cierra el panel
+    /// ni pierde lo escrito, y la página que escribe sus filtros en su URL no sale de ningún sitio. Antes el
+    /// aviso de la página detenía esa navegación, y tras «Seguir editando» quedaban el buscador y la lista con la
+    /// búsqueda y la URL sin ella (medido en navegador), porque la página recarga sin saber que se detuvo.
     /// </summary>
     [Fact]
-    public async Task Escribir_en_el_buscador_con_la_edicion_a_medias_pregunta_al_navegar()
+    public async Task Escribir_en_el_buscador_con_la_edicion_a_medias_no_pregunta_y_la_url_toma_la_busqueda()
     {
         var cut = await AbrirLaEdicionDelDetalleAsync();
         await EscribirEnElPanelAsync(cut, "Otro nombre");
-        var uriAntes = Uri;
 
         await cut.Find("input[data-filtro-pantalla]").InputAsync(new ChangeEventArgs { Value = "nave" });
 
-        PreguntaAbierta(cut).Should().BeTrue("la búsqueda viaja en la URL y el aviso detiene la navegación");
-        Uri.Should().Be(uriAntes, "detenida, la URL no cambia");
+        PreguntaAbierta(cut).Should().BeFalse("la escritura de filtros de la propia página no es una salida");
+        Uri.Should().Contain("q=nave", "la URL dice la búsqueda que la lista ya aplica");
+        ValorDelBuscador(cut).Should().Be("nave");
+        UltimaConsultaDeProyectos.Should().Match<ObtenerProyectosQuery>(q => q.Busqueda == "nave");
+        PanelDeDetalleAbierto(cut).Should().BeTrue();
+        ValorDelCampo(cut, "Nombre").Should().Be("Otro nombre", "lo escrito en el panel sigue ahí");
     }
 
     [Fact]
