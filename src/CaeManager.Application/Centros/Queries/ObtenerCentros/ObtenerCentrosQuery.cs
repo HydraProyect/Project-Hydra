@@ -124,8 +124,8 @@ public class ObtenerCentrosQueryHandler(
     {
         var consulta =
             from centro in centrosContext.Centros
-                // F3b — ClienteId ahora repunta contra Empresas (join independiente
-                // del de EmpresaId de abajo: son dos roles distintos sobre la misma tabla).
+            // F3b — ClienteId ahora repunta contra Empresas (join independiente
+            // del de EmpresaId de abajo: son dos roles distintos sobre la misma tabla).
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
             select new { centro, cliente, empresa };

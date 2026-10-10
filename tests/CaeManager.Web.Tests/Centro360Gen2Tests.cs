@@ -217,9 +217,10 @@ public class Centro360Gen2Tests : BunitContext
 
     private static CentroListaDto Resumen(
         Guid id, string nombre, int? porcentaje = 61, EstadoCentro estado = EstadoCentro.Vencido,
-        IReadOnlyList<IncidenciaCentroDto>? vencidas = null, IReadOnlyList<IncidenciaCentroDto>? proximas = null) =>
+        IReadOnlyList<IncidenciaCentroDto>? vencidas = null, IReadOnlyList<IncidenciaCentroDto>? proximas = null,
+        IReadOnlyList<IncidenciaCentroDto>? pendientes = null) =>
         new(id, nombre, "CN-01", Guid.NewGuid(), "Refrielectric S.A.", Guid.NewGuid(), "Ibertec GmbH",
-            estado, porcentaje, new RecuentosCentroDto(vencidas ?? [], proximas ?? []));
+            estado, porcentaje, new RecuentosCentroDto(vencidas ?? [], proximas ?? [], pendientes ?? []));
 
     private static IncidenciaCentroDto Incidencia(string descripcion, AmbitoCausa ambito = AmbitoCausa.Trabajador) =>
         new(descripcion, ambito, EstadoDocumento.Vencido, Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 7, 31));
@@ -309,6 +310,51 @@ public class Centro360Gen2Tests : BunitContext
         cut.Find(".cuerpo-con-lateral-principal").QuerySelector("aside").Should().BeNull();
         cut.FindAll(".centro360-cuerpo, .centro360-lateral, .centro360-tarjeta-lateral, .cabecera-pagina")
             .Should().BeEmpty("la maquetación propia de la ficha se sustituyó por las piezas compartidas");
+    }
+
+    /// <summary>
+    /// Pendiente en la plataforma CAE del Centro (decisión del 2026-10-10): junto al título, la pastilla «Pendiente» y su
+    /// motivo «N pendientes en la plataforma», con la ventana que dice qué falta y de quién.
+    /// </summary>
+    [Fact]
+    public void La_ficha_dice_cuantos_documentos_estan_pendientes_en_la_plataforma()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        IncidenciaCentroDto Pendiente(string descripcion, AmbitoCausa ambito) => new(descripcion, ambito, null, Guid.NewGuid(), Guid.NewGuid(), null);
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Pendiente, pendientes:
+        [
+            Pendiente("Formación PRL — Homer Simpson — sin subir a la plataforma", AmbitoCausa.Trabajador),
+            Pendiente("Certificado de la Seguridad Social — Empresa — subido, sin validar en la plataforma", AmbitoCausa.Empresa),
+        ]);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-recuento='pendientes-plataforma']").Should().ContainSingle());
+        var badge = cut.Find("[data-recuento='pendientes-plataforma']");
+        badge.TextContent.Trim().Should().Be("2 pendientes en la plataforma");
+        var ventana = badge.Closest(".ventana-contexto")!;
+        var nombre = ventana.GetAttribute("aria-label") ?? ventana.QuerySelector(".ventana-contexto-disparador")!.GetAttribute("aria-label");
+        nombre.Should().Be("2 pendientes en la plataforma. 2 documentos pendientes en la plataforma");
+        ventana.QuerySelectorAll(".ventana-linea").Select(l => l.TextContent.Trim()).Should().Equal(
+            "Formación PRL — Homer Simpson — sin subir a la plataforma",
+            "Certificado de la Seguridad Social — Empresa — subido, sin validar en la plataforma");
+        cut.Markup.Should().Contain(">Pendiente<", "la pastilla de estado del Centro");
+    }
+
+    [Fact]
+    public void Sin_pendientes_en_la_plataforma_la_ficha_no_lleva_ese_recuento()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", vencidas: [Incidencia("Formación PRL — Homer Simpson")]);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("1 vencido", "control positivo: el recuento de vencidos sí se pinta"));
+        cut.FindAll("[data-recuento='pendientes-plataforma']").Should().BeEmpty();
     }
 
     [Fact]

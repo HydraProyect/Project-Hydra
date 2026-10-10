@@ -345,6 +345,53 @@ public class CentrosListaGen2Tests : BunitContext
         motivo.QuerySelector(".motivo-recuento-separador").Should().BeNull("con un solo recuento no hay nada que separar");
     }
 
+    /// <summary>
+    /// Pendiente en la plataforma CAE del Centro (decisión del 2026-10-10): su propio grupo del desglose sale como motivo
+    /// «N pendientes en la plataforma», separado de los vencidos, y su ventana dice qué falta y de quién.
+    /// </summary>
+    [Theory]
+    [InlineData(1, "1 pendiente en la plataforma", "1 documento pendiente en la plataforma")]
+    [InlineData(2, "2 pendientes en la plataforma", "2 documentos pendientes en la plataforma")]
+    public void Los_pendientes_en_la_plataforma_son_su_propio_motivo(int pendientes, string esperado, string titulo)
+    {
+        var lineas = Enumerable.Range(0, pendientes)
+            .Select(i => new IncidenciaCentroDto($"Formación PRL — Trabajador {i} — sin subir a la plataforma", AmbitoCausa.Trabajador, null, Guid.NewGuid(), Guid.NewGuid(), null))
+            .ToList();
+        var centro = Centro("Centro Logístico Norte", EstadoCentro.Pendiente) with
+        {
+            Recuentos = new RecuentosCentroDto(
+                [new IncidenciaCentroDto("Formación PRL", AmbitoCausa.Trabajador, EstadoDocumento.Vencido, Guid.NewGuid(), Guid.NewGuid(), null)],
+                [], lineas)
+        };
+
+        var cut = Renderizar(centro);
+
+        var estado = cut.Find(".ranura-estado-centro .estado-fila");
+        estado.TextContent.Should().Contain("Pendiente");
+        var motivo = estado.QuerySelector(".estado-fila-motivo")!;
+        motivo.QuerySelectorAll(".motivo-recuento").Select(m => m.TextContent.Trim()).Should().Equal("1 vencido", esperado);
+        motivo.QuerySelectorAll(".motivo-recuento-separador").Should().HaveCount(1, "dos recuentos, un separador");
+        var ventana = motivo.QuerySelector(".motivo-recuento-pendientes")!.Closest(".ventana-contexto")!;
+        ventana.GetAttribute("aria-label").Should().Be($"{esperado}. {titulo}",
+            "no se corrige renovando el documento: la ventana no es interactiva y su nombre accesible empieza por lo que se ve");
+        ventana.QuerySelectorAll(".ventana-linea").Select(l => l.TextContent.Trim()).Should().Equal(lineas.Select(l => l.Descripcion));
+    }
+
+    [Fact]
+    public void Sin_pendientes_en_la_plataforma_no_hay_ese_motivo()
+    {
+        var centro = Centro("Centro Logístico Norte", EstadoCentro.Vencido) with
+        {
+            Recuentos = new RecuentosCentroDto(
+                [new IncidenciaCentroDto("Formación PRL", AmbitoCausa.Trabajador, EstadoDocumento.Vencido, Guid.NewGuid(), Guid.NewGuid(), null)], [])
+        };
+
+        var cut = Renderizar(centro);
+
+        cut.Find(".ranura-estado-centro .estado-fila-motivo .motivo-recuento").TextContent.Trim().Should().Be("1 vencido", "control positivo");
+        cut.FindAll(".motivo-recuento-pendientes").Should().BeEmpty();
+    }
+
     [Fact]
     public void Un_centro_sin_vencidos_ni_proximos_lleva_su_estado_sin_motivo()
     {

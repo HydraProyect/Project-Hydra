@@ -144,9 +144,13 @@
                             var tituloPendientes = pendientesPlataforma == 1
                                 ? Textos["TituloPendientesPlataformaUno"].Value
                                 : Textos["TituloPendientesPlataformaVarios", pendientesPlataforma].Value;
-                            <VentanaContexto Etiqueta="@tituloPendientes" Titulo="@tituloPendientes">
+                            var motivoPendientes = pendientesPlataforma == 1
+                                ? Textos["MotivoUnPendientePlataforma"].Value
+                                : Textos["MotivoPendientesPlataforma", pendientesPlataforma].Value;
+                            @* El nombre accesible empieza por lo que se ve (WCAG 2.5.3), como en la lista de Centros. *@
+                            <VentanaContexto Etiqueta="@($"{motivoPendientes}. {tituloPendientes}")" Titulo="@tituloPendientes">
                                 <Disparador>
-                                    <Badge Tono="EstadoCentroUi.Tono(EstadoCentro.Pendiente)" Tamano="TamanoBadge.Pequeno">@(pendientesPlataforma == 1 ? Textos["MotivoUnPendientePlataforma"].Value : Textos["MotivoPendientesPlataforma", pendientesPlataforma].Value)</Badge>
+                                    <Badge Tono="EstadoCentroUi.Tono(EstadoCentro.Pendiente)" Tamano="TamanoBadge.Pequeno" data-recuento="pendientes-plataforma">@motivoPendientes</Badge>
                                 </Disparador>
                                 <Detalle>
                                     @foreach (var incidencia in _resumen.Recuentos.Pendientes)
