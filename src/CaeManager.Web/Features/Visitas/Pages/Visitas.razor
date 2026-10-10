@@ -51,6 +51,10 @@
     <CabeceraPagina Kicker="@Textos["Kicker"]" Titulo="@Textos["TituloPagina"]">
         <Acciones>
             <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync" data-keytip="N">@Textos["BotonNuevaVisita"]</Boton></SoloConEscritura>
+            @* El «⋯» de cabecera, como lo pinta CabeceraListado: las dos entradas de exportación. *@
+            <MenuAcciones ConBorde="true" EtiquetaAccesible="@Comunes["MasAcciones"]" Keytip="M">
+                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/visitas/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : (int?)_totalElementos)" Criterios="CriteriosExportar" />
+            </MenuAcciones>
         </Acciones>
     </CabeceraPagina>
 

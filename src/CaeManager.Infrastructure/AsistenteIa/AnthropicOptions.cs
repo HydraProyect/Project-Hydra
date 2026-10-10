@@ -11,9 +11,46 @@ public class AnthropicOptions
 
     public string? ApiKey { get; set; }
 
+    /// <summary>Modelo de toda ruta que no fije el suyo en <see cref="Rutas"/>.</summary>
     public string Modelo { get; set; } = "claude-sonnet-5";
 
-    public int MaxTokensRespuesta { get; set; } = 1024;
+    /// <summary>
+    /// Tope de la respuesta. El modelo razona antes de responder y ese
+    /// razonamiento cuenta contra este tope aunque su texto no se devuelva:
+    /// un valor ajustado a la respuesta visible la corta a medias (la API
+    /// responde entonces con <c>stop_reason: "max_tokens"</c>, ver
+    /// <see cref="ParadaRespuestaAnthropic"/>).
+    /// </summary>
+    public int MaxTokensRespuesta { get; set; } = 16000;
+
+    /// <summary>
+    /// Nivel de esfuerzo (<c>output_config.effort</c>) de toda ruta que no
+    /// fije el suyo en <see cref="Rutas"/>. Es el control de cuánto razona el
+    /// modelo, y con él de la latencia y el coste. Sin configurar, la
+    /// solicitud no lleva el campo y la API aplica el nivel por omisión del
+    /// modelo, que no es el mismo en todos: al cambiar el modelo de una ruta
+    /// conviene fijar también su esfuerzo.
+    /// </summary>
+    public string? Esfuerzo { get; set; }
+
+    /// <summary>
+    /// Modelo y esfuerzo propios de una ruta, por su clave de
+    /// <see cref="RutasAnthropic"/> (p. ej. <c>Anthropic__Rutas__Ocr__Modelo</c>).
+    /// Lo que una ruta no fije lo hereda de <see cref="Modelo"/> y
+    /// <see cref="Esfuerzo"/>. Permite medir y elegir modelo y esfuerzo ruta a
+    /// ruta sin tocar código.
+    /// </summary>
+    public Dictionary<string, RutaAnthropicOptions> Rutas { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Modelo y esfuerzo efectivos de una ruta.</summary>
+    public (string Modelo, string? Esfuerzo) Para(string ruta)
+    {
+        Rutas.TryGetValue(ruta, out var propia);
+
+        return (
+            string.IsNullOrWhiteSpace(propia?.Modelo) ? Modelo : propia.Modelo,
+            string.IsNullOrWhiteSpace(propia?.Esfuerzo) ? Esfuerzo : propia.Esfuerzo);
+    }
 
     /// <summary>
     /// Precio orientativo por millón de tokens de entrada/salida (USD),
@@ -26,4 +63,24 @@ public class AnthropicOptions
     public decimal CostoPorMillonTokensEntrada { get; set; } = 3m;
 
     public decimal CostoPorMillonTokensSalida { get; set; } = 15m;
+}
+
+/// <summary>Ajustes propios de una ruta; lo que quede sin fijar se hereda de <see cref="AnthropicOptions"/>.</summary>
+public class RutaAnthropicOptions
+{
+    public string? Modelo { get; set; }
+
+    public string? Esfuerzo { get; set; }
+}
+
+/// <summary>Claves de las rutas de Anthropic en <see cref="AnthropicOptions.Rutas"/>.</summary>
+public static class RutasAnthropic
+{
+    public const string Asistente = "Asistente";
+    public const string RelevanciaCae = "RelevanciaCae";
+    public const string VisitaCorreo = "VisitaCorreo";
+    public const string GestionCorreo = "GestionCorreo";
+    public const string Trabajadores = "Trabajadores";
+    public const string Ocr = "Ocr";
+    public const string ExtraccionEstructurada = "ExtraccionEstructurada";
 }
