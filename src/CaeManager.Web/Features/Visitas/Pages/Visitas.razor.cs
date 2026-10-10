@@ -287,6 +287,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         // son los verdaderos (descendente).
         if (_orden == OrdenPorDocumentacion)
             (ordenarPor, descendente) = (nameof(VisitaListaDto.PorGestionar), true);
+        (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         var consulta = new ObtenerVisitasQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             SoloActivas: _soloActivas,
@@ -1611,4 +1612,25 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
         StateHasChanged();
     }
+
+    // ---- Exportar esta vista ----
+
+    private string? _ordenExportar;
+    private bool _descendenteExportar;
+
+    /// <summary>
+    /// Los criterios de la vista con los nombres de parámetro de <c>/visitas/exportar.xlsx</c>: los
+    /// mismos que <see cref="ProveerElementosAsync"/> pasa a la consulta del listado. <c>activas</c>
+    /// viaja siempre que la vista sea la de activas (la de por defecto): sin él, el endpoint
+    /// exporta también el historial, que es «Exportar todo».
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["activas"] = _soloActivas ? "true" : null,
+        ["notificado"] = _filtroNotificado,
+        ["urgentes"] = _soloUrgentes ? "true" : null,
+        ["orden"] = _ordenExportar,
+        ["desc"] = _descendenteExportar ? "true" : null,
+    };
 }
