@@ -21,9 +21,9 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// Visitas no tiene <c>&lt;BarraFiltros&gt;</c> todavía (su cabecera se está reescribiendo): cuando la
-/// tenga entrará sola en la medida. Los nueve listados con barra montan ya la pieza: no queda
-/// ninguno congelado.
+/// Visitas tiene <c>&lt;BarraFiltros&gt;</c> desde #1244 y todavía no recuerda la vista: está en
+/// <see cref="EnEspera"/> hasta el incremento que le da filtros guardados y vista recordada a la vez.
+/// Los otros nueve listados con barra montan ya la pieza.
 /// </para>
 /// </summary>
 public class ListadosConBarraFiltrosRecuerdanLaVistaTests
@@ -40,13 +40,27 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
     private static string SinComentarios(string marcado) =>
         Regex.Replace(LimpiadorDeComentarios.Quitar(marcado, razor: true), "<!--.*?-->", string.Empty, RegexOptions.Singleline);
 
-    /// <summary>Ruta → marcado sin comentarios de cada página con <c>&lt;BarraFiltros&gt;</c>.</summary>
-    private static Dictionary<string, string> ListadosConBarra() =>
+    /// <summary>
+    /// Listados con <c>&lt;BarraFiltros&gt;</c> que aún no recuerdan la vista. Solo Visitas: su barra entró
+    /// con #1244 mientras este incremento estaba abierto, y sus filtros guardados y su vista recordada van
+    /// juntos en el siguiente. La lista no puede quedarse vieja: <see cref="Un_listado_en_espera_sigue_sin_la_pieza"/>
+    /// se pone en rojo en cuanto la página monta la pieza, y entonces se retira de aquí.
+    /// </summary>
+    private static readonly string[] EnEspera = [Paginas + "Visitas/Pages/Visitas.razor"];
+
+    /// <summary>Ruta → marcado sin comentarios de toda página con <c>&lt;BarraFiltros&gt;</c>, en espera o no.</summary>
+    private static Dictionary<string, string> TodosLosListadosConBarra() =>
         MarcadoRazor.LeerRazorDeLaWeb()
             .Where(f => f.Ruta.StartsWith(Paginas, StringComparison.Ordinal))
             .Select(f => (f.Ruta, Marcado: SinComentarios(f.Contenido)))
             .Where(f => MarcadoRazor.Aperturas(f.Marcado, Barra).Count > 0)
             .ToDictionary(f => f.Ruta, f => f.Marcado, StringComparer.Ordinal);
+
+    /// <summary>Ruta → marcado sin comentarios de cada página con <c>&lt;BarraFiltros&gt;</c> que debe recordar la vista.</summary>
+    private static Dictionary<string, string> ListadosConBarra() =>
+        TodosLosListadosConBarra()
+            .Where(l => !EnEspera.Contains(l.Key, StringComparer.Ordinal))
+            .ToDictionary(l => l.Key, l => l.Value, StringComparer.Ordinal);
 
     /// <summary>El valor de ese atributo en la etiqueta de apertura, o <c>null</c> si no lo lleva.</summary>
     private static string? Atributo(string apertura, string nombre)
@@ -102,6 +116,24 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
         // Control positivo: si el recorrido no viera las páginas, «ninguno sin la pieza» valdría por vacío.
         ListadosConBarra().Keys.Select(Path.GetFileNameWithoutExtension).Should().BeEquivalentTo(
             ["Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Gestiones"]);
+    }
+
+    /// <summary>
+    /// La lista de espera es solo lista de espera: cada entrada es una página que existe, tiene barra y no
+    /// monta la pieza. Cuando la monte, este test obliga a retirarla y pasa a medirse como las demás.
+    /// </summary>
+    [Fact]
+    public void Un_listado_en_espera_sigue_sin_la_pieza()
+    {
+        var todos = TodosLosListadosConBarra();
+
+        EnEspera.Should().OnlyHaveUniqueItems();
+        foreach (var ruta in EnEspera)
+        {
+            todos.Should().ContainKey(ruta, "una página en espera es un listado con <BarraFiltros> que existe");
+            MarcadoRazor.Aperturas(todos[ruta], Pieza).Should().BeEmpty(
+                $"{ruta} ya monta <{Pieza}>: retírala de EnEspera para que se mida como las demás");
+        }
     }
 
     [Fact]
