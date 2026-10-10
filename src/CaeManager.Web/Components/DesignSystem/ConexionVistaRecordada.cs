@@ -28,10 +28,11 @@ public sealed class ConexionVistaRecordada
     internal bool RestauracionIntentada { get; set; }
 
     /// <summary>
-    /// La vista que esperaba al rebote cuando la pieza se retiró sin salir de la página. La recoge la
-    /// pieza que se monte después; si no se monta ninguna (se cerró la pestaña), no se escribe.
+    /// La pieza se retiró sin salir de la página con una vista esperando al rebote. La pieza que se
+    /// monte después escribe la vista que la URL muestre entonces (no la del retiro: la URL pudo cambiar
+    /// sin nadie escuchando); si no se monta ninguna (se cerró la pestaña), no se escribe.
     /// </summary>
-    internal string? PendienteHeredado { get; set; }
+    internal bool HayPendienteHeredado { get; set; }
 
     /// <summary>«Restablecer vista»: vuelve a la vista de inicio y olvida la recordada.</summary>
     public Task RestablecerAsync() => _pieza?.RestablecerAsync() ?? Task.CompletedTask;

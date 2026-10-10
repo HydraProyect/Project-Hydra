@@ -652,6 +652,42 @@ public class VistaRecordadaDeListadoTests : BunitContext
         Escrituras.Should().ContainSingle().Which.Should().BeEquivalentTo(new GuardarVistaRecordadaCommand("Vehiculos", """{"estado":"Vencido"}"""));
     }
 
+    /// <summary>
+    /// Entre el retiro de una pieza y el montaje de la siguiente nadie escucha la dirección. Si la URL cambió
+    /// en ese hueco, lo pendiente que se hereda ya es viejo: se escribe la vista que la URL muestra al montar.
+    /// </summary>
+    [Theory]
+    [InlineData("/vehiculos?estado=Vigente&orden=matricula", """{"estado":"Vigente","orden":"matricula"}""")]
+    [InlineData("/vehiculos?orden=matricula", """{"orden":"matricula"}""")]
+    public async Task Si_la_url_cambio_mientras_la_pieza_estaba_retirada_se_escribe_la_vista_vigente_no_la_heredada(string rutaVigente, string guardado)
+    {
+        var cut = Montar("/vehiculos");
+        Navegacion.NavigateTo("/vehiculos?estado=Vencido");
+
+        cut.Render(p => p.Add(l => l.PiezaMontada, false));
+        Navegacion.NavigateTo(rutaVigente);
+        cut.Render(p => p.Add(l => l.PiezaMontada, true));
+        Escrituras.Should().BeEmpty("retomar no es escribir antes de tiempo");
+
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().ContainSingle().Which.Should().BeEquivalentTo(new GuardarVistaRecordadaCommand("Vehiculos", guardado),
+            "la vista del momento del retiro (estado=Vencido) ya no es la de la pantalla");
+    }
+
+    /// <summary>Sin nada pendiente al retirarse, remontar la pieza no escribe: llegar a una vista no es cambiarla.</summary>
+    [Fact]
+    public async Task Si_la_pieza_se_remonta_sin_nada_pendiente_no_escribe()
+    {
+        var cut = Montar("/vehiculos?estado=Vencido");
+
+        cut.Render(p => p.Add(l => l.PiezaMontada, false));
+        cut.Render(p => p.Add(l => l.PiezaMontada, true));
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().BeEmpty();
+    }
+
     // ------------------------------------------------------------ «Restablecer vista»
 
     [Theory]

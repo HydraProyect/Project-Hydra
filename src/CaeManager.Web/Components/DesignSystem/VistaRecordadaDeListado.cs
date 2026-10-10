@@ -64,10 +64,11 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// AL SALIR con una escritura pendiente: si se sale navegando a otra pantalla, el aviso de cambio
 /// de dirección llega con la pieza aún viva y la escritura se hace en ese momento, sin esperar al
 /// rebote. Si la pieza se retira sin ese aviso, el temporizador se cancela —no queda ninguna tarea
-/// viva detrás de un componente retirado— y lo pendiente pasa a la <see cref="Conexion"/>: si la
-/// página sigue (la pieza estaba bajo una rama que se repinta, o bajo una pestaña), la pieza que se
-/// monte después lo recoge y vuelve a esperar el rebote; si no (se cerró la pestaña, se recargó,
-/// cayó el circuito), ese último cambio no se recuerda.
+/// viva detrás de un componente retirado— y que hay algo pendiente pasa a la <see cref="Conexion"/>:
+/// si la página sigue (la pieza estaba bajo una rama que se repinta, o bajo una pestaña), la pieza que
+/// se monte después programa la escritura de la vista que la URL muestre ENTONCES —no la del momento
+/// del retiro: entre uno y otro nadie escuchaba la dirección— y vuelve a esperar el rebote; si no (se
+/// cerró la pestaña, se recargó, cayó el circuito), ese último cambio no se recuerda.
 /// </para>
 ///
 /// <para>
@@ -149,8 +150,12 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     /// </summary>
     private readonly CancellationTokenSource _ciclo = new();
 
-    /// <summary>La vista que se da por recordada: con ella se compara cada cambio de dirección.</summary>
-    private string _recordada = SinVista;
+    /// <summary>
+    /// La vista que se da por recordada: con ella se compara cada cambio de dirección. <c>null</c>: no
+    /// se sabe (la pieza heredó una escritura pendiente de otra que se retiró), y cualquier vista es un
+    /// cambio hasta que se escriba una.
+    /// </summary>
+    private string? _recordada = SinVista;
 
     /// <summary>
     /// La vista recordada que se acaba de entregar a la página, hasta el primer cambio de dirección: si
@@ -196,13 +201,18 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             Navegacion.LocationChanged += AlCambiarDireccion;
             _escuchando = true;
 
-            _recordada = Serializar(VistaDeLaUrl());
-
-            // Una pieza anterior de esta misma visita se retiró con un cambio sin escribir: se retoma.
-            if (Conexion.PendienteHeredado is { } heredado)
+            if (Conexion.HayPendienteHeredado)
             {
-                Conexion.PendienteHeredado = null;
-                Programar(heredado);
+                // Una pieza anterior de esta misma visita se retiró con un cambio sin escribir. Entre su
+                // retiro y este montaje nadie escuchaba la dirección: lo que hay que escribir es la vista
+                // que la URL muestra ahora, y lo que quedó recordado ya no se sabe.
+                Conexion.HayPendienteHeredado = false;
+                _recordada = null;
+                Programar(Serializar(VistaDeLaUrl()));
+            }
+            else
+            {
+                _recordada = Serializar(VistaDeLaUrl());
             }
         }
 
@@ -274,10 +284,10 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         if (_escuchando)
             Navegacion.LocationChanged -= AlCambiarDireccion;
 
-        // El temporizador no sobrevive a la pieza; lo pendiente lo hereda la que se monte después,
-        // si la página sigue. Ver «AL SALIR» en el resumen de la clase.
+        // El temporizador no sobrevive a la pieza; que había algo pendiente lo hereda la que se monte
+        // después, si la página sigue. Ver «AL SALIR» en el resumen de la clase.
         CancelarTemporizador();
-        Conexion.PendienteHeredado = _pendiente;
+        Conexion.HayPendienteHeredado = _pendiente is not null;
         _pendiente = null;
         Conexion.Desconectar(this);
     }
