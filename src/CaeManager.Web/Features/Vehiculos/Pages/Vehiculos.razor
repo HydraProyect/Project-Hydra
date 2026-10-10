@@ -13,6 +13,7 @@
 @using FluentValidation
 @using MediatR
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using CaeManager.Web.Features.Vehiculos.Components
 @using Microsoft.AspNetCore.Components.QuickGrid
 @using CaeManager.Web.Features.Vehiculos.Recursos
@@ -140,6 +141,8 @@
                         </span>
                     </ChildContent>
                 </TemplateColumn>
+                @* Orden de la maqueta de listados: Vehículo · Empleador · Matrícula · Estado documental. *@
+                <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["EtiquetaEmpleador"]" Sortable="true" />
                 <TemplateColumn Title="@Textos["EtiquetaMatricula"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.NumeroPlaca))">
                     @if (!string.IsNullOrWhiteSpace(context.NumeroPlaca))
                     {
@@ -149,13 +152,32 @@
                         </span>
                     }
                 </TemplateColumn>
-                <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true" />
-                @* Columna de estado, de ancho fijo. El documento que causa el estado (el motivo bajo la pastilla)
-                   no viaja en VehiculoListaDto. *@
-                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" Class="col-estado" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
-                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)"
-                                Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"
-                                Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" />
+                @* Columna de estado, de ancho fijo: la pastilla se pinta siempre.
+
+                   Bajo la pastilla, el motivo (MotivoIncidenciasDocumentales): el documento que causa el
+                   estado o, si son varios, cuántos hay de cada clase. Abre una ventana de contexto con una
+                   línea por incidencia; quien puede escribir la pulsa y la corrige aquí
+                   (CorreccionIncidenciaDocumental), sin salir del listado. Las incidencias viajan en
+                   VehiculoListaDto porque esta página pide el desglose (ConDesgloseDocumental). *@
+                <TemplateColumn Title="@Textos["ListaColumnaEstadoDocumental"]" Sortable="true" Class="col-estado" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
+                    @if (context.Incidencias.Count > 0)
+                    {
+                        var vehiculo = context;
+                        <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(vehiculo.EstadoDocumental)"
+                                    Texto="@EstadoDocumentoUi.TextoDocumental(vehiculo.EstadoDocumental)"
+                                    Correcto="EstadoDocumentoUi.EsCorrecto(vehiculo.EstadoDocumental)">
+                            <MotivoContenido>
+                                <MotivoIncidenciasDocumentales Incidencias="vehiculo.Incidencias" Interactiva="_puedeEscribir"
+                                                               AlPulsar="CorregirIncidenciaAsync" />
+                            </MotivoContenido>
+                        </EstadoFila>
+                    }
+                    else
+                    {
+                        <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)"
+                                    Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"
+                                    Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" />
+                    }
                 </TemplateColumn>
                 @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Ver» es el clic en la
                    fila; «Eliminar», la selección múltiple (☑ de la cabecera o tecla «x»), con su
@@ -253,6 +275,9 @@
     <CampoTexto Etiqueta="@Textos["EtiquetaModelo"]" Valor="@_modelo" ValorChanged="v => _modelo = v" OnBlur="ValidarModeloAsync" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.Modelo))" />
     <CampoTexto Etiqueta="@Textos["EtiquetaMatricula"]" Valor="@_numeroPlaca" ValorChanged="v => _numeroPlaca = v" OnBlur="ValidarNumeroPlacaAsync" MensajeError="@ObtenerError(nameof(CrearVehiculoCommand.NumeroPlaca))" />
 </DrawerFormulario>
+
+@* Corrección de una incidencia desde la ventana del motivo. Monta su formulario al primer uso. *@
+<CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
 
 @* EliminarVehiculosCommand es ICommand, denegado a Consulta. *@
 <SoloConEscritura>

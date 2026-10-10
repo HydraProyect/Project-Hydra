@@ -14,16 +14,30 @@ namespace CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 /// <paramref name="EstadoDocumental"/> es el filtro de estado de la pantalla:
 /// un Vehículo no tiene estado propio, se deriva del peor estado de vigencia
 /// de sus Documentos (ver <see cref="ICalculoEstadoDocumentalService"/>).
+///
+/// <para>
+/// <paramref name="ConDesgloseDocumental"/> rellena, para las filas de la página, las incidencias de
+/// <see cref="VehiculoListaDto"/>. Cuesta una consulta de documentos por página, así que hay que pedirlo: lo pide
+/// solo quien lo pinta (el listado de Vehículos, en su carga de página y al refrescar una fila por id). Sin
+/// pedirlo, las filas llegan con las incidencias vacías.
+/// </para>
 /// </summary>
 public record ObtenerVehiculosQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
-    bool ConRecuentosPorEstado = false, Guid? VehiculoId = null)
+    bool ConRecuentosPorEstado = false, Guid? VehiculoId = null, bool ConDesgloseDocumental = false)
     : IRequest<ResultadoPaginado<VehiculoListaDto>>;
 
 public record VehiculoListaDto(
     Guid Id, string Nombre, string Modelo, string NumeroPlaca, string EmpleadorNombre,
-    EstadoDocumento? EstadoDocumental = null);
+    EstadoDocumento? EstadoDocumental = null)
+{
+    /// <summary>
+    /// Los documentos del Vehículo que explican su <see cref="EstadoDocumental"/> y los demás que piden
+    /// atención, del más grave al menos. Vacía si no hay ninguno o si la consulta no pidió el desglose.
+    /// </summary>
+    public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; init; } = [];
+}
 
 public class ObtenerVehiculosQueryHandler(
     IEmpresasQueryContext empresasContext,
@@ -184,10 +198,12 @@ public class ObtenerVehiculosQueryHandler(
                 .ToListAsync(cancellationToken);
 
             return new ResultadoPaginado<VehiculoListaDto>(
-                paginaConEstado.Select(x => new VehiculoListaDto(
-                    x.Id, x.Nombre, x.Modelo, x.NumeroPlaca, x.EmpleadorNombre,
-                    CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
-                    .ToList(),
+                await ConDesgloseAsync(
+                    paginaConEstado.Select(x => new VehiculoListaDto(
+                        x.Id, x.Nombre, x.Modelo, x.NumeroPlaca, x.EmpleadorNombre,
+                        CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                        .ToList(),
+                    request, cancellationToken),
                 totalConEstado, request.Pagina, request.TamanoPagina)
             {
                 RecuentosPorEstado = recuentosPorEstado
@@ -226,7 +242,29 @@ public class ObtenerVehiculosQueryHandler(
             AmbitoAplicacion.Vehiculo, elementos.Select(v => v.Id).ToList(), cancellationToken);
 
         return new ResultadoPaginado<VehiculoListaDto>(
-            elementos.Select(v => v with { EstadoDocumental = estados.GetValueOrDefault(v.Id) }).ToList(),
+            await ConDesgloseAsync(
+                elementos.Select(v => v with { EstadoDocumental = estados.GetValueOrDefault(v.Id) }).ToList(),
+                request, cancellationToken),
             total, request.Pagina, request.TamanoPagina);
+    }
+
+    /// <summary>
+    /// Añade a las filas YA paginadas su desglose documental, en una sola consulta de documentos para toda la
+    /// página. Las filas son las que dejaron pasar el alcance y los filtros: el desglose no añade ninguna. No
+    /// toca <see cref="VehiculoListaDto.EstadoDocumental"/>: sale de los mismos documentos y la misma
+    /// calculadora, así que coinciden (lo ata <c>DesgloseDocumentalDeVehiculosBajoRlsTests</c>).
+    /// </summary>
+    private async Task<IReadOnlyList<VehiculoListaDto>> ConDesgloseAsync(
+        IReadOnlyList<VehiculoListaDto> pagina, ObtenerVehiculosQuery request, CancellationToken cancellationToken)
+    {
+        if (!request.ConDesgloseDocumental || pagina.Count == 0)
+            return pagina;
+
+        var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(
+            AmbitoAplicacion.Vehiculo, pagina.Select(v => v.Id).ToList(), cancellationToken);
+
+        return pagina
+            .Select(v => desgloses.TryGetValue(v.Id, out var desglose) ? v with { Incidencias = desglose.Incidencias } : v)
+            .ToList();
     }
 }
