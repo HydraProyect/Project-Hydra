@@ -93,6 +93,15 @@ public static class RedireccionLocal
     /// 2026-09-22: Mi trabajo es el aterrizaje del Gestor CAE de un Operador
     /// CAE externo, no lo que responde cada clic en «Inicio»). Con
     /// <c>returnUrl</c> explícito a otra ruta, se respeta tal cual.
+    ///
+    /// <para>
+    /// Aquí no se comprueba que esa ruta admita GET. Que el <c>returnUrl</c> no sea
+    /// la ruta de un endpoint solo-POST (<c>/cuenta/cliente-activo</c>,
+    /// <c>/cuenta/cerrar-sesion</c>…) lo garantiza quien lo escribe: el desafío de
+    /// la cookie de sesión no guarda el de una petición que no sea GET ni HEAD
+    /// (<see cref="CaeManager.Web.Services.OmitirReturnUrlEnPeticionesNoNavegables"/>,
+    /// LV-2), y esa petición llega aquí sin <c>returnUrl</c>.
+    /// </para>
     /// </summary>
     public static string DestinoTrasLogin(string? returnUrl)
     {
