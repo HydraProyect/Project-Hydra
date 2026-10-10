@@ -442,6 +442,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel", "estado"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
 
     /// <summary>
     /// Un filtro guardado define la vista entera: lo que no trae se quita. El nivel y el estado pasan por la

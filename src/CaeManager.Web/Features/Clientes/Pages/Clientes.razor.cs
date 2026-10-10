@@ -166,6 +166,13 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// <summary>Cifra de «Todos» en la franja: aquí los recuentos por estado se solapan y no suman el total.</summary>
     private int? _totalSinFiltroDeEstado;
     private IReadOnlyList<GestorCaeSelectorDto> _ejecutivosParaFiltro = [];
+
+    /// <summary>
+    /// El directorio de arriba ya está cargado. Hasta entonces <see cref="GestorVisible"/> descarta a
+    /// cualquier Gestor CAE, así que la vista recordada no se restaura antes
+    /// (<c>ListoParaRestaurar</c> de <see cref="VistaRecordadaDeListado"/>): se perdería el suyo.
+    /// </summary>
+    private bool _directorioDeGestoresCargado;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -314,6 +321,21 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoDocumentalInicial { get; set; }
 
+    /// <summary>Orden de columna (<c>?orden=cliente-desc</c>). Sin él, el de fábrica: por estado documental.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    /// <summary>
+    /// El orden de columna viaja en la URL y forma parte de la vista. La rejilla nace ordenada por
+    /// estado documental. «Exportar esta vista» sigue leyendo el orden de la última petición de la
+    /// rejilla (<see cref="_ordenExportar"/>), venga de un clic en la cabecera o de la URL.
+    /// </summary>
+    private readonly OrdenDeRejilla _orden = new(
+    [
+        ("cliente", nameof(ClienteListaDto.RazonSocial)),
+        ("documentacion", nameof(ClienteListaDto.EstadoDocumentalPeor)),
+    ], claveDeFabrica: "documentacion");
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     /// <summary>
@@ -445,6 +467,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty, u.Avatar))
             .OrderBy(g => g.NombreCompleto)
             .ToList();
+        _directorioDeGestoresCargado = true;
     }
 
     /// <summary>
@@ -478,9 +501,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         // Lo que no sea un estado conocido, o un Gestor CAE que el directorio visible de este
         // usuario no ofrece, es «sin filtro»: un Id en la URL no es autoridad, y la pantalla
         // no filtra por alguien a quien no puede nombrar (misma regla que el filtro guardado).
-        var gestorDeLaUrl = Guid.TryParse(GestorCaeInicial, out var gestorId) && _ejecutivosParaFiltro.Any(g => g.Id == gestorId)
-            ? gestorId.ToString()
-            : string.Empty;
+        var gestorDeLaUrl = GestorVisible(GestorCaeInicial);
         var estadoDeLaUrl = EstadosValidos(EstadoDocumentalInicial);
         var cambio = deLaUrl != _busqueda || soloCriticosDeLaUrl != _soloCriticos
             || gestorDeLaUrl != _ejecutivoFiltro || estadoDeLaUrl != _estadoDocumentalFiltro;
@@ -506,7 +527,12 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
                 _mostrarGuardarFiltro = true;
         }
 
-        return cambio && _grid is not null ? RecargarAsync() : Task.CompletedTask;
+        // Con otro orden la rejilla se remonta ya ordenada y pide ella los datos: refrescar además la
+        // saliente sería pedirlos dos veces.
+        var cambiaElOrden = _orden.Leer(OrdenInicial);
+        return cambio && _grid is not null && !(cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+            ? RecargarAsync()
+            : Task.CompletedTask;
     }
 
     /// <summary>
@@ -537,6 +563,8 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         var conservarSeleccion = _conservarSeleccionEnLaProximaCarga;
         _conservarSeleccionEnLaProximaCarga = false;
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        if (_orden.Anotar(ordenarPor, descendente))
+            NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
         (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         var estadosFiltro = SeleccionEstados.Separar<EstadoDocumento>(_estadoDocumentalFiltro);
         var consulta = new ObtenerClientesQuery(
@@ -1401,6 +1429,55 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         });
         await RecargarAsync();
     }
+
+    // --- Vista recordada (pieza compartida VistaRecordadaDeListado) ---
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que recuerda y restaura la vista recordada
+    /// (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>), que es de la vista pero
+    /// no se recuerda. Los filtros guardados de esta pantalla son anteriores a la pieza compartida y
+    /// conservan su propio JSON (<see cref="LeerFiltroGuardado"/>), sin el orden de columna.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "critico", "gestor", "estado", "orden"];
+
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// La vista recordada (o la de inicio, al restablecer) define la vista entera: lo que no trae se quita.
+    /// Cada valor pasa por la misma validación que el de la URL en <see cref="OnParametersSetAsync"/>: un
+    /// estado que la franja no conoce se descarta y un Gestor CAE que el directorio visible de este usuario
+    /// no ofrece es «sin filtro» (lo recordado no es autoridad). La URL se escribe en una sola navegación y
+    /// se recarga aquí.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _soloCriticos = bool.TryParse(vista.GetValueOrDefault("critico"), out var soloCriticos) && soloCriticos;
+        _ejecutivoFiltro = GestorVisible(vista.GetValueOrDefault("gestor"));
+        _estadoDocumentalFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
+        var cambiaElOrden = _orden.Leer(vista.GetValueOrDefault("orden"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["critico"] = _soloCriticos ? "true" : null,
+            ["gestor"] = _ejecutivoFiltro,
+            ["estado"] = _estadoDocumentalFiltro,
+            ["orden"] = _orden.EnUrl,
+        });
+
+        // Con otro orden la rejilla se remonta en el siguiente render y pide ella los datos:
+        // refrescar además la saliente sería pedirlos dos veces.
+        if (cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+            StateHasChanged();
+        else
+            await RecargarAsync();
+    }
+
+    /// <summary>El Id de Gestor CAE que llega de fuera, si el directorio visible de este usuario lo ofrece; si no, vacío.</summary>
+    private string GestorVisible(string? valor) =>
+        Guid.TryParse(valor, out var gestorId) && _ejecutivosParaFiltro.Any(g => g.Id == gestorId)
+            ? gestorId.ToString()
+            : string.Empty;
 
     private void CerrarModalGuardarFiltro(bool visible)
     {

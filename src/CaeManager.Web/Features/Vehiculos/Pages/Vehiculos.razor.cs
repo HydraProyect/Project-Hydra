@@ -168,6 +168,34 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     [SupplyParameterFromQuery(Name = "subcontrata")]
     public string? SubcontrataInicial { get; set; }
 
+    /// <summary>Orden de columna (<c>?orden=matricula-desc</c>). Sin él, el de fábrica: ver <see cref="_orden"/>.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    /// <summary>
+    /// El orden de columna viaja en la URL y forma parte de la vista. La rejilla nace sin ordenar
+    /// (el orden de fábrica es el de la consulta); «vehiculo» y «modelo» son la misma columna.
+    /// </summary>
+    private readonly OrdenDeRejilla _orden = new(
+    [
+        ("vehiculo", nameof(VehiculoListaDto.Nombre)),
+        ("modelo", nameof(VehiculoListaDto.Modelo)),
+        ("matricula", nameof(VehiculoListaDto.NumeroPlaca)),
+        ("empleador", nameof(VehiculoListaDto.EmpleadorNombre)),
+        ("documentacion", nameof(VehiculoListaDto.EstadoDocumental)),
+    ]);
+
+    /// <summary>El orden que llega (URL, filtro guardado o vista recordada). Si cambia, la rejilla se remonta ya ordenada.</summary>
+    private bool LeerOrden(string? valor)
+    {
+        if (!_orden.Leer(valor))
+            return false;
+
+        if (_orden.Propiedad is nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.Modelo))
+            _campoOrdenVehiculo = _orden.Propiedad;
+        return true;
+    }
+
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IValidator<CrearVehiculoCommand> ValidadorCrear { get; set; } = default!;
@@ -337,6 +365,8 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             _filtroSubcontrataId = subcontrataDeLaUrl;
         if (empresaDeLaUrl != _filtroEmpresaId)
             _filtroEmpresaId = empresaDeLaUrl;
+
+        LeerOrden(OrdenInicial);
     }
 
     /// <summary>Un Id de la URL solo vale si es un Guid; cualquier otra cosa es «sin filtro».</summary>
@@ -413,6 +443,8 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         {
             _ultimaColumnaOrden = request.SortByColumn;
             _ultimoOrdenAscendente = request.SortByAscending;
+            if (_orden.Anotar(ordenarPor, descendente))
+                NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
             (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
 
             var resultado = await Mediator.Send(consulta, token);
@@ -624,10 +656,14 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     private const string PantallaDeFiltrosGuardados =
         CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Vehiculos;
 
-    /// <summary>Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.</summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata"];
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado, y lo que
+    /// recuerda la vista recordada (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata", "orden"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
 
     /// <summary>
     /// Un filtro guardado define la vista entera: lo que no trae se quita. Cada valor pasa por la misma
@@ -641,14 +677,22 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
         _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
+        var cambiaElOrden = LeerOrden(vista.GetValueOrDefault("orden"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
             ["estado"] = _estadoFiltro,
             ["empresa"] = _filtroEmpresaId,
             ["subcontrata"] = _filtroSubcontrataId,
+            ["orden"] = _orden.EnUrl,
         });
-        await RecargarAsync();
+
+        // Con otro orden la rejilla se remonta en el siguiente render y pide ella los datos:
+        // refrescar además la saliente sería pedirlos dos veces.
+        if (cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+            StateHasChanged();
+        else
+            await RecargarAsync();
     }
 
     /// <summary>

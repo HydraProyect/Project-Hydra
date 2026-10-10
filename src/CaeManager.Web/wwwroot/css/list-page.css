@@ -104,7 +104,8 @@
 }
 
 .limpiar-filtros-barra,
-.guardar-filtro-barra {
+.guardar-filtro-barra,
+.restablecer-vista-barra {
     border: 0;
     background: none;
     padding: 0;
@@ -115,13 +116,15 @@
 }
 
 .limpiar-filtros-barra:hover,
-.guardar-filtro-barra:hover {
+.guardar-filtro-barra:hover,
+.restablecer-vista-barra:hover {
     color: var(--color-primary-600);
     text-decoration: underline;
 }
 
 .limpiar-filtros-barra:focus-visible,
-.guardar-filtro-barra:focus-visible {
+.guardar-filtro-barra:focus-visible,
+.restablecer-vista-barra:focus-visible {
     outline: var(--border-focus);
 }
 

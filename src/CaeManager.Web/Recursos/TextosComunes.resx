@@ -468,4 +468,13 @@
   <data name="CumplimientoSinRequisitos" xml:space="preserve">
     <value>Sin requisitos</value>
   </data>
+  <data name="RestablecerVista" xml:space="preserve">
+    <value>Restablecer vista</value>
+  </data>
+  <data name="RestablecerVistaTitulo" xml:space="preserve">
+    <value>Esta vista se recuerda para tu usuario en esta organización. Pulsa para volver a la vista de fábrica.</value>
+  </data>
+  <data name="VistaRestablecidaToast" xml:space="preserve">
+    <value>Vista de fábrica restablecida.</value>
+  </data>
 </root>

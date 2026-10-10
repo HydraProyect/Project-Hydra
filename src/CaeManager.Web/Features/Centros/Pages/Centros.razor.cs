@@ -752,6 +752,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "cliente", "empresa", "agrupar", "orden"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
 
     /// <summary>
     /// Un filtro guardado define la vista entera: lo que no trae se quita (sin <c>agrupar</c> vuelve la

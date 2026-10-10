@@ -94,7 +94,8 @@
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   OnGuardarFiltro="AbrirGuardarFiltro" FiltrosGuardados="OpcionesFiltrosGuardados"
                   OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
-                  OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado">
+                  OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
+                  VistaRecordada="_vistaRecordada">
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpresa"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@ValorFiltroEmpleador"
                             ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
@@ -123,6 +124,8 @@
             }
         </Chips>
     </BarraFiltros>
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Trabajadores"
+                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
@@ -153,7 +156,7 @@
            enseñar, y en su lugar se ve el esqueleto o el estado vacío que
            toque. *@
         <div class="contenido-entra" style="display:@(_totalElementos == 0 ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+            <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
                     @* La casilla de cabecera solo marca los de la página
@@ -178,7 +181,8 @@
                    teclean al dar de alta en una plataforma, y el DNI debajo, que se copia con un
                    clic. Sigue ordenando por apellidos y, a igualdad, por nombre
                    (ObtenerTrabajadoresQuery). *@
-                <TemplateColumn Title="@Textos["ListaColumnaTrabajador"]" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))">
+                <TemplateColumn Title="@Textos["ListaColumnaTrabajador"]" Sortable="true" SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.Apellidos))"
+                                IsDefaultSortColumn="@_orden.Es("trabajador")" InitialSortDirection="_orden.Direccion">
                     <span class="celda-trabajador">
                         <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
                                 aria-label="@Textos["AbrirVistaRapidaDe", NombreCompleto(context)]"
@@ -195,7 +199,8 @@
                 @* La maqueta añade una segunda línea («Subcontrata de …») a las subcontratas:
                    TrabajadorListaDto no dice si el empleador es subcontrata ni de quién, así que no
                    se pinta (cambiaría la consulta: Application). *@
-                <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="@Textos["EtiquetaEmpresa"]" Sortable="true" />
+                <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="@Textos["EtiquetaEmpresa"]" Sortable="true"
+                                IsDefaultSortColumn="@_orden.Es("empleador")" InitialSortDirection="_orden.Direccion" />
                 @* «Registrados vigentes», de ancho fijo: de los documentos registrados del Trabajador,
                    cuántos están al día («8/10»; raya si no tiene ninguno). Es una fracción sobre lo
                    REGISTRADO (DesgloseDocumentalDto), no sobre lo exigido. La pinta la barra de cumplimiento compartida
@@ -217,7 +222,7 @@
                    con una línea por incidencia; quien puede escribir la pulsa y la corrige aquí
                    (CorreccionIncidenciaDocumental), sin salir del listado. Es lo que la maqueta
                    resuelve con una fila desplegable, que QuickGrid no tiene. *@
-                <TemplateColumn Title="@Textos["ListaColumnaEstadoDocumental"]" Sortable="true" IsDefaultSortColumn="true" Class="col-estado"
+                <TemplateColumn Title="@Textos["ListaColumnaEstadoDocumental"]" Sortable="true" IsDefaultSortColumn="@_orden.Es("documentacion")" InitialSortDirection="_orden.Direccion" Class="col-estado"
                                 SortBy="@(GridSort<TrabajadorListaDto>.ByAscending(t => t.EstadoDocumental))">
                     @if (context.Incidencias.Count > 0)
                     {

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -88,6 +89,13 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
     private const string ResumenClasificacionSecreto = "SECRETO-RESUMEN-CLASIFICACION-RELEVANCIA-no-debe-aparecer-en-claro";
     private const string ResumenSugerenciaGestionSecreto = "SECRETO-RESUMEN-SUGERENCIA-GESTION-no-debe-aparecer-en-claro";
     private const string ResumenSugerenciaVisitaSecreto = "SECRETO-RESUMEN-SUGERENCIA-VISITA-no-debe-aparecer-en-claro";
+
+    // Lo que un Gestor CAE teclea en el buscador de un listado y viaja en los
+    // valores de un filtro guardado: un DNI inventado, con forma de DNI.
+    private const string DniBuscado = "00000000T";
+    private const string ValoresDeFiltroConDni = $$"""{"q":"{{DniBuscado}}","estado":"Vencido"}""";
+    private const string EstadoDeLaVistaNueva = "ESTADO-DE-LA-VISTA-NUEVA-no-debe-aparecer-en-claro";
+    private const string ValoresDeVistaNueva = $$"""{"estado":"{{EstadoDeLaVistaNueva}}"}""";
 
     public async Task InitializeAsync()
     {
@@ -592,6 +600,75 @@ public class AuditoriaRedaccionDeSecretosTests : IAsyncLifetime
 
         registro.DatosAntes.Should().NotContain(ResumenSugerenciaVisitaSecreto);
         registro.DatosAntes.Should().Contain("\"Resumen\":\"***\"");
+    }
+
+    /// <summary>
+    /// Los valores de un filtro guardado llevan la búsqueda libre del listado:
+    /// quien busca a un Trabajador por su DNI y guarda el filtro no deja ese DNI
+    /// en la auditoría, ni al guardarlo ni al borrarlo (la baja registra la fila
+    /// entera en <c>DatosAntes</c>).
+    /// </summary>
+    [Fact]
+    public async Task Los_valores_de_un_filtro_guardado_no_aparecen_en_claro_en_la_auditoria_ni_al_guardarlo_ni_al_borrarlo()
+    {
+        Guid filtroId;
+        await using (var contexto = CrearContexto())
+        {
+            var filtro = new FiltroGuardado(Guid.NewGuid(), "Trabajadores", "Pendientes de Marta", ValoresDeFiltroConDni);
+            filtroId = filtro.Id;
+            contexto.FiltrosGuardados.Add(filtro);
+            await contexto.SaveChangesAsync();
+        }
+
+        var alta = await ObtenerRegistroAsync(nameof(FiltroGuardado));
+        alta.DatosDespues.Should().NotContain(DniBuscado);
+        alta.DatosDespues.Should().Contain("\"ValoresJson\":\"***\"");
+        alta.DatosDespues.Should().Contain("Pendientes de Marta", "control: el resto de la fila sí se audita");
+
+        await using (var contexto = CrearContexto())
+        {
+            contexto.FiltrosGuardados.Remove(await contexto.FiltrosGuardados.SingleAsync(f => f.Id == filtroId));
+            await contexto.SaveChangesAsync();
+        }
+
+        var baja = await ObtenerRegistroAsync(nameof(FiltroGuardado));
+        baja.Accion.Should().NotBe(alta.Accion, "control: el registro leído es el de la baja");
+        baja.DatosAntes.Should().NotContain(DniBuscado);
+        baja.DatosAntes.Should().Contain("\"ValoresJson\":\"***\"");
+    }
+
+    /// <summary>
+    /// La vista recordada es la misma entidad con nombre reservado y se reescribe
+    /// en cada cambio de vista: ni la vista nueva ni la anterior quedan copiadas.
+    /// Es el único camino de <c>Modificado</c> de esta entidad.
+    /// </summary>
+    [Fact]
+    public async Task La_vista_recordada_no_aparece_en_claro_en_la_auditoria_ni_antes_ni_despues_de_cambiarla()
+    {
+        Guid vistaId;
+        await using (var contexto = CrearContexto())
+        {
+            var vista = FiltroGuardado.CrearVistaRecordada(Guid.NewGuid(), "Trabajadores", ValoresDeFiltroConDni);
+            vistaId = vista.Id;
+            contexto.FiltrosGuardados.Add(vista);
+            await contexto.SaveChangesAsync();
+        }
+
+        (await ObtenerRegistroAsync(nameof(FiltroGuardado))).DatosDespues.Should().NotContain(DniBuscado)
+            .And.Contain("\"ValoresJson\":\"***\"");
+
+        await using (var contexto = CrearContexto())
+        {
+            var vista = await contexto.FiltrosGuardados.SingleAsync(f => f.Id == vistaId);
+            vista.RecordarVista(ValoresDeVistaNueva);
+            await contexto.SaveChangesAsync();
+        }
+
+        var cambio = await ObtenerRegistroDeModificacionAsync(nameof(FiltroGuardado));
+        cambio.DatosAntes.Should().NotContain(DniBuscado);
+        cambio.DatosAntes.Should().Contain("\"ValoresJson\":\"***\"");
+        cambio.DatosDespues.Should().NotContain(EstadoDeLaVistaNueva);
+        cambio.DatosDespues.Should().Contain("\"ValoresJson\":\"***\"");
     }
 
     /// <summary>

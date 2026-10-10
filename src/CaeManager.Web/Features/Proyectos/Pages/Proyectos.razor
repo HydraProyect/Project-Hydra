@@ -54,7 +54,8 @@
                       PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                       HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                       FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
-                      OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
+                      OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
+                      VistaRecordada="_vistaRecordada">
             <Pastillas>
                 @* Filtro opcional: «Todos» (el valor vacío) lista los Proyectos de todos los Clientes empresariales visibles. *@
                 <PastillaFiltro @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
@@ -70,6 +71,8 @@
         </BarraFiltros>
         <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
                                    OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+        <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Proyectos"
+                                 ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
         @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
            cuántos Proyectos hay con el Cliente y la búsqueda aplicados. Con los dos botones marcados se ven
            todos. Está desde la primera carga, sin cifras hasta que llegan los recuentos. *@

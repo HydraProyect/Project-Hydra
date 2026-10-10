@@ -600,6 +600,13 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
 
     /// <summary>
+    /// De la vista recordada (<see cref="VistaRecordadaDeListado"/>). El Cliente empresarial es un filtro
+    /// más: la lista existe sin él, así que elegirlo cuenta como desviación de la vista de inicio, se
+    /// recuerda y «Restablecer vista» lo quita, igual que «Quitar filtros».
+    /// </summary>
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
     /// Un filtro guardado define la vista entera: lo que no trae se quita, también el Cliente empresarial.
     /// Cada valor pasa por la misma validación que el de la URL: el estado por <see cref="EstadosValidos"/>
     /// y el Cliente empresarial solo si es uno de los que el selector ofrece (un Id guardado no es
