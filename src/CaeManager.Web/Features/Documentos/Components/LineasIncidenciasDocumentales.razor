@@ -1,0 +1,63 @@
+@*
+    Las incidencias documentales de un propietario, una línea por documento: la pastilla del estado del
+    documento, el nombre del Tipo y su fecha de vencimiento. Es una pieza compartida: la pinta la ventana del
+    motivo (MotivoIncidenciasDocumentales, en Trabajadores, Vehículos y Empresas) y, en Empresas, también la
+    fila desplegada. Así las dos enseñan lo mismo y corrigen igual.
+
+    Con Interactiva (quien puede escribir) cada línea es un botón que avisa por AlPulsar: la pantalla abre ahí
+    la corrección (CorreccionIncidenciaDocumental) sin salir del listado. Quien solo consulta ve las mismas
+    líneas, sin botones: no se le ofrece un formulario que el comando le va a denegar.
+
+    No lleva contenedor propio: lo pone quien la monta (el panel de la ventana o la fila desplegada).
+*@
+@using CaeManager.Application.Documentos
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+@foreach (var incidencia in Incidencias)
+{
+    @* Un documento aparece una sola vez en el desglose de su propietario: su Id es clave única. *@
+    if (EsInteractiva)
+    {
+        <VentanaContextoElemento @key="incidencia.DocumentoId"
+                                 Ayuda="@Comunes["VentanaIncidenciaAyuda"].Value"
+                                 Secundario="@Fecha(incidencia)"
+                                 AlPulsar="() => AlPulsar.InvokeAsync(incidencia)">
+            <span class="motivo-incidencias-linea">
+                <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                <span class="motivo-incidencias-tipo">@MotivoIncidenciasUi.NombreDeTipo(incidencia)</span>
+            </span>
+        </VentanaContextoElemento>
+    }
+    else
+    {
+        <span class="ventana-linea motivo-incidencias-linea" @key="incidencia.DocumentoId">
+            <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+            <span class="motivo-incidencias-tipo">@MotivoIncidenciasUi.NombreDeTipo(incidencia)</span>
+            @if (Fecha(incidencia) is { } fecha)
+            {
+                <span class="motivo-incidencias-fecha">@fecha</span>
+            }
+        </span>
+    }
+}
+
+@code {
+    /// <summary>Las incidencias, ya ordenadas de la más grave a la menos (así las entrega la consulta).</summary>
+    [Parameter, EditorRequired] public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; set; } = [];
+
+    /// <summary>
+    /// El rol puede escribir: las líneas son botones. Sin <see cref="AlPulsar"/> no hay nada que abrir y se
+    /// quedan en lectura.
+    /// </summary>
+    [Parameter] public bool Interactiva { get; set; }
+
+    /// <summary>Se pulsó una incidencia: la pantalla abre su corrección.</summary>
+    [Parameter] public EventCallback<IncidenciaDocumentalDto> AlPulsar { get; set; }
+
+    private bool EsInteractiva => Interactiva && AlPulsar.HasDelegate;
+
+    private static string? Fecha(IncidenciaDocumentalDto incidencia) =>
+        incidencia.FechaVencimiento?.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
+}
