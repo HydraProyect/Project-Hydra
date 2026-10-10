@@ -268,7 +268,7 @@ public class Trabajador360Gen2Tests : BunitContext
         cabecera.QuerySelector(".cabecera-identidad-anillo .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("60");
         cabecera.QuerySelector(".cabecera-identidad-acciones .anillo-cumplimiento-texto").Should().BeNull();
         // El desglose literal del centro peor parado, no solo un número.
-        cabecera.TextContent.Should().Contain("2 incidencias — Centro Norte")
+        cabecera.QuerySelector(".cabecera-identidad-datos")!.TextContent.Should().Contain("2 incidencias — Centro Norte")
             .And.Contain("Formación PRL — 20 h — Vencido")
             .And.Contain("Formación específica de centro — Pendiente");
     }
@@ -300,6 +300,19 @@ public class Trabajador360Gen2Tests : BunitContext
         icono.GetAttribute("aria-label").Should().Contain("Refrielectric S.L.");
         cabecera.QuerySelector(".cabecera-identidad-acciones .menu-acciones-disparador")!
             .GetAttribute("aria-label").Should().Be("Más acciones");
+    }
+
+    [Fact]
+    public void Sin_empleador_con_pagina_la_cabecera_no_pinta_el_icono_360()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno") with { EmpresaId = null, SubcontrataId = null };
+        mediador.Centros[id] = [];
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-identidad-datos").QuerySelectorAll("a.boton-360-pagina").Should().BeEmpty();
     }
 
     [Fact]
