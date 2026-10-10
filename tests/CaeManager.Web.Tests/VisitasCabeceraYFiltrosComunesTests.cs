@@ -1,5 +1,9 @@
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
+using CaeManager.Application.Configuracion;
+using CaeManager.Application.Configuracion.Commands.GuardarVistaRecordada;
+using CaeManager.Application.Configuracion.Commands.OlvidarVistaRecordada;
+using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas;
@@ -51,6 +55,10 @@ public class VisitasCabeceraYFiltrosComunesTests : BunitContext
 
             return Task.FromResult((TResponse)(object)(request switch
             {
+                // Las piezas de filtros guardados y de vista recordada que monta la página: nada guardado.
+                ObtenerVistaRecordadaQuery => (object)null!,
+                ObtenerFiltrosGuardadosQuery => (IReadOnlyList<FiltroGuardadoDto>)[],
+                GuardarVistaRecordadaCommand or OlvidarVistaRecordadaCommand => Result.Exito(),
                 ObtenerCentrosParaSelectorQuery => Array.Empty<CentroSelectorDto>(),
                 ObtenerTrabajadoresParaSelectorQuery => (object)Array.Empty<TrabajadorSelectorDto>(),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")

@@ -9,7 +9,7 @@ namespace CaeManager.Architecture.Tests;
 /// Todo listado que monta <c>BarraFiltros</c> ofrece filtros guardados: le pasa la lista
 /// (<c>FiltrosGuardados</c>), «Guardar filtro» (<c>OnGuardarFiltro</c>) y el gesto de aplicar uno
 /// (<c>OnAplicarFiltroGuardado</c>). Hasta el cierre de listados N1 solo lo hacían Trabajadores,
-/// Clientes empresariales y Documentos; ahora son nueve, y los seis nuevos lo hacen con la pieza
+/// Clientes empresariales y Documentos; ahora son diez, y los siete nuevos lo hacen con la pieza
 /// compartida <c>FiltrosGuardadosDeListado</c> y una lista blanca <c>ParametrosDeVista</c>.
 ///
 /// <para>
@@ -22,19 +22,12 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
     private const string CarpetaDeFeatures = "src/CaeManager.Web/Features/";
 
     /// <summary>
-    /// Listados que pueden montar <c>BarraFiltros</c> sin filtros guardados. Solo Visitas, y la excepción es
-    /// deliberada aunque hoy no use <c>BarraFiltros</c>: otra línea de trabajo le va a poner
-    /// <c>&lt;BarraFiltros&gt;</c> ANTES de que el incremento de Visitas le añada los filtros guardados, y sin
-    /// esta excepción esa PR saldría en rojo por algo que no es suyo. La excepción se retira en el incremento
-    /// que le da los filtros guardados a Visitas (añadirla a <c>PantallasConFiltrosGuardados</c>, conectar la
-    /// pieza y quitarla de aquí: la última prueba lo exige).
+    /// Listados que pueden montar <c>BarraFiltros</c> sin filtros guardados. Hoy ninguno: Visitas, la última,
+    /// salió con sus filtros guardados. La última prueba exige retirar de aquí a quien ya los pase.
     /// </summary>
-    private static readonly string[] AunSinFiltrosGuardados =
-    [
-        CarpetaDeFeatures + "Visitas/Pages/Visitas.razor",
-    ];
+    private static readonly string[] AunSinFiltrosGuardados = [];
 
-    /// <summary>Los nueve que ya los tienen: control positivo de que el recorrido ve lo que dice ver.</summary>
+    /// <summary>Los diez que ya los tienen: control positivo de que el recorrido ve lo que dice ver.</summary>
     private static readonly string[] ListadosConocidos =
     [
         CarpetaDeFeatures + "Centros/Pages/Centros.razor",
@@ -46,9 +39,10 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
         CarpetaDeFeatures + "Subcontratas/Pages/Subcontratas.razor",
         CarpetaDeFeatures + "Trabajadores/Pages/Trabajadores.razor",
         CarpetaDeFeatures + "Vehiculos/Pages/Vehiculos.razor",
+        CarpetaDeFeatures + "Visitas/Pages/Visitas.razor",
     ];
 
-    /// <summary>Los seis que usan la pieza compartida.</summary>
+    /// <summary>Los siete que usan la pieza compartida.</summary>
     private static readonly string[] ListadosConLaPiezaCompartida =
     [
         CarpetaDeFeatures + "Centros/Pages/Centros.razor",
@@ -57,6 +51,7 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
         CarpetaDeFeatures + "Proyectos/Pages/Proyectos.razor",
         CarpetaDeFeatures + "Subcontratas/Pages/Subcontratas.razor",
         CarpetaDeFeatures + "Vehiculos/Pages/Vehiculos.razor",
+        CarpetaDeFeatures + "Visitas/Pages/Visitas.razor",
     ];
 
     private static readonly string[] AtributosExigidos = ["FiltrosGuardados", "OnGuardarFiltro", "OnAplicarFiltroGuardado"];
@@ -87,7 +82,7 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
         select $"{fichero.Key}: <BarraFiltros> sin {atributo}=";
 
     [Fact]
-    public void El_recorrido_ve_los_nueve_listados_con_barra_de_filtros()
+    public void El_recorrido_ve_los_diez_listados_con_barra_de_filtros()
     {
         var barras = BarrasPorFichero();
 
@@ -125,7 +120,7 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
     }
 
     [Fact]
-    public void Los_seis_listados_de_la_pieza_compartida_declaran_su_lista_blanca_y_se_la_pasan()
+    public void Los_siete_listados_de_la_pieza_compartida_declaran_su_lista_blanca_y_se_la_pasan()
     {
         var piezas = Aperturas("FiltrosGuardadosDeListado");
 

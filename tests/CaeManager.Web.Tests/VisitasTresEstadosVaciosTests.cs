@@ -242,7 +242,9 @@ public class VisitasTresEstadosVaciosTests : BunitContext
     [Fact]
     public void Quitar_los_filtros_borra_tambien_el_de_notificado_de_la_url()
     {
-        var cut = Renderizar(notificado: "pendiente");
+        // «si»: un valor que la página reconoce. Con uno que no (antes se probaba con «pendiente») la página lo
+        // descarta como cualquier valor inválido de la URL y no hay filtro del usuario que quitar.
+        var cut = Renderizar(notificado: "si");
         cut.Markup.Should().Contain("Ninguna visita con estos filtros", "es el punto de partida de este caso");
 
         cut.Find(".estado-vacio button").Click();

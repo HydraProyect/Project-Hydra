@@ -27,8 +27,7 @@ public record GuardarFiltroCommand(string Pantalla, string Nombre, string Valore
 /// <summary>
 /// Los listados que guardan filtros. Trabajadores, Clientes empresariales y Documentos llevan su
 /// propia forma de <see cref="GuardarFiltroCommand.ValoresJson"/>; los demás guardan los parámetros
-/// de vista de su URL con la pieza compartida <c>FiltrosGuardadosDeListado</c> (Web). Visitas aún
-/// no está: entra cuando su listado adopte la barra de filtros.
+/// de vista de su URL con la pieza compartida <c>FiltrosGuardadosDeListado</c> (Web).
 /// </summary>
 public static class PantallasConFiltrosGuardados
 {
@@ -40,10 +39,11 @@ public static class PantallasConFiltrosGuardados
     public const string Subcontratas = "Subcontratas";
     public const string Vehiculos = "Vehiculos";
     public const string Proyectos = "Proyectos";
+    public const string Visitas = "Visitas";
     public const string Gestiones = "Gestiones";
 
     public static readonly string[] Admitidas =
-        [Clientes, Documentos, Trabajadores, Empresas, Centros, Subcontratas, Vehiculos, Proyectos, Gestiones];
+        [Clientes, Documentos, Trabajadores, Empresas, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones];
 }
 
 public class GuardarFiltroCommandValidator : AbstractValidator<GuardarFiltroCommand>

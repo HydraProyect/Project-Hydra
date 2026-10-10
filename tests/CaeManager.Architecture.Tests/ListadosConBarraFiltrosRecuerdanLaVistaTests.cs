@@ -21,9 +21,9 @@ namespace CaeManager.Architecture.Tests;
 /// </para>
 ///
 /// <para>
-/// Visitas tiene <c>&lt;BarraFiltros&gt;</c> desde #1244 y todavía no recuerda la vista: está en
-/// <see cref="EnEspera"/> hasta el incremento que le da filtros guardados y vista recordada a la vez.
-/// Los otros nueve listados con barra montan ya la pieza.
+/// Los diez listados con barra montan ya la pieza. <see cref="EnEspera"/> queda vacía, para que un
+/// listado nuevo con <c>&lt;BarraFiltros&gt;</c> que aún no recuerde la vista pueda entrar en ella con
+/// su motivo, igual que entró Visitas (barra desde #1244, vista recordada después).
 /// </para>
 /// </summary>
 public class ListadosConBarraFiltrosRecuerdanLaVistaTests
@@ -41,12 +41,11 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
         Regex.Replace(LimpiadorDeComentarios.Quitar(marcado, razor: true), "<!--.*?-->", string.Empty, RegexOptions.Singleline);
 
     /// <summary>
-    /// Listados con <c>&lt;BarraFiltros&gt;</c> que aún no recuerdan la vista. Solo Visitas: su barra entró
-    /// con #1244 mientras este incremento estaba abierto, y sus filtros guardados y su vista recordada van
-    /// juntos en el siguiente. La lista no puede quedarse vieja: <see cref="Un_listado_en_espera_sigue_sin_la_pieza"/>
-    /// se pone en rojo en cuanto la página monta la pieza, y entonces se retira de aquí.
+    /// Listados con <c>&lt;BarraFiltros&gt;</c> que aún no recuerdan la vista. Hoy ninguno. La lista no puede
+    /// quedarse vieja: <see cref="Un_listado_en_espera_sigue_sin_la_pieza"/> se pone en rojo en cuanto la
+    /// página monta la pieza, y entonces se retira de aquí.
     /// </summary>
-    private static readonly string[] EnEspera = [Paginas + "Visitas/Pages/Visitas.razor"];
+    private static readonly string[] EnEspera = [];
 
     /// <summary>Ruta → marcado sin comentarios de toda página con <c>&lt;BarraFiltros&gt;</c>, en espera o no.</summary>
     private static Dictionary<string, string> TodosLosListadosConBarra() =>
@@ -111,11 +110,11 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
         select $"{listado.Key}: {defecto}";
 
     [Fact]
-    public void El_recorrido_ve_los_nueve_listados_con_barra_de_filtros()
+    public void El_recorrido_ve_los_diez_listados_con_barra_de_filtros()
     {
         // Control positivo: si el recorrido no viera las páginas, «ninguno sin la pieza» valdría por vacío.
         ListadosConBarra().Keys.Select(Path.GetFileNameWithoutExtension).Should().BeEquivalentTo(
-            ["Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Gestiones"]);
+            ["Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Visitas", "Gestiones"]);
     }
 
     /// <summary>
@@ -139,7 +138,7 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
     [Fact]
     public void Todo_listado_con_barra_de_filtros_monta_la_vista_recordada_con_sus_atributos()
     {
-        // No vale por vacío: el control positivo de arriba fija que el recorrido ve los nueve.
+        // No vale por vacío: el control positivo de arriba fija que el recorrido ve los diez.
         Faltas(ListadosConBarra()).Should().BeEmpty(
             "un listado con <BarraFiltros> monta una vez <VistaRecordadaDeListado Conexion=\"_vistaRecordada\" Pantalla=\"@PantallasConVistaRecordada.…\" "
             + "ParametrosDeVista=\"ParametrosDeVista\" ParametroDeBusqueda=\"q\" OnAplicar=\"…\" AlCambiar=\"StateHasChanged\" /> "
@@ -157,7 +156,7 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
             l => l.Key,
             l => PantallaDeclarada(Atributo(MarcadoRazor.Aperturas(l.Value, Pieza).Single().Texto, "Pantalla")));
 
-        pantallas.Should().HaveCount(9, "control: una pantalla por cada uno de los nueve listados");
+        pantallas.Should().HaveCount(10, "control: una pantalla por cada uno de los diez listados");
         pantallas.Values.Should().OnlyContain(p => p != null && PantallasConVistaRecordada.Admitidas.Contains(p));
         pantallas.Values.Should().OnlyHaveUniqueItems();
         pantallas.Should().OnlyContain(p => Path.GetFileNameWithoutExtension(p.Key) == p.Value,
