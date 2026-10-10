@@ -259,18 +259,47 @@ public class Trabajador360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        var cabecera = cut.Find(".cabecera-pagina");
+        var cabecera = cut.Find(".cabecera-identidad");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().StartWith("Javier Salas Moreno");
-        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Trabajador");
+        cabecera.QuerySelector(".cabecera-identidad-kicker")!.TextContent.Trim().Should().Be("Trabajador");
         cabecera.TextContent.Should().Contain("12345678Z").And.Contain("Refrielectric S.L.");
         // 3 de 5 documentos exigidos entre todos los centros están al día. El anillo va a la
         // izquierda de la identidad, como en las otras páginas 360, y no entre las acciones.
-        cabecera.QuerySelector(".cabecera-pagina-inicio .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("60");
-        cabecera.QuerySelector(".acciones-cabecera .anillo-cumplimiento-texto").Should().BeNull();
+        cabecera.QuerySelector(".cabecera-identidad-anillo .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("60");
+        cabecera.QuerySelector(".cabecera-identidad-acciones .anillo-cumplimiento-texto").Should().BeNull();
         // El desglose literal del centro peor parado, no solo un número.
         cabecera.TextContent.Should().Contain("2 incidencias — Centro Norte")
             .And.Contain("Formación PRL — 20 h — Vencido")
             .And.Contain("Formación específica de centro — Pendiente");
+    }
+
+    [Theory]
+    [InlineData(false, "/empresas/")]
+    [InlineData(true, "/subcontratas/")]
+    public void La_cabecera_es_la_tarjeta_de_identidad_y_el_empleador_lleva_su_icono_360_a_su_pagina(bool esSubcontrata, string ruta)
+    {
+        var id = Guid.NewGuid();
+        var empleadorId = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        var detalle = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Detalles[id] = esSubcontrata
+            ? detalle with { EmpresaId = null, SubcontrataId = empleadorId }
+            : detalle with { EmpresaId = empleadorId };
+        mediador.Centros[id] = [];
+
+        var cut = Renderizar(id);
+
+        cut.FindAll(".cabecera-pagina").Should().BeEmpty("la cabecera suelta de pantalla se sustituye por la tarjeta");
+        var cabecera = cut.Find("[data-pieza=\"cabecera-identidad\"]");
+        cabecera.ClassList.Should().Contain("velo-cumplimiento", "el degradado del color del anillo llega por la clase compartida");
+        var datos = cabecera.QuerySelector(".cabecera-identidad-datos")!;
+        // El nombre abre la consulta rápida; el icono 360, la página.
+        datos.QuerySelector("button.enlace-nombre-fila")!.TextContent.Trim().Should().Be("Refrielectric S.L.");
+        var icono = datos.QuerySelector("a.boton-360-pagina")!;
+        icono.GetAttribute("href").Should().Be(ruta + empleadorId);
+        icono.GetAttribute("aria-label").Should().Contain("Refrielectric S.L.");
+        cabecera.QuerySelector(".cabecera-identidad-acciones .menu-acciones-disparador")!
+            .GetAttribute("aria-label").Should().Be("Más acciones");
     }
 
     [Fact]
@@ -319,10 +348,10 @@ public class Trabajador360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        var cabecera = cut.Find(".cabecera-pagina");
+        var cabecera = cut.Find(".cabecera-identidad");
         cabecera.TextContent.Should().Contain("1 incidencia — Centro Norte")
             .And.Contain($"Formación PRL — 20 h — Vencido · en tolerancia hasta {hasta:dd/MM}");
-        cabecera.QuerySelector(".cabecera-pagina-inicio .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("50",
+        cabecera.QuerySelector(".cabecera-identidad-anillo .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("50",
             "el vencido en tolerancia aún no cuenta como al día: 1 de 2");
     }
 
@@ -347,10 +376,10 @@ public class Trabajador360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        var cabecera = cut.Find(".cabecera-pagina");
+        var cabecera = cut.Find(".cabecera-identidad");
         // El porcentaje sigue la definición única de CumplimientoDocumental: «Sin confirmar» no cuenta como al día en un
         // porcentaje (1 de 3), aunque en las incidencias sí; la única incidencia es el vencido.
-        cabecera.QuerySelector(".cabecera-pagina-inicio .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("33");
+        cabecera.QuerySelector(".cabecera-identidad-anillo .anillo-cumplimiento-texto")!.TextContent.Trim().Should().StartWith("33");
         cabecera.TextContent.Should().Contain("1 incidencia — Centro Norte")
             .And.Contain("Formación específica de centro — Vencido")
             .And.NotContain("Reconocimiento médico — Sin confirmar");
@@ -373,7 +402,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         cut.FindAll(".pestanas-contador").Should().BeEmpty("sin incidencias no hay píldora de alerta");
-        cut.Find(".cabecera-pagina").TextContent.Should().NotContain("incidencia —",
+        cut.Find(".cabecera-identidad").TextContent.Should().NotContain("incidencia —",
             "el badge rojo de incidencias del centro no aparece");
         var tarjeta = cut.Find(".trabajador360-centro");
         tarjeta.ClassList.Should().NotContain("trabajador360-centro-con-incidencia");
@@ -402,7 +431,7 @@ public class Trabajador360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.Find(".cabecera-pagina .cabecera-pagina-inicio .anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("67",
+        cut.Find(".cabecera-identidad .cabecera-identidad-anillo .anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("67",
             "dos de tres exigidos están al día (Próximo y Urgente); solo el vencido no");
         SinEspaciosDeMas(cut.Find(".pestanas-contador").TextContent).Should().Be("3 documentos con incidencia",
             "Próximo y Urgente al día en el porcentaje no deja de ser incidencia: son dos preguntas distintas");
@@ -429,7 +458,7 @@ public class Trabajador360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.Find(".cabecera-pagina .cabecera-pagina-inicio .anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("50");
+        cut.Find(".cabecera-identidad .cabecera-identidad-anillo .anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("50");
         cut.Find(".trabajador360-centro-resumen").TextContent.Should().Contain("1 de 2 exigidos correctos");
     }
 
@@ -448,7 +477,7 @@ public class Trabajador360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        var boton = cut.Find(".cabecera-pagina .trabajador360-acciones > button");
+        var boton = cut.Find(".cabecera-identidad .cabecera-identidad-acciones > button");
         boton.TextContent.Trim().Should().Be("Subir documento");
         boton.HasAttribute("disabled").Should().BeFalse("sin documento al que apuntar abre el alta, no queda muerto");
 
@@ -540,7 +569,7 @@ public class Trabajador360Gen2Tests : BunitContext
         Navegacion.NavigateTo($"trabajadores/{b}");
         cut.Render(p => p.Add(x => x.TrabajadorId, b));
 
-        cut.WaitForAssertion(() => cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta"));
+        cut.WaitForAssertion(() => cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta"));
         PestanaSeleccionada(cut).Should().Be("Operación");
         mediador.Enviadas.OfType<ObtenerTrabajadorPorIdQuery>().Select(q => q.Id).Should().Equal([a, b]);
     }
@@ -1050,14 +1079,14 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Centros[b] = [berriz];
 
         var cut = Renderizar(a);
-        cut.FindAll(".cabecera-pagina").Should().BeEmpty("la cabecera de A sigue en vuelo");
+        cut.FindAll(".cabecera-identidad").Should().BeEmpty("la cabecera de A sigue en vuelo");
 
         cut.Render(p => p.Add(x => x.TrabajadorId, b));
-        cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
+        cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
 
         await cut.InvokeAsync(() => respuestaDeA.SetResult());
 
-        cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta",
+        cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta",
             "la respuesta de A llegó tarde y ya no es la vigente");
         cut.Markup.Should().NotContain("Centro Norte", "los centros de A no se piden: su cadena se corta al volver");
         mediador.Enviadas.OfType<ObtenerDocumentacionPorCentroDeTrabajadorQuery>()
@@ -1085,7 +1114,7 @@ public class Trabajador360Gen2Tests : BunitContext
         cut.Render(p => p.Add(x => x.TrabajadorId, b));
         await cut.InvokeAsync(() => gestionesDeA.SetResult());
 
-        cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
+        cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
 
         // Un repintado que NO recarga nada (desplegar un centro es estado
         // local y síncrono). Sin él, este test solo observaría que la
@@ -1123,7 +1152,7 @@ public class Trabajador360Gen2Tests : BunitContext
         // Los documentos de B siguen en vuelo; el detalle y los centros de B ya han llegado.
         cut.Render(p => p.Add(x => x.TrabajadorId, b));
 
-        cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
+        cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
         cut.Markup.Should().NotContain("Reconocimiento médico de A", "son los documentos de otro trabajador");
     }
 
@@ -1166,7 +1195,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         cut.Markup.Should().Contain("No pudimos cargar este trabajador").And.Contain("Reintentar");
-        cut.FindAll(".cabecera-pagina").Should().BeEmpty();
+        cut.FindAll(".cabecera-identidad").Should().BeEmpty();
     }
 
     // --------------- Hallazgos de la revisión de Codex sobre esta pantalla
@@ -1305,7 +1334,7 @@ public class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".modal-contenido").Should().ContainSingle("la modal está abierta para el primero");
 
         cut.Render(p => p.Add(x => x.TrabajadorId, segundo));
-        cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
+        cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
 
         cut.FindAll(".modal-contenido").Should().BeEmpty(
             "la modal preguntaba por el primero y en pantalla ya está el segundo");
@@ -1701,7 +1730,7 @@ public class Trabajador360Gen2Tests : BunitContext
         {
             mediador.Enviadas.OfType<EnviarReclamacionCommand>().Should().ContainSingle("control positivo: el envío del primero está en curso");
             cut.Render(p => p.Add(x => x.TrabajadorId, segundo));
-            cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
+            cut.Find(".cabecera-identidad h1").TextContent.Trim().Should().StartWith("Eider Lasa Arrieta");
         }
         finally
         {

@@ -1,29 +1,13 @@
 /*
-  Trabajador 360 contra su mockup Gen 2 («Trabajador 360 TALVEG.dc.html»).
+  Trabajador 360 contra la maqueta de las páginas 360 (DDL-082).
 
-  La cabecera ya no es una tarjeta propia: es CabeceraPagina, plana, como
-  Empresa 360 y Cliente 360 (decisión del propietario 2026-09-24, opción C).
-  Aquí solo queda lo que la cabecera compartida no sabe: el alias junto al
-  nombre, los indicadores bajo la entradilla y la fila de acciones.
+  La cabecera es CabeceraIdentidad, la tarjeta de cabecera compartida con
+  Centro 360 y Empresa 360. Aquí solo queda lo que ella no sabe: el alias
+  junto al nombre.
 */
 .trabajador360-alias {
     font: var(--font-body-lg);
     color: var(--color-text-muted);
-}
-
-.trabajador360-indicadores {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    flex-wrap: wrap;
-    margin-top: var(--space-2);
-}
-
-/* Botón primario y menú «⋯» en fila, no apilados. */
-.trabajador360-acciones {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-3);
 }
 
 /*

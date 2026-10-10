@@ -38,69 +38,77 @@
     else if (_detalle is not null)
     {
         @*
-            Cabecera plana, como Empresa 360 y Cliente 360 (decisión del
-            propietario 2026-09-24, opción C): el anillo a la izquierda de la
-            identidad, la entradilla con el DNI y el empleador, y a la derecha
-            la acción principal con el resto en el menú «⋯».
+            Cabecera de identidad en tarjeta (patrón de las páginas 360, como
+            Centro 360 y Empresa 360): anillo a la izquierda, identidad en la
+            línea de datos —DNI, empleador con su icono 360 y el peor estado—
+            y a la derecha la acción principal con el resto en el menú «⋯».
+            El nombre del empleador abre su consulta rápida; el icono 360,
+            su página.
         *@
-        <CabeceraPagina Titulo="@(NombreCompleto ?? string.Empty)" Kicker="@Textos["Kicker"]">
-            <Inicio>
+        <CabeceraIdentidad Titulo="@(NombreCompleto ?? string.Empty)" Kicker="@Textos["Kicker"]">
+            <Anillo>
                 <AnilloCumplimiento Porcentaje="Cumplimiento" Tamano="TamanoAnillo.Cabecera"
                                      Etiqueta="@(Textos["AnilloCumplimiento", Cumplimiento?.ToString() ?? string.Empty])" />
-            </Inicio>
+            </Anillo>
             <JuntoAlTitulo>
                 @if (!string.IsNullOrWhiteSpace(_detalle.Alias))
                 {
                     <span class="trabajador360-alias">(@_detalle.Alias)</span>
                 }
             </JuntoAlTitulo>
-            <Descripcion>
-                DNI: <b>@_detalle.Dni</b>
-                <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["EtiquetaCopiarDni"]" />
-                · <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpleador">@_detalle.EmpleadorNombre</button>
-                <span class="trabajador360-indicadores">
-                    @if (PeorEstadoGlobal is { } peorEstado)
+            <Datos>
+                <span>
+                    DNI: <b>@_detalle.Dni</b>
+                    <BotonCopiar Valor="@_detalle.Dni" Etiqueta="@Textos["EtiquetaCopiarDni"]" />
+                </span>
+                <span aria-hidden="true">·</span>
+                <span>
+                    <button type="button" class="enlace-nombre-fila" @onclick="AbrirEmpleador">@_detalle.EmpleadorNombre</button>
+                    @if (PaginaEmpleador is { } paginaEmpleador)
                     {
-                        <Badge Tono="EstadoDocumentoUi.Tono(peorEstado)">@EstadoDocumentoUi.Texto(peorEstado)</Badge>
-                    }
-                    @if (CentroMasUrgente is { } centroUrgente && TieneIncidencias(centroUrgente))
-                    {
-                        var incidenciasCentro = Incidencias(centroUrgente);
-                        <VentanaContexto Etiqueta="@(incidenciasCentro == 1 ? Textos["VentanaIncidenciasUno", centroUrgente.CentroNombre] : Textos["VentanaIncidenciasVarios", incidenciasCentro, centroUrgente.CentroNombre])"
-                                         Titulo="@(Textos["VentanaProblemaUrgente", centroUrgente.CentroNombre])">
-                            <Disparador>
-                                <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">
-                                    @(incidenciasCentro == 1 ? Textos["BadgeIncidenciasCentroUno", centroUrgente.CentroNombre] : Textos["BadgeIncidenciasCentroVarios", incidenciasCentro, centroUrgente.CentroNombre])
-                                </Badge>
-                            </Disparador>
-                            <Detalle>
-                                @foreach (var documento in centroUrgente.Documentos.Where(EsIncidencia))
-                                {
-                                    <span class="ventana-linea">@documento.TipoDocumentoNombre — @EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)</span>
-                                }
-                            </Detalle>
-                        </VentanaContexto>
-                    }
-                    @if (TotalSinConfirmar != 0)
-                    {
-                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["AvisoVigenciaSinConfirmar", TotalSinConfirmar]</Badge>
+                        <Boton360 Nombre="@_detalle.EmpleadorNombre" Href="@paginaEmpleador" />
                     }
                 </span>
-            </Descripcion>
+                @if (PeorEstadoGlobal is { } peorEstado)
+                {
+                    <span aria-hidden="true">·</span>
+                    <Badge Tono="EstadoDocumentoUi.Tono(peorEstado)">@EstadoDocumentoUi.Texto(peorEstado)</Badge>
+                }
+                @if (CentroMasUrgente is { } centroUrgente && TieneIncidencias(centroUrgente))
+                {
+                    var incidenciasCentro = Incidencias(centroUrgente);
+                    <VentanaContexto Etiqueta="@(incidenciasCentro == 1 ? Textos["VentanaIncidenciasUno", centroUrgente.CentroNombre] : Textos["VentanaIncidenciasVarios", incidenciasCentro, centroUrgente.CentroNombre])"
+                                     Titulo="@(Textos["VentanaProblemaUrgente", centroUrgente.CentroNombre])">
+                        <Disparador>
+                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">
+                                @(incidenciasCentro == 1 ? Textos["BadgeIncidenciasCentroUno", centroUrgente.CentroNombre] : Textos["BadgeIncidenciasCentroVarios", incidenciasCentro, centroUrgente.CentroNombre])
+                            </Badge>
+                        </Disparador>
+                        <Detalle>
+                            @foreach (var documento in centroUrgente.Documentos.Where(EsIncidencia))
+                            {
+                                <span class="ventana-linea">@documento.TipoDocumentoNombre — @EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)</span>
+                            }
+                        </Detalle>
+                    </VentanaContexto>
+                }
+                @if (TotalSinConfirmar != 0)
+                {
+                    <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["AvisoVigenciaSinConfirmar", TotalSinConfirmar]</Badge>
+                }
+            </Datos>
             <Acciones>
-                <span class="trabajador360-acciones">
-                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
-                    @* Las tres acciones del menú son escrituras: a Consulta no se le deja el «⋯» con el menú vacío. *@
-                    <SoloConEscritura>
-                        <MenuAcciones>
-                            <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion>
-                            <ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion>
-                            <ItemMenuAccion OnClick="AbrirCrearGestionAsync">@Textos["AccionCrearGestion"]</ItemMenuAccion>
-                        </MenuAcciones>
-                    </SoloConEscritura>
-                </span>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["BotonSubirDocumento"]</Boton></SoloConEscritura>
+                @* Las tres acciones del menú son escrituras: a Consulta no se le deja el «⋯» con el menú vacío. *@
+                <SoloConEscritura>
+                    <MenuAcciones ConBorde="true" EtiquetaAccesible="@Comunes["MasAcciones"]">
+                        <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditar"]</ItemMenuAccion>
+                        <ItemMenuAccion OnClick="ReclamarFaltantesAsync">@Textos["AccionReclamarFaltantes"]</ItemMenuAccion>
+                        <ItemMenuAccion OnClick="AbrirCrearGestionAsync">@Textos["AccionCrearGestion"]</ItemMenuAccion>
+                    </MenuAcciones>
+                </SoloConEscritura>
             </Acciones>
-        </CabeceraPagina>
+        </CabeceraIdentidad>
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
