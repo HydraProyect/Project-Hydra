@@ -57,16 +57,18 @@ namespace CaeManager.IntegrationTests;
 /// que se conecte a la plantilla cualquier sesión de cliente, también la de un
 /// superusuario; <c>CREATE DATABASE … TEMPLATE</c> solo la lee. Lo único que sigue
 /// entrando es el autovacuum, que no toca ni el esquema ni los datos (ver
-/// <c>ConstruirSiFalta</c>) y por el que <see cref="Clonar"/> reintenta. Cerrarla
-/// es además condición del propio clonado, que falla si hay alguien conectado al
-/// origen.
+/// <c>ConstruirSiFalta</c>) y por el que <see cref="Clonar"/> reintenta. El
+/// clonado exige que no haya ninguna sesión conectada al origen, y falla si la
+/// hay: cerrar la plantilla a conexiones es el medio de conseguirlo.
 /// </para>
 ///
 /// <para>
-/// <b>Un fallo al construirla se recuerda.</b> Si la migración de la plantilla
-/// falla, las peticiones siguientes de este proceso reciben ese mismo fallo sin
-/// volver a tomar el cerrojo ni a migrar: una migración rota da un rojo por test
-/// en lo que tarda la primera construcción, no una construcción entera por test.
+/// <b>Un fallo al construirla se recuerda, salvo que sea transitorio.</b> Con
+/// una migración rota, la primera construcción falla una sola vez y los tests
+/// siguientes de este proceso fallan al instante con esa misma excepción, sin
+/// volver a tomar el cerrojo ni a migrar. Un fallo que Npgsql marca como
+/// transitorio (conexiones agotadas, servidor reiniciándose, tiempo de espera,
+/// origen en uso) no se recuerda: el test siguiente vuelve a intentarlo.
 /// </para>
 ///
 /// <para>
@@ -127,7 +129,8 @@ internal sealed class PlantillaMigradaDePruebas
     /// <summary>
     /// La plantilla que no se pudo construir y por qué. Solo lo escribe
     /// <see cref="ConstruirSiFalta"/>, con el cerrojo del proceso tomado, cuando
-    /// falla migrarla o publicarla; los fallos transitorios del clonado
+    /// migrarla o publicarla falla por algo que no es transitorio
+    /// (<see cref="NpgsqlException.IsTransient"/>); los fallos transitorios del clonado
     /// (<see cref="OrigenEnUso"/>, <see cref="PlantillaInexistente"/>) se reintentan
     /// en <see cref="Clonar"/> y no pasan por aquí.
     /// </summary>
@@ -293,11 +296,15 @@ internal sealed class PlantillaMigradaDePruebas
             Ejecutar(cerrojo, $"ALTER DATABASE \"{provisional}\" ALLOW_CONNECTIONS false;");
             Ejecutar(cerrojo, $"ALTER DATABASE \"{provisional}\" RENAME TO \"{nombre}\";");
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not NpgsqlException { IsTransient: true })
         {
             // Se recuerda lo que falla una vez empezada la migración, que es lo
             // caro de repetir. No conseguir la conexión o el cerrojo (más arriba)
             // no se recuerda: no ha migrado nada y el siguiente puede tener suerte.
+            // Tampoco lo que Npgsql da por transitorio (53300, 57P01, 55006 al
+            // renombrar, un tiempo de espera o un corte de red envueltos en
+            // NpgsqlException): repetirlo puede salir bien, y recordarlo dejaría
+            // en rojo todo el proceso por un tropiezo del servidor.
             _construccionFallida = (nombre, ExceptionDispatchInfo.Capture(ex));
             throw;
         }

@@ -195,6 +195,29 @@ public class PlantillaMigradaDePruebasTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Un_fallo_transitorio_al_construir_no_se_recuerda_y_el_siguiente_vuelve_a_migrar()
+    {
+        var migraciones = 0;
+        var plantilla = new PlantillaMigradaDePruebas(_discriminador, cadena =>
+            Interlocked.Increment(ref migraciones) == 1
+                ? throw new PostgresException("sorry, too many clients already", "FATAL", "FATAL", "53300")
+                : MigrarDeMentiraAsync(cadena));
+        await using var conexion = await AbrirMantenimientoAsync();
+
+        var asegurar = () => plantilla.Asegurar(conexion);
+        asegurar.Should().Throw<PostgresException>().Which.IsTransient.Should().BeTrue(
+            "el caso solo vale si Npgsql da por transitorio el fallo con el que se prueba");
+
+        asegurar.Should().NotThrow(
+            "un tropiezo del servidor no deja en rojo todo el proceso: quien pide la plantilla después vuelve a construirla");
+        migraciones.Should().Be(2);
+        plantilla.PlantillasConstruidas.Should().Be(1);
+
+        var clon = await ClonarAsync(plantilla);
+        (await TieneLaMarcaAsync(clon)).Should().BeTrue();
+    }
+
+    [Fact]
     public void El_guion_que_se_resume_es_el_de_todas_las_migraciones_del_ensamblado()
     {
         var guion = PlantillaMigradaDePruebas.LeerMaterialDelResumen().GuionDeMigraciones;
