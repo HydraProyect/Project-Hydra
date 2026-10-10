@@ -16,13 +16,26 @@ namespace CaeManager.Application.Configuracion.Commands.GuardarFiltro;
 /// </summary>
 public record GuardarFiltroCommand(string Pantalla, string Nombre, string ValoresJson) : ICommand<Guid>, IComandoDeAutoservicio;
 
+/// <summary>
+/// Los listados que guardan filtros. Trabajadores, Clientes empresariales y Documentos llevan su
+/// propia forma de <see cref="GuardarFiltroCommand.ValoresJson"/>; los demás guardan los parámetros
+/// de vista de su URL con la pieza compartida <c>FiltrosGuardadosDeListado</c> (Web). Visitas aún
+/// no está: entra cuando su listado adopte la barra de filtros.
+/// </summary>
 public static class PantallasConFiltrosGuardados
 {
     public const string Clientes = "Clientes";
     public const string Documentos = "Documentos";
     public const string Trabajadores = "Trabajadores";
+    public const string Empresas = "Empresas";
+    public const string Centros = "Centros";
+    public const string Subcontratas = "Subcontratas";
+    public const string Vehiculos = "Vehiculos";
+    public const string Proyectos = "Proyectos";
+    public const string Gestiones = "Gestiones";
 
-    public static readonly string[] Admitidas = [Clientes, Documentos, Trabajadores];
+    public static readonly string[] Admitidas =
+        [Clientes, Documentos, Trabajadores, Empresas, Centros, Subcontratas, Vehiculos, Proyectos, Gestiones];
 }
 
 public class GuardarFiltroCommandValidator : AbstractValidator<GuardarFiltroCommand>

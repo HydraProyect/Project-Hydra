@@ -51,7 +51,9 @@
     {
         <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                       PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
-                      HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+                      HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                      FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                      OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
             <Pastillas>
                 @* La opción vacía pide elegir un Cliente empresarial: nunca representa todos. *@
                 <PastillaFiltro @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
@@ -65,6 +67,8 @@
                 }
             </Chips>
         </BarraFiltros>
+        <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                                   OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
         @if (_clienteSeleccionadoId != Guid.Empty && _proyectos.Count > 0)
         {
             @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
