@@ -286,7 +286,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
         // El temporizador no sobrevive a la pieza; que había algo pendiente lo hereda la que se monte
         // después, si la página sigue. Ver «AL SALIR» en el resumen de la clase.
-        CancelarTemporizador();
+        InvalidarEscrituraProgramada();
         Conexion.HayPendienteHeredado = _pendiente is not null;
         _pendiente = null;
         Conexion.Desconectar(this);
@@ -302,7 +302,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             // Se sale a otra pantalla con un cambio sin escribir: se escribe ya, con la pieza aún viva.
             if (_pendiente is { } pendiente)
             {
-                CancelarTemporizador();
+                InvalidarEscrituraProgramada();
                 _ = InvokeAsync(() => PersistirAsync(pendiente));
             }
 
@@ -335,7 +335,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             _restaurada = null;
             if (EsReduccionDe(vista, restaurada))
             {
-                CancelarTemporizador();
+                InvalidarEscrituraProgramada();
                 _pendiente = null;
                 _recordada = serializada;
                 return;
@@ -345,7 +345,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         if (serializada == _recordada)
         {
             // Volvió a lo ya recordado antes de que venciera el rebote: no hay nada que escribir.
-            CancelarTemporizador();
+            InvalidarEscrituraProgramada();
             _pendiente = null;
             return;
         }
@@ -366,7 +366,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         var inicio = VistaDeLaUrl().Where(p => ParametrosDeContexto.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
         var esperada = SerializarEntera(inicio);
 
-        CancelarTemporizador();
+        InvalidarEscrituraProgramada();
         _pendiente = null;
         _restableciendo = esperada;
 
@@ -385,7 +385,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
         var serializada = Serializar(VistaDeLaUrl());
         _restableciendo = null;
-        CancelarTemporizador();
+        InvalidarEscrituraProgramada();
         _pendiente = null;
         _recordada = serializada;
 
@@ -408,7 +408,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         }
         catch (OperationCanceledException)
         {
-            // Llegó otro cambio, o la pieza se retiró: esta espera ya no escribe.
+            // La pieza se retiró (es lo único que cancela la espera): no escribe.
         }
         catch (ObjectDisposedException)
         {
@@ -450,7 +450,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     /// devolvía el control antes de que su manejador terminase: 2 rojos en 13 500 repeticiones de un test de
     /// Visitas, 0 en 42 000 sin la cancelación. Las esperas solo se cancelan al desechar la pieza.
     /// </summary>
-    private void CancelarTemporizador() => _turno++;
+    private void InvalidarEscrituraProgramada() => _turno++;
 
     private void ActualizarDiferencia(IReadOnlyDictionary<string, string> vista)
     {
