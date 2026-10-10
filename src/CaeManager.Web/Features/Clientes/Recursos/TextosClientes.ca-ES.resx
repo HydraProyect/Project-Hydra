@@ -147,8 +147,8 @@
   <data name="ResumenCentrosTruncado" xml:space="preserve">
     <value>Es mostren els {0} centres amb pitjor estat de {1}.</value>
   </data>
-  <data name="DetalleEmpresa" xml:space="preserve">
-    <value>Empresa: {0}</value>
+  <data name="DetalleEntraComoContratista" xml:space="preserve">
+    <value>Entra com a contractista: {0}</value>
   </data>
   <data name="DetalleVencidosUno" xml:space="preserve">
     <value>1 vençut</value>
