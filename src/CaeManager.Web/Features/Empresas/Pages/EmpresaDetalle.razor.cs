@@ -532,34 +532,6 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         await MostrarPaginaAsync();
     }
 
-    /// <summary>
-    /// Pulsar un indicador de la cabecera lleva a la pestaña Trabajadores con
-    /// su chip puesto: pestaña y chip en una sola navegación. El indicador cuenta
-    /// a todos, así que el texto del buscador se quita: si no, la lista enseñaría
-    /// menos de lo que el indicador dice.
-    /// </summary>
-    private async Task FiltrarDesdeIndicadorAsync(FiltroTrabajadores filtro)
-    {
-        _pestana = PestanaTrabajadores;
-        _pestanaDeLaUrl = null;
-        _filtro = filtro;
-        _pagina = 1;
-        _estadoDeLaUrl = FiltroEnUrl(filtro);
-        var habiaBusqueda = HayBusqueda;
-        _busqueda = string.Empty;
-        _busquedaDeLaUrl = null;
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
-        {
-            ["pestana"] = null,
-            ["estado"] = _estadoDeLaUrl,
-            ["q"] = null
-        });
-        if (habiaBusqueda)
-            await CargarTrabajadoresAsync(soloLaLista: true);
-        else
-            await MostrarPaginaAsync();
-    }
-
     private async Task CambiarPestanaAsync(string pestana)
     {
         _pestana = pestana;

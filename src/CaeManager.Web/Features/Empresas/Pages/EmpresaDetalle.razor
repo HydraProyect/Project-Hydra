@@ -40,24 +40,26 @@
     else if (_detalle is not null)
     {
         @*
-            Cabecera: identidad y recuentos en la entradilla, y en una segunda
-            línea los indicadores que piden atención. Un indicador en cero no
-            se pinta. Pulsarlo lleva a la pestaña Trabajadores filtrada.
+            Cabecera de identidad en tarjeta (patrón de las páginas 360): anillo
+            a la izquierda, identidad y recuentos en la línea de datos y, en una
+            segunda línea, los indicadores que piden atención. Un indicador en
+            cero no se pinta. Pulsarlo lleva a la pestaña Trabajadores filtrada.
         *@
-        <CabeceraPagina Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
-            @* El anillo va a la izquierda de la identidad, como en el mockup. *@
-            <Inicio>
+        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
+            <Anillo>
                 <AnilloCumplimiento Porcentaje="_cumplimiento" Tamano="TamanoAnillo.Cabecera"
                                     Etiqueta="@(_cumplimiento is { } p ? Textos["AnilloEtiqueta", p] : Textos["AnilloSinDato"])" />
-            </Inicio>
-            <Descripcion>
+            </Anillo>
+            <Datos>
                 @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
                 {
-                    @Textos["MetaCif", _detalle.Cif]
-                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
+                    <span>
+                        @Textos["MetaCif", _detalle.Cif]
+                        <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
+                    </span>
                     @if (_clientes is { Count: > 0 } || _recuentos is not null)
                     {
-                        <text> · </text>
+                        <span aria-hidden="true">·</span>
                     }
                 }
                 @* Los Clientes empresariales se cuentan con ObtenerClientesDeEmpresaQuery, que
@@ -68,64 +70,27 @@
                    cartera (Codex, #810). *@
                 @if (_clientes is { Count: > 0 } clientesMeta)
                 {
-                    @Plural(clientesMeta.Count, "MetaClientesUno", "MetaClientesVarios")
+                    <span>@Plural(clientesMeta.Count, "MetaClientesUno", "MetaClientesVarios")</span>
                 }
                 @if (_recuentos is { } recuentosMeta)
                 {
                     @if (_clientes is { Count: > 0 })
                     {
-                        <text> · </text>
+                        <span aria-hidden="true">·</span>
                     }
-                    @Plural(recuentosMeta.Total, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")
+                    <span>@Plural(recuentosMeta.Total, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")</span>
                 }
-                @if (_recuentos is { } r && (r.Vencidos > 0 || r.PorVencer > 0))
-                {
-                    <span class="empresa360-indicadores">
-                        @if (r.Vencidos > 0)
-                        {
-                            var tituloSinValida = Plural(r.Vencidos, "IndicadorSinValidaUno", "IndicadorSinValidaVarios");
-                            var lineaVencidos = Plural(r.Vencidos, "IndicadorVencidosUno", "IndicadorVencidosVarios");
-                            @*
-                                La ventana da el desglose al pasar o enfocar; el
-                                botón de dentro filtra. tabindex -1 en la ventana:
-                                la parada de teclado es el botón, no dos seguidas.
-                            *@
-                            <VentanaContexto Etiqueta="@tituloSinValida" Titulo="@tituloSinValida" tabindex="-1">
-                                <Disparador>
-                                    <button type="button" class="empresa360-indicador"
-                                            aria-label="@Textos["IndicadorEtiquetaAccesible", tituloSinValida, lineaVencidos, Textos["IndicadorFaltantesNoCuentan"]]"
-                                            @onclick="() => FiltrarDesdeIndicadorAsync(FiltroTrabajadores.SinDocumentacionValida)">
-                                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@tituloSinValida</Badge>
-                                    </button>
-                                </Disparador>
-                                <Detalle>
-                                    <span class="ventana-linea">@lineaVencidos</span>
-                                    <span class="ventana-linea">@Textos["IndicadorFaltantesNoCuentan"]</span>
-                                </Detalle>
-                            </VentanaContexto>
-                        }
-                        @if (r.PorVencer > 0)
-                        {
-                            <button type="button" class="empresa360-indicador"
-                                    @onclick="() => FiltrarDesdeIndicadorAsync(FiltroTrabajadores.PorVencer)">
-                                <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Plural(r.PorVencer, "IndicadorPorVencerUno", "IndicadorPorVencerVarios")</Badge>
-                            </button>
-                        }
-                    </span>
-                }
-            </Descripcion>
+            </Datos>
             <Acciones>
-                <span class="empresa360-acciones">
-                    <Boton Variante="VarianteBoton.Primario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
-                    @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
-                    <SoloConEscritura>
-                        <MenuAcciones>
-                            <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditarEmpresa"]</ItemMenuAccion>
-                        </MenuAcciones>
-                    </SoloConEscritura>
-                </span>
+                <Boton Variante="VarianteBoton.Primario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
+                <SoloConEscritura>
+                    <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
+                        <ItemMenuAccion OnClick="AbrirInformacion">@Textos["AccionEditarEmpresa"]</ItemMenuAccion>
+                    </MenuAcciones>
+                </SoloConEscritura>
             </Acciones>
-        </CabeceraPagina>
+        </CabeceraIdentidad>
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
@@ -297,7 +262,7 @@
                 </div>
                 <div class="empresa360-chips" role="group" aria-label="@Textos["EtiquetaFiltros"]">
                     @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
-                    @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.Vencidos])
+                    @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.Vencidos], Textos["IndicadorFaltantesNoCuentan"])
                     @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
                     @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
                 </div>
@@ -360,10 +325,14 @@
         </section>
     };
 
-    private RenderFragment Chip(FiltroTrabajadores filtro, string texto) => __builder =>
+    /// <summary>
+    /// Chip de filtro. La aclaración (lo que el recuento no incluye) va en el <c>title</c>:
+    /// es el único sitio donde el producto la dice ahora que la cabecera ya no pinta indicadores.
+    /// </summary>
+    private RenderFragment Chip(FiltroTrabajadores filtro, string texto, string? aclaracion = null) => __builder =>
     {
         <button type="button" class="empresa360-chip" aria-pressed="@(_filtro == filtro ? "true" : "false")"
-                @onclick="() => CambiarFiltroAsync(filtro)">@texto</button>
+                title="@aclaracion" @onclick="() => CambiarFiltroAsync(filtro)">@texto</button>
     };
 
     private RenderFragment PestanaDeClientes => __builder =>

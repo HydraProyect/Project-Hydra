@@ -227,14 +227,21 @@ public class Empresa360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Find(".cabecera-pagina-kicker").TextContent.Trim().Should().Be("Empresa");
-        cut.Find("h1").TextContent.Trim().Should().Be("Ibertec GmbH");
-        var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
+        // La identidad va en la tarjeta de cabecera del patrón 360, no en la cabecera suelta de pantalla.
+        var cabecera = cut.Find("[data-pieza=cabecera-identidad]");
+        cut.FindAll(".cabecera-pagina").Should().BeEmpty();
+        cabecera.QuerySelector(".cabecera-identidad-kicker")!.TextContent.Trim().Should().Be("Empresa");
+        cut.FindAll("h1").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Ibertec GmbH");
+        cabecera.QuerySelector("h1").Should().NotBeNull();
+        var entradilla = cabecera.QuerySelector(".cabecera-identidad-datos")!.TextContent;
         entradilla.Should().Contain("CIF B-48.220.917").And.Contain("2 Clientes").And.Contain("25 trabajadores");
         cut.Find("[role=img]").GetAttribute("aria-label").Should().StartWith("72% de cumplimiento");
         // El anillo va a la izquierda de la identidad, no entre las acciones (mockup).
-        cut.Find(".cabecera-pagina-inicio [role=img]").Should().NotBeNull();
-        cut.Find(".acciones-cabecera").QuerySelector("[role=img]").Should().BeNull();
+        cabecera.QuerySelector(".cabecera-identidad-anillo [role=img]").Should().NotBeNull();
+        cabecera.QuerySelector(".cabecera-identidad-acciones")!.QuerySelector("[role=img]").Should().BeNull();
+        // «Detectar altas y bajas» y el menú siguen en la cabecera.
+        cabecera.QuerySelector(".cabecera-identidad-acciones")!.TextContent.Should().Contain("Detectar altas y bajas");
+        cabecera.QuerySelector(".cabecera-identidad-acciones .menu-acciones-disparador")!.GetAttribute("title").Should().Be("Más acciones");
 
         mediador.Enviadas.Should().Contain(new ObtenerEmpresaPorIdQuery(EmpresaId));
         mediador.Enviadas.Should().Contain(new ObtenerCumplimientoEmpresaQuery(EmpresaId));
@@ -271,44 +278,52 @@ public class Empresa360PaginaTests : BunitContext
     // ── Indicadores y chips ───────────────────────────────────────────────
 
     [Fact]
-    public void Los_indicadores_cuentan_trabajadores_por_su_peor_estado()
+    public void La_cabecera_no_pinta_indicadores_aunque_haya_incidencias()
     {
         Registrar(Empresa());
 
         var cut = Renderizar();
 
-        cut.FindAll(".empresa360-indicador").Select(b => b.TextContent.Trim()).Should().Equal(
-            ["3 trabajadores sin documentación válida", "3 trabajadores con documentos por vencer"]);
-        cut.Find(".ventana-contexto-panel").TextContent.Should()
-            .Contain("3 con algún documento vencido")
-            .And.Contain("Los documentos obligatorios que faltan no entran en este recuento.");
+        var cabecera = cut.Find("[data-pieza=\"cabecera-identidad\"]").TextContent;
+        cabecera.Should().NotContain("trabajadores sin documentación válida").And.NotContain("trabajadores con documentos por vencer");
+        cut.FindAll(".ventana-contexto").Should().BeEmpty();
         Chips(cut).Should().Equal(["Todos · 25", "Sin documentación válida · 3", "Por vencer · 3", "Al día · 19"]);
     }
 
     [Fact]
-    public void Un_indicador_en_cero_no_se_pinta()
+    public void El_chip_sin_documentacion_valida_lleva_la_aclaracion_de_lo_que_no_cuenta()
     {
-        Registrar(Empresa([Trabajador(EstadoDocumento.Vigente), Trabajador(EstadoDocumento.Urgente)]));
+        Registrar(Empresa());
 
         var cut = Renderizar();
 
-        cut.FindAll(".empresa360-indicador").Select(b => b.TextContent.Trim()).Should().Equal(
-            ["1 trabajador con documentos por vencer"]);
-        cut.FindAll(".ventana-contexto").Should().BeEmpty();
+        cut.FindAll(".empresa360-chip")[1].GetAttribute("title")
+            .Should().Be("Los documentos obligatorios que faltan no entran en este recuento.");
+        cut.FindAll(".empresa360-chip")[2].HasAttribute("title").Should().BeFalse();
     }
 
     [Fact]
-    public async Task Pulsar_un_indicador_filtra_la_pestana_Trabajadores_y_lo_deja_en_la_url()
+    public async Task Pulsar_el_chip_sin_documentacion_valida_filtra_la_lista_y_lo_deja_en_la_url()
     {
         Registrar(Empresa());
-        var cut = Renderizar("?pestana=clientes");
+        var cut = Renderizar();
 
-        await cut.FindAll(".empresa360-indicador")[0].ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".empresa360-chip")[1].ClickAsync(new MouseEventArgs());
 
-        Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true");
         ChipPulsado(cut).Should().StartWith("Sin documentación válida");
-        EstadosDeLasFilas(cut).Should().Equal(["Vencido", "Vencido", "Vencido"]);
-        Navegacion.Uri.Should().Contain("estado=sin-documentacion-valida").And.NotContain("pestana=");
+        cut.WaitForAssertion(() => EstadosDeLasFilas(cut).Should().Equal(["Vencido", "Vencido", "Vencido"]));
+        Navegacion.Uri.Should().Contain("estado=sin-documentacion-valida");
+    }
+
+    [Fact]
+    public void El_estado_de_la_URL_marca_el_chip_por_vencer_y_filtra_la_lista()
+    {
+        Registrar(Empresa());
+
+        var cut = Renderizar("?estado=por-vencer");
+
+        cut.WaitForAssertion(() => EstadosDeLasFilas(cut).Should().Equal(["Por vencer", "Por vencer", "Por vencer"]));
+        ChipPulsado(cut).Should().StartWith("Por vencer");
     }
 
     [Fact]
@@ -575,7 +590,7 @@ public class Empresa360PaginaTests : BunitContext
         var cut = Renderizar();
 
         // Barrera: la entradilla ya tiene los trabajadores; si no, la ausencia sería verde vacío.
-        var entradilla = cut.Find(".cabecera-pagina-descripcion").TextContent;
+        var entradilla = cut.Find(".cabecera-identidad-datos").TextContent;
         entradilla.Should().Contain("25 trabajadores");
         entradilla.Should().NotContain("2 Clientes",
             "EmpresaDetalleDto trae dos ClienteIds, pero ninguno está en el alcance del actor");
@@ -841,20 +856,6 @@ public class Empresa360PaginaTests : BunitContext
 
         Navegacion.NavigateTo($"empresas/{EmpresaId}");
         cut.WaitForAssertion(() => Chips(cut)[0].Should().Be("Todos · 25"));
-        Buscador(cut).GetAttribute("value").Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Pulsar_un_indicador_de_la_cabecera_quita_el_texto_buscado_porque_el_indicador_cuenta_a_todos()
-    {
-        Registrar(Empresa());
-        var cut = Renderizar("?q=uno");
-        Chips(cut)[1].Should().Be("Sin documentación válida · 1");
-
-        await cut.FindAll(".empresa360-indicador")[0].ClickAsync(new MouseEventArgs());
-
-        cut.WaitForAssertion(() => EstadosDeLasFilas(cut).Should().Equal(["Vencido", "Vencido", "Vencido"]));
-        new Uri(Navegacion.Uri).Query.Should().Be("?estado=sin-documentacion-valida");
         Buscador(cut).GetAttribute("value").Should().BeEmpty();
     }
 }
