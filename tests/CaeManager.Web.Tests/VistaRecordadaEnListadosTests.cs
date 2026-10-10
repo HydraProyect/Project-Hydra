@@ -474,25 +474,28 @@ public class VistaRecordadaEnListadosTests : BunitContext
         cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(
             new Dictionary<string, string> { ["cliente"] = ClienteA.ToString(), ["estado"] = "abiertos" }));
         _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().ContainSingle();
-        Ultima<ObtenerProyectosQuery>().ClienteId.Should().Be(ClienteA);
+        // La lista ya no espera a un Cliente empresarial: al terminar el selector se pide la de todos, y la
+        // restauración llega con esa petición en vuelo. La página descarta la respuesta que no es de su
+        // última carga; aquí se fija que la del Cliente empresarial recordado se pide.
+        _mediador.Enviadas.OfType<ObtenerProyectosQuery>().Should().Contain(q => q.ClienteId == ClienteA);
     }
 
     /// <summary>
-    /// El Cliente empresarial elegido es contexto, no desviación: «Restablecer vista» lo conserva (sin él la
-    /// pantalla no tiene lista) y lo que queda recordado es solo él.
+    /// El Cliente empresarial es un filtro más (la lista existe sin él): «Restablecer vista» lo quita con
+    /// el resto, no queda nada que recordar y la lista vuelve a ser la de todos.
     /// </summary>
     [Fact]
-    public async Task Proyectos_restablecer_vista_conserva_el_Cliente_empresarial_y_recuerda_solo_eso()
+    public async Task Proyectos_restablecer_vista_quita_tambien_el_Cliente_empresarial_y_olvida_lo_recordado()
     {
         var cut = Renderizar<Proyectos>($"proyectos?cliente={ClienteA}&q=Nave&estado=abiertos");
 
         await cut.Find("button.restablecer-vista-barra").ClickAsync(new MouseEventArgs());
 
-        ParametrosDeLaUrl().Should().BeEquivalentTo(new Dictionary<string, string> { ["cliente"] = ClienteA.ToString() });
-        _mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().Equal(
-            [new GuardarVistaRecordadaCommand(PantallasConVistaRecordada.Proyectos, $"{{\"cliente\":\"{ClienteA}\"}}")]);
-        _mediador.Enviadas.OfType<OlvidarVistaRecordadaCommand>().Should().BeEmpty("queda el Cliente empresarial por recordar");
-        Ultima<ObtenerProyectosQuery>().ClienteId.Should().Be(ClienteA);
+        ParametrosDeLaUrl().Should().BeEmpty();
+        _mediador.Enviadas.OfType<OlvidarVistaRecordadaCommand>().Should().Equal(
+            [new OlvidarVistaRecordadaCommand(PantallasConVistaRecordada.Proyectos)]);
+        _mediador.Enviadas.OfType<GuardarVistaRecordadaCommand>().Should().BeEmpty("no queda nada por recordar");
+        Ultima<ObtenerProyectosQuery>().ClienteId.Should().BeNull("sin Cliente empresarial la lista es la de todos");
         cut.FindAll(".chip-filtro").Should().BeEmpty("la búsqueda se quitó con el resto de la vista");
     }
 

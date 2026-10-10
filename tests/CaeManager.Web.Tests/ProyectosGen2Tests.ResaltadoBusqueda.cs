@@ -1,6 +1,5 @@
 using Bunit;
 using CaeManager.Web.Components.DesignSystem;
-using CaeManager.Web.Features.Proyectos;
 using FluentAssertions;
 
 namespace CaeManager.Web.Tests;
@@ -8,10 +7,12 @@ namespace CaeManager.Web.Tests;
 public partial class ProyectosGen2Tests
 {
     /// <summary>
-    /// Resaltado de la búsqueda en /proyectos. La pantalla filtra en memoria
-    /// (<c>FiltroProyectos.CumpleBusqueda</c>) por nombre del Proyecto y nombre del Centro, con el
-    /// término recortado y sin distinguir acentos: se marcan los dos con ese mismo término. Aquí
-    /// el filtro es el de verdad, no un doble.
+    /// Resaltado de la búsqueda en /proyectos. La búsqueda la filtra la consulta
+    /// (<c>ObtenerProyectosQuery</c>, con <c>TextoDeBusqueda.Contiene</c>) por nombre del Proyecto y
+    /// nombre del Centro, con el término recortado y sin distinguir acentos: la fila marca los dos con
+    /// ese mismo término. Aquí la consulta es el doble en memoria de esta clase, que usa el mismo
+    /// <c>TextoDeBusqueda.Contiene</c>; que PostgreSQL encuentre «García» con «garcia» lo mide
+    /// <c>ObtenerProyectosListadoBajoRuntimeTests</c>.
     /// </summary>
     [Fact]
     public async Task Con_busqueda_la_fila_marca_el_nombre_y_el_Centro_sin_distinguir_acentos()
@@ -37,33 +38,14 @@ public partial class ProyectosGen2Tests
 
     /// <summary>
     /// Medio emoji pegado en el buscador es un sustituto suelto: no es Unicode válido y
-    /// <c>string.Normalize</c> lo rechaza. Esta pantalla filtra en memoria dentro del render, así
-    /// que una excepción ahí tiraría la página entera. El filtro que comparten la página y su
-    /// exportación no lanza y no deja pasar ningún Proyecto.
+    /// <c>string.Normalize</c> lo rechaza. Escrito en el buscador de la página, la lista queda sin
+    /// filas, la pantalla sigue pintada (el resaltado tampoco lanza) y vuelve a filtrar con un término
+    /// válido.
     ///
-    /// Es la prueba sensible de la guarda de <c>TextoDeBusqueda.Contiene</c> en esta pantalla: sin
-    /// ella, este test falla con <c>ArgumentException</c> (medido por mutación). El test de página
-    /// de abajo no la ejercita.
-    /// </summary>
-    [Fact]
-    public void El_filtro_de_Proyectos_no_lanza_con_un_sustituto_suelto_y_no_deja_pasar_nada()
-    {
-        var suelto = new string((char)0xD83C, 1);
-
-        FiltroProyectos.CumpleBusqueda(ProyectoAbierto, suelto).Should().BeFalse();
-        FiltroProyectos.Cumple(ProyectoAbierto, estados: null, "ampliacion " + suelto).Should().BeFalse();
-        FiltroProyectos.CumpleBusqueda(ProyectoAbierto, "ampliacion").Should().BeTrue("control: un término válido sí casa");
-    }
-
-    /// <summary>
-    /// El mismo sustituto suelto, escrito en el buscador de la página: la lista queda sin filas, la
-    /// pantalla sigue pintada y vuelve a filtrar con un término válido.
-    ///
-    /// <b>Qué NO mide.</b> Aquí el sustituto no llega al filtro: la búsqueda viaja a la URL
-    /// (<c>?q=</c>) y vuelve de ella, y en ese viaje .NET lo cambia por U+FFFD, que sí es Unicode
-    /// válido (medido: a la barra le llega «FFFD»). Por eso este test sigue en verde aunque se quite
-    /// la guarda de <c>TextoDeBusqueda.Contiene</c>; la guarda la fija el test de arriba. Tampoco
-    /// dice qué recibe el servidor de un navegador real.
+    /// <b>Qué NO mide.</b> Esta pantalla ya no filtra en memoria: la búsqueda la hace la consulta, y
+    /// aquí la consulta es el doble de esta clase. No dice qué responde PostgreSQL a ese término ni
+    /// qué recibe el servidor de un navegador real. La guarda de <c>TextoDeBusqueda.Contiene</c> en
+    /// memoria la fija <c>TextoDeBusquedaTests</c>, no este test.
     /// </summary>
     [Fact]
     public async Task Un_sustituto_suelto_en_el_buscador_no_casa_con_nada_y_la_pagina_sigue_pintada()

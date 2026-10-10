@@ -48,9 +48,11 @@ jobs:
   # corren a la vez.
   #
   # El reparto se CALCULA, no se escribe: cada bloque lista las clases de
-  # test, las ordena y se queda con las que le tocan por posición. Una clase
+  # test y se queda con las que le tocan por el hash de su nombre. Una clase
   # nueva cae en un bloque sola, sin que nadie mantenga una lista que se
-  # desincronice.
+  # desincronice. La única excepción escrita a mano son las pocas clases muy
+  # pesadas de scripts/integracion-clases-fijadas.txt, que se fijan a un
+  # bloque para que el hash no las junte.
   #
   # Los minutos de Actions son gratis en un repositorio público, así que
   # comprar tiempo de reloj con paralelismo aquí no cuesta dinero — al revés
@@ -241,6 +243,8 @@ jobs:
       # descubrimiento degradado contra una ejecucion completa.
       - name: Repartir las clases de test en este bloque
         id: reparto
+        env:
+          REPARTO_FIJADAS: scripts/integracion-clases-fijadas.txt
         run: |
           mkdir -p reparto
           dotnet test tests/CaeManager.IntegrationTests --no-build --list-tests > reparto/listado-bloque-${{ matrix.bloque }}.txt

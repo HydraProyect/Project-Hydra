@@ -8,7 +8,7 @@ namespace CaeManager.Web.Features.Documentos;
 /// <summary>
 /// El motivo que va bajo la pastilla de estado de un propietario en un listado: dice lo que la pastilla no
 /// dice, a partir de las incidencias de la fila (<see cref="IncidenciaDocumentalDto"/>). Es una pieza
-/// compartida, no de un listado: hoy la usan los de Trabajadores y Vehículos; siempre con el vocabulario de
+/// compartida, no de un listado: hoy la usan los de Trabajadores, Vehículos y Empresas; siempre con el vocabulario de
 /// <see cref="EstadoDocumentoUi"/>.
 ///
 /// <list type="bullet">

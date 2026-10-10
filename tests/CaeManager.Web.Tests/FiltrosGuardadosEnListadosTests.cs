@@ -120,7 +120,7 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
                 ObtenerSubcontratasQuery q => new ResultadoPaginado<SubcontrataListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerVehiculosQuery q => new ResultadoPaginado<VehiculoListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerGestionesQuery q => new ResultadoPaginado<GestionListaDto>([], 0, q.Pagina, q.TamanoPagina),
-                ObtenerProyectosQuery => (IReadOnlyList<ProyectoListaDto>)[],
+                ObtenerProyectosQuery q => new ResultadoPaginado<ProyectoListaDto>([], 0, q.Pagina, q.TamanoPagina),
 
                 ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)
                     [new ClienteSelectorDto(ClienteA, "Refrielectric S.L."), new ClienteSelectorDto(ClienteB, "Frigoríficos Arcos S.A.")],
@@ -596,9 +596,12 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
             .Should().Be(1, "la del arranque: el Cliente empresarial anterior no vuelve a cargarse");
     }
 
-    /// <summary>El mismo Cliente empresarial: solo cambian búsqueda y estado, que se filtran en pantalla. No hay carga.</summary>
+    /// <summary>
+    /// El mismo Cliente empresarial: cambian búsqueda y estado, que aplica la consulta. Se vuelve a pedir la
+    /// lista una vez, con los del filtro guardado.
+    /// </summary>
     [Fact]
-    public async Task Proyectos_aplicar_con_el_mismo_Cliente_empresarial_cambia_busqueda_y_estado_sin_volver_a_cargar()
+    public async Task Proyectos_aplicar_con_el_mismo_Cliente_empresarial_vuelve_a_pedir_la_lista_una_vez_con_la_busqueda_y_el_estado_del_filtro()
     {
         ConFiltroGuardado("Cerrados de A", $"{{\"cliente\":\"{ClienteA}\",\"estado\":\"cerrados\"}}");
         var cut = Renderizar<Proyectos>($"proyectos?cliente={ClienteA}&q=Nave&estado=abiertos");
@@ -607,14 +610,17 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         var url = await AplicarAsync(cut, "Cerrados de A");
 
         url.Should().BeEquivalentTo(new Dictionary<string, string> { ["cliente"] = ClienteA.ToString(), ["estado"] = "cerrados" });
-        Consultas<ObtenerProyectosQuery>().Should().Be(cargasAntes, "la lista de ese Cliente empresarial ya está cargada");
+        Consultas<ObtenerProyectosQuery>().Should().Be(cargasAntes + 1, "una carga con los filtros nuevos, no dos");
+        Ultima<ObtenerProyectosQuery>().Should().Match<ObtenerProyectosQuery>(
+            q => q.ClienteId == ClienteA && q.Busqueda == null && q.SoloAbiertos == false,
+            "la búsqueda que el filtro guardado no trae se quita y el estado es el suyo");
         cut.FindAll(".chip-filtro").Should().BeEmpty("la búsqueda no está en el filtro guardado: se quita también de la barra");
         cut.FindComponent<BarraFiltros>().Instance.Busqueda.Should().BeEmpty();
     }
 
     /// <summary>
     /// Un Id guardado no es autoridad: Proyectos solo elige un Cliente empresarial que el selector ofrece. Uno que
-    /// ya no se ofrece cuenta como ausente, y lo ausente se quita: la lista vuelve a «elige un Cliente».
+    /// ya no se ofrece cuenta como ausente, y lo ausente se quita: la lista vuelve a la de todos los que alcanza.
     /// </summary>
     [Fact]
     public async Task Proyectos_un_Cliente_empresarial_guardado_que_el_selector_no_ofrece_no_se_elige()
