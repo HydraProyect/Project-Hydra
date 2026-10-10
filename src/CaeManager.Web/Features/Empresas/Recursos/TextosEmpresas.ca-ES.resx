@@ -336,4 +336,19 @@
   <data name="GestorCaeOtraSinPrincipal" xml:space="preserve">
     <value>Una altra Assignació d’Operació, sense principal</value>
   </data>
+  <data name="GestorCaeMas" xml:space="preserve">
+    <value>+{0}</value>
+  </data>
+  <data name="GestorCaeMasEtiqueta" xml:space="preserve">
+    <value>{0} més. Llista completa de persones amb Assignació de Cartera</value>
+  </data>
+  <data name="ColDetecciones" xml:space="preserve">
+    <value>Deteccions</value>
+  </data>
+  <data name="ColCumplimiento" xml:space="preserve">
+    <value>Compliment</value>
+  </data>
+  <data name="ColEstadoDocumental" xml:space="preserve">
+    <value>Estat documental</value>
+  </data>
 </root>

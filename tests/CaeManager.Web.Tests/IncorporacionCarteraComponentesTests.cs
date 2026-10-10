@@ -211,6 +211,11 @@ public class IncorporacionCarteraComponentesTests : BunitContext
             new(Guid.NewGuid(), Guid.NewGuid(), tenant,
                 new CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera.PersonaConCartera(principal, "Alguien", "GestorCae", null), []);
 
+        // «Dar acceso» va dentro de SoloConEscritura: hace falta sesión con un rol que escriba.
+        var sesion = AddAuthorization();
+        sesion.SetAuthorized("yo");
+        sesion.SetRoles("GestorCae");
+
         _mediator.Bandeja = new BandejaIncorporacionCarteraDto(EsCoordinadorCae: false, [], [], []);
         _mediator.Carteras = [Operacion("Empresa Mía", Yo), Operacion("Empresa Ajena", Guid.NewGuid())];
 

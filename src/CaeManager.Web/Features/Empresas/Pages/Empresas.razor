@@ -17,6 +17,7 @@
 @using FluentValidation
 @using MediatR
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using CaeManager.Web.Features.Empresas.Components
 @using CaeManager.Web.Features.Empresas.Recursos
 @using Microsoft.Extensions.Localization
@@ -44,9 +45,10 @@
         <CabeceraListado Titulo="@_tituloPagina" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
             @* «Gestor CAE» es dato de cabecera, no columna: la Asignación de Cartera es sobre el
-               Tenant entero, así que es el mismo para todas las filas. *@
+               Tenant entero, así que es el mismo para todas las filas. Si quien mira se desasigna
+               desde ahí, la página se recarga entera (RecargarTrasDesasignarme). *@
             <DatoCabecera>
-                <CabeceraGestorCae />
+                <CabeceraGestorCae AlDesasignarme="RecargarTrasDesasignarme" />
             </DatoCabecera>
             <Menu>
                 <CaeManager.Web.Exportacion.EntradasExportar Ruta="/empresas/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
@@ -83,7 +85,7 @@
 
        - El buscador busca en la razón social y en el CIF (ObtenerEmpresasQuery): la pista
          dice los dos.
-       - «Documentación» es el peor estado de vigencia de los documentos de la Empresa; viaja
+       - El estado documental es el peor estado de vigencia de los documentos de la Empresa; viaja
          en la URL como «estado». *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
@@ -208,9 +210,9 @@
             }
             <span></span>
             <span>@Textos["ColEmpresa"]</span>
-            <span>Cumplimiento</span>
-            <span>Documentación</span>
-            <span>Detecciones</span>
+            <span>@Textos["ColDetecciones"]</span>
+            <span>@Textos["ColCumplimiento"]</span>
+            <span>@Textos["ColEstadoDocumental"]</span>
             <span></span>
         </div>
 
@@ -266,20 +268,10 @@
                         @* La fila no nombra ni cuenta Clientes empresariales (decisión del propietario, 2026-10-08:
                            sin columna «Presta servicio a»): solo los enseña el desplegable del chevron, que los pide
                            con alcance de gestión. *@
-                        @* Cumplimiento antes que Documentación, en el orden del mockup. Cada
-                           celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
+                        @* Orden de la maqueta aprobada: Detecciones · Cumplimiento · Estado documental.
+                           Cada celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
                            de columnas: un componente que no se pinta desalinearía la fila
                            respecto a la cabecera. *@
-                        <span>
-                            <BarraCumplimiento Porcentaje="empresa.CumplimientoPorcentaje"
-                                               Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
-                        </span>
-                        <span>
-                            <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
-                                        Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
-                                        Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
-                                        Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)" />
-                        </span>
                         <span>
                             @if (empresa.DeteccionesPendientes > 0)
                             {
@@ -293,6 +285,40 @@
                             else
                             {
                                 <span class="celda-sin-deteccion">—</span>
+                            }
+                        </span>
+                        <span>
+                            <BarraCumplimiento Porcentaje="empresa.CumplimientoPorcentaje"
+                                               Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
+                        </span>
+                        @* Columna de estado: la pastilla se pinta siempre.
+
+                           Bajo la pastilla, el motivo (MotivoIncidenciasDocumentales): el documento que causa
+                           el estado o, si son varios, cuántos hay de cada clase. Abre una ventana de contexto
+                           con una línea por incidencia; quien puede escribir la pulsa y la corrige aquí
+                           (CorreccionIncidenciaDocumental), sin abrir la vista rápida ni desplegar la fila.
+                           Las incidencias viajan en EmpresaListaDto porque esta página pide el desglose
+                           (ConDesgloseDocumental) y son las de los documentos de ámbito Empresa, los mismos
+                           que deciden el estado de la fila: no las de sus Trabajadores ni sus Vehículos. *@
+                        <span class="celda-estado-empresa">
+                            @if (empresa.Incidencias.Count > 0)
+                            {
+                                <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
+                                            Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
+                                            Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
+                                            Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)">
+                                    <MotivoContenido>
+                                        <MotivoIncidenciasDocumentales Incidencias="empresa.Incidencias" Interactiva="_puedeEscribir"
+                                                                       AlPulsar="incidencia => CorregirIncidenciaAsync(empresa.Id, incidencia)" />
+                                    </MotivoContenido>
+                                </EstadoFila>
+                            }
+                            else
+                            {
+                                <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
+                                            Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
+                                            Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
+                                            Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)" />
                             }
                         </span>
                         @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú:
@@ -312,8 +338,20 @@
                            Empresa. Su rótulo, su vacío y su error son los de la pestaña
                            «Clientes» de Empresa 360 (TextosEmpresas):
                            neutros, sin recuento y sin «presta servicio a» (decisión del
-                           propietario, 2026-10-08). *@
+                           propietario, 2026-10-08).
+
+                           Antes de los Clientes, las incidencias documentales de la fila cuando las
+                           hay: las mismas líneas que la ventana del motivo (LineasIncidenciasDocumentales)
+                           y la misma corrección en sitio. Ya vienen en la fila: no cuestan otra consulta. *@
                         <div class="tarjeta-fila-acordeon-contenido">
+                            @if (empresa.Incidencias.Count > 0)
+                            {
+                                <div class="incidencias-fila-empresa" data-pieza="incidencias-fila">
+                                    <span class="titulo-incidencias-empresa">@MotivoIncidenciasUi.Titulo(empresa.Incidencias.Count)</span>
+                                    <LineasIncidenciasDocumentales Incidencias="empresa.Incidencias" Interactiva="_puedeEscribir"
+                                                                   AlPulsar="incidencia => CorregirIncidenciaAsync(empresa.Id, incidencia)" />
+                                </div>
+                            }
                             @{ var clientes = _clientesPorEmpresa.GetValueOrDefault(empresa.Id); }
                             @if (clientes is null)
                             {
@@ -406,5 +444,7 @@
     Mensaje="Se ocultarán de las listas activas. Podrás deshacerlo desde el aviso que aparecerá; después, solo un Administrador del Tenant puede recuperarlas desde Auditoría."
     EnProgreso="_eliminandoLote"
     OnConfirmar="ConfirmarEliminarLoteAsync" />
+
+<CorreccionIncidenciaDocumental @ref="_correccion" OnCorregida="RefrescarTrasCorreccionAsync" />
 </LimiteDeErrores>
 
