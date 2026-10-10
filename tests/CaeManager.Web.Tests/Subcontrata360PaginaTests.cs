@@ -707,13 +707,13 @@ public class Subcontrata360PaginaTests : BunitContext
     /// la tarjeta seguiría enseñando una nota que ya no es la guardada.
     /// </summary>
     [Fact]
-    public void Tras_un_conflicto_la_ficha_se_relee_y_el_siguiente_guardado_lleva_la_version_nueva()
+    public void Tras_un_conflicto_el_editor_se_cierra_y_la_nota_de_la_otra_persona_se_ve_antes_de_reaplicar()
     {
         var versionDeOtraPersona = Guid.NewGuid();
         var mediador = Montar(ajustar: m =>
         {
             m.Detalle = Detalle(notas: NotaGuardada);
-            m.ResultadoNota = Result.Fallo(Error.Crear("Concurrencia.Conflicto", "Otra persona modificó esta subcontrata mientras lo editabas."));
+            m.ResultadoNota = Result.Fallo(Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona modificó esta subcontrata mientras lo editabas."));
         });
         var cut = AbrirEditorNota(Renderizar());
         // Lo que otra persona guardó entre medias: es lo que la ficha encontrará al releer.
@@ -723,14 +723,14 @@ public class Subcontrata360PaginaTests : BunitContext
         EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
 
         cut.WaitForAssertion(() => TarjetaNota(cut)!.TextContent.Should().Contain("La de otra persona."));
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeFalse());
+        // Un único envío: la ficha no reenvía con la versión nueva sin que el usuario vea la nota de esa persona.
+        mediador.Enviadas.OfType<GuardarNotaInternaSubcontrataCommand>().Should().HaveCount(1);
 
+        // Al reabrir, el editor parte de la nota de la otra persona y el envío lleva la versión que ya vio.
         mediador.ResultadoNota = Result.Exito();
-        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
-
-        cut.WaitForAssertion(() => mediador.Enviadas.OfType<GuardarNotaInternaSubcontrataCommand>().Should().HaveCount(2));
-        // Releer no tira lo que el usuario estaba escribiendo: el segundo envío lleva su texto y la versión nueva.
-        mediador.Enviadas.OfType<GuardarNotaInternaSubcontrataCommand>().Last()
-            .Should().Be(new GuardarNotaInternaSubcontrataCommand(SubcontrataId, "Lo mío.", versionDeOtraPersona));
+        AbrirEditorNota(cut);
+        EditorNota(cut).QuerySelector("textarea")!.TextContent.Should().Be("La de otra persona.");
     }
 
     /// <summary>La nota demasiado larga la rechaza el validador del servidor (ValidationBehavior lanza): el motivo va al campo.</summary>

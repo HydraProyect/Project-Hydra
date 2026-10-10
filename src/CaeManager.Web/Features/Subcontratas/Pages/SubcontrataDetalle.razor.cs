@@ -987,11 +987,10 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private void CambiarVisibilidadEditorNota(bool visible) => _editorNotaVisible = visible;
 
     /// <summary>
-    /// Manda solo la nota y la <c>Version</c> que la ficha leyó: si otra persona guardó la subcontrata entre medias, el
-    /// servidor responde el conflicto y el editor lo enseña sin cerrarse, con lo escrito intacto. Tras guardar se relee
-    /// la cabecera, porque la <c>Version</c> cambió y la siguiente orden de esta ficha tiene que llevar la nueva.
-    /// También se relee tras un rechazo: si fue un conflicto, la ficha tiene una <c>Version</c> vieja y sin releer el
-    /// siguiente intento chocaría otra vez, y la tarjeta seguiría enseñando una nota que ya no es la guardada.
+    /// Manda solo la nota y la <c>Version</c> que la ficha leyó. Si otra persona guardó entre medias, el servidor responde
+    /// el conflicto: el editor se cierra, se relee la cabecera (la tarjeta enseña la nota de esa persona) y se avisa para
+    /// que el usuario la vea y reaplique su texto. Nunca se reenvía con la versión nueva sin pasar por ahí. Tras guardar
+    /// bien también se relee, porque la <c>Version</c> cambió.
     /// </summary>
     private async Task GuardarNotaAsync()
     {
@@ -1010,7 +1009,17 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             if (resultado.EsFallido)
             {
                 if (generacion != _generacion) return;
-                _mensajeErrorNota = resultado.Error.Mensaje;
+                // Un conflicto cierra el editor: el usuario ve la nota que guardó la otra persona antes de reaplicar la suya.
+                // Reenviar con la versión nueva sin mirarla pisaría esa nota en silencio.
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                {
+                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                    _editorNotaVisible = false;
+                }
+                else
+                {
+                    _mensajeErrorNota = resultado.Error.Mensaje;
+                }
                 await RecargarCabeceraAsync();
                 return;
             }
