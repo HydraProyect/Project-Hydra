@@ -222,6 +222,10 @@ public class EstadoDocumentoUiVocabularioTests
         EstadoCentroUi.Tono(EstadoCentro.Proximo).Should().Be(TonoBadge.Advertencia);
         EstadoCentroUi.Texto(EstadoCentro.Faltante).Should().Be("Pendiente");
         EstadoCentroUi.Tono(EstadoCentro.Faltante).Should().Be(TonoBadge.Peligro);
+        // Pendiente en la plataforma CAE del Centro (2026-10-10): mismo rótulo y tono que Faltante, como Urgente y Próximo
+        // comparten «Por vencer»; el motivo bajo la pastilla dice cuál de los dos es.
+        EstadoCentroUi.Texto(EstadoCentro.Pendiente).Should().Be("Pendiente");
+        EstadoCentroUi.Tono(EstadoCentro.Pendiente).Should().Be(TonoBadge.Peligro);
     }
 
     [Fact]
@@ -230,7 +234,7 @@ public class EstadoDocumentoUiVocabularioTests
         EstadoCentroUi.Franja.Select(o => (o.Texto, string.Join(',', o.Valores))).Should().Equal(
             ("Bloqueo de la plataforma CAE", "Bloqueado"),
             ("Vencido", "Vencido"),
-            ("Pendiente", "Faltante"),
+            ("Pendiente", "Faltante,Pendiente"),
             ("Por vencer", "Urgente,Proximo"),
             ("Vigente", "Vigente"),
             ("No requiere gestión CAE", "SinGestionCae"));
