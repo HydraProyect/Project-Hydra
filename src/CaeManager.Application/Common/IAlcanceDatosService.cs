@@ -57,8 +57,13 @@ public interface IAlcanceDatosService
     /// usuario de portal SÍ lee: su propio Cliente empresarial está en su
     /// alcance de LECTURA —es lo que le deja abrir su ficha—, pero lo que el
     /// equipo de gestión anota SOBRE él (la «Nota interna», «Solo visible para
-    /// tu equipo») no es contenido de portal. No sustituye al alcance: se
-    /// pregunta después de comprobar que la fila es visible.
+    /// tu equipo») no es contenido de portal.
+    ///
+    /// <b>No es una puerta de alcance y no falla cerrado por sí solo</b>: solo
+    /// distingue al rol Cliente del resto, así que sin rol de negocio (Sesión
+    /// Privilegiada) responde true. Se pregunta siempre DESPUÉS de comprobar
+    /// que la fila es visible (<c>…VisibleAsync</c>), que es quien deniega; a
+    /// diferencia de los <c>…ParaGestionAsync</c>, que llevan el alcance dentro.
     /// </summary>
     Task<bool> OperaDesdeElLadoDeGestionAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default);

@@ -15,7 +15,7 @@ public class AlcanceDatosServiceFalso(
     public Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(tieneAccesoTotal ? null : clienteIdsVisibles ?? []);
 
-    /// <summary>Por defecto true: solo el test que simule a un usuario de portal (rol Cliente) pasa <c>ladoDeGestion: false</c>.</summary>
+    /// <summary>Por defecto true; <c>ladoDeGestion: false</c> simula a un usuario de portal (rol Cliente).</summary>
     public Task<bool> OperaDesdeElLadoDeGestionAsync(CancellationToken cancellationToken = default) => Task.FromResult(ladoDeGestion);
 
     /// <summary>Por defecto null (sin restricción), igual que antes de que este parámetro existiera — solo lo controla el test que lo pase explícitamente.</summary>

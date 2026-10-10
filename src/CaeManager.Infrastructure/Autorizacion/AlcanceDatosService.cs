@@ -505,8 +505,9 @@ public class AlcanceDatosService(
         return resultado;
     }
 
-    // Mismo criterio de rol que ObtenerEmpresaIdsParaGestionAsync: el rol
-    // Cliente es un usuario de portal, lee pero no opera.
+    // La misma distinción de rol que ObtenerEmpresaIdsParaGestionAsync (el rol
+    // Cliente es un usuario de portal, lee pero no opera), SIN su alcance: no
+    // deniega nada por sí solo, ver el contrato en la interfaz.
     public async Task<bool> OperaDesdeElLadoDeGestionAsync(CancellationToken cancellationToken = default) =>
         await currentUserService.ObtenerRolEfectivoAsync() != Roles.Cliente;
 

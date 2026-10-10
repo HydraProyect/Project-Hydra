@@ -73,12 +73,16 @@ public class NotaInternaDeClientePorRolTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
     [InlineData("GestorCae")]
     [InlineData("Consulta")]
     public async Task Control_positivo_el_lado_de_gestion_recibe_la_nota(string rol)
     {
-        // Gestor CAE: rol de cartera, necesita Asignación de Cartera. Consulta:
-        // lectura total del Tenant propietario; la nota es lectura, no secreto.
+        // Todos los roles menos Cliente: una regla «solo Gestor CAE y Consulta»
+        // no pasaría. Gestor CAE y Coordinador CAE son roles de cartera y
+        // necesitan Asignación de Cartera; para los demás sobra y no estorba.
         var usuario = await OtorgarCarteraAsync();
 
         var detalle = await ObtenerAsync(usuario, rol);
