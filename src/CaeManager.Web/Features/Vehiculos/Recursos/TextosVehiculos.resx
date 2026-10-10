@@ -66,6 +66,9 @@
   <data name="EtiquetaEmpleador" xml:space="preserve">
     <value>Empleador</value>
   </data>
+  <data name="ColumnaEmpleador" xml:space="preserve">
+    <value>Empresa / Subcontrata</value>
+  </data>
   <data name="ListaColumnaEstadoDocumental" xml:space="preserve">
     <value>Estado documental</value>
   </data>
