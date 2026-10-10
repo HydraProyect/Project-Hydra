@@ -72,6 +72,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
     private static readonly Guid ClienteB = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid EmpresaE = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid SubcontrataS = Guid.Parse("44444444-4444-4444-4444-444444444444");
+    private static readonly Guid CentroC = Guid.Parse("55555555-5555-5555-5555-555555555555");
 
     private readonly MediatorDeListado _mediador = new();
 
@@ -497,7 +498,10 @@ public class VistaRecordadaEnListadosTests : BunitContext
 
     // --------------------------------------------------------- Trabajadores
 
-    /// <summary>Empresa y subcontrata son excluyentes, así que la lista blanca completa se restaura en dos casos.</summary>
+    /// <summary>
+    /// Empresa y subcontrata son excluyentes, así que la lista blanca completa se restaura en dos casos. El
+    /// Centro se compone con cualquiera de los dos.
+    /// </summary>
     [Theory]
     [InlineData("empresa")]
     [InlineData("subcontrata")]
@@ -506,25 +510,26 @@ public class VistaRecordadaEnListadosTests : BunitContext
         Guid? empresa = empleador == "empresa" ? EmpresaE : null;
         Guid? subcontrata = empleador == "subcontrata" ? SubcontrataS : null;
         var recordada = ConVistaRecordada(PantallasConVistaRecordada.Trabajadores,
-            ("q", "Vega"), ("estado", "Vencido"), (empleador, (empresa ?? subcontrata).ToString()!), ("orden", "trabajador-desc"));
+            ("q", "Vega"), ("estado", "Vencido"), (empleador, (empresa ?? subcontrata).ToString()!), ("centro", CentroC.ToString()),
+            ("orden", "trabajador-desc"));
 
         var cut = Renderizar<Trabajadores>("trabajadores");
 
         LaUrlQuedaCon(cut, PantallasConVistaRecordada.Trabajadores, recordada);
         cut.WaitForAssertion(() => Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>
             q.Busqueda == null && q.EstadoDocumental == "Vencido" && q.EmpresaId == empresa && q.SubcontrataId == subcontrata
-            && q.OrdenarPor == nameof(TrabajadorListaDto.Apellidos) && q.Descendente));
+            && q.CentroId == CentroC && q.OrdenarPor == nameof(TrabajadorListaDto.Apellidos) && q.Descendente));
     }
 
     [Fact]
     public async Task Trabajadores_restablecer_vista_limpia_la_url_y_olvida()
     {
-        var cut = Renderizar<Trabajadores>($"trabajadores?q=Vega&estado=Vencido&empresa={EmpresaE}&orden=trabajador-desc");
+        var cut = Renderizar<Trabajadores>($"trabajadores?q=Vega&estado=Vencido&empresa={EmpresaE}&centro={CentroC}&orden=trabajador-desc");
 
         await RestablecerYOlvidarAsync(cut, PantallasConVistaRecordada.Trabajadores);
 
         cut.WaitForAssertion(() => Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>
-            q.Busqueda == null && q.EstadoDocumental == null && q.EmpresaId == null
+            q.Busqueda == null && q.EstadoDocumental == null && q.EmpresaId == null && q.CentroId == null
             && q.OrdenarPor == nameof(TrabajadorListaDto.EstadoDocumental) && !q.Descendente,
             "vuelve el orden de fábrica: por documentación"));
     }
