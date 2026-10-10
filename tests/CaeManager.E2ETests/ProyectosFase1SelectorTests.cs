@@ -4,8 +4,8 @@ using static Microsoft.Playwright.Assertions;
 
 namespace CaeManager.E2ETests;
 
-[Collection("AppCollection")]
-public class ProyectosFase1SelectorTests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
 {
     [Fact]
     public async Task Cliente_empresarial_obligatorio_se_elige_y_se_retira_con_teclado_real()

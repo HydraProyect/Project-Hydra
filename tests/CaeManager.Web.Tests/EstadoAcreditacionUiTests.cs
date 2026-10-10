@@ -6,7 +6,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// El contrato de vocabulario del eje de aceptación por un tercero
-/// (decisiones del propietario, 2026-08-29). No comprueba estética: comprueba
+/// (decisiones del propietario, 2026-08-29 y 2026-10-10). No comprueba estética: comprueba
 /// las tres propiedades que el inventario de vocabulario encontró rotas y que
 /// nada más vigila.
 /// </summary>
@@ -30,23 +30,31 @@ public class EstadoAcreditacionUiTests
     }
 
     [Fact]
-    public void Ningun_texto_usa_validado_ni_sus_variantes()
+    public void Solo_la_acreditacion_aceptada_se_dice_validada_y_ninguna_se_dice_aceptada()
     {
-        // «Validado» queda reservado al eje de confianza técnica del archivo
-        // (DecisionValidacionOficial, NivelConfianzaDocumental). Compartir la
-        // palabra entre los dos ejes es exactamente lo que hacía que
-        // «validación» significara cosas contrarias según la pantalla.
+        // Decisión del propietario, 2026-10-10: la plataforma del Cliente
+        // «valida», que es el término del sector. La palabra nombra un solo
+        // estado: si otro valor la tomara, o si «aceptada» volviera, el mismo
+        // estado tendría otra vez dos nombres según la pantalla. El otro lado
+        // de la reserva —el eje de confianza técnica del archivo no dice
+        // «validado»— lo vigila DocumentoWorkspacePanelTests.
         foreach (var estado in TodosLosEstados)
         {
-            EstadoAcreditacionUi.Texto(estado).Should().NotContainEquivalentOf("validad",
-                $"«{estado}» pertenece al eje de aceptación por un tercero, que se dice «aceptada» — " +
-                "«validado» está reservado al eje de confianza técnica del archivo");
+            var texto = EstadoAcreditacionUi.Texto(estado);
+
+            texto.Should().NotContainEquivalentOf("aceptad",
+                $"«{estado}»: lo que la plataforma del Cliente da por bueno se dice «validada»");
+            if (estado != EstadoAcreditacion.Aceptada)
+            {
+                texto.Should().NotContainEquivalentOf("validad",
+                    $"«{estado}» no es el estado que la plataforma dio por bueno");
+            }
         }
     }
 
     [Theory]
     [InlineData(EstadoAcreditacion.Subida, "enviada")]
-    [InlineData(EstadoAcreditacion.Aceptada, "aceptada")]
+    [InlineData(EstadoAcreditacion.Aceptada, "validada")]
     [InlineData(EstadoAcreditacion.Rechazada, "rechazada")]
     [InlineData(EstadoAcreditacion.NoRequerida, "no exigida")]
     public void Los_participios_concuerdan_en_femenino_con_la_acreditacion(

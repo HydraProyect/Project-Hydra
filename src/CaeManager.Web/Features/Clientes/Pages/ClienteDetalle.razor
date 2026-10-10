@@ -291,7 +291,14 @@
                     «Notas» es una sola columna (ClienteDetalleDto.Notas): la
                     tarjeta la enseña y «Editar →» abre el panel en la pestaña
                     Notas. Sin historial con fecha y autor: no existe entidad Nota.
+
+                    La caja entera es del lado de gestión: al Usuario de Cliente
+                    (rol Cliente), que abre la ficha de su propio Cliente
+                    empresarial, no se le pinta. Quien decide de verdad es el
+                    handler, que a ese rol no le entrega la nota; esto evita
+                    enseñarle una caja vacía con «Solo visible para tu equipo».
                 *@
+                <AuthorizeView Roles="@CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.Gestion" Context="autorizacionNota">
                 <Tarjeta Compacta="true" Titulo="@Textos["TarjetaNota"]">
                     <AccionesHeader>
                         <SoloConEscritura>
@@ -310,6 +317,7 @@
                         <p class="cliente360-nota-pie">@Textos["NotaSoloEquipo"]</p>
                     </ChildContent>
                 </Tarjeta>
+                </AuthorizeView>
             </Lateral>
         </CuerpoConLateral>
     }

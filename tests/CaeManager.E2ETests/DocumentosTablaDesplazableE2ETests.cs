@@ -19,8 +19,8 @@ namespace CaeManager.E2ETests;
 /// pegarse al bajar por la lista (precio aceptado de la decisión del 2026-10-09).
 /// </para>
 /// </summary>
-[Collection("AppCollection")]
-public class DocumentosTablaDesplazableE2ETests(WebAppFixture fixture, ITestOutputHelper salida)
+[Collection("AppCollectionListados")]
+public class DocumentosTablaDesplazableE2ETests(WebAppFixtureListados fixture, ITestOutputHelper salida)
 {
     /// <summary>
     /// Mide qué antepasados del envoltorio desbordan en horizontal y cuánto le queda por desplazar al

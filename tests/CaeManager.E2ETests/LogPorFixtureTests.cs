@@ -60,6 +60,14 @@ public class LogPorFixtureAppCollectionTests(WebAppFixture fixture)
         LogPorFixture.AfirmarLogPropioAsync(fixture);
 }
 
+[Collection("AppCollectionListados")]
+public class LogPorFixtureListadosTests(WebAppFixtureListados fixture)
+{
+    [Fact]
+    public Task La_fixture_de_listados_escribe_en_su_propio_fichero_de_log() =>
+        LogPorFixture.AfirmarLogPropioAsync(fixture);
+}
+
 [Collection("AppCollectionRetencion")]
 public class LogPorFixtureRetencionTests(WebAppFixtureConRetencionActiva fixture)
 {

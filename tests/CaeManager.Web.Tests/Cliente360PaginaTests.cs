@@ -583,6 +583,33 @@ public class Cliente360PaginaTests : BunitContext
         cut.Find(".cliente360-nota").TextContent.Should().Be("Sin nota interna.");
     }
 
+    [Fact]
+    public void Al_Usuario_de_Cliente_no_se_le_pinta_la_caja_de_la_nota_interna()
+    {
+        // El DTO lleva la nota a propósito: el handler ya no se la entrega a
+        // este rol, y aquí se mide la segunda barrera, la de la página sola.
+        var (id, mediador) = ClienteBase(notas: "Llamar antes de ir.");
+        Registrar(mediador, Roles.Cliente);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cabecera-pagina").TextContent.Should().Contain("Refrielectric S.A.", "la ficha de su Cliente sí se le pinta");
+        cut.FindAll(".cliente360-nota").Should().BeEmpty();
+        cut.FindAll(".cliente360-nota-pie").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Llamar antes de ir.");
+    }
+
+    [Fact]
+    public void El_rol_Consulta_del_lado_de_gestion_si_ve_la_nota_interna()
+    {
+        var (id, mediador) = ClienteBase(notas: "Llamar antes de ir.");
+        Registrar(mediador, Roles.Consulta);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".cliente360-nota").TextContent.Should().Be("Llamar antes de ir.");
+    }
+
     // ── Buscador de la pestaña Centros y ?q= ──────────────────────────────
 
     private static List<string> NombresDeCentro(IRenderedComponent<ClienteDetalle> cut) =>

@@ -18,8 +18,8 @@ namespace CaeManager.E2ETests;
 /// El formulario en sí lo prueba <c>SubcontrataWorkspacePanelLapizTests</c> (bUnit).
 /// </para>
 /// </summary>
-[Collection("AppCollection")]
-public class SubcontratasFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class SubcontratasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private const string Lapiz = "button[aria-label='Editar la información de la subcontrata']";
     private static readonly Regex EntrarEnEdicion = new(@"/cuenta/configurar-2fa\?motivo=credenciales");

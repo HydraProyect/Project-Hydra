@@ -43,8 +43,8 @@ public sealed class PlataformaTabAcreditacionesSubidasTests : BunitContext
         var filas = cut.FindAll(".plataforma-fila-documento");
         filas.Should().HaveCount(3, "control positivo: pendiente, subida y aceptada");
 
-        BotonesDe(filas, "Documento pendiente").Should().Equal("Marcar subido", "Marcar aceptado", "Marcar rechazado…");
-        BotonesDe(filas, "Documento subido").Should().Equal("Marcar aceptado", "Marcar rechazado…");
+        BotonesDe(filas, "Documento pendiente").Should().Equal("Marcar subido", "Marcar validado", "Marcar rechazado…");
+        BotonesDe(filas, "Documento subido").Should().Equal("Marcar validado", "Marcar rechazado…");
         BotonesDe(filas, "Documento aceptado").Should().Equal("Anotar vigencia…");
     }
 

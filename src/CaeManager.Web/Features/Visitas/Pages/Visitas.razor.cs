@@ -1235,13 +1235,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         _ => Textos["OrigenPlataforma"].Value
     };
 
-    private static TonoBadge TonoOrigen(OrigenVisita origen) => origen switch
-    {
-        OrigenVisita.Correo => TonoBadge.Info,
-        OrigenVisita.WhatsApp => TonoBadge.Exito,
-        _ => TonoBadge.Neutro
-    };
-
 
     /// <summary>
     /// Un Documento existente abre el visor inline. Un hueco "Faltante" lleva

@@ -11,8 +11,8 @@ namespace CaeManager.E2ETests;
 /// pestaña actualiza la URL (mismo mecanismo P1-18 que los filtros de la
 /// rejilla) y una URL con esa pestaña la restaura al cargar en frío.
 /// </summary>
-[Collection("AppCollection")]
-public class PestanaUrlDurableTests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class PestanaUrlDurableTests(WebAppFixtureListados fixture)
 {
     [Fact]
     public async Task Cambiar_a_la_pestana_Revision_IA_de_Documentos_actualiza_la_URL_y_sobrevive_a_una_carga_en_frio()

@@ -16,8 +16,8 @@ namespace CaeManager.E2ETests;
 /// reparto por rol lo prueba <c>ClientesListaGen2Tests</c> (bUnit) y el lápiz del panel,
 /// <c>ClienteWorkspacePanelLapizTests</c>.
 /// </summary>
-[Collection("AppCollection")]
-public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private const string Lapiz = "button[aria-label='Editar la identidad del Cliente']";
 

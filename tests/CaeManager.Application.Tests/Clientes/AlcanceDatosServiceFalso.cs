@@ -7,13 +7,16 @@ public class AlcanceDatosServiceFalso(
     bool conexionIntegracionVisible = true, IReadOnlyList<Guid>? empresaIdsVisibles = null, IReadOnlyList<Guid>? centroIdsVisibles = null,
     IReadOnlyList<Guid>? subcontrataIdsVisibles = null, IReadOnlyList<Guid>? conexionesIntegracionAjenas = null,
     IReadOnlyList<Guid>? empresaIdsParaGestion = null, IReadOnlyList<Guid>? subcontrataIdsParaGestion = null,
-    IReadOnlyList<Guid>? centroIdsParaGestion = null)
+    IReadOnlyList<Guid>? centroIdsParaGestion = null, bool ladoDeGestion = true)
     : IAlcanceDatosService
 {
     public Task<bool> TieneAccesoTotalAsync(CancellationToken cancellationToken = default) => Task.FromResult(tieneAccesoTotal);
 
     public Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(tieneAccesoTotal ? null : clienteIdsVisibles ?? []);
+
+    /// <summary>Por defecto true; <c>ladoDeGestion: false</c> simula a un usuario de portal (rol Cliente).</summary>
+    public Task<bool> OperaDesdeElLadoDeGestionAsync(CancellationToken cancellationToken = default) => Task.FromResult(ladoDeGestion);
 
     /// <summary>Por defecto null (sin restricción), igual que antes de que este parámetro existiera — solo lo controla el test que lo pase explícitamente.</summary>
     public Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default) =>

@@ -513,6 +513,23 @@ public class AppCollectionSoporte : ICollectionFixture<WebAppFixtureParaSoporte>
 
 public sealed class WebAppFixtureParaSoporte : WebAppFixture;
 
+/// <summary>
+/// Instancia propia (sin variables de entorno extra) para los tests de los
+/// listados: fila sin menú, exportar, filtros en la URL, cabeceras, teclado y
+/// KeyTips. No existe por aislamiento de datos sino por reloj: "AppCollection"
+/// llenaba sola un bloque del job E2E de CI (unos 9 minutos de tests) y era su
+/// camino crítico. Con esta mitad aparte, el reparto por colección de
+/// scripts/repartir-e2e-por-coleccion.sh las pone en bloques distintos. El
+/// coste es un arranque más de la aplicación por run (unos 39 s de runner).
+/// Las clases con acoplamientos de datos conocidos entre sí (AlcanceRoles con
+/// FlujoDelegatedWorkspace, FlujoCritico con FlujoBandejaPriorizada) y las de
+/// autorización y multi-tenancy se quedan en "AppCollection".
+/// </summary>
+[CollectionDefinition("AppCollectionListados")]
+public class AppCollectionListados : ICollectionFixture<WebAppFixtureListados>;
+
+public sealed class WebAppFixtureListados : WebAppFixture;
+
 
 /// <summary>Instancia propia: los tests de cuenta a medio activar dejan cuentas de prueba en ese estado.</summary>
 [CollectionDefinition("AppCollectionCuentaAMedioActivar")]

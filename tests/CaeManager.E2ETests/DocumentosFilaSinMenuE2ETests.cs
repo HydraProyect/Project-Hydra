@@ -16,8 +16,8 @@ namespace CaeManager.E2ETests;
 /// «Plataformas».
 /// </para>
 /// </summary>
-[Collection("AppCollection")]
-public class DocumentosFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private async Task<IPage> AbrirDocumentosAsync(IBrowserContext contexto)
     {
