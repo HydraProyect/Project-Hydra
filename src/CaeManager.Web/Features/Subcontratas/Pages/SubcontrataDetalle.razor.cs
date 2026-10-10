@@ -952,6 +952,8 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     /// Manda solo la nota y la <c>Version</c> que la ficha leyó: si otra persona guardó la subcontrata entre medias, el
     /// servidor responde el conflicto y el editor lo enseña sin cerrarse, con lo escrito intacto. Tras guardar se relee
     /// la cabecera, porque la <c>Version</c> cambió y la siguiente orden de esta ficha tiene que llevar la nueva.
+    /// También se relee tras un rechazo: si fue un conflicto, la ficha tiene una <c>Version</c> vieja y sin releer el
+    /// siguiente intento chocaría otra vez, y la tarjeta seguiría enseñando una nota que ya no es la guardada.
     /// </summary>
     private async Task GuardarNotaAsync()
     {
@@ -969,8 +971,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
             if (resultado.EsFallido)
             {
-                if (generacion == _generacion)
-                    _mensajeErrorNota = resultado.Error.Mensaje;
+                if (generacion != _generacion) return;
+                _mensajeErrorNota = resultado.Error.Mensaje;
+                await RecargarCabeceraAsync();
                 return;
             }
 
@@ -978,6 +981,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             ToastService.Mostrar(Textos["ToastNotaInternaGuardada"], TonoToast.Exito);
             if (generacion != _generacion) return;
             _editorNotaVisible = false;
+
+            // La tarjeta enseña ya lo guardado aunque la relectura de abajo falle; la Version buena la trae la relectura.
+            _detalle = detalle with { Notas = string.IsNullOrWhiteSpace(_notaEnEdicion) ? null : _notaEnEdicion.Trim() };
             await RecargarCabeceraAsync();
         }
         catch (ValidationException ex)

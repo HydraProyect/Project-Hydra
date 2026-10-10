@@ -669,6 +669,37 @@ public class Subcontrata360PaginaTests : BunitContext
         TarjetaNota(cut)!.TextContent.Should().Contain(NotaGuardada, "lo rechazado no se da por guardado");
     }
 
+    /// <summary>
+    /// Tras un conflicto la ficha tiene una versión vieja: si no releyera, cada intento posterior volvería a chocar y
+    /// la tarjeta seguiría enseñando una nota que ya no es la guardada.
+    /// </summary>
+    [Fact]
+    public void Tras_un_conflicto_la_ficha_se_relee_y_el_siguiente_guardado_lleva_la_version_nueva()
+    {
+        var versionDeOtraPersona = Guid.NewGuid();
+        var mediador = Montar(ajustar: m =>
+        {
+            m.Detalle = Detalle(notas: NotaGuardada);
+            m.ResultadoNota = Result.Fallo(Error.Crear("Concurrencia.Conflicto", "Otra persona modificó esta subcontrata mientras lo editabas."));
+        });
+        var cut = AbrirEditorNota(Renderizar());
+        // Lo que otra persona guardó entre medias: es lo que la ficha encontrará al releer.
+        mediador.Detalle = Detalle(notas: "La de otra persona.") with { Version = versionDeOtraPersona };
+
+        EditorNota(cut).QuerySelector("textarea")!.Input("Lo mío.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => TarjetaNota(cut)!.TextContent.Should().Contain("La de otra persona."));
+
+        mediador.ResultadoNota = Result.Exito();
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<GuardarNotaInternaSubcontrataCommand>().Should().HaveCount(2));
+        // Releer no tira lo que el usuario estaba escribiendo: el segundo envío lleva su texto y la versión nueva.
+        mediador.Enviadas.OfType<GuardarNotaInternaSubcontrataCommand>().Last()
+            .Should().Be(new GuardarNotaInternaSubcontrataCommand(SubcontrataId, "Lo mío.", versionDeOtraPersona));
+    }
+
     /// <summary>La nota demasiado larga la rechaza el validador del servidor (ValidationBehavior lanza): el motivo va al campo.</summary>
     [Fact]
     public void Si_el_validador_rechaza_la_nota_el_motivo_se_ve_en_el_campo_y_el_editor_sigue_abierto()

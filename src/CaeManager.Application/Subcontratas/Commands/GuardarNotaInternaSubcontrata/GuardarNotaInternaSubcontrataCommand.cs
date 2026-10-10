@@ -50,6 +50,10 @@ public class GuardarNotaInternaSubcontrataCommandHandler(
     public async Task<Result> Handle(GuardarNotaInternaSubcontrataCommand request, CancellationToken cancellationToken)
     {
         var subcontrata = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
+        // Como EditarSubcontrataCommand, no comprueba que la Empresa sea subcontrata: con alcance total la puerta de
+        // gestión admite cualquier Id del Tenant, y quien lo tiene ya puede escribir esa misma nota por
+        // EditarClienteCommand. Leer aquí el discriminador NivelServicio lo prohíbe
+        // RolDeEmpresaPorDiscriminadorNoCreceTests (las lecturas por discriminador solo decrecen).
         if (subcontrata is null || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(subcontrata.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.NoEncontrada", "No encontramos esta subcontrata."));
 

@@ -1,4 +1,7 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.Subcontratas.Commands.GuardarNotaInternaSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Domain.Empresas;
@@ -83,14 +86,18 @@ public class ObtenerSubcontrataPorIdNotaInternaTests
 
     /// <summary>
     /// Quien puede guardar la nota tiene que haberla visto: si un rol con escritura quedara fuera de la lista de
-    /// lectura, el editor se abriría vacío y «Guardar» borraría una nota que nadie le enseñó. Los cuatro literales
-    /// son los de <c>AutorizacionEscrituraBehavior.RolesConEscritura</c>.
+    /// lectura, el editor se abriría vacío y «Guardar» borraría una nota que nadie le enseñó. Se mide contra la
+    /// lista real de <c>AutorizacionEscrituraBehavior</c>, no contra una copia: un rol de escritura nuevo que no se
+    /// añada a la lectura pone este test en rojo.
     /// </summary>
     [Fact]
     public void Todo_rol_con_escritura_esta_entre_los_que_ven_la_nota_y_el_usuario_de_Cliente_no()
     {
         ObtenerSubcontrataPorIdQueryHandler.RolesQueVenLaNotaInterna
-            .Should().Contain(["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"])
+            .Should().Contain(AutorizacionEscrituraBehavior<GuardarNotaInternaSubcontrataCommand, Result>.RolesConEscritura)
             .And.NotContain("Cliente");
+
+        AutorizacionEscrituraBehavior<GuardarNotaInternaSubcontrataCommand, Result>.RolesConEscritura
+            .Should().NotBeEmpty("si la lista real estuviera vacía, el Contain de arriba no mediría nada");
     }
 }
