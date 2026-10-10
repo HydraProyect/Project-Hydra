@@ -198,12 +198,14 @@
                 <PropertyColumn Property="@(t => t.EmpleadorNombre)" Title="@Textos["EtiquetaEmpresa"]" Sortable="true" />
                 @* «Registrados vigentes», de ancho fijo: de los documentos registrados del Trabajador,
                    cuántos están al día («8/10»; raya si no tiene ninguno). Es una fracción sobre lo
-                   REGISTRADO (DesgloseDocumentalDto), no sobre lo exigido. La celda lleva su propia
-                   clase («celda-registrados-vigentes») para que la barra de cumplimiento sustituya
-                   el contenido sin tocar la columna. No ordena: la consulta no sabe ordenar por ella. *@
+                   REGISTRADO (DesgloseDocumentalDto), no sobre lo exigido. La pinta la barra de cumplimiento compartida
+                   (BarraCumplimiento) con la fracción como cifra; sin documentos, «—». No ordena: la consulta no sabe ordenar por ella. *@
                 <TemplateColumn Title="@Textos["ListaColumnaRegistradosVigentes"]" Class="col-registrados-vigentes">
-                    <span class="celda-registrados-vigentes"
-                          title="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)">@(MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados) ?? "—")</span>
+                    <span class="celda-registrados-vigentes">
+                        <BarraCumplimiento Porcentaje="@PorcentajeRegistradosVigentes(context)"
+                                           Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados)"
+                                           Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)" />
+                    </span>
                 </TemplateColumn>
                 @* Columna de estado, de ancho fijo. Orden por defecto: el peor estado primero
                    (Vencido → Urgente → Próximo → Sin confirmar → Vigente → Sin caducidad), que

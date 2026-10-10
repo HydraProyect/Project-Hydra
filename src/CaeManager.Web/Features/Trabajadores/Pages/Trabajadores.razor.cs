@@ -1108,6 +1108,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private static string NombreCompleto(TrabajadorListaDto trabajador) => $"{trabajador.Nombre} {trabajador.Apellidos}";
 
+    /// <summary>Porcentaje de documentos registrados al día para la barra de «Registrados vigentes»; sin documentos no hay universo y la barra pinta la raya.</summary>
+    private static int? PorcentajeRegistradosVigentes(TrabajadorListaDto trabajador) =>
+        trabajador.DocumentosRegistrados <= 0 ? null : trabajador.DocumentosVigentes * 100 / trabajador.DocumentosRegistrados;
+
     // --- P3-31: selección múltiple ---
 
     private bool TodosSeleccionados =>

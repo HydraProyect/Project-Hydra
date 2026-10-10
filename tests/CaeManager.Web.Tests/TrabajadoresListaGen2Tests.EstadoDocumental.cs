@@ -294,7 +294,9 @@ public partial class TrabajadoresListaGen2Tests
         var celdas = FilasDeDatos(cut).Select(tr => tr.QuerySelector("td.col-registrados-vigentes .celda-registrados-vigentes")!).ToList();
 
         celdas.Select(c => c.TextContent.Trim()).Should().Equal("8/10", "—");
-        celdas[0].GetAttribute("title").Should().Be("8 de 10 documentos registrados al día");
+        celdas[0].QuerySelector(".barra-cumplimiento")!.GetAttribute("aria-label").Should().Be("8 de 10 documentos registrados al día");
+        celdas[0].QuerySelector(".barra-cumplimiento-relleno")!.GetAttribute("style").Should().Be("width:80%");
+        celdas[1].QuerySelector(".barra-cumplimiento-sin-universo").Should().NotBeNull("sin documentos registrados no hay fracción que pintar");
     }
 
     // --- Filtro «Centro» ----------------------------------------------------------------------

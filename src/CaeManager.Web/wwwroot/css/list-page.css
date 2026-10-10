@@ -1852,7 +1852,8 @@
 /*
   Columna «Registrados vigentes» de un listado de propietarios: ancho fijo, justo antes de la de estado, para
   que caiga en el mismo sitio de fila en fila. La regla es compartida (vive aquí, no en el CSS de una
-  pantalla); hoy solo la usa el listado de Trabajadores. Lleva la fracción en texto («8/10»).
+  pantalla); hoy solo la usa el listado de Trabajadores. La celda aloja la barra de cumplimiento compartida, con la
+  fracción («8/10») como cifra.
 */
 .tabla-datos th.col-registrados-vigentes,
 .tabla-datos td.col-registrados-vigentes {
