@@ -168,6 +168,18 @@
   <data name="MotivoBloqueos" xml:space="preserve">
     <value>{0} bloqueos de plataforma</value>
   </data>
+  <data name="TituloUnPendiente" xml:space="preserve">
+    <value>1 documento pendiente</value>
+  </data>
+  <data name="TituloPendientes" xml:space="preserve">
+    <value>{0} documentos pendientes</value>
+  </data>
+  <data name="TituloUnBloqueo" xml:space="preserve">
+    <value>1 documento con bloqueo de plataforma</value>
+  </data>
+  <data name="TituloBloqueos" xml:space="preserve">
+    <value>{0} documentos con bloqueo de plataforma</value>
+  </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al día: no necesita intervención, pero puedes sustituirlo</value>
   </data>
@@ -338,5 +350,14 @@
   </data>
   <data name="VacioFiltrosQuitar" xml:space="preserve">
     <value>Quitar los filtros</value>
+  </data>
+  <data name="SeparadorMotivo" xml:space="preserve">
+    <value>·</value>
+  </data>
+  <data name="CalificativoPendiente" xml:space="preserve">
+    <value>pendiente</value>
+  </data>
+  <data name="CalificativoBloqueo" xml:space="preserve">
+    <value>con bloqueo de plataforma</value>
   </data>
 </root>

@@ -350,15 +350,15 @@
                                             }
                                             @if (centro.Recuentos.VencidasPorFecha.Count > 0 && centro.Recuentos.Pendientes.Count > 0)
                                             {
-                                                <span class="motivo-recuento-separador" aria-hidden="true">·</span>
+                                                <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
                                             }
                                             @if (centro.Recuentos.Pendientes.Count > 0)
                                             {
-                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoPendientes(centro.Recuentos.Pendientes.Count), centro.Recuentos.Pendientes, "pendiente")"
+                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoPendientes(centro.Recuentos.Pendientes.Count), centro.Recuentos.Pendientes, Textos["CalificativoPendiente"])"
                                                                  Colocacion="VentanaContextoColocacion.AbajoCentro"
                                                                  Interactiva="HayCorregibles(centro, centro.Recuentos.Pendientes)"
                                                                  Pie="@PieDeIncidencias(centro, centro.Recuentos.Pendientes)"
-                                                                 Titulo="@($"{centro.Recuentos.Pendientes.Count} {(centro.Recuentos.Pendientes.Count == 1 ? "documento pendiente" : "documentos pendientes")}")">
+                                                                 Titulo="@TituloPendientes(centro.Recuentos.Pendientes.Count)">
                                                     <Disparador>
                                                         <span class="motivo-recuento motivo-recuento-pendientes">@MotivoPendientes(centro.Recuentos.Pendientes.Count)</span>
                                                     </Disparador>
@@ -369,15 +369,15 @@
                                             }
                                             @if (centro.Recuentos.Bloqueos.Count > 0 && (centro.Recuentos.VencidasPorFecha.Count > 0 || centro.Recuentos.Pendientes.Count > 0))
                                             {
-                                                <span class="motivo-recuento-separador" aria-hidden="true">·</span>
+                                                <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
                                             }
                                             @if (centro.Recuentos.Bloqueos.Count > 0)
                                             {
-                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoBloqueos(centro.Recuentos.Bloqueos.Count), centro.Recuentos.Bloqueos, "con bloqueo de plataforma")"
+                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoBloqueos(centro.Recuentos.Bloqueos.Count), centro.Recuentos.Bloqueos, Textos["CalificativoBloqueo"])"
                                                                  Colocacion="VentanaContextoColocacion.AbajoCentro"
                                                                  Interactiva="HayCorregibles(centro, centro.Recuentos.Bloqueos)"
                                                                  Pie="@PieDeIncidencias(centro, centro.Recuentos.Bloqueos)"
-                                                                 Titulo="@($"{centro.Recuentos.Bloqueos.Count} {(centro.Recuentos.Bloqueos.Count == 1 ? "documento con bloqueo de plataforma" : "documentos con bloqueo de plataforma")}")">
+                                                                 Titulo="@TituloBloqueos(centro.Recuentos.Bloqueos.Count)">
                                                     <Disparador>
                                                         <span class="motivo-recuento motivo-recuento-bloqueos">@MotivoBloqueos(centro.Recuentos.Bloqueos.Count)</span>
                                                     </Disparador>
@@ -388,7 +388,7 @@
                                             }
                                             @if (centro.Recuentos.TotalVencidas > 0 && centro.Recuentos.TotalProximas > 0)
                                             {
-                                                <span class="motivo-recuento-separador" aria-hidden="true">·</span>
+                                                <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
                                             }
                                             @if (centro.Recuentos.TotalProximas > 0)
                                             {

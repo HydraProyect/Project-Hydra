@@ -1511,6 +1511,13 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private string MotivoVencidos(int cantidad) =>
         cantidad == 1 ? Textos["MotivoUnVencido"].Value : Textos["MotivoVencidos", cantidad].Value;
 
+    /// <summary>Título de la ventana de contexto de cada causa («1 documento pendiente», «2 documentos con bloqueo de plataforma»).</summary>
+    private string TituloPendientes(int cantidad) =>
+        cantidad == 1 ? Textos["TituloUnPendiente"].Value : Textos["TituloPendientes", cantidad].Value;
+
+    private string TituloBloqueos(int cantidad) =>
+        cantidad == 1 ? Textos["TituloUnBloqueo"].Value : Textos["TituloBloqueos", cantidad].Value;
+
     private string MotivoPendientes(int cantidad) =>
         cantidad == 1 ? Textos["MotivoUnPendiente"].Value : Textos["MotivoPendientes", cantidad].Value;
 
