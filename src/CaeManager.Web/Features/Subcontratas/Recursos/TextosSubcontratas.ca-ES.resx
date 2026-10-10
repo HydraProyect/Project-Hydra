@@ -156,9 +156,6 @@
   <data name="BadgeProximosVarios" xml:space="preserve">
     <value>{0} per vèncer</value>
   </data>
-  <data name="BadgeAlCorriente" xml:space="preserve">
-    <value>Sense incidències</value>
-  </data>
   <data name="MenuEliminar" xml:space="preserve">
     <value>Eliminar</value>
   </data>

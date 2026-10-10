@@ -156,9 +156,6 @@
   <data name="BadgeProximosVarios" xml:space="preserve">
     <value>{0} por vencer</value>
   </data>
-  <data name="BadgeAlCorriente" xml:space="preserve">
-    <value>Sin incidencias</value>
-  </data>
   <data name="MenuEliminar" xml:space="preserve">
     <value>Eliminar</value>
   </data>

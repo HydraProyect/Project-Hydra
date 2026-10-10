@@ -133,7 +133,10 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     // en sitio (mismo criterio que Centros.RefrescarCentroAsync): filtros, orden, página,
     // selección, acordeones, fila enfocada y desplazamiento no se tocan, y la fila permanece
     // aunque el cambio la saque del filtro activo, hasta la siguiente carga. La vista rápida edita
-    // datos de la Subcontrata, no documentos: el estado documental no cambia y la franja no recuenta.
+    // datos de la Subcontrata, no documentos: el estado documental de la fila no cambia y la franja
+    // no se vuelve a pedir. Hueco conocido: si el guardado cambia el nivel de servicio o la razón
+    // social y hay un filtro de nivel o una búsqueda activos, la franja sigue contando esa fila
+    // hasta la siguiente carga, igual que la fila sigue a la vista.
     private void AlGuardarEntidad(EntidadWorkspace tipo, Guid id)
     {
         if (tipo == EntidadWorkspace.Subcontrata)
@@ -280,6 +283,15 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         try
         {
             resultado = await Mediator.Send(ConsultaDePaginaActual());
+
+            // Con el filtro de estado activo, corregir puede sacar del filtro la última fila de la
+            // última página: la página pedida queda vacía aunque siga habiendo coincidencias. Se
+            // retrocede a la última página que existe en vez de enseñar «ninguna coincide».
+            if (resultado.Elementos.Count == 0 && resultado.TotalElementos > 0 && _pagina > 1)
+            {
+                _pagina = Math.Max(1, (int)Math.Ceiling(resultado.TotalElementos / (double)_tamanoPagina));
+                resultado = await Mediator.Send(ConsultaDePaginaActual());
+            }
         }
         catch (Exception)
         {

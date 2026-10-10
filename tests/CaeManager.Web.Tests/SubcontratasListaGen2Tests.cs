@@ -1227,4 +1227,31 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Should().HaveCount(consultasDeListaAntes + 1,
             "el recuento y el cumplimiento de la fila cambian al corregir: la lista se relee en sitio");
     }
+
+    /// <summary>
+    /// Con el filtro «Vencidos» en la última página y una sola fila en ella: corregir su incidencia la
+    /// saca del filtro y la página pedida queda vacía aunque sigan quedando vencidas. La lista retrocede
+    /// a la última página que existe; no enseña «ninguna coincide» con veinte coincidencias detrás.
+    /// </summary>
+    [Fact]
+    public async Task Corregir_la_ultima_fila_de_la_ultima_pagina_filtrada_retrocede_a_la_pagina_que_existe()
+    {
+        var almacen = Enumerable.Range(1, 21)
+            .Select(i => Subcontrata($"Subcontrata {i:00}", vencidas: [Incidencia("Formación PRL", EstadoDocumento.Vencido)]))
+            .ToList();
+        var mediador = new MediatorFalso { Subcontratas = almacen };
+        var cut = Renderizar(mediador);
+        cut.Find(".franja-estado [data-estado='Vencido']").Click();
+        await cut.FindAll(".paginador-simple button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(e => e.TextContent.Trim())
+            .Should().Equal(["Subcontrata 21"], "punto de partida: la página 2 tiene una sola fila"));
+
+        almacen[20] = Subcontrata("Subcontrata 21", id: almacen[20].Id);
+        var correccion = cut.FindComponent<CaeManager.Web.Features.Documentos.Components.CorreccionIncidenciaDocumental>();
+        await cut.InvokeAsync(() => correccion.Instance.OnCorregida.InvokeAsync());
+
+        cut.WaitForAssertion(() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Should().HaveCount(20));
+        cut.FindAll(".paginador-texto").Should().BeEmpty("con una sola página no hay paginador");
+        mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().Pagina.Should().Be(1);
+    }
 }

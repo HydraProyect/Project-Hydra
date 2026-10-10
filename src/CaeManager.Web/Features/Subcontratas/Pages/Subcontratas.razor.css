@@ -19,14 +19,14 @@
       largo, «N vencidos · M por vencer · K sin confirmar».
     */
     display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) 120px 104px 264px 44px;
+    grid-template-columns: 28px minmax(0, 1fr) 120px 132px 264px 44px;
     gap: var(--space-2);
     align-items: center;
 }
 
 /* Con selección múltiple entra una casilla delante y las columnas se corren. */
 .rejilla-subcontratas-seleccion {
-    grid-template-columns: 24px 28px minmax(0, 1fr) 120px 104px 264px 44px;
+    grid-template-columns: 24px 28px minmax(0, 1fr) 120px 132px 264px 44px;
 }
 
 /* La casilla mide lo mismo en todos los navegadores, para que su hueco de la cabecera coincida. */
@@ -111,11 +111,11 @@
 @media (max-width: 767px) {
     .rejilla-subcontratas,
     .rejilla-subcontratas-seleccion {
-        grid-template-columns: 28px minmax(0, 1fr) auto 44px;
+        grid-template-columns: 28px minmax(0, 1fr) auto 48px 44px;
     }
 
     .rejilla-subcontratas-seleccion {
-        grid-template-columns: 24px 28px minmax(0, 1fr) auto 44px;
+        grid-template-columns: 24px 28px minmax(0, 1fr) auto 48px 44px;
     }
 
     .cabecera-columnas-subcontratas {

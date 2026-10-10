@@ -65,7 +65,8 @@
        social o CIF, ObtenerSubcontratasQuery), la pastilla «Nivel de servicio» (viaja en la URL
        como «nivel») y, en la misma fila, «Expandir todo / Contraer todo» y el recuento. «Más
        filtros» lleva los filtros guardados y «Guardar filtro» (FiltrosGuardadosDeListado). El filtro de
-       estado documental (con vencidos / al corriente) es de la fase 2: la consulta aún no lo admite. *@
+       estado documental no es una pastilla: es la franja de estado de debajo (viaja en la URL como
+       «estado»). *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
