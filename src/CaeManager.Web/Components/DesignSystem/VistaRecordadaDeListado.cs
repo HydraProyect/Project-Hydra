@@ -28,6 +28,10 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// URL: un enlace compartido se ve como se compartió. La vista recordada se entrega a la página por
 /// <see cref="OnAplicar"/>, el mismo camino que un filtro guardado: la página valida cada valor
 /// como valida la URL (lo recordado no es autoridad), escribe la URL en UNA navegación y recarga.
+/// La página NO espera a esta lectura para cargar: con circuito pide su lista de fábrica y, si hay
+/// vista recordada, la pide otra vez con ella (dos consultas, medido en rejilla y en acordeón y
+/// fijado en <c>VistaRecordadaEnListadosTests</c>). A cambio, una lectura lenta o fallida nunca
+/// deja la lista sin cargar.
 /// </para>
 ///
 /// <para>

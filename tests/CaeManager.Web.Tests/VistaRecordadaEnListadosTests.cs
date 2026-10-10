@@ -104,9 +104,37 @@ public class VistaRecordadaEnListadosTests : BunitContext
         /// <summary>Lo que devuelve <see cref="ObtenerVistaRecordadaQuery"/> por pantalla. Sin entrada: nada recordado.</summary>
         public Dictionary<string, string> VistasRecordadas { get; } = [];
 
+        /// <summary>
+        /// Con ella, la lectura de la vista recordada no responde hasta que se complete: en el producto es una
+        /// consulta a la base y no vuelve en el acto, que es justo cuando la página puede adelantarse a cargar.
+        /// </summary>
+        public TaskCompletionSource? LecturaRetenida { get; set; }
+
+        /// <summary>Con ella, la lectura de la vista recordada falla.</summary>
+        public Exception? FalloDeLectura { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            if (request is ObtenerVistaRecordadaQuery)
+            {
+                if (LecturaRetenida is { } retenida)
+                    return ResponderTrasAsync<TResponse>(retenida.Task, request, cancellationToken);
+                if (FalloDeLectura is { } fallo)
+                    return Task.FromException<TResponse>(fallo);
+            }
+
+            return Task.FromResult((TResponse)Responder(request)!);
+        }
+
+        private async Task<TResponse> ResponderTrasAsync<TResponse>(Task espera, object request, CancellationToken cancellationToken)
+        {
+            await espera.WaitAsync(cancellationToken);
+            return (TResponse)Responder(request)!;
+        }
+
+        private object? Responder(object request)
+        {
             object? respuesta = request switch
             {
                 ObtenerVistaRecordadaQuery v => VistasRecordadas.GetValueOrDefault(v.Pantalla),
@@ -139,7 +167,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
                 ObtenerOperadoresCaeDeMiTenantQuery => (IReadOnlyList<CarterasDeOperacion>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
-            return Task.FromResult((TResponse)respuesta!);
+            return respuesta;
         }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -499,5 +527,97 @@ public class VistaRecordadaEnListadosTests : BunitContext
         cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().Contain("orden", "trabajador"));
         Ultima<ObtenerTrabajadoresQuery>().Should().Match<ObtenerTrabajadoresQuery>(q =>
             q.OrdenarPor == nameof(TrabajadorListaDto.Apellidos) && !q.Descendente);
+    }
+
+    // ------------------------------------------- cargas de datos al restaurar
+    //
+    // Medido el 2026-10-10, con la lectura de lo recordado respondiendo más tarde, como en el producto (es una
+    // consulta a la base): al entrar sin parámetros con una vista recordada, la pasada con circuito pide la
+    // lista DOS veces —la de fábrica y, cuando vuelve la lectura, la recordada—. No hay compuerta que retenga
+    // la primera: la página carga sin esperar a la pieza, así que una lectura lenta o fallida no deja la lista
+    // sin cargar. Estos tests fijan ese número en un listado de rejilla (Vehículos) y en uno de acordeón
+    // (Centros); si alguien añade la compuerta, bajan a una y hay que cambiarlos a la vez.
+
+    private int Cargas<TConsulta>() => _mediador.Enviadas.OfType<TConsulta>().Count();
+
+    private void LaLecturaDeLoRecordadoEstaEnVuelo<TPagina>(IRenderedComponent<TPagina> cut) where TPagina : IComponent =>
+        cut.WaitForAssertion(() => _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().HaveCount(1));
+
+    /// <summary>
+    /// Con otro orden la rejilla se remonta y pide ella los datos; sin él, la página la refresca. Son dos
+    /// caminos de <c>AplicarVistaGuardadaAsync</c> y los dos piden la lista una vez más, no dos.
+    /// </summary>
+    [Theory]
+    [InlineData("matricula-desc")]
+    [InlineData(null)]
+    public void Vehiculos_con_vista_recordada_pide_la_lista_de_fabrica_y_despues_la_recordada(string? orden)
+    {
+        if (orden is null)
+            ConVistaRecordada(PantallasConVistaRecordada.Vehiculos, ("estado", "Vencido"));
+        else
+            ConVistaRecordada(PantallasConVistaRecordada.Vehiculos, ("estado", "Vencido"), ("orden", orden));
+        _mediador.LecturaRetenida = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var cut = Renderizar<Vehiculos>("vehiculos");
+
+        LaLecturaDeLoRecordadoEstaEnVuelo(cut);
+        Cargas<ObtenerVehiculosQuery>().Should().Be(1, "la lista de fábrica no espera a la lectura de lo recordado");
+        Ultima<ObtenerVehiculosQuery>().Should().Match<ObtenerVehiculosQuery>(q => q.EstadoDocumental == null && q.OrdenarPor == null);
+
+        _mediador.LecturaRetenida.SetResult();
+
+        cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().ContainKey("estado"));
+        var conOrden = orden is not null;
+        cut.WaitForAssertion(() => Ultima<ObtenerVehiculosQuery>().Should().Match<ObtenerVehiculosQuery>(q =>
+            q.EstadoDocumental == "Vencido" && q.Descendente == conOrden));
+        Cargas<ObtenerVehiculosQuery>().Should().Be(2, "restaurar pide la lista una vez más, no dos");
+    }
+
+    [Fact]
+    public void Centros_con_vista_recordada_pide_la_lista_de_fabrica_y_despues_la_recordada()
+    {
+        ConVistaRecordada(PantallasConVistaRecordada.Centros, ("estado", "Vencido"), ("agrupar", "no"));
+        _mediador.LecturaRetenida = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var cut = Renderizar<Centros>("centros");
+
+        LaLecturaDeLoRecordadoEstaEnVuelo(cut);
+        Cargas<ObtenerCentrosQuery>().Should().Be(1, "la lista de fábrica no espera a la lectura de lo recordado");
+        Ultima<ObtenerCentrosQuery>().Estados.Should().BeNull();
+
+        _mediador.LecturaRetenida.SetResult();
+
+        cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().ContainKey("estado"));
+        cut.WaitForAssertion(() => Ultima<ObtenerCentrosQuery>().Estados.Should().Equal(EstadoCentro.Vencido));
+        Cargas<ObtenerCentrosQuery>().Should().Be(2, "restaurar pide la lista una vez más, no dos");
+    }
+
+    /// <summary>Una lectura que falla no deja la lista sin cargar ni toca la URL: queda la de fábrica, pedida una vez.</summary>
+    [Fact]
+    public void Vehiculos_si_la_lectura_de_lo_recordado_falla_queda_la_lista_de_fabrica()
+    {
+        ConVistaRecordada(PantallasConVistaRecordada.Vehiculos, ("estado", "Vencido"));
+        _mediador.FalloDeLectura = new InvalidOperationException("la base no responde");
+
+        var cut = Renderizar<Vehiculos>("vehiculos");
+
+        cut.WaitForAssertion(() => Cargas<ObtenerVehiculosQuery>().Should().Be(1));
+        _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().HaveCount(1, "control: la lectura se intentó");
+        ParametrosDeLaUrl().Should().BeEmpty();
+        Ultima<ObtenerVehiculosQuery>().EstadoDocumental.Should().BeNull();
+    }
+
+    [Fact]
+    public void Centros_si_la_lectura_de_lo_recordado_falla_queda_la_lista_de_fabrica()
+    {
+        ConVistaRecordada(PantallasConVistaRecordada.Centros, ("estado", "Vencido"));
+        _mediador.FalloDeLectura = new InvalidOperationException("la base no responde");
+
+        var cut = Renderizar<Centros>("centros");
+
+        cut.WaitForAssertion(() => Cargas<ObtenerCentrosQuery>().Should().Be(1));
+        _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().HaveCount(1, "control: la lectura se intentó");
+        ParametrosDeLaUrl().Should().BeEmpty();
+        Ultima<ObtenerCentrosQuery>().Estados.Should().BeNull();
     }
 }
