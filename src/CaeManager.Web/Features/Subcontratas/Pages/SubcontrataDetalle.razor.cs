@@ -596,10 +596,26 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     {
         if (_drawerDocumento is null) return Task.CompletedTask;
 
-        return documento.DocumentoId is { } documentoId
-            ? _drawerDocumento.AbrirEditarAsync(documentoId)
-            : _drawerDocumento.AbrirCrearParaFaltanteAsync(trabajadorId, documento.TipoDocumentoId);
+        return _drawerDocumento.AbrirSerieAsync(SerieDeDocumentos, PasoDe(trabajadorId, documento));
     }
+
+    private static PasoSerieDocumento PasoDe(Guid trabajadorId, DocumentoRequeridoDto documento) =>
+        PasoSerieDocumento.DeFila(documento.DocumentoId, AmbitoAplicacion.Trabajador, trabajadorId, documento.TipoDocumentoId);
+
+    /// <summary>Del peor estado al mejor: el orden en que cada Trabajador despliega su documentación.</summary>
+    private static IEnumerable<DocumentoRequeridoDto> DocumentosOrdenados(TrabajadorDocumentacionSubcontrataDto trabajador) =>
+        trabajador.Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado));
+
+    /// <summary>
+    /// «Guardar y siguiente»: los documentos que piden «Renovar» o «Subir», en el orden en que la lista los pinta
+    /// (Trabajador a Trabajador con el filtro puesto, y dentro de cada uno del peor estado al mejor).
+    /// </summary>
+    private IReadOnlyList<PasoSerieDocumento> SerieDeDocumentos =>
+        TrabajadoresFiltrados
+            .SelectMany(t => DocumentosOrdenados(t)
+                .Where(d => PasoSerieDocumento.EsDeSerie(d.Estado))
+                .Select(d => PasoDe(t.TrabajadorId, d)))
+            .ToList();
 
     private async Task ManejarDocumentoGuardadoAsync()
     {
