@@ -47,7 +47,11 @@ public partial class ClientesListaGen2Tests
         var marta = GestorCae("Marta Ibarra");
         var recordada = new Dictionary<string, string>
         {
-            ["q"] = "Refri", ["critico"] = "true", ["gestor"] = marta.Id.ToString(), ["estado"] = "Vencido", ["orden"] = "cliente-desc",
+            ["q"] = "Refri",
+            ["critico"] = "true",
+            ["gestor"] = marta.Id.ToString(),
+            ["estado"] = "Vencido",
+            ["orden"] = "cliente-desc",
         };
         var mediador = ConVistaRecordada(JsonSerializer.Serialize(recordada));
 
