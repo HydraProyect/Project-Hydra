@@ -24,9 +24,9 @@ public class EliminarFiltroGuardadoCommandHandlerTests
     }
 
     /// <summary>
-    /// No hay filtro de tenant ni de agregado que lo impida solo (FiltroGuardado
-    /// es Entity, no EntidadConTenant) — la comprobación de dueño vive en el
-    /// propio handler. Este test protege justo eso.
+    /// El filtro global de EF y RLS acotan por Tenant, no por usuario: dentro de
+    /// un mismo Tenant, lo único que impide borrar el filtro de otro es la
+    /// comprobación de dueño del propio handler. Este test protege justo eso.
     /// </summary>
     [Fact]
     public async Task Un_usuario_no_puede_eliminar_el_filtro_de_otro()
