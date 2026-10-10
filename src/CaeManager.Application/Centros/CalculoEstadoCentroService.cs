@@ -21,7 +21,8 @@ namespace CaeManager.Application.Centros;
 /// del Cliente empresarial (vigencia vencida y acreditación rechazada, D-7).
 /// <see cref="CausaEstadoCentro.PendienteEnPlataforma"/> marca un documento que vale pero está sin subir o sin validar en la
 /// plataforma CAE de ese Centro (<see cref="ReglaPendienteEnPlataforma"/>, decisión del 2026-10-10): pone el Centro en
-/// <see cref="EstadoCentro.Pendiente"/> y bloquea a personas en ese Centro, nunca el Centro entero.
+/// <see cref="EstadoCentro.Pendiente"/> sea cual sea el tipo, y bloquea a personas en ese Centro (nunca el Centro entero) solo
+/// si el Centro marca el tipo con <c>BloqueaAcceso</c> (<see cref="IEvaluacionDeAccesoPorCentroService"/>).
 /// Solo se generan causas para lo que efectivamente aporta al peor caso —
 /// nada Vigente aparece aquí, igual que ObtenerAlertasQuery no lista
 /// Documentos al día.
@@ -271,9 +272,10 @@ public class CalculoEstadoCentroService(
     /// <para>
     /// Solo <c>Rechazada</c>. Pendiente de subir y Subida (esperando respuesta)
     /// no son un «no» de la plataforma y no ponen el Centro en Bloqueado: desde
-    /// el 2026-10-10 son su propia causa, <see cref="EstadoCentro.Pendiente"/>,
-    /// que bloquea a personas en ese Centro
-    /// (<see cref="AgregarCausasPendientesEnPlataformaAsync"/>).
+    /// el 2026-10-10 son su propia causa, <see cref="EstadoCentro.Pendiente"/>
+    /// (<see cref="AgregarCausasPendientesEnPlataformaAsync"/>), que bloquea a
+    /// personas en ese Centro solo si el Centro marca el tipo con
+    /// <c>BloqueaAcceso</c>.
     /// Rechazar reinicia la vigencia en plataforma, así que esta causa y la de
     /// vigencia vencida nunca cuentan la misma acreditación dos veces; renovar el
     /// documento reinicia la acreditación a Pendiente y retira el bloqueo.
@@ -366,7 +368,9 @@ public class CalculoEstadoCentroService(
     /// Un documento que todavía vale en TALVEG y que en la plataforma CAE de ESTE Centro está sin subir o subido sin
     /// validar (<see cref="ReglaPendienteEnPlataforma"/>, decisión del propietario, 2026-10-10) pone el Centro en
     /// <see cref="EstadoCentro.Pendiente"/>. No es <see cref="CausaEstadoCentro.Bloqueante"/>: el Centro no queda Bloqueado;
-    /// quien queda bloqueado es la persona, en ese Centro (<see cref="IEvaluacionDeAccesoPorCentroService"/>).
+    /// quien queda bloqueado es la persona, en ese Centro, y solo si el Centro marca el tipo con <c>BloqueaAcceso</c>
+    /// (<see cref="IEvaluacionDeAccesoPorCentroService"/>). Esta causa sale para cualquier tipo que le aplique al Centro: una
+    /// ISO opcional pendiente pone el Centro en «Pendiente» aunque no bloquee a nadie.
     ///
     /// <para>
     /// Mismo contexto que el rechazo: solo accesos de tipo Plataforma de este Centro (un Centro sin plataforma nunca tiene

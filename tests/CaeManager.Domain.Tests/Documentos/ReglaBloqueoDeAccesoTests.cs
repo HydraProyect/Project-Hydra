@@ -297,6 +297,79 @@ public class ReglaBloqueoDeAccesoTests
         ReglaBloqueoDeAcceso.AmbitoPuedeBloquear(ambito).Should().Be(puede);
     }
 
+    // ── Pendiente en la plataforma (decisión del propietario del 2026-10-10, corregida el mismo día) ──────────────
+    // Bloquea SOLO si el Centro marca el tipo con BloqueaAcceso: sin la marca no hay requisito bloqueante evaluado
+    // (null) y el pendiente no bloquea a nadie.
+
+    private static readonly ResultadoDeRequisito CumplidoVigente = new(SituacionDeRequisitoBloqueante.Cumplido, Hoy.AddYears(1), null);
+
+    [Theory]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir, SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma)]
+    [InlineData(EstadoAcreditacion.Subida, SituacionDeRequisitoBloqueante.SinValidarEnPlataforma)]
+    public void Un_RNT_bloqueante_cumplido_pero_pendiente_en_la_plataforma_bloquea_y_dice_que_le_falta(
+        EstadoAcreditacion estado, SituacionDeRequisitoBloqueante esperada)
+    {
+        var resultado = ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma(CumplidoVigente, estado);
+
+        resultado.Should().NotBeNull("el Centro marca el tipo como bloqueante: hay requisito al que aplicarle el pendiente");
+        resultado!.Value.Situacion.Should().Be(esperada);
+        ReglaBloqueoDeAcceso.Bloquea(resultado.Value.Situacion).Should().BeTrue();
+        ReglaBloqueoDeAcceso.EsPendienteEnPlataforma(resultado.Value.Situacion).Should().BeTrue();
+        resultado.Value.EnToleranciaHasta.Should().BeNull("el pendiente no tiene tolerancia");
+        resultado.Value.VencimientoEfectivo.Should().Be(CumplidoVigente.VencimientoEfectivo);
+    }
+
+    [Theory]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir)]
+    [InlineData(EstadoAcreditacion.Subida)]
+    public void Una_ISO_opcional_pendiente_en_la_plataforma_no_bloquea_porque_el_Centro_no_la_marca_bloqueante(EstadoAcreditacion estado)
+    {
+        ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma(requisitoBloqueante: null, estado)
+            .Should().BeNull("sin BloqueaAcceso en el Centro no hay requisito bloqueante y el pendiente no bloquea a nadie");
+    }
+
+    [Theory]
+    [InlineData(SituacionDeRequisitoBloqueante.Ausente)]
+    [InlineData(SituacionDeRequisitoBloqueante.Vencido)]
+    public void Un_requisito_ausente_o_vencido_conserva_su_causa_mas_grave_aunque_haya_un_pendiente(SituacionDeRequisitoBloqueante grave)
+    {
+        var requisito = new ResultadoDeRequisito(grave, null, null);
+
+        ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma(requisito, EstadoAcreditacion.PendienteDeSubir)
+            .Should().Be(requisito);
+    }
+
+    [Fact]
+    public void Un_documento_en_tolerancia_no_llega_como_pendiente_a_la_regla_de_bloqueo()
+    {
+        // AplicarPendienteEnPlataforma solo recibe pendientes que ya pasaron ReglaPendienteEnPlataforma.CuentaEnElCentro, que
+        // excluye En tolerancia, Vencido y Faltante: esos ya son causa más grave y no se rotulan como Pendiente.
+        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, EstadoDocumento.EnTolerancia).Should().BeFalse();
+        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, EstadoDocumento.Vencido).Should().BeFalse();
+        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, EstadoDocumento.Faltante).Should().BeFalse();
+        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, EstadoDocumento.SinConfirmar).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(EstadoAcreditacion.Aceptada)]
+    [InlineData(EstadoAcreditacion.NoRequerida)]
+    [InlineData(EstadoAcreditacion.Rechazada)]
+    public void Una_acreditacion_validada_no_requerida_o_rechazada_no_es_un_pendiente(EstadoAcreditacion estado)
+    {
+        // Rechazada no es Pendiente: es causa propia del Centro (D-7, CalculoEstadoCentroService), no de esta regla.
+        ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma(CumplidoVigente, estado).Should().Be(CumplidoVigente);
+    }
+
+    [Fact]
+    public void Cada_situacion_del_enum_esta_decidida()
+    {
+        // Una situación nueva hay que decidirla en Bloquea, en EsPendienteEnPlataforma y en TextoBloqueoDeAcceso (Web).
+        Enum.GetValues<SituacionDeRequisitoBloqueante>().Where(s => !ReglaBloqueoDeAcceso.Bloquea(s))
+            .Should().Equal(SituacionDeRequisitoBloqueante.Cumplido);
+        Enum.GetValues<SituacionDeRequisitoBloqueante>().Where(ReglaBloqueoDeAcceso.EsPendienteEnPlataforma).Should().Equal(
+            SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma, SituacionDeRequisitoBloqueante.SinValidarEnPlataforma);
+    }
+
     [Fact]
     public void Cada_ambito_del_enum_esta_decidido_en_la_tabla()
     {

@@ -26,8 +26,9 @@ public readonly record struct DocumentoParaBloqueo(
 /// contexto (<c>PendientesEnPlataformaDeCentros</c>): de un Trabajador (<paramref name="TrabajadorId"/>) o de una Empresa
 /// (<paramref name="EmpresaId"/>).
 /// </summary>
+/// <param name="EstadoAcreditacion">Sin subir o subido sin validar: dice cuál de las dos situaciones de pendiente es.</param>
 public readonly record struct PendienteParaBloqueo(
-    Guid CentroId, Guid? TrabajadorId, Guid? EmpresaId, Guid TipoDocumentoId);
+    Guid CentroId, Guid? TrabajadorId, Guid? EmpresaId, Guid TipoDocumentoId, EstadoAcreditacion EstadoAcreditacion);
 
 /// <summary>
 /// Un requisito bloqueante evaluado para un Trabajador en un Centro, bloquee o no. Lleva la tolerancia con la que se
@@ -61,9 +62,11 @@ public record BloqueoDeAccesoDeTrabajador(
 /// Empresa que C exige. Un requisito de Empresa que C no exige no bloquea en C.</item>
 /// <item>Un Trabajador sin ningún documento está bloqueado en los Centros que exigen algo: no hay «alta nueva» exenta.</item>
 /// <item>Pendiente en la plataforma CAE de C (decisión 2026-10-10): un documento de Trabajador sin subir o sin validar allí
-/// bloquea a ese Trabajador en C; uno de Empresa, a todos los Trabajadores de esa Empresa asignados a C. Aunque el tipo no
-/// sea bloqueante en C, y sin tolerancia. Si el tipo sí es bloqueante en C y ya bloquea por ausente o vencido, manda esa
-/// situación; si lo cumple, el requisito pasa a <see cref="SituacionDeRequisitoBloqueante.PendienteEnPlataforma"/>.</item>
+/// bloquea a ese Trabajador en C; uno de Empresa, a todos los Trabajadores de esa Empresa asignados a C. <b>Solo si C marca
+/// el tipo como bloqueante</b> (<see cref="TipoDocumentoCentro.BloqueaAcceso"/>): un tipo que C no marca no bloquea aunque
+/// esté pendiente. Sin tolerancia. Si el requisito ya bloquea por ausente o vencido, manda esa situación; si lo cumple, pasa
+/// a <see cref="SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma"/> o
+/// <see cref="SituacionDeRequisitoBloqueante.SinValidarEnPlataforma"/>.</item>
 /// </list>
 /// </summary>
 public static class CalculoBloqueoDeAccesoDeTrabajadores
@@ -138,9 +141,10 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
 
     /// <summary>
     /// Los pendientes en la plataforma del Centro que afectan a esta Asignación: los del propio Trabajador y los de su
-    /// Empresa. Una sola fila por (Centro, Trabajador, Tipo): si el tipo ya se evaluó como requisito bloqueante, un
-    /// cumplido pasa a pendiente y un ausente o vencido se queda como está (ya bloquea y es lo más urgente); si no, se
-    /// añade el pendiente, sin tolerancia.
+    /// Empresa. Solo bloquean donde el Centro marca el tipo como bloqueante (corrección del propietario, 2026-10-10): se
+    /// aplican sobre la fila ya evaluada del requisito bloqueante (<see cref="ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma"/>),
+    /// y un pendiente sin esa fila —tipo sin <c>BloqueaAcceso</c> en el Centro— no añade nada. Una sola fila por (Centro,
+    /// Trabajador, Tipo), por construcción.
     /// </summary>
     private static void AplicarPendientesEnPlataforma(
         AsignacionParaBloqueo asignacion, IEnumerable<PendienteParaBloqueo> pendientesDelCentro, List<RequisitoEvaluado> resultado,
@@ -149,35 +153,29 @@ public static class CalculoBloqueoDeAccesoDeTrabajadores
         foreach (var pendiente in pendientesDelCentro)
         {
             AmbitoAplicacion ambito;
-            Guid? empresaId;
             if (pendiente.TrabajadorId is { } trabajadorId)
             {
                 if (trabajadorId != asignacion.TrabajadorId) continue;
                 ambito = AmbitoAplicacion.Trabajador;
-                empresaId = null;
             }
             else if (pendiente.EmpresaId is { } empresaDelPendiente && empresaDelPendiente == asignacion.EmpresaDelTrabajadorId)
             {
                 ambito = AmbitoAplicacion.Empresa;
-                empresaId = empresaDelPendiente;
             }
             else
             {
                 continue;
             }
 
-            var comoPendiente = new ResultadoDeRequisito(SituacionDeRequisitoBloqueante.PendienteEnPlataforma, null, null);
             // Las filas de esta Asignación son las últimas añadidas: se busca solo entre ellas.
-            var indice = resultado.FindIndex(inicioDeLaAsignacion, r => r.TipoDocumentoId == pendiente.TipoDocumentoId);
-            if (indice < 0)
-            {
-                resultado.Add(new RequisitoEvaluado(
-                    asignacion.CentroId, asignacion.TrabajadorId, pendiente.TipoDocumentoId, ambito, empresaId, comoPendiente, ToleranciaDias: 0));
-            }
-            else if (resultado[indice].Resultado.Situacion == SituacionDeRequisitoBloqueante.Cumplido)
-            {
-                resultado[indice] = resultado[indice] with { Resultado = comoPendiente, ToleranciaDias = 0 };
-            }
+            var indice = resultado.FindIndex(
+                inicioDeLaAsignacion, r => r.TipoDocumentoId == pendiente.TipoDocumentoId && r.Ambito == ambito);
+            var requisitoBloqueante = indice < 0 ? (ResultadoDeRequisito?)null : resultado[indice].Resultado;
+            if (ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma(requisitoBloqueante, pendiente.EstadoAcreditacion) is not { } aplicado)
+                continue;
+
+            if (aplicado != resultado[indice].Resultado)
+                resultado[indice] = resultado[indice] with { Resultado = aplicado, ToleranciaDias = 0 };
         }
     }
 }
