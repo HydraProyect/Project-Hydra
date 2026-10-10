@@ -21,9 +21,11 @@ namespace CaeManager.Architecture.Tests;
 /// (<see cref="AnalisisDeSuiteE2E.EsperasFijas"/>): cuenta invocaciones <c>….WaitForTimeoutAsync(…)</c>,
 /// <c>Task.Delay(…)</c> y <c>Thread.Sleep(…)</c>. NO ve: una espera envuelta en un ayudante (el <c>Task.Delay</c> cuenta una
 /// vez, en el ayudante, por muchas veces que se le llame; los bucles de sondeo de <c>Ayudas.cs</c> son eso mismo);
-/// <c>Delay(…)</c> a secas tras un <c>using static</c> de <c>Task</c>; un alias de tipo; ni un tiempo de espera fijo pasado
-/// por opciones (<c>SlowMo</c>, un <c>Timeout</c> generoso que siempre se agota). Tampoco mide la duración: una espera de
-/// 50 ms y una de 6 s cuentan igual.
+/// <c>Delay(…)</c> a secas tras un <c>using static</c> de <c>Task</c>; un alias de tipo; un grupo de método pasado como
+/// delegado (<c>Func&lt;int, Task&gt; esperar = Task.Delay;</c> no es una invocación, y la llamada <c>esperar(500)</c>
+/// tampoco lleva el nombre); el texto dentro de un <c>#if</c> cuyo símbolo no esté definido (el análisis no define
+/// ninguno); ni un tiempo de espera fijo pasado por opciones (<c>SlowMo</c>, un <c>Timeout</c> generoso que siempre se
+/// agota). Tampoco mide la duración: una espera de 50 ms y una de 6 s cuentan igual.
 /// </para>
 /// </summary>
 public class EsperasFijasDeE2ECongeladasTests

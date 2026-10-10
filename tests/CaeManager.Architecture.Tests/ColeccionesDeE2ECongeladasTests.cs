@@ -18,6 +18,15 @@ namespace CaeManager.Architecture.Tests;
 /// </list>
 ///
 /// <para>
+/// <b>La unidad es la clase por nombre completo</b> (espacio de nombres, clases contenedoras, nombre y aridad genérica),
+/// que es la que ve xUnit y la que cuenta un reparto por clases. Las declaraciones <c>partial</c> de una misma clase,
+/// repartidas en los ficheros que sea, se unen: es clase de test si alguna parte declara o hereda tests, y cumple si entre
+/// todas hay exactamente un <c>[Collection("Nombre")]</c> canónico. El atributo va en una sola parte (repetirlo no
+/// compila, CS0579) y vale para las demás; el mensaje cita la parte que lo lleva —o la primera, si no lo lleva ninguna— y
+/// enumera las otras. Una declaración sin <c>partial</c> no se une a ninguna otra, aunque coincida en nombre.
+/// </para>
+///
+/// <para>
 /// <b>Nombres por igualdad exacta</b> (ordinal), nunca por prefijo ni por <c>Contains</c>: <c>AppCollection</c> es prefijo
 /// de las otras trece.
 /// </para>
@@ -28,7 +37,9 @@ namespace CaeManager.Architecture.Tests;
 /// método con <c>[Fact]</c>, <c>[Theory]</c>, <c>[SkippableFact]</c>, <c>[SkippableTheory]</c> o un atributo de ese mismo
 /// árbol que herede de ellos (<c>[TeoriaConMockups]</c>), o la que hereda de una clase del árbol que los declara. NO ve:
 /// una clase base o un atributo de test definidos en otro ensamblado; la herencia cuando dos clases comparten nombre simple
-/// (se toma por heredera, que es el lado seguro); ni un alias de <c>using</c> para el atributo. Tampoco comprueba que la
+/// (se toma por heredera, que es el lado seguro); un alias de <c>using</c> para el atributo; ni el texto dentro de un
+/// <c>#if</c> cuyo símbolo no esté definido (el análisis no define ninguno: una clase de test o un atributo escritos ahí
+/// no existen para la guarda, y sí los de la rama <c>#else</c>). Tampoco comprueba que la
 /// colección elegida sea la adecuada, ni que el fixture de una definición arranque de verdad la aplicación: congela
 /// nombres, no costes.
 /// </para>
@@ -82,7 +93,8 @@ public class ColeccionesDeE2ECongeladasTests
     private const string GuiaDeClases =
         "Toda clase de test de E2E lleva [Collection(\"Nombre\")] sobre la PROPIA clase, sola en sus corchetes, con el nombre " +
         "entre comillas (ni constante, ni nameof, ni heredado de la clase base) y con el nombre exacto de una " +
-        "[CollectionDefinition] existente. Un reparto del job E2E en bloques que lee ese literal no ve ninguna otra forma: la " +
+        "[CollectionDefinition] existente. En una clase partial va en UNA sola de sus partes y vale para todas (puede estar " +
+        "en otro fichero que el de los tests: el mensaje enumera las partes). Un reparto del job E2E en bloques que lee ese literal no ve ninguna otra forma: la " +
         "clase no entra en ningún bloque y sus tests dejan de ejecutarse sin ningún rojo. OBSOLETA: borra la clase de " +
         "ClasesSinColeccionCongeladas (ColeccionesDeE2ECongeladasTests); esa lista solo baja.";
 
@@ -108,8 +120,10 @@ public class ColeccionesDeE2ECongeladasTests
         // Control positivo independiente de las listas: sin clases ni tests localizados, «todas llevan colección» valdría por vacío.
         var suite = AnalisisDeSuiteE2E.Colecciones(AnalisisDeSuiteE2E.LeerE2E());
 
+        // Clases, no declaraciones: las partes de una partial cuentan una vez, y sus métodos se suman.
         suite.Clases.Should().HaveCountGreaterThan(60, "había 77 clases de test en E2E al escribirlo; si baja de golpe, dejó de mirar");
         suite.Clases.Sum(c => c.TestsPropios).Should().BeGreaterThan(150, "había 204 métodos de test al escribirlo");
+        suite.Clases.Should().OnlyContain(c => c.Partes.Count >= 1 && c.Partes.Any(p => p.Ruta == c.Ruta && p.Linea == c.Linea));
         suite.Clases.Count(c => c.Via == ViaDeColeccion.Literal).Should().BeGreaterThan(60);
         suite.Definiciones.Should().HaveCountGreaterThan(10);
     }
@@ -149,7 +163,12 @@ public class ColeccionesDeE2ECongeladasTests
 
         foreach (var c in suite.Clases.OrderBy(c => c.Ruta, StringComparer.Ordinal).ThenBy(c => c.Linea))
         {
-            var donde = $"{c.Ruta}:{c.Linea}  {c.Nombre}" + (c.HeredaDe is null ? string.Empty : $" (hereda tests de {c.HeredaDe})");
+            var variasPartes = c.Partes.Count > 1;
+            var donde = $"{c.Ruta}:{c.Linea}  {c.Nombre}"
+                + (c.HeredaDe is null ? string.Empty : $" (hereda tests de {c.HeredaDe})")
+                + (variasPartes
+                    ? $" (clase partial en {c.Partes.Count} partes: {string.Join(", ", c.Partes.Select(p => $"{p.Ruta}:{p.Linea}"))}; el atributo va en una sola y vale para todas)"
+                    : string.Empty);
 
             switch (c.Via)
             {
@@ -161,6 +180,7 @@ public class ColeccionesDeE2ECongeladasTests
                     break;
                 case ViaDeColeccion.SinAtributo when !consentidas.Contains(c.Nombre):
                     desvios.Add($"SIN COLECCIÓN {donde}: la clase no lleva [Collection(\"…\")] propio" +
+                                (variasPartes ? " en ninguna de sus partes" : string.Empty) +
                                 (c.HeredaDe is null ? string.Empty : "; el de la clase base no se lee en esta"));
                     break;
             }
@@ -342,14 +362,159 @@ public class ColeccionesDeE2ECongeladasTests
         suite.Clases.Select(c => c.Nombre).Should().Equal("ConPropia", "ConNieta");
     }
 
+    // ───────────── clases partial: la unidad es la clase por nombre completo, no la declaración ─────────────
+
     [Fact]
-    public void Cada_parte_de_una_clase_parcial_que_declara_tests_necesita_su_propio_atributo()
+    public void Las_partes_de_una_clase_parcial_son_una_sola_clase_con_el_atributo_de_cualquiera_de_ellas()
     {
         var suite = Analizar(
-            "[Collection(\"Uno\")] public partial class Partida { private int _x; }",
+            Definiciones,
+            """
+            namespace E2E;
+
+            public partial class Partida
+            {
+                [Fact] public void EnLaParteSinAtributo() { }
+            }
+            """,
+            """
+            namespace E2E;
+
+            /// <summary>La parte que lleva el constructor y la colección.</summary>
+            [Collection("Uno")]
+            public partial class Partida(Arranque a)
+            {
+                [Fact] public void A() { }
+                [Fact] public void B() { }
+            }
+            """);
+
+        var clase = suite.Clases.Should().ContainSingle("dos declaraciones partial con el mismo nombre completo son una clase").Subject;
+
+        clase.Via.Should().Be(ViaDeColeccion.Literal);
+        clase.Coleccion.Should().Be("Uno");
+        clase.TestsPropios.Should().Be(3, "los tests de todas las partes se suman");
+        clase.Nombre.Should().Be("Partida");
+        clase.NombreCompleto.Should().Be("E2E.Partida");
+        (clase.Ruta, clase.Linea).Should().Be(("sintetico/F2.cs", 5), "se cita la parte que lleva el atributo, aunque no sea la primera");
+        clase.Partes.Should().Equal(new ParteDeClase("sintetico/F1.cs", 3), new ParteDeClase("sintetico/F2.cs", 5));
+        DesviosDeClases(suite, []).Should().BeEmpty("el atributo de una parte vale para la otra: ponerlo en las dos no compila");
+    }
+
+    [Fact]
+    public void Una_clase_parcial_cumple_aunque_todos_sus_tests_esten_en_la_parte_sin_atributo()
+    {
+        var suite = Analizar(
+            Definiciones,
+            "[Collection(\"Uno\")] public partial class Partida(Arranque a) { private int _x; }",
             "public partial class Partida { [Fact] public void M() { } }");
 
-        suite.Clases.Should().ContainSingle().Which.Should().Match<ClaseDeTest>(c => c.Via == ViaDeColeccion.SinAtributo && c.Ruta == "sintetico/F1.cs");
+        suite.Clases.Should().ContainSingle()
+            .Which.Should().Match<ClaseDeTest>(c => c.Via == ViaDeColeccion.Literal && c.Coleccion == "Uno" && c.TestsPropios == 1 && c.Ruta == "sintetico/F1.cs" && c.Partes.Count == 2);
+        DesviosDeClases(suite, []).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Una_clase_parcial_sin_atributo_en_ninguna_parte_es_una_sola_clase_sin_coleccion()
+    {
+        var suite = Analizar(
+            Definiciones,
+            "public partial class Partida(Arranque a) { [Fact] public void A() { } }",
+            "public partial class Partida { [Fact] public void B() { } }");
+
+        suite.Clases.Should().ContainSingle()
+            .Which.Should().Match<ClaseDeTest>(c => c.Via == ViaDeColeccion.SinAtributo && c.Coleccion == null && c.TestsPropios == 2 && c.Ruta == "sintetico/F1.cs");
+
+        DesviosDeClases(suite, []).Should().ContainSingle("una clase, un desvío: no uno por parte")
+            .Which.Should().StartWith("SIN COLECCIÓN")
+            .And.Contain("sintetico/F1.cs:1  Partida", "sin atributo se cita la primera parte")
+            .And.Contain("clase partial en 2 partes: sintetico/F1.cs:1, sintetico/F2.cs:1")
+            .And.Contain("en ninguna de sus partes");
+        DesviosDeClases(suite, ["Partida"]).Should().BeEmpty("la lista consiente la clase, y sus dos partes son una clase y no dos homónimas");
+    }
+
+    [Theory]
+    [InlineData("[Collection(Nombres.Uno)]", "", "[Collection(Nombres.Uno)]")]
+    [InlineData("[Collection(nameof(ColUno))]", "", "[Collection(nameof(ColUno))]")]
+    [InlineData("[Collection(\"Uno\")]", "[Collection(\"Uno\")]", "[Collection(\"Uno\")] [Collection(\"Uno\")]")]
+    [InlineData("[Collection(\"Uno\")]", "[Collection(\"UnoLargo\")]", "[Collection(\"Uno\")] [Collection(\"UnoLargo\")]")]
+    [InlineData("[Collection(\"Uno\")]", "[Collection(Nombres.Uno)]", "[Collection(\"Uno\")] [Collection(Nombres.Uno)]")]
+    public void Un_atributo_no_literal_o_repetido_en_cualquier_parte_de_una_parcial_se_detecta_como_no_literal(
+        string sobreLaParteSinTests, string sobreLaParteConTests, string escrito)
+    {
+        var suite = Analizar(
+            Definiciones,
+            $"{sobreLaParteSinTests} public partial class Partida(Arranque a) {{ private int _x; }}",
+            $"{sobreLaParteConTests} public partial class Partida {{ [Fact] public void M() {{ }} }}");
+
+        var clase = suite.Clases.Should().ContainSingle().Subject;
+
+        clase.Via.Should().Be(ViaDeColeccion.NoLiteral, "tiene que haber exactamente un atributo canónico entre todas las partes");
+        clase.Coleccion.Should().Be(escrito);
+        clase.Ruta.Should().Be("sintetico/F1.cs", "se cita la parte que lleva el atributo, aunque los tests estén en la otra");
+
+        DesviosDeClases(suite, []).Should().ContainSingle()
+            .Which.Should().StartWith("NO LITERAL").And.Contain("sintetico/F1.cs:1  Partida").And.Contain("sintetico/F2.cs:1").And.Contain(escrito);
+    }
+
+    [Fact]
+    public void Las_partes_se_unen_por_espacio_de_nombres_clases_contenedoras_nombre_y_aridad_generica()
+    {
+        var suite = Analizar(
+            "namespace A; [Collection(\"Uno\")] public partial class G<T> { [Fact] public void M() { } }",
+            "namespace A { public partial class G<TOtroNombre> { [Fact] public void N() { } } }",
+            "namespace A; public partial class G { [Fact] public void SinParametros() { } }",
+            "namespace A; public partial class G<T, U> { [Fact] public void DosParametros() { } }",
+            "namespace B; public partial class G<T> { [Fact] public void OtroEspacio() { } }",
+            "namespace A.Sub; [Collection(\"Uno\")] public partial class Ext<T> { public partial class Int { [Fact] public void M() { } } }",
+            "namespace A { namespace Sub { public partial class Ext<T> { public partial class Int { [Fact] public void N() { } } } } }",
+            "namespace A.Sub; public partial class OtraExt { public partial class Int { [Fact] public void OtraContenedora() { } } }");
+
+        suite.Clases.Select(c => (c.NombreCompleto, c.Nombre, c.Via, c.TestsPropios, c.Partes.Count)).Should().Equal(
+            ("A.G`1", "G", ViaDeColeccion.Literal, 2, 2),
+            ("A.G", "G", ViaDeColeccion.SinAtributo, 1, 1),
+            ("A.G`2", "G", ViaDeColeccion.SinAtributo, 1, 1),
+            ("B.G`1", "G", ViaDeColeccion.SinAtributo, 1, 1),
+            ("A.Sub.Ext`1.Int", "Ext.Int", ViaDeColeccion.SinAtributo, 2, 2),
+            ("A.Sub.OtraExt.Int", "OtraExt.Int", ViaDeColeccion.SinAtributo, 1, 1));
+    }
+
+    [Fact]
+    public void Dos_clases_no_parciales_con_el_mismo_nombre_no_se_unen_y_la_lista_sigue_viendolas_ambiguas()
+    {
+        const string fact = "{ [Fact] public void M() { } }";
+        var suite = Analizar(
+            Definiciones,
+            $"namespace A; [Collection(\"Uno\")] public class Doble {fact}",
+            $"namespace B; public class Doble {fact}",
+            $"namespace A; public class Doble {fact}",
+            $"namespace A; public partial class Doble {fact}");
+
+        suite.Clases.Select(c => (c.NombreCompleto, c.Ruta, c.Via, c.Partes.Count)).Should().Equal(
+            ("A.Doble", "sintetico/F1.cs", ViaDeColeccion.Literal, 1),
+            ("B.Doble", "sintetico/F2.cs", ViaDeColeccion.SinAtributo, 1),
+            ("A.Doble", "sintetico/F3.cs", ViaDeColeccion.SinAtributo, 1),
+            ("A.Doble", "sintetico/F4.cs", ViaDeColeccion.SinAtributo, 1));
+
+        DesviosDeClases(suite, []).Should().HaveCount(3, "la colección de una Doble no cubre a ninguna de las otras tres")
+            .And.OnlyContain(d => d.StartsWith("SIN COLECCIÓN", StringComparison.Ordinal) && !d.Contains("partial"));
+        DesviosDeClases(suite, ["Doble"]).Should().ContainSingle()
+            .Which.Should().StartWith("AMBIGUA").And.Contain("3 clases de test sin colección");
+    }
+
+    [Fact]
+    public void En_una_clase_parcial_abstract_y_la_clase_base_valen_las_escriba_la_parte_que_las_escriba()
+    {
+        var suite = Analizar(
+            Definiciones + "public abstract class Base { [Fact] public void Heredado() { } }",
+            "public abstract partial class Molde { [Fact] public void M() { } }",
+            "public partial class Molde { [Fact] public void N() { } }",
+            "[Collection(\"Uno\")] public partial class Heredera { }",
+            "public partial class Heredera : Base { }");
+
+        suite.Clases.Select(c => (c.Nombre, c.Via, c.TestsPropios, c.HeredaDe, c.Ruta, c.Partes.Count)).Should().Equal(
+            ("Heredera", ViaDeColeccion.Literal, 0, "Base", "sintetico/F3.cs", 2));
+        DesviosDeClases(suite, []).Should().BeEmpty();
     }
 
     [Fact]

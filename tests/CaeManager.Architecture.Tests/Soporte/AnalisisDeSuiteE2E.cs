@@ -8,11 +8,12 @@ namespace CaeManager.Architecture.Tests;
 internal sealed record EsperaFija(string Simbolo, int Linea);
 
 /// <summary>
-/// Cómo recibe su colección una clase de test, <b>leído en el texto de la propia declaración</b>:
-/// <c>Literal</c> es exactamente <c>[Collection("Nombre")]</c> en una lista de atributos propia;
-/// <c>NoLiteral</c> es cualquier otra forma de escribirlo (constante, <c>nameof</c>, cadena con escapes o
-/// literal <c>@"…"</c>, argumento con nombre, <c>CollectionAttribute</c>, atributo compartiendo corchetes con
-/// otro, dos atributos <c>Collection</c>); <c>SinAtributo</c> es que la declaración no lleva ninguno.
+/// Cómo recibe su colección una clase de test, <b>leído en el texto de sus declaraciones</b> (una sola, o todas
+/// las partes de una <c>partial</c>): <c>Literal</c> es exactamente <c>[Collection("Nombre")]</c> en una lista de
+/// atributos propia, y una sola vez entre todas las partes; <c>NoLiteral</c> es cualquier otra forma de
+/// escribirlo (constante, <c>nameof</c>, cadena con escapes o literal <c>@"…"</c>, argumento con nombre,
+/// <c>CollectionAttribute</c>, atributo compartiendo corchetes con otro, dos atributos <c>Collection</c>, en la
+/// misma parte o en dos); <c>SinAtributo</c> es que ninguna declaración lleva ninguno.
 /// </summary>
 internal enum ViaDeColeccion
 {
@@ -21,11 +22,20 @@ internal enum ViaDeColeccion
     SinAtributo,
 }
 
+/// <summary>Una declaración de una clase de test: el fichero y la línea de su nombre.</summary>
+internal sealed record ParteDeClase(string Ruta, int Linea);
+
 /// <summary>
-/// Una declaración de clase que ejecuta tests. <paramref name="Coleccion"/> es el nombre si la vía es
-/// <see cref="ViaDeColeccion.Literal"/>, el texto del atributo tal como está escrito si es
-/// <see cref="ViaDeColeccion.NoLiteral"/> y <c>null</c> si no hay atributo. <paramref name="HeredaDe"/> nombra la
+/// Una clase que ejecuta tests: una declaración, o todas las declaraciones <c>partial</c> que comparten
+/// <paramref name="NombreCompleto"/>. <paramref name="Ruta"/> y <paramref name="Linea"/> son los de la parte que
+/// lleva el atributo de colección, o los de la primera si ninguna lo lleva; <paramref name="Partes"/> las enumera
+/// todas. <paramref name="Coleccion"/> es el nombre si la vía es <see cref="ViaDeColeccion.Literal"/>, el texto
+/// del atributo tal como está escrito si es <see cref="ViaDeColeccion.NoLiteral"/> y <c>null</c> si no hay
+/// atributo. <paramref name="TestsPropios"/> suma los de todas las partes. <paramref name="HeredaDe"/> nombra la
 /// clase base del mismo árbol de la que recibe tests (<c>null</c> si no hereda ninguno).
+/// <paramref name="Nombre"/> es el que se enseña y el que casa con las listas (<c>Exterior.Interior</c>);
+/// <paramref name="NombreCompleto"/> añade el espacio de nombres y la aridad genérica
+/// (<c>Espacio.Exterior`1.Interior</c>), y es lo que decide qué partes son la misma clase.
 /// </summary>
 internal sealed record ClaseDeTest(
     string Ruta,
@@ -34,7 +44,9 @@ internal sealed record ClaseDeTest(
     ViaDeColeccion Via,
     string? Coleccion,
     int TestsPropios,
-    string? HeredaDe);
+    string? HeredaDe,
+    string NombreCompleto,
+    IReadOnlyList<ParteDeClase> Partes);
 
 /// <summary>
 /// Una <c>[CollectionDefinition]</c>. <paramref name="Nombre"/> es <c>null</c> cuando el argumento no es un
@@ -56,6 +68,11 @@ internal sealed record ColeccionesDeSuite(
 /// <para>
 /// <b>Sintaxis, no semántica.</b> No hay compilación: los nombres se comparan por su texto. Por eso el contrato
 /// efectivo es más estrecho que el nombre, y cada hueco está escrito en la guarda que lo sufre.
+/// </para>
+///
+/// <para>
+/// <b>Compilación condicional.</b> El texto se analiza sin ningún símbolo definido: lo que hay dentro de un
+/// <c>#if SIMBOLO</c> no es código para ninguno de los dos detectores (sí lo es su rama <c>#else</c>).
 /// </para>
 /// </summary>
 internal static class AnalisisDeSuiteE2E
@@ -126,10 +143,14 @@ internal static class AnalisisDeSuiteE2E
     /// una clase base con tests pueden vivir en otro fichero que la clase que los usa.
     ///
     /// <para>
-    /// <b>Clase de test</b>: declaración de clase (o <c>record</c> de clase) no abstracta que declara al menos un
-    /// método con un atributo de test, o que hereda de una clase del conjunto que los tiene. La comprobación es
-    /// <b>por declaración</b>: dos clases en un fichero son dos entradas, y cada parte de una <c>partial</c> que
-    /// declare tests necesita su propio atributo (quien lee el fichero no ve el de la otra parte).
+    /// <b>Clase de test</b>: clase (o <c>record</c> de clase) no abstracta que declara al menos un método con un
+    /// atributo de test, o que hereda de una clase del conjunto que los tiene. La unidad es <b>la clase por nombre
+    /// completo</b> (espacio de nombres, clases contenedoras, nombre y aridad genérica), que es como la ve xUnit:
+    /// las declaraciones <c>partial</c> con el mismo nombre completo, estén en el fichero que estén, son una sola
+    /// entrada que suma los tests de todas sus partes, es abstracta si lo dice cualquiera de ellas y lleva el
+    /// atributo de colección que lleve cualquiera (<c>CollectionAttribute</c> no admite repetición: escribirlo en
+    /// dos partes da CS0579, así que el atributo solo puede estar en una). Dos clases en un fichero son dos
+    /// entradas, y una declaración <b>sin</b> <c>partial</c> no se une a ninguna otra aunque coincida en nombre.
     /// </para>
     /// </summary>
     public static ColeccionesDeSuite Colecciones(IEnumerable<(string Ruta, string Texto)> fuentes)
@@ -138,7 +159,7 @@ internal static class AnalisisDeSuiteE2E
             .SelectMany(f => CSharpSyntaxTree.ParseText(f.Texto).GetRoot().DescendantNodes()
                 .OfType<TypeDeclarationSyntax>()
                 .Where(EsClase)
-                .Select(t => (f.Ruta, Tipo: t)))
+                .Select(t => new Declaracion(f.Ruta, t)))
             .ToList();
 
         var atributosDeTest = CerrarPorHerencia(
@@ -163,36 +184,89 @@ internal static class AnalisisDeSuiteE2E
                 definiciones.Add(new DefinicionDeColeccion(
                     ruta, NombreCompleto(tipo), LineaDe(atributo), LiteralLlano(PrimerArgumento(atributo)), atributo.ToString()));
             }
+        }
 
-            var heredaDe = Bases(tipo).FirstOrDefault(conTests.Contains);
-            if (tipo.Modifiers.Any(SyntaxKind.AbstractKeyword) || (testsPropios[tipo] == 0 && heredaDe is null))
+        foreach (var partes in UnirParciales(tipos))
+        {
+            var tests = partes.Sum(p => testsPropios[p.Tipo]);
+            var heredaDe = partes.SelectMany(p => Bases(p.Tipo)).FirstOrDefault(conTests.Contains);
+            if (partes.Any(p => p.Tipo.Modifiers.Any(SyntaxKind.AbstractKeyword)) || (tests == 0 && heredaDe is null))
                 continue;
 
-            var (via, coleccion) = ViaDe(tipo);
-            clases.Add(new ClaseDeTest(ruta, NombreCompleto(tipo), LineaDe(tipo.Identifier), via, coleccion, testsPropios[tipo], heredaDe));
+            var (via, coleccion, conAtributo) = ViaDe(partes);
+            var cita = conAtributo ?? partes[0];
+            clases.Add(new ClaseDeTest(
+                cita.Ruta,
+                NombreCompleto(cita.Tipo),
+                LineaDe(cita.Tipo.Identifier),
+                via,
+                coleccion,
+                tests,
+                heredaDe,
+                Identidad(cita.Tipo),
+                partes.Select(p => new ParteDeClase(p.Ruta, LineaDe(p.Tipo.Identifier))).ToList()));
         }
 
         return new ColeccionesDeSuite(definiciones, clases, atributosDeTest.OrderBy(a => a, StringComparer.Ordinal).ToList());
     }
 
     /// <summary>
-    /// La forma canónica es la que lee un guion de reparto que no compila nada: una lista de atributos que es,
-    /// carácter a carácter, <c>[Collection("Nombre")]</c>. Todo lo demás que xUnit aceptaría es <c>NoLiteral</c>.
+    /// Agrupa las declaraciones en clases, en el orden de la primera parte de cada una: las <c>partial</c> con la
+    /// misma <see cref="Identidad"/> forman un grupo; toda declaración sin <c>partial</c> es un grupo ella sola,
+    /// también cuando otra declaración lleva su mismo nombre (eso no compila, y unirlas escondería una de las dos).
     /// </summary>
-    private static (ViaDeColeccion Via, string? Coleccion) ViaDe(TypeDeclarationSyntax tipo)
+    private static List<List<Declaracion>> UnirParciales(IEnumerable<Declaracion> declaraciones)
     {
-        var listas = tipo.AttributeLists.Where(l => l.Attributes.Any(a => NombreDeAtributo(a) == "Collection")).ToList();
+        var grupos = new List<List<Declaracion>>();
+        var parciales = new Dictionary<string, List<Declaracion>>(StringComparer.Ordinal);
+
+        foreach (var declaracion in declaraciones)
+        {
+            if (!declaracion.Tipo.Modifiers.Any(SyntaxKind.PartialKeyword))
+            {
+                grupos.Add([declaracion]);
+                continue;
+            }
+
+            var identidad = Identidad(declaracion.Tipo);
+            if (!parciales.TryGetValue(identidad, out var grupo))
+            {
+                grupo = [];
+                parciales.Add(identidad, grupo);
+                grupos.Add(grupo);
+            }
+
+            grupo.Add(declaracion);
+        }
+
+        return grupos;
+    }
+
+    /// <summary>
+    /// La forma canónica es la que lee un guion de reparto que no compila nada: una lista de atributos que es,
+    /// carácter a carácter, <c>[Collection("Nombre")]</c>, y <b>una sola</b> entre todas las partes de la clase.
+    /// Todo lo demás que xUnit aceptaría es <c>NoLiteral</c>. Devuelve además la parte que lleva el atributo (la
+    /// primera, si lo llevan varias) para que el mensaje cite ese fichero y no otro.
+    /// </summary>
+    private static (ViaDeColeccion Via, string? Coleccion, Declaracion? ConAtributo) ViaDe(List<Declaracion> partes)
+    {
+        var listas = partes
+            .SelectMany(p => p.Tipo.AttributeLists
+                .Where(l => l.Attributes.Any(a => NombreDeAtributo(a) == "Collection"))
+                .Select(l => (Parte: p, Lista: l)))
+            .ToList();
         if (listas.Count == 0)
-            return (ViaDeColeccion.SinAtributo, null);
+            return (ViaDeColeccion.SinAtributo, null, null);
 
-        var escrito = string.Join(" ", listas.Select(l => l.ToString()));
-        if (listas.Count != 1 || listas[0].Attributes.Count != 1)
-            return (ViaDeColeccion.NoLiteral, escrito);
+        var conAtributo = listas[0].Parte;
+        var escrito = string.Join(" ", listas.Select(l => l.Lista.ToString()));
+        if (listas.Count != 1 || listas[0].Lista.Attributes.Count != 1)
+            return (ViaDeColeccion.NoLiteral, escrito, conAtributo);
 
-        var nombre = LiteralLlano(PrimerArgumento(listas[0].Attributes[0]));
+        var nombre = LiteralLlano(PrimerArgumento(listas[0].Lista.Attributes[0]));
         return nombre is not null && escrito == $"[Collection(\"{nombre}\")]"
-            ? (ViaDeColeccion.Literal, nombre)
-            : (ViaDeColeccion.NoLiteral, escrito);
+            ? (ViaDeColeccion.Literal, nombre, conAtributo)
+            : (ViaDeColeccion.NoLiteral, escrito, conAtributo);
     }
 
     /// <summary>El valor de un literal de cadena corriente y sin escapes (<c>"X"</c>); <c>null</c> en cualquier otro caso.</summary>
@@ -256,6 +330,32 @@ internal static class AnalisisDeSuiteE2E
     /// <summary><c>Exterior.Interior</c> para una clase anidada: el nombre simple no la distinguiría de otra.</summary>
     private static string NombreCompleto(TypeDeclarationSyntax tipo) =>
         string.Join(".", tipo.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().Reverse().Select(t => t.Identifier.ValueText));
+
+    /// <summary>
+    /// El nombre que identifica a la clase como lo hace el compilador sin compilar nada: espacios de nombres (de
+    /// bloque, anidados o de fichero), tipos contenedores y nombre, cada tipo con su aridad genérica
+    /// (<c>Espacio.Sub.Exterior`1.Interior</c>). <c>T</c> y <c>T&lt;A&gt;</c> son clases distintas; <c>Doble</c> en
+    /// dos espacios de nombres, también.
+    /// </summary>
+    private static string Identidad(TypeDeclarationSyntax tipo)
+    {
+        var espacios = tipo.Ancestors().OfType<BaseNamespaceDeclarationSyntax>().Reverse().Select(e => Punteado(e.Name));
+        var tipos = tipo.AncestorsAndSelf().OfType<TypeDeclarationSyntax>().Reverse()
+            .Select(t => t.Arity == 0 ? t.Identifier.ValueText : $"{t.Identifier.ValueText}`{t.Arity}");
+
+        return string.Join(".", espacios.Concat(tipos));
+    }
+
+    /// <summary><c>A.B.C</c> a partir de los identificadores: los blancos y comentarios entre ellos no cuentan.</summary>
+    private static string Punteado(NameSyntax nombre) => nombre switch
+    {
+        QualifiedNameSyntax cualificado => $"{Punteado(cualificado.Left)}.{cualificado.Right.Identifier.ValueText}",
+        SimpleNameSyntax simple => simple.Identifier.ValueText,
+        _ => nombre.ToString(),
+    };
+
+    /// <summary>Una declaración de clase y el fichero en que está.</summary>
+    private sealed record Declaracion(string Ruta, TypeDeclarationSyntax Tipo);
 
     private static int LineaDe(SyntaxNode nodo) => nodo.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
 
