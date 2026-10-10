@@ -43,12 +43,13 @@ public class DocumentoWorkspacePanelTests : BunitContext
     {
         public required DocumentoDetalleDto Detalle { get; init; }
         public bool SinFirmas { get; init; }
+        public ValidacionOficialDocumentoDto? Validacion { get; init; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             Task.FromResult((TResponse)(request switch
             {
                 ObtenerDocumentoPorIdQuery => (object?)Detalle,
-                ObtenerValidacionOficialDocumentoQuery => null,
+                ObtenerValidacionOficialDocumentoQuery => Validacion,
                 ObtenerFirmasEnCampoDocumentoQuery => SinFirmas ? (IReadOnlyList<FirmaEnCampoDocumentoDto>)[] : (IReadOnlyList<FirmaEnCampoDocumentoDto>)
                     [new FirmaEnCampoDocumentoDto(Guid.NewGuid(), "Lucía Prieto", "GestorCae", DateTime.UtcNow, null, "hash")],
                 ObtenerFirmaGuardadaUsuarioQuery => null,
@@ -98,13 +99,39 @@ public class DocumentoWorkspacePanelTests : BunitContext
         TipoDocumentoPerfilDocumentoOficial: PerfilDocumentoOficial.Ninguno,
         EmpresaId: Guid.NewGuid());
 
-    private IRenderedComponent<DocumentoWorkspacePanel> Renderizar(DocumentoDetalleDto detalle, string pestanaActiva)
+    private IRenderedComponent<DocumentoWorkspacePanel> Renderizar(
+        DocumentoDetalleDto detalle, string pestanaActiva, ValidacionOficialDocumentoDto? validacion = null)
     {
         Services.AddScoped<ToastService>();
-        Services.AddScoped<IMediator>(_ => new MediatorDocumento { Detalle = detalle });
+        Services.AddScoped<IMediator>(_ => new MediatorDocumento { Detalle = detalle, Validacion = validacion });
         return Render<DocumentoWorkspacePanel>(parametros => parametros
             .Add(p => p.EntidadId, detalle.Id)
             .Add(p => p.PestanaActiva, pestanaActiva));
+    }
+
+    [Theory]
+    [InlineData(DecisionValidacionOficial.AutoValidado, "Verificado automáticamente")]
+    [InlineData(DecisionValidacionOficial.RevisionRequerida, "Revisión requerida")]
+    [InlineData(DecisionValidacionOficial.SinFirmaValida, "Sin firma válida")]
+    public void La_comprobacion_tecnica_del_archivo_se_dice_verificado_y_nunca_validado(
+        DecisionValidacionOficial decision, string rotuloEsperado)
+    {
+        // Decisión del propietario, 2026-10-10: «validada» nombra lo que la
+        // plataforma del Cliente dio por bueno (EstadoAcreditacionUi). Lo que
+        // TALVEG comprueba sobre el archivo —firma y emisor— es otro acto y
+        // se dice «verificado»; si compartieran participio, «Validado el…»
+        // se leería como la respuesta de la plataforma.
+        var validacion = new ValidacionOficialDocumentoDto(
+            PerfilDocumentoOficial.CorrienteTgss, NivelConfianzaDocumental.FirmaValidaSinRevocacion, decision,
+            ResultadoCotejoDocumentoOficial.Coincide, "Motivos de prueba.", null, null, null, null, null,
+            new DateTime(2026, 10, 3, 9, 0, 0, DateTimeKind.Utc), []);
+
+        var cut = Renderizar(Detalle(), "validacion", validacion);
+
+        var rejilla = cut.Find(".rejilla-info-documento-360").TextContent;
+        rejilla.Should().Contain("Verificado el").And.Contain(rotuloEsperado);
+        rejilla.Should().NotContainEquivalentOf("validad",
+            "«validado» está reservado al estado de la acreditación en la plataforma del Cliente");
     }
 
     [Fact]

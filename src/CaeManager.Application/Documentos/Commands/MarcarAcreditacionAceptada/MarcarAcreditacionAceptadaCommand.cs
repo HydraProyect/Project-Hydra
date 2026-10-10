@@ -7,7 +7,7 @@ using MediatR;
 namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionAceptada;
 
 /// <summary>
-/// "Marcar aceptado" del drill-down por plataforma — ver
+/// "Marcar validado" del drill-down por plataforma — ver
 /// MarcarAcreditacionSubidaCommand, mismo motivo, misma forma.
 ///
 /// <para>

@@ -251,7 +251,7 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
 
   // Marcar "subida" es un acto humano confirmando que el formulario se rellenó
   // — no que la plataforma ya lo aceptó (eso lo revisa el gestor manualmente
-  // y lo registra con "Marcar aceptado"/"Marcar rechazado" en Hydra).
+  // y lo registra con "Marcar validado"/"Marcar rechazado" en Hydra).
   const marcado = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida`, { method: "POST" });
   if (!marcado.ok) return marcado;
   if (!marcado.respuesta.ok) {

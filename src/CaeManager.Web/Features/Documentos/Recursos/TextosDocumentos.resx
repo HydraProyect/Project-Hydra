@@ -107,7 +107,7 @@
     <value>Marca al menos un documento para reclamar.</value>
   </data>
   <data name="PlatSinVigenciaResumen" xml:space="preserve">
-    <value>{0} aceptada(s) sin vigencia</value>
+    <value>{0} validada(s) sin vigencia</value>
   </data>
   <data name="PlatSeleccionarSinVigencia" xml:space="preserve">
     <value>Seleccionar sin vigencia</value>
@@ -119,13 +119,13 @@
     <value>Anotar vigencia ({0})…</value>
   </data>
   <data name="PlatAnotarBloqueAyuda" xml:space="preserve">
-    <value>Marca antes las aceptadas a las que anotar la misma vigencia.</value>
+    <value>Marca antes las validadas a las que anotar la misma vigencia.</value>
   </data>
   <data name="PlatIncluirEnBloque" xml:space="preserve">
     <value>Incluir {0} de {1} en la vigencia en bloque</value>
   </data>
   <data name="PlatBloqueAviso" xml:space="preserve">
-    <value>Se anotará la misma vigencia en {0} acreditaciones aceptadas.</value>
+    <value>Se anotará la misma vigencia en {0} acreditaciones validadas.</value>
   </data>
   <data name="PlatBloqueResultado" xml:space="preserve">
     <value>Vigencia anotada en {0} de {1} acreditaciones.</value>
@@ -247,4 +247,7 @@
   <data name="AccionRapidaSubirAria" xml:space="preserve"><value>Subir el archivo de {0} de {1}</value></data>
   <data name="SegundaLineaReclamado" xml:space="preserve"><value>Reclamado el {0}</value></data>
   <data name="SegundaLineaReclamadoSinRespuesta" xml:space="preserve"><value>Reclamado el {0}, sin respuesta</value></data>
+  <data name="ValDecisionVerificadoAutomaticamente" xml:space="preserve">
+    <value>Verificado automáticamente</value>
+  </data>
 </root>

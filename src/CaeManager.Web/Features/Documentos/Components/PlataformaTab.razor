@@ -78,7 +78,7 @@ else
                         <span class="plataforma-separador">·</span>
                         <span class="plataforma-rechazados">@ContarRechazados(proveedor) rechazado@(ContarRechazados(proveedor) == 1 ? "" : "s")</span>
                         @* D-23: la lista también trae las aceptadas; el resumen dice
-                           cuántas siguen sin vigencia en vez de dejar filas «Aceptada»
+                           cuántas siguen sin vigencia en vez de dejar filas «Validada»
                            bajo una cabecera que solo habla de pendientes y rechazos. *@
                         @if (SinVigencia(proveedor).Count is > 0 and var sinVigencia)
                         {
@@ -198,7 +198,7 @@ else
                                         }
                                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                                OnClick="() => MarcarAceptadoAsync(documento.AcreditacionId)">
-                                            Marcar aceptado
+                                            Marcar validado
                                         </Boton>
                                         <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirRechazo(documento.AcreditacionId)">
                                             Marcar rechazado…
@@ -217,10 +217,10 @@ else
 @* Los dos formularios de la pestaña son ModalFormulario, cada uno con su guardián, su estado de «guardando» y su aviso (el error del servidor sale
    en el aviso fijo, fuera del cuerpo; los errores de campo los pintan los campos). Salir con la vigencia o el rechazo a medias pregunta antes:
    cada kit trae su aviso de navegación, que va después de su modal y queda encima. *@
-<ModalFormulario Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="@(_soloVigencia ? "Anotar vigencia" : "Marcar como aceptado")"
+<ModalFormulario Visible="_vigenciaVisible" VisibleChanged="v => _vigenciaVisible = v" Titulo="@(_soloVigencia ? "Anotar vigencia" : "Marcar como validado")"
                  HayCambios="() => HayCambiosVigencia" Guardando="_confirmandoVigencia" MensajeError="@_errorServidorVigencia"
                  HayErroresDeCampo="@(_errorVigencia is not null)" OnGuardar="ConfirmarAceptadoAsync"
-                 TextoGuardar="@(_soloVigencia ? "Guardar vigencia" : "Marcar aceptado")" TextoCancelar="Cancelar">
+                 TextoGuardar="@(_soloVigencia ? "Guardar vigencia" : "Marcar validado")" TextoCancelar="Cancelar">
     @if (_idsVigenciaEnBloque.Count > 1)
     {
         <p>@Textos["PlatBloqueAviso", _idsVigenciaEnBloque.Count]</p>
@@ -641,7 +641,7 @@ else
 
     private static string TextoDeLoGuardado(VigenciaEnPlataforma vigencia, bool soloVigencia)
     {
-        var encabezado = soloVigencia ? "Vigencia anotada." : "Marcado como aceptado.";
+        var encabezado = soloVigencia ? "Vigencia anotada." : "Marcado como validado.";
 
         return vigencia.Estado switch
         {

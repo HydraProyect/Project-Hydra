@@ -107,7 +107,7 @@
     <value>Marca almenys un document per reclamar.</value>
   </data>
   <data name="PlatSinVigenciaResumen" xml:space="preserve">
-    <value>{0} acceptada(s) sense vigència</value>
+    <value>{0} validada(s) sense vigència</value>
   </data>
   <data name="PlatSeleccionarSinVigencia" xml:space="preserve">
     <value>Selecciona sense vigència</value>
@@ -119,13 +119,13 @@
     <value>Anota vigència ({0})…</value>
   </data>
   <data name="PlatAnotarBloqueAyuda" xml:space="preserve">
-    <value>Marca abans les acceptades a les quals anotar la mateixa vigència.</value>
+    <value>Marca abans les validades a les quals anotar la mateixa vigència.</value>
   </data>
   <data name="PlatIncluirEnBloque" xml:space="preserve">
     <value>Inclou {0} de {1} en la vigència en bloc</value>
   </data>
   <data name="PlatBloqueAviso" xml:space="preserve">
-    <value>S&apos;anotarà la mateixa vigència en {0} acreditacions acceptades.</value>
+    <value>S&apos;anotarà la mateixa vigència en {0} acreditacions validades.</value>
   </data>
   <data name="PlatBloqueResultado" xml:space="preserve">
     <value>Vigència anotada en {0} de {1} acreditacions.</value>
@@ -247,4 +247,7 @@
   <data name="AccionRapidaSubirAria" xml:space="preserve"><value>Puja el fitxer de {0} de {1}</value></data>
   <data name="SegundaLineaReclamado" xml:space="preserve"><value>Reclamat el {0}</value></data>
   <data name="SegundaLineaReclamadoSinRespuesta" xml:space="preserve"><value>Reclamat el {0}, sense resposta</value></data>
+  <data name="ValDecisionVerificadoAutomaticamente" xml:space="preserve">
+    <value>Verificat automàticament</value>
+  </data>
 </root>
