@@ -299,7 +299,7 @@ public class Proyecto360PaginaTests : BunitContext
         var lateral = cut.Find("[data-pieza=lateral]");
 
         lateral.QuerySelectorAll("[data-pieza=tarjeta] .tarjeta-titulo").Select(t => t.TextContent.Trim())
-            .Should().Equal("Información", "Notas");
+            .Should().Equal("Información", "Nota interna");
         lateral.TextContent.Should().Contain("Cliente").And.NotContain("Cliente empresarial").And.Contain("Sede Sevilla")
             .And.Contain("Acceso por muelle 3.").And.NotContain("Los días abiertos son la base de la facturación del proyecto.");
         Botones(cut, "[data-pieza=lateral] button").Should().Equal("Editar →", "Editar →");
@@ -337,7 +337,26 @@ public class Proyecto360PaginaTests : BunitContext
     public void Sin_notas_lo_dice()
     {
         var cut = Renderizar(CerradoId);
-        cut.Find("[data-pieza=lateral]").TextContent.Should().Contain("Sin notas.");
+        cut.Find("[data-pieza=lateral] [data-pieza=nota-interna] [data-vacia=true]").TextContent.Should().Be("Sin nota interna.");
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public void La_nota_interna_se_lee_una_vez_en_el_lateral_y_solo_se_edita_con_escritura(string rol, bool puedeEscribir)
+    {
+        this.ConRolDeEscritura(rol);
+        var cut = Renderizar(AbiertoId);
+
+        cut.FindAll("[data-pieza=nota-interna]").Should().ContainSingle();
+        var nota = cut.Find("[data-pieza=lateral] [data-pieza=nota-interna]");
+        nota.TextContent.Should().Contain("Acceso por muelle 3.").And.Contain("No la ve el cliente.");
+        nota.QuerySelectorAll("button").Should().HaveCount(puedeEscribir ? 1 : 0);
+        if (puedeEscribir)
+        {
+            nota.QuerySelector("button")!.Click();
+            cut.Find(".drawer-panel").TextContent.Should().Contain("Notas");
+        }
     }
 
     // ------------------------------------------------------------------ técnicos

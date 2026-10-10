@@ -125,16 +125,13 @@
                         </ChildContent>
                     </Tarjeta>
 
-                    <Tarjeta Titulo="@Textos["EtiquetaNotas"]" Compacta="true">
-                        <AccionesHeader>
+                    <NotaInterna Texto="@_detalle.Notas">
+                        <Acciones>
                             <SoloConEscritura>
                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditar">@Textos["EditarFlecha"]</Boton>
                             </SoloConEscritura>
-                        </AccionesHeader>
-                        <ChildContent>
-                            <p class="proyecto360-notas">@(string.IsNullOrWhiteSpace(_detalle.Notas) ? Textos["SinNotas"].Value : _detalle.Notas)</p>
-                        </ChildContent>
-                    </Tarjeta>
+                        </Acciones>
+                    </NotaInterna>
                 </Lateral>
             </CuerpoConLateral>
         </Pestanas>

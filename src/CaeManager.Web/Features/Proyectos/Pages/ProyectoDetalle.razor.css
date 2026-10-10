@@ -82,9 +82,3 @@
     font: var(--font-body-sm);
     color: var(--color-text-muted);
 }
-
-.proyecto360-notas {
-    margin: 0;
-    font: var(--font-body-md);
-    overflow-wrap: anywhere;
-}
