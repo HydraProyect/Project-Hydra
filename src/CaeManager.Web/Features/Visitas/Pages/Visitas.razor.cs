@@ -244,6 +244,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
     private const string ValorSi = "si";
+    private const string ValorNo = "no";
 
     /// <summary>La única opción de las pastillas «Solo activas» y «Solo urgentes»; quitarla es «No».</summary>
     private IReadOnlyList<OpcionEstado> OpcionesSi => [new(ValorSi, Textos["OpcionSi"])];
@@ -286,16 +287,25 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// en el primer render — la URL como fuente de verdad de los filtros
     /// (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
-    protected override void OnParametersSet()
+    protected override void OnParametersSet() =>
+        FijarFiltros(TerminoBusquedaInicial, SoloActivasInicial, SoloUrgentesInicial, NotificadoInicial, OrdenInicial, EstadoInicial);
+
+    /// <summary>
+    /// ÚNICO sitio que valida y asigna los campos de vista: lo usan la URL (<see cref="OnParametersSet"/>) y
+    /// una vista guardada o recordada (<see cref="AplicarVistaGuardadaAsync"/>), porque un valor guardado no
+    /// es autoridad. Define la vista entera: lo que no llega vuelve a su valor de fábrica.
+    /// </summary>
+    private void FijarFiltros(string? busqueda, bool? soloActivas, bool? soloUrgentes, string? notificado, string? orden, string? estado)
     {
-        _busqueda = TerminoBusquedaInicial ?? string.Empty;
-        _filtroNotificado = NotificadoInicial ?? string.Empty;
-        _soloActivas = SoloActivasInicial ?? true;
-        _soloUrgentes = SoloUrgentesInicial ?? false;
-        _orden = OrdenInicial == OrdenPorDocumentacion ? OrdenPorDocumentacion : string.Empty;
+        _busqueda = busqueda ?? string.Empty;
+        _soloActivas = soloActivas ?? true;
+        _soloUrgentes = soloUrgentes ?? false;
+        // Solo «si» / «no»: otro valor ni filtra ni se queda marcado.
+        _filtroNotificado = notificado is ValorSi or ValorNo ? notificado : string.Empty;
+        _orden = orden == OrdenPorDocumentacion ? OrdenPorDocumentacion : string.Empty;
         // Solo nombres del enum: lo que la URL traiga y la franja no conozca no filtra ni se queda marcado.
         _estadoFiltro = SeleccionEstados.Unir(
-            SeleccionEstados.Separar<EstadoDocumentacionVisita>(EstadoInicial).Select(estado => estado.ToString())) ?? string.Empty;
+            SeleccionEstados.Separar<EstadoDocumentacionVisita>(estado).Select(e => e.ToString())) ?? string.Empty;
     }
 
     /// <summary>
@@ -462,6 +472,49 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             ["notificado"] = null,
             ["urgentes"] = null,
             ["estado"] = null,
+        });
+        await RecargarAsync();
+    }
+
+    // ---- Filtros guardados y vista recordada (piezas compartidas) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Visitas;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado, y lo que
+    /// recuerda la vista recordada (<see cref="VistaRecordadaDeListado"/>), menos la búsqueda libre (<c>q</c>).
+    /// Quedan fuera los de «Nueva visita» prellenada (<c>sugerenciaId</c>, <c>centroId</c>, <c>fechaInicio</c>,
+    /// <c>fechaFin</c>): ni se guardan ni se tocan al aplicar una vista.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "activas", "urgentes", "notificado", "orden", "estado"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// Un filtro guardado o la vista recordada definen la vista entera: lo que no traen se quita. Cada valor
+    /// pasa por la misma validación que el de la URL (<see cref="FijarFiltros"/>). La URL se escribe en una
+    /// sola navegación y se recarga una vez aquí: <see cref="OnParametersSet"/> sincroniza los campos, pero
+    /// no recarga.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        FijarFiltros(
+            vista.GetValueOrDefault("q"),
+            bool.TryParse(vista.GetValueOrDefault("activas"), out var activas) ? activas : null,
+            bool.TryParse(vista.GetValueOrDefault("urgentes"), out var urgentes) ? urgentes : null,
+            vista.GetValueOrDefault("notificado"),
+            vista.GetValueOrDefault("orden"),
+            vista.GetValueOrDefault("estado"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["activas"] = _soloActivas ? null : "false",
+            ["urgentes"] = _soloUrgentes ? "true" : null,
+            ["notificado"] = _filtroNotificado,
+            ["orden"] = _orden,
+            ["estado"] = _estadoFiltro,
         });
         await RecargarAsync();
     }

@@ -28,7 +28,10 @@ using CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant;
 using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
+using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Gestiones;
@@ -43,6 +46,7 @@ using CaeManager.Web.Features.Proyectos.Pages;
 using CaeManager.Web.Features.Subcontratas.Pages;
 using CaeManager.Web.Features.Trabajadores.Pages;
 using CaeManager.Web.Features.Vehiculos.Pages;
+using CaeManager.Web.Features.Visitas.Pages;
 using FluentAssertions;
 using FluentValidation;
 using MediatR;
@@ -63,7 +67,7 @@ namespace CaeManager.Web.Tests;
 /// <item><description>donde el orden de columna viaja en la URL, <c>?orden=</c> ordena la consulta y un valor que
 /// no existe se ignora.</description></item>
 /// </list>
-/// Siete de las nueve páginas van aquí. Clientes y Documentos necesitan un arnés más caro y llevan los
+/// Ocho de las diez páginas van aquí. Clientes y Documentos necesitan un arnés más caro y llevan los
 /// mismos casos en <c>ClientesListaGen2Tests.VistaRecordada.cs</c> y <c>DocumentosGen2Tests.VistaRecordada.cs</c>.
 /// </summary>
 public class VistaRecordadaEnListadosTests : BunitContext
@@ -156,6 +160,8 @@ public class VistaRecordadaEnListadosTests : BunitContext
                 ObtenerGestionesQuery q => new ResultadoPaginado<GestionListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerTrabajadoresQuery q => new ResultadoPaginado<TrabajadorListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerProyectosQuery => (IReadOnlyList<ProyectoListaDto>)[],
+                ObtenerVisitasQuery q => new ResultadoPaginado<VisitaListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerTrabajadoresParaSelectorQuery => Array.Empty<TrabajadorSelectorDto>(),
 
                 ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)
                     [new ClienteSelectorDto(ClienteA, "Refrielectric S.L."), new ClienteSelectorDto(ClienteB, "Frigoríficos Arcos S.A.")],
@@ -433,6 +439,107 @@ public class VistaRecordadaEnListadosTests : BunitContext
 
         cut.WaitForAssertion(() => Ultima<ObtenerGestionesQuery>().Should().Match<ObtenerGestionesQuery>(q =>
             q.OrdenarPor == nameof(GestionListaDto.Estado) && !q.Descendente, "sin un orden válido la rejilla nace con el de fábrica: por estado"));
+    }
+
+    // ------------------------------------------------------------ Visitas
+
+    private static bool SinEstados(ObtenerVisitasQuery q) => q.EstadosDocumentacion is null or { Count: 0 };
+
+    private static bool SoloEstado(ObtenerVisitasQuery q, EstadoDocumentacionVisita estado) =>
+        q.EstadosDocumentacion is { Count: 1 } estados && estados.Single() == estado;
+
+    private const string ParametrosDeAltaPrellenada =
+        "sugerenciaId=no-es-un-guid&centroId=tampoco&fechaInicio=2026-11-02&fechaFin=2026-11-03";
+
+    private static readonly Dictionary<string, string> AltaPrellenada = new()
+    {
+        ["sugerenciaId"] = "no-es-un-guid",
+        ["centroId"] = "tampoco",
+        ["fechaInicio"] = "2026-11-02",
+        ["fechaFin"] = "2026-11-03",
+    };
+
+    [Fact]
+    public void Visitas_sin_parametros_restaura_la_vista_recordada_sin_la_busqueda()
+    {
+        var recordada = ConVistaRecordada(PantallasConVistaRecordada.Visitas,
+            ("q", "Zaragoza"), ("activas", "false"), ("urgentes", "true"), ("notificado", "no"),
+            ("orden", "documentacion"), ("estado", "PorGestionar"));
+
+        var cut = Renderizar<Visitas>("visitas");
+
+        LaUrlQuedaCon(cut, PantallasConVistaRecordada.Visitas, recordada);
+        cut.WaitForAssertion(() => Ultima<ObtenerVisitasQuery>().Should().Match<ObtenerVisitasQuery>(q =>
+            q.Busqueda == null && !q.SoloActivas && q.SoloUrgentes && q.NotificadoCliente == false
+            && q.OrdenarPor == nameof(VisitaListaDto.PorGestionar) && q.Descendente
+            && SoloEstado(q, EstadoDocumentacionVisita.PorGestionar)));
+    }
+
+    [Fact]
+    public void Visitas_con_parametros_de_vista_en_la_url_manda_la_url_y_no_lee_lo_recordado()
+    {
+        ConVistaRecordada(PantallasConVistaRecordada.Visitas, ("q", "Zaragoza"), ("urgentes", "true"));
+
+        var cut = Renderizar<Visitas>("visitas?notificado=si");
+
+        cut.WaitForAssertion(() => Ultima<ObtenerVisitasQuery>().Should().Match<ObtenerVisitasQuery>(q =>
+            q.NotificadoCliente == true && !q.SoloUrgentes && q.SoloActivas));
+        _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().BeEmpty();
+        ParametrosDeLaUrl().Should().BeEquivalentTo(new Dictionary<string, string> { ["notificado"] = "si" });
+    }
+
+    [Fact]
+    public void Visitas_un_valor_recordado_que_no_pasa_la_validacion_de_la_url_se_ignora()
+    {
+        ConVistaRecordada(PantallasConVistaRecordada.Visitas,
+            ("q", "Zaragoza"), ("activas", "quizas"), ("urgentes", "nunca"), ("notificado", "quizas"),
+            ("orden", "inventado"), ("estado", "PorGestionar,Archivada"));
+
+        var cut = Renderizar<Visitas>("visitas");
+
+        cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(new Dictionary<string, string> { ["estado"] = "PorGestionar" }));
+        cut.WaitForAssertion(() => Ultima<ObtenerVisitasQuery>().Should().Match<ObtenerVisitasQuery>(q =>
+            q.SoloActivas && !q.SoloUrgentes && q.NotificadoCliente == null && q.OrdenarPor != nameof(VisitaListaDto.PorGestionar)
+            && SoloEstado(q, EstadoDocumentacionVisita.PorGestionar)));
+    }
+
+    [Fact]
+    public async Task Visitas_restablecer_vista_limpia_campos_url_y_olvida()
+    {
+        var cut = Renderizar<Visitas>("visitas?q=Zaragoza&activas=false&urgentes=true&notificado=no&orden=documentacion&estado=PorGestionar");
+        cut.FindAll(".chip-filtro").Should().NotBeEmpty("control: la vista de partida tiene filtros visibles");
+
+        await RestablecerYOlvidarAsync(cut, PantallasConVistaRecordada.Visitas);
+
+        cut.WaitForAssertion(() => Ultima<ObtenerVisitasQuery>().Should().Match<ObtenerVisitasQuery>(q =>
+            q.Busqueda == null && q.SoloActivas && !q.SoloUrgentes && q.NotificadoCliente == null
+            && q.OrdenarPor != nameof(VisitaListaDto.PorGestionar) && SinEstados(q),
+            "vuelven los valores de fábrica, «Solo activas» marcado incluido"));
+        cut.FindAll(".chip-filtro").Should().BeEmpty("los campos se limpian además de la URL");
+    }
+
+    [Fact]
+    public async Task Visitas_restablecer_vista_no_toca_los_parametros_de_alta_prellenada()
+    {
+        var cut = Renderizar<Visitas>($"visitas?{ParametrosDeAltaPrellenada}&urgentes=true&activas=false");
+
+        await cut.Find("button.restablecer-vista-barra").ClickAsync(new MouseEventArgs());
+
+        ParametrosDeLaUrl().Should().BeEquivalentTo(AltaPrellenada, "la vista se restablece, la alta prellenada ni se guarda ni se pierde");
+        cut.WaitForAssertion(() => Ultima<ObtenerVisitasQuery>().Should().Match<ObtenerVisitasQuery>(q => q.SoloActivas && !q.SoloUrgentes));
+    }
+
+    [Fact]
+    public void Visitas_con_la_alta_prellenada_en_la_url_manda_la_url_y_no_restaura_lo_recordado()
+    {
+        ConVistaRecordada(PantallasConVistaRecordada.Visitas, ("q", "Zaragoza"), ("urgentes", "true"));
+
+        var cut = Renderizar<Visitas>($"visitas?{ParametrosDeAltaPrellenada}");
+
+        cut.WaitForAssertion(() => Ultima<ObtenerVisitasQuery>().Should().Match<ObtenerVisitasQuery>(q =>
+            q.SoloActivas && !q.SoloUrgentes && q.Busqueda == null));
+        _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().BeEmpty("con cualquier parámetro manda la URL");
+        ParametrosDeLaUrl().Should().BeEquivalentTo(AltaPrellenada);
     }
 
     // ------------------------------------------------------------ Proyectos

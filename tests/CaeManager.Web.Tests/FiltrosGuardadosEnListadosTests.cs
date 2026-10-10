@@ -24,7 +24,10 @@ using CaeManager.Application.Usuarios.Queries.ObtenerOperadoresCaeDeMiTenant;
 using CaeManager.Application.Usuarios.Queries.ObtenerPersonasConCartera;
 using CaeManager.Application.Vehiculos.Commands.CrearVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Queries.ObtenerProximaVisitaPorCentro;
+using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Gestiones;
@@ -38,6 +41,7 @@ using CaeManager.Web.Features.Gestiones.Pages;
 using CaeManager.Web.Features.Proyectos.Pages;
 using CaeManager.Web.Features.Subcontratas.Pages;
 using CaeManager.Web.Features.Vehiculos.Pages;
+using CaeManager.Web.Features.Visitas.Pages;
 using FluentAssertions;
 using FluentValidation;
 using MediatR;
@@ -48,9 +52,9 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Filtros guardados en los seis listados que los reciben con la pieza compartida
-/// (<see cref="FiltrosGuardadosDeListado"/>): Empresas, Centros, Subcontratas, Vehículos, Proyectos y
-/// Gestiones. Por cada uno:
+/// Filtros guardados en los siete listados que los reciben con la pieza compartida
+/// (<see cref="FiltrosGuardadosDeListado"/>): Empresas, Centros, Subcontratas, Vehículos, Proyectos,
+/// Visitas y Gestiones. Por cada uno:
 /// <list type="bullet">
 /// <item><description><b>guardar</b> con filtros activos envía los parámetros de vista que la URL lleva, y no los demás;</description></item>
 /// <item><description><b>aplicar</b> deja la URL y la consulta con los filtros del filtro guardado, quita los que no trae
@@ -85,7 +89,7 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
     }
 
-    /// <summary>Responde a las consultas de los seis listados con listas vacías y apunta todo lo que se le envía.</summary>
+    /// <summary>Responde a las consultas de los siete listados con listas vacías y apunta todo lo que se le envía.</summary>
     private sealed class MediatorDeListado : IMediator
     {
         public List<object> Enviadas { get; } = [];
@@ -121,6 +125,8 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
                 ObtenerVehiculosQuery q => new ResultadoPaginado<VehiculoListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerGestionesQuery q => new ResultadoPaginado<GestionListaDto>([], 0, q.Pagina, q.TamanoPagina),
                 ObtenerProyectosQuery q => new ResultadoPaginado<ProyectoListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerVisitasQuery q => new ResultadoPaginado<VisitaListaDto>([], 0, q.Pagina, q.TamanoPagina),
+                ObtenerTrabajadoresParaSelectorQuery => Array.Empty<TrabajadorSelectorDto>(),
 
                 ObtenerClientesParaSelectorQuery => (IReadOnlyList<ClienteSelectorDto>)
                     [new ClienteSelectorDto(ClienteA, "Refrielectric S.L."), new ClienteSelectorDto(ClienteB, "Frigoríficos Arcos S.A.")],
@@ -540,6 +546,104 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
 
         url.Should().BeEquivalentTo(new Dictionary<string, string> { ["q"] = "Vega" });
         Ultima<ObtenerGestionesQuery>().Should().Match<ObtenerGestionesQuery>(q => q.Busqueda == "Vega" && q.Estado == null);
+    }
+
+    // ------------------------------------------------------------ Visitas
+
+    private static bool SinEstados(ObtenerVisitasQuery q) => q.EstadosDocumentacion is null or { Count: 0 };
+
+    private static bool SoloEstado(ObtenerVisitasQuery q, EstadoDocumentacionVisita estado) =>
+        q.EstadosDocumentacion is { Count: 1 } estados && estados.Single() == estado;
+
+    private static readonly Dictionary<string, string> AltaPrellenada = new()
+    {
+        ["sugerenciaId"] = "no-es-un-guid",
+        ["centroId"] = "tampoco",
+        ["fechaInicio"] = "2026-11-02",
+        ["fechaFin"] = "2026-11-03",
+    };
+
+    private static string ParametrosDeAltaPrellenada => string.Join('&', AltaPrellenada.Select(p => $"{p.Key}={p.Value}"));
+
+    [Fact]
+    public async Task Visitas_guardar_envia_los_parametros_de_vista_de_la_url_y_no_los_de_alta_prellenada()
+    {
+        var cut = Renderizar<Visitas>(
+            $"visitas?q=Zaragoza&activas=false&urgentes=true&notificado=si&orden=documentacion&estado=PorGestionar&{ParametrosDeAltaPrellenada}");
+
+        var comando = await GuardarFiltroAsync(cut, "Urgentes por gestionar");
+
+        comando.Pantalla.Should().Be(PantallasConFiltrosGuardados.Visitas);
+        comando.ValoresJson.Should().Be(
+            "{\"q\":\"Zaragoza\",\"activas\":\"false\",\"urgentes\":\"true\",\"notificado\":\"si\",\"orden\":\"documentacion\",\"estado\":\"PorGestionar\"}");
+    }
+
+    [Fact]
+    public async Task Visitas_aplicar_recarga_una_vez_define_la_vista_entera_y_deja_la_alta_prellenada()
+    {
+        ConFiltroGuardado("Urgentes sin avisar", "{\"urgentes\":\"true\",\"notificado\":\"no\"}");
+        var cut = Renderizar<Visitas>(
+            $"visitas?q=Zaragoza&activas=false&orden=documentacion&estado=PorGestionar&{ParametrosDeAltaPrellenada}");
+        var consultasAntes = Consultas<ObtenerVisitasQuery>();
+
+        var url = await AplicarAsync(cut, "Urgentes sin avisar");
+
+        url.Should().BeEquivalentTo(new Dictionary<string, string>(AltaPrellenada) { ["urgentes"] = "true", ["notificado"] = "no" },
+            "lo que el filtro no trae se quita; la alta prellenada no es vista y se queda");
+        (Consultas<ObtenerVisitasQuery>() - consultasAntes).Should().Be(1, "una recarga, no dos");
+        Ultima<ObtenerVisitasQuery>().Should().Match<ObtenerVisitasQuery>(q =>
+            q.Busqueda == null && q.SoloActivas && q.SoloUrgentes && q.NotificadoCliente == false
+            && q.OrdenarPor != nameof(VisitaListaDto.PorGestionar) && SinEstados(q));
+    }
+
+    [Fact]
+    public async Task Visitas_aplicar_un_filtro_con_activas_false_y_la_busqueda_los_pone_en_campos_y_url()
+    {
+        ConFiltroGuardado("Todas con Vega", "{\"q\":\"Vega\",\"activas\":\"false\",\"orden\":\"documentacion\",\"estado\":\"Gestionada\"}");
+        var cut = Renderizar<Visitas>("visitas");
+
+        var url = await AplicarAsync(cut, "Todas con Vega");
+
+        url.Should().BeEquivalentTo(new Dictionary<string, string>
+        {
+            ["q"] = "Vega",
+            ["activas"] = "false",
+            ["orden"] = "documentacion",
+            ["estado"] = "Gestionada",
+        });
+        Ultima<ObtenerVisitasQuery>().Should().Match<ObtenerVisitasQuery>(q =>
+            q.Busqueda == "Vega" && !q.SoloActivas && q.OrdenarPor == nameof(VisitaListaDto.PorGestionar) && q.Descendente
+            && SoloEstado(q, EstadoDocumentacionVisita.Gestionada));
+    }
+
+    [Fact]
+    public async Task Visitas_un_valor_guardado_que_no_pasa_la_validacion_de_la_url_se_ignora()
+    {
+        ConFiltroGuardado("Antiguo",
+            "{\"q\":\"Vega\",\"activas\":\"quizas\",\"urgentes\":\"nunca\",\"notificado\":\"quizas\",\"orden\":\"inventado\",\"estado\":\"PorGestionar,Archivada\"}");
+        var cut = Renderizar<Visitas>("visitas?urgentes=true&notificado=si");
+
+        var url = await AplicarAsync(cut, "Antiguo");
+
+        url.Should().BeEquivalentTo(new Dictionary<string, string> { ["q"] = "Vega", ["estado"] = "PorGestionar" });
+        Ultima<ObtenerVisitasQuery>().Should().Match<ObtenerVisitasQuery>(q =>
+            q.Busqueda == "Vega" && q.SoloActivas && !q.SoloUrgentes && q.NotificadoCliente == null
+            && q.OrdenarPor != nameof(VisitaListaDto.PorGestionar) && SoloEstado(q, EstadoDocumentacionVisita.PorGestionar));
+    }
+
+    [Fact]
+    public async Task Visitas_un_filtro_guardado_sin_parametros_quita_todos_los_de_la_vista_y_deja_la_alta_prellenada()
+    {
+        ConFiltroGuardado("Todo", "{}");
+        var cut = Renderizar<Visitas>(
+            $"visitas?q=Zaragoza&activas=false&urgentes=true&notificado=no&orden=documentacion&estado=PorGestionar&{ParametrosDeAltaPrellenada}");
+
+        var url = await AplicarAsync(cut, "Todo");
+
+        url.Should().BeEquivalentTo(AltaPrellenada);
+        Ultima<ObtenerVisitasQuery>().Should().Match<ObtenerVisitasQuery>(q =>
+            q.Busqueda == null && q.SoloActivas && !q.SoloUrgentes && q.NotificadoCliente == null && SinEstados(q));
+        cut.FindAll(".chip-filtro").Should().BeEmpty();
     }
 
     // ------------------------------------------------------------ Proyectos

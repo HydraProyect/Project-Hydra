@@ -65,6 +65,9 @@
        eso no cuenta en HayFiltrosActivos ni lleva chip) y vive en «Más filtros». Todos viajan en la URL. *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
+                  VistaRecordada="_vistaRecordada"
                   MasFiltrosActivos="@(_orden == OrdenPorDocumentacion)">
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["FiltroSoloActivas"]" TextoTodos="@Textos["OpcionNo"]"
@@ -106,6 +109,10 @@
             </span>
         </Resumen>
     </BarraFiltros>
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Visitas"
+                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @* Franja de estado sobre la columna «Documentación», con sus cuatro valores reales y los mismos
        rótulos que la celda. Admite varios a la vez, viaja en la URL como «estado» y cada botón dice
        cuántas visitas hay con los demás filtros aplicados: con «Solo activas» puesto, «Cancelada» es 0. *@

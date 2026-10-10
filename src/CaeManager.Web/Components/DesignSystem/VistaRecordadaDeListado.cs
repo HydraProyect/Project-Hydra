@@ -165,7 +165,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
     /// <summary>La vista que espera al rebote para escribirse, o <c>null</c>.</summary>
     private string? _pendiente;
-    private CancellationTokenSource? _temporizador;
+    private int _turno;
 
     /// <summary>Hubo un cambio de dirección antes de restaurar (la página no estaba lista, o se leía lo recordado): el usuario ya actuó y no se le pisa.</summary>
     private bool _huboCambios;
@@ -286,7 +286,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
         // El temporizador no sobrevive a la pieza; que había algo pendiente lo hereda la que se monte
         // después, si la página sigue. Ver «AL SALIR» en el resumen de la clase.
-        CancelarTemporizador();
+        InvalidarEscrituraProgramada();
         Conexion.HayPendienteHeredado = _pendiente is not null;
         _pendiente = null;
         Conexion.Desconectar(this);
@@ -302,7 +302,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             // Se sale a otra pantalla con un cambio sin escribir: se escribe ya, con la pieza aún viva.
             if (_pendiente is { } pendiente)
             {
-                CancelarTemporizador();
+                InvalidarEscrituraProgramada();
                 _ = InvokeAsync(() => PersistirAsync(pendiente));
             }
 
@@ -335,7 +335,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             _restaurada = null;
             if (EsReduccionDe(vista, restaurada))
             {
-                CancelarTemporizador();
+                InvalidarEscrituraProgramada();
                 _pendiente = null;
                 _recordada = serializada;
                 return;
@@ -345,7 +345,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         if (serializada == _recordada)
         {
             // Volvió a lo ya recordado antes de que venciera el rebote: no hay nada que escribir.
-            CancelarTemporizador();
+            InvalidarEscrituraProgramada();
             _pendiente = null;
             return;
         }
@@ -366,7 +366,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         var inicio = VistaDeLaUrl().Where(p => ParametrosDeContexto.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
         var esperada = SerializarEntera(inicio);
 
-        CancelarTemporizador();
+        InvalidarEscrituraProgramada();
         _pendiente = null;
         _restableciendo = esperada;
 
@@ -385,7 +385,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
         var serializada = Serializar(VistaDeLaUrl());
         _restableciendo = null;
-        CancelarTemporizador();
+        InvalidarEscrituraProgramada();
         _pendiente = null;
         _recordada = serializada;
 
@@ -395,22 +395,20 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
     private void Programar(string serializada)
     {
-        CancelarTemporizador();
         _pendiente = serializada;
-        var temporizador = _temporizador = new CancellationTokenSource();
-        _ = EsperarYPersistirAsync(serializada, temporizador.Token);
+        _ = EsperarYPersistirAsync(serializada, ++_turno, _ciclo.Token);
     }
 
-    private async Task EsperarYPersistirAsync(string serializada, CancellationToken token)
+    private async Task EsperarYPersistirAsync(string serializada, int turno, CancellationToken token)
     {
         try
         {
             await Task.Delay(Rebote, Tiempo, token);
-            await InvokeAsync(() => token.IsCancellationRequested || _desechado ? Task.CompletedTask : PersistirAsync(serializada));
+            await InvokeAsync(() => turno != _turno || _desechado ? Task.CompletedTask : PersistirAsync(serializada));
         }
         catch (OperationCanceledException)
         {
-            // Llegó otro cambio, o la pieza se retiró: esta espera ya no escribe.
+            // La pieza se retiró (es lo único que cancela la espera): no escribe.
         }
         catch (ObjectDisposedException)
         {
@@ -444,15 +442,15 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
         }
     }
 
-    private void CancelarTemporizador()
-    {
-        if (_temporizador is not { } temporizador)
-            return;
-
-        _temporizador = null;
-        temporizador.Cancel();
-        temporizador.Dispose();
-    }
+    /// <summary>
+    /// Deja sin efecto la escritura programada SIN cancelar su espera: avanza el turno, y la espera que
+    /// venza con un turno viejo no escribe. Cancelar el <c>Task.Delay</c> pendiente reencolaba su
+    /// continuación en el <c>Dispatcher</c> con un salto de hilo real en cada cambio de la URL (la misma
+    /// trampa que documenta <c>CampoTexto.ManejarBlurAsync</c>), y con ella un <c>Click()</c> de bUnit
+    /// devolvía el control antes de que su manejador terminase: 2 rojos en 13 500 repeticiones de un test de
+    /// Visitas, 0 en 42 000 sin la cancelación. Las esperas solo se cancelan al desechar la pieza.
+    /// </summary>
+    private void InvalidarEscrituraProgramada() => _turno++;
 
     private void ActualizarDiferencia(IReadOnlyDictionary<string, string> vista)
     {
