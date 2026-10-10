@@ -1264,6 +1264,11 @@ jobs:
       # las clases del listado son suyas, sin reparto de por medio.
       - name: Comprobar que el reparto cubrió todas las clases
         if: steps.exigir.outputs.e2e != 'saltada'
+        # Los mismos suelos que en los bloques: sin ellos este paso heredaría el
+        # MINIMO_CLASES global, que es el de integración, y fallaría siempre.
+        env:
+          MINIMO_CLASES: "70"
+          MINIMO_PARES: "60"
         run: |
           LISTADO_DE_TESTS=reparto-e2e/listado-bloque-1.txt REPARTO_SALIDA=/tmp/esperadas-e2e-sin-ordenar.txt bash scripts/repartir-e2e-por-coleccion.sh 1 1 > /dev/null
           sort /tmp/esperadas-e2e-sin-ordenar.txt > /tmp/esperadas-e2e.txt

@@ -13,6 +13,10 @@ SCRIPT="$RAIZ/scripts/repartir-e2e-por-coleccion.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
+# El workflow fija MINIMO_CLASES para integración a nivel global; aquí cada
+# caso declara los suelos que prueba y ninguno se hereda del entorno.
+unset MINIMO_CLASES MINIMO_PARES FUENTES_E2E PESOS_E2E PESO_POR_DEFECTO PESO_CLASE_SIN_COLECCION LISTADO_DE_TESTS REPARTO_SALIDA
+
 PRUEBAS=0
 FALLOS=0
 igual() {

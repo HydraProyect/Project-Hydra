@@ -219,6 +219,7 @@ contrato "ni los bloques ni el agregador de E2E llevan continue-on-error (tapar�
 contrato "los bloques de E2E no se cancelan entre sí" 1 "$(grep -cF -- '      fail-fast: false' <<< "$e2e_bloques" || true)"
 contrato "el reparto de cada bloque se pide sobre tres bloques, los de la matriz" 1 "$(grep -cF -- 'bash scripts/repartir-e2e-por-coleccion.sh 3 ${{ matrix.bloque }}' <<< "$e2e_bloques" || true)"
 contrato "el agregador de E2E espera tres listados y tres repartos" 2 "$(grep -cE 'for b in 1 2 3; do' <<< "$e2e_pasos" || true)"
+contrato "los bloques y el agregador de E2E fijan su propio suelo de clases (el global es el de integración)" 2 "$(grep -cF -- '          MINIMO_CLASES: "70"' <<< "$e2e_bloques$e2e_pasos" || true)"
 contrato "el agregador de E2E no da por bueno un listado vacío" 1 "$(grep -cF -- 'if [ "$esperados" -le 0 ]; then' <<< "$e2e_pasos" || true)"
 contrato "el agregador de E2E pone rojo si se ejecutan menos tests de los descubiertos" 1 "$(grep -cF -- 'if [ "$sumados" -lt "$esperados" ]; then' <<< "$e2e_pasos" || true)"
 
