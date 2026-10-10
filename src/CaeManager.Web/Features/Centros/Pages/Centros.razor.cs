@@ -1502,7 +1502,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Motivo bajo la pastilla de estado del Centro: cuántos documentos hay por
-    /// causa (vencidos, pendientes, bloqueados) y cuántos próximos a vencer (el
+    /// causa (vencidos, pendientes, bloqueos de plataforma) y cuántos próximos a vencer (el
     /// reparto de <c>ObtenerCentrosQuery.Desglosar</c>, separado por causa el
     /// 2026-10-10: «2 vencidos · 1 pendiente · 3 por vencer»). Es lo que decían las
     /// columnas «Venc.» y «Próx.», retiradas el 2026-10-09; cada parte abre su

@@ -162,11 +162,11 @@
     <value>{0} pendientes</value>
   </data>
   <data name="MotivoUnBloqueo" xml:space="preserve">
-    <value>1 bloqueado</value>
-    <comment>Motivo bajo la pastilla de estado del Centro: causas bloqueantes sin vigencia en Recuentos.Bloqueos (rechazo en plataforma).</comment>
+    <value>1 bloqueo de plataforma</value>
+    <comment>Motivo bajo la pastilla de estado del Centro: causas bloqueantes sin vigencia en Recuentos.Bloqueos (rechazo en la plataforma CAE). No se llama «bloqueado» a secas: ese rótulo es del Trabajador (decisión del 2026-10-03).</comment>
   </data>
   <data name="MotivoBloqueos" xml:space="preserve">
-    <value>{0} bloqueados</value>
+    <value>{0} bloqueos de plataforma</value>
   </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al día: no necesita intervención, pero puedes sustituirlo</value>

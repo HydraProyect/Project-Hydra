@@ -373,11 +373,11 @@
                                             }
                                             @if (centro.Recuentos.Bloqueos.Count > 0)
                                             {
-                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoBloqueos(centro.Recuentos.Bloqueos.Count), centro.Recuentos.Bloqueos, "bloqueado")"
+                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoBloqueos(centro.Recuentos.Bloqueos.Count), centro.Recuentos.Bloqueos, "con bloqueo de plataforma")"
                                                                  Colocacion="VentanaContextoColocacion.AbajoCentro"
                                                                  Interactiva="HayCorregibles(centro, centro.Recuentos.Bloqueos)"
                                                                  Pie="@PieDeIncidencias(centro, centro.Recuentos.Bloqueos)"
-                                                                 Titulo="@($"{centro.Recuentos.Bloqueos.Count} {(centro.Recuentos.Bloqueos.Count == 1 ? "documento bloqueado" : "documentos bloqueados")}")">
+                                                                 Titulo="@($"{centro.Recuentos.Bloqueos.Count} {(centro.Recuentos.Bloqueos.Count == 1 ? "documento con bloqueo de plataforma" : "documentos con bloqueo de plataforma")}")">
                                                     <Disparador>
                                                         <span class="motivo-recuento motivo-recuento-bloqueos">@MotivoBloqueos(centro.Recuentos.Bloqueos.Count)</span>
                                                     </Disparador>

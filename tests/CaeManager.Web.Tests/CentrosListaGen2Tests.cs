@@ -345,7 +345,7 @@ public class CentrosListaGen2Tests : BunitContext
 
         var motivo = cut.Find(".ranura-estado-centro .estado-fila-motivo");
         motivo.QuerySelectorAll(".motivo-recuento").Select(m => m.TextContent.Trim())
-            .Should().Equal("2 vencidos", "1 pendiente", "1 bloqueado", "3 por vencer");
+            .Should().Equal("2 vencidos", "1 pendiente", "1 bloqueo de plataforma", "3 por vencer");
         motivo.QuerySelectorAll(".motivo-recuento-separador").Should().HaveCount(3);
     }
 
