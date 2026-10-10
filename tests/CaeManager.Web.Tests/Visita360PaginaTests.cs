@@ -190,6 +190,48 @@ public class Visita360PaginaTests : BunitContext
     private static IEnumerable<string> Botones(IRenderedComponent<VisitaDetalle> cut) =>
         cut.FindAll("button, a").Select(b => b.TextContent.Trim());
 
+    [Theory]
+    [InlineData(Roles.GestorCae, false, true)]
+    [InlineData(Roles.Consulta, false, false)]
+    [InlineData(Roles.GestorCae, true, false)]
+    public void La_nota_interna_se_lee_una_vez_en_el_lateral_y_conserva_la_puerta_de_edicion(string rol, bool cancelada, bool puedeEditar)
+    {
+        var (cut, _) = Montar(Detalle(cancelada: cancelada), rol);
+
+        cut.FindAll("[data-pieza=nota-interna]").Should().ContainSingle();
+        var lateral = cut.Find("[data-pieza=lateral]");
+        lateral.QuerySelectorAll(".tarjeta-titulo").Select(t => t.TextContent.Trim())
+            .Should().Equal("Información", "Nota interna");
+        var nota = cut.Find("[data-pieza=lateral] [data-pieza=nota-interna]");
+        nota.TextContent.Should().Contain("Puerta de servicio.").And.Contain("No la ve el cliente.");
+        nota.QuerySelectorAll("button").Should().HaveCount(puedeEditar ? 1 : 0);
+        if (puedeEditar)
+        {
+            nota.QuerySelector("button")!.Click();
+            cut.FindComponent<Stub<EditarVisitaDrawer>>().Instance.Parameters.Get(p => p.Visible).Should().BeTrue();
+            cut.FindComponent<Stub<EditarVisitaDrawer>>().Instance.Parameters.Get(p => p.VisitaId).Should().Be(VisitaId);
+        }
+    }
+
+    [Fact]
+    public void La_nota_interna_vacia_muestra_el_estado_compartido()
+    {
+        var (cut, _) = Montar(Detalle() with { Notas = null });
+
+        cut.Find("[data-pieza=lateral] [data-pieza=nota-interna] [data-vacia=true]")
+            .TextContent.Should().Be("Sin nota interna.");
+    }
+
+    [Theory]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.GestorCae, true)]
+    public void La_nota_vacia_conserva_su_visibilidad_original(string rol, bool cancelada)
+    {
+        var (cut, _) = Montar(Detalle(cancelada: cancelada) with { Notas = null }, rol);
+
+        cut.FindAll("[data-pieza=nota-interna]").Should().BeEmpty();
+    }
+
     // ── Pestaña «Ficha» ───────────────────────────────────────────────────
     // Decisión del 2026-10-09: el lateral lleva dos o tres cajas como mucho; «Antelación» vive en «Ficha».
 
