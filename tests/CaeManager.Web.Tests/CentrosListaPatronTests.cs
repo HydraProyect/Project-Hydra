@@ -1174,6 +1174,44 @@ public partial class CentrosListaPatronTests : BunitContext
             "control: fue el refresco de una fila, no una recarga de la página");
     }
 
+    /// <summary>
+    /// El otro camino del refresco en sitio: el panel de la vista rápida guarda sin pasar por la página y avisa
+    /// por <c>ContextWorkspaceService.OnEntidadGuardada</c>. Un Centro que pasa de Vencido a Vigente sigue en
+    /// su grupo y en su sitio, y el resumen de la cabecera resta ese vencido, sin volver a pedir la página.
+    /// </summary>
+    [Fact]
+    public async Task Guardar_un_Centro_en_el_panel_corrige_el_resumen_de_su_grupo_y_la_fila_no_se_mueve()
+    {
+        var mediador = ConDosClientes();
+        var cut = RenderizarConGruposContraidos(mediador);
+        cut.Find(".barra-filtros-pastillas .barra-herramientas-lista button").Click();
+        var vencido = mediador.Centros.Single(c => c.Estado == EstadoCentro.Vencido);
+        string[] CabecerasYFilas() => cut
+            .FindAll(".lista-filas-acordeon .grupo-lista-nombre, .lista-filas-acordeon .enlace-nombre-fila")
+            .Select(e => e.TextContent.Trim()).ToArray();
+        var ordenAntes = CabecerasYFilas();
+        ordenAntes.Should().Contain(vencido.Nombre, "control: con los grupos abiertos, la fila del Centro vencido se ve");
+        ordenAntes.Should().StartWith("Orion Cliente S.L.", "control: el primer grupo es el del Centro vencido");
+        cut.Find(".grupo-lista .grupo-lista-resumen").TextContent.Should().Contain("1 vencido").And.Contain("1 por vencer", "control positivo");
+        var consultasDePagina = mediador.Enviadas.OfType<ObtenerCentrosQuery>().Count(q => q.CentroId is null);
+        var consultasDeLaFila = mediador.Enviadas.OfType<ObtenerCentrosQuery>().Count(q => q.CentroId == vencido.Id);
+
+        mediador.Centros[mediador.Centros.IndexOf(vencido)] = vencido with { Estado = EstadoCentro.Vigente };
+        await cut.InvokeAsync(() => Services.GetRequiredService<ContextWorkspaceService>()
+            .NotificarEntidadGuardada(EntidadWorkspace.Centro, vencido.Id));
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerCentrosQuery>().Count(q => q.CentroId == vencido.Id)
+            .Should().Be(consultasDeLaFila + 1, "barrera: el aviso del panel volvió a pedir esa fila"));
+        cut.WaitForAssertion(() => cut.Find(".grupo-lista .grupo-lista-resumen").TextContent.Trim().Should().Be("1 por vencer"));
+        var grupo = cut.Find(".grupo-lista");
+        grupo.ClassList.Should().Contain("fila-tintada-aviso", "sin el vencido, lo peor del grupo es su Centro por vencer")
+            .And.NotContain("fila-tintada-peligro");
+        grupo.QuerySelector(".grupo-lista-contador")!.TextContent.Trim().Should().Be("2", "el total del grupo no cambia");
+        CabecerasYFilas().Should().Equal(ordenAntes, "la fila sigue en su grupo y en su sitio hasta la siguiente carga");
+        mediador.Enviadas.OfType<ObtenerCentrosQuery>().Count(q => q.CentroId is null).Should().Be(consultasDePagina,
+            "control: fue el refresco de una fila, no una recarga de la página");
+    }
+
     // ------------------------------------------------- agrupación por Cliente empresarial
 
     /// <summary>
