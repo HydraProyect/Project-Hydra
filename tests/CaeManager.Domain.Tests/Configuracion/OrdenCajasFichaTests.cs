@@ -86,9 +86,11 @@ public class OrdenCajasFichaTests
     [InlineData("datos--fiscales")]
     [InlineData("año")]
     [InlineData("")]
-    public void Una_clave_que_no_va_en_minusculas_con_guiones_se_rechaza(string clave)
+    [InlineData("notas\n")]
+    [InlineData(null)]
+    public void Una_clave_que_no_va_en_minusculas_con_guiones_se_rechaza(string? clave)
     {
-        OrdenCajasFicha.ErrorDeForma(["contacto", clave]).Should().Contain("formato");
+        OrdenCajasFicha.ErrorDeForma(["contacto", clave!]).Should().Contain("formato");
     }
 
     [Fact]

@@ -13,8 +13,9 @@ namespace CaeManager.Application.Configuracion.Commands.GuardarOrdenCajasFicha;
 /// Tenant, usuario y tipo de ficha.
 ///
 /// Es autoservicio: el usuario sale de <see cref="ICurrentUserService"/>, la
-/// fila es suya y solo él la lee, así que cualquier rol que pueda ver la ficha
-/// puede ordenar la suya. El comando no conoce qué cajas tiene cada ficha:
+/// fila es suya y los handlers solo se la dan a él (la política RLS aísla por
+/// Tenant; el usuario lo acotan ellos), así que cualquier rol que pueda ver la
+/// ficha puede ordenar la suya. El comando no conoce qué cajas tiene cada ficha:
 /// valida la forma de las claves y la lectura concilia el orden con las cajas
 /// que la pantalla pinta (<see cref="OrdenCajasFicha.Conciliar"/>).
 /// </summary>
@@ -23,6 +24,9 @@ public record GuardarOrdenCajasFichaCommand(string TipoFicha, IReadOnlyList<stri
 /// <summary>
 /// Las fichas 360 cuyo orden de cajas se puede guardar: una por página de ficha.
 /// El valor se persiste; cambiarlo deja huérfanos los órdenes ya guardados.
+/// Nombran la página, no un tipo de Empresa: <see cref="Cliente"/> es la ficha
+/// del Cliente empresarial (<c>/clientes/{id}</c>) y <see cref="Subcontrata"/>
+/// la de una Empresa en su papel de subcontratista (<c>/subcontratas/{id}</c>).
 /// </summary>
 public static class TiposDeFicha360
 {

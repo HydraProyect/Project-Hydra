@@ -36,7 +36,7 @@ public class ComandosDeAutoservicioInventariadosTests
         // identidad, no del Tenant, y solo lo ve cambiar su dueño.
         "ElegirAvatarPropioCommand",
         // El orden personal de las cajas de la pestaña «Ficha» de las fichas 360 (decisión del
-        // 2026-10-09): una fila por Tenant, usuario y tipo de ficha, que solo lee su dueño.
+        // 2026-10-09): una fila por Tenant, usuario y tipo de ficha, que los handlers solo dan a su dueño.
         "GuardarOrdenCajasFichaCommand",
         "RestablecerOrdenCajasFichaCommand",
     ];

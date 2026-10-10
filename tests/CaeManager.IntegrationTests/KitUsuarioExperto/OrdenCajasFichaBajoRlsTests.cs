@@ -176,6 +176,27 @@ public class OrdenCajasFichaBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// El filtro por tipo de ficha vive en el repositorio y en la consulta
+    /// reales: con un repositorio falso no se prueba.
+    /// </summary>
+    [Fact]
+    public async Task Cada_tipo_de_ficha_tiene_su_orden_y_restablecer_uno_no_toca_el_otro()
+    {
+        await GuardarAsync(_tenantA, _gestorCae, TiposDeFicha360.Empresa, ["notas", "contacto"]);
+        await GuardarAsync(_tenantA, _gestorCae, TiposDeFicha360.Centro, ["accesos", "contacto"]);
+
+        (await LeerAsync(_tenantA, _gestorCae, TiposDeFicha360.Empresa)).Should().Equal(
+            ["notas", "contacto"], "guardar el de Centro no pisa el de Empresa");
+        (await LeerAsync(_tenantA, _gestorCae, TiposDeFicha360.Centro)).Should().Equal("accesos", "contacto");
+
+        await RestablecerAsync(_tenantA, _gestorCae, TiposDeFicha360.Centro);
+
+        (await LeerAsync(_tenantA, _gestorCae, TiposDeFicha360.Centro)).Should().BeEmpty();
+        (await LeerAsync(_tenantA, _gestorCae, TiposDeFicha360.Empresa)).Should().Equal(
+            ["notas", "contacto"], "restablecer el de Centro no borra el de Empresa");
+    }
+
+    /// <summary>
     /// El «buscar y, si no está, crear» del handler no protege de dos guardados
     /// simultáneos; quien garantiza una sola fila es el índice único.
     /// </summary>
@@ -193,30 +214,33 @@ public class OrdenCajasFichaBajoRlsTests : IAsyncLifetime
         _runtime.ChangeTracker.Clear();
     }
 
-    private async Task GuardarAsync(Guid tenant, Guid usuario, params string[] claves)
+    private Task GuardarAsync(Guid tenant, Guid usuario, params string[] claves) =>
+        GuardarAsync(tenant, usuario, TiposDeFicha360.Empresa, claves);
+
+    private async Task GuardarAsync(Guid tenant, Guid usuario, string tipoFicha, string[] claves)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenant);
         var handler = new GuardarOrdenCajasFichaCommandHandler(
             UsuarioActual(usuario), _tenantDeLaPeticion, new OrdenCajasFichaRepository(_runtime), _runtime, TimeProvider.System);
-        var resultado = await handler.Handle(new GuardarOrdenCajasFichaCommand(TiposDeFicha360.Empresa, claves), CancellationToken.None);
+        var resultado = await handler.Handle(new GuardarOrdenCajasFichaCommand(tipoFicha, claves), CancellationToken.None);
         resultado.EsExitoso.Should().BeTrue();
         _runtime.ChangeTracker.Clear();
     }
 
-    private async Task RestablecerAsync(Guid tenant, Guid usuario)
+    private async Task RestablecerAsync(Guid tenant, Guid usuario, string tipoFicha = TiposDeFicha360.Empresa)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenant);
         var handler = new RestablecerOrdenCajasFichaCommandHandler(UsuarioActual(usuario), new OrdenCajasFichaRepository(_runtime), _runtime);
-        var resultado = await handler.Handle(new RestablecerOrdenCajasFichaCommand(TiposDeFicha360.Empresa), CancellationToken.None);
+        var resultado = await handler.Handle(new RestablecerOrdenCajasFichaCommand(tipoFicha), CancellationToken.None);
         resultado.EsExitoso.Should().BeTrue();
         _runtime.ChangeTracker.Clear();
     }
 
-    private async Task<IReadOnlyList<string>> LeerAsync(Guid tenant, Guid usuario)
+    private async Task<IReadOnlyList<string>> LeerAsync(Guid tenant, Guid usuario, string tipoFicha = TiposDeFicha360.Empresa)
     {
         using var ambito = AmbitoTenantExplicito.Establecer(tenant);
         return await new ObtenerOrdenCajasFichaQueryHandler(_runtime, UsuarioActual(usuario))
-            .Handle(new ObtenerOrdenCajasFichaQuery(TiposDeFicha360.Empresa), CancellationToken.None);
+            .Handle(new ObtenerOrdenCajasFichaQuery(tipoFicha), CancellationToken.None);
     }
 
     private CurrentUserServiceFalso UsuarioActual(Guid usuario) => new(usuario, tenantOrigenId: _tenantOrigen);

@@ -101,6 +101,7 @@ public partial class OrdenCajasFicha : EntidadConTenant
         return resultado;
     }
 
-    [GeneratedRegex("^[a-z0-9]+(-[a-z0-9]+)*$")]
+    // \z y no $: en .NET, $ casa también antes de un salto de línea final.
+    [GeneratedRegex(@"^[a-z0-9]+(-[a-z0-9]+)*\z")]
     private static partial Regex FormaDeClave();
 }
