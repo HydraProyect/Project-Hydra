@@ -4,7 +4,10 @@
 # agruparlos: en un repo con -warnaserror y tests de integración reales, cada
 # actualización merece pasar su propio CI antes de fiarse de ella, no
 # mezclarse con otras diez en un solo PR difícil de diagnosticar si algo
-# rompe.
+# rompe. Única excepción: un MISMO paquete referenciado por varios proyectos
+# se agrupa en un solo PR (ver `groups` en NuGet). Sin eso, Dependabot abría
+# un PR por proyecto (5 de coverlet.collector, 2026-10-09) y recreaba los que
+# se cerraban a mano.
 #
 # Metadatos de PR: el check "Gobernanza — metadatos de PR"
 # (.github/workflows/gobernanza-pr.yml) exige a TODA PR, dependabot[bot]
@@ -30,6 +33,39 @@ updates:
       - "Type: Enhancement"
       - "Priority: Low"
     milestone: 12 # "Mantenimiento de dependencias (Dependabot)"
+    # Un grupo por paquete que usan varios proyectos (medido 2026-10-09 con
+    # grep de PackageReference): cada grupo da UN PR que actualiza ese paquete
+    # en todos sus proyectos. Solo minor y patch: un salto de versión mayor
+    # sigue yendo aparte, porque es una pregunta de licencia antes que técnica
+    # (§ 23). FluentAssertions no se agrupa: está fijado en 7.x por el ignore.
+    groups:
+      xunit:
+        patterns: ["xunit", "xunit.runner.visualstudio"]
+        update-types: ["minor", "patch"]
+      test-sdk:
+        patterns: ["Microsoft.NET.Test.Sdk"]
+        update-types: ["minor", "patch"]
+      coverlet:
+        patterns: ["coverlet.collector"]
+        update-types: ["minor", "patch"]
+      pdfsharp:
+        patterns: ["PDFsharp"]
+        update-types: ["minor", "patch"]
+      anglesharp:
+        patterns: ["AngleSharp"]
+        update-types: ["minor", "patch"]
+      playwright:
+        patterns: ["Microsoft.Playwright"]
+        update-types: ["minor", "patch"]
+      closedxml:
+        patterns: ["ClosedXML"]
+        update-types: ["minor", "patch"]
+      npgsql:
+        patterns: ["Npgsql", "Npgsql.EntityFrameworkCore.PostgreSQL"]
+        update-types: ["minor", "patch"]
+      ef-design:
+        patterns: ["Microsoft.EntityFrameworkCore.Design"]
+        update-types: ["minor", "patch"]
     ignore:
       # FluentAssertions 8.x exige licencia comercial de pago (Xceed) desde
       # 2026-01; nos quedamos fijados en la rama 7.x (Apache 2.0, bugfixes
