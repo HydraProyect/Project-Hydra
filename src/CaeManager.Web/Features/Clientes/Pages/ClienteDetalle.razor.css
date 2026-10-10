@@ -66,3 +66,8 @@
     font: var(--font-caption);
     color: var(--color-text-muted);
 }
+
+.cliente360-documentacion {
+    display: grid;
+    gap: var(--space-4);
+}

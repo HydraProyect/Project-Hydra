@@ -59,18 +59,15 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     /// <summary>
     /// Orden de la tira: Centros primera y por defecto porque es la única que
-    /// trae estado; el resto sigue el orden del panel. «Actividad» del panel se
-    /// rotula «Historial», como en los demás 360 (mismo PestanaHistorial).
+    /// trae estado; después Empresas, Subcontratas y Documentación.
+    /// La certificación TGSS es el primer bloque de Documentación.
     /// </summary>
     private static readonly (string Id, string Clave)[] _pestanas =
     [
         ("centros", "PestanaCentros"),
         ("empresas", "PestanaEmpresas"),
         ("subcontratas", "PestanaSubcontratas"),
-        ("blindaje42", "PestanaBlindaje"),
-        ("documentacion", "PestanaDocumentacion"),
-        ("agenda", "PestanaAgenda"),
-        ("historial", "PestanaHistorial")
+        ("documentacion", "PestanaDocumentacion")
     ];
 
     [Parameter] public Guid ClienteId { get; set; }
@@ -214,6 +211,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         : _centros.Where(c => c.Nombre.Contains(_busqueda.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
 
     private static string Normalizar(string? pestana) =>
+        pestana == "blindaje42" ? "documentacion" :
         _pestanas.Any(p => p.Id == pestana) ? pestana! : PestanaPorDefecto;
 
     private void CambiarPestana(string pestana)
