@@ -87,7 +87,12 @@ public class Empresa : EntidadBase
 
     /// <summary>
     /// Deuda transitoria de F3 — antiguo <c>Cliente.Notas</c>. NULL =
-    /// "no aplica". Destino final: <c>RelacionEmpresarial</c> (F4).
+    /// "no aplica" o sin nota. Destino final: <c>RelacionEmpresarial</c> (F4).
+    /// Es la «Nota interna» de las fichas 360: la misma columna para la
+    /// Empresa en su papel de Cliente y en su papel de Subcontrata
+    /// (<see cref="FijarNotaInterna"/>), así que una Empresa con los dos
+    /// papeles tiene una sola nota. No decide ningún rol: el discriminador de
+    /// Cliente es <see cref="EsCritico"/>, no esta columna.
     /// </summary>
     public string? Notas { get; private set; }
 
@@ -175,6 +180,22 @@ public class Empresa : EntidadBase
 
     /// <summary>F3b-Subcontrata — reemplaza a <c>Subcontrata.CambiarNivelServicio</c>.</summary>
     public void CambiarNivelServicioComoSubcontrata(string nivelServicio) => NivelServicio = nivelServicio;
+
+    /// <summary>
+    /// Fija solo la nota interna (<see cref="Notas"/>), sin tocar la identidad
+    /// ni los discriminadores de rol: quien edita la nota desde una ficha 360
+    /// no reenvía razón social, CIF ni relaciones. Vacía o solo espacios
+    /// equivale a no tener nota (<c>null</c>).
+    /// </summary>
+    public void FijarNotaInterna(string? notas)
+    {
+        var normalizada = string.IsNullOrWhiteSpace(notas) ? null : notas.Trim();
+
+        if (normalizada is { Length: > LongitudMaximaNotas })
+            throw new ArgumentException($"La nota interna no puede superar {LongitudMaximaNotas} caracteres.", nameof(notas));
+
+        Notas = normalizada;
+    }
 
     private void EstablecerRazonSocial(string razonSocial)
     {

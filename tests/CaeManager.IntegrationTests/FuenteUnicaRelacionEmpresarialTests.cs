@@ -429,7 +429,8 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         SubcontrataDetalleDto dto;
         await using (var lectura = CrearContexto())
         {
-            var query = new ObtenerSubcontrataPorIdQueryHandler(lectura, CrearAlcanceConAccesoTotal(lectura));
+            var query = new ObtenerSubcontrataPorIdQueryHandler(
+                lectura, CrearAlcanceConAccesoTotal(lectura), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"));
             dto = (await query.Handle(new ObtenerSubcontrataPorIdQuery(subcontrataId), CancellationToken.None))!;
 
             dto.ClienteIds.Should().BeEquivalentTo([clienteVivo]);

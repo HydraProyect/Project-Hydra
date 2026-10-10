@@ -46,6 +46,10 @@ public record ObtenerEstadoTipoDocumentoQuery(
 /// <param name="Recuentos">Filas por grupo de su peor estado, sobre todas las filas.</param>
 /// <param name="Filas">La página pedida de las filas que casan con <c>Estados</c>.</param>
 /// <param name="TotalFiltradas">Filas que casan con <c>Estados</c>, en todas las páginas.</param>
+/// <param name="Notas">
+/// La «Nota interna» del lateral (<c>TipoDocumento.Notas</c>). No necesita corte propio: la consulta entera ya responde
+/// <c>null</c> a quien no es de <see cref="ObtenerEstadoTipoDocumentoQueryHandler.RolesQueVenLaPagina"/>.
+/// </param>
 public record EstadoTipoDocumentoDto(
     Guid Id,
     string Nombre,
@@ -62,7 +66,8 @@ public record EstadoTipoDocumentoDto(
     IReadOnlyList<FilaTrabajadorTipoDocumentoDto> Filas,
     int TotalFiltradas,
     int Pagina,
-    int TamanoPagina);
+    int TamanoPagina,
+    string? Notas);
 
 public record RecuentoGrupoEstadoDto(GrupoEstadoTipoDocumento Grupo, int Filas);
 
@@ -121,7 +126,8 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
                 t.AmbitoAplicacion,
                 t.Requerido,
                 t.Naturaleza,
-                t.SeSolicitaA
+                t.SeSolicitaA,
+                t.Notas
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -155,7 +161,8 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
             Filas: filtradas.Skip((pagina - 1) * tamano).Take(tamano).ToList(),
             TotalFiltradas: filtradas.Count,
             Pagina: pagina,
-            TamanoPagina: tamano);
+            TamanoPagina: tamano,
+            Notas: tipo.Notas);
     }
 
     private async Task<IReadOnlyList<ParDeTipoDocumento>> CargarParesAsync(Guid tipoDocumentoId, CancellationToken cancellationToken)

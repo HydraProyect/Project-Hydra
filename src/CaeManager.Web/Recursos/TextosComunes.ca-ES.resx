@@ -402,4 +402,15 @@
   <data name="CumplimientoSinRequisitos" xml:space="preserve">
     <value>Sense requisits</value>
   </data>
+  <data name="NotaInternaTitulo" xml:space="preserve">
+    <value>Nota interna</value>
+    <comment>Títol de la targeta NotaInterna del lateral de les fitxes 360 i del seu editor. En català s'escriu igual.</comment>
+  </data>
+  <data name="NotaInternaVacia" xml:space="preserve">
+    <value>Sense nota interna.</value>
+  </data>
+  <data name="NotaInternaSoloEquipo" xml:space="preserve">
+    <value>Només visible per al teu equip.</value>
+    <comment>Peu de la targeta NotaInterna: la nota no la veu l'usuari d'un Client.</comment>
+  </data>
 </root>

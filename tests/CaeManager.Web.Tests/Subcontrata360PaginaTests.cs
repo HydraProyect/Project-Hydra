@@ -8,6 +8,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna;
+using CaeManager.Application.Subcontratas.Commands.GuardarNotaInternaSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCumplimientoSubcontrata;
@@ -67,6 +68,11 @@ public class Subcontrata360PaginaTests : BunitContext
         public bool DobleFactor { get; set; } = true;
         public bool FallaElCumplimiento { get; set; }
 
+        /// <summary>Lo que responde el servidor a «Guardar» de la nota, y la ficha que entrega la relectura posterior.</summary>
+        public Result ResultadoNota { get; set; } = Result.Exito();
+        public SubcontrataDetalleDto? DetalleTrasGuardarNota { get; set; }
+        public Exception? ExcepcionAlGuardarNota { get; set; }
+
         public List<object> Enviadas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
@@ -74,6 +80,10 @@ public class Subcontrata360PaginaTests : BunitContext
             Enviadas.Add(request);
             if (FallaElCumplimiento && request is ObtenerCumplimientoSubcontrataQuery)
                 return Task.FromException<TResponse>(new InvalidOperationException("fallo transitorio"));
+            if (request is GuardarNotaInternaSubcontrataCommand && ExcepcionAlGuardarNota is { } excepcion)
+                return Task.FromException<TResponse>(excepcion);
+            if (request is GuardarNotaInternaSubcontrataCommand && ResultadoNota.EsExitoso && DetalleTrasGuardarNota is not null)
+                Detalle = DetalleTrasGuardarNota;
             return Task.FromResult((TResponse)Responder(request)!);
         }
 
@@ -89,6 +99,7 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerDobleFactorPropioQuery => DobleFactor,
             ObtenerCredencialAccesoSubcontrataQuery => Credencial,
             CambiarNivelServicioSubcontrataCommand or EliminarSubcontrataCommand or EliminarVerificacionExternaSubcontrataCommand => Result.Exito(),
+            GuardarNotaInternaSubcontrataCommand => ResultadoNota,
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -132,8 +143,10 @@ public class Subcontrata360PaginaTests : BunitContext
     private static readonly Guid Version = Guid.NewGuid();
     private static readonly Guid CentroId = Guid.NewGuid();
 
-    private static SubcontrataDetalleDto Detalle(NivelServicioSubcontrata nivel = NivelServicioSubcontrata.Supervisada, Guid? id = null) =>
-        new(id ?? SubcontrataId, "Transportes Terminator S.L.", "B70005204", new DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc), [], [], Version, nivel);
+    private static SubcontrataDetalleDto Detalle(
+        NivelServicioSubcontrata nivel = NivelServicioSubcontrata.Supervisada, Guid? id = null, string? notas = null, bool notaInternaVisible = true) =>
+        new(id ?? SubcontrataId, "Transportes Terminator S.L.", "B70005204", new DateTime(2026, 3, 1, 9, 0, 0, DateTimeKind.Utc), [], [], Version, nivel,
+            notas, notaInternaVisible);
 
     private static TrabajadorDocumentacionSubcontrataDto Trabajador(string nombre, EstadoDocumento peor, params DocumentoRequeridoDto[] documentos) =>
         new(Guid.NewGuid(), nombre, "12345678Z", peor, documentos,
@@ -533,6 +546,161 @@ public class Subcontrata360PaginaTests : BunitContext
         NombresDeFila(cut).Should().Equal("Formación Art. 19", "Aptitud médica");
         cut.FindAll(".fila-relacion button").Should().BeEmpty();
         cut.FindAll("a.subcontrata360-enlace").Should().ContainSingle("ver la evidencia es lectura");
+    }
+
+    // ── Nota interna ──────────────────────────────────────────────────────
+
+    private const string NotaGuardada = "Avisar a Leire antes de pedir documentación.";
+
+    private static IElement? TarjetaNota(IRenderedComponent<SubcontrataDetalle> cut) =>
+        cut.FindAll("[data-pieza=nota-interna]").SingleOrDefault();
+
+    /// <summary>El editor es el único diálogo abierto con ese título: los demás drawers de la página están cerrados.</summary>
+    private static IElement EditorNota(IRenderedComponent<SubcontrataDetalle> cut) =>
+        cut.FindAll("[role=dialog]").Single(d => d.QuerySelector("h2")?.TextContent.Trim() == "Nota interna");
+
+    private static bool EditorNotaAbierto(IRenderedComponent<SubcontrataDetalle> cut) =>
+        cut.FindAll("[role=dialog]").Any(d => d.QuerySelector("h2")?.TextContent.Trim() == "Nota interna");
+
+    private static IRenderedComponent<SubcontrataDetalle> AbrirEditorNota(IRenderedComponent<SubcontrataDetalle> cut)
+    {
+        TarjetaNota(cut)!.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Editar →").Click();
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeTrue());
+        return cut;
+    }
+
+    [Fact]
+    public void El_equipo_ve_la_nota_interna_al_final_del_lateral_con_su_pie()
+    {
+        Montar(ajustar: m => m.Detalle = Detalle(notas: NotaGuardada));
+
+        var cut = Renderizar();
+
+        var tarjeta = TarjetaNota(cut);
+        tarjeta.Should().NotBeNull();
+        tarjeta!.QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Nota interna");
+        tarjeta.TextContent.Should().Contain(NotaGuardada).And.Contain("Solo visible para tu equipo.");
+        tarjeta.TextContent.Should().NotContain("Sin nota interna.");
+        cut.Find(".cuerpo-con-lateral-lateral").LastElementChild!.GetAttribute("data-pieza")
+            .Should().Be("nota-interna", "la nota cierra el lateral, tras «Información» y «Acceso al portal»");
+    }
+
+    [Fact]
+    public void Sin_nota_el_equipo_ve_la_tarjeta_con_su_vacio()
+    {
+        Montar();
+
+        var cut = Renderizar();
+
+        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("Solo visible para tu equipo.");
+    }
+
+    /// <summary>
+    /// El usuario de un Cliente también lee esta ficha. El servidor le responde <c>NotaInternaVisible = false</c> y la
+    /// página no pinta la tarjeta, ni siquiera vacía: «Sin nota interna.» ya le diría que existe una nota del equipo.
+    /// </summary>
+    [Fact]
+    public void A_quien_no_es_del_equipo_la_pagina_no_le_pinta_la_tarjeta_ni_vacia()
+    {
+        Montar(Roles.Cliente, m => m.Detalle = Detalle(notas: null, notaInternaVisible: false));
+
+        var cut = Renderizar();
+
+        TarjetaNota(cut).Should().BeNull();
+        cut.Markup.Should().NotContain("Nota interna").And.NotContain("Solo visible para tu equipo.");
+    }
+
+    [Fact]
+    public void Consulta_lee_la_nota_pero_no_se_le_ofrece_editarla()
+    {
+        Montar(Roles.Consulta, m => m.Detalle = Detalle(notas: NotaGuardada));
+
+        var cut = Renderizar();
+
+        var tarjeta = TarjetaNota(cut);
+        tarjeta!.TextContent.Should().Contain(NotaGuardada);
+        tarjeta.QuerySelectorAll("button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Editar_abre_el_editor_con_la_nota_actual_y_guardar_manda_solo_la_nota_con_la_version_leida()
+    {
+        var versionNueva = Guid.NewGuid();
+        var mediador = Montar(ajustar: m =>
+        {
+            m.Detalle = Detalle(notas: NotaGuardada);
+            m.DetalleTrasGuardarNota = Detalle(notas: "Ahora atiende Jon.") with { Version = versionNueva };
+        });
+        var cut = AbrirEditorNota(Renderizar());
+
+        var campo = EditorNota(cut).QuerySelector("textarea")!;
+        campo.TextContent.Should().Be(NotaGuardada);
+        campo.Input("Ahora atiende Jon.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeFalse());
+        mediador.Enviadas.OfType<GuardarNotaInternaSubcontrataCommand>().Should().ContainSingle()
+            .Which.Should().Be(new GuardarNotaInternaSubcontrataCommand(SubcontrataId, "Ahora atiende Jon.", Version));
+        // La ficha se relee: la tarjeta enseña lo guardado y la siguiente orden lleva la versión nueva.
+        TarjetaNota(cut)!.TextContent.Should().Contain("Ahora atiende Jon.").And.NotContain(NotaGuardada);
+        AbrirEditorNota(cut);
+        EditorNota(cut).QuerySelector("textarea")!.Input("Otra vez.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<GuardarNotaInternaSubcontrataCommand>().Should().HaveCount(2));
+        mediador.Enviadas.OfType<GuardarNotaInternaSubcontrataCommand>().Last().Version.Should().Be(versionNueva);
+    }
+
+    [Fact]
+    public void Si_el_servidor_rechaza_la_nota_el_editor_sigue_abierto_con_el_motivo_y_lo_escrito()
+    {
+        var conflicto = Error.Crear("Concurrencia.Conflicto", "Otra persona modificó esta subcontrata mientras lo editabas.");
+        var mediador = Montar(ajustar: m =>
+        {
+            m.Detalle = Detalle(notas: NotaGuardada);
+            m.ResultadoNota = Result.Fallo(conflicto);
+        });
+        var cut = AbrirEditorNota(Renderizar());
+
+        EditorNota(cut).QuerySelector("textarea")!.Input("Lo mío.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => EditorNota(cut).QuerySelector(".drawer-aviso")!.TextContent.Should().Contain(conflicto.Mensaje));
+        mediador.Enviadas.OfType<GuardarNotaInternaSubcontrataCommand>().Should().ContainSingle();
+        TarjetaNota(cut)!.TextContent.Should().Contain(NotaGuardada, "lo rechazado no se da por guardado");
+    }
+
+    /// <summary>La nota demasiado larga la rechaza el validador del servidor (ValidationBehavior lanza): el motivo va al campo.</summary>
+    [Fact]
+    public void Si_el_validador_rechaza_la_nota_el_motivo_se_ve_en_el_campo_y_el_editor_sigue_abierto()
+    {
+        const string motivo = "La nota interna no puede superar 2000 caracteres.";
+        Montar(ajustar: m => m.ExcepcionAlGuardarNota = new FluentValidation.ValidationException(
+            [new FluentValidation.Results.ValidationFailure(nameof(GuardarNotaInternaSubcontrataCommand.Notas), motivo)]));
+        var cut = AbrirEditorNota(Renderizar());
+
+        EditorNota(cut).QuerySelector("textarea")!.Input("Demasiado larga.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => EditorNota(cut).QuerySelector(".campo-mensaje-error")!.TextContent.Should().Be(motivo));
+        EditorNota(cut).QuerySelectorAll(".drawer-aviso").Should().BeEmpty("el error es del campo, no del formulario");
+    }
+
+    [Fact]
+    public async Task Cancelar_con_la_nota_cambiada_pregunta_antes_de_descartar_y_sin_cambios_cierra()
+    {
+        var mediador = Montar(ajustar: m => m.Detalle = Detalle(notas: NotaGuardada));
+        var cut = AbrirEditorNota(Renderizar());
+
+        await EditorNota(cut).QuerySelector(".drawer-pie .boton-secundario")!.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeFalse("sin cambios no hay nada que preguntar"));
+
+        AbrirEditorNota(cut);
+        EditorNota(cut).QuerySelector("textarea")!.Input("A medio escribir.");
+        await EditorNota(cut).QuerySelector(".drawer-pie .boton-secundario")!.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.WaitForAssertion(() => HayBoton(cut, "Descartar cambios").Should().BeTrue());
+        EditorNotaAbierto(cut).Should().BeTrue();
+        mediador.Enviadas.Should().NotContain(p => p is GuardarNotaInternaSubcontrataCommand);
     }
 
     // ── Vocabulario de estado ─────────────────────────────────────────────

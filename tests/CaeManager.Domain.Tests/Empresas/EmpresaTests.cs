@@ -154,4 +154,47 @@ public class EmpresaTests
         empresa.ConvenioAplicable.Should().Be("Convenio del Metal");
         empresa.EsActividadAnexoI.Should().BeTrue();
     }
+
+    // ── Nota interna ──────────────────────────────────────────────────────
+
+    [Fact]
+    public void Fijar_la_nota_interna_solo_cambia_la_nota()
+    {
+        var empresa = Empresa.CrearComoSubcontrata("Andamios del Sur S.L.", CifValido, nivelServicio: "Supervisada");
+
+        empresa.FijarNotaInterna("  Llamar antes de las 10.\nPreguntar por Leire.  ");
+
+        empresa.Notas.Should().Be("Llamar antes de las 10.\nPreguntar por Leire.", "se recortan los extremos y se conservan los saltos de línea");
+        empresa.RazonSocial.Should().Be("Andamios del Sur S.L.");
+        empresa.Cif.Should().Be(CifValido);
+        empresa.NivelServicio.Should().Be("Supervisada");
+        empresa.EsCritico.Should().BeNull("la nota no decide ningún rol");
+        empresa.EsPropia.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  \n\t ")]
+    public void Una_nota_vacia_o_solo_de_espacios_es_no_tener_nota(string? notas)
+    {
+        var empresa = Empresa.CrearComoSubcontrata("Andamios del Sur S.L.", CifValido, nivelServicio: "Supervisada");
+        empresa.FijarNotaInterna("Nota anterior.");
+
+        empresa.FijarNotaInterna(notas);
+
+        empresa.Notas.Should().BeNull();
+    }
+
+    [Fact]
+    public void La_nota_interna_admite_el_maximo_y_rechaza_un_caracter_mas()
+    {
+        var empresa = Empresa.CrearComoSubcontrata("Andamios del Sur S.L.", CifValido, nivelServicio: "Supervisada");
+
+        empresa.FijarNotaInterna(new string('a', Empresa.LongitudMaximaNotas));
+        var accion = () => empresa.FijarNotaInterna(new string('a', Empresa.LongitudMaximaNotas + 1));
+
+        accion.Should().Throw<ArgumentException>();
+        empresa.Notas.Should().HaveLength(Empresa.LongitudMaximaNotas, "la nota rechazada no sustituye a la anterior");
+    }
 }

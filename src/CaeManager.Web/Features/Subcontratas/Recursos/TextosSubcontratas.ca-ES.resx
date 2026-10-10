@@ -852,4 +852,10 @@
   <data name="ErrorCargaIncidenciasDescripcion" xml:space="preserve">
     <value>No vol dir que no n'hi hagi cap. Consulta la pestanya Treballadors o torna a obrir la fitxa.</value>
   </data>
+  <data name="ToastNotaInternaGuardada" xml:space="preserve">
+    <value>Nota interna desada.</value>
+  </data>
+  <data name="ErrorGuardarNotaInterna" xml:space="preserve">
+    <value>No hem pogut desar la nota interna. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
 </root>

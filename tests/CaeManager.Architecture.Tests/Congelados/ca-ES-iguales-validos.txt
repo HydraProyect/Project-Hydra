@@ -21,3 +21,7 @@ Operador CAE
 # 2026-10-09 (Visitas, documentación gestionada): «Gestionada el {fecha}» se escribe igual en catalán
 # («Gestionada el 9/10/2026»); el participio y el artículo coinciden en las dos lenguas.
 Gestionada el
+#
+# 2026-10-10 (pieza NotaInterna de las fichas 360): «nota» e «interna» se escriben igual en catalán
+# («nota interna»); es el título de la tarjeta, no castellano sin traducir.
+Nota interna

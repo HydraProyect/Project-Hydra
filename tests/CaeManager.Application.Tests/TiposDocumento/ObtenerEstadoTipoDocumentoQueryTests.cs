@@ -120,6 +120,25 @@ public class ObtenerEstadoTipoDocumentoQueryTests
         dto!.Trabajadores.Should().Be(1);
     }
 
+    /// <summary>
+    /// La «Nota interna» del lateral (<c>TipoDocumento.Notas</c>) no tiene corte propio: viaja a quien lee la página, y
+    /// a quien no la lee la consulta entera ya le responde <c>null</c> (primer test de esta clase).
+    /// </summary>
+    [Fact]
+    public async Task La_nota_del_tipo_viaja_con_la_pagina_y_sin_nota_viaja_nula()
+    {
+        var escenario = new Escenario();
+        var conNota = new TipoDocumento(
+            "Formación Art. 19", 12, true, 3, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si, notas: "Pedir siempre el certificado con las horas.");
+        escenario.Tipos.ListaTiposDocumento.Add(conNota);
+        var handler = escenario.Handler(new CalculoFalso());
+
+        (await handler.Handle(new ObtenerEstadoTipoDocumentoQuery(conNota.Id), CancellationToken.None))!
+            .Notas.Should().Be("Pedir siempre el certificado con las horas.");
+        (await handler.Handle(new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id), CancellationToken.None))!
+            .Notas.Should().BeNull();
+    }
+
     [Fact]
     public async Task Un_tipo_que_no_existe_y_uno_que_no_se_pide_a_trabajadores_responden_igual_que_sin_acceso()
     {

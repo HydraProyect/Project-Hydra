@@ -7,6 +7,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna;
+using CaeManager.Application.Subcontratas.Commands.GuardarNotaInternaSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCredencialAccesoSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCumplimientoSubcontrata;
@@ -23,6 +24,7 @@ using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Documentos.Components;
 using CaeManager.Web.Features.Subcontratas.Components;
 using CaeManager.Web.Services;
+using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 
@@ -238,6 +240,11 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         _confirmarEliminarVerificacionVisible = false;
         _eliminandoVerificacion = false;
         _drawerVerificacion?.Descartar();
+        _editorNotaVisible = false;
+        _guardandoNota = false;
+        _notaEnEdicion = string.Empty;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
     }
 
     /// <summary>
@@ -913,6 +920,80 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         finally
         {
             _eliminando = false;
+        }
+    }
+
+    // ---------- Nota interna ----------
+
+    private bool _editorNotaVisible;
+    private bool _guardandoNota;
+    private string _notaEnEdicion = string.Empty;
+    private string? _mensajeErrorNota;
+    private string? _errorCampoNota;
+    private readonly InstantaneaFormulario _instantaneaNota = new();
+
+    /// <summary>Lo lee DrawerFormulario, que lleva dentro el guardián de cerrar y de navegar; cerrado no hay nada que perder.</summary>
+    private bool HayCambiosEnLaNota => _editorNotaVisible && _instantaneaNota.Difiere(_notaEnEdicion);
+
+    private void AbrirEditorNota()
+    {
+        if (_detalle is null) return;
+
+        _notaEnEdicion = _detalle.Notas ?? string.Empty;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
+        _instantaneaNota.Fijar(_notaEnEdicion);
+        _editorNotaVisible = true;
+    }
+
+    private void CambiarVisibilidadEditorNota(bool visible) => _editorNotaVisible = visible;
+
+    /// <summary>
+    /// Manda solo la nota y la <c>Version</c> que la ficha leyó: si otra persona guardó la subcontrata entre medias, el
+    /// servidor responde el conflicto y el editor lo enseña sin cerrarse, con lo escrito intacto. Tras guardar se relee
+    /// la cabecera, porque la <c>Version</c> cambió y la siguiente orden de esta ficha tiene que llevar la nueva.
+    /// </summary>
+    private async Task GuardarNotaAsync()
+    {
+        if (_detalle is null || _guardandoNota) return;
+
+        var generacion = _generacion;
+        var detalle = _detalle;
+        _guardandoNota = true;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(new GuardarNotaInternaSubcontrataCommand(detalle.Id, _notaEnEdicion, detalle.Version));
+
+            if (resultado.EsFallido)
+            {
+                if (generacion == _generacion)
+                    _mensajeErrorNota = resultado.Error.Mensaje;
+                return;
+            }
+
+            // Como en CambiarNivelAsync: lo guardado se confirma aunque la ficha ya enseñe otra subcontrata.
+            ToastService.Mostrar(Textos["ToastNotaInternaGuardada"], TonoToast.Exito);
+            if (generacion != _generacion) return;
+            _editorNotaVisible = false;
+            await RecargarCabeceraAsync();
+        }
+        catch (ValidationException ex)
+        {
+            if (generacion == _generacion)
+                _errorCampoNota = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorGuardarNotaInterna"];
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                _mensajeErrorNota = Textos["ErrorGuardarNotaInterna"];
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _guardandoNota = false;
         }
     }
 

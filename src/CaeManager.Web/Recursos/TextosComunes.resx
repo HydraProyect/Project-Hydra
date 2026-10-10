@@ -406,4 +406,15 @@
   <data name="CumplimientoSinRequisitos" xml:space="preserve">
     <value>Sin requisitos</value>
   </data>
+  <data name="NotaInternaTitulo" xml:space="preserve">
+    <value>Nota interna</value>
+    <comment>Título de la tarjeta NotaInterna del lateral de las fichas 360 y de su editor.</comment>
+  </data>
+  <data name="NotaInternaVacia" xml:space="preserve">
+    <value>Sin nota interna.</value>
+  </data>
+  <data name="NotaInternaSoloEquipo" xml:space="preserve">
+    <value>Solo visible para tu equipo.</value>
+    <comment>Pie de la tarjeta NotaInterna: la nota no la ve el usuario de un Cliente.</comment>
+  </data>
 </root>

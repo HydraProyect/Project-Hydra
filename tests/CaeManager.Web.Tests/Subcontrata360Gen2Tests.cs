@@ -164,7 +164,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         Guid id, string razonSocial, NivelServicioSubcontrata nivel = NivelServicioSubcontrata.Gestionada,
         Guid[]? clientes = null, Guid[]? empresas = null) => new(
         id, razonSocial, "A-48.007.615", new DateTime(2026, 7, 2, 0, 0, 0, DateTimeKind.Utc),
-        clientes ?? [], empresas ?? [], Guid.NewGuid(), nivel);
+        clientes ?? [], empresas ?? [], Guid.NewGuid(), nivel, Notas: null, NotaInternaVisible: true);
 
     private static TrabajadorListaDto Trabajador(string nombre, string apellidos, EstadoDocumento? estado = null) =>
         new(Guid.NewGuid(), nombre, apellidos, "12884021K", "Pinturas Lauburu S.A.", estado);
