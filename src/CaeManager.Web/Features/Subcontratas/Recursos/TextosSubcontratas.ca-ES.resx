@@ -114,12 +114,6 @@
   <data name="RotuloCumplimiento" xml:space="preserve">
     <value>Cumplimiento</value>
   </data>
-  <data name="ColumnaVencidos" xml:space="preserve">
-    <value>Vencidos</value>
-  </data>
-  <data name="ColumnaProximos" xml:space="preserve">
-    <value>Per vèncer</value>
-  </data>
   <data name="AriaSeleccionarSubcontrata" xml:space="preserve">
     <value>Seleccionar la empresa {0}</value>
   </data>
@@ -161,9 +155,6 @@
   </data>
   <data name="BadgeProximosVarios" xml:space="preserve">
     <value>{0} per vèncer</value>
-  </data>
-  <data name="BadgeAlCorriente" xml:space="preserve">
-    <value>Sense incidències</value>
   </data>
   <data name="MenuEliminar" xml:space="preserve">
     <value>Eliminar</value>
@@ -851,5 +842,26 @@
   </data>
   <data name="ErrorCargaIncidenciasDescripcion" xml:space="preserve">
     <value>No vol dir que no n'hi hagi cap. Consulta la pestanya Treballadors o torna a obrir la fitxa.</value>
+  </data>
+  <data name="RotuloSubcontrata" xml:space="preserve">
+    <value>Subcontracta</value>
+  </data>
+  <data name="RotuloEstadoDocumental" xml:space="preserve">
+    <value>Estat documental</value>
+  </data>
+  <data name="FiltroTodas" xml:space="preserve">
+    <value>Totes</value>
+  </data>
+  <data name="MotivoSinConfirmarUno" xml:space="preserve">
+    <value>1 sense confirmar</value>
+  </data>
+  <data name="MotivoSinConfirmarVarios" xml:space="preserve">
+    <value>{0} sense confirmar</value>
+  </data>
+  <data name="RecuentoDocumentosSinConfirmarUno" xml:space="preserve">
+    <value>1 document amb la vigència sense confirmar</value>
+  </data>
+  <data name="RecuentoDocumentosSinConfirmarVarios" xml:space="preserve">
+    <value>{0} documents amb la vigència sense confirmar</value>
   </data>
 </root>
