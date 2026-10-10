@@ -90,7 +90,8 @@
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   OnGuardarFiltro="AbrirGuardarFiltro" FiltrosGuardados="OpcionesFiltrosGuardados"
                   OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
-                  OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado">
+                  OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
+                  VistaRecordada="_vistaRecordada">
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpresa"]" TextoTodos="@Textos["OpcionTodas"]" Valor="@ValorFiltroEmpleador"
                             ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
@@ -113,6 +114,8 @@
             }
         </Chips>
     </BarraFiltros>
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Trabajadores"
+                             ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@

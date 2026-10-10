@@ -1268,6 +1268,39 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         await RecargarAsync();
     }
 
+    // --- Vista recordada (pieza compartida VistaRecordadaDeListado) ---
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que recuerda y restaura la vista recordada
+    /// (<see cref="VistaRecordadaDeListado"/>). Los filtros guardados de esta pantalla son anteriores a la
+    /// pieza compartida y conservan su propio JSON. El orden de columna aún no viaja en la URL aquí.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata"];
+
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// La vista recordada (o la de inicio, al restablecer) define la vista entera: lo que no trae se quita.
+    /// Cada valor pasa por la misma validación que el de la URL en <see cref="OnParametersSetAsync"/> (un Id
+    /// que no es Guid o un estado que ya no existe se ignoran; con Empresa y subcontrata gana la
+    /// subcontrata). La URL se escribe en una sola navegación y se recarga aquí.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
+        _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro,
+            ["empresa"] = _filtroEmpresaId,
+            ["subcontrata"] = _filtroSubcontrataId,
+        });
+        await RecargarAsync();
+    }
+
     private async Task GuardarFiltroActualAsync()
     {
         if (string.IsNullOrWhiteSpace(_nombreFiltroNuevo) || _guardandoFiltro) return;

@@ -447,7 +447,7 @@
     <value>Restablecer vista</value>
   </data>
   <data name="RestablecerVistaTitulo" xml:space="preserve">
-    <value>Esta vista se recuerda para tu usuario en este Tenant. Pulsa para volver a la vista de fábrica.</value>
+    <value>Esta vista se recuerda para tu usuario en esta organización. Pulsa para volver a la vista de fábrica.</value>
   </data>
   <data name="VistaRestablecidaToast" xml:space="preserve">
     <value>Vista de fábrica restablecida.</value>
