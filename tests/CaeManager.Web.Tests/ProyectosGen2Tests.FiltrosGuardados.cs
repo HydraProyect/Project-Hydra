@@ -77,7 +77,9 @@ public partial class ProyectosGen2Tests
         ValorDelBuscador(cut).Should().Be("nave");
         PanelDeDetalleAbierto(cut).Should().BeTrue("la búsqueda y el estado no cierran el panel");
         ValorDelCampo(cut, "Nombre").Should().Be(ProyectoAbierto.Nombre, "y la edición sigue abierta");
-        CargasDeProyectosDe(ClienteId).Should().Be(1, "el mismo Cliente empresarial no se vuelve a cargar");
+        UltimaConsultaDeProyectos.Should().Match<ObtenerProyectosQuery>(q => q.ClienteId == ClienteId && q.Busqueda == "nave",
+            "la búsqueda la aplica la consulta: la lista se vuelve a pedir con ella, sin cerrar el panel");
+        CargasDeProyectosDe(ClienteId).Should().Be(2, "la del Cliente empresarial y una sola más con la búsqueda del filtro guardado");
     }
 
     [Fact]

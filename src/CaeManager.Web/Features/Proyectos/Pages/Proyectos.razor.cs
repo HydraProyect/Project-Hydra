@@ -65,16 +65,45 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool _errorProyectos;
 
     private IReadOnlyList<ClienteSelectorDto> _clientes = [];
-    private Guid _clienteSeleccionadoId = Guid.Empty;
-    private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
 
     /// <summary>
-    /// La lista COMPLETA de proyectos del cliente elegido: ObtenerProyectosQuery
-    /// no pagina. Los filtros de estado y búsqueda se aplican en memoria sobre
-    /// ella (<see cref="ProyectosVisibles"/>), y por eso la pantalla distingue
-    /// sin mentir "el cliente no tiene proyectos" de "ninguno coincide".
+    /// Cliente empresarial del filtro. <see cref="Guid.Empty"/>: sin filtro, los Proyectos de todos los
+    /// Clientes empresariales que el usuario alcanza.
+    /// </summary>
+    private Guid _clienteSeleccionadoId = Guid.Empty;
+
+    /// <summary>
+    /// La PÁGINA de proyectos que se enseña: ObtenerProyectosQuery pagina, busca y filtra por estado en
+    /// servidor. Cuántos cumplen los filtros en total lo dice <see cref="_totalElementos"/>, y cuántos hay
+    /// por estado, <see cref="_recuentosPorEstado"/>; de esta lista no se deduce ninguna de las dos cosas.
     /// </summary>
     private List<ProyectoListaDto> _proyectos = [];
+
+    /// <summary>Proyectos que cumplen todos los filtros, contando todas las páginas.</summary>
+    private int _totalElementos;
+
+    /// <summary>
+    /// Proyectos por estado con el Cliente empresarial y la búsqueda aplicados y sin el filtro de estado.
+    /// <c>null</c> mientras no ha llegado una carga: la franja se pinta igual, sin cifras.
+    /// </summary>
+    private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
+
+    /// <summary>
+    /// Ha llegado la respuesta de la lista vigente. Hasta entonces (primera carga, cambio de Cliente
+    /// empresarial) se pinta la carga; recargar la misma lista deja las filas a la vista mientras llegan.
+    /// </summary>
+    private bool _listaCargada;
+
+    private int _paginaActual = 1;
+    /// <summary>El tamaño de página más pequeño que ofrece el paginador: hasta ahí, la lista cabe sin él.</summary>
+    private const int TamanoPaginaMinimo = 20;
+
+    private int _tamanoPagina = TamanoPaginaMinimo;
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+
+    /// <summary>La lista y sus acciones (alta, exportar) existen: hay empresa activa y el selector de Clientes empresariales cargó.</summary>
+    private bool ListaDisponible => !_resolviendoEmpresa && !_sinEmpresaSeleccionada && !_cargando && !_errorCarga;
 
     private string _pestanaDetalle = "informacion";
 
@@ -87,6 +116,29 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         PorcentajeDelPlazo(proyecto) is { } porcentaje
             ? Textos["EtiquetaPlazoTranscurrido", porcentaje]
             : Textos["EtiquetaPlazoSinMedida"];
+
+    /// <summary>
+    /// El motivo bajo la pastilla de estado: cuánto lleva abierto el Proyecto o cuánto duró, con la cuenta
+    /// inclusiva de <see cref="PlazoProyecto.DiasAbiertos"/> (la de la ficha 360 y la facturación por días).
+    /// </summary>
+    private string MotivoEstado(ProyectoListaDto proyecto)
+    {
+        if (PlazoProyecto.DiasAbiertos(proyecto.FechaInicio, proyecto.FechaCierreReal, Hoy) is not { } dias)
+            return proyecto.EstaAbierto ? Textos["PlazoSinEmpezar"] : string.Empty;
+
+        return proyecto.EstaAbierto
+            ? Textos[dias == 1 ? "PlazoDiasAbiertoUno" : "PlazoDiasAbiertoVarios", dias]
+            : Textos[dias == 1 ? "MotivoDuroUno" : "MotivoDuroVarios", dias];
+    }
+
+    /// <summary>
+    /// Proyecto abierto pasado de su fin previsto: el mismo texto con que lo dice la ficha 360. La barra
+    /// de plazo se queda en el 100 % y por sí sola no distingue «acaba hoy» de «lleva un mes de retraso».
+    /// </summary>
+    private string? TextoFinPrevistoSuperado(ProyectoListaDto proyecto) =>
+        PlazoProyecto.DiasDeRetraso(proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, Hoy) is { } dias
+            ? Textos[dias == 1 ? "PlazoSuperadoUno" : "PlazoSuperadoVarios", dias].Value
+            : null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -117,9 +169,16 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (_sinEmpresaSeleccionada)
             return;
 
+        // La búsqueda y el estado de la URL se leen antes de la primera carga: OnParametersSetAsync no
+        // corre hasta que esto termina, y la primera página tiene que salir ya filtrada.
+        SincronizarFiltrosConLaUrl();
         await CargarAsync();
     }
 
+    /// <summary>
+    /// Primera carga, y lo que repite «Reintentar» si falla: el selector de Clientes empresariales y,
+    /// con él, la primera página de la lista. Sin Cliente empresarial en la URL se listan los de todos.
+    /// </summary>
     private async Task CargarAsync()
     {
         _cargando = true;
@@ -139,70 +198,130 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             _cargando = false;
         }
 
-        // Un enlace o una recarga con ?cliente= abre la lista de ese Cliente empresarial.
-        await AplicarClienteDeLaUrlAsync();
+        if (_errorCarga)
+            return;
+
+        // Un enlace o una recarga con ?cliente= abre la lista filtrada por ese Cliente empresarial.
+        _clienteSeleccionadoId = ClienteDeLaUrl();
+        await CargarProyectosAsync();
     }
 
     /// <summary>
-    /// Cliente empresarial elegido, en la URL (<c>?cliente=</c>) como en Centros:
-    /// es el maestro de la lista, y sin él recargar o compartir el enlace
-    /// volvía a «Elige un Cliente».
+    /// Cliente empresarial del filtro, en la URL (<c>?cliente=</c>) como en Centros: recargar o
+    /// compartir el enlace conserva el filtro.
     /// </summary>
     [SupplyParameterFromQuery(Name = "cliente")]
     public string? ClienteInicial { get; set; }
 
     /// <summary>
-    /// Elige el Cliente empresarial que pide la URL si es uno de los que este
-    /// usuario puede elegir y no es ya el elegido. Un Id ajeno a la lista, o la
-    /// ausencia del parámetro, no cambian nada: la URL no puede abrir un Cliente
-    /// empresarial que el selector no ofrece. Pasa por
-    /// <see cref="OnClienteSeleccionadoAsync"/>, así que pregunta antes de
-    /// perder lo escrito en el panel de detalle.
-    ///
-    /// <para>
-    /// <b>No escribe en la URL</b>: ya dice ese Cliente empresarial, y esta ruta
-    /// corre también en <c>OnInitializedAsync</c> durante el prerender, donde un
-    /// <c>NavigateTo</c> es una redirección HTTP — a la misma dirección, en bucle.
-    /// </para>
+    /// El Cliente empresarial que pide la URL, si es uno de los que este usuario puede elegir. Un Id
+    /// ajeno al selector cuenta como ausente (<see cref="Guid.Empty"/>, todos): la URL no puede filtrar
+    /// por un Cliente empresarial que el selector no ofrece.
     /// </summary>
-    private async Task AplicarClienteDeLaUrlAsync()
-    {
-        if (_cargando || _errorCarga)
-            return;
-        if (Guid.TryParse(ClienteInicial, out var id) && id != _clienteSeleccionadoId && _clientes.Any(c => c.Id == id))
-            await SeleccionarClienteAsync(id, pedidoPorLaUrl: true);
-    }
+    private Guid ClienteDeLaUrl() =>
+        Guid.TryParse(ClienteInicial, out var id) && _clientes.Any(c => c.Id == id) ? id : Guid.Empty;
 
     private void EscribirClienteEnUrl() =>
         NavigationManager.ActualizarFiltroEnUrl(
             "cliente", _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString());
 
     private Task OnClienteSeleccionadoAsync(string valor) =>
-        SeleccionarClienteAsync(Guid.TryParse(valor, out var id) ? id : Guid.Empty, pedidoPorLaUrl: false);
+        SeleccionarClienteAsync(Guid.TryParse(valor, out var id) ? id : Guid.Empty);
 
-    private async Task SeleccionarClienteAsync(Guid nuevo, bool pedidoPorLaUrl)
+    /// <summary>
+    /// El selector cambia el Cliente empresarial del filtro («Todos» es <see cref="Guid.Empty"/>) y pide
+    /// su lista. Cuando quien lo cambia es la URL, ver <see cref="AtenderOtroClienteEnLaUrlAsync"/>.
+    ///
+    /// <para>
+    /// La URL se escribe con el panel ya cerrado (sin nada pendiente de guardar que detenga la navegación)
+    /// y ANTES de la carga, para que no diga el Cliente empresarial anterior mientras llegan los datos:
+    /// teclear en el buscador en esa ventana navegaba conservándolo y lo devolvía a la pantalla.
+    /// </para>
+    /// </summary>
+    private async Task SeleccionarClienteAsync(Guid nuevo)
     {
-        // Cambiar de Cliente empresarial cierra el panel de detalle (OnClienteChangedAsync): si
-        // tenía algo escrito, se pregunta antes y, si se sigue editando, la selección vuelve
-        // al Cliente empresarial anterior y se renueva el selector.
-        if (nuevo != _clienteSeleccionadoId && !await _ambitoDetalle.ConfirmarAbandonoAsync())
+        // Cambiar de Cliente empresarial cierra el panel de detalle: si tenía algo escrito, se pregunta
+        // antes y, si se sigue editando, la selección vuelve al Cliente empresarial anterior y se
+        // renueva el selector.
+        if (nuevo == _clienteSeleccionadoId)
+            return;
+
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
         {
+            // No se navega: la URL no ha cambiado, y una navegación con el panel todavía sin guardar
+            // volvería a preguntar «¿Salir sin guardar?».
             _versionSelectorCliente++;
             _focoSelectorClienteEmpresarialPendiente = true;
-            // Si el cambio lo pedía la URL, vuelve a decir el Cliente empresarial que sigue en pantalla.
-            // Pedido desde el selector no se navega: la URL no ha cambiado, y una navegación con el
-            // panel todavía sin guardar volvería a preguntar «¿Salir sin guardar?».
-            if (pedidoPorLaUrl)
-                EscribirClienteEnUrl();
             return;
         }
 
         _clienteSeleccionadoId = nuevo;
-        // Primero se cierra el panel de detalle; la URL se escribe ya sin nada pendiente de guardar.
-        await OnClienteChangedAsync();
-        if (!pedidoPorLaUrl)
-            EscribirClienteEnUrl();
+        DescartarListaPorCambioDeCliente();
+        EscribirClienteEnUrl();
+        await CargarProyectosAsync();
     }
+
+    /// <summary>
+    /// La URL ha pasado a decir otro Cliente empresarial y la navegación ya ocurrió. «Atrás» del navegador
+    /// llega aquí sin que el aviso de cambios sin guardar la detenga antes (lo fija el E2E
+    /// <c>ProyectosFase1SelectorTests</c>); la que pide la aplicación con <c>NavigateTo</c> sí la detiene
+    /// el aviso, y aquí solo llega ya descartada. Cambiar de Cliente empresarial cierra el panel de detalle,
+    /// así que con algo escrito en él se pregunta, y se pregunta ANTES de tomar nada de la URL: mientras la
+    /// pregunta está abierta, las pastillas, la franja y la lista siguen siendo las de la vista que hay en
+    /// pantalla.
+    ///
+    /// <para>
+    /// «Seguir editando» deja esa vista entera y devuelve la URL a ella (Cliente empresarial, búsqueda y
+    /// estado, en una sola navegación). La búsqueda y el estado los filtra la consulta: tomarlos de la URL
+    /// nueva sin pedir la lista dejaba las pastillas de una vista sobre las filas, el contador y la franja
+    /// de otra. «Salir y descartar» toma los tres de la URL y pide la lista una vez.
+    /// </para>
+    /// </summary>
+    private async Task AtenderOtroClienteEnLaUrlAsync()
+    {
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
+        {
+            DevolverLaUrlALaVista();
+            return;
+        }
+
+        // Tras la espera se lee la URL otra vez: es la que haya ahora, no la que había al preguntar.
+        SincronizarFiltrosConLaUrl();
+        var clienteDeLaUrl = ClienteDeLaUrl();
+        if (clienteDeLaUrl != _clienteSeleccionadoId)
+        {
+            _clienteSeleccionadoId = clienteDeLaUrl;
+            DescartarListaPorCambioDeCliente();
+        }
+
+        await RecargarDesdeLaPrimeraPaginaAsync();
+    }
+
+    /// <summary>
+    /// La página reescribe su propia URL para que diga la vista que sigue en pantalla. No es una salida y
+    /// no se pierde nada de lo escrito, pero es una navegación con el panel sin guardar y el aviso la
+    /// detendría para volver a preguntar: mientras dura, la página no declara cambios. El aviso los lee
+    /// dentro del propio <c>NavigateTo</c>, así que basta con que la marca dure lo que la llamada.
+    /// </summary>
+    private void DevolverLaUrlALaVista()
+    {
+        _devolviendoLaUrlALaVista = true;
+        try
+        {
+            NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+            {
+                ["cliente"] = _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString(),
+                ["q"] = _busqueda,
+                ["estado"] = _estadoFiltro
+            });
+        }
+        finally
+        {
+            _devolviendoLaUrlALaVista = false;
+        }
+    }
+
+    private bool _devolviendoLaUrlALaVista;
 
     private int _versionSelectorCliente;
     private PastillaFiltro? _selectorClienteEmpresarial;
@@ -220,104 +339,120 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         }
     }
 
+    /// <summary>Los Clientes empresariales del filtro. «Todos» lo añade la pastilla.</summary>
     private IReadOnlyList<OpcionEstado> OpcionesClienteListado =>
-    [
-        new(string.Empty, Textos["ListaElegirClienteEmpresarial"].Value),
-        .. _clientes.Select(c => new OpcionEstado(c.Id.ToString(), c.RazonSocial))
-    ];
+        _clientes.Select(c => new OpcionEstado(c.Id.ToString(), c.RazonSocial)).ToList();
 
-    private async Task OnClienteChangedAsync()
+    /// <summary>
+    /// Lo que deja de valer al cambiar el Cliente empresarial del filtro: la carga en vuelo (su respuesta
+    /// tardía no puede pintar la lista del anterior bajo el nuevo), las filas a la vista, la página y el
+    /// panel de detalle, que era de un Proyecto de la lista anterior.
+    /// </summary>
+    private void DescartarListaPorCambioDeCliente()
     {
-        // Invalida la carga del cliente anterior también cuando se vuelve a
-        // "ningún cliente", que no arranca carga propia que la sustituya.
-        _versionCargaCliente++;
+        _versionCarga++;
         _cargandoProyectos = false;
+        _listaCargada = false;
         _proyectos = [];
-        _centrosDisponibles = [];
+        _totalElementos = 0;
+        _recuentosPorEstado = null;
         _errorProyectos = false;
+        _paginaActual = 1;
         CerrarDetalle();
-
-        if (_clienteSeleccionadoId == Guid.Empty)
-            return;
-
-        await CargarDatosClienteAsync();
     }
 
     /// <summary>
-    /// Número de la carga de datos de cliente vigente. Cada carga (cambio de
-    /// cliente, "Reintentar", recarga tras crear o cerrar) toma uno nuevo y,
-    /// tras cada <c>await</c>, solo escribe si sigue siendo la vigente: sin
-    /// esto, cambiar de cliente A→B con la carga de A en curso dejaba que la
-    /// respuesta tardía de A pintase sus centros, proyectos o error bajo B.
+    /// Número de la carga de la lista vigente. Cada carga (cambio de Cliente empresarial, de filtro o de
+    /// página, «Reintentar», recarga tras crear o cerrar) toma uno nuevo y, tras cada <c>await</c>, solo
+    /// escribe si sigue siendo la vigente: sin esto, cambiar de Cliente empresarial A→B con la carga de A
+    /// en curso dejaba que la respuesta tardía de A pintase sus proyectos o su error bajo B.
     /// </summary>
-    private int _versionCargaCliente;
+    private int _versionCarga;
 
     /// <summary>
-    /// Centros (para el alta) y proyectos del cliente elegido. Es también lo
-    /// que repite "Reintentar": antes un fallo aquí no tenía estado propio y
-    /// subía sin capturar.
+    /// Pide la página vigente con el Cliente empresarial, la búsqueda y el estado vigentes. Es también lo
+    /// que repite «Reintentar».
     /// </summary>
-    private async Task CargarDatosClienteAsync()
-    {
-        var version = ++_versionCargaCliente;
-        var clienteId = _clienteSeleccionadoId;
-        _cargandoProyectos = true;
-        _errorProyectos = false;
-        StateHasChanged();
-
-        try
-        {
-            var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(ClienteId: clienteId));
-            if (version != _versionCargaCliente) return;
-            _centrosDisponibles = centros;
-
-            var proyectos = await Mediator.Send(new ObtenerProyectosQuery(clienteId));
-            if (version != _versionCargaCliente) return;
-            _proyectos = proyectos.ToList();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "No se pudieron cargar los proyectos del cliente {ClienteId}.", clienteId);
-            if (version != _versionCargaCliente) return;
-            _proyectos = [];
-            _errorProyectos = true;
-        }
-        finally
-        {
-            if (version == _versionCargaCliente)
-                _cargandoProyectos = false;
-        }
-    }
-
     private async Task CargarProyectosAsync()
     {
-        var version = ++_versionCargaCliente;
+        var version = ++_versionCarga;
+        // Todo lo que define la pregunta se lee antes del await.
         var clienteId = _clienteSeleccionadoId;
+        var consulta = new ObtenerProyectosQuery(
+            ClienteId: clienteId == Guid.Empty ? null : clienteId,
+            SoloAbiertos: FiltroProyectos.SoloAbiertos(_estadoFiltro),
+            Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+            Pagina: _paginaActual,
+            TamanoPagina: _tamanoPagina,
+            ConRecuentosPorEstado: true);
         _cargandoProyectos = true;
         _errorProyectos = false;
         StateHasChanged();
 
         try
         {
-            var proyectos = await Mediator.Send(new ObtenerProyectosQuery(clienteId));
-            if (version != _versionCargaCliente) return;
-            _proyectos = proyectos.ToList();
+            var resultado = await Mediator.Send(consulta);
+            if (version != _versionCarga) return;
+
+            // La página pedida se quedó sin filas pero quedan Proyectos (se eliminó o dejó de cumplir el
+            // filtro la última fila de la última página): se enseña la que ahora es la última.
+            if (resultado.Elementos.Count == 0 && resultado.TotalElementos > 0 && consulta.Pagina > 1)
+            {
+                _paginaActual = Math.Max(1, resultado.TotalPaginas);
+                resultado = await Mediator.Send(consulta with { Pagina = _paginaActual });
+                if (version != _versionCarga) return;
+            }
+
+            _proyectos = resultado.Elementos.ToList();
+            _totalElementos = resultado.TotalElementos;
+            _recuentosPorEstado = resultado.RecuentosPorEstado;
+            _listaCargada = true;
+
+            // Si la fila enfocada por teclado ya no está en la página, el foco se descarta. Conservarlo
+            // escondido lo haría reaparecer al quitar el filtro, sobre una fila que el usuario ya no
+            // tenía delante.
+            if (_idEnfocado is { } idEnfocado && !_proyectos.Any(p => p.Id == idEnfocado))
+                _idEnfocado = null;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "No se pudieron recargar los proyectos del cliente {ClienteId}.", clienteId);
-            if (version != _versionCargaCliente) return;
+            Logger.LogError(ex, "No se pudieron cargar los proyectos (Cliente empresarial del filtro: {ClienteId}).", clienteId);
+            if (version != _versionCarga) return;
             _proyectos = [];
+            _totalElementos = 0;
+            _recuentosPorEstado = null;
+            _listaCargada = false;
             _errorProyectos = true;
         }
         finally
         {
-            if (version == _versionCargaCliente)
+            if (version == _versionCarga)
                 _cargandoProyectos = false;
         }
     }
 
-    // ---- Filtros (estado y búsqueda, en la URL) ----
+    // ---- Paginación (en servidor) ----
+
+    private Task CambiarPaginaAsync(int pagina)
+    {
+        _paginaActual = Math.Clamp(pagina, 1, TotalPaginas);
+        return CargarProyectosAsync();
+    }
+
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        return RecargarDesdeLaPrimeraPaginaAsync();
+    }
+
+    /// <summary>Un filtro nuevo cambia qué filas hay: la página en la que se estaba deja de significar nada.</summary>
+    private Task RecargarDesdeLaPrimeraPaginaAsync()
+    {
+        _paginaActual = 1;
+        return CargarProyectosAsync();
+    }
+
+    // ---- Filtros (Cliente empresarial, estado y búsqueda, en la URL) ----
 
     private const string EstadoAbiertos = FiltroProyectos.EstadoAbiertos;
     private const string EstadoCerrados = FiltroProyectos.EstadoCerrados;
@@ -332,17 +467,6 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// </summary>
     private static string EstadosValidos(string? seleccion) => FiltroProyectos.EstadosValidos(seleccion);
 
-    /// <summary>Proyectos por estado para la franja: con la búsqueda aplicada y sin el filtro de estado.</summary>
-    private IReadOnlyDictionary<string, int> RecuentosPorEstado
-    {
-        get
-        {
-            var conBusqueda = _proyectos.Where(CumpleBusqueda).ToList();
-            var abiertos = conBusqueda.Count(p => p.EstaAbierto);
-            return new Dictionary<string, int> { [EstadoAbiertos] = abiertos, [EstadoCerrados] = conBusqueda.Count - abiertos };
-        }
-    }
-
     private string _busqueda = string.Empty;
     private string _estadoFiltro = string.Empty;
 
@@ -352,11 +476,34 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    /// <summary>Copia la búsqueda y el estado de la URL a los campos. Dice si alguno cambió.</summary>
+    private bool SincronizarFiltrosConLaUrl()
+    {
+        var cambio = false;
+
+        var busquedaDeLaUrl = TerminoBusquedaInicial ?? string.Empty;
+        if (busquedaDeLaUrl != _busqueda)
+        {
+            _busqueda = busquedaDeLaUrl;
+            cambio = true;
+        }
+
+        var estadoDeLaUrl = EstadosValidos(EstadoInicial);
+        if (estadoDeLaUrl != _estadoFiltro)
+        {
+            _estadoFiltro = estadoDeLaUrl;
+            cambio = true;
+        }
+
+        return cambio;
+    }
+
     /// <summary>
-    /// La URL es la fuente de verdad de los dos filtros, no solo su semilla:
-    /// se re-sincroniza en cada navegación dentro de la página (mismo criterio
-    /// que Vehiculos.razor.cs). Mientras se resuelve la empresa activa, en el
-    /// estado 4a y con la página retirada la URL no se sincroniza.
+    /// La URL es la fuente de verdad de los tres filtros, no solo su semilla: se re-sincroniza en cada
+    /// navegación dentro de la página (atrás y adelante del navegador, un enlace a la misma pantalla), y
+    /// lo que cambie pide la lista otra vez. Los cambios que hace la propia página ya dejan sus campos
+    /// puestos antes de navegar, así que aquí se encuentran iguales y no se carga dos veces. Mientras se
+    /// resuelve la empresa activa, en el estado 4a y con la página retirada la URL no se sincroniza.
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
@@ -365,67 +512,78 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada)
             return;
 
-        var busquedaDeLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        if (busquedaDeLaUrl != _busqueda)
-            _busqueda = busquedaDeLaUrl;
+        // Con el selector aún cargando (o caído) no hay lista: la primera carga leerá estos campos.
+        if (_cargando || _errorCarga)
+        {
+            SincronizarFiltrosConLaUrl();
+            return;
+        }
 
-        var estadoDeLaUrl = EstadosValidos(EstadoInicial);
-        if (estadoDeLaUrl != _estadoFiltro)
-            _estadoFiltro = estadoDeLaUrl;
+        // Otro Cliente empresarial cierra el panel de detalle: pregunta antes de tomar nada de la URL, y su
+        // carga lleva la búsqueda y el estado que la URL diga entonces.
+        if (ClienteDeLaUrl() != _clienteSeleccionadoId)
+        {
+            await AtenderOtroClienteEnLaUrlAsync();
+            return;
+        }
 
-        // Los dos filtros cambian navegando, así que este es el único punto por
-        // el que pasan todos: si la fila enfocada deja de estar visible, el
-        // foco se descarta aquí. Conservarlo escondido lo haría reaparecer al
-        // quitar el filtro, sobre una fila que el usuario ya no tenía delante.
-        if (_idEnfocado is { } idEnfocado && !_proyectos.Any(p => p.Id == idEnfocado && CumpleFiltros(p)))
-            _idEnfocado = null;
-
-        await AplicarClienteDeLaUrlAsync();
+        // Solo cambian la búsqueda o el estado: el panel de detalle no se cierra, así que no hay nada que
+        // preguntar.
+        if (SincronizarFiltrosConLaUrl())
+            await RecargarDesdeLaPrimeraPaginaAsync();
     }
 
-    private bool HayFiltrosActivos =>
+    /// <summary>Hay búsqueda o estado: lo que hace que «ninguna fila» no signifique «no hay proyectos».</summary>
+    private bool HayBusquedaOEstado =>
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro);
 
-    private IReadOnlyList<ProyectoListaDto> ProyectosVisibles => _proyectos.Where(CumpleFiltros).ToList();
+    private bool HayFiltrosActivos => HayBusquedaOEstado || _clienteSeleccionadoId != Guid.Empty;
 
-    // Los dos filtros viven en FiltroProyectos: los comparte /proyectos/exportar.xlsx.
-    private bool CumpleFiltros(ProyectoListaDto proyecto) => FiltroProyectos.Cumple(proyecto, _estadoFiltro, _busqueda);
-
-    private bool CumpleBusqueda(ProyectoListaDto proyecto) => FiltroProyectos.CumpleBusqueda(proyecto, _busqueda);
-
-    private string TextoConteo => HayFiltrosActivos
-        ? Textos["ConteoConFiltro", ProyectosVisibles.Count, _proyectos.Count].Value
-        : Textos["ConteoSinFiltro", _proyectos.Count].Value;
+    /// <summary>
+    /// El único filtro puesto es el Cliente empresarial. Con cero filas, eso es un Cliente empresarial sin
+    /// Proyectos (se invita a crear el primero), no un vacío por filtro.
+    /// </summary>
+    private bool SoloFiltraElCliente => _clienteSeleccionadoId != Guid.Empty && !HayBusquedaOEstado;
 
     private Task BuscarAsync(string valor)
     {
         _busqueda = valor;
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
-        return Task.CompletedTask;
+        return RecargarDesdeLaPrimeraPaginaAsync();
     }
 
     private Task CambiarEstadoAsync(string? valor)
     {
         _estadoFiltro = valor ?? string.Empty;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
-        return Task.CompletedTask;
+        return RecargarDesdeLaPrimeraPaginaAsync();
     }
 
     private Task QuitarBusquedaAsync() => BuscarAsync(string.Empty);
 
     /// <summary>
-    /// Quita los dos filtros, y los dos TAMBIÉN de la URL en una sola
-    /// navegación: <see cref="OnParametersSetAsync"/> re-sincroniza desde la URL,
-    /// así que dejarlos allí los devolvería en cuanto el router volviera a
-    /// pasar. El cliente elegido no es un filtro: es el maestro de la lista y
-    /// se queda como está.
+    /// Quita los tres filtros, y los tres TAMBIÉN de la URL en una sola navegación:
+    /// <see cref="OnParametersSetAsync"/> re-sincroniza desde la URL, así que dejarlos allí los
+    /// devolvería en cuanto el router volviera a pasar. Quitar el Cliente empresarial cierra el panel de
+    /// detalle, igual que elegir otro: si tiene algo escrito se pregunta antes, y «seguir editando» deja
+    /// los filtros como estaban.
     /// </summary>
-    private Task LimpiarFiltrosAsync()
+    private async Task LimpiarFiltrosAsync()
     {
+        var quitaElCliente = _clienteSeleccionadoId != Guid.Empty;
+        if (quitaElCliente && !await _ambitoDetalle.ConfirmarAbandonoAsync())
+            return;
+
         _busqueda = string.Empty;
         _estadoFiltro = string.Empty;
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
-        return Task.CompletedTask;
+        if (quitaElCliente)
+        {
+            _clienteSeleccionadoId = Guid.Empty;
+            DescartarListaPorCambioDeCliente();
+        }
+
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null, ["cliente"] = null });
+        await RecargarDesdeLaPrimeraPaginaAsync();
     }
 
     // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
@@ -435,7 +593,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     /// <summary>
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado. El
-    /// Cliente empresarial elegido es parte de la vista: sin él no hay lista que filtrar.
+    /// Cliente empresarial del filtro es parte de la vista; uno guardado sin él lista los de todos.
     /// </summary>
     public static readonly IReadOnlyList<string> ParametrosDeVista = ["cliente", "q", "estado"];
 
@@ -460,7 +618,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// entonces, la carga. La URL va antes de la carga para que no diga el Cliente empresarial anterior
     /// mientras llegan los datos (teclear en el buscador en esa ventana navegaba conservándolo y lo devolvía a
     /// la pantalla), y con los campos ya puestos <see cref="OnParametersSetAsync"/> los encuentra iguales y no
-    /// carga otra vez.
+    /// carga otra vez. La búsqueda y el estado los filtra la consulta: si la vista no cambia ninguno de los
+    /// tres, la lista que hay ya es la suya y no se vuelve a pedir.
     /// </para>
     /// </summary>
     private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
@@ -472,14 +631,17 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             ? id
             : Guid.Empty;
         var cambiaDeCliente = cliente != _clienteSeleccionadoId;
+        var busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        var estado = EstadosValidos(vista.GetValueOrDefault("estado"));
+        var cambianLosFiltros = busqueda != _busqueda || estado != _estadoFiltro;
 
-        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
-        _estadoFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
+        _busqueda = busqueda;
+        _estadoFiltro = estado;
         if (cambiaDeCliente)
         {
             _clienteSeleccionadoId = cliente;
-            // El panel era de un proyecto del Cliente empresarial anterior.
-            CerrarDetalle();
+            // El panel era de un proyecto de la lista anterior.
+            DescartarListaPorCambioDeCliente();
         }
 
         // Una sola navegación, con todos los parámetros de la vista y sin nada pendiente de guardar.
@@ -490,13 +652,27 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             ["estado"] = _estadoFiltro,
         });
 
-        if (cambiaDeCliente)
-            await OnClienteChangedAsync();
+        if (cambiaDeCliente || cambianLosFiltros)
+            await RecargarDesdeLaPrimeraPaginaAsync();
     }
 
     // ---- Nuevo proyecto (Drawer) ----
 
     private bool _drawerVisible;
+
+    /// <summary>
+    /// Cliente empresarial del proyecto nuevo. La lista no obliga a elegir uno, así que lo pide el
+    /// formulario: CrearProyectoCommand exige un Cliente empresarial y un Centro vinculado a él. Viene
+    /// puesto con el del filtro cuando hay uno.
+    /// </summary>
+    private string _nuevoClienteId = string.Empty;
+
+    /// <summary>Centros del Cliente empresarial elegido en el formulario de alta.</summary>
+    private IReadOnlyList<CentroSelectorDto> _centrosDisponibles = [];
+
+    /// <summary>Número de la carga de centros vigente: la respuesta de un Cliente empresarial anterior no pinta sus centros bajo el nuevo.</summary>
+    private int _versionCentrosAlta;
+
     private string _nuevoCentroId = string.Empty;
     private string _nuevoNombre = string.Empty;
     private string _nuevaFechaInicio = string.Empty;
@@ -506,8 +682,10 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     private string? _mensajeErrorFormulario;
     private Dictionary<string, string> _erroresCampo = new();
 
-    private void AbrirNuevoProyecto()
+    private async Task AbrirNuevoProyectoAsync()
     {
+        _nuevoClienteId = _clienteSeleccionadoId == Guid.Empty ? string.Empty : _clienteSeleccionadoId.ToString();
+        _centrosDisponibles = [];
         _nuevoCentroId = string.Empty;
         _nuevoNombre = string.Empty;
         _nuevaFechaInicio = Hoy.ToString("yyyy-MM-dd");
@@ -517,6 +695,37 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _erroresCampo = new Dictionary<string, string>();
         _drawerVisible = true;
         _instantanea.Fijar(ValoresFormulario());
+        await CargarCentrosDelAltaAsync();
+    }
+
+    private Task OnClienteDelAltaCambiadoAsync(string valor)
+    {
+        _nuevoClienteId = valor;
+        // El Centro elegido era del Cliente empresarial anterior.
+        _nuevoCentroId = string.Empty;
+        return CargarCentrosDelAltaAsync();
+    }
+
+    /// <summary>Centros del Cliente empresarial elegido en el formulario; sin Cliente empresarial, ninguno.</summary>
+    private async Task CargarCentrosDelAltaAsync()
+    {
+        var version = ++_versionCentrosAlta;
+        _centrosDisponibles = [];
+        if (!Guid.TryParse(_nuevoClienteId, out var clienteId))
+            return;
+
+        try
+        {
+            var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(ClienteId: clienteId));
+            if (version != _versionCentrosAlta) return;
+            _centrosDisponibles = centros;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "No se pudieron cargar los centros del Cliente empresarial {ClienteId} para el alta de proyecto.", clienteId);
+            if (version != _versionCentrosAlta) return;
+            _mensajeErrorFormulario = Textos["ErrorCargarCentros"];
+        }
     }
 
     private readonly InstantaneaFormulario _instantanea = new();
@@ -533,7 +742,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// drawer o modal pregunta solo por su propio contenido (HayCambiosEnElDrawer, HayCambiosEnElModalDeCierre).
     /// </summary>
     private bool HayCambiosSinGuardar =>
-        HayCambiosEnElDrawer || HayCambiosEnElDetalle;
+        !_devolviendoLaUrlALaVista && (HayCambiosEnElDrawer || HayCambiosEnElDetalle);
 
     private bool HayCambiosEnElDrawer => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
 
@@ -632,7 +841,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         IniciarEdicionInfo();
     }
 
-    private object?[] ValoresFormulario() => [_nuevoCentroId, _nuevoNombre, _nuevaFechaInicio, _nuevaFechaFinPrevista, _nuevasNotas];
+    private object?[] ValoresFormulario() => [_nuevoClienteId, _nuevoCentroId, _nuevoNombre, _nuevaFechaInicio, _nuevaFechaFinPrevista, _nuevasNotas];
 
     private void CerrarFormulariosDescartando()
     {
@@ -656,6 +865,12 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
         try
         {
+            if (!Guid.TryParse(_nuevoClienteId, out var clienteId))
+            {
+                _mensajeErrorFormulario = Textos["ErrorFaltaCliente"];
+                return;
+            }
+
             if (!Guid.TryParse(_nuevoCentroId, out var centroId))
             {
                 _mensajeErrorFormulario = Textos["ErrorFaltaCentro"];
@@ -672,7 +887,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             var notas = string.IsNullOrWhiteSpace(_nuevasNotas) ? null : _nuevasNotas;
 
             var resultado = await Mediator.Send(new CrearProyectoCommand(
-                _clienteSeleccionadoId, centroId, _nuevoNombre, fechaInicio, fechaFinPrevista, notas));
+                clienteId, centroId, _nuevoNombre, fechaInicio, fechaFinPrevista, notas));
 
             if (resultado.EsFallido)
             {
@@ -728,15 +943,15 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         for (var i = 0; i < visibles.Count; i++)
             if (visibles[i].Id == _idEnfocado) return i;
 
-        // Red de seguridad: el foco de una fila que ya no se ve se descarta en
-        // OnParametersSet, pero si por cualquier camino sobreviviera, aquí se
+        // Red de seguridad: el foco de una fila que ya no está en la página se descarta al
+        // cargarla, pero si por cualquier camino sobreviviera, aquí se
         // trata como si no hubiera foco en vez de apuntar a algo invisible.
         return -1;
     }
 
     private async Task ManejarAtajoAsync(string tecla)
     {
-        var visibles = ProyectosVisibles;
+        var visibles = _proyectos;
 
         // «e»: el lápiz del panel sobre la fila enfocada; sin fila enfocada, sobre el proyecto
         // cuyo panel está abierto.
@@ -1285,7 +1500,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     /// <summary>
     /// Los criterios de la vista con los nombres de parámetro de <c>/proyectos/exportar.xlsx</c>:
-    /// el Cliente empresarial del selector y los dos filtros de <see cref="CumpleFiltros"/>.
+    /// el Cliente empresarial del filtro, la búsqueda y los estados de la franja. Son los tres
+    /// filtros que lleva la consulta de la lista; la página no es un criterio (se exportan todas).
     /// </summary>
     private Dictionary<string, string?> CriteriosExportar => new()
     {
