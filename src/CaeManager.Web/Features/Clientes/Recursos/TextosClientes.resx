@@ -546,4 +546,10 @@
   <data name="CertificadoSeguridadSocialTitulo" xml:space="preserve">
     <value>Certificado de estar al corriente con la Seguridad Social</value>
   </data>
+  <data name="PestanaAgenda" xml:space="preserve">
+    <value>Agenda</value>
+  </data>
+  <data name="PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
 </root>

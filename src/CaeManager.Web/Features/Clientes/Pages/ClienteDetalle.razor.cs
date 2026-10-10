@@ -59,7 +59,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     /// <summary>
     /// Orden de la tira: Centros primera y por defecto porque es la única que
-    /// trae estado; después Empresas, Subcontratas y Documentación.
+    /// trae estado; después Empresas, Subcontratas, Documentación, Agenda e Historial.
     /// La certificación TGSS es el primer bloque de Documentación.
     /// </summary>
     private static readonly (string Id, string Clave)[] _pestanas =
@@ -67,7 +67,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         ("centros", "PestanaCentros"),
         ("empresas", "PestanaEmpresas"),
         ("subcontratas", "PestanaSubcontratas"),
-        ("documentacion", "PestanaDocumentacion")
+        ("documentacion", "PestanaDocumentacion"),
+        ("agenda", "PestanaAgenda"),
+        ("historial", "PestanaHistorial")
     ];
 
     [Parameter] public Guid ClienteId { get; set; }

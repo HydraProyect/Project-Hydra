@@ -1,5 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
+using Bunit.TestDoubles;
+using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Blindaje42.Commands.SolicitarCertificacionTgss;
 using CaeManager.Application.Blindaje42.Queries.ObtenerBlindajeEmpresasDeCliente;
 using CaeManager.Application.Blindaje42.Queries.ObtenerHistorialCertificacionesTgss;
@@ -458,10 +460,37 @@ public class Cliente360PaginaTests : BunitContext
 
         Textos(cut.FindAll("[role=tab]")).Should().Equal([
             "Centros2 centros", "Empresas1 empresa", "Subcontratas0 subcontratas",
-            "Documentación"]);
-        cut.FindAll("[role=tab]").Should().HaveCount(4);
+            "Documentación", "Agenda", "Historial"]);
+        cut.FindAll("[role=tab]").Should().HaveCount(6);
         cut.FindAll("[role=tab]").Select(t => t.TextContent).Should().NotContain(t => t.Contains("Blindaje"));
         cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Centros");
+    }
+
+    [Theory]
+    [InlineData("agenda", "Agenda")]
+    [InlineData("historial", "Historial")]
+    public void Agenda_e_Historial_se_abren_por_URL_con_la_entidad_original(string pestana, string titulo)
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador);
+        ComponentFactories.AddStub<PestanaAgendaContactos>();
+        ComponentFactories.AddStub<PestanaHistorial>();
+
+        var cut = Renderizar(id, $"?pestana={pestana}");
+
+        cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().Be(titulo);
+        if (pestana == "agenda")
+        {
+            var parametros = cut.FindComponent<Stub<PestanaAgendaContactos>>().Instance.Parameters;
+            parametros.Get(p => p.PropietarioId).Should().Be(id);
+            parametros.Get(p => p.Tipo).Should().Be(TipoPropietarioAgenda.Cliente);
+        }
+        else
+        {
+            var parametros = cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters;
+            parametros.Get(p => p.EntidadId).Should().Be(id);
+            parametros.Get(p => p.EntidadTipo).Should().Be("Cliente");
+        }
     }
 
     [Theory]
@@ -477,7 +506,7 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id, $"?pestana={pestana}");
 
         cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().Be("Documentación");
-        cut.FindAll("[role=tab]").Should().HaveCount(4);
+        cut.FindAll("[role=tab]").Should().HaveCount(6);
         cut.Find("[role=tab][aria-selected=true]").QuerySelector(".pestanas-contador").Should().BeNull();
         var bloques = cut.Find(".cliente360-documentacion").Children;
         bloques.Should().HaveCount(2);

@@ -248,6 +248,14 @@
                                 <PestanaDocumentacion Ambito="AmbitoAplicacion.Cliente" PropietarioId="ClienteId" />
                             </div>
                             break;
+
+                        case "agenda":
+                            <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Cliente" PropietarioId="ClienteId" />
+                            break;
+
+                        case "historial":
+                            <PestanaHistorial EntidadTipo="Cliente" EntidadId="ClienteId" />
+                            break;
                     }
                 </Pestanas>
             </ChildContent>

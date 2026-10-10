@@ -522,4 +522,10 @@
   <data name="CertificadoSeguridadSocialTitulo" xml:space="preserve">
     <value>Certificat d'estar al corrent amb la Seguretat Social</value>
   </data>
+  <data name="PestanaAgenda" xml:space="preserve">
+    <value>Agenda</value>
+  </data>
+  <data name="PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
 </root>
