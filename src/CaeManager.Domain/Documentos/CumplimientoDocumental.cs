@@ -71,16 +71,17 @@ public sealed record FraccionCumplimiento(int AlDia, int Requeridos)
 /// <see cref="EstadoDocumento.Vencido"/>, <see cref="EstadoDocumento.Faltante"/>,
 /// <see cref="EstadoDocumento.SinConfirmar"/> y <see cref="EstadoDocumento.EnTolerancia"/> (un estado de contexto que ningún
 /// porcentaje recibe hoy: se calculan con el estado de vigencia real, Vencido; que un vencido dentro de la tolerancia cuente
-/// como al día es el incremento 2 del porcentaje, en <see cref="EsConforme(ParDocumentalExigido)"/>). Lo de «Sin confirmar» NO es la regla de los paneles ni de las incidencias, donde
+/// como al día es el incremento 2 del porcentaje, en <see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/>). Lo de «Sin confirmar» NO es la regla de los paneles ni de las incidencias, donde
 /// «Sin confirmar» cuenta como al día con aviso (decisión 2026-10-01): en un porcentaje es no conforme (decisión
 /// 2026-10-03), porque nadie ha comprobado que el documento valga.
 /// </para>
 ///
 /// <para>
 /// <b>Pendiente en la plataforma</b> (decisión 2026-10-10): un par cuyo documento vale pero está sin subir o subido sin
-/// validar en la plataforma CAE de su Centro (<see cref="ParDocumentalExigido.PendienteEnPlataforma"/>) NO está al día:
-/// el Trabajador todavía no puede entrar. Como el par es de un Centro, esto baja el porcentaje del Centro y, con él, el
-/// de todo contexto que agregue ese par (Trabajador, Empresa, Cliente empresarial). Un Centro sin plataforma no cambia.
+/// validar en la plataforma CAE de su Centro (<see cref="ParDocumentalExigido.PendienteEnPlataforma"/>) NO está al día
+/// <b>en el porcentaje del Centro</b>: el Trabajador todavía no puede entrar allí. Solo en ese contexto: cada porcentaje
+/// mide su contexto (decisión 2026-10-03), y los de Trabajador, Empresa y Cliente empresarial miden su documentación, no
+/// la acreditación en la plataforma de cada Centro. Un Centro sin plataforma no cambia.
 /// </para>
 ///
 /// <para>
@@ -109,19 +110,21 @@ public static class CumplimientoDocumental
     /// <see cref="ParDocumentalExigido.ClienteEmpresarialId"/> y <see cref="ParDocumentalExigido.CentroId"/>, y bastará
     /// añadirle la fecha de vencimiento y la tolerancia resuelta. Nada fuera de este método debe decidir «al día» para un
     /// par (los recuentos por estado de los KPI no tienen fecha ni Centro y siguen usando <see cref="EsConforme(EstadoDocumento)"/>).
-    /// Ya depende también del Centro en un punto: un par pendiente en la plataforma de su Centro no es conforme.
+    /// Ya depende también del contexto en un punto: en el del Centro, un par pendiente en la plataforma de ese Centro no es
+    /// conforme (<see cref="ParDocumentalExigido.PendienteEnPlataforma"/>); en los demás contextos no cuenta.
     /// </summary>
-    public static bool EsConforme(ParDocumentalExigido par) => EsConforme(par.Estado) && !par.PendienteEnPlataforma;
+    public static bool EsConforme(ParDocumentalExigido par, ContextoCumplimiento contexto) =>
+        EsConforme(par.Estado) && !(contexto == ContextoCumplimiento.Centro && par.PendienteEnPlataforma);
 
-    /// <summary>Fracción de un conjunto de pares exigidos: todos entran en el denominador, solo los conformes (<see cref="EsConforme(ParDocumentalExigido)"/>) en el numerador.</summary>
-    public static FraccionCumplimiento Evaluar(IEnumerable<ParDocumentalExigido> pares)
+    /// <summary>Fracción de un conjunto de pares exigidos en un contexto: todos entran en el denominador, solo los conformes (<see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/>) en el numerador.</summary>
+    public static FraccionCumplimiento Evaluar(IEnumerable<ParDocumentalExigido> pares, ContextoCumplimiento contexto)
     {
         var alDia = 0;
         var requeridos = 0;
         foreach (var par in pares)
         {
             requeridos++;
-            if (EsConforme(par)) alDia++;
+            if (EsConforme(par, contexto)) alDia++;
         }
 
         return new FraccionCumplimiento(alDia, requeridos);
@@ -155,16 +158,16 @@ public static class CumplimientoDocumental
         return new FraccionCumplimiento(alDia, requeridos);
     }
 
-    /// <summary>Fracción de un contexto: los pares exigidos que le pertenecen, medidos con <see cref="Evaluar(IEnumerable{ParDocumentalExigido})"/>.</summary>
+    /// <summary>Fracción de un contexto: los pares exigidos que le pertenecen, medidos con <see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/>.</summary>
     public static FraccionCumplimiento De(ContextoCumplimiento contexto, Guid id, IEnumerable<ParDocumentalExigido> pares) =>
-        Evaluar(pares.Where(p => Pertenece(contexto, id, p)));
+        Evaluar(pares.Where(p => Pertenece(contexto, id, p)), contexto);
 
     /// <summary>La fracción de cada contexto presente en los pares. Un contexto sin ningún par exigido no aparece.</summary>
     public static Dictionary<Guid, FraccionCumplimiento> PorContexto(ContextoCumplimiento contexto, IEnumerable<ParDocumentalExigido> pares) =>
         pares
             .Where(p => Clave(contexto, p) is not null)
             .GroupBy(p => Clave(contexto, p)!.Value)
-            .ToDictionary(g => g.Key, g => Evaluar(g));
+            .ToDictionary(g => g.Key, g => Evaluar(g, contexto));
 
     private static bool Pertenece(ContextoCumplimiento contexto, Guid id, ParDocumentalExigido par) => Clave(contexto, par) == id;
 

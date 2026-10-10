@@ -107,7 +107,10 @@ public class PendienteEnPlataformaBajoRlsTests : IAsyncLifetime
         estados[_sesion.CentroSinPlataforma].Estado.Should().Be(EstadoCentro.Vigente, "sin plataforma no hay Pendiente");
         estados[_sesion.OtroCentro].Estado.Should().Be(EstadoCentro.Vigente,
             "la acreditación pendiente de Dani es del acceso del otro Centro, no de este");
-        estados.Should().NotContainKey(_ajeno.CentroConPlataforma, "RLS: el Centro del otro Tenant no existe para esta sesión");
+        // El servicio devuelve una entrada por cada id pedido, aunque no lo vea. El Centro del otro Tenant tiene el mismo
+        // escenario y, sin RLS, saldría Pendiente con sus dos causas: bajo RLS no se ve nada suyo.
+        estados[_ajeno.CentroConPlataforma].Estado.Should().Be(EstadoCentro.Vigente, "RLS: nada del otro Tenant cuenta para esta sesión");
+        estados[_ajeno.CentroConPlataforma].Causas.Should().BeEmpty();
 
         var pendientes = estados[_sesion.CentroConPlataforma].Causas.Where(c => c.PendienteEnPlataforma).ToList();
         pendientes.Should().HaveCount(2, "Ana (sin subir) y la Empresa (subido sin validar); ni Beto (validado), ni Bajo (de baja), ni Dani (no asignado)");

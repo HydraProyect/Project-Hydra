@@ -178,24 +178,29 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Vigente_en_TALVEG_y_pendiente_de_subir_no_bloquea_el_Centro()
+    public async Task Vigente_en_TALVEG_y_pendiente_de_subir_deja_el_Centro_Pendiente_sin_bloquearlo()
     {
         await SembrarAcreditacionEnAsync(_centroId, _trabajadorId, _ => { });
 
         var resultado = await CalcularAsync();
 
-        resultado.Estado.Should().Be(EstadoCentro.Vigente);
+        // Decisión del 2026-10-10: sin subir a la plataforma del Centro es «Pendiente», no Bloqueado (antes, Vigente).
+        resultado.Estado.Should().Be(EstadoCentro.Pendiente);
+        resultado.Causas.Should().ContainSingle(c => c.PendienteEnPlataforma && !c.Bloqueante)
+            .Which.Descripcion.Should().EndWith("sin subir a la plataforma");
         resultado.Causas.Should().NotContain(c => c.Descripcion.Contains(TextoRechazo));
     }
 
     [Fact]
-    public async Task Vigente_en_TALVEG_y_subida_esperando_respuesta_no_bloquea_el_Centro()
+    public async Task Vigente_en_TALVEG_y_subida_esperando_respuesta_deja_el_Centro_Pendiente_sin_bloquearlo()
     {
         await SembrarAcreditacionEnAsync(_centroId, _trabajadorId, a => a.MarcarSubida());
 
         var resultado = await CalcularAsync();
 
-        resultado.Estado.Should().Be(EstadoCentro.Vigente);
+        resultado.Estado.Should().Be(EstadoCentro.Pendiente);
+        resultado.Causas.Should().ContainSingle(c => c.PendienteEnPlataforma && !c.Bloqueante)
+            .Which.Descripcion.Should().EndWith("subido, sin validar en la plataforma");
         resultado.Causas.Should().NotContain(c => c.Descripcion.Contains(TextoRechazo));
     }
 
@@ -293,8 +298,9 @@ public class CalculoEstadoCentroServiceTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
         }
 
-        (await CalcularAsync()).Estado.Should().Be(EstadoCentro.Vigente,
-            "renovar reinicia la acreditación a Pendiente de subir: se corrige subiéndolo de nuevo, no a mano");
+        (await CalcularAsync()).Estado.Should().Be(EstadoCentro.Pendiente,
+            "renovar reinicia la acreditación a Pendiente de subir: deja de bloquear el Centro y queda pendiente en la " +
+            "plataforma hasta que se sube de nuevo (decisión del 2026-10-10)");
     }
 
     /// <summary>

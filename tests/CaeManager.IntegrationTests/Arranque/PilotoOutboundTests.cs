@@ -796,7 +796,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         casos["Acreditación externa Rechazada"].Should().Be(1);
         casos["Acreditación externa vencida en plataforma"].Should().Be(1);
         casos["Documento de Empresa vencido en la Empresa propia"].Should().Be(1, "MEDIDO: exactamente uno, de un tipo que no se exige por defecto");
-        casos["Trabajador bloqueado en un Centro y no en otro"].Should().Be(2);
+        // MEDIDO: 7. Eran 2 (la aptitud vencida en Illescas) hasta que el Pendiente en la plataforma bloquea por Centro
+        // (2026-10-10): los otros 5 son Trabajadores con un documento sin subir o sin validar en la plataforma de uno de sus
+        // Centros y no en otro.
+        casos["Trabajador bloqueado en un Centro y no en otro"].Should().Be(7);
         casos["Trabajador de baja"].Should().Be(6);
         casos["Subcontrata con documentación propia"].Should().Be(3);
         casos["Vehículo con documento vencido"].Should().Be(1);
@@ -832,10 +835,19 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
 
             var evaluacion = await sp.GetRequiredService<CaeManager.Application.Centros.IEvaluacionDeAccesoPorCentroService>()
                 .EvaluarAsync(null, CancellationToken.None);
+            // Solo los requisitos que el Centro marca «bloquea el acceso»: el Pendiente en la plataforma (2026-10-10) también
+            // bloquea, pero es otro caso y se mide aparte, abajo.
             var sinCumplir = evaluacion.Requisitos
-                .Where(r => r.Resultado.Situacion != SituacionDeRequisitoBloqueante.Cumplido)
+                .Where(r => r.Resultado.Situacion is not (SituacionDeRequisitoBloqueante.Cumplido or SituacionDeRequisitoBloqueante.PendienteEnPlataforma))
                 .Select(r => (r.TrabajadorId, Centro: nombreDelCentro[r.CentroId], Tipo: nombreDelTipo[r.TipoDocumentoId], r.Resultado.Situacion))
                 .ToList();
+            var centrosConPendiente = evaluacion.Requisitos
+                .Where(r => r.Resultado.Situacion == SituacionDeRequisitoBloqueante.PendienteEnPlataforma)
+                .Select(r => r.CentroId).ToHashSet();
+            var centrosConPlataforma = await db.CanalesGestionDocumental
+                .Where(c => c.Tipo == TipoCanalGestion.Plataforma).Select(c => c.CentroId).ToListAsync();
+            centrosConPendiente.Should().NotBeEmpty("MEDIDO: T1 siembra acreditaciones sin subir y subidas sin validar");
+            centrosConPendiente.Should().BeSubsetOf(centrosConPlataforma, "solo un Centro con plataforma tiene Pendiente en la plataforma");
 
             // La ficha de cada Trabajador al que la aptitud le bloquea un Centro: su aptitud, Centro a Centro.
             var aptitudPorCentro = new Dictionary<Guid, Dictionary<string, EstadoDocumento>>();

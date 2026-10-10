@@ -54,15 +54,29 @@ public class ReglaPendienteEnPlataformaTests
     }
 
     [Fact]
-    public void Un_par_vigente_pendiente_en_la_plataforma_de_su_Centro_no_esta_al_dia()
+    public void Un_par_vigente_pendiente_en_la_plataforma_de_su_Centro_no_esta_al_dia_en_el_porcentaje_del_Centro()
     {
         var centro = Guid.NewGuid();
         var alDia = new ParDocumentalExigido(centro, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vigente);
         var pendiente = alDia with { TrabajadorId = Guid.NewGuid(), PendienteEnPlataforma = true };
 
-        CumplimientoDocumental.EsConforme(alDia).Should().BeTrue();
-        CumplimientoDocumental.EsConforme(pendiente).Should().BeFalse();
+        CumplimientoDocumental.EsConforme(alDia, ContextoCumplimiento.Centro).Should().BeTrue();
+        CumplimientoDocumental.EsConforme(pendiente, ContextoCumplimiento.Centro).Should().BeFalse();
         CumplimientoDocumental.De(ContextoCumplimiento.Centro, centro, [alDia, pendiente])
             .Should().Be(new FraccionCumplimiento(1, 2), "el pendiente entra en el denominador y no en el numerador");
+    }
+
+    [Theory]
+    [InlineData(ContextoCumplimiento.Trabajador)]
+    [InlineData(ContextoCumplimiento.Empresa)]
+    [InlineData(ContextoCumplimiento.ClienteEmpresarial)]
+    public void El_pendiente_en_la_plataforma_no_baja_el_porcentaje_de_los_demas_contextos(ContextoCumplimiento contexto)
+    {
+        // Cada porcentaje mide su contexto (decisión 2026-10-03): la acreditación en la plataforma es del Centro.
+        var par = new ParDocumentalExigido(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(),
+            EstadoDocumento.Vigente, PendienteEnPlataforma: true);
+
+        CumplimientoDocumental.EsConforme(par, contexto).Should().BeTrue();
+        CumplimientoDocumental.EsConforme(par, ContextoCumplimiento.Centro).Should().BeFalse("control positivo");
     }
 }

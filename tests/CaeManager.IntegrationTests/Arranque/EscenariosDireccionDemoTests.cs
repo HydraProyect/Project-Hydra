@@ -126,10 +126,12 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
     {
         [EscenarioClienteDemo.Completo] = [EstadoCentro.Vigente, EstadoCentro.Vigente, EstadoCentro.Vigente],
         [EscenarioClienteDemo.CasiCompleto] = [EstadoCentro.Vigente, EstadoCentro.Vigente, EstadoCentro.Proximo],
-        [EscenarioClienteDemo.ConAccesoConDocumentacionPendiente] = [EstadoCentro.Vencido, EstadoCentro.Urgente, EstadoCentro.Faltante],
+        // Desde el 2026-10-10 un documento que vale y está sin subir o sin validar en la plataforma del Centro lo pone en
+        // «Pendiente» (entre Faltante y Urgente): los escenarios que dejan acreditaciones sin subir o subidas lo enseñan.
+        [EscenarioClienteDemo.ConAccesoConDocumentacionPendiente] = [EstadoCentro.Vencido, EstadoCentro.Pendiente, EstadoCentro.Faltante],
         [EscenarioClienteDemo.ConAccesoSinDocumentacionPendiente] = [EstadoCentro.Vigente, EstadoCentro.Vigente, EstadoCentro.Vigente],
-        [EscenarioClienteDemo.AccesoBloqueado] = [EstadoCentro.Bloqueado, EstadoCentro.Vencido, EstadoCentro.Vigente],
-        [EscenarioClienteDemo.AccesoPendienteDeConfirmacion] = [EstadoCentro.Vigente, EstadoCentro.Vigente, EstadoCentro.Vigente],
+        [EscenarioClienteDemo.AccesoBloqueado] = [EstadoCentro.Bloqueado, EstadoCentro.Vencido, EstadoCentro.Pendiente],
+        [EscenarioClienteDemo.AccesoPendienteDeConfirmacion] = [EstadoCentro.Pendiente, EstadoCentro.Pendiente, EstadoCentro.Pendiente],
     };
 
     // ── La matriz, entera y medida ──────────────────────────────────────────
@@ -157,6 +159,8 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
     [Fact]
     public async Task El_estado_de_cada_centro_es_el_que_pide_el_escenario_medido_con_el_servicio_real()
     {
+        // Todas las discrepancias de una vez, no solo la del primer Cliente empresarial que falle.
+        using var todas = new FluentAssertions.Execution.AssertionScope();
         foreach (var (tenant, cliente) in Clientes)
         {
             var datos = await CargarAsync(tenant, cliente);
