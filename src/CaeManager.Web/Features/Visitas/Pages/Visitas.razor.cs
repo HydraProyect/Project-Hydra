@@ -212,6 +212,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private Guid? _idEnfocado;
     private bool _cancelandoLote;
     private bool _confirmarCancelarLoteVisible;
+    // Lo que cancela el diálogo: la selección de la barra de lote, o la única Visita del pie del panel.
+    private List<Guid> _idsACancelar = [];
+    private bool _cancelarDesdePanel;
 
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
@@ -1651,6 +1654,16 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     private void AbrirCancelarLote()
     {
+        _idsACancelar = _seleccionados.ToList();
+        _cancelarDesdePanel = false;
+        _motivoCancelacion = string.Empty;
+        _confirmarCancelarLoteVisible = true;
+    }
+
+    private void AbrirCancelarDesdePanel(Guid id)
+    {
+        _idsACancelar = [id];
+        _cancelarDesdePanel = true;
         _motivoCancelacion = string.Empty;
         _confirmarCancelarLoteVisible = true;
     }
@@ -1658,10 +1671,11 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private async Task ConfirmarCancelarLoteAsync()
     {
         _cancelandoLote = true;
+        var ids = _idsACancelar;
 
         try
         {
-            var resultado = await Mediator.Send(new CancelarVisitasCommand(_seleccionados.ToList(), _motivoCancelacion));
+            var resultado = await Mediator.Send(new CancelarVisitasCommand(ids, _motivoCancelacion));
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
@@ -1671,18 +1685,24 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             var dto = resultado.Valor;
             var canceladas = dto.Recibos;
 
-            // FS-11: el aviso ofrece «Deshacer» sobre las que sí se cancelaron.
+            // FS-11: el aviso ofrece «Deshacer» sobre las que sí se cancelaron. Una sola visita tiene su
+            // propio texto, con el singular, para no decir «1 visitas».
             ToastService.Mostrar(
                 dto.Errores.Count == 0
-                    ? Textos["ToastLoteCanceladas", dto.Canceladas].Value
+                    ? dto.Canceladas == 1 ? Textos["ToastCancelada"].Value : Textos["ToastLoteCanceladas", dto.Canceladas].Value
                     : Textos["ToastLoteParcial", dto.Canceladas, dto.Errores.Count, string.Join(" ", dto.Errores)].Value,
                 dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia,
                 canceladas.Count > 0 ? Textos["ToastAccionDeshacer"].Value : null,
                 canceladas.Count > 0 ? () => DeshacerCancelarAsync(canceladas) : null);
 
-            _seleccionados.Clear();
+            foreach (var id in ids)
+                _seleccionados.Remove(id);
             _confirmarCancelarLoteVisible = false;
             await RecargarAsync();
+
+            // Si el panel mostraba una de las canceladas, se relee para que enseñe «Visita cancelada» y no sus acciones.
+            if (_detalle is not null && ids.Contains(_detalle.Id))
+                await AbrirDetalleAsync(_detalle.Id, _pestanaDetalle);
         }
         catch (Exception)
         {
