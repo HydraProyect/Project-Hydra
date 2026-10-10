@@ -106,6 +106,11 @@ public partial class DrawerGestionDocumento : ComponentBase
 
     private bool HaySiguiente => _pasosPendientes.Count > 0;
 
+    private const string ClaveGuardar = "Guardar";
+    private const string ClaveGuardarYSiguiente = "GuardarYSiguiente";
+
+    private string TextoGuardarPrimario => TextosDrawerGestionDocumento.Texto(HaySiguiente ? ClaveGuardarYSiguiente : ClaveGuardar);
+
     /// <summary>
     /// El alias (nombre con el que el trabajador firma o está dado de alta
     /// en plataformas externas) se incluye en el texto buscable para que
@@ -302,30 +307,12 @@ public partial class DrawerGestionDocumento : ComponentBase
             return await AbrirEditarInternoAsync(documentoId, 0);
 
         var tipoDocumentoId = paso.TipoDocumentoId ?? Guid.Empty;
-        switch (paso.Ambito)
-        {
-            case AmbitoAplicacion.Trabajador:
-                await AbrirCrearParaFaltanteAsync(paso.PropietarioId, tipoDocumentoId);
-                break;
-            case AmbitoAplicacion.Empresa:
-                await AbrirCrearParaFaltanteEmpresaAsync(paso.PropietarioId, tipoDocumentoId);
-                break;
-            default:
-                await AbrirCrearAsync();
-                await CambiarAmbitoAsync(paso.Ambito.ToString());
-                var propietario = paso.PropietarioId.ToString();
-                if (paso.Ambito == AmbitoAplicacion.Cliente && _clientesDisponibles.Any(c => c.Id == paso.PropietarioId))
-                    _clienteId = propietario;
-                else if (paso.Ambito == AmbitoAplicacion.Vehiculo && _vehiculosDisponibles.Any(v => v.Id == paso.PropietarioId))
-                    _vehiculoId = propietario;
-                else if (paso.Ambito == AmbitoAplicacion.Proyecto && _proyectosDisponibles.Any(p => p.Id == paso.PropietarioId))
-                    _proyectoId = propietario;
-                CambiarTipoDocumento(tipoDocumentoId.ToString());
-                // La preselección la hace la pantalla que abre, no quien mira: no cuenta como cambio.
-                FijarInstantaneaFormulario();
-                StateHasChanged();
-                break;
-        }
+        if (paso.TrabajadorId is { } trabajadorId)
+            await AbrirCrearParaFaltanteAsync(trabajadorId, tipoDocumentoId);
+        else if (paso.EmpresaId is { } empresaId)
+            await AbrirCrearParaFaltanteEmpresaAsync(empresaId, tipoDocumentoId);
+        else
+            return false;
 
         return true;
     }

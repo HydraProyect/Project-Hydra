@@ -17,20 +17,26 @@ public sealed record PasoSerieDocumento
     private PasoSerieDocumento() { }
 
     public Guid? DocumentoId { get; private init; }
-    public AmbitoAplicacion Ambito { get; private init; }
-    public Guid PropietarioId { get; private init; }
+
+    /// <summary>De quién falta: un Trabajador o, si es nulo, la Empresa de <see cref="EmpresaId"/>.</summary>
+    public Guid? TrabajadorId { get; private init; }
+    public Guid? EmpresaId { get; private init; }
     public Guid? TipoDocumentoId { get; private init; }
 
     /// <summary>Un Documento que ya existe: se abre su renovación.</summary>
     public static PasoSerieDocumento Renovar(Guid documentoId) => new() { DocumentoId = documentoId };
 
-    /// <summary>Un documento que falta: alta con el propietario y el Tipo de documento ya elegidos.</summary>
-    public static PasoSerieDocumento Subir(AmbitoAplicacion ambito, Guid propietarioId, Guid tipoDocumentoId) =>
-        new() { Ambito = ambito, PropietarioId = propietarioId, TipoDocumentoId = tipoDocumentoId };
+    /// <summary>Un documento que le falta a un Trabajador: alta con el Trabajador y el Tipo de documento ya elegidos.</summary>
+    public static PasoSerieDocumento SubirDeTrabajador(Guid trabajadorId, Guid tipoDocumentoId) =>
+        new() { TrabajadorId = trabajadorId, TipoDocumentoId = tipoDocumentoId };
 
-    /// <summary>La fila de una lista de ficha: con Documento se renueva; sin él, se sube el que falta.</summary>
-    public static PasoSerieDocumento DeFila(Guid? documentoId, AmbitoAplicacion ambito, Guid propietarioId, Guid tipoDocumentoId) =>
-        documentoId is { } id ? Renovar(id) : Subir(ambito, propietarioId, tipoDocumentoId);
+    /// <summary>Un documento que le falta a una Empresa: alta con la Empresa y el Tipo de documento ya elegidos.</summary>
+    public static PasoSerieDocumento SubirDeEmpresa(Guid empresaId, Guid tipoDocumentoId) =>
+        new() { EmpresaId = empresaId, TipoDocumentoId = tipoDocumentoId };
+
+    /// <summary>La fila de documento de un Trabajador: con Documento se renueva; sin él, se sube el que falta.</summary>
+    public static PasoSerieDocumento DeFilaDeTrabajador(Guid? documentoId, Guid trabajadorId, Guid tipoDocumentoId) =>
+        documentoId is { } id ? Renovar(id) : SubirDeTrabajador(trabajadorId, tipoDocumentoId);
 
     /// <summary>
     /// ¿La fila entra en la serie? Entra lo que se arregla con este formulario: lo que la ficha

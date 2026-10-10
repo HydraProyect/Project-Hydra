@@ -194,7 +194,7 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
         _drawerGestion.AbrirSerieAsync(SerieDeDocumentos, PasoDe(fila));
 
     private PasoSerieDocumento PasoDe(FilaTrabajadorTipoDocumentoDto fila) =>
-        PasoSerieDocumento.DeFila(fila.DocumentoId, AmbitoAplicacion.Trabajador, fila.TrabajadorId, TipoDocumentoId);
+        PasoSerieDocumento.DeFilaDeTrabajador(fila.DocumentoId, fila.TrabajadorId, TipoDocumentoId);
 
     /// <summary>
     /// «Guardar y siguiente»: las filas que piden «Renovar» o «Subir», en el orden en que la lista las pinta. Son las

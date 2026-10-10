@@ -492,7 +492,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _drawerGestion.AbrirSerieAsync(SerieDeDocumentos, PasoDe(documento));
 
     private PasoSerieDocumento PasoDe(DocumentoRequeridoDto documento) =>
-        PasoSerieDocumento.DeFila(documento.DocumentoId, AmbitoAplicacion.Trabajador, TrabajadorId, documento.TipoDocumentoId);
+        PasoSerieDocumento.DeFilaDeTrabajador(documento.DocumentoId, TrabajadorId, documento.TipoDocumentoId);
 
     /// <summary>
     /// «Guardar y siguiente»: los documentos que piden «Renovar» o «Subir», en el orden en que la pestaña

@@ -285,7 +285,7 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
     public async Task El_siguiente_puede_ser_un_documento_que_falta()
     {
         var cut = Renderizar();
-        var falta = PasoSerieDocumento.Subir(AmbitoAplicacion.Trabajador, Guid.NewGuid(), Guid.NewGuid());
+        var falta = PasoSerieDocumento.SubirDeTrabajador(Guid.NewGuid(), Guid.NewGuid());
         PasoSerieDocumento[] serie = [Documento("Ana Ruiz"), falta];
         await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
 

@@ -600,7 +600,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     }
 
     private static PasoSerieDocumento PasoDe(Guid trabajadorId, DocumentoRequeridoDto documento) =>
-        PasoSerieDocumento.DeFila(documento.DocumentoId, AmbitoAplicacion.Trabajador, trabajadorId, documento.TipoDocumentoId);
+        PasoSerieDocumento.DeFilaDeTrabajador(documento.DocumentoId, trabajadorId, documento.TipoDocumentoId);
 
     /// <summary>Del peor estado al mejor: el orden en que cada Trabajador despliega su documentación.</summary>
     private static IEnumerable<DocumentoRequeridoDto> DocumentosOrdenados(TrabajadorDocumentacionSubcontrataDto trabajador) =>
