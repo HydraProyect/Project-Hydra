@@ -358,6 +358,8 @@ public class CaeManagerDbContext(
     IQueryable<PreferenciaDashboardUsuario> IConfiguracionQueryContext.PreferenciasDashboardUsuario => PreferenciasDashboardUsuario;
     public DbSet<FiltroGuardado> FiltrosGuardados => Set<FiltroGuardado>();
     IQueryable<FiltroGuardado> IConfiguracionQueryContext.FiltrosGuardados => FiltrosGuardados;
+    public DbSet<OrdenCajasFicha> OrdenesCajasFicha => Set<OrdenCajasFicha>();
+    IQueryable<OrdenCajasFicha> IConfiguracionQueryContext.OrdenesCajasFicha => OrdenesCajasFicha;
     public DbSet<EstadoAutomatizacion> EstadosAutomatizacion => Set<EstadoAutomatizacion>();
     IQueryable<EstadoAutomatizacion> IConfiguracionQueryContext.EstadosAutomatizacion => EstadosAutomatizacion;
     public DbSet<HistorialImportacion> HistorialImportaciones => Set<HistorialImportacion>();

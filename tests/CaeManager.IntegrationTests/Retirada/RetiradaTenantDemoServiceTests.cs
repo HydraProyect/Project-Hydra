@@ -318,6 +318,7 @@ public class RetiradaTenantDemoServiceTests
         // guardados son por Tenant desde el 2026-10-08), así que el barrido genérico por
         // TenantId de la retirada no la alcanza; solo la limpieza por usuario.
         var filtroEnTenantAjenoId = Guid.NewGuid();
+        var ordenCajasEnTenantAjenoId = Guid.NewGuid();
         var vistaEnTenantAjenoId = Guid.NewGuid();
         var vistaEnTenantRetiradoId = Guid.NewGuid();
         await using (var contextoSiembraFiltro = CrearContextoBootstrap(arnes))
@@ -331,6 +332,11 @@ public class RetiradaTenantDemoServiceTests
                 $"""
                  INSERT INTO "FiltrosGuardados" ("Id", "TenantId", "UsuarioId", "Pantalla", "Nombre", "ValoresJson", "CreadoEnUtc")
                  VALUES ({filtroEnTenantAjenoId}, {tenantPropietarioAjenoId}, {gestorCaeId}, 'Clientes', 'Vencidos', {"{}"}, now())
+                 """);
+            await contextoSiembraFiltro.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                 INSERT INTO "OrdenesCajasFicha" ("Id", "TenantId", "UsuarioId", "TipoFicha", "Claves", "ActualizadoEnUtc")
+                 VALUES ({ordenCajasEnTenantAjenoId}, {tenantPropietarioAjenoId}, {gestorCaeId}, 'Empresa', ARRAY['notas','contacto'], now())
                  """);
 
             // La vista recordada de ese mismo Gestor CAE vive en la misma tabla, en la fila de
@@ -370,6 +376,9 @@ public class RetiradaTenantDemoServiceTests
         (await contextoFinal.FiltrosGuardados.IgnoreQueryFilters().AnyAsync(f => f.Id == filtroEnTenantAjenoId))
             .Should().BeFalse(
                 "el filtro que un usuario del Tenant retirado guardó en OTRO Tenant se borra con él: sin IgnoreQueryFilters en esa limpieza quedaría huérfano");
+        (await contextoFinal.OrdenesCajasFicha.IgnoreQueryFilters().AnyAsync(o => o.Id == ordenCajasEnTenantAjenoId))
+            .Should().BeFalse(
+                "el orden de cajas que un usuario del Tenant retirado guardó en OTRO Tenant se borra con él, igual que sus filtros");
         (await contextoFinal.FiltrosGuardados.IgnoreQueryFilters()
                 .Where(f => f.Id == vistaEnTenantAjenoId || f.Id == vistaEnTenantRetiradoId).Select(f => f.Id).ToListAsync())
             .Should().BeEmpty(

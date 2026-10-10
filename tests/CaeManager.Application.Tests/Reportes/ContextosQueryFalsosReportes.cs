@@ -44,12 +44,14 @@ public class ConfiguracionQueryContextFalso : IConfiguracionQueryContext
     public List<ParametroSistema> ListaParametrosSistema { get; } = [];
     public List<PreferenciaDashboardUsuario> ListaPreferenciasDashboardUsuario { get; } = [];
     public List<FiltroGuardado> ListaFiltrosGuardados { get; } = [];
+    public List<OrdenCajasFicha> ListaOrdenesCajasFicha { get; } = [];
     public List<EstadoAutomatizacion> ListaEstadosAutomatizacion { get; } = [];
 
     public IQueryable<ParametroSistema> ParametrosSistema => new TestAsyncQueryable<ParametroSistema>(ListaParametrosSistema.AsQueryable());
     public IQueryable<PreferenciaDashboardUsuario> PreferenciasDashboardUsuario =>
         new TestAsyncQueryable<PreferenciaDashboardUsuario>(ListaPreferenciasDashboardUsuario.AsQueryable());
     public IQueryable<FiltroGuardado> FiltrosGuardados => new TestAsyncQueryable<FiltroGuardado>(ListaFiltrosGuardados.AsQueryable());
+    public IQueryable<OrdenCajasFicha> OrdenesCajasFicha => new TestAsyncQueryable<OrdenCajasFicha>(ListaOrdenesCajasFicha.AsQueryable());
     public IQueryable<EstadoAutomatizacion> EstadosAutomatizacion => new TestAsyncQueryable<EstadoAutomatizacion>(ListaEstadosAutomatizacion.AsQueryable());
 }
 
