@@ -172,11 +172,11 @@
                     <span class="celda-trabajador">
                         <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida"
                                 aria-label="@Textos["AbrirVistaRapidaDe", NombreCompleto(context)]"
-                                @onclick="() => AbrirVistaRapidaAsync(context.Id)">@NombreCompleto(context)</button>
+                                @onclick="() => AbrirVistaRapidaAsync(context.Id)"><TextoResaltado Texto="@context.Nombre" Termino="@_busqueda" />@(" ")<TextoResaltado Texto="@context.Apellidos" Termino="@_busqueda" /></button>
                         @if (!string.IsNullOrWhiteSpace(context.Dni))
                         {
                             <span class="celda-trabajador-dni">
-                                DNI <BotonCopiar EnLinea="true" Valor="@context.Dni" Texto="@context.Dni" Etiqueta="@Textos["EtiquetaCopiarDni"]"
+                                DNI <BotonCopiar EnLinea="true" Valor="@context.Dni" Texto="@context.Dni" TerminoResaltado="@_busqueda" Etiqueta="@Textos["EtiquetaCopiarDni"]"
                                                  NombreAccesible="@Textos["CopiarDni", context.Dni]" />
                             </span>
                         }

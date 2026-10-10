@@ -201,12 +201,14 @@
                             </ColumnOptions>
                             <ChildContent>
                                 <span class="documentos-propietario">
-                                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" @onclick="() => AbrirPanelAsync(context.Id)">@context.PropietarioNombre</button>
+                                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@context.PropietarioNombre" Termino="@_busqueda" /></button>
                                     <span class="documentos-ambito">@EtiquetaAmbitoListado(context.Ambito)</span>
                                 </span>
                             </ChildContent>
                         </TemplateColumn>
-                        <PropertyColumn Property="@(d => d.TipoDocumentoNombre)" Title="Tipo de documento" Sortable="true" />
+                        <TemplateColumn Title="Tipo de documento" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.TipoDocumentoNombre))">
+                            <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
+                        </TemplateColumn>
                         <TemplateColumn @ref="_columnaVigencia" Title="@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVigenciaPorVencimiento"]"
                                         Sortable="true" SortBy="@(_ordenVigenciaPorEmision ? OrdenEmisionListado : OrdenVencimientoListado)">
                             <ColumnOptions>

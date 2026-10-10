@@ -36,7 +36,7 @@ namespace CaeManager.Web.Tests;
 /// test de aquí depende de ellos.
 /// </para>
 /// </summary>
-public class VehiculosFilaSeRefrescaTests : BunitContext
+public partial class VehiculosFilaSeRefrescaTests : BunitContext
 {
     /// <summary>QuickGrid y AtajosListaTeclado importan sus módulos JS al montarse.</summary>
     public VehiculosFilaSeRefrescaTests()

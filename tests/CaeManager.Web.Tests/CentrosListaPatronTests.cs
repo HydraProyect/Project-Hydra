@@ -28,7 +28,7 @@ namespace CaeManager.Web.Tests;
 /// cabecera de columnas, la fila sin menú «⋯», la vista rápida y el paginador.
 /// El acordeón de asignaciones se sustituye por un stub: aquí se mide lo que pinta la PÁGINA.
 /// </summary>
-public class CentrosListaPatronTests : BunitContext
+public partial class CentrosListaPatronTests : BunitContext
 {
     public CentrosListaPatronTests()
     {

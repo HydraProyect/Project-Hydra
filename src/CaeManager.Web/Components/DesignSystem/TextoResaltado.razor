@@ -1,0 +1,98 @@
+@*
+    Texto de una fila de listado con la parte que casa con el buscador de la pantalla marcada
+    (<mark> con fondo --color-resaltado-busqueda).
+
+    - Casa con el MISMO criterio que el buscador: sin distinguir acentos ni mayúsculas
+      (TextoDeBusqueda.Coincidencias). Se marca el texto original: quien escribe «garcia» ve
+      marcado «García».
+    - Sin término (nulo, vacío o solo espacios: la pantalla tampoco busca con eso) o sin
+      coincidencia pinta SOLO el texto, sin ningún elemento: el mismo DOM que si no se usara.
+    - Con o sin marca, el texto del elemento que lo contiene (textContent) es el mismo: la marca
+      no añade ni quita un solo carácter. Por eso el nombre accesible calculado del contenido no
+      cambia. Lo que NO debe pasar por aquí son los atributos: aria-label, title y el valor que
+      copia un BotonCopiar siguen recibiendo la cadena íntegra.
+    - El texto se pinta como nodos de Razor, nunca como MarkupString: «<b>» en un nombre o en el
+      buscador sale escrito, no interpretado.
+    - Cada pantalla marca solo las celdas de los campos que su consulta busca de verdad, y campo
+      a campo (no sobre «Nombre Apellidos» concatenado si la consulta los busca por separado).
+
+    El color del texto se hereda de la celda. Contraste medido sobre el fondo de la marca, tema
+    claro / oscuro: texto 15,11 / 13,02; texto secundario 6,72 / 5,06; --color-primary-500
+    (identificador copiable bajo el cursor) 5,64 / 5,70.
+
+    Límite conocido: una fila que PostgreSQL encontró por una equivalencia que solo hace unaccent
+    («strasse» → «Straße») aparece sin marca.
+
+    Uso:
+
+        <TextoResaltado Texto="@empresa.RazonSocial" Termino="@_busqueda" />
+*@
+@using CaeManager.Application.Common
+
+@if (_trozos is null)
+{
+    @Texto
+}
+else
+{
+    foreach (var trozo in _trozos)
+    {
+        if (trozo.Marcado)
+        {
+            <mark class="texto-resaltado">@trozo.Texto</mark>
+        }
+        else
+        {
+            @trozo.Texto
+        }
+    }
+}
+
+@code {
+    /// <summary>Texto que se pinta, íntegro.</summary>
+    [Parameter] public string? Texto { get; set; }
+
+    /// <summary>Lo escrito en el buscador de la pantalla, tal cual se le pasa a la consulta.</summary>
+    [Parameter] public string? Termino { get; set; }
+
+    private string? _textoCalculado;
+    private string? _terminoCalculado;
+    private List<(string Texto, bool Marcado)>? _trozos;
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(Texto, _textoCalculado) && ReferenceEquals(Termino, _terminoCalculado))
+            return;
+
+        _textoCalculado = Texto;
+        _terminoCalculado = Termino;
+        _trozos = Trocear(Texto, Termino);
+    }
+
+    /// <summary>El texto partido en trozos marcados y sin marcar, o <c>null</c> si no hay nada que marcar.</summary>
+    private static List<(string Texto, bool Marcado)>? Trocear(string? texto, string? termino)
+    {
+        if (string.IsNullOrEmpty(texto) || string.IsNullOrWhiteSpace(termino))
+            return null;
+
+        var tramos = TextoDeBusqueda.Coincidencias(texto, termino);
+        if (tramos.Count == 0)
+            return null;
+
+        var trozos = new List<(string Texto, bool Marcado)>(tramos.Count * 2 + 1);
+        var cursor = 0;
+        foreach (var tramo in tramos)
+        {
+            var (inicio, longitud) = tramo.GetOffsetAndLength(texto.Length);
+            if (inicio > cursor)
+                trozos.Add((texto[cursor..inicio], false));
+            trozos.Add((texto.Substring(inicio, longitud), true));
+            cursor = inicio + longitud;
+        }
+
+        if (cursor < texto.Length)
+            trozos.Add((texto[cursor..], false));
+
+        return trozos;
+    }
+}

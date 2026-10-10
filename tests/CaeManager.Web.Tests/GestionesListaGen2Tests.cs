@@ -40,7 +40,7 @@ namespace CaeManager.Web.Tests;
 /// mismo».
 /// </para>
 /// </summary>
-public class GestionesListaGen2Tests : BunitContext
+public partial class GestionesListaGen2Tests : BunitContext
 {
     /// <summary>QuickGrid importa su módulo JS al montarse.</summary>
     public GestionesListaGen2Tests()

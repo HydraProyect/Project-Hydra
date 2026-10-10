@@ -80,12 +80,14 @@
                     </ColumnOptions>
                     <ChildContent Context="context">
                         <span class="gestion-trabajador-centro">
-                            <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida" @onclick="() => AbrirVistaRapida(context)">@context.TrabajadorNombre</button>
-                            <button type="button" class="enlace-nombre-fila gestion-centro" @onclick="() => AbrirVistaRapida(context)">@context.CentroNombre</button>
+                            <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.TrabajadorNombre" Termino="@_busqueda" /></button>
+                            <button type="button" class="enlace-nombre-fila gestion-centro" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" /></button>
                         </span>
                     </ChildContent>
                 </TemplateColumn>
-                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="@Textos["ListaTipoDocumento"]" Sortable="true" Class="gestion-tipo-documento" />
+                <TemplateColumn Title="@Textos["ListaTipoDocumento"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TipoDocumentoNombre))" Class="gestion-tipo-documento">
+                    <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
+                </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado" Sortable="true" IsDefaultSortColumn="true" InitialSortDirection="SortDirection.Ascending" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
                     <EstadoFila Tono="@TonoEstado(context.Estado)" Texto="@TextoEstado(context.Estado)"
                                 Correcto="@(context.Estado == EstadoGestion.Completada)" />
