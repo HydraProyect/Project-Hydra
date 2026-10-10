@@ -629,14 +629,6 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
                 Math.Clamp(c.Porcentaje, 0, 100),
                 ClaseTono(TonoPorcentaje(c.Porcentaje))))
             .ToList(),
-        // Ocupación sin jornada mensual configurada: el DTO trae PorcentajeOcupacion
-        // null y pintarlo como 0% lo haría indistinguible de un Gestor CAE que no
-        // ha registrado tiempo, así que esa fila no lleva barra y dice por qué.
-        CatalogoKpis.OcupacionGestores => _valores!.Bpo.OcupacionPorGestor
-            .Select(o => o.PorcentajeOcupacion is { } p
-                ? new BarraKpi(o.Nombre, $"{Math.Clamp(p, 0, 100)}%", Math.Clamp(p, 0, 100), ClaseTono(TonoOcupacion(p)))
-                : new BarraKpi(o.Nombre, "—", 0, "segmento-neutro", Textos["BarraSinJornada"]))
-            .ToList(),
         _ => []
     };
 
@@ -650,14 +642,6 @@ public partial class DashboardEjecutivo : CaeManager.Web.Components.PaginaIntera
             f.Valor <= 0 || maximo <= 0 ? 0 : Math.Max(2, (int)Math.Round(f.Valor * 100.0 / maximo)),
             f.Clase)).ToList();
     }
-
-    /// <summary>Más ocupación que jornada es una señal, no un logro: por encima del 100% va en rojo.</summary>
-    private static TonoBadge TonoOcupacion(int porcentaje) => porcentaje switch
-    {
-        > 100 => TonoBadge.Peligro,
-        >= 85 => TonoBadge.Advertencia,
-        _ => TonoBadge.Neutro
-    };
 
     /// <summary>
     /// Duplicado a propósito de <c>Incidencias.razor.cs</c>, donde es privado:

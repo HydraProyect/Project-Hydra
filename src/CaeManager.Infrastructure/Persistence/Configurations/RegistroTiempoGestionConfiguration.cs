@@ -11,9 +11,12 @@ public class RegistroTiempoGestionConfiguration : IEntityTypeConfiguration<Regis
         builder.ToTable("RegistrosTiempoGestion");
         builder.HasKey(r => r.Id);
 
-        // Los dos ejes de agregación: ocupación por gestor y horas por cliente, ambos
-        // acotados por período. Sin FK a Conversacion/Cliente ni navigation properties,
-        // mismo criterio que EventoConversacion: viven en otros agregados.
+        // Índices por usuario y por cliente, ambos acotados por período. El del usuario
+        // servía al KPI de ocupación por Gestor CAE, ya retirado: hoy ningún agregado lee
+        // por (TenantId, UsuarioId, FinUtc) — ObtenerTiempoGestionConversacionQuery filtra
+        // por ConversacionId y usuario. Las horas por Cliente usan el segundo. Sin FK a
+        // Conversacion/Cliente ni navigation properties, mismo criterio que
+        // EventoConversacion: viven en otros agregados.
         builder.HasIndex(r => new { r.TenantId, r.UsuarioId, r.FinUtc });
         builder.HasIndex(r => new { r.TenantId, r.ClienteId, r.FinUtc });
         builder.HasIndex(r => r.ConversacionId);

@@ -1,6 +1,5 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones;
-using CaeManager.Application.Configuracion;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Telemetria;
 using CaeManager.Application.Visitas;
@@ -12,8 +11,6 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Dashboard.Queries;
 
 public record ObtenerKpisBpoQuery(PeriodoKpi Periodo) : IRequest<KpisBpoDto>;
-
-public record OcupacionGestorDto(Guid UsuarioId, string Nombre, int SegundosActivos, int? PorcentajeOcupacion);
 
 public record HorasClienteDto(Guid ClienteId, string ClienteNombre, int SegundosActivos);
 
@@ -28,18 +25,22 @@ public record AtribucionUrgenciaConteoDto(AtribucionUrgencia Atribucion, int Can
 /// Los denominadores viajan explícitos (<c>Total*</c>) por el mismo motivo que en
 /// <see cref="CatalogoKpisValoresDto"/>: el fan-out multi-tenant pondera por volumen
 /// al fusionar, y un promedio simple entre tenants mentiría.
+///
+/// El tiempo de gestión (<c>RegistroTiempoGestion</c>) solo se agrega por Cliente,
+/// nunca por persona: no hay KPI de ocupación por Gestor CAE (retirado del catálogo,
+/// ver <c>CatalogoKpis</c>), y este DTO no transporta el tiempo de
+/// ningún usuario concreto.
 /// </summary>
 public record KpisBpoDto(
     int SugerenciasConfirmadasSinEdicion,
     int TotalSugerenciasResueltas,
-    IReadOnlyList<OcupacionGestorDto> OcupacionPorGestor,
     IReadOnlyList<HorasClienteDto> HorasPorCliente,
     IReadOnlyList<TramoAntelacionConteoDto> DistribucionAntelacion,
     int VisitasConFalsoAviso,
     int TotalVisitasConAntelacionMedida,
     decimal HorasBloqueadasPorClienteTotal)
 {
-    public static readonly KpisBpoDto Vacio = new(0, 0, [], [], [], 0, 0, 0m);
+    public static readonly KpisBpoDto Vacio = new(0, 0, [], [], 0, 0, 0m);
 
     public IReadOnlyList<AtribucionUrgenciaConteoDto> AtribucionUrgencia { get; init; } = [];
 }
@@ -49,9 +50,7 @@ public class ObtenerKpisBpoQueryHandler(
     IComunicacionesQueryContext comunicacionesContext,
     IVisitasQueryContext visitasContext,
     IEmpresasQueryContext empresasContext,
-    IConfiguracionQueryContext configuracionContext,
-    IAlcanceDatosService alcanceDatos,
-    IDirectorioUsuariosService directorioUsuarios)
+    IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerKpisBpoQuery, KpisBpoDto>
 {
     public const int TopClientesPorHoras = 5;
@@ -62,17 +61,15 @@ public class ObtenerKpisBpoQueryHandler(
         // (un reloj desajustado, datos de prueba mal generados) se colaría en el período
         // y nadie lo notaría.
         var (inicioMes, finMes) = (request.Periodo.InicioUtc, request.Periodo.FinUtc);
-        var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
 
         var (confirmadasSinEdicion, totalResueltas) = await CalcularPalancaIaAsync(inicioMes, finMes, cancellationToken);
-        var (ocupacion, horasPorCliente) = await CalcularTiempoAsync(inicioMes, finMes, parametros.HorasJornadaMensualGestor, cancellationToken);
+        var horasPorCliente = await CalcularHorasPorClienteAsync(inicioMes, finMes, cancellationToken);
         var friccion = await CalcularFriccionAsync(inicioMes, finMes, cancellationToken);
 
         return friccion with
         {
             SugerenciasConfirmadasSinEdicion = confirmadasSinEdicion,
             TotalSugerenciasResueltas = totalResueltas,
-            OcupacionPorGestor = ocupacion,
             HorasPorCliente = horasPorCliente
         };
     }
@@ -104,8 +101,8 @@ public class ObtenerKpisBpoQueryHandler(
             todas.Sum(x => x.Cantidad));
     }
 
-    private async Task<(IReadOnlyList<OcupacionGestorDto> Ocupacion, IReadOnlyList<HorasClienteDto> HorasPorCliente)>
-        CalcularTiempoAsync(DateTime inicioMes, DateTime finMes, int horasJornadaMensual, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<HorasClienteDto>> CalcularHorasPorClienteAsync(
+        DateTime inicioMes, DateTime finMes, CancellationToken cancellationToken)
     {
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
@@ -116,11 +113,6 @@ public class ObtenerKpisBpoQueryHandler(
         if (clienteIdsVisibles is not null)
             registrosQuery = registrosQuery.Where(r => r.ClienteId != null && clienteIdsVisibles.Contains(r.ClienteId.Value));
 
-        var porUsuario = await registrosQuery
-            .GroupBy(r => r.UsuarioId)
-            .Select(g => new { UsuarioId = g.Key, Segundos = g.Sum(r => r.SegundosActivos) })
-            .ToListAsync(cancellationToken);
-
         var porCliente = await registrosQuery
             .Where(r => r.ClienteId != null)
             .GroupBy(r => r.ClienteId!.Value)
@@ -128,9 +120,6 @@ public class ObtenerKpisBpoQueryHandler(
             .OrderByDescending(x => x.Segundos)
             .Take(TopClientesPorHoras)
             .ToListAsync(cancellationToken);
-
-        var nombresUsuario = await directorioUsuarios.ObtenerNombresVisiblesAsync(
-            porUsuario.Select(u => u.UsuarioId).ToList(), cancellationToken);
 
         // RegistroTiempoGestion.ClienteId hereda Conversacion.ClienteId, que es un
         // Empresa.Id desde F3b (AsignarClienteConversacionCommand resuelve el
@@ -140,23 +129,9 @@ public class ObtenerKpisBpoQueryHandler(
             .Where(c => clienteIds.Contains(c.Id))
             .ToDictionaryAsync(c => c.Id, c => c.RazonSocial, cancellationToken);
 
-        var segundosJornada = horasJornadaMensual * 3600;
-
-        var ocupacion = porUsuario
-            .Where(u => nombresUsuario.ContainsKey(u.UsuarioId))
-            .Select(u => new OcupacionGestorDto(
-                u.UsuarioId,
-                nombresUsuario[u.UsuarioId],
-                u.Segundos,
-                segundosJornada == 0 ? null : (int)Math.Round(u.Segundos * 100.0 / segundosJornada)))
-            .OrderByDescending(u => u.SegundosActivos)
-            .ToList();
-
-        var horas = porCliente
+        return porCliente
             .Select(c => new HorasClienteDto(c.ClienteId, nombresCliente.GetValueOrDefault(c.ClienteId, "—"), c.Segundos))
             .ToList();
-
-        return (ocupacion, horas);
     }
 
     private async Task<KpisBpoDto> CalcularFriccionAsync(DateTime inicioMes, DateTime finMes, CancellationToken cancellationToken)
