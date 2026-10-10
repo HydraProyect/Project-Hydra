@@ -6,3 +6,7 @@ export function hayDialogoModalAbierto() {
     )).some(elemento => elemento.getClientRects().length > 0 &&
         getComputedStyle(elemento).visibility === 'visible');
 }
+
+// Cuántas listas con atajos propios (AtajosListaTeclado → atajos-lista.js) hay montadas. Los
+// atajos de ficha 360 (atajos-ficha.js) ceden j/k/e/f mientras haya alguna.
+export const atajosDeLista = { activos: 0 };

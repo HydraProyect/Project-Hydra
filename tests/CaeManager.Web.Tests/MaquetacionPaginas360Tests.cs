@@ -108,6 +108,17 @@ public class MaquetacionPaginas360Tests : BunitContext
             "sin esa clase la rejilla reservaría 300 px vacíos a la derecha");
     }
 
+    [Fact]
+    public void El_cuerpo_lleva_la_marca_por_la_que_los_atajos_de_teclado_reconocen_una_ficha()
+    {
+        var cut = Render<CuerpoConLateral>(p => p.AddChildContent("<p>Pestañas</p>"));
+
+        cut.Find(".cuerpo-con-lateral").HasAttribute("data-atajos-ficha").Should().BeTrue(
+            "atajos-ficha.js solo reparte j/k/e/f y 1–9 donde encuentra data-atajos-ficha");
+        cut.FindAll("[data-atajos-ficha] > .cuerpo-con-lateral-principal").Should().ContainSingle(
+            "las filas que recorre j/k se buscan dentro de la columna principal, no en el lateral");
+    }
+
     // ── Tarjeta compacta ───────────────────────────────────────────────────
 
     [Fact]
