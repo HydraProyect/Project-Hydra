@@ -60,11 +60,16 @@ public class AvisoSalidaDelNavegadorE2ETests(WebAppFixtureListados fixture)
         await Expect(page).ToHaveURLAsync(new Regex(@"/trabajadores$"));
         await Expect(page).ToHaveTitleAsync(new Regex("trabajadores", RegexOptions.IgnoreCase));
         // La siembra no tiene un trabajador de nombre estable: vale cualquiera cuyo rótulo accesible no se repita.
-        var nombres = page.Locator("tbody tr.fila-pulsable button.nombre-abre-vista-rapida");
-        await Expect(nombres).Not.ToHaveCountAsync(0);
-        var rotulos = await nombres.EvaluateAllAsync<string[]>("botones => botones.map(b => b.getAttribute('aria-label') ?? '')");
-        var rotulo = rotulos.GroupBy(r => r).Where(g => g.Key.Length > 0 && g.Count() == 1).Select(g => g.Key).FirstOrDefault();
-        Assert.True(rotulo is not null, $"Ningún trabajador de la lista tiene un rótulo único: {string.Join(" | ", rotulos)}");
+        // Se espera a que exista, no se lee la lista una vez: al hacerse interactiva, la página cambia las filas
+        // prerenderizadas por el esqueleto de carga y una lectura hecha en ese hueco encuentra la lista vacía.
+        var rotulo = await (await page.WaitForFunctionAsync(
+            """
+            () => {
+                const rotulos = [...document.querySelectorAll('tbody tr.fila-pulsable button.nombre-abre-vista-rapida')]
+                    .map(b => b.getAttribute('aria-label') ?? '');
+                return rotulos.find(r => r.length > 0 && rotulos.indexOf(r) === rotulos.lastIndexOf(r)) ?? null;
+            }
+            """)).JsonValueAsync<string>();
         await page.Locator("tbody tr.fila-pulsable").GetByRole(AriaRole.Button,
             new LocatorGetByRoleOptions { Name = rotulo, Exact = true }).ClickAsync();
         var panel = page.Locator(".workspace-panel");
