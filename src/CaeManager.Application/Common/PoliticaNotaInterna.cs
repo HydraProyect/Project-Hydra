@@ -19,8 +19,8 @@ namespace CaeManager.Application.Common;
 /// Sesión Privilegiada. Un rol nulo, vacío o desconocido tampoco, porque la lectura es lista blanca. La sesión se
 /// comprueba por su vigencia real (<see cref="ISesionPrivilegiadaActual.ObtenerAsync"/>), no por un parámetro: una
 /// coordenada de contexto no es autoridad. Solo <c>SoporteLectura</c>, <c>BreakGlass</c> y <c>Aprovisionamiento</c>
-/// dan acceso total; <c>Impersonacion</c> lee como la persona simulada (su rol efectivo), y <c>AdminPlataforma</c>
-/// no lee contenido de ningún cliente.
+/// dan acceso total. <c>Impersonacion</c> y <c>AdminPlataforma</c> no leen la nota: su rol efectivo es nulo (fallo cerrado), y
+/// la impersonación no se resuelve con el rol del simulado.
 /// </para>
 ///
 /// <para>
