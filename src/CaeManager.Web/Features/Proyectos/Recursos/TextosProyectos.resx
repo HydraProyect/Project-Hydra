@@ -335,7 +335,10 @@
   </data>
   <data name="ListaElegirClienteEmpresarial" xml:space="preserve"><value>Selecciona un Cliente</value></data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar esta pantalla: nombre o centro</value></data>
+  <data name="EtiquetaPlazoSinMedida" xml:space="preserve"><value>Sin plazo que medir: no hay una fecha de fin prevista válida o el proyecto no ha empezado</value></data>
+  <data name="EtiquetaPlazoTranscurrido" xml:space="preserve"><value>{0} % del plazo previsto transcurrido</value></data>
   <data name="ListaPlazo" xml:space="preserve"><value>Plazo</value></data>
+  <data name="ListaPlazoTranscurrido" xml:space="preserve"><value>Plazo transcurrido</value></data>
   <data name="ListaProyecto" xml:space="preserve"><value>Proyecto</value></data>
   <data name="ListaSinFechaFinPrevista" xml:space="preserve"><value>Sin fecha de fin prevista</value></data>
   <data name="MigaProyectos" xml:space="preserve"><value>Proyectos (obras)</value></data>

@@ -346,33 +346,22 @@ public class Subcontrata360PaginaTests : BunitContext
         cut.FindAll(".subcontrata360-subfila").Should().HaveCount(2);
     }
 
-    // ── Banda ─────────────────────────────────────────────────────────────
+    // ── Sin banda de incidencias ──────────────────────────────────────────
 
+    /// <summary>
+    /// Decisión de producto del 2026-10-09: la cabecera no repite en una banda lo que las listas ya dicen. Quién
+    /// tiene documentación vencida o pendiente se ve en su fila (y se corrige desde ella); que hay algo por
+    /// verificar lo avisa el contador de la pestaña Supervisión.
+    /// </summary>
     [Fact]
-    public void La_banda_nombra_a_los_trabajadores_con_documentacion_vencida_o_pendiente()
+    public void Con_trabajadores_y_centros_con_problema_no_hay_banda_y_lo_avisan_las_pestanas()
     {
         Montar();
 
         var cut = Renderizar();
 
-        var banda = cut.Find("[data-pieza=banda]");
-        banda.QuerySelectorAll("button.incidencia-banda").Select(b => b.TextContent.Trim())
-            .Should().Equal("Víctor Vencido", "Fabio Faltante");
-        banda.TextContent.Should().Contain("1 centro sin verificar");
-    }
-
-    [Fact]
-    public void Sin_nada_que_corregir_no_hay_banda()
-    {
-        Montar(ajustar: m =>
-        {
-            m.Trabajadores = [Trabajador("Vera Vigente", EstadoDocumento.Vigente)];
-            m.Supervision = new([], []);
-        });
-
-        var cut = Renderizar();
-
         cut.FindAll("[data-pieza=banda]").Should().BeEmpty();
+        cut.FindAll(".pestanas-contador-alerta").Should().HaveCount(2, "Trabajadores y Supervisión siguen en alerta");
     }
 
     // ── Rol Consulta ──────────────────────────────────────────────────────
@@ -387,9 +376,6 @@ public class Subcontrata360PaginaTests : BunitContext
         cut.FindAll(".cabecera-identidad .menu-acciones-disparador").Should().BeEmpty();
         HayBoton(cut, "Registrar verificación").Should().BeFalse();
         cut.Markup.Should().NotContain("Acceso al portal");
-        // La banda conserva el texto y pierde los botones.
-        cut.Find("[data-pieza=banda]").QuerySelectorAll("button.incidencia-banda").Should().BeEmpty();
-        cut.Find("[data-pieza=banda]").TextContent.Should().Contain("Víctor Vencido");
         mediador.Enviadas.Should().NotContain(p => p is ObtenerCredencialAccesoSubcontrataQuery);
     }
 

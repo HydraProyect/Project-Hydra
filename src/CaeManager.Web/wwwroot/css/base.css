@@ -8,7 +8,7 @@
 
 /* Casillas, radios, progress y range heredan el azul del producto en vez del
    color por defecto del navegador. En tema oscuro --color-primary-500 vale
-   #5ca2f4 (tokens.css), así que el acento sigue al tema solo. */
+   #60a5fa (tokens.css), así que el acento sigue al tema solo. */
 :root {
   accent-color: var(--color-primary-500);
 }

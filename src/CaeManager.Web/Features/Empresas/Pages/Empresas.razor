@@ -79,14 +79,16 @@
     {
     @* Barra de filtros en modo pastillas: el buscador «Filtrar esta pantalla» (tecla f) y, en la
        misma fila, «Expandir todo / Contraer todo» y el recuento. El estado se filtra en la franja
-       de debajo. Sin «Más filtros»: esta pantalla no tiene filtros guardados.
+       de debajo. «Más filtros» lleva los filtros guardados y «Guardar filtro» (FiltrosGuardadosDeListado).
 
        - El buscador busca en la razón social y en el CIF (ObtenerEmpresasQuery): la pista
          dice los dos.
        - «Documentación» es el peor estado de vigencia de los documentos de la Empresa; viaja
          en la URL como «estado». *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
-                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
         @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
         <Pastillas></Pastillas>
         <Herramientas>
@@ -114,6 +116,8 @@
             }
         </Chips>
     </BarraFiltros>
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                               OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
@@ -267,8 +271,8 @@
                            de columnas: un componente que no se pinta desalinearía la fila
                            respecto a la cabecera. *@
                         <span>
-                            <AnilloCumplimiento Porcentaje="empresa.CumplimientoPorcentaje" Tamano="TamanoAnillo.Pequeno"
-                                                 Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
+                            <BarraCumplimiento Porcentaje="empresa.CumplimientoPorcentaje"
+                                               Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
                         </span>
                         <span>
                             <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"

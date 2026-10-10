@@ -711,21 +711,6 @@
   <data name="AriaVerificar" xml:space="preserve">
     <value>Verifica {0} a {1}</value>
   </data>
-  <data name="BandaTrabajadoresUno" xml:space="preserve">
-    <value>1 treballador amb documentació vençuda o pendent:</value>
-  </data>
-  <data name="BandaTrabajadoresVarios" xml:space="preserve">
-    <value>{0} treballadors amb documentació vençuda o pendent:</value>
-  </data>
-  <data name="BandaVerEnSupervision" xml:space="preserve">
-    <value>Veure a Supervisió</value>
-  </data>
-  <data name="BandaY" xml:space="preserve">
-    <value>i</value>
-  </data>
-  <data name="BandaYMas" xml:space="preserve">
-    <value>i {0} més</value>
-  </data>
   <data name="BotonCopiarContrasena" xml:space="preserve">
     <value>Copia la contrasenya</value>
   </data>

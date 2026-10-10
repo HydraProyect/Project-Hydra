@@ -51,7 +51,9 @@
     {
         <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                       PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
-                      HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+                      HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                      FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                      OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
             <Pastillas>
                 @* La opción vacía pide elegir un Cliente empresarial: nunca representa todos. *@
                 <PastillaFiltro @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
@@ -65,6 +67,8 @@
                 }
             </Chips>
         </BarraFiltros>
+        <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                                   OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
         @if (_clienteSeleccionadoId != Guid.Empty && _proyectos.Count > 0)
         {
             @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
@@ -126,6 +130,7 @@
                             <th>@Textos["ListaProyecto"]</th>
                             <th>@Textos["ListaPlazo"]</th>
                             <th>@Textos["ColumnaTecnicos"]</th>
+                            <th class="col-plazo-transcurrido">@Textos["ListaPlazoTranscurrido"]</th>
                             <th>@Textos["EtiquetaEstado"]</th>
                             <th class="col-acciones"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
                         </tr>
@@ -186,6 +191,12 @@
                                     {
                                         <span class="celda-sin-recuento">0</span>
                                     }
+                                </td>
+                                @* La barra ocupa el hueco del cumplimiento de los demás listados, en azul de
+                                   marca: mide tiempo, no conformidad. Sin fin previsto no hay plazo que medir. *@
+                                <td class="col-plazo-transcurrido">
+                                    <BarraCumplimiento Porcentaje="PorcentajeDelPlazo(proyecto)" Marca="true"
+                                                       Etiqueta="@EtiquetaPlazoTranscurrido(proyecto)" />
                                 </td>
                                 <td>
                                     @if (proyecto.EstaAbierto)

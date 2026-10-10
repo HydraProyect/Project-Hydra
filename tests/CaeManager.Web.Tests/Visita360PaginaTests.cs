@@ -259,9 +259,6 @@ public class Visita360PaginaTests : BunitContext
         Botones(cut).Should().NotContain(["Enviar por correo", "Descargar ZIP de documentación", "Editar →"]);
         cut.FindAll(".menu-acciones-boton").Should().BeEmpty();
         cut.Find("input[role=switch]").HasAttribute("disabled").Should().BeTrue();
-        // La banda nombra las incidencias, pero sin escritura no son botones.
-        cut.Find("[data-pieza=banda]").TextContent.Should().Contain("Aptitud médica · Vencido");
-        cut.FindAll("[data-pieza=banda] button").Should().BeEmpty();
 
         cut.FindAll("[role=tab]")[1].Click();
         Botones(cut).Should().Contain("Copiar solicitud");
@@ -305,6 +302,25 @@ public class Visita360PaginaTests : BunitContext
             [Documento("Formación PRL", EstadoDocumento.Vigente, Paula), Documento("Aptitud médica", estado, Paula)]);
 
         VisitaDetalle.EstaListo(seccion).Should().Be(listo);
+    }
+
+    /// <summary>
+    /// Decisión de producto del 2026-10-09: la cabecera no repite en una banda lo que la comprobación previa ya
+    /// dice. Cada documento vencido o sin presentar se ve —y se abre— en su fila.
+    /// </summary>
+    [Fact]
+    public void Con_incidencias_no_hay_banda_y_cada_una_esta_en_su_fila()
+    {
+        var (cut, _) = Montar(Detalle(), documentacion: DocumentacionConIncidencias());
+
+        cut.FindAll("[data-pieza=banda]").Should().BeEmpty();
+        var filas = cut.FindAll("[data-pieza=fila][data-tono=peligro] button.fila-relacion-nombre");
+        filas.Select(f => f.TextContent.Trim()).Should().Contain(["Aptitud médica", "Entrega de EPI"]);
+
+        // Lo que hacía la incidencia de la banda: la fila del documento sin presentar lleva a subirlo.
+        filas.Single(f => f.TextContent.Trim() == "Entrega de EPI").Click();
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain($"/documentos?trabajadorId={Paula}&tipoDocumentoId=");
     }
 
     [Fact]

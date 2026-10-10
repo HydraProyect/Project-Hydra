@@ -5,6 +5,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Contactos;
+using CaeManager.Domain.Cumplimiento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Gestiones;
@@ -73,6 +74,13 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// </para>
 ///
 /// <para>
+/// <b>Instrucción de tratamiento de IA.</b> Los siete Tenants reciben una, vigente y
+/// marcada como borrador de demostración (<see cref="SembrarInstruccionTratamientoIaAsync"/>):
+/// sin ella el Asistente IA falla cerrado para toda cuenta que los tenga en su cartera.
+/// La autoverificación lo exige para la Gestora CAE y la Coordinadora CAE del piloto.
+/// </para>
+///
+/// <para>
 /// <b>Frontera.</b> No toca RLS ni autorización. Cada escritura va dentro del
 /// <see cref="AmbitoTenantExplicito"/> de su Tenant; la operación y las carteras
 /// pasan por el mismo <see cref="AsignacionesOperativasWriter"/> que usa la
@@ -86,7 +94,11 @@ public static class PilotoOutboundSeeder
         Func<string, CredencialesDemo> CredencialesDe, CuentasPilotoOutbound Cuentas, DateOnly FechaDemostracion,
         ContactosPilotoOutbound Contactos);
 
-    /// <param name="Escribio">Falso en un re-arranque que no encontró nada que sembrar: todo sembrado ya, o lo que falta es de un Tenant con datos de otra versión.</param>
+    /// <param name="Escribio">
+    /// Falso en un re-arranque que no encontró nada que sembrar: todo sembrado ya, o lo que falta es de un Tenant con datos
+    /// de otra versión. Añadir a un Tenant ya sembrado la instrucción de tratamiento de IA que le faltaba no cuenta: no cambia
+    /// ningún dato de la matriz, y contarlo haría exigirla en un re-arranque sobre datos que un ensayo ya cambió.
+    /// </param>
     /// <param name="TenantsConDatosNuevos">Nombres de los Tenants propietarios cuyos datos escribió esta ejecución.</param>
     /// <param name="TenantsConDatosDeOtraVersion">
     /// Nombres de los Tenants propietarios que esta ejecución encontró con datos de otra versión de la siembra, leídos
@@ -147,7 +159,7 @@ public static class PilotoOutboundSeeder
     /// <para>
     /// Un Tenant propietario con datos de otra versión se deja como está: se avisa
     /// en el registro, con su nombre, y no se escribe nada en él —ni sus datos, ni
-    /// su Asignación de Operación, ni sus cuentas—; los demás siguen su curso. Aquí
+    /// su Asignación de Operación, ni su instrucción de tratamiento de IA, ni sus cuentas—; los demás siguen su curso. Aquí
     /// no lanza, para no tumbar el arranque; la vía administrativa se niega antes
     /// de llegar (<see cref="RechazarDatosDeOtraVersionAsync"/>). Tampoco lo tumba
     /// después la autoverificación: aunque esta ejecución escriba otros Tenants, ese
@@ -196,6 +208,9 @@ public static class PilotoOutboundSeeder
         var equipo = await SembrarEquipoAsync(
             dbContext, userManager, userStore, entorno, parametros, logger, tenantOperadorId, cancellationToken);
 
+        await SembrarInstruccionTratamientoIaAsync(
+            dbContext, tenantOperadorId, CatalogoPilotoOutbound.NombreTenantOperador, equipo.Administrador.Id, logger, cancellationToken);
+
         foreach (var tenant in CatalogoPilotoOutbound.EnOrdenDeSiembra)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -207,6 +222,11 @@ public static class PilotoOutboundSeeder
             var tenantPropietarioId = await AprovisionarConMarcadorAsync(
                 dbContext, tenant.Nombre, PerfilVocabularioTenant.ClienteDirecto,
                 esOperadorCaeExterno: false, recuento, logger, cancellationToken);
+
+            // Antes de abrir la operación: el asistente falla cerrado con un solo Tenant propietario de la cartera sin
+            // instrucción, así que ninguno entra en la cartera de un Gestor CAE sin la suya.
+            await SembrarInstruccionTratamientoIaAsync(
+                dbContext, tenantPropietarioId, tenant.Nombre, equipo.Administrador.Id, logger, cancellationToken);
 
             await AbrirOperacionExternaAsync(
                 dbContext, tenant, tenantPropietarioId, tenantOperadorId, equipo, logger, cancellationToken);
@@ -445,6 +465,54 @@ public static class PilotoOutboundSeeder
         }
 
         return new Equipo(administrador, gestoraPrimera.Id, gestorSegundo.Id, coordinadora.Id);
+    }
+
+    /// <summary>
+    /// La instrucción de tratamiento de IA vigente de un Tenant del piloto: sin ella el
+    /// Nivel 0 (<c>IInstruccionTratamientoIaService</c>) bloquea todo tratamiento con IA en
+    /// ese Tenant, y el Asistente IA falla cerrado para cualquier cuenta que lo tenga en su
+    /// cartera (<c>ComprobarInstruccionIaCarteraQuery</c>). La llevan los siete: el Tenant
+    /// del Operador CAE externo y cada Tenant propietario.
+    ///
+    /// <para>
+    /// <b>Es un borrador de demostración, nunca una aceptación real.</b> Mismas versiones
+    /// Draft y mismo origen que la siembra de demo
+    /// (<see cref="DatosPruebaSeeder.SembrarInstruccionTratamientoIaTenantPrincipalAsync"/>):
+    /// ningún Tenant propietario del piloto ha aceptado nada, y los siete llevan el marcador
+    /// de datos de demo. Como allí, «quien la registró» es una cuenta de la propia siembra
+    /// —aquí, el Administrador del Tenant del Operador CAE externo—, no un Actor de
+    /// Plataforma TALVEG.
+    /// </para>
+    ///
+    /// <para>
+    /// Idempotente y aparte de los datos del Tenant: mira solo si el Tenant tiene ya alguna
+    /// instrucción, así que también la añade a un Tenant que esta versión sembró antes de
+    /// que existiera este paso, sin tocar nada más de él. Cuenta también una revocada: si
+    /// alguien la retiró en un ensayo —para enseñar el fallo cerrado—, la siembra no la
+    /// repone a sus espaldas en el siguiente arranque. A un Tenant con datos de otra versión
+    /// no se llega (el bucle de <see cref="SembrarLoteAsync"/> lo salta antes), y con la
+    /// fecha de la demostración fuera de margen y nada por sembrar tampoco se escribe: esa
+    /// salida de <see cref="SembrarLoteAsync"/> es anterior. La retirada la borra con el
+    /// resto de filas del Tenant.
+    /// </para>
+    /// </summary>
+    private static async Task SembrarInstruccionTratamientoIaAsync(
+        CaeManagerDbContext dbContext, Guid tenantId, string nombreTenant, Guid registradaPorUsuarioId, ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantId);
+
+        if (await dbContext.InstruccionesTratamientoIaTenantPropietario.AnyAsync(cancellationToken))
+            return;
+
+        dbContext.InstruccionesTratamientoIaTenantPropietario.Add(new InstruccionTratamientoIaTenantPropietario(
+            DatosPruebaSeeder.VersionDpaDemo, DatosPruebaSeeder.VersionAnexoSubencargadosDemo, DateTime.UtcNow,
+            OrigenInstruccionTratamientoIa.AltaManualPlataforma, registradaPorUsuarioId));
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Piloto Outbound, instrucción de tratamiento de IA (borrador de demostración) registrada en «{Tenant}».",
+            nombreTenant);
     }
 
     /// <param name="cifDeSuClienteEmpresarial">

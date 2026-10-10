@@ -211,8 +211,10 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// es autoridad sobre lo que existe. Uno desconocido se ignora (sin filtro), en vez de
     /// filtrar por algo que ninguna subcontrata puede tener.
     /// </summary>
-    private string NivelDesdeUrl() =>
-        Enum.GetNames<NivelServicioSubcontrata>().Contains(NivelInicial) ? NivelInicial! : string.Empty;
+    private string NivelDesdeUrl() => NivelValido(NivelInicial);
+
+    private static string NivelValido(string? nivel) =>
+        Enum.GetNames<NivelServicioSubcontrata>().Contains(nivel) ? nivel! : string.Empty;
 
     private NivelServicioSubcontrata? NivelSeleccionado =>
         Enum.TryParse<NivelServicioSubcontrata>(_nivelFiltro, out var nivel) ? nivel : null;
@@ -375,6 +377,32 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = string.Empty;
         _nivelFiltro = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["nivel"] = null });
+        await CargarAsync(resetPagina: true);
+    }
+
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Subcontratas;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.
+    /// Fuera queda <c>accion</c>.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. El nivel pasa por la misma
+    /// validación que el de la URL (uno que ya no existe se ignora), y la URL se escribe en una sola
+    /// navegación antes de recargar; así <see cref="OnParametersSetAsync"/> la encuentra igual que los campos.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _nivelFiltro = NivelValido(vista.GetValueOrDefault("nivel"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = _busqueda, ["nivel"] = _nivelFiltro });
         await CargarAsync(resetPagina: true);
     }
 
@@ -722,7 +750,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     }
 
     /// <summary>
-    /// Nombre accesible del anillo. Antes se interpolaba el porcentaje sin
+    /// Nombre accesible de la barra de cumplimiento. Antes se interpolaba el porcentaje sin
     /// mirar si existía, y una subcontrata sin universo de requisitos se
     /// anunciaba como «% de cumplimiento…» — un número que no hay. Null
     /// significa que ningún trabajador tiene un documento exigido por un

@@ -4,6 +4,7 @@ using Bunit;
 using Bunit.TestDoubles;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Configuracion.Queries;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Proyectos.Commands.ActualizarProyecto;
@@ -111,6 +112,7 @@ public partial class ProyectosGen2Tests : BunitContext
         public List<CentroSelectorDto> CentrosClienteB { get; set; } = [];
         public Dictionary<Guid, IReadOnlyList<TecnicoProyectoDto>> TecnicosPorProyecto { get; } = [];
         public bool FallarAlCargarProyectos { get; set; }
+        public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
         public List<object> Enviados { get; } = [];
 
         private readonly List<(Func<object, bool> Cuando, TaskCompletionSource<object?> Respuesta)> _retenciones = [];
@@ -156,6 +158,7 @@ public partial class ProyectosGen2Tests : BunitContext
             object? respuesta = request switch
             {
                 ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[],
+                ObtenerFiltrosGuardadosQuery => (IReadOnlyList<FiltroGuardadoDto>)FiltrosGuardados.ToList(),
                 ObtenerClientesParaSelectorQuery => new[]
                 {
                     new ClienteSelectorDto(ClienteId, "Refrielectric S.L."),

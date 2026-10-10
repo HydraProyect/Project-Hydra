@@ -65,30 +65,6 @@
             </Acciones>
         </CabeceraIdentidad>
 
-        @if (BandaDeCabecera(estado) is { } banda)
-        {
-            <BandaAccion Tono="banda.Tono" TextoEnlace="@banda.TextoEnlace" OnEnlace="() => VerDesdeLaBandaAsync(banda.Grupos)">
-                @foreach (var (parte, posicion) in banda.Partes.Select((parte, posicion) => (parte, posicion)))
-                {
-                    <span class="tipo360-banda-parte">
-                        @if (posicion > 0)
-                        {
-                            <span aria-hidden="true">·</span>
-                        }
-                        <span>@parte.Recuento</span>
-                        @foreach (var incidencia in parte.Nombradas)
-                        {
-                            <IncidenciaBanda Texto="@incidencia.Nombre" OnClick="() => CorregirAsync(incidencia)" />
-                        }
-                        @if (parte.Resto > 0)
-                        {
-                            <span>@Textos["BandaYMas", parte.Resto]</span>
-                        }
-                    </span>
-                }
-            </BandaAccion>
-        }
-
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
                 <Pestanas Definiciones="Pestanas" PestanaActiva="@PestanaTrabajadores" PestanaActivaChanged="_ => { }" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]">

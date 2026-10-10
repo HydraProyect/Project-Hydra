@@ -38,12 +38,10 @@
     border-radius: var(--radius-sm);
 }
 
-/* Cada incidencia de la banda: el nombre del documento y cuándo venció. */
-.vehiculo360-incidencia {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.3em;
-    flex-wrap: wrap;
+/* Aviso del encabezado de la lista: hay vencidos más allá del tope que se pinta. */
+.vehiculo360-vencidos-fuera {
+    margin-left: var(--space-2);
+    color: var(--color-danger-700);
 }
 
 /* Nota bajo los datos del lateral (.nota del mockup). */

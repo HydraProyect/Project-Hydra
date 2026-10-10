@@ -80,6 +80,14 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private static DateOnly Hoy => DiaDeNegocio.Hoy();
 
+    private static int? PorcentajeDelPlazo(ProyectoListaDto proyecto) =>
+        PlazoProyecto.PorcentajeDelPlazo(proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, Hoy);
+
+    private string EtiquetaPlazoTranscurrido(ProyectoListaDto proyecto) =>
+        PorcentajeDelPlazo(proyecto) is { } porcentaje
+            ? Textos["EtiquetaPlazoTranscurrido", porcentaje]
+            : Textos["EtiquetaPlazoSinMedida"];
+
     protected override async Task OnInitializedAsync()
     {
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
@@ -432,6 +440,72 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         _estadoFiltro = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
         return Task.CompletedTask;
+    }
+
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Proyectos;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado. El
+    /// Cliente empresarial elegido es parte de la vista: sin él no hay lista que filtrar.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["cliente", "q", "estado"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita, también el Cliente empresarial.
+    /// Cada valor pasa por la misma validación que el de la URL: el estado por <see cref="EstadosValidos"/>
+    /// y el Cliente empresarial solo si es uno de los que el selector ofrece (un Id guardado no es
+    /// autoridad; uno que ya no se ofrece cuenta como ausente).
+    ///
+    /// <para>
+    /// Con algo a medias en el panel de detalle se pregunta UNA vez y antes de tocar nada, cambie o no el
+    /// Cliente empresarial: aplicar la vista reescribe la URL, y una navegación con el panel sin guardar la
+    /// detendría el aviso de la página, que al descartar la repite él y sin reemplazo (una entrada de más
+    /// en el historial). Preguntando aquí, la navegación del filtro sale una vez y con reemplazo. «Seguir
+    /// editando» deja la vista como estaba.
+    /// </para>
+    ///
+    /// <para>
+    /// Después, en este orden: campos, panel cerrado (solo si cambia el Cliente empresarial), URL y, solo
+    /// entonces, la carga. La URL va antes de la carga para que no diga el Cliente empresarial anterior
+    /// mientras llegan los datos (teclear en el buscador en esa ventana navegaba conservándolo y lo devolvía a
+    /// la pantalla), y con los campos ya puestos <see cref="OnParametersSetAsync"/> los encuentra iguales y no
+    /// carga otra vez.
+    /// </para>
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        if (!await _ambitoDetalle.ConfirmarAbandonoAsync())
+            return;
+
+        var cliente = Guid.TryParse(vista.GetValueOrDefault("cliente"), out var id) && _clientes.Any(c => c.Id == id)
+            ? id
+            : Guid.Empty;
+        var cambiaDeCliente = cliente != _clienteSeleccionadoId;
+
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadosValidos(vista.GetValueOrDefault("estado"));
+        if (cambiaDeCliente)
+        {
+            _clienteSeleccionadoId = cliente;
+            // El panel era de un proyecto del Cliente empresarial anterior.
+            CerrarDetalle();
+        }
+
+        // Una sola navegación, con todos los parámetros de la vista y sin nada pendiente de guardar.
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["cliente"] = cliente == Guid.Empty ? null : cliente.ToString(),
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro,
+        });
+
+        if (cambiaDeCliente)
+            await OnClienteChangedAsync();
     }
 
     // ---- Nuevo proyecto (Drawer) ----

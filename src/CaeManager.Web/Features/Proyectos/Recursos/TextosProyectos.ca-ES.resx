@@ -335,7 +335,10 @@
   </data>
   <data name="ListaElegirClienteEmpresarial" xml:space="preserve"><value>Selecciona un Client</value></data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar aquesta pantalla: nom o centre</value></data>
+  <data name="EtiquetaPlazoSinMedida" xml:space="preserve"><value>Sense termini per mesurar: no hi ha una data de fi prevista vàlida o el projecte no ha començat</value></data>
+  <data name="EtiquetaPlazoTranscurrido" xml:space="preserve"><value>{0} % del termini previst transcorregut</value></data>
   <data name="ListaPlazo" xml:space="preserve"><value>Termini</value></data>
+  <data name="ListaPlazoTranscurrido" xml:space="preserve"><value>Termini transcorregut</value></data>
   <data name="ListaProyecto" xml:space="preserve"><value>Projecte</value></data>
   <data name="ListaSinFechaFinPrevista" xml:space="preserve"><value>Sense data de fi prevista</value></data>
   <data name="MigaProyectos" xml:space="preserve"><value>Projectes (obres)</value></data>
