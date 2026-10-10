@@ -162,7 +162,7 @@
   </data>
   <data name="DetalleEntraComoContratista" xml:space="preserve">
     <value>Entra como contratista: {0}</value>
-    <comment>Empresa del Tenant que trabaja en el Centro. El Centro es del Cliente (su titular): nunca «Empresa: X», que se lee como si fuera la dueña. Solo se pinta si el usuario ve más de una Empresa contratista.</comment>
+    <comment>Empresa contratista del Tenant propietario que trabaja en el Centro del Cliente empresarial, su titular. En las filas se nombra solo si hay varias Empresas contratistas visibles; en la cabecera, solo si hay una.</comment>
   </data>
   <data name="DetalleVencidosUno" xml:space="preserve">
     <value>1 vencido</value>
@@ -548,5 +548,8 @@
   </data>
   <data name="TituloEditarConAtajo" xml:space="preserve">
     <value>Editar (e)</value>
+  </data>
+  <data name="MenuMasAcciones" xml:space="preserve">
+    <value>Más acciones</value>
   </data>
 </root>

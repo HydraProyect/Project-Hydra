@@ -126,17 +126,22 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
     }
 
     [Theory]
-    [InlineData("claro")]
-    [InlineData("oscuro")]
-    public async Task La_ficha_de_Empresa_se_mide_dos_veces_igual_y_cada_regla_inyectada_pone_en_rojo_su_fila(string tema)
+    [InlineData("claro", false)]
+    [InlineData("oscuro", false)]
+    [InlineData("claro", true)]
+    [InlineData("oscuro", true)]
+    public async Task La_ficha_de_Empresa_o_Cliente_se_mide_dos_veces_igual_y_cada_regla_inyectada_pone_en_rojo_su_fila(string tema, bool clienteEmpresarial)
     {
         await using var contexto = await Fidelidad360.NuevoContextoAsync(fixture.Browser);
-        var page = await AbrirFichaAsync(contexto, "/empresas/", EmpresaDeLaMaqueta, tema);
+        var ruta = clienteEmpresarial ? "/clientes/" : "/empresas/";
+        var razonSocial = clienteEmpresarial ? ClienteEmpresarialDeLaMaqueta : EmpresaDeLaMaqueta;
+        var claveFicha = clienteEmpresarial ? "cliente-empresarial-360" : "empresa-360";
+        var page = await AbrirFichaAsync(contexto, ruta, razonSocial, tema);
         var selectores = SelectoresDeLado.Convencion();
 
         var referencia = await Fidelidad360.MedirAsentadoAsync(page, "ficha (referencia)", selectores);
         var repetida = await MedidorPiezas360.MedirAsync(page, "ficha", selectores);
-        var igual = ComparadorFidelidad360.Comparar("empresa-360 consigo misma", tema, referencia, repetida);
+        var igual = ComparadorFidelidad360.Comparar($"{claveFicha} consigo misma", tema, referencia, repetida);
 
         Assert.True(igual.SinDiferencias, igual.ATablaMarkdown());
         // Control positivo: la ficha real enseña las piezas, así que el cero de arriba es una medida.
@@ -147,7 +152,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
 
         (string Regla, string Clave, string ValorMutado)[] mutaciones =
         [
-            // Solo las pastillas de fila: la cabecera ya no tiene pastillas sueltas (sus indicadores se quitaron).
+            // Solo las pastillas de fila: Cliente conserva Crítico e indicadores en la cabecera.
             ("[data-pieza=\"fila\"] [data-pieza=\"pastilla\"] { font-size: 17px !important; }", "pastilla-de-fila.font-size", "17"),
             // La cabecera con caja cuenta como tarjeta (cabecerasCaja del medidor): hay que pintarla también.
             ("[data-pieza=\"tarjeta\"], [data-pieza=\"cabecera-identidad\"] { border-color: rgb(255, 0, 0) !important; }", "tarjeta.border-top-color", "#ff0000ff"),
@@ -159,7 +164,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
             var etiqueta = await page.AddStyleTagAsync(new PageAddStyleTagOptions { Content = regla });
             await Fidelidad360.AsentarAsync(page);
             var mutada = await MedidorPiezas360.MedirAsync(page, "ficha (mutada)", selectores);
-            var informe = ComparadorFidelidad360.Comparar($"empresa-360 con «{regla}»", tema, referencia, mutada);
+            var informe = ComparadorFidelidad360.Comparar($"{claveFicha} con «{regla}»", tema, referencia, mutada);
 
             var fila = Assert.Single(informe.Diferencias, d => d.Clave == clave);
             Assert.Equal(VeredictoFila.Distinto, fila.Veredicto);
@@ -168,7 +173,7 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
             await etiqueta.EvaluateAsync("e => e.remove()");
             await Fidelidad360.AsentarAsync(page);
             var revertida = await MedidorPiezas360.MedirAsync(page, "ficha (revertida)", selectores);
-            Assert.True(ComparadorFidelidad360.Comparar("empresa-360 revertida", tema, referencia, revertida).SinDiferencias,
+            Assert.True(ComparadorFidelidad360.Comparar($"{claveFicha} revertida", tema, referencia, revertida).SinDiferencias,
                 $"Tras retirar «{regla}» la ficha no volvió a su medida.");
         }
     }

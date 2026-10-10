@@ -43,9 +43,11 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 ///
 /// <para>
 /// Qué NO enseña, igual que el panel: porcentaje de cumplimiento del Cliente
-/// empresarial (no existe; por eso no hay anillo), Alias, Domicilio, Portal
+/// empresarial (no existe), Alias, Domicilio, Portal
 /// principal, Gestor CAE e historial de notas. Editar la identidad y la nota
 /// se hace en el panel: los «Editar» de esta página lo abren en su pestaña.
+/// El anillo como fracción de Centros queda aplazado por decisión del propietario:
+/// faltan el criterio de incidencias y el agregado completo, sin el tope de la lista.
 /// </para>
 /// </summary>
 public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
