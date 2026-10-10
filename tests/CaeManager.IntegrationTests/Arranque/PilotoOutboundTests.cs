@@ -796,10 +796,11 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         casos["Acreditación externa Rechazada"].Should().Be(1);
         casos["Acreditación externa vencida en plataforma"].Should().Be(1);
         casos["Documento de Empresa vencido en la Empresa propia"].Should().Be(1, "MEDIDO: exactamente uno, de un tipo que no se exige por defecto");
-        // MEDIDO: 7. Eran 2 (la aptitud vencida en Illescas) hasta que el Pendiente en la plataforma bloquea por Centro
-        // (2026-10-10): los otros 5 son Trabajadores con un documento sin subir o sin validar en la plataforma de uno de sus
-        // Centros y no en otro.
-        casos["Trabajador bloqueado en un Centro y no en otro"].Should().Be(7);
+        // MEDIDO: 3. Eran 2 (la aptitud vencida en Illescas) hasta que el Pendiente en la plataforma bloquea por Centro
+        // (2026-10-10): el otro es un Trabajador con un documento de tipo bloqueante en ese Centro sin subir o sin validar en
+        // su plataforma. Solo cuenta el tipo que el Centro marca «bloquea el acceso»: los demás pendientes de T1 (28 sin subir y
+        // 26 subidos) ponen el Centro en «Pendiente» pero no bloquean a nadie.
+        casos["Trabajador bloqueado en un Centro y no en otro"].Should().Be(3);
         casos["Trabajador de baja"].Should().Be(6);
         casos["Subcontrata con documentación propia"].Should().Be(3);
         casos["Vehículo con documento vencido"].Should().Be(1);
