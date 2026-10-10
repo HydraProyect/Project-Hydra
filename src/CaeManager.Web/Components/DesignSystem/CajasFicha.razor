@@ -48,6 +48,10 @@
         if (claves == _clavesMedidas)
             return;
 
+        // Se apunta antes de medir: si la medida falla, las cajas se quedan en su orden de
+        // llegada y no se vuelve a preguntar al navegador en cada pintado.
+        _clavesMedidas = claves;
+
         try
         {
             _modulo ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/cajas-ficha.js");
@@ -55,7 +59,6 @@
             if (alturas.Length != pintadas.Count)
                 return;
 
-            _clavesMedidas = claves;
             var porAltura = pintadas
                 .Select((clave, indice) => (clave, altura: alturas[indice], indice))
                 .OrderByDescending(c => c.altura)
@@ -69,9 +72,11 @@
                 _posicion[porAltura[posicion]] = posicion;
             StateHasChanged();
         }
-        catch (JSDisconnectedException)
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or OperationCanceledException or ObjectDisposedException)
         {
-            // El circuito se cerró mientras se medía: no queda nadie a quien ordenarle las cajas.
+            // El orden por altura es un acabado: si el navegador no contesta (módulo sin cargar,
+            // circuito cerrado, componente ya desechado), las cajas se quedan en su orden de
+            // llegada y la ficha sigue en pie.
         }
     }
 
@@ -84,7 +89,7 @@
         {
             await _modulo.DisposeAsync();
         }
-        catch (JSDisconnectedException)
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or OperationCanceledException or ObjectDisposedException)
         {
         }
     }

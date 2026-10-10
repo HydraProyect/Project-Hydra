@@ -58,6 +58,32 @@ public class CajasFichaTests : BunitContext
     }
 
     [Fact]
+    public void Si_el_navegador_no_puede_medir_las_cajas_se_quedan_en_su_orden_de_llegada_y_no_se_insiste()
+    {
+        var modulo = JSInterop.SetupModule(Modulo);
+        modulo.Setup<double[]>("medirAlturas", _ => true).SetException(new Microsoft.JSInterop.JSException("sin módulo"));
+
+        var cut = Render<CajasFicha>(p => p.Add(x => x.Cajas, [Caja("a"), Caja("b")]));
+        cut.WaitForAssertion(() => modulo.Invocations["medirAlturas"].Should().ContainSingle());
+
+        cut.Render(p => p.Add(x => x.Cajas, [Caja("a"), Caja("b")]));
+
+        Claves(cut).Should().Equal("a", "b");
+        modulo.Invocations["medirAlturas"].Should().ContainSingle("un fallo no se reintenta en cada pintado");
+    }
+
+    [Fact]
+    public void Dos_cajas_con_la_misma_clave_no_tiran_la_ficha()
+    {
+        JSInterop.SetupModule(Modulo).Setup<double[]>("medirAlturas", _ => true).SetResult([10, 30, 20]);
+
+        var cut = Render<CajasFicha>(p => p.Add(x => x.Cajas, [Caja("repetida"), Caja("alta"), Caja("repetida")]));
+
+        cut.WaitForAssertion(() => Claves(cut).First().Should().Be("alta"));
+        Claves(cut).Should().HaveCount(3);
+    }
+
+    [Fact]
     public void Un_conjunto_de_cajas_distinto_se_vuelve_a_medir()
     {
         var modulo = JSInterop.SetupModule(Modulo);
