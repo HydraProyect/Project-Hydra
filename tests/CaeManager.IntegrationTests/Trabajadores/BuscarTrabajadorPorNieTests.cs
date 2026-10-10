@@ -73,7 +73,7 @@ public class BuscarTrabajadorPorNieTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto));
+            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto);
 
         var resultado = await handler.Handle(
             new ObtenerTrabajadoresQuery(termino, OrdenarPor: ordenarPor, TamanoPagina: 50), CancellationToken.None);

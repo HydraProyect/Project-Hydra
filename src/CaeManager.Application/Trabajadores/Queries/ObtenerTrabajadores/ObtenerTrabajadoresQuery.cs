@@ -1,4 +1,5 @@
 using CaeManager.Domain.Common;
+using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
@@ -23,21 +24,49 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// <see cref="EstadoDocumento.SinConfirmar"/> — el <c>null</c> del tipo
 /// es un artefacto de <see cref="TrabajadorListaDto"/> siendo compartido con
 /// otros listados, no un valor que este handler produzca.
+///
+/// <para>
+/// <paramref name="CentroId"/> deja solo a los Trabajadores con una Asignación activa en ese Centro. Solo
+/// ESTRECHA: se compone con el alcance del usuario, y un Centro que el usuario no puede ver devuelve la lista
+/// vacía (no revela quién trabaja allí, aunque el Trabajador sea visible por otro Centro).
+/// </para>
+///
+/// <para>
+/// <paramref name="ConDesgloseDocumental"/> rellena, para las filas de la página, las incidencias y la fracción
+/// «vigentes / registrados» de <see cref="TrabajadorListaDto"/>. Cuesta una consulta de documentos por página, así
+/// que hay que pedirlo: lo pide solo quien lo pinta (el listado de Trabajadores, en su carga de página y al
+/// refrescar una fila por id). Sin pedirlo, las filas llegan con las incidencias vacías y los contadores a cero.
+/// </para>
 /// </summary>
 public record ObtenerTrabajadoresQuery(
     string? Busqueda, Guid? EmpresaId = null, Guid? SubcontrataId = null, int Pagina = 1, int TamanoPagina = 20,
+    Guid? CentroId = null, bool ConDesgloseDocumental = false,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
     bool ConRecuentosPorEstado = false, Guid? TrabajadorId = null)
     : IRequest<ResultadoPaginado<TrabajadorListaDto>>;
 
 public record TrabajadorListaDto(
     Guid Id, string Nombre, string Apellidos, string? Dni, string EmpleadorNombre,
-    EstadoDocumento? EstadoDocumental = null);
+    EstadoDocumento? EstadoDocumental = null)
+{
+    /// <summary>
+    /// Los documentos del Trabajador que explican su <see cref="EstadoDocumental"/> y los demás que piden
+    /// atención, del más grave al menos. Vacía si no hay ninguno o si la consulta no pidió el desglose.
+    /// </summary>
+    public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; init; } = [];
+
+    /// <summary>Documentos operativos del Trabajador (ver <see cref="DesgloseDocumentalDto"/>).</summary>
+    public int DocumentosRegistrados { get; init; }
+
+    /// <summary>De los registrados, los que están al día (<see cref="CumplimientoDocumental.EsConforme(EstadoDocumento)"/>).</summary>
+    public int DocumentosVigentes { get; init; }
+}
 
 public class ObtenerTrabajadoresQueryHandler(
     IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
     IDocumentosQueryContext documentosContext, IConfiguracionQueryContext configuracionContext,
-    IAlcanceDatosService alcanceDatos, ICalculoEstadoDocumentalService calculoEstadoDocumental)
+    IAlcanceDatosService alcanceDatos, ICalculoEstadoDocumentalService calculoEstadoDocumental,
+    IAsignacionesQueryContext asignacionesContext)
     : IRequestHandler<ObtenerTrabajadoresQuery, ResultadoPaginado<TrabajadorListaDto>>
 {
     public async Task<ResultadoPaginado<TrabajadorListaDto>> Handle(
@@ -80,6 +109,19 @@ public class ObtenerTrabajadoresQueryHandler(
 
         if (request.SubcontrataId is not null)
             consulta = consulta.Where(x => x.trabajador.SubcontrataId == request.SubcontrataId);
+
+        if (request.CentroId is { } centroId)
+        {
+            // El filtro por Centro solo estrecha. El alcance de Trabajadores de arriba no basta: un Trabajador
+            // visible por un Centro de la cartera puede tener además una Asignación en otro que el usuario no
+            // ve, y filtrar por ese otro diría quién trabaja allí. Un Centro fuera del alcance no devuelve nada
+            // (la consulta sigue su camino, con sus recuentos a cero, en vez de un atajo con otra forma).
+            var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+            var centroVisible = centroIdsVisibles is null || centroIdsVisibles.Contains(centroId);
+
+            consulta = consulta.Where(x => centroVisible && asignacionesContext.Asignaciones
+                .Any(a => a.TrabajadorId == x.trabajador.Id && a.CentroId == centroId && a.FechaBaja == null));
+        }
 
         // Lista blanca de columnas ordenables — ver ObtenerClientesQuery. Este
         // orden alimenta el camino normal (más abajo); el camino con estado
@@ -229,10 +271,12 @@ public class ObtenerTrabajadoresQueryHandler(
                 .ToListAsync(cancellationToken);
 
             return new ResultadoPaginado<TrabajadorListaDto>(
-                paginaConEstado.Select(x => new TrabajadorListaDto(
-                    x.Id, x.Nombre, x.Apellidos, x.Dni, x.EmpleadorNombre,
-                    CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
-                    .ToList(),
+                await ConDesgloseAsync(
+                    paginaConEstado.Select(x => new TrabajadorListaDto(
+                        x.Id, x.Nombre, x.Apellidos, x.Dni, x.EmpleadorNombre,
+                        CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)))
+                        .ToList(),
+                    request, cancellationToken),
                 totalConEstado,
                 request.Pagina,
                 request.TamanoPagina)
@@ -253,7 +297,35 @@ public class ObtenerTrabajadoresQueryHandler(
             AmbitoAplicacion.Trabajador, elementos.Select(t => t.Id).ToList(), cancellationToken);
 
         return new ResultadoPaginado<TrabajadorListaDto>(
-            elementos.Select(t => t with { EstadoDocumental = estados.GetValueOrDefault(t.Id) }).ToList(),
+            await ConDesgloseAsync(
+                elementos.Select(t => t with { EstadoDocumental = estados.GetValueOrDefault(t.Id) }).ToList(),
+                request, cancellationToken),
             total, request.Pagina, request.TamanoPagina);
+    }
+
+    /// <summary>
+    /// Añade a las filas YA paginadas su desglose documental, en una sola consulta de documentos para toda la
+    /// página. No toca <see cref="TrabajadorListaDto.EstadoDocumental"/>: sale de los mismos documentos y la
+    /// misma calculadora, así que coinciden (lo ata <c>DesgloseDocumentalDeTrabajadoresBajoRlsTests</c>).
+    /// </summary>
+    private async Task<IReadOnlyList<TrabajadorListaDto>> ConDesgloseAsync(
+        IReadOnlyList<TrabajadorListaDto> pagina, ObtenerTrabajadoresQuery request, CancellationToken cancellationToken)
+    {
+        if (!request.ConDesgloseDocumental || pagina.Count == 0)
+            return pagina;
+
+        var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(
+            AmbitoAplicacion.Trabajador, pagina.Select(t => t.Id).ToList(), cancellationToken);
+
+        return pagina
+            .Select(t => desgloses.TryGetValue(t.Id, out var desglose)
+                ? t with
+                {
+                    Incidencias = desglose.Incidencias,
+                    DocumentosRegistrados = desglose.DocumentosRegistrados,
+                    DocumentosVigentes = desglose.DocumentosVigentes
+                }
+                : t)
+            .ToList();
     }
 }
