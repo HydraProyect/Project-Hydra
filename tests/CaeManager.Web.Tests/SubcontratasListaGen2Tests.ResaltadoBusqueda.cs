@@ -15,7 +15,7 @@ public partial class SubcontratasListaGen2Tests
     [Fact]
     public async Task Con_busqueda_la_fila_marca_razon_social_y_CIF_y_no_cambia_nada_mas()
     {
-        const string nombre = "Andamios B-20 Iparra";
+        const string nombre = "Andamios B-20 Ibáñez";
         const string cif = "B-20.774.115"; // el de fábrica
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata(nombre), Subcontrata("Grúas Aldapa S.L.")] });
         cut.WaitForAssertion(() => cut.FilaDeNombre(FilaDeSubcontrata, nombre));
@@ -23,8 +23,9 @@ public partial class SubcontratasListaGen2Tests
         var antes = cut.FilaDeNombre(FilaDeSubcontrata, nombre).Foto();
         antes.Atributos.Should().Contain(nombre).And.Contain(cif, "control: la fila tiene nombres accesibles que comparar");
 
-        await cut.BuscarEnLaBarraAsync("iparra");
-        cut.WaitForAssertion(() => cut.FilaDeNombre(FilaDeSubcontrata, nombre).DebeMarcarSolo(antes, "Iparra"));
+        // Escrito sin acento: la marca lleva el texto original de la celda.
+        await cut.BuscarEnLaBarraAsync("IBANEZ");
+        cut.WaitForAssertion(() => cut.FilaDeNombre(FilaDeSubcontrata, nombre).DebeMarcarSolo(antes, "Ibáñez"));
         cut.DebeConservarElIdentificadorCopiable(cif, conMarca: false);
 
         await cut.BuscarEnLaBarraAsync("b-20");

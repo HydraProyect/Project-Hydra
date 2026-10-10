@@ -65,6 +65,29 @@ public class TextoDeBusquedaTests
         TextoDeBusqueda.Contiene("refxa", "f_a").Should().BeFalse();
     }
 
+    /// <summary>
+    /// Un sustituto suelto (medio emoji pegado en un buscador) no es Unicode válido y
+    /// <c>string.Normalize</c> lo rechaza con una excepción. <see cref="TextoDeBusqueda.Contiene"/>
+    /// filtra listas dentro del render de una pantalla (/proyectos): no lanza, y la respuesta
+    /// fijada es «no lo contiene», esté el sustituto en el término o en el texto. Es coherente con
+    /// <see cref="TextoDeBusqueda.Coincidencias"/>, que con esa entrada no devuelve tramos.
+    /// (Las cadenas se montan aquí: un sustituto suelto no se puede escribir en un atributo.)
+    /// </summary>
+    [Fact]
+    public void Contiene_con_un_sustituto_suelto_no_lanza_y_responde_que_no()
+    {
+        var suelto = new string((char)0xD83C, 1);
+        var textoRoto = "Obra " + suelto + " rota";
+
+        TextoDeBusqueda.Contiene("Obra", suelto).Should().BeFalse();
+        TextoDeBusqueda.Contiene(textoRoto, "obra").Should().BeFalse("con el texto mal formado tampoco casa, aunque el término esté");
+        TextoDeBusqueda.Contiene(suelto, suelto).Should().BeFalse();
+
+        TextoDeBusqueda.Coincidencias("Obra", suelto).Should().BeEmpty();
+        TextoDeBusqueda.Coincidencias(textoRoto, "obra").Should().BeEmpty();
+        TextoDeBusqueda.Coincidencias(suelto, suelto).Should().BeEmpty();
+    }
+
     private static string[] Marcados(string texto, string termino) =>
         [.. TextoDeBusqueda.Coincidencias(texto, termino).Select(tramo => texto[tramo])];
 

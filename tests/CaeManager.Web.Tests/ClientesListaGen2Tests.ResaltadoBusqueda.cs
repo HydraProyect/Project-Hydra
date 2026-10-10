@@ -20,7 +20,8 @@ public partial class ClientesListaGen2Tests
         var antes = Fila(cut, nombre).Foto();
         antes.Atributos.Should().Contain(nombre).And.Contain(cif, "control: la fila tiene nombres accesibles que comparar");
 
-        await cut.BuscarEnLaBarraAsync("LOGÍSTICA");
+        // Escrito sin acento: la marca lleva el texto original de la celda.
+        await cut.BuscarEnLaBarraAsync("logistica");
         cut.WaitForAssertion(() => Fila(cut, nombre).DebeMarcarSolo(antes, "Logística"));
 
         await cut.BuscarEnLaBarraAsync("a-48");

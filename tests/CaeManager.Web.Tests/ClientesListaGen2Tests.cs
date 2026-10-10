@@ -204,7 +204,7 @@ public partial class ClientesListaGen2Tests : BunitContext
             var sinEstado = Almacen
                 .Where(c => q.Id is null || c.Id == q.Id)
                 .Where(c => string.IsNullOrWhiteSpace(q.Busqueda)
-                    || c.RazonSocial.ToUpperInvariant().Contains(q.Busqueda.ToUpperInvariant()))
+                    || TextoDeBusqueda.Contiene(c.RazonSocial, q.Busqueda))
                 .Where(c => q.SoloCriticos != true || c.EsCritico)
                 .Where(c => q.EjecutivoUsuarioId is null || c.EjecutivoUsuarioId == q.EjecutivoUsuarioId)
                 .ToList();

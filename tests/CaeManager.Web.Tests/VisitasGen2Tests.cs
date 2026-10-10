@@ -134,7 +134,7 @@ public partial class VisitasGen2Tests : BunitContext
             .Where(v => !consulta.SoloUrgentes || v.NivelUrgencia != NivelUrgenciaVisita.Normal)
             .Where(v => !consulta.SoloActivas || (v.FechaFin >= Hoy && !v.EstaCancelada))
             .Where(v => string.IsNullOrWhiteSpace(consulta.Busqueda)
-                || $"{v.CentroNombre} {v.ClienteRazonSocial} {v.EmpresaRazonSocial}".Contains(consulta.Busqueda, StringComparison.OrdinalIgnoreCase))
+                || TextoDeBusqueda.Contiene($"{v.CentroNombre} {v.ClienteRazonSocial} {v.EmpresaRazonSocial}", consulta.Busqueda))
             .ToList();
 
         private static Task<T> Respuesta<T>(object valor) => Task.FromResult((T)valor);

@@ -30,9 +30,14 @@ public partial class CentrosListaPatronTests
         antes.Atributos.Should().Contain(Bilbao).And.Contain("span[title]=Limpiezas Sur S.L.",
             "control: la fila tiene nombres accesibles y un título que comparar");
         var cabeceraAntes = CabeceraDelGrupo(cut, "Pegaso Cliente S.L.").TextContent;
+        var antesVigo = cut.FilaDeNombre(FilaDeCentro, "Almacén Vigo").Foto();
 
         await cut.BuscarEnLaBarraAsync("bilbao");
         cut.WaitForAssertion(() => cut.FilaDeNombre(FilaDeCentro, Bilbao).DebeMarcarSolo(antes, "Bilbao"));
+
+        // Escrito sin acento: la marca lleva el texto original de la celda.
+        await cut.BuscarEnLaBarraAsync("ALMACEN");
+        cut.WaitForAssertion(() => cut.FilaDeNombre(FilaDeCentro, "Almacén Vigo").DebeMarcarSolo(antesVigo, "Almacén"));
 
         await cut.BuscarEnLaBarraAsync("c-001");
         cut.WaitForAssertion(() => cut.FilaDeNombre(FilaDeCentro, Bilbao).DebeMarcarSolo(antes, "C-001"));

@@ -32,9 +32,27 @@ public static class TextoDeBusqueda
     /// <summary>
     /// ¿Contiene <paramref name="texto"/> el <paramref name="termino"/>, sin distinguir acentos ni
     /// mayúsculas? Un texto nulo no contiene nada. El término se toma literal: «%» y «_» no son comodines.
+    ///
+    /// En memoria nunca lanza: si el texto o el término no son Unicode válido (un sustituto suelto,
+    /// p. ej. medio emoji pegado en un buscador) la respuesta es «no lo contiene». Es lo mismo que
+    /// responde <see cref="Coincidencias"/> —ningún tramo—, de modo que una lista filtrada en
+    /// memoria se queda sin filas en vez de tirar el render de la pantalla.
     /// </summary>
-    public static bool Contiene(string? texto, string termino) =>
-        texto is not null && Normalizar(texto).Contains(Normalizar(termino), StringComparison.Ordinal);
+    public static bool Contiene(string? texto, string termino)
+    {
+        if (texto is null)
+            return false;
+
+        try
+        {
+            return Normalizar(texto).Contains(Normalizar(termino), StringComparison.Ordinal);
+        }
+        catch (ArgumentException)
+        {
+            // string.Normalize rechaza un sustituto suelto. Ver el resumen: no casa.
+            return false;
+        }
+    }
 
     /// <summary>
     /// Normalización en memoria: sin marcas diacríticas y en mayúsculas. Solo para comparar dos
@@ -64,8 +82,9 @@ public static class TextoDeBusqueda
     /// y nunca parte un par sustituto ni deja fuera una marca combinante.
     ///
     /// Sin texto, sin término o sin coincidencia devuelve una lista vacía. Hereda la divergencia de
-    /// <see cref="Normalizar"/> con PostgreSQL: una fila que la consulta encontró por una
-    /// equivalencia que solo hace <c>unaccent</c> («strasse» → «Straße») no devuelve tramos.
+    /// <see cref="Normalizar"/> con PostgreSQL: <c>unaccent</c> pliega letras que no se descomponen
+    /// en letra y marca («ß», «ø» y otras) y <see cref="Normalizar"/> no, así que una fila que la
+    /// consulta encontró por una de esas equivalencias («strasse» → «Straße») no devuelve tramos.
     /// </summary>
     public static IReadOnlyList<Range> Coincidencias(string? texto, string? termino)
     {

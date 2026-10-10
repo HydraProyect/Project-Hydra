@@ -18,10 +18,17 @@ namespace CaeManager.Web.Tests;
 /// </para>
 ///
 /// <para>
-/// <b>Qué NO miden estos tests.</b> Los dobles de mediador de cada página filtran con su propia
-/// comparación (casi todos, sin distinguir mayúsculas pero sí acentos), así que los términos son
-/// los que ese doble deja pasar: que «garcia» marque «García» se prueba en
-/// <c>TextoResaltadoTests</c> y en <c>TextoDeBusquedaTests</c>, no aquí. Tampoco ven el color.
+/// <b>Términos sin acento.</b> En cada página hay al menos un caso escrito sin el acento (o la
+/// virgulilla) que lleva el texto de la celda: la marca tiene que contener el texto ORIGINAL. Para
+/// que la fila llegue, los dobles de mediador que filtran por texto lo hacen con
+/// <c>TextoDeBusqueda.Contiene</c>, el criterio en memoria de producción; los que usan los casos
+/// de Centros y de Documentos devuelven las mismas filas con y sin búsqueda, y Proyectos filtra en
+/// la propia página. Ningún doble reproduce el <c>unaccent</c> de PostgreSQL.
+/// </para>
+///
+/// <para>
+/// <b>Qué NO miden estos tests.</b> Qué campos mira cada doble (varios solo el nombre): los
+/// términos son los que ese doble deja pasar. Tampoco ven el color.
 /// </para>
 /// </summary>
 internal static class ResaltadoDeBusquedaEnListados

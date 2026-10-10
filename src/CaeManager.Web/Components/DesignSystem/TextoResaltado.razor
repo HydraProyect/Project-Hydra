@@ -20,8 +20,11 @@
     claro / oscuro: texto 15,11 / 13,02; texto secundario 6,72 / 5,06; --color-primary-500
     (identificador copiable bajo el cursor) 5,64 / 5,70.
 
-    Límite conocido: una fila que PostgreSQL encontró por una equivalencia que solo hace unaccent
-    («strasse» → «Straße») aparece sin marca.
+    Límite conocido: la consulta normaliza en PostgreSQL (unaccent) y la marca, en memoria, y no
+    son la misma tabla. En memoria solo se quitan las marcas diacríticas que Unicode separa de la
+    letra («í» → «i»); unaccent pliega además letras que no se descomponen así («ß» → «ss» y
+    «ø» → «o» son las dos medidas en AnadeBusquedaSinAcentosEnListadosTests, no las únicas). Una
+    fila encontrada por una de esas equivalencias («strasse» → «Straße») aparece sin marca.
 
     Uso:
 

@@ -15,7 +15,7 @@ public partial class VehiculosFilaSeRefrescaTests
     public async Task Con_busqueda_la_fila_marca_nombre_modelo_y_matricula_y_no_cambia_nada_mas()
     {
         // De fábrica: modelo «Transit», matrícula «1234-ABC», empleador «Montajes Ebro S.L.».
-        const string nombre = "Transit 1234 Ebro";
+        const string nombre = "Furgón Transit 1234 Ebro";
         const string matricula = "1234-ABC";
         var cut = Renderizar(new MediadorFalso { Almacen = { Vehiculo(nombre), Vehiculo("Grúa") } });
         cut.FindAll("mark").Should().BeEmpty("sin búsqueda no hay marcas");
@@ -26,6 +26,10 @@ public partial class VehiculosFilaSeRefrescaTests
         await cut.BuscarEnLaBarraAsync("ebro");
         cut.WaitForAssertion(() => cut.FilaDeNombre("tbody tr", nombre).DebeMarcarSolo(antes, "Ebro"));
         cut.DebeConservarElIdentificadorCopiable(matricula, conMarca: false);
+
+        // Escrito sin acento: la marca lleva el texto original de la celda.
+        await cut.BuscarEnLaBarraAsync("furgon");
+        cut.WaitForAssertion(() => cut.FilaDeNombre("tbody tr", nombre).DebeMarcarSolo(antes, "Furgón"));
 
         await cut.BuscarEnLaBarraAsync("transit");
         cut.WaitForAssertion(() => cut.FilaDeNombre("tbody tr", nombre).DebeMarcarSolo(antes, "Transit", "Transit"));

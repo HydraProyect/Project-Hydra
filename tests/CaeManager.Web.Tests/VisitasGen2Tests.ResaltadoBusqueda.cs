@@ -16,26 +16,27 @@ public partial class VisitasGen2Tests
     {
         // De fábrica: Cliente «Iberojet S.A.», Empresa «Instalaciones Arbeko S.L.».
         var mediator = new MediatorVisitas();
-        mediator.Visitas.Add(Visita("Planta Norte"));
+        mediator.Visitas.Add(Visita("Estación Norte"));
         mediator.Visitas.Add(Visita("Almacén Sur"));
         var cut = Renderizar(mediator);
-        cut.WaitForAssertion(() => Fila(cut, "Planta Norte"));
+        cut.WaitForAssertion(() => Fila(cut, "Estación Norte"));
         cut.FindAll("mark").Should().BeEmpty("sin búsqueda no hay marcas");
-        var antes = Fila(cut, "Planta Norte").Foto();
-        antes.Atributos.Should().Contain("Planta Norte", "control: la fila tiene nombres accesibles que comparar");
+        var antes = Fila(cut, "Estación Norte").Foto();
+        antes.Atributos.Should().Contain("Estación Norte", "control: la fila tiene nombres accesibles que comparar");
 
         // Esta pantalla no usa BarraFiltros: su buscador es un CampoTexto suelto (el de la tecla F).
         Task Buscar(string termino) => cut.InvokeAsync(() => cut.FindComponents<CampoTexto>()
             .Single(campo => campo.FindAll("input[data-keytip=F]").Count == 1)
             .Instance.ValorChanged.InvokeAsync(termino));
 
-        await Buscar("norte");
-        cut.WaitForAssertion(() => Fila(cut, "Planta Norte").DebeMarcarSolo(antes, "Norte"));
+        // Escrito sin acento: la marca lleva el texto original de la celda.
+        await Buscar("estacion n");
+        cut.WaitForAssertion(() => Fila(cut, "Estación Norte").DebeMarcarSolo(antes, "Estación N"));
 
         await Buscar("IBEROJET");
-        cut.WaitForAssertion(() => Fila(cut, "Planta Norte").DebeMarcarSolo(antes, "Iberojet"));
+        cut.WaitForAssertion(() => Fila(cut, "Estación Norte").DebeMarcarSolo(antes, "Iberojet"));
 
         await Buscar("arbeko");
-        cut.WaitForAssertion(() => Fila(cut, "Planta Norte").DebeMarcarSolo(antes, "Arbeko"));
+        cut.WaitForAssertion(() => Fila(cut, "Estación Norte").DebeMarcarSolo(antes, "Arbeko"));
     }
 }

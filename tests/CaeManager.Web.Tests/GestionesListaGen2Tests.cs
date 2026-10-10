@@ -130,7 +130,7 @@ public partial class GestionesListaGen2Tests : BunitContext
             var coincidentes = Almacen
                 .Where(g => q.Estado is null || g.Estado == q.Estado)
                 .Where(g => q.Busqueda is null
-                    || $"{g.TrabajadorNombre} {g.CentroNombre} {g.TipoDocumentoNombre}".Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase))
+                    || TextoDeBusqueda.Contiene($"{g.TrabajadorNombre} {g.CentroNombre} {g.TipoDocumentoNombre}", q.Busqueda))
                 .ToList();
             var pagina = Ordenar(coincidentes, q.OrdenarPor, q.Descendente)
                 .Skip((q.Pagina - 1) * q.TamanoPagina)

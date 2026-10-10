@@ -31,8 +31,9 @@ public partial class GestionesListaGen2Tests
         await cut.BuscarEnLaBarraAsync("norte");
         cut.WaitForAssertion(() => cut.FilaDeNombre("tbody tr", trabajador).DebeMarcarSolo(antes, "Norte"));
 
-        await cut.BuscarEnLaBarraAsync("prl");
-        cut.WaitForAssertion(() => cut.FilaDeNombre("tbody tr", trabajador).DebeMarcarSolo(antes, "PRL"));
-        cut.Find("td.gestion-tipo-documento mark").TextContent.Should().Be("PRL", "la marca está en la celda del tipo de documento, que conserva su clase");
+        // Escrito sin acento: la marca lleva el texto original de la celda.
+        await cut.BuscarEnLaBarraAsync("formacion prl");
+        cut.WaitForAssertion(() => cut.FilaDeNombre("tbody tr", trabajador).DebeMarcarSolo(antes, "Formación PRL"));
+        cut.Find("td.gestion-tipo-documento mark").TextContent.Should().Be("Formación PRL", "la marca está en la celda del tipo de documento, que conserva su clase");
     }
 }
