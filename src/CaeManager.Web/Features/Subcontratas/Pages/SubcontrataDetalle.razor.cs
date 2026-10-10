@@ -608,10 +608,10 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     /// <summary>
     /// «Guardar y siguiente»: los documentos que piden «Renovar» o «Subir», en el orden en que la lista los pinta
-    /// (Trabajador a Trabajador con el filtro puesto, y dentro de cada uno del peor estado al mejor).
+    /// (los Trabajadores que se ven, con el filtro puesto, y dentro de cada uno del peor estado al mejor).
     /// </summary>
     private IReadOnlyList<PasoSerieDocumento> SerieDeDocumentos =>
-        TrabajadoresFiltrados
+        TrabajadoresVisibles
             .SelectMany(t => DocumentosOrdenados(t)
                 .Where(d => PasoSerieDocumento.EsDeSerie(d.Estado))
                 .Select(d => PasoDe(t.TrabajadorId, d)))

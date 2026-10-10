@@ -295,26 +295,36 @@ public partial class DrawerGestionDocumento : ComponentBase
         var posicion = unicos.IndexOf(actual);
         var resto = unicos.Skip(posicion + 1).Concat(unicos.Take(Math.Max(posicion, 0))).ToList();
 
-        if (await AbrirPasoAsync(actual))
+        if (await AbrirPasoAsync(actual, alAvanzar: false))
             _pasosPendientes = resto;
         StateHasChanged();
     }
 
-    /// <summary>¿Se abrió el formulario? Un Documento que ya no existe, o del historial sin vigente al que saltar, no.</summary>
-    private async Task<bool> AbrirPasoAsync(PasoSerieDocumento paso)
+    /// <summary>
+    /// ¿Se abrió el formulario? Un Documento que ya no existe, o del historial sin vigente al que saltar, no. Y
+    /// <paramref name="alAvanzar"/>, tampoco el alta de uno que falta cuyo propietario no se pudo preseleccionar (fuera
+    /// del catálogo con alcance): quien pulsó esa fila ve el aviso, pero a quien llega desde el documento anterior no se
+    /// le deja delante un formulario que no puede guardar y que le cortaría el resto de la serie.
+    /// </summary>
+    private async Task<bool> AbrirPasoAsync(PasoSerieDocumento paso, bool alAvanzar)
     {
         if (paso.DocumentoId is { } documentoId)
             return await AbrirEditarInternoAsync(documentoId, 0);
 
         var tipoDocumentoId = paso.TipoDocumentoId ?? Guid.Empty;
         if (paso.TrabajadorId is { } trabajadorId)
+        {
             await AbrirCrearParaFaltanteAsync(trabajadorId, tipoDocumentoId);
-        else if (paso.EmpresaId is { } empresaId)
-            await AbrirCrearParaFaltanteEmpresaAsync(empresaId, tipoDocumentoId);
-        else
-            return false;
+            return !alAvanzar || _trabajadorId.Length > 0;
+        }
 
-        return true;
+        if (paso.EmpresaId is { } empresaId)
+        {
+            await AbrirCrearParaFaltanteEmpresaAsync(empresaId, tipoDocumentoId);
+            return !alAvanzar || _empresaId.Length > 0;
+        }
+
+        return false;
     }
 
     private async Task<bool> AbrirEditarInternoAsync(Guid id, int saltosAlVigente)
@@ -518,6 +528,10 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// </summary>
     private async Task ManejarArchivoSeleccionadoAsync(InputFileChangeEventArgs e)
     {
+        // Con un guardado en curso el formulario está a punto de cerrarse o de cargar el siguiente
+        // documento de la serie: un archivo elegido ahora acabaría adjunto al documento equivocado.
+        if (_guardando) return;
+
         var archivos = e.GetMultipleFiles(MaximoArchivosPorSubida);
 
         foreach (var archivo in archivos)
@@ -724,13 +738,14 @@ public partial class DrawerGestionDocumento : ComponentBase
 
             for (var i = 0; i < pendientes.Count; i++)
             {
-                if (!await AbrirPasoAsync(pendientes[i])) continue;
+                if (!await AbrirPasoAsync(pendientes[i], alAvanzar: true)) continue;
 
                 _pasosPendientes = pendientes.Skip(i + 1).ToList();
                 return;
             }
 
             _pasosPendientes = [];
+            _mensajeErrorFormulario = null;
             _drawerVisible = false;
         }
         catch (Exception ex)

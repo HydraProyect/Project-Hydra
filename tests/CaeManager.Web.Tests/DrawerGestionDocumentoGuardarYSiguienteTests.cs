@@ -31,6 +31,7 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
         public Dictionary<Guid, DocumentoDetalleDto> Documentos { get; } = [];
         public List<object> Comandos { get; } = [];
         public HashSet<Guid> RenovacionesQueFallan { get; } = [];
+        public List<TrabajadorSelectorDto> Trabajadores { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -39,7 +40,7 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
 
             return Task.FromResult((TResponse)(object?)(request switch
             {
-                ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[],
+                ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)Trabajadores,
                 ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
                 ObtenerDocumentoPorIdQuery consulta => Documentos.GetValueOrDefault(consulta.Id),
                 RenovarDocumentoCommand renovar => RenovacionesQueFallan.Contains(renovar.Id)
@@ -87,6 +88,7 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
 
     private readonly MediatorFalso _mediador = new();
     private int _guardados;
+    private bool _laFichaFallaAlRecargar;
 
     public DrawerGestionDocumentoGuardarYSiguienteTests()
     {
@@ -102,7 +104,11 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
         Services.AddScoped<IConversorWordPdfService, ConversorQueNadieDebeTocar>();
         Services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
 
-        return Render<DrawerGestionDocumento>(p => p.Add(d => d.OnGuardado, () => _guardados++));
+        return Render<DrawerGestionDocumento>(p => p.Add(d => d.OnGuardado, () =>
+        {
+            _guardados++;
+            if (_laFichaFallaAlRecargar) throw new InvalidOperationException("fallo transitorio al recargar la ficha");
+        }));
     }
 
     private PasoSerieDocumento Documento(string propietario)
@@ -134,6 +140,10 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
 
     private static Task PulsarAsync(IRenderedComponent<DrawerGestionDocumento> cut, string rotulo) =>
         cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == rotulo).ClickAsync(new MouseEventArgs());
+
+    private static string? CampoPrivado(DrawerGestionDocumento instancia, string nombre) =>
+        typeof(DrawerGestionDocumento).GetField(nombre, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(instancia) as string;
 
     private static bool EstaAbierto(IRenderedComponent<DrawerGestionDocumento> cut) => cut.FindAll(".drawer-panel").Count > 0;
 
@@ -235,6 +245,11 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
         BotonesDelPie(cut).Should().Equal("Cancelar", "Guardar");
         await PulsarAsync(cut, "Guardar");
         EstaAbierto(cut).Should().BeFalse();
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
+        await cut.InvokeAsync(() => cut.Instance.AbrirCrearAsync());
+
+        BotonesDelPie(cut).Should().Equal("Cancelar", "Guardar");
     }
 
     [Fact]
@@ -282,18 +297,72 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
     }
 
     [Fact]
-    public async Task El_siguiente_puede_ser_un_documento_que_falta()
+    public async Task El_siguiente_puede_ser_un_documento_que_falta_con_su_trabajador_y_su_tipo_ya_elegidos()
     {
+        var trabajador = new TrabajadorSelectorDto(Guid.NewGuid(), "Soto Gil, Blas", null, null);
+        _mediador.Trabajadores.Add(trabajador);
         var cut = Renderizar();
-        var falta = PasoSerieDocumento.SubirDeTrabajador(Guid.NewGuid(), Guid.NewGuid());
-        PasoSerieDocumento[] serie = [Documento("Ana Ruiz"), falta];
+        var tipoDocumentoId = Guid.NewGuid();
+        PasoSerieDocumento[] serie = [Documento("Ana Ruiz"), PasoSerieDocumento.SubirDeTrabajador(trabajador.Id, tipoDocumentoId)];
         await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
 
         await PulsarAsync(cut, "Guardar y siguiente");
 
         EstaAbierto(cut).Should().BeTrue();
         cut.Find(".drawer-header").TextContent.Should().Contain("Nuevo documento");
+        CampoPrivado(cut.Instance, "_trabajadorId").Should().Be(trabajador.Id.ToString());
+        CampoPrivado(cut.Instance, "_tipoDocumentoId").Should().Be(tipoDocumentoId.ToString());
         BotonesDelPie(cut).Should().Equal("Cancelar", "Guardar");
+    }
+
+    /// <summary>
+    /// Un Trabajador fuera del catálogo con alcance (la cartera del Gestor CAE) no se puede preseleccionar: su alta no
+    /// se podría guardar y, puesta delante al avanzar, cortaría el resto de la serie.
+    /// </summary>
+    [Fact]
+    public async Task Al_avanzar_se_salta_el_que_falta_de_un_trabajador_que_no_se_puede_preseleccionar()
+    {
+        var cut = Renderizar();
+        var fueraDeAlcance = PasoSerieDocumento.SubirDeTrabajador(Guid.NewGuid(), Guid.NewGuid());
+        PasoSerieDocumento[] serie = [Documento("Ana Ruiz"), fueraDeAlcance, Documento("Carla Vega")];
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
+
+        await PulsarAsync(cut, "Guardar y siguiente");
+
+        cut.Markup.Should().Contain("Carla Vega");
+        cut.FindAll("[role=alert]").Should().BeEmpty("el aviso del paso saltado no se arrastra al siguiente");
+    }
+
+    [Fact]
+    public async Task Pulsado_en_su_fila_el_que_no_se_puede_preseleccionar_se_abre_con_su_aviso()
+    {
+        var cut = Renderizar();
+        var fueraDeAlcance = PasoSerieDocumento.SubirDeTrabajador(Guid.NewGuid(), Guid.NewGuid());
+        PasoSerieDocumento[] serie = [fueraDeAlcance, Documento("Carla Vega")];
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, fueraDeAlcance));
+
+        EstaAbierto(cut).Should().BeTrue();
+        cut.Find("[role=alert]").TextContent.Should().Contain("No encontramos este trabajador");
+    }
+
+    /// <summary>
+    /// El documento ya se guardó: un fallo al recargar la ficha o al abrir el siguiente no se enseña como fallo del
+    /// guardado ni deja a la vista el formulario del documento guardado, cuya versión quedó atrás.
+    /// </summary>
+    [Fact]
+    public async Task Si_falla_el_paso_al_siguiente_se_cierra_sin_dar_el_guardado_por_fallido()
+    {
+        var cut = Renderizar();
+        PasoSerieDocumento[] serie = [Documento("Ana Ruiz"), Documento("Blas Soto")];
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
+        _laFichaFallaAlRecargar = true;
+
+        await PulsarAsync(cut, "Guardar y siguiente");
+
+        Renovados.Should().Equal(serie[0].DocumentoId!.Value);
+        EstaAbierto(cut).Should().BeFalse();
+        cut.Markup.Should().NotContain("No pudimos guardar los cambios");
     }
 
     [Fact]
