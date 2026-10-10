@@ -87,9 +87,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private Task AbrirVistaRapidaAsync(Guid id) =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, id, NombreDe(id), "informacion");
 
-    /// <summary>Ruta de esta lista, sin filtros: la del <c>@page</c>.</summary>
-    private const string RutaLista = "/empresas";
-
     /// <summary>
     /// Quien mira acaba de desasignarse, desde la cabecera «Gestor CAE», de su apoyo sobre el Tenant
     /// propietario activo: todo lo que esta página tiene pintado es de un Tenant al que ya no accede.

@@ -224,8 +224,8 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     }
 
     /// <summary>
-    /// <c>/mi-trabajo?sinAcceso=true</c> avisa una sola vez: el parámetro sigue en la URL mientras la pantalla vive,
-    /// y sin esta marca cada recarga repetiría el toast.
+    /// <c>/mi-trabajo?sinAcceso=true</c> avisa una vez por instancia de la pantalla: el parámetro sigue en la URL,
+    /// así que una recarga (F5) lo vuelve a mostrar. Limpiar la URL queda fuera de este cambio.
     /// </summary>
     private void AvisarSinAccesoDeLaUrl()
     {
