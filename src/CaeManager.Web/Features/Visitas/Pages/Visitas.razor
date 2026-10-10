@@ -206,7 +206,7 @@
                     {
                         @* FS-11: una Visita cancelada no tiene documentación que gestionar. Que está cancelada, y por
                            qué, lo dice la columna «Estado». *@
-                        <span class="visitas-celda-secundaria" aria-hidden="true">—</span>
+                        <span class="visitas-celda-secundaria" data-pieza="sin-documentacion" aria-hidden="true">—</span>
                     }
                     else if (!context.CentroRequiereGestionCae)
                     {
@@ -252,7 +252,12 @@
                 <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado">
                     @if (context.EstaCancelada)
                     {
-                        <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCancelada"]" Motivo="@context.MotivoCancelacion" Titulo="@context.MotivoCancelacion" />
+                        @* El motivo se recorta a una línea: su title lo da entero. *@
+                        <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCancelada"]">
+                            <MotivoContenido>
+                                <span title="@context.MotivoCancelacion" data-pieza="motivo-cancelacion">@context.MotivoCancelacion</span>
+                            </MotivoContenido>
+                        </EstadoFila>
                     }
                     else if (context.Tramo is { } tramo)
                     {

@@ -67,7 +67,11 @@ public partial class VisitasGen2Tests
         var fila = Fila(cut, "Planta Zaragoza");
         var estado = fila.QuerySelector("td.col-estado .estado-fila")!;
         estado.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Cancelada", "no se pinta la urgencia de una visita que ya no va a ocurrir");
-        estado.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("Obra aplazada");
+        var motivo = estado.QuerySelector(".estado-fila-motivo [data-pieza=motivo-cancelacion]")!;
+        motivo.TextContent.Trim().Should().Be("Obra aplazada");
+        motivo.GetAttribute("title").Should().Be("Obra aplazada", "el motivo se recorta a una línea: el title lo da entero");
+        fila.QuerySelector("[data-pieza=sin-documentacion]")!.TextContent.Trim().Should().Be("—");
+        fila.TextContent.Should().NotContain("Por gestionar").And.NotContain("Gestionada");
         fila.QuerySelectorAll(".badge").Should().ContainSingle("«Cancelada» no se repite en la columna «Documentación»");
     }
 }
