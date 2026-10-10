@@ -132,12 +132,13 @@ public class Visita360PaginaTests : BunitContext
     // ── Montaje ───────────────────────────────────────────────────────────
 
     private static DetalleVisitaDto Detalle(
-        Guid? id = null, string centro = "Sede Sevilla", bool requiereGestion = true, bool porCorreo = true, bool cancelada = false) => new(
+        Guid? id = null, string centro = "Sede Sevilla", bool requiereGestion = true, bool porCorreo = true, bool cancelada = false,
+        TramoAntelacion? tramo = null) => new(
         id ?? VisitaId, centro, "Titular Demo S.A.", Guid.NewGuid(), "Contratista Demo S.L.", Hoy, Hoy,
         Notas: "Puerta de servicio.", NotificadoCliente: false,
         Trabajadores: [new(Paula, "Paula Campos"), new(Diego, "Diego Ruiz")],
         HoraEstimadaAcceso: new TimeOnly(8, 0), FechaHoraSolicitudUtc: null, FechaHoraExpedienteCompletoUtc: null,
-        AntelacionNominalHoras: null, AntelacionEfectivaHoras: null, Tramo: null, AtribucionUrgencia.SinUrgencia,
+        AntelacionNominalHoras: tramo is null ? null : 15, AntelacionEfectivaHoras: tramo is null ? null : 15, Tramo: tramo, AtribucionUrgencia.SinUrgencia,
         CentroRequiereGestionCae: requiereGestion, CentroGestionadoPorCorreo: porCorreo,
         EstaCancelada: cancelada, MotivoCancelacion: cancelada ? "Aplazada" : null, Version: Guid.NewGuid(),
         CentroId: Guid.NewGuid(), EmpresaTitularId: Guid.NewGuid(), Origen: OrigenVisita.Correo, NivelUrgencia: NivelUrgenciaVisita.Normal);
@@ -165,7 +166,7 @@ public class Visita360PaginaTests : BunitContext
         ]);
 
     private (IRenderedComponent<VisitaDetalle> Cut, MediatorFalso Mediador) Montar(
-        DetalleVisitaDto? detalle, string rol = Roles.GestorCae, DocumentacionVisitaDto? documentacion = null)
+        DetalleVisitaDto? detalle, string rol = Roles.GestorCae, DocumentacionVisitaDto? documentacion = null, string? pestana = null)
     {
         var mediador = new MediatorFalso();
         if (detalle is not null)
@@ -178,12 +179,58 @@ public class Visita360PaginaTests : BunitContext
         Services.AddScoped<ToastService>();
         Services.AddLocalization();
 
+        // La pestaña es un parámetro de consulta: llega por la URL, no como parámetro del componente.
+        if (pestana is not null)
+            Services.GetRequiredService<NavigationManager>().NavigateTo($"visitas/{detalle?.Id ?? VisitaId}?pestana={pestana}");
+
         var cut = Render<VisitaDetalle>(p => p.Add(x => x.VisitaId, detalle?.Id ?? VisitaId));
         return (cut, mediador);
     }
 
     private static IEnumerable<string> Botones(IRenderedComponent<VisitaDetalle> cut) =>
         cut.FindAll("button, a").Select(b => b.TextContent.Trim());
+
+    // ── Pestaña «Ficha» ───────────────────────────────────────────────────
+    // Decisión del 2026-10-09: el lateral lleva dos o tres cajas como mucho; «Antelación» vive en «Ficha».
+
+    [Fact]
+    public void Con_antelacion_la_ficha_va_la_ultima_y_el_lateral_ya_no_la_lleva()
+    {
+        var (cut, _) = Montar(Detalle(tramo: TramoAntelacion.Urgente), documentacion: DocumentacionConIncidencias());
+
+        var pestanas = cut.FindAll("[role=tab]");
+        pestanas.Should().HaveCount(3);
+        pestanas[2].TextContent.Trim().Should().Be("Ficha");
+        cut.Find("[data-pieza=lateral]").QuerySelectorAll(".tarjeta-titulo").Select(t => t.TextContent.Trim())
+            .Should().NotContain("Antelación").And.HaveCountLessThanOrEqualTo(3);
+        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty("sin pedirla, la visita abre en su primera pestaña");
+    }
+
+    [Fact]
+    public void La_pestana_ficha_llega_por_la_url_y_lleva_la_antelacion()
+    {
+        var (cut, _) = Montar(Detalle(tramo: TramoAntelacion.Urgente), documentacion: DocumentacionConIncidencias(), pestana: "ficha");
+
+        cut.FindAll("[role=tab]")[^1].GetAttribute("aria-selected").Should().Be("true");
+        var cajas = cut.FindAll("[data-pieza=cajas-ficha] > [data-caja]");
+        cajas.Select(c => c.GetAttribute("data-caja")).Should().Equal("antelacion");
+        cajas[0].QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Antelación");
+        cajas[0].TextContent.Should().Contain("15");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Sin_antelacion_que_ensenar_no_hay_pestana_ficha_y_pedirla_abre_la_primera(bool cancelada)
+    {
+        // Sin tramo calculado, o cancelada aunque lo tenga: la pestaña quedaría vacía y no se pinta.
+        var detalle = Detalle(cancelada: cancelada, tramo: cancelada ? TramoAntelacion.Urgente : null);
+        var (cut, _) = Montar(detalle, documentacion: DocumentacionConIncidencias(), pestana: "ficha");
+
+        cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).Should().NotContain("Ficha");
+        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty();
+        cut.Markup.Should().NotContain("Antelación");
+    }
 
     // ── Ramas ─────────────────────────────────────────────────────────────
 

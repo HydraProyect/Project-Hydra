@@ -1,0 +1,46 @@
+/*
+  El motivo ocupa UNA línea dentro de la columna de estado (200 px): lo que no cabe se recorta con puntos
+  suspensivos y se lee entero en la ventana. El recorte va en el texto del disparador y no en el contenedor:
+  el panel de la ventana sale de la caja, y recortado en el contenedor no se vería (por eso EstadoFila,
+  que recorta su motivo, deja de hacerlo cuando el motivo lleva una ventana: ver EstadoFila.razor.css).
+*/
+.motivo-incidencias {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.motivo-incidencias ::deep .ventana-contexto,
+.motivo-incidencias ::deep .ventana-contexto-disparador {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.motivo-incidencias-texto {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Una incidencia del desglose: pastilla del estado, nombre del Tipo y, al final, la fecha. */
+.motivo-incidencias-linea {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.motivo-incidencias-tipo {
+    min-width: 0;
+    white-space: normal;
+}
+
+.motivo-incidencias-fecha {
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}

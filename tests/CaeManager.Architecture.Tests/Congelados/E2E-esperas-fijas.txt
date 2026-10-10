@@ -1,0 +1,40 @@
+# Esperas fijas de la suite E2E (EsperasFijasDeE2ECongeladasTests, 2026-10-10): 52 WaitForTimeoutAsync y 12 Task.Delay en 30 ficheros.
+# Solo baja: una espera nueva se sustituye por la condición que se espera (Expect(...), WaitForFunctionAsync, WaitForURLAsync);
+# retirar una baja o borra su línea. Una espera que ES un reloj del servidor lleva encima un comentario que dice cuál.
+# Medida: 'fichero :: llamada = n' con n invocaciones en código (comentarios y cadenas no cuentan). Thread.Sleep también se mide: hoy no hay ninguno.
+# Reloj del servidor: espera a que venza el intervalo de revalidación del SecurityStamp de la colección AppCollectionBajoRuntime.
+tests/CaeManager.E2ETests/AccesoBajoRolRuntimeTests.cs :: Task.Delay = 1
+tests/CaeManager.E2ETests/AislamientoMultiTenantE2ETests.cs :: WaitForTimeoutAsync = 1
+# Cinco de las siete son la pausa de un bucle de sondeo con vencimiento (while … < vencimiento); las otras dos, sin clasificar.
+tests/CaeManager.E2ETests/Ayudas.cs :: Task.Delay = 7
+tests/CaeManager.E2ETests/Ayudas.cs :: WaitForTimeoutAsync = 1
+tests/CaeManager.E2ETests/CentrosGestionarEnVivoE2ETests.cs :: WaitForTimeoutAsync = 4
+tests/CaeManager.E2ETests/ClientesFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 3
+tests/CaeManager.E2ETests/CoordinadorCaeTenantBeneficiarioTests.cs :: WaitForTimeoutAsync = 2
+# Reloj del servidor: varios ciclos de 2 s de la revalidación rápida (AppCollectionRevalidacionRapida) tras desactivar al usuario.
+tests/CaeManager.E2ETests/DesactivarCortaLaSesionTests.cs :: Task.Delay = 1
+tests/CaeManager.E2ETests/DocumentosTablaDesplazableE2ETests.cs :: WaitForTimeoutAsync = 1
+tests/CaeManager.E2ETests/EmpresasCabeceraAlineadaE2ETests.cs :: WaitForTimeoutAsync = 1
+tests/CaeManager.E2ETests/EmpresasFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 1
+# Pausa de un bucle de sondeo con límite de 15 s (relectura de un valor en base de datos).
+tests/CaeManager.E2ETests/EncargoAdministracionE2ETests.cs :: Task.Delay = 1
+tests/CaeManager.E2ETests/Fidelidad360/Mockup360.cs :: WaitForTimeoutAsync = 1
+tests/CaeManager.E2ETests/FilaSeRefrescaTrasEditarEnPanelE2ETests.cs :: WaitForTimeoutAsync = 2
+tests/CaeManager.E2ETests/FlujoBandejaPriorizadaTests.cs :: WaitForTimeoutAsync = 2
+tests/CaeManager.E2ETests/FlujoCicloDocumentalTests.cs :: WaitForTimeoutAsync = 4
+tests/CaeManager.E2ETests/FlujoCriticoTests.cs :: WaitForTimeoutAsync = 1
+tests/CaeManager.E2ETests/FlujoSoporteTests.cs :: WaitForTimeoutAsync = 1
+tests/CaeManager.E2ETests/GestionesFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
+tests/CaeManager.E2ETests/ImportacionTests.cs :: WaitForTimeoutAsync = 2
+tests/CaeManager.E2ETests/ImportarClientesTests.cs :: WaitForTimeoutAsync = 1
+tests/CaeManager.E2ETests/ImportarCombinadoTests.cs :: WaitForTimeoutAsync = 1
+tests/CaeManager.E2ETests/P331TecladoLoteFiltrosGuardadosTests.cs :: WaitForTimeoutAsync = 7
+tests/CaeManager.E2ETests/RecorridoFichas360.cs :: WaitForTimeoutAsync = 2
+tests/CaeManager.E2ETests/Rendimiento/MedidorConsultasSql.cs :: Task.Delay = 1
+tests/CaeManager.E2ETests/SubidaMasivaTests.cs :: WaitForTimeoutAsync = 1
+tests/CaeManager.E2ETests/TrabajadoresFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
+tests/CaeManager.E2ETests/VehiculosFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
+tests/CaeManager.E2ETests/VisitaCentroGestionadoPorCorreoE2ETests.cs :: WaitForTimeoutAsync = 5
+tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
+# Pausa del bucle que espera a que la aplicación recién arrancada acepte conexiones.
+tests/CaeManager.E2ETests/WebAppFixture.cs :: Task.Delay = 1

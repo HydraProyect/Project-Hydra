@@ -105,7 +105,7 @@ public class ObtenerEmpresasPaginacionEnSqlTests : IAsyncLifetime
 
     private static ObtenerEmpresasQueryHandler CrearHandler(CaeManagerDbContext contexto) =>
         new(contexto, new AlcanceDatosServiceFalso(),
-            new CalculoEstadoDocumentalService(contexto, contexto),
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
             new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto));
 

@@ -500,7 +500,7 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
                     : (IReadOnlyList<ClienteAutorizadoDto>)
                         [new ClienteAutorizadoDto(tenant, "Tenant propietario", EsOrigen: true, EsGestionadoPorOperacion: false)],
                 ObtenerVehiculosQuery consulta => await new ObtenerVehiculosQueryHandler(
-                    c, c, alcance, c, c, new CalculoEstadoDocumentalService(c, c)).Handle(consulta, cancellationToken),
+                    c, c, alcance, c, c, new CalculoEstadoDocumentalService(c, c, c)).Handle(consulta, cancellationToken),
                 ObtenerProyectosQuery consulta => await new ObtenerProyectosQueryHandler(c, c, c, c, alcance)
                     .Handle(consulta, cancellationToken),
                 ObtenerVisitasQuery consulta => await new ObtenerVisitasQueryHandler(c, c, c, c, c, c, alcance, c)

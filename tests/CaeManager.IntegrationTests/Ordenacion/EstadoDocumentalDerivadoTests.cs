@@ -81,7 +81,7 @@ public class EstadoDocumentalDerivadoTests : IAsyncLifetime
     public async Task El_estado_derivado_es_el_peor_de_los_documentos_del_propietario()
     {
         await using var contexto = CrearContexto();
-        var servicio = new CalculoEstadoDocumentalService(contexto, contexto);
+        var servicio = new CalculoEstadoDocumentalService(contexto, contexto, contexto);
 
         var estados = await servicio.CalcularPeorEstadoAsync(
             AmbitoAplicacion.Trabajador, [_conVencido, _soloVigentes, _sinDocumentos], CancellationToken.None);
@@ -94,7 +94,7 @@ public class EstadoDocumentalDerivadoTests : IAsyncLifetime
     public async Task Un_propietario_sin_documentos_no_aparece_y_no_se_confunde_con_uno_al_dia()
     {
         await using var contexto = CrearContexto();
-        var servicio = new CalculoEstadoDocumentalService(contexto, contexto);
+        var servicio = new CalculoEstadoDocumentalService(contexto, contexto, contexto);
 
         var estados = await servicio.CalcularPeorEstadoAsync(
             AmbitoAplicacion.Trabajador, [_conVencido, _soloVigentes, _sinDocumentos], CancellationToken.None);
@@ -110,7 +110,7 @@ public class EstadoDocumentalDerivadoTests : IAsyncLifetime
     public async Task Sin_propietarios_no_consulta_nada_y_devuelve_vacio()
     {
         await using var contexto = CrearContexto();
-        var servicio = new CalculoEstadoDocumentalService(contexto, contexto);
+        var servicio = new CalculoEstadoDocumentalService(contexto, contexto, contexto);
 
         var estados = await servicio.CalcularPeorEstadoAsync(
             AmbitoAplicacion.Trabajador, [], CancellationToken.None);
