@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Vehiculos.Commands.GuardarNotaInternaVehiculo;
@@ -54,7 +55,7 @@ public class ObtenerVehiculoPorIdNotaInternaTests
 
         var handler = new ObtenerVehiculoPorIdQueryHandler(
             empresas, new VehiculosFalso(vehiculo), new AlcanceDatosServiceFalso(vehiculoIdsVisibles: [vehiculo.Id]),
-            new SinDocumentos(), new CurrentUserServiceFalso(Guid.NewGuid(), rol));
+            new SinDocumentos(), PoliticaNotaInternaPruebas.Con(rol));
 
         return (handler, vehiculo);
     }

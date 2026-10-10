@@ -35,6 +35,8 @@ public static class ApplicationServiceCollectionExtensions
         // Scoped: una puerta por petición HTTP o circuito de Blazor — la
         // misma que usan los accesos a datos que no pasan por MediatR.
         services.AddScoped<PuertaAccesoDatos>();
+        // Lectura de la «Nota interna» de las fichas 360: una sola decisión para todas (ver PoliticaNotaInterna).
+        services.AddScoped<CaeManager.Application.Common.IPoliticaNotaInterna, CaeManager.Application.Common.PoliticaNotaInterna>();
         // Singleton a propósito (Horizonte 2.4): la ventana de tasa de
         // error/latencia degradada tiene que acumular entre requests de todo
         // el proceso, no reiniciarse en cada petición como el resto de
