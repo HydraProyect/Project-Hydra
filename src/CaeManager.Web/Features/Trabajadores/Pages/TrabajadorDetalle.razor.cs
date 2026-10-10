@@ -179,6 +179,17 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private string? NombreCompleto => _detalle is null ? null : $"{_detalle.Nombre} {_detalle.Apellidos}";
 
     /// <summary>
+    /// Página 360 del empleador, para el icono 360 junto a su nombre: Empresa 360 o Subcontrata 360.
+    /// El nombre abre la consulta rápida (<see cref="AbrirEmpleador"/>); el icono, la página.
+    /// </summary>
+    private string? PaginaEmpleador => _detalle switch
+    {
+        { EmpresaId: { } empresaId } => $"/empresas/{empresaId}",
+        { SubcontrataId: { } subcontrataId } => $"/subcontratas/{subcontrataId}",
+        _ => null,
+    };
+
+    /// <summary>
     /// Las pestañas de esta ficha. «Contactos» ya no es pestaña: sus datos
     /// viven en el lateral (decisión del propietario 2026-09-24). No es estático porque el recuento de
     /// «Operación» depende de los datos cargados: el mockup Gen 2 pinta ahí
