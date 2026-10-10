@@ -308,6 +308,7 @@
             <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                               Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
                               TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+            <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
         </div>
 
         @* TRES estados vacíos, no dos, y la razón es que "Solo activas" viene

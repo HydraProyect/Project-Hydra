@@ -1,0 +1,42 @@
+.leyenda-atajos-lista {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+    margin: var(--space-3) 0;
+    padding: 0;
+    list-style: none;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.leyenda-atajos-lista-entrada {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    white-space: nowrap;
+}
+
+/* El punto medio separa entradas; es decoración: el lector de pantalla ya anuncia cada elemento de la lista. */
+.leyenda-atajos-lista-entrada + .leyenda-atajos-lista-entrada::before {
+    content: "·";
+    margin-right: var(--space-1);
+}
+
+.leyenda-atajos-lista-entrada kbd {
+    display: inline-block;
+    min-width: 1.25em;
+    padding: 0 var(--space-1);
+    border: var(--border-default);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface);
+    font: var(--font-body-sm);
+    text-align: center;
+}
+
+/* Sin teclado que la use: en pantallas táctiles o estrechas la leyenda sobra (mismo corte que Boton). */
+@media (max-width: 767px), (pointer: coarse) {
+    .leyenda-atajos-lista {
+        display: none;
+    }
+}
