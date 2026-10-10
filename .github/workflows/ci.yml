@@ -317,7 +317,7 @@ jobs:
 
       - name: Publicar el log de PostgreSQL del bloque
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: postgres-log-bloque-${{ matrix.bloque }}
           path: postgres-bloque-${{ matrix.bloque }}.log
@@ -352,7 +352,7 @@ jobs:
       # caería muy por debajo del umbral, que es justo lo que un gate no debe
       # hacer — cambiar de significado sin que nadie lo decida.
       - name: Publicar la cobertura del bloque
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cobertura-integracion-${{ matrix.bloque }}
           path: coverage/integration
@@ -364,7 +364,7 @@ jobs:
       # los cuatro en verde y nadie mirando. Es una perdida parcial y muda,
       # peor que un bloque entero vacio porque no se nota.
       - name: Publicar el reparto del bloque
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reparto-bloque-${{ matrix.bloque }}
           path: reparto
@@ -412,7 +412,7 @@ jobs:
 
 
       - name: Publicar la cobertura de Domain y Application
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cobertura-unitarios
           path: coverage
@@ -755,7 +755,7 @@ jobs:
       # ejecucion de hace semanas siga descargable cuando llegue la segunda.
       - name: Publicar el informe de cobertura por capas
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: informe-cobertura-por-capas
           path: informe-cobertura-por-capas.md
@@ -966,7 +966,7 @@ jobs:
           --settings tests/CaeManager.Web.Tests/coverlet.runsettings
 
       - name: Publicar la cobertura de la Web
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cobertura-web
           path: coverage/web
@@ -1137,7 +1137,7 @@ jobs:
       # agregador `e2e-tests` lo recoge de los cuatro para comprobar que la
       # unión es la suite entera.
       - name: Publicar el reparto del bloque
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: reparto-e2e-bloque-${{ matrix.bloque }}
           path: reparto-e2e/
@@ -1186,7 +1186,7 @@ jobs:
 
       - name: Publicar logs de CaeManager.Web si el E2E falla
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-caemanager-web-e2e-bloque-${{ matrix.bloque }}
           path: |
