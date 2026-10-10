@@ -62,6 +62,34 @@ public static class EstadoDocumentoFicha360
         _ => "Ficha360Desconocido"
     };
 
+    private const string PrefijoDeClave = "Ficha360";
+
+    /// <summary>Las claves que pueden viajar en la URL, en el orden de gravedad. «Desconocido» no es un contador que se marque.</summary>
+    private static readonly string[] ClavesDeContador =
+        ["Ficha360Vencido", "Ficha360Pendiente", "EnTolerancia", "Ficha360PorVencer", "SinConfirmar", "Ficha360Vigente"];
+
+    /// <summary>Lo que <c>?estado=</c> lleva por cada contador, y la <see cref="Clave"/> a la que corresponde.</summary>
+    private static readonly IReadOnlyDictionary<string, string> ClavePorValorDeUrl =
+        ClavesDeContador.ToDictionary(ValorDeUrl, clave => clave, StringComparer.Ordinal);
+
+    private static string ValorDeUrl(string clave) =>
+        clave.StartsWith(PrefijoDeClave, StringComparison.Ordinal) ? clave[PrefijoDeClave.Length..] : clave;
+
+    /// <summary>
+    /// Los contadores marcados que llegan en <c>?estado=</c> (<c>Vencido,PorVencer</c>: los mismos nombres que usa
+    /// Tipo de documento 360), como <see cref="Clave"/>. Se lee con <see cref="SeleccionEstados.Separar(string?)"/>; lo
+    /// que no es un contador conocido no filtra.
+    /// </summary>
+    public static IReadOnlySet<string> ClavesDesdeUrl(string? valor) =>
+        SeleccionEstados.Separar(valor)
+            .Where(ClavePorValorDeUrl.ContainsKey)
+            .Select(v => ClavePorValorDeUrl[v])
+            .ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>La selección de contadores tal como viaja en <c>?estado=</c>, en el orden de gravedad; <c>null</c> si no hay ninguno.</summary>
+    public static string? ClavesEnUrl(IReadOnlySet<string> claves) =>
+        SeleccionEstados.Unir(ClavesDeContador.Where(claves.Contains).Select(ValorDeUrl));
+
     /// <summary>La acción que pide el estado; <c>null</c> si no pide ninguna.</summary>
     public static AccionDocumentoFicha360? Accion(EstadoDocumento estado) => estado switch
     {
