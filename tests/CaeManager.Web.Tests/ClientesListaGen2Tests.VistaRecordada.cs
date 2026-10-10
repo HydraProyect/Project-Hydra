@@ -81,6 +81,47 @@ public partial class ClientesListaGen2Tests
         UltimaConsulta(mediador).Should().Match<ObtenerClientesQuery>(q => q.SoloCriticos == true && q.EjecutivoUsuarioId == null);
     }
 
+    /// <summary>
+    /// El directorio de Gestores CAE se carga al final del arranque de la página. Si la pieza restaurase en
+    /// un render anterior, la página validaría al Gestor CAE recordado contra un directorio vacío, lo
+    /// descartaría, y la vista sin él acabaría escrita: el Gestor CAE recordado se perdería para siempre.
+    /// Aquí el arranque se detiene antes del directorio (la consulta de filtros guardados no responde) con la
+    /// barra y la pieza ya pintadas.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_directorio_de_Gestores_CAE_aun_sin_cargar_no_se_restaura_y_al_cargar_se_restaura_con_su_Gestor_CAE()
+    {
+        var marta = GestorCae("Marta Ibarra");
+        var recordada = new Dictionary<string, string> { ["critico"] = "true", ["gestor"] = marta.Id.ToString() };
+        var filtrosGuardados = new TaskCompletionSource<object>();
+        var mediador = new MediatorFalso
+        {
+            Retener = p => p switch
+            {
+                ObtenerFiltrosGuardadosQuery => filtrosGuardados.Task,
+                ObtenerVistaRecordadaQuery => Task.FromResult<object>(JsonSerializer.Serialize(recordada)),
+                GuardarVistaRecordadaCommand or OlvidarVistaRecordadaCommand => Task.FromResult<object>(Result.Exito()),
+                _ => null,
+            },
+        };
+        Registrar(mediador, gestores: [marta]);
+        Services.GetRequiredService<NavigationManager>().NavigateTo("clientes");
+
+        var cut = Render<Clientes>();
+
+        cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty("control: la barra, y con ella la pieza, ya están pintadas");
+        mediador.Enviadas.OfType<ObtenerFiltrosGuardadosQuery>().Should().ContainSingle("control: el arranque está detenido antes del directorio");
+        ParametrosDeLaUrl().Should().BeEmpty("sin directorio no hay con qué validar al Gestor CAE: todavía no se restaura");
+        mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().BeEmpty();
+
+        await cut.InvokeAsync(() => filtrosGuardados.SetResult(Array.Empty<FiltroGuardadoDto>()));
+
+        cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(recordada, "con el directorio cargado, el Gestor CAE recordado vale"));
+        mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().ContainSingle("se restaura una vez");
+        cut.WaitForAssertion(() => UltimaConsulta(mediador).Should().Match<ObtenerClientesQuery>(q =>
+            q.SoloCriticos == true && q.EjecutivoUsuarioId == marta.Id));
+    }
+
     [Fact]
     public async Task Restablecer_vista_limpia_la_url_y_olvida_lo_recordado()
     {

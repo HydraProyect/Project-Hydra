@@ -135,6 +135,7 @@ public class VistaRecordadaDeListadoTests : BunitContext
         [Parameter] public ConexionVistaRecordada Conexion { get; set; } = default!;
         [Parameter] public IReadOnlyList<string> Contexto { get; set; } = [];
         [Parameter] public bool PiezaMontada { get; set; } = true;
+        [Parameter] public bool Listo { get; set; } = true;
         [Parameter] public Func<IReadOnlyDictionary<string, string?>, Task> AlAplicar { get; set; } = default!;
 
         protected override void BuildRenderTree(RenderTreeBuilder builder)
@@ -153,6 +154,7 @@ public class VistaRecordadaDeListadoTests : BunitContext
             builder.AddComponentParameter(13, nameof(VistaRecordadaDeListado.ParametrosDeVista), ListaBlanca);
             builder.AddComponentParameter(14, nameof(VistaRecordadaDeListado.ParametrosDeContexto), Contexto);
             builder.AddComponentParameter(17, nameof(VistaRecordadaDeListado.ParametroDeBusqueda), "q");
+            builder.AddComponentParameter(18, nameof(VistaRecordadaDeListado.ListoParaRestaurar), Listo);
             builder.AddComponentParameter(15, nameof(VistaRecordadaDeListado.OnAplicar),
                 EventCallback.Factory.Create<IReadOnlyDictionary<string, string?>>(this, AlAplicar));
             builder.AddComponentParameter(16, nameof(VistaRecordadaDeListado.AlCambiar), EventCallback.Factory.Create(this, StateHasChanged));
@@ -171,13 +173,15 @@ public class VistaRecordadaDeListadoTests : BunitContext
     }
 
     private IRenderedComponent<Listado> Montar(
-        string ruta, IReadOnlyList<string>? contexto = null, Func<IReadOnlyDictionary<string, string?>, Task>? alAplicar = null)
+        string ruta, IReadOnlyList<string>? contexto = null, Func<IReadOnlyDictionary<string, string?>, Task>? alAplicar = null,
+        bool listo = true)
     {
         Navegacion.NavigateTo(ruta);
         _navegaciones = 0;
         return Render<Listado>(p => p
             .Add(l => l.Conexion, _conexion)
             .Add(l => l.Contexto, contexto ?? [])
+            .Add(l => l.Listo, listo)
             .Add(l => l.AlAplicar, alAplicar ?? AplicarComoUnListado));
     }
 
@@ -344,20 +348,141 @@ public class VistaRecordadaDeListadoTests : BunitContext
         Escrituras.Should().BeEmpty();
     }
 
-    [Fact]
-    public async Task Si_la_pagina_descarta_un_valor_recordado_que_ya_no_vale_lo_recordado_se_corrige_una_vez()
-    {
-        _mediador.Recordada = """{"estado":"YaNoExiste","orden":"matricula"}""";
-        var cut = Montar("/vehiculos", alAplicar: vista =>
-        {
-            // Como una página: el estado no pasa su validación de la URL y se queda fuera.
-            Navegacion.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["orden"] = vista["orden"], ["estado"] = null });
-            return Task.CompletedTask;
-        });
+    // ------------------------------------------------------------ restaurar no reduce lo recordado
 
+    /// <summary>Como una página que no puede validar el estado recordado: lo deja fuera y aplica el resto.</summary>
+    private Task AplicarSinElEstado(IReadOnlyDictionary<string, string?> vista)
+    {
+        _aplicadas.Add(vista);
+        Navegacion.ActualizarFiltrosEnUrl(vista.ToDictionary(p => p.Key, p => p.Key == "estado" ? null : p.Value));
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// La página descarta un valor recordado (ya no existe, o lo validó antes de tiempo, con su directorio sin
+    /// cargar). La vista que queda es la línea base de la visita: escribirla sería perder ese valor para siempre.
+    /// </summary>
+    [Fact]
+    public async Task Si_la_pagina_descarta_un_valor_recordado_la_vista_reducida_no_se_escribe()
+    {
+        _mediador.Recordada = """{"estado":"Vencido","orden":"matricula"}""";
+        var cut = Montar("/vehiculos", alAplicar: AplicarSinElEstado);
+        Consulta.Should().Be("?orden=matricula", "control: la página aplicó la vista sin el estado");
+
+        await VencerElReboteAsync(cut);
+        // Ni un parámetro que no es de vista, ni la búsqueda, convierten esa línea base en un cambio.
+        Navegacion.NavigateTo("/vehiculos?orden=matricula&accion=crear");
+        Navegacion.NavigateTo("/vehiculos?orden=matricula&q=grua");
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().BeEmpty("restaurar nunca reduce lo recordado");
+    }
+
+    [Fact]
+    public async Task Si_la_pagina_descarta_todo_lo_recordado_tampoco_se_olvida()
+    {
+        _mediador.Recordada = """{"estado":"Vencido"}""";
+        var cut = Montar("/vehiculos", alAplicar: AplicarSinElEstado);
+        Consulta.Should().BeEmpty("control: la página no aplicó nada");
+
+        await VencerElReboteAsync(cut);
+        Escrituras.Should().BeEmpty();
+
+        // La página no navegó, así que el primer cambio de dirección es ya del usuario: se escribe.
+        Navegacion.NavigateTo("/vehiculos?estado=Vigente");
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().ContainSingle().Which.Should().BeEquivalentTo(new GuardarVistaRecordadaCommand("Vehiculos", """{"estado":"Vigente"}"""));
+    }
+
+    /// <summary>Tras esa línea base, lo que el usuario cambie sí se escribe: es la vista que él dejó.</summary>
+    [Theory]
+    [InlineData("/vehiculos?orden=matricula&agrupar=no", """{"agrupar":"no","orden":"matricula"}""")]
+    [InlineData("/vehiculos?orden=matricula-desc", """{"orden":"matricula-desc"}""")]
+    [InlineData("/vehiculos?orden=matricula&estado=Vigente", """{"estado":"Vigente","orden":"matricula"}""")]
+    public async Task Tras_una_restauracion_reducida_un_cambio_del_usuario_si_se_escribe(string ruta, string guardado)
+    {
+        _mediador.Recordada = """{"estado":"Vencido","orden":"matricula"}""";
+        var cut = Montar("/vehiculos", alAplicar: AplicarSinElEstado);
+
+        Navegacion.NavigateTo(ruta);
+        await VencerElReboteAsync(cut);
+
+        Escrituras.Should().ContainSingle().Which.Should().BeEquivalentTo(new GuardarVistaRecordadaCommand("Vehiculos", guardado));
+    }
+
+    /// <summary>Que el usuario quite después un filtro restaurado no es la página descartándolo: se escribe.</summary>
+    [Fact]
+    public async Task Tras_restaurar_entera_la_vista_quitar_un_filtro_si_se_escribe()
+    {
+        _mediador.Recordada = """{"estado":"Vencido","orden":"matricula"}""";
+        var cut = Montar("/vehiculos");
+        Consulta.Should().Be("?estado=Vencido&orden=matricula", "control: la vista se restauró entera");
+
+        Navegacion.NavigateTo("/vehiculos?orden=matricula");
         await VencerElReboteAsync(cut);
 
         Escrituras.Should().ContainSingle().Which.Should().BeEquivalentTo(new GuardarVistaRecordadaCommand("Vehiculos", """{"orden":"matricula"}"""));
+    }
+
+    // ------------------------------------------------------------ no restaura antes de que la página pueda validar
+
+    [Fact]
+    public async Task No_restaura_hasta_que_la_pagina_puede_validar_y_entonces_restaura_una_vez()
+    {
+        _mediador.Recordada = """{"estado":"Vencido"}""";
+        var cut = Montar("/vehiculos", listo: false);
+        cut.Render();
+
+        _aplicadas.Should().BeEmpty("la página aún no puede validar lo recordado");
+        _mediador.Enviadas.Should().BeEmpty("ni siquiera se lee");
+
+        cut.Render(p => p.Add(l => l.Listo, true));
+
+        _aplicadas.Should().ContainSingle();
+        Consulta.Should().Be("?estado=Vencido");
+
+        cut.Render();
+        cut.Render(p => p.Add(l => l.Listo, false));
+        cut.Render(p => p.Add(l => l.Listo, true));
+        await VencerElReboteAsync(cut);
+
+        _aplicadas.Should().ContainSingle("se restaura una vez por visita, no una por render");
+        _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().ContainSingle();
+        Escrituras.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_el_usuario_cambia_la_vista_antes_de_que_la_pagina_pueda_validar_no_se_le_pisa()
+    {
+        _mediador.Recordada = """{"estado":"Vencido"}""";
+        var cut = Montar("/vehiculos", listo: false);
+
+        // Filtra y lo quita antes de que la página esté lista: la URL vuelve a estar sin parámetros, pero ya actuó.
+        Navegacion.NavigateTo("/vehiculos?estado=Vigente");
+        Navegacion.NavigateTo("/vehiculos");
+        cut.Render(p => p.Add(l => l.Listo, true));
+        await cut.InvokeAsync(() => { });
+
+        _aplicadas.Should().BeEmpty("el usuario ya actuó");
+        Consulta.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Una_pieza_que_se_remonta_antes_de_que_la_pagina_pueda_validar_restaura_cuando_puede()
+    {
+        _mediador.Recordada = """{"estado":"Vencido"}""";
+        var cut = Montar("/vehiculos", listo: false);
+
+        cut.Render(p => p.Add(l => l.PiezaMontada, false));
+        cut.Render(p => p.Add(l => l.PiezaMontada, true));
+        _aplicadas.Should().BeEmpty();
+
+        cut.Render(p => p.Add(l => l.Listo, true));
+        await cut.InvokeAsync(() => { });
+
+        _aplicadas.Should().ContainSingle("no haber podido restaurar aún no cuenta como intento de la visita");
+        Consulta.Should().Be("?estado=Vencido");
     }
 
     [Fact]

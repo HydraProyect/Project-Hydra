@@ -32,8 +32,9 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// </para>
 ///
 /// <para>
-/// RESTAURAR: una vez, al montarse con circuito (nunca en el prerender: allí una navegación es una
-/// redirección) y solo si la URL llega SIN cadena de consulta. Con cualquier parámetro manda la
+/// RESTAURAR: una vez por visita, con circuito (nunca en el prerender: allí una navegación es una
+/// redirección), cuando la página puede validar lo recordado (<see cref="ListoParaRestaurar"/>) y solo
+/// si la URL llega SIN cadena de consulta. Con cualquier parámetro manda la
 /// URL: un enlace compartido se ve como se compartió. La vista recordada se entrega a la página por
 /// <see cref="OnAplicar"/>, el mismo camino que un filtro guardado: la página valida cada valor
 /// como valida la URL (lo recordado no es autoridad), escribe la URL en UNA navegación y recarga.
@@ -41,6 +42,14 @@ namespace CaeManager.Web.Components.DesignSystem;
 /// vista recordada, la pide otra vez con ella (dos consultas, medido en rejilla y en acordeón y
 /// fijado en <c>VistaRecordadaEnListadosTests</c>). A cambio, una lectura lenta o fallida nunca
 /// deja la lista sin cargar.
+/// </para>
+///
+/// <para>
+/// RESTAURAR NUNCA REDUCE LO RECORDADO: si la página descarta un valor recordado (un Gestor CAE que su
+/// directorio ya no ofrece, un estado que ya no existe), la vista que queda aplicada es la línea base
+/// de la visita y no se escribe. Solo un cambio posterior del usuario escribe. Sin esto, una validación
+/// hecha antes de tiempo —con el directorio aún sin cargar— borraría para siempre un valor que seguía
+/// siendo bueno.
 /// </para>
 ///
 /// <para>
@@ -122,6 +131,14 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     /// <summary>«Difiere de la de inicio» cambió: la página se repinta para que la barra lo vea.</summary>
     [Parameter, EditorRequired] public EventCallback AlCambiar { get; set; }
 
+    /// <summary>
+    /// La página ya puede validar una vista recordada: tiene cargado aquello contra lo que comprueba sus
+    /// valores (el directorio de Gestores CAE visibles en Clientes). Mientras sea <c>false</c> no se
+    /// restaura; se restaura en el primer render en que sea <c>true</c>. Una página que valida sin
+    /// cargar nada, o que no monta la pieza hasta haberlo cargado, no lo pasa.
+    /// </summary>
+    [Parameter] public bool ListoParaRestaurar { get; set; } = true;
+
     private string _ruta = string.Empty;
     private bool _escuchando;
     private bool _desechado;
@@ -135,11 +152,17 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     /// <summary>La vista que se da por recordada: con ella se compara cada cambio de dirección.</summary>
     private string _recordada = SinVista;
 
+    /// <summary>
+    /// La vista recordada que se acaba de entregar a la página, hasta el primer cambio de dirección: si
+    /// ese cambio es lo recordado con valores de menos, es la página aplicándola, no el usuario.
+    /// </summary>
+    private Dictionary<string, string>? _restaurada;
+
     /// <summary>La vista que espera al rebote para escribirse, o <c>null</c>.</summary>
     private string? _pendiente;
     private CancellationTokenSource? _temporizador;
 
-    /// <summary>Hubo un cambio de dirección mientras se leía la vista recordada: el usuario ya actuó y no se le pisa.</summary>
+    /// <summary>Hubo un cambio de dirección antes de restaurar (la página no estaba lista, o se leía lo recordado): el usuario ya actuó y no se le pisa.</summary>
     private bool _huboCambios;
 
     /// <summary>
@@ -165,28 +188,34 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
     {
         // Solo con circuito: el prerender no pasa por aquí, así que ni restaura (sería una
         // redirección) ni se queda escuchando la dirección de una petición que ya terminó.
-        if (!firstRender || _desechado)
+        if (_desechado)
             return;
 
-        _recordada = Serializar(VistaDeLaUrl());
-        Navegacion.LocationChanged += AlCambiarDireccion;
-        _escuchando = true;
-
-        // Una pieza anterior de esta misma visita se retiró con un cambio sin escribir: se retoma.
-        if (Conexion.PendienteHeredado is { } heredado)
+        if (firstRender)
         {
-            Conexion.PendienteHeredado = null;
-            Programar(heredado);
+            Navegacion.LocationChanged += AlCambiarDireccion;
+            _escuchando = true;
+
+            _recordada = Serializar(VistaDeLaUrl());
+
+            // Una pieza anterior de esta misma visita se retiró con un cambio sin escribir: se retoma.
+            if (Conexion.PendienteHeredado is { } heredado)
+            {
+                Conexion.PendienteHeredado = null;
+                Programar(heredado);
+            }
         }
 
-        // Una vez por visita a la página, no una por montaje de la pieza.
-        if (Conexion.RestauracionIntentada)
+        // Una vez por visita a la página, no una por montaje de la pieza; y no antes de que la página
+        // pueda validar lo recordado: este método vuelve a pasar en el render en que ya puede.
+        if (Conexion.RestauracionIntentada || !ListoParaRestaurar)
             return;
 
         Conexion.RestauracionIntentada = true;
 
         // La URL manda: con cualquier parámetro no se restaura nada ni hace falta leer lo recordado.
-        if (TieneConsulta(Navegacion.Uri))
+        // Tampoco si el usuario ya cambió la vista mientras la página se preparaba.
+        if (_huboCambios || TieneConsulta(Navegacion.Uri))
             return;
 
         string? valoresJson;
@@ -220,9 +249,10 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
             return;
 
         // Restaurar no es un cambio del usuario: lo que la navegación de la página traiga de vuelta
-        // coincide con lo recordado y no se escribe. Si la página descartó un valor que ya no vale,
-        // la diferencia sí se escribe, una vez, y lo recordado queda corregido.
+        // coincide con lo recordado, o es lo recordado sin los valores que la página descartó, y en
+        // ninguno de los dos casos se escribe (ver AlCambiarDireccion).
         _recordada = Serializar(recordada);
+        _restaurada = recordada;
         try
         {
             await OnAplicar.InvokeAsync(VistaDeListado.Completa(ParametrosDeVista, recordada));
@@ -287,6 +317,21 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
         // Sin la búsqueda libre: un cambio que solo la toque deja la vista recordable como estaba.
         var serializada = Serializar(vista);
+
+        // El primer cambio de dirección tras restaurar. Si es lo recordado con valores de menos, es la
+        // página, que descartó lo que no pudo validar: esa vista es la línea base y no se escribe.
+        if (_restaurada is { } restaurada)
+        {
+            _restaurada = null;
+            if (EsReduccionDe(vista, restaurada))
+            {
+                CancelarTemporizador();
+                _pendiente = null;
+                _recordada = serializada;
+                return;
+            }
+        }
+
         if (serializada == _recordada)
         {
             // Volvió a lo ya recordado antes de que venciera el rebote: no hay nada que escribir.
@@ -411,6 +456,13 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
     private Dictionary<string, string> VistaDeLaUrl() =>
         VistaDeListado.DeLaUrl(Navegacion.ToAbsoluteUri(Navegacion.Uri), ParametrosDeVista);
+
+    /// <summary>
+    /// Esa vista no trae nada que lo restaurado no trajera, ni con otro valor: es lo restaurado, entero
+    /// o con valores de menos. La búsqueda libre no cuenta.
+    /// </summary>
+    private bool EsReduccionDe(IReadOnlyDictionary<string, string> vista, Dictionary<string, string> restaurada) =>
+        ParametrosRecordados.All(p => !vista.TryGetValue(p, out var valor) || restaurada.GetValueOrDefault(p) == valor);
 
     /// <summary>La lista blanca sin la búsqueda libre: lo único que se escribe, se compara y se restaura.</summary>
     private IReadOnlyList<string> ParametrosRecordados =>

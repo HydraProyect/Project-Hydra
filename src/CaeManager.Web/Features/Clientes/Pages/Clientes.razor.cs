@@ -164,6 +164,13 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// <summary>Cifra de «Todos» en la franja: aquí los recuentos por estado se solapan y no suman el total.</summary>
     private int? _totalSinFiltroDeEstado;
     private IReadOnlyList<GestorCaeSelectorDto> _ejecutivosParaFiltro = [];
+
+    /// <summary>
+    /// El directorio de arriba ya está cargado. Hasta entonces <see cref="GestorVisible"/> descarta a
+    /// cualquier Gestor CAE, así que la vista recordada no se restaura antes
+    /// (<c>ListoParaRestaurar</c> de <see cref="VistaRecordadaDeListado"/>): se perdería el suyo.
+    /// </summary>
+    private bool _directorioDeGestoresCargado;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -457,6 +464,7 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
             .Select(u => new GestorCaeSelectorDto(u.Id, u.NombreCompleto, u.Email ?? string.Empty, u.Avatar))
             .OrderBy(g => g.NombreCompleto)
             .ToList();
+        _directorioDeGestoresCargado = true;
     }
 
     /// <summary>

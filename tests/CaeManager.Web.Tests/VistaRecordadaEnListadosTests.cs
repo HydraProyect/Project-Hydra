@@ -113,6 +113,9 @@ public class VistaRecordadaEnListadosTests : BunitContext
         /// <summary>Con ella, la lectura de la vista recordada falla.</summary>
         public Exception? FalloDeLectura { get; set; }
 
+        /// <summary>Con ella, la lista de Clientes empresariales del selector no responde hasta que se complete.</summary>
+        public TaskCompletionSource? ClientesRetenidos { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
@@ -123,6 +126,9 @@ public class VistaRecordadaEnListadosTests : BunitContext
                 if (FalloDeLectura is { } fallo)
                     return Task.FromException<TResponse>(fallo);
             }
+
+            if (request is ObtenerClientesParaSelectorQuery && ClientesRetenidos is { } clientes)
+                return ResponderTrasAsync<TResponse>(clientes.Task, request, cancellationToken);
 
             return Task.FromResult((TResponse)Responder(request)!);
         }
@@ -441,6 +447,33 @@ public class VistaRecordadaEnListadosTests : BunitContext
         LaUrlQuedaCon(cut, PantallasConVistaRecordada.Proyectos, recordada);
         Ultima<ObtenerProyectosQuery>().ClienteId.Should().Be(ClienteA, "la lista que se pide es la del Cliente empresarial recordado");
         cut.FindAll(".chip-filtro").Should().BeEmpty("la búsqueda no se recuerda: no hay chip de búsqueda que enseñar");
+    }
+
+    /// <summary>
+    /// Guarda: Proyectos valida el Cliente empresarial recordado contra la lista de su selector, y si la pieza
+    /// restaurase antes de que llegara lo descartaría. Hoy no puede: la pieza vive bajo la rama que solo se
+    /// pinta con la carga terminada (<c>_cargando</c> nace en <c>true</c>), así que no se monta —ni lee lo
+    /// recordado— hasta entonces. Si alguien la saca de esa rama, esto se pone en rojo.
+    /// </summary>
+    [Fact]
+    public async Task Proyectos_con_los_Clientes_empresariales_aun_sin_cargar_no_restaura_y_al_cargar_restaura_el_suyo()
+    {
+        _mediador.VistasRecordadas[PantallasConVistaRecordada.Proyectos] = Json(("cliente", ClienteA.ToString()), ("estado", "abiertos"));
+        _mediador.ClientesRetenidos = new TaskCompletionSource();
+
+        var cut = Renderizar<Proyectos>("proyectos");
+        cut.Render();
+
+        _mediador.Enviadas.OfType<ObtenerClientesParaSelectorQuery>().Should().ContainSingle("control: la carga está en vuelo");
+        ParametrosDeLaUrl().Should().BeEmpty("sin la lista de Clientes empresariales no hay con qué validar el recordado");
+        _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().BeEmpty("la pieza no se monta hasta que la carga termina");
+
+        await cut.InvokeAsync(() => _mediador.ClientesRetenidos.SetResult());
+
+        cut.WaitForAssertion(() => ParametrosDeLaUrl().Should().BeEquivalentTo(
+            new Dictionary<string, string> { ["cliente"] = ClienteA.ToString(), ["estado"] = "abiertos" }));
+        _mediador.Enviadas.OfType<ObtenerVistaRecordadaQuery>().Should().ContainSingle();
+        Ultima<ObtenerProyectosQuery>().ClienteId.Should().Be(ClienteA);
     }
 
     /// <summary>
