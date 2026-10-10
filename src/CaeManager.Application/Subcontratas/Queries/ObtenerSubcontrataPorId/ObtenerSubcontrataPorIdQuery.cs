@@ -10,7 +10,7 @@ public record ObtenerSubcontrataPorIdQuery(Guid Id) : IRequest<SubcontrataDetall
 
 /// <param name="Notas">
 /// La «Nota interna» de la ficha 360 (<c>Empresa.Notas</c>). Solo viaja para el equipo del Tenant propietario
-/// (<see cref="ObtenerSubcontrataPorIdQueryHandler.RolesQueVenLaNotaInterna"/>); para cualquier otro rol es <c>null</c>.
+/// (<see cref="PoliticaNotaInterna.RolesQueVenLaNotaInterna"/>); para cualquier otro rol es <c>null</c>.
 /// </param>
 /// <param name="NotaInternaVisible">
 /// Si quien pregunta es del equipo y por tanto la ficha debe pintar la tarjeta «Nota interna» (aunque esté vacía).
@@ -35,24 +35,16 @@ public record SubcontrataDetalleDto(
 ///
 /// <para>
 /// <b>Nota interna: el corte es de aquí, no de la página.</b> La subcontrata la lee también el rol Cliente (usuario
-/// de un Cliente, que la tiene en su cartera de lectura), y la nota es del equipo del Tenant propietario. El handler
-/// solo la entrega a los roles de <see cref="RolesQueVenLaNotaInterna"/>; a cualquier otro —Cliente, sin rol, uno
-/// futuro— le responde <c>Notas = null</c> y <c>NotaInternaVisible = false</c>. Lista blanca: un rol nuevo no la ve
-/// hasta que alguien lo añada.
+/// de un Cliente, que la tiene en su cartera de lectura), y la nota es del equipo del Tenant propietario. La decisión
+/// es <see cref="IPoliticaNotaInterna"/>, la misma para todas las fichas 360: al equipo y a una Sesión Privilegiada con
+/// acceso total al Tenant le llega la nota; a cualquier otro —Cliente, sin rol, uno futuro— le responde
+/// <c>Notas = null</c> y <c>NotaInternaVisible = false</c>.
 /// </para>
 /// </summary>
 public class ObtenerSubcontrataPorIdQueryHandler(
-    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUserService)
+    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerSubcontrataPorIdQuery, SubcontrataDetalleDto?>
 {
-    // Mismos literales que AutorizacionEscrituraBehavior, mismo motivo: Application no puede referenciar
-    // Infrastructure.Identity.Roles. Es «el equipo»: los roles con escritura más Consulta, que la lee sin editarla.
-    // Todo rol que puede guardar una nota interna (GuardarNotaInternaSubcontrataCommand, GuardarNotaInternaVehiculoCommand)
-    // tiene que estar aquí: quien la edita sin haberla visto la sobrescribe a ciegas. La lista la usa también
-    // ObtenerVehiculoPorIdQueryHandler: cambiarla cambia quién ve la nota en las dos fichas.
-    public static readonly IReadOnlyList<string> RolesQueVenLaNotaInterna =
-        ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae", "Consulta"];
-
     public async Task<SubcontrataDetalleDto?> Handle(ObtenerSubcontrataPorIdQuery request, CancellationToken cancellationToken)
     {
         if (!await alcanceDatos.SubcontrataVisibleAsync(request.Id, cancellationToken)) return null;
@@ -75,12 +67,11 @@ public class ObtenerSubcontrataPorIdQueryHandler(
             .Join(empresasContext.Empresas.Where(e => e.EsPropia), r => r.ClienteId, e => e.Id, (r, e) => e.Id)
             .ToListAsync(cancellationToken);
 
-        var rol = await currentUserService.ObtenerRolEfectivoAsync();
-        var esDelEquipo = rol is not null && RolesQueVenLaNotaInterna.Contains(rol);
+        var veLaNota = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
 
         return new SubcontrataDetalleDto(
             subcontrata.Id, subcontrata.RazonSocial, subcontrata.Cif, subcontrata.CreadoEnUtc, clienteIds, empresaIds,
             subcontrata.Version, Enum.Parse<NivelServicioSubcontrata>(subcontrata.NivelServicio),
-            Notas: esDelEquipo ? subcontrata.Notas : null, NotaInternaVisible: esDelEquipo);
+            Notas: veLaNota ? subcontrata.Notas : null, NotaInternaVisible: veLaNota);
     }
 }

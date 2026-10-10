@@ -336,7 +336,7 @@ public class F42bRelacionEmpresarialDiscriminadorTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerSubcontrataPorIdQueryHandler(
-            lectura, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"));
+            lectura, new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con("Administrador"));
         var resultado = await handler.Handle(new ObtenerSubcontrataPorIdQuery(subcontrataId), CancellationToken.None);
 
         resultado.Should().NotBeNull();
@@ -377,7 +377,7 @@ public class F42bRelacionEmpresarialDiscriminadorTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var handler = new ObtenerSubcontrataPorIdQueryHandler(
-            lectura, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(Guid.NewGuid(), "Administrador"));
+            lectura, new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con("Administrador"));
         var resultado = await handler.Handle(new ObtenerSubcontrataPorIdQuery(subcontrataId), CancellationToken.None);
 
         resultado.Should().NotBeNull();

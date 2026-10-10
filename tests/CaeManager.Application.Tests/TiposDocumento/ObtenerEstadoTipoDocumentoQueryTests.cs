@@ -1,3 +1,5 @@
+using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Tests.Clientes;
@@ -80,10 +82,30 @@ public class ObtenerEstadoTipoDocumentoQueryTests
             new(centro.Id, ClienteEmpresarial.Id, Empresa.Id, trabajador.Id, (tipo ?? Epi).Id, estado);
 
         public ObtenerEstadoTipoDocumentoQueryHandler Handler(
-            CalculoFalso calculo, string? rol = "GestorCae", IReadOnlyList<Guid>? centroIdsVisibles = null) =>
+            CalculoFalso calculo, string? rol = "GestorCae", IReadOnlyList<Guid>? centroIdsVisibles = null,
+            SesionPrivilegiadaActiva? sesion = null) =>
             new(Tipos, Centros, Trabajadores, Empresas, Documentos, calculo,
                 new AlcanceDatosServiceFalso(tieneAccesoTotal: centroIdsVisibles is null, centroIdsVisibles: centroIdsVisibles),
-                new CurrentUserServiceFalso(rol: rol));
+                new CurrentUserServiceFalso(rol: rol),
+                PoliticaNotaInternaPruebas.Con(rol, sesion));
+    }
+
+    /// <summary>
+    /// Soporte TALVEG con Sesión Privilegiada de acceso total abre la página sin rol de negocio, con la misma nota que
+    /// el equipo. Sin la sesión, el mismo usuario no ve nada (caso de abajo).
+    /// </summary>
+    [Fact]
+    public async Task Soporte_con_sesion_de_acceso_total_abre_la_pagina_y_ve_la_nota_sin_rol()
+    {
+        var escenario = new Escenario();
+        var centro = escenario.Centro("Almacén Vigo");
+        var calculo = new CalculoFalso(escenario.Par(centro, escenario.Trabajador("Pedro", "Gil Mora"), EstadoDocumento.Vencido));
+        var sesion = PoliticaNotaInternaPruebas.Sesion(CaeManager.Domain.Plataforma.CapacidadPrivilegio.SoporteLectura);
+
+        var dto = await escenario.Handler(calculo, rol: null, sesion: sesion)
+            .Handle(new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id), CancellationToken.None);
+
+        dto.Should().NotBeNull();
     }
 
     [Theory]

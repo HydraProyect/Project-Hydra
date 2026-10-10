@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas.Commands.GuardarNotaInternaSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontrataPorId;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
@@ -32,7 +33,7 @@ public class ObtenerSubcontrataPorIdNotaInternaTests
             ? new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrata.Id], subcontrataIdsParaGestion: [])
             : new AlcanceDatosServiceFalso();
 
-        return (new ObtenerSubcontrataPorIdQueryHandler(empresas, alcance, new CurrentUserServiceFalso(Guid.NewGuid(), rol)), subcontrata);
+        return (new ObtenerSubcontrataPorIdQueryHandler(empresas, alcance, PoliticaNotaInternaPruebas.Con(rol)), subcontrata);
     }
 
     [Theory]
@@ -93,7 +94,7 @@ public class ObtenerSubcontrataPorIdNotaInternaTests
     [Fact]
     public void Todo_rol_con_escritura_esta_entre_los_que_ven_la_nota_y_el_usuario_de_Cliente_no()
     {
-        ObtenerSubcontrataPorIdQueryHandler.RolesQueVenLaNotaInterna
+        PoliticaNotaInterna.RolesQueVenLaNotaInterna
             .Should().Contain(AutorizacionEscrituraBehavior<GuardarNotaInternaSubcontrataCommand, Result>.RolesConEscritura)
             .And.NotContain("Cliente");
 

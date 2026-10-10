@@ -104,7 +104,8 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
     IDocumentosQueryContext documentosContext,
     ICalculoEstadoCentroService calculoEstadoCentro,
     IAlcanceDatosService alcanceDatos,
-    ICurrentUserService currentUserService)
+    ICurrentUserService currentUserService,
+    IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerEstadoTipoDocumentoQuery, EstadoTipoDocumentoDto?>
 {
     // Mismos literales que AutorizacionEscrituraBehavior, mismo motivo: Application no puede referenciar
@@ -117,7 +118,9 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
     public async Task<EstadoTipoDocumentoDto?> Handle(ObtenerEstadoTipoDocumentoQuery request, CancellationToken cancellationToken)
     {
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
-        if (rol is null || !RolesQueVenLaPagina.Contains(rol))
+        var delEquipo = rol is not null && RolesQueVenLaPagina.Contains(rol);
+        // Sin rol de negocio, la Sesión Privilegiada con acceso total al Tenant abre la ficha como lo haría el equipo.
+        if (!delEquipo && !await politicaNotaInterna.TieneAccesoTotalAlTenantAsync(cancellationToken))
             return null;
 
         var tipo = await tiposDocumentoContext.TiposDocumento
@@ -171,7 +174,7 @@ public class ObtenerEstadoTipoDocumentoQueryHandler(
             TotalFiltradas: filtradas.Count,
             Pagina: pagina,
             TamanoPagina: tamano,
-            Notas: tipo.Notas);
+            Notas: await politicaNotaInterna.PuedeLeerAsync(cancellationToken) ? tipo.Notas : null);
     }
 
     private async Task<IReadOnlyList<ParDeTipoDocumento>> CargarParesAsync(Guid tipoDocumentoId, CancellationToken cancellationToken)

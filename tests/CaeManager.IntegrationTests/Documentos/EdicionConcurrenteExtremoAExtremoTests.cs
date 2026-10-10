@@ -58,7 +58,7 @@ public class EdicionConcurrenteExtremoAExtremoTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var detalle = await new ObtenerClientePorIdQueryHandler(contexto, new AlcanceDatosServiceFalso())
+            var detalle = await new ObtenerClientePorIdQueryHandler(contexto, new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con("GestorCae"))
                 .Handle(new ObtenerClientePorIdQuery(_clienteId), CancellationToken.None);
             versionQueVeA = detalle!.Version;
             versionQueVeB = detalle.Version;
@@ -100,7 +100,7 @@ public class EdicionConcurrenteExtremoAExtremoTests : IAsyncLifetime
         // El conflicto tiene que ser recuperable: reabrir y volver a aplicar.
         await using (var contexto = CrearContexto())
         {
-            var detalle = await new ObtenerClientePorIdQueryHandler(contexto, new AlcanceDatosServiceFalso())
+            var detalle = await new ObtenerClientePorIdQueryHandler(contexto, new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con("GestorCae"))
                 .Handle(new ObtenerClientePorIdQuery(_clienteId), CancellationToken.None);
 
             await new EditarClienteCommandHandler(new EmpresaRepository(contexto), new AlcanceDatosServiceFalso(), contexto)
@@ -111,7 +111,7 @@ public class EdicionConcurrenteExtremoAExtremoTests : IAsyncLifetime
 
         await using (var contexto = CrearContexto())
         {
-            var detalleRecargado = await new ObtenerClientePorIdQueryHandler(contexto, new AlcanceDatosServiceFalso())
+            var detalleRecargado = await new ObtenerClientePorIdQueryHandler(contexto, new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con("GestorCae"))
                 .Handle(new ObtenerClientePorIdQuery(_clienteId), CancellationToken.None);
 
             var resultado = await new EditarClienteCommandHandler(new EmpresaRepository(contexto), new AlcanceDatosServiceFalso(), contexto)

@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Domain.Empresas;
@@ -27,7 +28,7 @@ public class ObtenerClientePorIdNotaInternaTests
         var portal = new AlcanceDatosServiceFalso(
             tieneAccesoTotal: false, clienteIdsVisibles: [_cliente.Id], ladoDeGestion: false);
 
-        var detalle = await HandleAsync(portal);
+        var detalle = await HandleAsync(portal, "Cliente");
 
         detalle.Should().NotBeNull("su propio Cliente empresarial está en su alcance de lectura");
         detalle!.RazonSocial.Should().Be("Cliente Repro S.L.");
@@ -50,7 +51,7 @@ public class ObtenerClientePorIdNotaInternaTests
         (await HandleAsync(sinCartera)).Should().BeNull();
     }
 
-    private Task<ClienteDetalleDto?> HandleAsync(AlcanceDatosServiceFalso alcance) =>
-        new ObtenerClientePorIdQueryHandler(_empresas, alcance)
+    private Task<ClienteDetalleDto?> HandleAsync(AlcanceDatosServiceFalso alcance, string rol = "GestorCae") =>
+        new ObtenerClientePorIdQueryHandler(_empresas, alcance, PoliticaNotaInternaPruebas.Con(rol))
             .Handle(new ObtenerClientePorIdQuery(_cliente.Id), CancellationToken.None);
 }
