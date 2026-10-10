@@ -70,10 +70,11 @@ public class ColeccionesDeE2ECongeladasTests
     ];
 
     /// <summary>
-    /// Clases de test sin <c>[Collection]</c>: xUnit les da una colección implícita propia. Solo baja: una clase de test
-    /// nueva lleva su <c>[Collection("…")]</c>; no se añade aquí. Las cuatro abren un Chromium por clase
-    /// (<c>IClassFixture</c>) y no arrancan la aplicación, así que no cuestan un arranque; lo que les falta es un nombre que
-    /// un reparto por colección pueda leer.
+    /// Clases de test sin <c>[Collection]</c>: xUnit les da una colección implícita propia. Una clase de test que usa
+    /// la aplicación lleva su <c>[Collection("…")]</c> y no se añade aquí; solo entra una clase que NO arranca la
+    /// aplicación, con el motivo escrito al lado. Ninguna cuesta un arranque: cuatro abren un Chromium por clase
+    /// (<c>IClassFixture</c>) y <c>SondeoDeArranqueTests</c> ni eso; lo que les falta es un nombre que un reparto por
+    /// colección pueda leer.
     /// </summary>
     private static readonly string[] ClasesSinColeccionCongeladas =
     [
@@ -81,6 +82,7 @@ public class ColeccionesDeE2ECongeladasTests
         "ComparadorFidelidad360Tests", // el comparador de fidelidad contra dos páginas sintéticas, sin aplicación
         "KeyTipsSuperficieTests",      // keytips.js de producción en Chromium, sin Blazor ni base de datos
         "PortapapelesTests",           // JS real en Chromium con dobles de permisos, sin Blazor ni base de datos
+        "SondeoDeArranqueTests",       // el sondeo de arranque de WebAppFixture con dobles: ni aplicación ni navegador, y no puede depender de la fixture que prueba
     ];
 
     private const string GuiaDeDefiniciones =
@@ -97,7 +99,8 @@ public class ColeccionesDeE2ECongeladasTests
         "[CollectionDefinition] existente. En una clase partial va en UNA sola de sus partes y vale para todas (puede estar " +
         "en otro fichero que el de los tests: el mensaje enumera las partes). Un reparto del job E2E en bloques que lee ese literal no ve ninguna otra forma: la " +
         "clase no entra en ningún bloque y sus tests dejan de ejecutarse sin ningún rojo. OBSOLETA: borra la clase de " +
-        "ClasesSinColeccionCongeladas (ColeccionesDeE2ECongeladasTests); esa lista solo baja.";
+        "ClasesSinColeccionCongeladas (ColeccionesDeE2ECongeladasTests). En esa lista solo entra una clase que no arranca " +
+        "la aplicación, con su motivo escrito al lado; una clase que la usa lleva su [Collection].";
 
     [Fact]
     public void Las_colecciones_definidas_en_E2E_son_exactamente_las_congeladas()

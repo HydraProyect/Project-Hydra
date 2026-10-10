@@ -366,40 +366,33 @@ public class WebAppFixture : IAsyncLifetime
     /// la señal real de que las migraciones y la siembra de datos de prueba
     /// (varios cientos de filas) ya terminaron, no solo que el proceso existe.
     ///
-    /// Presupuesto de 120s: tres sesiones midieron el arranque en frío por
-    /// separado el 2026-08-28 y rondaba los 63s contra un presupuesto de 60s
-    /// — producía fallos rojos con traza en InitializeAsync que no eran del
-    /// código bajo prueba (en caliente los mismos tests pasan en 3-4s). El
-    /// margen no penaliza el camino feliz: el sondeo devuelve en cuanto /salud
-    /// responde 200, así que un techo más alto solo importa cuando el arranque
-    /// ya iba lento.
+    /// Plazo total de 240s, con 5s por petición y 250ms entre intentos. El
+    /// plazo se subió dos veces: de 60s a 120s en #336, porque tres sesiones
+    /// midieron el arranque en frío por separado el 2026-08-28 y rondaba los
+    /// 63s — producía fallos rojos con traza en InitializeAsync que no eran
+    /// del código bajo prueba (en caliente los mismos tests pasan en 3-4s) —,
+    /// y de 120s a 240s en #998 (2026-09-29), cuyo mensaje de commit no dice
+    /// el motivo. El margen no penaliza el camino feliz: el sondeo devuelve en
+    /// cuanto /salud responde 200, así que un techo más alto solo importa
+    /// cuando el arranque ya iba lento.
+    ///
+    /// El bucle vive en <see cref="SondeoDeArranque"/> para poder probarlo
+    /// sin proceso ni red; ahí está también qué respuestas se reintentan (la
+    /// petición que agota sus 5s, entre ellas). La pausa se escribe aquí y
+    /// viaja como delegado.
     /// </summary>
     private async Task EsperarArranqueAsync()
     {
         using var cliente = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-        var limite = DateTime.UtcNow.AddSeconds(240);
+        var url = $"{BaseUrl}/salud";
 
-        while (DateTime.UtcNow < limite)
-        {
-            if (_proceso is { HasExited: true })
-                throw new InvalidOperationException(
-                    $"El proceso de CaeManager.Web terminó inesperadamente (código {_proceso.ExitCode}) mientras esperábamos que arrancara.");
-
-            try
-            {
-                var respuesta = await cliente.GetAsync($"{BaseUrl}/salud");
-                if (respuesta.IsSuccessStatusCode)
-                    return;
-            }
-            catch (HttpRequestException)
-            {
-                // Todavía no acepta conexiones — se reintenta.
-            }
-
-            await Task.Delay(250);
-        }
-
-        throw new TimeoutException($"CaeManager.Web no respondió 200 en {BaseUrl}/salud dentro del tiempo de espera.");
+        await SondeoDeArranque.EsperarAsync(
+            pedirSalud: () => cliente.GetAsync(url),
+            codigoDeSalidaSiElProcesoTermino: () => _proceso is { HasExited: true } ? _proceso.ExitCode : null,
+            plazo: TimeSpan.FromSeconds(240),
+            ahora: () => DateTime.UtcNow,
+            pausa: () => Task.Delay(250),
+            url: url);
     }
 }
 
