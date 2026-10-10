@@ -15,9 +15,12 @@ namespace CaeManager.Domain.Documentos;
 /// <item><b>Solo un documento que todavía vale</b>: uno vencido (o que falta) ya es causa más grave por sí mismo, y
 /// renovarlo reinicia la acreditación. «Sin confirmar» SÍ cuenta: el documento existe y viaja en el paquete de
 /// acreditación (decisión del 2026-10-03), así que sin subir a la plataforma es trabajo pendiente igual.</item>
-/// <item><b>Bloquea a personas por Centro</b>, no el estado Bloqueado del Centro: el de Trabajador bloquea a ese Trabajador
-/// en ese Centro; el de Empresa, a todos los Trabajadores de esa Empresa con Asignación activa en ese Centro. Sin
-/// tolerancia: el Pendiente no tiene fecha a la que sumarle días.</item>
+/// <item><b>Pone el Centro en «Pendiente»</b> (<see cref="Centros.EstadoCentro.Pendiente"/>) sea cual sea el tipo, pero
+/// <b>bloquea a personas solo si el Centro marca el tipo como bloqueante</b> (<see cref="TipoDocumentoCentro.BloqueaAcceso"/>,
+/// corrección del propietario del 2026-10-10; <see cref="ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma"/>): un RNT
+/// bloqueante pendiente bloquea, una ISO opcional pendiente no. Con la marca, el de Trabajador bloquea a ese Trabajador en
+/// ese Centro y el de Empresa a todos los Trabajadores de esa Empresa con Asignación activa en ese Centro. Nunca pone el
+/// Centro en Bloqueado. Sin tolerancia: el Pendiente no tiene fecha a la que sumarle días.</item>
 /// </list>
 ///
 /// Es una función pura: quien consulta trae el estado de la acreditación y el del documento y la evalúa en memoria. Un

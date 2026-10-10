@@ -373,13 +373,14 @@
                                             @if (centro.Recuentos.TotalPendientes > 0)
                                             {
                                                 @* Pendiente en la plataforma CAE del Centro (2026-10-10): el documento vale, falta
-                                                   acreditarlo allí. No se corrige renovando el documento, así que la ventana no
-                                                   ofrece el formulario de corrección: solo dice qué falta y de quién. *@
-                                                <VentanaContexto Etiqueta="@($"{MotivoPendientesPlataforma(centro.Recuentos.TotalPendientes)}. {TituloPendientesPlataforma(centro.Recuentos.TotalPendientes)}")"
+                                                   acreditarlo allí. El motivo nombra el documento y qué le falta, no solo cuenta
+                                                   (TextoPendientesEnPlataforma). No se corrige renovando el documento, así que la
+                                                   ventana no ofrece el formulario de corrección: solo dice qué falta y de quién. *@
+                                                <VentanaContexto Etiqueta="@TextoPendientesEnPlataforma.Etiqueta(Textos, centro.Recuentos.Pendientes)"
                                                                  Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                                 Titulo="@TituloPendientesPlataforma(centro.Recuentos.TotalPendientes)">
+                                                                 Titulo="@TextoPendientesEnPlataforma.Titulo(Textos, centro.Recuentos.TotalPendientes)">
                                                     <Disparador>
-                                                        <span class="motivo-recuento motivo-recuento-pendientes">@MotivoPendientesPlataforma(centro.Recuentos.TotalPendientes)</span>
+                                                        <span class="motivo-recuento motivo-recuento-pendientes">@TextoPendientesEnPlataforma.Motivo(Textos, centro.Recuentos.Pendientes)</span>
                                                     </Disparador>
                                                     <Detalle>
                                                         @foreach (var incidencia in centro.Recuentos.Pendientes)

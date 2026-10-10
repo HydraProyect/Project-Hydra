@@ -1513,13 +1513,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     private string MotivoProximos(int cantidad) =>
         cantidad == 1 ? Textos["MotivoUnProximo"].Value : Textos["MotivoProximos", cantidad].Value;
 
-    /// <summary>«N pendientes en la plataforma»: documentos que valen pero están sin subir o sin validar en la plataforma CAE del Centro.</summary>
-    private string MotivoPendientesPlataforma(int cantidad) =>
-        cantidad == 1 ? Textos["MotivoUnPendientePlataforma"].Value : Textos["MotivoPendientesPlataforma", cantidad].Value;
-
-    private string TituloPendientesPlataforma(int cantidad) =>
-        cantidad == 1 ? Textos["TituloPendientesPlataformaUno"].Value : Textos["TituloPendientesPlataformaVarios", cantidad].Value;
-
     /// <summary>
     /// Nombre accesible del disparador del motivo. Empieza por el texto que se ve («2 vencidos») para que
     /// quien lo nombre de viva voz lo active (WCAG 2.5.3, el nombre contiene la etiqueta visible), y sigue

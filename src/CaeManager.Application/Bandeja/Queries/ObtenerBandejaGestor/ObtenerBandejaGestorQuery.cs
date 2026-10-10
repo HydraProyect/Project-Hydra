@@ -285,7 +285,7 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
 
         // Un bloqueo por Pendiente en la plataforma (decisión 2026-10-10) no es una fila más de la cola: el trabajo ya
         // aparece como su acreditación pendiente (pendientesPlataforma), y repetirlo como requisito duplicaría la tarea.
-        items.AddRange(requisitos.Where(rq => rq.Situacion != SituacionDeRequisitoBloqueante.PendienteEnPlataforma).Select(rq => new ItemBandejaDto(
+        items.AddRange(requisitos.Where(rq => !ReglaBloqueoDeAcceso.EsPendienteEnPlataforma(rq.Situacion)).Select(rq => new ItemBandejaDto(
             Id: IdDeFilaDeCola.Requisito(rq.CentroId, rq.TrabajadorId, rq.TipoDocumentoId),
             Tipo: TipoItemBandeja.RequisitoPendiente,
             // Un requisito de Empresa bloquea al Trabajador por un documento que NO es suyo: el título lo dice

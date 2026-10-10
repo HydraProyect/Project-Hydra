@@ -835,14 +835,15 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
 
             var evaluacion = await sp.GetRequiredService<CaeManager.Application.Centros.IEvaluacionDeAccesoPorCentroService>()
                 .EvaluarAsync(null, CancellationToken.None);
-            // Solo los requisitos que el Centro marca «bloquea el acceso»: el Pendiente en la plataforma (2026-10-10) también
-            // bloquea, pero es otro caso y se mide aparte, abajo.
+            // Ausente o vencido: el Pendiente en la plataforma (2026-10-10) también bloquea un requisito del Centro, pero es
+            // otro caso y se mide aparte, abajo.
             var sinCumplir = evaluacion.Requisitos
-                .Where(r => r.Resultado.Situacion is not (SituacionDeRequisitoBloqueante.Cumplido or SituacionDeRequisitoBloqueante.PendienteEnPlataforma))
+                .Where(r => r.Resultado.Situacion != SituacionDeRequisitoBloqueante.Cumplido
+                    && !ReglaBloqueoDeAcceso.EsPendienteEnPlataforma(r.Resultado.Situacion))
                 .Select(r => (r.TrabajadorId, Centro: nombreDelCentro[r.CentroId], Tipo: nombreDelTipo[r.TipoDocumentoId], r.Resultado.Situacion))
                 .ToList();
             var centrosConPendiente = evaluacion.Requisitos
-                .Where(r => r.Resultado.Situacion == SituacionDeRequisitoBloqueante.PendienteEnPlataforma)
+                .Where(r => ReglaBloqueoDeAcceso.EsPendienteEnPlataforma(r.Resultado.Situacion))
                 .Select(r => r.CentroId).ToHashSet();
             var centrosConPlataforma = await db.CanalesGestionDocumental
                 .Where(c => c.Tipo == TipoCanalGestion.Plataforma).Select(c => c.CentroId).ToListAsync();

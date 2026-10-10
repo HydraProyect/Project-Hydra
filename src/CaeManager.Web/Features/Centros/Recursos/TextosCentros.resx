@@ -154,12 +154,9 @@
   <data name="MotivoProximos" xml:space="preserve">
     <value>{0} por vencer</value>
   </data>
-  <data name="MotivoUnPendientePlataforma" xml:space="preserve">
-    <value>1 pendiente en la plataforma</value>
-    <comment>Motivo bajo la pastilla de estado del Centro: documentos en Recuentos.Pendientes, sin subir o sin validar en la plataforma CAE del Centro (decisión del 2026-10-10).</comment>
-  </data>
-  <data name="MotivoPendientesPlataforma" xml:space="preserve">
-    <value>{0} pendientes en la plataforma</value>
+  <data name="MotivoPendientesPlataformaYMas" xml:space="preserve">
+    <value>{0} y {1} más</value>
+    <comment>Motivo bajo la pastilla de estado del Centro con varios documentos pendientes en su plataforma CAE (decisión del 2026-10-10): {0} es la descripción del primero (documento, de quién y qué le falta) y {1} cuántos más hay. Con uno solo, el motivo es su descripción.</comment>
   </data>
   <data name="TituloPendientesPlataformaUno" xml:space="preserve">
     <value>1 documento pendiente en la plataforma</value>
@@ -236,9 +233,13 @@
   <data name="BloqueoSituacionAusente" xml:space="preserve">
     <value>no tiene el documento</value>
   </data>
-  <data name="BloqueoSituacionPendienteEnPlataforma" xml:space="preserve">
-    <value>pendiente en la plataforma del Centro</value>
-    <comment>El documento vale, pero está sin subir o sin validar en la plataforma CAE de este Centro (decisión del 2026-10-10).</comment>
+  <data name="BloqueoSituacionSinSubirAPlataforma" xml:space="preserve">
+    <value>sin subir a la plataforma del Centro</value>
+    <comment>El documento vale, pero está sin subir a la plataforma CAE de este Centro y el Centro lo marca como bloqueante (decisión del 2026-10-10).</comment>
+  </data>
+  <data name="BloqueoSituacionSinValidarEnPlataforma" xml:space="preserve">
+    <value>subido, sin validar en la plataforma del Centro</value>
+    <comment>El documento vale y está subido, pero la plataforma CAE de este Centro aún no lo ha validado y el Centro lo marca como bloqueante (decisión del 2026-10-10).</comment>
   </data>
   <data name="BloqueoSituacionVencido" xml:space="preserve">
     <value>venció el {0}</value>

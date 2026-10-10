@@ -19,12 +19,19 @@ public enum SituacionDeRequisitoBloqueante
     Vencido = 2,
 
     /// <summary>
-    /// El documento vale, pero en la plataforma CAE de ese Centro está sin subir o subido sin validar
-    /// (<see cref="ReglaPendienteEnPlataforma"/>, decisión del propietario, 2026-10-10). Bloquea al sujeto en ese Centro
-    /// aunque el tipo no esté marcado <see cref="TipoDocumentoCentro.BloqueaAcceso"/>: la plataforma no deja entrar a quien
-    /// no está acreditado en ella. Sin tolerancia: el Pendiente no tiene fecha a la que sumarle días.
+    /// El documento vale en TALVEG, pero en la plataforma CAE de ese Centro está sin subir
+    /// (<see cref="EstadoAcreditacion.PendienteDeSubir"/>; <see cref="ReglaPendienteEnPlataforma"/>, decisión del propietario,
+    /// 2026-10-10). Bloquea al sujeto en ese Centro solo porque el tipo es requisito bloqueante allí
+    /// (<see cref="TipoDocumentoCentro.BloqueaAcceso"/>, <see cref="ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma"/>).
+    /// Sin tolerancia: el Pendiente no tiene fecha a la que sumarle días.
     /// </summary>
-    PendienteEnPlataforma = 3
+    PendienteDeSubirAPlataforma = 3,
+
+    /// <summary>
+    /// Como <see cref="PendienteDeSubirAPlataforma"/>, pero el documento ya está subido a la plataforma CAE del Centro y
+    /// esta todavía no lo ha validado (<see cref="EstadoAcreditacion.Subida"/>).
+    /// </summary>
+    SinValidarEnPlataforma = 4
 }
 
 /// <summary>Un Documento visto desde la regla de acceso: su vigencia y la fecha de emisión (base de la periodicidad especial de un Centro).</summary>
@@ -40,7 +47,10 @@ public readonly record struct CondicionesDeAccesoDelCentro(int? PeriodicidadEspe
 /// <summary>
 /// Resultado de evaluar un requisito bloqueante en un Centro.
 /// </summary>
-/// <param name="Situacion">Cumplido, Ausente o Vencido (ya sin tolerancia).</param>
+/// <param name="Situacion">
+/// Cumplido, Ausente o Vencido (ya sin tolerancia); o pendiente en la plataforma del Centro, que pone
+/// <see cref="ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma"/> sobre un Cumplido.
+/// </param>
 /// <param name="VencimientoEfectivo">
 /// El vencimiento efectivo en este Centro del Documento más reciente de los que hay; <c>null</c> si no hay ninguno o
 /// el mejor no vence. Con <see cref="Situacion"/> Vencido es la fecha desde la que dejó de valer.
@@ -73,8 +83,9 @@ public readonly record struct ResultadoDeRequisito(
 /// 2026-08-16): no hay excepción por no haber completado el alta.</item>
 /// <item><b>Pendiente en la plataforma</b> (decisión del 2026-10-10, <see cref="ReglaPendienteEnPlataforma"/>): un
 /// documento que vale pero está sin subir o sin validar en la plataforma CAE del Centro bloquea al sujeto en ese Centro
-/// (<see cref="SituacionDeRequisitoBloqueante.PendienteEnPlataforma"/>) aunque el tipo no sea bloqueante allí. No lo
-/// decide esta función, que solo mira documentos: lo añade <c>CalculoBloqueoDeAccesoDeTrabajadores</c>.</item>
+/// <b>solo si ese Centro marca el tipo como bloqueante</b> (<see cref="TipoDocumentoCentro.BloqueaAcceso"/>): un RNT
+/// bloqueante pendiente bloquea; una ISO opcional pendiente pone el Centro en «Pendiente» pero no bloquea a nadie. Lo
+/// decide <see cref="AplicarPendienteEnPlataforma"/>, sobre el resultado de <see cref="Evaluar"/>.</item>
 /// </list>
 ///
 /// <para>
@@ -215,6 +226,41 @@ public static class ReglaBloqueoDeAcceso
     /// <summary>Ausente, vencido y pendiente en la plataforma bloquean por igual; solo cumplido no bloquea.</summary>
     public static bool Bloquea(SituacionDeRequisitoBloqueante situacion) =>
         situacion != SituacionDeRequisitoBloqueante.Cumplido;
+
+    /// <summary>¿Es una de las dos situaciones de Pendiente en la plataforma (sin subir o sin validar)?</summary>
+    public static bool EsPendienteEnPlataforma(SituacionDeRequisitoBloqueante situacion) =>
+        situacion is SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma or SituacionDeRequisitoBloqueante.SinValidarEnPlataforma;
+
+    /// <summary>
+    /// Pendiente en la plataforma (decisión del propietario, 2026-10-10): cómo queda un requisito cuando el documento del
+    /// sujeto está pendiente en la plataforma CAE del Centro (<see cref="ReglaPendienteEnPlataforma.CuentaEnElCentro"/>,
+    /// ya comprobado por quien llama).
+    ///
+    /// <list type="bullet">
+    /// <item><b>Sin marca de bloqueo, no bloquea.</b> <paramref name="requisitoBloqueante"/> es <c>null</c> cuando el Centro
+    /// no marca el tipo con <see cref="TipoDocumentoCentro.BloqueaAcceso"/>: el pendiente no tiene requisito al que
+    /// aplicarse y se devuelve <c>null</c> (una ISO opcional pendiente no bloquea a nadie).</item>
+    /// <item><b>Con marca, un cumplido pasa a pendiente</b>: <see cref="SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma"/>
+    /// o <see cref="SituacionDeRequisitoBloqueante.SinValidarEnPlataforma"/>, sin tolerancia.</item>
+    /// <item><b>Ausente o vencido se quedan como están</b>: ya bloquean y son la causa más grave.</item>
+    /// <item>Un estado de acreditación que no es pendiente (validada, rechazada, no requerida) no cambia nada aquí; la
+    /// rechazada es causa propia del Centro (D-7).</item>
+    /// </list>
+    /// </summary>
+    public static ResultadoDeRequisito? AplicarPendienteEnPlataforma(
+        ResultadoDeRequisito? requisitoBloqueante, EstadoAcreditacion estadoAcreditacion)
+    {
+        if (requisitoBloqueante is not { } requisito)
+            return null;
+
+        if (requisito.Situacion != SituacionDeRequisitoBloqueante.Cumplido || !ReglaPendienteEnPlataforma.EstaPendiente(estadoAcreditacion))
+            return requisito;
+
+        var situacion = estadoAcreditacion == EstadoAcreditacion.Subida
+            ? SituacionDeRequisitoBloqueante.SinValidarEnPlataforma
+            : SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma;
+        return new ResultadoDeRequisito(situacion, requisito.VencimientoEfectivo, null);
+    }
 
     /// <summary>
     /// Qué ámbitos de tipo pueden ser requisito bloqueante, porque tienen un sujeto del bloqueo: el Trabajador

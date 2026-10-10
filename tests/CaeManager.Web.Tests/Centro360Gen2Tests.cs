@@ -314,10 +314,10 @@ public class Centro360Gen2Tests : BunitContext
 
     /// <summary>
     /// Pendiente en la plataforma CAE del Centro (decisión del 2026-10-10): junto al título, la pastilla «Pendiente» y su
-    /// motivo «N pendientes en la plataforma», con la ventana que dice qué falta y de quién.
+    /// motivo, que NOMBRA el documento y lo que le falta en la plataforma (no solo cuenta), con la ventana que los lista todos.
     /// </summary>
     [Fact]
-    public void La_ficha_dice_cuantos_documentos_estan_pendientes_en_la_plataforma()
+    public void La_ficha_nombra_el_documento_pendiente_en_la_plataforma_y_su_estado()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -333,14 +333,33 @@ public class Centro360Gen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.FindAll("[data-recuento='pendientes-plataforma']").Should().ContainSingle());
         var badge = cut.Find("[data-recuento='pendientes-plataforma']");
-        badge.TextContent.Trim().Should().Be("2 pendientes en la plataforma");
+        badge.TextContent.Trim().Should().Be("Formación PRL — Homer Simpson — sin subir a la plataforma y 1 más",
+            "el motivo nombra el primer documento, de quién es y qué le falta, y cuenta el resto");
         var ventana = badge.Closest(".ventana-contexto")!;
         var nombre = ventana.GetAttribute("aria-label") ?? ventana.QuerySelector(".ventana-contexto-disparador")!.GetAttribute("aria-label");
-        nombre.Should().Be("2 pendientes en la plataforma. 2 documentos pendientes en la plataforma");
+        nombre.Should().Be("Formación PRL — Homer Simpson — sin subir a la plataforma y 1 más. 2 documentos pendientes en la plataforma");
         ventana.QuerySelectorAll(".ventana-linea").Select(l => l.TextContent.Trim()).Should().Equal(
             "Formación PRL — Homer Simpson — sin subir a la plataforma",
             "Certificado de la Seguridad Social — Empresa — subido, sin validar en la plataforma");
         cut.Markup.Should().Contain(">Pendiente<", "la pastilla de estado del Centro");
+    }
+
+    [Fact]
+    public void Con_un_solo_pendiente_el_motivo_es_ese_documento_con_su_estado()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Pendiente, pendientes:
+        [
+            new IncidenciaCentroDto("RNT — Empresa — subido, sin validar en la plataforma", AmbitoCausa.Empresa, null, Guid.NewGuid(), Guid.NewGuid(), null),
+        ]);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.FindAll("[data-recuento='pendientes-plataforma']").Should().ContainSingle());
+        cut.Find("[data-recuento='pendientes-plataforma']").TextContent.Trim()
+            .Should().Be("RNT — Empresa — subido, sin validar en la plataforma");
     }
 
     [Fact]

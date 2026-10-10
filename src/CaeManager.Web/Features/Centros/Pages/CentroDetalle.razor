@@ -139,16 +139,12 @@
                         }
                         @if (_resumen.Recuentos.TotalPendientes > 0)
                         {
-                            @* Pendiente en la plataforma CAE del Centro (2026-10-10): el documento vale, falta acreditarlo allí. *@
-                            var pendientesPlataforma = _resumen.Recuentos.TotalPendientes;
-                            var tituloPendientes = pendientesPlataforma == 1
-                                ? Textos["TituloPendientesPlataformaUno"].Value
-                                : Textos["TituloPendientesPlataformaVarios", pendientesPlataforma].Value;
-                            var motivoPendientes = pendientesPlataforma == 1
-                                ? Textos["MotivoUnPendientePlataforma"].Value
-                                : Textos["MotivoPendientesPlataforma", pendientesPlataforma].Value;
+                            @* Pendiente en la plataforma CAE del Centro (2026-10-10): el documento vale, falta acreditarlo allí.
+                               El motivo nombra el documento y qué le falta, igual que en la lista de Centros. *@
+                            var tituloPendientes = TextoPendientesEnPlataforma.Titulo(Textos, _resumen.Recuentos.TotalPendientes);
+                            var motivoPendientes = TextoPendientesEnPlataforma.Motivo(Textos, _resumen.Recuentos.Pendientes);
                             @* El nombre accesible empieza por lo que se ve (WCAG 2.5.3), como en la lista de Centros. *@
-                            <VentanaContexto Etiqueta="@($"{motivoPendientes}. {tituloPendientes}")" Titulo="@tituloPendientes">
+                            <VentanaContexto Etiqueta="@TextoPendientesEnPlataforma.Etiqueta(Textos, _resumen.Recuentos.Pendientes)" Titulo="@tituloPendientes">
                                 <Disparador>
                                     <Badge Tono="EstadoCentroUi.Tono(EstadoCentro.Pendiente)" Tamano="TamanoBadge.Pequeno" data-recuento="pendientes-plataforma">@motivoPendientes</Badge>
                                 </Disparador>

@@ -346,13 +346,14 @@ public class CentrosListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Pendiente en la plataforma CAE del Centro (decisión del 2026-10-10): su propio grupo del desglose sale como motivo
-    /// «N pendientes en la plataforma», separado de los vencidos, y su ventana dice qué falta y de quién.
+    /// Pendiente en la plataforma CAE del Centro (decisión del 2026-10-10): su propio grupo del desglose sale como motivo,
+    /// separado de los vencidos. El motivo NOMBRA el documento, de quién es y qué le falta en la plataforma (con varios,
+    /// el primero y «y N más»), y su ventana los lista todos.
     /// </summary>
     [Theory]
-    [InlineData(1, "1 pendiente en la plataforma", "1 documento pendiente en la plataforma")]
-    [InlineData(2, "2 pendientes en la plataforma", "2 documentos pendientes en la plataforma")]
-    public void Los_pendientes_en_la_plataforma_son_su_propio_motivo(int pendientes, string esperado, string titulo)
+    [InlineData(1, "Formación PRL — Trabajador 0 — sin subir a la plataforma", "1 documento pendiente en la plataforma")]
+    [InlineData(3, "Formación PRL — Trabajador 0 — sin subir a la plataforma y 2 más", "3 documentos pendientes en la plataforma")]
+    public void Los_pendientes_en_la_plataforma_son_su_propio_motivo_y_nombran_el_documento(int pendientes, string esperado, string titulo)
     {
         var lineas = Enumerable.Range(0, pendientes)
             .Select(i => new IncidenciaCentroDto($"Formación PRL — Trabajador {i} — sin subir a la plataforma", AmbitoCausa.Trabajador, null, Guid.NewGuid(), Guid.NewGuid(), null))

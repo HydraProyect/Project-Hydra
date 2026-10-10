@@ -49,7 +49,8 @@ public enum EstadoCentro
     /// tipo Plataforma nunca está Pendiente. En gravedad va entre <see cref="Faltante"/> y <see cref="Urgente"/>
     /// (<see cref="CalculadoraEstadoCentro.Gravedad"/>); su valor numérico va al final porque los anteriores están
     /// congelados por la API v1. No pone el Centro en <see cref="Bloqueado"/>: el Pendiente bloquea a PERSONAS en ese
-    /// Centro (al Trabajador del documento, o a todos los de la Empresa si el documento es de Empresa).
+    /// Centro (al Trabajador del documento, o a todos los de la Empresa si el documento es de Empresa), y solo si el Centro
+    /// marca el tipo como bloqueante (<see cref="Documentos.TipoDocumentoCentro.BloqueaAcceso"/>).
     /// </summary>
     Pendiente = 7
 }
