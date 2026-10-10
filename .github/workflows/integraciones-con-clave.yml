@@ -40,11 +40,16 @@ name: Integraciones con clave de CI (IA y Stripe modo prueba)
 # propietario (un proveedor caído bloquearía todas las fusiones). Como corre
 # DESPUÉS de fusionar, detecta una regresión de prompts, no la impide.
 #
-# SIN CLAVE: los jobs terminan en verde pero DECLARAN, con un aviso (`::warning`)
-# y un resumen en la ejecución, que los tests NO se ejecutaron. Un verde con esa
-# declaración no es cobertura. Con clave, un test que se salte igualmente
-# (variable mal nombrada, filtro que no casa) hace fallar el job: se cuenta
-# sobre el .trx, no sobre el código de salida de `dotnet test`.
+# SIN CLAVE: en `push` a `main` el job termina en ROJO y dice qué secreto falta.
+# La solución es crear el secreto en el environment `ci-integraciones`; relanzar
+# no lo arregla. Hasta el 2026-10-10 terminaba en verde con un aviso, y así
+# estuvo sin ejecutar nada sin que nadie lo viera. En cualquier otro disparador
+# o rama (donde la política del environment no entrega el secreto) sigue en verde
+# y DECLARA, con un aviso (`::warning`) y un resumen, que los tests NO se
+# ejecutaron: ese verde no es cobertura. El banco de modelos, que solo corre a
+# petición, sale en rojo sin clave en cualquier caso. Con clave, un test que se
+# salte igualmente (variable mal nombrada, filtro que no casa) hace fallar el
+# job: se cuenta sobre el .trx, no sobre el código de salida de `dotnet test`.
 #
 # NOMBRES DE SECRETO (secretos del environment `ci-integraciones`; los crea el
 # propietario — guía paso a paso en
@@ -153,8 +158,19 @@ jobs:
               echo "### 🟡 Regresión de prompts de IA — NO ejecutada"
               echo ""
               echo "El secreto \`CI_ANTHROPIC_API_KEY\` del environment \`ci-integraciones\` no está definido (o no llega a este disparador/rama: \`${EVENTO}\` en \`${RAMA}\`)."
-              echo "Los tests de \`RegresionPromptsIaTests\` no se han ejecutado; **este verde no es cobertura**."
+              echo "Los tests de \`RegresionPromptsIaTests\` no se han ejecutado; **esto no es cobertura**."
+              echo ""
+              echo "**Solución:** crear el secreto \`CI_ANTHROPIC_API_KEY\` en el environment \`ci-integraciones\`. Relanzar no lo arregla."
             } >> "$GITHUB_STEP_SUMMARY"
+            # En `push` a main el aviso no basta: ahí el secreto TIENE que llegar, así que su
+            # ausencia es un rojo. El job salía en verde sin ejecutar nada y nadie lo veía
+            # (medido el 2026-10-10: en siete ejecuciones de main muestreadas desde el
+            # 2026-09-20 el paso de tests figura como omitido en todas). En cualquier otro
+            # disparador o rama sigue siendo un aviso: que no llegue es lo esperado.
+            if [ "$EVENTO" = "push" ] && [ "$RAMA" = "main" ]; then
+              echo "::error title=Falta el secreto CI_ANTHROPIC_API_KEY::La regresión de prompts de IA NO se ha ejecutado en main. Solución: crear el secreto CI_ANTHROPIC_API_KEY en el environment ci-integraciones (Settings → Environments → ci-integraciones). Relanzar esta ejecución no lo arregla."
+              exit 1
+            fi
             exit 0
           fi
           # Una clave de administración de Anthropic puede crear y borrar claves
@@ -400,8 +416,19 @@ jobs:
               echo "### 🟡 Stripe en modo prueba — NO ejecutado"
               echo ""
               echo "El secreto \`CI_STRIPE_TEST_API_KEY\` del environment \`ci-integraciones\` no está definido (o no llega a este disparador/rama: \`${EVENTO}\` en \`${RAMA}\`)."
-              echo "Los tests contra la API de Stripe no se han ejecutado; **este verde no es cobertura**."
+              echo "Los tests contra la API de Stripe no se han ejecutado; **esto no es cobertura**."
+              echo ""
+              echo "**Solución:** crear el secreto \`CI_STRIPE_TEST_API_KEY\` en el environment \`ci-integraciones\`. Relanzar no lo arregla."
             } >> "$GITHUB_STEP_SUMMARY"
+            # En `push` a main el aviso no basta: ahí el secreto TIENE que llegar, así que su
+            # ausencia es un rojo. El job salía en verde sin ejecutar nada y nadie lo veía
+            # (medido el 2026-10-10: en siete ejecuciones de main muestreadas desde el
+            # 2026-09-20 el paso de tests figura como omitido en todas). En cualquier otro
+            # disparador o rama sigue siendo un aviso: que no llegue es lo esperado.
+            if [ "$EVENTO" = "push" ] && [ "$RAMA" = "main" ]; then
+              echo "::error title=Falta el secreto CI_STRIPE_TEST_API_KEY::Los tests de Stripe contra la API real NO se han ejecutado en main. Solución: crear el secreto CI_STRIPE_TEST_API_KEY en el environment ci-integraciones (Settings → Environments → ci-integraciones). Relanzar esta ejecución no lo arregla."
+              exit 1
+            fi
             exit 0
           fi
           # Rechazo de producción ANTES de que ningún paso posterior use la clave.
