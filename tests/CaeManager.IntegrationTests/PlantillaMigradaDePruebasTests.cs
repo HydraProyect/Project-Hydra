@@ -1,4 +1,6 @@
+using System.Reflection;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
 using Xunit;
 
@@ -15,6 +17,12 @@ namespace CaeManager.IntegrationTests;
 /// procedimiento, no el contenido. La plantilla de la suite, que las demás clases
 /// están clonando en paralelo, no se toca; que su contenido equivale a una base
 /// migrada de verdad lo exige <c>EquivalenciaDelClonConLaBaseMigradaTests</c>.
+/// </para>
+///
+/// <para>
+/// Los tres tests del material del resumen no construyen nada: exigen que el
+/// nombre de la plantilla dependa de las migraciones y de los roles <b>reales</b>,
+/// que es lo que impide clonar en local una plantilla caducada.
 /// </para>
 /// </summary>
 public class PlantillaMigradaDePruebasTests : IAsyncLifetime
@@ -158,7 +166,114 @@ public class PlantillaMigradaDePruebasTests : IAsyncLifetime
             "lo que no se reconoce no se borra");
     }
 
+    [Fact]
+    public async Task Un_fallo_al_construir_se_recuerda_y_no_se_vuelve_a_migrar_en_el_mismo_proceso()
+    {
+        var migraciones = 0;
+        var causa = new TimeoutException("la causa original");
+        var rota = new PlantillaMigradaDePruebas(_discriminador, _ =>
+        {
+            Interlocked.Increment(ref migraciones);
+            throw new InvalidOperationException("la migración se cae a mitad", causa);
+        });
+        await using var conexion = await AbrirMantenimientoAsync();
+
+        var construir = () => rota.Asegurar(conexion);
+        var primero = construir.Should().Throw<InvalidOperationException>().Which;
+        var segundo = construir.Should().Throw<InvalidOperationException>().Which;
+
+        migraciones.Should().Be(1,
+            "con una migración rota, cada test que pida su base recibe el fallo sin volver a tomar el cerrojo ni a migrar");
+        segundo.Should().BeSameAs(primero, "es el fallo de la primera construcción, no uno nuevo");
+        segundo.Message.Should().Be("la migración se cae a mitad");
+        segundo.InnerException.Should().BeSameAs(causa);
+
+        // Por Clonar, que es por donde entra cada test de la suite.
+        var clonar = () => rota.Clonar(BaseDatosPostgresDePruebas.CadenaConexionDeBaseVacia());
+        clonar.Should().Throw<InvalidOperationException>().Which.Should().BeSameAs(primero);
+        migraciones.Should().Be(1);
+    }
+
+    [Fact]
+    public void El_guion_que_se_resume_es_el_de_todas_las_migraciones_del_ensamblado()
+    {
+        var guion = PlantillaMigradaDePruebas.LeerMaterialDelResumen().GuionDeMigraciones;
+
+        // Del propio ensamblado, no de una lista escrita aquí: una migración nueva
+        // entra sola en la comprobación.
+        var identificadores = typeof(CaeManager.Migrations.PostgreSQL.Migrations.LineaBaseCompactada).Assembly
+            .GetTypes()
+            .Where(tipo => tipo.IsSubclassOf(typeof(Migration)) && !tipo.IsAbstract)
+            .Select(tipo => tipo.GetCustomAttribute<MigrationAttribute>()?.Id ?? $"(sin [Migration]: {tipo.Name})")
+            .ToList();
+        identificadores.Should().NotBeEmpty("el ensamblado de migraciones tiene migraciones");
+
+        guion.Should().NotBeEmpty(
+            "con un guion vacío el nombre de la plantilla no cambiaría al cambiar una migración "
+            + "y se clonaría una plantilla caducada sin que nada fallase");
+        identificadores.Where(id => !guion.Contains(id, StringComparison.Ordinal)).Should().BeEmpty(
+            "el guion que decide el nombre de la plantilla tiene que incluir todas las migraciones del ensamblado");
+        guion.Contains("FORCE ROW LEVEL SECURITY", StringComparison.Ordinal).Should().BeTrue(
+            "el guion lleva el SQL de las migraciones, no solo sus identificadores: "
+            + "quitar un FORCE de una migración tiene que cambiar el nombre");
+    }
+
+    [Fact]
+    public void El_guion_de_roles_que_se_resume_es_el_del_bootstrap_de_cluster()
+    {
+        var roles = PlantillaMigradaDePruebas.LeerMaterialDelResumen().GuionDeRoles;
+
+        var delRepositorio = File.ReadAllText(
+            Path.Combine(RaizDelRepositorio(), "deploy", "bootstrap", "roles-de-cluster.sql"));
+
+        string.Equals(roles, delRepositorio, StringComparison.Ordinal).Should().BeTrue(
+            "lo que entra en el nombre es deploy/bootstrap/roles-de-cluster.sql tal como está en el árbol");
+        roles.Contains("cae_app_runtime", StringComparison.Ordinal).Should().BeTrue(
+            "es el guion que crea el rol con el que corre la aplicación bajo RLS");
+    }
+
+    [Fact]
+    public async Task El_nombre_vigente_cambia_con_un_solo_caracter_de_las_migraciones_o_de_los_roles_reales()
+    {
+        var material = PlantillaMigradaDePruebas.LeerMaterialDelResumen();
+        var vigente = PlantillaMigradaDePruebas.ResumenVigente;
+
+        PlantillaMigradaDePruebas
+            .Resumir(material.GuionDeMigraciones, material.VersionesDelProveedor, material.GuionDeRoles)
+            .Should().Be(vigente, "el resumen vigente sale de ese material, y generarlo otra vez da lo mismo");
+        PlantillaMigradaDePruebas
+            .Resumir(ConUnCaracterCambiado(material.GuionDeMigraciones), material.VersionesDelProveedor, material.GuionDeRoles)
+            .Should().NotBe(vigente, "tocar una migración tiene que dar otra plantilla");
+        PlantillaMigradaDePruebas
+            .Resumir(material.GuionDeMigraciones, material.VersionesDelProveedor, ConUnCaracterCambiado(material.GuionDeRoles))
+            .Should().NotBe(vigente, "tocar los roles de clúster tiene que dar otra plantilla");
+
+        await using var conexion = await AbrirMantenimientoAsync();
+        PlantillaMigradaDePruebas.DeLaSuite.NombreVigente(conexion).Should().StartWith(
+            $"{PlantillaMigradaDePruebas.Prefijo}{vigente}_",
+            "ese resumen es el que lleva el nombre de la plantilla que clona la suite");
+    }
+
     // ---- Apoyo ----
+
+    private static string ConUnCaracterCambiado(string texto)
+    {
+        texto.Should().NotBeEmpty("no se puede alterar un carácter de un material vacío");
+        var posicion = texto.Length / 2;
+        var otro = texto[posicion] == 'x' ? 'y' : 'x';
+        return string.Concat(texto.AsSpan(0, posicion), otro.ToString(), texto.AsSpan(posicion + 1));
+    }
+
+    private static string RaizDelRepositorio()
+    {
+        var actual = new DirectoryInfo(AppContext.BaseDirectory);
+        while (actual is not null && !File.Exists(Path.Combine(actual.FullName, "CaeManager.slnx")))
+            actual = actual.Parent;
+
+        return actual?.FullName
+            ?? throw new InvalidOperationException(
+                "No se encontró CaeManager.slnx subiendo desde " + AppContext.BaseDirectory);
+    }
 
     private static string AsegurarConConexionPropia(PlantillaMigradaDePruebas plantilla)
     {

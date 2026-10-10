@@ -111,8 +111,8 @@ internal static class BaseDatosPostgresDePruebas
     /// <c>Arranque/</c> o de <c>Migraciones/</c> (ver <see cref="MigraPorSiMismo"/>),
     /// no se clona nada y la base no existe hasta que ese código la cree: ahí
     /// migrar es lo que se prueba, o se migra por pasos desde un esquema
-    /// intermedio. Alcanza a todo test que pase por <c>ArnesDeArranqueRuntime</c> o
-    /// <c>ArnesPilotoOutbound</c>, porque la llamada sale de esos ficheros.
+    /// intermedio. Alcanza a todo test que pase por <c>ArnesDeArranqueRuntime</c>, y
+    /// con él a <c>ArnesPilotoOutbound</c>, que pide su base a través de ese arnés.
     /// </para>
     ///
     /// <para>

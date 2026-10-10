@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -52,10 +53,20 @@ namespace CaeManager.IntegrationTests;
 /// </para>
 ///
 /// <para>
-/// <b>Nadie puede modificarla.</b> <c>ALLOW_CONNECTIONS false</c> impide cualquier
-/// conexión a la plantilla, también de un superusuario; <c>CREATE DATABASE …
-/// TEMPLATE</c> solo la lee. Es además condición del propio clonado, que falla si
-/// hay alguien conectado al origen.
+/// <b>Ningún cliente puede modificarla.</b> <c>ALLOW_CONNECTIONS false</c> impide
+/// que se conecte a la plantilla cualquier sesión de cliente, también la de un
+/// superusuario; <c>CREATE DATABASE … TEMPLATE</c> solo la lee. Lo único que sigue
+/// entrando es el autovacuum, que no toca ni el esquema ni los datos (ver
+/// <c>ConstruirSiFalta</c>) y por el que <see cref="Clonar"/> reintenta. Cerrarla
+/// es además condición del propio clonado, que falla si hay alguien conectado al
+/// origen.
+/// </para>
+///
+/// <para>
+/// <b>Un fallo al construirla se recuerda.</b> Si la migración de la plantilla
+/// falla, las peticiones siguientes de este proceso reciben ese mismo fallo sin
+/// volver a tomar el cerrojo ni a migrar: una migración rota da un rojo por test
+/// en lo que tarda la primera construcción, no una construcción entera por test.
 /// </para>
 ///
 /// <para>
@@ -102,6 +113,9 @@ internal sealed class PlantillaMigradaDePruebas
 
     private static readonly Lazy<string> ResumenDeLasMigraciones = new(CalcularResumenDeLasMigraciones);
 
+    /// <summary>El resumen que lleva el nombre de toda plantilla de este proceso.</summary>
+    internal static string ResumenVigente => ResumenDeLasMigraciones.Value;
+
     /// <summary>La plantilla de la suite: la que clona <c>CadenaConexionUnica</c>.</summary>
     internal static PlantillaMigradaDePruebas DeLaSuite { get; } = new(discriminador: "");
 
@@ -109,6 +123,15 @@ internal sealed class PlantillaMigradaDePruebas
     private readonly string _discriminador;
     private readonly Func<string, Task> _migrar;
     private string? _nombreAsegurado;
+
+    /// <summary>
+    /// La plantilla que no se pudo construir y por qué. Solo lo escribe
+    /// <see cref="ConstruirSiFalta"/>, con el cerrojo del proceso tomado, cuando
+    /// falla migrarla o publicarla; los fallos transitorios del clonado
+    /// (<see cref="OrigenEnUso"/>, <see cref="PlantillaInexistente"/>) se reintentan
+    /// en <see cref="Clonar"/> y no pasan por aquí.
+    /// </summary>
+    private (string Nombre, ExceptionDispatchInfo Fallo)? _construccionFallida;
 
     /// <param name="discriminador">
     /// Vacío para la plantilla de la suite. Los tests del propio procedimiento
@@ -208,6 +231,11 @@ internal sealed class PlantillaMigradaDePruebas
             if (_nombreAsegurado == nombre)
                 return nombre;
 
+            // La misma excepción de la primera vez, con su mensaje y su causa. Va
+            // por nombre: otro mes es otra plantilla y se intenta de nuevo.
+            if (_construccionFallida is { } fallida && fallida.Nombre == nombre)
+                fallida.Fallo.Throw();
+
             ConstruirSiFalta(nombre, mesUtc);
             _nombreAsegurado = nombre;
             return nombre;
@@ -249,18 +277,30 @@ internal sealed class PlantillaMigradaDePruebas
                 Database = provisional,
             }.ConnectionString;
 
-        // Fuera del contexto de sincronización de xUnit: este hilo se queda
-        // bloqueado esperando, y con los demás hilos del test esperando a su vez el
-        // cerrojo del proceso no quedaría ninguno para ejecutar las continuaciones.
-        Task.Run(() => _migrar(cadenaProvisional)).GetAwaiter().GetResult();
-        PlantillasConstruidas++;
+        try
+        {
+            // Fuera del contexto de sincronización de xUnit: este hilo se queda
+            // bloqueado esperando, y con los demás hilos del test esperando a su vez
+            // el cerrojo del proceso no quedaría ninguno para ejecutar las
+            // continuaciones.
+            Task.Run(() => _migrar(cadenaProvisional)).GetAwaiter().GetResult();
+            PlantillasConstruidas++;
 
-        // Cerrada a conexiones, lo único que entra después en la plantilla es el
-        // autovacuum, y lo único que escribe son las estadísticas del planificador
-        // de los catálogos compartidos que le toque analizar estando dentro
-        // (pg_statistic): ni el esquema ni los datos.
-        Ejecutar(cerrojo, $"ALTER DATABASE \"{provisional}\" ALLOW_CONNECTIONS false;");
-        Ejecutar(cerrojo, $"ALTER DATABASE \"{provisional}\" RENAME TO \"{nombre}\";");
+            // Cerrada a conexiones, lo único que entra después en la plantilla es
+            // el autovacuum, y lo único que escribe son las estadísticas del
+            // planificador de los catálogos compartidos que le toque analizar
+            // estando dentro (pg_statistic): ni el esquema ni los datos.
+            Ejecutar(cerrojo, $"ALTER DATABASE \"{provisional}\" ALLOW_CONNECTIONS false;");
+            Ejecutar(cerrojo, $"ALTER DATABASE \"{provisional}\" RENAME TO \"{nombre}\";");
+        }
+        catch (Exception ex)
+        {
+            // Se recuerda lo que falla una vez empezada la migración, que es lo
+            // caro de repetir. No conseguir la conexión o el cerrojo (más arriba)
+            // no se recuerda: no ha migrado nada y el siguiente puede tener suerte.
+            _construccionFallida = (nombre, ExceptionDispatchInfo.Capture(ex));
+            throw;
+        }
     }
 
     /// <summary>
@@ -313,6 +353,20 @@ internal sealed class PlantillaMigradaDePruebas
 
     private static string CalcularResumenDeLasMigraciones()
     {
+        var material = LeerMaterialDelResumen();
+        return Resumir(material.GuionDeMigraciones, material.VersionesDelProveedor, material.GuionDeRoles);
+    }
+
+    /// <summary>
+    /// Lo que de verdad entra en el resumen: el guion de las migraciones del
+    /// ensamblado, las versiones del proveedor y el guion de roles de clúster que
+    /// se copia junto a los tests. Se expone para que
+    /// <c>PlantillaMigradaDePruebasTests</c> exija que es el material real y no
+    /// una cadena vacía: con un guion vacío el nombre dejaría de cambiar al cambiar
+    /// una migración y se clonaría, sin ningún rojo, una plantilla caducada.
+    /// </summary>
+    internal static MaterialDelResumen LeerMaterialDelResumen()
+    {
         // GenerateScript no abre ninguna conexión: la cadena solo configura el proveedor.
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(
@@ -330,8 +384,12 @@ internal sealed class PlantillaMigradaDePruebas
                 .Select(nombre => string.Create(CultureInfo.InvariantCulture, $"{nombre.Name}={nombre.Version}")));
         var roles = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "roles-de-cluster.sql"));
 
-        return Resumir(guion, versiones, roles);
+        return new MaterialDelResumen(guion, versiones, roles);
     }
+
+    /// <summary>Las tres entradas de <see cref="Resumir"/>, tal como se leen del árbol compilado.</summary>
+    internal sealed record MaterialDelResumen(
+        string GuionDeMigraciones, string VersionesDelProveedor, string GuionDeRoles);
 
     private static bool Existe(NpgsqlConnection conexion, string baseDeDatos)
     {
