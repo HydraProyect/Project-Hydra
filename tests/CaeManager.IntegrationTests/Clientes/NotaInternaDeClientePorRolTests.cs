@@ -113,7 +113,7 @@ public class NotaInternaDeClientePorRolTests : IAsyncLifetime
             contexto, new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: _tenant),
             new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
 
-        return await new ObtenerClientePorIdQueryHandler(contexto, alcance)
+        return await new ObtenerClientePorIdQueryHandler(contexto, alcance, PoliticaNotaInternaPruebas.Con(rol))
             .Handle(new ObtenerClientePorIdQuery(_clienteId), CancellationToken.None);
     }
 

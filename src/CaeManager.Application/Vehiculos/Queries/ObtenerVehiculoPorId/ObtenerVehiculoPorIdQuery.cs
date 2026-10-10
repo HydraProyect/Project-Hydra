@@ -19,7 +19,7 @@ public record ObtenerVehiculoPorIdQuery(Guid Id) : IRequest<VehiculoDetalleDto?>
 /// </summary>
 /// <param name="Notas">
 /// La «Nota interna» de la ficha 360 (<c>Vehiculo.Notas</c>). Solo viaja para los roles de
-/// <see cref="ObtenerSubcontrataPorIdQueryHandler.RolesQueVenLaNotaInterna"/>; para cualquier otro es <c>null</c>.
+/// <see cref="PoliticaNotaInterna.RolesQueVenLaNotaInterna"/>; para cualquier otro es <c>null</c>.
 /// </param>
 /// <param name="NotaInternaVisible">
 /// Si quien pregunta está entre esos roles y por tanto la ficha debe pintar la tarjeta «Nota interna» (aunque esté
@@ -44,14 +44,14 @@ public record VehiculoDetalleDto(
 /// <b>Nota interna: el corte es de aquí, no de la página.</b> La página Vehículo 360 solo admite a los roles del
 /// equipo, pero esta consulta la envían también el panel del Vehículo y cualquier llamador futuro, y
 /// <c>VehiculoVisibleAsync</c> responde por alcance, no por rol. El handler solo entrega la nota a los roles de
-/// <see cref="ObtenerSubcontrataPorIdQueryHandler.RolesQueVenLaNotaInterna"/> —la misma lista blanca que Subcontrata
+/// <see cref="PoliticaNotaInterna.RolesQueVenLaNotaInterna"/> —la misma lista blanca que Subcontrata
 /// 360, una sola definición de quién ve una «Nota interna»—; a cualquier otro —Cliente, sin rol, uno futuro— le
 /// responde <c>Notas = null</c> y <c>NotaInternaVisible = false</c>.
 /// </para>
 /// </summary>
 public class ObtenerVehiculoPorIdQueryHandler(
     IEmpresasQueryContext empresasContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos,
-    ICalculoEstadoDocumentalService calculoEstadoDocumental, ICurrentUserService currentUserService)
+    ICalculoEstadoDocumentalService calculoEstadoDocumental, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerVehiculoPorIdQuery, VehiculoDetalleDto?>
 {
     public async Task<VehiculoDetalleDto?> Handle(ObtenerVehiculoPorIdQuery request, CancellationToken cancellationToken)
@@ -72,8 +72,7 @@ public class ObtenerVehiculoPorIdQueryHandler(
         var estados = await calculoEstadoDocumental.CalcularEstadosDeDocumentosDeVehiculoAsync(vehiculo.Id, cancellationToken);
         EstadoDocumento? peorEstado = estados.Count == 0 ? null : estados.MinBy(SeveridadEstadoDocumento.Rango);
 
-        var rol = await currentUserService.ObtenerRolEfectivoAsync();
-        var veLaNota = rol is not null && ObtenerSubcontrataPorIdQueryHandler.RolesQueVenLaNotaInterna.Contains(rol);
+        var veLaNota = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
 
         return new VehiculoDetalleDto(
             vehiculo.Id, vehiculo.EmpresaId, vehiculo.SubcontrataId, empleadorNombre, vehiculo.Nombre, vehiculo.Modelo,

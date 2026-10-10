@@ -15,8 +15,8 @@ public record ObtenerClientePorIdQuery(Guid Id) : IRequest<ClienteDetalleDto?>;
 /// pero nunca choca (ver EditarClienteCommandHandler).
 ///
 /// <paramref name="Notas"/> es la «Nota interna» del equipo de gestión sobre el
-/// Cliente empresarial: solo viaja a quien opera desde el lado de gestión
-/// (<see cref="IAlcanceDatosService.OperaDesdeElLadoDeGestionAsync"/>). Al
+/// Cliente empresarial: solo viaja a quien la lee según <see cref="IPoliticaNotaInterna"/>
+/// (equipo del Tenant, o Sesión Privilegiada con acceso total). Al
 /// Usuario de Cliente, que abre su propia ficha por alcance de lectura, le
 /// llega <c>null</c>. Quien reenvía este campo a <c>EditarClienteCommand</c>
 /// necesita un rol con escritura, y todos ellos son de gestión: ningún
@@ -31,7 +31,8 @@ public record ClienteDetalleDto(
 /// lee por Id ya conocido, sin necesitar saber si la fila "es" Cliente
 /// (lector de categoría B, ver f3b-clasificacion-lectores).
 /// </summary>
-public class ObtenerClientePorIdQueryHandler(IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerClientePorIdQueryHandler(
+    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerClientePorIdQuery, ClienteDetalleDto?>
 {
     public async Task<ClienteDetalleDto?> Handle(ObtenerClientePorIdQuery request, CancellationToken cancellationToken)
@@ -39,8 +40,9 @@ public class ObtenerClientePorIdQueryHandler(IEmpresasQueryContext dbContext, IA
         if (!await alcanceDatos.ClienteVisibleAsync(request.Id, cancellationToken)) return null;
 
         // La ficha le llega al usuario de portal porque es la de su Cliente
-        // empresarial (alcance de lectura, arriba); la nota interna no.
-        var conNotaInterna = await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken);
+        // empresarial (alcance de lectura, arriba); la nota interna, no: la
+        // decide la misma política que el resto de fichas 360.
+        var conNotaInterna = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
 
         return await dbContext.Empresas
             .Where(c => c.Id == request.Id)

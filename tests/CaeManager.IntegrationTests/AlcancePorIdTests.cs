@@ -100,7 +100,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     public async Task Devuelve_el_cliente_cuando_esta_dentro_de_la_cartera_visible()
     {
         var alcance = new AlcanceDatosServiceFalso(clienteIds: [_clienteVisible.Id]);
-        var handler = new ObtenerClientePorIdQueryHandler(_dbContext, alcance);
+        var handler = new ObtenerClientePorIdQueryHandler(_dbContext, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var resultado = await handler.Handle(new ObtenerClientePorIdQuery(_clienteVisible.Id), CancellationToken.None);
 
@@ -114,7 +114,7 @@ public class AlcancePorIdTests : IAsyncLifetime
         // Cartera restringida a _clienteVisible únicamente — _clienteAjeno existe
         // de verdad en la base de datos, pero no debe ser legible por este usuario.
         var alcance = new AlcanceDatosServiceFalso(clienteIds: [_clienteVisible.Id]);
-        var handler = new ObtenerClientePorIdQueryHandler(_dbContext, alcance);
+        var handler = new ObtenerClientePorIdQueryHandler(_dbContext, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var resultado = await handler.Handle(new ObtenerClientePorIdQuery(_clienteAjeno.Id), CancellationToken.None);
 
@@ -125,7 +125,7 @@ public class AlcancePorIdTests : IAsyncLifetime
     public async Task Un_rol_sin_restriccion_ve_cualquier_cliente()
     {
         var alcance = new AlcanceDatosServiceFalso(); // todo null = sin restricción (Administrador/DireccionCae/Consulta)
-        var handler = new ObtenerClientePorIdQueryHandler(_dbContext, alcance);
+        var handler = new ObtenerClientePorIdQueryHandler(_dbContext, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var resultado = await handler.Handle(new ObtenerClientePorIdQuery(_clienteAjeno.Id), CancellationToken.None);
 
