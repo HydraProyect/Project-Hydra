@@ -53,7 +53,8 @@
                       PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                       HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                       FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
-                      OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
+                      OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
+                      VistaRecordada="_vistaRecordada">
             <Pastillas>
                 @* La opción vacía pide elegir un Cliente empresarial: nunca representa todos. *@
                 <PastillaFiltro @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
@@ -69,6 +70,8 @@
         </BarraFiltros>
         <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
                                    OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+        <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Proyectos"
+                                 ParametrosDeVista="ParametrosDeVista" ParametrosDeContexto="ParametrosDeContexto" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
         @if (_clienteSeleccionadoId != Guid.Empty && _proyectos.Count > 0)
         {
             @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice

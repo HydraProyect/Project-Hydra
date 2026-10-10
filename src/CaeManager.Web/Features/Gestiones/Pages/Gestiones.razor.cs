@@ -146,6 +146,34 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     [SupplyParameterFromQuery(Name = "q")]
     public string? TerminoBusquedaInicial { get; set; }
 
+    /// <summary>Orden de columna (<c>?orden=creada-desc</c>). Sin él, el de fábrica: por estado.</summary>
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    /// <summary>
+    /// El orden de columna viaja en la URL y forma parte de la vista. La rejilla nace ordenada por
+    /// estado; «trabajador» y «centro» son la misma columna.
+    /// </summary>
+    private readonly OrdenDeRejilla _orden = new(
+    [
+        ("trabajador", nameof(GestionListaDto.TrabajadorNombre)),
+        ("centro", nameof(GestionListaDto.CentroNombre)),
+        ("tipo", nameof(GestionListaDto.TipoDocumentoNombre)),
+        ("estado", nameof(GestionListaDto.Estado)),
+        ("creada", nameof(GestionListaDto.CreadoEnUtc)),
+    ], claveDeFabrica: "estado");
+
+    /// <summary>El orden que llega (URL, filtro guardado o vista recordada). Si cambia, la rejilla se remonta ya ordenada.</summary>
+    private bool LeerOrden(string? valor)
+    {
+        if (!_orden.Leer(valor))
+            return false;
+
+        if (_orden.Propiedad is nameof(GestionListaDto.TrabajadorNombre) or nameof(GestionListaDto.CentroNombre))
+            _ordenTrabajadorPorCentro = _orden.Propiedad == nameof(GestionListaDto.CentroNombre);
+        return true;
+    }
+
     protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
 
     /// <summary>La URL es la fuente de verdad del filtro (P1-18) — ver el resto de listados.</summary>
@@ -158,6 +186,8 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         var busquedaDeLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (busquedaDeLaUrl != _busqueda)
             _busqueda = busquedaDeLaUrl;
+
+        LeerOrden(OrdenInicial);
     }
 
     private async ValueTask<GridItemsProviderResult<GestionListaDto>> ProveerElementosAsync(
@@ -171,6 +201,8 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
         _ultimaColumnaOrden = request.SortByColumn;
         _ultimoOrdenAscendente = request.SortByAscending;
+        if (_orden.Anotar(ordenarPor, descendente))
+            NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
         _elementosPagina = [];
         _idEnfocado = null;
         var consulta = new ObtenerGestionesQuery(
@@ -312,10 +344,14 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     private const string PantallaDeFiltrosGuardados =
         CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Gestiones;
 
-    /// <summary>Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.</summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado"];
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado, y lo que
+    /// recuerda la vista recordada (<see cref="VistaRecordadaDeListado"/>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "orden"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
 
     /// <summary>
     /// Un filtro guardado define la vista entera: lo que no trae se quita. El estado pasa por la misma
@@ -326,8 +362,20 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
         _filtroEstado = EstadosValidos(vista.GetValueOrDefault("estado"));
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = _busqueda, ["estado"] = _filtroEstado });
-        await RecargarAsync();
+        var cambiaElOrden = LeerOrden(vista.GetValueOrDefault("orden"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["estado"] = _filtroEstado,
+            ["orden"] = _orden.EnUrl,
+        });
+
+        // Con otro orden la rejilla se remonta en el siguiente render y pide ella los datos:
+        // refrescar además la saliente sería pedirlos dos veces.
+        if (cambiaElOrden && _paginacion.CurrentPageIndex == 0)
+            StateHasChanged();
+        else
+            await RecargarAsync();
     }
 
     /// <summary>Mismo motivo que <see cref="LimpiarFiltrosAsync"/>: la búsqueda se quita también de la URL.</summary>

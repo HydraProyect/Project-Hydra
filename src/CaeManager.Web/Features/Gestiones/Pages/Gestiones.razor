@@ -28,7 +28,8 @@
                   PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
-                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
+                  VistaRecordada="_vistaRecordada">
         @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
         <Pastillas></Pastillas>
         <Chips>
@@ -40,6 +41,8 @@
     </BarraFiltros>
     <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Gestiones"
+                             ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
        cuántas Gestiones hay, con la búsqueda aplicada. Con los dos botones marcados se ven todas. *@
     <FranjaEstado Opciones="OpcionesEstado" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync"
@@ -65,9 +68,10 @@
            mientras no haya filas que enseñar, y en su lugar se ve el esqueleto
            o el estado vacío que toque. *@
         <div style="display:@(_totalElementos == 0 ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+            <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 <TemplateColumn @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
-                                Sortable="true" SortBy="@(_ordenTrabajadorPorCentro ? OrdenCentroListado : OrdenTrabajadorListado)">
+                                Sortable="true" SortBy="@(_ordenTrabajadorPorCentro ? OrdenCentroListado : OrdenTrabajadorListado)"
+                                IsDefaultSortColumn="@_orden.Es("trabajador", "centro")" InitialSortDirection="_orden.Direccion">
                     <ColumnOptions>
                         <div class="gestiones-opciones-orden" data-opciones-orden>
                             <button type="button" @onclick="() => CambiarCampoOrdenTrabajador(false)">@Textos["ListaOrdenarTrabajador"]</button>
@@ -81,12 +85,14 @@
                         </span>
                     </ChildContent>
                 </TemplateColumn>
-                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="@Textos["ListaTipoDocumento"]" Sortable="true" Class="gestion-tipo-documento" />
-                <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado" Sortable="true" IsDefaultSortColumn="true" InitialSortDirection="SortDirection.Ascending" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
+                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="@Textos["ListaTipoDocumento"]" Sortable="true" Class="gestion-tipo-documento"
+                                IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion" />
+                <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado" Sortable="true" IsDefaultSortColumn="@_orden.Es("estado")" InitialSortDirection="_orden.Direccion" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
                     <EstadoFila Tono="@TonoEstado(context.Estado)" Texto="@TextoEstado(context.Estado)"
                                 Correcto="@(context.Estado == EstadoGestion.Completada)" />
                 </TemplateColumn>
-                <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="@Textos["ColumnaCreada"]" Sortable="true" />
+                <PropertyColumn Property="@(g => g.CreadoEnUtc)" Format="dd/MM/yyyy" Title="@Textos["ColumnaCreada"]" Sortable="true"
+                                IsDefaultSortColumn="@_orden.Es("creada")" InitialSortDirection="_orden.Direccion" />
                 @* Patrón de listados (2026-10-08): la fila no lleva menú «⋯». Su hueco de acción rápida es
                    completar o reabrir; la vista rápida se abre con un clic en la fila, el nombre o Enter, y
                    «Eliminar» vive en el pie de la vista rápida (decisión D1: esta pantalla no tiene selección

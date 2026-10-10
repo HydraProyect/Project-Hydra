@@ -65,7 +65,8 @@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
-                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
+                  VistaRecordada="_vistaRecordada">
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["EtiquetaEmpleador"]" TextoTodos="@Textos["ListaFiltroTodos"]"
                             Valor="@ValorFiltroEmpleador" ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
@@ -87,6 +88,8 @@
     </BarraFiltros>
     <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Vehiculos"
+                             ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @* Franja de estado: sustituye a la pastilla «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
@@ -107,7 +110,7 @@
     else
     {
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+            <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                 @if (_seleccionMultiple)
                 {
                     <TemplateColumn Title="" Align="Align.Center">
@@ -119,7 +122,8 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn @ref="_columnaVehiculo" Title="@TituloColumnaVehiculo" Sortable="true" SortBy="@OrdenColumnaVehiculo">
+                <TemplateColumn @ref="_columnaVehiculo" Title="@TituloColumnaVehiculo" Sortable="true" SortBy="@OrdenColumnaVehiculo"
+                                IsDefaultSortColumn="@_orden.Es("vehiculo", "modelo")" InitialSortDirection="_orden.Direccion">
                     <ColumnOptions>
                         @* El botón de orden y su dirección accesible siguen siendo los nativos de QuickGrid.
                            Solo se escoge cuál de los dos campos de esta celda se ordena. *@
@@ -139,7 +143,8 @@
                         </span>
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["EtiquetaMatricula"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.NumeroPlaca))">
+                <TemplateColumn Title="@Textos["EtiquetaMatricula"]" Sortable="true" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.NumeroPlaca))"
+                                IsDefaultSortColumn="@_orden.Es("matricula")" InitialSortDirection="_orden.Direccion">
                     @if (!string.IsNullOrWhiteSpace(context.NumeroPlaca))
                     {
                         <span class="celda-vehiculo-matricula">
@@ -148,10 +153,12 @@
                         </span>
                     }
                 </TemplateColumn>
-                <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true" />
+                <PropertyColumn Property="@(v => v.EmpleadorNombre)" Title="@Textos["ColumnaEmpleador"]" Sortable="true"
+                                IsDefaultSortColumn="@_orden.Es("empleador")" InitialSortDirection="_orden.Direccion" />
                 @* Columna de estado, de ancho fijo. El documento que causa el estado (el motivo bajo la pastilla)
                    no viaja en VehiculoListaDto. *@
-                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" Class="col-estado" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))">
+                <TemplateColumn Title="@Textos["EtiquetaDocumentacion"]" Sortable="true" Class="col-estado" SortBy="@(GridSort<VehiculoListaDto>.ByAscending(v => v.EstadoDocumental))"
+                                IsDefaultSortColumn="@_orden.Es("documentacion")" InitialSortDirection="_orden.Direccion">
                     <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)"
                                 Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)"
                                 Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" />

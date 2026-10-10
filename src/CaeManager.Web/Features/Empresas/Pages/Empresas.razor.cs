@@ -480,6 +480,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
 
     /// <summary>
     /// Un filtro guardado define la vista entera: lo que no trae se quita. Cada valor pasa por la misma

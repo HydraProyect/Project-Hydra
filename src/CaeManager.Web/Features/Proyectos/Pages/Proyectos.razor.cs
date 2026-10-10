@@ -454,6 +454,14 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     public static readonly IReadOnlyList<string> ParametrosDeVista = ["cliente", "q", "estado"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// De la vista recordada (<see cref="VistaRecordadaDeListado"/>): el Cliente empresarial elegido se
+    /// recuerda y se restaura, pero es parte de la vista de inicio —sin él no hay lista—, así que no
+    /// cuenta como desviación ni lo quita «Restablecer vista».
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeContexto = ["cliente"];
 
     /// <summary>
     /// Un filtro guardado define la vista entera: lo que no trae se quita, también el Cliente empresarial.
