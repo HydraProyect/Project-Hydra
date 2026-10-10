@@ -476,7 +476,7 @@ public sealed class VistaRecordadaDeListado : ComponentBase, IDisposable
 
     /// <summary>La lista blanca sin la búsqueda libre: lo único que se escribe, se compara y se restaura.</summary>
     private IReadOnlyList<string> ParametrosRecordados =>
-        [.. ParametrosDeVista.Where(p => !string.Equals(p, ParametroDeBusqueda,StringComparison.OrdinalIgnoreCase))];
+        [.. ParametrosDeVista.Where(p => !string.Equals(p, ParametroDeBusqueda, StringComparison.OrdinalIgnoreCase))];
 
     /// <summary>La vista tal como se recuerda: sin la búsqueda libre.</summary>
     private string Serializar(IReadOnlyDictionary<string, string> vista) => VistaDeListado.Serializar(ParametrosRecordados, vista);
