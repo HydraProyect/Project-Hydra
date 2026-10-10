@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Npgsql;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -7,11 +8,22 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.IntegrationTests;
 
 /// <summary>
-/// Conexión a PostgreSQL para los tests de integración. Cada test crea su
+/// Conexión a PostgreSQL para los tests de integración. Cada test tiene su
 /// propia base de datos con nombre único (las fixtures corren en paralelo) y
 /// la borra en el teardown con <c>EnsureDeletedAsync</c> — Npgsql vacía su
 /// pool de conexiones antes del DROP, así que no hace falta el equivalente
 /// del <c>ClearAllPools</c> que exigía SQLite.
+///
+/// <para>
+/// <b>Esa base ya nace migrada.</b> <see cref="CadenaConexionUnica"/> la crea
+/// como clon de una plantilla a la que se le aplicaron todas las migraciones una
+/// sola vez (<see cref="PlantillaMigradaDePruebas"/>), así que el
+/// <c>MigrateAsync</c> que cada clase sigue llamando en su
+/// <c>InitializeAsync</c> comprueba el historial y no aplica nada. Los tests cuyo
+/// objeto es la propia migración o el arranque reciben una base que aún no
+/// existe, como antes: ver <see cref="CadenaConexionDeBaseVacia"/> y
+/// <see cref="MigraPorSiMismo"/>.
+/// </para>
 ///
 /// Por defecto apunta al servidor local (sin Docker en la máquina de
 /// desarrollo, ver Project-Hydra-Negocio/tecnico/ROADMAP.md § migración a PostgreSQL); en CI se apunta al
@@ -89,8 +101,67 @@ internal static class BaseDatosPostgresDePruebas
         CadenaDeMantenimientoSinPool(), ProteccionDePruebas, TimeProvider.System,
         FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
 
-    internal static string CadenaConexionUnica() =>
+    /// <summary>
+    /// Cadena de una base nueva, de nombre único y <b>ya migrada</b>: se crea aquí
+    /// mismo como clon de la plantilla. El <c>MigrateAsync</c> posterior del test
+    /// no aplica nada, y su teardown la borra igual que antes.
+    ///
+    /// <para>
+    /// <b>Excepción por construcción.</b> Si quien llama es un fichero de
+    /// <c>Arranque/</c> o de <c>Migraciones/</c> (ver <see cref="MigraPorSiMismo"/>),
+    /// no se clona nada y la base no existe hasta que ese código la cree: ahí
+    /// migrar es lo que se prueba, o se migra por pasos desde un esquema
+    /// intermedio. Alcanza a todo test que pase por <c>ArnesDeArranqueRuntime</c> o
+    /// <c>ArnesPilotoOutbound</c>, porque la llamada sale de esos ficheros.
+    /// </para>
+    ///
+    /// <para>
+    /// Fuera de esas carpetas, un test que necesite una base sin crear pide
+    /// <see cref="CadenaConexionDeBaseVacia"/>;
+    /// <c>ClonDeLaPlantillaSoloParaQuienNoMigraTests</c> pone en rojo al que use
+    /// esta y además maneje el migrador o cree la base por su cuenta.
+    /// </para>
+    /// </summary>
+    /// <param name="ficheroLlamante">Lo rellena el compilador. No se pasa a mano.</param>
+    internal static string CadenaConexionUnica([CallerFilePath] string ficheroLlamante = "")
+    {
+        var cadena = CadenaConexionDeBaseVacia();
+        if (!MigraPorSiMismo(ficheroLlamante))
+            PlantillaMigradaDePruebas.DeLaSuite.Clonar(cadena);
+
+        return cadena;
+    }
+
+    /// <summary>
+    /// Cadena de una base de nombre único que <b>todavía no existe</b>: la crea y
+    /// la migra quien la pide. Para los tests en que migrar es lo que se prueba
+    /// (migración por pasos, <c>IMigrator</c>, <c>CREATE DATABASE</c> propio,
+    /// identidad con la que se migra).
+    /// </summary>
+    internal static string CadenaConexionDeBaseVacia() =>
         $"{Servidor};Database=caemanager_tests_{Guid.NewGuid():N};{LimitesDePool}";
+
+    /// <summary>
+    /// Verdadero si el fichero que pide la cadena está en <c>Arranque/</c> o en
+    /// <c>Migraciones/</c>, o si no se sabe qué fichero es: ante la duda, base sin
+    /// crear y migración real, que es lo que hacía todo test antes de la
+    /// plantilla.
+    /// </summary>
+    internal static bool MigraPorSiMismo(string ficheroLlamante)
+    {
+        if (string.IsNullOrWhiteSpace(ficheroLlamante))
+            return true;
+
+        var segmentos = ficheroLlamante.Split('/', '\\');
+        var proyecto = Array.LastIndexOf(segmentos, "CaeManager.IntegrationTests");
+        if (proyecto < 0)
+            return true;
+
+        return segmentos
+            .Skip(proyecto + 1)
+            .SkipLast(1)
+            .Any(carpeta => carpeta is "Arranque" or "Migraciones");
+    }
 
     /// <summary>
     /// Contraseña de <c>cae_app_runtime</c> en el clúster de pruebas. Fija y en
@@ -129,7 +200,8 @@ internal static class BaseDatosPostgresDePruebas
     }
 
     /// <summary>
-    /// Crea y migra la base con un contexto propietario SIN interceptores, como
+    /// Migra la base (creándola si aún no existe; sobre un clon de la plantilla no
+    /// aplica nada) con un contexto propietario SIN interceptores, como
     /// el migrador de producción (<c>MigrarBaseDeDatosAsync</c> en
     /// <c>Program.cs</c>). Migrar con un contexto que ya lleva
     /// <c>TenantRlsConnectionInterceptor</c> no sirve desde P6: el interceptor
@@ -180,4 +252,6 @@ internal static class BaseDatosPostgresDePruebas
     // DROP ... WITH (FORCE) mataría las conexiones de una segunda ejecución
     // simultánea en la misma máquina. Se limpian a mano cuando molesten:
     //   SELECT datname FROM pg_database WHERE datname LIKE 'caemanager_tests_%';
+    // Las plantillas llevan otro prefijo a propósito (PlantillaMigradaDePruebas.Prefijo)
+    // y esa limpieza no las toca.
 }
