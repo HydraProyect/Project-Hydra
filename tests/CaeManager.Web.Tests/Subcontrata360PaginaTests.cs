@@ -686,25 +686,25 @@ public class Subcontrata360PaginaTests : BunitContext
     [Fact]
     public void Si_el_servidor_rechaza_la_nota_el_editor_sigue_abierto_con_el_motivo_y_lo_escrito()
     {
-        var conflicto = Error.Crear("Concurrencia.Conflicto", "Otra persona modificó esta subcontrata mientras lo editabas.");
+        var rechazo = Error.Crear("Subcontrata.NotaRechazada", "La nota no se puede guardar ahora.");
         var mediador = Montar(ajustar: m =>
         {
             m.Detalle = Detalle(notas: NotaGuardada);
-            m.ResultadoNota = Result.Fallo(conflicto);
+            m.ResultadoNota = Result.Fallo(rechazo);
         });
         var cut = AbrirEditorNota(Renderizar());
 
         EditorNota(cut).QuerySelector("textarea")!.Input("Lo mío.");
         EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
 
-        cut.WaitForAssertion(() => EditorNota(cut).QuerySelector(".drawer-aviso")!.TextContent.Should().Contain(conflicto.Mensaje));
+        cut.WaitForAssertion(() => EditorNota(cut).QuerySelector(".drawer-aviso")!.TextContent.Should().Contain(rechazo.Mensaje));
         mediador.Enviadas.OfType<GuardarNotaInternaSubcontrataCommand>().Should().ContainSingle();
         TarjetaNota(cut)!.TextContent.Should().Contain(NotaGuardada, "lo rechazado no se da por guardado");
     }
 
     /// <summary>
-    /// Tras un conflicto la ficha tiene una versión vieja: si no releyera, cada intento posterior volvería a chocar y
-    /// la tarjeta seguiría enseñando una nota que ya no es la guardada.
+    /// Tras un conflicto el editor se cierra, la cabecera se relee (la tarjeta enseña la nota de la otra persona) y el
+    /// texto propio queda como borrador: el usuario lo ve sobre la nota nueva antes de reaplicarlo.
     /// </summary>
     [Fact]
     public void Tras_un_conflicto_el_editor_se_cierra_y_la_nota_de_la_otra_persona_se_ve_antes_de_reaplicar()
@@ -730,7 +730,8 @@ public class Subcontrata360PaginaTests : BunitContext
         // Al reabrir, el editor parte de la nota de la otra persona y el envío lleva la versión que ya vio.
         mediador.ResultadoNota = Result.Exito();
         AbrirEditorNota(cut);
-        EditorNota(cut).QuerySelector("textarea")!.TextContent.Should().Be("La de otra persona.");
+        // El borrador propio sobrevive al conflicto: el usuario lo reaplica sobre la nota nueva, no se pierde.
+        EditorNota(cut).QuerySelector("textarea")!.TextContent.Should().Be("Lo mío.");
     }
 
     /// <summary>La nota demasiado larga la rechaza el validador del servidor (ValidationBehavior lanza): el motivo va al campo.</summary>

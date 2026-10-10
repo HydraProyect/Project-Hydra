@@ -259,6 +259,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         _editorNotaVisible = false;
         _guardandoNota = false;
         _notaEnEdicion = string.Empty;
+        _borradorNotaTrasConflicto = null;
         _mensajeErrorNota = null;
         _errorCampoNota = null;
     }
@@ -966,6 +967,8 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private bool _editorNotaVisible;
     private bool _guardandoNota;
     private string _notaEnEdicion = string.Empty;
+    /// <summary>Lo que el usuario escribió cuando otra persona guardó antes: se recupera al reabrir el editor, nunca se reenvía solo.</summary>
+    private string? _borradorNotaTrasConflicto;
     private string? _mensajeErrorNota;
     private string? _errorCampoNota;
     private readonly InstantaneaFormulario _instantaneaNota = new();
@@ -977,7 +980,8 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     {
         if (_detalle is null) return;
 
-        _notaEnEdicion = _detalle.Notas ?? string.Empty;
+        _notaEnEdicion = _borradorNotaTrasConflicto ?? _detalle.Notas ?? string.Empty;
+        _borradorNotaTrasConflicto = null;
         _mensajeErrorNota = null;
         _errorCampoNota = null;
         _instantaneaNota.Fijar(_notaEnEdicion);
@@ -988,9 +992,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
 
     /// <summary>
     /// Manda solo la nota y la <c>Version</c> que la ficha leyó. Si otra persona guardó entre medias, el servidor responde
-    /// el conflicto: el editor se cierra, se relee la cabecera (la tarjeta enseña la nota de esa persona) y se avisa para
-    /// que el usuario la vea y reaplique su texto. Nunca se reenvía con la versión nueva sin pasar por ahí. Tras guardar
-    /// bien también se relee, porque la <c>Version</c> cambió.
+    /// el conflicto: el editor se cierra, se relee la cabecera (la tarjeta enseña la nota de esa persona) y el texto propio
+    /// queda como borrador para reaplicarlo al reabrir. Nunca se reenvía con la versión nueva sin pasar por ahí. Tras
+    /// guardar bien también se relee, porque la <c>Version</c> cambió. Otros fallos solo muestran el motivo.
     /// </summary>
     private async Task GuardarNotaAsync()
     {
@@ -1009,18 +1013,19 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             if (resultado.EsFallido)
             {
                 if (generacion != _generacion) return;
-                // Un conflicto cierra el editor: el usuario ve la nota que guardó la otra persona antes de reaplicar la suya.
-                // Reenviar con la versión nueva sin mirarla pisaría esa nota en silencio.
+                // Un conflicto cierra el editor y relee: la tarjeta enseña la nota de la otra persona y el texto propio
+                // queda como borrador al reabrir. Reenviar con la versión nueva sin mirarla pisaría esa nota en silencio.
                 if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
                 {
+                    _borradorNotaTrasConflicto = _notaEnEdicion;
                     ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
                     _editorNotaVisible = false;
+                    await RecargarCabeceraAsync();
                 }
                 else
                 {
                     _mensajeErrorNota = resultado.Error.Mensaje;
                 }
-                await RecargarCabeceraAsync();
                 return;
             }
 
