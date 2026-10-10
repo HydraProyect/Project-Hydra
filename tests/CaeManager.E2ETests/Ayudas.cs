@@ -710,8 +710,12 @@ public static class Ayudas
     {
         // Cada recorrido empieza con la vista de fábrica en todos los listados, la dejara como la dejara
         // el anterior que entró con esta cuenta (ver WebAppFixture.OlvidarVistasRecordadasAsync).
-        if (WebAppFixture.DeLaUrl(baseUrl) is { } fixture)
-            await fixture.OlvidarVistasRecordadasAsync(email);
+        // Sin fixture para esa URL no hay limpieza, y sin limpieza el recorrido hereda la vista del anterior:
+        // se falla aquí, en voz alta, en vez de dejar de aislar en silencio (p. ej. una URL con barra final).
+        var fixture = WebAppFixture.DeLaUrl(baseUrl)
+            ?? throw new InvalidOperationException(
+                $"Ninguna fixture sirve la URL base «{baseUrl}»: no se puede olvidar la vista recordada de la cuenta antes de entrar.");
+        await fixture.OlvidarVistasRecordadasAsync(email);
 
         await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
         await page.FillAsync("#email", email);
