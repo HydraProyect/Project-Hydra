@@ -85,10 +85,10 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
         var alcance = new AlcanceDatosServiceFalso();
 
         var centro360 = await new ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
-                contexto, contexto, contexto, contexto, contexto, contexto, alcance)
+                contexto, contexto, contexto, contexto, contexto, contexto, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(contexto, contexto, contexto, contexto, contexto, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }))
             .Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(_centroId), CancellationToken.None);
         var trabajador360 = await new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
-                contexto, contexto, contexto, contexto, contexto, contexto, alcance)
+                contexto, contexto, contexto, contexto, contexto, contexto, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(contexto, contexto, contexto, contexto, contexto, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }))
             .Handle(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(_trabajadorId), CancellationToken.None);
 
         var enCentro = centro360.Should().ContainSingle().Subject;
@@ -239,7 +239,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
 
         await using var lectura = CrearContexto();
         var centro360 = await new ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
-                lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso())
+                lectura, lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(lectura, lectura, lectura, lectura, lectura, new AlcanceDatosServiceFalso(), new CurrentUserServiceMutable { Rol = "Administrador" }))
             .Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(_centroId), CancellationToken.None);
 
         var documentos = centro360.Single().Documentos;
