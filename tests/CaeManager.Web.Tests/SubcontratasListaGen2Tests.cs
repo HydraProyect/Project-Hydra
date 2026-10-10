@@ -1051,6 +1051,38 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("estado=Vencido", "el filtro no se toca");
     }
 
+    /// <summary>
+    /// Un filtro guardado define la vista entera, también el estado documental: el que trae se aplica
+    /// (validado como el de la URL) y, si no trae ninguno, el de la franja se quita.
+    /// </summary>
+    [Fact]
+    public async Task Un_filtro_guardado_aplica_su_estado_y_quita_el_que_no_trae()
+    {
+        Subcontratas.ParametrosDeVista.Should().Contain("estado", "si no, «Guardar filtro» no lo recordaría");
+        var mediador = new MediatorFalso
+        {
+            Subcontratas =
+            [
+                Subcontrata("Andamios Bidasoa S.L.", vencidas: [Incidencia("Formación PRL — Iñaki Otaegi", EstadoDocumento.Vencido)]),
+                Subcontrata("Transportes Argia S.A."),
+            ]
+        };
+        var cut = Renderizar(mediador);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var guardados = cut.FindComponent<FiltrosGuardadosDeListado>().Instance;
+
+        await cut.InvokeAsync(() => guardados.OnAplicar.InvokeAsync(new Dictionary<string, string?> { ["estado"] = "Vencido,Inventado" }));
+
+        mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().EstadoDocumental.Should().Be("Vencido");
+        navegacion.Uri.Should().Contain("estado=Vencido").And.NotContain("Inventado");
+        cut.WaitForAssertion(() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Should().ContainSingle());
+
+        await cut.InvokeAsync(() => guardados.OnAplicar.InvokeAsync(new Dictionary<string, string?> { ["q"] = "Argia" }));
+
+        mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().EstadoDocumental.Should().BeNull("la vista guardada no trae estado");
+        navegacion.Uri.Should().NotContain("estado=").And.Contain("q=Argia");
+    }
+
     private static int ConsultasDeLista(MediatorFalso mediador) => mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Count();
 
     /// <summary>

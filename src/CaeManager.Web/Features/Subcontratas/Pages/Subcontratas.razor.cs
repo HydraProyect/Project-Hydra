@@ -439,20 +439,24 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.
     /// Fuera queda <c>accion</c>.
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel", "estado"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
 
     /// <summary>
-    /// Un filtro guardado define la vista entera: lo que no trae se quita. El nivel pasa por la misma
-    /// validación que el de la URL (uno que ya no existe se ignora), y la URL se escribe en una sola
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. El nivel y el estado pasan por la
+    /// misma validación que los de la URL (uno que ya no existe se ignora), y la URL se escribe en una sola
     /// navegación antes de recargar; así <see cref="OnParametersSetAsync"/> la encuentra igual que los campos.
     /// </summary>
     private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
     {
         _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
         _nivelFiltro = NivelValido(vista.GetValueOrDefault("nivel"));
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = _busqueda, ["nivel"] = _nivelFiltro });
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda, ["nivel"] = _nivelFiltro, ["estado"] = _estadoFiltro
+        });
         await CargarAsync(resetPagina: true);
     }
 
