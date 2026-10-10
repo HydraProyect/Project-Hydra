@@ -96,12 +96,12 @@ public class ObtenerTrabajadoresQueryHandler(
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
+            var busqueda = request.Busqueda;
             consulta = consulta.Where(x =>
-                x.trabajador.Nombre.ToUpper().Contains(busqueda) ||
-                x.trabajador.Apellidos.ToUpper().Contains(busqueda) ||
-                (x.trabajador.Dni ?? "").ToUpper().Contains(busqueda) ||
-                (x.trabajador.Alias != null && x.trabajador.Alias.ToUpper().Contains(busqueda)));
+                TextoDeBusqueda.Contiene(x.trabajador.Nombre, busqueda) ||
+                TextoDeBusqueda.Contiene(x.trabajador.Apellidos, busqueda) ||
+                TextoDeBusqueda.Contiene(x.trabajador.Dni, busqueda) ||
+                (x.trabajador.Alias != null && TextoDeBusqueda.Contiene(x.trabajador.Alias, busqueda)));
         }
 
         if (request.EmpresaId is not null)

@@ -41,11 +41,11 @@ public class ObtenerGestionesQueryHandler(
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
+            var busqueda = request.Busqueda;
             consulta = consulta.Where(x =>
-                (x.trabajador.Nombre + " " + x.trabajador.Apellidos).ToUpper().Contains(busqueda) ||
-                x.centro.Nombre.ToUpper().Contains(busqueda) ||
-                x.tipoDocumento.Nombre.ToUpper().Contains(busqueda));
+                TextoDeBusqueda.Contiene(x.trabajador.Nombre + " " + x.trabajador.Apellidos, busqueda) ||
+                TextoDeBusqueda.Contiene(x.centro.Nombre, busqueda) ||
+                TextoDeBusqueda.Contiene(x.tipoDocumento.Nombre, busqueda));
         }
 
         // Para la franja de estado del listado: gestiones por estado con los demás filtros aplicados y ANTES de

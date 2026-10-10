@@ -147,7 +147,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
             var coincidentes = Almacen
                 .Where(e => q.EmpresaId is null || e.Id == q.EmpresaId)
                 .Where(e => string.IsNullOrWhiteSpace(q.Busqueda)
-                    || e.RazonSocial.ToUpperInvariant().Contains(q.Busqueda.ToUpperInvariant()))
+                    || TextoDeBusqueda.Contiene(e.RazonSocial, q.Busqueda))
                 .Where(e => EstadoDocumentalFiltro.Coincide(e.EstadoDocumental, q.EstadoDocumental))
                 .OrderBy(e => e.RazonSocial, StringComparer.Ordinal).ThenBy(e => e.Id)
                 .ToList();

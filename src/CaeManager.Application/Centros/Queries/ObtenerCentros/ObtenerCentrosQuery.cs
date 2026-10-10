@@ -117,11 +117,11 @@ public class ObtenerCentrosQueryHandler(
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
-            consulta = consulta.Where(x => x.centro.Nombre.ToUpper().Contains(busqueda)
-                || (x.centro.CodigoCentro != null && x.centro.CodigoCentro.ToUpper().Contains(busqueda))
-                || x.cliente.RazonSocial.ToUpper().Contains(busqueda)
-                || x.empresa.RazonSocial.ToUpper().Contains(busqueda));
+            var busqueda = request.Busqueda;
+            consulta = consulta.Where(x => TextoDeBusqueda.Contiene(x.centro.Nombre, busqueda)
+                || (x.centro.CodigoCentro != null && TextoDeBusqueda.Contiene(x.centro.CodigoCentro, busqueda))
+                || TextoDeBusqueda.Contiene(x.cliente.RazonSocial, busqueda)
+                || TextoDeBusqueda.Contiene(x.empresa.RazonSocial, busqueda));
         }
 
         if (request.ClienteId is not null)

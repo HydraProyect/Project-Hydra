@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 using CaeManager.Web.Components.DesignSystem;
 
@@ -31,7 +32,7 @@ public static class FiltroProyectos
     {
         var termino = (busqueda ?? string.Empty).Trim();
         return termino.Length == 0
-            || proyecto.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase)
-            || proyecto.CentroNombre.Contains(termino, StringComparison.OrdinalIgnoreCase);
+            || TextoDeBusqueda.Contiene(proyecto.Nombre, termino)
+            || TextoDeBusqueda.Contiene(proyecto.CentroNombre, termino);
     }
 }

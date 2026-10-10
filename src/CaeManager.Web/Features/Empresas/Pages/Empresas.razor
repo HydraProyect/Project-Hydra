@@ -249,7 +249,7 @@
                             <button type="button" class="enlace-nombre-fila celda-empresa nombre-abre-vista-rapida"
                                     aria-label="@Textos["AbrirVistaRapidaDe", empresa.RazonSocial]"
                                     @onclick="() => AbrirVistaRapidaAsync(empresa.Id)" @onclick:stopPropagation="true">
-                                @empresa.RazonSocial
+                                <TextoResaltado Texto="@empresa.RazonSocial" Termino="@_busqueda" />
                             </button>
                             <span class="tarjeta-fila-acordeon-meta celda-empresa">
                                 @if (string.IsNullOrWhiteSpace(empresa.Cif))
@@ -258,7 +258,7 @@
                                 }
                                 else
                                 {
-                                    <BotonCopiar EnLinea="true" Valor="@empresa.Cif" Texto="@empresa.Cif" Etiqueta="@Textos["EtiquetaCif"]"
+                                    <BotonCopiar EnLinea="true" Valor="@empresa.Cif" Texto="@empresa.Cif" TerminoResaltado="@_busqueda" Etiqueta="@Textos["EtiquetaCif"]"
                                                  NombreAccesible="@Textos["CopiarCif", empresa.Cif]" />
                                 }
                             </span>

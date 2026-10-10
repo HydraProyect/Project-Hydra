@@ -56,11 +56,11 @@ public class ObtenerVehiculosQueryHandler(
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
+            var busqueda = request.Busqueda;
             consulta = consulta.Where(x =>
-                x.vehiculo.Nombre.ToUpper().Contains(busqueda) ||
-                x.vehiculo.Modelo.ToUpper().Contains(busqueda) ||
-                x.vehiculo.NumeroPlaca.ToUpper().Contains(busqueda));
+                TextoDeBusqueda.Contiene(x.vehiculo.Nombre, busqueda) ||
+                TextoDeBusqueda.Contiene(x.vehiculo.Modelo, busqueda) ||
+                TextoDeBusqueda.Contiene(x.vehiculo.NumeroPlaca, busqueda));
         }
 
         if (request.EmpresaId is not null)

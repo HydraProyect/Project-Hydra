@@ -148,8 +148,8 @@
                                     <span class="proyecto-nombre-centro">
                                         @* El nombre es el destino de teclado del clic en la fila (la fila no es focable con Tab). *@
                                         <button type="button" class="enlace-nombre-fila nombre-proyecto nombre-abre-vista-rapida"
-                                                @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)" @onclick:stopPropagation="true">@proyecto.Nombre</button>
-                                        <span class="proyecto-centro">@proyecto.CentroNombre</span>
+                                                @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)" @onclick:stopPropagation="true"><TextoResaltado Texto="@proyecto.Nombre" Termino="@_busqueda.Trim()" /></button>
+                                        <span class="proyecto-centro"><TextoResaltado Texto="@proyecto.CentroNombre" Termino="@_busqueda.Trim()" /></span>
                                     </span>
                                 </td>
                                 <td class="celda-fecha-proyecto">
