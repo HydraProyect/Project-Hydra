@@ -135,8 +135,11 @@ public class VistaRecordadaE2ETests(WebAppFixture fixture)
             await Expect(nombresDeCentro).Not.ToHaveCountAsync(0);
             var nombre = (await nombresDeCentro.AllInnerTextsAsync()).Select(n => n.Trim()).Last(n => n.Length > 0);
             await buscador.FillAsync(nombre);
-            // El recuento es el de las coincidencias: cambia cuando la lista filtrada ya llegó.
-            await Expect(conteo).Not.ToHaveTextAsync(conteoDeInicio);
+            // La barrera es la CIFRA, no el texto entero: al teclear, el rótulo pasa en el acto a «N centros
+            // con estos filtros» con la cifra de antes, y solo cambia de cifra cuando la lista filtrada llega.
+            var cifraDeInicio = Regex.Match(conteoDeInicio, @"^\d+");
+            Assert.True(cifraDeInicio.Success, $"el recuento de Centros debe empezar por su cifra: «{conteoDeInicio}»");
+            await Expect(conteo).Not.ToHaveTextAsync(new Regex($@"^{cifraDeInicio.Value}\b"));
             var conteoFiltrado = (await conteo.InnerTextAsync()).Trim();
             await EsperarVistaEnLaUrlAsync(page, ("q", nombre), ("agrupar", "no"));
 
