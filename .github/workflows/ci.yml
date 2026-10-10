@@ -1494,6 +1494,14 @@ jobs:
       - name: scripts/ci-exigir-dependencias.tests.sh
         run: bash scripts/ci-exigir-dependencias.tests.sh
 
+      # Lanzador del banco de modelos de IA (#1235), con un `dotnet` falso que
+      # imprime la clave a propósito: fija que la clave no sale por la salida
+      # ni por los artefactos, que solo la recibe la medición (no la
+      # compilación, ni estimar, ni anotar) y que un test omitido o un .trx
+      # viejo no cuentan como medición. Sin .NET, sin red y sin clave.
+      - name: scripts/banco-ia.tests.sh
+        run: bash scripts/banco-ia.tests.sh
+
       # Métricas de proceso M1..M22 (S15): cifras exactas sobre datos sintéticos, fuente ausente =
       # NO_MEDIDA (nunca 0) y once mutantes del propio guion que deben poner en rojo su prueba.
       - name: scripts/metricas-proceso.tests.sh
