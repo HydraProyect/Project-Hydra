@@ -20,6 +20,12 @@ namespace CaeManager.Domain.Centros;
 /// <see cref="SeveridadEstadoDocumento"/> da a los documentos; hasta el
 /// 2026-10-09 esta calculadora evaluaba Faltante antes que Vencido.
 ///
+/// <see cref="EstadoCentro.Pendiente"/> (pendiente en la plataforma CAE del Centro,
+/// <see cref="ReglaPendienteEnPlataforma"/>) va entre Faltante y Urgente (decisión
+/// del propietario, 2026-10-10): un documento sin subir o sin validar en la
+/// plataforma pesa más que uno que solo está por vencer, y menos que uno que no
+/// existe o ya no vale.
+///
 /// Una Gestion Pendiente asociada a un hueco no cambia este cálculo a
 /// propósito: es solo seguimiento operativo del Gestor, y el hueco real
 /// sigue existiendo hasta que se suba el Documento (ver Gestion).
@@ -31,9 +37,14 @@ namespace CaeManager.Domain.Centros;
 /// </summary>
 public static class CalculadoraEstadoCentro
 {
+    /// <param name="tienePendienteEnPlataforma">
+    /// Algún documento aplicable a este Centro está pendiente en su plataforma CAE
+    /// (<see cref="ReglaPendienteEnPlataforma.CuentaEnElCentro"/>). Siempre <c>false</c> en un Centro sin plataforma.
+    /// </param>
     public static EstadoCentro Calcular(
         IReadOnlyCollection<EstadoDocumento> estadosDocumentos,
-        bool tieneRequisitoBloqueanteSinCumplir)
+        bool tieneRequisitoBloqueanteSinCumplir,
+        bool tienePendienteEnPlataforma = false)
     {
         if (tieneRequisitoBloqueanteSinCumplir)
             return EstadoCentro.Bloqueado;
@@ -43,6 +54,9 @@ public static class CalculadoraEstadoCentro
 
         if (estadosDocumentos.Contains(EstadoDocumento.Faltante))
             return EstadoCentro.Faltante;
+
+        if (tienePendienteEnPlataforma)
+            return EstadoCentro.Pendiente;
 
         if (estadosDocumentos.Contains(EstadoDocumento.Urgente))
             return EstadoCentro.Urgente;
@@ -55,12 +69,13 @@ public static class CalculadoraEstadoCentro
 
     /// <summary>
     /// Clave para ordenar por gravedad (mayor = peor), con el mismo orden que
-    /// <see cref="Calcular"/>: Bloqueado, Vencido, Faltante, Urgente, Próximo,
+    /// <see cref="Calcular"/>: Bloqueado, Vencido, Faltante, Pendiente, Urgente, Próximo,
     /// Vigente. No es el valor numérico de <see cref="EstadoCentro"/>, que está
-    /// congelado por la API v1 y difiere en dos puntos: tiene Faltante por
-    /// encima de Vencido, y <see cref="EstadoCentro.SinGestionCae"/> —que no es
+    /// congelado por la API v1 y difiere en tres puntos: tiene Faltante por
+    /// encima de Vencido, <see cref="EstadoCentro.SinGestionCae"/> —que no es
     /// un grado de incumplimiento y va por debajo de <see cref="EstadoCentro.Vigente"/>—
-    /// por encima de Bloqueado.
+    /// por encima de Bloqueado, y <see cref="EstadoCentro.Pendiente"/>, añadido al final,
+    /// por encima de todos.
     /// </summary>
     public static int Gravedad(EstadoCentro estado) => estado switch
     {
@@ -68,9 +83,10 @@ public static class CalculadoraEstadoCentro
         EstadoCentro.Vigente => 0,
         EstadoCentro.Proximo => 1,
         EstadoCentro.Urgente => 2,
-        EstadoCentro.Faltante => 3,
-        EstadoCentro.Vencido => 4,
-        EstadoCentro.Bloqueado => 5,
+        EstadoCentro.Pendiente => 3,
+        EstadoCentro.Faltante => 4,
+        EstadoCentro.Vencido => 5,
+        EstadoCentro.Bloqueado => 6,
         _ => (int)estado
     };
 }

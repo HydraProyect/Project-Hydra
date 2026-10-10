@@ -15,7 +15,8 @@ public record ObtenerEstadoCentroQuery(Guid CentroId) : IRequest<EstadoCentroDto
 /// </param>
 public record EstadoCentroDto(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentroDto> Causas, int? CumplimientoPorcentaje);
 
-public record CausaEstadoCentroDto(string Descripcion, EstadoDocumento? Estado, bool Bloqueante);
+/// <param name="PendienteEnPlataforma">El documento vale, pero está sin subir o sin validar en la plataforma CAE del Centro.</param>
+public record CausaEstadoCentroDto(string Descripcion, EstadoDocumento? Estado, bool Bloqueante, bool PendienteEnPlataforma = false);
 
 public class ObtenerEstadoCentroQueryHandler(ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEstadoCentroQuery, EstadoCentroDto?>
@@ -33,7 +34,7 @@ public class ObtenerEstadoCentroQueryHandler(ICalculoEstadoCentroService calculo
 
         return new EstadoCentroDto(
             resultado.Estado,
-            resultado.Causas.Select(c => new CausaEstadoCentroDto(c.Descripcion, c.Estado, c.Bloqueante)).ToList(),
+            resultado.Causas.Select(c => new CausaEstadoCentroDto(c.Descripcion, c.Estado, c.Bloqueante, c.PendienteEnPlataforma)).ToList(),
             cumplimiento.TryGetValue(request.CentroId, out var fraccion) ? fraccion.Porcentaje : null);
     }
 }

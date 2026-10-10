@@ -28,6 +28,7 @@ public static class TextoBloqueoDeAcceso
         var situacion = bloqueo.Situacion switch
         {
             SituacionDeRequisitoBloqueante.Ausente => textos["BloqueoSituacionAusente"].Value,
+            SituacionDeRequisitoBloqueante.PendienteEnPlataforma => textos["BloqueoSituacionPendienteEnPlataforma"].Value,
             _ when bloqueo.VencimientoEfectivo is { } vencimiento && bloqueo.ToleranciaDias > 0 =>
                 textos["BloqueoSituacionFinTolerancia", vencimiento.ToString("dd/MM/yyyy"), bloqueo.ToleranciaDias].Value,
             _ when bloqueo.VencimientoEfectivo is { } vencimiento =>

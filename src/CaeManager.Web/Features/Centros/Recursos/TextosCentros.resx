@@ -154,6 +154,19 @@
   <data name="MotivoProximos" xml:space="preserve">
     <value>{0} por vencer</value>
   </data>
+  <data name="MotivoUnPendientePlataforma" xml:space="preserve">
+    <value>1 pendiente en la plataforma</value>
+    <comment>Motivo bajo la pastilla de estado del Centro: documentos en Recuentos.Pendientes, sin subir o sin validar en la plataforma CAE del Centro (decisión del 2026-10-10).</comment>
+  </data>
+  <data name="MotivoPendientesPlataforma" xml:space="preserve">
+    <value>{0} pendientes en la plataforma</value>
+  </data>
+  <data name="TituloPendientesPlataformaUno" xml:space="preserve">
+    <value>1 documento pendiente en la plataforma</value>
+  </data>
+  <data name="TituloPendientesPlataformaVarios" xml:space="preserve">
+    <value>{0} documentos pendientes en la plataforma</value>
+  </data>
   <data name="GestionarAtenuadoAlDia" xml:space="preserve">
     <value>Al día: no necesita intervención, pero puedes sustituirlo</value>
   </data>
@@ -222,6 +235,10 @@
   </data>
   <data name="BloqueoSituacionAusente" xml:space="preserve">
     <value>no tiene el documento</value>
+  </data>
+  <data name="BloqueoSituacionPendienteEnPlataforma" xml:space="preserve">
+    <value>pendiente en la plataforma del Centro</value>
+    <comment>El documento vale, pero está sin subir o sin validar en la plataforma CAE de este Centro (decisión del 2026-10-10).</comment>
   </data>
   <data name="BloqueoSituacionVencido" xml:space="preserve">
     <value>venció el {0}</value>

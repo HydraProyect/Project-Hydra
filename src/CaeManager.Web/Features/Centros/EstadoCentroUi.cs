@@ -28,6 +28,8 @@ public static class EstadoCentroUi
         EstadoCentro.Urgente => TonoBadge.Advertencia,
         EstadoCentro.Vencido => TonoBadge.Peligro,
         EstadoCentro.Faltante => TonoBadge.Peligro,
+        // Pendiente en la plataforma (2026-10-10) se rotula «Pendiente», como Faltante: misma pastilla, mismo tono.
+        EstadoCentro.Pendiente => TonoBadge.Peligro,
         EstadoCentro.Bloqueado => TonoBadge.Peligro,
         // P1-X2: neutro, nunca Exito — el Centro no está "al día", es que no
         // se le exige documentación. Pintarlo en verde sería un verde falso.
@@ -36,16 +38,16 @@ public static class EstadoCentroUi
     };
 
     /// <summary>
-    /// Botones de la franja de estado de <c>/centros</c>, de peor a mejor (Bloqueante, Vencido, Faltante, lo que
-    /// está por vencer, lo correcto): lo que el Gestor CAE busca cuando filtra es lo que le urge. «Por vencer»
-    /// marca Urgente y Próximo a la vez. Los rótulos salen de <see cref="Texto(EstadoCentro)"/>, así que cada
+    /// Botones de la franja de estado de <c>/centros</c>, de peor a mejor (Bloqueante, Vencido, Faltante y Pendiente, lo
+    /// que está por vencer, lo correcto): lo que el Gestor CAE busca cuando filtra es lo que le urge. «Por vencer»
+    /// marca Urgente y Próximo a la vez; «Pendiente», Faltante y Pendiente en la plataforma. Los rótulos salen de <see cref="Texto(EstadoCentro)"/>, así que cada
     /// botón filtra exactamente las filas que llevan su rótulo. Se construye en cada lectura (textos localizados).
     /// </summary>
     public static IReadOnlyList<OpcionFranjaEstado> Franja =>
     [
         new(Texto(EstadoCentro.Bloqueado), Tono(EstadoCentro.Bloqueado), nameof(EstadoCentro.Bloqueado)),
         new(Texto(EstadoCentro.Vencido), Tono(EstadoCentro.Vencido), nameof(EstadoCentro.Vencido)),
-        new(Texto(EstadoCentro.Faltante), Tono(EstadoCentro.Faltante), nameof(EstadoCentro.Faltante)),
+        new(Texto(EstadoCentro.Faltante), Tono(EstadoCentro.Faltante), nameof(EstadoCentro.Faltante), nameof(EstadoCentro.Pendiente)),
         new(Texto(EstadoCentro.Proximo), Tono(EstadoCentro.Proximo), nameof(EstadoCentro.Urgente), nameof(EstadoCentro.Proximo)),
         new(Texto(EstadoCentro.Vigente), Tono(EstadoCentro.Vigente), nameof(EstadoCentro.Vigente)),
         new(Texto(EstadoCentro.SinGestionCae), Tono(EstadoCentro.SinGestionCae), nameof(EstadoCentro.SinGestionCae))
@@ -65,11 +67,12 @@ public static class EstadoCentroUi
     public static string Texto(EstadoCentro estado) => estado switch
     {
         EstadoCentro.Vigente => "Vigente",
-        // Una sola pastilla «Por vencer» para Urgente y Próximo, y «Pendiente» para Faltante (2026-10-08): el
-        // estado de código no cambia, solo el rótulo. Mismas claves que EstadoDocumentoUi.
+        // Una sola pastilla «Por vencer» para Urgente y Próximo, y «Pendiente» para Faltante (2026-10-08) y para el
+        // Pendiente en la plataforma del Centro (2026-10-10): el estado de código no cambia, solo el rótulo; el motivo
+        // bajo la pastilla dice cuál de los dos es. Mismas claves que EstadoDocumentoUi.
         EstadoCentro.Proximo or EstadoCentro.Urgente => EstadoDocumentoUi.PorVencer,
         EstadoCentro.Vencido => "Vencido",
-        EstadoCentro.Faltante => TextosVigenciaDocumento.Texto("Pendiente"),
+        EstadoCentro.Faltante or EstadoCentro.Pendiente => TextosVigenciaDocumento.Texto("Pendiente"),
         // Solo lo causa la plataforma del Cliente empresarial (D-7). «Bloqueado» es un estado del Trabajador (2026-10-03):
         // el Centro nunca se rotula «Acceso bloqueado» por un documento; su detalle por Trabajador va aparte.
         EstadoCentro.Bloqueado => "Bloqueo de la plataforma CAE",

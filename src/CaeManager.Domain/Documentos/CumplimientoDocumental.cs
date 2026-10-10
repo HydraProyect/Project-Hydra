@@ -30,13 +30,18 @@ public enum ContextoCumplimiento
 /// <param name="TrabajadorId">Trabajador al que se le exige.</param>
 /// <param name="TipoDocumentoId">Tipo exigido.</param>
 /// <param name="Estado">Estado del documento efectivo del par (<c>DocumentoEfectivo</c>, Application), o Faltante.</param>
+/// <param name="PendienteEnPlataforma">
+/// El documento efectivo del par está pendiente en la plataforma CAE de ESTE Centro (sin subir o subido sin validar,
+/// <see cref="ReglaPendienteEnPlataforma.CuentaEnElCentro"/>). Siempre <c>false</c> en un Centro sin plataforma.
+/// </param>
 public readonly record struct ParDocumentalExigido(
     Guid CentroId,
     Guid ClienteEmpresarialId,
     Guid? EmpresaId,
     Guid TrabajadorId,
     Guid TipoDocumentoId,
-    EstadoDocumento Estado);
+    EstadoDocumento Estado,
+    bool PendienteEnPlataforma = false);
 
 /// <summary>
 /// Fracción de cumplimiento: cuántos de los requeridos están al día. <see cref="Porcentaje"/> es <c>null</c> cuando no
@@ -72,6 +77,13 @@ public sealed record FraccionCumplimiento(int AlDia, int Requeridos)
 /// </para>
 ///
 /// <para>
+/// <b>Pendiente en la plataforma</b> (decisión 2026-10-10): un par cuyo documento vale pero está sin subir o subido sin
+/// validar en la plataforma CAE de su Centro (<see cref="ParDocumentalExigido.PendienteEnPlataforma"/>) NO está al día:
+/// el Trabajador todavía no puede entrar. Como el par es de un Centro, esto baja el porcentaje del Centro y, con él, el
+/// de todo contexto que agregue ese par (Trabajador, Empresa, Cliente empresarial). Un Centro sin plataforma no cambia.
+/// </para>
+///
+/// <para>
 /// <b>Denominador.</b> Todo par exigido, al día o no, con documento o sin él. «Sin caducidad» entra en los dos lados.
 /// </para>
 ///
@@ -97,8 +109,9 @@ public static class CumplimientoDocumental
     /// <see cref="ParDocumentalExigido.ClienteEmpresarialId"/> y <see cref="ParDocumentalExigido.CentroId"/>, y bastará
     /// añadirle la fecha de vencimiento y la tolerancia resuelta. Nada fuera de este método debe decidir «al día» para un
     /// par (los recuentos por estado de los KPI no tienen fecha ni Centro y siguen usando <see cref="EsConforme(EstadoDocumento)"/>).
+    /// Ya depende también del Centro en un punto: un par pendiente en la plataforma de su Centro no es conforme.
     /// </summary>
-    public static bool EsConforme(ParDocumentalExigido par) => EsConforme(par.Estado);
+    public static bool EsConforme(ParDocumentalExigido par) => EsConforme(par.Estado) && !par.PendienteEnPlataforma;
 
     /// <summary>Fracción de un conjunto de pares exigidos: todos entran en el denominador, solo los conformes (<see cref="EsConforme(ParDocumentalExigido)"/>) en el numerador.</summary>
     public static FraccionCumplimiento Evaluar(IEnumerable<ParDocumentalExigido> pares)

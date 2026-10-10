@@ -64,6 +64,8 @@ public class OrdinalesDeEnumsPublicadosTests
                 [nameof(EstadoCentro.Bloqueado)] = 5,
                 // P1-X2: Centro sin gestión CAE — se añade al final, nunca reordena.
                 [nameof(EstadoCentro.SinGestionCae)] = 6,
+                // Pendiente en la plataforma CAE del Centro (2026-10-10) — se añade al final, nunca reordena.
+                [nameof(EstadoCentro.Pendiente)] = 7,
             }
         },
         {

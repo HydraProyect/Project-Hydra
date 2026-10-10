@@ -197,6 +197,10 @@ else
                                 {
                                     <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
                                 }
+                                else if (causa.PendienteEnPlataforma)
+                                {
+                                    <Badge Tono="EstadoCentroUi.Tono(EstadoCentro.Pendiente)">@EstadoCentroUi.Texto(EstadoCentro.Pendiente)</Badge>
+                                }
                                 else if (causa.Estado is { } estadoDocumento)
                                 {
                                     <Badge Tono="EstadoDocumentoUi.Tono(estadoDocumento)" ConIcono>@EstadoDocumentoUi.Texto(estadoDocumento)</Badge>
