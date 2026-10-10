@@ -258,6 +258,126 @@ public class Centro360Gen2Tests : BunitContext
     /// mide) y con la explicación en lugar de los canales de gestión.
     /// </summary>
     [Fact]
+    public void Las_pestanas_son_Trabajadores_y_Visitas_en_ese_orden_y_cuentan_trabajadores_distintos()
+    {
+        var id = Guid.NewGuid();
+        var trabajador = Guid.NewGuid();
+        var otroTrabajador = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte",
+            vencidas: [
+                Incidencia("PRL") with { TrabajadorId = trabajador },
+                Incidencia("Aptitud") with { TrabajadorId = trabajador },
+                Incidencia("Seguro", AmbitoCausa.Empresa)
+            ],
+            proximas: [
+                Incidencia("Renovación") with { TrabajadorId = trabajador },
+                Incidencia("Formación") with { TrabajadorId = otroTrabajador }
+            ]);
+
+        var cut = Renderizar(id);
+
+        cut.FindAll("[role=tab]")
+            .Select(t => t.ChildNodes.OfType<IText>().First(n => !string.IsNullOrWhiteSpace(n.Data)).Data.Trim())
+            .Should().Equal("Trabajadores", "Visitas");
+        var primera = cut.FindAll("[role=tab]")[0];
+        primera.GetAttribute("aria-selected").Should().Be("true");
+        primera.QuerySelector(".pestanas-contador")!.TextContent.Trim().Should().Be("2 trabajadores con incidencias");
+    }
+
+    [Fact]
+    public void La_url_visitas_abre_Visitas_y_muestra_todas_las_visitas_en_el_orden_recibido()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Visitas[id] = [
+            new(Guid.NewGuid(), new DateOnly(2026, 10, 12), new DateOnly(2026, 10, 14), 1),
+            new(Guid.NewGuid(), new DateOnly(2026, 10, 10), new DateOnly(2026, 10, 22), 3)
+        ];
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=visitas");
+
+        var cut = Renderizar(id);
+
+        cut.FindAll("[role=tab]")[1].GetAttribute("aria-selected").Should().Be("true");
+        cut.FindAll("[role=tabpanel] .elemento-lista-lateral-etiqueta").Select(v => v.TextContent.Trim())
+            .Should().Equal("12/10/2026 – 14/10/2026", "10/10/2026 – 22/10/2026");
+        cut.FindAll("[role=tabpanel] .elemento-lista-lateral-detalles").Select(v => v.TextContent.Trim())
+            .Should().Equal("1 trabajador", "3 trabajadores");
+        cut.Find("[role=tabpanel] [hidden]").Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Un_valor_desconocido_de_pestana_abre_Trabajadores()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=desconocida");
+
+        var cut = Renderizar(id);
+
+        cut.FindAll("[role=tab]")[0].GetAttribute("aria-selected").Should().Be("true");
+        cut.Find("[role=tabpanel] > div").HasAttribute("hidden").Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("trabajadores")]
+    [InlineData("visitas")]
+    public void Las_tarjetas_de_canales_y_proxima_visita_siguen_en_el_lateral(string pestana)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana={pestana}");
+
+        var cut = Renderizar(id);
+
+        cut.Find("aside[data-pieza=lateral]").TextContent.Should()
+            .Contain("Canales de gestión").And.Contain("Próxima visita");
+        cut.Find(".cuerpo-con-lateral-principal").TextContent.Should().NotContain("Canales de gestión");
+        cut.FindAll("[role=tab]").Single(t => t.GetAttribute("aria-selected") == "true")
+            .TextContent.Trim().Should().StartWith(pestana == "visitas" ? "Visitas" : "Trabajadores");
+    }
+
+    [Fact]
+    public void Visitas_sin_datos_muestra_EstadoVacio()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"centros/{id}?pestana=visitas");
+
+        var cut = Renderizar(id);
+
+        cut.Find("[role=tabpanel] > .estado-vacio h3").TextContent.Should().Be("Sin visitas programadas");
+        cut.Find("[role=tabpanel]").TextContent.Should().Contain("Este centro no tiene visitas en curso ni futuras.");
+    }
+
+    [Fact]
+    public async Task Cambiar_de_pestana_actualiza_la_url_sin_recargar_la_lista_de_Trabajadores()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        var cut = Renderizar(id);
+        var lista = cut.FindComponent<AcordeonAsignacionesCentro>().Instance;
+        var consultas = mediador.Enviadas.Count;
+        var navegador = Services.GetRequiredService<NavigationManager>();
+
+        await cut.FindAll("[role=tab]")[1].ClickAsync(new MouseEventArgs());
+        navegador.Uri.Should().Contain("pestana=visitas");
+        cut.FindAll("[role=tab]")[1].GetAttribute("aria-selected").Should().Be("true");
+        await cut.FindAll("[role=tab]")[0].ClickAsync(new MouseEventArgs());
+
+        navegador.Uri.Should().NotContain("pestana=");
+        cut.FindComponent<AcordeonAsignacionesCentro>().Instance.Should().BeSameAs(lista);
+        mediador.Enviadas.Should().HaveCount(consultas);
+        cut.Find("[role=tabpanel] > div").HasAttribute("hidden").Should().BeFalse();
+    }
+
+    [Fact]
     public void Un_centro_sin_gestion_cae_dice_que_no_la_requiere_y_no_muestra_cumplimiento_ni_verde()
     {
         var id = Guid.NewGuid();

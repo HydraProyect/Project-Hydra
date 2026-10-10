@@ -323,4 +323,31 @@
   <data name="VacioFiltrosQuitar" xml:space="preserve">
     <value>Treu els filtres</value>
   </data>
+  <data name="PestanaTrabajadores" xml:space="preserve">
+    <value>Treballadors</value>
+  </data>
+  <data name="PestanaVisitas" xml:space="preserve">
+    <value>Visites</value>
+  </data>
+  <data name="EtiquetaGrupoPestanas" xml:space="preserve">
+    <value>Seccions del centre</value>
+  </data>
+  <data name="GlosaTrabajadorConIncidencias" xml:space="preserve">
+    <value>treballador amb incidències</value>
+  </data>
+  <data name="GlosaTrabajadoresConIncidencias" xml:space="preserve">
+    <value>treballadors amb incidències</value>
+  </data>
+  <data name="VacioVisitasTitulo" xml:space="preserve">
+    <value>Sense visites programades</value>
+  </data>
+  <data name="VacioVisitasDescripcion" xml:space="preserve">
+    <value>Aquest centre no té visites en curs ni futures.</value>
+  </data>
+  <data name="VisitaTrabajador" xml:space="preserve">
+    <value>{0} treballador</value>
+  </data>
+  <data name="VisitaTrabajadores" xml:space="preserve">
+    <value>{0} treballadors</value>
+  </data>
 </root>
