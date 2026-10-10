@@ -70,8 +70,9 @@ public sealed record LlamadaObservada(
 /// Sonda entre el servicio del producto y la API. Lee de la PETICIÓN el
 /// modelo, el esfuerzo y el tope que el producto envía de verdad (no lo que
 /// el banco cree haber configurado) y de la RESPUESTA el uso de tokens, el
-/// <c>stop_reason</c> y el modelo que atendió. Los servicios no exponen nada
-/// de eso, y así el banco no obliga a cambiarlos.
+/// <c>stop_reason</c>, el modelo que atendió y, si la API rechazó la
+/// petición, el motivo que dio (sin la clave, en una línea y recortado). Los
+/// servicios no exponen nada de eso, y así el banco no obliga a cambiarlos.
 ///
 /// Reintenta 429, 5xx y 529 (saturación) y los fallos de red, hasta tres
 /// intentos: un proveedor saturado no es un fallo del modelo que se está
@@ -161,14 +162,17 @@ public sealed class SondaAnthropic(HttpMessageHandler interno) : DelegatingHandl
             // Sin el motivo, un 400 no distingue una petición que el modelo no admite de una cuenta sin saldo.
             if (raiz.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object)
             {
-                var tipo = error.TryGetProperty("type", out var t) ? t.GetString() : null;
-                var mensaje = error.TryGetProperty("message", out var msj) ? msj.GetString() : null;
-                rechazo = $"{tipo}: {mensaje}";
+                rechazo = string.Join(": ", new[] { Texto(error, "type"), Texto(error, "message") }.Where(parte => !string.IsNullOrWhiteSpace(parte)));
 
-                // El mensaje lo escribe la API y acaba en el informe: si repite la clave, se tacha antes de guardarlo.
+                // El mensaje lo escribe la API y acaba en el informe. Si repite la clave, se tacha, y ANTES de
+                // recortar: recortar primero podría dejar media clave, que ya no casa con la clave entera.
                 if (!string.IsNullOrEmpty(clave))
                     rechazo = rechazo.Replace(clave, "[clave tachada]", StringComparison.Ordinal);
-                rechazo = Recortar(rechazo, LongitudMaximaDelRechazo);
+
+                // En una línea: el informe vuelca el motivo en una viñeta de Markdown.
+                rechazo = Recortar(string.Join(' ', rechazo.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)), LongitudMaximaDelRechazo);
+                if (rechazo.Length == 0)
+                    rechazo = null;
             }
         }
         catch (JsonException)
@@ -180,6 +184,9 @@ public sealed class SondaAnthropic(HttpMessageHandler interno) : DelegatingHandl
     }
 
     private const int LongitudMaximaDelRechazo = 300;
+
+    private static string? Texto(JsonElement objeto, string propiedad) =>
+        objeto.TryGetProperty(propiedad, out var valor) && valor.ValueKind == JsonValueKind.String ? valor.GetString() : null;
 
     private static string Recortar(string texto, int maximo) => texto.Length <= maximo ? texto : texto[..maximo] + "…";
 }
