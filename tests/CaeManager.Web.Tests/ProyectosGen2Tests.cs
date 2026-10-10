@@ -31,14 +31,16 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Pantalla de Proyectos en Gen 2 (Proyectos TALVEG.dc.html): lista maestro-
-/// detalle colgada de un cliente, filtros de estado y búsqueda en la URL, y el
-/// detalle en un panel lateral en vez de una tarjeta bajo la tabla.
+/// detalle de los Proyectos de todos los Clientes empresariales que el usuario
+/// alcanza, con el Cliente empresarial, el estado y la búsqueda como filtros en
+/// la URL, y el detalle en un panel lateral en vez de una tarjeta bajo la tabla.
 ///
 /// <para>
-/// <b>Lo que esto SÍ observa:</b> los seis estados de la lista (sin cliente,
-/// cargando no, error, vacía, vacía por filtro, con datos), que el filtrado se
-/// hace sobre la lista completa del cliente, que «Quitar los filtros» limpia
-/// la URL, qué peticiones llegan al mediador, y que el panel conserva las
+/// <b>Lo que esto SÍ observa:</b> los estados de la lista (sin Cliente
+/// empresarial elegido, error, vacía, vacía por filtro, con datos), que la
+/// búsqueda, el estado y la página viajan a <c>ObtenerProyectosQuery</c> —el
+/// mediador de aquí aplica su contrato en memoria—, que «Quitar los filtros»
+/// limpia la URL, qué peticiones llegan al mediador, y que el panel conserva las
 /// acciones que el código ya tenía y el mockup no dibuja (dar de baja a un
 /// técnico). Y las respuestas fuera de orden: con el mediador reteniendo
 /// peticiones, una respuesta tardía de un detalle, de unos técnicos o de la
@@ -50,8 +52,9 @@ namespace CaeManager.Web.Tests;
 /// <b>Lo que NO observa:</b> el aspecto (el CSS aislado no se aplica en bUnit),
 /// la autorización de los comandos —vive en sus handlers y en
 /// <c>AutorizacionEscrituraBehavior</c>, probados en Application—, el alcance
-/// de cartera de <c>ObtenerProyectosQuery</c>, ni la pestaña Documentos, que
-/// delega en <c>PestanaDocumentacion</c>.
+/// de cartera ni el SQL de <c>ObtenerProyectosQuery</c> (filtros, orden y
+/// paginación de verdad: Application e integración bajo RLS), ni la pestaña
+/// Documentos, que delega en <c>PestanaDocumentacion</c>.
 /// </para>
 /// </summary>
 public partial class ProyectosGen2Tests : BunitContext
@@ -138,6 +141,36 @@ public partial class ProyectosGen2Tests : BunitContext
                 new DateOnly(2026, 6, 9), new DateOnly(2026, 7, 31), EstaActivo: false),
         ];
 
+        /// <summary>
+        /// El contrato de <c>ObtenerProyectosQuery</c> en memoria: sin Cliente empresarial, los de los dos;
+        /// búsqueda por nombre o Centro; recuentos sin el filtro de estado; total y página con todos los
+        /// filtros. Conserva el orden en que el test dio la lista. Cada fila dice su Cliente empresarial.
+        /// </summary>
+        private ResultadoPaginado<ProyectoListaDto> Listar(ObtenerProyectosQuery q)
+        {
+            var deA = Proyectos.Select(p => p with { ClienteId = ClienteId, ClienteRazonSocial = "Refrielectric S.L." });
+            var deB = ProyectosClienteB.Select(p => p with { ClienteId = ClienteBId, ClienteRazonSocial = "Frigoríficos Arcos S.A." });
+            var filas = (q.ClienteId is not { } cliente ? deA.Concat(deB) : cliente == ClienteBId ? deB : cliente == ClienteId ? deA : [])
+                .Where(p => string.IsNullOrWhiteSpace(q.Busqueda)
+                    || p.Nombre.Contains(q.Busqueda.Trim(), StringComparison.OrdinalIgnoreCase)
+                    || p.CentroNombre.Contains(q.Busqueda.Trim(), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var recuentos = new Dictionary<string, int>
+            {
+                [ObtenerProyectosQuery.EstadoAbiertos] = filas.Count(p => p.EstaAbierto),
+                [ObtenerProyectosQuery.EstadoCerrados] = filas.Count(p => !p.EstaAbierto),
+            };
+            if (q.SoloAbiertos is { } soloAbiertos)
+                filas = filas.Where(p => p.EstaAbierto == soloAbiertos).ToList();
+
+            var pagina = filas.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList();
+            return new ResultadoPaginado<ProyectoListaDto>(pagina, filas.Count, q.Pagina, q.TamanoPagina)
+            {
+                RecuentosPorEstado = q.ConRecuentosPorEstado ? recuentos : null
+            };
+        }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviados.Add(request);
@@ -166,7 +199,7 @@ public partial class ProyectosGen2Tests : BunitContext
                 },
                 ObtenerCentrosParaSelectorQuery q => (IReadOnlyList<CentroSelectorDto>)(q.ClienteId == ClienteBId ? CentrosClienteB : CentrosClienteA).ToList(),
                 ObtenerProyectosQuery when FallarAlCargarProyectos => throw new InvalidOperationException("fallo simulado de la consulta"),
-                ObtenerProyectosQuery q => (IReadOnlyList<ProyectoListaDto>)(q.ClienteId == ClienteBId ? ProyectosClienteB : Proyectos).ToList(),
+                ObtenerProyectosQuery q => Listar(q),
                 ObtenerProyectoPorIdQuery q => Proyectos.Concat(ProyectosClienteB).Where(p => p.Id == q.Id).Select(DetalleDe).FirstOrDefault(),
                 ObtenerTecnicosProyectoQuery q => TecnicosPorProyecto.GetValueOrDefault(q.ProyectoId) ?? TecnicosPorDefecto(),
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[new TrabajadorSelectorDto(Guid.NewGuid(), "Salas Moreno, Javier", null, null)],
@@ -236,7 +269,7 @@ public partial class ProyectosGen2Tests : BunitContext
     // siguen observando todo el manejador, sin invocarlo por reflexión ni saltarse el menú.
     private static Task ElegirCliente(IRenderedComponent<Proyectos> cut, Guid clienteId) =>
         ElegirPastillaAsync(cut, "Cliente", clienteId == Guid.Empty
-            ? "Selecciona un Cliente"
+            ? "Todos"
             : clienteId == ClienteId ? "Refrielectric S.L." : "Frigoríficos Arcos S.A.");
 
     private static IElement DisparadorPastilla(IRenderedComponent<Proyectos> cut, string etiqueta) =>
@@ -393,6 +426,29 @@ public partial class ProyectosGen2Tests : BunitContext
     private static Task Resolver(IRenderedComponent<Proyectos> cut, TaskCompletionSource<object?> retenida, object? valor) =>
         cut.InvokeAsync(() => retenida.SetResult(valor));
 
+    /// <summary>La respuesta de <c>ObtenerProyectosQuery</c> con esas filas en una sola página y sus recuentos.</summary>
+    private static ResultadoPaginado<ProyectoListaDto> Pagina(params ProyectoListaDto[] filas) =>
+        new(filas, filas.Length, 1, 20)
+        {
+            RecuentosPorEstado = new Dictionary<string, int>
+            {
+                [ObtenerProyectosQuery.EstadoAbiertos] = filas.Count(p => p.EstaAbierto),
+                [ObtenerProyectosQuery.EstadoCerrados] = filas.Count(p => !p.EstaAbierto),
+            }
+        };
+
+    private ObtenerProyectosQuery UltimaConsultaDeProyectos => _mediator.Enviados.OfType<ObtenerProyectosQuery>().Last();
+
+    /// <summary>El desplegable «Cliente» o «Centro» del formulario de alta.</summary>
+    private static IElement SelectDelAlta(IRenderedComponent<Proyectos> cut, string etiqueta) =>
+        cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == etiqueta).Find("select");
+
+    private static List<string> OpcionesDelAlta(IRenderedComponent<Proyectos> cut, string etiqueta) =>
+        SelectDelAlta(cut, etiqueta).QuerySelectorAll("option").Select(o => o.TextContent.Trim()).ToList();
+
+    private static Task PulsarNuevoProyectoAsync(IRenderedComponent<Proyectos> cut) =>
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo proyecto").ClickAsync(new MouseEventArgs());
+
     private static readonly TimeSpan Paciencia = TimeSpan.FromSeconds(10);
 
     private static string ValorDeCampoInfo(IElement ambito, string etiqueta) =>
@@ -402,30 +458,30 @@ public partial class ProyectosGen2Tests : BunitContext
 
     private string Uri => Services.GetRequiredService<NavigationManager>().Uri;
 
-    // Fase 1: adaptación del contexto obligatorio y de las celdas combinadas.
+    /// <summary>
+    /// El Cliente empresarial es un filtro opcional. «Todos» pide la lista sin Cliente empresarial —el
+    /// alcance lo aplica la consulta, no la pantalla— y elegir uno la acota a los suyos.
+    /// </summary>
     [Fact]
-    public async Task Volver_a_elegir_Cliente_empresarial_no_consulta_todos_y_reabre_un_contexto_concreto()
+    public async Task Todos_pide_la_lista_sin_Cliente_empresarial_y_elegir_uno_la_acota()
     {
         _mediator.Proyectos = [ProyectoAbierto];
         _mediator.ProyectosClienteB = [ProyectoDeB];
         var cut = await RenderizarConClienteAsync();
-        var consultasAntes = _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count();
-        consultasAntes.Should().BeGreaterThan(0, "control positivo: había un Cliente elegido y datos cargados");
+        NombresEnLaTabla(cut).Should().Equal([ProyectoAbierto.Nombre], "control positivo: con un Cliente empresarial elegido solo salen los suyos");
 
         await SelectorDeCliente(cut).ClickAsync(new MouseEventArgs());
         var panelId = SelectorDeCliente(cut).GetAttribute("aria-controls")!;
         var opciones = cut.Find("#" + panelId).QuerySelectorAll("[role=menuitemradio]").Select(i => i.TextContent.Trim()).ToList();
-        opciones.Should().Equal("Selecciona un Cliente", "Refrielectric S.L.", "Frigoríficos Arcos S.A.");
+        opciones.Should().Equal("Todos", "Refrielectric S.L.", "Frigoríficos Arcos S.A.");
         await ElegirCliente(cut, Guid.Empty);
 
-        cut.Markup.Should().Contain("Elige un Cliente para ver sus proyectos");
-        cut.FindAll("tbody .nombre-proyecto").Should().BeEmpty();
-        cut.Markup.Should().NotContain("+ Nuevo proyecto");
-        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Count().Should().Be(consultasAntes,
-            "Guid.Empty pide elegir, nunca consulta todos los Clientes");
+        UltimaConsultaDeProyectos.ClienteId.Should().BeNull("«Todos» no elige ningún Cliente empresarial");
+        NombresEnLaTabla(cut).Should().BeEquivalentTo([ProyectoAbierto.Nombre, ProyectoDeB.Nombre]);
+        cut.Markup.Should().Contain("+ Nuevo proyecto", "el alta pide el Cliente empresarial en su formulario");
 
         await ElegirCliente(cut, ClienteBId);
-        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Last().ClienteId.Should().Be(ClienteBId);
+        UltimaConsultaDeProyectos.ClienteId.Should().Be(ClienteBId);
         NombresEnLaTabla(cut).Should().Equal(ProyectoDeB.Nombre);
     }
 
@@ -439,12 +495,18 @@ public partial class ProyectosGen2Tests : BunitContext
         NombresEnLaTabla(cut).Should().Equal(ProyectoAbierto2.Nombre, ProyectoAbierto.Nombre, ProyectoCerrado.Nombre);
         var filas = cut.FindAll("tbody tr");
         filas[1].QuerySelector(".proyecto-centro")!.TextContent.Trim().Should().Be(ProyectoAbierto.CentroNombre);
-        var plazoConFin = filas[1].QuerySelector(".proyecto-plazo")!.TextContent;
-        plazoConFin.Should().Contain(ProyectoAbierto.FechaInicio.ToString("dd/MM/yyyy"))
+        filas[1].QuerySelector(".proyecto-centro")!.TextContent.Should().NotContain("Refrielectric",
+            "con un Cliente empresarial en el filtro, repetirlo en cada fila sobra");
+        // Columna «Fechas»: «inicio → fin» o «inicio → sin fecha de fin».
+        var fechasConFin = filas[1].QuerySelector(".proyecto-plazo")!.TextContent;
+        fechasConFin.Should().Contain(ProyectoAbierto.FechaInicio.ToString("dd/MM/yyyy"))
+            .And.Contain("→")
             .And.Contain(ProyectoAbierto.FechaFinPrevista!.Value.ToString("dd/MM/yyyy"));
-        var plazoSinFin = filas[0].QuerySelector(".proyecto-plazo")!.TextContent;
-        plazoSinFin.Should().Contain(ProyectoAbierto2.FechaInicio.ToString("dd/MM/yyyy"))
-            .And.Contain("Sin fecha de fin prevista");
+        var fechasSinFin = filas[0].QuerySelector(".proyecto-plazo")!.TextContent;
+        fechasSinFin.Should().Contain(ProyectoAbierto2.FechaInicio.ToString("dd/MM/yyyy"))
+            .And.Contain("→")
+            .And.Contain("sin fecha de fin")
+            .And.NotContain("prevista", "el rótulo largo era el de la columna «Plazo» anterior");
 
         await AbrirDetalle(cut, ProyectoAbierto);
         _mediator.Enviados.OfType<ObtenerProyectoPorIdQuery>().Last().Id.Should().Be(ProyectoAbierto.Id);
@@ -452,17 +514,44 @@ public partial class ProyectosGen2Tests : BunitContext
     }
     // ------------------------------------------------------------------ estados de la lista
 
+    /// <summary>
+    /// La lista no obliga a elegir Cliente empresarial: la primera carga trae los Proyectos de todos los que
+    /// el usuario alcanza, con la franja de estado y el contador puestos, y cada fila dice de quién es.
+    /// </summary>
     [Fact]
-    public void Sin_cliente_elegido_pide_elegir_uno_y_no_ofrece_crear()
+    public void Sin_Cliente_empresarial_elegido_lista_los_de_todos_con_franja_y_contador_desde_la_primera_carga()
     {
-        _mediator.Proyectos = [ProyectoAbierto];
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+        _mediator.ProyectosClienteB = [ProyectoDeB];
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Elige un Cliente para ver sus proyectos");
-        cut.Markup.Should().NotContain("+ Nuevo proyecto",
-            "un proyecto cuelga siempre de un cliente: sin cliente no hay a quién colgarlo");
-        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().BeEmpty();
+        cut.WaitForAssertion(() => NombresEnLaTabla(cut).Should()
+            .BeEquivalentTo([ProyectoAbierto.Nombre, ProyectoCerrado.Nombre, ProyectoDeB.Nombre]));
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().ContainSingle("la primera carga es una sola consulta")
+            .Which.Should().Match<ObtenerProyectosQuery>(q => q.ClienteId == null && q.Pagina == 1 && q.ConRecuentosPorEstado);
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("3");
+        cut.RotulosDeFranja().Should().Equal("Todos", "Abiertos", "Cerrados");
+        cut.BotonDeFranja("Todos").RecuentoDeFranja().Should().Be(3);
+        cut.BotonDeFranja("Abiertos").RecuentoDeFranja().Should().Be(2);
+        cut.BotonDeFranja("Cerrados").RecuentoDeFranja().Should().Be(1);
+        FilaDe(cut, ProyectoAbierto).QuerySelector(".proyecto-centro")!.TextContent.Trim()
+            .Should().Be("Centro Logístico Norte · Refrielectric S.L.");
+        FilaDe(cut, ProyectoDeB).QuerySelector(".proyecto-centro")!.TextContent.Trim()
+            .Should().Be("Planta Barakaldo · Frigoríficos Arcos S.A.", "sin filtro de Cliente empresarial, la fila dice de quién es");
+        cut.Markup.Should().Contain("+ Nuevo proyecto").And.NotContain("Elige un Cliente");
+    }
+
+    [Fact]
+    public void Sin_Cliente_empresarial_y_sin_ningun_proyecto_invita_a_crear_sin_hablar_de_un_Cliente()
+    {
+        var cut = Renderizar();
+
+        cut.WaitForAssertion(() => cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin proyectos"));
+        cut.Markup.Should().Contain("Todavía no hay ningún proyecto de obra o instalación.")
+            .And.NotContain("Este Cliente todavía");
+        cut.RotulosDeFranja().Should().Equal(["Todos", "Abiertos", "Cerrados"], "la franja está aunque la lista esté vacía");
+        cut.Find(".estado-vacio button").TextContent.Trim().Should().Be("+ Nuevo proyecto");
     }
 
     [Fact]
@@ -489,17 +578,32 @@ public partial class ProyectosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// El vacío por filtro afirma que el cliente SÍ tiene proyectos. Solo puede
-    /// afirmarlo porque el filtro es en memoria sobre la lista completa; con la
-    /// lista vacía y un filtro puesto, lo cierto sigue siendo «Sin proyectos».
+    /// La búsqueda y el estado los aplica la consulta: con cero filas y un filtro puesto la pantalla no
+    /// sabe si sin él habría alguna. El vacío por filtro dice solo que ninguno coincide —nunca que el
+    /// Cliente empresarial «sí tiene proyectos»— y ofrece quitar los filtros, no crear.
     /// </summary>
     [Fact]
-    public async Task Con_filtro_puesto_y_cliente_sin_proyectos_no_afirma_que_los_haya()
+    public async Task El_vacio_por_filtro_no_afirma_que_haya_otros_proyectos()
     {
         var cut = await RenderizarConClienteAsync("proyectos?q=calderas");
 
-        cut.Find(".estado-vacio h3").TextContent.Should().Be("Sin proyectos");
-        cut.Markup.Should().NotContain("sí tiene proyectos");
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Ningún proyecto con este filtro");
+        cut.Markup.Should().Contain("Ningún proyecto coincide con la búsqueda ni con el estado seleccionado.")
+            .And.NotContain("sí tiene proyectos");
+        cut.Find(".estado-vacio button").TextContent.Trim().Should().Be("Quitar los filtros");
+    }
+
+    [Fact]
+    public async Task El_estado_sin_coincidencias_tambien_es_vacio_por_filtro_y_la_franja_sigue_contando()
+    {
+        _mediator.Proyectos = [ProyectoAbierto];
+
+        var cut = await RenderizarConClienteAsync("proyectos?estado=cerrados");
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Ningún proyecto con este filtro");
+        UltimaConsultaDeProyectos.SoloAbiertos.Should().BeFalse("el estado lo filtra la consulta");
+        cut.BotonDeFranja("Abiertos").RecuentoDeFranja().Should().Be(1, "la franja dice lo que habría al marcar el otro botón");
+        cut.BotonDeFranja("Cerrados").RecuentoDeFranja().Should().Be(0);
     }
 
     [Fact]
@@ -512,6 +616,7 @@ public partial class ProyectosGen2Tests : BunitContext
         var nombres = cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim()).ToList();
         nombres.Should().Equal(ProyectoCerrado.Nombre);
         cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+        UltimaConsultaDeProyectos.SoloAbiertos.Should().BeFalse("el estado lo filtra la consulta, antes de paginar");
     }
 
     [Fact]
@@ -523,12 +628,13 @@ public partial class ProyectosGen2Tests : BunitContext
 
         var nombres = cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim()).ToList();
         nombres.Should().Equal(ProyectoCerrado.Nombre);
+        UltimaConsultaDeProyectos.Busqueda.Should().Be("portugalete", "la búsqueda la aplica la consulta");
     }
 
     // ----------------------- El Cliente empresarial elegido viaja en la URL (T20)
 
     [Fact]
-    public async Task Elegir_el_Cliente_empresarial_lo_escribe_en_la_url_y_volver_a_ninguno_lo_quita()
+    public async Task Elegir_el_Cliente_empresarial_lo_escribe_en_la_url_y_volver_a_Todos_lo_quita()
     {
         var cut = await RenderizarConClienteAsync();
 
@@ -560,20 +666,28 @@ public partial class ProyectosGen2Tests : BunitContext
             + "es una redirección HTTP a la misma dirección, en bucle");
     }
 
-    /// <summary>La URL no puede abrir un Cliente empresarial que el selector no ofrece a este usuario.</summary>
+    /// <summary>
+    /// La URL no puede elegir un Cliente empresarial que el selector no ofrece a este usuario: cuenta como
+    /// ausente. La lista es la de todos los que alcanza y el Id ajeno no viaja a la consulta.
+    /// </summary>
     [Fact]
-    public void Un_Cliente_empresarial_de_la_url_que_no_esta_en_el_selector_no_se_elige_ni_se_consulta()
+    public void Un_Cliente_empresarial_de_la_url_que_no_esta_en_el_selector_no_se_elige_ni_viaja_a_la_consulta()
     {
+        _mediator.Proyectos = [ProyectoAbierto];
+
         var cut = Renderizar($"proyectos?cliente={Guid.NewGuid()}");
 
-        cut.WaitForAssertion(() => SelectorDeCliente(cut).GetAttribute("aria-label").Should().NotContain("Refrielectric"));
-        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().BeEmpty();
+        cut.WaitForAssertion(() => NombresEnLaTabla(cut).Should().Equal([ProyectoAbierto.Nombre], "control positivo: la lista cargó"));
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().NotContain("Refrielectric");
+        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Should().NotBeEmpty()
+            .And.OnlyContain(q => q.ClienteId == null, "el Id de la URL no es autoridad");
     }
 
     [Fact]
-    public async Task Quitar_los_filtros_los_limpia_tambien_de_la_url_y_devuelve_la_lista()
+    public async Task Quitar_los_filtros_los_limpia_tambien_de_la_url_con_el_Cliente_empresarial_y_devuelve_la_lista()
     {
         _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+        _mediator.ProyectosClienteB = [ProyectoDeB];
         var cut = await RenderizarConClienteAsync("proyectos?q=calderas&estado=cerrados");
         cut.Find(".estado-vacio h3").TextContent.Should().Be("Ningún proyecto con este filtro", "es el punto de partida de este caso");
 
@@ -581,11 +695,12 @@ public partial class ProyectosGen2Tests : BunitContext
 
         Uri.Should().NotContain("q=").And.NotContain("estado=",
             "OnParametersSet re-sincroniza desde la URL: dejar ahí los filtros los devolvería en la siguiente navegación");
+        Uri.Should().NotContain("cliente=",
+            "el Cliente empresarial es un filtro más desde que la lista no obliga a elegirlo: quitar los filtros también lo quita");
+        SelectorDeCliente(cut).GetAttribute("aria-label").Should().NotContain("Refrielectric");
+        UltimaConsultaDeProyectos.Should().Match<ObtenerProyectosQuery>(q => q.ClienteId == null && q.Busqueda == null && q.SoloAbiertos == null);
         cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim())
-            .Should().BeEquivalentTo([ProyectoAbierto.Nombre, ProyectoCerrado.Nombre]);
-        SelectorDeCliente(cut).GetAttribute("aria-label").Should().Be("Cliente: Refrielectric S.L.",
-            "el cliente es el maestro de la lista, no un filtro: quitar los filtros no lo toca");
-        Uri.Should().Contain($"cliente={ClienteId}", "y tampoco lo quita de la URL");
+            .Should().BeEquivalentTo([ProyectoAbierto.Nombre, ProyectoCerrado.Nombre, ProyectoDeB.Nombre]);
     }
 
     [Fact]
@@ -914,9 +1029,9 @@ public partial class ProyectosGen2Tests : BunitContext
 
         var cambioA = ElegirCliente(cut, ClienteId);
         var cambioB = ElegirCliente(cut, ClienteBId);
-        await Resolver(cut, proyectosB, (IReadOnlyList<ProyectoListaDto>)[ProyectoDeB]);
+        await Resolver(cut, proyectosB, Pagina(ProyectoDeB));
         await cambioB.WaitAsync(Paciencia);
-        await Resolver(cut, proyectosA, (IReadOnlyList<ProyectoListaDto>)[ProyectoAbierto]);
+        await Resolver(cut, proyectosA, Pagina(ProyectoAbierto));
         await cambioA.WaitAsync(Paciencia);
 
         NombresEnLaTabla(cut).Should().Equal([ProyectoDeB.Nombre], "el cliente vigente es B");
@@ -937,36 +1052,39 @@ public partial class ProyectosGen2Tests : BunitContext
 
         var cambioA = ElegirCliente(cut, ClienteId);
         var cambioB = ElegirCliente(cut, ClienteBId);
-        await Resolver(cut, proyectosA, (IReadOnlyList<ProyectoListaDto>)[ProyectoAbierto]);
+        await Resolver(cut, proyectosA, Pagina(ProyectoAbierto));
         await cambioA.WaitAsync(Paciencia);
 
         cut.FindAll(".esqueleto-lista").Should().NotBeEmpty("la carga de B sigue en curso");
         cut.Markup.Should().NotContain("Sin proyectos");
         NombresEnLaTabla(cut).Should().BeEmpty();
 
-        await Resolver(cut, proyectosB, (IReadOnlyList<ProyectoListaDto>)[ProyectoDeB]);
+        await Resolver(cut, proyectosB, Pagina(ProyectoDeB));
         await cambioB.WaitAsync(Paciencia);
         NombresEnLaTabla(cut).Should().Equal([ProyectoDeB.Nombre]);
     }
 
+    /// <summary>
+    /// Los Centros del alta son los del Cliente empresarial elegido EN EL FORMULARIO. Si se cambia con la
+    /// carga del anterior en vuelo, su respuesta tardía no puede ofrecer sus Centros bajo el nuevo.
+    /// </summary>
     [Fact]
-    public async Task Los_centros_del_cliente_anterior_que_llegan_tarde_no_llegan_al_alta_del_nuevo()
+    public async Task Los_centros_del_Cliente_empresarial_anterior_del_alta_que_llegan_tarde_no_se_ofrecen_bajo_el_nuevo()
     {
         _mediator.CentrosClienteA = [CentroDeA];
         _mediator.CentrosClienteB = [CentroDeB];
-        _mediator.ProyectosClienteB = [ProyectoDeB];
         var cut = Renderizar();
+        await PulsarNuevoProyectoAsync(cut);
         var centrosA = _mediator.Retener(r => r is ObtenerCentrosParaSelectorQuery q && q.ClienteId == ClienteId);
 
-        var cambioA = ElegirCliente(cut, ClienteId);
-        await ElegirCliente(cut, ClienteBId).WaitAsync(Paciencia);
+        var cambioA = SelectDelAlta(cut, "Cliente").ChangeAsync(new ChangeEventArgs { Value = ClienteId.ToString() });
+        await SelectDelAlta(cut, "Cliente").ChangeAsync(new ChangeEventArgs { Value = ClienteBId.ToString() }).WaitAsync(Paciencia);
+        OpcionesDelAlta(cut, "Centro").Should().Contain(CentroDeB.Nombre, "control positivo: los del Cliente empresarial vigente ya están");
         await Resolver(cut, centrosA, (IReadOnlyList<CentroSelectorDto>)[CentroDeA]);
         await cambioA.WaitAsync(Paciencia);
 
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo proyecto").ClickAsync(new MouseEventArgs());
-        var centrosOfrecidos = cut.FindAll("option").Select(o => o.TextContent.Trim()).ToList();
-        centrosOfrecidos.Should().Contain(CentroDeB.Nombre)
-            .And.NotContain(CentroDeA.Nombre, "el alta cuelga del cliente vigente: un centro de A lo colgaría del cliente equivocado");
+        OpcionesDelAlta(cut, "Centro").Should().Contain(CentroDeB.Nombre)
+            .And.NotContain(CentroDeA.Nombre, "el alta cuelga del Cliente empresarial vigente: un Centro de A lo colgaría del equivocado");
     }
 
     [Fact]
@@ -997,7 +1115,7 @@ public partial class ProyectosGen2Tests : BunitContext
         await CerrarDesdeElPanelAsync(cut, ProyectoAbierto);
         var confirmacion = ConfirmarCierre(cut);
         await ElegirCliente(cut, ClienteBId).WaitAsync(Paciencia);
-        await Resolver(cut, recargaA, (IReadOnlyList<ProyectoListaDto>)[ProyectoAbierto]);
+        await Resolver(cut, recargaA, Pagina(ProyectoAbierto));
         await confirmacion.WaitAsync(Paciencia);
 
         NombresEnLaTabla(cut).Should().Equal([ProyectoDeB.Nombre], "la recarga era de A y el cliente vigente es B");
@@ -1214,7 +1332,7 @@ public partial class ProyectosGen2Tests : BunitContext
     {
         _mediator.CentrosClienteA = [CentroDeA];
         var cut = await RenderizarConClienteAsync();
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo proyecto").ClickAsync(new MouseEventArgs());
+        await PulsarNuevoProyectoAsync(cut);
         cut.FindAll(".drawer-panel").Should().NotBeEmpty("el test necesita el drawer abierto");
         return cut;
     }
@@ -1258,12 +1376,14 @@ public partial class ProyectosGen2Tests : BunitContext
     public async Task Aviso_crear_el_proyecto_deja_salir_sin_preguntar()
     {
         var cut = await AbrirNuevoProyectoAsync();
-        await cut.Find(".drawer-panel select").ChangeAsync(new ChangeEventArgs { Value = CentroDeA.Id.ToString() });
+        await SelectDelAlta(cut, "Centro").ChangeAsync(new ChangeEventArgs { Value = CentroDeA.Id.ToString() });
         await EscribirNombreDelProyectoAsync(cut, "Montaje cámaras 2026");
 
         await BotonConTexto(cut, ".drawer-panel button", "Crear proyecto").ClickAsync(new MouseEventArgs());
 
-        _mediator.Enviados.OfType<CrearProyectoCommand>().Should().ContainSingle("el caso solo vale si se creó");
+        _mediator.Enviados.OfType<CrearProyectoCommand>().Should().ContainSingle("el caso solo vale si se creó")
+            .Which.Should().Match<CrearProyectoCommand>(c => c.ClienteId == ClienteId && c.CentroId == CentroDeA.Id,
+                "el alta viene con el Cliente empresarial del filtro puesto");
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "lo escrito ya está guardado");
     }
 

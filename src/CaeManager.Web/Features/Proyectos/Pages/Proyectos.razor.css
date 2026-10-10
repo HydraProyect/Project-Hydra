@@ -12,10 +12,33 @@
     margin: var(--space-4) 0 var(--space-2);
 }
 
-/* Tabla de proyectos */
+/* Tabla de proyectos. La última celda lleva el icono 360 y, en el proyecto cerrado y para quien
+   puede escribir, la acción rápida «Reabrir»: el ancho es el de las dos piezas, para que el icono
+   caiga en el mismo sitio en todas las filas. */
 .tabla-proyectos .col-acciones {
-    width: 56px;
+    width: 148px;
     text-align: right;
+    white-space: nowrap;
+}
+
+.proyectos-acciones-fila {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+/* Retraso de un proyecto abierto, bajo sus fechas. El texto es el de la ficha 360, que lo escribe
+   tras un «·» y por eso empieza en minúscula: aquí abre línea. */
+.proyecto-fin-superado {
+    display: block;
+    margin-top: var(--space-1);
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.proyecto-fin-superado::first-letter {
+    text-transform: uppercase;
 }
 
 /* 132 px es el hueco del cumplimiento en los demás listados; el rótulo no parte en dos líneas. */

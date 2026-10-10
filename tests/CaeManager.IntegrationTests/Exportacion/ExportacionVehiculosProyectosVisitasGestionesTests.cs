@@ -1,5 +1,4 @@
 using CaeManager.Application.Auditoria;
-using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
@@ -227,7 +226,7 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Proyectos_todo_recorre_los_Clientes_empresariales_del_Tenant_y_ninguno_de_otro()
+    public async Task Proyectos_todo_lleva_los_de_todos_los_Clientes_empresariales_del_Tenant_y_ninguno_de_otro()
     {
         var filas = await ExportarAsync("Proyectos", (m, t, r) => ProyectosEndpoints.ExportarAsync(m, t, r, Eco<TextosProyectos>(), default));
 
@@ -239,6 +238,27 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
         reforma[5].Should().Be("1");
         reforma[6].Should().Be("Lucía Prieto Ramos");
         filas.SelectMany(f => f).Should().NotContain(celda => celda.Contains("12345678Z"));
+        // Cada fila dice su Cliente empresarial: la lista ya no es la de uno solo.
+        filas.Single(f => f[1] == "Ampliación almacén")[0].Should().Be("Cliente Sur S.L.");
+    }
+
+    [Fact]
+    public async Task Proyectos_esta_vista_sin_Cliente_empresarial_filtra_los_de_todos_con_la_busqueda_y_el_estado()
+    {
+        // La pantalla no obliga a elegir Cliente empresarial: la vista puede llevar solo búsqueda o estado.
+        var conBusqueda = await ExportarAsync("Proyectos",
+            (m, t, r) => ProyectosEndpoints.ExportarAsync(m, t, r, Eco<TextosProyectos>(), default, q: "reforma"));
+        var abiertos = await ExportarAsync("Proyectos",
+            (m, t, r) => ProyectosEndpoints.ExportarAsync(m, t, r, Eco<TextosProyectos>(), default, estado: "abiertos"));
+        var losDosEstados = await ExportarAsync("Proyectos",
+            (m, t, r) => ProyectosEndpoints.ExportarAsync(m, t, r, Eco<TextosProyectos>(), default, estado: "abiertos,cerrados"));
+        var cerrados = await ExportarAsync("Proyectos",
+            (m, t, r) => ProyectosEndpoints.ExportarAsync(m, t, r, Eco<TextosProyectos>(), default, estado: "cerrados"));
+
+        conBusqueda.Should().ContainSingle("«Reforma ajena» es de otro Tenant").Which[1].Should().Be("Reforma nave");
+        abiertos.Select(f => f[1]).Should().BeEquivalentTo(["Reforma nave", "Cubierta nueva", "Ampliación almacén"]);
+        losDosEstados.Select(f => f[1]).Should().BeEquivalentTo(["Reforma nave", "Cubierta nueva", "Ampliación almacén"]);
+        cerrados.Should().BeEmpty("los tres Proyectos del Tenant están abiertos");
     }
 
     [Fact]
@@ -462,7 +482,7 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
         public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
     }
 
-    /// <summary>Los handlers reales de los cuatro listados (y el del selector de Proyectos) detrás de <see cref="IMediator"/>.</summary>
+    /// <summary>Los handlers reales de los cuatro listados detrás de <see cref="IMediator"/>.</summary>
     private sealed class MediadorDeListados(
         CaeManagerDbContext c, IAlcanceDatosService alcance, Guid tenant, bool pideElegirEmpresa = false) : IMediator
     {
@@ -481,9 +501,7 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
                         [new ClienteAutorizadoDto(tenant, "Tenant propietario", EsOrigen: true, EsGestionadoPorOperacion: false)],
                 ObtenerVehiculosQuery consulta => await new ObtenerVehiculosQueryHandler(
                     c, c, alcance, c, c, new CalculoEstadoDocumentalService(c, c)).Handle(consulta, cancellationToken),
-                ObtenerClientesParaSelectorQuery consulta => await new ObtenerClientesParaSelectorQueryHandler(c, alcance)
-                    .Handle(consulta, cancellationToken),
-                ObtenerProyectosQuery consulta => await new ObtenerProyectosQueryHandler(c, c, c, alcance)
+                ObtenerProyectosQuery consulta => await new ObtenerProyectosQueryHandler(c, c, c, c, alcance)
                     .Handle(consulta, cancellationToken),
                 ObtenerVisitasQuery consulta => await new ObtenerVisitasQueryHandler(c, c, c, c, c, c, alcance, c)
                     .Handle(consulta, cancellationToken),

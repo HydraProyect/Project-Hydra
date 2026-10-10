@@ -741,6 +741,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Integraciones.ObtenerLineasWhatsAppQueryHandler", "IEmpresasQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "IEmpresasQueryContext"),
         ("Proyectos.ObtenerProyectosParaSelectorQueryHandler", "IEmpresasQueryContext"),
+        // El listado no obliga a elegir Cliente empresarial: cada fila dice el suyo (razón social) y no
+        // se lista el Proyecto cuyo Cliente empresarial está dado de baja, como en el detalle.
+        ("Proyectos.ObtenerProyectosQueryHandler", "IEmpresasQueryContext"),
         ("Reclamaciones.EnviarReclamacionCommandHandler", "IEmpresasQueryContext"),
         ("Reclamaciones.EnviarReclamacionEmpresaCommandHandler", "IEmpresasQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionEmpresaQueryHandler", "IEmpresasQueryContext"),

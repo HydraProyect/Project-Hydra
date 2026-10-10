@@ -1,4 +1,3 @@
-using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos.Queries.ObtenerProyectos;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
@@ -22,13 +21,12 @@ public static class ProyectosEndpoints
     }
 
     /// <remarks>
-    /// La pantalla enseña los Proyectos de un Cliente empresarial cada vez, elegido en su
-    /// selector. «Exportar esta vista» lleva ese Cliente empresarial, la búsqueda y los estados
-    /// de la franja; «Exportar todo» (sin criterios) recorre los Clientes empresariales del
-    /// mismo selector. Las dos variantes usan las dos consultas de la página
-    /// (<see cref="ObtenerClientesParaSelectorQuery"/> y <see cref="ObtenerProyectosQuery"/>)
-    /// y el mismo filtro en memoria (<see cref="FiltroProyectos"/>): su autorización, su
-    /// alcance y su Tenant son los del listado.
+    /// «Exportar esta vista» lleva los criterios de la pantalla: el Cliente empresarial del filtro (si
+    /// hay uno), la búsqueda y los estados de la franja. «Exportar todo» (sin criterios) saca los
+    /// Proyectos de todos los Clientes empresariales que el usuario alcanza. Las dos variantes piden
+    /// las filas a la consulta del listado (<see cref="ObtenerProyectosQuery"/>), página a página y
+    /// con sus mismos filtros: su autorización, su alcance y su Tenant son los del listado, y un
+    /// «cliente» fuera del alcance no exporta nada.
     /// <para>
     /// De los técnicos sale lo que la fila ya enseña: el recuento y, como en su ventana de
     /// contexto, «Nombre Apellidos» de los que tienen alta vigente, tal como los devuelve la
@@ -46,12 +44,7 @@ public static class ProyectosEndpoints
         if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
             return Results.Redirect("/proyectos");
 
-        // El selector es la lista de lo que este usuario puede elegir: un «cliente» que no
-        // está en ella no exporta nada.
-        var clientes = await mediator.Send(new ObtenerClientesParaSelectorQuery(), cancellationToken);
         Guid? clienteAplicado = Guid.TryParse(cliente, out var idPedido) ? idPedido : null;
-        if (clienteAplicado is not null)
-            clientes = clientes.Where(c => c.Id == clienteAplicado).ToList();
 
         var estadosAplicados = FiltroProyectos.EstadosValidos(estado);
 
@@ -76,25 +69,24 @@ public static class ProyectosEndpoints
 
         async IAsyncEnumerable<IReadOnlyList<XLCellValue>> FilasAsync()
         {
-            var escritas = 0;
-            foreach (var clienteEmpresarial in clientes)
+            await foreach (var proyecto in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+                mediator.Send(
+                    new ObtenerProyectosQuery(
+                        ClienteId: clienteAplicado,
+                        SoloAbiertos: FiltroProyectos.SoloAbiertos(estadosAplicados),
+                        Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
+                        Pagina: pagina,
+                        TamanoPagina: tamanoPagina),
+                    cancellationToken)))
             {
-                var proyectos = await mediator.Send(new ObtenerProyectosQuery(clienteEmpresarial.Id), cancellationToken);
-                foreach (var proyecto in proyectos.Where(p => FiltroProyectos.Cumple(p, estadosAplicados, q)))
-                {
-                    if (++escritas > PaginadorExportacion.MaximoElementosPorDefecto)
-                        throw new InvalidOperationException(
-                            $"La exportación supera el máximo de {PaginadorExportacion.MaximoElementosPorDefecto} filas — acota el filtro antes de exportar.");
-
-                    yield return
-                    [
-                        clienteEmpresarial.RazonSocial, proyecto.Nombre, proyecto.CentroNombre,
-                        LibroDeListado.Fecha(proyecto.FechaInicio), LibroDeListado.Fecha(proyecto.FechaFinPrevista),
-                        proyecto.TecnicosActivos.Count,
-                        string.Join("; ", proyecto.TecnicosActivos.Select(t => t.NombreCompleto)),
-                        textos[proyecto.EstaAbierto ? "BadgeAbierto" : "BadgeCerrado"].Value
-                    ];
-                }
+                yield return
+                [
+                    proyecto.ClienteRazonSocial, proyecto.Nombre, proyecto.CentroNombre,
+                    LibroDeListado.Fecha(proyecto.FechaInicio), LibroDeListado.Fecha(proyecto.FechaFinPrevista),
+                    proyecto.TecnicosActivos.Count,
+                    string.Join("; ", proyecto.TecnicosActivos.Select(t => t.NombreCompleto)),
+                    textos[proyecto.EstaAbierto ? "BadgeAbierto" : "BadgeCerrado"].Value
+                ];
             }
         }
     }

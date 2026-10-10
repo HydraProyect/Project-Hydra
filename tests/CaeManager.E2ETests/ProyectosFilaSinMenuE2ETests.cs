@@ -37,7 +37,7 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixture fixture)
             new PageGetByRoleOptions { NameRegex = new Regex(@"^Cliente(?:$|:)") });
         var menu = await AbrirMenuClienteAsync(selector, page);
         var opciones = (await menu.GetByRole(AriaRole.Menuitemradio).AllTextContentsAsync())
-            .Select(o => o.Trim()).Where(o => o.Length > 0 && o != "Selecciona un Cliente").ToArray();
+            .Select(o => o.Trim()).Where(o => o.Length > 0 && o != "Todos").ToArray();
         await page.Keyboard.PressAsync("Escape");
         await Expect(menu).ToBeHiddenAsync();
 

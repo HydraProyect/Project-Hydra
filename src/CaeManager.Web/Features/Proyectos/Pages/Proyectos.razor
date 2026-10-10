@@ -18,12 +18,12 @@
 
 <div class="contenedor-pagina">
     <CabeceraListado Titulo="@Textos["TituloPagina"]"
-                     Contador="@(_resolviendoEmpresa || _sinEmpresaSeleccionada || _cargando || _errorCarga || _clienteSeleccionadoId == Guid.Empty || _cargandoProyectos || _errorProyectos ? null : (int?)ProyectosVisibles.Count)"
-                     Menu="@(_clienteSeleccionadoId != Guid.Empty && !_cargando && !_errorCarga ? MenuCabecera : null)">
+                     Contador="@(ListaDisponible && _listaCargada ? (int?)_totalElementos : null)"
+                     Menu="@(ListaDisponible ? MenuCabecera : null)">
         <Primaria>
-            @if (_clienteSeleccionadoId != Guid.Empty && !_cargando && !_errorCarga)
+            @if (ListaDisponible)
             {
-                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirNuevoProyecto">@Textos["BotonNuevoProyecto"]</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirNuevoProyectoAsync">@Textos["BotonNuevoProyecto"]</Boton></SoloConEscritura>
             }
         </Primaria>
     </CabeceraListado>
@@ -56,10 +56,10 @@
                       FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                       OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
             <Pastillas>
-                @* La opción vacía pide elegir un Cliente empresarial: nunca representa todos. *@
+                @* Filtro opcional: «Todos» (el valor vacío) lista los Proyectos de todos los Clientes empresariales visibles. *@
                 <PastillaFiltro @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
                                 Valor="@(_clienteSeleccionadoId == Guid.Empty ? string.Empty : _clienteSeleccionadoId.ToString())"
-                                ValorChanged="OnClienteSeleccionadoAsync" Opciones="OpcionesClienteListado" OfrecerTodos="false" />
+                                ValorChanged="OnClienteSeleccionadoAsync" Opciones="OpcionesClienteListado" />
             </Pastillas>
             <Chips>
                 @if (!string.IsNullOrWhiteSpace(_busqueda))
@@ -70,47 +70,26 @@
         </BarraFiltros>
         <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
                                    OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-        @if (_clienteSeleccionadoId != Guid.Empty && _proyectos.Count > 0)
+        @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
+           cuántos Proyectos hay con el Cliente y la búsqueda aplicados. Con los dos botones marcados se ven
+           todos. Está desde la primera carga, sin cifras hasta que llegan los recuentos. *@
+        <FranjaEstado Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                      Recuentos="_recuentosPorEstado" />
+        @if (_errorProyectos)
         {
-            @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
-               cuántos Proyectos hay, con la búsqueda aplicada. Con los dos botones marcados se ven todos. *@
-            <FranjaEstado Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                          Recuentos="RecuentosPorEstado" />
+            <EstadoVacio NombreIcono="error-circulo" Titulo="@Textos["ErrorProyectosTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
+                <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarProyectosAsync">@Textos["BotonReintentar"]</Boton></Accion>
+            </EstadoVacio>
         }
-        @if (_clienteSeleccionadoId == Guid.Empty)
-        {
-            @* CrearProyectoCommand exige un Cliente empresarial y un Centro vinculado
-               a él: sin esa elección no se muestra la lista ni se ofrece el alta. *@
-            <EstadoVacio NombreIcono="clientes" Titulo="@Textos["SinClienteTitulo"]"
-                         Descripcion="@Textos["SinClienteDescripcion"]" />
-        }
-        else if (_cargandoProyectos)
+        else if (!_listaCargada)
         {
             <EstadoCargando Filas="4" />
         }
-        else if (_errorProyectos)
+        else if (_totalElementos == 0 && HayFiltrosActivos && !SoloFiltraElCliente)
         {
-            <EstadoVacio NombreIcono="error-circulo" Titulo="@Textos["ErrorProyectosTitulo"]" Descripcion="@Textos["ErrorCargaDetalle"]">
-                <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarDatosClienteAsync">@Textos["BotonReintentar"]</Boton></Accion>
-            </EstadoVacio>
-        }
-        else if (_proyectos.Count == 0)
-        {
-            @* Va ANTES que el vacío por filtro a propósito: la lista del cliente
-               llega entera (ObtenerProyectosQuery no pagina) y los filtros se
-               aplican en memoria, así que aquí la pantalla SÍ sabe que el
-               cliente no tiene ninguno — con filtro o sin él. *@
-            <EstadoVacio NombreIcono="proyectos" Titulo="@Textos["VacioTitulo"]" Descripcion="@Textos["VacioDescripcion"]">
-                <Accion><SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirNuevoProyecto">@Textos["BotonNuevoProyecto"]</Boton></SoloConEscritura></Accion>
-            </EstadoVacio>
-        }
-        else if (ProyectosVisibles.Count == 0 && HayFiltrosActivos)
-        {
-            @* Distinto de "Sin proyectos": ofrecer "crea el primero" a quien
-               acaba de filtrar lo manda a duplicar una obra que ya existe. La
-               copia puede afirmar que el cliente SÍ tiene proyectos porque la
-               rama anterior ya descartó la lista vacía: el filtrado es en
-               memoria sobre la lista completa del cliente. *@
+            @* Distinto de «Sin proyectos»: ofrecer «crea el primero» a quien acaba de buscar o de filtrar
+               por estado lo manda a duplicar una obra que ya existe. La búsqueda y el estado los aplica la
+               consulta, así que la copia no afirma que haya otros proyectos: solo que ninguno coincide. *@
             <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltroTitulo"]"
                          Descripcion="@Textos["VacioFiltroDescripcion"]">
                 <Accion>
@@ -118,38 +97,48 @@
                 </Accion>
             </EstadoVacio>
         }
+        else if (_totalElementos == 0)
+        {
+            @* No hay ninguno: del Cliente del filtro, si es lo único que filtra, o de ninguno de los que
+               este usuario alcanza. No hay obra que duplicar: se invita a crear la primera. *@
+            <EstadoVacio NombreIcono="proyectos" Titulo="@Textos["VacioTitulo"]"
+                         Descripcion="@Textos[SoloFiltraElCliente ? "VacioDescripcion" : "VacioDescripcionTodos"]">
+                <Accion><SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirNuevoProyectoAsync">@Textos["BotonNuevoProyecto"]</Boton></SoloConEscritura></Accion>
+            </EstadoVacio>
+        }
         else
         {
-
-
             <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
-            <div class="contenedor-tabla-proyectos">
+            <div class="contenedor-tabla-proyectos" aria-busy="@(_cargandoProyectos ? "true" : "false")">
                 <table class="tabla-datos tabla-proyectos">
                     <thead>
                         <tr>
                             <th>@Textos["ListaProyecto"]</th>
-                            <th>@Textos["ListaPlazo"]</th>
+                            <th>@Textos["ListaFechas"]</th>
                             <th>@Textos["ColumnaTecnicos"]</th>
                             <th class="col-plazo-transcurrido">@Textos["ListaPlazoTranscurrido"]</th>
-                            <th>@Textos["EtiquetaEstado"]</th>
+                            <th class="col-estado">@Textos["EtiquetaEstado"]</th>
                             <th class="col-acciones"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var proyecto in ProyectosVisibles)
+                        @foreach (var proyecto in _proyectos)
                         {
+                            var finPrevistoSuperado = TextoFinPrevistoSuperado(proyecto);
                             @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
                                fila abre la vista rápida (el panel lateral), igual que Enter sobre la fila
-                               enfocada; los controles de dentro —nombre, recuento de técnicos, icono 360—
-                               hacen lo suyo y no dejan subir el clic. *@
-                            <tr class="@ClaseFila(proyecto)" @onclick="() => AbrirDetalleDesdeLaFilaAsync(proyecto.Id)">
+                               enfocada; los controles de dentro —nombre, recuento de técnicos, «Reabrir»,
+                               icono 360— hacen lo suyo y no dejan subir el clic. *@
+                            <tr @key="proyecto.Id" class="@ClaseFila(proyecto)" @onclick="() => AbrirDetalleDesdeLaFilaAsync(proyecto.Id)">
                                 <td>
                                     <span class="proyecto-nombre-centro">
                                         @* El nombre es el destino de teclado del clic en la fila (la fila no es focable con Tab). *@
                                         <button type="button" class="enlace-nombre-fila nombre-proyecto nombre-abre-vista-rapida"
                                                 @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)" @onclick:stopPropagation="true">@proyecto.Nombre</button>
-                                        <span class="proyecto-centro">@proyecto.CentroNombre</span>
+                                        @* Con «Todos», dos filas pueden compartir nombre de Proyecto o de Centro: el
+                                           Cliente las distingue. Con un Cliente en el filtro sobraría en todas. *@
+                                        <span class="proyecto-centro">@(_clienteSeleccionadoId == Guid.Empty ? $"{proyecto.CentroNombre} · {proyecto.ClienteRazonSocial}" : proyecto.CentroNombre)</span>
                                     </span>
                                 </td>
                                 <td class="celda-fecha-proyecto">
@@ -162,9 +151,15 @@
                                         }
                                         else
                                         {
-                                            <span class="fin-indefinido">@Textos["ListaSinFechaFinPrevista"]</span>
+                                            <span aria-hidden="true">→</span>
+                                            <span class="fin-indefinido">@Textos["ListaSinFechaFin"]</span>
                                         }
                                     </span>
+                                    @if (finPrevistoSuperado is not null)
+                                    {
+                                        @* La barra de plazo se queda en el 100 %: el retraso se dice con el texto de la ficha 360. *@
+                                        <span class="proyecto-fin-superado">@finPrevistoSuperado</span>
+                                    }
                                 </td>
                                 <td class="celda-tecnicos-proyecto">
                                     @if (proyecto.TecnicosActivos.Count > 0)
@@ -199,27 +194,45 @@
                                     <BarraCumplimiento Porcentaje="PorcentajeDelPlazo(proyecto)" Marca="true"
                                                        Etiqueta="@EtiquetaPlazoTranscurrido(proyecto)" />
                                 </td>
-                                <td>
+                                <td class="col-estado">
                                     @if (proyecto.EstaAbierto)
                                     {
-                                        <EstadoFila Correcto="true" Texto="@Textos["BadgeAbierto"]" />
+                                        <EstadoFila Correcto="true" Texto="@Textos["BadgeAbierto"]" Motivo="@MotivoEstado(proyecto)" />
                                     }
                                     else
                                     {
-                                        <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCerrado"]" />
+                                        <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCerrado"]" Motivo="@MotivoEstado(proyecto)" />
                                     }
                                 </td>
                                 @* Dónde quedó cada acción del menú «⋯» que tenía la fila: «Detalles» es el clic en
-                                   la fila; «Abrir página», este icono 360; «Cerrar proyecto», «Reabrir» y «Eliminar»,
-                                   el pie del panel (Proyectos no tiene selección múltiple: D1, 2026-10-08). *@
+                                   la fila; «Abrir página», este icono 360; «Cerrar proyecto» y «Eliminar», el pie del
+                                   panel (Proyectos no tiene selección múltiple: D1, 2026-10-08). «Reabrir» está
+                                   en el pie del panel y, en la fila del Proyecto cerrado, como acción rápida: el
+                                   mismo comando con la misma confirmación, y solo para quien puede escribir. *@
                                 <td class="col-acciones">
-                                    <Boton360 Nombre="@proyecto.Nombre" Href="@($"/proyectos/{proyecto.Id}")" />
+                                    <span class="proyectos-acciones-fila" @onclick:stopPropagation="true">
+                                        @if (!proyecto.EstaAbierto)
+                                        {
+                                            <SoloConEscritura>
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="proyectos-accion-rapida"
+                                                       aria-label="@Textos["AccionRapidaReabrirAria", proyecto.Nombre]"
+                                                       OnClick="() => AbrirReabrirConfirmAsync(proyecto.Id)">
+                                                    @Textos["AccionReabrir"]
+                                                </Boton>
+                                            </SoloConEscritura>
+                                        }
+                                        <Boton360 Nombre="@proyecto.Nombre" Href="@($"/proyectos/{proyecto.Id}")" />
+                                    </span>
                                 </td>
                             </tr>
                         }
                     </tbody>
                 </table>
             </div>
+
+            <PaginadorSimple PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                             Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
+                             TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
         }
     }
 </div>
@@ -422,6 +435,16 @@
             <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
         }
 
+        @* La lista no obliga a elegir Cliente: lo pide el alta, que lo necesita para ofrecer sus Centros.
+           Viene puesto con el del filtro cuando hay uno. *@
+        <CampoSelect Etiqueta="@Textos["EtiquetaCliente"]" Valor="@_nuevoClienteId" ValorChanged="OnClienteDelAltaCambiadoAsync">
+            <option value="">@Textos["OpcionElegirCliente"]</option>
+            @foreach (var cliente in _clientes)
+            {
+                <option value="@cliente.Id">@cliente.RazonSocial</option>
+            }
+        </CampoSelect>
+
         <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_nuevoCentroId" ValorChanged="v => _nuevoCentroId = v">
             <option value="">@Textos["OpcionElegirCentro"]</option>
             @foreach (var centro in _centrosDisponibles)
@@ -487,10 +510,10 @@
 
 @code {
     /// <summary>
-    /// El «⋯» de la cabecera: las dos entradas de exportación. Sin Cliente empresarial elegido no
-    /// se pasa: no hay vista que exportar.
+    /// El «⋯» de la cabecera: las dos entradas de exportación. El total de «esta vista» es el de
+    /// todas las páginas, no el de la que se enseña.
     /// </summary>
-    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/proyectos/exportar.xlsx" Total="@(_cargandoProyectos || _errorProyectos ? null : (int?)ProyectosVisibles.Count)" Criterios="CriteriosExportar" />;
+    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/proyectos/exportar.xlsx" Total="@(_listaCargada ? (int?)_totalElementos : null)" Criterios="CriteriosExportar" />;
 
     private Drawer? _drawerProyecto;
     // De instancia, no static: las etiquetas salen del localizador inyectado.

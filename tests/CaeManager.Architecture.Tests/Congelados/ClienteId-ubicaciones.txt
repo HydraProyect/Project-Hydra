@@ -178,7 +178,7 @@ src/CaeManager.Application/Proyectos/ProyectoAutorizacion.cs :: clienteIdsVisibl
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectoPorId/ObtenerProyectoPorIdQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectoPorId/ObtenerProyectoPorIdQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectoPorId/ObtenerProyectoPorIdQuery.cs :: clienteIdsVisibles = 3
-src/CaeManager.Application/Proyectos/Queries/ObtenerProyectos/ObtenerProyectosQuery.cs :: ClienteId = 4
+src/CaeManager.Application/Proyectos/Queries/ObtenerProyectos/ObtenerProyectosQuery.cs :: ClienteId = 8
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectos/ObtenerProyectosQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectos/ObtenerProyectosQuery.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Proyectos/Queries/ObtenerProyectosParaSelector/ObtenerProyectosParaSelectorQuery.cs :: ClienteId = 2
@@ -456,8 +456,11 @@ src/CaeManager.Web/Features/Integraciones/Pages/Conexiones.razor.cs :: clienteId
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor :: _clienteId = 2
 src/CaeManager.Web/Features/Plantillas/Pages/ConfigurarPlantilla.razor.cs :: _clienteId = 3
 src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor :: ClienteId = 1
-src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: ClienteId = 1
-src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: clienteId = 7
+src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor :: _nuevoClienteId = 1
+src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: ClienteId = 2
+src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: _nuevoClienteId = 6
+src/CaeManager.Web/Features/Proyectos/Pages/Proyectos.razor.cs :: clienteId = 9
+src/CaeManager.Web/Features/Proyectos/ProyectosEndpoints.cs :: ClienteId = 1
 src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor :: _clienteId = 1
 src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs :: ClienteId = 3
 src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs :: ClienteIdActual = 4

@@ -7,8 +7,12 @@ namespace CaeManager.E2ETests;
 [Collection("AppCollection")]
 public class ProyectosFase1SelectorTests(WebAppFixture fixture)
 {
+    /// <summary>
+    /// El Cliente empresarial es un filtro opcional de la lista: se llega con los Proyectos de todos los que
+    /// el usuario alcanza, se elige uno con el teclado y «Todos» lo retira sin vaciar la lista ni quitar el alta.
+    /// </summary>
     [Fact]
-    public async Task Cliente_empresarial_obligatorio_se_elige_y_se_retira_con_teclado_real()
+    public async Task El_filtro_de_Cliente_empresarial_se_elige_y_se_retira_con_teclado_real()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -18,17 +22,20 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
         var selector = page.GetByRole(AriaRole.Button,
             new PageGetByRoleOptions { NameRegex = new Regex(@"^Cliente(?:$|:)") });
         await Expect(selector).ToBeVisibleAsync();
+        await Expect(selector).ToHaveTextAsync("Cliente");
+        // Sin elegir nada, la lista ya trae filas: las de todos los Clientes empresariales del alcance.
+        var filas = page.Locator("table.tabla-proyectos tbody tr");
+        await Expect(filas).Not.ToHaveCountAsync(0);
         await selector.FocusAsync();
         await selector.PressAsync("Space");
         var panelId = await selector.GetAttributeAsync("aria-controls");
         Assert.False(string.IsNullOrWhiteSpace(panelId), "Control positivo: selector con panel identificado.");
         var menu = page.Locator("#" + panelId);
         await Expect(menu).ToBeVisibleAsync();
-        const string sinEleccion = "Selecciona un Cliente";
+        const string sinEleccion = "Todos";
         var nombres = (await menu.GetByRole(AriaRole.Menuitemradio).AllTextContentsAsync())
             .Select(n => n.Trim()).ToArray();
         Assert.Contains(sinEleccion, nombres);
-        Assert.DoesNotContain("Todos", nombres);
         var contraparte = nombres.FirstOrDefault(n => n != sinEleccion);
         Assert.False(string.IsNullOrWhiteSpace(contraparte), "Control positivo: el catálogo contiene un Cliente concreto.");
         var opcion = menu.GetByRole(AriaRole.Menuitemradio,
@@ -38,6 +45,8 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
         await Expect(menu).ToBeHiddenAsync();
         Assert.True((await selector.InnerTextAsync()).Trim() == "Cliente: " + contraparte,
             "La selección física no aplica el Cliente concreto a la pastilla de Proyectos.");
+        // Control positivo de la ausencia del final: elegido, el filtro viaja en la URL.
+        await Expect(page).ToHaveURLAsync(new Regex("cliente="));
         await Expect(selector).ToBeFocusedAsync();
         await selector.PressAsync("Space");
         await Expect(menu).ToBeVisibleAsync();
@@ -50,9 +59,10 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
         await Expect(menu).ToBeHiddenAsync();
         await Expect(selector).ToHaveTextAsync("Cliente");
         await Expect(selector).ToBeFocusedAsync();
-        await Expect(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Elige un Cliente para ver sus proyectos", Exact = true })).ToBeVisibleAsync();
-        await Expect(page.Locator("tbody .nombre-proyecto")).ToHaveCountAsync(0);
-        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo proyecto", Exact = true })).ToHaveCountAsync(0);
+        await Expect(page).Not.ToHaveURLAsync(new Regex("cliente="));
+        await Expect(filas).Not.ToHaveCountAsync(0);
+        // Con filas, el alta solo está en la cabecera (el estado vacío, que lleva otra, no se pinta).
+        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo proyecto", Exact = true })).ToBeVisibleAsync();
     }
 
     [Fact]
@@ -63,7 +73,7 @@ public class ProyectosFase1SelectorTests(WebAppFixture fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl,
             Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/proyectos");
-        const string sinEleccion = "Selecciona un Cliente";
+        const string sinEleccion = "Todos";
         var selector = SelectorCliente(page);
         var menu = await AbrirMenuClienteAsync(selector, page);
         var opciones = (await menu.GetByRole(AriaRole.Menuitemradio).AllTextContentsAsync())
