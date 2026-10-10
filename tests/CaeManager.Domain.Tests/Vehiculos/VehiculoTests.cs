@@ -76,4 +76,65 @@ public class VehiculoTests
         vehiculo.Modelo.Should().Be("Renault Trafic");
         vehiculo.NumeroPlaca.Should().Be("9999XYZ");
     }
+
+    [Fact]
+    public void Un_vehiculo_nuevo_no_tiene_nota_interna()
+    {
+        Vehiculo.DeEmpresa(Guid.NewGuid(), "Furgoneta 1", "Renault Kangoo", "1234ABC").Notas.Should().BeNull();
+    }
+
+    [Fact]
+    public void FijarNotaInterna_guarda_la_nota_recortada_y_conserva_sus_saltos_de_linea()
+    {
+        var vehiculo = Vehiculo.DeEmpresa(Guid.NewGuid(), "Furgoneta 1", "Renault Kangoo", "1234ABC");
+
+        vehiculo.FijarNotaInterna("  Aparca en la nave 2.\nLlaves: Leire.  ");
+
+        vehiculo.Notas.Should().Be("Aparca en la nave 2.\nLlaves: Leire.");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  \n\t ")]
+    public void FijarNotaInterna_vacia_o_solo_espacios_deja_el_vehiculo_sin_nota(string? notas)
+    {
+        var vehiculo = Vehiculo.DeEmpresa(Guid.NewGuid(), "Furgoneta 1", "Renault Kangoo", "1234ABC");
+        vehiculo.FijarNotaInterna("Nota anterior.");
+
+        vehiculo.FijarNotaInterna(notas);
+
+        vehiculo.Notas.Should().BeNull();
+    }
+
+    [Fact]
+    public void FijarNotaInterna_admite_el_maximo_y_rechaza_un_caracter_mas_sin_cambiar_la_nota()
+    {
+        var vehiculo = Vehiculo.DeEmpresa(Guid.NewGuid(), "Furgoneta 1", "Renault Kangoo", "1234ABC");
+        var enElLimite = new string('a', Vehiculo.LongitudMaximaNotas);
+        vehiculo.FijarNotaInterna(enElLimite);
+
+        var accion = () => vehiculo.FijarNotaInterna(enElLimite + "a");
+
+        accion.Should().Throw<ArgumentException>().WithMessage("*2000*");
+        vehiculo.Notas.Should().Be(enElLimite);
+    }
+
+    /// <summary>La nota no viaja en <c>Actualizar</c>: editar los datos del vehículo desde el panel no la borra.</summary>
+    [Fact]
+    public void Actualizar_no_toca_la_nota_interna_y_fijar_la_nota_no_toca_los_datos()
+    {
+        var vehiculo = Vehiculo.DeEmpresa(Guid.NewGuid(), "Furgoneta 1", "Renault Kangoo", "1234ABC");
+        vehiculo.FijarNotaInterna("Nota del equipo.");
+
+        vehiculo.Actualizar("Furgoneta 2", "Renault Trafic", "9999xyz");
+
+        vehiculo.Notas.Should().Be("Nota del equipo.");
+
+        vehiculo.FijarNotaInterna("Otra nota.");
+
+        vehiculo.Nombre.Should().Be("Furgoneta 2");
+        vehiculo.Modelo.Should().Be("Renault Trafic");
+        vehiculo.NumeroPlaca.Should().Be("9999XYZ");
+    }
 }

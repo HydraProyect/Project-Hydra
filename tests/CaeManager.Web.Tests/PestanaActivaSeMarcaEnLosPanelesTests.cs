@@ -149,7 +149,7 @@ public class PestanaActivaSeMarcaEnLosPanelesTests : BunitContext
     public void VehiculoWorkspacePanel_marca_la_pestana_activa()
     {
         var id = Guid.NewGuid();
-        var detalle = new VehiculoDetalleDto(id, Guid.NewGuid(), null, "Refrielectric S.A.", "Furgoneta 12", "Transit", "1234-ABC", Guid.NewGuid(), CaeManager.Domain.Documentos.FraccionCumplimiento.SinRequisitos, null);
+        var detalle = new VehiculoDetalleDto(id, Guid.NewGuid(), null, "Refrielectric S.A.", "Furgoneta 12", "Transit", "1234-ABC", Guid.NewGuid(), CaeManager.Domain.Documentos.FraccionCumplimiento.SinRequisitos, null, Notas: null, NotaInternaVisible: true);
         RegistrarServiciosBasicos(new MediatorFalso(request => request switch
         {
             ObtenerVehiculoPorIdQuery q when q.Id == id => detalle,

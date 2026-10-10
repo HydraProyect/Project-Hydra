@@ -15,12 +15,20 @@ public class Vehiculo : EntidadBase
     public const int LongitudMaximaNombre = 100;
     public const int LongitudMaximaModelo = 100;
     public const int LongitudMaximaNumeroPlaca = 20;
+    public const int LongitudMaximaNotas = 2000;
 
     public Guid? EmpresaId { get; private set; }
     public Guid? SubcontrataId { get; private set; }
     public string Nombre { get; private set; } = string.Empty;
     public string Modelo { get; private set; } = string.Empty;
     public string NumeroPlaca { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// La «Nota interna» de la ficha Vehículo 360: texto libre del equipo
+    /// sobre el vehículo. NULL = sin nota. Solo la escribe
+    /// <see cref="FijarNotaInterna"/>; <see cref="Actualizar"/> no la toca.
+    /// </summary>
+    public string? Notas { get; private set; }
 
     public bool EsDeSubcontrata => SubcontrataId is not null;
 
@@ -58,6 +66,22 @@ public class Vehiculo : EntidadBase
         EstablecerNombre(nombre);
         EstablecerModelo(modelo);
         EstablecerNumeroPlaca(numeroPlaca);
+    }
+
+    /// <summary>
+    /// Fija solo la nota interna (<see cref="Notas"/>), sin tocar nombre,
+    /// modelo ni matrícula: quien edita la nota desde la ficha 360 no reenvía
+    /// los datos del vehículo. Vacía o solo espacios equivale a no tener nota
+    /// (<c>null</c>).
+    /// </summary>
+    public void FijarNotaInterna(string? notas)
+    {
+        var normalizada = string.IsNullOrWhiteSpace(notas) ? null : notas.Trim();
+
+        if (normalizada is { Length: > LongitudMaximaNotas })
+            throw new ArgumentException($"La nota interna no puede superar {LongitudMaximaNotas} caracteres.", nameof(notas));
+
+        Notas = normalizada;
     }
 
     private void EstablecerNombre(string nombre)

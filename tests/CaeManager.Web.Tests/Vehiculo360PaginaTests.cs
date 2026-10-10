@@ -3,6 +3,7 @@ using Bunit;
 using Bunit.TestDoubles;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Vehiculos.Commands.GuardarNotaInternaVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -58,6 +59,11 @@ public class Vehiculo360PaginaTests : BunitContext
         public Dictionary<Guid, TaskCompletionSource> Compuertas { get; } = [];
         public List<object> Enviadas { get; } = [];
 
+        /// <summary>Lo que responde el servidor a «Guardar» de la nota, y la ficha que entrega la relectura posterior.</summary>
+        public Result ResultadoNota { get; set; } = Result.Exito();
+        public VehiculoDetalleDto? DetalleTrasGuardarNota { get; set; }
+        public Exception? ExcepcionAlGuardarNota { get; set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
@@ -75,11 +81,21 @@ public class Vehiculo360PaginaTests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerVehiculoPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
+            GuardarNotaInternaVehiculoCommand => ResponderGuardarNota(),
             ObtenerDocumentosQuery when FallaDocumentos => throw new InvalidOperationException("fallo simulado"),
             ObtenerDocumentosQuery => new ResultadoPaginado<DocumentoListaDto>(
                 Documentos.ToList(), TotalDocumentos ?? Documentos.Count, 1, 50),
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
+
+        private Result ResponderGuardarNota()
+        {
+            if (ExcepcionAlGuardarNota is { } excepcion)
+                throw excepcion;
+            if (ResultadoNota.EsExitoso && DetalleTrasGuardarNota is { } tras)
+                Detalles[tras.Id] = tras;
+            return ResultadoNota;
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -154,7 +170,7 @@ public class Vehiculo360PaginaTests : BunitContext
             empleadorEsEmpresa ? empresaId ?? Guid.NewGuid() : null,
             empleadorEsEmpresa ? null : Guid.NewGuid(),
             "Montajes Skynet S.L.", "Camión grúa", "Iveco Daily", "9012 GHI", Guid.NewGuid(),
-            new FraccionCumplimiento(AlDia: 2, Requeridos: 4), EstadoDocumento.Vencido);
+            new FraccionCumplimiento(AlDia: 2, Requeridos: 4), EstadoDocumento.Vencido, Notas: null, NotaInternaVisible: true);
         mediador.Documentos.AddRange(
         [
             Documento("ITV", EstadoDocumento.Vencido, Hoy.AddDays(-36)),
@@ -171,7 +187,7 @@ public class Vehiculo360PaginaTests : BunitContext
         var mediador = new MediatorFalso();
         mediador.Detalles[id] = new VehiculoDetalleDto(
             id, Guid.NewGuid(), null, "Montajes Skynet S.L.", "Furgoneta nueva", "Transit", "0001 AAA", Guid.NewGuid(),
-            FraccionCumplimiento.SinRequisitos, null);
+            FraccionCumplimiento.SinRequisitos, null, Notas: null, NotaInternaVisible: true);
         return (id, mediador);
     }
 
@@ -527,7 +543,7 @@ public class Vehiculo360PaginaTests : BunitContext
         var cabecera = cut.Find(".cabecera-identidad");
         Textos(cabecera.QuerySelectorAll("button.boton-primario")).Should().Equal(["Subir documento"]);
         cabecera.QuerySelector(".menu-acciones button")!.GetAttribute("aria-label").Should().Be("Más acciones");
-        Textos(cut.FindAll("[data-pieza='lateral'] button.boton")).Should().Equal(["Editar →"]);
+        Textos(cut.FindAll("[data-pieza='lateral'] button.boton")).Should().Equal(["Editar →", "Editar →"], "Información y Nota interna");
         cut.FindComponents<DrawerGestionDocumento>().Should().ContainSingle();
     }
 
@@ -561,5 +577,198 @@ public class Vehiculo360PaginaTests : BunitContext
         cut.FindAll(".cabecera-identidad, [data-pieza='banda'], .pestanas").Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty(
             "sin detalle no hay ficha: pedir los documentos sería preguntar por un vehículo que no se puede ver");
+    }
+
+    // ── Nota interna ──────────────────────────────────────────────────────
+
+    private const string NotaGuardada = "Aparca en la nave 2. Las llaves las tiene Leire.";
+
+    private static (Guid Id, MediatorFalso Mediador) CamionGruaConNota(string? notas = NotaGuardada, bool notaInternaVisible = true)
+    {
+        var (id, mediador) = CamionGrua();
+        mediador.Detalles[id] = mediador.Detalles[id] with { Notas = notas, NotaInternaVisible = notaInternaVisible };
+        return (id, mediador);
+    }
+
+    private static IElement? TarjetaNota(IRenderedComponent<VehiculoDetalle> cut) =>
+        cut.FindAll("[data-pieza=nota-interna]").SingleOrDefault();
+
+    /// <summary>El editor es el único diálogo abierto con ese título: el drawer de documentos está cerrado.</summary>
+    private static IElement EditorNota(IRenderedComponent<VehiculoDetalle> cut) =>
+        cut.FindAll("[role=dialog]").Single(d => d.QuerySelector("h2")?.TextContent.Trim() == "Nota interna");
+
+    private static bool EditorNotaAbierto(IRenderedComponent<VehiculoDetalle> cut) =>
+        cut.FindAll("[role=dialog]").Any(d => d.QuerySelector("h2")?.TextContent.Trim() == "Nota interna");
+
+    private static IRenderedComponent<VehiculoDetalle> AbrirEditorNota(IRenderedComponent<VehiculoDetalle> cut)
+    {
+        TarjetaNota(cut)!.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Editar →").Click();
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeTrue());
+        return cut;
+    }
+
+    [Fact]
+    public void El_equipo_ve_la_nota_interna_al_final_del_lateral_con_su_pie()
+    {
+        var (id, mediador) = CamionGruaConNota();
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        var tarjeta = TarjetaNota(cut);
+        tarjeta.Should().NotBeNull();
+        tarjeta!.QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Nota interna");
+        tarjeta.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el cliente.");
+        tarjeta.TextContent.Should().NotContain("Sin nota interna.");
+        cut.Find(".cuerpo-con-lateral-lateral").LastElementChild!.GetAttribute("data-pieza")
+            .Should().Be("nota-interna", "la nota cierra el lateral, tras «Información»");
+    }
+
+    [Fact]
+    public void Sin_nota_el_equipo_ve_la_tarjeta_con_su_vacio()
+    {
+        var (id, mediador) = CamionGruaConNota(notas: null);
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el cliente.");
+    }
+
+    /// <summary>
+    /// Si el servidor responde <c>NotaInternaVisible = false</c>, la página no pinta la tarjeta, ni siquiera vacía:
+    /// «Sin nota interna.» ya diría que existe una nota del equipo.
+    /// </summary>
+    [Fact]
+    public void Si_el_servidor_dice_que_no_es_visible_la_pagina_no_pinta_la_tarjeta_ni_vacia()
+    {
+        var (id, mediador) = CamionGruaConNota(notas: null, notaInternaVisible: false);
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        TarjetaNota(cut).Should().BeNull();
+        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el cliente.");
+    }
+
+    [Fact]
+    public void Consulta_lee_la_nota_pero_no_se_le_ofrece_editarla()
+    {
+        var (id, mediador) = CamionGruaConNota();
+        Registrar(mediador, Roles.Consulta);
+
+        var cut = Renderizar(id);
+
+        var tarjeta = TarjetaNota(cut);
+        tarjeta!.TextContent.Should().Contain(NotaGuardada);
+        tarjeta.QuerySelectorAll("button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Editar_abre_el_editor_con_la_nota_actual_y_guardar_manda_solo_la_nota_con_la_version_leida()
+    {
+        var (id, mediador) = CamionGruaConNota();
+        var versionLeida = mediador.Detalles[id].Version;
+        var versionNueva = Guid.NewGuid();
+        mediador.DetalleTrasGuardarNota = mediador.Detalles[id] with { Notas = "Ahora aparca fuera.", Version = versionNueva };
+        Registrar(mediador);
+        var cut = AbrirEditorNota(Renderizar(id));
+
+        var campo = EditorNota(cut).QuerySelector("textarea")!;
+        campo.TextContent.Should().Be(NotaGuardada);
+        campo.Input("Ahora aparca fuera.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeFalse());
+        mediador.Enviadas.OfType<GuardarNotaInternaVehiculoCommand>().Should().ContainSingle()
+            .Which.Should().Be(new GuardarNotaInternaVehiculoCommand(id, "Ahora aparca fuera.", versionLeida));
+        // La ficha se relee: la tarjeta enseña lo guardado y la siguiente orden lleva la versión nueva.
+        TarjetaNota(cut)!.TextContent.Should().Contain("Ahora aparca fuera.").And.NotContain(NotaGuardada);
+        AbrirEditorNota(cut);
+        EditorNota(cut).QuerySelector("textarea")!.Input("Otra vez.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<GuardarNotaInternaVehiculoCommand>().Should().HaveCount(2));
+        mediador.Enviadas.OfType<GuardarNotaInternaVehiculoCommand>().Last().Version.Should().Be(versionNueva);
+    }
+
+    [Fact]
+    public void Si_el_servidor_rechaza_la_nota_el_editor_sigue_abierto_con_el_motivo_y_lo_escrito()
+    {
+        var rechazo = Error.Crear("Vehiculo.NotaRechazada", "La nota no se puede guardar ahora.");
+        var (id, mediador) = CamionGruaConNota();
+        mediador.ResultadoNota = Result.Fallo(rechazo);
+        Registrar(mediador);
+        var cut = AbrirEditorNota(Renderizar(id));
+
+        EditorNota(cut).QuerySelector("textarea")!.Input("Lo mío.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => EditorNota(cut).QuerySelector(".drawer-aviso")!.TextContent.Should().Contain(rechazo.Mensaje));
+        mediador.Enviadas.OfType<GuardarNotaInternaVehiculoCommand>().Should().ContainSingle();
+        TarjetaNota(cut)!.TextContent.Should().Contain(NotaGuardada, "lo rechazado no se da por guardado");
+    }
+
+    /// <summary>
+    /// Tras un conflicto el editor se cierra, la cabecera se relee (la tarjeta enseña la nota de la otra persona) y el
+    /// texto propio queda como borrador: el usuario lo ve sobre la nota nueva antes de reaplicarlo.
+    /// </summary>
+    [Fact]
+    public void Tras_un_conflicto_el_editor_se_cierra_y_la_nota_de_la_otra_persona_se_ve_antes_de_reaplicar()
+    {
+        var (id, mediador) = CamionGruaConNota();
+        mediador.ResultadoNota = Result.Fallo(Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona modificó este vehículo mientras lo editabas."));
+        Registrar(mediador);
+        var cut = AbrirEditorNota(Renderizar(id));
+        // Lo que otra persona guardó entre medias: es lo que la ficha encontrará al releer.
+        mediador.Detalles[id] = mediador.Detalles[id] with { Notas = "La de otra persona.", Version = Guid.NewGuid() };
+
+        EditorNota(cut).QuerySelector("textarea")!.Input("Lo mío.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => TarjetaNota(cut)!.TextContent.Should().Contain("La de otra persona."));
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeFalse());
+        // Un único envío: la ficha no reenvía con la versión nueva sin que el usuario vea la nota de esa persona.
+        mediador.Enviadas.OfType<GuardarNotaInternaVehiculoCommand>().Should().HaveCount(1);
+
+        // El borrador propio sobrevive al conflicto: el usuario lo reaplica sobre la nota nueva, no se pierde.
+        AbrirEditorNota(cut);
+        EditorNota(cut).QuerySelector("textarea")!.TextContent.Should().Be("Lo mío.");
+    }
+
+    /// <summary>La nota demasiado larga la rechaza el validador del servidor (ValidationBehavior lanza): el motivo va al campo.</summary>
+    [Fact]
+    public void Si_el_validador_rechaza_la_nota_el_motivo_se_ve_en_el_campo_y_el_editor_sigue_abierto()
+    {
+        const string motivo = "La nota interna no puede superar 2000 caracteres.";
+        var (id, mediador) = CamionGruaConNota();
+        mediador.ExcepcionAlGuardarNota = new FluentValidation.ValidationException(
+            [new FluentValidation.Results.ValidationFailure(nameof(GuardarNotaInternaVehiculoCommand.Notas), motivo)]);
+        Registrar(mediador);
+        var cut = AbrirEditorNota(Renderizar(id));
+
+        EditorNota(cut).QuerySelector("textarea")!.Input("Demasiado larga.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => EditorNota(cut).QuerySelector(".campo-mensaje-error")!.TextContent.Should().Be(motivo));
+        EditorNota(cut).QuerySelectorAll(".drawer-aviso").Should().BeEmpty("el error es del campo, no del formulario");
+    }
+
+    [Fact]
+    public async Task Cancelar_con_la_nota_cambiada_pregunta_antes_de_descartar_y_sin_cambios_cierra()
+    {
+        var (id, mediador) = CamionGruaConNota();
+        Registrar(mediador);
+        var cut = AbrirEditorNota(Renderizar(id));
+
+        await EditorNota(cut).QuerySelector(".drawer-pie .boton-secundario")!.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeFalse("sin cambios no hay nada que preguntar"));
+
+        AbrirEditorNota(cut);
+        EditorNota(cut).QuerySelector("textarea")!.Input("A medio escribir.");
+        await EditorNota(cut).QuerySelector(".drawer-pie .boton-secundario")!.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll("button").Any(b => b.TextContent.Trim() == "Descartar cambios").Should().BeTrue());
+        EditorNotaAbierto(cut).Should().BeTrue();
+        mediador.Enviadas.Should().NotContain(p => p is GuardarNotaInternaVehiculoCommand);
     }
 }
