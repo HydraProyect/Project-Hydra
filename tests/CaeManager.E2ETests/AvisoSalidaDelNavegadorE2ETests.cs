@@ -62,18 +62,49 @@ public class AvisoSalidaDelNavegadorE2ETests(WebAppFixtureListados fixture)
         // La siembra no tiene un trabajador de nombre estable: vale cualquiera cuyo rótulo accesible no se repita.
         // Se espera a que exista, no se lee la lista una vez: al hacerse interactiva, la página cambia las filas
         // prerenderizadas por el esqueleto de carga y una lectura hecha en ese hueco encuentra la lista vacía.
-        var rotulo = await (await page.WaitForFunctionAsync(
-            """
-            () => {
-                const rotulos = [...document.querySelectorAll('tbody tr.fila-pulsable button.nombre-abre-vista-rapida')]
-                    .map(b => b.getAttribute('aria-label') ?? '');
-                return rotulos.find(r => r.length > 0 && rotulos.indexOf(r) === rotulos.lastIndexOf(r)) ?? null;
-            }
-            """)).JsonValueAsync<string>();
-        await page.Locator("tbody tr.fila-pulsable").GetByRole(AriaRole.Button,
-            new LocatorGetByRoleOptions { Name = rotulo, Exact = true }).ClickAsync();
+        const string rotulosDeLaLista =
+            "[...document.querySelectorAll('tbody tr.fila-pulsable button.nombre-abre-vista-rapida')].map(b => b.getAttribute('aria-label') ?? '')";
+        string rotulo;
+        try
+        {
+            rotulo = await (await page.WaitForFunctionAsync(
+                $$"""
+                () => {
+                    const rotulos = {{rotulosDeLaLista}};
+                    return rotulos.find(r => r.length > 0 && rotulos.indexOf(r) === rotulos.lastIndexOf(r)) ?? null;
+                }
+                """)).JsonValueAsync<string>();
+        }
+        catch (TimeoutException)
+        {
+            var rotulos = await page.EvaluateAsync<string[]>($"() => {rotulosDeLaLista}");
+            throw new Xunit.Sdk.XunitException($"Ningún trabajador de la lista tiene un rótulo único: {string.Join(" | ", rotulos)}");
+        }
+
+        // Las filas prerenderizadas ya se pueden pulsar, pero su manejador no existe hasta que la página es
+        // interactiva: un clic anterior se pierde sin error. Abrir la ficha es una asignación, no un interruptor,
+        // así que se repite hasta que la ficha aparece (mismo criterio que Ayudas.SeleccionarFilaBandejaAsync).
+        var nombre = page.Locator("tbody tr.fila-pulsable").GetByRole(AriaRole.Button,
+            new LocatorGetByRoleOptions { Name = rotulo, Exact = true });
         var panel = page.Locator(".workspace-panel");
-        await panel.Locator("button[aria-label='Editar información del trabajador']").ClickAsync();
+        var lapiz = panel.Locator("button[aria-label='Editar información del trabajador']");
+        const int intentos = 4;
+        for (var intento = 1; ; intento++)
+        {
+            if (!await lapiz.IsVisibleAsync())
+                await nombre.ClickAsync();
+            try
+            {
+                await lapiz.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5_000 });
+                break;
+            }
+            catch (TimeoutException) when (intento < intentos)
+            {
+                // El clic no llegó al circuito: se vuelve a pulsar.
+            }
+        }
+
+        await lapiz.ClickAsync();
         var alias = panel.GetByLabel("Alias", new LocatorGetByLabelOptions { Exact = true });
         const string sinGuardar = "Alias sin guardar";
         await alias.FillAsync(sinGuardar);
