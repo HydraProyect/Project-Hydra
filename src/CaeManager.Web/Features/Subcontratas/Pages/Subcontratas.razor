@@ -230,7 +230,7 @@
                             <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida"
                                     aria-label="@Textos["AbrirVistaRapidaDe", subcontrata.RazonSocial]"
                                     @onclick="() => AbrirVistaRapidaAsync(subcontrata.Id)" @onclick:stopPropagation="true">
-                                @subcontrata.RazonSocial
+                                <TextoResaltado Texto="@subcontrata.RazonSocial" Termino="@_busqueda" />
                             </button>
                             <span class="tarjeta-fila-acordeon-meta">
                                 @if (string.IsNullOrWhiteSpace(subcontrata.Cif))
@@ -239,7 +239,7 @@
                                 }
                                 else
                                 {
-                                    <BotonCopiar EnLinea="true" Valor="@subcontrata.Cif" Texto="@subcontrata.Cif" Etiqueta="@Textos["EtiquetaCif"]"
+                                    <BotonCopiar EnLinea="true" Valor="@subcontrata.Cif" Texto="@subcontrata.Cif" TerminoResaltado="@_busqueda" Etiqueta="@Textos["EtiquetaCif"]"
                                                  NombreAccesible="@Textos["CopiarCif", subcontrata.Cif]" />
                                 }
                             </span>

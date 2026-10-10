@@ -36,7 +36,7 @@ namespace CaeManager.Web.Tests;
 /// test de aquí depende de ellos.
 /// </para>
 /// </summary>
-public class VehiculosFilaSeRefrescaTests : BunitContext
+public partial class VehiculosFilaSeRefrescaTests : BunitContext
 {
     /// <summary>QuickGrid y AtajosListaTeclado importan sus módulos JS al montarse.</summary>
     public VehiculosFilaSeRefrescaTests()
@@ -77,7 +77,7 @@ public class VehiculosFilaSeRefrescaTests : BunitContext
         {
             var coincidentes = Almacen
                 .Where(v => q.VehiculoId is null || v.Id == q.VehiculoId)
-                .Where(v => string.IsNullOrWhiteSpace(q.Busqueda) || v.Nombre.Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase))
+                .Where(v => string.IsNullOrWhiteSpace(q.Busqueda) || TextoDeBusqueda.Contiene(v.Nombre, q.Busqueda))
                 .OrderBy(v => v.Nombre, StringComparer.Ordinal).ThenBy(v => v.Id)
                 .ToList();
             var pagina = coincidentes.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList();

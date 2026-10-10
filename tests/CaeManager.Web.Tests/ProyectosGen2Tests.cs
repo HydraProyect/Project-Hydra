@@ -525,6 +525,25 @@ public partial class ProyectosGen2Tests : BunitContext
         nombres.Should().Equal(ProyectoCerrado.Nombre);
     }
 
+    /// <summary>
+    /// El buscador ignora acentos y mayúsculas en el nombre del Proyecto y en el del Centro. Cada
+    /// término casa con uno solo de los dos Proyectos: un filtro que no filtrara daría los dos.
+    /// </summary>
+    [Theory]
+    [InlineData("AMPLIACION", true)]        // «Ampliación…»: sin acento y en otra caja
+    [InlineData("logistico", true)]         // Centro «Centro Logístico Norte»
+    [InlineData("almacen", false)]          // Centro «Almacén Portugalete»
+    [InlineData("contra incéndios", false)] // el acento sobra en el término, no en el dato
+    public async Task La_busqueda_ignora_acentos_y_mayusculas(string termino, bool encuentraElAbierto)
+    {
+        _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
+
+        var cut = await RenderizarConClienteAsync($"proyectos?q={System.Uri.EscapeDataString(termino)}");
+
+        var nombres = cut.FindAll("tbody .nombre-proyecto").Select(b => b.TextContent.Trim()).ToList();
+        nombres.Should().Equal(encuentraElAbierto ? ProyectoAbierto.Nombre : ProyectoCerrado.Nombre);
+    }
+
     // ----------------------- El Cliente empresarial elegido viaja en la URL (T20)
 
     [Fact]

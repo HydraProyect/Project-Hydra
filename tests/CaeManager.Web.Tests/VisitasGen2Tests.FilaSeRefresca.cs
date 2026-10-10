@@ -95,7 +95,7 @@ public partial class VisitasGen2Tests
         var cut = Renderizar(mediator);
         cut.WaitForAssertion(() => CentrosDeLasFilas(cut).Should().HaveCount(20));
         await IrALaPaginaDosDeVisitasAsync(cut);
-        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Selección múltiple").ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
         await CasillaDeSeleccion(cut, "Centro 22").ChangeAsync(new ChangeEventArgs { Value = true });
         await CasillaDeSeleccion(cut, "Centro 23").ChangeAsync(new ChangeEventArgs { Value = true });
         await AtajoAsync(cut, "j");

@@ -84,16 +84,18 @@
                     </ColumnOptions>
                     <ChildContent Context="context">
                         <span class="gestion-trabajador-centro">
-                            <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida" @onclick="() => AbrirVistaRapida(context)">@context.TrabajadorNombre</button>
-                            <button type="button" class="enlace-nombre-fila gestion-centro" @onclick="() => AbrirVistaRapida(context)">@context.CentroNombre</button>
+                            <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.TrabajadorNombre" Termino="@_busqueda" /></button>
+                            <button type="button" class="enlace-nombre-fila gestion-centro" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" /></button>
                         </span>
                     </ChildContent>
                 </TemplateColumn>
                 @* Orden de columnas del patrón de listados: Trabajador (con su Centro debajo) · Tipo de documento ·
                    Creada · Estado, y al final el hueco de acción rápida. La segunda columna dice «Tipo de documento»
                    y no «Documento»: una Gestión referencia un Tipo de documento, no un Documento (Gestion.cs). *@
-                <PropertyColumn Property="@(g => g.TipoDocumentoNombre)" Title="@Textos["ListaTipoDocumento"]" Sortable="true" Class="gestion-tipo-documento"
-                                IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion" />
+                <TemplateColumn Title="@Textos["ListaTipoDocumento"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TipoDocumentoNombre))" Class="gestion-tipo-documento"
+                               IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion">
+                    <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
+                </TemplateColumn>
                 @* La fecha es el día de negocio (hora peninsular) del instante de creación, el mismo día que
                    enseña la vista rápida y del que sale el motivo «Abierta hace N días»; se ordena por el instante. *@
                 <TemplateColumn Title="@Textos["ColumnaCreada"]" Class="gestion-creada" Sortable="true" SortBy="OrdenCreadaListado"

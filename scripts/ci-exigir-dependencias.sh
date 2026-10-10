@@ -40,6 +40,13 @@
 #
 # Entradas (entorno): EVENTO, R_COMPILACION, R_FORMATO, R_EXTENSION,
 # R_INTEGRACION, R_E2E, R_ALCANCE, ALCANCE_INTEGRACION, ALCANCE_E2E.
+#
+# MODO SOLO_E2E=1. Lo usa el job «Tests E2E (Playwright)», check obligatorio
+# de main, que agrega los tres bloques de E2E: aplica la regla de los pesados
+# a R_E2E (resultado de la matriz de bloques) y nada más. Entradas: EVENTO,
+# R_E2E, R_ALCANCE, ALCANCE_E2E. Salida: solo `e2e`. Desde ese cambio el job
+# «Build, format y tests» recibe en R_E2E el resultado del agregador, que ya
+# es `success` cuando los bloques se saltaron con permiso.
 set -uo pipefail
 
 EVENTO="${EVENTO:-}"
@@ -69,7 +76,7 @@ if [[ -z "$EVENTO" ]]; then
   rojo "No se sabe qué evento disparó el run."
 fi
 
-if [[ "$R_COMPILACION" != "success" || "$R_FORMATO" != "success" || "$R_EXTENSION" != "success" ]]; then
+if [[ "${SOLO_E2E:-}" != "1" && ( "$R_COMPILACION" != "success" || "$R_FORMATO" != "success" || "$R_EXTENSION" != "success" ) ]]; then
   rojo "Una dependencia no terminó en success."
 fi
 
@@ -89,6 +96,26 @@ pesado() {
     rojo "Los $nombre no terminaron en success (terminaron en «${resultado:-vacío}»)."
   fi
 }
+
+# SOLO_E2E=1: el mismo guion, usado por el job «Tests E2E (Playwright)», que
+# desde que los E2E corren en tres bloques es un agregador de esos bloques.
+# R_E2E es entonces el resultado agregado de la matriz de bloques y solo se
+# aplica la regla de los pesados a los E2E; no hay nada más que exigir.
+if [[ "${SOLO_E2E:-}" == "1" ]]; then
+  pesado "bloques de tests E2E" "$R_E2E" "$ALCANCE_E2E"
+  if [[ "$ESTADO" == "saltada" ]]; then
+    echo "E2E saltados por el alcance del CI: corren en el grupo de fusión."
+  else
+    echo "Los bloques de E2E terminaron en success."
+  fi
+  if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+    if ! echo "e2e=$ESTADO" >> "$GITHUB_OUTPUT"; then
+      rojo "No se pudo escribir la salida del paso."
+    fi
+  fi
+  echo "e2e=$ESTADO"
+  exit 0
+fi
 
 pesado "tests de integración" "$R_INTEGRACION" "$ALCANCE_INTEGRACION"
 estado_integracion="$ESTADO"
