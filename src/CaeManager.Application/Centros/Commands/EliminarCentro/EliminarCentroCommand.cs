@@ -20,7 +20,10 @@ public class EliminarCentroCommandHandler(
     public async Task<Result> Handle(EliminarCentroCommand request, CancellationToken cancellationToken)
     {
         var centro = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
-        if (centro is null || !await alcanceDatos.CentroVisibleAsync(centro.Id, cancellationToken))
+        // Defensa en profundidad (mismo criterio que REC-149): inalcanzable para
+        // el rol Cliente vía AutorizacionEscrituraBehavior; alcance de gestión
+        // como segunda barrera independiente.
+        if (centro is null || !await alcanceDatos.CentroParaGestionVisibleAsync(centro.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Centro.NoEncontrado", "No encontramos este centro."));
 
         // La identidad se resuelve aquí, no se recibe del comando (auditoría

@@ -62,7 +62,8 @@ public class GuardarContactoAgendaCommandHandler(
             // como segunda barrera independiente.
             TipoPropietarioAgenda.Empresa => await alcanceDatos.EmpresaParaGestionVisibleAsync(request.PropietarioId, cancellationToken),
             TipoPropietarioAgenda.Subcontrata => await alcanceDatos.SubcontrataVisibleAsync(request.PropietarioId, cancellationToken),
-            TipoPropietarioAgenda.Centro => await alcanceDatos.CentroVisibleAsync(request.PropietarioId, cancellationToken),
+            // Mismo criterio que la rama Empresa: alcance de gestión.
+            TipoPropietarioAgenda.Centro => await alcanceDatos.CentroParaGestionVisibleAsync(request.PropietarioId, cancellationToken),
             _ => false
         };
 
