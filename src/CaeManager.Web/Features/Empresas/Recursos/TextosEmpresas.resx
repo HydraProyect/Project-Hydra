@@ -68,37 +68,9 @@
     <value>{0} trabajadores</value>
     <comment>Total de trabajadores de la Empresa visibles. {0} = número.</comment>
   </data>
-  <data name="IndicadorSinValidaUno" xml:space="preserve">
-    <value>1 trabajador sin documentación válida</value>
-    <comment>Indicador de cabecera: trabajadores cuyo peor documento está vencido.</comment>
-  </data>
-  <data name="IndicadorSinValidaVarios" xml:space="preserve">
-    <value>{0} trabajadores sin documentación válida</value>
-    <comment>Indicador de cabecera. {0} = número.</comment>
-  </data>
-  <data name="IndicadorVencidosUno" xml:space="preserve">
-    <value>1 con algún documento vencido</value>
-    <comment>Línea del desglose del indicador.</comment>
-  </data>
-  <data name="IndicadorVencidosVarios" xml:space="preserve">
-    <value>{0} con algún documento vencido</value>
-    <comment>Línea del desglose del indicador. {0} = número.</comment>
-  </data>
   <data name="IndicadorFaltantesNoCuentan" xml:space="preserve">
     <value>Los documentos obligatorios que faltan no entran en este recuento.</value>
     <comment>Aviso honesto: el recuento sale del peor vencimiento de los documentos existentes; un documento que falta no se ve.</comment>
-  </data>
-  <data name="IndicadorEtiquetaAccesible" xml:space="preserve">
-    <value>{0}: {1}. {2} Pulsa para verlos.</value>
-    <comment>Nombre accesible del indicador. {0} = título, {1} = desglose, {2} = aviso.</comment>
-  </data>
-  <data name="IndicadorPorVencerUno" xml:space="preserve">
-    <value>1 trabajador con documentos por vencer</value>
-    <comment>Indicador de cabecera: peor documento urgente o próximo.</comment>
-  </data>
-  <data name="IndicadorPorVencerVarios" xml:space="preserve">
-    <value>{0} trabajadores con documentos por vencer</value>
-    <comment>Indicador de cabecera. {0} = número.</comment>
   </data>
   <data name="AccionDetectar" xml:space="preserve">
     <value>Detectar altas y bajas</value>

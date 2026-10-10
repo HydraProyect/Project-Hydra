@@ -4,31 +4,6 @@
     Components/DesignSystem; aquí solo lo que no tiene primitiva.
 */
 
-/* Segunda línea de los datos de la cabecera: los indicadores que piden atención.
-   La línea de datos es un flex que parte; ocupar todo el ancho los baja de línea. */
-.empresa360-indicadores {
-    display: flex;
-    flex-basis: 100%;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-}
-
-/* El botón solo envuelve al badge: sin fondo ni borde propios. */
-.empresa360-indicador {
-    display: inline-flex;
-    padding: 0;
-    border: 0;
-    background: none;
-    cursor: pointer;
-    border-radius: var(--radius-full);
-}
-
-.empresa360-indicador:focus-visible {
-    outline: var(--border-focus);
-    outline-offset: 1px;
-}
-
 .empresa360-seccion {
     display: flex;
     flex-direction: column;

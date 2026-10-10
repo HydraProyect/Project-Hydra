@@ -147,8 +147,10 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
 
         (string Regla, string Clave, string ValorMutado)[] mutaciones =
         [
-            ("[data-pieza=\"pastilla\"] { font-size: 17px !important; }", "pastilla.font-size", "17"),
-            ("[data-pieza=\"tarjeta\"] { border-color: rgb(255, 0, 0) !important; }", "tarjeta.border-top-color", "#ff0000ff"),
+            // Solo las pastillas de fila: la cabecera ya no tiene pastillas sueltas (sus indicadores se quitaron).
+            ("[data-pieza=\"fila\"] [data-pieza=\"pastilla\"] { font-size: 17px !important; }", "pastilla-de-fila.font-size", "17"),
+            // La cabecera con caja cuenta como tarjeta (cabecerasCaja del medidor): hay que pintarla también.
+            ("[data-pieza=\"tarjeta\"], [data-pieza=\"cabecera-identidad\"] { border-color: rgb(255, 0, 0) !important; }", "tarjeta.border-top-color", "#ff0000ff"),
             ("[data-pieza=\"lateral\"] { width: 340px !important; }", "lateral.width", "340"),
         ];
 

@@ -80,41 +80,6 @@
                     }
                     <span>@Plural(recuentosMeta.Total, "MetaTrabajadoresUno", "MetaTrabajadoresVarios")</span>
                 }
-                @if (_recuentos is { } r && (r.Vencidos > 0 || r.PorVencer > 0))
-                {
-                    <span class="empresa360-indicadores">
-                        @if (r.Vencidos > 0)
-                        {
-                            var tituloSinValida = Plural(r.Vencidos, "IndicadorSinValidaUno", "IndicadorSinValidaVarios");
-                            var lineaVencidos = Plural(r.Vencidos, "IndicadorVencidosUno", "IndicadorVencidosVarios");
-                            @*
-                                La ventana da el desglose al pasar o enfocar; el
-                                botón de dentro filtra. tabindex -1 en la ventana:
-                                la parada de teclado es el botón, no dos seguidas.
-                            *@
-                            <VentanaContexto Etiqueta="@tituloSinValida" Titulo="@tituloSinValida" tabindex="-1">
-                                <Disparador>
-                                    <button type="button" class="empresa360-indicador"
-                                            aria-label="@Textos["IndicadorEtiquetaAccesible", tituloSinValida, lineaVencidos, Textos["IndicadorFaltantesNoCuentan"]]"
-                                            @onclick="() => FiltrarDesdeIndicadorAsync(FiltroTrabajadores.SinDocumentacionValida)">
-                                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@tituloSinValida</Badge>
-                                    </button>
-                                </Disparador>
-                                <Detalle>
-                                    <span class="ventana-linea">@lineaVencidos</span>
-                                    <span class="ventana-linea">@Textos["IndicadorFaltantesNoCuentan"]</span>
-                                </Detalle>
-                            </VentanaContexto>
-                        }
-                        @if (r.PorVencer > 0)
-                        {
-                            <button type="button" class="empresa360-indicador"
-                                    @onclick="() => FiltrarDesdeIndicadorAsync(FiltroTrabajadores.PorVencer)">
-                                <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Plural(r.PorVencer, "IndicadorPorVencerUno", "IndicadorPorVencerVarios")</Badge>
-                            </button>
-                        }
-                    </span>
-                }
             </Datos>
             <Acciones>
                 <Boton Variante="VarianteBoton.Primario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
@@ -297,7 +262,7 @@
                 </div>
                 <div class="empresa360-chips" role="group" aria-label="@Textos["EtiquetaFiltros"]">
                     @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
-                    @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.Vencidos])
+                    @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.Vencidos], Textos["IndicadorFaltantesNoCuentan"])
                     @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
                     @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
                 </div>
@@ -360,10 +325,14 @@
         </section>
     };
 
-    private RenderFragment Chip(FiltroTrabajadores filtro, string texto) => __builder =>
+    /// <summary>
+    /// Chip de filtro. La aclaración (lo que el recuento no incluye) va en el <c>title</c>:
+    /// es el único sitio donde el producto la dice ahora que la cabecera ya no pinta indicadores.
+    /// </summary>
+    private RenderFragment Chip(FiltroTrabajadores filtro, string texto, string? aclaracion = null) => __builder =>
     {
         <button type="button" class="empresa360-chip" aria-pressed="@(_filtro == filtro ? "true" : "false")"
-                @onclick="() => CambiarFiltroAsync(filtro)">@texto</button>
+                title="@aclaracion" @onclick="() => CambiarFiltroAsync(filtro)">@texto</button>
     };
 
     private RenderFragment PestanaDeClientes => __builder =>

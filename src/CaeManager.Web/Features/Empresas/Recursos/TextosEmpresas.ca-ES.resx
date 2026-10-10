@@ -54,29 +54,8 @@
   <data name="MetaTrabajadoresVarios" xml:space="preserve">
     <value>{0} treballadors</value>
   </data>
-  <data name="IndicadorSinValidaUno" xml:space="preserve">
-    <value>1 treballador sense documentació vàlida</value>
-  </data>
-  <data name="IndicadorSinValidaVarios" xml:space="preserve">
-    <value>{0} treballadors sense documentació vàlida</value>
-  </data>
-  <data name="IndicadorVencidosUno" xml:space="preserve">
-    <value>1 amb algun document vençut</value>
-  </data>
-  <data name="IndicadorVencidosVarios" xml:space="preserve">
-    <value>{0} amb algun document vençut</value>
-  </data>
   <data name="IndicadorFaltantesNoCuentan" xml:space="preserve">
     <value>Els documents obligatoris que falten no entren en aquest recompte.</value>
-  </data>
-  <data name="IndicadorEtiquetaAccesible" xml:space="preserve">
-    <value>{0}: {1}. {2} Prem per veure'ls.</value>
-  </data>
-  <data name="IndicadorPorVencerUno" xml:space="preserve">
-    <value>1 treballador amb documents per vèncer</value>
-  </data>
-  <data name="IndicadorPorVencerVarios" xml:space="preserve">
-    <value>{0} treballadors amb documents per vèncer</value>
   </data>
   <data name="AccionDetectar" xml:space="preserve">
     <value>Detectar altes i baixes</value>
