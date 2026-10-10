@@ -284,7 +284,8 @@ public class Empresa360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.FindAll(".empresa360-indicador").Should().BeEmpty();
+        var cabecera = cut.Find("[data-pieza=\"cabecera-identidad\"]").TextContent;
+        cabecera.Should().NotContain("trabajadores sin documentación válida").And.NotContain("trabajadores con documentos por vencer");
         cut.FindAll(".ventana-contexto").Should().BeEmpty();
         Chips(cut).Should().Equal(["Todos · 25", "Sin documentación válida · 3", "Por vencer · 3", "Al día · 19"]);
     }
