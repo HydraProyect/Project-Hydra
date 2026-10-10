@@ -50,16 +50,17 @@ public interface IAlcanceDatosService
     Task<IReadOnlyList<Guid>?> ObtenerClienteIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Los Clientes empresariales visibles <b>desde el lado de gestión CAE</b>:
-    /// igual que <see cref="ObtenerClienteIdsVisiblesAsync"/> salvo para el rol
-    /// Cliente (usuario de portal), que obtiene lista vacía. Mismo contrato que
-    /// <see cref="ObtenerEmpresaIdsParaGestionAsync"/>: el Usuario de Cliente
-    /// tiene a su propio Cliente empresarial en el alcance de LECTURA —es lo
-    /// que le deja abrir su ficha—, pero lo que el equipo de gestión anota
-    /// SOBRE él (la «Nota interna», «Solo visible para tu equipo») es un
-    /// artefacto interno, no contenido de portal.
+    /// ¿Quien mira opera <b>desde el lado de gestión CAE</b>? Falso para el rol
+    /// Cliente (usuario de portal). Es la misma frontera que trazan
+    /// <see cref="ObtenerEmpresaIdsParaGestionAsync"/> y sus gemelos, para un
+    /// artefacto interno que no cuelga de una lista sino de una fila que el
+    /// usuario de portal SÍ lee: su propio Cliente empresarial está en su
+    /// alcance de LECTURA —es lo que le deja abrir su ficha—, pero lo que el
+    /// equipo de gestión anota SOBRE él (la «Nota interna», «Solo visible para
+    /// tu equipo») no es contenido de portal. No sustituye al alcance: se
+    /// pregunta después de comprobar que la fila es visible.
     /// </summary>
-    Task<IReadOnlyList<Guid>?> ObtenerClienteIdsParaGestionAsync(CancellationToken cancellationToken = default);
+    Task<bool> OperaDesdeElLadoDeGestionAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guid>?> ObtenerCentroIdsVisiblesAsync(CancellationToken cancellationToken = default);
 
     /// <summary>

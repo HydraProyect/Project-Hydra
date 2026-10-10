@@ -15,8 +15,8 @@ public record ObtenerClientePorIdQuery(Guid Id) : IRequest<ClienteDetalleDto?>;
 /// pero nunca choca (ver EditarClienteCommandHandler).
 ///
 /// <paramref name="Notas"/> es la «Nota interna» del equipo de gestión sobre el
-/// Cliente empresarial: solo viaja a quien lo tiene en su alcance de GESTIÓN
-/// (<see cref="IAlcanceDatosService.ObtenerClienteIdsParaGestionAsync"/>). Al
+/// Cliente empresarial: solo viaja a quien opera desde el lado de gestión
+/// (<see cref="IAlcanceDatosService.OperaDesdeElLadoDeGestionAsync"/>). Al
 /// Usuario de Cliente, que abre su propia ficha por alcance de lectura, le
 /// llega <c>null</c>. Quien reenvía este campo a <c>EditarClienteCommand</c>
 /// necesita un rol con escritura, y todos ellos son de gestión: ningún
@@ -38,9 +38,9 @@ public class ObtenerClientePorIdQueryHandler(IEmpresasQueryContext dbContext, IA
     {
         if (!await alcanceDatos.ClienteVisibleAsync(request.Id, cancellationToken)) return null;
 
-        // Alcance de GESTIÓN para la nota, no de lectura: la ficha le llega al
-        // usuario de portal porque es la de su Cliente empresarial; la nota no.
-        var conNotaInterna = await alcanceDatos.ClienteParaGestionVisibleAsync(request.Id, cancellationToken);
+        // La ficha le llega al usuario de portal porque es la de su Cliente
+        // empresarial (alcance de lectura, arriba); la nota interna no.
+        var conNotaInterna = await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken);
 
         return await dbContext.Empresas
             .Where(c => c.Id == request.Id)

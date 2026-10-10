@@ -21,7 +21,7 @@ namespace CaeManager.IntegrationTests.Clientes;
 /// empresarial («Solo visible para tu equipo»). El Usuario de Cliente (rol
 /// Cliente) tiene a su Cliente empresarial dentro del alcance de LECTURA, así
 /// que la ficha le llega; la nota no. Mismo criterio que el resto de artefactos
-/// internos de gestión: <c>ObtenerClienteIdsParaGestionAsync</c>.
+/// internos de gestión: <c>OperaDesdeElLadoDeGestionAsync</c>.
 /// </para>
 /// </summary>
 public class NotaInternaDeClientePorRolTests : IAsyncLifetime
