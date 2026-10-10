@@ -170,8 +170,7 @@ public class VisitasListaAntelacionYOrdenTests : BunitContext
         var cut = Renderizar(mediador);
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
-        await cut.FindAll("select").Single(s => s.InnerHtml.Contains("Documentación por gestionar primero"))
-            .ChangeAsync(new ChangeEventArgs { Value = "documentacion" });
+        await FiltrosVisitasDePrueba.ElegirAsync(cut, "Más filtros", "Documentación por gestionar primero");
 
         navegacion.Uri.Should().Contain("orden=documentacion");
         mediador.Consultas.Last().OrdenarPor.Should().Be(nameof(VisitaListaDto.PorGestionar));

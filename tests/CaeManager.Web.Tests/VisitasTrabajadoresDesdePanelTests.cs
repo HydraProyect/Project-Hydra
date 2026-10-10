@@ -130,8 +130,7 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
 
         if (mediator.Cancelada)
         {
-            await cut.FindAll("input[type=checkbox]").First(c => c.ParentElement!.TextContent.Contains("Solo activas"))
-                .ChangeAsync(new ChangeEventArgs { Value = false });
+            await FiltrosVisitasDePrueba.ElegirAsync(cut, "Solo activas", "No");
         }
 
         cut.WaitForAssertion(() => cut.Find("tr button.nombre-abre-vista-rapida"));

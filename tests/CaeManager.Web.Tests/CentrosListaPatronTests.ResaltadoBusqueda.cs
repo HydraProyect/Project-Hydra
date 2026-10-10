@@ -61,7 +61,8 @@ public partial class CentrosListaPatronTests
     {
         var mediador = ConDosClientes();
         var cut = RenderizarConGruposContraidos(mediador);
-        cut.FindAll(".segmentado-lista button").Single(b => b.TextContent.Trim() == "Sin agrupar").Click();
+        ElegirAgrupacion(cut, "Sin agrupar");
+        cut.FindAll(".grupo-lista").Should().BeEmpty("control: el desplegable «Agrupar» quitó la agrupación");
         var antes = cut.FilaDeNombre(FilaDeCentro, Bilbao).Foto();
         antes.Texto.Should().Contain("Pegaso Cliente S.L. · C-001", "control: sin agrupar, la fila dice el Cliente y el código");
 
