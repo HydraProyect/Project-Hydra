@@ -808,13 +808,14 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     }
 
     /// <summary>
-    /// Lo que de verdad cuenta el agregado de ObtenerClientesQuery: las
-    /// alertas de vigencia de los trabajadores cuyo cliente principal es este,
-    /// en su peor estado. El mockup dice «entre los trabajadores y centros»;
-    /// los centros no entran en ese agregado, así que no se nombran.
+    /// Lo que de verdad cuenta el agregado de ObtenerClientesQuery: las alertas documentales abiertas de sus
+    /// Trabajadores, en su peor estado. Son las de vigencia (vencido o por vencer), atribuidas al Cliente
+    /// empresarial principal del Trabajador, y los documentos que faltan en un Centro suyo. Por eso no dice
+    /// «de vigencia»: con lo peor en «Pendiente» el texto se contradiría. El mockup dice «entre los trabajadores
+    /// y centros»; los documentos propios del Centro no entran en ese agregado, así que no se nombran.
     /// </summary>
     private static string TituloEstadoDocumental(EstadoDocumento peor) =>
-        $"Peor estado entre las alertas de vigencia abiertas de sus trabajadores: {EstadoDocumentoUi.Texto(peor).ToLowerInvariant()}";
+        $"Peor estado entre las alertas documentales abiertas de sus trabajadores: {EstadoDocumentoUi.Texto(peor).ToLowerInvariant()}";
 
     /// <summary>
     /// Quita los cuatro filtros en una sola recarga. Encadenar los setters

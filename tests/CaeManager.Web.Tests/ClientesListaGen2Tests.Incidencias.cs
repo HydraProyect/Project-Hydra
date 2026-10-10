@@ -183,6 +183,42 @@ public partial class ClientesListaGen2Tests
     /// Con la consulta de la página no ocurre (un estado sale de alertas, y las alertas son las incidencias): es
     /// la guarda que evita abrir una ventana sin líneas si la fila llegara sin ellas.
     /// </summary>
+    [Theory]
+    [InlineData(Roles.Administrador)]
+    [InlineData(Roles.Consulta)]
+    public void En_la_ventana_lo_urgente_va_en_rojo_y_lo_proximo_en_ambar_aunque_los_dos_digan_Por_vencer(string rol)
+    {
+        var alfa = ConIncidencias(Cliente("Alfa Montajes S.L.", peor: EstadoDocumento.Urgente, cantidad: 1), null,
+            AlertaDeDocumento("Aptitud médica", "Nora Vidal", EstadoDocumento.Urgente, 5),
+            AlertaDeDocumento("Contrato", "Nora Vidal", EstadoDocumento.Proximo, 25));
+        var cut = Renderizar(new MediatorFalso { Almacen = { alfa } }, rol: rol);
+
+        var celda = CeldaDeEstado(cut, "Alfa Montajes S.L.");
+        var deLaVentana = celda.QuerySelectorAll(".ventana-contexto-panel .badge");
+        deLaVentana.Select(b => b.TextContent.Trim()).Should().Equal(["Por vencer", "Por vencer"],
+            "el rótulo no las distingue: las separa el color");
+        deLaVentana[0].ClassList.Should().Contain("badge-peligro", "una línea de desglose colorea por gravedad, como en Trabajadores");
+        deLaVentana[1].ClassList.Should().Contain("badge-advertencia");
+        celda.QuerySelector(".badge")!.ClassList.Should().Contain("badge-advertencia",
+            "la pastilla de la fila colorea por rótulo, y «Por vencer» es ámbar");
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Faltante, "pendiente")]
+    [InlineData(EstadoDocumento.Vencido, "vencido")]
+    public void El_tooltip_de_la_pastilla_habla_de_alertas_documentales_y_no_solo_de_vigencia(EstadoDocumento peor, string rotulo)
+    {
+        var alfa = ConIncidencias(Cliente("Alfa Montajes S.L.", peor: peor, cantidad: 1), null,
+            peor == EstadoDocumento.Faltante
+                ? AlertaDeFaltante("Formación Art. 19", "Javier Salas", "Planta de Zaragoza")
+                : AlertaDeDocumento("Contrato", "Nora Vidal", peor, -3));
+        var cut = Renderizar(new MediatorFalso { Almacen = { alfa } });
+
+        CeldaDeEstado(cut, "Alfa Montajes S.L.").QuerySelector(".badge")!.GetAttribute("title").Should().Be(
+            $"Peor estado entre las alertas documentales abiertas de sus trabajadores: {rotulo}",
+            "el agregado cuenta también los documentos que faltan, que no son alertas de vigencia");
+    }
+
     [Fact]
     public void Una_fila_con_estado_y_sin_incidencias_entregadas_conserva_el_motivo_de_texto()
     {
@@ -262,7 +298,8 @@ public partial class ClientesListaGen2Tests
         mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle()
             .Which.Id.Should().Be(urgente.DocumentoId!.Value, "se corrige el documento de la línea pulsada, no el primero");
         ConsultasDeLista(mediador).Should().Be(consultasAntes, "pulsar no recarga");
-        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull("ni abre la vista rápida de la fila");
+        // Que pulsar no abra ADEMÁS la vista rápida de la fila no se puede afirmar aquí: la abre «pulsarFila» de
+        // atajos-lista.js, que bUnit no ejecuta. Lo único que este caso fija de esa propiedad es el Closest de arriba.
     }
 
     [Fact]

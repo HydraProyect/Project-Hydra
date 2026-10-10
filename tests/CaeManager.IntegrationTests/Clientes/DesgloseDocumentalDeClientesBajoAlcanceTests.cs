@@ -227,6 +227,14 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
     /// <summary>
     /// Un Gestor CAE con cartera sobre un solo Cliente empresarial: los que quedan fuera no son fila ni aportan
     /// ninguna incidencia, tampoco a la fila que sí ve.
+    ///
+    /// <para>
+    /// Lo que este caso fija es el alcance de la FILA. El de la alerta lo aplica <c>ObtenerAlertasQuery</c> y
+    /// aquí queda enmascarado: una alerta de Iker que se colara se atribuiría a su Cliente empresarial, que ya
+    /// no es fila, y las afirmaciones de abajo seguirían cumpliéndose. Tampoco hay en el escenario un Trabajador
+    /// asignado a la vez a un Centro alcanzable y a otro que no: sus alertas de vigencia van a su Cliente
+    /// empresarial principal, regla que este incremento no toca.
+    /// </para>
     /// </summary>
     [Theory]
     [InlineData(true)]

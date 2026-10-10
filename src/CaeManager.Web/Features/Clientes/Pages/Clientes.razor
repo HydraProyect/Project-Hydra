@@ -340,7 +340,10 @@
                                         </Disparador>
                                         <Detalle>
                                             @* La identidad es la de la alerta (AlertaDto.IdDeFila): un Faltante no tiene documento.
-                                               Pasa por ClavesDeHermanos, así que ni una identidad repetida tumbaría el circuito. *@
+                                               Pasa por ClavesDeHermanos, así que ni una identidad repetida tumbaría el circuito.
+                                               La pastilla de cada línea colorea por gravedad (TonoDeSeveridad), como los demás
+                                               desgloses: lo urgente va en rojo aunque se rotule «Por vencer» igual que lo próximo.
+                                               El motivo cuenta solo las del peor estado; el título de la ventana, todas. *@
                                             @{ var claves = new ClavesDeHermanos(); }
                                             @foreach (var incidencia in cliente.Incidencias)
                                             {
@@ -350,14 +353,14 @@
                                                                              Ayuda="@Comunes["VentanaIncidenciaAyuda"].Value"
                                                                              Secundario="@SecundarioDeIncidencia(incidencia)"
                                                                              AlPulsar="() => CorregirIncidenciaAsync(incidencia)">
-                                                        <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                        <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
                                                         <span class="incidencia-cliente-texto">@TextoDeIncidencia(incidencia)</span>
                                                     </VentanaContextoElemento>
                                                 }
                                                 else
                                                 {
                                                     <span class="ventana-linea" @key="claves.De(incidencia.Clave)">
-                                                        <Badge Tono="EstadoDocumentoUi.Tono(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
+                                                        <Badge Tono="EstadoDocumentoUi.TonoDeSeveridad(incidencia.Estado)">@EstadoDocumentoUi.Texto(incidencia.Estado)</Badge>
                                                         <span class="incidencia-cliente-texto">@TextoDeIncidencia(incidencia)</span>
                                                         @if (SecundarioDeIncidencia(incidencia) is { } secundario)
                                                         {
