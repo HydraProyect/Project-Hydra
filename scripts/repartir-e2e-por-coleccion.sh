@@ -11,9 +11,10 @@
 # Uso:   LISTADO_DE_TESTS=<fichero> repartir-e2e-por-coleccion.sh <total-bloques> <bloque>
 #        repartir-e2e-por-coleccion.sh --mapa      (solo imprime clase<TAB>colección)
 # Sale:  el filtro por stdout; el plan del reparto por stderr.
-#        1 si el bloque quedaría vacío, si una clase aparece en dos colecciones
-#        o si el descubrimiento está por debajo del suelo; 2 si los argumentos
-#        no valen.
+#        1 si el bloque quedaría vacío, si una clase aparece en dos colecciones,
+#        si el descubrimiento está por debajo del suelo (MINIMO_CLASES) o si de
+#        los fuentes se leen menos pares clase-colección que MINIMO_PARES (por
+#        defecto 1); 2 si los argumentos no valen.
 #
 # DE DÓNDE SALE CADA COSA
 #   - Las clases que existen: del listado de `dotnet test --list-tests`
@@ -77,7 +78,8 @@ mapa_de_fuentes() {
           if (match(linea, /^[ \t]*((public|internal|sealed|abstract|static|partial|file)[ \t]+)*class[ \t]+[A-Za-z_][A-Za-z0-9_]*/)) {
             s = substr(linea, RSTART, RLENGTH)
             sub(/^.*class[ \t]+/, "", s)
-            if (pendiente != "") print (ns == "" ? s : ns "." s) "\t" pendiente
+            nombre = (ns == "" ? s : ns "." s)
+            if (pendiente != "") printf "%s\t%s\n", nombre, pendiente
             pendiente = ""
             next
           }
@@ -137,6 +139,18 @@ if [ -n "${MINIMO_CLASES:-}" ] && [ "$numero" -lt "$MINIMO_CLASES" ]; then
   exit 1
 fi
 
+# El mapa se calcula en una sustitución y no en `< <(...)` a propósito: así un
+# `find` o un `awk` que fallen paran el guion. Con el mapa vacío nada quedaría
+# sin ejecutar, pero cada clase sería una unidad suelta y la colección grande
+# se partiría entre bloques, arrancando su aplicación una vez por bloque.
+mapa=$(mapa_de_fuentes)
+pares=$(printf '%s' "$mapa" | grep -c . || true)
+if [ "$pares" -lt "${MINIMO_PARES:-1}" ]; then
+  echo "Se leyeron $pares pares clase-coleccion en '$fuentes', por debajo del suelo de ${MINIMO_PARES:-1}." >&2
+  echo "Esto no es un reparto malo: es una lectura de fuentes averiada." >&2
+  exit 1
+fi
+
 declare -A coleccion_de
 while IFS=$'\t' read -r clase coleccion; do
   [ -z "$clase" ] && continue
@@ -146,7 +160,7 @@ while IFS=$'\t' read -r clase coleccion; do
     exit 1
   fi
   coleccion_de[$clase]=$coleccion
-done < <(mapa_de_fuentes)
+done <<< "$mapa"
 
 declare -A peso_en_tabla
 while read -r nombre peso _; do

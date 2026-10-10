@@ -1102,6 +1102,7 @@ jobs:
       - name: Repartir las colecciones de E2E en este bloque
         env:
           MINIMO_CLASES: "70"
+          MINIMO_PARES: "60"
         run: |
           mkdir -p reparto-e2e
           dotnet test tests/CaeManager.E2ETests --no-build --list-tests > reparto-e2e/listado-bloque-${{ matrix.bloque }}.txt
@@ -1287,6 +1288,10 @@ jobs:
         if: steps.exigir.outputs.e2e != 'saltada'
         run: |
           esperados=$(wc -l < /tmp/listado-e2e-1.txt)
+          if [ "$esperados" -le 0 ]; then
+            echo "::error::El listado de tests de E2E esta vacio: no hay con que comparar lo ejecutado. Un recuento contra cero daria verde sin medir nada."
+            exit 1
+          fi
           sumados=0
           for b in 1 2 3; do
             f="reparto-e2e/e2e-bloque-$b.trx"

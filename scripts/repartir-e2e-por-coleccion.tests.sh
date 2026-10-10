@@ -210,6 +210,20 @@ correr 2 1 FUENTES_E2E="$G" LISTADO_DE_TESTS="$TMP/corto.txt"
 igual "una clase en dos colecciones sale con 1" 1 "$CODIGO"
 contiene "y nombra la clase" "La clase Suite.E2E.AlfaTests aparece en dos colecciones" "$ERR"
 
+# Lectura de fuentes averiada: sin pares, o por debajo del suelo pedido.
+mkdir -p "$TMP/sin-fuentes"
+correr 3 1 FUENTES_E2E="$TMP/sin-fuentes"
+igual "sin ningún par clase-colección sale con 1" 1 "$CODIGO"
+contiene "y dice que la lectura de fuentes está averiada" "lectura de fuentes averiada" "$ERR"
+igual "y no escribe filtro" "" "$SALIDA"
+correr 3 1 FUENTES_E2E="$TMP/no-existe"
+igual "con un directorio de fuentes que no existe no sale con 0" 1 "$(( CODIGO != 0 ))"
+igual "y no escribe filtro" "" "$SALIDA"
+correr 3 1 MINIMO_PARES=7
+igual "por debajo del suelo de pares sale con 1" 1 "$CODIGO"
+correr 3 1 MINIMO_PARES=6
+igual "en el suelo exacto de pares sale con 0" 0 "$CODIGO"
+
 : > "$TMP/vacio.txt"
 correr 3 1 LISTADO_DE_TESTS="$TMP/vacio.txt"
 igual "un listado sin clases sale con 1" 1 "$CODIGO"

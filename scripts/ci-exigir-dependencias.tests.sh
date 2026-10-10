@@ -214,6 +214,13 @@ contrato "el agregador de E2E recibe el resultado y la salida de alcance" 2 "$(g
 contrato "cuatro pasos del agregador de E2E se saltan solo con e2e == saltada" 4 "$(grep -cF -- "        if: steps.exigir.outputs.e2e != 'saltada'" <<< "$e2e_pasos" || true)"
 contrato "ningún paso exige e2e == 'ejecutada'" 0 "$(cuenta "steps.exigir.outputs.e2e == 'ejecutada'")"
 contrato "el agregador general sigue recibiendo el resultado del job e2e-tests" 1 "$(cuenta '          R_E2E: ${{ needs.e2e-tests.result }}')"
+e2e_bloques="$(sed -n '/^  e2e-bloques:$/,/^  e2e-tests:$/p' <<< "$yml")"
+contrato "ni los bloques ni el agregador de E2E llevan continue-on-error (taparía un bloque en rojo)" 0 "$(grep -c 'continue-on-error' <<< "$e2e_bloques$e2e_pasos" || true)"
+contrato "los bloques de E2E no se cancelan entre sí" 1 "$(grep -cF -- '      fail-fast: false' <<< "$e2e_bloques" || true)"
+contrato "el reparto de cada bloque se pide sobre tres bloques, los de la matriz" 1 "$(grep -cF -- 'bash scripts/repartir-e2e-por-coleccion.sh 3 ${{ matrix.bloque }}' <<< "$e2e_bloques" || true)"
+contrato "el agregador de E2E espera tres listados y tres repartos" 2 "$(grep -cE 'for b in 1 2 3; do' <<< "$e2e_pasos" || true)"
+contrato "el agregador de E2E no da por bueno un listado vacío" 1 "$(grep -cF -- 'if [ "$esperados" -le 0 ]; then' <<< "$e2e_pasos" || true)"
+contrato "el agregador de E2E pone rojo si se ejecutan menos tests de los descubiertos" 1 "$(grep -cF -- 'if [ "$sumados" -lt "$esperados" ]; then' <<< "$e2e_pasos" || true)"
 
 echo
 echo "Pruebas: $PRUEBAS · Fallos: $FALLOS"
