@@ -10,7 +10,7 @@ namespace CaeManager.E2ETests;
 /// que bUnit no ve: que la consulta real (RLS, alcance, documento efectivo, canal del Centro) llega a esas dos pantallas.
 ///
 /// <para>
-/// El escenario es propio y se escribe por SQL en el Tenant del Administrador: un Centro nuevo (del primer Cliente
+/// El escenario es propio y se escribe por SQL en el Tenant de Refrielectric, el de la Gestora CAE con la que se entra (la misma que <see cref="BucleCorreccionPlataformaTests"/>): un Centro nuevo (del primer Cliente
 /// empresarial y la primera Empresa ya sembrados en ese Tenant), un Trabajador nuevo de esa Empresa asignado a él y su
 /// documento vigente de un tipo que se pide siempre; después, el acceso de plataforma del Centro y la acreditación de ese
 /// documento sin subir. Darlos de alta por la interfaz no es lo que se mide, y escribirlos así no dispara ningún envío:
@@ -33,7 +33,7 @@ public class CentroPendienteEnPlataformaE2ETests(WebAppFixture fixture)
         // Requerido y AmbitoAplicacion se guardan como texto; EstadoVigencia 2 = VenceEnFecha; GestionCae 0 = con gestión.
         var documentos = await fixture.EjecutarSqlAsync("""
             WITH tenant AS (
-                SELECT "TenantId" AS "Id" FROM "AspNetUsers" WHERE "Email" = @email),
+                SELECT "Id" FROM "Tenants" WHERE "Nombre" = @tenant),
             base AS (
                 SELECT c."ClienteId", c."EmpresaId", c."TenantId"
                 FROM "Centros" c JOIN tenant ON c."TenantId" = tenant."Id"
@@ -62,14 +62,25 @@ public class CentroPendienteEnPlataformaE2ETests(WebAppFixture fixture)
                    false, now(), gen_random_uuid()
             FROM trabajador, tipo, (SELECT count(*) FROM asignacion) AS asignada
             """,
-            ("email", Ayudas.EmailAdministrador), ("centro", nombreCentro), ("nombre", nombreTrabajador),
+            ("tenant", Ayudas.NombreTenantRefrielectric), ("centro", nombreCentro), ("nombre", nombreTrabajador),
             ("apellidos", apellidosTrabajador), ("dni", Ayudas.GenerarDniValido(88_100_981)), ("hoy", hoy.ToString("yyyy-MM-dd")));
-        Assert.Equal(1, documentos);
+        if (documentos != 1)
+        {
+            // Si la siembra no escribe, el fallo dice cuál de sus piezas no encontró.
+            var diagnostico = await fixture.LeerValorSqlAsync("""
+                SELECT concat_ws(' · ',
+                    'tenant=' || coalesce((SELECT "Id"::text FROM "Tenants" WHERE "Nombre" = @tenant), '∅'),
+                    'centros=' || (SELECT count(*) FROM "Centros" c WHERE c."TenantId" = (SELECT "Id" FROM "Tenants" WHERE "Nombre" = @tenant)),
+                    'tipos=' || (SELECT string_agg(DISTINCT t."AmbitoAplicacion" || '/' || t."Requerido", ',') FROM "TiposDocumento" t
+                                 WHERE t."TenantId" = (SELECT "Id" FROM "Tenants" WHERE "Nombre" = @tenant)))
+                """, ("tenant", Ayudas.NombreTenantRefrielectric));
+            Assert.Fail($"La siembra del escenario escribió {documentos} documentos: {diagnostico}");
+        }
         var centroId = await fixture.LeerValorSqlAsync("""SELECT "Id"::text FROM "Centros" WHERE "Nombre" = @centro""", ("centro", nombreCentro));
 
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
-        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
 
         var urlLista = $"{fixture.BaseUrl}/centros?q={Uri.EscapeDataString(nombreCentro)}";
         var filaCentro = page.Locator(".tarjeta-fila-acordeon").Filter(new LocatorFilterOptions
