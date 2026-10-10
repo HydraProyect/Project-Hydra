@@ -10,22 +10,23 @@
 # guion avisa); solo reparte peor. Se regenera con el p50 por colección de los
 # .trx del job E2E en runs verdes de `merge_group`.
 #
-# Medido el 2026-10-10 sobre 12 runs de `merge_group` verdes posteriores a #1228.
-# AppCollection y AppCollectionListados son las dos mitades de la antigua
-# AppCollection (513 s): p50 por clase de esos mismos runs más un arranque de
-# la aplicación (~39 s) para cada una. Se vuelven a medir tras la partición.
-AppCollection 278
-AppCollectionListados 274
-AppCollectionGestorCaeCarteraMultiTenant 111
-AppCollectionEscenariosDireccion 97
-AppCollectionVentanaSoporte 81
-AppCollectionFichas360 71
-AppCollectionConsultasSql 71
-AppCollectionRevalidacionRapida 70
-AppCollectionConCatalan 60
-AppCollectionMultiTenant 55
-AppCollectionEncargoAdministracion 54
-AppCollectionSoporte 53
-AppCollectionBajoRuntime 51
-AppCollectionRetencion 48
-AppCollectionCuentaAMedioActivar 46
+# Medido el 2026-10-10 sobre 6 runs de `merge_group` verdes posteriores a #1271
+# (los primeros con AppCollection ya partida en dos): p50 del tramo de reloj de
+# cada colección en el .trx (del primer inicio al último fin de sus tests) más
+# 42 s de arranque de la aplicación, que es lo que el .trx no atribuye a ningún
+# test (resto medido por bloque: ~88 s con dos colecciones, ~200 s con cinco).
+AppCollectionListados 343
+AppCollection 303
+AppCollectionGestorCaeCarteraMultiTenant 114
+AppCollectionEscenariosDireccion 96
+AppCollectionVentanaSoporte 85
+AppCollectionRevalidacionRapida 76
+AppCollectionConsultasSql 75
+AppCollectionConCatalan 66
+AppCollectionFichas360 63
+AppCollectionEncargoAdministracion 61
+AppCollectionMultiTenant 60
+AppCollectionSoporte 56
+AppCollectionBajoRuntime 53
+AppCollectionRetencion 53
+AppCollectionCuentaAMedioActivar 50
