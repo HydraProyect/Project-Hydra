@@ -281,9 +281,10 @@ public class VehiculosEstadoDocumentalTests : BunitContext
     }
 
     [Fact]
-    public void Las_filas_con_incidencias_no_comparten_claves_aunque_haya_varias_en_la_pagina()
+    public void Dos_filas_con_los_mismos_tipos_de_incidencia_pintan_cada_una_las_suyas()
     {
-        // Dos filas con desglose a la vez: un @key repetido entre hermanos tumba el circuito («wrong pooled»).
+        // Dos filas con desglose a la vez y los mismos Tipos: cada una pinta sus dos incidencias. No fija la
+        // unicidad de @key (Blazor la acota a cada fila y el desglose da una incidencia por documento).
         var cut = Renderizar(new MediadorFalso
         {
             Almacen =

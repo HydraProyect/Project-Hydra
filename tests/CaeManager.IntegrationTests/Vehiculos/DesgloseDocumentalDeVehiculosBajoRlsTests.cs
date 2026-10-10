@@ -114,7 +114,8 @@ public class DesgloseDocumentalDeVehiculosBajoRlsTests : IAsyncLifetime
     /// <summary>
     /// (c): el desglose del camión no cuenta el documento eliminado ni el sustituido por su renovación (ni los
     /// del gemelo del otro Tenant). Por los dos caminos del handler (con recuentos por estado, que es el de la
-    /// pantalla, y sin ellos).
+    /// pantalla, y sin ellos). Al eliminado lo dejan fuera dos barreras (el filtro global del contexto y
+    /// <c>Operativos()</c>) y este test no las distingue; al sustituido, solo <c>Operativos()</c>.
     /// </summary>
     [Theory]
     [InlineData(true)]
