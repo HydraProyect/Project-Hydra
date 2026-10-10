@@ -735,6 +735,35 @@ public class Vehiculo360PaginaTests : BunitContext
         EditorNota(cut).QuerySelector("textarea")!.TextContent.Should().Be("Lo mío.");
     }
 
+    /// <summary>
+    /// Con el editor abierto, cerrar el panel del Vehículo relee la ficha y puede traer la versión de otra persona. El
+    /// guardado manda la versión que había al abrir el editor, no la recién leída: así el servidor responde conflicto
+    /// en vez de dejar pisar una nota que quien edita no ha visto.
+    /// </summary>
+    [Fact]
+    public async Task Guardar_manda_la_version_de_cuando_se_abrio_el_editor_aunque_la_ficha_se_haya_releido_despues()
+    {
+        var (id, mediador) = CamionGruaConNota();
+        var versionAlAbrir = mediador.Detalles[id].Version;
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        var panel = Services.GetRequiredService<ContextWorkspaceService>();
+        await cut.InvokeAsync(() => panel.AbrirAsync(EntidadWorkspace.Vehiculo, id, "Camión grúa", "informacion"));
+        AbrirEditorNota(cut);
+
+        var versionDeOtraPersona = Guid.NewGuid();
+        mediador.Detalles[id] = mediador.Detalles[id] with { Notas = "La de otra persona.", Version = versionDeOtraPersona };
+        await cut.InvokeAsync(panel.CerrarAsync);
+        cut.WaitForAssertion(() => TarjetaNota(cut)!.TextContent.Should().Contain("La de otra persona."));
+
+        EditorNota(cut).QuerySelector("textarea")!.Input("Lo mío.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<GuardarNotaInternaVehiculoCommand>().Should().ContainSingle());
+        mediador.Enviadas.OfType<GuardarNotaInternaVehiculoCommand>().Single().Version
+            .Should().Be(versionAlAbrir).And.NotBe(versionDeOtraPersona);
+    }
+
     /// <summary>La nota demasiado larga la rechaza el validador del servidor (ValidationBehavior lanza): el motivo va al campo.</summary>
     [Fact]
     public void Si_el_validador_rechaza_la_nota_el_motivo_se_ve_en_el_campo_y_el_editor_sigue_abierto()

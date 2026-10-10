@@ -1,4 +1,7 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Vehiculos.Commands.GuardarNotaInternaVehiculo;
+using CaeManager.Domain.Common;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
@@ -103,5 +106,28 @@ public class ObtenerVehiculoPorIdNotaInternaTests
         dto!.Nombre.Should().Be("Camión grúa");
         dto.NotaInternaVisible.Should().BeFalse();
         dto.Notas.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Quien puede guardar la nota del vehículo tiene que haberla visto: si un rol con escritura quedara fuera de la
+    /// lista de lectura, el editor se abriría vacío y «Guardar» borraría una nota que nadie le enseñó. Se mide con
+    /// el handler, rol a rol de la lista real de <c>AutorizacionEscrituraBehavior</c>: un rol de escritura nuevo que
+    /// esta consulta no entregue pone el test en rojo, venga la lista de lectura de donde venga.
+    /// </summary>
+    [Fact]
+    public async Task Todo_rol_que_puede_guardar_la_nota_del_vehiculo_la_recibe_al_leer()
+    {
+        var rolesConEscritura = AutorizacionEscrituraBehavior<GuardarNotaInternaVehiculoCommand, Result>.RolesConEscritura;
+        rolesConEscritura.Should().NotBeEmpty("con la lista real vacía, el bucle de abajo no mediría nada");
+
+        foreach (var rol in rolesConEscritura)
+        {
+            var (handler, vehiculo) = Montar(rol);
+
+            var dto = await handler.Handle(new ObtenerVehiculoPorIdQuery(vehiculo.Id), CancellationToken.None);
+
+            dto!.NotaInternaVisible.Should().BeTrue($"{rol} puede guardar la nota");
+            dto.Notas.Should().Be(Nota);
+        }
     }
 }

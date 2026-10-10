@@ -47,8 +47,9 @@ public class ObtenerSubcontrataPorIdQueryHandler(
 {
     // Mismos literales que AutorizacionEscrituraBehavior, mismo motivo: Application no puede referenciar
     // Infrastructure.Identity.Roles. Es «el equipo»: los roles con escritura más Consulta, que la lee sin editarla.
-    // Todo rol que puede guardar la nota (GuardarNotaInternaSubcontrataCommand) tiene que estar aquí: quien la edita
-    // sin haberla visto la sobrescribe a ciegas.
+    // Todo rol que puede guardar una nota interna (GuardarNotaInternaSubcontrataCommand, GuardarNotaInternaVehiculoCommand)
+    // tiene que estar aquí: quien la edita sin haberla visto la sobrescribe a ciegas. La lista la usa también
+    // ObtenerVehiculoPorIdQueryHandler: cambiarla cambia quién ve la nota en las dos fichas.
     public static readonly IReadOnlyList<string> RolesQueVenLaNotaInterna =
         ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae", "Consulta"];
 

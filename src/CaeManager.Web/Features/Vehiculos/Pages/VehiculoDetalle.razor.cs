@@ -369,6 +369,13 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private string? _errorCampoNota;
     private readonly InstantaneaFormulario _instantaneaNota = new();
 
+    /// <summary>
+    /// La <c>Version</c> que la ficha enseñaba al abrirse el editor: es la que se manda. Con el editor abierto la ficha
+    /// puede releerse (al cerrarse el panel del Vehículo) y traer una versión posterior; mandar esa pisaría, sin
+    /// conflicto, una nota que quien edita no ha visto.
+    /// </summary>
+    private Guid _versionAlAbrirNota;
+
     /// <summary>Lo lee DrawerFormulario, que lleva dentro el guardián de cerrar y de navegar; cerrado no hay nada que perder.</summary>
     private bool HayCambiosEnLaNota => _editorNotaVisible && _instantaneaNota.Difiere(_notaEnEdicion);
 
@@ -380,6 +387,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         _borradorNotaTrasConflicto = null;
         _mensajeErrorNota = null;
         _errorCampoNota = null;
+        _versionAlAbrirNota = _detalle.Version;
         _instantaneaNota.Fijar(_notaEnEdicion);
         _editorNotaVisible = true;
     }
@@ -387,7 +395,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private void CambiarVisibilidadEditorNota(bool visible) => _editorNotaVisible = visible;
 
     /// <summary>
-    /// Manda solo la nota y la <c>Version</c> que la ficha leyó. Si otra persona guardó entre medias —la nota o los
+    /// Manda solo la nota y la <c>Version</c> que la ficha enseñaba al abrir el editor. Si otra persona guardó entre medias —la nota o los
     /// datos del vehículo, que comparten <c>Version</c>—, el servidor responde el conflicto: el editor se cierra, se
     /// relee la cabecera (la tarjeta enseña lo que hay ahora) y el texto propio queda como borrador para reaplicarlo
     /// al reabrir. Nunca se reenvía con la versión nueva sin pasar por ahí. Tras guardar bien también se relee, porque
@@ -405,7 +413,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
 
         try
         {
-            var resultado = await Mediator.Send(new GuardarNotaInternaVehiculoCommand(detalle.Id, _notaEnEdicion, detalle.Version));
+            var resultado = await Mediator.Send(new GuardarNotaInternaVehiculoCommand(detalle.Id, _notaEnEdicion, _versionAlAbrirNota));
 
             if (resultado.EsFallido)
             {
