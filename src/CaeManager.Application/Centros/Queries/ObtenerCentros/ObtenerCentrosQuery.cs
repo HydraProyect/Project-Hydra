@@ -78,6 +78,27 @@ public record RecuentosCentroDto(
 
     public int TotalVencidas => Vencidas.Count;
     public int TotalProximas => Proximas.Count;
+
+    /// <summary>
+    /// Causas separadas dentro de <see cref="Vencidas"/> (el motivo de Centros las
+    /// muestra por separado; Clientes, Subcontratas y Centro 360 siguen leyendo
+    /// el total). Son un filtro por <see cref="IncidenciaCentroDto.Estado"/>, no
+    /// un reparto nuevo: cada incidencia cae en exactamente una.
+    /// </summary>
+    public IReadOnlyList<IncidenciaCentroDto> VencidasPorFecha =>
+        Vencidas.Where(i => i.Estado == EstadoDocumento.Vencido).ToList();
+
+    /// <summary>Documentos sin subir o sin aceptar (<see cref="EstadoDocumento.Faltante"/>, «Pendiente» en pantalla).</summary>
+    public IReadOnlyList<IncidenciaCentroDto> Pendientes =>
+        Vencidas.Where(i => i.Estado == EstadoDocumento.Faltante).ToList();
+
+    /// <summary>
+    /// Causas bloqueantes sin vigencia documental (rechazo en la plataforma, D-7).
+    /// Hueco: la causa «Pendiente por plataforma de Centro» (decisión del 2026-10-10)
+    /// tendrá su propia lista cuando su regla esté en main; hoy no existe.
+    /// </summary>
+    public IReadOnlyList<IncidenciaCentroDto> Bloqueos =>
+        Vencidas.Where(i => i.Estado is null).ToList();
 }
 
 public record CentroListaDto(
@@ -114,8 +135,8 @@ public class ObtenerCentrosQueryHandler(
     {
         var consulta =
             from centro in centrosContext.Centros
-                // F3b — ClienteId ahora repunta contra Empresas (join independiente
-                // del de EmpresaId de abajo: son dos roles distintos sobre la misma tabla).
+            // F3b — ClienteId ahora repunta contra Empresas (join independiente
+            // del de EmpresaId de abajo: son dos roles distintos sobre la misma tabla).
             join cliente in empresasContext.Empresas on centro.ClienteId equals cliente.Id
             join empresa in empresasContext.Empresas on centro.EmpresaId equals empresa.Id
             select new { centro, cliente, empresa };
@@ -269,8 +290,9 @@ public class ObtenerCentrosQueryHandler(
     /// Las causas ya venían calculadas para decidir el estado del centro; aquí
     /// solo se agrupan por estado. No hay consulta nueva: es el mismo dato que
     /// ya viajaba, que hasta ahora la lista descartaba.
-    /// "Faltante" cuenta como vencido — un requisito sin documento no está al
-    /// día, y el lexico cerrado no tiene una tercera casilla en la fila.
+    /// "Faltante" cuenta como vencido en el total — un requisito sin documento no
+    /// está al día — y el motivo de Centros lo separa por causa (ver
+    /// <see cref="RecuentosCentroDto.Pendientes"/>).
     ///
     /// <para>
     /// <see cref="EstadoDocumento.Urgente"/> antes se descartaba en silencio
