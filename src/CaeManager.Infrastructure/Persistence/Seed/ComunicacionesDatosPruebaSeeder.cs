@@ -312,9 +312,10 @@ public static class ComunicacionesDatosPruebaSeeder
     }
 
     /// <summary>
-    /// Reparto deliberadamente desigual entre gestores: con todos al mismo nivel, el KPI
-    /// de ocupación no enseñaría lo único que se le pide — quién está por encima de su
-    /// jornada y quién por debajo.
+    /// Tramos de tiempo de gestión para el KPI de horas por Cliente, que es el único que
+    /// los agrega (no hay KPI por persona: el de ocupación por Gestor CAE se retiró). El
+    /// reparto desigual entre gestores es herencia de aquel KPI; no se muestra en ningún
+    /// sitio, pero cambiarlo alteraría las horas sembradas por Cliente.
     ///
     /// Los tramos se esparcen por lo ya transcurrido del mes en vez de encadenarse uno
     /// tras otro: encadenándolos, la suma de duraciones más las pausas desbordaba el mes
@@ -333,9 +334,8 @@ public static class ComunicacionesDatosPruebaSeeder
 
         var motivos = Enum.GetValues<MotivoCierreSesionGestion>();
 
-        // Minutos de dedicación en lo que va de mes por gestor: el primero desbordado
-        // (por encima de las 160 h de jornada), el segundo en carga razonable, el
-        // tercero infrautilizado.
+        // Minutos de dedicación en lo que va de mes por gestor: cantidades distintas
+        // para que el total por Cliente no salga plano.
         int[] minutosObjetivo = [11_000, 6_000, 1_200];
 
         // Margen para que ningún tramo acabe en el futuro ni antes del inicio del mes.

@@ -7,7 +7,7 @@ public enum CategoriaKpi
     Ia,
     Facturacion,
 
-    /// <summary>Rendimiento del equipo: cuánto multiplica la IA y cómo está repartida la carga.</summary>
+    /// <summary>Rendimiento del equipo en conjunto: cuánto multiplica la IA y a qué Clientes se va el tiempo. Ningún KPI de esta categoría mide a una persona concreta.</summary>
     Operativa,
 
     /// <summary>De quién es la prisa: antelación real frente a la que el Cliente empresarial cree haber dado.</summary>
@@ -72,6 +72,16 @@ public static class EtiquetasCategoriaKpi
 /// claves estables: se persisten en <c>PreferenciaDashboardUsuario.CodigosKpiSeleccionados</c>,
 /// así que renombrarlos invalida las preferencias ya guardadas (tratarlos
 /// como se trataría un nombre de columna).
+///
+/// <para>
+/// Retirar un código es seguro para las preferencias ya guardadas: tanto
+/// <c>ObtenerPreferenciaDashboardQueryHandler</c> como la página descartan los
+/// códigos que ya no están en <see cref="Todos"/>. Retirado así
+/// <c>"ope.ocupacion-gestores"</c> (ocupación por Gestor CAE): la Dirección decidió
+/// no ofrecer un KPI que mida el tiempo de cada trabajador por separado. No se
+/// reutilice ese código para otro KPI: una preferencia antigua que aún lo guarde
+/// lo resucitaría con otro significado.
+/// </para>
 /// </summary>
 public static class CatalogoKpis
 {
@@ -93,7 +103,6 @@ public static class CatalogoKpis
     public const string TiempoMedioProcesamientoIa = "ia.tiempo-medio-procesamiento-ms";
     public const string FacturacionEstimadaMesActual = "fact.estimado-mes-actual";
     public const string PalancaIa = "ope.palanca-ia";
-    public const string OcupacionGestores = "ope.ocupacion-gestores";
     public const string HorasPorCliente = "ope.horas-por-cliente";
     public const string DistribucionAntelacion = "fric.distribucion-antelacion";
     public const string FalsosAvisos = "fric.falsos-avisos";
@@ -120,7 +129,6 @@ public static class CatalogoKpis
         new(TiempoMedioProcesamientoIa, "Tiempo medio de procesamiento IA", "Milisegundos de media por documento procesado este mes.", CategoriaKpi.Ia, TipoRenderKpi.TileNumerico, AlcanceTemporalKpi.Periodo),
         new(FacturacionEstimadaMesActual, "Facturación estimada del mes", "Suma de los resúmenes de facturación estimada de los Clientes con tarifas configuradas.", CategoriaKpi.Facturacion, TipoRenderKpi.TileNumerico, AlcanceTemporalKpi.Periodo),
         new(PalancaIa, "Índice de palanca IA", "Sugerencias de la IA confirmadas sin tocar ningún campo, sobre todas las resueltas este mes.", CategoriaKpi.Operativa, TipoRenderKpi.TilePorcentajeConTono, AlcanceTemporalKpi.Periodo),
-        new(OcupacionGestores, "Ocupación por Gestor CAE", "Horas de gestión medidas este mes frente a la jornada mensual configurada. Requiere la medición de tiempo activada.", CategoriaKpi.Operativa, TipoRenderKpi.GraficoBarras, AlcanceTemporalKpi.Periodo),
         new(HorasPorCliente, "Horas de gestión por Cliente", "Dónde se va el tiempo del equipo: horas medidas este mes por Cliente (top 5).", CategoriaKpi.Operativa, TipoRenderKpi.TablaRiesgo, AlcanceTemporalKpi.Periodo),
         new(DistribucionAntelacion, "Distribución por tramo de antelación", "Reparto de las visitas del mes entre Estándar, Urgente y Exprés según el margen real del Gestor CAE.", CategoriaKpi.Friccion, TipoRenderKpi.GraficoDonut, AlcanceTemporalKpi.Periodo),
         new(FalsosAvisos, "Falsos avisos con tiempo", "Visitas avisadas con margen de sobra cuya documentación no llegó completa hasta dentro de la ventana de urgencia.", CategoriaKpi.Friccion, TipoRenderKpi.TilePorcentajeConTono, AlcanceTemporalKpi.Periodo),
@@ -145,21 +153,21 @@ public static class CatalogoKpis
     /// Qué ve cada perfil antes de personalizar nada. No es autorización — el catálogo
     /// completo sigue disponible en "Personalizar" para quien llega a esta pantalla —,
     /// solo un punto de partida sensato: Dirección mira dinero y fricción, Coordinación
-    /// mira reparto de carga y urgencias, y el Gestor mira lo suyo.
+    /// mira a qué Clientes se va el tiempo y las urgencias, y el Gestor mira la palanca IA.
     /// </summary>
     public static IReadOnlyList<string> KpisPorDefectoPorRol(string? rol) => rol switch
     {
         "DireccionCae" =>
         [
-            .. KpisPorDefecto, FacturacionEstimadaMesActual, DistribucionAntelacion, FalsosAvisos, OcupacionGestores
+            .. KpisPorDefecto, FacturacionEstimadaMesActual, DistribucionAntelacion, FalsosAvisos
         ],
         "CoordinadorCae" =>
         [
-            .. KpisPorDefecto, OcupacionGestores, HorasPorCliente, DistribucionAntelacion, PalancaIa
+            .. KpisPorDefecto, HorasPorCliente, DistribucionAntelacion, PalancaIa
         ],
         "GestorCae" =>
         [
-            .. KpisPorDefecto, PalancaIa, OcupacionGestores
+            .. KpisPorDefecto, PalancaIa
         ],
         _ => KpisPorDefecto
     };

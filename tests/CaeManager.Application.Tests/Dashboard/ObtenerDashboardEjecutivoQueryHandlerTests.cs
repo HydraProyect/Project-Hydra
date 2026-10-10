@@ -205,34 +205,6 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
     }
 
     /// <summary>
-    /// El mismo Operador Delegado puede trabajar para varios Clientes Delegantes: si su
-    /// ocupación se concatenara sin agrupar, aparecería dos veces en el ranking y la
-    /// Coordinación repartiría carga sobre una lista con la misma persona duplicada.
-    /// </summary>
-    [Fact]
-    public void Agrupa_por_persona_la_ocupacion_de_un_gestor_que_trabaja_en_varios_tenants()
-    {
-        var gestor = Guid.NewGuid();
-
-        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
-        {
-            (Cliente("Ibertec"), Valores(bpo: KpisBpoDto.Vacio with
-            {
-                OcupacionPorGestor = [new OcupacionGestorDto(gestor, "Pedro Picapiedra", 3600, 10)]
-            })),
-            (Cliente("EcoPlant"), Valores(bpo: KpisBpoDto.Vacio with
-            {
-                OcupacionPorGestor = [new OcupacionGestorDto(gestor, "Pedro Picapiedra", 7200, 20)]
-            })),
-        };
-
-        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant);
-
-        resultado.Bpo.OcupacionPorGestor.Should().ContainSingle()
-            .Which.Should().BeEquivalentTo(new OcupacionGestorDto(gestor, "Pedro Picapiedra", 10800, 30));
-    }
-
-    /// <summary>
     /// Los porcentajes BPO se derivan del numerador y el denominador ya sumados, nunca
     /// promediando los porcentajes de cada tenant.
     /// </summary>

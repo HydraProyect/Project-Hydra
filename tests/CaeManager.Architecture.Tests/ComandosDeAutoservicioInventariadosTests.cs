@@ -13,7 +13,7 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Fuera a propósito</b>, tras revisar su handler: <c>RegistrarTramoGestionCommand</c>
-/// (lo lee <c>ObtenerKpisBpoQuery</c> como ocupación de cada Gestor CAE),
+/// (lo agrega <c>ObtenerKpisBpoQuery</c> en las horas de gestión por Cliente),
 /// <c>RegistrarHistorialInformeCommand</c> (historial del Tenant, con Cliente del
 /// request), <c>GuardarOrdenMenuLateralCommand</c> (orden global del menú) y
 /// <c>GuardarFirmaGuardadaUsuarioCommand</c> (la firma es propia, pero solo sirve
