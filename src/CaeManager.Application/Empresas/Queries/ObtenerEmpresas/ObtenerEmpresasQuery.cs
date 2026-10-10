@@ -16,11 +16,18 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 /// <paramref name="EstadoDocumental"/> es el filtro de estado de la pantalla:
 /// una Empresa no tiene estado propio, se deriva del peor estado de vigencia
 /// de sus Documentos (ver <see cref="ICalculoEstadoDocumentalService"/>).
+///
+/// <para>
+/// <paramref name="ConDesgloseDocumental"/> rellena, para las filas de la página, las incidencias de
+/// <see cref="EmpresaListaDto"/>. Cuesta una consulta de documentos por página, así que hay que pedirlo: lo pide
+/// solo quien lo pinta (el listado de Empresas, en su carga de página y al refrescar una fila por id). Sin
+/// pedirlo, las filas llegan con las incidencias vacías.
+/// </para>
 /// </summary>
 public record ObtenerEmpresasQuery(
     string? Busqueda, int Pagina = 1, int TamanoPagina = 20,
     string? OrdenarPor = null, bool Descendente = false, string? EstadoDocumental = null,
-    bool ConRecuentosPorEstado = false, Guid? EmpresaId = null)
+    bool ConRecuentosPorEstado = false, Guid? EmpresaId = null, bool ConDesgloseDocumental = false)
     : IRequest<ResultadoPaginado<EmpresaListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -38,7 +45,16 @@ public record ObtenerEmpresasQuery(
 /// </param>
 public record EmpresaListaDto(
     Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc,
-    EstadoDocumento? EstadoDocumental = null, int? CumplimientoPorcentaje = null, int DeteccionesPendientes = 0);
+    EstadoDocumento? EstadoDocumental = null, int? CumplimientoPorcentaje = null, int DeteccionesPendientes = 0)
+{
+    /// <summary>
+    /// Los documentos de ámbito Empresa que explican su <see cref="EstadoDocumental"/> y los demás que piden
+    /// atención, del más grave al menos. Son los mismos documentos que deciden el estado de la fila: los de la
+    /// propia Empresa, no los de sus Trabajadores ni los de sus Vehículos. Vacía si no hay ninguno o si la
+    /// consulta no pidió el desglose.
+    /// </summary>
+    public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; init; } = [];
+}
 
 public class ObtenerEmpresasQueryHandler(
     IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos,
@@ -186,12 +202,14 @@ public class ObtenerEmpresasQueryHandler(
             var deteccionesConEstado = await ContarDeteccionesPendientesPorEmpresaAsync(idsPaginaConEstado, cancellationToken);
 
             return new ResultadoPaginado<EmpresaListaDto>(
-                paginaConEstado.Select(e => new EmpresaListaDto(
-                    e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
-                    CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
-                    cumplimientoConEstado.GetValueOrDefault(e.Id),
-                    deteccionesConEstado.GetValueOrDefault(e.Id)))
-                    .ToList(),
+                await ConDesgloseAsync(
+                    paginaConEstado.Select(e => new EmpresaListaDto(
+                        e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
+                        CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                        cumplimientoConEstado.GetValueOrDefault(e.Id),
+                        deteccionesConEstado.GetValueOrDefault(e.Id)))
+                        .ToList(),
+                    request, cancellationToken),
                 totalConEstado, request.Pagina, request.TamanoPagina)
             {
                 RecuentosPorEstado = recuentosPorEstado
@@ -230,13 +248,37 @@ public class ObtenerEmpresasQueryHandler(
         var detecciones = await ContarDeteccionesPendientesPorEmpresaAsync(idsPagina, cancellationToken);
 
         return new ResultadoPaginado<EmpresaListaDto>(
-            elementos.Select(e => e with
-            {
-                EstadoDocumental = estados.GetValueOrDefault(e.Id),
-                CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id),
-                DeteccionesPendientes = detecciones.GetValueOrDefault(e.Id)
-            }).ToList(),
+            await ConDesgloseAsync(
+                elementos.Select(e => e with
+                {
+                    EstadoDocumental = estados.GetValueOrDefault(e.Id),
+                    CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id),
+                    DeteccionesPendientes = detecciones.GetValueOrDefault(e.Id)
+                }).ToList(),
+                request, cancellationToken),
             total, request.Pagina, request.TamanoPagina);
+    }
+
+    /// <summary>
+    /// Añade a las filas YA paginadas su desglose documental, en una sola consulta de documentos para toda la
+    /// página. Las filas son las que dejaron pasar el alcance y los filtros: el desglose no añade ninguna. No
+    /// toca <see cref="EmpresaListaDto.EstadoDocumental"/>: sale de los mismos documentos (los de ámbito Empresa)
+    /// y la misma calculadora, así que coinciden cuando la Empresa tiene alguno (lo ata
+    /// <c>DesgloseDocumentalDeEmpresasBajoRlsTests</c>). Una Empresa sin documentos no trae desglose y conserva
+    /// el estado que le dé cada camino.
+    /// </summary>
+    private async Task<IReadOnlyList<EmpresaListaDto>> ConDesgloseAsync(
+        IReadOnlyList<EmpresaListaDto> pagina, ObtenerEmpresasQuery request, CancellationToken cancellationToken)
+    {
+        if (!request.ConDesgloseDocumental || pagina.Count == 0)
+            return pagina;
+
+        var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(
+            AmbitoAplicacion.Empresa, pagina.Select(e => e.Id).ToList(), cancellationToken);
+
+        return pagina
+            .Select(e => desgloses.TryGetValue(e.Id, out var desglose) ? e with { Incidencias = desglose.Incidencias } : e)
+            .ToList();
     }
 
     /// <summary>
