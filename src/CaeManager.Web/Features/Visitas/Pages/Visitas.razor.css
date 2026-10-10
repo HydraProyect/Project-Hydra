@@ -34,12 +34,34 @@
     background: var(--color-system-indicator);
 }
 
-/* Titular del centro arriba, empresa debajo en tamaño de pie. */
+/* Columna «Visita»: el Centro arriba y, debajo en tamaño de pie, el titular del Centro y la Empresa. */
 .visitas-celda-apilada {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     min-width: 0;
+}
+
+/* Segunda línea de «Visita»: el titular y la Empresa van seguidos, como texto, y parten por donde
+   quepan. El ancho de la columna lo decide el reparto automático de la tabla. Probado y descartado:
+   un mínimo de 16rem devuelve el desborde de página a 1280 px (tabla de 1026 px en 941), y una
+   preferencia del 36 % le quita el sitio a «Fechas», que pasa a partir cada rango en tres líneas. */
+.visitas-celda-titular-empresa {
+    display: block;
+    min-width: 0;
+}
+
+.visitas-celda-titular-empresa .enlace-nombre-fila {
+    display: inline;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+}
+
+/* El separador cuelga del nombre del titular: un botón no parte por dentro como el texto, y suelto
+   se quedaba solo en su línea cuando la Empresa bajaba a la siguiente. */
+.visitas-celda-titular-empresa .enlace-nombre-fila:first-child::after {
+    content: "\00a0·";
 }
 
 .visitas-celda-secundaria {

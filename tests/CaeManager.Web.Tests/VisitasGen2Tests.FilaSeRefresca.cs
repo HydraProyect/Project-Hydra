@@ -37,10 +37,10 @@ public partial class VisitasGen2Tests
 
     private static int ConsultasDePagina(MediatorVisitas mediator) => mediator.ConsultasDeLista.Count(c => c.VisitaId is null);
 
-    /// <summary>La primera celda con texto: con la selección múltiple encendida, delante va la de la casilla.</summary>
+    /// <summary>El Centro de cada fila: el primer nombre de la columna «Visita» (debajo van el titular y la Empresa).</summary>
     private static List<string> CentrosDeLasFilas(IRenderedComponent<Visitas> cut) =>
         cut.FindAll("tbody tr.fila-pulsable")
-            .Select(tr => tr.QuerySelectorAll("td").Select(td => td.TextContent.Trim()).First(texto => texto.Length > 0))
+            .Select(tr => tr.QuerySelector(".visitas-celda-apilada .enlace-nombre-fila")!.TextContent.Trim())
             .ToList();
 
     private static IElement CasillaDeSeleccion(IRenderedComponent<Visitas> cut, string centro) =>

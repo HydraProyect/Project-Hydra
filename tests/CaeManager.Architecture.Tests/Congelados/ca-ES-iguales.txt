@@ -1217,7 +1217,6 @@ src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: BotonQuitarSe
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: BotonVerFinalizadas = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: CasillaNotificadaTitularCentro = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: ColumnaDocumentacion = 1
-src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: ColumnaTitularEmpresa = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: ConfirmarCancelarLoteMensaje = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: ConfirmarCancelarLoteTitulo = 1
 src/CaeManager.Web/Features/Visitas/Recursos/TextosVisitas.resx :: ConfirmarCancelarMensaje = 1

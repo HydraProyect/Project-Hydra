@@ -140,19 +140,21 @@
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn Title="@Textos["EtiquetaCentro"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
-                    <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
-                        <TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" />
-                    </button>
-                </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaTitularEmpresa"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.ClienteRazonSocial))">
+                @* Columna «Visita»: el Centro es la identidad de la fila y, debajo, el titular del Centro y la
+                   Empresa que entra. Los tres nombres siguen abriendo cada uno su panel. *@
+                <TemplateColumn Title="@Textos["ColumnaVisita"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
                     <span class="visitas-celda-apilada">
-                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
-                            <TextoResaltado Texto="@context.ClienteRazonSocial" Termino="@_busqueda" />
+                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
+                            <TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" />
                         </button>
-                        <button type="button" class="enlace-nombre-fila visitas-celda-secundaria" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
-                            <TextoResaltado Texto="@context.EmpresaRazonSocial" Termino="@_busqueda" />
-                        </button>
+                        <span class="visitas-celda-secundaria visitas-celda-titular-empresa">
+                            <button type="button" class="enlace-nombre-fila" title="@Textos["DetalleTitularCentro"]" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
+                                <TextoResaltado Texto="@context.ClienteRazonSocial" Termino="@_busqueda" />
+                            </button>
+                            <button type="button" class="enlace-nombre-fila" title="@Textos["DetalleEmpresa"]" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
+                                <TextoResaltado Texto="@context.EmpresaRazonSocial" Termino="@_busqueda" />
+                            </button>
+                        </span>
                     </span>
                 </TemplateColumn>
                 <TemplateColumn Title="@Textos["ColumnaFechas"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
@@ -168,11 +170,11 @@
                                 @onclick="() => AbrirDetalleAsync(context.Id)">@TextoFechas(context.FechaInicio, context.FechaFin)</button>
                         @if (!context.EstaCancelada)
                         {
-                            <span class="visitas-celda-secundaria">@TextoPlazo(context)</span>
+                            <span class="visitas-celda-secundaria" data-pieza="plazo">@TextoPlazo(context)</span>
                         }
                     </span>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["EtiquetaTrabajadores"]" Align="Align.Center">
+                <TemplateColumn Title="@Textos["ColumnaTrabajadores"]" Align="Align.Center">
                     @{
                         var nombres = context.Trabajadores ?? [];
                     }
@@ -195,31 +197,16 @@
                         </Detalle>
                     </VentanaContexto>
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaUrgencia"]" Align="Align.Center">
-                    @* Los cuatro valores de NivelUrgenciaVisita, «Normal» incluido:
-                       una celda vacía no distingue «normal» de «sin calcular». *@
-                    <span class="visitas-celda-apilada">
-                        <Badge Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)">@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)</Badge>
-                        @if (context.Tramo is { } tramo)
-                        {
-                            @* Misma matriz y mismo vocabulario que el detalle (AntelacionVisitaUi);
-                               null = sin solicitud de origen medida o expediente aún incompleto. *@
-                            <span title="@TituloTramo(context)" data-antelacion-tramo="@tramo">
-                                <Badge Tono="@AntelacionVisitaUi.Tono(tramo)">@AntelacionVisitaUi.Texto(tramo)</Badge>
-                            </span>
-                        }
-                    </span>
+                @* El origen es un dato, no un estado: texto, sin pastilla. *@
+                <TemplateColumn Title="@Textos["EtiquetaOrigen"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
+                    <span class="visitas-celda-secundaria" data-pieza="origen">@TextoOrigen(context.Origen)</span>
                 </TemplateColumn>
-                @* El mockup lleva el origen solo al detalle; aquí se conserva
-                   también en la lista porque ya existía y se ordena por él. *@
-                <TemplateColumn Title="@Textos["EtiquetaOrigen"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
-                    <Badge Tono="TonoOrigen(context.Origen)">@TextoOrigen(context.Origen)</Badge>
-                </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaDocumentacion"]" Class="col-estado">
+                <TemplateColumn Title="@Textos["ColumnaDocumentacion"]">
                     @if (context.EstaCancelada)
                     {
-                        @* FS-11: una Visita cancelada no tiene documentación que gestionar; el motivo va en el title. *@
-                        <span title="@context.MotivoCancelacion"><Badge Tono="TonoBadge.Neutro">@Textos["BadgeCancelada"]</Badge></span>
+                        @* FS-11: una Visita cancelada no tiene documentación que gestionar. Que está cancelada, y por
+                           qué, lo dice la columna «Estado». *@
+                        <span class="visitas-celda-secundaria" aria-hidden="true">—</span>
                     }
                     else if (!context.CentroRequiereGestionCae)
                     {
@@ -235,10 +222,11 @@
                     else
                     {
                         @* «Por gestionar» aunque los documentos estén vigentes: el title dice si ya se puede enviar o falta papel. *@
-                        <span title="@(context.DocumentacionCompleta ? Textos["TituloPorGestionarDocumentosVigentes"] : Textos["TituloPorGestionarFaltanDocumentos"])"><Badge Tono="TonoBadge.Peligro">@Textos["BadgeDocumentacionPorGestionar"]</Badge></span>
+                        <EstadoFila Tono="TonoBadge.Peligro" Texto="@Textos["BadgeDocumentacionPorGestionar"]"
+                                    Titulo="@(context.DocumentacionCompleta ? Textos["TituloPorGestionarDocumentosVigentes"] : Textos["TituloPorGestionarFaltanDocumentos"])" />
                     }
                 </TemplateColumn>
-                <TemplateColumn Title="@Textos["EtiquetaNotificadaTitular"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
+                <TemplateColumn Title="@Textos["ColumnaAvisada"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
                     @* El interruptor es a la vez el dato y el disparador de MarcarNotificadoClienteCommand
                        (ICommand que AutorizacionEscrituraBehavior deniega a Consulta). Ocultarlo, como hace
                        SoloConEscritura, dejaría la columna sin dato: a Consulta se le pinta deshabilitado. *@
@@ -257,6 +245,31 @@
                                    disabled />
                         </NotAuthorized>
                     </AuthorizeView>
+                </TemplateColumn>
+                @* «Estado» de la fila, en el mismo sitio que en las demás pantallas: la urgencia (se recalcula en
+                   cada carga) es la pastilla y el tramo de antelación sellado es el motivo. «Normal» es lo
+                   correcto: punto y texto, sin pastilla de color. Una cancelada dice «Cancelada» y su motivo. *@
+                <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado">
+                    @if (context.EstaCancelada)
+                    {
+                        <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCancelada"]" Motivo="@context.MotivoCancelacion" Titulo="@context.MotivoCancelacion" />
+                    }
+                    else if (context.Tramo is { } tramo)
+                    {
+                        @* Misma matriz y mismo vocabulario que el detalle (AntelacionVisitaUi). *@
+                        <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
+                                    Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)">
+                            <MotivoContenido>
+                                <span title="@TituloTramo(context)" data-antelacion-tramo="@tramo">@Textos["MotivoTramo", AntelacionVisitaUi.Texto(tramo)]</span>
+                            </MotivoContenido>
+                        </EstadoFila>
+                    }
+                    else
+                    {
+                        @* Sin tramo: no hay solicitud de origen medida o el expediente aún no está completo. *@
+                        <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
+                                    Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)" />
+                    }
                 </TemplateColumn>
                 @* Sin menú «⋯». Lo que hacía ese menú: «Ver» es el clic en la fila, sus fechas o Enter;
                    «Editar», el lápiz de la cabecera del panel y la tecla «e»; «Cancelar visita», la selección
