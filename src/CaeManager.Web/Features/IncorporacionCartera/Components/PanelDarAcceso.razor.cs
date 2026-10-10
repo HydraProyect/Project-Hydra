@@ -37,6 +37,20 @@ public partial class PanelDarAcceso
     /// <summary>Solo este Tenant propietario; sin valor, todos aquellos de los que quien mira es principal.</summary>
     [Parameter] public Guid? TenantId { get; set; }
 
+    /// <summary>
+    /// Forma compacta para la cabecera «Gestor CAE» de la pantalla Empresas: solo los botones
+    /// «+ Dar acceso» (uno por operación de la que quien mira es el principal) y «Desasignarme»
+    /// (uno por apoyo suyo), sin las tarjetas. Qué botón se pinta sale de las mismas lecturas que
+    /// la forma completa, y lo que hace cada uno, de los mismos Commands.
+    /// </summary>
+    [Parameter] public bool EnCabecera { get; set; }
+
+    /// <summary>
+    /// Una acción terminó (se propuso un apoyo, se retiró una propuesta o se terminó un apoyo) y el
+    /// panel ya releyó lo suyo: quien lo monta refresca lo que enseña.
+    /// </summary>
+    [Parameter] public EventCallback AlCambiar { get; set; }
+
     private IReadOnlyList<CarterasDeOperacion> _operaciones = [];
     private IReadOnlyList<PropuestaApoyoDto> _enviadas = [];
     private ApoyosDeCarteraDto _apoyos = ApoyosDeCarteraDto.Vacio;
@@ -216,6 +230,7 @@ public partial class PanelDarAcceso
             _destinatarioId = string.Empty;
             _ultimoDia = string.Empty;
             await CargarAsync();
+            await AlCambiar.InvokeAsync();
         }
         finally
         {
@@ -248,6 +263,7 @@ public partial class PanelDarAcceso
 
             // Siempre: si el destinatario respondió antes, la recarga lo enseña.
             await CargarAsync();
+            await AlCambiar.InvokeAsync();
         }
         finally
         {
@@ -291,6 +307,7 @@ public partial class PanelDarAcceso
 
             // Siempre: si otro lo terminó antes, la recarga lo enseña.
             await CargarAsync();
+            await AlCambiar.InvokeAsync();
         }
         finally
         {
