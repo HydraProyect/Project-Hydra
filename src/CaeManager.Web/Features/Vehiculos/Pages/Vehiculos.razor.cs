@@ -413,6 +413,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         {
             _ultimaColumnaOrden = request.SortByColumn;
             _ultimoOrdenAscendente = request.SortByAscending;
+            (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
 
             var resultado = await Mediator.Send(consulta, token);
 
@@ -616,6 +617,38 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         _consultaQueConservaSeleccion = _ultimaConsulta;
         await _grid.RefreshDataAsync();
         StateHasChanged();
+    }
+
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Vehiculos;
+
+    /// <summary>Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.</summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "empresa", "subcontrata"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. Cada valor pasa por la misma
+    /// validación que el de la URL en <see cref="OnParametersSet"/> (un Id que no es Guid o un estado que ya
+    /// no existe se ignoran; con Empresa y subcontrata gana la subcontrata). La URL se escribe en una sola
+    /// navegación y se recarga aquí: <see cref="OnParametersSet"/> sincroniza los campos, pero no recarga.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
+        _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        {
+            ["q"] = _busqueda,
+            ["estado"] = _estadoFiltro,
+            ["empresa"] = _filtroEmpresaId,
+            ["subcontrata"] = _filtroSubcontrataId,
+        });
+        await RecargarAsync();
     }
 
     /// <summary>
@@ -927,4 +960,23 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
         StateHasChanged();
     }
+
+    // ---- Exportar esta vista ----
+
+    private string? _ordenExportar;
+    private bool _descendenteExportar;
+
+    /// <summary>
+    /// Los criterios de la vista con los nombres de parámetro de <c>/vehiculos/exportar.xlsx</c>:
+    /// los mismos que <see cref="ProveerElementosAsync"/> pasa a la consulta del listado.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["estado"] = _estadoFiltro,
+        ["empresa"] = _filtroEmpresaId,
+        ["subcontrata"] = _filtroSubcontrataId,
+        ["orden"] = _ordenExportar,
+        ["desc"] = _descendenteExportar ? "true" : null,
+    };
 }

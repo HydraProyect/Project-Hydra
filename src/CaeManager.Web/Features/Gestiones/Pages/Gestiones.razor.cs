@@ -171,6 +171,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         var (ordenarPor, descendente) = LecturaOrden.Leer(request);
         _ultimaColumnaOrden = request.SortByColumn;
         _ultimoOrdenAscendente = request.SortByAscending;
+        (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         _elementosPagina = [];
         _idEnfocado = null;
         var consulta = new ObtenerGestionesQuery(
@@ -304,6 +305,29 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         _busqueda = string.Empty;
         _filtroEstado = string.Empty;
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
+        await RecargarAsync();
+    }
+
+    // ---- Filtros guardados (pieza compartida FiltrosGuardadosDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Gestiones;
+
+    /// <summary>Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.</summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. El estado pasa por la misma
+    /// validación que el de la URL (<see cref="EstadosValidos"/>). La URL se escribe en una sola navegación
+    /// y se recarga aquí: <see cref="OnParametersSet"/> sincroniza los campos, pero no recarga.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        _filtroEstado = EstadosValidos(vista.GetValueOrDefault("estado"));
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = _busqueda, ["estado"] = _filtroEstado });
         await RecargarAsync();
     }
 
@@ -509,4 +533,21 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             _eliminando = false;
         }
     }
+
+    // ---- Exportar esta vista ----
+
+    private string? _ordenExportar;
+    private bool _descendenteExportar;
+
+    /// <summary>
+    /// Los criterios de la vista con los nombres de parámetro de <c>/gestiones/exportar.xlsx</c>:
+    /// los mismos que <see cref="ProveerElementosAsync"/> pasa a la consulta del listado.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["estado"] = _filtroEstado,
+        ["orden"] = _ordenExportar,
+        ["desc"] = _descendenteExportar ? "true" : null,
+    };
 }

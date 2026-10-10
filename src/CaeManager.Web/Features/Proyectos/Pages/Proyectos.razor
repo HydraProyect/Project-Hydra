@@ -18,7 +18,8 @@
 
 <div class="contenedor-pagina">
     <CabeceraListado Titulo="@Textos["TituloPagina"]"
-                     Contador="@(_resolviendoEmpresa || _sinEmpresaSeleccionada || _cargando || _errorCarga || _clienteSeleccionadoId == Guid.Empty || _cargandoProyectos || _errorProyectos ? null : (int?)ProyectosVisibles.Count)">
+                     Contador="@(_resolviendoEmpresa || _sinEmpresaSeleccionada || _cargando || _errorCarga || _clienteSeleccionadoId == Guid.Empty || _cargandoProyectos || _errorProyectos ? null : (int?)ProyectosVisibles.Count)"
+                     Menu="@(_clienteSeleccionadoId != Guid.Empty && !_cargando && !_errorCarga ? MenuCabecera : null)">
         <Primaria>
             @if (_clienteSeleccionadoId != Guid.Empty && !_cargando && !_errorCarga)
             {
@@ -51,7 +52,9 @@
     {
         <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                       PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
-                      HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync">
+                      HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                      FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                      OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar">
             <Pastillas>
                 @* La opción vacía pide elegir un Cliente empresarial: nunca representa todos. *@
                 <PastillaFiltro @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
@@ -65,6 +68,8 @@
                 }
             </Chips>
         </BarraFiltros>
+        <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista"
+                                   OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
         @if (_clienteSeleccionadoId != Guid.Empty && _proyectos.Count > 0)
         {
             @* Franja de estado: sustituye a la pastilla «Estado». Viaja en la URL como «estado» y cada botón dice
@@ -481,6 +486,12 @@
 </LimiteDeErrores>
 
 @code {
+    /// <summary>
+    /// El «⋯» de la cabecera: las dos entradas de exportación. Sin Cliente empresarial elegido no
+    /// se pasa: no hay vista que exportar.
+    /// </summary>
+    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/proyectos/exportar.xlsx" Total="@(_cargandoProyectos || _errorProyectos ? null : (int?)ProyectosVisibles.Count)" Criterios="CriteriosExportar" />;
+
     private Drawer? _drawerProyecto;
     // De instancia, no static: las etiquetas salen del localizador inyectado.
     private IReadOnlyList<PestanaDefinicion>? _pestanasDetalle;

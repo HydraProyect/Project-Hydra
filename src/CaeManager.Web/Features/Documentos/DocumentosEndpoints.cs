@@ -55,7 +55,8 @@ public static class DocumentosEndpoints
         // tipo, fechas): mismo criterio de caché que el PDF.
         endpoints.MapGet("/documentos/exportar.xlsx", async (
             HttpContext contexto, IMediator mediator, CancellationToken cancellationToken,
-            string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false) =>
+            string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
+            string? tipo = null, string? plataforma = null) =>
         {
             CabecerasArchivoSensible.ProhibirCache(contexto);
 
@@ -83,7 +84,10 @@ public static class DocumentosEndpoints
                         Pagina: pagina,
                         TamanoPagina: tamanoPagina,
                         OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
-                        Descendente: desc),
+                        Descendente: desc,
+                        // Un valor que no es un Id se ignora, igual que en el listado: no es un 400.
+                        TipoDocumentoId: Guid.TryParse(tipo, out var tipoFiltro) ? tipoFiltro : null,
+                        ProveedorPlataformaCaeId: Guid.TryParse(plataforma, out var plataformaFiltro) ? plataformaFiltro : null),
                     cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = documento.PropietarioNombre;

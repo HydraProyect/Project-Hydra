@@ -117,11 +117,26 @@
                           OnLimpiarTodo="LimpiarFiltrosAsync"
                           OnGuardarFiltro="AbrirGuardarFiltro"
                           FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
-                          OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado">
+                          OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
+                          MasFiltrosActivos="@(!string.IsNullOrEmpty(_plataformaFiltro))">
                 <Pastillas>
                     <PastillaFiltro Etiqueta="@Textos["ListaFiltroAmbito"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_ambitoFiltro"
                                     ValorChanged="CambiarAmbitoFiltroAsync" Opciones="OpcionesAmbitoListado" />
+                    <PastillaFiltro Etiqueta="@Textos["ListaFiltroTipo"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_tipoFiltro"
+                                    ValorChanged="CambiarTipoFiltroAsync" Opciones="_opcionesTipo" />
                 </Pastillas>
+                <MasFiltros>
+                    @* Sin plataformas en uso no hay nada que elegir; con el filtro llegado por URL sí se ofrece quitarlo. *@
+                    @if (_opcionesPlataforma.Count > 0 || !string.IsNullOrEmpty(_plataformaFiltro))
+                    {
+                        <span class="menu-filtros-titulo" role="presentation">@Textos["ListaFiltroPlataforma"]</span>
+                        <ItemMenuAccion Marcado="@string.IsNullOrEmpty(_plataformaFiltro)" OnClick="() => CambiarPlataformaFiltroAsync(string.Empty)">@Textos["ListaTodas"]</ItemMenuAccion>
+                        @foreach (var opcion in _opcionesPlataforma)
+                        {
+                            <ItemMenuAccion Marcado="@(opcion.Valor == _plataformaFiltro)" OnClick="() => CambiarPlataformaFiltroAsync(opcion.Valor)">@opcion.Texto</ItemMenuAccion>
+                        }
+                    }
+                </MasFiltros>
                 <Chips>
                     @if (!string.IsNullOrWhiteSpace(_busqueda))
                     {
@@ -130,6 +145,14 @@
                     @if (!string.IsNullOrWhiteSpace(_ambitoFiltro))
                     {
                         <ChipFiltro Etiqueta="@EtiquetaFiltroAmbito" EtiquetaAccesible="@Textos["QuitarFiltroAmbito"]" OnQuitar="() => CambiarAmbitoFiltroAsync(string.Empty)" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_tipoFiltro))
+                    {
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroTipo" EtiquetaAccesible="@Textos["QuitarFiltroTipo"]" OnQuitar="() => CambiarTipoFiltroAsync(string.Empty)" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_plataformaFiltro))
+                    {
+                        <ChipFiltro Etiqueta="@EtiquetaFiltroPlataforma" EtiquetaAccesible="@Textos["QuitarFiltroPlataforma"]" OnQuitar="() => CambiarPlataformaFiltroAsync(string.Empty)" />
                     }
                 </Chips>
             </BarraFiltros>

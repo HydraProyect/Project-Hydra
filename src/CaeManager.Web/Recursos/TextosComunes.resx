@@ -193,6 +193,43 @@
   <data name="BorrarFiltroGuardado" xml:space="preserve">
     <value>Borrar filtro guardado {0}</value>
   </data>
+  <data name="FiltroGuardadoModalTitulo" xml:space="preserve">
+    <value>Guardar filtro actual</value>
+    <comment>Título del modal de FiltrosGuardadosDeListado.</comment>
+  </data>
+  <data name="FiltroGuardadoNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="FiltroGuardadoNombrePlaceholder" xml:space="preserve">
+    <value>Pendientes de revisar</value>
+  </data>
+  <data name="FiltroGuardadoSinNombre" xml:space="preserve">
+    <value>Escribe un nombre para el filtro</value>
+  </data>
+  <data name="FiltroGuardadoGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="FiltroGuardadoCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="FiltroGuardadoToast" xml:space="preserve">
+    <value>Filtro guardado.</value>
+  </data>
+  <data name="FiltroGuardadoBorrarTitulo" xml:space="preserve">
+    <value>¿Borrar el filtro guardado «{0}»?</value>
+  </data>
+  <data name="FiltroGuardadoBorrarMensaje" xml:space="preserve">
+    <value>Desaparecerá de tus filtros guardados de esta pantalla. No borra ningún dato ni cambia lo que la lista enseña ahora.</value>
+  </data>
+  <data name="FiltroGuardadoBorrarBoton" xml:space="preserve">
+    <value>Borrar filtro</value>
+  </data>
+  <data name="FiltroGuardadoBorrarError" xml:space="preserve">
+    <value>No pudimos borrar el filtro guardado. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="FiltroGuardadoGuardarError" xml:space="preserve">
+    <value>No pudimos guardar el filtro. Si ya tienes uno con ese nombre, elige otro; si no, intenta nuevamente en unos segundos.</value>
+  </data>
   <data name="SoporteEnlaceLogoOrganizacion" xml:space="preserve">
     <value>Logo de la organización</value>
   </data>
