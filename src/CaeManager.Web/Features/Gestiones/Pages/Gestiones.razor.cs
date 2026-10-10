@@ -203,6 +203,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         _ultimoOrdenAscendente = request.SortByAscending;
         if (_orden.Anotar(ordenarPor, descendente))
             NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
+        (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
         _elementosPagina = [];
         _idEnfocado = null;
         var consulta = new ObtenerGestionesQuery(
@@ -580,4 +581,21 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             _eliminando = false;
         }
     }
+
+    // ---- Exportar esta vista ----
+
+    private string? _ordenExportar;
+    private bool _descendenteExportar;
+
+    /// <summary>
+    /// Los criterios de la vista con los nombres de parámetro de <c>/gestiones/exportar.xlsx</c>:
+    /// los mismos que <see cref="ProveerElementosAsync"/> pasa a la consulta del listado.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["estado"] = _filtroEstado,
+        ["orden"] = _ordenExportar,
+        ["desc"] = _descendenteExportar ? "true" : null,
+    };
 }

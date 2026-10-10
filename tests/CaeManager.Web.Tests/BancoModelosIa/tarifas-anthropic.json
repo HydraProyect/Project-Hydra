@@ -1,0 +1,19 @@
+{
+  "fechaDeConsulta": "2026-10-09",
+  "fuente": "https://platform.claude.com/docs/en/about-claude/pricing",
+  "unidad": "dólares de EE. UU. por millón de tokens, tarifa base sin caché ni lotes",
+  "notas": [
+    "claude-haiku-5-5: precio para peticiones de hasta 100.000 tokens de entrada; por encima, 0,50 de entrada y 2,50 de salida. Ningún caso del banco se acerca a ese umbral.",
+    "claude-sonnet-5: el precio de lanzamiento de 2 y 10 es ya el precio estándar; la subida anunciada para septiembre de 2026 no se aplicó.",
+    "Los tokens de salida incluyen los de razonamiento: suben con el esfuerzo aunque la respuesta visible sea igual de larga."
+  ],
+  "modelos": {
+    "claude-haiku-5-5": { "entrada": 0.10, "salida": 0.50 },
+    "claude-haiku-4-5": { "entrada": 1, "salida": 5 },
+    "claude-sonnet-5-5": { "entrada": 2, "salida": 10 },
+    "claude-sonnet-5": { "entrada": 2, "salida": 10 },
+    "claude-sonnet-4-6": { "entrada": 3, "salida": 15 },
+    "claude-opus-5-5": { "entrada": 4, "salida": 20 },
+    "claude-opus-5": { "entrada": 5, "salida": 25 }
+  }
+}

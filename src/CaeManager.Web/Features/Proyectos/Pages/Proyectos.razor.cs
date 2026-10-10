@@ -319,8 +319,8 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     // ---- Filtros (estado y búsqueda, en la URL) ----
 
-    private const string EstadoAbiertos = "abiertos";
-    private const string EstadoCerrados = "cerrados";
+    private const string EstadoAbiertos = FiltroProyectos.EstadoAbiertos;
+    private const string EstadoCerrados = FiltroProyectos.EstadoCerrados;
 
     // De instancia, no static: las etiquetas salen del localizador inyectado.
     private IReadOnlyList<OpcionFranjaEstado> OpcionesEstado =>
@@ -330,8 +330,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// La selección de estados que llega de la URL reducida a los dos que existen; lo demás se descarta.
     /// Cadena vacía si no queda ninguno.
     /// </summary>
-    private static string EstadosValidos(string? seleccion) =>
-        SeleccionEstados.Unir(SeleccionEstados.Separar(seleccion).Where(v => v is EstadoAbiertos or EstadoCerrados)) ?? string.Empty;
+    private static string EstadosValidos(string? seleccion) => FiltroProyectos.EstadosValidos(seleccion);
 
     /// <summary>Proyectos por estado para la franja: con la búsqueda aplicada y sin el filtro de estado.</summary>
     private IReadOnlyDictionary<string, int> RecuentosPorEstado
@@ -389,23 +388,10 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private IReadOnlyList<ProyectoListaDto> ProyectosVisibles => _proyectos.Where(CumpleFiltros).ToList();
 
-    private bool CumpleFiltros(ProyectoListaDto proyecto)
-    {
-        // Varios estados marcados: pasa el Proyecto que esté en cualquiera. Sin ninguno, todos.
-        var marcados = SeleccionEstados.Separar(_estadoFiltro);
-        var cumpleEstado = marcados.Count == 0
-            || marcados.Contains(proyecto.EstaAbierto ? EstadoAbiertos : EstadoCerrados);
+    // Los dos filtros viven en FiltroProyectos: los comparte /proyectos/exportar.xlsx.
+    private bool CumpleFiltros(ProyectoListaDto proyecto) => FiltroProyectos.Cumple(proyecto, _estadoFiltro, _busqueda);
 
-        return cumpleEstado && CumpleBusqueda(proyecto);
-    }
-
-    private bool CumpleBusqueda(ProyectoListaDto proyecto)
-    {
-        var termino = _busqueda.Trim();
-        return termino.Length == 0
-            || proyecto.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase)
-            || proyecto.CentroNombre.Contains(termino, StringComparison.OrdinalIgnoreCase);
-    }
+    private bool CumpleBusqueda(ProyectoListaDto proyecto) => FiltroProyectos.CumpleBusqueda(proyecto, _busqueda);
 
     private string TextoConteo => HayFiltrosActivos
         ? Textos["ConteoConFiltro", ProyectosVisibles.Count, _proyectos.Count].Value
@@ -1302,4 +1288,17 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
             ToastService.Mostrar(Textos["ErrorDarDeBaja"], TonoToast.Error);
         }
     }
+
+    // ---- Exportar esta vista ----
+
+    /// <summary>
+    /// Los criterios de la vista con los nombres de parámetro de <c>/proyectos/exportar.xlsx</c>:
+    /// el Cliente empresarial del selector y los dos filtros de <see cref="CumpleFiltros"/>.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["cliente"] = _clienteSeleccionadoId == Guid.Empty ? null : _clienteSeleccionadoId.ToString(),
+        ["q"] = _busqueda,
+        ["estado"] = _estadoFiltro,
+    };
 }

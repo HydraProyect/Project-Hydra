@@ -33,7 +33,8 @@
     {
         <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple"
-                         SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)">
+                         SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)"
+                         Menu="@(_alcanceCero ? null : MenuCabecera)">
             <Primaria>
                 @if (!_alcanceCero)
                 {
@@ -275,3 +276,11 @@
     OnConfirmar="ConfirmarEliminarLoteAsync" />
 
 </LimiteDeErrores>
+
+@code {
+    /// <summary>
+    /// El «⋯» de la cabecera: las dos entradas de exportación, que son lectura y las ve cualquier rol
+    /// de la página. Con alcance cero no se pasa (D-15: daría un fichero vacío).
+    /// </summary>
+    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/vehiculos/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />;
+}

@@ -422,6 +422,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             _ultimoOrdenAscendente = request.SortByAscending;
             if (_orden.Anotar(ordenarPor, descendente))
                 NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
+            (_ordenExportar, _descendenteExportar) = (ordenarPor, descendente);
 
             var resultado = await Mediator.Send(new ObtenerVehiculosQuery(
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
@@ -930,4 +931,23 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
         StateHasChanged();
     }
+
+    // ---- Exportar esta vista ----
+
+    private string? _ordenExportar;
+    private bool _descendenteExportar;
+
+    /// <summary>
+    /// Los criterios de la vista con los nombres de parámetro de <c>/vehiculos/exportar.xlsx</c>:
+    /// los mismos que <see cref="ProveerElementosAsync"/> pasa a la consulta del listado.
+    /// </summary>
+    private Dictionary<string, string?> CriteriosExportar => new()
+    {
+        ["q"] = _busqueda,
+        ["estado"] = _estadoFiltro,
+        ["empresa"] = _filtroEmpresaId,
+        ["subcontrata"] = _filtroSubcontrataId,
+        ["orden"] = _ordenExportar,
+        ["desc"] = _descendenteExportar ? "true" : null,
+    };
 }

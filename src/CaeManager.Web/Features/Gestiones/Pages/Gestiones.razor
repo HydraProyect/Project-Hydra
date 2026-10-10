@@ -22,7 +22,11 @@
 
 <div class="contenedor-pagina">
     @* Sin alta: las gestiones se crean desde los caminos ya existentes. *@
-    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)" />
+    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)">
+        <Menu>
+            <CaeManager.Web.Exportacion.EntradasExportar Ruta="/gestiones/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : (int?)_totalElementos)" Criterios="CriteriosExportar" />
+        </Menu>
+    </CabeceraListado>
 
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                   PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"

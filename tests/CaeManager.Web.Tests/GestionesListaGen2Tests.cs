@@ -1190,4 +1190,21 @@ public class GestionesListaGen2Tests : BunitContext
     private static Task AlternarEstadoGestionFase1(IRenderedComponent<Gestiones> cut, string rotulo) =>
         cut.BotonDeFranja(rotulo).ClickAsync(new MouseEventArgs());
 
+
+    // ---- Exportar (decisión D2 del 2026-10-08): dos entradas en el «⋯» de la cabecera ----
+
+    [Fact]
+    public void El_menu_de_cabecera_ofrece_exportar_esta_vista_con_sus_criterios_y_exportar_todo()
+    {
+        var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") } };
+        var cut = Renderizar(m, url: "gestiones?q=Juan&estado=Pendiente");
+
+        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
+
+        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
+            .Should().Equal("Exportar esta vista (filas: 1)", "Exportar todo");
+        var enlaces = cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href")).ToList();
+        enlaces[0].Should().StartWith("/gestiones/exportar.xlsx?q=Juan&estado=Pendiente");
+        enlaces[1].Should().Be("/gestiones/exportar.xlsx");
+    }
 }
