@@ -15,9 +15,6 @@
   <data name="TituloPagina" xml:space="preserve">
     <value>Visitas</value>
   </data>
-  <data name="Kicker" xml:space="preserve">
-    <value>Operación</value>
-  </data>
   <data name="BotonNuevaVisita" xml:space="preserve">
     <value>+ Nueva visita</value>
   </data>
@@ -60,17 +57,11 @@
   <data name="EtiquetaCentro" xml:space="preserve">
     <value>Centro</value>
   </data>
-  <data name="ColumnaTitularEmpresa" xml:space="preserve">
-    <value>Titular del centro / Empresa</value>
-  </data>
   <data name="ColumnaFechas" xml:space="preserve">
     <value>Fechas</value>
   </data>
   <data name="EtiquetaTrabajadores" xml:space="preserve">
     <value>Trabajadores</value>
-  </data>
-  <data name="ColumnaUrgencia" xml:space="preserve">
-    <value>Urgencia</value>
   </data>
   <data name="EtiquetaOrigen" xml:space="preserve">
     <value>Origen</value>
@@ -97,7 +88,7 @@
     <value>Ninguna visita con estos filtros</value>
   </data>
   <data name="VacioFiltroDescripcion" xml:space="preserve">
-    <value>Ninguna coincide con la búsqueda ni con los filtros de urgencia o notificación.</value>
+    <value>Ninguna coincide con la búsqueda ni con los filtros de documentación, urgencia o notificación.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
     <value>Quitar los filtros</value>
@@ -263,12 +254,6 @@
   </data>
   <data name="OrigenPlataforma" xml:space="preserve">
     <value>Plataforma</value>
-  </data>
-  <data name="RecuentoUno" xml:space="preserve">
-    <value>{0} visita</value>
-  </data>
-  <data name="RecuentoVarios" xml:space="preserve">
-    <value>{0} visitas</value>
   </data>
   <data name="ErrorFechasNoValidas" xml:space="preserve">
     <value>Las fechas no son válidas.</value>
@@ -668,5 +653,32 @@
   </data>
   <data name="AriaEditarVisita" xml:space="preserve">
     <value>Edita la visita</value>
+  </data>
+  <data name="ChipBusqueda" xml:space="preserve">
+    <value>Cerca: {0}</value>
+  </data>
+  <data name="QuitarFiltroBusqueda" xml:space="preserve">
+    <value>Treu el filtre de cerca</value>
+  </data>
+  <data name="QuitarFiltroUrgentes" xml:space="preserve">
+    <value>Treu el filtre d'urgents</value>
+  </data>
+  <data name="QuitarFiltroNotificada" xml:space="preserve">
+    <value>Treu el filtre de notificació</value>
+  </data>
+  <data name="ColumnaVisita" xml:space="preserve">
+    <value>Visita</value>
+  </data>
+  <data name="ColumnaTrabajadores" xml:space="preserve">
+    <value>Treb.</value>
+  </data>
+  <data name="ColumnaAvisada" xml:space="preserve">
+    <value>Avisada</value>
+  </data>
+  <data name="ColumnaEstado" xml:space="preserve">
+    <value>Estat</value>
+  </data>
+  <data name="MotivoTramo" xml:space="preserve">
+    <value>Tram {0}</value>
   </data>
 </root>

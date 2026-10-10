@@ -98,6 +98,19 @@ public partial class DrawerGestionDocumento : ComponentBase
     private bool _confirmarVigenciaAnteriorVisible;
     private bool _procesandoConfirmacionVigencia;
 
+    // «Guardar y siguiente»: lo que queda por abrir de la serie con la que la ficha abrió el
+    // formulario, en el orden de su lista. Vacío fuera de una serie y en su último documento.
+    private IReadOnlyList<PasoSerieDocumento> _pasosPendientes = [];
+    // Con qué botón se pidió guardar: sobrevive a la pregunta de «vigencia anterior».
+    private bool _seguirTrasGuardar;
+
+    private bool HaySiguiente => _pasosPendientes.Count > 0;
+
+    private const string ClaveGuardar = "Guardar";
+    private const string ClaveGuardarYSiguiente = "GuardarYSiguiente";
+
+    private string TextoGuardarPrimario => TextosDrawerGestionDocumento.Texto(HaySiguiente ? ClaveGuardarYSiguiente : ClaveGuardar);
+
     /// <summary>
     /// El alias (nombre con el que el trabajador firma o está dado de alta
     /// en plataformas externas) se incluye en el texto buscable para que
@@ -128,6 +141,9 @@ public partial class DrawerGestionDocumento : ComponentBase
 
     public async Task AbrirCrearAsync()
     {
+        // Abrir de uno en uno termina cualquier serie anterior: AbrirSerieAsync la fija después.
+        _pasosPendientes = [];
+
         // Reabrir el drawer sin haber pasado por el cierre (lo hacen las
         // pantallas que lo abren directamente) no debe heredar el archivo de
         // la sesión anterior: se descarta antes de reiniciar el formulario.
@@ -259,7 +275,59 @@ public partial class DrawerGestionDocumento : ComponentBase
             _ => Task.CompletedTask,
         };
 
-    public async Task AbrirEditarAsync(Guid id, int saltosAlVigente = 0)
+    public Task AbrirEditarAsync(Guid id, int saltosAlVigente = 0) => AbrirEditarInternoAsync(id, saltosAlVigente);
+
+    /// <summary>
+    /// «Renovar» o «Subir» desde la lista de una ficha 360 (FICHAS-360, Tanda 2): abre
+    /// <paramref name="actual"/> y recuerda el resto de <paramref name="serie"/> —los documentos con
+    /// problema de esa lista, en el orden en que la lista los muestra— para ofrecer «Guardar y
+    /// siguiente». El siguiente es el que va detrás de <paramref name="actual"/>; al llegar al final
+    /// se sigue por los de delante, porque también siguen con problema. Si <paramref name="actual"/>
+    /// no es de la serie (una fila sin problema), el siguiente es el primero.
+    /// <para>
+    /// La serie es la foto de la lista al abrir: guardar un documento recarga la ficha, pero no
+    /// reordena lo que queda por recorrer.
+    /// </para>
+    /// </summary>
+    public async Task AbrirSerieAsync(IReadOnlyList<PasoSerieDocumento> serie, PasoSerieDocumento actual)
+    {
+        var unicos = serie.Distinct().ToList();
+        var posicion = unicos.IndexOf(actual);
+        var resto = unicos.Skip(posicion + 1).Concat(unicos.Take(Math.Max(posicion, 0))).ToList();
+
+        if (await AbrirPasoAsync(actual, alAvanzar: false))
+            _pasosPendientes = resto;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// ¿Se abrió el formulario? Un Documento que ya no existe, o del historial sin vigente al que saltar, no. Y
+    /// <paramref name="alAvanzar"/>, tampoco el alta de uno que falta cuyo propietario no se pudo preseleccionar (fuera
+    /// del catálogo con alcance): quien pulsó esa fila ve el aviso, pero a quien llega desde el documento anterior no se
+    /// le deja delante un formulario que no puede guardar y que le cortaría el resto de la serie.
+    /// </summary>
+    private async Task<bool> AbrirPasoAsync(PasoSerieDocumento paso, bool alAvanzar)
+    {
+        if (paso.DocumentoId is { } documentoId)
+            return await AbrirEditarInternoAsync(documentoId, 0);
+
+        var tipoDocumentoId = paso.TipoDocumentoId ?? Guid.Empty;
+        if (paso.TrabajadorId is { } trabajadorId)
+        {
+            await AbrirCrearParaFaltanteAsync(trabajadorId, tipoDocumentoId);
+            return !alAvanzar || _trabajadorId.Length > 0;
+        }
+
+        if (paso.EmpresaId is { } empresaId)
+        {
+            await AbrirCrearParaFaltanteEmpresaAsync(empresaId, tipoDocumentoId);
+            return !alAvanzar || _empresaId.Length > 0;
+        }
+
+        return false;
+    }
+
+    private async Task<bool> AbrirEditarInternoAsync(Guid id, int saltosAlVigente)
     {
         // Mismo motivo que en AbrirCrearAsync — y aquí importa más, porque a
         // continuación _archivoUrl pasa a ser el archivo que el Documento ya
@@ -270,7 +338,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         if (documento is null)
         {
             ToastService.Mostrar("No encontramos este documento. Puede que ya se haya eliminado.", TonoToast.Error);
-            return;
+            return false;
         }
 
         // Historial (D8 del diseño del documento efectivo): un enlace a un Id que otro documento sustituyó (porque se
@@ -279,16 +347,17 @@ public partial class DrawerGestionDocumento : ComponentBase
         if (documento.SustitutoId is { } vigenteId && saltosAlVigente < 5)
         {
             ToastService.Mostrar(TextosDrawerGestionDocumento.Texto("HistorialAbreVigente"), TonoToast.Info);
-            await AbrirEditarAsync(vigenteId, saltosAlVigente + 1);
-            return;
+            return await AbrirEditarInternoAsync(vigenteId, saltosAlVigente + 1);
         }
 
         if (documento.SustitutoId is not null)
         {
             ToastService.Mostrar(TextosDrawerGestionDocumento.Texto("HistorialNoEditable"), TonoToast.Error);
-            return;
+            return false;
         }
 
+        // Abrir de uno en uno termina cualquier serie anterior: AbrirSerieAsync la fija después.
+        _pasosPendientes = [];
         _editandoId = documento.Id;
         _versionEditando = documento.Version;
         _ambitoAplicacion = documento.Ambito.ToString();
@@ -312,6 +381,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         _drawerVisible = true;
         FijarInstantaneaFormulario();
         StateHasChanged();
+        return true;
     }
 
     private async Task CambiarAmbitoAsync(string valor)
@@ -458,6 +528,10 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// </summary>
     private async Task ManejarArchivoSeleccionadoAsync(InputFileChangeEventArgs e)
     {
+        // Con un guardado en curso el formulario está a punto de cerrarse o de cargar el siguiente
+        // documento de la serie: un archivo elegido ahora acabaría adjunto al documento equivocado.
+        if (_guardando) return;
+
         var archivos = e.GetMultipleFiles(MaximoArchivosPorSubida);
 
         foreach (var archivo in archivos)
@@ -613,8 +687,15 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// tenía el documento probablemente se subió el archivo equivocado —
     /// se pide confirmación explícita en vez de guardar directamente.
     /// </summary>
-    private async Task GuardarAsync()
+    private Task GuardarAsync() => GuardarAsync(seguir: HaySiguiente);
+
+    /// <summary>«Guardar» a secas cuando el primario es «Guardar y siguiente»: guarda, cierra y deja la serie.</summary>
+    private Task GuardarSinSeguirAsync() => _guardando ? Task.CompletedTask : GuardarAsync(seguir: false);
+
+    private async Task GuardarAsync(bool seguir)
     {
+        _seguirTrasGuardar = seguir;
+
         if (_editandoId is not null
             && _fechaEmisionOriginal is not null
             && DateOnly.TryParse(_fechaEmision, out var nuevaFecha)
@@ -638,6 +719,41 @@ public partial class DrawerGestionDocumento : ComponentBase
         {
             _procesandoConfirmacionVigencia = false;
             _confirmarVigenciaAnteriorVisible = false;
+        }
+    }
+
+    /// <summary>
+    /// Tras un guardado ya confirmado: la ficha recarga su lista y el formulario carga el siguiente
+    /// de la serie sin cerrarse. Un paso que ya no se puede abrir (se eliminó entretanto) se salta;
+    /// si no queda ninguno, se cierra como «Guardar». Un fallo aquí no es un fallo del guardado, así
+    /// que no se enseña como tal ni deja a la vista el formulario del documento ya guardado, cuya
+    /// versión quedó atrás: se cierra y se dice.
+    /// </summary>
+    private async Task SeguirConElSiguienteAsync(IReadOnlyList<PasoSerieDocumento> pendientes)
+    {
+        try
+        {
+            if (OnGuardado.HasDelegate)
+                await OnGuardado.InvokeAsync();
+
+            for (var i = 0; i < pendientes.Count; i++)
+            {
+                if (!await AbrirPasoAsync(pendientes[i], alAvanzar: true)) continue;
+
+                _pasosPendientes = pendientes.Skip(i + 1).ToList();
+                return;
+            }
+
+            _pasosPendientes = [];
+            _mensajeErrorFormulario = null;
+            _drawerVisible = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "El documento se guardó, pero no se pudo abrir el siguiente de la serie.");
+            _pasosPendientes = [];
+            _drawerVisible = false;
+            ToastService.Mostrar(TextosDrawerGestionDocumento.Texto("SiguienteNoDisponible"), TonoToast.Error);
         }
     }
 
@@ -735,9 +851,20 @@ public partial class DrawerGestionDocumento : ComponentBase
                 _editandoId is null ? "Documento creado correctamente." : "Documento renovado correctamente.",
                 TonoToast.Exito);
 
-            _drawerVisible = false;
-            if (OnGuardado.HasDelegate)
-                await OnGuardado.InvokeAsync();
+            var pendientes = _seguirTrasGuardar ? _pasosPendientes : [];
+            if (pendientes.Count == 0)
+            {
+                _pasosPendientes = [];
+                _drawerVisible = false;
+                if (OnGuardado.HasDelegate)
+                    await OnGuardado.InvokeAsync();
+                return;
+            }
+
+            // Lo guardado ya no es un cambio pendiente: mientras la ficha recarga y llega el
+            // siguiente, cerrar no tiene nada por lo que preguntar.
+            FijarInstantaneaFormulario();
+            await SeguirConElSiguienteAsync(pendientes);
         }
         catch (ValidationException ex)
         {

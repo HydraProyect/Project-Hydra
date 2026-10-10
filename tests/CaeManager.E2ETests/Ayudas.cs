@@ -1,4 +1,5 @@
 ﻿using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
 using PdfSharp.Pdf;
@@ -707,6 +708,15 @@ public static class Ayudas
 
     public static async Task IniciarSesionAsync(IPage page, string baseUrl, string email, string password)
     {
+        // Cada recorrido empieza con la vista de fábrica en todos los listados, la dejara como la dejara
+        // el anterior que entró con esta cuenta (ver WebAppFixture.OlvidarVistasRecordadasAsync).
+        // Sin fixture para esa URL no hay limpieza, y sin limpieza el recorrido hereda la vista del anterior:
+        // se falla aquí, en voz alta, en vez de dejar de aislar en silencio (p. ej. una URL con barra final).
+        var fixture = WebAppFixture.DeLaUrl(baseUrl)
+            ?? throw new InvalidOperationException(
+                $"Ninguna fixture sirve la URL base «{baseUrl}»: no se puede olvidar la vista recordada de la cuenta antes de entrar.");
+        await fixture.OlvidarVistasRecordadasAsync(email);
+
         await page.GotoAsync($"{baseUrl}/cuenta/iniciar-sesion");
         await page.FillAsync("#email", email);
         await page.FillAsync("#password", password);
@@ -796,23 +806,31 @@ public static class Ayudas
     /// <summary>
     /// /centros agrupa por Cliente empresarial y los grupos arrancan contraídos (rediseño de
     /// listados, fase 1): sin buscar, las filas de Centro no se ven. Para los recorridos que
-    /// necesitan una fila cualquiera, «Sin agrupar» las pinta todas.
-    ///
-    /// El botón llega con el prerender antes que el circuito y un clic en esa ventana se pierde:
-    /// se repite hasta que el propio botón dice que está pulsado (aria-pressed), y luego se
-    /// espera a que no quede ninguna cabecera de grupo.
+    /// necesitan una fila cualquiera, «Sin agrupar» (en el desplegable «Agrupar») las pinta todas.
     /// </summary>
     public static async Task MostrarCentrosSinAgruparAsync(IPage page)
     {
-        var sinAgrupar = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Sin agrupar", Exact = true });
-        await sinAgrupar.WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
-        for (var intento = 1; await sinAgrupar.GetAttributeAsync("aria-pressed") != "true"; intento++)
-        {
-            Assert.True(intento <= 10, "«Sin agrupar» no se aplicó tras 10 clics.");
-            await sinAgrupar.ClickAsync();
-            await page.WaitForTimeoutAsync(1_000);
-        }
+        await ElegirAgrupacionAsync(page, "Sin agrupar", new Regex("^Agrupar: no$"));
         await Assertions.Expect(page.Locator(".grupo-lista")).ToHaveCountAsync(0);
+    }
+
+    /// <summary>El desplegable «Agrupar» de un listado: el disparador que declara la letra A de KeyTips.</summary>
+    public static ILocator DesplegableAgrupar(IPage page) => page.Locator("[data-keytip='A']");
+
+    /// <summary>
+    /// Elige una opción del desplegable «Agrupar» por su texto («Sin agrupar», «Por Cliente») y espera a que
+    /// su pastilla diga el rótulo esperado.
+    ///
+    /// El desplegable es un <c>MenuAcciones</c> y llega con el prerender antes que el circuito: lo abre y
+    /// pulsa la opción <see cref="PulsarAccionDeMenuAsync"/>, que solo pulsa el disparador si el menú está
+    /// cerrado, confirma <c>aria-expanded</c> antes de tocar la opción y da la acción por hecha cuando el
+    /// panel se cierra.
+    /// </summary>
+    public static async Task ElegirAgrupacionAsync(IPage page, string opcion, Regex rotuloEsperado)
+    {
+        var agrupar = DesplegableAgrupar(page);
+        await PulsarAccionDeMenuAsync(agrupar, opcion);
+        await Assertions.Expect(agrupar).ToHaveTextAsync(rotuloEsperado, new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
     }
 
     /// <summary>

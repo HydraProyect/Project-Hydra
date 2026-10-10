@@ -31,6 +31,10 @@
 <body>
     <Routes />
     <ReconnectModal />
+    @* Antes de blazor.web.js, a propósito: los oyentes de popstate de window corren en el orden en que se
+       registraron (el modo captura no adelanta a nadie cuando el destino es window), y este tiene que ver «atrás»
+       antes de que Blazor avise al circuito del cambio de URL. Lo fija AvisoSalidaDelNavegadorE2ETests. *@
+    <script src="@Assets["js/aviso-salida-navegador.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="@Assets["js/microinteracciones.js"]"></script>
     <script src="@Assets["js/destello-fila.js"]"></script>

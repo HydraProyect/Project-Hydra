@@ -40,7 +40,7 @@ public class NotaInternaTests : BunitContext
         pieza.QuerySelector(".tarjeta.tarjeta-compacta").Should().NotBeNull();
         pieza.QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Nota interna");
         pieza.QuerySelector(".nota-interna-texto")!.TextContent.Should().Be("Llamar antes de las 10.\nPreguntar por Leire.");
-        pieza.QuerySelector(".nota-interna-pie")!.TextContent.Trim().Should().Be("Solo visible para tu equipo.");
+        pieza.QuerySelector(".nota-interna-pie")!.TextContent.Trim().Should().Be("No la ve el cliente.");
         pieza.QuerySelectorAll("[data-vacia]").Should().BeEmpty();
         pieza.QuerySelectorAll(".tarjeta-acciones").Should().BeEmpty("sin Acciones la tarjeta es de solo lectura");
     }
@@ -54,7 +54,7 @@ public class NotaInternaTests : BunitContext
         var cut = Render<NotaInterna>(p => p.Add(x => x.Texto, texto));
 
         cut.Find("[data-vacia=true]").TextContent.Trim().Should().Be("Sin nota interna.");
-        cut.Find(".nota-interna-pie").TextContent.Trim().Should().Be("Solo visible para tu equipo.");
+        cut.Find(".nota-interna-pie").TextContent.Trim().Should().Be("No la ve el cliente.");
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class NotaInternaTests : BunitContext
         lateral.LastElementChild!.GetAttribute("data-pieza").Should().Be("nota-interna", "la nota cierra el lateral, tras «Información»");
         var nota = lateral.QuerySelector("[data-pieza=nota-interna]")!;
         nota.QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Nota interna");
-        nota.TextContent.Should().Contain("Pedir siempre el certificado con las horas.").And.Contain("Solo visible para tu equipo.");
+        nota.TextContent.Should().Contain("Pedir siempre el certificado con las horas.").And.Contain("No la ve el cliente.");
     }
 
     [Fact]

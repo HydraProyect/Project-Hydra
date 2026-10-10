@@ -16,6 +16,7 @@
 // tecla siguiente se la queda el navegador. preventDefault() en el keydown Y en el keyup de
 // Alt lo evita; por eso se cancelan los dos siempre que el foco no esté en un campo de texto.
 import { hayDialogoModalAbierto } from './atajos-contexto.js';
+import { letraDePestanaDeFicha, objetivosDeFicha } from './atajos-ficha.js';
 
 // Debe coincidir con CatalogoAtajos.KeyTips (CatalogoAtajosSincronizadoConJsTests). Son las
 // letras de los controles compartidos: una letra deducida nunca las ocupa, aunque el control
@@ -126,7 +127,18 @@ function objetivos() {
 
         if (!esVisible(declarado)) continue;
         if (!declarado.hasAttribute('data-keytip-grupo') && !estaHabilitado(declarado)) continue;
-        lista.push({ elemento: declarado, letra: declarado.getAttribute('data-keytip') ?? '', nombre: nombreDe(declarado) });
+        // Las pestañas de una ficha 360 llevan su cifra (1–9), la misma tecla que las cambia
+        // sin el modo; en cualquier otra pantalla, la letra declarada o la deducida.
+        const letra = declarado.getAttribute('data-keytip') || letraDePestanaDeFicha(declarado);
+        lista.push({ elemento: declarado, letra, nombre: nombreDe(declarado) });
+    }
+    // En una ficha 360: el botón de la fila enfocada y las acciones de la cabecera, que no
+    // declaran letra en su marcado (atajos-ficha.js). Con un diálogo declarado no se añaden.
+    if (raiz === document) {
+        const declarados = new Set(lista.map(objetivo => objetivo.elemento));
+        for (const extra of objetivosDeFicha(declarados)) {
+            lista.push({ elemento: extra.elemento, letra: extra.letra, nombre: nombreDe(extra.elemento) });
+        }
     }
     return lista;
 }
@@ -358,7 +370,7 @@ function ejecutar(elemento) {
         return;
     }
 
-    // Dentro de un grupo (la franja de estado, «Agrupar») elegir no saca del modo: se puede
+    // Dentro de un grupo (un control con data-keytip-grupo) elegir no saca del modo: se puede
     // encadenar otra opción. En la raíz y en un menú, ejecutar apaga.
     const sigueEnGrupo = estado.nivel.tipo === 'grupo';
     if (!sigueEnGrupo) apagar();

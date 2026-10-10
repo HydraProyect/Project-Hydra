@@ -22,9 +22,20 @@ public class WebAppFixture : IAsyncLifetime
     private static readonly Lock CandadoInstalacion = new();
     private static bool _navegadoresInstalados;
 
+    /// <summary>Las fixtures vivas, por su URL base: <see cref="Ayudas.IniciarSesionAsync"/> solo recibe la URL.</summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, WebAppFixture> FixturesPorUrl =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Mismo literal que <c>FiltroGuardado.NombreVistaRecordada</c> (CaeManager.Domain) — duplicado aquí
+    /// porque este proyecto de test no referencia Domain; si cambia allí, cambia aquí.
+    /// </summary>
+    private const string NombreVistaRecordada = "__vista_recordada__";
+
     private Process? _proceso;
     private IPlaywright? _playwright;
     private string? _cadenaConexion;
+    private bool _conexionVeTodasLasFilas;
 
     public string BaseUrl { get; private set; } = string.Empty;
 
@@ -71,6 +82,7 @@ public class WebAppFixture : IAsyncLifetime
         BaseUrl = $"http://127.0.0.1:{puerto}";
 
         _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica("e2e");
+        FixturesPorUrl[BaseUrl] = this;
 
         var rutaDll = LocalizarCaeManagerWebDll();
         DirectorioLogs = Path.Combine(Path.GetDirectoryName(rutaDll)!, "App_Data", "logs");
@@ -287,8 +299,54 @@ public class WebAppFixture : IAsyncLifetime
                ?? throw new InvalidOperationException($"La consulta no devolvió ninguna fila: {sql}");
     }
 
+    /// <summary>La fixture que sirve esa URL base, o <c>null</c> si no es ninguna de estas.</summary>
+    internal static WebAppFixture? DeLaUrl(string baseUrl) => FixturesPorUrl.GetValueOrDefault(baseUrl);
+
+    /// <summary>
+    /// Olvida la vista recordada de todos los listados del Usuario con ese correo, en todos sus Tenants, y
+    /// devuelve cuántas tenía. Los filtros guardados con nombre no se tocan.
+    ///
+    /// <para>
+    /// La vista recordada es estado persistente del Usuario y los recorridos comparten cuentas de la siembra:
+    /// sin esto, el filtro que dejó puesto un recorrido se le restaura al siguiente que entra con la misma
+    /// cuenta en el mismo listado sin parámetros, y deja de ver la lista que esperaba. Medido el 2026-10-10:
+    /// la búsqueda que <c>ImportarClientesTests</c> dejó en Clientes tapó el Cliente recién creado de
+    /// <c>ClientesListaLeeEmpresasE2ETests</c>. <see cref="Ayudas.IniciarSesionAsync"/> lo llama antes de
+    /// entrar, así que cada recorrido empieza con la vista de fábrica; lo que recuerde DENTRO del recorrido
+    /// se le sigue restaurando, como a cualquier usuario.
+    /// </para>
+    ///
+    /// <para>
+    /// <c>FiltrosGuardados</c> está bajo RLS por Tenant y aquí no hay Tenant fijado: con una conexión que no
+    /// se la salte, el borrado no vería ninguna fila y devolvería 0 sin fallar. Se comprueba una vez, y si
+    /// no es así se falla en voz alta.
+    /// </para>
+    /// </summary>
+    public async Task<int> OlvidarVistasRecordadasAsync(string email)
+    {
+        if (!_conexionVeTodasLasFilas)
+        {
+            var seSaltaRls = await LeerValorSqlAsync(
+                "SELECT (rolsuper OR rolbypassrls)::text FROM pg_roles WHERE rolname = current_user");
+            if (seSaltaRls != "true")
+                throw new InvalidOperationException(
+                    "La conexión de la fixture no se salta RLS: no puede olvidar las vistas recordadas entre recorridos.");
+
+            _conexionVeTodasLasFilas = true;
+        }
+
+        return await EjecutarSqlAsync(
+            """
+            DELETE FROM "FiltrosGuardados" f USING "AspNetUsers" u
+            WHERE f."UsuarioId" = u."Id" AND u."NormalizedEmail" = upper(@email) AND f."Nombre" = @nombre
+            """,
+            ("email", email), ("nombre", NombreVistaRecordada));
+    }
+
     public async Task DisposeAsync()
     {
+        FixturesPorUrl.TryRemove(BaseUrl, out _);
+
         if (Browser is not null)
             await Browser.CloseAsync();
 
@@ -366,40 +424,33 @@ public class WebAppFixture : IAsyncLifetime
     /// la señal real de que las migraciones y la siembra de datos de prueba
     /// (varios cientos de filas) ya terminaron, no solo que el proceso existe.
     ///
-    /// Presupuesto de 120s: tres sesiones midieron el arranque en frío por
-    /// separado el 2026-08-28 y rondaba los 63s contra un presupuesto de 60s
-    /// — producía fallos rojos con traza en InitializeAsync que no eran del
-    /// código bajo prueba (en caliente los mismos tests pasan en 3-4s). El
-    /// margen no penaliza el camino feliz: el sondeo devuelve en cuanto /salud
-    /// responde 200, así que un techo más alto solo importa cuando el arranque
-    /// ya iba lento.
+    /// Plazo total de 240s, con 5s por petición y 250ms entre intentos. El
+    /// plazo se subió dos veces: de 60s a 120s en #336, porque tres sesiones
+    /// midieron el arranque en frío por separado el 2026-08-28 y rondaba los
+    /// 63s — producía fallos rojos con traza en InitializeAsync que no eran
+    /// del código bajo prueba (en caliente los mismos tests pasan en 3-4s) —,
+    /// y de 120s a 240s en #998 (2026-09-29), cuyo mensaje de commit no dice
+    /// el motivo. El margen no penaliza el camino feliz: el sondeo devuelve en
+    /// cuanto /salud responde 200, así que un techo más alto solo importa
+    /// cuando el arranque ya iba lento.
+    ///
+    /// El bucle vive en <see cref="SondeoDeArranque"/> para poder probarlo
+    /// sin proceso ni red; ahí está también qué respuestas se reintentan (la
+    /// petición que agota sus 5s, entre ellas). La pausa se escribe aquí y
+    /// viaja como delegado.
     /// </summary>
     private async Task EsperarArranqueAsync()
     {
         using var cliente = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-        var limite = DateTime.UtcNow.AddSeconds(240);
+        var url = $"{BaseUrl}/salud";
 
-        while (DateTime.UtcNow < limite)
-        {
-            if (_proceso is { HasExited: true })
-                throw new InvalidOperationException(
-                    $"El proceso de CaeManager.Web terminó inesperadamente (código {_proceso.ExitCode}) mientras esperábamos que arrancara.");
-
-            try
-            {
-                var respuesta = await cliente.GetAsync($"{BaseUrl}/salud");
-                if (respuesta.IsSuccessStatusCode)
-                    return;
-            }
-            catch (HttpRequestException)
-            {
-                // Todavía no acepta conexiones — se reintenta.
-            }
-
-            await Task.Delay(250);
-        }
-
-        throw new TimeoutException($"CaeManager.Web no respondió 200 en {BaseUrl}/salud dentro del tiempo de espera.");
+        await SondeoDeArranque.EsperarAsync(
+            pedirSalud: () => cliente.GetAsync(url),
+            codigoDeSalidaSiElProcesoTermino: () => _proceso is { HasExited: true } ? _proceso.ExitCode : null,
+            plazo: TimeSpan.FromSeconds(240),
+            ahora: () => DateTime.UtcNow,
+            pausa: () => Task.Delay(250),
+            url: url);
     }
 }
 
@@ -454,6 +505,23 @@ public class AppCollectionRetencion : ICollectionFixture<WebAppFixtureConRetenci
 public class AppCollectionSoporte : ICollectionFixture<WebAppFixtureParaSoporte>;
 
 public sealed class WebAppFixtureParaSoporte : WebAppFixture;
+
+/// <summary>
+/// Instancia propia (sin variables de entorno extra) para los tests de los
+/// listados: fila sin menú, exportar, filtros en la URL, cabeceras, teclado y
+/// KeyTips. No existe por aislamiento de datos sino por reloj: "AppCollection"
+/// llenaba sola un bloque del job E2E de CI (unos 9 minutos de tests) y era su
+/// camino crítico. Con esta mitad aparte, el reparto por colección de
+/// scripts/repartir-e2e-por-coleccion.sh las pone en bloques distintos. El
+/// coste es un arranque más de la aplicación por run (unos 39 s de runner).
+/// Las clases con acoplamientos de datos conocidos entre sí (AlcanceRoles con
+/// FlujoDelegatedWorkspace, FlujoCritico con FlujoBandejaPriorizada) y las de
+/// autorización y multi-tenancy se quedan en "AppCollection".
+/// </summary>
+[CollectionDefinition("AppCollectionListados")]
+public class AppCollectionListados : ICollectionFixture<WebAppFixtureListados>;
+
+public sealed class WebAppFixtureListados : WebAppFixture;
 
 
 /// <summary>Instancia propia: los tests de cuenta a medio activar dejan cuentas de prueba en ese estado.</summary>

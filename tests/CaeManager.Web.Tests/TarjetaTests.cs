@@ -38,6 +38,35 @@ public class TarjetaTests : BunitContext
         titulo.TextContent.Trim().Should().Be("Presupuesto de IA");
     }
 
+    /// <summary>
+    /// El título tiene que llevar el atributo de ámbito del CSS aislado
+    /// (<c>b-…</c>) igual que la raíz: sin él, <c>.tarjeta-titulo[b-…]</c> de
+    /// <c>Tarjeta.razor.css</c> no casa y el título hereda el h2 global. Estuvo
+    /// así desde que <c>NivelTitulo</c> lo pintó con <c>RenderTreeBuilder</c>,
+    /// que no recibe ese atributo. bUnit no aplica CSS: esto observa el
+    /// atributo, no el estilo calculado.
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void El_titulo_lleva_el_atributo_de_ambito_del_css_aislado(int nivel)
+    {
+        var cut = Render<Tarjeta>(p => p
+            .Add(t => t.Titulo, "Canales de gestión")
+            .Add(t => t.NivelTitulo, nivel));
+
+        var ambito = cut.Find(".tarjeta").Attributes
+            .Select(a => a.Name)
+            .Where(n => n.StartsWith("b-", StringComparison.Ordinal))
+            .ToList();
+
+        ambito.Should().ContainSingle(
+            "sin atributo de ámbito en la raíz, esta prueba estaría en verde por no mirar nada");
+        cut.Find(".tarjeta-titulo").HasAttribute(ambito[0]).Should().BeTrue(
+            "la regla aislada .tarjeta-titulo solo casa con un elemento que lleve el atributo de ámbito");
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(5)]

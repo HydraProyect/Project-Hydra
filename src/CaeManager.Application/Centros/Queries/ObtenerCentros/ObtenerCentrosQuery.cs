@@ -30,11 +30,18 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCentros;
 /// de estado. El estado de un Centro se calcula, así que pedirlo obliga a calcularlo para todos los Centros que
 /// pasan los filtros, no solo para la página: solo lo pide el listado, que es quien pinta la franja.
 /// </param>
+/// <param name="ConResumenPorGrupo">
+/// Rellena <c>ResultadoPaginado.ResumenPorGrupo</c>: por cada Cliente empresarial (el grupo del listado de Centros,
+/// con su Id como clave), cuántos Centros tiene y cuántos en cada estado, contando TODOS los que pasan los filtros
+/// —también el de estado— y el alcance del usuario, no solo los de la página. Como los recuentos por estado,
+/// obliga a calcular el estado de todos esos Centros: solo lo pide el listado, que es quien pinta los grupos.
+/// </param>
 public record ObtenerCentrosQuery(
     string? Busqueda, Guid? ClienteId, EstadoCentro? Estado = null,
     string? OrdenarPor = null, bool Descendente = false, int Pagina = 1, int TamanoPagina = 20,
     Guid? CentroId = null, Guid? EmpresaId = null,
-    IReadOnlyCollection<EstadoCentro>? Estados = null, bool ConRecuentosPorEstado = false)
+    IReadOnlyCollection<EstadoCentro>? Estados = null, bool ConRecuentosPorEstado = false,
+    bool ConResumenPorGrupo = false)
     : IRequest<ResultadoPaginado<CentroListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -88,10 +95,12 @@ public record CentroListaDto(
 ///
 /// - <b>Camino normal</b>: se ordena y pagina en SQL y el estado se calcula
 ///   solo para los 20 centros de la página, como se venía haciendo.
-/// - <b>Camino con estado</b> (filtrar por Estado u ordenar por Estado): hace
-///   falta conocer el estado de todos los centros que pasan los filtros antes
-///   de poder paginar, así que se materializa esa proyección — corta, seis
-///   columnas — y se filtra, ordena y pagina en memoria. Está acotado por el
+/// - <b>Camino con estado</b> (filtrar por Estado, ordenar por Estado o por
+///   cumplimiento, o pedir los recuentos por estado o el resumen por grupo):
+///   hace falta conocer el estado de todos los centros que pasan los filtros
+///   antes de poder paginar o resumir, así que se materializa esa proyección
+///   — corta, siete columnas — y se filtra, ordena, resume y pagina en
+///   memoria. El listado de Centros va siempre por aquí. Está acotado por el
 ///   alcance del usuario y por la búsqueda; si algún día un tenant tiene
 ///   tantos centros que esto pese, la salida es una vista materializada, no
 ///   persistir el estado en una columna.
@@ -117,11 +126,11 @@ public class ObtenerCentrosQueryHandler(
 
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
         {
-            var busqueda = request.Busqueda.ToUpper();
-            consulta = consulta.Where(x => x.centro.Nombre.ToUpper().Contains(busqueda)
-                || (x.centro.CodigoCentro != null && x.centro.CodigoCentro.ToUpper().Contains(busqueda))
-                || x.cliente.RazonSocial.ToUpper().Contains(busqueda)
-                || x.empresa.RazonSocial.ToUpper().Contains(busqueda));
+            var busqueda = request.Busqueda;
+            consulta = consulta.Where(x => TextoDeBusqueda.Contiene(x.centro.Nombre, busqueda)
+                || (x.centro.CodigoCentro != null && TextoDeBusqueda.Contiene(x.centro.CodigoCentro, busqueda))
+                || TextoDeBusqueda.Contiene(x.cliente.RazonSocial, busqueda)
+                || TextoDeBusqueda.Contiene(x.empresa.RazonSocial, busqueda));
         }
 
         if (request.ClienteId is not null)
@@ -143,6 +152,7 @@ public class ObtenerCentrosQueryHandler(
         var necesitaEstadoCompleto =
             estadosPedidos.Count > 0 ||
             request.ConRecuentosPorEstado ||
+            request.ConResumenPorGrupo ||
             string.Equals(request.OrdenarPor, nameof(CentroListaDto.Estado), StringComparison.Ordinal) ||
             string.Equals(request.OrdenarPor, nameof(CentroListaDto.CumplimientoPorcentaje), StringComparison.Ordinal);
 
@@ -170,7 +180,22 @@ public class ObtenerCentrosQueryHandler(
             }
 
             if (estadosPedidos.Count > 0)
-                conEstado = conEstado.Where(c => estadosPedidos.Contains(c.Estado));
+                conEstado = conEstado.Where(c => estadosPedidos.Contains(c.Estado)).ToList();
+
+            // Después de filtrar por estado y antes de paginar: el resumen de un grupo describe lo que se lista
+            // bajo los filtros vigentes, en todas las páginas. Sale del mismo conjunto ya acotado por el alcance
+            // del usuario (centroIdsVisibles) y por el Tenant (RLS): no hay consulta nueva que pueda ver más.
+            IReadOnlyDictionary<string, ResumenDeGrupo>? resumenPorGrupo = null;
+            if (request.ConResumenPorGrupo)
+            {
+                resumenPorGrupo = conEstado
+                    .GroupBy(c => c.ClienteId)
+                    .ToDictionary(
+                        grupo => grupo.Key.ToString(),
+                        grupo => new ResumenDeGrupo(
+                            grupo.Count(),
+                            grupo.GroupBy(c => c.Estado).ToDictionary(porEstado => porEstado.Key.ToString(), porEstado => porEstado.Count())));
+            }
 
             var ordenados = OrdenarEnMemoria(conEstado, request.OrdenarPor, request.Descendente)
                 .ThenBy(c => c.Id)
@@ -182,7 +207,8 @@ public class ObtenerCentrosQueryHandler(
                 request.Pagina,
                 request.TamanoPagina)
             {
-                RecuentosPorEstado = recuentosPorEstado
+                RecuentosPorEstado = recuentosPorEstado,
+                ResumenPorGrupo = resumenPorGrupo
             };
         }
 

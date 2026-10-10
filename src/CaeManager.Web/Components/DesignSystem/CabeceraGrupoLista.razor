@@ -1,0 +1,105 @@
+@*
+    Cabecera de grupo de un listado agrupado: chevron, nombre del grupo, cuántas filas tiene y un resumen
+    por estado («● 1 vencido ● 2 por vencer»). No sabe de qué es el listado: la pantalla le da el nombre,
+    las cifras ya calculadas y el tinte.
+
+    - Blanca de serie. Solo se tiñe si la pantalla lo pide (Tinte), con las mismas clases que tiñen una fila
+      con problema (.fila-tintada-peligro / .fila-tintada-aviso, list-page.css): la pantalla decide el nivel
+      con el mismo criterio con el que tiñe sus filas.
+    - Total es el del grupo ENTERO (todas las páginas). Si la página solo enseña parte (EnPagina < Total) el
+      contador lo dice: «3 de 12», con «3 de 12 en esta página» de título.
+    - Con Termino (lo escrito en el buscador de la pantalla), la parte del nombre que casa sale marcada con
+      TextoResaltado, igual que en las filas. Solo tiene sentido si la consulta busca por ese nombre.
+    - Es un botón con aria-expanded que abre y contrae el grupo. Si algo ajeno al grupo lo mantiene abierto
+      (búsqueda, selección múltiple…), Fijo: no es un botón ni lleva aria-expanded, porque no podría contraerlo.
+
+    La cabecera no pinta las filas: la pantalla las pinta (o no) según Abierto.
+
+    Uso (dentro del foreach de la lista, con @key por grupo):
+
+        <CabeceraGrupoLista @key="clavesDeGrupo.De(grupo.Clave)" Nombre="@grupo.Nombre" Termino="@_busqueda" Total="grupo.Total"
+                            EnPagina="grupo.Filas.Count" Resumen="grupo.Resumen" Tinte="grupo.Tinte"
+                            Abierto="abierto" Fijo="GruposForzadosAbiertos" OnAlternar="() => AlternarGrupo(grupo.Clave)" />
+*@
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+
+<div class="@("grupo-lista" + ClaseTinte)">
+    @if (Fijo)
+    {
+        <div class="grupo-lista-cabecera grupo-lista-cabecera-abierta grupo-lista-cabecera-fija">@Contenido</div>
+    }
+    else
+    {
+        <button type="button" class="@("grupo-lista-cabecera" + (Abierto ? " grupo-lista-cabecera-abierta" : ""))"
+                aria-expanded="@(Abierto ? "true" : "false")" @onclick="OnAlternar">
+            @Contenido
+        </button>
+    }
+</div>
+
+@code {
+    /// <summary>Nombre del grupo («Astilleros Orion»).</summary>
+    [Parameter, EditorRequired] public string Nombre { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Lo escrito en el buscador de la pantalla, si la consulta busca también por el nombre del grupo: la
+    /// parte que casa sale marcada (<see cref="TextoResaltado"/>). Sin valor, el nombre se pinta sin marca.
+    /// </summary>
+    [Parameter] public string? Termino { get; set; }
+
+    /// <summary>Filas del grupo entero, en todas las páginas.</summary>
+    [Parameter, EditorRequired] public int Total { get; set; }
+
+    /// <summary>Filas del grupo que hay en esta página. Sin valor, o si son todas, el contador solo dice el total.</summary>
+    [Parameter] public int? EnPagina { get; set; }
+
+    /// <summary>Título del contador cuando la página enseña el grupo entero («12 centro(s)»). Opcional.</summary>
+    [Parameter] public string? TituloContador { get; set; }
+
+    /// <summary>Resumen por estado, ya redactado y en el orden en que se pinta. Vacío: sin resumen.</summary>
+    [Parameter] public IReadOnlyList<ResumenEstadoGrupo> Resumen { get; set; } = [];
+
+    [Parameter] public TinteGrupoLista Tinte { get; set; }
+
+    [Parameter] public bool Abierto { get; set; }
+
+    /// <summary>El grupo está abierto por algo ajeno a él y la cabecera no puede contraerlo.</summary>
+    [Parameter] public bool Fijo { get; set; }
+
+    [Parameter] public EventCallback OnAlternar { get; set; }
+
+    private bool EsParcial => EnPagina is { } enPagina && enPagina < Total;
+
+    private string ClaseTinte => Tinte switch
+    {
+        TinteGrupoLista.Peligro => " fila-tintada-peligro",
+        TinteGrupoLista.Aviso => " fila-tintada-aviso",
+        _ => string.Empty,
+    };
+
+    private RenderFragment Contenido => @<text>
+        <span class="grupo-lista-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+        <span class="grupo-lista-nombre"><TextoResaltado Texto="@Nombre" Termino="@Termino" /></span>
+        @if (EsParcial)
+        {
+            <span class="grupo-lista-contador" title="@Comunes["GrupoContadorParcialTitulo", EnPagina!.Value, Total]">@Comunes["GrupoContadorParcial", EnPagina!.Value, Total]</span>
+        }
+        else
+        {
+            <span class="grupo-lista-contador" title="@TituloContador">@Total</span>
+        }
+        @if (Resumen.Count > 0)
+        {
+            <span class="grupo-lista-resumen">
+                @foreach (var estado in Resumen)
+                {
+                    <span class="grupo-lista-resumen-estado">
+                        <span class="@($"grupo-lista-punto grupo-lista-punto-{estado.Tono.ToString().ToLowerInvariant()}")" aria-hidden="true"></span>@estado.Texto
+                    </span>
+                }
+            </span>
+        }
+    </text>;
+}

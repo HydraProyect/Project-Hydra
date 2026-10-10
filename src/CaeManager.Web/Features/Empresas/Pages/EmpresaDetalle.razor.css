@@ -41,6 +41,11 @@
     gap: var(--space-3);
 }
 
+/* Buscador de la pestaña Trabajadores, sobre los chips de estado. */
+.empresa360-buscador {
+    margin-bottom: var(--space-3);
+}
+
 .empresa360-chips {
     display: flex;
     flex-wrap: wrap;

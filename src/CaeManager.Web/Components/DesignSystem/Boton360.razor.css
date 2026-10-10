@@ -26,28 +26,30 @@
     outline-offset: 1px;
 }
 
-/* Enlace a la página 360 completa (listados). Al pasar el cursor o enfocarlo, el icono gira
-   media vuelta con la curva de los iconos animados; sin giro con movimiento reducido. */
+/* Al pasar el cursor o enfocarlo, el icono gira media vuelta con la curva de los iconos
+   animados, en las dos variantes: el botón que abre el panel (cabeceras y filas de las fichas
+   360) y el enlace a la página 360 completa (listados). Sin giro con movimiento reducido. */
+.boton-360 ::deep svg {
+    transition: transform 360ms var(--ease-fluid);
+}
+
+.boton-360:hover ::deep svg,
+.boton-360:focus-visible ::deep svg {
+    transform: rotate(180deg);
+}
+
+/* Enlace a la página 360 completa (listados). */
 .boton-360-pagina {
     text-decoration: none;
 }
 
-.boton-360-pagina ::deep svg {
-    transition: transform 360ms var(--ease-fluid);
-}
-
-.boton-360-pagina:hover ::deep svg,
-.boton-360-pagina:focus-visible ::deep svg {
-    transform: rotate(180deg);
-}
-
 @media (prefers-reduced-motion: reduce) {
-    .boton-360-pagina ::deep svg {
+    .boton-360 ::deep svg {
         transition: none;
     }
 
-    .boton-360-pagina:hover ::deep svg,
-    .boton-360-pagina:focus-visible ::deep svg {
+    .boton-360:hover ::deep svg,
+    .boton-360:focus-visible ::deep svg {
         transform: none;
     }
 }

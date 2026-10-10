@@ -90,6 +90,15 @@
   <data name="EstadoCompletada" xml:space="preserve">
     <value>Completada</value>
   </data>
+  <data name="MotivoAbiertaHoy" xml:space="preserve">
+    <value>Oberta avui</value>
+  </data>
+  <data name="MotivoAbiertaHaceUnDia" xml:space="preserve">
+    <value>Oberta fa 1 dia</value>
+  </data>
+  <data name="MotivoAbiertaHaceDias" xml:space="preserve">
+    <value>Oberta fa {0} dies</value>
+  </data>
   <data name="AccionReabrir" xml:space="preserve">
     <value>Reabrir</value>
   </data>

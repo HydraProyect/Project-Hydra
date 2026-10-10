@@ -161,6 +161,9 @@
                         case PestanaPaquete:
                             @PestanaDelPaquete
                             break;
+                        case PestanaFicha:
+                            <CajasFicha Cajas="CajasDeFicha" />
+                            break;
                         default:
                             @* En el marcado y no en un fragmento de @code: declara su fuente de claves. *@
                             {
@@ -295,20 +298,6 @@
                     </ChildContent>
                 </Tarjeta>
 
-                @if (!EsCancelada && visita.Tramo is { } tramo)
-                {
-                    <Tarjeta Titulo="@Textos["DetalleAntelacion"]">
-                        <p class="visita360-pastillas">
-                            <Badge Tono="@AntelacionVisitaUi.Tono(tramo)">@AntelacionVisitaUi.Texto(tramo)</Badge>
-                            @if (!string.IsNullOrWhiteSpace(AntelacionVisitaUi.TextoAtribucion(visita.Atribucion)))
-                            {
-                                <Badge Tono="TonoBadge.Neutro">@AntelacionVisitaUi.TextoAtribucion(visita.Atribucion)</Badge>
-                            }
-                        </p>
-                        <p class="visita360-texto">@Textos["DetalleAntelacionHoras", AntelacionVisitaUi.Horas(visita.AntelacionNominalHoras), AntelacionVisitaUi.Horas(visita.AntelacionEfectivaHoras)]</p>
-                    </Tarjeta>
-                }
-
                 @if (!string.IsNullOrWhiteSpace(visita.Notas) || (_puedeEscribir && !EsCancelada))
                 {
                     <Tarjeta Titulo="@Textos["EtiquetaNotas"]">
@@ -390,6 +379,29 @@
                 <a class="visita360-enlace" href="@($"/empresas/{visita.EmpresaId}")" title="@Comunes["IrAPaginaDe", visita.EmpresaRazonSocial]">@visita.EmpresaRazonSocial</a>
                 <span>·</span>
                 <a class="visita360-enlace" href="@($"/centros/{visita.CentroId}")" title="@Comunes["IrAPaginaDe", visita.CentroNombre]">@Textos["Visita360VerCentro"]</a>
+    };
+
+    /// <summary>
+    /// Cajas de la pestaña «Ficha»: lo que no cabe en el lateral, que lleva dos o tres cajas
+    /// como mucho (decisión del 2026-10-09). Hoy, la antelación, cuando la visita la tiene.
+    /// </summary>
+    private IReadOnlyList<CajaFicha> CajasDeFicha => HayAntelacion ? [new("antelacion", CajaAntelacion)] : [];
+
+    private RenderFragment CajaAntelacion => __builder =>
+    {
+        if (_detalle is { Tramo: { } tramo } visita)
+        {
+            <Tarjeta Titulo="@Textos["DetalleAntelacion"]" Compacta="true">
+                <p class="visita360-pastillas">
+                    <Badge Tono="@AntelacionVisitaUi.Tono(tramo)">@AntelacionVisitaUi.Texto(tramo)</Badge>
+                    @if (!string.IsNullOrWhiteSpace(AntelacionVisitaUi.TextoAtribucion(visita.Atribucion)))
+                    {
+                        <Badge Tono="TonoBadge.Neutro">@AntelacionVisitaUi.TextoAtribucion(visita.Atribucion)</Badge>
+                    }
+                </p>
+                <p class="visita360-texto">@Textos["DetalleAntelacionHoras", AntelacionVisitaUi.Horas(visita.AntelacionNominalHoras), AntelacionVisitaUi.Horas(visita.AntelacionEfectivaHoras)]</p>
+            </Tarjeta>
+        }
     };
 
     private RenderFragment PestanaDelPaquete => __builder =>

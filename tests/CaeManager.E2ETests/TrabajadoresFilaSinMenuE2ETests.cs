@@ -13,8 +13,8 @@ namespace CaeManager.E2ETests;
 /// real, junto con que los controles de dentro (DNI copiable, icono 360) no abren la vista
 /// rápida. El formulario de edición lo prueba <c>TrabajadorWorkspacePanelLapizTests</c> (bUnit).
 /// </summary>
-[Collection("AppCollection")]
-public class TrabajadoresFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class TrabajadoresFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private const string Lapiz = "button[aria-label='Editar información del trabajador']";
 

@@ -1,6 +1,6 @@
 @*
     Tarjeta «Nota interna» del lateral de una ficha 360 (CuerpoConLateral): el texto libre que el equipo guarda sobre el
-    registro, o «Sin nota interna.» si no hay, y el pie «Solo visible para tu equipo.».
+    registro, o «Sin nota interna.» si no hay, y el pie «No la ve el cliente.».
 
     Es la tarjeta de Cliente 360 (ClienteDetalle, .cliente360-nota) hecha pieza: mismos textos, misma Tarjeta compacta.
 
@@ -27,7 +27,7 @@
         {
             <p class="nota-interna-texto">@Texto</p>
         }
-        <p class="nota-interna-pie">@Comunes["NotaInternaSoloEquipo"]</p>
+        <p class="nota-interna-pie">@Comunes["NotaInternaNoLaVeCliente"]</p>
     </Tarjeta>
 </div>
 

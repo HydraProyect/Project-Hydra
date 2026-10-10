@@ -16,8 +16,8 @@ namespace CaeManager.E2ETests;
 /// reparto por rol lo prueba <c>ClientesListaGen2Tests</c> (bUnit) y el lápiz del panel,
 /// <c>ClienteWorkspacePanelLapizTests</c>.
 /// </summary>
-[Collection("AppCollection")]
-public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 {
     private const string Lapiz = "button[aria-label='Editar la identidad del Cliente']";
 
@@ -145,7 +145,8 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixture fixture)
         var panel = page.Locator(".workspace-panel");
         await Expect(panel).ToHaveCountAsync(0);
 
-        // La celda «Estado documental» no tiene ningún control: solo la pastilla de estado.
+        // La celda «Estado documental» de un Cliente empresarial sin alertas (el recién creado) no tiene
+        // ningún control: solo el estado. Con alertas, el motivo es el disparador de su ventana de incidencias.
         await fila.Locator("td.col-estado").ClickAsync();
 
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(razonSocial);

@@ -18,8 +18,8 @@ namespace CaeManager.E2ETests;
 /// DENTRO de cada celda.
 /// </para>
 /// </summary>
-[Collection("AppCollection")]
-public class CentrosCabeceraAlineadaE2ETests(WebAppFixture fixture)
+[Collection("AppCollectionListados")]
+public class CentrosCabeceraAlineadaE2ETests(WebAppFixtureListados fixture)
 {
     /// <summary>Medio píxel de tolerancia de redondeo: el desvío del defecto medía 4 px.</summary>
     private const string MedirDesalineacion = """

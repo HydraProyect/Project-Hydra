@@ -360,6 +360,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "ITiposDocumentoQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "ITrabajadoresQueryContext"),
+        ("Documentos.ObtenerPlataformasEnUsoQueryHandler", "ICentrosQueryContext"),
+        ("Documentos.ObtenerPlataformasEnUsoQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Documentos.ObtenerDocumentacionBaseTrabajadoresQueryHandler", "IConfiguracionQueryContext"),
         ("Documentos.ObtenerDocumentacionBaseTrabajadoresQueryHandler", "ITiposDocumentoQueryContext"),
         ("Documentos.ObtenerDocumentoPorIdQueryHandler", "IClientesQueryContext"),
@@ -604,6 +606,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Módulo 8 § 4.1 (2026-09-17): mismo motivo que Empresas.ObtenerEmpresasQueryHandler arriba.
         // Opciones de la pastilla «Empresa» de /trabajadores: los empleadores de los Trabajadores visibles.
         ("Trabajadores.ObtenerEmpleadoresDeTrabajadoresVisiblesQueryHandler", "IEmpresasQueryContext"),
+        // Filtro «Centro» de /trabajadores: Trabajadores con una Asignación activa en ese Centro (lectura, EXISTS
+        // correlacionado en la misma consulta). Solo estrecha: se compone con el alcance.
+        ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IAsignacionesQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IConfiguracionQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IDocumentosQueryContext"),
         ("Trabajadores.ObtenerTrabajadoresQueryHandler", "IEmpresasQueryContext"),
@@ -741,6 +746,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Integraciones.ObtenerLineasWhatsAppQueryHandler", "IEmpresasQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "IEmpresasQueryContext"),
         ("Proyectos.ObtenerProyectosParaSelectorQueryHandler", "IEmpresasQueryContext"),
+        // El listado no obliga a elegir Cliente empresarial: cada fila dice el suyo (razón social). El
+        // join es interno: el Proyecto cuyo Cliente empresarial está dado de baja no se lista. El detalle
+        // (ObtenerProyectoPorIdQueryHandler) no hace lo mismo: lee la razón social con FirstAsync y lanza.
+        ("Proyectos.ObtenerProyectosQueryHandler", "IEmpresasQueryContext"),
         ("Reclamaciones.EnviarReclamacionCommandHandler", "IEmpresasQueryContext"),
         ("Reclamaciones.EnviarReclamacionEmpresaCommandHandler", "IEmpresasQueryContext"),
         ("Reclamaciones.ObtenerLoteReclamacionEmpresaQueryHandler", "IEmpresasQueryContext"),

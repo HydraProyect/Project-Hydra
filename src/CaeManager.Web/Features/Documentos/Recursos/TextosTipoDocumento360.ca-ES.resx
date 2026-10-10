@@ -127,7 +127,13 @@
     <value>Es mostren {0} de {1} · del pitjor estat al millor</value>
   </data>
   <data name="FiltroSinResultados" xml:space="preserve">
-    <value>Cap en els estats marcats.</value>
+    <value>Cap amb aquest filtre.</value>
+  </data>
+  <data name="BuscadorTrabajadores" xml:space="preserve">
+    <value>Cerca un treballador en aquest tipus de document…</value>
+  </data>
+  <data name="QuitarFiltros" xml:space="preserve">
+    <value>Treu els filtres</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
     <value>Cap Centre exigeix aquest document a cap treballador</value>

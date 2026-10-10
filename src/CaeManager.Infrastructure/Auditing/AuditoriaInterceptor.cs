@@ -3,6 +3,7 @@ using System.Text.Json;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Subcontratas;
@@ -55,6 +56,10 @@ namespace CaeManager.Infrastructure.Auditing;
 ///    campos. Un registro de auditoría que copiara el secreto TOTP sería una
 ///    segunda vía de suplantar el segundo factor, legible por el rol
 ///    Administrador desde /auditoria.
+/// 5. Lo que el usuario tecleó en un listado (<see cref="FiltroGuardado"/>,
+///    ValoresJson): los valores de un filtro guardado o de la vista recordada
+///    pueden llevar la búsqueda libre — un nombre, un DNI. Ver el comentario
+///    de esa entrada.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -150,7 +155,19 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         // cuenta, que es lo que el registro existe para responder. Las claves
         // de recuperación de dos factores comparten tabla y quedan
         // enmascaradas por el mismo camino.
-        [typeof(IdentityUserToken<Guid>)] = [nameof(IdentityUserToken<Guid>.Value)]
+        [typeof(IdentityUserToken<Guid>)] = [nameof(IdentityUserToken<Guid>.Value)],
+
+        // Punto 5 del comentario de clase (revisión del 2026-10-10): mismo
+        // criterio que DEC-9 — es CONTENIDO, no un secreto. ValoresJson lleva
+        // lo que el usuario dejó puesto en un listado, y un filtro guardado
+        // incluye la búsqueda libre: quien busca a un Trabajador por su DNI y
+        // guarda el filtro dejaría ese DNI en datos antes/después, legible
+        // desde /auditoria y sin purga cuando el Trabajador se borra. El
+        // rastro conserva quién guardó, cambió o borró qué filtro, de qué
+        // pantalla y con qué nombre, y cuándo; los valores siguen en la fila
+        // FiltrosGuardados mientras exista. La vista recordada no escribe la
+        // búsqueda (VistaRecordadaDeListado), pero comparte fila y columna.
+        [typeof(FiltroGuardado)] = [nameof(FiltroGuardado.ValoresJson)]
     };
 
     /// <summary>

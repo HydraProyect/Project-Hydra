@@ -13,6 +13,7 @@
 @using CaeManager.Web.Features.Proyectos.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosProyectos> Textos
+@inject IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.Nombre ?? Textos["TituloPestanaNavegadorDetalle"]) — @Marca.Nombre</PageTitle>
@@ -98,6 +99,10 @@
                     {
                         @PestanaDeDocumentos
                     }
+                    else if (PestanaActiva == PestanaFicha)
+                    {
+                        <CajasFicha Cajas="CajasDeFicha" />
+                    }
                     else
                     {
                         @PestanaDeTecnicos
@@ -118,21 +123,6 @@
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaFinPrevisto"]" Valor="@(_detalle.FechaFinPrevista?.ToString("dd/MM/yyyy") ?? Textos["FinIndefinido"].Value)" />
                             </RejillaDatos>
                         </ChildContent>
-                    </Tarjeta>
-
-                    <Tarjeta Titulo="@Textos["ListaPlazo"]" Compacta="true">
-                        @if (PorcentajeDelPlazo is { } porcentaje)
-                        {
-                            <span class="proyecto360-plazo-barra" role="img" aria-label="@Textos["PlazoPorcentaje", porcentaje]">
-                                <span class="proyecto360-plazo-avance" style="width:@(porcentaje)%"></span>
-                            </span>
-                        }
-                        <p class="proyecto360-plazo-titulo">@PlazoTitulo</p>
-                        @if (!string.IsNullOrEmpty(PlazoDetalle))
-                        {
-                            <p class="proyecto360-plazo-detalle">@PlazoDetalle</p>
-                        }
-                        <p class="proyecto360-nota">@Textos["PlazoNota"]</p>
                     </Tarjeta>
 
                     <Tarjeta Titulo="@Textos["EtiquetaNotas"]" Compacta="true">
@@ -213,6 +203,30 @@
 </LimiteDeErrores>
 
 @code {
+    /// <summary>
+    /// Cajas de la pestaña «Ficha»: lo que no cabe en el lateral, que lleva dos o tres cajas
+    /// como mucho (decisión del 2026-10-09). Hoy, el plazo.
+    /// </summary>
+    private IReadOnlyList<CajaFicha> CajasDeFicha => [new("plazo", CajaPlazo)];
+
+    private RenderFragment CajaPlazo => __builder =>
+    {
+        <Tarjeta Titulo="@Textos["ListaPlazo"]" Compacta="true">
+            @if (PorcentajeDelPlazo is { } porcentaje)
+            {
+                <span class="proyecto360-plazo-barra" role="img" aria-label="@Textos["PlazoPorcentaje", porcentaje]">
+                    <span class="proyecto360-plazo-avance" style="width:@(porcentaje)%"></span>
+                </span>
+            }
+            <p class="proyecto360-plazo-titulo">@PlazoTitulo</p>
+            @if (!string.IsNullOrEmpty(PlazoDetalle))
+            {
+                <p class="proyecto360-plazo-detalle">@PlazoDetalle</p>
+            }
+            <p class="proyecto360-nota">@Textos["PlazoNota"]</p>
+        </Tarjeta>
+    };
+
     private RenderFragment PestanaDeTecnicos => __builder =>
     {
         @if (_cargandoTecnicos)

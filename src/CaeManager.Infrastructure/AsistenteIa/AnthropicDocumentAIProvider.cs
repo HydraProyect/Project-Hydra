@@ -122,8 +122,9 @@ public class AnthropicDocumentAIProvider(
             : new BloqueContenido("image", new FuenteArchivo("base64", DetectarTipoImagen(contenidoArchivo), Convert.ToBase64String(contenidoArchivo)), null);
 
         var solicitud = new SolicitudAnthropic(
-            config.Modelo,
+            config.Para(RutasAnthropic.Ocr).Modelo,
             config.MaxTokensRespuesta,
+            ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.Ocr).Esfuerzo),
             SystemPromptOcr,
             [
                 new MensajeAnthropic("user",
@@ -155,8 +156,9 @@ public class AnthropicDocumentAIProvider(
         }
 
         var solicitud = new SolicitudAnthropic(
-            config.Modelo,
+            config.Para(RutasAnthropic.ExtraccionEstructurada).Modelo,
             config.MaxTokensRespuesta,
+            ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.ExtraccionEstructurada).Esfuerzo),
             SystemPromptEstructurado + PromptDocumental.ReglasDeAislamiento,
             [
                 new MensajeAnthropic("user",
@@ -202,6 +204,16 @@ public class AnthropicDocumentAIProvider(
             }
 
             var cuerpo = await respuesta.Content.ReadFromJsonAsync<RespuestaAnthropic>(cancellationToken);
+
+            if (ParadaRespuestaAnthropic.EsIncompleta(cuerpo?.StopReason))
+            {
+                logger.LogWarning(
+                    "La API de Anthropic no completó la lectura del documento (stop_reason {MotivoParada}, {Correlacion}).", cuerpo!.StopReason, CorrelacionRespuestaIa.Describir(respuesta));
+
+                return Result.Fallo<RespuestaConUso>(Error.Crear(
+                    $"{prefijoError}.RespuestaIncompleta", "No pudimos procesar el documento automáticamente."));
+            }
+
             var texto = cuerpo?.Content.FirstOrDefault(c => c.Type == "text")?.Text;
 
             if (string.IsNullOrWhiteSpace(texto))
@@ -301,6 +313,7 @@ public class AnthropicDocumentAIProvider(
     private sealed record SolicitudAnthropic(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("max_tokens")] int MaxTokens,
+        [property: JsonPropertyName("output_config"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] ConfiguracionSalidaAnthropic? OutputConfig,
         [property: JsonPropertyName("system")] string System,
         [property: JsonPropertyName("messages")] IReadOnlyList<MensajeAnthropic> Messages);
 
@@ -308,10 +321,12 @@ public class AnthropicDocumentAIProvider(
         [property: JsonPropertyName("role")] string Role,
         [property: JsonPropertyName("content")] IReadOnlyList<BloqueContenido> Content);
 
+    // Un bloque lleva `source` (documento o imagen) o `text`, nunca los dos. El que no aplica se
+    // omite: la API rechaza con 400 un miembro que no es del tipo del bloque, aunque valga null.
     private sealed record BloqueContenido(
         [property: JsonPropertyName("type")] string Type,
-        [property: JsonPropertyName("source")] FuenteArchivo? Source,
-        [property: JsonPropertyName("text")] string? Text);
+        [property: JsonPropertyName("source"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] FuenteArchivo? Source,
+        [property: JsonPropertyName("text"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Text);
 
     private sealed record FuenteArchivo(
         [property: JsonPropertyName("type")] string Type,
@@ -323,7 +338,8 @@ public class AnthropicDocumentAIProvider(
         [property: JsonPropertyName("usage")] UsoAnthropic? Usage,
         // El modelo resuelto que atendió la llamada — puede diferir del alias
         // pedido en la solicitud. Ver AuditoriaExtraccionIa.ModeloExacto.
-        [property: JsonPropertyName("model")] string? Model);
+        [property: JsonPropertyName("model")] string? Model,
+        [property: JsonPropertyName("stop_reason")] string? StopReason = null);
 
     private sealed record BloqueContenidoAnthropic(
         [property: JsonPropertyName("type")] string Type,

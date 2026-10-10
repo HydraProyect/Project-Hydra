@@ -69,12 +69,6 @@
   <data name="BotonLimpiarTodo" xml:space="preserve">
     <value>Limpiar todo</value>
   </data>
-  <data name="SinClienteTitulo" xml:space="preserve">
-    <value>Elige un Cliente para ver sus proyectos</value>
-  </data>
-  <data name="SinClienteDescripcion" xml:space="preserve">
-    <value>Cada proyecto de obra o instalación pertenece a un centro de un Cliente concreto.</value>
-  </data>
   <data name="ErrorProyectosTitulo" xml:space="preserve">
     <value>No pudimos cargar los proyectos</value>
   </data>
@@ -88,16 +82,10 @@
     <value>Ningún proyecto con este filtro</value>
   </data>
   <data name="VacioFiltroDescripcion" xml:space="preserve">
-    <value>Este Cliente sí tiene proyectos, pero ninguno coincide con la búsqueda ni con el estado seleccionado.</value>
+    <value>Ningún proyecto coincide con la búsqueda ni con el estado seleccionado.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
     <value>Quitar los filtros</value>
-  </data>
-  <data name="ConteoConFiltro" xml:space="preserve">
-    <value>{0} de {1} proyecto(s) de este Cliente</value>
-  </data>
-  <data name="ConteoSinFiltro" xml:space="preserve">
-    <value>{0} proyecto(s) de este Cliente</value>
   </data>
   <data name="EtiquetaNombre" xml:space="preserve">
     <value>Nombre</value>
@@ -333,7 +321,6 @@
   <data name="SinEmpresaDescripcion" xml:space="preserve">
     <value>Los proyectos se muestran de una empresa cada vez. Elige una en la barra lateral.</value>
   </data>
-  <data name="ListaElegirClienteEmpresarial" xml:space="preserve"><value>Selecciona un Cliente</value></data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar esta pantalla: nombre o centro</value></data>
   <data name="EtiquetaPlazoSinMedida" xml:space="preserve"><value>Sin plazo que medir: no hay una fecha de fin prevista válida o el proyecto no ha empezado</value></data>
   <data name="EtiquetaPlazoTranscurrido" xml:space="preserve"><value>{0} % del plazo previsto transcurrido</value></data>
@@ -393,4 +380,13 @@
   <data name="VentanaTecnicoAyuda" xml:space="preserve"><value>Abrir la pestaña Técnicos del proyecto</value></data>
   <data name="AriaEditarProyecto" xml:space="preserve"><value>Editar la información del proyecto</value></data>
   <data name="TituloEditarConAtajo" xml:space="preserve"><value>Editar (e)</value></data>
+  <data name="ListaFechas" xml:space="preserve"><value>Fechas</value></data>
+  <data name="ListaSinFechaFin" xml:space="preserve"><value>sin fecha de fin</value></data>
+  <data name="MotivoDuroUno" xml:space="preserve"><value>Duró {0} día</value></data>
+  <data name="MotivoDuroVarios" xml:space="preserve"><value>Duró {0} días</value></data>
+  <data name="VacioDescripcionTodos" xml:space="preserve"><value>Todavía no hay ningún proyecto de obra o instalación.</value></data>
+  <data name="EtiquetaPaginador" xml:space="preserve"><value>proyecto(s)</value></data>
+  <data name="AccionRapidaReabrirAria" xml:space="preserve"><value>Reabrir el proyecto {0}</value></data>
+  <data name="ErrorFaltaCliente" xml:space="preserve"><value>Selecciona un Cliente.</value></data>
+  <data name="ErrorCargarCentros" xml:space="preserve"><value>No pudimos cargar los centros de este Cliente. Vuelve a elegirlo para reintentar.</value></data>
 </root>

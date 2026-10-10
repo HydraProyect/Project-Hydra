@@ -8,6 +8,9 @@
     - «Filtros guardados» al final de la fila, si el llamador pasa alguno;
     - debajo, cuando hay filtros activos: los chips (con su ✕), «Limpiar todo»
       junto a ellos y «Guardar filtro» a la derecha.
+    - «Restablecer vista» en la fila, tras los filtros, solo si el llamador pasa
+      «VistaRecordada» y la vista difiere de la de inicio (filtros, orden o
+      agrupación): vuelve a la vista de fábrica y olvida la recordada.
 
     Nunca lleva acciones de la página (Exportar, Importar, Nuevo…): eso es de
     la cabecera (pieza 1).
@@ -95,6 +98,10 @@
                 }
             </MenuAcciones>
         }
+        @if (VistaRecordada is { DifiereDeInicio: true })
+        {
+            <button type="button" class="restablecer-vista-barra" title="@Comunes["RestablecerVistaTitulo"]" @onclick="VistaRecordada.RestablecerAsync">@Comunes["RestablecerVista"]</button>
+        }
         @Herramientas
         @if (Resumen is not null)
         {
@@ -129,6 +136,10 @@ else
                     <option value="@filtro.Valor">@filtro.Texto</option>
                 }
             </CampoSelect>
+        }
+        @if (VistaRecordada is { DifiereDeInicio: true })
+        {
+            <button type="button" class="restablecer-vista-barra" title="@Comunes["RestablecerVistaTitulo"]" @onclick="VistaRecordada.RestablecerAsync">@Comunes["RestablecerVista"]</button>
         }
     </div>
 
@@ -198,6 +209,13 @@ else
     /// orden), en la misma fila tras «Más filtros». No son filtros ni acciones de la página.
     /// </summary>
     [Parameter] public RenderFragment? Herramientas { get; set; }
+
+    /// <summary>
+    /// La vista recordada del listado (<see cref="VistaRecordadaDeListado"/>). Con ella, y solo cuando la vista
+    /// difiere de la de inicio, la barra ofrece «Restablecer vista»: quita también el orden y la agrupación,
+    /// que «Limpiar todo» no toca.
+    /// </summary>
+    [Parameter] public ConexionVistaRecordada? VistaRecordada { get; set; }
 
     /// <summary>Modo pastillas: texto a la derecha de la fila («3 Clientes con estos filtros»).</summary>
     [Parameter] public RenderFragment? Resumen { get; set; }

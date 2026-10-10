@@ -257,7 +257,7 @@
                                                         @* Dos copias operativas del mismo tipo son dos filas: la clave no puede ser solo el tipo. *@
                                                         var clavesDocumentos = new ClavesDeHermanos();
                                                         <ul class="subcontrata360-subfilas" aria-label="@Textos["AriaDocumentacionExigidaA", trabajador.TrabajadorNombre]">
-                                                            @foreach (var documento in trabajador.Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)))
+                                                            @foreach (var documento in DocumentosOrdenados(trabajador))
                                                             {
                                                                 var rotuloAccion = RotuloAccion(documento);
                                                                 <li class="subcontrata360-subfila" data-pieza="fila" @key="clavesDocumentos.De(documento.DocumentoId ?? documento.TipoDocumentoId)">
@@ -465,7 +465,7 @@
                           TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
             <CampoTextarea Etiqueta="@Comunes["NotaInternaTitulo"]" Valor="@_notaEnEdicion" ValorChanged="v => _notaEnEdicion = v"
                            Filas="8" MensajeError="@_errorCampoNota" />
-            <p class="subcontrata360-nota">@Comunes["NotaInternaSoloEquipo"]</p>
+            <p class="subcontrata360-nota">@Comunes["NotaInternaNoLaVeCliente"]</p>
         </DrawerFormulario>
     }
 </div>

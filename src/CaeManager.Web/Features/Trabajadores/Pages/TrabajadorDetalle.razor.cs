@@ -20,6 +20,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroD
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Gestiones;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Documentos;
@@ -57,7 +58,16 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// <summary>Todos los envíos de la reclamación fallaron: el modal sigue abierto con la selección y el motivo en su aviso fijo.</summary>
     private string? _errorReclamar;
 
+    internal const string PestanaOperacion = "operacion";
+    internal const string PestanaDocumentacion = "documentacion";
+    internal const string PestanaHistorial = "historial";
+
+    private static readonly string[] PestanasValidas = [PestanaOperacion, PestanaDocumentacion, PestanaHistorial];
+
     [Parameter] public Guid TrabajadorId { get; set; }
+
+    /// <summary>Pestaña activa, en la URL (sin parámetro o con un valor desconocido = Operación), como en Empresa 360.</summary>
+    [Parameter, SupplyParameterFromQuery(Name = "pestana")] public string? Pestana { get; set; }
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
@@ -71,7 +81,16 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private bool _cargando = true;
     private bool _error;
 
-    private string _pestanaActiva = "operacion";
+    private string _pestanaActiva = PestanaOperacion;
+    private string? _pestanaDeLaUrl;
+    private bool _urlAdoptada;
+
+    /// <summary>
+    /// Trabajador que esta instancia tiene cargado. La pestaña viaja en la URL
+    /// y llega también por <see cref="OnParametersSetAsync"/>: sin esto, cada
+    /// cambio de pestaña relanzaría la carga entera y cerraría el acordeón.
+    /// </summary>
+    private Guid? _trabajadorCargado;
     private readonly HashSet<Guid> _expandidosCentro = [];
 
     private DrawerGestionDocumento _drawerGestion = default!;
@@ -167,7 +186,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// </summary>
     private IReadOnlyList<PestanaDefinicion> Pestanas =>
     [
-        new("operacion", Textos["PestanaOperacion"])
+        new(PestanaOperacion, Textos["PestanaOperacion"])
         {
             Contador = TotalConIncidencia == 0
                 ? null
@@ -176,8 +195,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                     TotalConIncidencia == 1 ? Textos["ContadorIncidenciasUno"] : Textos["ContadorIncidenciasVarios"],
                     EnAlerta: true)
         },
-        new("documentacion", Textos["PestanaDocumentacion"]),
-        new("historial", Textos["PestanaHistorial"])
+        new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
+        new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
 
     // D-22: «Sin confirmar» no es incidencia, cuenta como al día con aviso (misma regla que el panel
@@ -215,7 +234,43 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private DocumentoRequeridoDto? DocumentoMasUrgente =>
         CentroMasUrgente?.Documentos.FirstOrDefault(EsIncidencia);
 
-    protected override async Task OnParametersSetAsync() => await CargarAsync();
+    /// <summary>
+    /// Solo recarga cuando cambia el Trabajador. La pestaña también llega por
+    /// aquí (viaja en la URL) y no pide nada: se adopta y se pinta.
+    /// </summary>
+    protected override async Task OnParametersSetAsync()
+    {
+        AdoptarUrl();
+
+        if (_trabajadorCargado == TrabajadorId)
+            return;
+
+        _trabajadorCargado = TrabajadorId;
+        await CargarAsync();
+    }
+
+    /// <summary>
+    /// Adopta la pestaña cuando cambia en la URL AHÍ FUERA —un enlace, el
+    /// botón «atrás», otro Trabajador—; lo que cambia la propia página ya lo
+    /// apuntó antes de navegar.
+    /// </summary>
+    private void AdoptarUrl()
+    {
+        if (_urlAdoptada && string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
+            return;
+
+        _urlAdoptada = true;
+        _pestanaDeLaUrl = Pestana;
+        _pestanaActiva = PestanasValidas.Contains(Pestana) ? Pestana! : PestanaOperacion;
+    }
+
+    /// <summary>Cambia de pestaña y la deja en la URL sin recargar la ficha; Operación, la de entrada, no lleva parámetro.</summary>
+    private void CambiarPestana(string pestana)
+    {
+        _pestanaActiva = pestana;
+        _pestanaDeLaUrl = pestana == PestanaOperacion ? null : pestana;
+        NavigationManager.ActualizarFiltroEnUrl("pestana", _pestanaDeLaUrl);
+    }
 
     private async Task CargarAsync()
     {
@@ -489,9 +544,18 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     }
 
     private Task GestionarDocumentoAsync(DocumentoRequeridoDto documento) =>
-        documento.DocumentoId is { } documentoId
-            ? _drawerGestion.AbrirEditarAsync(documentoId)
-            : _drawerGestion.AbrirCrearParaFaltanteAsync(TrabajadorId, documento.TipoDocumentoId);
+        _drawerGestion.AbrirSerieAsync(SerieDeDocumentos, PasoDe(documento));
+
+    private PasoSerieDocumento PasoDe(DocumentoRequeridoDto documento) =>
+        PasoSerieDocumento.DeFilaDeTrabajador(documento.DocumentoId, TrabajadorId, documento.TipoDocumentoId);
+
+    /// <summary>
+    /// «Guardar y siguiente»: los documentos que piden «Renovar» o «Subir», en el orden en que la pestaña
+    /// Documentación los pinta (Centro a Centro, y dentro de cada uno como llegan). Un mismo Documento exigido por
+    /// dos Centros cuenta una vez.
+    /// </summary>
+    private IReadOnlyList<PasoSerieDocumento> SerieDeDocumentos =>
+        _centros.SelectMany(c => c.Documentos).Where(d => PasoSerieDocumento.EsDeSerie(d.Estado)).Select(PasoDe).ToList();
 
     /// <summary>
     /// «Subir documento» de la cabecera y del estado vacío de la pestaña Documentación. Con una
