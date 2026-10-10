@@ -1,0 +1,16 @@
+/* Segunda línea bajo el nombre del documento: mismo peso visual que el detalle de FilaRelacion (caption, apagado). */
+.linea-plataforma-reclamacion {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: var(--font-caption);
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+/* Un rechazo en la plataforma es lo único que esta línea destaca: mismo tono que PlataformaTab. */
+.linea-plataforma-reclamacion--rechazada {
+    color: var(--color-danger-700);
+}

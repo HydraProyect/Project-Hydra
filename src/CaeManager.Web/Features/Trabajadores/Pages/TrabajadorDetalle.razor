@@ -224,6 +224,12 @@
                                                                     </Authorized>
                                                                     <NotAuthorized>@documento.TipoDocumentoNombre</NotAuthorized>
                                                                 </AuthorizeView>
+                                                                @* Cada grupo fija un Centro: el estado es el de las plataformas de ESE Centro. Fuera de un
+                                                                   Centro (pestaña «Documentación») no se resume: está sin decidir. *@
+                                                                <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion
+                                                                    Acreditaciones="documento.AcreditacionesEnElCentro"
+                                                                    UltimaReclamacion="documento.UltimaReclamacion"
+                                                                    Estado="documento.Estado" />
                                                             </span>
                                                             <span role="cell">
                                                                 <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">

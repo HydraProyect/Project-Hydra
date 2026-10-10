@@ -245,7 +245,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
         var lista = await new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro).Handle(new ObtenerCentrosQuery(null, null), CancellationToken.None);
         Seccion("Centro: estado y %").AddRange(lista.Elementos.Select(e =>
             $"{e.Nombre} | estado={e.Estado} | % lista={e.CumplimientoPorcentaje?.ToString() ?? "-"} | servicio={Fr(porCentro[e.Id])}"));
-        var acordeon = new ObtenerAsignacionesDocumentacionPorCentroQueryHandler(c, c, c, c, c, c, alcance);
+        var acordeon = new ObtenerAsignacionesDocumentacionPorCentroQueryHandler(c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance));
         foreach (var centro in centroIds)
         {
             var filas = await acordeon.Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(centro), CancellationToken.None);
@@ -253,7 +253,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
         }
 
         // 5. Contexto Trabajador.
-        var documentacion = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(c, c, c, c, c, c, alcance);
+        var documentacion = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance));
         foreach (var trabajador in trabajadores.Keys)
         {
             var filas = await documentacion.Handle(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(trabajador), CancellationToken.None);

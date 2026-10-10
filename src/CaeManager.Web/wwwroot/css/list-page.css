@@ -1345,6 +1345,14 @@
     font-weight: 600;
 }
 
+/* Con segunda línea (LineaPlataformaYReclamacion: estado en la plataforma del Centro y última reclamación), el
+   nombre y la línea se apilan; sin ella la celda no cambia. */
+.celda-documento-nombre:has(> .linea-plataforma-reclamacion) {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+}
+
 .celda-documento-vigencia {
     font: var(--font-body-sm);
     color: var(--color-text-muted);

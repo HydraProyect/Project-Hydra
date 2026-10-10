@@ -237,4 +237,6 @@
   <data name="AccionRapidaSubir" xml:space="preserve"><value>Puja</value></data>
   <data name="AccionRapidaRenovarAria" xml:space="preserve"><value>Renova {0} de {1}</value></data>
   <data name="AccionRapidaSubirAria" xml:space="preserve"><value>Puja el fitxer de {0} de {1}</value></data>
+  <data name="SegundaLineaReclamado" xml:space="preserve"><value>Reclamat el {0}</value></data>
+  <data name="SegundaLineaReclamadoSinRespuesta" xml:space="preserve"><value>Reclamat el {0}, sense resposta</value></data>
 </root>

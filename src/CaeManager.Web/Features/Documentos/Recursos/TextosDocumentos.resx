@@ -237,4 +237,6 @@
   <data name="AccionRapidaSubir" xml:space="preserve"><value>Subir</value></data>
   <data name="AccionRapidaRenovarAria" xml:space="preserve"><value>Renovar {0} de {1}</value></data>
   <data name="AccionRapidaSubirAria" xml:space="preserve"><value>Subir el archivo de {0} de {1}</value></data>
+  <data name="SegundaLineaReclamado" xml:space="preserve"><value>Reclamado el {0}</value></data>
+  <data name="SegundaLineaReclamadoSinRespuesta" xml:space="preserve"><value>Reclamado el {0}, sin respuesta</value></data>
 </root>
