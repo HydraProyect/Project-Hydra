@@ -1,5 +1,5 @@
 @*
-    Cliente 360, página (mockup aprobado «Cliente 360 página TALVEG.dc.html»,
+    Cliente 360, página (blueprint Project-Hydra-Negocio/tecnico/docs/blueprints/FICHAS-360.md y maqueta vigente;
     decisión del propietario 2026-09-22: cada 360 tiene página propia además
     del panel de 520 px). Ver el comentario de cabecera del .razor.cs para lo
     que esta página compone, lo que remite al panel y lo que no enseña.
@@ -47,34 +47,47 @@
     else if (_detalle is not null)
     {
         @*
-            Sin anillo, a diferencia de Centro 360: no existe un porcentaje de
-            cumplimiento por Cliente empresarial, y AnilloCumplimiento con
-            Porcentaje null se anuncia «Sin requisitos» — diría que este
-            cliente no exige nada. Lo que sí hay es el estado de cada uno de
-            sus centros, y eso es lo que resumen los indicadores.
+            Tarjeta de identidad compartida de las fichas 360. El anillo queda
+            aplazado: falta el agregado completo de Centros y el criterio de
+            incidencias. Sin anillo, velo-cumplimiento conserva la superficie lisa.
+            Los indicadores se conservan porque las listas aún no tienen chips
+            de estado que sustituyan sus recuentos y ventanas de detalle.
         *@
-        <CabeceraPagina Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
-            <Descripcion>
-                <span class="cliente360-meta">
-                    @* El alta permite un Cliente empresarial sin CIF: entonces no hay
-                       nada que enseñar ni copiar, igual que en Empresa 360. *@
+        <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
+            <JuntoAlTitulo>
+                @if (_detalle.EsCritico)
+                {
+                    <Badge Tono="TonoBadge.Peligro">@Textos["Critico"]</Badge>
+                }
+            </JuntoAlTitulo>
+            <Datos>
+                @* Sin CIF no hay nada que enseñar ni copiar, igual que en Empresa 360. *@
+                @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
+                {
+                    <span>
+                        @Textos["Cif"] <b>@_detalle.Cif</b>
+                        <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" />
+                    </span>
+                }
+                @if (TextoRecuentos is { } recuentos)
+                {
                     @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
                     {
-                        <span>@Textos["Cif"] <b>@_detalle.Cif</b></span>
-                        <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" />
+                        <span aria-hidden="true">·</span>
                     }
-                    @if (TextoRecuentos is { } recuentos)
+                    <span>@recuentos</span>
+                }
+                @if (_empresas is [var empresaContratista])
+                {
+                    @if (!string.IsNullOrWhiteSpace(_detalle.Cif) || TextoRecuentos is not null)
                     {
-                        <span>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? recuentos : $"· {recuentos}")</span>
+                        <span aria-hidden="true">·</span>
                     }
-                </span>
-                @if (_detalle.EsCritico || Indicadores.Count > 0)
+                    <span>@Textos["DetalleEntraComoContratista", empresaContratista.RazonSocial]</span>
+                }
+                @if (Indicadores.Count > 0)
                 {
                     <span class="cliente360-indicadores">
-                        @if (_detalle.EsCritico)
-                        {
-                            <Badge Tono="TonoBadge.Peligro">@Textos["Critico"]</Badge>
-                        }
                         @foreach (var indicador in Indicadores)
                         {
                             <VentanaContexto Etiqueta="@indicador.Etiqueta" Titulo="@indicador.Titulo">
@@ -93,23 +106,18 @@
                         }
                     </span>
                 }
-            </Descripcion>
+            </Datos>
             <Acciones>
-                @*
-                    Cliente no tiene ninguna acción que opere de verdad: solo el
-                    menú «⋯» con «Editar cliente», que abre el panel en
-                    Información (la página compone, el panel opera). El menú
-                    entero va dentro de SoloConEscritura: con su único elemento
-                    oculto quedaría un «⋯» que se abre vacío.
-                *@
+                @* Las dos acciones de escritura abren los formularios existentes.
+                   El menú entero va dentro de SoloConEscritura para no dejarlo vacío. *@
                 <SoloConEscritura>
-                    <MenuAcciones>
+                    <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
                         <ItemMenuAccion OnClick="AbrirInformacionAsync">@Textos["EditarCliente"]</ItemMenuAccion>
                         <ItemMenuAccion OnClick="AbrirToleranciasAsync">@Textos["ToleranciaMenu"]</ItemMenuAccion>
                     </MenuAcciones>
                 </SoloConEscritura>
             </Acciones>
-        </CabeceraPagina>
+        </CabeceraIdentidad>
 
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>

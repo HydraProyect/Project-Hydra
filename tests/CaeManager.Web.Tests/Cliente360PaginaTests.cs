@@ -26,8 +26,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Cliente 360, página (<see cref="ClienteDetalle"/>) contra su mockup
-/// aprobado «Cliente 360 página TALVEG.dc.html»: cabecera sin anillo,
+/// Cliente 360, página (<see cref="ClienteDetalle"/>): tarjeta de identidad compartida sin anillo,
 /// indicadores por centro, pestañas con la activa en <c>?pestana=</c>, filas
 /// que enlazan a la página 360 de cada entidad y abren su panel con el botón
 /// 360, y el error indistinguible de «no existe» / «fuera de alcance».
@@ -139,7 +138,7 @@ public class Cliente360PaginaTests : BunitContext
     {
         Services.GetRequiredService<NavigationManager>().NavigateTo($"clientes/{id}{consulta}");
         var cut = Render<ClienteDetalle>(p => p.Add(x => x.ClienteId, id));
-        cut.WaitForAssertion(() => cut.FindAll(".cabecera-pagina, .estado-vacio").Should().NotBeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll("h1, .estado-vacio").Should().NotBeEmpty());
         return cut;
     }
 
@@ -174,24 +173,24 @@ public class Cliente360PaginaTests : BunitContext
     // ── Cabecera ──────────────────────────────────────────────────────────
 
     [Fact]
-    public void La_cabecera_dice_Cliente_razon_social_CIF_y_recuentos_sin_anillo()
+    public void La_cabecera_en_tarjeta_pinta_identidad_CIF_y_recuentos_sin_anillo()
     {
         var (id, mediador) = ClienteBase(critico: true);
         Registrar(mediador);
 
         var cut = Renderizar(id);
 
-        var cabecera = cut.Find(".cabecera-pagina");
+        var cabecera = cut.Find("[data-pieza=cabecera-identidad]");
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Refrielectric S.A.");
-        cabecera.QuerySelector(".cabecera-pagina-kicker")!.TextContent.Trim().Should().Be("Cliente",
+        cabecera.QuerySelector(".cabecera-identidad-kicker")!.TextContent.Trim().Should().Be("Cliente",
             "en pantalla el Cliente se rotula «Cliente» (CONTRATO_TERMINOLOGIA § 3.2)");
-        cabecera.QuerySelector(".cliente360-meta")!.TextContent.Should()
+        cabecera.QuerySelector(".cabecera-identidad-datos")!.TextContent.Should()
             .Contain("CIF A-48.220.917").And.Contain("3 centros · 42 trabajadores");
-        cabecera.QuerySelector(".cliente360-meta button")
+        cabecera.QuerySelector(".cabecera-identidad-datos button")
             .Should().NotBeNull("el CIF se copia con BotonCopiar");
-        Textos(cabecera.QuerySelectorAll(".cliente360-indicadores .badge")).Should().Equal(["Crítico"]);
+        Textos(cabecera.QuerySelectorAll(".cabecera-identidad-titular .badge")).Should().Equal(["Crítico"]);
         cut.FindAll(".anillo-cumplimiento, [class*='anillo']").Should().BeEmpty(
-            "no existe porcentaje de cumplimiento por Cliente: un anillo inventaría uno");
+            "el anillo del Cliente empresarial queda aplazado por decisión del propietario");
     }
 
     /// <summary>
@@ -212,7 +211,7 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id, "?pestana=empresas");
 
-        var meta = cut.Find(".cliente360-meta");
+        var meta = cut.Find(".cabecera-identidad-datos");
         // Barrera: la entradilla ya tiene los recuentos; si no, la ausencia sería verde vacío.
         meta.TextContent.Trim().Should().StartWith("3 centros · 42 trabajadores");
         meta.TextContent.Should().NotContain("CIF");
@@ -228,7 +227,49 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.FindAll(".cliente360-indicadores").Should().BeEmpty("sin crítico ni indicadores no queda nada que pintar");
+        cut.FindAll(".cabecera-identidad-titular .badge").Should().BeEmpty("solo un Cliente empresarial crítico lleva la marca");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void La_cabecera_nombra_la_Empresa_contratista_solo_si_hay_una_visible(int cantidad)
+    {
+        var (id, mediador) = ClienteBase();
+        var nombres = new[] { "Ibertec GmbH", "Montajes Ebro S.L." };
+        mediador.Empresas.AddRange(nombres.Take(cantidad)
+            .Select(nombre => new EmpresaDeClienteDto(Guid.NewGuid(), nombre, null)));
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        // La carga de Empresas debe haber terminado: una ausencia durante la carga no prueba el caso de varias.
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerSubcontratasDeClienteQuery>().Should().ContainSingle());
+        var datos = cut.Find(".cabecera-identidad-datos").TextContent;
+        if (cantidad == 1)
+            datos.Should().Contain("Entra como contratista: Ibertec GmbH");
+        else
+            datos.Should().NotContain(nombres[0]).And.NotContain(nombres[1]);
+    }
+
+    [Fact]
+    public void La_tarjeta_de_cabecera_conserva_las_ranuras_y_un_solo_titulo()
+    {
+        var (id, mediador) = ClienteBase(critico: true);
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        var cabecera = cut.Find("header.cabecera-identidad[data-pieza=cabecera-identidad]");
+        cabecera.ClassList.Should().Contain("velo-cumplimiento");
+        cut.FindAll(".cabecera-pagina").Should().BeEmpty();
+        cut.FindAll("h1").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Refrielectric S.A.");
+        cabecera.QuerySelector(".cabecera-identidad-titular h1 + .badge")!.TextContent.Should().Be("Crítico");
+        cabecera.QuerySelector(".cabecera-identidad-datos")!.TextContent.Should()
+            .Contain("CIF A-48.220.917").And.Contain("3 centros · 42 trabajadores");
+        cabecera.QuerySelector(".cabecera-identidad-acciones .menu-acciones-disparador")!
+            .GetAttribute("aria-label").Should().Be("Más acciones");
     }
 
     // ── Indicadores por centro ────────────────────────────────────────────
@@ -489,7 +530,7 @@ public class Cliente360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Al_pasar_de_un_Cliente_con_varias_Empresas_a_otro_con_una_no_queda_ningun_Entra_como_contratista()
+    public void Al_pasar_a_un_Cliente_con_una_Empresa_contratista_se_nombra_en_la_cabecera_y_no_en_las_filas()
     {
         var (idA, mediador) = ClienteBase();
         mediador.CentrosPorCliente[idA] = [Centro("Planta Barakaldo", EstadoCentro.Vigente, empresa: "Montajes Ebro S.L.")];
@@ -512,7 +553,9 @@ public class Cliente360PaginaTests : BunitContext
         cut.WaitForAssertion(() => cut.Find("li.fila-relacion .fila-relacion-nombre").TextContent.Should().Contain("Nave logística Tudela"));
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerEmpresasDeClienteQuery>().Should().Contain(new ObtenerEmpresasDeClienteQuery(idB)));
         cut.FindAll("li.fila-relacion .fila-relacion-detalle").Should().BeEmpty();
-        cut.Markup.Should().NotContain("Entra como contratista");
+        cut.FindAll("li.fila-relacion").Select(f => f.TextContent)
+            .Should().NotContain(t => t.Contains("Entra como contratista"));
+        cut.Find(".cabecera-identidad-datos").TextContent.Should().Contain("Entra como contratista: Montajes Ebro S.L.");
     }
 
     // Una sola medida de pastilla en la ficha (13 px): la pequeña de 11 px convivía con la normal.
@@ -628,7 +671,7 @@ public class Cliente360PaginaTests : BunitContext
 
         cut.Find(".estado-vacio").TextContent.Should()
             .Contain("No pudimos cargar este Cliente").And.Contain("Puede que ya no exista o que no tengas acceso.");
-        cut.FindAll(".cabecera-pagina").Should().BeEmpty();
+        cut.FindAll("[data-pieza=cabecera-identidad]").Should().BeEmpty();
         // Del cliente pide solo su ficha; la lista de empresas autorizadas es del aviso de enlace profundo (§ 4.5).
         mediador.Enviadas.Where(e => e is not CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados.ObtenerClientesAutorizadosQuery)
             .Should().ContainSingle().Which.Should().BeOfType<ObtenerClientePorIdQuery>();
@@ -636,7 +679,7 @@ public class Cliente360PaginaTests : BunitContext
         mediador.Detalles[id] = new ClienteDetalleDto(id, "Refrielectric S.A.", "A-48.220.917", false, null, Alta, null, Guid.NewGuid());
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reintentar").Click();
 
-        cut.WaitForAssertion(() => cut.Find(".cabecera-pagina h1").TextContent.Trim().Should().Be("Refrielectric S.A."));
+        cut.WaitForAssertion(() => cut.Find("[data-pieza=cabecera-identidad] h1").TextContent.Trim().Should().Be("Refrielectric S.A."));
     }
 
     // ── Acciones y lateral ────────────────────────────────────────────────
@@ -685,7 +728,7 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.Find(".cabecera-pagina").TextContent.Should().Contain("Refrielectric S.A.", "la ficha de su Cliente sí se le pinta");
+        cut.Find("[data-pieza=cabecera-identidad]").TextContent.Should().Contain("Refrielectric S.A.", "la ficha de su Cliente sí se le pinta");
         cut.FindAll(".cliente360-nota").Should().BeEmpty();
         cut.FindAll(".cliente360-nota-pie").Should().BeEmpty();
         cut.Markup.Should().NotContain("Llamar antes de ir.");

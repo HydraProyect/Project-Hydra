@@ -2,26 +2,16 @@
   Cliente 360, página. La maquetación (cuerpo con lateral, tarjetas, listas de
   relaciones, rejilla de datos) la ponen los componentes compartidos del
   DesignSystem; aquí solo se estila lo que esta página mete en las ranuras de
-  CabeceraPagina y de las tarjetas. Medidas del mockup «Cliente 360 página».
+  CabeceraIdentidad y de las tarjetas.
 */
 
-/* Entradilla: «CIF X [Copiar] · N centros · N trabajadores» en una línea. */
-.cliente360-meta {
-    display: flex;
-    align-items: center;
-    gap: calc(var(--space-3) / 2);
-    flex-wrap: wrap;
-}
-
-/* Crítico + indicadores por centro, en su propia línea bajo la entradilla
-   (.centro360-indicadores del mockup). Es un span para poder vivir dentro del
-   <p> de la entradilla; display:flex lo pone en su línea. */
+/* Indicadores conservados en una segunda línea hasta que las listas tengan chips de estado. */
 .cliente360-indicadores {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     flex-wrap: wrap;
-    margin-top: var(--space-2);
+    flex-basis: 100%;
 }
 
 /* El indicador es un botón que lleva a la pestaña Centros; se ve como el
