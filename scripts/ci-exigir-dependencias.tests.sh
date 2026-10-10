@@ -10,6 +10,8 @@
 #   2. E2E: el mismo producto para el resultado de E2E y la salida `e2e`.
 #   3. Compilación, formato y arneses en cada valor distinto de success, en dos
 #      contextos que por lo demás darían verde.
+#   4. Modo SOLO_E2E (el del agregador «Tests E2E (Playwright)»): el mismo
+#      producto para el resultado de los bloques, sin ninguna otra entrada.
 #
 # El oráculo NO reutiliza el guion: enumera las únicas combinaciones que valen
 # y da todo lo demás por rojo. Los casos con nombre del final son los que la
@@ -113,6 +115,31 @@ for malo in failure cancelled skipped ""; do
   done
 done
 
+echo "=== Barrido 4: modo SOLO_E2E (agregador de los bloques de E2E): evento × bloques × alcance × salida ==="
+# En este modo solo cuenta R_E2E: compilación, formato, arneses e integración
+# van vacíos a propósito, para fijar que no se miran.
+for ev in "${EVENTOS[@]}"; do
+  for res in "${RESULTADOS[@]}"; do
+    for alc in "${RESULTADOS[@]}"; do
+      for sal in "${SALIDAS[@]}"; do
+        : > "$TMP/out"
+        SOLO_E2E=1 EVENTO="$ev" R_COMPILACION="" R_FORMATO="" R_EXTENSION="" R_INTEGRACION="" R_E2E="$res"           R_ALCANCE="$alc" ALCANCE_INTEGRACION="" ALCANCE_E2E="$sal" GITHUB_OUTPUT="$TMP/out"           bash "$SCRIPT" > "$TMP/stdout" 2>&1
+        CODIGO=$?
+        esperado "$ev" "$res" "$alc" "$sal"
+        PRUEBAS=$((PRUEBAS + 1))
+        obtenido="rojo"
+        [[ "$CODIGO" == 0 ]] && obtenido="$(tr -d '' < "$TMP/out")"
+        [[ "$CODIGO" != 0 && -s "$TMP/out" ]] && obtenido="rojo-con-salida"
+        quiero="rojo"; [[ "$ESP" != rojo ]] && quiero="e2e=$ESP"
+        if [[ "$obtenido" != "$quiero" ]]; then
+          FALLOS=$((FALLOS + 1))
+          echo "FALLO: SOLO_E2E evento='$ev' bloques='$res' alcance='$alc' salida='$sal' — esperado '$quiero', obtenido '$obtenido' (código $CODIGO)" >&2
+        fi
+      done
+    done
+  done
+done
+
 echo "=== Casos con nombre ==="
 # caso DESCRIPCION ESP_INT ESP_E2E  EVENTO COMP FORM EXT INT E2E ALCANCE ALC_INT ALC_E2E
 caso() {
@@ -157,8 +184,8 @@ contrato() {
 }
 yml="$(tr -d '\r' < "$CI_YML")"
 cuenta() { grep -cF -- "$1" <<< "$yml" || true; }
-contrato "el paso que ejecuta el guion tiene id: exigir" 1 "$(grep -cE '^        id: exigir$' <<< "$yml" || true)"
-contrato "el guion se ejecuta en un único paso" 1 "$(cuenta 'run: bash scripts/ci-exigir-dependencias.sh')"
+contrato "los dos pasos que ejecutan el guion tienen id: exigir (agregador general y agregador de E2E)" 2 "$(grep -cE '^        id: exigir$' <<< "$yml" || true)"
+contrato "el guion se ejecuta en esos dos pasos y en ninguno más" 2 "$(cuenta 'run: bash scripts/ci-exigir-dependencias.sh')"
 contrato "seis pasos se saltan solo con integracion == saltada" 6 "$(cuenta "if: steps.exigir.outputs.integracion != 'saltada'")"
 contrato "ningún paso exige == 'ejecutada' (fallaría abierto si faltara la salida)" 0 "$(cuenta "steps.exigir.outputs.integracion == 'ejecutada'")"
 for paso in "Recoger el reparto de los bloques" "Comprobar que los cuatro bloques descubrieron lo mismo" "Comprobar que el reparto cubrio todas las clases" "Recoger la cobertura de los bloques de integración" "Comprobar que se ejecutaron todos los tests" "Umbral de cobertura del núcleo (ratchet)"; do
@@ -172,6 +199,21 @@ for salida in integracion e2e carga; do
   contrato "un job pesado solo se salta con $salida == 'false' y nunca en merge_group" 1 "$(cuenta "    if: \${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.$salida != 'false') }}")"
 done
 contrato "los tres jobs pesados dependen de alcance" 3 "$(grep -cE '^    needs: alcance$' <<< "$yml" || true)"
+
+# Agregador de los bloques de E2E: conserva el nombre del check obligatorio.
+e2e_agregador="$(sed -n '/^  e2e-tests:$/,/^    steps:$/p' <<< "$yml")"
+contrato "un único job se llama «Tests E2E (Playwright)»" 1 "$(grep -cE '^    name: Tests E2E \(Playwright\)$' <<< "$yml" || true)"
+contrato "ese nombre es el del job e2e-tests" 1 "$(grep -cE '^    name: Tests E2E \(Playwright\)$' <<< "$e2e_agregador" || true)"
+contrato "el agregador de E2E corre siempre" 1 "$(grep -cE '^    if: always\(\)$' <<< "$e2e_agregador" || true)"
+contrato "el agregador de E2E depende de alcance y de los bloques" 1 "$(grep -cF -- '    needs: [alcance, e2e-bloques]' <<< "$e2e_agregador" || true)"
+contrato "los bloques de E2E son el job e2e-bloques, con matriz de tres" 1 "$(sed -n '/^  e2e-bloques:$/,/^    steps:$/p' <<< "$yml" | grep -cF -- '        bloque: [1, 2, 3]' || true)"
+e2e_pasos="$(sed -n '/^  e2e-tests:$/,/^  load-test:$/p' <<< "$yml")"
+contrato "el agregador de E2E usa el modo SOLO_E2E" 1 "$(grep -cF -- '          SOLO_E2E: "1"' <<< "$e2e_pasos" || true)"
+contrato "el agregador de E2E recibe el resultado de los bloques" 1 "$(grep -cF -- '          R_E2E: ${{ needs.e2e-bloques.result }}' <<< "$e2e_pasos" || true)"
+contrato "el agregador de E2E recibe el resultado y la salida de alcance" 2 "$(grep -cE '^          (R_ALCANCE: \$\{\{ needs\.alcance\.result \}\}|ALCANCE_E2E: \$\{\{ needs\.alcance\.outputs\.e2e \}\})$' <<< "$e2e_pasos" || true)"
+contrato "cuatro pasos del agregador de E2E se saltan solo con e2e == saltada" 4 "$(grep -cF -- "        if: steps.exigir.outputs.e2e != 'saltada'" <<< "$e2e_pasos" || true)"
+contrato "ningún paso exige e2e == 'ejecutada'" 0 "$(cuenta "steps.exigir.outputs.e2e == 'ejecutada'")"
+contrato "el agregador general sigue recibiendo el resultado del job e2e-tests" 1 "$(cuenta '          R_E2E: ${{ needs.e2e-tests.result }}')"
 
 echo
 echo "Pruebas: $PRUEBAS · Fallos: $FALLOS"
