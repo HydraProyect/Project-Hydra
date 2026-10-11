@@ -19,8 +19,8 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 ///
 /// <para>
 /// Todo sale de una sola consulta, <see cref="ObtenerEstadoTipoDocumentoQuery"/>, que es también la que autoriza: quien no
-/// puede leer la página recibe <c>null</c> y ve el mismo error que con un tipo que no existe. <see cref="RolesDeLaPagina"/> (lista de equipo de la política PoliticasFichas360.TipoDocumento)
-/// repite esa lista en la ruta para que tampoco se llegue a montar el circuito.
+/// puede leer la página recibe <c>null</c> y ve el mismo error que con un tipo que no existe. La ruta la exige la política <c>PoliticasFichas360.TipoDocumento</c> (equipo o Sesión Privilegiada con acceso total),
+/// que tampoco deja montar el circuito; <see cref="RolesDeLaPagina"/> es solo la lista de equipo que usa Documentos.
 /// </para>
 ///
 /// <para>

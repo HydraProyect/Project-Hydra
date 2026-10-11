@@ -33,6 +33,7 @@ public class ObtenerClientePorIdNotaInternaTests
         detalle.Should().NotBeNull("su propio Cliente empresarial está en su alcance de lectura");
         detalle!.RazonSocial.Should().Be("Cliente Repro S.L.");
         detalle.Notas.Should().BeNull();
+        detalle.NotaInternaVisible.Should().BeFalse("la página obedece esta bandera para no pintar la caja");
     }
 
     [Fact]

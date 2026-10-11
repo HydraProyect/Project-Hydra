@@ -21,10 +21,14 @@ public record ObtenerClientePorIdQuery(Guid Id) : IRequest<ClienteDetalleDto?>;
 /// llega <c>null</c>. Quien reenvía este campo a <c>EditarClienteCommand</c>
 /// necesita un rol con escritura, y todos ellos son de gestión: ningún
 /// llamador que pueda guardar recibe la nota vaciada.
+///
+/// <paramref name="NotaInternaVisible"/> dice a la página si pinta la tarjeta de la nota: la decide el
+/// servidor con la misma política, así que la Sesión Privilegiada de acceso total la ve aunque sus claims
+/// de rol hayan sido retirados (un <c>AuthorizeView</c> por rol no la vería).
 /// </summary>
 public record ClienteDetalleDto(
     Guid Id, string RazonSocial, string Cif, bool EsCritico, string? Notas, DateTime CreadoEnUtc,
-    Guid? EjecutivoUsuarioId, Guid Version);
+    Guid? EjecutivoUsuarioId, Guid Version, bool NotaInternaVisible = true);
 
 /// <summary>
 /// F3b — reemplaza <c>IClientesQueryContext</c> por <c>IEmpresasQueryContext</c>:
@@ -48,7 +52,7 @@ public class ObtenerClientePorIdQueryHandler(
             .Where(c => c.Id == request.Id)
             .Select(c => new ClienteDetalleDto(
                 c.Id, c.RazonSocial, c.Cif!, c.EsCritico ?? false, conNotaInterna ? c.Notas : null, c.CreadoEnUtc,
-                c.EjecutivoUsuarioId, c.Version))
+                c.EjecutivoUsuarioId, c.Version, conNotaInterna))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }
