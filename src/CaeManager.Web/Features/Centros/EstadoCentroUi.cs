@@ -28,8 +28,10 @@ public static class EstadoCentroUi
         EstadoCentro.Urgente => TonoBadge.Advertencia,
         EstadoCentro.Vencido => TonoBadge.Peligro,
         EstadoCentro.Faltante => TonoBadge.Peligro,
-        // Pendiente en la plataforma (2026-10-10) se rotula «Pendiente», como Faltante: misma pastilla, mismo tono.
-        EstadoCentro.Pendiente => TonoBadge.Peligro,
+        // Pendiente en la plataforma (2026-10-10) se rotula «Pendiente», como Faltante, pero con tono INFORMATIVO (decisión del
+        // propietario, 2026-10-10): es trabajo por hacer en la plataforma, no un documento que falta ni vencido. Mismo tono que
+        // BadgesAcreditacion para PendienteDeSubir. La coincidencia de rótulo con Faltante (rojo) queda como riesgo anotado.
+        EstadoCentro.Pendiente => TonoBadge.Info,
         EstadoCentro.Bloqueado => TonoBadge.Peligro,
         // P1-X2: neutro, nunca Exito — el Centro no está "al día", es que no
         // se le exige documentación. Pintarlo en verde sería un verde falso.

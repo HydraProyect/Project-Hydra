@@ -1134,6 +1134,7 @@ public partial class CentrosListaPatronTests : BunitContext
     [Theory]
     [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.SinGestionCae }, null)]
     [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Proximo }, null)]
+    [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Pendiente }, null)] // Pendiente en la plataforma: tono informativo, no tiñe (2026-10-10)
     [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Urgente }, "fila-tintada-aviso")]
     [InlineData(new[] { EstadoCentro.Urgente, EstadoCentro.Vencido }, "fila-tintada-peligro")]
     [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Faltante }, "fila-tintada-peligro")]

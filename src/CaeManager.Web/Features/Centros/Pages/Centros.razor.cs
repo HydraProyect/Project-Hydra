@@ -964,14 +964,15 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     };
 
     /// <summary>
-    /// Fila con problema: 2 = bloqueo de la plataforma CAE, vencido, falta documentación o pendiente en la plataforma
-    /// (tinte de peligro, «con problema»); 1 = urgente (tinte de aviso, «por vencer»); 0 = el resto.
+    /// Fila con problema: 2 = bloqueo de la plataforma CAE, vencido o falta documentación (tinte de peligro, «con problema»);
+    /// 1 = urgente (tinte de aviso, «por vencer»); 0 = el resto. El pendiente en la plataforma tiene tono informativo
+    /// (decisión del 2026-10-10) y no tiñe de peligro ni la fila ni el grupo.
     /// Se lee del estado del Centro, el mismo que pinta su badge. Es también el criterio del tinte de la cabecera
     /// de grupo (<see cref="GrupoCentros.Tinte"/>): «Próximo» se rotula «Por vencer» pero no tiñe ni fila ni grupo.
     /// </summary>
     private static int NivelProblema(EstadoCentro estado) => estado switch
     {
-        EstadoCentro.Bloqueado or EstadoCentro.Vencido or EstadoCentro.Faltante or EstadoCentro.Pendiente => 2,
+        EstadoCentro.Bloqueado or EstadoCentro.Vencido or EstadoCentro.Faltante => 2,
         EstadoCentro.Urgente => 1,
         _ => 0,
     };
