@@ -135,7 +135,7 @@ public class PendienteEnPlataformaBajoRlsTests : IAsyncLifetime
 
         var centro = resultado.Elementos.Should().ContainSingle().Subject;
         centro.Estado.Should().Be(EstadoCentro.Pendiente);
-        centro.Recuentos.TotalPendientes.Should().Be(3);
+        centro.Recuentos.TotalPendientesEnPlataforma.Should().Be(3);
         centro.Recuentos.TotalVencidas.Should().Be(0, "un pendiente no es un vencido");
         centro.Recuentos.TotalProximas.Should().Be(0, "ni algo por vencer");
     }

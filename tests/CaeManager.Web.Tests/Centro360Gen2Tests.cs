@@ -961,6 +961,35 @@ public class Centro360Gen2Tests : BunitContext
     }
 
     /// <summary>
+    /// Pendiente en la plataforma (2026-10-10): el Trabajador bloqueado por un documento sin subir o sin validar en la
+    /// plataforma del Centro se lista con el documento NOMBRADO y su estado en la plataforma, no con un contador.
+    /// </summary>
+    [Fact]
+    public void El_bloqueo_por_pendiente_en_la_plataforma_nombra_el_documento_y_su_estado()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte", estado: EstadoCentro.Pendiente);
+        var sinSubir = Asignado("Juan Pérez", EstadoDocumento.Vigente, Documento("RNT", EstadoDocumento.Vigente, new DateOnly(2027, 4, 17)));
+        var sinValidar = Asignado("Marco Vila", EstadoDocumento.Vigente, Documento("ITA", EstadoDocumento.Vigente, new DateOnly(2027, 4, 17)));
+        mediador.Asignaciones[id] = [sinSubir, sinValidar];
+        mediador.Bloqueos[id] =
+        [
+            new(id, "Centro Norte", sinSubir.TrabajadorId, "Juan Pérez", Guid.NewGuid(), "RNT",
+                Situacion: SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma),
+            new(id, "Centro Norte", sinValidar.TrabajadorId, "Marco Vila", Guid.NewGuid(), "ITA",
+                Situacion: SituacionDeRequisitoBloqueante.SinValidarEnPlataforma)
+        ];
+
+        var cut = Renderizar(id);
+
+        var lineas = cut.FindAll(".ventana-linea").Select(l => l.TextContent.Trim()).ToList();
+        lineas.Should().Contain("Juan Pérez · RNT: sin subir a la plataforma del Centro");
+        lineas.Should().Contain("Marco Vila · ITA: subido, sin validar en la plataforma del Centro");
+    }
+
+    /// <summary>
     /// El acordeón de la lista de Centros no recibe los bloqueos: los carga él, con el Centro de su fila, y la fila del
     /// Trabajador dice lo mismo que en Centro 360. Si la lectura falla, la fila se pinta sin el distintivo.
     /// </summary>

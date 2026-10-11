@@ -396,7 +396,7 @@ public class CentrosListaGen2Tests : BunitContext
         var motivo = estado.QuerySelector(".estado-fila-motivo")!;
         motivo.QuerySelectorAll(".motivo-recuento").Select(m => m.TextContent.Trim()).Should().Equal("1 vencido", esperado);
         motivo.QuerySelectorAll(".motivo-recuento-separador").Should().HaveCount(1, "dos recuentos, un separador");
-        var ventana = motivo.QuerySelector(".motivo-recuento-pendientes")!.Closest(".ventana-contexto")!;
+        var ventana = motivo.QuerySelector(".motivo-recuento-pendientes-plataforma")!.Closest(".ventana-contexto")!;
         ventana.GetAttribute("aria-label").Should().Be($"{esperado}. {titulo}",
             "no se corrige renovando el documento: la ventana no es interactiva y su nombre accesible empieza por lo que se ve");
         ventana.QuerySelectorAll(".ventana-linea").Select(l => l.TextContent.Trim()).Should().Equal(lineas.Select(l => l.Descripcion));
@@ -414,7 +414,7 @@ public class CentrosListaGen2Tests : BunitContext
         var cut = Renderizar(centro);
 
         cut.Find(".ranura-estado-centro .estado-fila-motivo .motivo-recuento").TextContent.Trim().Should().Be("1 vencido", "control positivo");
-        cut.FindAll(".motivo-recuento-pendientes").Should().BeEmpty();
+        cut.FindAll(".motivo-recuento-pendientes-plataforma").Should().BeEmpty();
     }
 
     [Fact]

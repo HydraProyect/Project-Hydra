@@ -326,7 +326,7 @@
                         *@
                         <span class="tarjeta-fila-acordeon-indicadores">
                             <span class="ranura-recuento ranura-estado-centro">
-                                @if (centro.Recuentos.TotalVencidas > 0 || centro.Recuentos.TotalProximas > 0 || centro.Recuentos.TotalPendientes > 0)
+                                @if (centro.Recuentos.TotalVencidas > 0 || centro.Recuentos.TotalProximas > 0 || centro.Recuentos.TotalPendientesEnPlataforma > 0)
                                 {
                                     <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
                                                 Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
@@ -386,7 +386,31 @@
                                                     </Detalle>
                                                 </VentanaContexto>
                                             }
-                                            @if (centro.Recuentos.TotalVencidas > 0 && centro.Recuentos.TotalProximas > 0)
+                                            @if (centro.Recuentos.TotalPendientesEnPlataforma > 0)
+                                            {
+                                                @* Pendiente en la plataforma CAE del Centro (2026-10-10): el documento vale, falta
+                                                   acreditarlo allí. El motivo nombra el documento y qué le falta, no solo cuenta
+                                                   (TextoPendientesEnPlataforma). No se corrige renovando el documento, así que la
+                                                   ventana no ofrece el formulario de corrección: solo dice qué falta y de quién. *@
+                                                @if (centro.Recuentos.TotalVencidas > 0)
+                                                {
+                                                    <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
+                                                }
+                                                <VentanaContexto Etiqueta="@TextoPendientesEnPlataforma.Etiqueta(Textos, centro.Recuentos.PendientesEnPlataforma)"
+                                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                                 Titulo="@TextoPendientesEnPlataforma.Titulo(Textos, centro.Recuentos.TotalPendientesEnPlataforma)">
+                                                    <Disparador>
+                                                        <span class="motivo-recuento motivo-recuento-pendientes-plataforma">@TextoPendientesEnPlataforma.Motivo(Textos, centro.Recuentos.PendientesEnPlataforma)</span>
+                                                    </Disparador>
+                                                    <Detalle>
+                                                        @foreach (var incidencia in centro.Recuentos.PendientesEnPlataforma)
+                                                        {
+                                                            <span class="ventana-linea">@incidencia.Descripcion</span>
+                                                        }
+                                                    </Detalle>
+                                                </VentanaContexto>
+                                            }
+                                            @if ((centro.Recuentos.TotalVencidas > 0 || centro.Recuentos.TotalPendientesEnPlataforma > 0) && centro.Recuentos.TotalProximas > 0)
                                             {
                                                 <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
                                             }
@@ -402,30 +426,6 @@
                                                     </Disparador>
                                                     <Detalle>
                                                         @DesgloseIncidencias(centro, centro.Recuentos.Proximas)
-                                                    </Detalle>
-                                                </VentanaContexto>
-                                            }
-                                            @if ((centro.Recuentos.TotalVencidas > 0 || centro.Recuentos.TotalProximas > 0) && centro.Recuentos.TotalPendientes > 0)
-                                            {
-                                                <span class="motivo-recuento-separador" aria-hidden="true">·</span>
-                                            }
-                                            @if (centro.Recuentos.TotalPendientes > 0)
-                                            {
-                                                @* Pendiente en la plataforma CAE del Centro (2026-10-10): el documento vale, falta
-                                                   acreditarlo allí. El motivo nombra el documento y qué le falta, no solo cuenta
-                                                   (TextoPendientesEnPlataforma). No se corrige renovando el documento, así que la
-                                                   ventana no ofrece el formulario de corrección: solo dice qué falta y de quién. *@
-                                                <VentanaContexto Etiqueta="@TextoPendientesEnPlataforma.Etiqueta(Textos, centro.Recuentos.Pendientes)"
-                                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                                 Titulo="@TextoPendientesEnPlataforma.Titulo(Textos, centro.Recuentos.TotalPendientes)">
-                                                    <Disparador>
-                                                        <span class="motivo-recuento motivo-recuento-pendientes">@TextoPendientesEnPlataforma.Motivo(Textos, centro.Recuentos.Pendientes)</span>
-                                                    </Disparador>
-                                                    <Detalle>
-                                                        @foreach (var incidencia in centro.Recuentos.Pendientes)
-                                                        {
-                                                            <span class="ventana-linea">@incidencia.Descripcion</span>
-                                                        }
                                                     </Detalle>
                                                 </VentanaContexto>
                                             }

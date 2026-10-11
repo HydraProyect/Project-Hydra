@@ -107,7 +107,7 @@ public class CentroPendienteEnPlataformaE2ETests(WebAppFixture fixture)
         // --- Sin plataforma: ni motivo pendiente ni Trabajador bloqueado (controles negativos, con barrera) ---
         await Ayudas.NavegarYEsperarAsync(page, urlLista);
         await Expect(cabeceraFila.Locator(".ranura-estado-centro")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await Expect(cabeceraFila.Locator(".motivo-recuento-pendientes")).ToHaveCountAsync(0);
+        await Expect(cabeceraFila.Locator(".motivo-recuento-pendientes-plataforma")).ToHaveCountAsync(0);
         await Ayudas.NavegarYEsperarAsync(page, urlFicha);
         await Expect(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = nombreCentro }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
@@ -143,10 +143,10 @@ public class CentroPendienteEnPlataformaE2ETests(WebAppFixture fixture)
         // Sin subir va antes que subido (lo que más falta), así que el nombrado es el del tipo bloqueante.
         var motivo = $"{nombreTipoBloqueante} — {trabajador} — sin subir a la plataforma y 1 más";
         await Ayudas.NavegarYEsperarAsync(page, urlLista);
-        await Expect(cabeceraFila.Locator(".motivo-recuento-pendientes"))
+        await Expect(cabeceraFila.Locator(".motivo-recuento-pendientes-plataforma"))
             .ToHaveTextAsync(motivo, new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
         await Expect(cabeceraFila.Locator(".ranura-estado-centro")).ToContainTextAsync("Pendiente");
-        var ventana = cabeceraFila.Locator(".ventana-contexto").Filter(new LocatorFilterOptions { Has = page.Locator(".motivo-recuento-pendientes") });
+        var ventana = cabeceraFila.Locator(".ventana-contexto").Filter(new LocatorFilterOptions { Has = page.Locator(".motivo-recuento-pendientes-plataforma") });
         await Expect(ventana).ToHaveAttributeAsync("aria-label", $"{motivo}. 2 documentos pendientes en la plataforma");
         await Expect(ventana.Locator(".ventana-linea")).ToHaveTextAsync(
         [

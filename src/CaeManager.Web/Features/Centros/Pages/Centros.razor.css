@@ -200,7 +200,7 @@
 }
 
 /* Mismo tono que la pastilla «Pendiente» del Centro (EstadoCentroUi). */
-.motivo-recuento-pendientes {
+.motivo-recuento-pendientes-plataforma {
     color: var(--color-danger-700);
 }
 
