@@ -46,6 +46,25 @@ public readonly record struct ParDocumentalExigido(
     bool PendienteEnPlataforma);
 
 /// <summary>
+/// Un par Empresa × TipoDocumento de ámbito Empresa que un Centro exige hoy a una Empresa con Trabajadores de Asignación
+/// activa en él (decisión del propietario, 2026-10-10: el Pendiente de Empresa baja el porcentaje del Centro). Solo entra
+/// en el contexto <see cref="ContextoCumplimiento.Centro"/>: los porcentajes de Trabajador, Empresa y Cliente empresarial
+/// no lo reciben (los documentos de ámbito Empresa siguen fuera de ellos). Sus campos significan lo mismo que en
+/// <see cref="ParDocumentalExigido"/>, salvo que el sujeto es la Empresa y no un Trabajador.
+/// </summary>
+/// <param name="CentroId">Centro que exige el tipo.</param>
+/// <param name="EmpresaId">Empresa a la que se le exige: la de algún Trabajador con Asignación activa en el Centro.</param>
+/// <param name="TipoDocumentoId">Tipo de ámbito Empresa exigido.</param>
+/// <param name="Estado">Estado del documento efectivo del par, o Faltante.</param>
+/// <param name="PendienteEnPlataforma">Mismo significado que en <see cref="ParDocumentalExigido.PendienteEnPlataforma"/>.</param>
+public readonly record struct ParDocumentalDeEmpresaExigido(
+    Guid CentroId,
+    Guid EmpresaId,
+    Guid TipoDocumentoId,
+    EstadoDocumento Estado,
+    bool PendienteEnPlataforma);
+
+/// <summary>
 /// Fracción de cumplimiento: cuántos de los requeridos están al día. <see cref="Porcentaje"/> es <c>null</c> cuando no
 /// hay ningún requerido — un 0 % o un 100 % ahí sería engañoso, «sin requisitos» es la lectura correcta.
 /// </summary>
@@ -93,8 +112,9 @@ public sealed record FraccionCumplimiento(int AlDia, int Requeridos)
 /// </para>
 ///
 /// <para>
-/// <b>Fuera del universo, a propósito, hasta que el propietario decida.</b> (1) Los documentos de ámbito Empresa: hoy
-/// ningún porcentaje los cuenta y el cálculo no sabe qué tipos de Empresa exige cada Centro. (2) El tratamiento de los
+/// <b>Fuera del universo, a propósito, hasta que el propietario decida.</b> (1) Los documentos de ámbito Empresa, salvo en
+/// el porcentaje del Centro (decisión 2026-10-10: <see cref="ParDocumentalDeEmpresaExigido"/>, <see cref="PorCentro"/>); en
+/// los de Trabajador, Empresa y Cliente empresarial siguen fuera. (2) El tratamiento de los
 /// documentos históricos sustituidos: no entran (un documento sustituido es historial, <c>DocumentoOperativo</c>) y de
 /// los operativos de un par representa el documento efectivo (<c>DocumentoEfectivo</c>: válido hoy, nominativo, emisión
 /// más reciente) y no se decide otra.
@@ -120,6 +140,30 @@ public static class CumplimientoDocumental
     /// </summary>
     public static bool EsConforme(ParDocumentalExigido par, ContextoCumplimiento contexto) =>
         EsConforme(par.Estado) && !(contexto == ContextoCumplimiento.Centro && par.PendienteEnPlataforma);
+
+    /// <summary>El numerador para un par de Empresa: la misma regla del contexto Centro que <see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/> (el estado vale y no está pendiente en la plataforma).</summary>
+    public static bool EsConforme(ParDocumentalDeEmpresaExigido par) =>
+        EsConforme(par.Estado) && !par.PendienteEnPlataforma;
+
+    /// <summary>
+    /// La fracción de cada Centro con sus dos universos: los pares Trabajador × Tipo y los pares Empresa × Tipo
+    /// (<see cref="ParDocumentalDeEmpresaExigido"/>), todos en el denominador y solo los conformes en el numerador. Un Centro
+    /// sin ningún par no aparece.
+    /// </summary>
+    public static Dictionary<Guid, FraccionCumplimiento> PorCentro(
+        IEnumerable<ParDocumentalExigido> paresDeTrabajador, IEnumerable<ParDocumentalDeEmpresaExigido> paresDeEmpresa)
+    {
+        var resultado = PorContexto(ContextoCumplimiento.Centro, paresDeTrabajador);
+        foreach (var grupo in paresDeEmpresa.GroupBy(p => p.CentroId))
+        {
+            var deEmpresa = new FraccionCumplimiento(grupo.Count(EsConforme), grupo.Count());
+            resultado[grupo.Key] = resultado.TryGetValue(grupo.Key, out var deTrabajador)
+                ? FraccionCumplimiento.Sumar([deTrabajador, deEmpresa])
+                : deEmpresa;
+        }
+
+        return resultado;
+    }
 
     /// <summary>Fracción de un conjunto de pares exigidos en un contexto: todos entran en el denominador, solo los conformes (<see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/>) en el numerador.</summary>
     public static FraccionCumplimiento Evaluar(IEnumerable<ParDocumentalExigido> pares, ContextoCumplimiento contexto)

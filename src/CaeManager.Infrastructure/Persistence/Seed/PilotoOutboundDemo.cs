@@ -1170,12 +1170,15 @@ public static class CatalogoPilotoOutbound
 
             // Diez Trabajadores, cada uno en un Centro que le exige dos tipos: 20 pares y 20 documentos, la mitad
             // Vencidos. Mi trabajo: una fila por documento vencido; la Visita, a quince días, no añade ninguna.
+            // El porcentaje de cada Centro suma desde el 2026-10-10 los 13 tipos de Empresa que le exige a la Empresa propia
+            // (todos Vigentes): los dos Centros con tres Trabajadores dan 3 + 13 de 6 + 13 = 84 %; los dos con dos, 2 + 13 de 4 + 13 = 88 %.
+            // Inicio, Visión de cartera y Empresas siguen en la mitad: cada porcentaje mide su contexto.
             EscenarioPilotoOutbound.Mitad => new(
                 FilasMiTrabajo: 10, CumplimientoInicio: 50, CumplimientoVisionCartera: 50, CumplimientoEmpresa: 50,
                 Centros:
                 [
-                    new(tenant.Centros[0].Nombre, EstadoCentro.Vencido, 50), new(tenant.Centros[1].Nombre, EstadoCentro.Vencido, 50),
-                    new(tenant.Centros[2].Nombre, EstadoCentro.Vencido, 50), new(tenant.Centros[3].Nombre, EstadoCentro.Vencido, 50)
+                    new(tenant.Centros[0].Nombre, EstadoCentro.Vencido, 84), new(tenant.Centros[1].Nombre, EstadoCentro.Vencido, 84),
+                    new(tenant.Centros[2].Nombre, EstadoCentro.Vencido, 88), new(tenant.Centros[3].Nombre, EstadoCentro.Vencido, 88)
                 ],
                 // Documentos: 20 de Trabajador (10 × 2) y los 13 que se exigen por defecto a la Empresa propia, Vigentes.
                 ParesExigidos: 20, ParesFaltantes: 0, Documentos: 33, TodoAlDia: false),
@@ -1195,15 +1198,17 @@ public static class CatalogoPilotoOutbound
             // 220 = 96 %. Los ocho primeros Centros tienen a los cuatro Trabajadores (19 de 20 pares, y el
             // vencido los pone en rojo); los dos siguientes, a tres (15 de 15, con el EPI urgente); los cuatro
             // últimos, a dos o a uno, sin nada pendiente de sus Trabajadores: los deja en «Próximo» lo único que
-            // les llega, los dos certificados mensuales de la Empresa propia.
+            // les llega, los dos certificados mensuales de la Empresa propia. Desde el 2026-10-10 el porcentaje de cada Centro
+            // suma además los 13 tipos de Empresa de la Empresa propia, todos en regla: los ocho primeros dan 19 + 13 de
+            // 20 + 13 = 97 % (antes 95 %); los demás siguen en 100 %.
             EscenarioPilotoOutbound.PocosTrabajadoresMuchosCentros => new(
                 FilasMiTrabajo: 4, CumplimientoInicio: 95, CumplimientoVisionCartera: 95, CumplimientoEmpresa: 96,
                 Centros:
                 [
-                    new(tenant.Centros[0].Nombre, EstadoCentro.Vencido, 95), new(tenant.Centros[1].Nombre, EstadoCentro.Vencido, 95),
-                    new(tenant.Centros[2].Nombre, EstadoCentro.Vencido, 95), new(tenant.Centros[3].Nombre, EstadoCentro.Vencido, 95),
-                    new(tenant.Centros[4].Nombre, EstadoCentro.Vencido, 95), new(tenant.Centros[5].Nombre, EstadoCentro.Vencido, 95),
-                    new(tenant.Centros[6].Nombre, EstadoCentro.Vencido, 95), new(tenant.Centros[7].Nombre, EstadoCentro.Vencido, 95),
+                    new(tenant.Centros[0].Nombre, EstadoCentro.Vencido, 97), new(tenant.Centros[1].Nombre, EstadoCentro.Vencido, 97),
+                    new(tenant.Centros[2].Nombre, EstadoCentro.Vencido, 97), new(tenant.Centros[3].Nombre, EstadoCentro.Vencido, 97),
+                    new(tenant.Centros[4].Nombre, EstadoCentro.Vencido, 97), new(tenant.Centros[5].Nombre, EstadoCentro.Vencido, 97),
+                    new(tenant.Centros[6].Nombre, EstadoCentro.Vencido, 97), new(tenant.Centros[7].Nombre, EstadoCentro.Vencido, 97),
                     new(tenant.Centros[8].Nombre, EstadoCentro.Urgente, 100), new(tenant.Centros[9].Nombre, EstadoCentro.Urgente, 100),
                     new(tenant.Centros[10].Nombre, EstadoCentro.Proximo, 100), new(tenant.Centros[11].Nombre, EstadoCentro.Proximo, 100),
                     new(tenant.Centros[12].Nombre, EstadoCentro.Proximo, 100), new(tenant.Centros[13].Nombre, EstadoCentro.Proximo, 100)
@@ -1221,21 +1226,22 @@ public static class CatalogoPilotoOutbound
             // añade filas: Mi trabajo solo trae Visitas urgentes. Documentos de Trabajador: 24 × 5 − 5 ausentes +
             // 2 del tipo propio = 117, cinco Vencidos: 112 de 117 = 96 %; con los seis de las dos subcontratas, 123.
             // Pares: 30 Asignaciones × 5 + el Centro de destino, que pasa de 2 × 5 a 3 × 6 = 158; fallan 13 (los
-            // Trabajadores 0 y 4 están en dos Centros): 145 de 158 = 92 %. El Centro de destino: 15 de 18 = 83 %.
+            // Trabajadores 0 y 4 están en dos Centros): 145 de 158 = 92 %. El Centro de destino: 15 de 18 pares de Trabajador (83 %), 90 % con los 13 de Empresa.
             EscenarioPilotoOutbound.Territorial => new(
                 FilasMiTrabajo: 19, CumplimientoInicio: 96, CumplimientoVisionCartera: 96, CumplimientoEmpresa: 92,
                 Centros:
                 [
                     // El del desplazamiento: dos documentos vencidos de sus Trabajadores y el tipo propio que le
-                    // falta al desplazado. Vencido precede a Faltante.
-                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[0].Nombre, EstadoCentro.Vencido, 83),
-                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[1].Nombre, EstadoCentro.Vencido, 80),
-                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[2].Nombre, EstadoCentro.Faltante, 80),
-                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[3].Nombre, EstadoCentro.Faltante, 87),
-                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Madrid)[0].Nombre, EstadoCentro.Vencido, 90),
+                    // falta al desplazado. Vencido precede a Faltante. Desde el 2026-10-10 cada porcentaje suma los 13 tipos
+                    // de Empresa de la Empresa propia, en regla: el de destino, 15 + 13 de 18 + 13 = 90 % (antes 83 %).
+                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[0].Nombre, EstadoCentro.Vencido, 90),
+                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[1].Nombre, EstadoCentro.Vencido, 89),
+                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[2].Nombre, EstadoCentro.Faltante, 91),
+                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Barcelona)[3].Nombre, EstadoCentro.Faltante, 93),
+                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Madrid)[0].Nombre, EstadoCentro.Vencido, 96),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Madrid)[1].Nombre, EstadoCentro.Urgente, 100),
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Madrid)[2].Nombre, EstadoCentro.Urgente, 100),
-                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Madrid)[3].Nombre, EstadoCentro.Faltante, 87),
+                    new(tenant.CentrosDe(DisenoT6PilotoOutbound.Madrid)[3].Nombre, EstadoCentro.Faltante, 93),
                     // Los dos de Santander sin nada pendiente de sus Trabajadores quedan en «Próximo» por los dos
                     // certificados mensuales de la Empresa propia, igual que el que ya lo estaba por un documento de Trabajador.
                     new(tenant.CentrosDe(DisenoT6PilotoOutbound.Santander)[0].Nombre, EstadoCentro.Proximo, 100),

@@ -146,10 +146,13 @@ public class PendienteEnPlataformaBajoRlsTests : IAsyncLifetime
         var cumplimiento = await Calculo().CalcularCumplimientoAsync(
             [_sesion.CentroConPlataforma, _sesion.CentroSinPlataforma], CancellationToken.None);
 
-        cumplimiento[_sesion.CentroConPlataforma].Requeridos.Should().Be(3, "Ana, Beto y Eva tienen el tipo exigido en este Centro; Bajo está de baja");
-        cumplimiento[_sesion.CentroConPlataforma].AlDia.Should().Be(2, "el de Ana vale pero está sin subir a la plataforma del Centro");
-        cumplimiento[_sesion.CentroSinPlataforma].Should().Be(new FraccionCumplimiento(1, 1),
-            "el mismo documento de Ana está al día en un Centro sin plataforma");
+        // Tres pares de Trabajador (Ana, Beto y Eva tienen el tipo exigido en este Centro; Bajo está de baja) y dos de Empresa
+        // (decisión del 2026-10-10: el RNT, bloqueante, y la ISO, sin marca, de la Empresa propia).
+        cumplimiento[_sesion.CentroConPlataforma].Requeridos.Should().Be(5);
+        cumplimiento[_sesion.CentroConPlataforma].AlDia.Should().Be(3,
+            "Beto y Eva, y la ISO de la Empresa (pendiente, pero sin marca de bloqueo); no el de Ana, sin subir a la plataforma del Centro, ni el RNT de la Empresa, sin validar y bloqueante");
+        cumplimiento[_sesion.CentroSinPlataforma].Should().Be(new FraccionCumplimiento(2, 2),
+            "el mismo documento de Ana, y el de Empresa que este Centro exige, están al día en un Centro sin plataforma");
     }
 
     [Fact]

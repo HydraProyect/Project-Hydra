@@ -370,6 +370,53 @@ public class PendienteEnPlataformaCoherenciaBajoRlsTests : IAsyncLifetime
         var estado = (await Calculo().CalcularAsync([_centroId], CancellationToken.None))[_centroId];
         estado.Causas.Should().ContainSingle(c => c.PendienteEnPlataforma && c.Ambito == AmbitoCausa.Empresa).Which.Descripcion
             .Should().Be("RNT — Montajes Shelbyville S.L. — subido, sin validar en la plataforma", "la causa nombra la Empresa, no un «Empresa» genérico");
+
+        // Y el mismo Pendiente baja el porcentaje del Centro (decisión del 2026-10-10): dos Empresas con Trabajadores allí
+        // × el RNT que exige el Centro, ninguna al día (la de Ana, pendiente; la de Otro, sin documento).
+        var cumplimiento = (await Calculo().CalcularCumplimientoAsync([_centroId], CancellationToken.None))[_centroId];
+        cumplimiento.Should().Be(new FraccionCumplimiento(0, 2));
+    }
+
+    // ---- K ----
+
+    [Fact]
+    public async Task K_los_pares_de_Empresa_entran_en_el_porcentaje_del_Centro_y_el_pendiente_solo_si_el_tipo_bloquea()
+    {
+        var formacion = await TipoAsync("Formación 60h", AmbitoAplicacion.Trabajador, RequisitoDocumental.Si, bloquea: true);
+        var rnt = await TipoAsync("RNT", AmbitoAplicacion.Empresa, RequisitoDocumental.Si, bloquea: true);
+        var sello = await TipoAsync("Sello de calidad", AmbitoAplicacion.Empresa, RequisitoDocumental.Si, bloquea: false);
+        Guid noExigido;
+        using (AmbitoTenantExplicito.Establecer(_tenantId))
+        {
+            // Sin fila del Centro y no requerido por defecto: el Centro no lo exige, no entra en el universo.
+            var tipo = new TipoDocumento("Memoria anual", null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Empresa, requerido: RequisitoDocumental.No);
+            _propietario.TiposDocumento.Add(tipo);
+            await _propietario.SaveChangesAsync();
+            noExigido = tipo.Id;
+        }
+
+        var ana = await TrabajadorAsignadoAsync("Ana", "77189989B");
+        await AcreditarAsync(await DocumentoDeTrabajadorAsync(ana, formacion, _hoy.AddDays(-5), _hoy.AddYears(1)), Acreditacion.Validada);
+
+        // Sin documentos de Empresa, faltan: Formación de Ana (al día) + RNT y Sello (Faltante) = 1 de 3. «Memoria anual» no entra.
+        (await Calculo().CalcularCumplimientoAsync([_centroId], CancellationToken.None))[_centroId]
+            .Should().Be(new FraccionCumplimiento(1, 3), "el universo suma los pares de Empresa exigidos por el Centro");
+
+        var documentoRnt = await DocumentoDeEmpresaAsync(_empresaId, rnt, _hoy.AddDays(-5), _hoy.AddYears(1));
+        var documentoSello = await DocumentoDeEmpresaAsync(_empresaId, sello, _hoy.AddDays(-5), _hoy.AddYears(1));
+        await DocumentoDeEmpresaAsync(_empresaId, noExigido, _hoy.AddDays(-5), _hoy.AddDays(-1));
+        (await Calculo().CalcularCumplimientoAsync([_centroId], CancellationToken.None))[_centroId]
+            .Should().Be(new FraccionCumplimiento(3, 3), "con los dos al día todo cuenta, y un vencido de un tipo que el Centro no exige no baja nada");
+
+        // Pendiente en la plataforma: el RNT, que el Centro marca bloqueante, baja el porcentaje; el Sello, no.
+        await AcreditarAsync(documentoRnt, Acreditacion.SinSubir);
+        await AcreditarAsync(documentoSello, Acreditacion.SubidaSinValidar);
+        (await Calculo().CalcularCumplimientoAsync([_centroId], CancellationToken.None))[_centroId]
+            .Should().Be(new FraccionCumplimiento(2, 3), "solo el pendiente de un tipo bloqueante baja el porcentaje");
+
+        // Los pares de Trabajador (de los que salen los demás contextos) no cambian.
+        (await Calculo().ObtenerParesExigidosAsync([_centroId], CancellationToken.None))
+            .Should().ContainSingle(p => p.TrabajadorId == ana, "los porcentajes de Trabajador, Empresa y Cliente empresarial no reciben los pares de Empresa");
     }
 
     private sealed class TenantActualPorAmbito : ITenantActual

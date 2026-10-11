@@ -131,6 +131,38 @@ public class ReglaPendienteEnPlataformaTests
             .Should().Be(new FraccionCumplimiento(1, 2), "el pendiente entra en el denominador y no en el numerador");
     }
 
+    /// <summary>
+    /// Decisión del propietario, 2026-10-10: los pares de Empresa entran en el denominador del Centro y su estado cuenta igual
+    /// que el de un Trabajador (al día, vencido, faltante o pendiente en la plataforma).
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoDocumento.Vigente, false, 2, 2)]
+    [InlineData(EstadoDocumento.Vencido, false, 1, 2)]
+    [InlineData(EstadoDocumento.Faltante, false, 1, 2)]
+    [InlineData(EstadoDocumento.Proximo, false, 2, 2)]
+    [InlineData(EstadoDocumento.Vigente, true, 1, 2)]
+    public void Un_par_de_Empresa_entra_en_el_porcentaje_del_Centro_con_el_mismo_criterio_que_uno_de_Trabajador(
+        EstadoDocumento estado, bool pendiente, int alDia, int requeridos)
+    {
+        var centro = Guid.NewGuid();
+        var deTrabajador = new ParDocumentalExigido(centro, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vigente, false);
+        var deEmpresa = new ParDocumentalDeEmpresaExigido(centro, Guid.NewGuid(), Guid.NewGuid(), estado, pendiente);
+
+        CumplimientoDocumental.PorCentro([deTrabajador], [deEmpresa])[centro].Should().Be(new FraccionCumplimiento(alDia, requeridos));
+    }
+
+    [Fact]
+    public void Un_Centro_con_solo_pares_de_Empresa_tambien_tiene_porcentaje_y_los_otros_contextos_no_los_reciben()
+    {
+        var centro = Guid.NewGuid();
+        var deEmpresa = new ParDocumentalDeEmpresaExigido(centro, Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vencido, false);
+
+        CumplimientoDocumental.PorCentro([], [deEmpresa])[centro].Should().Be(new FraccionCumplimiento(0, 1));
+        CumplimientoDocumental.PorCentro([], []).Should().BeEmpty();
+        // Control: el contexto Empresa de los pares de Trabajador no cambia (el par de Empresa no es un ParDocumentalExigido).
+        CumplimientoDocumental.PorContexto(ContextoCumplimiento.Empresa, Array.Empty<ParDocumentalExigido>()).Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData(ContextoCumplimiento.Trabajador)]
     [InlineData(ContextoCumplimiento.Empresa)]

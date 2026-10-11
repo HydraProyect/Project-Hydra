@@ -64,6 +64,8 @@ public class ObtenerKpisDashboardQuerySinCarteraTests : IAsyncLifetime
         // estos dos contextos.
         servicios.AddSingleton<CaeManager.Application.TiposDocumento.ITiposDocumentoQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Asignaciones.IAsignacionesQueryContext>(_dbContext);
+        // Y el de Empresas: la causa Pendiente en la plataforma de una Empresa nombra su razón social.
+        servicios.AddSingleton<CaeManager.Application.Empresas.IEmpresasQueryContext>(_dbContext);
         // GateComercialTenantBehavior (Horizonte 1.7) es un IPipelineBehavior
         // global — cualquier despacho por IMediator, incluida una Query, lo
         // construye, así que este contenedor mínimo necesita la interfaz
