@@ -192,7 +192,7 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var (page, fila) = await AbrirConUnaVisitaAsync(contexto);
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas?activas=false");
+        // La fila recién creada está en la lista por defecto («Solo activas»): ahí se mide su alto antes de cancelar.
         await Expect(fila).ToHaveCountAsync(1);
         await page.EvaluateAsync("() => document.fonts.ready");
         var altoInicial = await fila.EvaluateAsync<double>("f => f.getBoundingClientRect().height");
@@ -205,6 +205,17 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await confirmacion.GetByRole(AriaRole.Textbox, new LocatorGetByRoleOptions { Name = "Motivo (opcional)", Exact = true }).FillAsync(motivo);
         await confirmacion.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar visita", Exact = true }).ClickAsync();
         await Expect(confirmacion).ToBeHiddenAsync();
+
+        // Con «Solo activas» la cancelada sale de la lista: se busca en el historial. Su fecha cae a unos
+        // cientos de años, así que en orden ascendente quedaría al final de muchas páginas; ordenada por
+        // «Fechas» de mayor a menor es la primera fila.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas?activas=false");
+        var cabeceraFechas = page.GetByRole(AriaRole.Columnheader, new PageGetByRoleOptions { Name = "Fechas" });
+        await cabeceraFechas.Locator("button.col-title").ClickAsync();
+        await Expect(cabeceraFechas).ToHaveClassAsync(new Regex(@"col-sort-asc"));
+        await cabeceraFechas.Locator("button.col-title").ClickAsync();
+        await Expect(cabeceraFechas).ToHaveClassAsync(new Regex(@"col-sort-desc"));
+        await Expect(fila).ToHaveCountAsync(1);
         var motivoVisible = fila.Locator("[data-pieza=motivo-cancelacion]");
         await Expect(motivoVisible).ToHaveAttributeAsync("title", motivo);
         await Expect(motivoVisible).ToHaveTextAsync(motivo);
