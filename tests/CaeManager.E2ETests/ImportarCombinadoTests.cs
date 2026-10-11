@@ -129,27 +129,17 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
             Assert.Equal("1", await Ayudas.LeerMetricaAsync(page, "Omitidos"));
 
             // --- Verificación real: las 4 entidades existen, la inválida no ---
-            // F3b (2026-08-26): el Cliente importado (y el CIF inválido que
-            // debía omitirse) ya no se verifican en /clientes —
-            // ObtenerClientesQuery sigue congelada por D2 hasta F4 y, con los
-            // escritores redirigidos a Empresa, esa pantalla queda vacía en
-            // cualquier entorno (decisión explícita: "aceptar el vacío", ver
-            // Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md). El Cliente
-            // importado sí existe como fila en /empresas (EsCritico != null);
-            // la fila con CIF inválido nunca se creó en ninguna tabla, así
-            // que su ausencia ahí sigue siendo una comprobación real, no
-            // degenerada.
+            // El Cliente empresarial importado se verifica en /clientes (ObtenerClientesQuery lista las Empresas con
+            // EsCritico != null); /empresas solo lista Empresas propias (EsPropia). Buscar por el sufijo común deja
+            // en la misma lista al válido y al de CIF inválido: con el positivo visible, la lista está cargada y
+            // filtrada, así que la ausencia del inválido es una comprobación real y no un vacío por carga.
+            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes?q={Uri.EscapeDataString(sufijo)}");
+            await Expect(page.GetByRole(AriaRole.Button, new() { Name = $"Abrir la vista rápida de {razonSocialCliente}", Exact = true }))
+                .ToBeVisibleAsync(new() { Timeout = 15_000 });
+            await Expect(page.GetByRole(AriaRole.Button, new() { Name = $"Abrir la vista rápida de {razonSocialClienteInvalido}", Exact = true }))
+                .ToHaveCountAsync(0);
+
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-            await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialCliente);
-            // Por el enlace del nombre, no por la fila entera: es lo que identifica a la Empresa de la fila, y
-            // hasta que llega el filtro la lista las enseña todas.
-            await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialCliente })
-                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-
-            await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialClienteInvalido);
-            await page.WaitForTimeoutAsync(500);
-            await Expect(page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialClienteInvalido })).ToHaveCountAsync(0);
-
             await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresa);
             await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialEmpresa })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });

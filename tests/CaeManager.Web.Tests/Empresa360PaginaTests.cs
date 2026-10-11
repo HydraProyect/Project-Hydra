@@ -3,12 +3,14 @@ using Bunit.TestDoubles;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
+using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
 using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
@@ -84,8 +86,20 @@ public class Empresa360PaginaTests : BunitContext
                 ? new CredencialAccesoEmpresaSinContrasenaDto(c.UrlAcceso, c.CampoEmpresa, c.Usuario, c.Notas)
                 : null,
             ObtenerCredencialAccesoEmpresaQuery q => Credenciales.GetValueOrDefault(q.EmpresaId),
+            GuardarNotaInternaEmpresaCommand c => GuardarNota(c),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
+
+        /// <summary>Lo que responde la orden de guardar la nota; en éxito, la ficha releída pasa a ser esta.</summary>
+        public Result ResultadoNota { get; set; } = Result.Exito();
+        public EmpresaDetalleDto? DetalleTrasGuardarNota { get; set; }
+
+        private Result GuardarNota(GuardarNotaInternaEmpresaCommand c)
+        {
+            if (ResultadoNota.EsExitoso && DetalleTrasGuardarNota is not null)
+                Detalles[c.Id] = DetalleTrasGuardarNota;
+            return ResultadoNota;
+        }
 
         /// <summary>Misma semántica que ObtenerTrabajadoresQueryHandler (ver la doc de la clase).</summary>
         private ResultadoPaginado<TrabajadorListaDto> ResponderTrabajadores(ObtenerTrabajadoresQuery q)
@@ -847,5 +861,116 @@ public class Empresa360PaginaTests : BunitContext
         Navegacion.NavigateTo($"empresas/{EmpresaId}");
         cut.WaitForAssertion(() => Chips(cut)[0].Should().Be("Todos · 25"));
         Buscador(cut).GetAttribute("value").Should().BeEmpty();
+    }
+
+    // ── Nota interna ──────────────────────────────────────────────────────
+
+    private const string NotaGuardada = "Avisar a Leire antes de pedir documentación.";
+
+    private static void ConNota(MediatorFalso mediador, string? notas, bool visible = true) =>
+        mediador.Detalles[EmpresaId] = mediador.Detalles[EmpresaId] with { Notas = notas, NotaInternaVisible = visible };
+
+    private static IElement? TarjetaNota(IRenderedComponent<EmpresaDetalle> cut) =>
+        cut.FindAll("[data-pieza=nota-interna]").SingleOrDefault();
+
+    private static IElement EditorNota(IRenderedComponent<EmpresaDetalle> cut) =>
+        cut.FindAll("[role=dialog]").Single(d => d.QuerySelector("h2")?.TextContent.Trim() == "Nota interna");
+
+    private static bool EditorNotaAbierto(IRenderedComponent<EmpresaDetalle> cut) =>
+        cut.FindAll("[role=dialog]").Any(d => d.QuerySelector("h2")?.TextContent.Trim() == "Nota interna");
+
+    [Fact]
+    public void El_equipo_ve_la_nota_interna_en_el_lateral_con_su_pie()
+    {
+        var mediador = Registrar(Empresa());
+        ConNota(mediador, NotaGuardada);
+
+        var cut = Renderizar();
+
+        var tarjeta = TarjetaNota(cut);
+        tarjeta.Should().NotBeNull();
+        tarjeta!.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el cliente.");
+        tarjeta.TextContent.Should().NotContain("Sin nota interna.");
+        cut.Find(".cuerpo-con-lateral-lateral").LastElementChild!.GetAttribute("data-pieza").Should().Be("nota-interna");
+    }
+
+    [Fact]
+    public void Sin_nota_el_equipo_ve_la_tarjeta_con_su_vacio()
+    {
+        var mediador = Registrar(Empresa());
+        ConNota(mediador, null);
+
+        var cut = Renderizar();
+
+        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el cliente.");
+    }
+
+    /// <summary>
+    /// El usuario de Cliente también lee esta ficha. El servidor le responde <c>NotaInternaVisible = false</c> y la página
+    /// no pinta la tarjeta, ni siquiera vacía.
+    /// </summary>
+    [Fact]
+    public void Al_usuario_de_Cliente_la_pagina_no_le_pinta_la_tarjeta_ni_vacia()
+    {
+        var mediador = Registrar(Empresa(), Roles.Cliente);
+        ConNota(mediador, null, visible: false);
+
+        var cut = Renderizar();
+
+        TarjetaNota(cut).Should().BeNull();
+        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el cliente.");
+    }
+
+    [Fact]
+    public void Consulta_lee_la_nota_pero_no_se_le_ofrece_editarla()
+    {
+        var mediador = Registrar(Empresa(), Roles.Consulta);
+        ConNota(mediador, NotaGuardada);
+
+        var cut = Renderizar();
+
+        TarjetaNota(cut)!.TextContent.Should().Contain(NotaGuardada);
+        TarjetaNota(cut)!.QuerySelectorAll("button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Editar_y_guardar_manda_solo_la_nota_con_la_version_leida_y_relee_la_ficha()
+    {
+        var mediador = Registrar(Empresa());
+        ConNota(mediador, NotaGuardada);
+        var versionLeida = mediador.Detalles[EmpresaId].Version;
+        mediador.DetalleTrasGuardarNota = mediador.Detalles[EmpresaId] with { Notas = "Ahora atiende Jon.", Version = Guid.NewGuid() };
+        var cut = Renderizar();
+
+        TarjetaNota(cut)!.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Editar →").Click();
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeTrue());
+        var campo = EditorNota(cut).QuerySelector("textarea")!;
+        campo.TextContent.Should().Be(NotaGuardada);
+        EditorNota(cut).TextContent.Should().Contain("No la ve el cliente.");
+        campo.Input("Ahora atiende Jon.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeFalse());
+        mediador.Enviadas.OfType<GuardarNotaInternaEmpresaCommand>().Should().ContainSingle()
+            .Which.Should().Be(new GuardarNotaInternaEmpresaCommand(EmpresaId, "Ahora atiende Jon.", versionLeida));
+        TarjetaNota(cut)!.TextContent.Should().Contain("Ahora atiende Jon.").And.NotContain(NotaGuardada);
+    }
+
+    [Fact]
+    public void Un_conflicto_cierra_el_editor_y_relee_la_nota_de_la_otra_persona()
+    {
+        var mediador = Registrar(Empresa());
+        ConNota(mediador, NotaGuardada);
+        mediador.ResultadoNota = Result.Fallo(Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona guardó antes."));
+        var cut = Renderizar();
+        ConNota(mediador, "Lo de la otra persona.");
+
+        TarjetaNota(cut)!.QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Editar →").Click();
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeTrue());
+        EditorNota(cut).QuerySelector("textarea")!.Input("Lo mío.");
+        EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
+
+        cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeFalse());
+        TarjetaNota(cut)!.TextContent.Should().Contain("Lo de la otra persona.");
     }
 }

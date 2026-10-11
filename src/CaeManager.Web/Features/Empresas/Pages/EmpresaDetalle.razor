@@ -14,8 +14,10 @@
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Empresas.Components
 @using CaeManager.Web.Features.Empresas.Recursos
+@using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosEmpresas> Textos
+@inject IStringLocalizer<TextosComunes> Comunes
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle?.RazonSocial ?? Textos["TituloPestanaNavegador"]) — @Marca.Nombre</PageTitle>
@@ -134,8 +136,31 @@
                     </ChildContent>
                 </Tarjeta>
 
+                @* Una sola nota por Empresa (Empresa.Notas), la misma que en Cliente 360 y Subcontrata 360. Quién la
+                   ve lo decide el servidor (ObtenerEmpresaPorIdQuery): al usuario de Cliente, que también lee esta
+                   ficha, le llega NotaInternaVisible = false y la tarjeta no existe, ni siquiera vacía. *@
+                @if (_detalle.NotaInternaVisible)
+                {
+                    <NotaInterna Texto="@_detalle.Notas">
+                        <Acciones>
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirEditorNota">@Textos["EditarFlecha"]</Boton>
+                            </SoloConEscritura>
+                        </Acciones>
+                    </NotaInterna>
+                }
             </Lateral>
         </CuerpoConLateral>
+
+        @* Editor de la nota interna: solo se abre desde «Editar →» de su tarjeta, que ya está tras SoloConEscritura. *@
+        <DrawerFormulario Visible="_editorNotaVisible" VisibleChanged="CambiarVisibilidadEditorNota" Titulo="@Comunes["NotaInternaTitulo"]"
+                          HayCambios="() => HayCambiosEnLaNota" Guardando="_guardandoNota" MensajeError="@_mensajeErrorNota"
+                          HayErroresDeCampo="@(_errorCampoNota is not null)" OnGuardar="GuardarNotaAsync"
+                          TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+            <CampoTextarea Etiqueta="@Comunes["NotaInternaTitulo"]" Valor="@_notaEnEdicion" ValorChanged="v => _notaEnEdicion = v"
+                           Filas="8" MensajeError="@_errorCampoNota" />
+            <p class="empresa360-apoyo">@Comunes["NotaInternaNoLaVeCliente"]</p>
+        </DrawerFormulario>
     }
 </div>
 </LimiteDeErrores>

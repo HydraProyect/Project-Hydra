@@ -315,4 +315,16 @@
   <data name="AbrirCarpeta" xml:space="preserve">
     <value>Obrir</value>
   </data>
+  <data name="BotonGuardar" xml:space="preserve">
+    <value>Desa</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="ToastNotaInternaGuardada" xml:space="preserve">
+    <value>Nota interna desada.</value>
+  </data>
+  <data name="ErrorGuardarNotaInterna" xml:space="preserve">
+    <value>No hem pogut desar la nota interna. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
 </root>

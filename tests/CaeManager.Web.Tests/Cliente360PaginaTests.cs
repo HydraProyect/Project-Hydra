@@ -74,6 +74,7 @@ public class Cliente360PaginaTests : BunitContext
         public Dictionary<Guid, List<CentroListaDto>> CentrosPorCliente { get; } = [];
         public List<SubcontrataDeClienteDto> Subcontratas { get; } = [];
         public List<BlindajeEmpresaDto> Certificaciones { get; } = [];
+        public List<SolicitudCertificacionTgssDto> HistorialCertificaciones { get; } = [];
 
         /// <summary>Los bloqueos de acceso visibles (la consulta sin Centro): la página se queda con los de su Cliente empresarial.</summary>
         public List<DocumentacionBloqueantePendienteDto> Bloqueos { get; } = [];
@@ -100,7 +101,7 @@ public class Cliente360PaginaTests : BunitContext
             ObtenerEmpresasDeClienteQuery => Empresas,
             ObtenerSubcontratasDeClienteQuery => Subcontratas,
             ObtenerBlindajeEmpresasDeClienteQuery => Certificaciones,
-            ObtenerHistorialCertificacionesTgssQuery => (IReadOnlyList<SolicitudCertificacionTgssDto>)[],
+            ObtenerHistorialCertificacionesTgssQuery => HistorialCertificaciones,
             SolicitarCertificacionTgssCommand => Result.Exito(Guid.NewGuid()),
             ObtenerDocumentacionBloqueantePendienteQuery => (IReadOnlyList<DocumentacionBloqueantePendienteDto>)Bloqueos.ToList(),
             ObtenerToleranciasClienteEmpresarialQuery => (IReadOnlyList<ToleranciaTipoDocumentoDto>)
@@ -527,6 +528,9 @@ public class Cliente360PaginaTests : BunitContext
         var (id, mediador) = ClienteBase();
         var empresaId = Guid.NewGuid();
         mediador.Certificaciones.Add(new BlindajeEmpresaDto(empresaId, "Ibertec GmbH", null, 0, null));
+        mediador.HistorialCertificaciones.Add(new SolicitudCertificacionTgssDto(Guid.NewGuid(),
+            new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), null, null,
+            CaeManager.Domain.Blindaje42.EstadoBlindaje42.PendienteRespuesta, null, false, null));
         Registrar(mediador, rol);
         ComponentFactories.AddStub<PestanaDocumentacion>("<div data-testid='documentacion-original'></div>");
         var cut = Renderizar(id, "?pestana=documentacion");
@@ -537,6 +541,8 @@ public class Cliente360PaginaTests : BunitContext
         drawer.Instance.Visible.Should().BeTrue();
         var solicitar = drawer.FindAll("button").Where(b => b.TextContent.Trim() == "Registrar solicitud").ToList();
         solicitar.Should().HaveCount(puedeEscribir ? 1 : 0);
+        drawer.FindAll("button").Where(b => b.TextContent.Trim() == "Registrar respuesta")
+            .Should().HaveCount(puedeEscribir ? 1 : 0);
         mediador.Enviadas.OfType<ObtenerHistorialCertificacionesTgssQuery>().Should().ContainSingle();
         if (puedeEscribir)
         {

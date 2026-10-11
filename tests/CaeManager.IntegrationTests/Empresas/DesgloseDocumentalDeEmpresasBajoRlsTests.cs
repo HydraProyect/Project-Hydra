@@ -48,6 +48,11 @@ namespace CaeManager.IntegrationTests.Empresas;
 /// una Empresa gemela de la primera con dos documentos vencidos. La siembra va como propietario de la base,
 /// porque no es lo que se mide.
 /// </para>
+///
+/// <para>
+/// Las dos Empresas contraparte (Subcontratas, <c>CrearComoSubcontrata</c>) no son propias: el listado de Empresas
+/// las excluye por <c>EsPropia</c> aunque la cartera las alcance, y así lo mide el test de la cartera acotada.
+/// </para>
 /// </summary>
 public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
 {
@@ -126,12 +131,60 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// (c): el desglose de la Empresa no cuenta el documento eliminado ni el sustituido por su renovación (ni los
-    /// de la gemela del otro Tenant), ni los documentos de su Trabajador y de su Vehículo, que son de otro ámbito.
-    /// Por los dos caminos del handler (con recuentos por estado, que es el de la pantalla, y sin ellos). Al
-    /// eliminado lo dejan fuera dos barreras (el filtro global del contexto y <c>Operativos()</c>) y este test no
-    /// las distingue; al sustituido, solo <c>Operativos()</c>.
+    /// P7: filas, total, paginación, recuentos y refresco por id comparten el filtro de Empresas propias,
+    /// tanto por el camino con estado como por el camino sin estado, bajo la identidad runtime y RLS.
     /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_listado_cuenta_solo_Empresas_propias_y_no_expone_Clientes_empresariales_ni_Empresas_subcontratistas(bool conRecuentosPorEstado)
+    {
+        var propias = await _runtime.Empresas.Where(e => e.EsPropia).Select(e => e.Id).ToListAsync();
+        propias.Should().BeEquivalentTo([_montajes, _reformas]);
+        (await _runtime.Empresas.CountAsync()).Should().Be(6, "las cuatro Empresas contraparte existen en el Tenant propietario");
+        (await _propietario.Empresas.IgnoreQueryFilters().CountAsync(e => e.EsPropia)).Should().Be(3,
+            "también existe una Empresa propia de otro Tenant propietario");
+
+        var resultado = await HandlerSinCartera().Handle(
+            new ObtenerEmpresasQuery(null, TamanoPagina: 1, ConRecuentosPorEstado: conRecuentosPorEstado), CancellationToken.None);
+        resultado.TotalElementos.Should().Be(propias.Count);
+        resultado.Elementos.Should().ContainSingle().Which.Id.Should().Be(_montajes);
+        if (conRecuentosPorEstado)
+        {
+            resultado.RecuentosPorEstado![nameof(EstadoDocumento.Vencido)].Should().Be(1);
+            resultado.RecuentosPorEstado[nameof(EstadoDocumento.SinCaducidad)].Should().Be(1);
+        }
+
+        var segunda = await HandlerSinCartera().Handle(
+            new ObtenerEmpresasQuery(null, Pagina: 2, TamanoPagina: 1, ConRecuentosPorEstado: conRecuentosPorEstado), CancellationToken.None);
+        segunda.TotalElementos.Should().Be(2);
+        segunda.Elementos.Should().ContainSingle().Which.Id.Should().Be(_reformas);
+
+        foreach (var id in new[] { _clienteDentro, _clienteFuera, _elevaciones, _aislamientos, _gemelaAjena })
+        {
+            var porId = await HandlerSinCartera().Handle(
+                new ObtenerEmpresasQuery(null, EmpresaId: id, ConRecuentosPorEstado: conRecuentosPorEstado), CancellationToken.None);
+            porId.Elementos.Should().BeEmpty();
+            porId.TotalElementos.Should().Be(0);
+        }
+    }
+
+    [Fact]
+    public async Task El_filtro_de_Empresas_propias_conserva_el_ambito_efectivo_del_usuario()
+    {
+        var handler = new ObtenerEmpresasQueryHandler(
+            _runtime, new AlcanceDatosServiceFalso(empresaIds: [_montajes, _clienteDentro, _elevaciones]),
+            new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime),
+            _runtime, _runtime, _runtime, _runtime,
+            new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime));
+        var resultado = await handler.Handle(new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: true), CancellationToken.None);
+
+        resultado.Elementos.Should().ContainSingle().Which.Id.Should().Be(_montajes);
+        resultado.TotalElementos.Should().Be(1);
+        resultado.RecuentosPorEstado![nameof(EstadoDocumento.SinCaducidad)].Should().Be(0,
+            "Reformas es propia pero está fuera del ámbito efectivo de este usuario");
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -142,8 +195,8 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
             CancellationToken.None);
 
         resultado.Elementos.Select(e => e.Id).Should().BeEquivalentTo(
-            [_montajes, _reformas, _elevaciones, _aislamientos, _clienteDentro, _clienteFuera],
-            "la gemela del Tenant ajeno no es una fila de este listado");
+            [_montajes, _reformas],
+            "solo las Empresas propias del Tenant propietario son filas de este listado");
 
         var montajes = resultado.Elementos.Single(e => e.Id == _montajes);
         // Ni el seguro eliminado (vencido) ni el certificado sustituido (vencido) son incidencias; tampoco la
@@ -157,8 +210,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
         montajes.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
 
         resultado.Elementos.Single(e => e.Id == _reformas).Incidencias.Should().BeEmpty("sin documentos no hay incidencias");
-        resultado.Elementos.Single(e => e.Id == _elevaciones).Incidencias.Should().ContainSingle()
-            .Which.Estado.Should().Be(EstadoDocumento.Proximo);
+        resultado.Elementos.Should().NotContain(e => e.Id == _elevaciones || e.Id == _aislamientos);
     }
 
     /// <summary>
@@ -235,8 +287,8 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
             new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado, ConDesgloseDocumental: true),
             CancellationToken.None);
 
-        resultado.Elementos.Should().HaveCount(6, "control positivo: hay filas con y sin incidencias");
-        resultado.Elementos.Count(e => e.Incidencias.Count > 0).Should().Be(3, "Montajes, Elevaciones y Aislamientos");
+        resultado.Elementos.Should().HaveCount(2, "control positivo: hay Empresas propias con y sin incidencias");
+        resultado.Elementos.Count(e => e.Incidencias.Count > 0).Should().Be(1, "solo Montajes tiene incidencias entre las Empresas propias");
 
         foreach (var fila in resultado.Elementos)
         {
@@ -271,7 +323,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
             new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado), CancellationToken.None);
 
         _contador.Consultas.Should().Be(0, "nadie pidió el desglose: no se lanza su consulta de documentos");
-        resultado.Elementos.Should().HaveCount(6);
+        resultado.Elementos.Should().HaveCount(2);
         resultado.Elementos.SelectMany(e => e.Incidencias).Should().BeEmpty();
         resultado.Elementos.Single(e => e.Id == _montajes).EstadoDocumental.Should().Be(EstadoDocumento.Vencido, "el estado de la fila no depende del desglose");
 
@@ -281,7 +333,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
             new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado, ConDesgloseDocumental: true),
             CancellationToken.None);
         _contador.Consultas.Should().Be(1, "una sola consulta de desglose para toda la página, no una por Empresa");
-        pidiendolo.Elementos.Count(e => e.Incidencias.Count > 0).Should().Be(3, "control positivo: tres Empresas con incidencias en la página");
+        pidiendolo.Elementos.Count(e => e.Incidencias.Count > 0).Should().Be(1, "control positivo: una Empresa propia con incidencias en la página");
     }
 
     /// <summary>
@@ -315,9 +367,8 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// (b): un Gestor CAE con cartera sobre un solo Cliente empresarial recibe las Empresas propias del Tenant y
-    /// la Empresa contraparte que tiene un Centro de ese Cliente; no recibe la que solo tiene Centro de otro, ni
-    /// su desglose.
+    /// (b): un Gestor CAE con cartera sobre un solo Cliente empresarial recibe las Empresas propias del Tenant
+    /// propietario. Las Empresas contraparte quedan fuera de este listado aunque tengan un Centro visible.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -328,17 +379,16 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
             new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado, ConDesgloseDocumental: true),
             CancellationToken.None);
 
-        resultado.Elementos.Select(e => e.Id).Should().BeEquivalentTo([_montajes, _reformas, _elevaciones],
-            "Aislamientos solo tiene Centro de un Cliente empresarial que la cartera no alcanza");
-        resultado.Elementos.SelectMany(e => e.Incidencias).Should().HaveCount(4, "las tres de Montajes y la de Elevaciones");
-        resultado.TotalElementos.Should().Be(3);
+        resultado.Elementos.Select(e => e.Id).Should().BeEquivalentTo([_montajes, _reformas],
+            "las Empresas contraparte no pertenecen al listado de Empresas propias");
+        resultado.Elementos.SelectMany(e => e.Incidencias).Should().HaveCount(3, "las tres de Montajes");
+        resultado.TotalElementos.Should().Be(2);
 
-        // Control positivo: sin cartera que acote, Aislamientos y su vencido salen.
+        // Sin restricción de cartera, las Empresas contraparte siguen excluidas por EsPropia.
         var sinCartera = await HandlerSinCartera().Handle(
             new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado, ConDesgloseDocumental: true),
             CancellationToken.None);
-        sinCartera.Elementos.Single(e => e.Id == _aislamientos).Incidencias.Should().ContainSingle()
-            .Which.Estado.Should().Be(EstadoDocumento.Vencido);
+        sinCartera.Elementos.Select(e => e.Id).Should().BeEquivalentTo([_montajes, _reformas]);
     }
 
     private ObtenerEmpresasQueryHandler HandlerSinCartera() => new(

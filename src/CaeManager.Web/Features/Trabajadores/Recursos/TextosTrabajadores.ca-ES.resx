@@ -300,12 +300,6 @@
   <data name="TextoCentroSinExigencia" xml:space="preserve">
     <value>Este centro no exige documentación específica a este trabajador.</value>
   </data>
-  <data name="ColumnaDocumento" xml:space="preserve">
-    <value>Documento</value>
-  </data>
-  <data name="ColumnaEstado" xml:space="preserve">
-    <value>Estado</value>
-  </data>
   <data name="ColumnaVigencia" xml:space="preserve">
     <value>Vigencia</value>
   </data>
@@ -485,9 +479,6 @@
   </data>
   <data name="SinExigenciasPropias" xml:space="preserve">
     <value>Cap centre de treball d&apos;aquest treballador no exigeix documentació més enllà de la general.</value>
-  </data>
-  <data name="ColumnaCentroTrabajo" xml:space="preserve">
-    <value>Centre de treball</value>
   </data>
   <data name="ColumnaRenovarAntes" xml:space="preserve">
     <value>Renovar abans de</value>
@@ -692,5 +683,8 @@
   </data>
   <data name="AccionDarDeBajaDeCentro" xml:space="preserve">
     <value>Donar de baixa d’aquest centre</value>
+  </data>
+  <data name="SinDocumentoExigido" xml:space="preserve">
+    <value>Sense document</value>
   </data>
 </root>
