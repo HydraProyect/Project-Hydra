@@ -256,7 +256,7 @@
                 @* «Estado» de la fila, en el mismo sitio que en las demás pantallas: la urgencia (se recalcula en
                    cada carga) es la pastilla y el tramo de antelación sellado es el motivo. «Normal» es lo
                    correcto: punto y texto, sin pastilla de color. Una cancelada dice «Cancelada» y su motivo. *@
-                <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado">
+                <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado col-estado-visitas">
                     @if (context.EstaCancelada)
                     {
                         @* El motivo se recorta a una línea: su title lo da entero. *@
