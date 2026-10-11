@@ -206,15 +206,10 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await confirmacion.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar visita", Exact = true }).ClickAsync();
         await Expect(confirmacion).ToBeHiddenAsync();
 
-        // Con «Solo activas» la cancelada sale de la lista: se busca en el historial. Su fecha cae a unos
-        // cientos de años, así que en orden ascendente quedaría al final de muchas páginas; ordenada por
-        // «Fechas» de mayor a menor es la primera fila.
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas?activas=false");
-        var cabeceraFechas = page.GetByRole(AriaRole.Columnheader, new PageGetByRoleOptions { Name = "Fechas" });
-        await cabeceraFechas.Locator("button.col-title").ClickAsync();
-        await Expect(cabeceraFechas).ToHaveClassAsync(new Regex(@"col-sort-asc"));
-        await cabeceraFechas.Locator("button.col-title").ClickAsync();
-        await Expect(cabeceraFechas).ToHaveClassAsync(new Regex(@"col-sort-desc"));
+        // Con «Solo activas» la cancelada sale de la lista: se busca en el historial, filtrado por el estado
+        // «Cancelada». Sin ese filtro el historial pagina de 20 en 20 y la fecha de esta Visita (a cientos de
+        // años) quedaría al final de muchas páginas; así solo salen las canceladas, que son pocas.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas?activas=false&estado=Cancelada");
         await Expect(fila).ToHaveCountAsync(1);
         var motivoVisible = fila.Locator("[data-pieza=motivo-cancelacion]");
         await Expect(motivoVisible).ToHaveAttributeAsync("title", motivo);
