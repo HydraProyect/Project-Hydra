@@ -252,7 +252,7 @@
                                                     {
                                                         <AuthorizeView Context="autorizacionDocumento">
                                                             <ChildContent Context="autorizacion">
-                                                                <FilaRelacion @key="documento.TipoDocumentoId" Nombre="@documento.TipoDocumentoNombre"
+                                                                <FilaRelacion Nombre="@documento.TipoDocumentoNombre"
                                                                               Tono="@TonoDocumentoEnCentro(documento.Estado)"
                                                                               OnNombre="@(CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(autorizacion.User.IsInRole) ? EventCallback.Factory.Create(this, () => GestionarDocumentoAsync(documento)) : default)">
                                                                     <Detalle>
