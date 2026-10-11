@@ -1,0 +1,67 @@
+using Microsoft.Playwright;
+
+namespace CaeManager.E2ETests;
+
+[Collection("AppCollection")]
+public class AcordeonAsignacionesCentroTecladoTests(WebAppFixture fixture)
+{
+    [Fact]
+    public async Task Trabajadores_del_acordeon_entran_en_j_k_y_e_abre_sus_Detalles()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await contexto.NewPageAsync();
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailGestorRefrielectric, Ayudas.ContrasenaUsuariosPrueba);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
+        await Ayudas.MostrarCentrosSinAgruparAsync(page);
+        await page.WaitForSelectorAsync(".lista-filas-acordeon a.boton-360-pagina");
+        var rutas = await page.Locator(".lista-filas-acordeon a.boton-360-pagina").EvaluateAllAsync<string[]>(
+            "elementos => [...new Set(elementos.map(e => e.getAttribute('href')))]");
+
+        // Ambos selectores permiten que la mutación a la cabecera anterior llegue a j/k:
+        // un fallo de localización antes de pulsar las teclas no probaría su sensibilidad.
+        const string selectorFilas = ".lista-trabajadores-acordeon .fila-relacion, .lista-trabajadores-acordeon .fila-trabajador-acordeon";
+        var filas = page.Locator(selectorFilas);
+        var encontrado = false;
+        foreach (var ruta in rutas)
+        {
+            await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}{ruta}?pestana=trabajadores");
+            try
+            {
+                await page.WaitForFunctionAsync("selector => [...document.querySelectorAll(selector)].filter(e => e.getBoundingClientRect().height > 0).length >= 2",
+                    selectorFilas, new() { Timeout = 5_000 });
+            }
+            catch (TimeoutException) { continue; }
+            encontrado = true;
+            break;
+        }
+        Assert.True(encontrado, "La siembra debe contener un Centro con dos Trabajadores asignados.");
+        // El orden se observa en la lista visible; los controles se localizan por su
+        // identidad accesible, sin fijar una posición ni un nombre de la siembra.
+        var identidades = await filas.EvaluateAllAsync<string[][]>(
+            "elementos => elementos.filter(e => e.getBoundingClientRect().height > 0).map(e => [e.querySelector('.fila-relacion-nombre, .fila-trabajador-nombre').textContent.trim(), e.querySelector('.fila-relacion-desplegar, .boton-expandir-fila').getAttribute('aria-label')])");
+        var primero = identidades[0][0];
+        var segundo = identidades[1][0];
+        var nombre = page.GetByRole(AriaRole.Button, new() { Name = primero, Exact = true });
+        var primeraFila = filas.Filter(new() { Has = nombre });
+        var desplegar = page.GetByRole(AriaRole.Button, new() { Name = identidades[0][1], Exact = true });
+        await desplegar.FocusAsync();
+        await page.Keyboard.PressAsync("Enter");
+        await Assertions.Expect(desplegar).ToHaveAttributeAsync("aria-expanded", "true");
+        await page.Keyboard.PressAsync("Space");
+        await Assertions.Expect(desplegar).ToHaveAttributeAsync("aria-expanded", "false");
+
+        await nombre.FocusAsync();
+        await page.Keyboard.PressAsync("j");
+        var enfocada = page.Locator("[data-fila-enfocada]");
+        await Assertions.Expect(enfocada).ToContainTextAsync(segundo);
+        await page.Keyboard.PressAsync("k");
+        await Assertions.Expect(enfocada).ToContainTextAsync(primero);
+        var estado = await primeraFila.Locator(".fila-relacion-estado").BoundingBoxAsync();
+        var incidencias = await primeraFila.Locator(".tarjeta-fila-acordeon-indicadores").BoundingBoxAsync();
+        Assert.NotNull(estado);
+        Assert.NotNull(incidencias);
+        Assert.True(incidencias.Width <= estado.Width + 1, "Las tres ranuras de incidencias deben caber en la columna de estado.");
+        await page.Keyboard.PressAsync("e");
+        await Assertions.Expect(page.Locator(".workspace-panel")).ToHaveAttributeAsync("aria-label", $"Panel de contexto — {primero}");
+    }
+}

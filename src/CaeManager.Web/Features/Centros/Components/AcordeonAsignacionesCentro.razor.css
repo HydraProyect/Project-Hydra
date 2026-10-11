@@ -1,0 +1,8 @@
+.acordeon-trabajador + .acordeon-trabajador ::deep .fila-relacion {
+    border-top: 1px solid var(--color-fila-divisor);
+}
+
+/* Las tres ranuras se ajustan a la columna de estado del patrón compartido. */
+.tarjeta-fila-acordeon-indicadores {
+    width: 100%;
+}

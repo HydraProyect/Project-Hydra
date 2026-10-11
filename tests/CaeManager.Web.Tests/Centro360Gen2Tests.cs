@@ -810,7 +810,7 @@ public class Centro360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        await cut.Find(".boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        await cut.Find(".fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
 
         // Barrera: la lectura sigue ahí para los dos roles.
         var menu = cut.FindAll("[role=menuitem]").Select(i => i.TextContent.Trim()).ToList();
@@ -889,9 +889,9 @@ public class Centro360Gen2Tests : BunitContext
         cut.Markup.Should().Contain("1 trabajador bloqueado");
         cut.Markup.Should().NotContain("Acceso bloqueado").And.NotContain("Bloqueo de la plataforma CAE",
             "un documento de Trabajador no bloquea al Centro: el Centro está en Faltante");
-        var filaBloqueada = cut.FindAll(".fila-trabajador-nombre").Single(b => b.TextContent.Contains("Juan Pérez"));
+        var filaBloqueada = cut.FindAll(".lista-trabajadores-acordeon .fila-relacion").Single(b => b.TextContent.Contains("Juan Pérez"));
         filaBloqueada.TextContent.Should().Contain("Bloqueado");
-        cut.FindAll(".fila-trabajador-nombre").Single(b => b.TextContent.Contains("Marco Vila"))
+        cut.FindAll(".lista-trabajadores-acordeon .fila-relacion").Single(b => b.TextContent.Contains("Marco Vila"))
             .TextContent.Should().NotContain("Bloqueado", "el otro Trabajador no tiene ningún bloqueo en este Centro");
     }
 
@@ -915,9 +915,9 @@ public class Centro360Gen2Tests : BunitContext
         var cut = RenderizarAcordeon(id);
 
         cut.WaitForAssertion(() =>
-            cut.FindAll(".fila-trabajador-nombre").Single(b => b.TextContent.Contains("Juan Pérez"))
+            cut.FindAll(".lista-trabajadores-acordeon .fila-relacion").Single(b => b.TextContent.Contains("Juan Pérez"))
                 .TextContent.Should().Contain("Bloqueado"));
-        cut.FindAll(".fila-trabajador-nombre").Single(b => b.TextContent.Contains("Marco Vila"))
+        cut.FindAll(".lista-trabajadores-acordeon .fila-relacion").Single(b => b.TextContent.Contains("Marco Vila"))
             .TextContent.Should().NotContain("Bloqueado");
         mediador.Enviadas.OfType<ObtenerDocumentacionBloqueantePendienteQuery>().Should().ContainSingle()
             .Which.CentroId.Should().Be(id);
