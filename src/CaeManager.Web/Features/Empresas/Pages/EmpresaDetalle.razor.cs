@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
@@ -713,6 +714,108 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         new(PestanaSello, Textos["PestanaSello"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
+
+    // ---------- Nota interna (mismo patrón que Subcontrata 360) ----------
+
+    private bool _editorNotaVisible;
+    private bool _guardandoNota;
+    private string _notaEnEdicion = string.Empty;
+    /// <summary>Lo que el usuario escribió cuando otra persona guardó antes: se recupera al reabrir el editor, nunca se reenvía solo.</summary>
+    private string? _borradorNotaTrasConflicto;
+    private string? _mensajeErrorNota;
+    private string? _errorCampoNota;
+    private readonly InstantaneaFormulario _instantaneaNota = new();
+
+    private bool HayCambiosEnLaNota => _editorNotaVisible && _instantaneaNota.Difiere(_notaEnEdicion);
+
+    private void AbrirEditorNota()
+    {
+        if (_detalle is null) return;
+
+        _notaEnEdicion = _borradorNotaTrasConflicto ?? _detalle.Notas ?? string.Empty;
+        _borradorNotaTrasConflicto = null;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
+        _instantaneaNota.Fijar(_notaEnEdicion);
+        _editorNotaVisible = true;
+    }
+
+    private void CambiarVisibilidadEditorNota(bool visible) => _editorNotaVisible = visible;
+
+    /// <summary>
+    /// Manda solo la nota y la <c>Version</c> que la ficha leyó. Ante un conflicto el editor se cierra, se relee la
+    /// cabecera (la tarjeta enseña la nota de la otra persona) y el texto propio queda como borrador al reabrir.
+    /// </summary>
+    private async Task GuardarNotaAsync()
+    {
+        if (_detalle is null || _guardandoNota) return;
+
+        var generacion = _generacion;
+        var detalle = _detalle;
+        _guardandoNota = true;
+        _mensajeErrorNota = null;
+        _errorCampoNota = null;
+
+        try
+        {
+            var resultado = await Mediator.Send(new GuardarNotaInternaEmpresaCommand(detalle.Id, _notaEnEdicion, detalle.Version));
+
+            if (resultado.EsFallido)
+            {
+                if (generacion != _generacion) return;
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                {
+                    _borradorNotaTrasConflicto = _notaEnEdicion;
+                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                    _editorNotaVisible = false;
+                    await RecargarDetalleTrasNotaAsync(generacion);
+                }
+                else
+                {
+                    _mensajeErrorNota = resultado.Error.Mensaje;
+                }
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ToastNotaInternaGuardada"], TonoToast.Exito);
+            if (generacion != _generacion) return;
+            _editorNotaVisible = false;
+
+            // La tarjeta enseña ya lo guardado aunque la relectura falle; la Version buena la trae la relectura.
+            _detalle = detalle with { Notas = string.IsNullOrWhiteSpace(_notaEnEdicion) ? null : _notaEnEdicion.Trim() };
+            await RecargarDetalleTrasNotaAsync(generacion);
+        }
+        catch (FluentValidation.ValidationException ex)
+        {
+            if (generacion == _generacion)
+                _errorCampoNota = ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorGuardarNotaInterna"];
+        }
+        catch (Exception)
+        {
+            if (generacion == _generacion)
+                _mensajeErrorNota = Textos["ErrorGuardarNotaInterna"];
+        }
+        finally
+        {
+            if (generacion == _generacion)
+                _guardandoNota = false;
+        }
+    }
+
+    /// <summary>Relee solo la cabecera (nota y Version). Si falla, la ficha se queda con lo que ya enseñaba.</summary>
+    private async Task RecargarDetalleTrasNotaAsync(int generacion)
+    {
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerEmpresaPorIdQuery(EmpresaId), _cancelacion);
+            if (generacion == _generacion && detalle is not null && detalle.Id == _detalle?.Id)
+                _detalle = detalle;
+        }
+        catch (Exception)
+        {
+            // Sin relectura la Version queda vieja: el siguiente guardado dará conflicto y releerá.
+        }
+    }
 }
 
 /// <summary>Chips de la pestaña Trabajadores de Empresa 360.</summary>

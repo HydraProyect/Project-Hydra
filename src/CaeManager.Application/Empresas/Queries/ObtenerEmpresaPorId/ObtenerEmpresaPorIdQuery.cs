@@ -16,7 +16,9 @@ public record EmpresaDetalleDto(
     Guid Version,
     string? Cnae = null,
     string? ConvenioAplicable = null,
-    bool EsActividadAnexoI = false);
+    bool EsActividadAnexoI = false,
+    string? Notas = null,
+    bool NotaInternaVisible = false);
 
 /// <summary>
 /// F4.2c: <c>ClienteIds</c> sale de la arista, con el MISMO criterio de
@@ -58,9 +60,13 @@ public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IA
         // RETURN PACKAGE de HO-149-01.
         if (!await alcanceDatos.EmpresaVisibleAsync(request.Id, cancellationToken)) return null;
 
+        // La ficha básica le llega al rol Cliente (portal) por el alcance de lectura de arriba; la «Nota interna» no.
+        // Mismo criterio que Cliente 360 (ObtenerClientePorIdQuery): solo viaja a quien opera desde el lado de gestión.
+        var conNotaInterna = await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken);
+
         var empresa = await dbContext.Empresas
             .Where(e => e.Id == request.Id)
-            .Select(e => new { e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc, e.Version, e.Cnae, e.ConvenioAplicable, e.EsActividadAnexoI })
+            .Select(e => new { e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc, e.Version, e.Cnae, e.ConvenioAplicable, e.EsActividadAnexoI, e.Notas })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (empresa is null) return null;
@@ -72,6 +78,7 @@ public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IA
 
         return new EmpresaDetalleDto(
             empresa.Id, empresa.RazonSocial, empresa.Cif, empresa.CreadoEnUtc, clienteIds, empresa.Version,
-            empresa.Cnae, empresa.ConvenioAplicable, empresa.EsActividadAnexoI);
+            empresa.Cnae, empresa.ConvenioAplicable, empresa.EsActividadAnexoI,
+            conNotaInterna ? empresa.Notas : null, conNotaInterna);
     }
 }
