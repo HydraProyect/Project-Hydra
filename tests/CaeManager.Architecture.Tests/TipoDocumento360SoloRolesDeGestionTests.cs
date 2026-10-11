@@ -11,7 +11,7 @@ namespace CaeManager.Architecture.Tests;
 /// empresariales en una sola lista.
 ///
 /// La regla vive en dos sitios a propósito —la consulta de Application, que es quien la garantiza, y el
-/// <c>[Authorize(Roles = …)]</c> de la ruta, que evita montar el circuito— y este test fija que los dos dicen lo mismo y que
+/// política de fichas 360 declarada en la ruta, que evita montar el circuito— y este test fija que los dos dicen lo mismo y que
 /// ninguno incluye a esos dos roles. Sin él, ampliar uno de los dos lados dejaría una página que se abre y no carga, o una
 /// consulta que responde a quien la ruta no deja entrar.
 /// </summary>
