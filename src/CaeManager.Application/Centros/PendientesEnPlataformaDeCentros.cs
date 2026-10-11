@@ -14,10 +14,14 @@ namespace CaeManager.Application.Centros;
 /// de Empresa), nunca los dos.
 /// </summary>
 /// <param name="EstadoAcreditacion">El más atrasado de los accesos de plataforma del Centro: sin subir antes que subido.</param>
+/// <param name="BloqueaAcceso">
+/// El Centro marca este tipo como bloqueante (<see cref="TipoDocumentoCentro.BloqueaAcceso"/>, con el tipo incluido). Solo
+/// entonces el Pendiente bloquea a personas y baja el porcentaje del Centro; sin la marca solo pone el Centro en «Pendiente».
+/// </param>
 public sealed record PendienteEnPlataformaDeCentro(
     Guid CentroId, Guid DocumentoId, Guid TipoDocumentoId, string TipoDocumentoNombre,
     Guid? TrabajadorId, string? TrabajadorNombre, Guid? EmpresaId,
-    EstadoAcreditacion EstadoAcreditacion, DateOnly? FechaVencimiento);
+    EstadoAcreditacion EstadoAcreditacion, DateOnly? FechaVencimiento, bool BloqueaAcceso);
 
 /// <summary>
 /// Carga única de «qué está pendiente en la plataforma de cada Centro» (<see cref="ReglaPendienteEnPlataforma"/>, decisión
@@ -32,6 +36,14 @@ public sealed record PendienteEnPlataformaDeCentro(
 /// activa en ese Centro, o la Empresa con algún Trabajador suyo con Asignación activa en él (decisión del 2026-10-10: los
 /// Trabajadores de la Empresa que cuentan son los asignados). La acreditación sobrevive a la baja y a que el tipo deje de
 /// exigirse, por eso se vuelve a comprobar aquí.
+/// </para>
+///
+/// <para>
+/// Solo cuenta la acreditación del <b>documento efectivo</b> del sujeto y el tipo (<see cref="DocumentoEfectivo"/>, el mismo
+/// que mide el porcentaje y el requisito): la de una copia duplicada que no manda no es trabajo pendiente. Y la vigencia es
+/// la del <b>requisito en ese Centro</b> (<see cref="ReglaBloqueoDeAcceso.Evaluar"/> con la periodicidad especial y la
+/// tolerancia del Centro, <see cref="VigenciaEnCentro.Condiciones"/>), no la fecha de vencimiento del documento: lo que
+/// ya no vale allí es causa más grave y no es un Pendiente.
 /// </para>
 ///
 /// <para>
@@ -74,6 +86,8 @@ internal static class PendientesEnPlataformaDeCentros
                 documento.EmpresaId,
                 documento.EstadoVigencia,
                 documento.FechaVencimiento,
+                documento.FechaEmision,
+                documento.CreadoEnUtc,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
                 CuentaParaCumplimiento = tipoDocumento.Requerido == RequisitoDocumental.Si,
                 EstadoAcreditacion = acreditacion.Estado
@@ -83,6 +97,7 @@ internal static class PendientesEnPlataformaDeCentros
         if (filas.Count == 0)
             return [];
 
+        // La Empresa del Trabajador, sea cual sea la columna que la guarda (AsignacionParaBloqueo).
         var asignacionesActivas = (await (
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null && centroIds.Contains(asignacion.CentroId)
@@ -96,7 +111,6 @@ internal static class PendientesEnPlataformaDeCentros
                 Nombre = trabajador.Nombre + " " + trabajador.Apellidos
             })
             .ToListAsync(cancellationToken))
-            // La Empresa del Trabajador sea cual sea la columna que la guarda (AsignacionParaBloqueo).
             .Select(a => new { a.CentroId, a.TrabajadorId, EmpresaDelTrabajadorId = a.EmpresaId ?? a.SubcontrataId, a.Nombre })
             .ToList();
         var trabajadoresPorCentro = asignacionesActivas
@@ -116,16 +130,52 @@ internal static class PendientesEnPlataformaDeCentros
             .ToListAsync(cancellationToken))
             .ToDictionary(tc => (tc.TipoDocumentoId, tc.CentroId));
 
+        // El documento efectivo de cada (sujeto, tipo): el mismo que elige el porcentaje y el requisito (DocumentoEfectivo).
+        // Se traen todas las copias operativas de los sujetos y tipos con alguna acreditación pendiente, no solo las
+        // acreditadas, para que una copia duplicada que no manda no cuente como pendiente.
+        var trabajadorIds = filas.Where(f => f.TrabajadorId != null).Select(f => f.TrabajadorId!.Value).Distinct().ToList();
+        var empresaIds = filas.Where(f => f.TrabajadorId == null && f.EmpresaId != null).Select(f => f.EmpresaId!.Value).Distinct().ToList();
+        var copias = await documentosContext.Documentos.Operativos()
+            .Where(d => tipoIds.Contains(d.TipoDocumentoId)
+                && ((d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value))
+                    || (d.EmpresaId != null && empresaIds.Contains(d.EmpresaId!.Value))))
+            .Select(d => new { d.Id, d.TrabajadorId, d.EmpresaId, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .ToListAsync(cancellationToken);
+        var efectivos = DocumentoEfectivo.UnoPorClave(
+            copias, d => (d.TrabajadorId, d.EmpresaId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento,
+            d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
+
+        // La vigencia que cuenta es la del requisito en ESE Centro: periodicidad especial y tolerancia (VigenciaEnCentro).
+        var centroIdsConFilas = filas.Select(f => f.CentroId).Distinct().ToList();
+        var clientePorCentro = (await centrosContext.Centros
+            .Where(c => centroIdsConFilas.Contains(c.Id))
+            .Select(c => new { c.Id, Titular = c.ClienteId })
+            .ToListAsync(cancellationToken))
+            .ToDictionary(c => c.Id, c => c.Titular);
+        var toleranciasDeClientes = await VigenciaEnCentro.CargarToleranciasDeClientesAsync(
+            tiposDocumentoContext, clientePorCentro.Values.Distinct().ToList(), tipoIds, cancellationToken);
+
         var resultado = new List<PendienteEnPlataformaDeCentro>();
         var yaContados = new HashSet<(Guid CentroId, Guid? TrabajadorId, Guid? EmpresaId, Guid TipoDocumentoId)>();
 
         // Sin subir antes que subido: con dos accesos en distinto punto, cuenta lo que más falta. Por Id después, para
-        // que el documento elegido entre copias duplicadas no dependa del orden en que llegan las filas.
+        // que el orden de salida no dependa del orden en que llegan las filas.
         foreach (var fila in filas.OrderBy(f => f.EstadoAcreditacion).ThenBy(f => f.Id))
         {
-            // Solo se pregunta si el documento vale hoy; los umbrales de aviso no cambian si está vencido.
-            var estadoDocumento = CalculadoraEstadoDocumento.Calcular(fila.EstadoVigencia, fila.FechaVencimiento, hoy, umbralAmbarDias: 0, umbralRojoDias: 0);
-            if (!ReglaPendienteEnPlataforma.CuentaEnElCentro(fila.EstadoAcreditacion, estadoDocumento))
+            // Solo el documento efectivo del sujeto y el tipo: la acreditación de una copia que no manda no cuenta.
+            if (!efectivos.TryGetValue((fila.TrabajadorId, fila.EmpresaId, fila.TipoDocumentoId), out var efectivo) || efectivo.Id != fila.Id)
+                continue;
+
+            // ¿Vale el documento en este Centro? La regla del requisito (periodicidad y tolerancia del Centro), no su fecha propia.
+            filasPorPar.TryGetValue((fila.TipoDocumentoId, fila.CentroId), out var filaDelCentro);
+            var condiciones = VigenciaEnCentro.Condiciones(
+                filaDelCentro,
+                clientePorCentro.TryGetValue(fila.CentroId, out var titular)
+                    && toleranciasDeClientes.TryGetValue((titular, fila.TipoDocumentoId), out var delCliente) ? delCliente : null);
+            var requisitoEnElCentro = ReglaBloqueoDeAcceso.Evaluar(
+                [new DocumentoParaAcceso(VigenciaDocumento.Rehidratar(fila.EstadoVigencia, fila.FechaVencimiento), fila.FechaEmision)],
+                condiciones, hoy);
+            if (!ReglaPendienteEnPlataforma.CuentaEnElCentro(fila.EstadoAcreditacion, requisitoEnElCentro))
                 continue;
 
             Guid? empresaSujeto = null;
@@ -155,7 +205,8 @@ internal static class PendientesEnPlataformaDeCentros
             resultado.Add(new PendienteEnPlataformaDeCentro(
                 fila.CentroId, fila.Id, fila.TipoDocumentoId, fila.TipoDocumentoNombre,
                 fila.TrabajadorId, fila.TrabajadorId is { } id && nombres.TryGetValue(id, out var nombre) ? nombre : null,
-                empresaSujeto, fila.EstadoAcreditacion, fila.FechaVencimiento));
+                empresaSujeto, fila.EstadoAcreditacion, fila.FechaVencimiento,
+                BloqueaAcceso: filaDelCentro is { Incluido: true, BloqueaAcceso: true }));
         }
 
         return resultado;

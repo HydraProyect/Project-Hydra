@@ -104,13 +104,14 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
     }
 
     private IRenderedComponent<CentroWorkspacePanel> Montar(
-        EstadoCentro estado, int? cumplimiento, UltimaReclamacionClienteDto? ultimaReclamacion = null)
+        EstadoCentro estado, int? cumplimiento, UltimaReclamacionClienteDto? ultimaReclamacion = null,
+        IReadOnlyList<CausaEstadoCentroDto>? causas = null)
     {
         var centroId = Guid.NewGuid();
         var detalle = new CentroDetalleDto(
             centroId, Guid.NewGuid(), "Refrielectric S.A.", Guid.NewGuid(), "Montajes Ebro S.L.",
             "Centro Logístico Norte", "C-001", null, null, null, Guid.NewGuid());
-        Services.AddScoped<IMediator>(_ => new MediatorFalso(detalle, new EstadoCentroDto(estado, [], cumplimiento), ultimaReclamacion));
+        Services.AddScoped<IMediator>(_ => new MediatorFalso(detalle, new EstadoCentroDto(estado, causas ?? [], cumplimiento), ultimaReclamacion));
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
         Services.AddScoped<ICurrentUserService, UsuarioActualFalso>();
@@ -140,6 +141,29 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
         EstadoCentro estado, int? cumplimiento, string esperado)
     {
         TextoDelBadgeDeEstado(estado, cumplimiento).Should().Be(esperado);
+    }
+
+    /// <summary>
+    /// Pendiente en la plataforma (2026-10-10): la causa llega con <c>Bloqueante</c> falso (no pone el Centro en Bloqueado),
+    /// pero si el Centro marca el tipo «bloquea el acceso» bloquea a personas, y el panel lo dice. Un tipo sin esa marca
+    /// (la «ISO opcional») es solo Pendiente.
+    /// </summary>
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public void Un_pendiente_en_la_plataforma_dice_Bloquea_acceso_solo_si_el_Centro_marca_el_tipo(bool bloquea, int esperados)
+    {
+        var cut = Montar(EstadoCentro.Pendiente, cumplimiento: 50, causas:
+        [
+            new CausaEstadoCentroDto("RNT — Empresa — sin subir a la plataforma", null, Bloqueante: false,
+                PendienteEnPlataforma: true, BloqueaAcceso: bloquea)
+        ]);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("RNT — Empresa — sin subir a la plataforma",
+            "control: la causa está pintada"));
+        cut.FindAll(".workspace-tarjeta-requisito .badge").Count(b => b.TextContent.Trim() == "Bloquea acceso").Should().Be(esperados);
+        cut.FindAll(".workspace-tarjeta-requisito .badge").Count(b => b.TextContent.Trim() == "Pendiente").Should().Be(1,
+            "control: la causa sigue rotulada «Pendiente» tenga o no marca de bloqueo");
     }
 
     [Theory]

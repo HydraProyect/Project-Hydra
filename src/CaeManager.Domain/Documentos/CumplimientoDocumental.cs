@@ -32,7 +32,9 @@ public enum ContextoCumplimiento
 /// <param name="Estado">Estado del documento efectivo del par (<c>DocumentoEfectivo</c>, Application), o Faltante.</param>
 /// <param name="PendienteEnPlataforma">
 /// El documento efectivo del par está pendiente en la plataforma CAE de ESTE Centro (sin subir o subido sin validar,
-/// <see cref="ReglaPendienteEnPlataforma.CuentaEnElCentro"/>). Siempre <c>false</c> en un Centro sin plataforma.
+/// <see cref="ReglaPendienteEnPlataforma.CuentaEnElCentro"/>) <b>y el Centro marca el tipo como bloqueante</b>
+/// (<see cref="TipoDocumentoCentro.BloqueaAcceso"/>): solo lo obligatorio baja el porcentaje; un Pendiente de un tipo sin esa
+/// marca deja el par al día. Siempre <c>false</c> en un Centro sin plataforma.
 /// </param>
 public readonly record struct ParDocumentalExigido(
     Guid CentroId,
@@ -79,7 +81,9 @@ public sealed record FraccionCumplimiento(int AlDia, int Requeridos)
 /// <para>
 /// <b>Pendiente en la plataforma</b> (decisión 2026-10-10): un par cuyo documento vale pero está sin subir o subido sin
 /// validar en la plataforma CAE de su Centro (<see cref="ParDocumentalExigido.PendienteEnPlataforma"/>) NO está al día
-/// <b>en el porcentaje del Centro</b>: el Trabajador todavía no puede entrar allí. Solo en ese contexto: cada porcentaje
+/// <b>en el porcentaje del Centro</b>: el Trabajador todavía no puede entrar allí. Solo si el Centro marca el tipo
+/// «bloquea el acceso» (decisión 3 del 2026-10-10: el anillo cuenta lo obligatorio configurado; un tipo opcional pendiente
+/// no lo baja) y solo en ese contexto: cada porcentaje
 /// mide su contexto (decisión 2026-10-03), y los de Trabajador, Empresa y Cliente empresarial miden su documentación, no
 /// la acreditación en la plataforma de cada Centro. Un Centro sin plataforma no cambia.
 /// </para>
@@ -111,7 +115,8 @@ public static class CumplimientoDocumental
     /// añadirle la fecha de vencimiento y la tolerancia resuelta. Nada fuera de este método debe decidir «al día» para un
     /// par (los recuentos por estado de los KPI no tienen fecha ni Centro y siguen usando <see cref="EsConforme(EstadoDocumento)"/>).
     /// Ya depende también del contexto en un punto: en el del Centro, un par pendiente en la plataforma de ese Centro no es
-    /// conforme (<see cref="ParDocumentalExigido.PendienteEnPlataforma"/>); en los demás contextos no cuenta.
+    /// conforme si además el Centro marca el tipo como bloqueante (<see cref="ParDocumentalExigido.PendienteEnPlataforma"/>);
+    /// en los demás contextos no cuenta.
     /// </summary>
     public static bool EsConforme(ParDocumentalExigido par, ContextoCumplimiento contexto) =>
         EsConforme(par.Estado) && !(contexto == ContextoCumplimiento.Centro && par.PendienteEnPlataforma);

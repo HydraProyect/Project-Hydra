@@ -66,10 +66,15 @@ public enum AmbitoCausa
 /// <paramref name="Estado"/> en <c>null</c>: no describe la vigencia del documento, que vale, sino el trabajo que falta
 /// en la plataforma; y sin <paramref name="Bloqueante"/>, porque no pone el Centro en Bloqueado.
 /// </param>
+/// <param name="BloqueaAcceso">
+/// Solo con <paramref name="PendienteEnPlataforma"/>: el Centro marca el tipo del documento «bloquea el acceso»
+/// (<c>TipoDocumentoCentro.BloqueaAcceso</c>), así que este pendiente bloquea a personas en el Centro. Sin la marca (una ISO
+/// opcional) el Centro está Pendiente pero nadie queda bloqueado, y el pendiente no cuenta en el porcentaje.
+/// </param>
 public record CausaEstadoCentro(
     string Descripcion, EstadoDocumento? Estado, bool Bloqueante, AmbitoCausa Ambito,
     Guid? DocumentoId, Guid? TipoDocumentoId, DateOnly? FechaVencimiento, Guid? TrabajadorId = null,
-    bool PendienteEnPlataforma = false);
+    bool PendienteEnPlataforma = false, bool BloqueaAcceso = false);
 
 public record ResultadoEstadoCentro(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentro> Causas);
 
@@ -403,7 +408,7 @@ public class CalculoEstadoCentroService(
                 Bloqueante: false,
                 pendiente.TrabajadorId is null ? AmbitoCausa.Empresa : AmbitoCausa.Trabajador,
                 pendiente.DocumentoId, pendiente.TipoDocumentoId, pendiente.FechaVencimiento, pendiente.TrabajadorId,
-                PendienteEnPlataforma: true));
+                PendienteEnPlataforma: true, BloqueaAcceso: pendiente.BloqueaAcceso));
         }
     }
 
@@ -633,19 +638,16 @@ public class CalculoEstadoCentroService(
                 p => p.Key,
                 p => (p.Value.Id, Estado: CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)));
 
-        // Pendiente en la plataforma (decisión 2026-10-10): el documento efectivo del par, sin subir o subido sin validar
-        // en un acceso de tipo Plataforma de ESE Centro. Un Centro sin plataforma no tiene ninguna fila aquí.
-        var documentoIdsEfectivos = efectivos.Values.Select(e => e.Id).ToList();
-        var estadosPendientes = ReglaPendienteEnPlataforma.EstadosPendientes.ToArray();
-        var pendientesEnPlataforma = (await (
-            from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
-            where estadosPendientes.Contains(acreditacion.Estado) && documentoIdsEfectivos.Contains(acreditacion.DocumentoId)
-            join canal in centrosContext.CanalesGestionDocumental
-                on acreditacion.CanalGestionDocumentalId equals canal.Id
-            where canal.Tipo == TipoCanalGestion.Plataforma && conGestionCae.Contains(canal.CentroId)
-            select new { canal.CentroId, acreditacion.DocumentoId, acreditacion.Estado })
-            .ToListAsync(cancellationToken))
-            .ToLookup(p => (p.CentroId, p.DocumentoId), p => p.Estado);
+        // Pendiente en la plataforma (decisión 2026-10-10): la MISMA carga que la causa del estado del Centro y que el
+        // bloqueo de personas (PendientesEnPlataformaDeCentros: documento efectivo, vigencia del requisito en el Centro),
+        // para que el porcentaje no discrepe de ellos. Solo baja el porcentaje el Pendiente de un tipo que el Centro marca
+        // «bloquea el acceso»: lo obligatorio configurado (decisión 3 del 2026-10-10). Un Centro sin plataforma no devuelve ninguno.
+        var pendientesQueBajanElPorcentaje = (await PendientesEnPlataformaDeCentros.CargarAsync(
+                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+                conGestionCae, hoy, cancellationToken))
+            .Where(p => p.TrabajadorId is not null && p.BloqueaAcceso)
+            .Select(p => (p.CentroId, TrabajadorId: p.TrabajadorId!.Value, p.TipoDocumentoId))
+            .ToHashSet();
 
         var pares = new List<ParDocumentalExigido>();
         foreach (var asignacion in asignacionesActivas)
@@ -659,8 +661,7 @@ public class CalculoEstadoCentroService(
                 var tieneEfectivo = efectivos.TryGetValue((asignacion.TrabajadorId, tipo.Id), out var efectivo);
                 var estado = tieneEfectivo ? efectivo.Estado : EstadoDocumento.Faltante;
                 var pendienteEnPlataforma = tieneEfectivo
-                    && pendientesEnPlataforma[(asignacion.CentroId, efectivo.Id)]
-                        .Any(estadoAcreditacion => ReglaPendienteEnPlataforma.CuentaEnElCentro(estadoAcreditacion, estado));
+                    && pendientesQueBajanElPorcentaje.Contains((asignacion.CentroId, asignacion.TrabajadorId, tipo.Id));
 
                 pares.Add(new ParDocumentalExigido(
                     asignacion.CentroId, asignacion.ClienteEmpresarialId, asignacion.EmpresaId, asignacion.TrabajadorId, tipo.Id, estado,

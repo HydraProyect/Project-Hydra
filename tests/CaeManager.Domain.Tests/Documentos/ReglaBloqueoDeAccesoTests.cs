@@ -343,11 +343,17 @@ public class ReglaBloqueoDeAccesoTests
     public void Un_documento_en_tolerancia_no_llega_como_pendiente_a_la_regla_de_bloqueo()
     {
         // AplicarPendienteEnPlataforma solo recibe pendientes que ya pasaron ReglaPendienteEnPlataforma.CuentaEnElCentro, que
-        // excluye En tolerancia, Vencido y Faltante: esos ya son causa más grave y no se rotulan como Pendiente.
-        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, EstadoDocumento.EnTolerancia).Should().BeFalse();
-        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, EstadoDocumento.Vencido).Should().BeFalse();
-        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, EstadoDocumento.Faltante).Should().BeFalse();
-        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, EstadoDocumento.SinConfirmar).Should().BeTrue();
+        // excluye En tolerancia, Vencido y Ausente: esos ya son causa más grave y no se rotulan como Pendiente.
+        var enTolerancia = ReglaBloqueoDeAcceso.Evaluar([VenceHaceDias(10)], Cond(toleranciaDias: 15), Hoy);
+        var vencido = ReglaBloqueoDeAcceso.Evaluar([VenceHaceDias(10)], Cond(), Hoy);
+        var ausente = ReglaBloqueoDeAcceso.Evaluar([], Cond(), Hoy);
+        var sinConfirmar = ReglaBloqueoDeAcceso.Evaluar([new DocumentoParaAcceso(VigenciaDocumento.SinConfirmar, Hoy.AddYears(-1))], Cond(), Hoy);
+
+        enTolerancia.EnToleranciaHasta.Should().NotBeNull("control: sí está en tolerancia");
+        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, enTolerancia).Should().BeFalse();
+        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, vencido).Should().BeFalse();
+        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, ausente).Should().BeFalse();
+        ReglaPendienteEnPlataforma.CuentaEnElCentro(EstadoAcreditacion.PendienteDeSubir, sinConfirmar).Should().BeTrue();
     }
 
     [Theory]

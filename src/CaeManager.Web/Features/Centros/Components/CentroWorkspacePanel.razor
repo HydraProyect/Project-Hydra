@@ -200,6 +200,12 @@ else
                                 else if (causa.PendienteEnPlataforma)
                                 {
                                     <Badge Tono="EstadoCentroUi.Tono(EstadoCentro.Pendiente)">@EstadoCentroUi.Texto(EstadoCentro.Pendiente)</Badge>
+                                    @* La causa no es Bloqueante (no bloquea al Centro), pero si el Centro marca el tipo «bloquea el acceso»
+                                       bloquea a la persona: lo dice, igual que el resto de causas bloqueantes. *@
+                                    @if (causa.BloqueaAcceso)
+                                    {
+                                        <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
+                                    }
                                 }
                                 else if (causa.Estado is { } estadoDocumento)
                                 {

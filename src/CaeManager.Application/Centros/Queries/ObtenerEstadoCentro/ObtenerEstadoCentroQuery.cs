@@ -16,7 +16,8 @@ public record ObtenerEstadoCentroQuery(Guid CentroId) : IRequest<EstadoCentroDto
 public record EstadoCentroDto(EstadoCentro Estado, IReadOnlyList<CausaEstadoCentroDto> Causas, int? CumplimientoPorcentaje);
 
 /// <param name="PendienteEnPlataforma">El documento vale, pero está sin subir o sin validar en la plataforma CAE del Centro.</param>
-public record CausaEstadoCentroDto(string Descripcion, EstadoDocumento? Estado, bool Bloqueante, bool PendienteEnPlataforma = false);
+/// <param name="BloqueaAcceso">Solo con <paramref name="PendienteEnPlataforma"/>: el Centro marca el tipo «bloquea el acceso», así que el Pendiente bloquea a personas (no al Centro: <paramref name="Bloqueante"/> sigue falso).</param>
+public record CausaEstadoCentroDto(string Descripcion, EstadoDocumento? Estado, bool Bloqueante, bool PendienteEnPlataforma = false, bool BloqueaAcceso = false);
 
 public class ObtenerEstadoCentroQueryHandler(ICalculoEstadoCentroService calculoEstadoCentro, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerEstadoCentroQuery, EstadoCentroDto?>
@@ -34,7 +35,7 @@ public class ObtenerEstadoCentroQueryHandler(ICalculoEstadoCentroService calculo
 
         return new EstadoCentroDto(
             resultado.Estado,
-            resultado.Causas.Select(c => new CausaEstadoCentroDto(c.Descripcion, c.Estado, c.Bloqueante, c.PendienteEnPlataforma)).ToList(),
+            resultado.Causas.Select(c => new CausaEstadoCentroDto(c.Descripcion, c.Estado, c.Bloqueante, c.PendienteEnPlataforma, c.BloqueaAcceso)).ToList(),
             cumplimiento.TryGetValue(request.CentroId, out var fraccion) ? fraccion.Porcentaje : null);
     }
 }
