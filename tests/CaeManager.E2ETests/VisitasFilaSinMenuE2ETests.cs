@@ -211,9 +211,9 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         var anchoEstado = await fila.Locator("td.col-estado-visitas").EvaluateAsync<double>("c => c.getBoundingClientRect().width");
         var altoCancelada = await fila.EvaluateAsync<double>("f => f.getBoundingClientRect().height");
-        Assert.InRange(anchoEstado, 1, 120);
+        Assert.InRange(anchoEstado, 1, 128);
         Assert.True(altoCancelada <= altoInicial + 1,
             $"La fila pasó de {altoInicial}px a {altoCancelada}px con el motivo largo.");
-        Assert.True(await motivoVisible.EvaluateAsync<bool>("e => e.getBoundingClientRect().width <= 80 && e.scrollWidth > e.clientWidth"));
+        Assert.True(await motivoVisible.EvaluateAsync<bool>("e => e.getBoundingClientRect().width <= 92 && e.scrollWidth > e.clientWidth"));
     }
 }
