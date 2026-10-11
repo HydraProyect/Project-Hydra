@@ -192,10 +192,9 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var (page, fila) = await AbrirConUnaVisitaAsync(contexto);
-        // La fila recién creada está en la lista por defecto («Solo activas»): ahí se mide su alto antes de cancelar.
+        // La fila recién creada está en la lista por defecto («Solo activas»); se cancela desde su panel.
         await Expect(fila).ToHaveCountAsync(1);
         await page.EvaluateAsync("() => document.fonts.ready");
-        var altoInicial = await fila.EvaluateAsync<double>("f => f.getBoundingClientRect().height");
         var motivo = new string('W', 500);
 
         await fila.Locator("button.nombre-abre-vista-rapida").ClickAsync();
@@ -216,10 +215,11 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(motivoVisible).ToHaveTextAsync(motivo);
 
         var anchoEstado = await fila.Locator("td.col-estado-visitas").EvaluateAsync<double>("c => c.getBoundingClientRect().width");
-        var altoCancelada = await fila.EvaluateAsync<double>("f => f.getBoundingClientRect().height");
         Assert.InRange(anchoEstado, 1, 128);
-        Assert.True(altoCancelada <= altoInicial + 1,
-            $"La fila pasó de {altoInicial}px a {altoCancelada}px con el motivo largo.");
+        // La fila cancelada lleva el motivo bajo la pastilla, así que no se compara su alto con el de la activa:
+        // lo que se afirma es que el motivo largo ocupa una sola línea (500 caracteres sin acotar serían varias).
+        Assert.True(await motivoVisible.EvaluateAsync<bool>(
+            "e => e.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(e).fontSize)"));
         Assert.True(await motivoVisible.EvaluateAsync<bool>("e => e.getBoundingClientRect().width <= 92 && e.scrollWidth > e.clientWidth"));
     }
 }
