@@ -48,7 +48,10 @@ public class PoliticaNotaInternaTests
         (await politica.TieneAccesoTotalAlTenantAsync()).Should().BeTrue();
     }
 
-    /// <summary>Capacidades sin acceso total: no abren la nota ni la ficha. Impersonación lee como la persona simulada.</summary>
+    /// <summary>
+    /// Capacidades sin acceso total: no abren la nota ni la ficha sin rol. Impersonación queda fuera a propósito hasta que
+    /// exista el resolutor del rol del simulado para toda la app (decisión de Chris, 2026-10-11): su rol efectivo es nulo.
+    /// </summary>
     [Theory]
     [InlineData(CapacidadPrivilegio.Impersonacion)]
     [InlineData(CapacidadPrivilegio.AdminPlataforma)]
