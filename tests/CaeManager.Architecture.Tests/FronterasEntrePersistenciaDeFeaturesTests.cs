@@ -223,6 +223,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Project-Hydra-Negocio/tecnico/f3b-subcontrata-obtenersubcontratasquery-adelantada-2026-08-26.md
         // y Project-Hydra-Negocio/tecnico/f3b-subcontrata-selector-adelantado-2026-08-26.md.
         ("Subcontratas.ObtenerSubcontratasQueryHandler", "IEmpresasQueryContext"),
+        // La identidad del listado muestra los Trabajadores de la Empresa subcontratista:
+        // recuento y ventana salen de la misma lectura, acotada por su ámbito efectivo y por RLS.
+        ("Subcontratas.ObtenerSubcontratasQueryHandler", "ITrabajadoresQueryContext"),
         ("Subcontratas.ObtenerSubcontratasParaSelectorQueryHandler", "IEmpresasQueryContext"),
         // Comercial (Horizonte 1.7, "Billing mínimo viable") opera
         // directamente sobre el agregado Tenant (EstadoComercial,
