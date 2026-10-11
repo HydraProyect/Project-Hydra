@@ -329,6 +329,21 @@ public class ReglaBloqueoDeAccesoTests
     }
 
     [Theory]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir)]
+    [InlineData(EstadoAcreditacion.Subida)]
+    public void Un_requisito_que_solo_cumple_por_la_tolerancia_del_Centro_no_se_vuelve_pendiente(EstadoAcreditacion estado)
+    {
+        // Cumplido «gracias a la tolerancia»: el documento ya venció en este Centro (ReglaPendienteEnPlataforma.CuentaEnElCentro
+        // no lo cuenta como pendiente). La regla se defiende sola de un llamador que no lo haya comprobado.
+        var enTolerancia = new ResultadoDeRequisito(SituacionDeRequisitoBloqueante.Cumplido, Hoy.AddDays(-5), Hoy.AddDays(10));
+
+        ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma(enTolerancia, estado)
+            .Should().BeNull("un documento vencido que solo vale por la tolerancia es causa más grave y no es un Pendiente");
+        ReglaBloqueoDeAcceso.AplicarPendienteEnPlataforma(CumplidoVigente, estado)
+            .Should().NotBeNull("control positivo: sin tolerancia el mismo cumplido sí pasa a pendiente");
+    }
+
+    [Theory]
     [InlineData(SituacionDeRequisitoBloqueante.Ausente)]
     [InlineData(SituacionDeRequisitoBloqueante.Vencido)]
     public void Un_requisito_ausente_o_vencido_conserva_su_causa_mas_grave_aunque_haya_un_pendiente(SituacionDeRequisitoBloqueante grave)

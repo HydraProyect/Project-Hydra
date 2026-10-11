@@ -220,7 +220,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
 
         await using var c = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso();
-        var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c);
+        var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c, c);
         var calculoDocumental = new CalculoEstadoDocumentalService(c, c, c);
         var calculoSubcontrata = new CalculoEstadoSubcontrataService(c, c, c, c, c, c, alcance);
 
@@ -256,7 +256,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         }
 
         // 3. Contexto Trabajador (Trabajador 360): un par por Centro que lo exige, al día si el documento cuenta.
-        var documentacion = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }));
+        var documentacion = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(c, c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }));
         var esperadosPorTrabajador = _casos.Select(x => (x.Nombre, x.TrabajadorId, x.Centros, x.AlDia))
             .Concat(_trabajadoresExtra.Select(x => ("extra", x.TrabajadorId, x.Centros, x.AlDia)));
         foreach (var (nombre, trabajadorId, centros, alDia) in esperadosPorTrabajador)

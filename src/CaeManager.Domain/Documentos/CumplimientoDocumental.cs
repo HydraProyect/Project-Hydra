@@ -43,7 +43,7 @@ public readonly record struct ParDocumentalExigido(
     Guid TrabajadorId,
     Guid TipoDocumentoId,
     EstadoDocumento Estado,
-    bool PendienteEnPlataforma = false);
+    bool PendienteEnPlataforma);
 
 /// <summary>
 /// Fracción de cumplimiento: cuántos de los requeridos están al día. <see cref="Porcentaje"/> es <c>null</c> cuando no

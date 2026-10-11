@@ -251,6 +251,9 @@
   <data name="BloqueadoEtiqueta" xml:space="preserve">
     <value>Bloquejat</value>
   </data>
+  <data name="BloqueaAccesoEtiqueta" xml:space="preserve">
+    <value>Bloqueja l’accés</value>
+  </data>
   <data name="BloqueoSituacionAusente" xml:space="preserve">
     <value>no té el document</value>
   </data>

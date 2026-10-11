@@ -425,7 +425,7 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
             var centros = await contexto.Centros.Where(c => c.ClienteId == clienteId).OrderBy(c => c.CodigoCentro).ToListAsync();
             var centroIds = centros.Select(c => c.Id).ToList();
 
-            var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto);
+            var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto);
             var resultado = await servicio.CalcularAsync(centroIds, CancellationToken.None);
 
             var trabajadorIds = await contexto.Asignaciones

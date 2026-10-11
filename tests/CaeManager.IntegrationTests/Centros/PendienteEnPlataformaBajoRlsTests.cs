@@ -83,7 +83,7 @@ public class PendienteEnPlataformaBajoRlsTests : IAsyncLifetime
         await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
     }
 
-    private CalculoEstadoCentroService Calculo() => new(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
+    private CalculoEstadoCentroService Calculo() => new(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
 
     private EvaluacionDeAccesoPorCentroService Evaluacion(IAlcanceDatosService? alcance = null) =>
         new(_runtime, _runtime, _runtime, _runtime, _runtime, alcance ?? new AlcanceDatosServiceFalso());
@@ -119,9 +119,9 @@ public class PendienteEnPlataformaBajoRlsTests : IAsyncLifetime
         pendientes.Should().ContainSingle(c => c.TrabajadorId == _sesion.Ana && c.Ambito == AmbitoCausa.Trabajador)
             .Which.Descripcion.Should().Be("Formación 60h — Ana Simpson — sin subir a la plataforma", "el motivo nombra el documento y su estado");
         pendientes.Should().ContainSingle(c => c.TipoDocumentoId == _sesion.TipoEmpresa && c.Ambito == AmbitoCausa.Empresa)
-            .Which.Descripcion.Should().Be("RNT — Empresa — subido, sin validar en la plataforma");
+            .Which.Descripcion.Should().Be("RNT — Montajes Springfield S.L. — subido, sin validar en la plataforma", "la causa nombra la Empresa, no un «Empresa» genérico");
         pendientes.Should().ContainSingle(c => c.TipoDocumentoId == _sesion.TipoIso && c.Ambito == AmbitoCausa.Empresa)
-            .Which.Descripcion.Should().Be("ISO 9001 — Empresa — sin subir a la plataforma");
+            .Which.Descripcion.Should().Be("ISO 9001 — Montajes Springfield S.L. — sin subir a la plataforma");
         pendientes.Should().OnlyContain(c => c.Estado == null && !c.Bloqueante,
             "el Pendiente no describe la vigencia del documento ni pone el Centro en Bloqueado");
     }

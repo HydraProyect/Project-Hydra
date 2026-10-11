@@ -127,7 +127,7 @@ public class CumplimientoDocumentalTests
     private static readonly Guid TrabajadorSinEmpresa = Guid.NewGuid();
 
     private static ParDocumentalExigido Par(Guid centro, Guid cliente, Guid? empresa, Guid trabajador, EstadoDocumento estado) =>
-        new(centro, cliente, empresa, trabajador, Guid.NewGuid(), estado);
+        new(centro, cliente, empresa, trabajador, Guid.NewGuid(), estado, PendienteEnPlataforma: false);
 
     /// <summary>
     /// Centro A (Cliente X): Uno (Empresa P) tiene dos pares, uno al día y uno faltante; Dos (Empresa Q) uno vencido.

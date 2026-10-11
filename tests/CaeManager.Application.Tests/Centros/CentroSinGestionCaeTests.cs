@@ -85,7 +85,7 @@ public class CentroSinGestionCaeTests
     }
 
     private CalculoEstadoCentroService Calculo() =>
-        new(_centros, _documentos, _tipos, _trabajadores, _asignaciones, _configuracion);
+        new(_centros, _documentos, _tipos, _trabajadores, _asignaciones, _configuracion, _empresas);
 
     // ---- Cumplimiento y estado ----
 
@@ -168,7 +168,7 @@ public class CentroSinGestionCaeTests
     public async Task La_documentacion_por_centro_del_trabajador_no_exige_nada_en_el_centro_sin_gestion_cae()
     {
         var resultado = await new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
-                _asignaciones, _centros, _empresas, _tipos, _documentos, _configuracion, new AlcanceDatosServiceFalso(), new SituacionDocumentosSinDatos())
+                _asignaciones, _centros, _empresas, _tipos, _documentos, _configuracion, _trabajadores, new AlcanceDatosServiceFalso(), new SituacionDocumentosSinDatos())
             .Handle(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(_ana.Id), CancellationToken.None);
 
         resultado.Single(c => c.CentroId == _sinGestion.Id).Documentos.Should().BeEmpty();

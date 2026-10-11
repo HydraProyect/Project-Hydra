@@ -104,11 +104,25 @@ public class ReglaPendienteEnPlataformaTests
             .Should().BeTrue("la periodicidad del Centro lo mantiene vigente allí");
     }
 
+    /// <summary>
+    /// Un llamador que construye un par y se olvida del Pendiente lo daría por «no pendiente» sin enterarse: es un
+    /// parámetro obligatorio, así que omitirlo no compila. Este test lo ancla (también contra una vuelta a <c>= false</c>).
+    /// </summary>
+    [Fact]
+    public void El_Pendiente_en_la_plataforma_de_un_par_es_un_parametro_obligatorio()
+    {
+        var parametro = typeof(ParDocumentalExigido).GetConstructors()
+            .Single(c => c.GetParameters().Length == 7)
+            .GetParameters().Single(p => p.Name == nameof(ParDocumentalExigido.PendienteEnPlataforma));
+
+        parametro.HasDefaultValue.Should().BeFalse("quien construye un par decide siempre si está pendiente en la plataforma");
+    }
+
     [Fact]
     public void Un_par_vigente_pendiente_en_la_plataforma_de_su_Centro_no_esta_al_dia_en_el_porcentaje_del_Centro()
     {
         var centro = Guid.NewGuid();
-        var alDia = new ParDocumentalExigido(centro, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vigente);
+        var alDia = new ParDocumentalExigido(centro, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vigente, PendienteEnPlataforma: false);
         var pendiente = alDia with { TrabajadorId = Guid.NewGuid(), PendienteEnPlataforma = true };
 
         CumplimientoDocumental.EsConforme(alDia, ContextoCumplimiento.Centro).Should().BeTrue();

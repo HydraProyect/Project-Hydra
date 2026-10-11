@@ -90,7 +90,7 @@ public class CumplimientoCentroDocumentosDuplicadosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task Con_dos_copias_del_mismo_tipo_el_cumplimiento_no_lanza_y_manda_la_vigente()
     {
-        var servicio = new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
+        var servicio = new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
 
         var cumplimiento = await servicio.CalcularCumplimientoAsync([_centroSesion], CancellationToken.None);
 

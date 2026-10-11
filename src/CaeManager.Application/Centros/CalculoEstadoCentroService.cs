@@ -1,6 +1,7 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -128,7 +129,8 @@ public class CalculoEstadoCentroService(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     ITrabajadoresQueryContext trabajadoresContext,
     IAsignacionesQueryContext asignacionesContext,
-    IConfiguracionQueryContext configuracionContext)
+    IConfiguracionQueryContext configuracionContext,
+    IEmpresasQueryContext empresasContext)
     : ICalculoEstadoCentroService
 {
     public async Task<IReadOnlyDictionary<Guid, ResultadoEstadoCentro>> CalcularAsync(
@@ -394,11 +396,24 @@ public class CalculoEstadoCentroService(
             centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
             centroIds, hoy, cancellationToken);
 
+        // El nombre de la Empresa dueña del documento (una Subcontrata o la Empresa propia del Trabajador), no un «Empresa» genérico.
+        var empresaIds = pendientes.Where(p => p.EmpresaId is not null).Select(p => p.EmpresaId!.Value).Distinct().ToList();
+        var nombresDeEmpresa = empresaIds.Count == 0
+            ? new Dictionary<Guid, string>()
+            : await empresasContext.Empresas
+                .Where(e => empresaIds.Contains(e.Id))
+                .Select(e => new { e.Id, e.RazonSocial })
+                .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+
         foreach (var pendiente in pendientes)
         {
             if (!causasPorCentro.TryGetValue(pendiente.CentroId, out var causas)) continue;
 
-            var propietario = pendiente.TrabajadorNombre is { } nombre ? $" — {nombre}" : " — Empresa";
+            var propietario = pendiente.TrabajadorNombre is { } nombre
+                ? $" — {nombre}"
+                : pendiente.EmpresaId is { } empresaId && nombresDeEmpresa.TryGetValue(empresaId, out var razonSocial)
+                    ? $" — {razonSocial}"
+                    : " — Empresa";
             var queFalta = pendiente.EstadoAcreditacion == EstadoAcreditacion.Subida
                 ? "subido, sin validar en la plataforma"
                 : "sin subir a la plataforma";

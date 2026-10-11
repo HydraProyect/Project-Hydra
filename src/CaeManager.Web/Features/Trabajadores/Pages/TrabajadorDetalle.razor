@@ -219,9 +219,9 @@
                                                   DesplegadaChanged="_ => AlternarExpansionCentro(centro.CentroId)">
                                         <Detalle>
                                             @centro.ClienteRazonSocial ·
-                                            @(centro.Cumplimiento.Requeridos == 0
+                                            @(centro.CumplimientoEnElCentro.Requeridos == 0
                                                 ? Textos["ResumenSinExigencia"]
-                                                : Textos["ResumenExigidosCorrectos", centro.Cumplimiento.AlDia, centro.Cumplimiento.Requeridos])
+                                                : Textos["ResumenExigidosCorrectos", centro.CumplimientoEnElCentro.AlDia, centro.CumplimientoEnElCentro.Requeridos])
                                         </Detalle>
                                         <Cifra><span class="trabajador360-centro-alta">@Textos["ColumnaDesde"] @centro.FechaAlta.ToString("dd/MM/yyyy")</span></Cifra>
                                         <Estado>

@@ -191,6 +191,7 @@ public class Trabajador360Gen2Tests : BunitContext
         new(Guid.NewGuid(), Guid.NewGuid(), nombre, Guid.NewGuid(), clienteEmpresarial,
             new DateOnly(2026, 7, 2), peorEstado, documentos,
             // Con «Sin caducidad» el listado no lo trae pero el par cuenta: un caso aparte construye el Dto con su fracción.
+            CumplimientoDocumental.Evaluar(documentos.Select(d => d.Estado)),
             CumplimientoDocumental.Evaluar(documentos.Select(d => d.Estado)));
 
     private static GestionListaDto Gestion(Guid trabajadorId, string tipoDocumento, string centro) =>
@@ -477,13 +478,40 @@ public class Trabajador360Gen2Tests : BunitContext
             new CentroDocumentacionTrabajadorDto(
                 Guid.NewGuid(), Guid.NewGuid(), "Centro Norte", Guid.NewGuid(), "Refrielectric S.A.", new DateOnly(2026, 7, 2),
                 EstadoDocumento.Vencido, [Documento("Formación específica de centro", EstadoDocumento.Vencido)],
-                new FraccionCumplimiento(1, 2))
+                new FraccionCumplimiento(1, 2), new FraccionCumplimiento(1, 2))
         ];
 
         var cut = Renderizar(id);
         AbrirCentros(cut);
 
         cut.Find(".cabecera-identidad .cabecera-identidad-anillo .anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("50");
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Contain("1 de 2 exigidos correctos");
+    }
+
+    /// <summary>
+    /// Pendiente en la plataforma (2026-10-10): la fila de cada Centro enseña lo que el Trabajador aporta al % de ESE Centro
+    /// (con el Pendiente de un tipo bloqueante sin contar como al día), y el anillo del Trabajador sigue midiendo su propia
+    /// documentación (cada porcentaje mide su contexto, decisión 2026-10-03).
+    /// </summary>
+    [Fact]
+    public void La_fila_del_Centro_cuenta_el_pendiente_en_la_plataforma_y_el_anillo_del_Trabajador_no()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] =
+        [
+            new CentroDocumentacionTrabajadorDto(
+                Guid.NewGuid(), Guid.NewGuid(), "Centro Norte", Guid.NewGuid(), "Refrielectric S.A.", new DateOnly(2026, 7, 2),
+                EstadoDocumento.Vigente, [Documento("Formación PRL — 20 h", EstadoDocumento.Vigente)],
+                Cumplimiento: new FraccionCumplimiento(2, 2), CumplimientoEnElCentro: new FraccionCumplimiento(1, 2))
+        ];
+
+        var cut = Renderizar(id);
+        AbrirCentros(cut);
+
+        cut.Find(".cabecera-identidad .cabecera-identidad-anillo .anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("100",
+            "control: el anillo del Trabajador no cuenta la acreditación en la plataforma");
         cut.Find(".fila-relacion-detalle").TextContent.Should().Contain("1 de 2 exigidos correctos");
     }
 

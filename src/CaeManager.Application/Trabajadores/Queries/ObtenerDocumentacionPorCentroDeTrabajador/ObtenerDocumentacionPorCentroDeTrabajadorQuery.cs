@@ -35,12 +35,19 @@ public record ObtenerDocumentacionPorCentroDeTrabajadorQuery(Guid TrabajadorId)
 /// <param name="Cumplimiento">
 /// Contexto <see cref="ContextoCumplimiento.Trabajador"/> en este Centro, medido por <see cref="CumplimientoDocumental"/>
 /// sobre TODOS los pares exigidos (incluidos los «Sin caducidad», que entran como requeridos y al día). El % de
-/// Trabajador 360 es la suma de estas fracciones.
+/// Trabajador 360 es la suma de estas fracciones. No incluye el Pendiente en la plataforma: cada porcentaje mide su
+/// contexto (decisión 2026-10-03) y la acreditación en la plataforma es del Centro.
+/// </param>
+/// <param name="CumplimientoEnElCentro">
+/// Lo que este Trabajador aporta al % del Centro: la misma fracción pero en contexto <see cref="ContextoCumplimiento.Centro"/>,
+/// o sea con el Pendiente en la plataforma de un tipo que el Centro marca «bloquea el acceso» sin contar como al día
+/// (decisión 2026-10-10). Es el «n de m exigidos correctos» de la fila de cada Centro: coincide con la fracción de este
+/// Trabajador en la vista de Asignaciones del Centro y con el bloqueo de personas.
 /// </param>
 public record CentroDocumentacionTrabajadorDto(
     Guid AsignacionId, Guid CentroId, string CentroNombre, Guid ClienteId, string ClienteRazonSocial,
     DateOnly FechaAlta, EstadoDocumento PeorEstado, IReadOnlyList<DocumentoRequeridoDto> Documentos,
-    FraccionCumplimiento Cumplimiento);
+    FraccionCumplimiento Cumplimiento, FraccionCumplimiento CumplimientoEnElCentro);
 
 public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
     IAsignacionesQueryContext asignacionesContext,
@@ -49,6 +56,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IDocumentosQueryContext documentosContext,
     IConfiguracionQueryContext configuracionContext,
+    ITrabajadoresQueryContext trabajadoresContext,
     IAlcanceDatosService alcanceDatos,
     ISituacionDocumentosEnCentrosService situacionDocumentos)
     : IRequestHandler<ObtenerDocumentacionPorCentroDeTrabajadorQuery, IReadOnlyList<CentroDocumentacionTrabajadorDto>>
@@ -70,7 +78,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
                 AsignacionId = asignacion.Id,
                 CentroId = centro.Id,
                 CentroNombre = centro.Nombre,
-                ClienteId = cliente.Id,
+                ClienteEmpresarialId = cliente.Id,
                 ClienteRazonSocial = cliente.RazonSocial,
                 asignacion.FechaAlta
             })
@@ -108,7 +116,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
         // empresarial titular) decide si un vencido todavía vale para acceder. El estado de vigencia del Documento no cambia.
         var toleranciasDeClientes = await VigenciaEnCentro.CargarToleranciasDeClientesAsync(
             tiposDocumentoContext,
-            asignaciones.Select(a => a.ClienteId).Distinct().ToList(),
+            asignaciones.Select(a => a.ClienteEmpresarialId).Distinct().ToList(),
             tipoIdsCandidatos,
             cancellationToken);
 
@@ -126,6 +134,17 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
             tipoIdsCandidatos,
             cancellationToken);
 
+        // Pendiente en la plataforma (decisión 2026-10-10): la MISMA carga que el % del Centro, la causa del estado y el
+        // bloqueo de personas (PendientesEnPlataformaDeCentros). Solo baja el cumplimiento en el Centro el Pendiente de un
+        // tipo que ese Centro marca «bloquea el acceso». Un Centro sin gestión CAE no exige nada, así que no se consulta.
+        var centroIdsConGestionCae = centroIds.Where(id => !sinGestionCae.Contains(id)).ToList();
+        var pendientesQueBajanElPorcentaje = (await PendientesEnPlataformaDeCentros.CargarAsync(
+                centrosContext, documentosContext, tiposDocumentoContext, trabajadoresContext, asignacionesContext,
+                centroIdsConGestionCae, hoy, cancellationToken))
+            .Where(p => p.TrabajadorId == request.TrabajadorId && p.BloqueaAcceso)
+            .Select(p => (p.CentroId, p.TipoDocumentoId))
+            .ToHashSet();
+
         var resultado = new List<CentroDocumentacionTrabajadorDto>();
 
         foreach (var asignacion in asignaciones)
@@ -137,6 +156,11 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
             var items = new List<DocumentoRequeridoDto>();
             var estadosDeLosPares = new List<EstadoDocumento>();
+            var paresEnElCentro = new List<ParDocumentalExigido>();
+
+            ParDocumentalExigido Par(Guid tipoId, EstadoDocumento estadoDelPar) => new(
+                asignacion.CentroId, asignacion.ClienteEmpresarialId, EmpresaId: null, request.TrabajadorId, tipoId, estadoDelPar,
+                pendientesQueBajanElPorcentaje.Contains((asignacion.CentroId, tipoId)));
 
             foreach (var tipo in tiposRequeridos)
             {
@@ -146,6 +170,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
                         null, tipo.Id, tipo.Nombre, EstadoDocumento.Faltante, null,
                         UltimaReclamacion: situacion.UltimaReclamacionDeAusente(request.TrabajadorId, tipo.Id)));
                     estadosDeLosPares.Add(EstadoDocumento.Faltante);
+                    paresEnElCentro.Add(Par(tipo.Id, EstadoDocumento.Faltante));
                     continue;
                 }
 
@@ -153,13 +178,14 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
                     documento.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
                 // El cumplimiento mide el estado de vigencia REAL del Documento: la tolerancia no entra en el porcentaje.
                 estadosDeLosPares.Add(estado);
+                paresEnElCentro.Add(Par(tipo.Id, estado));
                 // Solo se omite lo confirmado como que no caduca; lo sin confirmar se lista.
                 if (estado == EstadoDocumento.SinCaducidad) continue;
 
                 filasDeLosCentros.TryGetValue((tipo.Id, asignacion.CentroId), out var filaDelCentro);
                 var condiciones = VigenciaEnCentro.Condiciones(
                     filaDelCentro,
-                    toleranciasDeClientes.TryGetValue((asignacion.ClienteId, tipo.Id), out var delCliente) ? delCliente : null);
+                    toleranciasDeClientes.TryGetValue((asignacion.ClienteEmpresarialId, tipo.Id), out var delCliente) ? delCliente : null);
                 var (estadoEnCentro, enToleranciaHasta) = VigenciaEnCentro.Aplicar(
                     estado, documento.EstadoVigencia, documento.FechaVencimiento, documento.FechaEmision, condiciones, hoy);
 
@@ -173,8 +199,9 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
             var peorEstado = ordenados.Count > 0 ? ordenados[0].Estado : EstadoDocumento.Vigente;
 
             resultado.Add(new CentroDocumentacionTrabajadorDto(
-                asignacion.AsignacionId, asignacion.CentroId, asignacion.CentroNombre, asignacion.ClienteId, asignacion.ClienteRazonSocial,
-                asignacion.FechaAlta, peorEstado, ordenados, CumplimientoDocumental.Evaluar(estadosDeLosPares)));
+                asignacion.AsignacionId, asignacion.CentroId, asignacion.CentroNombre, asignacion.ClienteEmpresarialId, asignacion.ClienteRazonSocial,
+                asignacion.FechaAlta, peorEstado, ordenados, CumplimientoDocumental.Evaluar(estadosDeLosPares),
+                CumplimientoDocumental.Evaluar(paresEnElCentro, ContextoCumplimiento.Centro)));
         }
 
         return resultado;

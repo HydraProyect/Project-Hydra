@@ -195,7 +195,7 @@ else
                                 <span>@causa.Descripcion</span>
                                 @if (causa.Bloqueante)
                                 {
-                                    <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
+                                    <Badge Tono="TonoBadge.Peligro">@Textos["BloqueaAccesoEtiqueta"]</Badge>
                                 }
                                 else if (causa.PendienteEnPlataforma)
                                 {
@@ -204,7 +204,7 @@ else
                                        bloquea a la persona: lo dice, igual que el resto de causas bloqueantes. *@
                                     @if (causa.BloqueaAcceso)
                                     {
-                                        <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
+                                        <Badge Tono="TonoBadge.Peligro">@Textos["BloqueaAccesoEtiqueta"]</Badge>
                                     }
                                 }
                                 else if (causa.Estado is { } estadoDocumento)
@@ -250,7 +250,7 @@ else
                                     <Badge Tono="@(item.Aplica ? TonoBadge.Exito : TonoBadge.Neutro)">@(item.Aplica ? "Incluido" : "Excluido")</Badge>
                                     @if (item.BloqueaAcceso)
                                     {
-                                        <Badge Tono="TonoBadge.Peligro">Bloquea acceso</Badge>
+                                        <Badge Tono="TonoBadge.Peligro">@Textos["BloqueaAccesoEtiqueta"]</Badge>
                                     }
                                 </div>
                                 @if (item.PeriodicidadEspecialMeses is { } meses)

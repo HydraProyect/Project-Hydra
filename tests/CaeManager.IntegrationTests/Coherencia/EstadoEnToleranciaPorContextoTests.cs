@@ -88,7 +88,7 @@ public class EstadoEnToleranciaPorContextoTests : IAsyncLifetime
                 contexto, contexto, contexto, contexto, contexto, contexto, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(contexto, contexto, contexto, contexto, contexto, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }))
             .Handle(new ObtenerAsignacionesDocumentacionPorCentroQuery(_centroId), CancellationToken.None);
         var trabajador360 = await new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
-                contexto, contexto, contexto, contexto, contexto, contexto, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(contexto, contexto, contexto, contexto, contexto, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }))
+                contexto, contexto, contexto, contexto, contexto, contexto, contexto, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(contexto, contexto, contexto, contexto, contexto, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }))
             .Handle(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(_trabajadorId), CancellationToken.None);
 
         var enCentro = centro360.Should().ContainSingle().Subject;

@@ -243,6 +243,8 @@ public static class ReglaBloqueoDeAcceso
     /// <item><b>Con marca, un cumplido pasa a pendiente</b>: <see cref="SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma"/>
     /// o <see cref="SituacionDeRequisitoBloqueante.SinValidarEnPlataforma"/>, sin tolerancia.</item>
     /// <item><b>Ausente o vencido se quedan como están</b>: ya bloquean y son la causa más grave.</item>
+    /// <item><b>Cumplido solo por la tolerancia del Centro</b> (<see cref="ResultadoDeRequisito.EnToleranciaHasta"/>): el
+    /// documento ya venció allí, no es un Pendiente y se devuelve <c>null</c> (nada que aplicar).</item>
     /// <item>Un estado de acreditación que no es pendiente (validada, rechazada, no requerida) no cambia nada aquí; la
     /// rechazada es causa propia del Centro (D-7).</item>
     /// </list>
@@ -255,6 +257,11 @@ public static class ReglaBloqueoDeAcceso
 
         if (requisito.Situacion != SituacionDeRequisitoBloqueante.Cumplido || !ReglaPendienteEnPlataforma.EstaPendiente(estadoAcreditacion))
             return requisito;
+
+        // Cumplido solo por la tolerancia del Centro: el documento ya venció aquí, así que no es un Pendiente
+        // (ReglaPendienteEnPlataforma.CuentaEnElCentro). Sin pendiente al que aplicar, igual que sin marca de bloqueo.
+        if (requisito.EnToleranciaHasta is not null)
+            return null;
 
         var situacion = estadoAcreditacion == EstadoAcreditacion.Subida
             ? SituacionDeRequisitoBloqueante.SinValidarEnPlataforma

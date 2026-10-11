@@ -285,9 +285,28 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
 
         // Un bloqueo por documento SIN SUBIR a la plataforma (decisión 2026-10-10) no es una fila más de la cola: el trabajo
         // ya aparece como su acreditación PendienteDeSubir (pendientesPlataforma), y repetirlo como requisito duplicaría la
-        // tarea. El subido sin validar sí conserva su fila: la acreditación Subida no entra en la cola (seguimiento), y sin
-        // ella el Trabajador bloqueado desaparecería de la Bandeja.
-        items.AddRange(requisitos.Where(rq => rq.Situacion != SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma).Select(rq => new ItemBandejaDto(
+        // tarea. Solo se quita la fila de requisito si de verdad hay una fila de acreditación que la cubre, enlazadas por
+        // Centro, tipo y sujeto (el Trabajador, o la Empresa si el requisito es de Empresa): las dos fuentes no tienen por
+        // qué coincidir (la de acreditaciones usa el alcance de GESTIÓN y la de requisitos el de lectura, que difieren para
+        // el rol Cliente), y quitarla sin cobertura haría desaparecer al Trabajador bloqueado de la Bandeja. El subido sin
+        // validar conserva siempre su fila: la acreditación Subida no entra en la cola (seguimiento).
+        var plataformas = pendientesPlataforma
+            .SelectMany(proveedor => proveedor.Clientes.SelectMany(cliente => cliente.Documentos
+                .Where(d => d.Estado is EstadoAcreditacion.PendienteDeSubir or EstadoAcreditacion.Rechazada)
+                .Select(d => (proveedor, cliente, d))))
+            .ToList();
+        var cubiertosPorUnaAcreditacionSinSubir = plataformas
+            .Where(x => x.d.Estado == EstadoAcreditacion.PendienteDeSubir && x.d.CentroId is not null)
+            .Select(x => (CentroId: x.d.CentroId!.Value, x.d.TipoDocumentoId, Trabajador: x.d.TrabajadorId, Empresa: x.d.TrabajadorId is null ? x.d.EmpresaId : null))
+            .ToHashSet();
+        bool LoCubreUnaAcreditacionSinSubir(DocumentacionBloqueantePendienteDto rq) =>
+            rq.Situacion == SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma
+            && cubiertosPorUnaAcreditacionSinSubir.Contains(
+                rq.Ambito == AmbitoAplicacion.Empresa
+                    ? (rq.CentroId, rq.TipoDocumentoId, Trabajador: (Guid?)null, Empresa: rq.EmpresaId)
+                    : (rq.CentroId, rq.TipoDocumentoId, Trabajador: rq.TrabajadorId, Empresa: (Guid?)null));
+
+        items.AddRange(requisitos.Where(rq => !LoCubreUnaAcreditacionSinSubir(rq)).Select(rq => new ItemBandejaDto(
             Id: IdDeFilaDeCola.Requisito(rq.CentroId, rq.TrabajadorId, rq.TipoDocumentoId),
             Tipo: TipoItemBandeja.RequisitoPendiente,
             // Un requisito de Empresa bloquea al Trabajador por un documento que NO es suyo: el título lo dice
@@ -371,11 +390,6 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
         // la parte que importa gestionar — por eso va en el subtítulo. Subida
         // no entra: está esperando la respuesta de la plataforma y no hay
         // nada que hacer hasta que llegue (seguimiento, no cola).
-        var plataformas = pendientesPlataforma
-            .SelectMany(proveedor => proveedor.Clientes.SelectMany(cliente => cliente.Documentos
-                .Where(d => d.Estado is EstadoAcreditacion.PendienteDeSubir or EstadoAcreditacion.Rechazada)
-                .Select(d => (proveedor, cliente, d))));
-
         items.AddRange(plataformas.Select(x => new ItemBandejaDto(
             Id: IdDeFilaDeCola.Plataforma(x.d.AcreditacionId),
             Tipo: x.d.Estado == EstadoAcreditacion.Rechazada ? TipoItemBandeja.PlataformaRechazada : TipoItemBandeja.PlataformaPendiente,

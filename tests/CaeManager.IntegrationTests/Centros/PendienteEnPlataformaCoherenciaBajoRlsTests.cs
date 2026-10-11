@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentaci
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.SituacionEnCentro;
+using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -106,7 +107,7 @@ public class PendienteEnPlataformaCoherenciaBajoRlsTests : IAsyncLifetime
         await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
     }
 
-    private CalculoEstadoCentroService Calculo() => new(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
+    private CalculoEstadoCentroService Calculo() => new(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime);
 
     private EvaluacionDeAccesoPorCentroService Evaluacion() =>
         new(_runtime, _runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso());
@@ -298,6 +299,45 @@ public class PendienteEnPlataformaCoherenciaBajoRlsTests : IAsyncLifetime
             "la suma de las fracciones de los Trabajadores es la del Centro");
     }
 
+    // ---- Ficha de Trabajador (ronda 3, hallazgo 1) ----
+
+    [Fact]
+    public async Task E_la_ficha_del_Trabajador_cuenta_en_su_Centro_el_mismo_pendiente_que_el_porcentaje_y_el_bloqueo()
+    {
+        var formacion = await TipoAsync("Formación 60h", AmbitoAplicacion.Trabajador, RequisitoDocumental.Si, bloquea: true);
+        var iso = await TipoAsync("ISO personal", AmbitoAplicacion.Trabajador, RequisitoDocumental.No, bloquea: false);
+        var ana = await TrabajadorAsignadoAsync("Ana", "77189989B");
+        var beto = await TrabajadorAsignadoAsync("Beto", "12345678Z");
+        await AcreditarAsync(await DocumentoDeTrabajadorAsync(ana, formacion, _hoy.AddDays(-5), _hoy.AddYears(1)), Acreditacion.SinSubir);
+        await AcreditarAsync(await DocumentoDeTrabajadorAsync(ana, iso, _hoy.AddDays(-5), _hoy.AddYears(1)), Acreditacion.Validada);
+        await AcreditarAsync(await DocumentoDeTrabajadorAsync(beto, formacion, _hoy.AddDays(-5), _hoy.AddYears(1)), Acreditacion.Validada);
+        await AcreditarAsync(await DocumentoDeTrabajadorAsync(beto, iso, _hoy.AddDays(-5), _hoy.AddYears(1)), Acreditacion.SinSubir);
+
+        var alcance = new AlcanceDatosServiceFalso();
+        var c = _runtime;
+        var handler = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
+            c, c, c, c, c, c, c, alcance,
+            new SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }));
+
+        var deAna = (await handler.Handle(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(ana), CancellationToken.None)).Single();
+        var deBeto = (await handler.Handle(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(beto), CancellationToken.None)).Single();
+
+        deAna.CumplimientoEnElCentro.Should().Be(new FraccionCumplimiento(1, 2),
+            "la Formación bloqueante de Ana está sin subir: no está al día en este Centro");
+        deAna.Cumplimiento.Should().Be(new FraccionCumplimiento(2, 2),
+            "control: el % del Trabajador mide su documentación y no cuenta la acreditación en la plataforma");
+        deBeto.CumplimientoEnElCentro.Should().Be(new FraccionCumplimiento(2, 2),
+            "la ISO opcional de Beto, sin subir, no cuenta (el anillo mide lo obligatorio)");
+
+        var porcentajeDelCentro = (await Calculo().CalcularCumplimientoAsync([_centroId], CancellationToken.None))[_centroId];
+        FraccionCumplimiento.Sumar([deAna.CumplimientoEnElCentro, deBeto.CumplimientoEnElCentro]).Should().Be(porcentajeDelCentro,
+            "la suma de lo que aporta cada Trabajador es el % del Centro");
+
+        var evaluacion = await Evaluacion().EvaluarAsync(null, CancellationToken.None);
+        evaluacion.Requisitos.Where(r => ReglaBloqueoDeAcceso.Bloquea(r.Resultado.Situacion)).Select(r => r.TrabajadorId)
+            .Should().BeEquivalentTo([ana], "el bloqueo coincide con el único Trabajador que la ficha da por no al día por un Pendiente");
+    }
+
     // ---- J ----
 
     [Fact]
@@ -329,7 +369,7 @@ public class PendienteEnPlataformaCoherenciaBajoRlsTests : IAsyncLifetime
 
         var estado = (await Calculo().CalcularAsync([_centroId], CancellationToken.None))[_centroId];
         estado.Causas.Should().ContainSingle(c => c.PendienteEnPlataforma && c.Ambito == AmbitoCausa.Empresa).Which.Descripcion
-            .Should().Be("RNT — Empresa — subido, sin validar en la plataforma");
+            .Should().Be("RNT — Montajes Shelbyville S.L. — subido, sin validar en la plataforma", "la causa nombra la Empresa, no un «Empresa» genérico");
     }
 
     private sealed class TenantActualPorAmbito : ITenantActual

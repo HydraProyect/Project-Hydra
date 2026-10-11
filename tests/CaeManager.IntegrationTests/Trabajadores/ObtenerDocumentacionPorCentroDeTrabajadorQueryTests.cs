@@ -378,7 +378,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryTests : IAsyncLifetim
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
-            contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
             new SituacionDocumentosEnCentrosService(
                 contexto, contexto, contexto, contexto, contexto, alcanceDeReclamaciones ?? new AlcanceDatosServiceFalso(),
                 new CurrentUserServiceMutable { Rol = rol }));

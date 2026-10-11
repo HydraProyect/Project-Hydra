@@ -1,3 +1,4 @@
+using System.Globalization;
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
@@ -9,6 +10,7 @@ using CaeManager.Application.Integraciones.Queries.ObtenerProveedoresPlataformaC
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerUltimaReclamacionCliente;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
@@ -164,6 +166,36 @@ public class CentroWorkspacePanelSinDatosTests : BunitContext
         cut.FindAll(".workspace-tarjeta-requisito .badge").Count(b => b.TextContent.Trim() == "Bloquea acceso").Should().Be(esperados);
         cut.FindAll(".workspace-tarjeta-requisito .badge").Count(b => b.TextContent.Trim() == "Pendiente").Should().Be(1,
             "control: la causa sigue rotulada «Pendiente» tenga o no marca de bloqueo");
+    }
+
+    /// <summary>
+    /// «Bloquea acceso» sale del recurso de textos de Centros (es y ca-ES), no de un literal del .razor: en catalán no
+    /// puede seguir diciendo el texto en castellano.
+    /// </summary>
+    [Theory]
+    [InlineData("es-ES", "Bloquea acceso")]
+    [InlineData("ca-ES", "Bloqueja l’accés")]
+    public void El_rotulo_Bloquea_acceso_de_una_causa_sale_del_recurso_de_textos_de_cada_idioma(string cultura, string esperado)
+    {
+        var (previa, previaUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
+        CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(cultura);
+        try
+        {
+            var cut = Montar(EstadoCentro.Bloqueado, cumplimiento: 50, causas:
+            [
+                new CausaEstadoCentroDto("Aptitud médica — Ana", EstadoDocumento.Vencido, Bloqueante: true),
+                new CausaEstadoCentroDto("RNT — Empresa — sin subir a la plataforma", null, Bloqueante: false,
+                    PendienteEnPlataforma: true, BloqueaAcceso: true)
+            ]);
+
+            cut.WaitForAssertion(() => cut.FindAll(".workspace-tarjeta-requisito").Count.Should().Be(2));
+            cut.FindAll(".workspace-tarjeta-requisito .badge").Count(b => b.TextContent.Trim() == esperado)
+                .Should().Be(2, "la causa bloqueante y el pendiente con marca de bloqueo rotulan igual, en el idioma de la sesión");
+        }
+        finally
+        {
+            (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture) = (previa, previaUi);
+        }
     }
 
     [Theory]
