@@ -269,7 +269,8 @@ public class Centro360Gen2Tests : BunitContext
             vencidas: [
                 Incidencia("PRL") with { TrabajadorId = trabajador },
                 Incidencia("Aptitud") with { TrabajadorId = trabajador },
-                Incidencia("Seguro", AmbitoCausa.Empresa)
+                Incidencia("Seguro", AmbitoCausa.Empresa) with { TrabajadorId = Guid.NewGuid() },
+                Incidencia("Sin trabajador") with { TrabajadorId = null }
             ],
             proximas: [
                 Incidencia("Renovación") with { TrabajadorId = trabajador },
@@ -284,6 +285,40 @@ public class Centro360Gen2Tests : BunitContext
         var primera = cut.FindAll("[role=tab]")[0];
         primera.GetAttribute("aria-selected").Should().Be("true");
         primera.QuerySelector(".pestanas-contador")!.TextContent.Trim().Should().Be("2 trabajadores con incidencias");
+    }
+
+    [Theory]
+    [InlineData(0, "0 trabajadores con incidencias", false)]
+    [InlineData(1, "1 trabajador con incidencias", true)]
+    public void El_contador_de_Trabajadores_conserva_la_glosa_en_cero_y_singular(int cantidad, string texto, bool enAlerta)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte",
+            vencidas: cantidad == 0 ? [] : [Incidencia("PRL") with { TrabajadorId = Guid.NewGuid() }]);
+
+        var cut = Renderizar(id);
+
+        var contador = cut.FindAll("[role=tab]")[0].QuerySelector(".pestanas-contador")!;
+        contador.TextContent.Trim().Should().Be(texto);
+        contador.ClassList.Contains("pestanas-contador-alerta").Should().Be(enAlerta);
+    }
+
+    [Fact]
+    public async Task Cambiar_de_pestana_conserva_la_busqueda_y_el_estado_en_la_URL()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte");
+        var navegador = Services.GetRequiredService<NavigationManager>();
+        navegador.NavigateTo($"/centros/{id}?q=Marta&estado=Vencido");
+        var cut = Renderizar(id);
+
+        await cut.FindAll("[role=tab]")[1].ClickAsync(new MouseEventArgs());
+        navegador.Uri.Should().Contain("pestana=visitas").And.Contain("q=Marta").And.Contain("estado=Vencido");
+        await cut.FindAll("[role=tab]")[0].ClickAsync(new MouseEventArgs());
+        navegador.Uri.Should().NotContain("pestana=").And.Contain("q=Marta").And.Contain("estado=Vencido");
     }
 
     [Fact]
