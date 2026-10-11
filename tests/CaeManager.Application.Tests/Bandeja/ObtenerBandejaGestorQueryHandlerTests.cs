@@ -77,21 +77,36 @@ public class ObtenerBandejaGestorQueryHandlerTests
             Hoy, HorasAvisoVisita, HorasCriticasVisita);
 
     /// <summary>
-    /// Pendiente en la plataforma (2026-10-10): un Trabajador bloqueado porque su documento bloqueante está sin subir o sin
-    /// validar en la plataforma del Centro no es una fila más de la cola: el trabajo ya sale como su acreditación pendiente.
+    /// Pendiente en la plataforma (2026-10-10): un Trabajador bloqueado porque su documento bloqueante está SIN SUBIR a la
+    /// plataforma del Centro no es una fila más de la cola: el trabajo ya sale como su acreditación pendiente de subir.
     /// </summary>
-    [Theory]
-    [InlineData(SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma)]
-    [InlineData(SituacionDeRequisitoBloqueante.SinValidarEnPlataforma)]
-    public void Un_bloqueo_por_pendiente_en_la_plataforma_no_duplica_la_fila_de_la_acreditacion(SituacionDeRequisitoBloqueante situacion)
+    [Fact]
+    public void Un_bloqueo_por_pendiente_de_subir_a_la_plataforma_no_duplica_la_fila_de_la_acreditacion()
     {
         var resultado = Fusionar(
-            requisitos: [Requisito() with { Situacion = situacion }, Requisito()],
-            pendientesPlataforma: [PendientePlataforma()]);
+            requisitos: [Requisito() with { Situacion = SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma }, Requisito()],
+            pendientesPlataforma: [PendientePlataforma(EstadoAcreditacion.PendienteDeSubir)]);
 
         resultado.Where(i => i.Tipo == TipoItemBandeja.RequisitoPendiente).Should().ContainSingle(
-            "solo el requisito ausente; el pendiente en la plataforma ya está en la cola como su acreditación");
-        resultado.Where(i => i.Tipo != TipoItemBandeja.RequisitoPendiente).Should().NotBeEmpty("control positivo: la acreditación sí sale");
+            "solo el requisito ausente; el pendiente de subir ya está en la cola como su acreditación");
+        resultado.Where(i => i.Tipo == TipoItemBandeja.PlataformaPendiente).Should().ContainSingle("control positivo: la acreditación sí sale");
+    }
+
+    /// <summary>
+    /// Subido y sin validar NO sale en la cola como acreditación (está esperando a la plataforma: seguimiento, no cola), así
+    /// que el bloqueo que causa conserva su fila de requisito: si no, el Trabajador bloqueado desaparecería de la Bandeja.
+    /// </summary>
+    [Fact]
+    public void Un_bloqueo_por_documento_subido_sin_validar_conserva_su_fila_de_requisito()
+    {
+        var resultado = Fusionar(
+            requisitos: [Requisito() with { Situacion = SituacionDeRequisitoBloqueante.SinValidarEnPlataforma }],
+            pendientesPlataforma: [PendientePlataforma(EstadoAcreditacion.Subida)]);
+
+        resultado.Should().ContainSingle(i => i.Tipo == TipoItemBandeja.RequisitoPendiente,
+            "la acreditación subida no entra en la cola, así que el requisito es la única fila de ese bloqueo");
+        resultado.Should().NotContain(i => i.Tipo == TipoItemBandeja.PlataformaPendiente,
+            "control: la acreditación subida no genera fila propia");
     }
 
     [Fact]

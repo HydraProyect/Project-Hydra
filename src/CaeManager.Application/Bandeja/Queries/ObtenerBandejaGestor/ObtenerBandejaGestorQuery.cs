@@ -283,9 +283,11 @@ public class ObtenerBandejaGestorQueryHandler(IMediator mediator, IConfiguracion
             // Documento de Empresa no tiene Trabajador, se queda sin este dato.
             TrabajadorNombre: r.TrabajadorId is not null ? r.PropietarioNombre : null)));
 
-        // Un bloqueo por Pendiente en la plataforma (decisión 2026-10-10) no es una fila más de la cola: el trabajo ya
-        // aparece como su acreditación pendiente (pendientesPlataforma), y repetirlo como requisito duplicaría la tarea.
-        items.AddRange(requisitos.Where(rq => !ReglaBloqueoDeAcceso.EsPendienteEnPlataforma(rq.Situacion)).Select(rq => new ItemBandejaDto(
+        // Un bloqueo por documento SIN SUBIR a la plataforma (decisión 2026-10-10) no es una fila más de la cola: el trabajo
+        // ya aparece como su acreditación PendienteDeSubir (pendientesPlataforma), y repetirlo como requisito duplicaría la
+        // tarea. El subido sin validar sí conserva su fila: la acreditación Subida no entra en la cola (seguimiento), y sin
+        // ella el Trabajador bloqueado desaparecería de la Bandeja.
+        items.AddRange(requisitos.Where(rq => rq.Situacion != SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma).Select(rq => new ItemBandejaDto(
             Id: IdDeFilaDeCola.Requisito(rq.CentroId, rq.TrabajadorId, rq.TipoDocumentoId),
             Tipo: TipoItemBandeja.RequisitoPendiente,
             // Un requisito de Empresa bloquea al Trabajador por un documento que NO es suyo: el título lo dice
