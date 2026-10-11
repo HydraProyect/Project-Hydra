@@ -44,7 +44,7 @@ public class ObtenerVehiculoPorIdNotaInternaTests
             throw new NotSupportedException();
     }
 
-    private static (ObtenerVehiculoPorIdQueryHandler Handler, Vehiculo Vehiculo) Montar(string? rol, string? nota = Nota)
+    private static (ObtenerVehiculoPorIdQueryHandler Handler, Vehiculo Vehiculo) Montar(string? rol, string? nota = Nota, CaeManager.Application.Plataforma.SesionPrivilegiadaActiva? sesion = null)
     {
         var empresa = new Empresa("Montajes Skynet S.L.");
         var empresas = new EmpresasQueryContextFalso();
@@ -55,7 +55,7 @@ public class ObtenerVehiculoPorIdNotaInternaTests
 
         var handler = new ObtenerVehiculoPorIdQueryHandler(
             empresas, new VehiculosFalso(vehiculo), new AlcanceDatosServiceFalso(vehiculoIdsVisibles: [vehiculo.Id]),
-            new SinDocumentos(), PoliticaNotaInternaPruebas.Con(rol));
+            new SinDocumentos(), PoliticaNotaInternaPruebas.Con(rol, sesion));
 
         return (handler, vehiculo);
     }
@@ -73,6 +73,18 @@ public class ObtenerVehiculoPorIdNotaInternaTests
         var dto = await handler.Handle(new ObtenerVehiculoPorIdQuery(vehiculo.Id), CancellationToken.None);
 
         dto.Should().NotBeNull();
+        dto!.NotaInternaVisible.Should().BeTrue();
+        dto.Notas.Should().Be(Nota);
+    }
+
+    /// <summary>Soporte TALVEG con sesión de acceso total: sin rol de negocio, ve la nota como el equipo.</summary>
+    [Fact]
+    public async Task Sesion_privilegiada_con_acceso_total_ve_la_nota_sin_rol()
+    {
+        var (handler, vehiculo) = Montar(null, sesion: PoliticaNotaInternaPruebas.Sesion(CaeManager.Domain.Plataforma.CapacidadPrivilegio.SoporteLectura));
+
+        var dto = await handler.Handle(new ObtenerVehiculoPorIdQuery(vehiculo.Id), CancellationToken.None);
+
         dto!.NotaInternaVisible.Should().BeTrue();
         dto.Notas.Should().Be(Nota);
     }

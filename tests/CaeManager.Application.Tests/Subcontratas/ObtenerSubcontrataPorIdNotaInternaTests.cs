@@ -22,7 +22,7 @@ public class ObtenerSubcontrataPorIdNotaInternaTests
     private const string Nota = "Avisar a Leire antes de pedir documentación.";
 
     private static (ObtenerSubcontrataPorIdQueryHandler Handler, Empresa Subcontrata) Montar(
-        string? rol, string? nota = Nota, bool soloEnCarteraDeLectura = false)
+        string? rol, string? nota = Nota, bool soloEnCarteraDeLectura = false, CaeManager.Application.Plataforma.SesionPrivilegiadaActiva? sesion = null)
     {
         var subcontrata = Empresa.CrearComoSubcontrata("Andamios del Sur S.L.", "B12345674", NivelServicioSubcontrata.Gestionada.ToString());
         subcontrata.FijarNotaInterna(nota);
@@ -33,7 +33,7 @@ public class ObtenerSubcontrataPorIdNotaInternaTests
             ? new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrata.Id], subcontrataIdsParaGestion: [])
             : new AlcanceDatosServiceFalso();
 
-        return (new ObtenerSubcontrataPorIdQueryHandler(empresas, alcance, PoliticaNotaInternaPruebas.Con(rol)), subcontrata);
+        return (new ObtenerSubcontrataPorIdQueryHandler(empresas, alcance, PoliticaNotaInternaPruebas.Con(rol, sesion)), subcontrata);
     }
 
     [Theory]
@@ -49,6 +49,18 @@ public class ObtenerSubcontrataPorIdNotaInternaTests
         var dto = await handler.Handle(new ObtenerSubcontrataPorIdQuery(subcontrata.Id), CancellationToken.None);
 
         dto.Should().NotBeNull();
+        dto!.NotaInternaVisible.Should().BeTrue();
+        dto.Notas.Should().Be(Nota);
+    }
+
+    /// <summary>Soporte TALVEG con sesión de acceso total: sin rol de negocio, ve la nota como el equipo.</summary>
+    [Fact]
+    public async Task Sesion_privilegiada_con_acceso_total_ve_la_nota_sin_rol()
+    {
+        var (handler, subcontrata) = Montar(null, sesion: PoliticaNotaInternaPruebas.Sesion(CaeManager.Domain.Plataforma.CapacidadPrivilegio.SoporteLectura));
+
+        var dto = await handler.Handle(new ObtenerSubcontrataPorIdQuery(subcontrata.Id), CancellationToken.None);
+
         dto!.NotaInternaVisible.Should().BeTrue();
         dto.Notas.Should().Be(Nota);
     }
