@@ -398,6 +398,14 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
             CaeManager.Web.Services.Autorizacion.PoliticasFichas360.RolesVehiculo)));
+    options.AddPolicy(CaeManager.Web.Services.Autorizacion.PoliticasFichas360.Proyecto, policy => policy
+        .RequireAuthenticatedUser()
+        .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
+            CaeManager.Web.Services.Autorizacion.PoliticasFichas360.RolesProyectoYVisita)));
+    options.AddPolicy(CaeManager.Web.Services.Autorizacion.PoliticasFichas360.Visita, policy => policy
+        .RequireAuthenticatedUser()
+        .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
+            CaeManager.Web.Services.Autorizacion.PoliticasFichas360.RolesProyectoYVisita)));
 
     // Solo el esquema ApiKey — sin esto, el FallbackPolicy (que no fija
     // esquema) aceptaría también la cookie de Identity, y un usuario con

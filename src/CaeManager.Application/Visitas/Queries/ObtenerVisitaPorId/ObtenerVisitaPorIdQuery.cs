@@ -21,9 +21,12 @@ public record VisitaDetalleDto(
     bool NotificadoCliente,
     string? Notas,
     TimeOnly? HoraEstimadaAcceso,
-    Guid Version);
+    Guid Version,
+    bool NotaInternaVisible = true);
 
-public class ObtenerVisitaPorIdQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerVisitaPorIdQueryHandler(
+    ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos,
+    IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerVisitaPorIdQuery, VisitaDetalleDto?>
 {
     public async Task<VisitaDetalleDto?> Handle(ObtenerVisitaPorIdQuery request, CancellationToken cancellationToken)
@@ -60,8 +63,11 @@ public class ObtenerVisitaPorIdQueryHandler(ICentrosQueryContext centrosContext,
             .Select(vt => vt.TrabajadorId)
             .ToListAsync(cancellationToken);
 
+        var conNotaInterna = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
+
         return new VisitaDetalleDto(
             visita.Id, visita.CentroId, visita.CentroNombre, visita.ClienteRazonSocial, visita.EmpresaRazonSocial,
-            visita.FechaInicio, visita.FechaFin, trabajadorIds, visita.NotificadoCliente, visita.Notas, visita.HoraEstimadaAcceso, visita.Version);
+            visita.FechaInicio, visita.FechaFin, trabajadorIds, visita.NotificadoCliente, conNotaInterna ? visita.Notas : null,
+            visita.HoraEstimadaAcceso, visita.Version, conNotaInterna);
     }
 }

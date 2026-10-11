@@ -11,6 +11,8 @@ public static class PoliticasFichas360
 {
     public const string TipoDocumento = "FichaTipoDocumento360";
     public const string Vehiculo = "FichaVehiculo360";
+    public const string Proyecto = "FichaProyecto360";
+    public const string Visita = "FichaVisita360";
 
     /// <summary>Roles de equipo de la ficha Tipo de documento 360 (igual que <c>ObtenerEstadoTipoDocumentoQueryHandler.RolesQueVenLaPagina</c>).</summary>
     public static readonly string[] RolesTipoDocumento =
@@ -19,6 +21,9 @@ public static class PoliticasFichas360
     /// <summary>Roles de equipo de la ficha Vehículo 360; incluye Consulta, que la lee sin editar.</summary>
     public static readonly string[] RolesVehiculo =
         [Roles.Administrador, Roles.DireccionCae, Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
+
+    /// <summary>Roles de equipo de Proyecto 360 y Visita 360 (las páginas las leen con Consulta, sin editar).</summary>
+    public static readonly string[] RolesProyectoYVisita = RolesVehiculo;
 }
 
 /// <summary>
