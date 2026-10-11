@@ -483,10 +483,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             .ThenBy(d => d.TipoDocumentoNombre, StringComparer.CurrentCulture)
             .ToList();
 
-    /// <summary>Lo peor primero y, a igualdad, lo que antes caduca.</summary>
+    /// <summary>Lo peor primero y, a igualdad de estado, por nombre.</summary>
     private IReadOnlyList<DocumentoListaDto> DocumentosOrdenados =>
         _documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado))
-            .ThenBy(d => d.FechaVencimiento ?? DateOnly.MaxValue)
             .ThenBy(d => d.TipoDocumentoNombre, StringComparer.CurrentCulture)
             .ToList();
 

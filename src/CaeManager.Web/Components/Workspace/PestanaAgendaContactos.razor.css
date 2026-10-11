@@ -66,3 +66,13 @@
     color: var(--color-text-muted);
     font: var(--font-small);
 }
+
+.agenda-vacio-compacto {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    font: var(--font-small);
+    color: var(--color-text-muted);
+}

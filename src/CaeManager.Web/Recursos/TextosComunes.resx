@@ -488,4 +488,7 @@
   <data name="VistaRestablecidaToast" xml:space="preserve">
     <value>Vista de fábrica restablecida.</value>
   </data>
+  <data name="AgendaSinContactosParaReclamar" xml:space="preserve">
+    <value>Sin contactos para reclamar.</value>
+  </data>
 </root>
