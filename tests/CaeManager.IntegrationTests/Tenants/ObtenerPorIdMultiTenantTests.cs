@@ -80,7 +80,7 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
     public async Task Una_empresa_del_tenant_A_no_resuelve_para_el_tenant_B_aunque_su_alcance_sea_total()
     {
         await using var contextoB = CrearContexto(_tenantB);
-        var handler = new ObtenerEmpresaPorIdQueryHandler(contextoB, new AlcanceDatosServiceFalso());
+        var handler = new ObtenerEmpresaPorIdQueryHandler(contextoB, new AlcanceDatosServiceFalso(), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var resultado = await handler.Handle(new ObtenerEmpresaPorIdQuery(_empresaDeAId), CancellationToken.None);
 
@@ -123,7 +123,7 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
         var alcance = new AlcanceDatosServiceFalso();
         var inexistente = Guid.NewGuid();
 
-        var empresaHandler = new ObtenerEmpresaPorIdQueryHandler(contextoB, alcance);
+        var empresaHandler = new ObtenerEmpresaPorIdQueryHandler(contextoB, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"));
         var clienteHandler = new ObtenerClientePorIdQueryHandler(contextoB, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"));
         var centroHandler = new ObtenerCentroPorIdQueryHandler(contextoB, contextoB, alcance);
 
@@ -150,7 +150,7 @@ public class ObtenerPorIdMultiTenantTests : IAsyncLifetime
         await using var contextoA = CrearContexto(_tenantA);
         var alcance = new AlcanceDatosServiceFalso();
 
-        (await new ObtenerEmpresaPorIdQueryHandler(contextoA, alcance)
+        (await new ObtenerEmpresaPorIdQueryHandler(contextoA, alcance, PoliticaNotaInternaPruebas.Con("GestorCae"))
             .Handle(new ObtenerEmpresaPorIdQuery(_empresaDeAId), CancellationToken.None)).Should().NotBeNull(
             "el propio tenant sigue viendo sus datos — la prueba anterior aísla el tenant, no rompe la resolución");
 
