@@ -59,10 +59,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private string? _errorReclamar;
 
     internal const string PestanaOperacion = "operacion";
+    internal const string PestanaCentros = "centros";
     internal const string PestanaDocumentacion = "documentacion";
     internal const string PestanaHistorial = "historial";
 
-    private static readonly string[] PestanasValidas = [PestanaOperacion, PestanaDocumentacion, PestanaHistorial];
+    private static readonly string[] PestanasValidas = [PestanaOperacion, PestanaCentros, PestanaDocumentacion, PestanaHistorial];
 
     [Parameter] public Guid TrabajadorId { get; set; }
 
@@ -206,6 +207,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                     TotalConIncidencia == 1 ? Textos["ContadorIncidenciasUno"] : Textos["ContadorIncidenciasVarios"],
                     EnAlerta: true)
         },
+        new(PestanaCentros, Textos["PestanaCentros"]),
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];

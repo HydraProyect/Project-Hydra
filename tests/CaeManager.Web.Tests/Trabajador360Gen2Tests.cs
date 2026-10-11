@@ -1,3 +1,5 @@
+using CaeManager.Application.Documentos.DocumentacionBase;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrabajadores;
 using CaeManager.Infrastructure.Identity;
 using AngleSharp.Dom;
 using Bunit;
@@ -34,7 +36,7 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// Trabajador 360 (<see cref="TrabajadorDetalle"/>, ruta
 /// <c>/trabajadores/{TrabajadorId:guid}</c>) contra su mockup Gen 2
-/// («Trabajador 360 TALVEG.dc.html»). Es una PÁGINA con ruta propia, no el
+/// («Paginas 360 nuevas TALVEG.maqueta.html», función P.tra). Es una PÁGINA con ruta propia, no el
 /// panel de 520 px del Context Workspace: el panel sigue existiendo para el
 /// contexto rápido desde Gestiones o Incidencias y no es lo que se prueba
 /// aquí.
@@ -81,6 +83,7 @@ public class Trabajador360Gen2Tests : BunitContext
 
         /// <summary>Si es true, ObtenerDocumentosQuery lanza: el resto de la página tiene que seguir en pie.</summary>
         public bool FallarDocumentos { get; set; }
+        public bool FallarDocumentacionBase { get; set; }
 
         /// <summary>El comando dice cuántas bajas hizo y qué errores hubo: un éxito pelado no distingue «dada de baja» de «no se dio de baja ninguna».</summary>
         public Result<ResultadoBajaLoteDto> ResultadoDarDeBajaAsignacion { get; set; } =
@@ -130,6 +133,10 @@ public class Trabajador360Gen2Tests : BunitContext
             EnviarReclamacionCommand c => Result.Exito(new EnvioReclamacionResultado(c.DocumentoIds, ["cliente@ejemplo.com"])),
             CrearGestionesParaTrabajadorCommand when FallaCrearGestionCon is { } motivo => Result.Fallo<ResultadoCrearGestionesDto>(Error.Crear("gestion.rechazada", motivo)),
             CrearGestionesParaTrabajadorCommand => Result.Exito(new ResultadoCrearGestionesDto(1)),
+            ObtenerDocumentacionBaseTrabajadoresQuery when FallarDocumentacionBase => throw new InvalidOperationException("Fallo de documentación base."),
+            ObtenerDocumentacionBaseTrabajadoresQuery q => q.TrabajadorIds.ToDictionary(id => id,
+                _ => new DocumentacionBaseTrabajadorDto(Enum.GetValues<TipoDocumentoBase>()
+                    .Select(tipo => new IndicadorDocumentacionBase(tipo, EstadoIndicadorBase.SinConfirmar, Guid.NewGuid(), null)).ToList())),
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -227,6 +234,9 @@ public class Trabajador360Gen2Tests : BunitContext
         return mediador;
     }
 
+    private static void AbrirCentros(IRenderedComponent<TrabajadorDetalle> cut) =>
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Centros").Click();
+
     private IRenderedComponent<TrabajadorDetalle> Renderizar(Guid id) =>
         Render<TrabajadorDetalle>(p => p.Add(x => x.TrabajadorId, id));
 
@@ -316,7 +326,7 @@ public class Trabajador360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public void Son_tres_pestanas_y_solo_Operacion_lleva_el_recuento_de_documentos_con_incidencia()
+    public void Son_cuatro_pestanas_y_solo_Operacion_lleva_el_recuento_de_documentos_con_incidencia()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -329,7 +339,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var pestanas = cut.FindAll("[role=tab]");
         pestanas.Select(t => t.QuerySelector(".pestanas-contador") is null
             ? t.TextContent.Trim()
-            : t.FirstChild!.TextContent.Trim()).Should().Equal(["Operación", "Documentación", "Historial"],
+            : t.FirstChild!.TextContent.Trim()).Should().Equal(["Operación", "Centros", "Documentación", "Historial"],
             "«Contactos» pasó al lateral y «Documentación» es la del trabajador a día de hoy (decisiones del propietario 2026-09-24); «Vehículos» nunca existió en esta página");
 
         var contadores = cut.FindAll(".pestanas-contador");
@@ -413,6 +423,7 @@ public class Trabajador360Gen2Tests : BunitContext
         ];
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
 
         cut.FindAll(".pestanas-contador").Should().BeEmpty("sin incidencias no hay píldora de alerta");
         cut.Find(".cabecera-identidad").TextContent.Should().NotContain("incidencia —",
@@ -470,6 +481,7 @@ public class Trabajador360Gen2Tests : BunitContext
         ];
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
 
         cut.Find(".cabecera-identidad .cabecera-identidad-anillo .anillo-cumplimiento-texto").TextContent.Trim().Should().StartWith("50");
         cut.Find(".trabajador360-centro-resumen").TextContent.Should().Contain("1 de 2 exigidos correctos");
@@ -500,6 +512,58 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerTrabajadoresParaSelectorQuery>().Should().ContainSingle();
     }
 
+    [Fact]
+    public async Task Las_cuatro_pestanas_separan_Operacion_y_Centros_y_la_base_va_primero()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        mediador.Gestiones[id] = [Gestion(id, "Reconocimiento médico", "Centro Norte")];
+        ComponentFactories.AddStub<CaeManager.Web.Components.Workspace.PestanaHistorial>();
+        var cut = Renderizar(id);
+
+        cut.FindAll("[role=tab]").Select(t => t.FirstChild!.TextContent.Trim())
+            .Should().Equal("Operación", "Centros", "Documentación", "Historial");
+        PestanaSeleccionada(cut).Should().Be("Operación");
+        cut.Find("[role=tabpanel]").FirstElementChild!.ClassList.Should().Contain("panel-doc-base");
+        cut.FindAll(".panel-doc-base-fila").Select(f => f.FirstElementChild!.TextContent.Trim())
+            .Should().Equal("Aptitud médica", "Formación Art. 19", "Información Art. 18", "Entrega de EPI");
+        cut.Find(".panel-doc-base-aviso").TextContent.Should().NotBeNullOrWhiteSpace();
+        cut.Find(".panel-doc-base-nota").TextContent.Should().NotBeNullOrWhiteSpace();
+        cut.FindAll(".trabajador360-centro").Should().BeEmpty();
+        cut.Find("[aria-label='Gestiones pendientes']").TextContent.Should().Contain("Completar");
+
+        foreach (var nombre in new[] { "Centros", "Documentación", "Historial" })
+        {
+            await AbrirPestanaAsync(cut, nombre);
+            cut.FindAll(".panel-doc-base").Should().BeEmpty();
+            cut.FindAll(".separador-ambito").Should().NotContain(e => e.TextContent.Trim() == "Asignaciones");
+            if (nombre == "Centros")
+            {
+                cut.FindAll(".trabajador360-centro").Should().NotBeEmpty();
+                cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Centros")
+                    .QuerySelector(".pestanas-contador").Should().BeNull();
+                cut.FindAll("[aria-label='Gestiones pendientes']").Should().BeEmpty();
+            }
+            else
+                cut.FindAll(".trabajador360-centro").Should().BeEmpty();
+        }
+    }
+
+    [Fact]
+    public void Un_fallo_de_documentacion_base_no_oculta_el_resto_de_Operacion()
+    {
+        var id = Guid.NewGuid();
+        var mediador = ConTrabajador(id);
+        mediador.FallarDocumentacionBase = true;
+        mediador.Gestiones[id] = [Gestion(id, "Reconocimiento médico", "Centro Norte")];
+        var cut = Renderizar(id);
+
+        cut.FindAll(".panel-doc-base").Should().BeEmpty();
+        cut.Find("[aria-label='Gestiones pendientes']").TextContent.Should().Contain("Completar");
+        AbrirCentros(cut);
+        cut.FindAll(".trabajador360-centro").Should().NotBeEmpty();
+    }
+
     // --- Pestaña activa en la URL (criterio 3 de la homologación) -------------------------------
 
     private IRenderedComponent<TrabajadorDetalle> RenderizarEn(Guid id, string consulta)
@@ -518,6 +582,7 @@ public class Trabajador360Gen2Tests : BunitContext
 
     [Theory]
     [InlineData("", "Operación")]
+    [InlineData("?pestana=centros", "Centros")]
     [InlineData("?pestana=documentacion", "Documentación")]
     [InlineData("?pestana=historial", "Historial")]
     [InlineData("?pestana=operacion", "Operación")]
@@ -539,6 +604,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var id = Guid.NewGuid();
         var mediador = ConTrabajador(id);
         var cut = RenderizarEn(id, "?ctx=Trabajador");
+        AbrirCentros(cut);
         await cut.Find(".trabajador360-centro-disparador").ClickAsync(new MouseEventArgs());
         cut.Find(".trabajador360-centro-disparador").GetAttribute("aria-expanded").Should().Be("true");
 
@@ -553,6 +619,7 @@ public class Trabajador360Gen2Tests : BunitContext
         Navegacion.Uri.Should().Contain("ctx=Trabajador");
         mediador.Enviadas.OfType<ObtenerTrabajadorPorIdQuery>().Should().ContainSingle(
             "la pestaña viaja en la URL y vuelve como parámetro: eso no es otra pregunta por el trabajador");
+        AbrirCentros(cut);
         cut.Find(".trabajador360-centro-disparador").GetAttribute("aria-expanded").Should().Be("true",
             "una recarga cerraría el acordeón; cambiar de pestaña no recarga");
     }
@@ -614,7 +681,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         cut.FindAll(".pestanas-contador").Should().BeEmpty("un cero no se pinta como si fuera un dato que atender");
-        cut.FindAll("[role=tab]").Should().HaveCount(3);
+        cut.FindAll("[role=tab]").Should().HaveCount(4);
     }
 
     [Fact]
@@ -627,6 +694,7 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Centros[id] = [norte, berriz];
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
 
         cut.Markup.Should().Contain("La exigencia documental es por centro",
             "es lo primero que explica por qué el mismo trabajador sale completo en una fila y bloqueado en la de al lado");
@@ -660,6 +728,7 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Centros[id] = [norte, berriz];
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
         cut.FindAll(".trabajador360-centro-detalle").Should().BeEmpty("los centros nacen plegados");
 
         var disparador = cut.FindAll(".trabajador360-centro-disparador")[0];
@@ -792,6 +861,7 @@ public class Trabajador360Gen2Tests : BunitContext
         ];
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
         await cut.FindAll(".trabajador360-centro-disparador")[0].ClickAsync(new MouseEventArgs());
 
         var filas = cut.Find(".trabajador360-centro-detalle").QuerySelectorAll(".fila-documento-requerido")
@@ -927,7 +997,8 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Centros[id] = [norte];
 
         var cut = Renderizar(id);
-        cut.FindAll(".trabajador360-centro").Should().ContainSingle("Operación no depende de la consulta de documentos");
+        AbrirCentros(cut);
+        cut.FindAll(".trabajador360-centro").Should().ContainSingle("Centros no depende de la consulta de documentos");
         cut.FindAll("ul.trabajador360-por-vencer").Should().BeEmpty();
 
         await AbrirPestanaAsync(cut, "Documentación");
@@ -952,14 +1023,16 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Gestiones[id] = [Gestion(id, "Reconocimiento médico", "Centro Norte")];
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
 
-        var asignaciones = cut.Find("[aria-label='Asignaciones activas']");
-        asignaciones.TextContent.Should().Contain("Cliente",
+        var asignaciones = cut.Find(".trabajador360-centros");
+        asignaciones.TextContent.Should().Contain("Refrielectric S.A.",
             "la contraparte de una Relación Empresarial se rotula «Cliente» (decisión del 2026-10-09)")
             .And.NotContain("Cliente empresarial").And.Contain("Centro Norte").And.Contain("02/07/2026");
-        asignaciones.QuerySelectorAll(".columna-accion button").Select(b => b.TextContent.Trim())
-            .Should().Equal(["Dar de baja", "Dar de baja"]);
+        asignaciones.QuerySelectorAll(".trabajador360-centro-baja").Select(b => b.TextContent.Trim())
+            .Should().Equal(["Dar de baja de este centro", "Dar de baja de este centro"]);
 
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Operación")).Click();
         var gestiones = cut.Find("[aria-label='Gestiones pendientes']");
         gestiones.TextContent.Should().Contain("Reconocimiento médico").And.Contain("Completar");
         mediador.Enviadas.OfType<ObtenerGestionesQuery>().Should().ContainSingle()
@@ -981,12 +1054,17 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Gestiones[id] = [Gestion(id, "Reconocimiento médico", "Centro Norte")];
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
         await cut.FindAll(".trabajador360-centro-disparador")[0].ClickAsync(new MouseEventArgs());
 
         cut.Find(".trabajador360-centro-detalle").TextContent.Should().Contain("Formación PRL — 20 h",
             "los documentos exigidos y su estado son lectura: se ven");
-        cut.Find("[aria-label='Asignaciones activas']").TextContent.Should().Contain("Centro Norte");
+        cut.Find(".trabajador360-centros").TextContent.Should().Contain("Centro Norte");
+        cut.FindAll(".trabajador360-centro-baja").Should().BeEmpty();
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Operación")).Click();
         cut.Find("[aria-label='Gestiones pendientes']").TextContent.Should().Contain("Reconocimiento médico");
+        cut.FindAll(".columna-accion button").Should().BeEmpty("Completar requiere escritura");
+        AbrirCentros(cut);
         cut.FindAll(".columna-accion button").Should().BeEmpty(
             "Subir, Renovar, Ver, Dar de baja y Completar son las únicas acciones de fila y todas escriben");
         cut.FindAll(".trabajador360-centro-detalle button.enlace-nombre-fila").Should().BeEmpty(
@@ -1124,6 +1202,7 @@ public class Trabajador360Gen2Tests : BunitContext
         mediador.Gestiones[a] = [Gestion(a, "Certificado de aptitud de A", "Centro Norte")];
 
         var cut = Renderizar(a);
+        AbrirCentros(cut);
         cut.Render(p => p.Add(x => x.TrabajadorId, b));
         await cut.InvokeAsync(() => gestionesDeA.SetResult());
 
@@ -1136,6 +1215,8 @@ public class Trabajador360Gen2Tests : BunitContext
         // dato. Medido — con la guarda del dato debilitada, el test seguía en
         // verde hasta añadir este repintado.
         await cut.Find(".trabajador360-centro-disparador").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Operación")).Click();
 
         cut.Markup.Should().NotContain("Certificado de aptitud de A",
             "son las gestiones de otro trabajador");
@@ -1206,7 +1287,6 @@ public class Trabajador360Gen2Tests : BunitContext
         Registrar(new MediatorFalso());
 
         var cut = Renderizar(id);
-
         cut.Markup.Should().Contain("No pudimos cargar este trabajador").And.Contain("Reintentar");
         cut.FindAll(".cabecera-identidad").Should().BeEmpty();
     }
@@ -1215,7 +1295,7 @@ public class Trabajador360Gen2Tests : BunitContext
 
     private ToastService Avisos => Services.GetRequiredService<ToastService>();
 
-    private const string BotonBajaAsignacion = "[aria-label='Asignaciones activas'] .columna-accion button";
+    private const string BotonBajaAsignacion = ".trabajador360-centro-baja";
 
     private static IElement BotonDelDialogo(IRenderedComponent<TrabajadorDetalle> cut, string texto) =>
         cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == texto);
@@ -1239,6 +1319,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var mediador = ConTrabajador(id);
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
         await cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>().Should().BeEmpty("sin confirmar no se da de baja");
@@ -1259,6 +1340,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var norte = mediador.Centros[id][0];
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
         await ConfirmarBajaAsignacionAsync(cut);
 
         mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>().Should().ContainSingle()
@@ -1277,6 +1359,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var norte = mediador.Centros[id][0];
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
         await ConfirmarBajaAsignacionAsync(cut);
 
         var aviso = Avisos.Mensajes.Should().ContainSingle().Subject;
@@ -1303,6 +1386,7 @@ public class Trabajador360Gen2Tests : BunitContext
             "Asignacion.SolapaConOtra", "Este trabajador tiene otra asignación a este centro posterior a esta; no se puede reabrir."));
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
         await ConfirmarBajaAsignacionAsync(cut);
         await cut.InvokeAsync(Avisos.Mensajes.Single().OnAccion!);
 
@@ -1367,6 +1451,7 @@ public class Trabajador360Gen2Tests : BunitContext
             new ResultadoBajaLoteDto(0, ["La asignación ya estaba cerrada."]));
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
         await ConfirmarBajaAsignacionAsync(cut);
 
         Avisos.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Equal(
@@ -1381,6 +1466,7 @@ public class Trabajador360Gen2Tests : BunitContext
         ConTrabajador(id);
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
         await ConfirmarBajaAsignacionAsync(cut);
 
         Avisos.Mensajes.Select(m => (m.Mensaje, m.Tono)).Should().Equal(
@@ -1401,6 +1487,7 @@ public class Trabajador360Gen2Tests : BunitContext
         var mediador = ConTrabajador(id);
 
         var cut = Renderizar(id);
+        AbrirCentros(cut);
         await cut.Find(BotonBajaAsignacion).ClickAsync(new MouseEventArgs());
         // Se retiene después de abrir el diálogo: si la fila mandara la baja sin
         // confirmar, el caso tiene que fallar al buscar el diálogo, no colgarse.
