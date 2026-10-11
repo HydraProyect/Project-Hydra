@@ -51,7 +51,12 @@ public class ObtenerClientePorIdNotaInternaTests
         (await HandleAsync(sinCartera)).Should().BeNull();
     }
 
-    private Task<ClienteDetalleDto?> HandleAsync(AlcanceDatosServiceFalso alcance, string rol = "GestorCae") =>
-        new ObtenerClientePorIdQueryHandler(_empresas, alcance, PoliticaNotaInternaPruebas.Con(rol))
+    [Fact]
+    public async Task Sesion_privilegiada_con_acceso_total_ve_la_nota_sin_rol() =>
+        (await HandleAsync(new AlcanceDatosServiceFalso(), rol: null, sesion: PoliticaNotaInternaPruebas.Sesion(CaeManager.Domain.Plataforma.CapacidadPrivilegio.SoporteLectura)))!.Notas.Should().Be(Nota);
+
+    private Task<ClienteDetalleDto?> HandleAsync(
+        AlcanceDatosServiceFalso alcance, string? rol = "GestorCae", CaeManager.Application.Plataforma.SesionPrivilegiadaActiva? sesion = null) =>
+        new ObtenerClientePorIdQueryHandler(_empresas, alcance, PoliticaNotaInternaPruebas.Con(rol, sesion))
             .Handle(new ObtenerClientePorIdQuery(_cliente.Id), CancellationToken.None);
 }

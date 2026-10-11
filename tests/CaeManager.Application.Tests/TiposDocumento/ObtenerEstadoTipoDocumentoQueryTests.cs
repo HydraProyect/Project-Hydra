@@ -100,12 +100,16 @@ public class ObtenerEstadoTipoDocumentoQueryTests
         var escenario = new Escenario();
         var centro = escenario.Centro("Almacén Vigo");
         var calculo = new CalculoFalso(escenario.Par(centro, escenario.Trabajador("Pedro", "Gil Mora"), EstadoDocumento.Vencido));
+        var conNota = new TipoDocumento(
+            "Formación Art. 19", 12, true, 3, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si, notas: "Pedir siempre el certificado con las horas.");
+        escenario.Tipos.ListaTiposDocumento.Add(conNota);
         var sesion = PoliticaNotaInternaPruebas.Sesion(CaeManager.Domain.Plataforma.CapacidadPrivilegio.SoporteLectura);
 
         var dto = await escenario.Handler(calculo, rol: null, sesion: sesion)
-            .Handle(new ObtenerEstadoTipoDocumentoQuery(escenario.Epi.Id), CancellationToken.None);
+            .Handle(new ObtenerEstadoTipoDocumentoQuery(conNota.Id), CancellationToken.None);
 
-        dto.Should().NotBeNull();
+        dto.Should().NotBeNull("la sesión de acceso total abre la página");
+        dto!.Notas.Should().Be("Pedir siempre el certificado con las horas.", "y ve la nota igual que el equipo");
     }
 
     [Theory]

@@ -6,7 +6,7 @@
 @page "/documentos/tipos/{TipoDocumentoId:guid}"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = RolesDeLaPagina)]
+@attribute [Authorize(Policy = CaeManager.Web.Services.Autorizacion.PoliticasFichas360.TipoDocumento)]
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerEstadoTipoDocumento
 @using CaeManager.Domain.Documentos
 @using CaeManager.Infrastructure.Identity
