@@ -180,7 +180,7 @@
                         </Tarjeta>
                         break;
                     case PestanaFicha:
-                        <CajasFicha Cajas="@(new CajaFicha[] { new("cadena", FichaSinCadena) })" />
+                        <CajasFicha Cajas="@_cajasFicha" />
                         break;
                     case PestanaHistorial:
                         <Tarjeta>
@@ -543,11 +543,4 @@
             </ListaRelaciones>
         }
     </section>;
-}
-
-@code {
-    // La posición en la cadena no viaja en los datos actuales de la ficha.
-    private RenderFragment FichaSinCadena => @<Tarjeta>
-        <EstadoVacio Titulo="@Textos["FichaSinCadenaTitulo"]" Descripcion="@Textos["FichaSinCadenaDescripcion"]" />
-    </Tarjeta>;
 }

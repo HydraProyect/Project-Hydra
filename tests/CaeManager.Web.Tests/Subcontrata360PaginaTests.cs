@@ -143,27 +143,43 @@ public class Subcontrata360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Ficha_es_penultima_y_no_hay_cadena_en_el_lateral()
+    public void Sin_cajas_no_hay_Ficha_y_se_conserva_el_orden_de_pestanas()
     {
         Montar();
         var cut = Renderizar();
-        var tabs = cut.FindAll("[role=tab]");
-        tabs[^2].TextContent.Trim().Should().Be("Ficha");
-        tabs[^1].TextContent.Trim().Should().Be("Historial");
+        cut.FindAll("[role=tab]").Select(t => t.GetAttribute("id")).Should().HaveCount(5);
+        cut.FindAll("[role=tab]").Select(t => System.Text.RegularExpressions.Regex.Match(t.TextContent.Trim(), "^(Trabajadores|Supervisión|Centros|Agenda|Historial)").Value)
+            .Should().Equal("Trabajadores", "Supervisión", "Centros", "Agenda", "Historial");
         cut.Find(".cuerpo-con-lateral-lateral").TextContent.Should().NotContain("Cadena de subcontratación");
-        tabs[^2].Click();
-        Navegacion.Uri.Should().Contain("pestana=ficha");
-        cut.Find("[data-pieza=cajas-ficha]").TextContent.Should().Contain("No hay cadena de subcontratación disponible");
     }
 
     [Fact]
-    public void La_URL_ficha_abre_el_estado_vacio_de_la_cadena()
+    public void La_URL_ficha_sin_cajas_abre_la_pestana_por_defecto()
     {
         Montar();
         var cut = Renderizar("?pestana=ficha");
-        cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().Be("Ficha");
-        cut.Find("[data-pieza=cajas-ficha]").TextContent.Should().Contain("No hay cadena de subcontratación disponible");
+        cut.Find("[role=tab][aria-selected=true]").TextContent.Should().StartWith("Trabajadores");
+        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty();
     }
+
+    [Fact]
+    public void Con_una_caja_Ficha_aparece_penultima_y_pinta_su_contenido()
+    {
+        Montar();
+        var cut = Renderizar();
+        var cajas = (List<CajaFicha>)typeof(SubcontrataDetalle)
+            .GetField("_cajasFicha", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(cut.Instance)!;
+        cajas.Add(new("cadena", builder => builder.AddContent(0, "Cadena de prueba")));
+        cut.Render();
+        var tabs = cut.FindAll("[role=tab]");
+        tabs[^2].TextContent.Trim().Should().Be("Ficha");
+        tabs[^1].TextContent.Trim().Should().Be("Historial");
+        tabs[^2].Click();
+        Navegacion.Uri.Should().Contain("pestana=ficha");
+        cut.Find("[data-pieza=cajas-ficha]").TextContent.Should().Be("Cadena de prueba");
+    }
+
     // ── Montaje ───────────────────────────────────────────────────────────
 
     private static readonly Guid SubcontrataId = Guid.NewGuid();

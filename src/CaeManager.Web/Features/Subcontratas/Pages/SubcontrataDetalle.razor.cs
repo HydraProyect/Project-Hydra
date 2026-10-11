@@ -138,6 +138,9 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private bool _confirmarEliminarVerificacionVisible;
     private bool _eliminandoVerificacion;
 
+    // La consulta actual no carga la posición en la cadena; solo se añaden cajas cuando haya datos.
+    private readonly List<CajaFicha> _cajasFicha = [];
+
     private string _pestana = PestanaTrabajadores;
     private string? _pestanaDeLaUrl;
     private string? _estadoDeLaUrl;
@@ -200,7 +203,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         if (!_urlAdoptada || !string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
-            _pestana = PestanasValidas.Contains(Pestana) ? Pestana! : PestanaTrabajadores;
+            _pestana = PestanasValidas.Contains(Pestana) && (Pestana != PestanaFicha || _cajasFicha.Count > 0) ? Pestana! : PestanaTrabajadores;
         }
 
         if (!_urlAdoptada || !string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
@@ -884,7 +887,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
             Contador = _centros is { } centros ? new ContadorPestana(centros.Count, Textos["GlosaCentros"]) : null
         },
         new(PestanaAgenda, Textos["PestanaAgenda"]),
-        new(PestanaFicha, Comunes["PestanaFicha"]),
+        .. (_cajasFicha.Count > 0 ? new PestanaDefinicion[] { new(PestanaFicha, Comunes["PestanaFicha"]) } : []),
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
 

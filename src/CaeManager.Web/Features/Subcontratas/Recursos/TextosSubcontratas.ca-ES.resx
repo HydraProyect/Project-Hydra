@@ -870,6 +870,4 @@
   <data name="RecuentoDocumentosSinConfirmarVarios" xml:space="preserve">
     <value>{0} documents amb la vigència sense confirmar</value>
   </data>
-  <data name="FichaSinCadenaTitulo" xml:space="preserve"><value>No hi ha cap cadena de subcontractació disponible</value></data>
-  <data name="FichaSinCadenaDescripcion" xml:space="preserve"><value>Les dades actuals de la fitxa no inclouen la posició en la cadena.</value></data>
 </root>
