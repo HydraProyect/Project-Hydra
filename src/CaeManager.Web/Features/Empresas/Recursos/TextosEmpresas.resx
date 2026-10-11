@@ -251,14 +251,6 @@
     <value>No</value>
     <comment>Valor booleano.</comment>
   </data>
-  <data name="TarjetaAcceso" xml:space="preserve">
-    <value>Acceso a plataforma CAE</value>
-    <comment>Tarjeta del lateral con la credencial de acceso de la Empresa.</comment>
-  </data>
-  <data name="SinCredenciales" xml:space="preserve">
-    <value>Sin credenciales que puedas consultar.</value>
-    <comment>La consulta devuelve null tanto si la Empresa no tiene credencial como si queda fuera del alcance de gestión del usuario (EmpresaParaGestionVisibleAsync); el texto es cierto en los dos casos y no revela cuál es.</comment>
-  </data>
   <data name="ErrorAcceso" xml:space="preserve">
     <value>No pudimos cargar el acceso.</value>
     <comment>Error de carga de la tarjeta de acceso.</comment>
@@ -278,45 +270,17 @@
     <value>Mostrando {0} de {1}</value>
     <comment>Pie de la lista de trabajadores cuando la página no los enseña todos. {0} = filas visibles, {1} = total del filtro.</comment>
   </data>
-  <data name="SeAccedeComo" xml:space="preserve">
-    <value>Se accede como</value>
-    <comment>Campo Empresa / Cliente empresarial / Proveedor de la credencial.</comment>
-  </data>
   <data name="Usuario" xml:space="preserve">
     <value>Usuario</value>
     <comment>Usuario de la credencial.</comment>
-  </data>
-  <data name="CopiarUsuario" xml:space="preserve">
-    <value>Copiar usuario</value>
-    <comment>Botón.</comment>
-  </data>
-  <data name="CopiarContrasena" xml:space="preserve">
-    <value>Copiar contraseña</value>
-    <comment>Botón: pide la contraseña al servidor solo al pulsar; nunca se pinta.</comment>
   </data>
   <data name="ElDni" xml:space="preserve">
     <value>el DNI</value>
     <comment>Complemento del botón copiar en la fila de trabajador («Copiar el DNI»).</comment>
   </data>
-  <data name="ElUsuario" xml:space="preserve">
-    <value>el usuario</value>
-    <comment>Complemento del nombre accesible del botón Copiar.</comment>
-  </data>
-  <data name="LaContrasena" xml:space="preserve">
-    <value>la contraseña</value>
-    <comment>Complemento del nombre accesible del botón Copiar.</comment>
-  </data>
   <data name="AbrirPortal" xml:space="preserve">
     <value>Abrir portal ↗</value>
     <comment>Abre la URL de la plataforma CAE en una pestaña nueva.</comment>
-  </data>
-  <data name="AbrirPortalAccesible" xml:space="preserve">
-    <value>Abrir el portal {0} en una pestaña nueva</value>
-    <comment>Nombre accesible. {0} = URL.</comment>
-  </data>
-  <data name="SinContrasena" xml:space="preserve">
-    <value>No hay ninguna contraseña guardada.</value>
-    <comment>Aviso al pulsar Copiar contraseña sin contraseña guardada.</comment>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} empresa(s) restaurada(s).</value>
@@ -419,6 +383,15 @@
   <data name="ColEstadoDocumental" xml:space="preserve">
     <value>Estado documental</value>
     <comment>Rótulo de la columna de estado del listado de Empresas: el peor estado de vigencia de los documentos de la Empresa.</comment>
+  </data>
+  <data name="PestanaFicha" xml:space="preserve">
+    <value>Ficha</value>
+  </data>
+  <data name="TarjetaCarpeta" xml:space="preserve">
+    <value>Carpeta de documentación</value>
+  </data>
+  <data name="AbrirCarpeta" xml:space="preserve">
+    <value>Abrir</value>
   </data>
   <data name="BotonGuardar" xml:space="preserve">
     <value>Guardar</value>
