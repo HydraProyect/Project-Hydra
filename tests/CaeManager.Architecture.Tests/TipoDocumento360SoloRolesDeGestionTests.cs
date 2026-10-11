@@ -11,7 +11,7 @@ namespace CaeManager.Architecture.Tests;
 /// empresariales en una sola lista.
 ///
 /// La regla vive en dos sitios a propósito —la consulta de Application, que es quien la garantiza, y el
-/// <c>[Authorize(Roles = …)]</c> de la ruta, que evita montar el circuito— y este test fija que los dos dicen lo mismo y que
+/// política de fichas 360 declarada en la ruta, que evita montar el circuito— y este test fija que los dos dicen lo mismo y que
 /// ninguno incluye a esos dos roles. Sin él, ampliar uno de los dos lados dejaría una página que se abre y no carga, o una
 /// consulta que responde a quien la ruta no deja entrar.
 /// </summary>
@@ -42,12 +42,18 @@ public class TipoDocumento360SoloRolesDeGestionTests
         var pagina = ReflexionArquitecturaHelper.TiposDe(web).Single(t => t.FullName == Pagina);
         var autorizacion = pagina.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
             .Cast<AuthorizeAttribute>()
-            .Should().ContainSingle("la página debe declarar exactamente un [Authorize] con Roles=")
+            .Should().ContainSingle("la página debe declarar exactamente un [Authorize] con Policy=")
             .Subject;
 
-        return (autorizacion.Roles ?? string.Empty)
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToHashSet(StringComparer.Ordinal);
+        // La puerta es la política de fichas 360 (admite la Sesión Privilegiada de acceso total además del rol).
+        // Los roles salen de la misma constante que registra Program.cs.
+        var politicas = ReflexionArquitecturaHelper.TiposDe(web)
+            .Single(t => t.FullName == "CaeManager.Web.Services.Autorizacion.PoliticasFichas360");
+        var nombre = politicas.GetField("TipoDocumento", BindingFlags.Public | BindingFlags.Static)!.GetRawConstantValue();
+        autorizacion.Policy.Should().Be((string?)nombre, "la página debe usar la política de fichas 360 de Tipo de documento");
+
+        var roles = (string[])politicas.GetField("RolesTipoDocumento", BindingFlags.Public | BindingFlags.Static)!.GetValue(null)!;
+        return roles.ToHashSet(StringComparer.Ordinal);
     }
 
     private static HashSet<string> RolesDeLaConsulta()

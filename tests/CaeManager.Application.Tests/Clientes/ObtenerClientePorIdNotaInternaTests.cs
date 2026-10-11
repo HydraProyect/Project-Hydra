@@ -1,3 +1,4 @@
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Domain.Empresas;
@@ -27,11 +28,12 @@ public class ObtenerClientePorIdNotaInternaTests
         var portal = new AlcanceDatosServiceFalso(
             tieneAccesoTotal: false, clienteIdsVisibles: [_cliente.Id], ladoDeGestion: false);
 
-        var detalle = await HandleAsync(portal);
+        var detalle = await HandleAsync(portal, "Cliente");
 
         detalle.Should().NotBeNull("su propio Cliente empresarial está en su alcance de lectura");
         detalle!.RazonSocial.Should().Be("Cliente Repro S.L.");
         detalle.Notas.Should().BeNull();
+        detalle.NotaInternaVisible.Should().BeFalse("la página obedece esta bandera para no pintar la caja");
     }
 
     [Fact]
@@ -50,7 +52,12 @@ public class ObtenerClientePorIdNotaInternaTests
         (await HandleAsync(sinCartera)).Should().BeNull();
     }
 
-    private Task<ClienteDetalleDto?> HandleAsync(AlcanceDatosServiceFalso alcance) =>
-        new ObtenerClientePorIdQueryHandler(_empresas, alcance)
+    [Fact]
+    public async Task Sesion_privilegiada_con_acceso_total_ve_la_nota_sin_rol() =>
+        (await HandleAsync(new AlcanceDatosServiceFalso(), rol: null, sesion: PoliticaNotaInternaPruebas.Sesion(CaeManager.Domain.Plataforma.CapacidadPrivilegio.SoporteLectura)))!.Notas.Should().Be(Nota);
+
+    private Task<ClienteDetalleDto?> HandleAsync(
+        AlcanceDatosServiceFalso alcance, string? rol = "GestorCae", CaeManager.Application.Plataforma.SesionPrivilegiadaActiva? sesion = null) =>
+        new ObtenerClientePorIdQueryHandler(_empresas, alcance, PoliticaNotaInternaPruebas.Con(rol, sesion))
             .Handle(new ObtenerClientePorIdQuery(_cliente.Id), CancellationToken.None);
 }

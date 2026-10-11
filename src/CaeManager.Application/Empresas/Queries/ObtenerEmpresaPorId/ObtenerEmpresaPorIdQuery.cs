@@ -33,7 +33,7 @@ public record EmpresaDetalleDto(
 /// el DTO, porque hoy el diff de bajas se define sobre este contenido y
 /// acotarlo reabriría el cierre silencioso por la puerta del alcance.
 /// </summary>
-public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerEmpresaPorIdQuery, EmpresaDetalleDto?>
 {
     public async Task<EmpresaDetalleDto?> Handle(ObtenerEmpresaPorIdQuery request, CancellationToken cancellationToken)
@@ -62,7 +62,7 @@ public class ObtenerEmpresaPorIdQueryHandler(IEmpresasQueryContext dbContext, IA
 
         // La ficha básica le llega al rol Cliente (portal) por el alcance de lectura de arriba; la «Nota interna» no.
         // Mismo criterio que Cliente 360 (ObtenerClientePorIdQuery): solo viaja a quien opera desde el lado de gestión.
-        var conNotaInterna = await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken);
+        var conNotaInterna = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
 
         var empresa = await dbContext.Empresas
             .Where(e => e.Id == request.Id)

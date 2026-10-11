@@ -7,7 +7,7 @@
 @page "/visitas/{VisitaId:guid}"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@attribute [Authorize(Policy = CaeManager.Web.Services.Autorizacion.PoliticasFichas360.Visita)]
 @using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita
 @using CaeManager.Domain.Visitas
 @using CaeManager.Web.Features.Documentos.Components
@@ -298,7 +298,7 @@
                     </ChildContent>
                 </Tarjeta>
 
-                @if (!string.IsNullOrWhiteSpace(visita.Notas) || (_puedeEscribir && !EsCancelada))
+                @if (visita.NotaInternaVisible && (!string.IsNullOrWhiteSpace(visita.Notas) || (_puedeEscribir && !EsCancelada)))
                 {
                     <NotaInterna Texto="@visita.Notas">
                         <Acciones>

@@ -124,7 +124,7 @@ public class ObtenerVehiculoPorIdDocumentosAlDiaTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerVehiculoPorIdQueryHandler(
             contexto, contexto, new AlcanceDatosServiceFalso(vehiculoIds: [_todoAlDia]),
-            new CalculoEstadoDocumentalService(contexto, contexto, contexto), new CurrentUserServiceFalso(rol: "GestorCae"));
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto), PoliticaNotaInternaPruebas.Con("GestorCae"));
 
         var detalle = await handler.Handle(new ObtenerVehiculoPorIdQuery(_camionGrua), CancellationToken.None);
 
@@ -176,7 +176,7 @@ public class ObtenerVehiculoPorIdDocumentosAlDiaTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var handler = new ObtenerVehiculoPorIdQueryHandler(
-            contexto, contexto, new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), new CurrentUserServiceFalso(rol: rol));
+            contexto, contexto, new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), PoliticaNotaInternaPruebas.Con(rol));
 
         return await handler.Handle(new ObtenerVehiculoPorIdQuery(vehiculoId), CancellationToken.None);
     }

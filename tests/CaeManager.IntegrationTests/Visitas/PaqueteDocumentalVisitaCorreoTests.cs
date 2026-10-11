@@ -358,7 +358,7 @@ public class PaqueteDocumentalVisitaCorreoTests
         await using var scope = arnes.Servicios.CreateAsyncScope();
         var contexto = scope.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
 
-        var handler = new ObtenerDetalleVisitaQueryHandler(contexto, contexto, contexto, contexto, Alcance(contexto), contexto);
+        var handler = new ObtenerDetalleVisitaQueryHandler(contexto, contexto, contexto, contexto, Alcance(contexto), contexto, PoliticaNotaInternaPruebas.Con("GestorCae"));
         return await handler.Handle(new ObtenerDetalleVisitaQuery(visitaId), CancellationToken.None);
     }
 

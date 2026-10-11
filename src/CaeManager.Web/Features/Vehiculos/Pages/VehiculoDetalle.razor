@@ -27,7 +27,7 @@
 @page "/vehiculos/{VehiculoId:guid}"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@attribute [Authorize(Policy = CaeManager.Web.Services.Autorizacion.PoliticasFichas360.Vehiculo)]
 @using CaeManager.Domain.Documentos
 @using CaeManager.Web.Features.Documentos
 @using CaeManager.Web.Features.Documentos.Components

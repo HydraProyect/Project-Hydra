@@ -24,9 +24,13 @@ public record ProyectoDetalleDto(
     string? Notas,
     int TecnicosActivos,
     int DocumentosGestionados,
-    Guid Version);
+    Guid Version,
+    // La «Nota interna» la decide la política única; la página obedece esta bandera para pintar la caja.
+    bool NotaInternaVisible = false);
 
-public class ObtenerProyectoPorIdQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IDocumentosQueryContext documentosContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos)
+public class ObtenerProyectoPorIdQueryHandler(
+    ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IDocumentosQueryContext documentosContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos,
+    IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerProyectoPorIdQuery, ProyectoDetalleDto?>
 {
     public async Task<ProyectoDetalleDto?> Handle(ObtenerProyectoPorIdQuery request, CancellationToken cancellationToken)
@@ -48,9 +52,11 @@ public class ObtenerProyectoPorIdQueryHandler(ICentrosQueryContext centrosContex
         var documentosGestionados = await documentosContext.Documentos
             .CountAsync(d => d.ProyectoId == proyecto.Id, cancellationToken);
 
+        var conNotaInterna = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
+
         return new ProyectoDetalleDto(
             proyecto.Id, proyecto.ClienteId, clienteRazonSocial, proyecto.CentroId, centroNombre, proyecto.Nombre,
             proyecto.FechaInicio, proyecto.FechaFinPrevista, proyecto.FechaCierreReal, proyecto.FechaCierreReal == null,
-            proyecto.Notas, tecnicosActivos, documentosGestionados, proyecto.Version);
+            conNotaInterna ? proyecto.Notas : null, tecnicosActivos, documentosGestionados, proyecto.Version, conNotaInterna);
     }
 }

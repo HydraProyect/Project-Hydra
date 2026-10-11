@@ -87,7 +87,7 @@ public class NotaInternaDeEmpresaBajoRlsTests : IAsyncLifetime
     public async Task La_ficha_de_una_empresa_propia_trae_su_nota_y_la_de_otro_Tenant_no_existe()
     {
         await using var runtime = CrearRuntime(Roles.Administrador);
-        var handler = new ObtenerEmpresaPorIdQueryHandler(runtime, Alcance(runtime, Roles.Administrador));
+        var handler = new ObtenerEmpresaPorIdQueryHandler(runtime, Alcance(runtime, Roles.Administrador), PoliticaNotaInternaPruebas.Con(Roles.Administrador));
 
         var propia = await handler.Handle(new ObtenerEmpresaPorIdQuery(_empresaPropia), CancellationToken.None);
         var ajena = await handler.Handle(new ObtenerEmpresaPorIdQuery(_empresaAjena), CancellationToken.None);

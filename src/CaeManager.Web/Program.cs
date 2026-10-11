@@ -377,6 +377,9 @@ builder.Services.ConfigureApplicationCookie(options =>
 // Este handler le niega las de la lista cerrada. Singleton: no tiene estado ni dependencias.
 builder.Services.AddSingleton<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
     PaginasExcluidasDelEncargoAuthorizationHandler>();
+// Con ámbito (no singleton): consulta la política de la Nota interna, que depende de la sesión del circuito.
+builder.Services.AddScoped<Microsoft.AspNetCore.Authorization.IAuthorizationHandler,
+    CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotalHandler>();
 
 builder.Services.AddAuthorization(options =>
 {
@@ -385,6 +388,24 @@ builder.Services.AddAuthorization(options =>
     options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
         .Build();
+
+    // Fichas 360 con «Nota interna»: equipo por rol, o Sesión Privilegiada de acceso total al Tenant.
+    options.AddPolicy(CaeManager.Web.Services.Autorizacion.PoliticasFichas360.TipoDocumento, policy => policy
+        .RequireAuthenticatedUser()
+        .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
+            CaeManager.Web.Services.Autorizacion.PoliticasFichas360.RolesTipoDocumento)));
+    options.AddPolicy(CaeManager.Web.Services.Autorizacion.PoliticasFichas360.Vehiculo, policy => policy
+        .RequireAuthenticatedUser()
+        .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
+            CaeManager.Web.Services.Autorizacion.PoliticasFichas360.RolesVehiculo)));
+    options.AddPolicy(CaeManager.Web.Services.Autorizacion.PoliticasFichas360.Proyecto, policy => policy
+        .RequireAuthenticatedUser()
+        .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
+            CaeManager.Web.Services.Autorizacion.PoliticasFichas360.RolesProyectoYVisita)));
+    options.AddPolicy(CaeManager.Web.Services.Autorizacion.PoliticasFichas360.Visita, policy => policy
+        .RequireAuthenticatedUser()
+        .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
+            CaeManager.Web.Services.Autorizacion.PoliticasFichas360.RolesProyectoYVisita)));
 
     // Solo el esquema ApiKey — sin esto, el FallbackPolicy (que no fija
     // esquema) aceptaría también la cookie de Identity, y un usuario con

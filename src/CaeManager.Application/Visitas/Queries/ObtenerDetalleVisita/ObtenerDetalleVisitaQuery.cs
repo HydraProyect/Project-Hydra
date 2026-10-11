@@ -59,12 +59,14 @@ public record DetalleVisitaDto(
     OrigenVisita Origen = OrigenVisita.Manual,
     NivelUrgenciaVisita NivelUrgencia = NivelUrgenciaVisita.Normal,
     // Estado guardado (Visita.DocumentacionGestionadaEnUtc): null = por gestionar.
-    DateTime? DocumentacionGestionadaEnUtc = null);
+    DateTime? DocumentacionGestionadaEnUtc = null,
+    // La «Nota interna» la decide la política única; la página obedece esta bandera para pintar la caja.
+    bool NotaInternaVisible = false);
 
 public class ObtenerDetalleVisitaQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
     ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos,
-    IConfiguracionQueryContext configuracionContext)
+    IConfiguracionQueryContext configuracionContext, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerDetalleVisitaQuery, DetalleVisitaDto?>
 {
     public async Task<DetalleVisitaDto?> Handle(ObtenerDetalleVisitaQuery request, CancellationToken cancellationToken)
@@ -134,9 +136,11 @@ public class ObtenerDetalleVisitaQueryHandler(
             : CalculadoraUrgenciaVisita.Calcular(
                 visita.FechaInicio, visita.FechaFin, DiaDeNegocio.Hoy(), parametros.HorasAvisoVisita, parametros.HorasCriticasVisita);
 
+        var conNotaInterna = await politicaNotaInterna.PuedeLeerAsync(cancellationToken);
+
         return new DetalleVisitaDto(
             visita.Id, visita.CentroNombre, visita.ClienteRazonSocial, visita.EmpresaId, visita.EmpresaRazonSocial,
-            visita.FechaInicio, visita.FechaFin, visita.Notas, visita.NotificadoCliente, trabajadores,
+            visita.FechaInicio, visita.FechaFin, conNotaInterna ? visita.Notas : null, visita.NotificadoCliente, trabajadores,
             visita.HoraEstimadaAcceso, visita.FechaHoraSolicitudUtc, visita.FechaHoraExpedienteCompletoUtc,
             visita.AntelacionNominalHoras, visita.AntelacionEfectivaHoras, visita.Tramo, visita.Atribucion,
             requiereGestionCae,
@@ -148,6 +152,7 @@ public class ObtenerDetalleVisitaQueryHandler(
             visita.EmpresaTitularId,
             visita.Origen,
             nivelUrgencia,
-            visita.DocumentacionGestionadaEnUtc);
+            visita.DocumentacionGestionadaEnUtc,
+            conNotaInterna);
     }
 }

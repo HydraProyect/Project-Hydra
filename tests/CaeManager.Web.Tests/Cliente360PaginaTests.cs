@@ -159,7 +159,7 @@ public class Cliente360PaginaTests : BunitContext
     {
         var id = Guid.NewGuid();
         var mediador = new MediatorFalso();
-        mediador.Detalles[id] = new ClienteDetalleDto(id, "Refrielectric S.A.", "A-48.220.917", critico, notas, Alta, null, Guid.NewGuid());
+        mediador.Detalles[id] = new ClienteDetalleDto(id, "Refrielectric S.A.", "A-48.220.917", critico, notas, Alta, null, Guid.NewGuid(), NotaInternaVisible: true);
         mediador.Resumenes[id] = new ResumenClienteDto(id, "Refrielectric S.A.", "A-48.220.917", critico, Alta, null, 3, 42);
         return (id, mediador);
     }
@@ -837,9 +837,11 @@ public class Cliente360PaginaTests : BunitContext
     [Fact]
     public void Al_Usuario_de_Cliente_no_se_le_pinta_la_caja_de_la_nota_interna()
     {
-        // El DTO lleva la nota a propósito: el handler ya no se la entrega a
-        // este rol, y aquí se mide la segunda barrera, la de la página sola.
+        // El DTO lleva la nota a propósito y la bandera del servidor dice que no
+        // se ve (el handler decide así para este rol): aquí se mide que la página
+        // obedece la bandera y no pinta la caja.
         var (id, mediador) = ClienteBase(notas: "Llamar antes de ir.");
+        mediador.Detalles[id] = mediador.Detalles[id] with { NotaInternaVisible = false };
         Registrar(mediador, Roles.Cliente);
 
         var cut = Renderizar(id);

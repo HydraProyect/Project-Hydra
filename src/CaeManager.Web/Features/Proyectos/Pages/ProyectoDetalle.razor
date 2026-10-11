@@ -6,7 +6,7 @@
 @page "/proyectos/{ProyectoId:guid}"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.Administrador},{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae},{CaeManager.Infrastructure.Identity.Roles.GestorCae},{CaeManager.Infrastructure.Identity.Roles.Consulta}")]
+@attribute [Authorize(Policy = CaeManager.Web.Services.Autorizacion.PoliticasFichas360.Proyecto)]
 @using CaeManager.Application.Proyectos.Queries.ObtenerTecnicosProyecto
 @using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
 @using CaeManager.Domain.Documentos
@@ -125,6 +125,8 @@
                         </ChildContent>
                     </Tarjeta>
 
+                    @if (_detalle.NotaInternaVisible)
+                    {
                     <NotaInterna Texto="@_detalle.Notas">
                         <Acciones>
                             <SoloConEscritura>
@@ -132,6 +134,7 @@
                             </SoloConEscritura>
                         </Acciones>
                     </NotaInterna>
+                    }
                 </Lateral>
             </CuerpoConLateral>
         </Pestanas>

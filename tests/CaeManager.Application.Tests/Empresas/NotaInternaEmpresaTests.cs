@@ -3,9 +3,11 @@ using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Plataforma;
 using FluentAssertions;
 using Xunit;
 
@@ -32,11 +34,12 @@ public class NotaInternaEmpresaTests
 
     // ── Lectura ───────────────────────────────────────────────────────────
 
-    private static Task<EmpresaDetalleDto?> LeerAsync(Empresa empresa, AlcanceDatosServiceFalso alcance)
+    private static Task<EmpresaDetalleDto?> LeerAsync(
+        Empresa empresa, AlcanceDatosServiceFalso alcance, string? rol = "GestorCae", SesionPrivilegiadaActiva? sesion = null)
     {
         var contexto = new EmpresasQueryContextFalso();
         contexto.ListaEmpresas.Add(empresa);
-        return new ObtenerEmpresaPorIdQueryHandler(contexto, alcance)
+        return new ObtenerEmpresaPorIdQueryHandler(contexto, alcance, PoliticaNotaInternaPruebas.Con(rol, sesion))
             .Handle(new ObtenerEmpresaPorIdQuery(empresa.Id), CancellationToken.None);
     }
 
@@ -46,7 +49,7 @@ public class NotaInternaEmpresaTests
         var empresa = Contratista();
         var portal = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresa.Id], ladoDeGestion: false);
 
-        var detalle = await LeerAsync(empresa, portal);
+        var detalle = await LeerAsync(empresa, portal, rol: "Cliente");
 
         detalle.Should().NotBeNull("la ficha básica está en su alcance de lectura");
         detalle!.Notas.Should().BeNull();
@@ -60,6 +63,20 @@ public class NotaInternaEmpresaTests
         var gestion = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresa.Id]);
 
         var detalle = await LeerAsync(empresa, gestion);
+
+        detalle!.Notas.Should().Be(Nota);
+        detalle.NotaInternaVisible.Should().BeTrue();
+    }
+
+    /// <summary>Soporte TALVEG con Sesión Privilegiada de acceso total: sin rol de negocio, ve la nota como el equipo.</summary>
+    [Fact]
+    public async Task Sesion_privilegiada_con_acceso_total_ve_la_nota_sin_rol()
+    {
+        var empresa = Contratista();
+        var sinCartera = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresa.Id], ladoDeGestion: false);
+
+        var detalle = await LeerAsync(empresa, sinCartera, rol: null,
+            sesion: PoliticaNotaInternaPruebas.Sesion(CapacidadPrivilegio.SoporteLectura));
 
         detalle!.Notas.Should().Be(Nota);
         detalle.NotaInternaVisible.Should().BeTrue();

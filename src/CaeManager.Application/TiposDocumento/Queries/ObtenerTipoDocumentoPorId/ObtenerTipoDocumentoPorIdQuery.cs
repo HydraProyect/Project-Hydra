@@ -26,7 +26,7 @@ public record TipoDocumentoDetalleDto(
     IReadOnlyList<string> Aliases,
     IReadOnlyList<Guid> CentroIdsExcluidos);
 
-public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext dbContext)
+public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext dbContext, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerTipoDocumentoPorIdQuery, TipoDocumentoDetalleDto?>
 {
     public async Task<TipoDocumentoDetalleDto?> Handle(ObtenerTipoDocumentoPorIdQuery request, CancellationToken cancellationToken)
@@ -72,9 +72,12 @@ public class ObtenerTipoDocumentoPorIdQueryHandler(ITiposDocumentoQueryContext d
             .Select(a => a.Texto)
             .ToListAsync(cancellationToken);
 
+        // Misma regla de lectura que las demás fichas 360: la nota no sale a quien no la ve (RLS solo filtra por Tenant).
+        var notas = await politicaNotaInterna.PuedeLeerAsync(cancellationToken) ? tipoDocumento.Notas : null;
+
         return new TipoDocumentoDetalleDto(
             tipoDocumento.Id, tipoDocumento.Nombre, tipoDocumento.VigenciaMeses, tipoDocumento.AplicaVencimientoAutomatico,
-            tipoDocumento.Orden, tipoDocumento.AmbitoAplicacion, tipoDocumento.Requerido, tipoDocumento.Naturaleza, tipoDocumento.Notas, tipoDocumento.Descripcion,
+            tipoDocumento.Orden, tipoDocumento.AmbitoAplicacion, tipoDocumento.Requerido, tipoDocumento.Naturaleza, notas, tipoDocumento.Descripcion,
             tipoDocumento.CriteriosValidacion, tipoDocumento.SeSolicitaA, tipoDocumento.Observaciones, centroIds, aliases, centroIdsExcluidos);
     }
 }

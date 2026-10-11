@@ -117,7 +117,7 @@ public class NotaInternaDeEmpresaPorRolTests : IAsyncLifetime
             contexto, new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: _tenant),
             new TenantActualAmbiental { TenantId = _tenant }, new SesionPrivilegiadaAusente());
 
-        return await new ObtenerEmpresaPorIdQueryHandler(contexto, alcance)
+        return await new ObtenerEmpresaPorIdQueryHandler(contexto, alcance, PoliticaNotaInternaPruebas.Con(rol))
             .Handle(new ObtenerEmpresaPorIdQuery(_empresaId), CancellationToken.None);
     }
 

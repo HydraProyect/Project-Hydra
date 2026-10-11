@@ -54,6 +54,18 @@ public class PaginasClasificadasParaElEncargoTests
             + "excluidas las filtra el propio hub",
         ["src/CaeManager.Web/Features/TiposDocumento/Pages/TiposDocumento.razor"] =
             "catálogo de tipos de documento; sus cuatro ajustes globales de IA se excluyen en Application por tipo",
+        ["src/CaeManager.Web/Features/Vehiculos/Pages/VehiculoDetalle.razor"] =
+            "ficha 360 de Vehículo: la abre el equipo de gestión, y el encargo lo es con su rol elevado; la nota "
+            + "interna la decide PoliticaNotaInterna, no la página (política PoliticasFichas360.Vehiculo)",
+        ["src/CaeManager.Web/Features/Documentos/Pages/TipoDocumentoDetalle.razor"] =
+            "ficha 360 de Tipo de documento: igual que la de Vehículo, con su lista de roles de equipo (política "
+            + "PoliticasFichas360.TipoDocumento); no es una página solo de Administrador",
+        ["src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor"] =
+            "ficha 360 de Proyecto: la abre el equipo de gestión (y Consulta); la nota interna la decide "
+            + "PoliticaNotaInterna, no la página (política PoliticasFichas360.Proyecto); no es solo de Administrador",
+        ["src/CaeManager.Web/Features/Visitas/Pages/VisitaDetalle.razor"] =
+            "ficha 360 de Visita: la abre el equipo de gestión (y Consulta); la nota interna la decide "
+            + "PoliticaNotaInterna, no la página (política PoliticasFichas360.Visita); no es solo de Administrador",
         ["src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor"] =
             "lectura con IA por Cliente empresarial: permitida por § 9.7 del diseño",
         ["src/CaeManager.Web/Features/DashboardEjecutivo/Pages/DashboardEjecutivo.razor"] =
