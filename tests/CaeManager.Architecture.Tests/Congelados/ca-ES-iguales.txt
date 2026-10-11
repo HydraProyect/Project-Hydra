@@ -939,7 +939,6 @@ src/CaeManager.Web/Features/TiposDocumento/Recursos/TextosTiposDocumento.resx ::
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AccionCrearGestion = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AccionReclamarFaltantes = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AnilloCumplimiento = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaAbrirCentro360 = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaDocumentacionExigida = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaEditarInformacion = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: AriaMigas = 1
@@ -1032,7 +1031,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Sep
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: SeparadorGestionesPendientes = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: TextoCentroSinExigencia = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: TextoExigenciaPorCentro = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: TituloAbrirCentro360 = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: TituloPagina = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: TituloPaginaClienteDirecto = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ToastActualizado = 1
