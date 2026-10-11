@@ -192,8 +192,8 @@
                     </ChildContent>
                 </Tarjeta>
 
-                @* TipoDocumento.Notas: la página entera ya es solo de roles de gestión (RolesDeLaPagina), así que la
-                   nota no necesita corte propio. Se edita donde el resto del tipo, y solo el Administrador. *@
+                @* TipoDocumento.Notas: la página entera ya es solo de equipo o de Sesión Privilegiada con acceso total (PoliticasFichas360), así que la
+                   nota pasa por PoliticaNotaInterna, la misma regla de lectura. Se edita donde el resto del tipo, y solo el Administrador. *@
                 <NotaInterna Texto="@estado.Notas">
                     <Acciones>
                         <AuthorizeView Roles="@Roles.Administrador">

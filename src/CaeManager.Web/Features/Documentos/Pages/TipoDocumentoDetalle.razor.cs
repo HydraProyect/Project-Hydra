@@ -19,7 +19,7 @@ namespace CaeManager.Web.Features.Documentos.Pages;
 ///
 /// <para>
 /// Todo sale de una sola consulta, <see cref="ObtenerEstadoTipoDocumentoQuery"/>, que es también la que autoriza: quien no
-/// puede leer la página recibe <c>null</c> y ve el mismo error que con un tipo que no existe. <see cref="RolesDeLaPagina"/>
+/// puede leer la página recibe <c>null</c> y ve el mismo error que con un tipo que no existe. <see cref="RolesDeLaPagina"/> (lista de equipo de la política PoliticasFichas360.TipoDocumento)
 /// repite esa lista en la ruta para que tampoco se llegue a montar el circuito.
 /// </para>
 ///
@@ -45,7 +45,7 @@ public partial class TipoDocumentoDetalle : CaeManager.Web.Components.PaginaInte
 
     /// <summary>
     /// La vista, en la URL, como en el resto de fichas 360: recargar, compartir el enlace o volver atrás recupera lo
-    /// que se estaba mirando. Ninguno de los tres decide quién entra: eso lo fijan <see cref="RolesDeLaPagina"/> y la
+    /// que se estaba mirando. Ninguno de los tres decide quién entra: eso lo fijan <see cref="RolesDeLaPagina"/> (lista de equipo de la política PoliticasFichas360.TipoDocumento) y la
     /// consulta de Application.
     /// </summary>
     [Parameter, SupplyParameterFromQuery(Name = "pestana")] public string? Pestana { get; set; }
