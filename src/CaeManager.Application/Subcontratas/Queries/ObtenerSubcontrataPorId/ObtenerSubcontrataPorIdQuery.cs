@@ -10,7 +10,7 @@ public record ObtenerSubcontrataPorIdQuery(Guid Id) : IRequest<SubcontrataDetall
 
 /// <param name="Notas">
 /// La «Nota interna» de la ficha 360 (<c>Empresa.Notas</c>). Solo viaja para el equipo del Tenant propietario
-/// (<see cref="PoliticaNotaInterna.RolesQueVenLaNotaInterna"/>); para cualquier otro rol es <c>null</c>.
+/// (<see cref="PoliticaNotaInterna.RolesQueVenLaNotaInterna"/>) o una Sesión Privilegiada de acceso total; para cualquier otro caso es <c>null</c>.
 /// </param>
 /// <param name="NotaInternaVisible">
 /// Si quien pregunta es del equipo y por tanto la ficha debe pintar la tarjeta «Nota interna» (aunque esté vacía).

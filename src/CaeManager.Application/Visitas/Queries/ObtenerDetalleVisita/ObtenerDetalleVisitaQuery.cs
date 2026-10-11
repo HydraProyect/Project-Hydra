@@ -61,7 +61,7 @@ public record DetalleVisitaDto(
     // Estado guardado (Visita.DocumentacionGestionadaEnUtc): null = por gestionar.
     DateTime? DocumentacionGestionadaEnUtc = null,
     // La «Nota interna» la decide la política única; la página obedece esta bandera para pintar la caja.
-    bool NotaInternaVisible = true);
+    bool NotaInternaVisible = false);
 
 public class ObtenerDetalleVisitaQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,

@@ -159,7 +159,7 @@ public class Cliente360PaginaTests : BunitContext
     {
         var id = Guid.NewGuid();
         var mediador = new MediatorFalso();
-        mediador.Detalles[id] = new ClienteDetalleDto(id, "Refrielectric S.A.", "A-48.220.917", critico, notas, Alta, null, Guid.NewGuid());
+        mediador.Detalles[id] = new ClienteDetalleDto(id, "Refrielectric S.A.", "A-48.220.917", critico, notas, Alta, null, Guid.NewGuid(), NotaInternaVisible: true);
         mediador.Resumenes[id] = new ResumenClienteDto(id, "Refrielectric S.A.", "A-48.220.917", critico, Alta, null, 3, 42);
         return (id, mediador);
     }

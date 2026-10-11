@@ -141,7 +141,8 @@ public class Visita360PaginaTests : BunitContext
         AntelacionNominalHoras: tramo is null ? null : 15, AntelacionEfectivaHoras: tramo is null ? null : 15, Tramo: tramo, AtribucionUrgencia.SinUrgencia,
         CentroRequiereGestionCae: requiereGestion, CentroGestionadoPorCorreo: porCorreo,
         EstaCancelada: cancelada, MotivoCancelacion: cancelada ? "Aplazada" : null, Version: Guid.NewGuid(),
-        CentroId: Guid.NewGuid(), EmpresaTitularId: Guid.NewGuid(), Origen: OrigenVisita.Correo, NivelUrgencia: NivelUrgenciaVisita.Normal);
+        CentroId: Guid.NewGuid(), EmpresaTitularId: Guid.NewGuid(), Origen: OrigenVisita.Correo, NivelUrgencia: NivelUrgenciaVisita.Normal,
+        NotaInternaVisible: true);
 
     private static DocumentoVisitaItemDto Documento(string tipo, EstadoDocumento estado, Guid? trabajadorId = null) => new(
         estado == EstadoDocumento.Faltante ? null : Guid.NewGuid(), trabajadorId, Guid.NewGuid(), tipo, estado,

@@ -28,7 +28,7 @@ public record ObtenerClientePorIdQuery(Guid Id) : IRequest<ClienteDetalleDto?>;
 /// </summary>
 public record ClienteDetalleDto(
     Guid Id, string RazonSocial, string Cif, bool EsCritico, string? Notas, DateTime CreadoEnUtc,
-    Guid? EjecutivoUsuarioId, Guid Version, bool NotaInternaVisible = true);
+    Guid? EjecutivoUsuarioId, Guid Version, bool NotaInternaVisible = false);
 
 /// <summary>
 /// F3b — reemplaza <c>IClientesQueryContext</c> por <c>IEmpresasQueryContext</c>:

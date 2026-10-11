@@ -22,7 +22,7 @@ public record VisitaDetalleDto(
     string? Notas,
     TimeOnly? HoraEstimadaAcceso,
     Guid Version,
-    bool NotaInternaVisible = true);
+    bool NotaInternaVisible = false);
 
 public class ObtenerVisitaPorIdQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos,

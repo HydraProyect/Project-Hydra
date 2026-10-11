@@ -26,7 +26,7 @@ public record ProyectoDetalleDto(
     int DocumentosGestionados,
     Guid Version,
     // La «Nota interna» la decide la política única; la página obedece esta bandera para pintar la caja.
-    bool NotaInternaVisible = true);
+    bool NotaInternaVisible = false);
 
 public class ObtenerProyectoPorIdQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IDocumentosQueryContext documentosContext, IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos,

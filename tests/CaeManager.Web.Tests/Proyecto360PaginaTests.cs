@@ -70,12 +70,12 @@ public class Proyecto360PaginaTests : BunitContext
     private static readonly ProyectoDetalleDto Abierto = new(
         AbiertoId, ClienteId, "Umbrella Corporation Ibérica S.A.", CentroId, "Sede Sevilla", "Reforma nave Sevilla",
         new DateOnly(2026, 3, 12), new DateOnly(2026, 11, 30), null, EstaAbierto: true,
-        Notas: "Acceso por muelle 3.", TecnicosActivos: 1, DocumentosGestionados: 3, Version: VersionAbierto);
+        Notas: "Acceso por muelle 3.", TecnicosActivos: 1, DocumentosGestionados: 3, Version: VersionAbierto, NotaInternaVisible: true);
 
     private static readonly ProyectoDetalleDto Cerrado = new(
         CerradoId, ClienteId, "Umbrella Corporation Ibérica S.A.", CentroId, "Sede Sevilla", "Sustitución de red contra incendios",
         new DateOnly(2026, 1, 9), null, new DateOnly(2026, 3, 4), EstaAbierto: false,
-        Notas: null, TecnicosActivos: 1, DocumentosGestionados: 0, Version: Guid.NewGuid());
+        Notas: null, TecnicosActivos: 1, DocumentosGestionados: 0, Version: Guid.NewGuid(), NotaInternaVisible: true);
 
     /// <summary>
     /// Responde por tipo y registra lo enviado. Una petición que case con una
