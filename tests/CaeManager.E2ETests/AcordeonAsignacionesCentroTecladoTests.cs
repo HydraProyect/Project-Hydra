@@ -17,9 +17,7 @@ public class AcordeonAsignacionesCentroTecladoTests(WebAppFixture fixture)
         var rutas = await page.Locator(".lista-filas-acordeon a.boton-360-pagina").EvaluateAllAsync<string[]>(
             "elementos => [...new Set(elementos.map(e => e.getAttribute('href')))]");
 
-        // Ambos selectores permiten que la mutación a la cabecera anterior llegue a j/k:
-        // un fallo de localización antes de pulsar las teclas no probaría su sensibilidad.
-        const string selectorFilas = ".lista-trabajadores-acordeon .fila-relacion, .lista-trabajadores-acordeon .fila-trabajador-acordeon";
+        const string selectorFilas = ".lista-trabajadores-acordeon .fila-relacion";
         var filas = page.Locator(selectorFilas);
         var encontrado = false;
         foreach (var ruta in rutas)
@@ -38,7 +36,7 @@ public class AcordeonAsignacionesCentroTecladoTests(WebAppFixture fixture)
         // El orden se observa en la lista visible; los controles se localizan por su
         // identidad accesible, sin fijar una posición ni un nombre de la siembra.
         var identidades = await filas.EvaluateAllAsync<string[][]>(
-            "elementos => elementos.filter(e => e.getBoundingClientRect().height > 0).map(e => [e.querySelector('.fila-relacion-nombre, .fila-trabajador-nombre').textContent.trim(), e.querySelector('.fila-relacion-desplegar, .boton-expandir-fila').getAttribute('aria-label')])");
+            "elementos => elementos.filter(e => e.getBoundingClientRect().height > 0).map(e => [e.querySelector('.fila-relacion-nombre').textContent.trim(), e.querySelector('.fila-relacion-desplegar').getAttribute('aria-label')])");
         var primero = identidades[0][0];
         var segundo = identidades[1][0];
         var nombre = page.GetByRole(AriaRole.Button, new() { Name = primero, Exact = true });
@@ -61,6 +59,12 @@ public class AcordeonAsignacionesCentroTecladoTests(WebAppFixture fixture)
         Assert.NotNull(estado);
         Assert.NotNull(incidencias);
         Assert.True(incidencias.Width <= estado.Width + 1, "Las tres ranuras de incidencias deben caber en la columna de estado.");
+        var divisores = await filas.EvaluateAllAsync<float[]>(
+            "elementos => elementos.filter(e => e.getBoundingClientRect().height > 0).map(e => parseFloat(getComputedStyle(e).borderTopWidth))");
+        Assert.Equal(0, divisores[0]);
+        Assert.All(divisores.Skip(1), borde => Assert.Equal(1, borde));
+        await Assertions.Expect(page.Locator(".lista-trabajadores-acordeon .lista-relaciones-tarjeta")).ToHaveCountAsync(1);
+        await Assertions.Expect(page.Locator(".lista-trabajadores-acordeon .lista-relaciones")).ToHaveAttributeAsync("aria-label", new System.Text.RegularExpressions.Regex("^Trabajadores · .+$"));
         await page.Keyboard.PressAsync("e");
         await Assertions.Expect(page.Locator(".workspace-panel")).ToHaveAttributeAsync("aria-label", $"Panel de contexto — {primero}");
     }

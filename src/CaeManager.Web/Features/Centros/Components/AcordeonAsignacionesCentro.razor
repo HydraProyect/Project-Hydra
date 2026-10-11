@@ -229,14 +229,13 @@ else
         else
         {
         <div class="lista-trabajadores-acordeon">
+            <ListaRelaciones Etiqueta="@($"{Textos["PestanaTrabajadores"]} · {CentroNombre}")" EnTarjeta="true">
             @foreach (var trabajador in TrabajadoresFiltrados)
             {
                 var expandido = _expandidosTrabajador.Contains(trabajador.AsignacionId);
                 var vencidos = DocumentosVencidos(trabajador);
                 var proximos = DocumentosProximos(trabajador);
                 var urgentes = DocumentosUrgentes(trabajador);
-                <div class="acordeon-trabajador" @key="trabajador.AsignacionId">
-                <ListaRelaciones Etiqueta="@trabajador.TrabajadorNombre" EnTarjeta="true">
                 <FilaRelacion @key="trabajador.AsignacionId" Nombre="@trabajador.TrabajadorNombre"
                               Tono="@(EstaBloqueado(trabajador.TrabajadorId) ? TonoFila.Peligro : EstadoDocumentoFicha360.TonoFila(trabajador.PeorEstado))"
                               Avatar="@(SeleccionMultiple ? CasillaSeleccion(trabajador) : null)"
@@ -248,6 +247,10 @@ else
                         @if (EstaBloqueado(trabajador.TrabajadorId))
                         {
                             <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" title="@DescripcionBloqueo(trabajador.TrabajadorId)">@Textos["BloqueadoEtiqueta"]</Badge>
+                            <MotivoBloqueoTrabajador TrabajadorId="trabajador.TrabajadorId"
+                                                     Bloqueos="BloqueosDe(trabajador.TrabajadorId)"
+                                                     Otros="OtrosPendientesDe(trabajador)"
+                                                     OnPedir="PedirAsync" />
                         }
                     </Detalle>
                     <Cifra>
@@ -448,16 +451,8 @@ else
                         }
                     </Desplegable>
                 </FilaRelacion>
-                </ListaRelaciones>
-                        @if (EstaBloqueado(trabajador.TrabajadorId))
-                        {
-                            <MotivoBloqueoTrabajador TrabajadorId="trabajador.TrabajadorId"
-                                                     Bloqueos="BloqueosDe(trabajador.TrabajadorId)"
-                                                     Otros="OtrosPendientesDe(trabajador)"
-                                                     OnPedir="PedirAsync" />
-                        }
-                </div>
             }
+            </ListaRelaciones>
         </div>
         }
         @*
