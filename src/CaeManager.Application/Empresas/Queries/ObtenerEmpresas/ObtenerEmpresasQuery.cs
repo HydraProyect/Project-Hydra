@@ -13,6 +13,10 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 
 /// <summary>
+/// Listado de Empresas propias del Tenant propietario. Los Clientes empresariales y las Empresas
+/// subcontratistas se consultan en sus listados separados; este filtro también delimita total,
+/// recuentos por estado, exportación y refresco de una fila por id.
+///
 /// <paramref name="EstadoDocumental"/> es el filtro de estado de la pantalla:
 /// una Empresa no tiene estado propio, se deriva del peor estado de vigencia
 /// de sus Documentos (ver <see cref="ICalculoEstadoDocumentalService"/>).
@@ -66,7 +70,7 @@ public class ObtenerEmpresasQueryHandler(
 {
     public async Task<ResultadoPaginado<EmpresaListaDto>> Handle(ObtenerEmpresasQuery request, CancellationToken cancellationToken)
     {
-        var consulta = dbContext.Empresas.AsQueryable();
+        var consulta = dbContext.Empresas.Where(e => e.EsPropia);
 
         var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
         if (empresaIdsVisibles is not null)

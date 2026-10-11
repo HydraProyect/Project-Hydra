@@ -54,11 +54,8 @@ public class F3bSubcontrataSmokeTests(WebAppFixture fixture)
         await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialSubcontrata })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        // --- Paso 3: aparece también en /empresas (misma fila física, EsCritico/NivelServicio aparte) ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialSubcontrata);
-        await page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialSubcontrata })
-            .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        // Paso 3 (antes: aparecer también en /empresas) retirado: ObtenerEmpresasQuery
+        // solo lista Empresas propias desde P7, y la Subcontrata es una Empresa de contraparte.
 
         // --- Paso 4: operación crítica de F3b — dar de alta un Trabajador de
         // esta Subcontrata en la MISMA sesión, vía el selector poblado por
