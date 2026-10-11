@@ -106,9 +106,12 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         var pasosCompletados = page.Locator(".indicador-pasos-item.indicador-pasos-completado");
         await Expect(pasosCompletados).ToHaveCountAsync(4);
 
-        // Verificación final de la Empresa propia y del Centro de Trabajo.
-        // Hueco de cobertura: la presencia del Cliente empresarial creado no se verifica
-        // en una pantalla. /empresas solo lista Empresas propias (EsPropia).
+        // Verificación final: el Cliente empresarial en /clientes (ObtenerClientesQuery lista las Empresas con
+        // EsCritico != null), la Empresa propia en /empresas (solo lista Empresas propias, EsPropia) y el Centro.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes?q={Uri.EscapeDataString(razonSocialCliente)}");
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = $"Abrir la vista rápida de {razonSocialCliente}", Exact = true }))
+            .ToBeVisibleAsync(new() { Timeout = 15_000 });
+
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresa);
         await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialEmpresa })
