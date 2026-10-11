@@ -523,7 +523,7 @@ public class Empresa360PaginaTests : BunitContext
     {
         var m = Empresa();
         m.Sellos.Clear();
-        Registrar(m);
+        Registrar(m, Roles.Consulta);
         var cut = Renderizar(consulta);
         cut.FindAll("[role=tab]").Should().NotContain(t => t.TextContent.Trim() == "Ficha");
         Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true");
@@ -545,9 +545,24 @@ public class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
+    public void El_lateral_con_nota_visible_tiene_Informacion_y_Nota_interna_en_ese_orden()
+    {
+        var m = Empresa();
+        ConNota(m, NotaGuardada);
+        Registrar(m);
+        var cut = Renderizar();
+        var lateral = cut.Find(".cuerpo-con-lateral-lateral");
+        lateral.QuerySelectorAll(".tarjeta").Should().HaveCount(2);
+        var texto = lateral.TextContent;
+        texto.IndexOf("Información", StringComparison.Ordinal).Should().BeGreaterThanOrEqualTo(0);
+        texto.IndexOf("Nota interna", StringComparison.Ordinal).Should().BeGreaterThan(texto.IndexOf("Información", StringComparison.Ordinal));
+        lateral.QuerySelector("[data-pieza=nota-interna]").Should().NotBeNull();
+    }
+
+    [Fact]
     public void Ficha_con_solo_acceso_no_monta_una_caja_de_sello_vacia()
     {
-        var m = EmpresaConCredencial();
+        var m = EmpresaConCredencial(rol: Roles.Consulta);
         m.Sellos.Clear();
         var cut = Renderizar("?pestana=ficha");
         cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal(new[] { "acceso" });
@@ -556,11 +571,33 @@ public class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void El_enlace_a_Ficha_sin_cajas_tambien_cae_en_Trabajadores_al_cambiar_la_url()
+    public void Con_escritura_y_sin_sello_la_Ficha_monta_la_caja_Sello_con_su_zona_de_subida()
     {
         var m = Empresa();
         m.Sellos.Clear();
         Registrar(m);
+        var cut = Renderizar("?pestana=ficha");
+        Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true");
+        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal(new[] { "sello" });
+        cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
+    }
+
+    [Fact]
+    public void Con_escritura_sin_sello_y_con_acceso_la_Ficha_monta_las_dos_cajas()
+    {
+        var m = EmpresaConCredencial();
+        m.Sellos.Clear();
+        var cut = Renderizar("?pestana=ficha");
+        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "sello");
+        cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
+    }
+
+    [Fact]
+    public void El_enlace_a_Ficha_sin_cajas_tambien_cae_en_Trabajadores_al_cambiar_la_url()
+    {
+        var m = Empresa();
+        m.Sellos.Clear();
+        Registrar(m, Roles.Consulta);
         var cut = Renderizar();
         Navegacion.NavigateTo($"/empresas/{EmpresaId}?pestana=ficha");
         cut.WaitForAssertion(() => Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true"));
@@ -732,7 +769,7 @@ public class Empresa360PaginaTests : BunitContext
     [InlineData("file:///C:/privado")]
     public void Sin_URL_abrible_no_hay_caja_de_carpeta(string? url)
     {
-        var m = EmpresaConCredencial();
+        var m = EmpresaConCredencial(rol: Roles.Consulta);
         m.Sellos.Clear();
         m.Credenciales[EmpresaId] = m.Credenciales[EmpresaId] with { UrlAcceso = url };
         var cut = Renderizar("?pestana=ficha");
@@ -747,6 +784,9 @@ public class Empresa360PaginaTests : BunitContext
         m.SinDobleFactor = true;
         var cut = Renderizar("?pestana=ficha");
         cut.Find(".acceso-requiere-2fa").TextContent.Should().Contain("Activa la autenticación en dos pasos para ver el acceso.");
+        cut.Find(".acceso-requiere-2fa").QuerySelector("a")!.GetAttribute("href").Should().Be(
+            "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=" + Uri.EscapeDataString(new Uri(Navegacion.Uri).PathAndQuery),
+            "el enlace lleva la vuelta a esta misma ficha (P1-I2)");
         cut.Markup.Should().NotContain("https://app.twind.io/login").And.NotContain("usuario.ibertec");
         Navegacion.Uri.Should().NotContain("configurar-2fa");
         m.Enviadas.OfType<ObtenerCredencialAccesoEmpresaSinContrasenaQuery>().Should().ContainSingle();

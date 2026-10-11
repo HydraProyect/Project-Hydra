@@ -14,6 +14,7 @@ using CaeManager.Web.Features.Centros.Components;
 using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Authorization;
 
 namespace CaeManager.Web.Features.Empresas.Pages;
 
@@ -107,9 +108,13 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _cargandoClientes;
     private bool _errorClientes;
 
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+    // Con escritura, la caja «Sello» existe aunque no haya sello: ahí está la zona de subida del primero.
+    private bool _puedeEscribir;
     private SelloEmpresaDto? _sello;
     private bool HayCajaAcceso => UrlPortalCae.Normalizar(_credencial?.UrlAcceso) is not null || _errorAcceso || _accesoRequiereDosFactores;
-    private bool HayCajasDeFicha => HayCajaAcceso || _sello is not null;
+    private bool HayCajaSello => _sello is not null || _puedeEscribir;
+    private bool HayCajasDeFicha => HayCajaAcceso || HayCajaSello;
     private CredencialAccesoEmpresaSinContrasenaDto? _credencial;
     private bool _cargandoAcceso = true;
     private bool _errorAcceso;
@@ -293,8 +298,12 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
                 _cargando = false;
         }
 
-        // La consulta existente de Sello conserva su puerta de gestión. Solo
-        // contamos una caja con datos; null no distingue ausencia de falta de permiso.
+        // Mismo criterio que SoloConEscritura (la zona de subida del sello): con escritura
+        // la caja «Sello» se monta también sin sello; sin escritura, solo con sello.
+        _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
+
+        // La consulta existente de Sello conserva su puerta de gestión. null no distingue
+        // ausencia de sello de falta de permiso ni de error: en ese caso, sin escritura, no hay caja.
         try
         {
             var sello = await Mediator.Send(new ObtenerSelloEmpresaQuery(empresaId), _cancelacion);

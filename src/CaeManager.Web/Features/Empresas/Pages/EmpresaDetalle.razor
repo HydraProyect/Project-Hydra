@@ -169,7 +169,7 @@
     private IReadOnlyList<CajaFicha> CajasDeFicha =>
     [
         .. HayCajaAcceso ? new[] { new CajaFicha("acceso", CajaDeAcceso) } : [],
-        .. _sello is not null ? new[] { new CajaFicha("sello", CajaDeSello) } : []
+        .. HayCajaSello ? new[] { new CajaFicha("sello", CajaDeSello) } : []
     ];
 
     private RenderFragment CajaDeSello => __builder =>
