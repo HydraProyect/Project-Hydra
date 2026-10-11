@@ -15,6 +15,7 @@
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService Toasts
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 
 @if (_cargando)
 {
@@ -27,6 +28,13 @@ else if (_error)
             <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">Reintentar</Boton>
         </Accion>
     </EstadoVacio>
+}
+else if (_contactos.Count == 0 && VacioCompacto)
+{
+    <div class="agenda-vacio-compacto">
+        <span>@Comunes["AgendaSinContactosParaReclamar"]</span>
+        <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirFormulario(null)">Añadir contacto</Boton></SoloConEscritura>
+    </div>
 }
 else if (_contactos.Count == 0)
 {
@@ -110,6 +118,7 @@ else
                      TextoBotonConfirmar="Quitar" OnConfirmar="EliminarAsync" />
 
 @code {
+    [Parameter] public bool VacioCompacto { get; set; }
     [Parameter, EditorRequired] public TipoPropietarioAgenda Tipo { get; set; }
     [Parameter, EditorRequired] public Guid PropietarioId { get; set; }
 

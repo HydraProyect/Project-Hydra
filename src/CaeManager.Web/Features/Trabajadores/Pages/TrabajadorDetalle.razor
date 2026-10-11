@@ -127,16 +127,17 @@
                     @if (DocumentosPorVencer is { Count: > 0 } porVencer)
                     {
                         <div class="separador-ambito">@Textos["SeparadorPorVencer"]</div>
-                        <ul class="trabajador360-por-vencer" aria-label="@Textos["SeparadorPorVencer"]">
-                            @foreach (var documento in porVencer)
-                            {
-                                <li class="trabajador360-por-vencer-fila" @key="documento.Id">
-                                    <span class="trabajador360-por-vencer-nombre">@documento.TipoDocumentoNombre</span>
-                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
-                                    <span class="trabajador360-por-vencer-fecha">@Textos["VenceEl", TextoVence(documento.FechaVencimiento, documento.Estado)]</span>
-                                </li>
-                            }
-                        </ul>
+                        <div class="trabajador360-por-vencer">
+                            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SeparadorPorVencer"]">
+                                @foreach (var documento in porVencer)
+                                {
+                                    <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
+                                        <Detalle>@(" ")@Textos["VenceEl", TextoVence(documento.FechaVencimiento, documento.Estado)]</Detalle>
+                                        <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
+                                    </FilaRelacion>
+                                }
+                            </ListaRelaciones>
+                        </div>
                     }
 
                     @*
@@ -322,24 +323,17 @@
                         }
                         else
                         {
-                            <div class="tabla-documentos-requeridos trabajador360-documentos" role="table" aria-label="@Textos["SeparadorDocumentosTrabajador"]">
-                                <div class="documentos-requeridos-cabecera" role="row">
-                                    <span role="columnheader">@Textos["ColumnaDocumento"]</span>
-                                    <span role="columnheader">@Textos["ColumnaEstado"]</span>
-                                    <span role="columnheader">@Textos["ColumnaFechaDocumento"]</span>
-                                    <span role="columnheader">@Textos["ColumnaVence"]</span>
-                                </div>
-                                @foreach (var documento in DocumentosOrdenados)
-                                {
-                                    <div class="fila-documento-requerido" role="row" @key="documento.Id">
-                                        <span class="celda-documento-nombre" role="cell">@documento.TipoDocumentoNombre</span>
-                                        <span role="cell">
-                                            <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
-                                        </span>
-                                        <span role="cell">@documento.FechaEmision.ToString("dd/MM/yyyy")</span>
-                                        <span role="cell" class="@EstadoDocumentoUi.ClaseAvisoVigenciaSinConfirmar(documento.Estado)">@TextoVence(documento.FechaVencimiento, documento.Estado)</span>
-                                    </div>
-                                }
+                            <div class="trabajador360-documentos">
+                                <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SeparadorDocumentosTrabajador"]">
+                                    @foreach (var documento in DocumentosOrdenados)
+                                    {
+                                        <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
+                                            <Detalle>@(" ")@Textos["ColumnaFechaDocumento"]: <span class="trabajador360-emision">@documento.FechaEmision.ToString("dd/MM/yyyy")</span></Detalle>
+                                            <Cifra><span class="trabajador360-solo-lectores">@Textos["ColumnaVence"]: </span><span class="trabajador360-vigencia @EstadoDocumentoUi.ClaseAvisoVigenciaSinConfirmar(documento.Estado)">@TextoVence(documento.FechaVencimiento, documento.Estado)</span></Cifra>
+                                            <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
+                                        </FilaRelacion>
+                                    }
+                                </ListaRelaciones>
                             </div>
                             @if (_totalDocumentos > _documentos.Count)
                             {
@@ -351,30 +345,29 @@
                         <p class="texto-descriptivo">@Textos["TextoExigidosEnCentros"]</p>
                         @if (ExigenciasPropiasDeCentros is { Count: > 0 } exigencias)
                         {
-                            <div class="tabla-documentos-requeridos trabajador360-exigencias" role="table" aria-label="@Textos["SeparadorExigidosEnCentros"]">
-                                <div class="documentos-requeridos-cabecera" role="row">
-                                    <span role="columnheader">@Textos["ColumnaDocumento"]</span>
-                                    <span role="columnheader">@Textos["ColumnaCentroTrabajo"]</span>
-                                    <span role="columnheader">@Textos["ColumnaEstado"]</span>
-                                    <span role="columnheader">@Textos["ColumnaFechaDocumento"]</span>
-                                    <span role="columnheader">@Textos["ColumnaRenovarAntes"]</span>
-                                </div>
-                                @{ var claves = new ClavesDeHermanos(); }
-                                @foreach (var exigencia in exigencias)
-                                {
-                                    <div class="fila-documento-requerido" role="row" @key="claves.De((exigencia.CentroId, exigencia.Documento.TipoDocumentoId))">
-                                        <span class="celda-documento-nombre" role="cell">@exigencia.Documento.TipoDocumentoNombre</span>
-                                        <span role="cell" class="trabajador360-exigencia-centro">
-                                            <a href="@($"/centros/{exigencia.CentroId}")">@exigencia.CentroNombre</a>
-                                            <span class="trabajador360-exigencia-cliente">@Textos["DelClienteEmpresarial", exigencia.ClienteRazonSocial]</span>
-                                        </span>
-                                        <span role="cell">
-                                            <Badge Tono="EstadoDocumentoUi.Tono(exigencia.Documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(exigencia.Documento.Estado, exigencia.Documento.EnToleranciaHasta)</Badge>
-                                        </span>
-                                        <span role="cell">@(exigencia.FechaEmision is { } emision ? emision.ToString("dd/MM/yyyy") : "—")</span>
-                                        <span role="cell" class="@EstadoDocumentoUi.ClaseAvisoVigenciaSinConfirmar(exigencia.Documento.Estado)">@TextoVence(exigencia.Documento.FechaVencimiento, exigencia.Documento.Estado)</span>
-                                    </div>
-                                }
+                            <div class="trabajador360-exigencias">
+                                <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SeparadorExigidosEnCentros"]">
+                                    @{ var claves = new ClavesDeHermanos(); }
+                                    @foreach (var exigencia in exigencias)
+                                    {
+                                        <FilaRelacion @key="claves.De((exigencia.CentroId, exigencia.Documento.TipoDocumentoId))" Nombre="@exigencia.Documento.TipoDocumentoNombre" Tono="@EstadoDocumentoFicha360.TonoFila(exigencia.Documento.Estado)">
+                                            <Detalle>
+                                                <span class="trabajador360-exigencia-centro"><a href="@($"/centros/{exigencia.CentroId}")">@exigencia.CentroNombre</a> @Textos["DelClienteEmpresarial", exigencia.ClienteRazonSocial]</span> ·
+                                                @if (exigencia.Documento.DocumentoId is null)
+                                                {
+                                                    <span>@Textos["SinDocumentoExigido"]</span>
+                                                }
+                                                else
+                                                {
+                                                    @($"{Textos["ColumnaRenovarAntes"]} ")
+                                                }
+                                                <span aria-hidden="@(exigencia.Documento.DocumentoId is null)" class="trabajador360-vigencia @(exigencia.Documento.DocumentoId is null ? "trabajador360-solo-lectores" : null) @EstadoDocumentoUi.ClaseAvisoVigenciaSinConfirmar(exigencia.Documento.Estado)">@TextoVence(exigencia.Documento.FechaVencimiento, exigencia.Documento.Estado)</span>
+                                            </Detalle>
+                                            <Cifra><span class="trabajador360-solo-lectores">@Textos["ColumnaFechaDocumento"]: </span><span class="trabajador360-emision">@(exigencia.FechaEmision is { } emision ? emision.ToString("dd/MM/yyyy") : "—")</span></Cifra>
+                                            <Estado><Badge Tono="EstadoDocumentoUi.Tono(exigencia.Documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(exigencia.Documento.Estado, exigencia.Documento.EnToleranciaHasta)</Badge></Estado>
+                                        </FilaRelacion>
+                                    }
+                                </ListaRelaciones>
                             </div>
                         }
                         else
@@ -432,11 +425,11 @@
                         <div class="trabajador360-agenda">
                             @if (_detalle.EmpresaId is { } empresaIdContactos)
                             {
-                                <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="empresaIdContactos" />
+                                <PestanaAgendaContactos VacioCompacto="true" Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="empresaIdContactos" />
                             }
                             else if (_detalle.SubcontrataId is { } subcontrataIdContactos)
                             {
-                                <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Subcontrata" PropietarioId="subcontrataIdContactos" />
+                                <PestanaAgendaContactos VacioCompacto="true" Tipo="TipoPropietarioAgenda.Subcontrata" PropietarioId="subcontrataIdContactos" />
                             }
                         </div>
                     </Tarjeta>
