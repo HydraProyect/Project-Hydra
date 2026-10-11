@@ -537,6 +537,13 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             NavigationManager.NavigateTo("/trabajadores");
     }
 
+    // El tinte de estas filas no cambia el vocabulario ni las acciones de los estados.
+    private static TonoFila? TonoDocumentoEnCentro(EstadoDocumento estado) => estado switch
+    {
+        EstadoDocumento.Faltante or EstadoDocumento.Vencido => TonoFila.Peligro,
+        EstadoDocumento.SinConfirmar or EstadoDocumento.EnTolerancia or EstadoDocumento.Urgente => TonoFila.Advertencia,
+        _ => null
+    };
     private void AlternarExpansionCentro(Guid centroId)
     {
         if (!_expandidosCentro.Remove(centroId))

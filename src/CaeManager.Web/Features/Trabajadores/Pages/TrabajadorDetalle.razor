@@ -207,119 +207,84 @@
                             @Textos["TextoExigenciaPorCentro"]
                         </p>
                         <div class="trabajador360-centros">
-                            @foreach (var centro in _centros)
-                            {
-                                var expandido = _expandidosCentro.Contains(centro.CentroId);
-                                var incidencias = Incidencias(centro);
-                                var sinConfirmarCentro = SinConfirmar(centro);
-                                <div class="trabajador360-centro @(incidencias > 0 ? "trabajador360-centro-con-incidencia" : null)" @key="centro.CentroId">
-                                    <div class="trabajador360-centro-cabecera">
-                                        @*
-                                            Un solo botón con el chevron y las dos líneas: el nombre
-                                            accesible sale del contenido, así que no lleva aria-label
-                                            que pudiera decir otra cosa que lo que se lee.
-                                        *@
-                                        <button type="button" class="trabajador360-centro-disparador"
-                                                aria-expanded="@(expandido ? "true" : "false")"
-                                                @onclick="() => AlternarExpansionCentro(centro.CentroId)">
-                                            <span class="trabajador360-centro-chevron @(expandido ? "trabajador360-centro-chevron-abierta" : null)">
-                                                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-                                            </span>
-                                            <span class="trabajador360-centro-identidad">
-                                                <span class="trabajador360-centro-nombre">@centro.CentroNombre</span>
-                                                <span class="trabajador360-centro-resumen">
-                                                    @centro.ClienteRazonSocial ·
-                                                    @(centro.Cumplimiento.Requeridos == 0
-                                                        ? Textos["ResumenSinExigencia"]
-                                                        : Textos["ResumenExigidosCorrectos", centro.Cumplimiento.AlDia, centro.Cumplimiento.Requeridos])
-                                                </span>
-                                            </span>
-                                        </button>
-                                        <span class="trabajador360-centro-alta">@Textos["ColumnaDesde"] @centro.FechaAlta.ToString("dd/MM/yyyy")</span>
-                                        <SoloConEscritura>
-                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="trabajador360-centro-baja accion-fila-enlace"
-                                                   OnClick="() => AbrirBajaAsignacionConfirm(centro.AsignacionId, centro.CentroNombre)">
-                                                @Textos["AccionDarDeBajaDeCentro"]
-                                            </Boton>
-                                        </SoloConEscritura>
-                                        <Badge Tono="EstadoDocumentoUi.Tono(centro.PeorEstado)" Tamano="TamanoBadge.Pequeno">
-                                            @(incidencias == 0
-                                                ? (sinConfirmarCentro != 0 ? Textos["BadgeAlDiaSinConfirmar"] : Textos["BadgeCompleto"])
-                                                : incidencias == 1 ? Textos["IncidenciasUno"] : Textos["IncidenciasVarios", incidencias])
-                                        </Badge>
-                                        <a class="trabajador360-centro-360" href="@($"/centros/{centro.CentroId}")"
-                                           title="@Textos["TituloAbrirCentro360"]"
-                                           aria-label="@(Textos["AriaAbrirCentro360", centro.CentroNombre])">
-                                            <Icono Nombre="centros" Tamano="TamanoIcono.Pequeno" />
-                                        </a>
-                                    </div>
-                                    @if (expandido)
-                                    {
-                                        <div class="trabajador360-centro-detalle">
+                            <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaCentros"]">
+                                @foreach (var centro in _centros)
+                                {
+                                    var incidencias = Incidencias(centro);
+                                    var sinConfirmarCentro = SinConfirmar(centro);
+                                    <FilaRelacion @key="centro.CentroId" Nombre="@centro.CentroNombre" NombreIcono="centros"
+                                                  OnNombre="() => AlternarExpansionCentro(centro.CentroId)"
+                                                  Tono="@TonoDocumentoEnCentro(centro.PeorEstado)"
+                                                  Desplegada="@_expandidosCentro.Contains(centro.CentroId)"
+                                                  DesplegadaChanged="_ => AlternarExpansionCentro(centro.CentroId)">
+                                        <Detalle>
+                                            @centro.ClienteRazonSocial ·
+                                            @(centro.Cumplimiento.Requeridos == 0
+                                                ? Textos["ResumenSinExigencia"]
+                                                : Textos["ResumenExigidosCorrectos", centro.Cumplimiento.AlDia, centro.Cumplimiento.Requeridos])
+                                        </Detalle>
+                                        <Cifra><span class="trabajador360-centro-alta">@Textos["ColumnaDesde"] @centro.FechaAlta.ToString("dd/MM/yyyy")</span></Cifra>
+                                        <Estado>
+                                            <Badge Tono="EstadoDocumentoUi.Tono(centro.PeorEstado)" Tamano="TamanoBadge.Pequeno">
+                                                @(incidencias == 0
+                                                    ? (sinConfirmarCentro != 0 ? Textos["BadgeAlDiaSinConfirmar"] : Textos["BadgeCompleto"])
+                                                    : incidencias == 1 ? Textos["IncidenciasUno"] : Textos["IncidenciasVarios", incidencias])
+                                            </Badge>
+                                        </Estado>
+                                        <Acciones>
+                                            <SoloConEscritura>
+                                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="trabajador360-centro-baja accion-fila-enlace"
+                                                       OnClick="() => AbrirBajaAsignacionConfirm(centro.AsignacionId, centro.CentroNombre)">
+                                                    @Textos["AccionDarDeBajaDeCentro"]
+                                                </Boton>
+                                            </SoloConEscritura>
+                                            <Boton360 Nombre="@centro.CentroNombre" Href="@($"/centros/{centro.CentroId}")" />
+                                        </Acciones>
+                                        <Desplegable>
                                             @if (centro.Documentos.Count == 0)
                                             {
                                                 <p class="texto-vacio-seccion">@Textos["TextoCentroSinExigencia"]</p>
                                             }
                                             else
                                             {
-                                                <div class="tabla-documentos-requeridos" role="table" aria-label="@(Textos["AriaDocumentacionExigida", centro.CentroNombre])">
-                                                    <div class="documentos-requeridos-cabecera" role="row">
-                                                        <span role="columnheader">@Textos["ColumnaDocumento"]</span>
-                                                        <span role="columnheader">@Textos["ColumnaEstado"]</span>
-                                                        <span role="columnheader">@Textos["ColumnaVigencia"]</span>
-                                                        <span role="columnheader" class="columna-accion">@Textos["ColumnaAccion"]</span>
-                                                    </div>
-                                                    @foreach (var documento in centro.Documentos)
+                                                <ListaRelaciones EnTarjeta="true" Etiqueta="@(Textos["AriaDocumentacionExigida", centro.CentroNombre])">
+                                                    @foreach (var documento in centro.Documentos.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)).ThenBy(d => d.TipoDocumentoNombre, StringComparer.CurrentCulture))
                                                     {
-                                                        <div class="fila-documento-requerido" role="row" @key="documento.TipoDocumentoId">
-                                                            <span class="celda-documento-nombre" role="cell">
-                                                                @* El nombre abre el mismo drawer de gestión que la columna de acción, que Consulta no puede usar:
-                                                                   a Consulta se le pinta como texto. *@
-                                                                <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNombre">
-                                                                    <Authorized>
-                                                                        <button type="button" class="enlace-nombre-fila" @onclick="() => GestionarDocumentoAsync(documento)">
-                                                                            @documento.TipoDocumentoNombre
-                                                                        </button>
-                                                                    </Authorized>
-                                                                    <NotAuthorized>@documento.TipoDocumentoNombre</NotAuthorized>
-                                                                </AuthorizeView>
-                                                                @* Cada grupo fija un Centro: el estado es el de las plataformas de ESE Centro. Fuera de un
-                                                                   Centro (pestaña «Documentación») no se resume: está sin decidir. *@
-                                                                <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion
-                                                                    Acreditaciones="documento.AcreditacionesEnElCentro"
-                                                                    UltimaReclamacion="documento.UltimaReclamacion"
-                                                                    Estado="documento.Estado" />
-                                                            </span>
-                                                            <span role="cell">
-                                                                <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">
-                                                                    @EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)
-                                                                </Badge>
-                                                            </span>
-                                                            <span role="cell">
-                                                                <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)">
-                                                                    @TextoVence(documento.FechaVencimiento, documento.Estado)
-                                                                </TextoFechaCopiable>
-                                                            </span>
-                                                            <span class="columna-accion" role="cell">
-                                                                @* Abre DrawerGestionDocumento, que solo crea o renueva (ICommand denegados a
-                                                                   Consulta) — también cuando el rótulo dice «Ver». Igual que «Subir documento». *@
-                                                                <SoloConEscritura>
-                                                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
-                                                                           OnClick="() => GestionarDocumentoAsync(documento)">
-                                                                        @(documento.DocumentoId is null ? Textos["AccionSubir"] : documento.Estado == EstadoDocumento.Vigente ? Textos["AccionVer"] : Textos["AccionRenovar"])
-                                                                    </Boton>
-                                                                </SoloConEscritura>
-                                                            </span>
-                                                        </div>
+                                                        <AuthorizeView Context="autorizacionDocumento">
+                                                            <ChildContent Context="autorizacion">
+                                                                <FilaRelacion @key="documento.TipoDocumentoId" Nombre="@documento.TipoDocumentoNombre"
+                                                                              Tono="@TonoDocumentoEnCentro(documento.Estado)"
+                                                                              OnNombre="@(CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv.Split(',').Any(autorizacion.User.IsInRole) ? EventCallback.Factory.Create(this, () => GestionarDocumentoAsync(documento)) : default)">
+                                                                    <Detalle>
+                                                                        <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion
+                                                                            Acreditaciones="documento.AcreditacionesEnElCentro" UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" />
+                                                                    </Detalle>
+                                                                    <Cifra>
+                                                                        <span class="trabajador360-solo-lectores">@Textos["ColumnaVigencia"]: </span>
+                                                                        <TextoFechaCopiable Fecha="documento.FechaVencimiento" Class="@EstadoDocumentoUi.ClaseCeldaVigencia(documento.Estado)">
+                                                                            @TextoVence(documento.FechaVencimiento, documento.Estado)
+                                                                        </TextoFechaCopiable>
+                                                                    </Cifra>
+                                                                    <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado, documento.EnToleranciaHasta)</Badge></Estado>
+                                                                    <Acciones>
+                                                                        <SoloConEscritura>
+                                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                                                   OnClick="() => GestionarDocumentoAsync(documento)">
+                                                                                @(documento.DocumentoId is null ? Textos["AccionSubir"] : documento.Estado == EstadoDocumento.Vigente ? Textos["AccionVer"] : Textos["AccionRenovar"])
+                                                                            </Boton>
+                                                                        </SoloConEscritura>
+                                                                    </Acciones>
+                                                                </FilaRelacion>
+                                                            </ChildContent>
+                                                        </AuthorizeView>
                                                     }
-                                                </div>
+                                                </ListaRelaciones>
                                             }
-                                        </div>
-                                    }
-                                </div>
-                            }
+                                        </Desplegable>
+                                    </FilaRelacion>
+                                }
+                            </ListaRelaciones>
                         </div>
-
                     }
                     break;
 

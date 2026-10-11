@@ -297,9 +297,6 @@
   <data name="TextoExigenciaPorCentro" xml:space="preserve">
     <value>La exigencia documental es por centro: el mismo trabajador puede estar completo en un centro y bloqueado en otro, porque cada centro pide cosas distintas.</value>
   </data>
-  <data name="TituloAbrirCentro360" xml:space="preserve">
-    <value>Abrir el Centro 360</value>
-  </data>
   <data name="TextoCentroSinExigencia" xml:space="preserve">
     <value>Este centro no exige documentación específica a este trabajador.</value>
   </data>
@@ -416,9 +413,6 @@
   </data>
   <data name="IncidenciasVarios" xml:space="preserve">
     <value>{0} incidencias</value>
-  </data>
-  <data name="AriaAbrirCentro360" xml:space="preserve">
-    <value>Abrir el Centro 360 de {0}</value>
   </data>
   <data name="AriaDocumentacionExigida" xml:space="preserve">
     <value>Documentación exigida en {0}</value>
