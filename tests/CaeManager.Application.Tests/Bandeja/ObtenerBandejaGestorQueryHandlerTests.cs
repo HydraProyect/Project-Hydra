@@ -137,7 +137,9 @@ public class ObtenerBandejaGestorQueryHandlerTests
         var empresa = Guid.NewGuid();
         var bloqueo = Requisito() with
         {
-            Ambito = AmbitoAplicacion.Empresa, EmpresaId = empresa, EmpresaNombre = "Montajes Ebro S.L.",
+            Ambito = AmbitoAplicacion.Empresa,
+            EmpresaId = empresa,
+            EmpresaNombre = "Montajes Ebro S.L.",
             Situacion = SituacionDeRequisitoBloqueante.PendienteDeSubirAPlataforma
         };
 
