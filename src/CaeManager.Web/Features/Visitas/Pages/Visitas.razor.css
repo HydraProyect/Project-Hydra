@@ -51,6 +51,34 @@
     max-width: 112px;
 }
 
+/* El contenido tiene una caja propia: min/max-width sobre la celda no limita
+   el ancho intrínseco que participa en el reparto automático de la tabla. */
+.visitas-estado-acotado {
+    display: block;
+    width: 80px;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.visitas-estado-acotado ::deep .estado-fila {
+    width: 100%;
+    max-width: 80px;
+}
+
+.visitas-estado-acotado ::deep .badge,
+.visitas-estado-acotado ::deep .estado-fila-motivo,
+.visitas-estado-acotado ::deep [data-pieza=motivo-cancelacion],
+.visitas-estado-acotado ::deep [data-antelacion-tramo] {
+    display: block;
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Segunda línea de «Visita»: el titular y la Empresa van seguidos, como texto, y parten por donde
    quepan. El ancho de la columna lo decide el reparto automático de la tabla. Probado y descartado:
    un mínimo de 16rem devuelve el desborde de página a 1280 px (tabla de 1026 px en 941), y una

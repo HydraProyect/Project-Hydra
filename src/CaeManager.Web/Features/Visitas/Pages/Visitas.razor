@@ -257,31 +257,33 @@
                    cada carga) es la pastilla y el tramo de antelación sellado es el motivo. «Normal» es lo
                    correcto: punto y texto, sin pastilla de color. Una cancelada dice «Cancelada» y su motivo. *@
                 <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado col-estado-visitas">
-                    @if (context.EstaCancelada)
-                    {
-                        @* El motivo se recorta a una línea: su title lo da entero. *@
-                        <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCancelada"]">
-                            <MotivoContenido>
-                                <span title="@context.MotivoCancelacion" data-pieza="motivo-cancelacion">@context.MotivoCancelacion</span>
-                            </MotivoContenido>
-                        </EstadoFila>
-                    }
-                    else if (context.Tramo is { } tramo)
-                    {
-                        @* Misma matriz y mismo vocabulario que el detalle (AntelacionVisitaUi). *@
-                        <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
-                                    Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)">
-                            <MotivoContenido>
-                                <span title="@TituloTramo(context)" data-antelacion-tramo="@tramo">@Textos["MotivoTramo", AntelacionVisitaUi.Texto(tramo)]</span>
-                            </MotivoContenido>
-                        </EstadoFila>
-                    }
-                    else
-                    {
-                        @* Sin tramo: no hay solicitud de origen medida o el expediente aún no está completo. *@
-                        <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
-                                    Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)" />
-                    }
+                    <span class="visitas-estado-acotado">
+                        @if (context.EstaCancelada)
+                        {
+                            @* El motivo se recorta a una línea: su title lo da entero. *@
+                            <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCancelada"]" Titulo="@Textos["BadgeCancelada"]">
+                                <MotivoContenido>
+                                    <span title="@context.MotivoCancelacion" data-pieza="motivo-cancelacion">@context.MotivoCancelacion</span>
+                                </MotivoContenido>
+                            </EstadoFila>
+                        }
+                        else if (context.Tramo is { } tramo)
+                        {
+                            @* Misma matriz y mismo vocabulario que el detalle (AntelacionVisitaUi). *@
+                            <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)" Titulo="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
+                                        Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)">
+                                <MotivoContenido>
+                                    <span title="@($"{Textos["MotivoTramo", AntelacionVisitaUi.Texto(tramo)]}. {TituloTramo(context)}")" data-antelacion-tramo="@tramo">@Textos["MotivoTramo", AntelacionVisitaUi.Texto(tramo)]</span>
+                                </MotivoContenido>
+                            </EstadoFila>
+                        }
+                        else
+                        {
+                            @* Sin tramo: no hay solicitud de origen medida o el expediente aún no está completo. *@
+                            <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)" Titulo="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
+                                        Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)" />
+                        }
+                    </span>
                 </TemplateColumn>
                 @* Sin menú «⋯». Lo que hacía ese menú: «Ver» es el clic en la fila, sus fechas o Enter;
                    «Editar», el lápiz de la cabecera del panel y la tecla «e»; «Cancelar visita», el pie del panel

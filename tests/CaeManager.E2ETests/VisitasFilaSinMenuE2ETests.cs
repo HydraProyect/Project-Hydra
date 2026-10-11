@@ -186,4 +186,34 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(formulario.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }))
             .ToHaveValueAsync(DateOnly.ParseExact(fechas.Trim(), "dd/MM/yyyy").ToString("yyyy-MM-dd"));
     }
+
+    [Fact]
+    public async Task El_estado_cancelado_con_motivo_largo_no_ensancha_la_celda_ni_la_fila_a_1280_px()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var (page, fila) = await AbrirConUnaVisitaAsync(contexto);
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas?activas=false");
+        await Expect(fila).ToHaveCountAsync(1);
+        await page.EvaluateAsync("() => document.fonts.ready");
+        var altoInicial = await fila.EvaluateAsync<double>("f => f.getBoundingClientRect().height");
+        var motivo = new string('W', 500);
+
+        await fila.Locator("button.nombre-abre-vista-rapida").ClickAsync();
+        await PanelVisita(page).GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar visita", Exact = true }).ClickAsync();
+        var confirmacion = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "¿Cancelar 1 visita(s)?", Exact = true });
+        await Expect(confirmacion).ToBeVisibleAsync();
+        await confirmacion.GetByRole(AriaRole.Textbox, new LocatorGetByRoleOptions { Name = "Motivo (opcional)", Exact = true }).FillAsync(motivo);
+        await confirmacion.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar visita", Exact = true }).ClickAsync();
+        await Expect(confirmacion).ToBeHiddenAsync();
+        var motivoVisible = fila.Locator("[data-pieza=motivo-cancelacion]");
+        await Expect(motivoVisible).ToHaveAttributeAsync("title", motivo);
+        await Expect(motivoVisible).ToHaveTextAsync(motivo);
+
+        var anchoEstado = await fila.Locator("td.col-estado-visitas").EvaluateAsync<double>("c => c.getBoundingClientRect().width");
+        var altoCancelada = await fila.EvaluateAsync<double>("f => f.getBoundingClientRect().height");
+        Assert.InRange(anchoEstado, 1, 120);
+        Assert.True(altoCancelada <= altoInicial + 1,
+            $"La fila pasó de {altoInicial}px a {altoCancelada}px con el motivo largo.");
+        Assert.True(await motivoVisible.EvaluateAsync<bool>("e => e.getBoundingClientRect().width <= 80 && e.scrollWidth > e.clientWidth"));
+    }
 }
