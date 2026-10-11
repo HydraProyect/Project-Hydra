@@ -105,7 +105,7 @@ public readonly record struct ResultadoDeRequisito(
 /// sigue siendo Vencido. Las vistas con contexto de Centro lo rotulan
 /// <see cref="EstadoDocumento.EnTolerancia"/> con <see cref="EnToleranciaHasta"/> (las generales siguen mostrando «Vencido»).
 /// Decisión del propietario (2026-10-03) todavía NO implementada aquí: un vencido dentro de la tolerancia cuenta como al día
-/// en el porcentaje (incremento 2 del porcentaje, <c>EsConforme(ParDocumentalExigido)</c>).
+/// en el porcentaje (incremento 2 del porcentaje, <see cref="CumplimientoDocumental.EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/>).
 /// </para>
 ///
 /// <para>

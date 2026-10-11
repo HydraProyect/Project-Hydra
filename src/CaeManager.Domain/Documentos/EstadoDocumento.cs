@@ -64,7 +64,7 @@ public enum EstadoDocumento
     /// con <see cref="ReglaBloqueoDeAcceso.EnToleranciaHasta"/>. Las vistas generales, sin contexto, siguen diciendo
     /// «Vencido». Se rotula «Vencido · en tolerancia hasta dd/MM», con severidad entre Urgente y Vencido
     /// (<see cref="SeveridadEstadoDocumento"/>). No entra en el porcentaje de cumplimiento en este incremento: que un vencido
-    /// dentro de la tolerancia cuente como al día es el incremento 2 del porcentaje (<c>EsConforme(ParDocumentalExigido)</c>).
+    /// dentro de la tolerancia cuente como al día es el incremento 2 del porcentaje (<see cref="CumplimientoDocumental.EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/>).
     /// </summary>
     EnTolerancia = 7
 }

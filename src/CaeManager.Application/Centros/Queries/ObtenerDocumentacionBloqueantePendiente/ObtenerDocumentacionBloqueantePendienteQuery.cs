@@ -25,7 +25,7 @@ public record ObtenerDocumentacionBloqueantePendienteQuery(Guid? CentroId = null
 /// <param name="ClienteId">Cliente del Centro — alimenta la agrupación "por situación" del rediseño de Inicio (hallazgo P-03 de la auditoría de producto 2026-08-16). El Centro ya es exacto aquí, así que no hace falta ningún criterio de desambiguación.</param>
 /// <param name="EmpresaId">Empresa del Trabajador (<c>Trabajador.EmpresaId</c>) — sub-agrupación Empresa→Trabajador de "Requiere atención" en vocabulario Consultora (GrupoCola). En una fila de ámbito Empresa es la Empresa dueña del requisito, sea cual sea la columna que la guarde.</param>
 /// <param name="Ambito">Quién es el sujeto del requisito: el Trabajador o su Empresa.</param>
-/// <param name="Situacion">Ausente o Vencido (los dos bloquean igual; solo cambia lo que hay que hacer).</param>
+/// <param name="Situacion">Ausente, Vencido, o pendiente en la plataforma del Centro (sin subir o subido sin validar): todos bloquean igual; solo cambia lo que hay que hacer.</param>
 /// <param name="ToleranciaDias">Tolerancia que rige en este Centro para el Tipo; con valor mayor que 0, un Vencido es un fin de tolerancia.</param>
 /// <param name="VencimientoEfectivo">Cuándo venció en este Centro el documento (con su vigencia propia); <c>null</c> si está ausente.</param>
 public record DocumentacionBloqueantePendienteDto(

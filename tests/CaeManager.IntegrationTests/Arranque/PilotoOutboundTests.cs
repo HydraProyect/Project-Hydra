@@ -796,10 +796,13 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         casos["Acreditación externa Rechazada"].Should().Be(1);
         casos["Acreditación externa vencida en plataforma"].Should().Be(1);
         casos["Documento de Empresa vencido en la Empresa propia"].Should().Be(1, "MEDIDO: exactamente uno, de un tipo que no se exige por defecto");
-        // MEDIDO: 3. Eran 2 (la aptitud vencida en Illescas) hasta que el Pendiente en la plataforma bloquea por Centro
-        // (2026-10-10): el otro es un Trabajador con un documento de tipo bloqueante en ese Centro sin subir o sin validar en
-        // su plataforma. Solo cuenta el tipo que el Centro marca «bloquea el acceso»: los demás pendientes de T1 (28 sin subir y
-        // 26 subidos) ponen el Centro en «Pendiente» pero no bloquean a nadie.
+        // Qué se cuenta (PilotoOutboundAutoverificacion): los Trabajadores bloqueados en algún Centro por la evaluación de acceso
+        // y no bloqueados en otro Centro donde tienen Asignación activa. Son 3 = los 2 de la aptitud médica vencida en Illescas
+        // (que no bloquea en su otro Centro) + 1 que solo está bloqueado porque un documento de tipo bloqueante está sin subir
+        // o sin validar en la plataforma de su Centro (Pendiente en la plataforma, 2026-10-10). Los dos componentes se miden
+        // por separado, con la consulta de su pantalla, en T1_el_bloqueo_por_Centro_la_tolerancia_y_la_reclamacion_…: aquí
+        // solo se fija la suma. Antes de la regla eran 2. Los demás pendientes de T1 (28 sin subir y 26 subidos) ponen el
+        // Centro en «Pendiente» pero no bloquean a nadie: solo bloquea el tipo que el Centro marca «bloquea el acceso».
         casos["Trabajador bloqueado en un Centro y no en otro"].Should().Be(3);
         casos["Trabajador de baja"].Should().Be(6);
         casos["Subcontrata con documentación propia"].Should().Be(3);
@@ -850,6 +853,20 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                 .Where(c => c.Tipo == TipoCanalGestion.Plataforma).Select(c => c.CentroId).ToListAsync();
             centrosConPendiente.Should().NotBeEmpty("MEDIDO: T1 siembra acreditaciones sin subir y subidas sin validar");
             centrosConPendiente.Should().BeSubsetOf(centrosConPlataforma, "solo un Centro con plataforma tiene Pendiente en la plataforma");
+            // El caso «bloqueado en un Centro y no en otro» (ver T1_tiene_al_menos_una_vez_cada_caso…), medido aquí como lo
+            // mide la siembra: bloqueado en algún Centro (ausente, vencido o pendiente) y con otra Asignación activa donde no.
+            var bloqueadoEn = evaluacion.Requisitos
+                .Where(r => ReglaBloqueoDeAcceso.Bloquea(r.Resultado.Situacion))
+                .Select(r => (r.TrabajadorId, r.CentroId)).ToHashSet();
+            // Todas las Asignaciones activas, no solo las de Centros con requisito bloqueante (evaluacion.Asignaciones): el
+            // «otro Centro» puede no exigir nada y por eso no estar bloqueado.
+            var activas = await db.Asignaciones.Where(a => a.FechaBaja == null).Select(a => new { a.TrabajadorId, a.CentroId }).ToListAsync();
+            var bloqueadosEnUnCentroYNoEnOtro = bloqueadoEn.Select(b => b.TrabajadorId).Distinct()
+                .Where(t => activas.Any(a => a.TrabajadorId == t && !bloqueadoEn.Contains((t, a.CentroId))))
+                .ToList();
+            bloqueadosEnUnCentroYNoEnOtro.Should().HaveCount(3, "MEDIDO: es el caso de la matriz, medido con la consulta de Inicio");
+            bloqueadosEnUnCentroYNoEnOtro.Except(sinCumplir.Select(r => r.TrabajadorId)).Should().HaveCount(1,
+                "MEDIDO: de los 3, 2 son la aptitud vencida y 1 solo está bloqueado por un documento de tipo bloqueante pendiente en la plataforma");
 
             // La ficha de cada Trabajador al que la aptitud le bloquea un Centro: su aptitud, Centro a Centro.
             var aptitudPorCentro = new Dictionary<Guid, Dictionary<string, EstadoDocumento>>();

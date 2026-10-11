@@ -131,6 +131,9 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
         [EscenarioClienteDemo.ConAccesoConDocumentacionPendiente] = [EstadoCentro.Vencido, EstadoCentro.Pendiente, EstadoCentro.Faltante],
         [EscenarioClienteDemo.ConAccesoSinDocumentacionPendiente] = [EstadoCentro.Vigente, EstadoCentro.Vigente, EstadoCentro.Vigente],
         [EscenarioClienteDemo.AccesoBloqueado] = [EstadoCentro.Bloqueado, EstadoCentro.Vencido, EstadoCentro.Pendiente],
+        // El escenario deja TODAS las acreditaciones subidas y sin validar (MarcarSubida, nunca aceptadas): es justo el
+        // «subido, sin validar en la plataforma» de la regla del 2026-10-10. Antes los Centros salían Vigente porque esa
+        // espera no contaba; ahora los tres son Pendiente. Cambio de contrato, no de siembra: la siembra no se toca.
         [EscenarioClienteDemo.AccesoPendienteDeConfirmacion] = [EstadoCentro.Pendiente, EstadoCentro.Pendiente, EstadoCentro.Pendiente],
     };
 

@@ -302,7 +302,7 @@ public class ObtenerCentrosQueryHandler(
     /// ya viajaba, que hasta ahora la lista descartaba.
     /// "Faltante" cuenta como vencido en el total — un requisito sin documento no
     /// está al día — y el motivo de Centros lo separa por causa (ver
-    /// <see cref="RecuentosCentroDto.PendientesEnPlataforma"/>).
+    /// <see cref="RecuentosCentroDto.Pendientes"/>).
     ///
     /// <para>
     /// <see cref="EstadoDocumento.Urgente"/> antes se descartaba en silencio

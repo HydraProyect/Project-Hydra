@@ -38,7 +38,7 @@ public enum EscenarioClienteDemo
     /// <summary>Como <see cref="Completo"/>, salvo exactamente un centro <c>Proximo</c> (un trabajador y un permiso de extranjero a punto de vencer).</summary>
     CasiCompleto,
 
-    /// <summary>Sin ningún centro bloqueado, pero con un centro <c>Vencido</c>, uno <c>Urgente</c> y uno <c>Faltante</c>, y acreditaciones sin subir.</summary>
+    /// <summary>Sin ningún centro bloqueado, pero con un centro <c>Vencido</c>, uno <c>Pendiente</c> (el que habría salido <c>Urgente</c>: sus acreditaciones sin subir lo pasan a Pendiente desde el 2026-10-10) y uno <c>Faltante</c>, y acreditaciones sin subir.</summary>
     ConAccesoConDocumentacionPendiente,
 
     /// <summary>Todos los centros <c>Vigente</c> y todas las acreditaciones aceptadas, pero con la ficha a medias (centros sin contacto ni fin de contrato).</summary>
@@ -51,7 +51,7 @@ public enum EscenarioClienteDemo
     /// </summary>
     AccesoBloqueado,
 
-    /// <summary>Centros <c>Vigente</c>, pero ninguna acreditación aceptada: todas subidas y a la espera de la plataforma del cliente.</summary>
+    /// <summary>Centros <c>Pendiente</c> (desde el 2026-10-10 un documento subido y sin validar en la plataforma lo es), porque ninguna acreditación está aceptada: todas subidas y a la espera de la plataforma del cliente.</summary>
     AccesoPendienteDeConfirmacion
 }
 
