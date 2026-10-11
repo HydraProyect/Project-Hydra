@@ -1,7 +1,8 @@
 using AngleSharp.Dom;
-using Bunit;
 using Bunit.TestDoubles;
+using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
@@ -16,8 +17,8 @@ using CaeManager.Web.Features.Empresas.Components;
 using CaeManager.Web.Features.Empresas.Pages;
 using FluentAssertions;
 using MediatR;
-using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.AspNetCore.Components;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -41,6 +42,7 @@ public class Empresa360PaginaTests : BunitContext
     public Empresa360PaginaTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
+        JSInterop.SetupModule("./js/cajas-ficha.js").Setup<double[]>("medirAlturas", _ => true).SetResult([200, 100]);
         // Las pestañas que no son de esta página se sustituyen: tienen sus
         // propios tests, y aquí solo importa que se monten con el Id correcto.
         ComponentFactories.AddStub<PestanaDocumentacion>();
@@ -56,6 +58,7 @@ public class Empresa360PaginaTests : BunitContext
         public Dictionary<Guid, List<TrabajadorListaDto>> Trabajadores { get; } = [];
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> Clientes { get; } = [];
         public Dictionary<Guid, CredencialAccesoEmpresaDto> Credenciales { get; } = [];
+        public Dictionary<Guid, SelloEmpresaDto> Sellos { get; } = [];
 
         public List<object> Enviadas { get; } = [];
 
@@ -73,6 +76,7 @@ public class Empresa360PaginaTests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerEmpresaPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
+            ObtenerSelloEmpresaQuery q => Sellos.GetValueOrDefault(q.EmpresaId),
             ObtenerCumplimientoEmpresaQuery q => Cumplimiento.GetValueOrDefault(q.EmpresaId),
             ObtenerTrabajadoresQuery q => ResponderTrabajadores(q),
             ObtenerClientesDeEmpresaQuery q => (IReadOnlyList<ClienteDeEmpresaDto>)(Clientes.GetValueOrDefault(q.EmpresaId) ?? []),
@@ -185,6 +189,7 @@ public class Empresa360PaginaTests : BunitContext
         mediador.Detalles[EmpresaId] = new EmpresaDetalleDto(
             EmpresaId, "Ibertec GmbH", "B-48.220.917", new DateTime(2025, 3, 14, 10, 0, 0, DateTimeKind.Utc),
             [Guid.NewGuid(), Guid.NewGuid()], Guid.NewGuid(), "4322", "Metal de Bizkaia", true);
+        mediador.Sellos[EmpresaId] = new SelloEmpresaDto("/sello.png", DateTime.UtcNow);
         mediador.Cumplimiento[EmpresaId] = cumplimiento;
         mediador.Trabajadores[EmpresaId] = trabajadores ?? Plantilla();
         return mediador;
@@ -445,7 +450,7 @@ public class Empresa360PaginaTests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll("[role=tab]").Select(t => t.ChildNodes.OfType<IText>().First(n => !string.IsNullOrWhiteSpace(n.Data)).Data.Trim())
-            .Should().Equal(["Trabajadores", "Clientes", "Documentación", "Agenda", "Sello", "Historial"]);
+            .Should().Equal(["Trabajadores", "Clientes", "Documentación", "Agenda", "Ficha", "Historial"]);
         Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true");
         Pestana(cut, "Trabajadores").TextContent.Should().Contain("25");
         Pestana(cut, "Clientes").TextContent.Should().Contain("2");
@@ -457,9 +462,9 @@ public class Empresa360PaginaTests : BunitContext
         Registrar(Empresa());
         var cut = Renderizar();
 
-        await Pestana(cut, "Sello").ClickAsync(new MouseEventArgs());
+        await Pestana(cut, "Ficha").ClickAsync(new MouseEventArgs());
 
-        Navegacion.Uri.Should().Contain("pestana=sello");
+        Navegacion.Uri.Should().Contain("pestana=ficha");
         cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
 
         await Pestana(cut, "Trabajadores").ClickAsync(new MouseEventArgs());
@@ -484,6 +489,68 @@ public class Empresa360PaginaTests : BunitContext
             _ => cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters.Get(x => x.EntidadId)
         };
         propietario.Should().Be(EmpresaId);
+    }
+
+    [Fact]
+    public void El_enlace_antiguo_sello_abre_Ficha_con_el_sello_de_la_empresa()
+    {
+        Registrar(Empresa());
+        var cut = Renderizar("?pestana=sello");
+        Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true");
+        cut.FindAll("[role=tab]").Should().NotContain(t => t.TextContent.Trim() == "Sello");
+        cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("?pestana=ficha")]
+    [InlineData("?pestana=sello")]
+    public void Sin_datos_para_cajas_no_hay_pestana_Ficha(string consulta)
+    {
+        var m = Empresa();
+        m.Sellos.Clear();
+        Registrar(m);
+        var cut = Renderizar(consulta);
+        cut.FindAll("[role=tab]").Should().NotContain(t => t.TextContent.Trim() == "Ficha");
+        Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true");
+        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_lateral_solo_tiene_Informacion_y_Ficha_agrupa_las_cajas_cargadas()
+    {
+        EmpresaConCredencial();
+        var cut = Renderizar("?pestana=ficha");
+        var lateral = cut.Find(".cuerpo-con-lateral-lateral");
+        lateral.QuerySelectorAll(".tarjeta").Should().ContainSingle();
+        lateral.TextContent.Should().Contain("Información").And.NotContain("Carpeta de documentación");
+        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "sello");
+        var tabs = cut.FindAll("[role=tab]");
+        tabs[^2].TextContent.Trim().Should().Be("Ficha");
+        tabs[^1].TextContent.Trim().Should().Be("Historial");
+    }
+
+    [Fact]
+    public void Ficha_con_solo_acceso_no_monta_una_caja_de_sello_vacia()
+    {
+        var m = EmpresaConCredencial();
+        m.Sellos.Clear();
+        var cut = Renderizar("?pestana=ficha");
+        cut.FindAll("[data-caja]").Select(c => c.GetAttribute("data-caja")).Should().Equal(new[] { "acceso" });
+        cut.FindComponents<Stub<PestanaSelloEmpresa>>().Should().BeEmpty();
+        cut.Markup.Should().Contain("https://app.twind.io/login").And.NotContain("usuario.ibertec");
+    }
+
+    [Fact]
+    public void El_enlace_a_Ficha_sin_cajas_tambien_cae_en_Trabajadores_al_cambiar_la_url()
+    {
+        var m = Empresa();
+        m.Sellos.Clear();
+        Registrar(m);
+        var cut = Renderizar();
+        Navegacion.NavigateTo($"/empresas/{EmpresaId}?pestana=ficha");
+        cut.WaitForAssertion(() => Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true"));
+        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty();
     }
 
     // ── Filas: enlace a la página y 360 al panel ──────────────────────────
@@ -625,138 +692,61 @@ public class Empresa360PaginaTests : BunitContext
         return Registrar(mediador, rol);
     }
 
-    /// <summary>
-    /// «Copiar contraseña» solo se ofrece a roles con escritura (decisión del
-    /// propietario 2026-09-23). El mediador falso devuelve la credencial también
-    /// a Consulta, que en producción recibe null del servidor: así se prueba la
-    /// barrera de la página por sí sola, sin apoyarse en la de Application.
-    /// </summary>
-    [Fact]
-    public void Consulta_no_ve_copiar_contrasena()
+    [Theory]
+    [InlineData(Roles.GestorCae)]
+    [InlineData(Roles.Consulta)]
+    public void La_carpeta_solo_muestra_Abrir_y_conserva_las_credenciales_ocultas(string rol)
     {
-        var mediador = EmpresaConCredencial(rol: Roles.Consulta);
+        var m = EmpresaConCredencial(rol: rol);
+        var cut = Renderizar("?pestana=ficha");
+        var caja = cut.Find("[data-caja=acceso]");
+        var enlace = caja.QuerySelectorAll("a").Should().ContainSingle().Subject;
+        enlace.TextContent.Trim().Should().Be("Abrir");
+        enlace.GetAttribute("href").Should().Be("https://app.twind.io/login");
+        enlace.GetAttribute("target").Should().Be("_blank");
+        enlace.GetAttribute("rel").Should().Be("noopener noreferrer");
+        caja.QuerySelectorAll("button").Should().BeEmpty();
+        cut.Markup.Should().NotContain("usuario.ibertec").And.NotContain("Refrielectric S.A.").And.NotContain("Notas internas").And.NotContain("clave-secreta-123");
+        m.Enviadas.OfType<ObtenerCredencialAccesoEmpresaQuery>().Should().BeEmpty();
+        m.Enviadas.OfType<ObtenerCredencialAccesoEmpresaSinContrasenaQuery>().Should().ContainSingle();
+    }
 
-        var cut = Renderizar();
-
-        // Barrera: la tarjeta pintó la credencial; si no, la ausencia de abajo sería verde vacío.
-        cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).Should().Contain("Copiar usuario");
-        cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).Should().NotContain("Copiar contraseña");
-        mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaQuery>().Should().BeEmpty();
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("javascript:alert(1)")]
+    [InlineData("file:///C:/privado")]
+    public void Sin_URL_abrible_no_hay_caja_de_carpeta(string? url)
+    {
+        var m = EmpresaConCredencial();
+        m.Sellos.Clear();
+        m.Credenciales[EmpresaId] = m.Credenciales[EmpresaId] with { UrlAcceso = url };
+        var cut = Renderizar("?pestana=ficha");
+        cut.FindAll("[data-caja=acceso]").Should().BeEmpty();
+        cut.FindAll("[role=tab]").Should().NotContain(t => t.TextContent.Trim() == "Ficha");
     }
 
     [Fact]
-    public void La_tarjeta_de_acceso_enseña_lo_no_sensible_y_nunca_la_contrasena()
+    public void Sin_2FA_se_conserva_el_aviso_sin_pintar_la_carpeta_ni_las_credenciales()
     {
-        var mediador = EmpresaConCredencial();
-
-        var cut = Renderizar();
-
-        // Mockup: la propia URL es la etiqueta de su fila, con el aviso de credenciales de terceros.
-        var filaUrl = cut.FindAll(".elemento-lista-lateral").First();
-        filaUrl.QuerySelector(".elemento-lista-lateral-etiqueta")!.TextContent.Should()
-            .Contain("https://app.twind.io/login").And.Contain("Credenciales de terceros");
-        var portal = cut.FindAll("a").Single(a => a.TextContent.Contains("Abrir portal"));
-        portal.GetAttribute("href").Should().Be("https://app.twind.io/login");
-        portal.GetAttribute("target").Should().Be("_blank");
-        portal.GetAttribute("rel").Should().Contain("noopener");
-        cut.Markup.Should().Contain("Se accede como").And.Contain("usuario.ibertec");
-        cut.Markup.Should().NotContain("clave-secreta-123");
-        mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaSinContrasenaQuery>().Should().ContainSingle()
-            .Which.Should().Be(new ObtenerCredencialAccesoEmpresaSinContrasenaQuery(EmpresaId));
-        mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaQuery>().Should().BeEmpty(
-            "la contraseña solo se pide al pulsar «Copiar contraseña» (decisión del propietario 2026-09-21)");
-    }
-
-    // P1-I1: abrir la ficha no es pedir la credencial, así que no se redirige;
-    // la tarjeta dice por qué no la ve y enlaza a activar el 2FA.
-    [Fact]
-    public void Sin_2FA_la_tarjeta_de_acceso_pide_activarlo_sin_redirigir_ni_pintar_la_credencial()
-    {
-        var mediador = EmpresaConCredencial();
-        mediador.SinDobleFactor = true;
-
-        var cut = Renderizar();
-
-        var acceso = cut.WaitForElement(".acceso-requiere-2fa");
-        acceso.TextContent.Should().Contain("Activa la autenticación en dos pasos para ver el acceso.");
-        acceso.QuerySelector("a")!.GetAttribute("href").Should().Be(
-            "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=" + Uri.EscapeDataString(new Uri(Navegacion.Uri).PathAndQuery),
-            "el enlace lleva la vuelta a esta misma ficha (P1-I2)");
-        cut.Markup.Should().NotContain("usuario.ibertec").And.NotContain("Sin credenciales que puedas consultar");
-        cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim())
-            .Should().NotContain(["Copiar usuario", "Copiar contraseña"]);
+        var m = EmpresaConCredencial();
+        m.SinDobleFactor = true;
+        var cut = Renderizar("?pestana=ficha");
+        cut.Find(".acceso-requiere-2fa").TextContent.Should().Contain("Activa la autenticación en dos pasos para ver el acceso.");
+        cut.Markup.Should().NotContain("https://app.twind.io/login").And.NotContain("usuario.ibertec");
         Navegacion.Uri.Should().NotContain("configurar-2fa");
-        mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaSinContrasenaQuery>().Should().ContainSingle(
-            "barrera: la consulta se hizo y fue la denegación lo que pintó el aviso");
+        m.Enviadas.OfType<ObtenerCredencialAccesoEmpresaSinContrasenaQuery>().Should().ContainSingle();
     }
 
     [Fact]
-    public void Los_botones_de_copiar_van_en_la_fila_del_usuario_y_Editar_abre_el_panel()
-    {
-        EmpresaConCredencial();
-
-        var cut = Renderizar();
-
-        var filaUsuario = cut.FindAll(".elemento-lista-lateral")
-            .Single(f => f.QuerySelector(".elemento-lista-lateral-etiqueta")!.TextContent.Trim() == "Usuario");
-        filaUsuario.QuerySelectorAll(".boton-copiar").Select(b => b.TextContent.Trim())
-            .Should().Equal("Copiar usuario", "Copiar contraseña");
-
-        var acceso = cut.FindAll(".tarjeta").Single(t => t.TextContent.Contains("Acceso a plataforma CAE"));
-        acceso.QuerySelector(".tarjeta-acciones")!.TextContent.Should().Contain("Editar →");
-    }
-
-    [Fact]
-    public void Consulta_no_ve_Editar_en_la_tarjeta_de_acceso()
-    {
-        EmpresaConCredencial(rol: Roles.Consulta);
-
-        var cut = Renderizar();
-
-        var acceso = cut.FindAll(".tarjeta").Single(t => t.TextContent.Contains("Acceso a plataforma CAE"));
-        // Barrera: la credencial se pintó; si no, la ausencia de «Editar →» sería verde vacío.
-        acceso.TextContent.Should().Contain("usuario.ibertec");
-        acceso.TextContent.Should().NotContain("Editar →");
-    }
-
-    [Fact]
-    public async Task Copiar_contrasena_la_pide_en_el_clic_y_la_manda_al_portapapeles_sin_pintarla()
-    {
-        var mediador = EmpresaConCredencial();
-        var modulo = JSInterop.SetupModule("./js/clipboard.js");
-        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
-        var cut = Renderizar();
-
-        await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == "Copiar contraseña").ClickAsync(new MouseEventArgs());
-
-        mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaQuery>().Should().ContainSingle()
-            .Which.Should().Be(new ObtenerCredencialAccesoEmpresaQuery(EmpresaId));
-        modulo.VerifyInvoke("copiarAlPortapapeles").Arguments.Should().Equal("clave-secreta-123");
-        cut.Markup.Should().NotContain("clave-secreta-123", "el valor va al portapapeles, no a la pantalla");
-    }
-
-    [Fact]
-    public async Task Copiar_contrasena_sin_contrasena_guardada_avisa_y_no_copia()
-    {
-        EmpresaConCredencial(contrasena: null);
-        var modulo = JSInterop.SetupModule("./js/clipboard.js");
-        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
-        var cut = Renderizar();
-
-        await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == "Copiar contraseña").ClickAsync(new MouseEventArgs());
-
-        modulo.Invocations.Should().BeEmpty("no había nada que copiar");
-        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(t => t.Mensaje == "No hay ninguna contraseña guardada.");
-    }
-
-    [Fact]
-    public void Sin_credencial_la_tarjeta_lo_dice()
+    public void Sin_credencial_no_hay_caja_de_acceso()
     {
         Registrar(Empresa());
 
-        var cut = Renderizar();
+        var cut = Renderizar("?pestana=ficha");
 
-        cut.Markup.Should().Contain("Sin credenciales que puedas consultar.");
+        cut.Markup.Should().NotContain("Sin credenciales que puedas consultar.");
+        cut.FindAll("[data-caja=acceso]").Should().BeEmpty();
         cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).Should().NotContain("Copiar contraseña");
     }
 

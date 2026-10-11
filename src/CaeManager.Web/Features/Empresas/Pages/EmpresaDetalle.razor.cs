@@ -1,14 +1,15 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
-using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerCredencialAccesoEmpresaSinContrasena;
 using CaeManager.Application.Empresas.Queries.ObtenerCumplimientoEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Documentos;
-using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Components;
+using CaeManager.Web.Features.Centros.Components;
 using CaeManager.Web.Services;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -21,7 +22,7 @@ namespace CaeManager.Web.Features.Empresas.Pages;
 /// <c>EmpresaWorkspacePanel</c> —mismo alcance (<c>IAlcanceDatosService</c>) y
 /// misma RLS—, la cabecera de cumplimiento, la lista de trabajadores de la
 /// Empresa y, como pestañas, los mismos componentes que el panel
-/// (Documentación, Agenda, Sello, Historial). La edición de la identidad y de
+/// (Documentación, Agenda e Historial; Sello dentro de Ficha). La edición de la identidad y de
 /// la credencial sigue viviendo en el panel: «Editar» lo abre.
 ///
 /// <para>
@@ -51,13 +52,13 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     internal const string PestanaClientes = "clientes";
     internal const string PestanaDocumentacion = "documentacion";
     internal const string PestanaAgenda = "agenda";
-    internal const string PestanaSello = "sello";
+    internal const string PestanaFicha = "ficha";
     internal const string PestanaHistorial = "historial";
 
     internal const int TamanoPagina = 20;
 
     private static readonly string[] PestanasValidas =
-        [PestanaTrabajadores, PestanaClientes, PestanaDocumentacion, PestanaAgenda, PestanaSello, PestanaHistorial];
+        [PestanaTrabajadores, PestanaClientes, PestanaDocumentacion, PestanaAgenda, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid EmpresaId { get; set; }
 
@@ -105,6 +106,9 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _cargandoClientes;
     private bool _errorClientes;
 
+    private SelloEmpresaDto? _sello;
+    private bool HayCajaAcceso => UrlPortalCae.Normalizar(_credencial?.UrlAcceso) is not null || _errorAcceso || _accesoRequiereDosFactores;
+    private bool HayCajasDeFicha => HayCajaAcceso || _sello is not null;
     private CredencialAccesoEmpresaSinContrasenaDto? _credencial;
     private bool _cargandoAcceso = true;
     private bool _errorAcceso;
@@ -176,6 +180,9 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             await MostrarPaginaAsync();
         }
 
+        if (_pestana == PestanaFicha && !_cargandoAcceso && !HayCajasDeFicha)
+            _pestana = PestanaTrabajadores;
+
         await CargarClientesSiHaceFaltaAsync();
     }
 
@@ -191,7 +198,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         if (!_urlAdoptada || !string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
         {
             _pestanaDeLaUrl = Pestana;
-            _pestana = PestanasValidas.Contains(Pestana) ? Pestana! : PestanaTrabajadores;
+            _pestana = Pestana == "sello" ? PestanaFicha : PestanasValidas.Contains(Pestana) ? Pestana! : PestanaTrabajadores;
         }
 
         if (!_urlAdoptada || !string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
@@ -242,6 +249,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         _cargandoClientes = false;
         _errorClientes = false;
         _credencial = null;
+        _sello = null;
         _cargandoAcceso = true;
         _errorAcceso = false;
     }
@@ -282,6 +290,20 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             if (carga == _cargaDetalle)
                 _cargando = false;
+        }
+
+        // La consulta existente de Sello conserva su puerta de gestión. Solo
+        // contamos una caja con datos; null no distingue ausencia de falta de permiso.
+        try
+        {
+            var sello = await Mediator.Send(new ObtenerSelloEmpresaQuery(empresaId), _cancelacion);
+            if (carga != _cargaDetalle) return;
+            _sello = sello;
+        }
+        catch (Exception)
+        {
+            if (carga != _cargaDetalle) return;
+            _sello = null;
         }
 
         await CargarTrabajadoresAsync();
@@ -591,9 +613,9 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     }
 
     /// <summary>
-    /// Tarjeta «Acceso a plataforma CAE»: los campos NO sensibles de la
-    /// credencial (la proyección ni lee la contraseña). Aparte del resto, como
-    /// los canales de Centro 360: es contexto del lateral.
+    /// Carpeta de documentación: solo la URL de la proyección existente.
+    /// Las credenciales guardadas permanecen ocultas y no se pide la contraseña.
+    /// Se conserva la puerta de autorización y de doble factor de la consulta.
     /// </summary>
     private async Task CargarAccesoAsync()
     {
@@ -627,41 +649,11 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (carga == _cargaAcceso)
             {
                 _cargandoAcceso = false;
+                if (_pestana == PestanaFicha && !HayCajasDeFicha)
+                    _pestana = PestanaTrabajadores;
                 StateHasChanged();
             }
         }
-    }
-
-    /// <summary>
-    /// «Copiar contraseña» (DEC-53/DEC-62, decisión del propietario
-    /// 2026-09-21): la contraseña se pide al servidor solo en el clic
-    /// explícito, nunca al abrir la página, y no se pinta: va del servidor al
-    /// portapapeles. <see cref="ObtenerCredencialAccesoEmpresaQuery"/> es la
-    /// única vía que la descifra, exactamente como en el panel.
-    /// </summary>
-    private async Task<string?> CopiarContrasenaAsync()
-    {
-        var empresaId = EmpresaId;
-        CredencialAccesoEmpresaDto? credencial;
-        try
-        {
-            credencial = await Mediator.Send(new ObtenerCredencialAccesoEmpresaQuery(empresaId), _cancelacion);
-        }
-        catch (SegundoFactorRequeridoParaCredencialesException)
-        {
-            if (empresaId == EmpresaId)
-                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
-            return null;
-        }
-        if (empresaId != EmpresaId) return null;
-
-        if (string.IsNullOrEmpty(credencial?.Contrasena))
-        {
-            ToastService.Mostrar(Textos["SinContrasena"], TonoToast.Info);
-            return null;
-        }
-
-        return credencial.Contrasena;
     }
 
     public void Dispose()
@@ -710,7 +702,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         },
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
         new(PestanaAgenda, Textos["PestanaAgenda"]),
-        new(PestanaSello, Textos["PestanaSello"]),
+        .. HayCajasDeFicha ? new[] { new PestanaDefinicion(PestanaFicha, Textos["PestanaFicha"]) } : [],
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
 }
