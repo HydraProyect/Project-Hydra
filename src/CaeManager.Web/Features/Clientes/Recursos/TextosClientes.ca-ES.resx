@@ -240,15 +240,6 @@
   <data name="EditarEnlace" xml:space="preserve">
     <value>Editar →</value>
   </data>
-  <data name="TarjetaNota" xml:space="preserve">
-    <value>Nota interna</value>
-  </data>
-  <data name="SinNota" xml:space="preserve">
-    <value>Sense nota interna.</value>
-  </data>
-  <data name="NotaNoLaVeCliente" xml:space="preserve">
-    <value>No la veu el client.</value>
-  </data>
   <data name="AltaGuiadaTitulo" xml:space="preserve">
     <value>Alta guiada de Client</value>
   </data>

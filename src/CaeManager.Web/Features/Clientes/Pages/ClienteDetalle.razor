@@ -307,24 +307,13 @@
                     enseñarle una caja vacía con «No la ve el cliente».
                 *@
                 <AuthorizeView Roles="@CaeManager.Web.Features.Comunicaciones.RolesComunicaciones.Gestion" Context="autorizacionNota">
-                <Tarjeta Compacta="true" Titulo="@Textos["TarjetaNota"]">
-                    <AccionesHeader>
+                <NotaInterna Texto="@_detalle.Notas">
+                    <Acciones>
                         <SoloConEscritura>
                             <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirNotasAsync">@Textos["EditarEnlace"]</Boton>
                         </SoloConEscritura>
-                    </AccionesHeader>
-                    <ChildContent>
-                        @if (string.IsNullOrWhiteSpace(_detalle.Notas))
-                        {
-                            <p class="texto-vacio-seccion cliente360-nota">@Textos["SinNota"]</p>
-                        }
-                        else
-                        {
-                            <p class="cliente360-nota">@_detalle.Notas</p>
-                        }
-                        <p class="cliente360-nota-pie">@Textos["NotaNoLaVeCliente"]</p>
-                    </ChildContent>
-                </Tarjeta>
+                    </Acciones>
+                </NotaInterna>
                 </AuthorizeView>
             </Lateral>
         </CuerpoConLateral>

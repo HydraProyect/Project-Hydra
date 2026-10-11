@@ -801,8 +801,9 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
         var workspace = Services.GetRequiredService<ContextWorkspaceService>();
 
-        cut.Find(".cliente360-nota").TextContent.Should().Be("Llamar antes de ir.");
-        cut.Find(".cliente360-nota-pie").TextContent.Should().Be("No la ve el cliente.");
+        cut.Find("[data-pieza=lateral] [data-pieza=nota-interna]").TextContent.Should().Contain("Nota interna");
+        cut.Find(".nota-interna-texto").TextContent.Should().Be("Llamar antes de ir.");
+        cut.Find(".nota-interna-pie").TextContent.Should().Be("No la ve el cliente.");
 
         await cut.Find(".menu-acciones-disparador").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar Cliente").ClickAsync(new MouseEventArgs());
@@ -824,7 +825,7 @@ public class Cliente360PaginaTests : BunitContext
 
         cut.FindAll(".menu-acciones").Should().BeEmpty("con su único elemento oculto quedaría un «⋯» vacío");
         cut.FindAll("button").Where(b => b.TextContent.Trim() == "Editar →").Should().BeEmpty();
-        cut.Find(".cliente360-nota").TextContent.Should().Be("Sin nota interna.");
+        cut.Find("[data-pieza=lateral] [data-pieza=nota-interna] [data-vacia=true]").TextContent.Should().Be("Sin nota interna.");
     }
 
     [Fact]
@@ -838,8 +839,8 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         cut.Find("[data-pieza=cabecera-identidad]").TextContent.Should().Contain("Refrielectric S.A.", "la ficha de su Cliente sí se le pinta");
-        cut.FindAll(".cliente360-nota").Should().BeEmpty();
-        cut.FindAll(".cliente360-nota-pie").Should().BeEmpty();
+        cut.FindAll("[data-pieza=nota-interna]").Should().BeEmpty();
+        cut.FindAll(".nota-interna-pie").Should().BeEmpty();
         cut.Markup.Should().NotContain("Llamar antes de ir.");
     }
 
@@ -851,7 +852,8 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.Find(".cliente360-nota").TextContent.Should().Be("Llamar antes de ir.");
+        cut.Find("[data-pieza=lateral] [data-pieza=nota-interna]").TextContent.Should().Contain("Nota interna");
+        cut.Find(".nota-interna-texto").TextContent.Should().Be("Llamar antes de ir.");
     }
 
     // ── Buscador de la pestaña Centros y ?q= ──────────────────────────────

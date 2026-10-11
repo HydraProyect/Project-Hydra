@@ -1,4 +1,4 @@
-/* Las mismas medidas que .cliente360-nota y .cliente360-nota-pie (ClienteDetalle.razor.css), más el corte de una
+/* Texto y pie comunes a las fichas 360, con el corte de una
    palabra larga (una URL pegada en la nota), que en una columna de 300 px se saldría de la tarjeta. */
 .nota-interna-texto {
     margin: 0;
