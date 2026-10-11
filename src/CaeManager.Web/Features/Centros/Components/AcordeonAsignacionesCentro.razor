@@ -229,46 +229,34 @@ else
         else
         {
         <div class="lista-trabajadores-acordeon">
+            <ListaRelaciones Etiqueta="@($"{Textos["PestanaTrabajadores"]} · {CentroNombre}")" EnTarjeta="true">
             @foreach (var trabajador in TrabajadoresFiltrados)
             {
                 var expandido = _expandidosTrabajador.Contains(trabajador.AsignacionId);
                 var vencidos = DocumentosVencidos(trabajador);
                 var proximos = DocumentosProximos(trabajador);
                 var urgentes = DocumentosUrgentes(trabajador);
-                <div class="fila-trabajador-acordeon" @key="trabajador.AsignacionId">
-                    @if (SeleccionMultiple)
-                    {
-                        <input type="checkbox" aria-label="@($"Seleccionar a {trabajador.TrabajadorNombre} en el centro {CentroNombre}")" checked="@_seleccionados.Contains(trabajador.AsignacionId)"
-                               @onchange="e => AlternarSeleccion(trabajador.AsignacionId, (bool)e.Value!)" />
-                    }
-                    <div class="fila-trabajador-acordeon-cuerpo">
-                        @*
-                            Fila de Trabajador (contrato de fidelidad 2026-08-09 § 1.4):
-                            mismo lenguaje que la fila de Centro — grid de 5 columnas
-                            fijas, sin anillo de cumplimiento (el lámina solo lo pone a
-                            nivel de Centro) y con el mismo grid de 3 ranuras de badges
-                            que usa el Centro. Composición nueva, NO adaptada de
-                            SeccionColapsable (prohibida como base visual, § 1.2) — el
-                            expand/collapse reutiliza solo el mecanismo, con el chevron
-                            propio ya usado en la fila de Centro.
-                        *@
-                        <div class="fila-trabajador-rejilla">
-                            <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
-                                    aria-expanded="@(expandido ? "true" : "false")"
-                                    aria-label="@($"Documentos exigidos a {trabajador.TrabajadorNombre}")"
-                                    @onclick="() => AlternarExpansionTrabajador(trabajador.AsignacionId)">
-                                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-                            </button>
-                            <button type="button" class="enlace-nombre-fila fila-trabajador-nombre" @onclick="() => AbrirDetalleTrabajador(trabajador)">
-                                @trabajador.TrabajadorNombre
-                                @if (EstaBloqueado(trabajador.TrabajadorId))
-                                {
-                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" title="@DescripcionBloqueo(trabajador.TrabajadorId)">@Textos["BloqueadoEtiqueta"]</Badge>
-                                }
-                            </button>
-                            <span class="fila-trabajador-fraccion">
-                                @(trabajador.Cumplimiento.Requeridos > 0 ? $"{trabajador.Cumplimiento.AlDia}/{trabajador.Cumplimiento.Requeridos}" : "—")
-                            </span>
+                <FilaRelacion @key="trabajador.AsignacionId" Nombre="@trabajador.TrabajadorNombre"
+                              Tono="@(EstaBloqueado(trabajador.TrabajadorId) ? TonoFila.Peligro : EstadoDocumentoFicha360.TonoFila(trabajador.PeorEstado))"
+                              Avatar="@(SeleccionMultiple ? CasillaSeleccion(trabajador) : null)"
+                              OnNombre="() => AbrirDetalleTrabajador(trabajador)"
+                              OnAbrir360="() => AbrirDetalleTrabajador(trabajador)"
+                              Desplegada="expandido" DesplegadaChanged="_ => AlternarExpansionTrabajador(trabajador.AsignacionId)"
+                              EtiquetaDesplegar="@($"Documentos exigidos a {trabajador.TrabajadorNombre}")">
+                    <Detalle>
+                        @if (EstaBloqueado(trabajador.TrabajadorId))
+                        {
+                            <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno" title="@DescripcionBloqueo(trabajador.TrabajadorId)">@Textos["BloqueadoEtiqueta"]</Badge>
+                            <MotivoBloqueoTrabajador TrabajadorId="trabajador.TrabajadorId"
+                                                     Bloqueos="BloqueosDe(trabajador.TrabajadorId)"
+                                                     Otros="OtrosPendientesDe(trabajador)"
+                                                     OnPedir="PedirAsync" />
+                        }
+                    </Detalle>
+                    <Cifra>
+                        <span class="fila-trabajador-fraccion">@(trabajador.Cumplimiento.Requeridos > 0 ? $"{trabajador.Cumplimiento.AlDia}/{trabajador.Cumplimiento.Requeridos}" : "—")</span>
+                    </Cifra>
+                    <Estado>
                             <span class="tarjeta-fila-acordeon-indicadores">
                                 <span class="ranura-recuento">
                                     @if (vencidos.Count > 0)
@@ -328,21 +316,15 @@ else
                                     }
                                 </span>
                             </span>
-                            <span class="fila-trabajador-accion">
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                       class="@("accion-fila-enlace" + (trabajador.PeorEstado == EstadoDocumento.Vigente ? " accion-atenuada" : null))"
-                                       OnClick="() => AbrirDetalleTrabajador(trabajador)">
-                                    Detalles
-                                </Boton>
-                            </span>
-                        </div>
-                        @if (EstaBloqueado(trabajador.TrabajadorId))
-                        {
-                            <MotivoBloqueoTrabajador TrabajadorId="trabajador.TrabajadorId"
-                                                     Bloqueos="BloqueosDe(trabajador.TrabajadorId)"
-                                                     Otros="OtrosPendientesDe(trabajador)"
-                                                     OnPedir="PedirAsync" />
-                        }
+                    </Estado>
+                    <Acciones>
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                               class="@("accion-fila-enlace" + (trabajador.PeorEstado == EstadoDocumento.Vigente ? " accion-atenuada" : null))"
+                               OnClick="() => AbrirDetalleTrabajador(trabajador)">
+                            Detalles
+                        </Boton>
+                    </Acciones>
+                    <Desplegable>
                         @if (expandido)
                         {
                             @if (trabajador.Documentos.Count == 0)
@@ -467,9 +449,10 @@ else
                                 </div>
                             }
                         }
-                    </div>
-                </div>
+                    </Desplegable>
+                </FilaRelacion>
             }
+            </ListaRelaciones>
         </div>
         }
         @*
@@ -527,3 +510,13 @@ else
 <DrawerReclamacionLote Visible="_pedirVisible" VisibleChanged="v => _pedirVisible = v"
                        AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
                        AmbitoInicial="_pedirAmbito" EntidadIdInicial="_pedirEntidadId" IncluirPendientesSinFecha="true" />
+
+
+@code {
+    private RenderFragment CasillaSeleccion(TrabajadorAsignacionDocumentacionDto trabajador) => __builder =>
+    {
+        <input type="checkbox" aria-label="@($"Seleccionar a {trabajador.TrabajadorNombre} en el centro {CentroNombre}")"
+               checked="@_seleccionados.Contains(trabajador.AsignacionId)"
+               @onchange="e => AlternarSeleccion(trabajador.AsignacionId, (bool)e.Value!)" />
+    };
+}

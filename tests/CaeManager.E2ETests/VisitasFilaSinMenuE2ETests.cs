@@ -186,4 +186,40 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(formulario.GetByLabel("Fecha de inicio", new LocatorGetByLabelOptions { Exact = true }))
             .ToHaveValueAsync(DateOnly.ParseExact(fechas.Trim(), "dd/MM/yyyy").ToString("yyyy-MM-dd"));
     }
+
+    [Fact]
+    public async Task El_estado_cancelado_con_motivo_largo_no_ensancha_la_celda_ni_la_fila_a_1280_px()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var (page, fila) = await AbrirConUnaVisitaAsync(contexto);
+        // La fila recién creada está en la lista por defecto («Solo activas»); se cancela desde su panel.
+        await Expect(fila).ToHaveCountAsync(1);
+        await page.EvaluateAsync("() => document.fonts.ready");
+        var motivo = new string('W', 500);
+
+        await fila.Locator("button.nombre-abre-vista-rapida").ClickAsync();
+        await PanelVisita(page).GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar visita", Exact = true }).ClickAsync();
+        var confirmacion = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "¿Cancelar 1 visita(s)?", Exact = true });
+        await Expect(confirmacion).ToBeVisibleAsync();
+        await confirmacion.GetByRole(AriaRole.Textbox, new LocatorGetByRoleOptions { Name = "Motivo (opcional)", Exact = true }).FillAsync(motivo);
+        await confirmacion.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar visita", Exact = true }).ClickAsync();
+        await Expect(confirmacion).ToBeHiddenAsync();
+
+        // Con «Solo activas» la cancelada sale de la lista: se busca en el historial, filtrado por el estado
+        // «Cancelada». Sin ese filtro el historial pagina de 20 en 20 y la fecha de esta Visita (a cientos de
+        // años) quedaría al final de muchas páginas; así solo salen las canceladas, que son pocas.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/visitas?activas=false&estado=Cancelada");
+        await Expect(fila).ToHaveCountAsync(1);
+        var motivoVisible = fila.Locator("[data-pieza=motivo-cancelacion]");
+        await Expect(motivoVisible).ToHaveAttributeAsync("title", motivo);
+        await Expect(motivoVisible).ToHaveTextAsync(motivo);
+
+        var anchoEstado = await fila.Locator("td.col-estado-visitas").EvaluateAsync<double>("c => c.getBoundingClientRect().width");
+        Assert.InRange(anchoEstado, 1, 128);
+        // La fila cancelada lleva el motivo bajo la pastilla, así que no se compara su alto con el de la activa:
+        // lo que se afirma es que el motivo largo ocupa una sola línea (500 caracteres sin acotar serían varias).
+        Assert.True(await motivoVisible.EvaluateAsync<bool>(
+            "e => e.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(e).fontSize)"));
+        Assert.True(await motivoVisible.EvaluateAsync<bool>("e => e.getBoundingClientRect().width <= 92 && e.scrollWidth > e.clientWidth"));
+    }
 }

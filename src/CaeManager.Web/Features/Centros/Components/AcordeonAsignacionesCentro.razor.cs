@@ -443,7 +443,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
                 lista = lista.Where(t => t.Documentos.Any(d => estados.Contains(d.Estado)
                     || (d.Estado == EstadoDocumento.EnTolerancia && estados.Contains(EstadoDocumento.Vencido)))).ToList();
 
-            return lista;
+            // OrderBy es estable: el lector ya desempata por apellidos y nombre.
+            // No se puede reconstruir ese orden desde TrabajadorNombre (nombre + apellidos).
+            return lista.OrderBy(t => EstaBloqueado(t.TrabajadorId) ? 0 : 1 + SeveridadEstadoDocumento.Rango(t.PeorEstado)).ToList();
         }
     }
 

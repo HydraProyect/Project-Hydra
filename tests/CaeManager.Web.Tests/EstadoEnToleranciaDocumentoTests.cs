@@ -149,7 +149,7 @@ public class EstadoEnToleranciaDocumentoTests : BunitContext
     {
         var cut = Renderizar(Trabajador("Ruiz Peña, Ana", EstadoDocumento.EnTolerancia, Hasta));
 
-        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-documentos-requeridos"));
 
         var fila = cut.Find(".tabla-documentos-requeridos .fila-documento-requerido");
@@ -162,7 +162,7 @@ public class EstadoEnToleranciaDocumentoTests : BunitContext
     {
         var cut = Renderizar(Trabajador("Ruiz Peña, Ana", EstadoDocumento.EnTolerancia, Hasta));
 
-        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-documentos-requeridos"));
 
         var insignia = cut.Find(".tabla-documentos-requeridos .fila-documento-requerido .badge");

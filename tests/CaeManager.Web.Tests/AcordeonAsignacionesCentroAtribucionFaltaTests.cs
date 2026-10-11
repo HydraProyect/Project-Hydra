@@ -102,7 +102,7 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
             .Add(a => a.CentroNombre, "Centro Logístico Norte"));
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
-        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
 
         // DocumentosVencidos cuenta Faltante como vencido (misma severidad),
         // así que el mismo trabajador pinta OTRA VentanaContexto en el
@@ -141,7 +141,7 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
             .Add(a => a.CentroId, Guid.NewGuid())
             .Add(a => a.CentroNombre, "Centro Logístico Norte"));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
-        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-documentos-requeridos"));
         return cut;
     }
@@ -199,7 +199,7 @@ public class AcordeonAsignacionesCentroAtribucionFaltaTests : BunitContext
                 .Add(a => a.CentroId, Guid.NewGuid())
                 .Add(a => a.CentroNombre, "Centro Logístico Norte"));
             cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
-            await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+            await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
             cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-documentos-requeridos"));
             return cut;
         }

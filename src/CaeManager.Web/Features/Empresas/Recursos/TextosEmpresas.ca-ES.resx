@@ -192,12 +192,6 @@
   <data name="No" xml:space="preserve">
     <value>No</value>
   </data>
-  <data name="TarjetaAcceso" xml:space="preserve">
-    <value>Accés a plataforma CAE</value>
-  </data>
-  <data name="SinCredenciales" xml:space="preserve">
-    <value>Sense credencials que puguis consultar.</value>
-  </data>
   <data name="ErrorAcceso" xml:space="preserve">
     <value>No hem pogut carregar l'accés.</value>
   </data>
@@ -213,35 +207,14 @@
   <data name="PieMostrando" xml:space="preserve">
     <value>Mostrant {0} de {1}</value>
   </data>
-  <data name="SeAccedeComo" xml:space="preserve">
-    <value>S'hi accedeix com a</value>
-  </data>
   <data name="Usuario" xml:space="preserve">
     <value>Usuari</value>
-  </data>
-  <data name="CopiarUsuario" xml:space="preserve">
-    <value>Copiar l'usuari</value>
-  </data>
-  <data name="CopiarContrasena" xml:space="preserve">
-    <value>Copiar la contrasenya</value>
   </data>
   <data name="ElDni" xml:space="preserve">
     <value>el DNI</value>
   </data>
-  <data name="ElUsuario" xml:space="preserve">
-    <value>l'usuari</value>
-  </data>
-  <data name="LaContrasena" xml:space="preserve">
-    <value>la contrasenya</value>
-  </data>
   <data name="AbrirPortal" xml:space="preserve">
     <value>Obre el portal ↗</value>
-  </data>
-  <data name="AbrirPortalAccesible" xml:space="preserve">
-    <value>Obre el portal {0} en una pestanya nova</value>
-  </data>
-  <data name="SinContrasena" xml:space="preserve">
-    <value>No hi ha cap contrasenya desada.</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} empresa(s) restaurada(s).</value>
@@ -332,6 +305,15 @@
   </data>
   <data name="ColEstadoDocumental" xml:space="preserve">
     <value>Estat documental</value>
+  </data>
+  <data name="PestanaFicha" xml:space="preserve">
+    <value>Fitxa</value>
+  </data>
+  <data name="TarjetaCarpeta" xml:space="preserve">
+    <value>Carpeta de documentació</value>
+  </data>
+  <data name="AbrirCarpeta" xml:space="preserve">
+    <value>Obrir</value>
   </data>
   <data name="BotonGuardar" xml:space="preserve">
     <value>Desa</value>

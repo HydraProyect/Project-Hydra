@@ -42,6 +42,46 @@
     min-width: 0;
 }
 
+/* El estado de Visitas necesita menos ancho que el motivo documental de otros listados.
+   Libera espacio para la identidad de la Visita a 1280 px, también con selección múltiple.
+   124 px de celda = 92 de contenido (16 px de padding por lado). Medido con Segoe UI (la fuente real si
+   Inter no está instalada): «Tramo Estándar» 82,7 px, «Tramo Urgente» 80,1 px y la pastilla «Cancelada»
+   76,3 px. Con 80 px de contenido el motivo estándar, el más común, salía con elipsis. */
+::deep .tabla-datos th.col-estado-visitas,
+::deep .tabla-datos td.col-estado-visitas {
+    width: 124px;
+    min-width: 124px;
+    max-width: 124px;
+}
+
+/* El contenido tiene una caja propia: min/max-width sobre la celda no limita
+   el ancho intrínseco que participa en el reparto automático de la tabla. */
+.visitas-estado-acotado {
+    display: block;
+    width: 92px;
+    max-width: 92px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.visitas-estado-acotado ::deep .estado-fila {
+    width: 100%;
+    max-width: 92px;
+}
+
+.visitas-estado-acotado ::deep .badge,
+.visitas-estado-acotado ::deep .estado-fila-motivo,
+.visitas-estado-acotado ::deep [data-pieza=motivo-cancelacion],
+.visitas-estado-acotado ::deep [data-antelacion-tramo] {
+    display: block;
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Segunda línea de «Visita»: el titular y la Empresa van seguidos, como texto, y parten por donde
    quepan. El ancho de la columna lo decide el reparto automático de la tabla. Probado y descartado:
    un mínimo de 16rem devuelve el desborde de página a 1280 px (tabla de 1026 px en 941), y una

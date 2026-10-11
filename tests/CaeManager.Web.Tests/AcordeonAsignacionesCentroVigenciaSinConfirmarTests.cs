@@ -100,7 +100,7 @@ public class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : BunitContext
             .Add(a => a.CentroNombre, "Centro Logístico Norte"));
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
-        await cut.Find("button.boton-expandir-fila").ClickAsync(new MouseEventArgs());
+        await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("tabla-documentos-requeridos"));
 
         var celda = cut.Find(".tabla-documentos-requeridos .celda-documento-vigencia");
@@ -171,4 +171,130 @@ public class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : BunitContext
         texto.Should().Be("—", "un hueco no tiene vigencia que rotular; antes decía «Sin caducidad»");
         clase.Should().NotContain("celda-documento-vigencia-sin-confirmar");
     }
+    private static TrabajadorAsignacionDocumentacionDto Asignado(string nombre, EstadoDocumento estado) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), nombre, new DateOnly(2026, 1, 15), estado,
+            [new DocumentoRequeridoDto(Guid.NewGuid(), Guid.NewGuid(), "Reconocimiento médico", estado, null)],
+            CumplimientoDocumental.Evaluar([estado]));
+
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, "peligro")]
+    [InlineData(EstadoDocumento.Faltante, "peligro")]
+    [InlineData(EstadoDocumento.EnTolerancia, "advertencia")]
+    [InlineData(EstadoDocumento.Urgente, "advertencia")]
+    [InlineData(EstadoDocumento.Proximo, null)]
+    [InlineData(EstadoDocumento.SinConfirmar, null)]
+    [InlineData(EstadoDocumento.Vigente, null)]
+    [InlineData(EstadoDocumento.SinCaducidad, null)]
+    public void La_fila_de_Trabajador_usa_el_tinte_canonico(EstadoDocumento estado, string? tono)
+    {
+        RegistrarServicios(new MediatorFalso { Trabajadores = [Asignado("Ana Ruiz", estado)] });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, Guid.NewGuid()).Add(x => x.CentroNombre, "Centro Norte"));
+        cut.FindAll(".lista-trabajadores-acordeon [data-pieza=fila]").Should().ContainSingle()
+            .Which.GetAttribute("data-tono").Should().Be(tono);
+    }
+
+    [Fact]
+    public void El_orden_es_gravedad_y_conserva_el_desempate_por_apellidos_y_nombre_del_lector()
+    {
+        // Orden que entrega el lector (apellidos/nombre), deliberadamente distinto del nombre completo.
+        var filas = new[]
+        {
+            Asignado("Zoe Alba", EstadoDocumento.SinConfirmar),
+            Asignado("Ana Zulu", EstadoDocumento.SinConfirmar),
+            Asignado("Luis Barco", EstadoDocumento.Vencido),
+            Asignado("Eva Cano", EstadoDocumento.Faltante),
+            Asignado("Paz Diaz", EstadoDocumento.Urgente)
+        };
+        RegistrarServicios(new MediatorFalso { Trabajadores = filas });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, Guid.NewGuid()).Add(x => x.CentroNombre, "Centro Norte"));
+        cut.FindAll(".fila-relacion-nombre").Select(x => x.TextContent.Trim()).Should()
+            .Equal("Luis Barco", "Eva Cano", "Paz Diaz", "Zoe Alba", "Ana Zulu");
+    }
+
+    [Fact]
+    public void Una_sola_lista_de_Trabajadores_del_Centro_contiene_todas_las_filas()
+    {
+        RegistrarServicios(new MediatorFalso
+        {
+            Trabajadores = [Asignado("Ana Alba", EstadoDocumento.Vencido), Asignado("Luis Barco", EstadoDocumento.Urgente), Asignado("Zoe Zulu", EstadoDocumento.Vigente)]
+        });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, Guid.NewGuid()).Add(x => x.CentroNombre, "Centro Norte"));
+        cut.FindAll(".lista-trabajadores-acordeon .lista-relaciones-tarjeta").Should().ContainSingle();
+        var lista = cut.FindAll(".lista-trabajadores-acordeon .lista-relaciones").Should().ContainSingle().Which;
+        lista.GetAttribute("aria-label").Should().Be("Trabajadores · Centro Norte");
+        lista.Children.Should().HaveCount(3).And.OnlyContain(x => x.ClassList.Contains("fila-relacion"));
+        lista.Children.Select(x => x.QuerySelector(".fila-relacion-nombre")!.TextContent).Should()
+            .Equal("Ana Alba", "Luis Barco", "Zoe Zulu");
+        cut.FindAll(".acordeon-trabajador").Should().BeEmpty("el divisor pertenece al patrón de fila, sin un contenedor adicional por Trabajador");
+    }
+
+    [Fact]
+    public async Task El_motivo_de_bloqueo_es_texto_de_la_fila_y_precede_a_sus_documentos_desplegados()
+    {
+        var trabajador = Asignado("Ana Alba", EstadoDocumento.Vencido);
+        var centroId = Guid.NewGuid();
+        RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, centroId)
+            .Add(x => x.CentroNombre, "Centro Norte").Add(x => x.Bloqueos,
+                [new(centroId, "Centro Norte", trabajador.TrabajadorId, trabajador.TrabajadorNombre, Guid.NewGuid(), "Formación PRL")]));
+        cut.Find(".fila-relacion-detalle .motivo-bloqueo").TextContent.Should().Contain("Formación PRL");
+        await cut.Find(".fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+        var orden = cut.FindAll(".fila-relacion .motivo-bloqueo, .fila-relacion .tabla-documentos-requeridos");
+        orden.Should().HaveCount(2);
+        orden[0].ClassList.Should().Contain("motivo-bloqueo");
+        orden[1].ClassList.Should().Contain("tabla-documentos-requeridos");
+        cut.Find(".fila-relacion-detalle .motivo-bloqueo").TextContent.Should().Contain("Formación PRL");
+    }
+
+    [Fact]
+    public void Bloqueado_se_ordena_primero_con_tinte_rojo_y_motivo_visible_sin_desplegar()
+    {
+        var vencido = Asignado("Ana Alba", EstadoDocumento.Vencido);
+        var bloqueado = Asignado("Zoe Zulu", EstadoDocumento.Vigente);
+        var centroId = Guid.NewGuid();
+        RegistrarServicios(new MediatorFalso { Trabajadores = [vencido, bloqueado] });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, centroId)
+            .Add(x => x.CentroNombre, "Centro Norte").Add(x => x.Bloqueos,
+                [new(centroId, "Centro Norte", bloqueado.TrabajadorId, bloqueado.TrabajadorNombre, Guid.NewGuid(), "Formación PRL")]));
+        var fila = cut.Find(".lista-trabajadores-acordeon [data-pieza=fila]");
+        fila.QuerySelector(".fila-relacion-nombre")!.TextContent.Should().Be("Zoe Zulu");
+        fila.GetAttribute("data-tono").Should().Be("peligro");
+        fila.QuerySelector(".fila-relacion-desplegar")!.GetAttribute("aria-expanded").Should().Be("false");
+        cut.Find(".motivo-bloqueo").TextContent.Should().Contain("Formación PRL");
+    }
+
+    [Fact]
+    public async Task Seleccion_y_expansion_distinguen_AsignacionId_aunque_el_Trabajador_se_repita()
+    {
+        var primero = Asignado("Ana Ruiz", EstadoDocumento.Vencido);
+        var segundo = Asignado("Ana Ruiz", EstadoDocumento.Vencido) with { TrabajadorId = primero.TrabajadorId };
+        RegistrarServicios(new MediatorFalso { Trabajadores = [primero, segundo] });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, Guid.NewGuid())
+            .Add(x => x.CentroNombre, "Centro Norte").Add(x => x.SeleccionMultiple, true));
+        var filas = cut.FindAll(".lista-trabajadores-acordeon [data-pieza=fila]");
+        filas[1].QuerySelector("input")!.Change(true);
+        filas = cut.FindAll(".lista-trabajadores-acordeon [data-pieza=fila]");
+        filas[0].QuerySelector("input")!.HasAttribute("checked").Should().BeFalse();
+        filas[1].QuerySelector("input")!.HasAttribute("checked").Should().BeTrue();
+        await filas[1].QuerySelector(".fila-relacion-desplegar")!.ClickAsync(new MouseEventArgs());
+        var botones = cut.FindAll(".fila-relacion-desplegar");
+        botones[0].GetAttribute("aria-expanded").Should().Be("false");
+        botones[1].GetAttribute("aria-expanded").Should().Be("true");
+        cut.FindAll(".tabla-documentos-requeridos").Should().ContainSingle();
+        await botones[1].ClickAsync(new MouseEventArgs());
+        cut.FindAll(".tabla-documentos-requeridos").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Nombre_y_Detalles_abren_el_panel_del_Trabajador_y_no_la_Asignacion()
+    {
+        var trabajador = Asignado("Ana Ruiz", EstadoDocumento.Vigente);
+        RegistrarServicios(new MediatorFalso { Trabajadores = [trabajador] });
+        var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, Guid.NewGuid()).Add(x => x.CentroNombre, "Centro Norte"));
+        await cut.Find(".fila-relacion-nombre").ClickAsync(new MouseEventArgs());
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual!.EntidadId.Should().Be(trabajador.TrabajadorId);
+        await cut.Find(".fila-relacion-acciones .accion-fila-enlace").ClickAsync(new MouseEventArgs());
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual!.EntidadId.Should().Be(trabajador.TrabajadorId);
+    }
+
 }

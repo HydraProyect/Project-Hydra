@@ -42,10 +42,9 @@
     else if (_detalle is not null)
     {
         @*
-            Cabecera de identidad en tarjeta (patrón de las páginas 360): anillo
-            a la izquierda, identidad y recuentos en la línea de datos y, en una
-            segunda línea, los indicadores que piden atención. Un indicador en
-            cero no se pinta. Pulsarlo lleva a la pestaña Trabajadores filtrada.
+            Cabecera de identidad en tarjeta: anillo a la izquierda,
+            identidad y recuentos en la línea de datos. Las incidencias se
+            consultan en los chips de la pestaña Trabajadores.
         *@
         <CabeceraIdentidad Titulo="@_detalle.RazonSocial" Kicker="@Textos["Kicker"]">
             <Anillo>
@@ -108,8 +107,8 @@
                         case PestanaAgenda:
                             <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="_detalle.Id" />
                             break;
-                        case PestanaSello:
-                            <PestanaSelloEmpresa EntidadId="_detalle.Id" />
+                        case PestanaFicha:
+                            <CajasFicha Cajas="CajasDeFicha" />
                             break;
                         case PestanaHistorial:
                             <PestanaHistorial EntidadTipo="Empresa" EntidadId="_detalle.Id" />
@@ -134,99 +133,6 @@
                             <DatoRejilla Etiqueta="@Textos["DatoConvenio"]" Valor="@(_detalle.ConvenioAplicable ?? "—")" Ancho="true" />
                             <DatoRejilla Etiqueta="@Textos["DatoAnexoI"]" Valor="@(_detalle.EsActividadAnexoI ? Textos["Si"] : Textos["No"])" Ancho="true" />
                         </RejillaDatos>
-                    </ChildContent>
-                </Tarjeta>
-
-                <Tarjeta Titulo="@Textos["TarjetaAcceso"]" Compacta="true">
-                    <AccionesHeader>
-                        @* La credencial se edita en el panel, pestaña Información. *@
-                        <SoloConEscritura>
-                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="AbrirInformacion">@Textos["EditarFlecha"]</Boton>
-                        </SoloConEscritura>
-                    </AccionesHeader>
-                    <ChildContent>
-                    @if (_cargandoAcceso)
-                    {
-                        <EstadoCargando Filas="2" />
-                    }
-                    else if (_errorAcceso)
-                    {
-                        <p class="texto-vacio-seccion">@Textos["ErrorAcceso"]</p>
-                    }
-                    else if (_accesoRequiereDosFactores)
-                    {
-                        <p class="texto-vacio-seccion acceso-requiere-2fa">
-                            @Textos["AccesoRequiereDosFactores"]
-                            <a href="@SegundoFactorParaCredenciales.RutaConfigurarVolviendoA(SegundoFactorParaCredenciales.RutaActual(NavigationManager))" data-enhance-nav="false">@Textos["ActivarDosFactores"]</a>
-                        </p>
-                    }
-                    else if (_credencial is null)
-                    {
-                        <p class="texto-vacio-seccion">@Textos["SinCredenciales"]</p>
-                    }
-                    else
-                    {
-                        @*
-                            Solo los campos NO sensibles. La contraseña no viene en
-                            este DTO ni se pinta nunca: «Copiar contraseña» la pide
-                            al servidor en el clic (decisión del propietario
-                            2026-09-21), igual que el panel.
-                        *@
-                        <ListaLateral>
-                            @if (!string.IsNullOrWhiteSpace(_credencial.UrlAcceso))
-                            {
-                                @* La propia URL es la etiqueta de la fila (mockup), con el aviso de que la
-                                   credencial es de un tercero. «Abrir portal» solo con http(s): la URL es
-                                   texto libre (ver UrlPortalCae). *@
-                                <ElementoListaLateral>
-                                    <Etiqueta>
-                                        <span class="empresa360-url">@_credencial.UrlAcceso</span>
-                                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["BadgeCredencialesTerceros"]</Badge>
-                                    </Etiqueta>
-                                    <ChildContent>
-                                        @if (UrlPortalCae.Normalizar(_credencial.UrlAcceso) is { } destino)
-                                        {
-                                            <span>
-                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                                       Href="@destino" target="_blank" rel="noopener noreferrer"
-                                                       title="@_credencial.UrlAcceso"
-                                                       aria-label="@Textos["AbrirPortalAccesible", _credencial.UrlAcceso]">
-                                                    @Textos["AbrirPortal"]
-                                                </Boton>
-                                            </span>
-                                        }
-                                    </ChildContent>
-                                </ElementoListaLateral>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(_credencial.CampoEmpresa))
-                            {
-                                <ElementoListaLateral>
-                                    <Etiqueta>@Textos["SeAccedeComo"]</Etiqueta>
-                                    <ChildContent>@_credencial.CampoEmpresa</ChildContent>
-                                </ElementoListaLateral>
-                            }
-                            @if (!string.IsNullOrWhiteSpace(_credencial.Usuario))
-                            {
-                                @* Los botones de copiar van en la fila «Usuario», como en el mockup. *@
-                                <ElementoListaLateral>
-                                    <Etiqueta>@Textos["Usuario"]</Etiqueta>
-                                    <ChildContent>
-                                        <span>@_credencial.Usuario</span>
-                                        <span>
-                                            <BotonCopiar Valor="@_credencial.Usuario" Etiqueta="@Textos["ElUsuario"]" Texto="@Textos["CopiarUsuario"]" />
-                                            @* La contraseña solo la leen los roles con escritura (decisión del
-                                               propietario 2026-09-23): a Consulta el servidor le devuelve null
-                                               desde AutorizacionSecretosDeTenantBehavior, así que el botón no se
-                                               ofrece, igual que en el panel. *@
-                                            <SoloConEscritura>
-                                                <BotonCopiar ValorAsync="CopiarContrasenaAsync" Etiqueta="@Textos["LaContrasena"]" Texto="@Textos["CopiarContrasena"]" />
-                                            </SoloConEscritura>
-                                        </span>
-                                    </ChildContent>
-                                </ElementoListaLateral>
-                            }
-                        </ListaLateral>
-                    }
                     </ChildContent>
                 </Tarjeta>
 
@@ -260,6 +166,40 @@
 </LimiteDeErrores>
 
 @code {
+    private IReadOnlyList<CajaFicha> CajasDeFicha =>
+    [
+        .. HayCajaAcceso ? new[] { new CajaFicha("acceso", CajaDeAcceso) } : [],
+        .. HayCajaSello ? new[] { new CajaFicha("sello", CajaDeSello) } : []
+    ];
+
+    private RenderFragment CajaDeSello => __builder =>
+    {
+        <Tarjeta Titulo="@Textos["PestanaSello"]">
+            <PestanaSelloEmpresa EntidadId="_detalle!.Id" />
+        </Tarjeta>
+    };
+
+    private RenderFragment CajaDeAcceso => __builder =>
+    {
+        <Tarjeta Titulo="@Textos["TarjetaCarpeta"]">
+            @if (_errorAcceso)
+            {
+                <p class="texto-vacio-seccion">@Textos["ErrorAcceso"]</p>
+            }
+            else if (_accesoRequiereDosFactores)
+            {
+                <p class="texto-vacio-seccion acceso-requiere-2fa">
+                    @Textos["AccesoRequiereDosFactores"]
+                    <a href="@SegundoFactorParaCredenciales.RutaConfigurarVolviendoA(SegundoFactorParaCredenciales.RutaActual(NavigationManager))" data-enhance-nav="false">@Textos["ActivarDosFactores"]</a>
+                </p>
+            }
+            else if (UrlPortalCae.Normalizar(_credencial?.UrlAcceso) is { } destino)
+            {
+                <Boton Variante="VarianteBoton.Secundario" Href="@destino" target="_blank" rel="noopener noreferrer">@Textos["AbrirCarpeta"]</Boton>
+            }
+        </Tarjeta>
+    };
+
     private RenderFragment PestanaDeTrabajadores => __builder =>
     {
         <section class="empresa360-seccion">
