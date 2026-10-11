@@ -257,15 +257,6 @@
   <data name="EditarEnlace" xml:space="preserve">
     <value>Editar →</value>
   </data>
-  <data name="TarjetaNota" xml:space="preserve">
-    <value>Nota interna</value>
-  </data>
-  <data name="SinNota" xml:space="preserve">
-    <value>Sin nota interna.</value>
-  </data>
-  <data name="NotaNoLaVeCliente" xml:space="preserve">
-    <value>No la ve el cliente.</value>
-  </data>
   <data name="AltaGuiadaTitulo" xml:space="preserve">
     <value>Alta guiada de Cliente</value>
     <comment>Alta guiada: título de la página. decisión de rótulo del 2026-10-09: el Cliente empresarial se rotula «Cliente» en todo el asistente.</comment>
