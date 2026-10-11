@@ -106,22 +106,13 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         var pasosCompletados = page.Locator(".indicador-pasos-item.indicador-pasos-completado");
         await Expect(pasosCompletados).ToHaveCountAsync(4);
 
-        // --- Verificación final: los registros existen de verdad, consultando cada pantalla ---
-        // F3b (2026-08-26): el Cliente ya no se verifica en /clientes —
-        // ObtenerClientesQuery es una de las 6 consultas que D2 deja leyendo
-        // la tabla legacy Clientes hasta F4, y con los escritores
-        // redirigidos a Empresa esa pantalla queda vacía en cualquier
-        // entorno (decisión explícita: "aceptar el vacío", ver
-        // Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md). El Cliente
-        // recién creado sí existe como fila en /empresas (EsCritico != null,
-        // sin consulta congelada), así que la verificación se reancla ahí.
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialCliente);
-        // Por el enlace del nombre, no por la fila entera: es lo que identifica a la Empresa de la fila, y
-        // hasta que llega el filtro la lista las enseña todas.
-        await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialCliente })
-            .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        // Verificación final: el Cliente empresarial en /clientes (ObtenerClientesQuery lista las Empresas con
+        // EsCritico != null), la Empresa propia en /empresas (solo lista Empresas propias, EsPropia) y el Centro.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes?q={Uri.EscapeDataString(razonSocialCliente)}");
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = $"Abrir la vista rápida de {razonSocialCliente}", Exact = true }))
+            .ToBeVisibleAsync(new() { Timeout = 15_000 });
 
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresa);
         await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialEmpresa })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });

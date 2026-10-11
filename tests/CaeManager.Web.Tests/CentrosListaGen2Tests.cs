@@ -123,7 +123,7 @@ public class CentrosListaGen2Tests : BunitContext
     /// <summary>Visitas programadas que devolverá el mediador, por Centro. Se siembran antes de renderizar.</summary>
     private readonly Dictionary<Guid, IReadOnlyList<VisitaResumenDto>> _visitas = [];
 
-    private IRenderedComponent<Centros> Renderizar(params CentroListaDto[] centros) =>
+    internal IRenderedComponent<Centros> Renderizar(params CentroListaDto[] centros) =>
         RenderizarConGruposContraidos(centros).AbrirGruposDeCentros();
 
     /// <summary>Como la ve el usuario al llegar: agrupada por Cliente empresarial y con los grupos contraídos.</summary>

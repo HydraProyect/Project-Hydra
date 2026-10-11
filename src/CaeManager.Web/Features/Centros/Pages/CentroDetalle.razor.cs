@@ -476,18 +476,21 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private void GenerarInformeDelCentro() =>
         NavigationManager.NavigateTo($"/reportes?clienteId={_detalle!.ClienteId}&centroId={CentroId}");
 
+    private static string EtiquetaDeMotivo(string textoVisible, IReadOnlyList<IncidenciaCentroDto> incidencias, string calificativo) =>
+        $"{textoVisible}. {DescribirRecuento(incidencias, calificativo)}";
+
     private static string DescribirRecuento(IReadOnlyList<IncidenciaCentroDto> incidencias, string calificativo)
     {
         var deEmpresa = incidencias.Count(i => i.Ambito == AmbitoCausa.Empresa);
         var deTrabajadores = incidencias.Count - deEmpresa;
         var cabeza = incidencias.Count == 1
             ? $"1 documento {calificativo}"
-            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') ? calificativo + "s" : calificativo)}";
+            : $"{incidencias.Count} documentos {(calificativo.EndsWith('o') || calificativo.EndsWith('e') ? calificativo + "s" : calificativo)}";
 
         var partes = new List<string>();
         if (deEmpresa > 0) partes.Add(deEmpresa == 1 ? "1 de empresa" : $"{deEmpresa} de empresa");
         if (deTrabajadores > 0) partes.Add(deTrabajadores == 1 ? "1 de trabajadores" : $"{deTrabajadores} de trabajadores");
 
-        return partes.Count == 0 ? cabeza : $"{cabeza} — {string.Join(", ", partes)}";
+        return partes.Count == 0 ? cabeza : $"{cabeza}: {string.Join(" y ", partes)}";
     }
 }
