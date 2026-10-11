@@ -33,8 +33,9 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
     // aserción de "no visible"/"vacío" sobre esa pantalla pasaría siempre,
     // aislamiento aparte, y dejaría de probar nada. Se reancla a /empresas
     // (ObtenerEmpresasQuery, sin congelar) para seguir probando el filtro
-    // global de EF Core end-to-end con datos reales: el alta de Cliente hoy
-    // crea una Empresa con EsCritico != null, que sí aparece ahí.
+    // global de EF Core end-to-end con datos reales. Desde P7 esa pantalla solo
+    // lista Empresas propias (EsPropia); la Empresa creada aquí es propia del
+    // Tenant A, así que la premisa se mantiene para el alta de Empresa propia.
     [Fact]
     public async Task Una_empresa_creada_por_el_tenant_A_no_es_visible_para_el_tenant_B()
     {

@@ -48,6 +48,11 @@ namespace CaeManager.IntegrationTests.Empresas;
 /// una Empresa gemela de la primera con dos documentos vencidos. La siembra va como propietario de la base,
 /// porque no es lo que se mide.
 /// </para>
+///
+/// <para>
+/// Las dos Empresas contraparte (Subcontratas, <c>CrearComoSubcontrata</c>) no son propias: el listado de Empresas
+/// las excluye por <c>EsPropia</c> aunque la cartera las alcance, y así lo mide el test de la cartera acotada.
+/// </para>
 /// </summary>
 public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
 {

@@ -134,22 +134,14 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
             // ObtenerClientesQuery sigue congelada por D2 hasta F4 y, con los
             // escritores redirigidos a Empresa, esa pantalla queda vacía en
             // cualquier entorno (decisión explícita: "aceptar el vacío", ver
-            // Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md). El Cliente
-            // importado sí existe como fila en /empresas (EsCritico != null);
-            // la fila con CIF inválido nunca se creó en ninguna tabla, así
-            // que su ausencia ahí sigue siendo una comprobación real, no
-            // degenerada.
+            // Project-Hydra-Negocio/tecnico/f3b-decision-d2-transicion-acotada-2026-08-25.md).
+            // Tampoco se verifica en /empresas: ObtenerEmpresasQuery solo lista
+            // Empresas propias (EsPropia) desde P7, y el Cliente importado es
+            // una Empresa de contraparte. HUECO: la presencia del Cliente
+            // importado y la ausencia del CIF inválido solo quedan cubiertas
+            // por la comprobación de métricas de importación de arriba hasta
+            // que exista una pantalla de Clientes empresariales que los lea.
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-            await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialCliente);
-            // Por el enlace del nombre, no por la fila entera: es lo que identifica a la Empresa de la fila, y
-            // hasta que llega el filtro la lista las enseña todas.
-            await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialCliente })
-                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-
-            await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialClienteInvalido);
-            await page.WaitForTimeoutAsync(500);
-            await Expect(page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialClienteInvalido })).ToHaveCountAsync(0);
-
             await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresa);
             await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialEmpresa })
                 .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
