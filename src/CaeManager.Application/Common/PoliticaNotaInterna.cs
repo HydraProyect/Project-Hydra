@@ -60,6 +60,10 @@ public sealed class PoliticaNotaInterna(
     {
         if (await TieneAccesoTotalAlTenantAsync(cancellationToken)) return true;
 
+        // Impersonación: fallo cerrado, aunque el rol del simulado llegara resuelto (decisión de Chris, 2026-10-11).
+        if (await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is { Capacidad: CapacidadPrivilegio.Impersonacion })
+            return false;
+
         var rol = await currentUserService.ObtenerRolEfectivoAsync();
         return rol is not null && RolesQueVenLaNotaInterna.Contains(rol);
     }

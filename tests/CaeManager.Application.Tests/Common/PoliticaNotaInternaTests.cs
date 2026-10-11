@@ -63,6 +63,20 @@ public class PoliticaNotaInternaTests
         (await politica.TieneAccesoTotalAlTenantAsync()).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Fallo cerrado de la impersonación: aunque el rol del Usuario simulado llegara resuelto a la política (de equipo, o
+    /// Administrador), bajo <c>Impersonacion</c> no se lee la nota. Lo fija la rama explícita de <c>PuedeLeerAsync</c>.
+    /// </summary>
+    [Theory]
+    [InlineData("GestorCae")]
+    [InlineData("Administrador")]
+    public async Task Impersonacion_no_lee_la_nota_aunque_el_simulado_tenga_rol_de_equipo(string rolDelSimulado)
+    {
+        var politica = PoliticaNotaInternaPruebas.Con(rolDelSimulado, PoliticaNotaInternaPruebas.Sesion(CapacidadPrivilegio.Impersonacion));
+
+        (await politica.PuedeLeerAsync()).Should().BeFalse();
+    }
+
     /// <summary>La sesión vale solo dentro del Tenant que abrió: visitar otro Tenant no hereda el acceso.</summary>
     [Fact]
     public async Task Sesion_de_otro_Tenant_no_da_acceso_al_Tenant_actual()
