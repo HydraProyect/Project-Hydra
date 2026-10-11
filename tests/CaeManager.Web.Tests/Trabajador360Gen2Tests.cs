@@ -763,10 +763,43 @@ public class Trabajador360Gen2Tests : BunitContext
         filas.Should().HaveCount(3);
         filas.Select(f => f.QuerySelector(".fila-relacion-nombre")!.TextContent).Should()
             .Equal("Pendiente", "Sin confirmar", "Vigente");
-        filas.Select(f => f.GetAttribute("data-tono")).Should().Equal("peligro", "advertencia", null);
+        filas.Select(f => f.GetAttribute("data-tono")).Should().Equal("peligro", null, null);
         filas.Select(f => f.QuerySelector(".fila-relacion-estado")!.TextContent.Trim()).Should()
             .Equal("Pendiente", "Sin confirmar", "Vigente");
         cut.FindComponents<FilaRelacion>().Should().HaveCount(4, "un Centro y tres documentos exigidos");
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, "peligro")]
+    [InlineData(EstadoDocumento.Faltante, "peligro")]
+    [InlineData(EstadoDocumento.EnTolerancia, "advertencia")]
+    [InlineData(EstadoDocumento.Urgente, "advertencia")]
+    [InlineData(EstadoDocumento.Proximo, null)]
+    [InlineData(EstadoDocumento.SinConfirmar, null)]
+    [InlineData(EstadoDocumento.Vigente, null)]
+    [InlineData(EstadoDocumento.SinCaducidad, null)]
+    public async Task El_documento_y_su_Centro_usan_el_tinte_canonico_del_peor_estado(EstadoDocumento peorEstado, string? tono)
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [Centro("Centro Norte", "Refrielectric S.A.", peorEstado,
+            Documento("Menos grave", EstadoDocumento.SinCaducidad),
+            Documento("Zeta", peorEstado, existe: peorEstado != EstadoDocumento.Faltante),
+            Documento("Alfa", peorEstado, existe: peorEstado != EstadoDocumento.Faltante))];
+        var cut = Renderizar(id);
+        AbrirCentros(cut);
+
+        var centro = cut.Find(".trabajador360-centros > div > ul > .fila-relacion");
+        centro.GetAttribute("data-tono").Should().Be(tono);
+        await centro.QuerySelector(".fila-relacion-desplegar")!.ClickAsync(new MouseEventArgs());
+        var documentos = cut.Find(".fila-relacion-desplegado ul").QuerySelectorAll("li.fila-relacion");
+        var nombres = documentos.Select(f => f.QuerySelector(".fila-relacion-nombre")!.TextContent).ToList();
+        nombres.IndexOf("Alfa").Should().BeLessThan(nombres.IndexOf("Zeta"), "a igual estado se desempata por nombre");
+        foreach (var documento in documentos.Where(f => f.QuerySelector(".fila-relacion-nombre")!.TextContent is "Alfa" or "Zeta"))
+            documento.GetAttribute("data-tono").Should().Be(tono);
+        documentos.Single(f => f.QuerySelector(".fila-relacion-nombre")!.TextContent == "Menos grave")
+            .GetAttribute("data-tono").Should().BeNull();
     }
 
     [Fact]
