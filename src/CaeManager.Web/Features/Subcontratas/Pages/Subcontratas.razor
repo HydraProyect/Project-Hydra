@@ -243,6 +243,22 @@
                                                  NombreAccesible="@Textos["CopiarCif", subcontrata.Cif]" />
                                 }
                             </span>
+                            <span class="tarjeta-fila-acordeon-meta meta-trabajadores-subcontrata">
+                                <VentanaContexto Etiqueta="@Textos["AriaTrabajadoresDe", subcontrata.RazonSocial]"
+                                                 Titulo="@Textos["PestanaTrabajadores"]"
+                                                 Interactiva="true" Deshabilitada="@(subcontrata.Trabajadores.Count == 0)"
+                                                 Colocacion="VentanaContextoColocacion.AbajoCentro">
+                                    <Disparador>@(subcontrata.Trabajadores.Count == 1 ? Textos["MetaTrabajadoresUno"] : Textos["MetaTrabajadoresVarios", subcontrata.Trabajadores.Count])</Disparador>
+                                    <Detalle>
+                                        @foreach (var trabajador in subcontrata.Trabajadores)
+                                        {
+                                            <VentanaContextoElemento AlPulsar='() => NavigationManager.NavigateTo($"/trabajadores/{trabajador.Id}")'>
+                                                @trabajador.Nombre @trabajador.Apellidos
+                                            </VentanaContextoElemento>
+                                        }
+                                    </Detalle>
+                                </VentanaContexto>
+                            </span>
                         </span>
                         <span>
                             <Badge Tono="EstadoSupervisionUi.TonoNivel(subcontrata.NivelServicio)" Tamano="TamanoBadge.Pequeno"

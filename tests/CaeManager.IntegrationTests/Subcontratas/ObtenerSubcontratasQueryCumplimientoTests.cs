@@ -408,7 +408,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         alcance ??= new AlcanceDatosServiceFalso();
         await using var contexto = CrearContexto();
         var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance);
-        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio);
+        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto);
 
         return await handler.Handle(consulta, CancellationToken.None);
     }
