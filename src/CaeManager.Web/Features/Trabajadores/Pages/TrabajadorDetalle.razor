@@ -116,7 +116,7 @@
             @switch (_pestanaActiva)
             {
                 case PestanaOperacion:
-                    <PanelDocumentacionBase TrabajadorId="TrabajadorId" />
+                    <PanelDocumentacionBase TrabajadorId="TrabajadorId" OnCorregirDocumento="EditarDocumentoAsync" DocumentosUrgentes="DocumentosUrgentes" />
                     @*
                         Franja «Por vencer» (decisión del propietario 2026-09-24,
                         Q3 = (a)): los documentos del trabajador en Próximo o
@@ -131,9 +131,16 @@
                             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SeparadorPorVencer"]">
                                 @foreach (var documento in porVencer)
                                 {
+                                    var accion = EstadoDocumentoFicha360.Accion(documento.Estado);
                                     <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
                                         <Detalle>@(" ")@Textos["VenceEl", TextoVence(documento.FechaVencimiento, documento.Estado)]</Detalle>
                                         <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
+                                        <Acciones>
+                                            @if (accion is not null)
+                                            {
+                                                <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => EditarDocumentoAsync(documento.Id)">@TextosDocumentos360[$"Accion{accion}"]</Boton></SoloConEscritura>
+                                            }
+                                        </Acciones>
                                     </FilaRelacion>
                                 }
                             </ListaRelaciones>
@@ -208,8 +215,12 @@
                             @Textos["TextoExigenciaPorCentro"]
                         </p>
                         <div class="trabajador360-centros">
+                            <FranjaEstado Opciones="OpcionesCentros" Valor="@string.Join(',', _estadosCentros)" ValorChanged="CambiarEstadoCentros"
+                                          Recuentos="RecuentosCentros" TotalTodos="_centros.Count" />
                             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["PestanaCentros"]">
-                                @foreach (var centro in _centros)
+                                <Encabezado>@Textos[_centros.Count == 1 ? "ResumenCentroOrdenado" : "ResumenCentrosOrdenados", CentrosVisibles.Count, _centros.Count]</Encabezado>
+                                <ChildContent>
+                                @foreach (var centro in CentrosVisibles)
                                 {
                                     var incidencias = Incidencias(centro);
                                     var sinConfirmarCentro = SinConfirmar(centro);
@@ -284,6 +295,7 @@
                                         </Desplegable>
                                     </FilaRelacion>
                                 }
+                                </ChildContent>
                             </ListaRelaciones>
                         </div>
                     }
@@ -325,20 +337,29 @@
                         {
                             <div class="trabajador360-documentos">
                                 <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["SeparadorDocumentosTrabajador"]">
+                                    <Encabezado>@Textos[_totalDocumentos == 1 ? "ResumenDocumentoOrdenado" : "ResumenDocumentosOrdenados", _documentos.Count, _totalDocumentos]</Encabezado>
+                                    <ChildContent>
                                     @foreach (var documento in DocumentosOrdenados)
                                     {
+                                        var accion = EstadoDocumentoFicha360.Accion(documento.Estado);
                                         <FilaRelacion @key="documento.Id" Nombre="@documento.TipoDocumentoNombre" Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
-                                            <Detalle>@(" ")@Textos["ColumnaFechaDocumento"]: <span class="trabajador360-emision">@documento.FechaEmision.ToString("dd/MM/yyyy")</span></Detalle>
-                                            <Cifra><span class="trabajador360-solo-lectores">@Textos["ColumnaVence"]: </span><span class="trabajador360-vigencia @EstadoDocumentoUi.ClaseAvisoVigenciaSinConfirmar(documento.Estado)">@TextoVence(documento.FechaVencimiento, documento.Estado)</span></Cifra>
+                                            <Cifra><span>@Textos["ColumnaVence"]: </span><span class="trabajador360-vigencia @EstadoDocumentoUi.ClaseAvisoVigenciaSinConfirmar(documento.Estado)">@TextoVence(documento.FechaVencimiento, documento.Estado)</span></Cifra>
                                             <Estado><Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoDocumentoUi.Texto(documento.Estado)</Badge></Estado>
+                                            <Detalle>
+                                                <span>@Textos["ColumnaFechaDocumento"]: <span class="trabajador360-emision">@documento.FechaEmision.ToString("dd/MM/yyyy")</span></span>
+                                                <LineaPlataformaYReclamacion Acreditaciones="documento.Acreditaciones" Estado="documento.Estado" />
+                                            </Detalle>
+                                            <Acciones>
+                                                @if (accion is not null)
+                                                {
+                                                    <SoloConEscritura><Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => EditarDocumentoAsync(documento.Id)">@TextosDocumentos360[$"Accion{accion}"]</Boton></SoloConEscritura>
+                                                }
+                                            </Acciones>
                                         </FilaRelacion>
                                     }
+                                    </ChildContent>
                                 </ListaRelaciones>
                             </div>
-                            @if (_totalDocumentos > _documentos.Count)
-                            {
-                                <p class="texto-descriptivo">@Textos["MostrandoDocumentos", _documentos.Count, _totalDocumentos]</p>
-                            }
                         }
 
                         <div class="separador-ambito">@Textos["SeparadorExigidosEnCentros"]</div>
@@ -375,6 +396,10 @@
                             <p class="texto-vacio-seccion">@Textos["SinExigenciasPropias"]</p>
                         }
                     }
+                    break;
+
+                case PestanaFicha:
+                    <CajasFicha Cajas="CajasDeFicha" />
                     break;
 
                 case PestanaHistorial:
@@ -492,3 +517,28 @@
     </fieldset>
 </ModalFormulario>
 </LimiteDeErrores>
+
+@code {
+    private IReadOnlyList<CajaFicha> CajasDeFicha => HayDatosFicha ? [new("altas-plataforma", CajaAltasPlataforma)] : [];
+
+    private RenderFragment CajaAltasPlataforma => __builder =>
+    {
+        if (_detalle is { } detalle)
+        {
+            <Tarjeta Titulo="@Textos["FichaDatosAltas"]" Compacta="true">
+                <RejillaDatos>
+                    @if (!string.IsNullOrWhiteSpace(detalle.Puesto))
+                    {
+                        <DatoRejilla Etiqueta="@Textos["EtiquetaPuestoOficio"]" Valor="@detalle.Puesto" />
+                    }
+                    @if (detalle.FechaNacimiento is { } nacimiento)
+                    {
+                        <DatoRejilla Etiqueta="@Textos["EtiquetaFechaNacimiento"]">
+                            <BotonCopiar Valor="@nacimiento.ToString("dd/MM/yyyy")" Texto="@nacimiento.ToString("dd/MM/yyyy")" Etiqueta="@Textos["EtiquetaCopiarNacimiento"]" />
+                        </DatoRejilla>
+                    }
+                </RejillaDatos>
+            </Tarjeta>
+        }
+    };
+}

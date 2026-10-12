@@ -17,9 +17,11 @@
 @using CaeManager.Web.Components.DesignSystem
 @using MediatR
 @using CaeManager.Web.Features.Trabajadores.Recursos
+@using CaeManager.Web.Features.Documentos.Recursos
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosTrabajadores> Textos
 @inject IMediator Mediator
+@inject IStringLocalizer<TextosTipoDocumento360> TextosAcciones
 
 @if (_datos is not null)
 {
@@ -53,12 +55,21 @@
             <ul class="panel-doc-base-lista">
                 @foreach (var indicador in _datos.Indicadores)
                 {
-                    <li class="panel-doc-base-fila" @key="indicador.Tipo">
+                    <li class="panel-doc-base-fila @(OnCorregirDocumento.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="indicador.Tipo">
                         <span>@TextoTipo(indicador.Tipo)</span>
                         <Badge Tono="TonoDe(indicador.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(indicador)</Badge>
                         @if (indicador.FechaVencimiento is { } vence && indicador.Estado is EstadoIndicadorBase.Vigente or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vencido)
                         {
                             <span class="panel-doc-base-fecha">@vence.ToString("dd/MM/yyyy")</span>
+                        }
+                        @if (OnCorregirDocumento.HasDelegate && indicador.DocumentoId is { } documentoId &&
+                            (indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar ||
+                             indicador.Estado == EstadoIndicadorBase.ProximoAVencer && DocumentosUrgentes.Contains(documentoId)))
+                        {
+                            <SoloConEscritura>
+                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                       OnClick="() => OnCorregirDocumento.InvokeAsync(documentoId)">@TextosAcciones[indicador.Estado == EstadoIndicadorBase.SinConfirmar ? "AccionConfirmar" : "AccionRenovar"]</Boton>
+                            </SoloConEscritura>
                         }
                     </li>
                 }
@@ -82,6 +93,12 @@
     [Parameter] public Guid? TrabajadorId { get; set; }
 
     [Parameter] public bool Compacto { get; set; }
+
+    /// <summary>La ficha puede abrir su editor existente; los hosts que no lo ofrecen conservan el panel de lectura.</summary>
+    [Parameter] public EventCallback<Guid> OnCorregirDocumento { get; set; }
+
+    /// <summary>El indicador reúne Próximo y Urgente; solo un Documento ya cargado con estado Urgente permite distinguirlos.</summary>
+    [Parameter] public IReadOnlySet<Guid> DocumentosUrgentes { get; set; } = new HashSet<Guid>();
 
     protected override async Task OnParametersSetAsync()
     {

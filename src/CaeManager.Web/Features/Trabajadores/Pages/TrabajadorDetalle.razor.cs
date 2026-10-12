@@ -1,6 +1,7 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Web.Features.Trabajadores.Recursos;
+using CaeManager.Web.Features.Documentos.Recursos;
 using CaeManager.Web.Recursos;
 using Microsoft.Extensions.Localization;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
@@ -61,14 +62,17 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     internal const string PestanaOperacion = "operacion";
     internal const string PestanaCentros = "centros";
     internal const string PestanaDocumentacion = "documentacion";
+    internal const string PestanaFicha = "ficha";
     internal const string PestanaHistorial = "historial";
 
-    private static readonly string[] PestanasValidas = [PestanaOperacion, PestanaCentros, PestanaDocumentacion, PestanaHistorial];
+    private static readonly string[] PestanasValidas = [PestanaOperacion, PestanaCentros, PestanaDocumentacion, PestanaFicha, PestanaHistorial];
 
     [Parameter] public Guid TrabajadorId { get; set; }
 
     /// <summary>Pestaña activa, en la URL (sin parámetro o con un valor desconocido = Operación), como en Empresa 360.</summary>
     [Parameter, SupplyParameterFromQuery(Name = "pestana")] public string? Pestana { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "estado")] public string? Estado { get; set; }
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
@@ -76,6 +80,29 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosTrabajadores> Textos { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosComunes> Comunes { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosTipoDocumento360> TextosDocumentos360 { get; set; } = default!;
+
+    private bool HayDatosFicha => _detalle is { } detalle && (detalle.FechaNacimiento.HasValue || !string.IsNullOrWhiteSpace(detalle.Puesto));
+    private string? _estadoCentrosDeLaUrl;
+    private IReadOnlySet<string> _estadosCentros = new HashSet<string>();
+
+    private IReadOnlyList<CentroDocumentacionTrabajadorDto> CentrosVisibles =>
+        _centros.Where(c => _estadosCentros.Count == 0 || _estadosCentros.Contains(EstadoDocumentoFicha360.Clave(c.PeorEstado)))
+            .OrderBy(c => SeveridadEstadoDocumento.Rango(c.PeorEstado)).ThenBy(c => c.CentroNombre, StringComparer.CurrentCulture).ToList();
+
+    private IReadOnlyDictionary<string, int> RecuentosCentros =>
+        _centros.GroupBy(c => EstadoDocumentoFicha360.Clave(c.PeorEstado)).ToDictionary(g => g.Key, g => g.Count());
+
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesCentros =>
+        new[] { EstadoDocumento.Vencido, EstadoDocumento.Faltante, EstadoDocumento.EnTolerancia, EstadoDocumento.Urgente, EstadoDocumento.SinConfirmar, EstadoDocumento.Vigente }
+            .Select(e => new OpcionFranjaEstado(EstadoDocumentoFicha360.Texto(e), EstadoDocumentoFicha360.Tono(e), EstadoDocumentoFicha360.Clave(e))).ToList();
+
+    private void CambiarEstadoCentros(string? valor)
+    {
+        _estadosCentros = (valor ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries).ToHashSet();
+        _estadoCentrosDeLaUrl = EstadoDocumentoFicha360.ClavesEnUrl(_estadosCentros);
+        NavigationManager.ActualizarFiltroEnUrl("estado", _estadoCentrosDeLaUrl);
+    }
 
     private TrabajadorDetalleDto? _detalle;
     private IReadOnlyList<CentroDocumentacionTrabajadorDto> _centros = [];
@@ -122,6 +149,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// ObtenerDocumentosQuery que la pestaña del panel, con su alcance.
     /// </summary>
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
+    private IReadOnlySet<Guid> DocumentosUrgentes => _documentos.Where(d => d.Estado == EstadoDocumento.Urgente).Select(d => d.Id).ToHashSet();
     private int _totalDocumentos;
 
     /// <summary>
@@ -209,6 +237,7 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         },
         new(PestanaCentros, Textos["PestanaCentros"]),
         new(PestanaDocumentacion, Textos["PestanaDocumentacion"]),
+        .. HayDatosFicha ? new[] { new PestanaDefinicion(PestanaFicha, Comunes["PestanaFicha"]) } : [],
         new(PestanaHistorial, Textos["PestanaHistorial"])
     ];
 
@@ -269,12 +298,19 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// </summary>
     private void AdoptarUrl()
     {
+        if (!string.Equals(_estadoCentrosDeLaUrl, Estado, StringComparison.Ordinal))
+        {
+            _estadoCentrosDeLaUrl = Estado;
+            _estadosCentros = EstadoDocumentoFicha360.ClavesDesdeUrl(Estado);
+        }
         if (_urlAdoptada && string.Equals(_pestanaDeLaUrl, Pestana, StringComparison.Ordinal))
             return;
 
         _urlAdoptada = true;
         _pestanaDeLaUrl = Pestana;
         _pestanaActiva = PestanasValidas.Contains(Pestana) ? Pestana! : PestanaOperacion;
+        if (_detalle is not null && _pestanaActiva == PestanaFicha && !HayDatosFicha)
+            _pestanaActiva = PestanaOperacion;
     }
 
     /// <summary>Cambia de pestaña y la deja en la URL sin recargar la ficha; Operación, la de entrada, no lleva parámetro.</summary>
@@ -328,6 +364,9 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                 _error = true;
                 return;
             }
+
+            if (_pestanaDeLaUrl == PestanaFicha)
+                _pestanaActiva = HayDatosFicha ? PestanaFicha : PestanaOperacion;
 
             // El acordeón se cierra al cambiar de pregunta: los Ids
             // expandidos eran de la respuesta anterior y no significan nada
@@ -559,6 +598,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     private Task GestionarDocumentoAsync(DocumentoRequeridoDto documento) =>
         _drawerGestion.AbrirSerieAsync(SerieDeDocumentos, PasoDe(documento));
+
+    private Task EditarDocumentoAsync(Guid documentoId) => _drawerGestion.AbrirEditarAsync(documentoId);
 
     private PasoSerieDocumento PasoDe(DocumentoRequeridoDto documento) =>
         PasoSerieDocumento.DeFilaDeTrabajador(documento.DocumentoId, TrabajadorId, documento.TipoDocumentoId);

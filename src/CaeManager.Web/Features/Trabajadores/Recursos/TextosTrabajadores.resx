@@ -468,9 +468,6 @@
   <data name="ColumnaVence" xml:space="preserve">
     <value>Caducidad</value>
   </data>
-  <data name="MostrandoDocumentos" xml:space="preserve">
-    <value>Mostrando {0} de {1} documentos.</value>
-  </data>
   <data name="SeparadorExigidosEnCentros" xml:space="preserve">
     <value>Exigidos solo en algunos Centros de trabajo</value>
   </data>
@@ -687,4 +684,10 @@
   <data name="SinDocumentoExigido" xml:space="preserve">
     <value>Sin documento</value>
   </data>
+  <data name="FichaDatosAltas" xml:space="preserve"><value>Datos para altas en plataforma</value></data>
+  <data name="ResumenCentroOrdenado" xml:space="preserve"><value>Mostrando {0} de {1} centro · del peor estado al mejor</value></data>
+  <data name="ResumenCentrosOrdenados" xml:space="preserve"><value>Mostrando {0} de {1} centros · del peor estado al mejor</value></data>
+  <data name="ResumenDocumentoOrdenado" xml:space="preserve"><value>Mostrando {0} de {1} documento · del peor estado al mejor</value></data>
+  <data name="ResumenDocumentosOrdenados" xml:space="preserve"><value>Mostrando {0} de {1} documentos · del peor estado al mejor</value></data>
+  <data name="EtiquetaCopiarNacimiento" xml:space="preserve"><value>Copiar la fecha de nacimiento</value></data>
 </root>

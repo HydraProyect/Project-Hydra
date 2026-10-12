@@ -468,9 +468,6 @@
   <data name="ColumnaVence" xml:space="preserve">
     <value>Caducitat</value>
   </data>
-  <data name="MostrandoDocumentos" xml:space="preserve">
-    <value>Mostrant {0} de {1} documents.</value>
-  </data>
   <data name="SeparadorExigidosEnCentros" xml:space="preserve">
     <value>Exigits només en alguns centres de treball</value>
   </data>
@@ -687,4 +684,10 @@
   <data name="SinDocumentoExigido" xml:space="preserve">
     <value>Sense document</value>
   </data>
+  <data name="FichaDatosAltas" xml:space="preserve"><value>Dades per a altes a la plataforma</value></data>
+  <data name="ResumenCentroOrdenado" xml:space="preserve"><value>Mostrant {0} de {1} centre · del pitjor estat al millor</value></data>
+  <data name="ResumenCentrosOrdenados" xml:space="preserve"><value>Mostrant {0} de {1} centres · del pitjor estat al millor</value></data>
+  <data name="ResumenDocumentoOrdenado" xml:space="preserve"><value>Mostrant {0} de {1} document · del pitjor estat al millor</value></data>
+  <data name="ResumenDocumentosOrdenados" xml:space="preserve"><value>Mostrant {0} de {1} documents · del pitjor estat al millor</value></data>
+  <data name="EtiquetaCopiarNacimiento" xml:space="preserve"><value>Copia la data de naixement</value></data>
 </root>
