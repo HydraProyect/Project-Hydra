@@ -14,18 +14,25 @@
 # integraciones-con-clave.yml siguen apuntando a public.ecr.aws hasta un
 # incremento posterior, que solo se hará cuando el paquete sea público.
 #
-# El digest que se copia es el mismo que el de producción
-# (deploy/local/docker-compose.produccion.yml). Se copia el manifiesto tal
-# cual, sin reconstruir la imagen, para que el digest no cambie. Lo vigila
-# MismaVersionDePostgresTests (tests/CaeManager.Architecture.Tests): si el
-# compose de producción cambia de digest, ese test se pone en rojo.
+# La referencia de origen vive en una sola variable, IMAGEN_ORIGEN, con la
+# forma completa registro/nombre:etiqueta@digest. El digest es el mismo que el
+# de producción (deploy/local/docker-compose.produccion.yml). Se copia el
+# manifiesto tal cual, sin reconstruir la imagen, para que el digest no cambie.
+#
+# Qué vigila MismaVersionDePostgresTests (tests/CaeManager.Architecture.Tests):
+# recorre los .yml de .github y compara cada referencia postgres:<dígito> con
+# la de producción, y esta línea entra en ese recorrido (comprobado por
+# mutación de un carácter del digest). Si el digest de IMAGEN_ORIGEN deja de
+# coincidir con el de producción, el test se pone en rojo en CI y nombra este
+# fichero. Pero nada actualiza este fichero solo: el cambio de digest se hace a
+# mano, y el test solo avisa de la divergencia.
 #
 # No usa ningún secreto aparte de GITHUB_TOKEN, con permiso packages: write
 # solo en este job.
 #
-# Cuando se actualice PostgreSQL: hay que cambiar ETIQUETA y DIGEST aquí,
-# volver a lanzar este workflow y comprobar que el resultado es correcto ANTES
-# de cambiar las referencias de la CI. En ese orden, nunca al revés.
+# Cuando se actualice PostgreSQL: hay que cambiar IMAGEN_ORIGEN aquí, volver a
+# lanzar este workflow y comprobar que el resultado es correcto ANTES de cambiar
+# las referencias de la CI. En ese orden, nunca al revés.
 #
 # Tras la primera publicación el paquete nace PRIVADO. Hay que marcarlo como
 # público a mano en la organización (Packages de HydraProyect) antes de cambiar
@@ -52,19 +59,41 @@ concurrency:
 jobs:
   espejo:
     name: Copiar postgres a GHCR
-    # Solo desde main y con la confirmación escrita exactamente.
-    if: github.ref == 'refs/heads/main' && inputs.confirmar == 'publicar'
+    # Solo desde main. La confirmación se comprueba en el primer paso, para que
+    # un valor distinto de «publicar» deje el run en rojo y no en «skipped».
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
       packages: write
     env:
-      ORIGEN: public.ecr.aws/docker/library/postgres
-      ETIQUETA: "18.6"
-      DIGEST: sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+      IMAGEN_ORIGEN: public.ecr.aws/docker/library/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
       DESTINO: ghcr.io/hydraproyect/postgres
     steps:
+      - name: Comprobar la confirmación
+        shell: bash
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRMAR" != "publicar" ]; then
+            echo "::error::La confirmación debe ser exactamente «publicar» y es «$CONFIRMAR». No se copia nada."
+            exit 1
+          fi
+
+      - name: Derivar etiqueta, digest y origen de IMAGEN_ORIGEN
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest="${IMAGEN_ORIGEN##*@}"
+          sin_digest="${IMAGEN_ORIGEN%@*}"
+          etiqueta="${sin_digest##*:}"
+          origen="${sin_digest%:*}"
+          echo "ORIGEN=$origen" >> "$GITHUB_ENV"
+          echo "ETIQUETA=$etiqueta" >> "$GITHUB_ENV"
+          echo "DIGEST=$digest" >> "$GITHUB_ENV"
+
       - name: Iniciar sesión en ghcr.io
         shell: bash
         env:
@@ -73,6 +102,17 @@ jobs:
         run: |
           set -euo pipefail
           echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Avisar si la etiqueta de destino ya existe con otro digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          # La primera vez la etiqueta no existe: inspect falla y se trata como
+          # cadena vacía, sin romper set -e.
+          existente="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$DESTINO:$ETIQUETA" 2>/dev/null || true)"
+          if [ -n "$existente" ] && [ "$existente" != "$DIGEST" ]; then
+            echo "::warning::$DESTINO:$ETIQUETA ya existe con el digest «$existente», distinto del esperado «$DIGEST». Se va a sobrescribir."
+          fi
 
       - name: Copiar el manifiesto sin reconstruir
         shell: bash
@@ -88,7 +128,7 @@ jobs:
           set -euo pipefail
           obtenido="$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$DESTINO:$ETIQUETA")"
           if [ "$obtenido" != "$DIGEST" ]; then
-            echo "::error::El digest de $DESTINO:$ETIQUETA es «$obtenido» y debe ser «$DIGEST». No se publica una imagen distinta de la de producción."
+            echo "::error::La etiqueta publicada $DESTINO:$ETIQUETA tiene el digest «$obtenido», que NO coincide con el esperado «$DIGEST». La etiqueta ya se ha escrito: no debe usarse. Repite la copia para corregirla."
             exit 1
           fi
           docker buildx imagetools inspect "$DESTINO@$DIGEST" > /dev/null
