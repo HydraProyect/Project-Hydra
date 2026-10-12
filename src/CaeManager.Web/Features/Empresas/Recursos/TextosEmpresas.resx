@@ -152,14 +152,6 @@
     <value>Trabajadores de esta empresa</value>
     <comment>Nombre accesible de la lista.</comment>
   </data>
-  <data name="DetalleDni" xml:space="preserve">
-    <value>DNI {0}</value>
-    <comment>Línea de detalle de la fila de trabajador. {0} = DNI.</comment>
-  </data>
-  <data name="PieOrden" xml:space="preserve">
-    <value>del peor estado al mejor</value>
-    <comment>Pie de la lista de trabajadores.</comment>
-  </data>
   <data name="PaginadorEtiqueta" xml:space="preserve">
     <value>trabajador(es)</value>
     <comment>Unidad del paginador.</comment>
@@ -263,7 +255,7 @@
     <value>Activar ahora</value>
   </data>
   <data name="PieMostrando" xml:space="preserve">
-    <value>Mostrando {0} de {1}</value>
+    <value>Mostrando {0} de {1} · del peor estado al mejor</value>
     <comment>Pie de la lista de trabajadores, también cuando muestra todas las filas. {0} = filas visibles, {1} = total del filtro.</comment>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
@@ -388,5 +380,11 @@
   </data>
   <data name="ErrorGuardarNotaInterna" xml:space="preserve">
     <value>No pudimos guardar la nota interna. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ElDni" xml:space="preserve">
+    <value>el DNI</value>
+  </data>
+  <data name="CopiarDni" xml:space="preserve">
+    <value>Copiar {0}</value>
   </data>
 </root>

@@ -117,12 +117,6 @@
   <data name="ListaTrabajadores" xml:space="preserve">
     <value>Treballadors d'aquesta empresa</value>
   </data>
-  <data name="DetalleDni" xml:space="preserve">
-    <value>DNI {0}</value>
-  </data>
-  <data name="PieOrden" xml:space="preserve">
-    <value>del pitjor estat al millor</value>
-  </data>
   <data name="PaginadorEtiqueta" xml:space="preserve">
     <value>treballador(s)</value>
   </data>
@@ -202,7 +196,7 @@
     <value>Activar ara</value>
   </data>
   <data name="PieMostrando" xml:space="preserve">
-    <value>Mostrant {0} de {1}</value>
+    <value>Mostrant {0} de {1} · del pitjor estat al millor</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} empresa(s) restaurada(s).</value>
@@ -314,5 +308,11 @@
   </data>
   <data name="ErrorGuardarNotaInterna" xml:space="preserve">
     <value>No hem pogut desar la nota interna. Torna-ho a provar d'aquí a uns segons.</value>
+  </data>
+  <data name="ElDni" xml:space="preserve">
+    <value>el document d’identitat</value>
+  </data>
+  <data name="CopiarDni" xml:space="preserve">
+    <value>Copia {0}</value>
   </data>
 </root>
