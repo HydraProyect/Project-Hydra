@@ -214,7 +214,7 @@
     <value>Buscar centro de este cliente…</value>
   </data>
   <data name="ResumenCentrosBuscados" xml:space="preserve">
-    <value>Mostrando {0} de {1}.</value>
+    <value>Mostrando {0} de {1}</value>
   </data>
   <data name="ResumenCentrosBuscadosTruncado" xml:space="preserve">
     <value>Mostrando {0} de los {1} centros con peor estado; este Cliente tiene {2} y el buscador solo mira esos {1}.</value>
@@ -548,4 +548,6 @@
   <data name="DetallePendienteUno" xml:space="preserve"><value>1 pendiente</value></data>
   <data name="DetalleTrabajadoresBloqueados" xml:space="preserve"><value>{0} trabajadores bloqueados</value></data>
   <data name="DetalleTrabajadorBloqueadoUno" xml:space="preserve"><value>1 trabajador bloqueado</value></data>
+  <data name="DetalleBloqueoPlataformaUno" xml:space="preserve"><value>1 bloqueado por la plataforma</value></data>
+  <data name="DetalleBloqueosPlataformaVarios" xml:space="preserve"><value>{0} bloqueados por la plataforma</value></data>
 </root>

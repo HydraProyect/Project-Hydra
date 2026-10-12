@@ -148,7 +148,7 @@
                                     <CampoTexto Type="search" Placeholder="@Textos["BuscadorCentros"]" aria-label="@Textos["BuscadorCentros"]"
                                                 Valor="@_busqueda" ValorChanged="BuscarCentros" />
                                 </div>
-                                <FranjaEstado Opciones="EstadoCentroUi.Franja" Valor="@_estado" ValorChanged="CambiarEstado"
+                                <FranjaEstado Opciones="OpcionesFranjaCentros" Valor="@_estado" ValorChanged="CambiarEstado"
                                               Recuentos="RecuentosCentros" TotalTodos="CentrosPorBusqueda.Count" />
                                 <p class="cliente360-resumen-lista">
                                     @ResumenCentros · @Textos["OrdenCentros"]
@@ -173,9 +173,9 @@
                                 </ListaRelaciones>
                                 @if (centrosVisibles.Any(c => c.Estado == EstadoCentro.SinGestionCae))
                                 {
-                                    <section class="cliente360-sin-gestion-cae" aria-label="@Textos["SinGestionCaeAnillo"]">
-                                        <h3>@Textos["SinGestionCaeAnillo"]</h3>
-                                        <ListaRelaciones Etiqueta="@Textos["SinGestionCaeAnillo"]">
+                                    <section class="cliente360-sin-gestion-cae" aria-labelledby="cliente360-sin-gestion-titulo">
+                                        <h3 id="cliente360-sin-gestion-titulo">@Textos["SinGestionCaeAnillo"]</h3>
+                                        <ListaRelaciones Etiqueta="@Textos["ListaCentros"]">
                                             @foreach (var centro in centrosVisibles.Where(c => c.Estado == EstadoCentro.SinGestionCae))
                                             {
                                                 <FilaRelacion @key="centro.Id" Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" NombreIcono="centros"

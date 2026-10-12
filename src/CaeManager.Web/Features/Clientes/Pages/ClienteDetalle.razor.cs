@@ -225,6 +225,11 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         NavigationManager.ActualizarFiltroEnUrl("estado", _estadoDeLaUrl);
     }
 
+    // La maqueta solo ofrece estados presentes; conserva el seleccionado para poder reconocer el filtro sin coincidencias.
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesFranjaCentros => EstadoCentroUi.Franja
+        .Where(o => o.Valores.Any(v => RecuentosCentros.GetValueOrDefault(v) > 0 || _estado.Split(',').Contains(v)))
+        .ToList();
+
     private IReadOnlyDictionary<string, int> RecuentosCentros => CentrosPorBusqueda
         .GroupBy(c => c.Estado.ToString()).ToDictionary(g => g.Key, g => g.Count());
 
@@ -585,7 +590,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             ? Textos["DetalleEntraComoContratista", centro.EmpresaRazonSocial].Value
             : null;
 
-    /// <summary>Contratista, motivos documentales y Trabajadores bloqueados, sin partes en cero ni confundir pendientes con vencidos.</summary>
+    /// <summary>Empresa contratista, motivos documentales, bloqueos de plataforma y Trabajadores bloqueados, sin partes en cero ni confundir pendientes con vencidos.</summary>
     private string DetalleCentro(CentroListaDto centro)
     {
         var partes = new List<string>();
@@ -595,6 +600,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             partes.Add(Plural(centro.Recuentos.VencidasPorFecha.Count, "DetalleVencidosUno", "DetalleVencidosVarios"));
         if (centro.Recuentos.Pendientes.Count > 0)
             partes.Add(Textos[centro.Recuentos.Pendientes.Count == 1 ? "DetallePendienteUno" : "DetallePendientes", centro.Recuentos.Pendientes.Count]);
+        if (centro.Recuentos.Bloqueos.Count > 0)
+            partes.Add(Plural(centro.Recuentos.Bloqueos.Count, "DetalleBloqueoPlataformaUno", "DetalleBloqueosPlataformaVarios"));
         var bloqueados = _bloqueos.Where(b => b.CentroId == centro.Id).Select(b => b.TrabajadorId).Distinct().Count();
         if (bloqueados > 0)
             partes.Add(Textos[bloqueados == 1 ? "DetalleTrabajadorBloqueadoUno" : "DetalleTrabajadoresBloqueados", bloqueados]);

@@ -80,8 +80,9 @@ public record RecuentosCentroDto(
     public int TotalProximas => Proximas.Count;
 
     /// <summary>
-    /// Causas separadas dentro de <see cref="Vencidas"/> (el listado de Centros y Centro 360 las
-    /// muestran por separado; Clientes y Subcontratas siguen leyendo el total).
+    /// Causas separadas dentro de <see cref="Vencidas"/> (el listado de Centros, Centro 360 y
+    /// el detalle de las filas de Cliente 360 las muestran por separado; los indicadores de
+    /// Cliente 360 y Subcontratas siguen leyendo el total).
     /// Son un filtro por <see cref="IncidenciaCentroDto.Estado"/>, no
     /// un reparto nuevo: cada incidencia cae en exactamente una.
     /// </summary>
