@@ -629,9 +629,6 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         _ => string.Empty
     };
 
-    private bool MostrarPaginador =>
-        _totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _tamanoPagina > TamanoPaginaMinimo);
-
     /// <summary>
     /// Nombre accesible de la barra de cumplimiento. Antes se interpolaba el porcentaje sin
     /// mirar si existía, y una empresa sin cumplimiento calculable se anunciaba

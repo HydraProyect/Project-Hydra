@@ -184,151 +184,146 @@
             }
             else
             {
+                @TarjetaListado.Renderizar(@<text>
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-                    <div class="documentos-tabla-desplazable" tabindex="0" role="region" aria-label="@Textos["TablaDesplazableEtiqueta"]">
-                    <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                        @if (_seleccionMultiple)
-                        {
-                            <TemplateColumn Title="" Align="Align.Center">
-                                <HeaderTemplate Context="columna">
-                                    <input type="checkbox" aria-label="Seleccionar los documentos de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                                </HeaderTemplate>
+                        <div class="documentos-tabla-desplazable" tabindex="0" role="region" aria-label="@Textos["TablaDesplazableEtiqueta"]">
+                        <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                            @if (_seleccionMultiple)
+                            {
+                                <TemplateColumn Title="" Align="Align.Center">
+                                    <HeaderTemplate Context="columna">
+                                        <input type="checkbox" aria-label="Seleccionar los documentos de esta página" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                                    </HeaderTemplate>
+                                    <ChildContent>
+                                        <input type="checkbox" aria-label="@($"Seleccionar {context.TipoDocumentoNombre} de {context.PropietarioNombre}, emisión {context.FechaEmision:dd/MM/yyyy}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                                    </ChildContent>
+                                </TemplateColumn>
+                            }
+                            @* PropietarioNombre es la entidad asociada al Documento, no el Tenant propietario.
+                               Se conserva el identificador legacy y el rótulo de la maqueta; hay deuda terminológica. *@
+                            <TemplateColumn @ref="_columnaEntidadAsociada" Title="@(_ordenEntidadAsociadaPorAmbito ? Textos["ListaEntidadAsociadaPorAmbito"].Value : Textos["ListaEntidadAsociada"].Value)"
+                                            Sortable="true" SortBy="@(_ordenEntidadAsociadaPorAmbito ? OrdenAmbitoListado : OrdenEntidadAsociadaListado)"
+                                            IsDefaultSortColumn="@_orden.Es("entidad", "ambito")" InitialSortDirection="_orden.Direccion">
+                                <ColumnOptions>
+                                    <div class="documentos-opciones-orden" data-opciones-orden>
+                                        <button type="button" @onclick="() => CambiarCampoOrdenEntidadAsociada(false)">@Textos["ListaOrdenarEntidadAsociada"]</button>
+                                        <button type="button" @onclick="() => CambiarCampoOrdenEntidadAsociada(true)">@Textos["ListaOrdenarAmbito"]</button>
+                                    </div>
+                                </ColumnOptions>
                                 <ChildContent>
-                                    <input type="checkbox" aria-label="@($"Seleccionar {context.TipoDocumentoNombre} de {context.PropietarioNombre}, emisión {context.FechaEmision:dd/MM/yyyy}")" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                                    <span class="documentos-propietario">
+                                        <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@context.PropietarioNombre" Termino="@_busqueda" /></button>
+                                        <span class="documentos-ambito">@EtiquetaAmbitoListado(context.Ambito)</span>
+                                    </span>
                                 </ChildContent>
                             </TemplateColumn>
-                        }
-                        @* PropietarioNombre es la entidad asociada al Documento, no el Tenant propietario.
-                           Se conserva el identificador legacy y el rótulo de la maqueta; hay deuda terminológica. *@
-                        <TemplateColumn @ref="_columnaEntidadAsociada" Title="@(_ordenEntidadAsociadaPorAmbito ? Textos["ListaEntidadAsociadaPorAmbito"].Value : Textos["ListaEntidadAsociada"].Value)"
-                                        Sortable="true" SortBy="@(_ordenEntidadAsociadaPorAmbito ? OrdenAmbitoListado : OrdenEntidadAsociadaListado)"
-                                        IsDefaultSortColumn="@_orden.Es("entidad", "ambito")" InitialSortDirection="_orden.Direccion">
-                            <ColumnOptions>
-                                <div class="documentos-opciones-orden" data-opciones-orden>
-                                    <button type="button" @onclick="() => CambiarCampoOrdenEntidadAsociada(false)">@Textos["ListaOrdenarEntidadAsociada"]</button>
-                                    <button type="button" @onclick="() => CambiarCampoOrdenEntidadAsociada(true)">@Textos["ListaOrdenarAmbito"]</button>
-                                </div>
-                            </ColumnOptions>
-                            <ChildContent>
-                                <span class="documentos-propietario">
-                                    <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@context.PropietarioNombre" Termino="@_busqueda" /></button>
-                                    <span class="documentos-ambito">@EtiquetaAmbitoListado(context.Ambito)</span>
-                                </span>
-                            </ChildContent>
-                        </TemplateColumn>
-                        <TemplateColumn Title="Tipo de documento" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.TipoDocumentoNombre))"
-                                       IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion">
-                            <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
-                        </TemplateColumn>
-                        <TemplateColumn @ref="_columnaVigencia" Title="@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVigenciaPorVencimiento"]"
-                                        Sortable="true" SortBy="@(_ordenVigenciaPorEmision ? OrdenEmisionListado : OrdenVencimientoListado)"
-                                        IsDefaultSortColumn="@_orden.Es("vencimiento", "emision")" InitialSortDirection="_orden.Direccion">
-                            <ColumnOptions>
-                                <div class="documentos-opciones-orden" data-opciones-orden>
-                                    <button type="button" @onclick="() => CambiarCampoOrdenVigencia(true)">@Textos["ListaOrdenarEmision"]</button>
-                                    <button type="button" @onclick="() => CambiarCampoOrdenVigencia(false)">@Textos["ListaOrdenarVencimiento"]</button>
-                                </div>
-                            </ColumnOptions>
-                            <ChildContent>
-                                <span class="documentos-vigencia">
-                                    @if (context.FechaVencimiento is null)
-                                    {
-                                        <span>@Textos["ListaEmitido", context.FechaEmision.ToString("dd/MM/yyyy")]</span>
-                                    }
-                                    else
-                                    {
-                                        <span>@context.FechaEmision.ToString("dd/MM/yyyy")</span>
-                                        <span aria-hidden="true"> → </span>
-                                        @* Un clic copia el vencimiento; Alt + clic, la emisión (decisión del 2026-10-08).
-                                           La emisión se sigue pintando como texto: el botón es solo el vencimiento. *@
-                                        <TextoFechaCopiable Fecha="context.FechaVencimiento" FechaEmision="context.FechaEmision">@context.FechaVencimiento.Value.ToString("dd/MM/yyyy")</TextoFechaCopiable>
-                                    }
-                                </span>
-                            </ChildContent>
-                        </TemplateColumn>
-                        @* Urgente y Próximo se rotulan los dos «Por vencer»; el motivo de debajo dice los días, que es
-                           lo que los distingue. Lo correcto (Vigente, Sin caducidad) va sin pastilla. *@
-                        <TemplateColumn Title="Estado" Sortable="true" Class="col-estado" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))"
-                                        IsDefaultSortColumn="@_orden.Es("estado")" InitialSortDirection="_orden.Direccion">
-                            <EstadoFila Tono="EstadoDocumentoUi.Tono(context.Estado)" Texto="@EstadoDocumentoUi.Texto(context.Estado)"
-                                        Correcto="EstadoDocumentoUi.EsCorrecto(context.Estado)"
-                                        Motivo="@EstadoDocumentoUi.MotivoDeDocumento(context.Estado, context.FechaVencimiento, _hoy)" />
-                        </TemplateColumn>
-                        <TemplateColumn Title="Plataformas">
-                            @if (context.Acreditaciones.Count == 0)
-                            {
-                                <span class="detalle-tecnico">—</span>
-                            }
-                            else
-                            {
-                                @* La ventana repite lo que la celda ya dice (plataforma y estado), una línea por
-                                   plataforma; pulsar una abre la vista rápida del documento en «Validación». *@
-                                <VentanaContexto Interactiva="true"
-                                                 Colocacion="ColocacionVentanaPlataformas(context.Id)"
-                                                 Etiqueta="@Textos["VentanaPlataformasEtiqueta", context.Acreditaciones.Count]"
-                                                 Titulo="@Textos["VentanaPlataformasTitulo"]"
-                                                 class="documentos-plataformas">
-                                    <Disparador><BadgesAcreditacion Acreditaciones="context.Acreditaciones" /></Disparador>
-                                    <Detalle>
-                                        @foreach (var acreditacion in context.Acreditaciones)
+                            <TemplateColumn Title="Tipo de documento" Sortable="true" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.TipoDocumentoNombre))"
+                                           IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion">
+                                <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
+                            </TemplateColumn>
+                            <TemplateColumn @ref="_columnaVigencia" Title="@Textos[_ordenVigenciaPorEmision ? "ListaVigenciaPorEmision" : "ListaVigenciaPorVencimiento"]"
+                                            Sortable="true" SortBy="@(_ordenVigenciaPorEmision ? OrdenEmisionListado : OrdenVencimientoListado)"
+                                            IsDefaultSortColumn="@_orden.Es("vencimiento", "emision")" InitialSortDirection="_orden.Direccion">
+                                <ColumnOptions>
+                                    <div class="documentos-opciones-orden" data-opciones-orden>
+                                        <button type="button" @onclick="() => CambiarCampoOrdenVigencia(true)">@Textos["ListaOrdenarEmision"]</button>
+                                        <button type="button" @onclick="() => CambiarCampoOrdenVigencia(false)">@Textos["ListaOrdenarVencimiento"]</button>
+                                    </div>
+                                </ColumnOptions>
+                                <ChildContent>
+                                    <span class="documentos-vigencia">
+                                        @if (context.FechaVencimiento is null)
                                         {
-                                            <VentanaContextoElemento @key="acreditacion.Id"
-                                                                     Secundario="@EstadoAcreditacionUi.Texto(acreditacion.Estado)"
-                                                                     Ayuda="@Textos["VentanaPlataformasAyuda"]"
-                                                                     AlPulsar="() => AbrirPanelAsync(context.Id, PestanaValidacion)">@acreditacion.NombrePlataforma</VentanaContextoElemento>
+                                            <span>@Textos["ListaEmitido", context.FechaEmision.ToString("dd/MM/yyyy")]</span>
                                         }
-                                    </Detalle>
-                                </VentanaContexto>
-                            }
-                        </TemplateColumn>
-                        <TemplateColumn Title="Archivo">
-                            @if (context.ArchivoUrl is not null)
-                            {
-                                @* Botón y no enlace: abre el visor en un modal (VisorDocumento) sin salir de la lista.
-                                   «Abrir en pestaña nueva» sigue dentro del propio visor. *@
-                                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                       aria-label="@Textos["VerPdfAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
-                                       OnClick="() => AbrirVisor(context)">@Textos["VerPdf"]</Boton>
-                            }
-                            else
-                            {
-                                <span class="detalle-tecnico">Sin adjunto</span>
-                            }
-                        </TemplateColumn>
-                        @* Fila sin menú «⋯» (decisión 2026-10-08): «Ver» es la fila, el nombre o Enter; eliminar, la
-                           selección múltiple. «Renovar» conserva el drawer que abría el menú —el único camino de
-                           la lista que renueva CON archivo nuevo; el «Renovar» de la vista rápida solo cambia
-                           fechas y comentarios—. El icono 360 lleva a la página del TIPO de documento, y solo
-                           para los roles que pueden abrirla. *@
-                        <TemplateColumn Title="Acciones" Align="Align.End">
-                            <span class="documentos-acciones-fila">
-                                <SoloConEscritura>
-                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                           class="documentos-accion-rapida"
-                                           aria-label="@Textos[context.ArchivoUrl is null ? "AccionRapidaSubirAria" : "AccionRapidaRenovarAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
-                                           OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
-                                        @Textos[context.ArchivoUrl is null ? "AccionRapidaSubir" : "AccionRapidaRenovar"]
-                                    </Boton>
-                                </SoloConEscritura>
-                                @if (context.TipoDocumentoId != Guid.Empty)
+                                        else
+                                        {
+                                            <span>@context.FechaEmision.ToString("dd/MM/yyyy")</span>
+                                            <span aria-hidden="true"> → </span>
+                                            @* Un clic copia el vencimiento; Alt + clic, la emisión (decisión del 2026-10-08).
+                                               La emisión se sigue pintando como texto: el botón es solo el vencimiento. *@
+                                            <TextoFechaCopiable Fecha="context.FechaVencimiento" FechaEmision="context.FechaEmision">@context.FechaVencimiento.Value.ToString("dd/MM/yyyy")</TextoFechaCopiable>
+                                        }
+                                    </span>
+                                </ChildContent>
+                            </TemplateColumn>
+                            @* Urgente y Próximo se rotulan los dos «Por vencer»; el motivo de debajo dice los días, que es
+                               lo que los distingue. Lo correcto (Vigente, Sin caducidad) va sin pastilla. *@
+                            <TemplateColumn Title="Estado" Sortable="true" Class="col-estado" SortBy="@(GridSort<DocumentoListaDto>.ByAscending(d => d.Estado))"
+                                            IsDefaultSortColumn="@_orden.Es("estado")" InitialSortDirection="_orden.Direccion">
+                                <EstadoFila Tono="EstadoDocumentoUi.Tono(context.Estado)" Texto="@EstadoDocumentoUi.Texto(context.Estado)"
+                                            Correcto="EstadoDocumentoUi.EsCorrecto(context.Estado)"
+                                            Motivo="@EstadoDocumentoUi.MotivoDeDocumento(context.Estado, context.FechaVencimiento, _hoy)" />
+                            </TemplateColumn>
+                            <TemplateColumn Title="Plataformas">
+                                @if (context.Acreditaciones.Count == 0)
                                 {
-                                    <AuthorizeView Roles="@TipoDocumentoDetalle.RolesDeLaPagina" Context="autorizacion">
-                                        <Boton360 Nombre="@context.TipoDocumentoNombre" Href="@($"/documentos/tipos/{context.TipoDocumentoId}")" />
-                                    </AuthorizeView>
+                                    <span class="detalle-tecnico">—</span>
                                 }
-                            </span>
-                        </TemplateColumn>
-                    </QuickGrid>
-                    </div>
-
-                    @if (_totalElementos > 20 || (_totalElementos > 0 && _paginacion.ItemsPerPage > 20))
-                    {
-                    <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                                      Etiqueta="documento(s)" PaginaActualChanged="CambiarPaginaAsync"
-                                      TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-                    }
-                    <LeyendaAtajosLista Omitir="@(["e"])" HayFilas="@(_totalElementos > 0)" />
+                                else
+                                {
+                                    @* La ventana repite lo que la celda ya dice (plataforma y estado), una línea por
+                                       plataforma; pulsar una abre la vista rápida del documento en «Validación». *@
+                                    <VentanaContexto Interactiva="true"
+                                                     Colocacion="ColocacionVentanaPlataformas(context.Id)"
+                                                     Etiqueta="@Textos["VentanaPlataformasEtiqueta", context.Acreditaciones.Count]"
+                                                     Titulo="@Textos["VentanaPlataformasTitulo"]"
+                                                     class="documentos-plataformas">
+                                        <Disparador><BadgesAcreditacion Acreditaciones="context.Acreditaciones" /></Disparador>
+                                        <Detalle>
+                                            @foreach (var acreditacion in context.Acreditaciones)
+                                            {
+                                                <VentanaContextoElemento @key="acreditacion.Id"
+                                                                         Secundario="@EstadoAcreditacionUi.Texto(acreditacion.Estado)"
+                                                                         Ayuda="@Textos["VentanaPlataformasAyuda"]"
+                                                                         AlPulsar="() => AbrirPanelAsync(context.Id, PestanaValidacion)">@acreditacion.NombrePlataforma</VentanaContextoElemento>
+                                            }
+                                        </Detalle>
+                                    </VentanaContexto>
+                                }
+                            </TemplateColumn>
+                            <TemplateColumn Title="Archivo">
+                                @if (context.ArchivoUrl is not null)
+                                {
+                                    @* Botón y no enlace: abre el visor en un modal (VisorDocumento) sin salir de la lista.
+                                       «Abrir en pestaña nueva» sigue dentro del propio visor. *@
+                                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                           aria-label="@Textos["VerPdfAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
+                                           OnClick="() => AbrirVisor(context)">@Textos["VerPdf"]</Boton>
+                                }
+                                else
+                                {
+                                    <span class="detalle-tecnico">Sin adjunto</span>
+                                }
+                            </TemplateColumn>
+                            @* Fila sin menú «⋯» (decisión 2026-10-08): «Ver» es la fila, el nombre o Enter; eliminar, la
+                               selección múltiple. «Renovar» conserva el drawer que abría el menú —el único camino de
+                               la lista que renueva CON archivo nuevo; el «Renovar» de la vista rápida solo cambia
+                               fechas y comentarios—. El icono 360 lleva a la página del TIPO de documento, y solo
+                               para los roles que pueden abrirla. *@
+                            <TemplateColumn Title="Acciones" Align="Align.End">
+                                <span class="documentos-acciones-fila">
+                                    <SoloConEscritura>
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                               class="documentos-accion-rapida"
+                                               aria-label="@Textos[context.ArchivoUrl is null ? "AccionRapidaSubirAria" : "AccionRapidaRenovarAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
+                                               OnClick="() => _drawerGestion.AbrirEditarAsync(context.Id)">
+                                            @Textos[context.ArchivoUrl is null ? "AccionRapidaSubir" : "AccionRapidaRenovar"]
+                                        </Boton>
+                                    </SoloConEscritura>
+                                    @if (context.TipoDocumentoId != Guid.Empty)
+                                    {
+                                        <AuthorizeView Roles="@TipoDocumentoDetalle.RolesDeLaPagina" Context="autorizacion">
+                                            <Boton360 Nombre="@context.TipoDocumentoNombre" Href="@($"/documentos/tipos/{context.TipoDocumentoId}")" />
+                                        </AuthorizeView>
+                                    }
+                                </span>
+                            </TemplateColumn>
+                        </QuickGrid>
+                        </div>
+                    
                 </div>
+</text>, PieDelListado)
 
                 @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
                 {
@@ -416,4 +411,17 @@
             <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/documentos/subida-masiva")'>Subida múltiple</ItemMenuAccion>
         </SoloConEscritura>
     };
+}
+
+@code {
+    private RenderFragment PieDelListado => @<text>
+        @if (!_errorCarga && (!_cargando || _totalElementos > 0))
+        {
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                          PaginaActualChanged="CambiarPaginaAsync"
+                                          TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                    <Centro><LeyendaAtajosLista Omitir="@(["e"])" /></Centro>
+                </PaginadorSimple>
+        }
+    </text>;
 }

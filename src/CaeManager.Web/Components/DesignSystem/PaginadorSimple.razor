@@ -8,6 +8,16 @@
     y `PaginaActualChanged` delega en `PaginationState.SetCurrentPageIndexAsync`.
     Nunca el `Paginator` propio de QuickGrid — no está localizado ("Page 1 of 1").
 *@
+@if (ElementosEnPagina is not null || TextoFilasMostradas is not null)
+{
+    <PieListado PaginaActual="PaginaActual" TotalPaginas="TotalPaginas" TotalElementos="TotalElementos"
+                ElementosEnPagina="ElementosEnPagina" TamanoPagina="TamanoPagina" OpcionesTamanoPagina="OpcionesTamanoPagina"
+                PaginaActualChanged="PaginaActualChanged" TamanoPaginaChanged="TamanoPaginaChanged"
+                TextoFilasMostradas="@TextoFilasMostradas" EtiquetaTamanoPagina="@EtiquetaTamanoPagina"
+                EtiquetaAnterior="@EtiquetaAnterior" EtiquetaSiguiente="@EtiquetaSiguiente" Centro="Centro" />
+}
+else
+{
 <div class="paginador paginador-simple">
     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
            Deshabilitado="@(PaginaActual <= 1)" OnClick="() => CambiarPaginaAsync(PaginaActual - 1)">
@@ -31,6 +41,7 @@
         Siguiente <Icono Nombre="siguiente" Tamano="TamanoIcono.Pequeno" />
     </Boton>
 </div>
+}
 
 @code {
     [Parameter] public int PaginaActual { get; set; } = 1;
@@ -40,9 +51,8 @@
     [Parameter] public EventCallback<int> PaginaActualChanged { get; set; }
 
     /// <summary>
-    /// H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): "20 filas por
-    /// página, fijo en las 12 listas" — el selector solo se pinta cuando el
-    /// caller conecta <see cref="TamanoPaginaChanged"/>, así que sigue
+    /// Tamaño de página, 20 de serie. En el modo tradicional el selector
+    /// solo se pinta cuando el llamador conecta <see cref="TamanoPaginaChanged"/>, así que sigue
     /// siendo válido usar <c>PaginadorSimple</c> sin tamaño configurable
     /// (p. ej. paginación puramente en memoria de una miniatura) sin tener
     /// que pasar los tres parámetros nuevos.
@@ -50,6 +60,15 @@
     [Parameter] public int TamanoPagina { get; set; } = 20;
     [Parameter] public EventCallback<int> TamanoPaginaChanged { get; set; }
     [Parameter] public IReadOnlyList<int> OpcionesTamanoPagina { get; set; } = [20, 50, 100];
+
+    /// <summary>Activa el pie de listado de tres zonas, sin alterar el paginador tradicional.</summary>
+    [Parameter] public string? TextoFilasMostradas { get; set; }
+    /// <summary>Recuento real de elementos de la página; activa el pie de tres zonas localizado.</summary>
+    [Parameter] public int? ElementosEnPagina { get; set; }
+    [Parameter] public string? EtiquetaTamanoPagina { get; set; }
+    [Parameter] public string? EtiquetaAnterior { get; set; }
+    [Parameter] public string? EtiquetaSiguiente { get; set; }
+    [Parameter] public RenderFragment? Centro { get; set; }
 
     private Task CambiarPaginaAsync(int pagina) => PaginaActualChanged.InvokeAsync(pagina);
 }

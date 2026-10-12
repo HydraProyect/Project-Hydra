@@ -34,7 +34,7 @@ public partial class ProyectosGen2Tests
             .ToList();
 
     private static Task PulsarSiguienteAsync(IRenderedComponent<Proyectos> cut) =>
-        cut.FindAll(".paginador button").Single(b => b.TextContent.Trim() == "Siguiente").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".paginador button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
 
     private static string MotivoDe(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto) =>
         FilaDe(cut, proyecto).QuerySelector("td.col-estado .estado-fila-motivo")!.TextContent.Trim();
@@ -210,13 +210,14 @@ public partial class ProyectosGen2Tests
     [Theory]
     [InlineData(20, false)]
     [InlineData(21, true)]
-    public async Task El_paginador_solo_aparece_cuando_la_lista_no_cabe_en_la_pagina_mas_pequena(int proyectos, bool conPaginador)
+    public async Task El_pie_siempre_aparece_y_la_navegacion_solo_si_la_lista_no_cabe(int proyectos, bool conPaginador)
     {
         _mediator.Proyectos = Obras(proyectos);
         var cut = await RenderizarConClienteAsync();
 
         NombresEnLaTabla(cut).Should().HaveCount(20, "control positivo: la lista está pintada");
-        cut.FindAll(".paginador").Any().Should().Be(conPaginador);
+        cut.FindAll(".paginador-inicio button").Any().Should().Be(conPaginador);
+        cut.Find(".tarjeta-listado-pie .paginador-opciones-tamano").Should().NotBeNull();
     }
 
     /// <summary>Un filtro cambia el conjunto: la página 2 del anterior no es la página 2 del nuevo.</summary>
@@ -278,11 +279,11 @@ public partial class ProyectosGen2Tests
         var cut = await RenderizarConClienteAsync();
         await PulsarSiguienteAsync(cut);
 
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         UltimaConsultaDeProyectos.Should().Match<ObtenerProyectosQuery>(q => q.Pagina == 1 && q.TamanoPagina == 50);
         NombresEnLaTabla(cut).Should().HaveCount(45);
-        cut.FindAll(".paginador-tamano-select").Should().ContainSingle(
+        cut.FindAll(".paginador-opciones-tamano").Should().ContainSingle(
             "con todo en una página el paginador se queda: sin él no habría cómo volver a bajar el tamaño");
     }
 

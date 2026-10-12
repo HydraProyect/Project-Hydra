@@ -1269,12 +1269,12 @@ public partial class DocumentosGen2Tests : BunitContext
     }
 
     [Fact]
-    public void El_paginador_ofrece_Mostrar_N_y_cambiarlo_vuelve_a_pedir_con_ese_tamano()
+    public void El_pie_ofrece_tamanos_y_cambiarlos_vuelve_a_pedir_con_ese_tamano()
     {
         var mediador = ConDocumentos(Enumerable.Range(1, 21).Select(i => Documento("Contrato " + i)).ToArray());
         var (cut, _) = Renderizar(mediador);
         var consultasAntes = mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Count();
-        cut.Find(".paginador-tamano-select").Change("50");
+        cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").Click();
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().TamanoPagina.Should().Be(50);
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().HaveCount(consultasAntes + 1);
     }

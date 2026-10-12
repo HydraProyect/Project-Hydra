@@ -10,20 +10,21 @@ namespace CaeManager.Web.Tests;
 public partial class EmpresasListaGen2Tests
 {
     [Fact]
-    public void Con_empresas_el_pie_ensena_todos_los_atajos_de_lista_aunque_no_haya_paginador()
+    public void Con_empresas_el_pie_ensena_todos_los_atajos_de_lista_con_una_sola_pagina()
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Montajes Ebro S.L.") } });
 
         cut.TeclasDeLaLeyenda().Should().Equal("j", "k", "Enter", "e", "x", "f", "Alt", "?");
-        cut.FindAll(".paginador-simple").Should().BeEmpty("con una sola página no hay paginador, y la leyenda no depende de él");
+        cut.FindAll(".paginador-simple").Should().ContainSingle("el pie permanece visible con una sola página");
+        cut.FindAll(".paginador-inicio button").Should().BeEmpty();
     }
 
     [Fact]
-    public void Sin_empresas_no_hay_leyenda_de_atajos()
+    public void Sin_empresas_el_pie_conserva_la_leyenda_de_atajos()
     {
         var cut = Renderizar(new MediatorFalso());
 
         cut.Markup.Should().Contain("Aún no hay empresas", "es el estado vacío: no hay filas que recorrer");
-        cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().BeEmpty();
+        cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().ContainSingle("el pie conserva la leyenda también sin resultados");
     }
 }

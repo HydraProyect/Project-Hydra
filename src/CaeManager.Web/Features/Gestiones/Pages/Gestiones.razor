@@ -71,71 +71,69 @@
         @* La rejilla se monta siempre (es la que pide los datos): se esconde
            mientras no haya filas que enseñar, y en su lugar se ve el esqueleto
            o el estado vacío que toque. *@
-        <div style="display:@(_totalElementos == 0 ? "none" : "block")">
-            <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                <TemplateColumn @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
-                                Sortable="true" SortBy="@(_ordenTrabajadorPorCentro ? OrdenCentroListado : OrdenTrabajadorListado)"
-                                IsDefaultSortColumn="@_orden.Es("trabajador", "centro")" InitialSortDirection="_orden.Direccion">
-                    <ColumnOptions>
-                        <div class="gestiones-opciones-orden" data-opciones-orden>
-                            <button type="button" @onclick="() => CambiarCampoOrdenTrabajador(false)">@Textos["ListaOrdenarTrabajador"]</button>
-                            <button type="button" @onclick="() => CambiarCampoOrdenTrabajador(true)">@Textos["ListaOrdenarCentro"]</button>
-                        </div>
-                    </ColumnOptions>
-                    <ChildContent Context="context">
-                        <span class="gestion-trabajador-centro">
-                            <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.TrabajadorNombre" Termino="@_busqueda" /></button>
-                            <button type="button" class="enlace-nombre-fila gestion-centro" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" /></button>
-                        </span>
-                    </ChildContent>
-                </TemplateColumn>
-                @* Orden de columnas del patrón de listados: Trabajador (con su Centro debajo) · Tipo de documento ·
-                   Creada · Estado, y al final el hueco de acción rápida. La segunda columna dice «Tipo de documento»
-                   y no «Documento»: una Gestión referencia un Tipo de documento, no un Documento (Gestion.cs). *@
-                <TemplateColumn Title="@Textos["ListaTipoDocumento"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TipoDocumentoNombre))" Class="gestion-tipo-documento"
-                               IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion">
-                    <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
-                </TemplateColumn>
-                @* La fecha es el día de negocio (hora peninsular) del instante de creación, el mismo día que
-                   enseña la vista rápida y del que sale el motivo «Abierta hace N días»; se ordena por el instante. *@
-                <TemplateColumn Title="@Textos["ColumnaCreada"]" Class="gestion-creada" Sortable="true" SortBy="OrdenCreadaListado"
-                                IsDefaultSortColumn="@_orden.Es("creada")" InitialSortDirection="_orden.Direccion">
-                    @(context.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy"))
-                </TemplateColumn>
-                @* El motivo dice cuánto lleva abierta la Gestión pendiente; la completada no lleva motivo. *@
-                <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado" Sortable="true" IsDefaultSortColumn="@_orden.Es("estado")" InitialSortDirection="_orden.Direccion" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
-                    <EstadoFila Tono="@TonoEstado(context.Estado)" Texto="@TextoEstado(context.Estado)"
-                                Correcto="@(context.Estado == EstadoGestion.Completada)" Motivo="@MotivoEstado(context)" />
-                </TemplateColumn>
-                @* Patrón de listados (2026-10-08): la fila no lleva menú «⋯». Su hueco de acción rápida es
-                   completar o reabrir; la vista rápida se abre con un clic en la fila, el nombre o Enter, y
-                   «Eliminar» vive en el pie de la vista rápida (decisión D1: esta pantalla no tiene selección
-                   múltiple). Sin icono 360: una Gestión no tiene página propia (decisión D7). *@
-                <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
-                    <SoloConEscritura>
-                        @if (context.Estado == EstadoGestion.Pendiente)
-                        {
-                            <button type="button" class="gestion-completar" disabled="@_cambiandoEstado.Contains(context.Id)"
-                                    @onclick="() => CambiarEstadoAsync(context.Id, true)">
-                                <span aria-hidden="true">✓</span> @Textos["ListaCompletar"]
-                            </button>
-                        }
-                        else
-                        {
-                            <button type="button" class="gestion-reabrir" disabled="@_cambiandoEstado.Contains(context.Id)"
-                                    @onclick="() => CambiarEstadoAsync(context.Id, false)">
-                                @Textos["AccionReabrir"]
-                            </button>
-                        }
-                    </SoloConEscritura>
-                </TemplateColumn>
-            </QuickGrid>
-
-            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                              TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-            <LeyendaAtajosLista Omitir="@(["x", "e"])" HayFilas="@(_totalElementos > 0)" />
-        </div>
+        @TarjetaListado.Renderizar(@<text>
+                <div style="display:@(_totalElementos == 0 ? "none" : "block")">
+                <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                    <TemplateColumn @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
+                                    Sortable="true" SortBy="@(_ordenTrabajadorPorCentro ? OrdenCentroListado : OrdenTrabajadorListado)"
+                                    IsDefaultSortColumn="@_orden.Es("trabajador", "centro")" InitialSortDirection="_orden.Direccion">
+                        <ColumnOptions>
+                            <div class="gestiones-opciones-orden" data-opciones-orden>
+                                <button type="button" @onclick="() => CambiarCampoOrdenTrabajador(false)">@Textos["ListaOrdenarTrabajador"]</button>
+                                <button type="button" @onclick="() => CambiarCampoOrdenTrabajador(true)">@Textos["ListaOrdenarCentro"]</button>
+                            </div>
+                        </ColumnOptions>
+                        <ChildContent Context="context">
+                            <span class="gestion-trabajador-centro">
+                                <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.TrabajadorNombre" Termino="@_busqueda" /></button>
+                                <button type="button" class="enlace-nombre-fila gestion-centro" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" /></button>
+                            </span>
+                        </ChildContent>
+                    </TemplateColumn>
+                    @* Orden de columnas del patrón de listados: Trabajador (con su Centro debajo) · Tipo de documento ·
+                       Creada · Estado, y al final el hueco de acción rápida. La segunda columna dice «Tipo de documento»
+                       y no «Documento»: una Gestión referencia un Tipo de documento, no un Documento (Gestion.cs). *@
+                    <TemplateColumn Title="@Textos["ListaTipoDocumento"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TipoDocumentoNombre))" Class="gestion-tipo-documento"
+                                   IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion">
+                        <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
+                    </TemplateColumn>
+                    @* La fecha es el día de negocio (hora peninsular) del instante de creación, el mismo día que
+                       enseña la vista rápida y del que sale el motivo «Abierta hace N días»; se ordena por el instante. *@
+                    <TemplateColumn Title="@Textos["ColumnaCreada"]" Class="gestion-creada" Sortable="true" SortBy="OrdenCreadaListado"
+                                    IsDefaultSortColumn="@_orden.Es("creada")" InitialSortDirection="_orden.Direccion">
+                        @(context.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy"))
+                    </TemplateColumn>
+                    @* El motivo dice cuánto lleva abierta la Gestión pendiente; la completada no lleva motivo. *@
+                    <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado" Sortable="true" IsDefaultSortColumn="@_orden.Es("estado")" InitialSortDirection="_orden.Direccion" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.Estado))">
+                        <EstadoFila Tono="@TonoEstado(context.Estado)" Texto="@TextoEstado(context.Estado)"
+                                    Correcto="@(context.Estado == EstadoGestion.Completada)" Motivo="@MotivoEstado(context)" />
+                    </TemplateColumn>
+                    @* Patrón de listados (2026-10-08): la fila no lleva menú «⋯». Su hueco de acción rápida es
+                       completar o reabrir; la vista rápida se abre con un clic en la fila, el nombre o Enter, y
+                       «Eliminar» vive en el pie de la vista rápida (decisión D1: esta pantalla no tiene selección
+                       múltiple). Sin icono 360: una Gestión no tiene página propia (decisión D7). *@
+                    <TemplateColumn Title="@Textos["ColumnaAcciones"]" Align="Align.End">
+                        <SoloConEscritura>
+                            @if (context.Estado == EstadoGestion.Pendiente)
+                            {
+                                <button type="button" class="gestion-completar" disabled="@_cambiandoEstado.Contains(context.Id)"
+                                        @onclick="() => CambiarEstadoAsync(context.Id, true)">
+                                    <span aria-hidden="true">✓</span> @Textos["ListaCompletar"]
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button" class="gestion-reabrir" disabled="@_cambiandoEstado.Contains(context.Id)"
+                                        @onclick="() => CambiarEstadoAsync(context.Id, false)">
+                                    @Textos["AccionReabrir"]
+                                </button>
+                            }
+                        </SoloConEscritura>
+                    </TemplateColumn>
+                </QuickGrid>
+            
+                </div>
+</text>, PieDelListado)
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
@@ -249,3 +247,16 @@
     EnProgreso="_eliminando"
     OnConfirmar="ConfirmarEliminarAsync" />
 </LimiteDeErrores>
+
+@code {
+    private RenderFragment PieDelListado => @<text>
+        @if (!_errorCarga && (!_cargando || _totalElementos > 0))
+        {
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                  PaginaActualChanged="CambiarPaginaAsync"
+                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                    <Centro><LeyendaAtajosLista Omitir="@(["x", "e"])" /></Centro>
+                </PaginadorSimple>
+        }
+    </text>;
+}

@@ -1,0 +1,114 @@
+@using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Subcontratas.Recursos
+@using CaeManager.Web.Components.Workspace
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject MediatR.IMediator Mediator
+@inject IStringLocalizer<TextosSubcontratas> Textos
+@inject ContextWorkspaceService WorkspaceService
+
+@if (_cargando)
+{
+    <EstadoCargando Filas="3" />
+}
+else if (_error)
+{
+    <EstadoVacio Titulo="@Textos["ErrorVehiculos"]">
+        <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton></Accion>
+    </EstadoVacio>
+}
+else if (_total == 0)
+{
+    <EstadoVacio Titulo="@Textos["SinVehiculos"]" />
+}
+else
+{
+    <ListaRelaciones Etiqueta="@Textos["PestanaVehiculos"]" EnTarjeta="true">
+        @foreach (var vehiculo in _filas)
+        {
+            <FilaRelacion @key="vehiculo.Id" Nombre="@vehiculo.NumeroPlaca" Href="@($"/vehiculos/{vehiculo.Id}")" NombreIcono="vehiculos"
+                          OnAbrir360="() => AbrirVehiculoAsync(vehiculo)"
+                          Tono="@(vehiculo.EstadoDocumental is { } estado ? EstadoDocumentoFicha360.TonoFila(estado) : null)">
+                <Detalle>@vehiculo.Modelo</Detalle>
+                <Estado>
+                    <Badge Tono="@(vehiculo.EstadoDocumental is { } e ? EstadoDocumentoFicha360.Tono(e) : TonoBadge.Neutro)">
+                        @(vehiculo.EstadoDocumental is { } s ? EstadoDocumentoFicha360.Texto(s) : Textos["EstadoVehiculoDesconocido"].Value)
+                    </Badge>
+                </Estado>
+            </FilaRelacion>
+        }
+    </ListaRelaciones>
+    <p class="resumen-vehiculos-subcontrata">@Textos["ResumenVehiculos", _filas.Count, _total]</p>
+    @if (_total > TamanoPagina)
+    {
+        <PaginadorSimple PaginaActual="_pagina" TotalPaginas="@((int)Math.Ceiling((double)_total / TamanoPagina))"
+                         TotalElementos="_total" PaginaActualChanged="CambiarPaginaAsync" Etiqueta="@Textos["PestanaVehiculos"]" />
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid EmpresaContraparteId { get; set; }
+    private const int TamanoPagina = 20;
+    private Guid? _id;
+    private int _pagina = 1;
+    private int _total;
+    private int _carga;
+    private bool _cargando;
+    private bool _error;
+    private bool _retirado;
+    private IReadOnlyList<VehiculoListaDto> _filas = [];
+    private readonly CancellationTokenSource _ciclo = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_id == EmpresaContraparteId) return;
+        _id = EmpresaContraparteId;
+        _pagina = 1;
+        _filas = [];
+        _total = 0;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var carga = ++_carga;
+        _cargando = true;
+        _error = false;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerVehiculosQuery(null, SubcontrataId: _id,
+                Pagina: _pagina, TamanoPagina: TamanoPagina, OrdenarPor: nameof(VehiculoListaDto.EstadoDocumental), Descendente: false), _ciclo.Token);
+            if (_retirado || carga != _carga) return;
+            _filas = resultado.Elementos;
+            _total = resultado.TotalElementos;
+        }
+        catch (OperationCanceledException) when (_retirado) { }
+        catch (Exception)
+        {
+            if (!_retirado && carga == _carga) _error = true;
+        }
+        finally
+        {
+            if (!_retirado && carga == _carga) _cargando = false;
+        }
+    }
+
+    private async Task CambiarPaginaAsync(int pagina)
+    {
+        _pagina = pagina;
+        await CargarAsync();
+    }
+
+    private Task AbrirVehiculoAsync(VehiculoListaDto vehiculo) =>
+        WorkspaceService.AbrirAsync(EntidadWorkspace.Vehiculo, vehiculo.Id, vehiculo.NumeroPlaca, "informacion");
+
+    public void Dispose()
+    {
+        _retirado = true;
+        _carga++;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

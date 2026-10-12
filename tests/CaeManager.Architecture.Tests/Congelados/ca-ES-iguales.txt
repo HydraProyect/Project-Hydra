@@ -810,7 +810,6 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Rot
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: SeleccionHayMasEnTotal = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: SeleccionarLosDeEstaPagina = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: SinVerificacionesRegistradas = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: SubtituloCentro = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: SufijoValidoHasta = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: SupervisionVacioSinCentros = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: SupervisionVacioSinVerificaciones = 1

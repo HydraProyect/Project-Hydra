@@ -116,7 +116,7 @@ public partial class DocumentosGen2Tests
 
     private static async Task IrALaPagina2DeDocumentosAsync(IRenderedComponent<PaginaDocumentos> cut)
     {
-        await cut.FindAll(".paginador-simple button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => TiposDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Documento 21"));
     }
 
@@ -167,7 +167,8 @@ public partial class DocumentosGen2Tests
 
         cut.WaitForAssertion(() => FilaDelTipo(cut, "Documento 23").TextContent.Should().Contain(VencimientoNuevoPintado));
         TiposDeLasFilas(cut).Should().Equal("Documento 21", "Documento 22", "Documento 23", "Documento 24", "Documento 25");
-        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 2 de 2").And.Contain("25 documento(s)");
+        ComprobacionPieListado.Pagina(cut, 2, 2);
+        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
         FilasConDocumento(cut).Select(tr => tr.QuerySelector("input[type=checkbox]")!.HasAttribute("checked")).Should().Equal(
             [false, true, true, false, false], "la selección sigue marcada, también la de la fila sustituida");
         FilasConDocumento(cut).Select(tr => tr.ClassList.Contains("fila-enfocada")).Should().Equal(true, false, false, false, false);
