@@ -38,8 +38,9 @@
        recarga esta ruta sin query (I14). El estado vacío sin empresa elegida (4a) sigue más abajo. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        <CabeceraListado Titulo="Centros" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
-                         SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+        <CabeceraListado Titulo="@Textos["ListaTitulo"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+                         SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
+                         RutaExportar="@RutaExportarVista" EtiquetaExportar="@Textos["ListaExportarExcel"]">
             <Menu>
                 @* Descargas por GET: enlaces, no rutas de Blazor. *@
                 <CaeManager.Web.Exportacion.EntradasExportar Ruta="/centros/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
@@ -48,14 +49,14 @@
             <Primaria>
                 @if (!_alcanceCero)
                 {
-                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">+ Nuevo centro</Boton></SoloConEscritura>
+                    <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrearAsync">@Textos["ListaNuevoCentro"]</Boton></SoloConEscritura>
                 }
             </Primaria>
         </CabeceraListado>
     }
     else
     {
-        <CabeceraListado Titulo="Centros" />
+        <CabeceraListado Titulo="@Textos["ListaTitulo"]" />
     }
 
     @if (_resolviendoEmpresa)
@@ -75,34 +76,28 @@
         Barra de filtros en modo pastillas (rediseño de listados, fase 1):
         - El buscador «Filtrar esta pantalla» (tecla f) busca en el nombre y el código del Centro,
           el Cliente empresarial y la Empresa (ObtenerCentrosQuery): la pista dice los cuatro.
-        - Pastillas primarias: «Cliente» y «Estado». «Empresa» va dentro de «Más filtros».
+        - Pastillas primarias: «Cliente» y «Empresa». El estado se filtra en la franja.
           Las tres viajan en la URL (cliente, estado, empresa). «cliente» y «empresa» no son los
           parámetros del alta encadenada, que prefijan el formulario y no filtran.
         - En la misma fila: el desplegable «Agrupar» (de serie, por Cliente empresarial; DesplegableAgrupar),
           «Expandir todo» y el recuento. El orden por cumplimiento (blueprint § 3.1, DDL-036: atacar los
           peores centros sin depender de que haya visita) vive en la cabecera de su columna, como en la
           maqueta aprobada.
-        Los filtros guardados (dentro de «Más filtros») guardan los parámetros de vista de la URL, con
+        La pastilla «Filtros guardados» guarda los parámetros de vista de la URL, con
         la agrupación y el orden: FiltrosGuardadosDeListado y ParametrosDeVista.
     *@
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
-                  MasFiltrosActivos="@(!string.IsNullOrEmpty(_empresaFiltro))"
+                  FiltrosGuardadosEnPastilla="true"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         <Pastillas>
             <PastillaFiltro Etiqueta="@Textos["FiltroClienteEmpresarial"]" TextoTodos="@Textos["FiltroTodos"]" Valor="@_clienteFiltro"
                             ValorChanged="CambiarClienteFiltroAsync" Opciones="_opcionesCliente" />
+            <PastillaFiltro Etiqueta="@Textos["FiltroEmpresa"]" TextoTodos="@Textos["FiltroTodas"]" Valor="@_empresaFiltro"
+                            ValorChanged="CambiarEmpresaFiltroAsync" Opciones="_opcionesEmpresa" />
         </Pastillas>
-        <MasFiltros>
-            <span class="menu-filtros-titulo" role="presentation">@Textos["FiltroEmpresa"]</span>
-            <ItemMenuAccion Marcado="@string.IsNullOrEmpty(_empresaFiltro)" OnClick="() => CambiarEmpresaFiltroAsync(string.Empty)">@Textos["FiltroTodas"]</ItemMenuAccion>
-            @foreach (var opcion in _opcionesEmpresa)
-            {
-                <ItemMenuAccion Marcado="@(opcion.Valor == _empresaFiltro)" OnClick="() => CambiarEmpresaFiltroAsync(opcion.Valor)">@opcion.Texto</ItemMenuAccion>
-            }
-        </MasFiltros>
         <Herramientas>
             @if (_elementosPagina.Count > 0)
             {
@@ -217,31 +212,11 @@
            solo ordena por él en esta pantalla): pulsarlo de nuevo invierte el sentido. Los anchos son los
            de la fila (Centros.razor.css). *@
         @TarjetaListado.Renderizar(@<text>
-            <div class="cabecera-columnas-centros">
-                @if (_seleccionMultiple)
-                {
-                    <span class="cabecera-columnas-centros-seleccion"></span>
-                }
-                <span class="cabecera-columnas-centros-inicio"></span>
-                <span class="cabecera-columnas-centros-centro">@Textos["ColCentro"]</span>
-                <span class="columna-empresa-centro">@Textos["ColEmpresa"]</span>
-                <span class="columna-cumplimiento-centro">
-                    <button type="button" class="cabecera-columna-orden"
-                            aria-pressed="@(OrdenPorCumplimiento ? "true" : "false")"
-                            @onclick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))">
-                        @Textos["OrdenCumplimiento"] <span aria-hidden="true">@(OrdenPorCumplimiento ? (_ordenDescendente ? "↓" : "↑") : "")</span>
-                    </button>
-                </span>
-                <span class="cabecera-columnas-centros-indicadores">
-                    <span>@Textos["ColEstado"]</span>
-                    <span>@Textos["ColVisita"]</span>
-                </span>
-                <span class="cabecera-columnas-centros-acciones"></span>
-            </div>
+            @CabeceraDeColumnas
 
             @* Agrupación por Cliente empresarial (de serie): una cabecera por grupo (CabeceraGrupoLista)
                con el total y el resumen por estado del grupo ENTERO —todas las páginas, los da la consulta
-               (ResumenPorGrupo)—, blanca salvo que el grupo contenga algún Centro que tiña su fila. Los
+               (ResumenPorGrupo)—, tintada por el peor estado, también Próximo para el aviso. Los
                grupos arrancan contraídos y se abren de uno en uno o con «Expandir todo»; con búsqueda, con
                un Centro concreto en la URL o con selección múltiple se ven abiertos (también mientras haya
                filas marcadas), y entonces la cabecera no es un botón (no podría contraerlos). Las filas son
@@ -260,7 +235,7 @@
                     {
                         <CabeceraGrupoLista @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)" Nombre="@grupo.Nombre" Termino="@_busqueda"
                                             Total="grupo.Total" EnPagina="grupo.Centros.Count" TituloContador="@Textos["GrupoContadorTitulo", grupo.Total]"
-                                            Resumen="ResumenDe(grupo)" Tinte="grupo.Tinte"
+                                            Resumen="ResumenDe(grupo)" Tinte="grupo.Tinte" Destacado="true"
                                             Abierto="GrupoAbierto(grupo.ClienteEmpresarialId)" Fijo="GruposForzadosAbiertos"
                                             OnAlternar="() => AlternarGrupo(grupo.ClienteEmpresarialId)" />
                     }
@@ -504,7 +479,10 @@
     }
     @if (!_errorCarga && !_cargando && _elementosPagina.Count == 0)
     {
-        @TarjetaListado.Renderizar(null, PieDelListado)
+        @TarjetaListado.Renderizar(@<text>
+            @CabeceraDeColumnas
+            <div class="lista-filas-acordeon"></div>
+        </text>, PieDelListado)
     }
     }
 </div>
@@ -596,6 +574,30 @@
 </LimiteDeErrores>
 
 @code {
+    private RenderFragment CabeceraDeColumnas => @<text>
+            <div class="cabecera-columnas-centros">
+                @if (_seleccionMultiple)
+                {
+                    <span class="cabecera-columnas-centros-seleccion"></span>
+                }
+                <span class="cabecera-columnas-centros-inicio"></span>
+                <span class="cabecera-columnas-centros-centro">@Textos["ColCentro"]</span>
+                <span class="columna-empresa-centro">@Textos["ColEmpresa"]</span>
+                <span class="columna-cumplimiento-centro">
+                    <button type="button" class="cabecera-columna-orden"
+                            aria-pressed="@(OrdenPorCumplimiento ? "true" : "false")"
+                            @onclick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))">
+                        @Textos["OrdenCumplimiento"] <span aria-hidden="true">@(OrdenPorCumplimiento ? (_ordenDescendente ? "↓" : "↑") : "")</span>
+                    </button>
+                </span>
+                <span class="cabecera-columnas-centros-indicadores">
+                    <span>@Textos["ColEstado"]</span>
+                    <span>@Textos["ColVisita"]</span>
+                </span>
+                <span class="cabecera-columnas-centros-acciones"></span>
+            </div>
+    </text>;
+
     private RenderFragment PieDelListado => @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {

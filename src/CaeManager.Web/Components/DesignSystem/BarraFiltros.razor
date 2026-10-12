@@ -42,7 +42,10 @@
     filtro») y, a la derecha, un resumen. Debajo, los chips y «Limpiar todo» como
     en el modo de siempre. Las pantallas que no pasan «Pastillas» no cambian.
 
-    KeyTips (keytips.js): F el buscador (en los dos modos), L «Más filtros»; cada pastilla
+    FiltrosGuardadosEnPastilla rotula el menú como «Filtros guardados» cuando la pantalla no tiene
+    filtros secundarios. Las pantallas que no activan esa variante mantienen «Más filtros».
+
+    KeyTips (keytips.js): F el buscador (en los dos modos), L el menú de filtros; cada pastilla
     deduce su letra del nombre del filtro (PastillaFiltro).
 
         <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
@@ -74,7 +77,7 @@
         @Pastillas
         @if (HayMasFiltros)
         {
-            <MenuAcciones Etiqueta="@Comunes["MasFiltros"]" Pastilla="true" Activa="MasFiltrosActivos" Keytip="L">
+            <MenuAcciones Etiqueta="@(FiltrosGuardadosEnPastilla ? Comunes["FiltrosGuardados"] : Comunes["MasFiltros"])" Pastilla="true" Activa="MasFiltrosActivos" Keytip="L">
                 @MasFiltros
                 @if (FiltrosGuardados.Count > 0)
                 {
@@ -161,6 +164,8 @@ else
 }
 
 @code {
+    /// <summary>Presenta las vistas guardadas en su propia pastilla cuando no hay filtros secundarios.</summary>
+    [Parameter] public bool FiltrosGuardadosEnPastilla { get; set; }
     /// <summary>Etiqueta visible del buscador.</summary>
     [Parameter] public string EtiquetaBuscador { get; set; } = "Buscar";
 

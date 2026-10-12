@@ -197,10 +197,10 @@ public class FiltrosGuardadosEnListadosTests : BunitContext
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
             .Single(b => b.GetAttribute("aria-label") is { } nombre && (nombre == etiqueta || nombre.StartsWith(etiqueta + ": ", StringComparison.Ordinal)));
 
-    /// <summary>Abre «Más filtros» y pulsa el ítem con ese texto (un filtro guardado o «Guardar filtro»).</summary>
+    /// <summary>Abre el menú de vistas guardadas de cada pantalla y pulsa el ítem indicado.</summary>
     private static async Task PulsarEnMasFiltrosAsync<TPagina>(IRenderedComponent<TPagina> cut, string item) where TPagina : IComponent
     {
-        await Pastilla(cut, "Más filtros").ClickAsync(new MouseEventArgs());
+        await Pastilla(cut, typeof(TPagina) == typeof(Centros) ? "Filtros guardados" : "Más filtros").ClickAsync(new MouseEventArgs());
         await cut.FindAll(".barra-filtros-pastillas [role=menuitem]")
             .Single(i => i.TextContent.Trim() == item).ClickAsync(new MouseEventArgs());
     }

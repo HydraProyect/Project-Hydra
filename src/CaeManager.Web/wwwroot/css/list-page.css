@@ -395,6 +395,33 @@
     color: var(--color-text-muted);
 }
 
+/* Variante de Centros: identidad y recuento juntos; resumen a la derecha. El modo
+   habitual de los otros listados conserva su distribución. */
+.grupo-lista-identidad {
+    display: contents;
+}
+
+.grupo-lista.grupo-lista-destacado > .grupo-lista-cabecera {
+    display: grid;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    min-height: 42px;
+    background-image: none;
+}
+
+.grupo-lista-destacado .grupo-lista-identidad {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.grupo-lista-destacado .grupo-lista-contador {
+    background: var(--color-primary-100);
+    border-radius: var(--radius-full);
+    padding: 1px 9px;
+    font-weight: 600;
+}
+
 /* Resumen por estado del grupo entero: un punto del color del estado y «N estado» por cada uno
    con cifra. El punto usa los mismos tonos que el de la franja de estado y, como él, se pinta con
    currentColor: el token es de texto y sigue su variante por tema. */

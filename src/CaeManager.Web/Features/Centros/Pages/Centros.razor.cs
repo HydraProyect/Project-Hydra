@@ -802,15 +802,13 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
             .Max();
 
         /// <summary>
-        /// Blanca salvo que el grupo contenga algún Centro cuya fila se tiñe; entonces, el tinte del peor.
-        /// El resumen de la cabecera dice «N por vencer» sumando Urgente y Próximo, como la franja de estado, pero
-        /// el tinte y el orden del grupo (<see cref="Peor"/>) solo reaccionan a Urgente: la cabecera se tiñe con el
-        /// criterio de sus filas, y la fila de un Centro «Próximo» no se tiñe.
+        /// Tinte del peor estado: peligro antes que aviso. La cabecera incluye Próximo en «por vencer»;
+        /// las filas y el orden del grupo conservan su criterio propio.
         /// </summary>
         public TinteGrupoLista Tinte => Peor switch
         {
             2 => TinteGrupoLista.Peligro,
-            1 => TinteGrupoLista.Aviso,
+            _ when PorEstado.GetValueOrDefault(nameof(EstadoCentro.Urgente)) + PorEstado.GetValueOrDefault(nameof(EstadoCentro.Proximo)) > 0 => TinteGrupoLista.Aviso,
             _ => TinteGrupoLista.Ninguno,
         };
     }
@@ -963,8 +961,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>
     /// Fila con problema: 2 = bloqueo de la plataforma CAE, vencido o falta documentación
     /// (tinte de peligro, «con problema»); 1 = urgente (tinte de aviso, «por vencer»); 0 = el resto.
-    /// Se lee del estado del Centro, el mismo que pinta su badge. Es también el criterio del tinte de la cabecera
-    /// de grupo (<see cref="GrupoCentros.Tinte"/>): «Próximo» se rotula «Por vencer» pero no tiñe ni fila ni grupo.
+    /// Se lee del estado del Centro, el mismo que pinta su badge. La cabecera de grupo incluye además Próximo
+    /// en el tinte de aviso, sin modificar el tinte de las filas.
     /// </summary>
     private static int NivelProblema(EstadoCentro estado) => estado switch
     {
@@ -1605,9 +1603,12 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     };
 
     /// <summary>
-    /// Los criterios de «Exportar esta vista»: los mismos que esta página pasa a la consulta del
-    /// listado, con los nombres de parámetro del endpoint de exportación, que los lee igual.
+    /// El icono exporta esta vista por el mismo endpoint y con los mismos criterios que el menú.
     /// </summary>
+    private string RutaExportarVista => Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
+        "/centros/exportar.xlsx", CriteriosExportar.Where(c => !string.IsNullOrWhiteSpace(c.Value)));
+
+    /// <summary>Criterios del listado con los nombres que lee el endpoint de exportación.</summary>
     private Dictionary<string, string?> CriteriosExportar => new()
     {
         ["q"] = _busqueda,

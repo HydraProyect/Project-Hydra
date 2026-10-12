@@ -285,6 +285,12 @@
   <data name="ListaExportarExcel" xml:space="preserve">
     <value>Exportar a Excel</value>
   </data>
+  <data name="ListaTitulo" xml:space="preserve">
+    <value>Centros</value>
+  </data>
+  <data name="ListaNuevoCentro" xml:space="preserve">
+    <value>+ Nuevo centro</value>
+  </data>
   <data name="ListaFiltrarPlaceholder" xml:space="preserve">
     <value>Filtrar esta pantalla: centro, código, Cliente o empresa</value>
   </data>
@@ -325,10 +331,10 @@
     <value>{0} centro(s)</value>
   </data>
   <data name="GrupoResumenBloqueoUno" xml:space="preserve">
-    <value>{0} bloqueo de la plataforma CAE</value>
+    <value>{0} bloqueo cae</value>
   </data>
   <data name="GrupoResumenBloqueoVarios" xml:space="preserve">
-    <value>{0} bloqueos de la plataforma CAE</value>
+    <value>{0} bloqueos cae</value>
   </data>
   <data name="GrupoResumenVencidoUno" xml:space="preserve">
     <value>{0} vencido</value>

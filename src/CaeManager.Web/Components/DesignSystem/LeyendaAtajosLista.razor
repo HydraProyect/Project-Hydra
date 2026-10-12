@@ -7,8 +7,8 @@
     - Cada pantalla enseña solo lo que maneja de verdad. Omitir quita entradas de CatalogoAtajos.Lista por su
       tecla, tal cual figura allí («x», «e», «f»); «Alt» y «?» van siempre. Una tecla que no esté en esa lista
       es un error de quien la escribe y se dice al pintar, no se ignora.
-    - Sin filas que recorrer (lista vacía, cargando o con error) no se pinta: va dentro de la rama que pinta la
-      tabla, o con HayFilas cuando la rejilla sigue montada y solo se esconde.
+    - Los listados con PieListado la mantienen al terminar la carga, también con cero filas: las teclas
+      de filtro y ayuda siguen siendo útiles. HayFilas permite ocultarla en otros consumidores que lo necesiten.
     - En pantallas táctiles o estrechas se oculta (CSS aislado): ahí no hay teclado que la use.
 
     Uso:
