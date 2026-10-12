@@ -77,6 +77,16 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     [Parameter] public bool SoloIncidencias { get; set; }
 
     /// <summary>
+    /// Modo listado de la fila desplegada de <c>/centros</c>: solo las filas de
+    /// Trabajador con incidencia (nombre, estado, motivo y «Gestionar»), sin la
+    /// barra «+ Asignar trabajador» / «Dar de baja seleccionados», sin el
+    /// buscador propio y sin casillas de selección por trabajador (maqueta
+    /// v29: la fila desplegada no las tiene). Las altas y bajas viven en la
+    /// página de Centro 360, que mantiene el modo por defecto (false).
+    /// </summary>
+    [Parameter] public bool ModoListado { get; set; }
+
+    /// <summary>
     /// Si el acordeón pinta sus propios caminos a la ficha del centro
     /// (<c>/centros/{id}</c>): «Ver los N en Centro 360» en el estado «Todos al
     /// día» y «Ver Centro 360 →» junto a la nota de trabajadores al día

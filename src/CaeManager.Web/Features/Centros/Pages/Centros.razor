@@ -447,15 +447,15 @@
                             @* Igual que antes con SeccionColapsable: el contenido solo se
                                monta al expandir, no se paga el render de 34 acordeones. *@
                             <div class="tarjeta-fila-acordeon-contenido">
-                                @* El título es verdadero por construcción: el
-                                   acordeón se monta aquí con SoloIncidencias. *@
-                                <p class="acordeon-centro-titulo">Asignaciones con incidencias</p>
+                                @* Sin título ni barra de asignación: el acordeón se monta aquí en
+                                   ModoListado (solo filas de Trabajador con incidencia). *@
                                 <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="@centro.Nombre"
                                                               VisitaId="visita?.VisitaId" VisitaFechaFin="visita?.FechaFin"
                                                               EmpresaId="centro.EmpresaId" EmpresaNombre="@centro.EmpresaRazonSocial"
                                                               IncidenciasEmpresa="IncidenciasDeEmpresa(centro)"
                                                               SeleccionMultiple="_seleccionMultiple"
                                                               SoloIncidencias="true"
+                                                              ModoListado="true"
                                                               MostrarEnlacesCentro360="false"
                                                               AsignarEsPrimaria="false"
                                                               OnCambio="() => RefrescarCentroAsync(centro.Id)" />

@@ -167,7 +167,7 @@ public class CentrosListaGen2Tests : BunitContext
         var enlace = cut.Find("a.acordeon-centro-enlace-360");
         enlace.GetAttribute("href").Should().Be($"/centros/{centro.Id}");
         enlace.TextContent.Should().Contain("Ver el centro completo");
-        cut.Find(".acordeon-centro-titulo").TextContent.Should().Be("Asignaciones con incidencias");
+        cut.FindAll(".acordeon-centro-titulo").Should().BeEmpty("la fila desplegada de /centros no lleva título de sección");
     }
 
     /// <summary>

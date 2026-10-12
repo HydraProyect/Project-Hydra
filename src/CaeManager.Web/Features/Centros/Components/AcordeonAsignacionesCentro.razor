@@ -41,7 +41,10 @@ else if (_cargando)
 }
 else
 {
-    @* Asignar y dar de baja son ICommand denegados a Consulta: la barra entera se le oculta, sin dejar el hueco. *@
+    @* Asignar y dar de baja son ICommand denegados a Consulta: la barra entera se le oculta, sin dejar el hueco.
+       En el modo listado de /centros no se pinta: la fila desplegada solo lista incidencias. *@
+    @if (!ModoListado)
+    {
     <SoloConEscritura>
         <div class="acordeon-asignaciones-cabecera">
             <Boton Variante="@(AsignarEsPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
@@ -50,6 +53,7 @@ else
             </Boton>
         </div>
     </SoloConEscritura>
+    }
 
     @*
         Ámbito EMPRESA (OD-13, blueprint § 3.3). Aparece solo cuando la empresa
@@ -157,7 +161,7 @@ else
         <div class="separador-ambito">Trabajadores</div>
     }
 
-    @if (_trabajadoresVisitaSinAsignacion.Count > 0)
+    @if (!ModoListado && _trabajadoresVisitaSinAsignacion.Count > 0)
     {
         <div class="alerta-info" role="status">
             <p>La próxima visita a este centro incluye a estos trabajadores sin asignación activa aquí:</p>
@@ -206,7 +210,7 @@ else
             mockup y viaja en la URL, y pintarla también aquí serían dos
             campos que dicen lo mismo sobre la misma lista.
         *@
-        @if (!BusquedaGobernadaFuera && TrabajadoresAMostrar.Count > 1)
+        @if (!ModoListado && !BusquedaGobernadaFuera && TrabajadoresAMostrar.Count > 1)
         {
             <div class="acordeon-asignaciones-busqueda">
                 <CampoTexto Placeholder="Buscar trabajador…" Valor="@_busquedaTrabajador" ValorChanged="v => _busquedaTrabajador = v" />
@@ -238,7 +242,7 @@ else
                 var urgentes = DocumentosUrgentes(trabajador);
                 <FilaRelacion @key="trabajador.AsignacionId" Nombre="@trabajador.TrabajadorNombre"
                               Tono="@(EstaBloqueado(trabajador.TrabajadorId) ? TonoFila.Peligro : EstadoDocumentoFicha360.TonoFila(trabajador.PeorEstado))"
-                              Avatar="@(SeleccionMultiple ? CasillaSeleccion(trabajador) : null)"
+                              Avatar="@(SeleccionMultiple && !ModoListado ? CasillaSeleccion(trabajador) : null)"
                               OnNombre="() => AbrirDetalleTrabajador(trabajador)"
                               OnAbrir360="() => AbrirDetalleTrabajador(trabajador)"
                               Desplegada="expandido" DesplegadaChanged="_ => AlternarExpansionTrabajador(trabajador.AsignacionId)"
