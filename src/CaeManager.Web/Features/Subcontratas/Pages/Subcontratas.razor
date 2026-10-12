@@ -25,15 +25,16 @@
 <div class="contenedor-pagina">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
        conmutador ☑ de selección múltiple —la única vía para eliminar: la fila no lleva menú—,
-       el menú «⋯» con «Exportar a Excel» (lectura: cualquier rol) y UNA acción primaria. Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo
+       el icono ⤓ de exportación de la vista filtrada (lectura: cualquier rol) y UNA acción primaria. Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo
        de la empresa gestionada: el selector de la barra lateral ya dice cuál es. El estado vacío
        sin empresa elegida (4a) sigue más abajo. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
         <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
-                         SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+                         SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
+                         RutaExportar="/subcontratas/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
-                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/subcontratas/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
+                <CaeManager.Web.Exportacion.EntradasExportar SoloTodo="true" Ruta="/subcontratas/exportar.xlsx" />
             </Menu>
             <Primaria>
                 @if (!_alcanceCero)

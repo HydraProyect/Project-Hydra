@@ -1,19 +1,27 @@
 @*
-    Las dos entradas de exportación del «⋯» de la cabecera de un listado (decisión D2 del
-    2026-10-08, confirmada el 2026-10-09): «Exportar esta vista» lleva al endpoint los mismos
+    Entradas reutilizables para los consumidores que ofrecen las dos variantes de exportación:
+    «Exportar esta vista» lleva al endpoint los mismos
     criterios que la consulta de la pantalla —búsqueda, filtros y orden— y dice cuántas filas
     saldrán; «Exportar todo» va sin criterios. Son enlaces (descarga por GET), no acciones del
     circuito. Los dos pasan por la misma consulta del listado, con su autorización y su alcance.
+    Las cabeceras de los diez listados usan el icono de CabeceraListado y comparten la construcción
+    del enlace con esta pieza. Los diez listados usan SoloTodo en el menú: la vista filtrada se
+    descarga desde el icono y «Exportar todo» conserva el endpoint sin criterios.
 *@
-@using Microsoft.AspNetCore.WebUtilities
 @using Microsoft.Extensions.Localization
 @using CaeManager.Web.Recursos
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<ItemMenuAccion Href="@EnlaceVista">@(Total is { } total ? Comunes["ExportarEstaVista", total] : Comunes["ExportarEstaVistaSinRecuento"])</ItemMenuAccion>
+@if (!SoloTodo)
+{
+    <ItemMenuAccion Href="@EnlaceVista">@(Total is { } total ? Comunes["ExportarEstaVista", total] : Comunes["ExportarEstaVistaSinRecuento"])</ItemMenuAccion>
+}
 <ItemMenuAccion Href="@Ruta">@Comunes["ExportarTodo"]</ItemMenuAccion>
 
 @code {
+    /// <summary>Ofrece únicamente la descarga sin criterios cuando la cabecera ya exporta la vista.</summary>
+    [Parameter] public bool SoloTodo { get; set; }
+
     /// <summary>Ruta del endpoint, sin query: <c>/trabajadores/exportar.xlsx</c>.</summary>
     [Parameter, EditorRequired] public string Ruta { get; set; } = string.Empty;
 
@@ -26,6 +34,5 @@
     /// <summary>Criterios de la vista, con los nombres de parámetro del endpoint. Los vacíos no viajan.</summary>
     [Parameter] public IReadOnlyDictionary<string, string?> Criterios { get; set; } = new Dictionary<string, string?>();
 
-    private string EnlaceVista => QueryHelpers.AddQueryString(
-        Ruta, Criterios.Where(c => !string.IsNullOrWhiteSpace(c.Value)));
+    private string EnlaceVista => EnlaceDeExportacion.ConCriterios(Ruta, Criterios);
 }

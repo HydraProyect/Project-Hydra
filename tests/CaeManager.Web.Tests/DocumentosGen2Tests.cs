@@ -361,7 +361,7 @@ public partial class DocumentosGen2Tests : BunitContext
     /// deroga. La barrera va delante para que la aserción no sea verde vacío.
     /// </summary>
     [Fact]
-    public void Las_acciones_de_cabecera_conservan_la_exportacion_que_el_mockup_no_dibuja()
+    public void La_cabecera_exporta_con_icono_y_conserva_importacion_y_subida_en_el_menu()
     {
         var (cut, mediador) = Renderizar(ConDocumentos(Documento("Contrato visible")));
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
@@ -369,8 +369,8 @@ public partial class DocumentosGen2Tests : BunitContext
         acciones.TextContent.Should().Contain("+ Nuevo documento");
         acciones.TextContent.Should().NotContain("Subida múltiple");
         cut.Find(".cabecera-pagina .menu-acciones-disparador").Click();
-        cut.FindAll(".cabecera-pagina a[href^='/documentos/exportar.xlsx']").Select(a => a.TextContent.Trim())
-            .Should().Equal("Exportar esta vista (filas: 1)", "Exportar todo");
+        cut.FindAll(".cabecera-pagina a[data-keytip=X]").Should().ContainSingle()
+            .Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         cut.FindAll(".cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
             .Should().Contain("Importar documentos").And.Contain("Subida múltiple");
     }
@@ -1652,7 +1652,7 @@ public partial class DocumentosGen2Tests : BunitContext
 
     // Sustituye el test de exportación antiguo; verifica destino y permisos de lectura por fixture.
     [Fact]
-    public async Task Consulta_conserva_exportacion_en_menu_sin_acciones_de_escritura()
+    public async Task Consulta_conserva_exportacion_en_icono_y_menu_sin_acciones_de_escritura()
     {
         var (cut, m) = Renderizar(ConDocumentos(Documento("Contrato visible")), rol: "Consulta");
         m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
@@ -1822,10 +1822,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var (cut, _) = Renderizar(ConOpcionesDeFiltro(),
             url: $"documentos?Tipo={TipoMedicoId}&Plataforma={PlataformaNalandaId}");
 
-        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
-
-        var vista = cut.FindAll("header.cabecera-pagina a.menu-acciones-item")
-            .First(i => i.TextContent.Trim().StartsWith("Exportar esta vista")).GetAttribute("href");
+        var vista = cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href");
         vista.Should().StartWith("/documentos/exportar.xlsx?")
             .And.Contain($"tipo={TipoMedicoId}").And.Contain($"plataforma={PlataformaNalandaId}").And.Contain("orden=Severidad");
     }

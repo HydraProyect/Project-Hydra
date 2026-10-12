@@ -5,24 +5,20 @@ using Xunit;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// El «⋯» de la cabecera de Proyectos: las dos entradas de exportación (decisión D2 del
-/// 2026-10-08). «Esta vista» lleva el Cliente empresarial del filtro, si hay uno, la búsqueda y el estado; «todo», nada.
+/// El icono de exportación de Proyectos lleva el Cliente empresarial del filtro, la búsqueda y el estado.
 /// </summary>
 public partial class ProyectosGen2Tests
 {
     [Fact]
-    public async Task Con_Cliente_empresarial_elegido_el_menu_de_cabecera_ofrece_exportar_esta_vista_y_exportar_todo()
+    public async Task Con_Cliente_empresarial_elegido_el_icono_exporta_la_vista_filtrada()
     {
         _mediator.Proyectos = [ProyectoAbierto, ProyectoCerrado];
         var cut = await RenderizarConClienteAsync("proyectos?estado=abiertos");
         cut.WaitForAssertion(() => cut.FindAll("tbody .nombre-proyecto").Should().ContainSingle());
 
-        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
-
-        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar esta vista (filas: 1)", "Exportar todo");
-        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
-            .Should().Equal($"/proyectos/exportar.xlsx?cliente={ClienteId}&estado=abiertos", "/proyectos/exportar.xlsx");
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
+            .Should().Be($"/proyectos/exportar.xlsx?cliente={ClienteId}&estado=abiertos");
     }
 
     [Fact]
@@ -33,26 +29,21 @@ public partial class ProyectosGen2Tests
         var cut = Renderizar("proyectos?estado=abiertos");
         cut.WaitForAssertion(() => cut.FindAll("tbody .nombre-proyecto").Should().HaveCount(2));
 
-        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
-
-        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar esta vista (filas: 2)", "Exportar todo");
-        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
-            .Should().Equal("/proyectos/exportar.xlsx?estado=abiertos", "/proyectos/exportar.xlsx");
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
+            .Should().Be("/proyectos/exportar.xlsx?estado=abiertos");
     }
 
-    /// <summary>«Filas» es el total de la vista, no las de la página que se ve: el fichero las lleva todas.</summary>
+    /// <summary>El enlace no pagina: conserva los filtros y exporta la vista entera.</summary>
     [Fact]
-    public async Task Exportar_esta_vista_cuenta_el_total_y_no_las_filas_de_la_pagina()
+    public async Task Exportar_esta_vista_no_limita_la_descarga_a_las_filas_de_la_pagina()
     {
         _mediator.Proyectos = Enumerable.Range(1, 23)
             .Select(i => ProyectoAbierto with { Id = Guid.NewGuid(), Nombre = $"Obra {i:00}" }).ToList();
         var cut = await RenderizarConClienteAsync();
         cut.FindAll("tbody .nombre-proyecto").Should().HaveCount(20, "control positivo: la página se queda en 20");
 
-        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
-
-        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Contain("Exportar esta vista (filas: 23)");
+        cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("23");
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
+            .Should().Be($"/proyectos/exportar.xlsx?cliente={ClienteId}");
     }
 }

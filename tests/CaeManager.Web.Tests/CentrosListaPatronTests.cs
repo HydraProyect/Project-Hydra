@@ -404,7 +404,6 @@ public partial class CentrosListaPatronTests : BunitContext
 
         cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => (i.TextContent.Trim(), i.GetAttribute("href")))
             .Should().SatisfyRespectively(
-                vista => { vista.Item1.Should().StartWith("Exportar esta vista (filas: "); vista.Item2.Should().StartWith("/centros/exportar.xlsx"); },
                 todo => todo.Should().Be(("Exportar todo", "/centros/exportar.xlsx")),
                 asignaciones => asignaciones.Should().Be(("Exportar asignaciones", "/asignaciones/exportar.xlsx")));
     }

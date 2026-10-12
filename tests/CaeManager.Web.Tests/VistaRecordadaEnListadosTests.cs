@@ -645,7 +645,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
     }
 
     [Fact]
-    public async Task Trabajadores_el_orden_de_la_url_ordena_la_consulta_y_la_exportacion()
+    public void Trabajadores_el_orden_de_la_url_ordena_la_consulta_y_la_exportacion()
     {
         var cut = Renderizar<Trabajadores>("trabajadores?orden=trabajador-desc");
 
@@ -653,8 +653,7 @@ public class VistaRecordadaEnListadosTests : BunitContext
             q.OrdenarPor == nameof(TrabajadorListaDto.Apellidos) && q.Descendente));
 
         // «Exportar esta vista» sale en el mismo orden que se ve, venga de un clic o de la URL.
-        await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").First().GetAttribute("href")
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
             .Should().StartWith("/trabajadores/exportar.xlsx?")
             .And.Contain($"orden={nameof(TrabajadorListaDto.Apellidos)}").And.Contain("desc=true");
     }

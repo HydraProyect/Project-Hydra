@@ -144,7 +144,7 @@ public partial class ClientesListaGen2Tests
     }
 
     [Fact]
-    public async Task El_orden_de_la_url_ordena_la_consulta_y_la_exportacion()
+    public void El_orden_de_la_url_ordena_la_consulta_y_la_exportacion()
     {
         var mediador = new MediatorFalso { Almacen = { Cliente("Refrielectric S.A."), Cliente("Frigoríficos Arcos S.A.") } };
 
@@ -155,8 +155,7 @@ public partial class ClientesListaGen2Tests
         NombresDeLasFilas(cut).Should().Equal("Refrielectric S.A.", "Frigoríficos Arcos S.A.");
 
         // «Exportar esta vista» sale en el mismo orden que se ve, venga de un clic o de la URL.
-        await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
-        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").First().GetAttribute("href")
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
             .Should().StartWith("/clientes/exportar.xlsx?")
             .And.Contain($"orden={nameof(ClienteListaDto.RazonSocial)}").And.Contain("desc=true");
     }

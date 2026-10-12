@@ -40,15 +40,16 @@
        gestionada: el selector de la barra lateral ya dice cuál es. El estado vacío sin
        empresa elegida (4a) sigue más abajo.
 
-       El «⋯» junta lo que antes era el enlace «Exportar a Excel» y el menú «Más»:
-       Exportar (cualquier rol: es lectura), las dos importaciones (solo Administrador) y
+       El icono exporta la vista filtrada; el «⋯» conserva ambas variantes de exportación,
+       las dos importaciones (solo Administrador) y
        «Alta guiada» (con escritura y alcance no cero). *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
         <CabeceraListado Titulo="@Textos["ListaTitulo"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
-                         SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple">
+                         SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
+                         RutaExportar="/clientes/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
-                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/clientes/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
+                <CaeManager.Web.Exportacion.EntradasExportar SoloTodo="true" Ruta="/clientes/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
                 <SoloConEscritura>
                     <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                         <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/importacion?plantilla=clientes")'>@Textos["ListaImportar"]</ItemMenuAccion>
@@ -60,6 +61,7 @@
                     }
                 </SoloConEscritura>
             </Menu>
+
             <Primaria>
                 @if (!_alcanceCero)
                 {

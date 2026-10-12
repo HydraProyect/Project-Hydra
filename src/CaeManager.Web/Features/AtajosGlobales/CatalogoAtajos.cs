@@ -169,9 +169,8 @@ public static class CatalogoAtajos
     /// que cada <c>data-keytip</c> del código salga de aquí.
     /// </summary>
     /// <remarks>
-    /// <c>X</c> (exportar) y <c>T</c> (franja de estado) están reservadas por la propuesta de
-    /// listados: hoy «Exportar a Excel» vive dentro del menú «⋯» (<c>M</c>) y la franja de
-    /// estado no existe todavía. <c>G</c> (filtros guardados) vive dentro de «Más filtros»
+    /// <c>X</c> activa el icono de exportación de la vista filtrada en los listados.
+    /// <c>T</c> (franja de estado) sigue reservada. <c>G</c> (filtros guardados) vive dentro de «Más filtros»
     /// (<c>L</c>) en el modo pastillas.
     /// </remarks>
     public static readonly IReadOnlyList<DefinicionAtajo> KeyTips =
@@ -194,5 +193,5 @@ public static class CatalogoAtajos
     /// Las reservadas sin control no se anuncian: una letra anunciada que no hace nada es peor
     /// que una que falta.
     /// </summary>
-    public static readonly IReadOnlyCollection<string> KeyTipsConControl = ["S", "K", "M", "N", "F", "L", "A", "E"];
+    public static readonly IReadOnlyCollection<string> KeyTipsConControl = ["S", "X", "K", "M", "N", "F", "L", "A", "E"];
 }

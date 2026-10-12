@@ -19,7 +19,7 @@
 <div class="contenedor-pagina">
     <CabeceraListado Titulo="@Textos["TituloPagina"]"
                      Contador="@(ListaDisponible && _listaCargada ? (int?)_totalElementos : null)"
-                     Menu="@(ListaDisponible ? MenuCabecera : null)">
+                     RutaExportar="@(ListaDisponible ? "/proyectos/exportar.xlsx" : null)" CriteriosExportar="CriteriosExportar" Menu="@(ListaDisponible ? MenuExportarTodo : null)">
         <Primaria>
             @if (ListaDisponible)
             {
@@ -515,12 +515,6 @@
 </LimiteDeErrores>
 
 @code {
-    /// <summary>
-    /// El «⋯» de la cabecera: las dos entradas de exportación. El total de «esta vista» es el de
-    /// todas las páginas, no el de la que se enseña.
-    /// </summary>
-    private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/proyectos/exportar.xlsx" Total="@(_listaCargada ? (int?)_totalElementos : null)" Criterios="CriteriosExportar" />;
-
     private Drawer? _drawerProyecto;
     // De instancia, no static: las etiquetas salen del localizador inyectado.
     private IReadOnlyList<PestanaDefinicion>? _pestanasDetalle;
@@ -544,4 +538,8 @@
                 </PaginadorSimple>
         }
     </text>;
+}
+
+@code {
+    private RenderFragment MenuExportarTodo => @<CaeManager.Web.Exportacion.EntradasExportar SoloTodo="true" Ruta="/proyectos/exportar.xlsx" />;
 }

@@ -6,9 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Las dos entradas de exportación del «⋯» de un listado (decisión D2 del 2026-10-08):
-/// «Exportar esta vista», con los criterios de la pantalla en la query y el número de filas en
-/// el rótulo, y «Exportar todo», sin criterios.
+/// La pieza mantiene el modo de dos variantes y ofrece SoloTodo para los diez listados:
+/// la vista filtrada se descarga desde el icono; el menú descarga sin criterios.
 /// </summary>
 public class EntradasExportarTests : BunitContext
 {
@@ -16,6 +15,20 @@ public class EntradasExportarTests : BunitContext
     {
         Services.AddLocalization();
         JSInterop.Mode = JSRuntimeMode.Loose;
+    }
+
+    [Fact]
+    public void SoloTodo_ofrece_exactamente_Exportar_todo_sin_los_criterios_de_la_vista()
+    {
+        var cut = Render<EntradasExportar>(p => p
+            .Add(c => c.Ruta, "/trabajadores/exportar.xlsx")
+            .Add(c => c.SoloTodo, true)
+            .Add(c => c.Total, 37)
+            .Add(c => c.Criterios, new Dictionary<string, string?> { ["q"] = "prieto", ["estado"] = "Vencido" }));
+
+        var enlace = cut.FindAll("a[role=menuitem]").Should().ContainSingle().Which;
+        enlace.TextContent.Trim().Should().Be("Exportar todo");
+        enlace.GetAttribute("href").Should().Be("/trabajadores/exportar.xlsx");
     }
 
     [Fact]

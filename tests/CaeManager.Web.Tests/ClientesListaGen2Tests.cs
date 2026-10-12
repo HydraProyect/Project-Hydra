@@ -638,23 +638,22 @@ public partial class ClientesListaGen2Tests : BunitContext
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
 
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelectorAll("a").Should().BeEmpty("Exportar a Excel vive ahora dentro del «⋯»");
+        acciones.QuerySelectorAll("a.cabecera-listado-icono").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
             .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo Cliente");
     }
 
     [Fact]
-    public async Task El_menu_de_la_cabecera_exporta_guarda_las_importaciones_del_Administrador_y_el_alta_guiada()
+    public async Task El_menu_conserva_Exportar_todo_las_importaciones_del_Administrador_y_el_alta_guiada()
     {
         var cut = Renderizar(new MediatorFalso());
 
         await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
 
         cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar esta vista (filas: 0)", "Exportar todo", "Importar Clientes", "Importación combinada", "Alta guiada");
-        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
-            .Should().HaveCount(2, "la exportación es una descarga del servidor: enlaces, no navegación interna")
-            .And.OnlyContain(h => h!.StartsWith("/clientes/exportar.xlsx"));
+            .Should().Equal("Exportar todo", "Importar Clientes", "Importación combinada", "Alta guiada");
+        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Should().ContainSingle();
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().StartWith("/clientes/exportar.xlsx");
         await cut.FindAll("header.cabecera-pagina .menu-acciones-item").Single(i => i.TextContent.Trim() == "Alta guiada")
             .ClickAsync(new MouseEventArgs());
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).AbsolutePath.Should().Be("/clientes/alta-guiada");
@@ -668,7 +667,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
 
         cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar esta vista (filas: 0)", "Exportar todo", "Alta guiada");
+            .Should().Equal("Exportar todo", "Alta guiada");
     }
 
     [Fact]
@@ -676,10 +675,10 @@ public partial class ClientesListaGen2Tests : BunitContext
     {
         var cut = Renderizar(new MediatorFalso(), rol: Roles.Consulta);
 
-        await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
-
+        await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
         cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar esta vista (filas: 0)", "Exportar todo");
+            .Should().Equal("Exportar todo");
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().StartWith("/clientes/exportar.xlsx");
         cut.Find("header.cabecera-pagina .acciones-cabecera").TextContent.Should().NotContain("Nuevo Cliente");
     }
 

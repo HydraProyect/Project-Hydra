@@ -32,7 +32,8 @@
 
 <div class="contenedor-pagina">
     @* Rediseño de listados, fase 1: cabecera de una línea (CabeceraListado) con el contador, el
-       conmutador ☑ de selección múltiple, el menú «⋯» con las dos descargas (lectura: cualquier
+       conmutador ☑ de selección múltiple, el icono de exportación del listado y el menú «⋯» con
+       «Exportar asignaciones» (lectura: cualquier
        rol) y UNA acción primaria. Sin antetítulo («Negocio» ya está en las migas) y sin el rótulo
        de la empresa gestionada: el selector de la barra lateral ya dice cuál es, y al cambiarla
        recarga esta ruta sin query (I14). El estado vacío sin empresa elegida (4a) sigue más abajo. *@
@@ -40,10 +41,10 @@
     {
         <CabeceraListado Titulo="@Textos["ListaTitulo"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
-                         RutaExportar="@RutaExportarVista" EtiquetaExportar="@Textos["ListaExportarExcel"]">
+                         RutaExportar="/centros/exportar.xlsx" CriteriosExportar="CriteriosExportar" EtiquetaExportar="@Textos["ListaExportarExcel"]">
             <Menu>
-                @* Descargas por GET: enlaces, no rutas de Blazor. *@
-                <CaeManager.Web.Exportacion.EntradasExportar Ruta="/centros/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
+                @* Descargas por GET: el icono y «esta vista» comparten criterios; «todo» va sin filtros. *@
+                <CaeManager.Web.Exportacion.EntradasExportar SoloTodo="true" Ruta="/centros/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
                 <ItemMenuAccion Href="/asignaciones/exportar.xlsx">@Textos["ExportarAsignaciones"]</ItemMenuAccion>
             </Menu>
             <Primaria>

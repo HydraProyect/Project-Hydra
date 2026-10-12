@@ -381,7 +381,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
     /// «Exportar a Excel» y la primaria. Sin antetítulo ni rótulo de la empresa gestionada.
     /// </summary>
     [Fact]
-    public async Task La_cabecera_es_de_una_linea_con_contador_seleccion_menu_y_primaria()
+    public void La_cabecera_es_de_una_linea_con_contador_seleccion_exportacion_y_primaria()
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Empresa("Refrielectric S.A."), Empresa("Montajes Ebro S.L.") } });
 
@@ -393,16 +393,12 @@ public partial class EmpresasListaGen2Tests : BunitContext
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
 
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelectorAll("a").Should().BeEmpty("Exportar a Excel vive ahora dentro del «⋯»");
+        acciones.QuerySelectorAll("a.cabecera-listado-icono").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
             .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nueva empresa");
 
-        await cut.FindAll("header.cabecera-pagina .menu-acciones-disparador").Single().ClickAsync(new MouseEventArgs());
-        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim()).Should().SatisfyRespectively(
-                vista => vista.Should().StartWith("Exportar esta vista (filas: "),
-                todo => todo.Should().Be("Exportar todo"));
-        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
-            .Should().Equal("/empresas/exportar.xlsx", "/empresas/exportar.xlsx");
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().Be("/empresas/exportar.xlsx");
     }
 
     [Fact]
@@ -1486,7 +1482,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
         cut.Markup.Should().NotContain("Refrielectric S.A.");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("no hay empresa activa que nombrar en el estado 4a");
-        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("su «Exportar a Excel» exportaría los datos del origen");
+        cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("el icono exportaría datos del origen sin Empresa elegida");
         cut.FindAll("header.cabecera-pagina .cabecera-listado-contador").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "no se piden las empresas de la organización de origen");
     }
@@ -1511,13 +1507,13 @@ public partial class EmpresasListaGen2Tests : BunitContext
         Registrar(mediador);
         Services.GetRequiredService<NavigationManager>().NavigateTo("empresas");
         var cut = Render<Empresas>();
-        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("el «⋯» lleva «Exportar a Excel»");
+        cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("sin Empresa resuelta no se ofrece el enlace Exportar");
         ConsultasDeLista(mediador).Should().Be(0);
 
         puerta.SetResult();
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Selecciona una empresa de tu cartera"));
-        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty();
+        cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "ni antes ni después de resolverse se pide la lista del origen");
     }
 

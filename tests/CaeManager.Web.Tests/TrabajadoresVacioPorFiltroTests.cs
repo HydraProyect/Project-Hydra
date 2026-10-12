@@ -217,12 +217,12 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("+ Nuevo trabajador", "invitar a crear con alcance cero termina en un duplicado");
         // D-15: sin alcance no hay lista que filtrar, guardar ni exportar.
         cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty("filtros y «Guardar filtro» sobre una lista que no puede existir");
-        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("el «⋯» solo lleva «Exportar a Excel», que exportaría un fichero vacío");
+        cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("sin alcance no se ofrece exportar una lista que no puede existir");
         cut.FindAll("header.cabecera-pagina button.cabecera-listado-icono[aria-pressed]").Should().BeEmpty("sin lista no hay nada que seleccionar");
     }
 
     [Fact]
-    public async Task Con_alcance_y_sin_registros_el_vacio_no_cambia()
+    public void Con_alcance_y_sin_registros_el_vacio_no_cambia()
     {
         _alcanceCero = false;
 
@@ -232,8 +232,8 @@ public class TrabajadoresVacioPorFiltroTests : BunitContext
         cut.Markup.Should().Contain("+ Nuevo trabajador");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
         cut.FindAll(".barra-filtros-pastillas").Should().NotBeEmpty();
-        await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
-            .Should().HaveCount(2).And.OnlyContain(h => h!.StartsWith("/trabajadores/exportar.xlsx"));
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
+            .Should().StartWith("/trabajadores/exportar.xlsx");
     }
 }

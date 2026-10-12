@@ -181,11 +181,11 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         cut.Find("header.cabecera-pagina button.cabecera-listado-icono[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
 
     /// <summary>
-    /// Rediseño de listados, fase 1: cabecera de una línea con el contador, el ☑, el «⋯» con
+    /// Rediseño de listados, fase 1: cabecera de una línea con el contador, el ☑, el icono de
     /// «Exportar a Excel» y la primaria. Sin antetítulo ni rótulo de la empresa gestionada.
     /// </summary>
     [Fact]
-    public void La_cabecera_es_de_una_linea_con_contador_seleccion_menu_y_primaria()
+    public void La_cabecera_es_de_una_linea_con_contador_seleccion_exportacion_y_primaria()
     {
         var cut = Renderizar(new MediatorFalso { Subcontratas = [Subcontrata("Andamios Bidasoa S.L."), Subcontrata("Pinturas Lauburu S.A.")] });
 
@@ -196,16 +196,12 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
 
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelectorAll("a").Should().BeEmpty("Exportar a Excel vive ahora dentro del «⋯»");
+        acciones.QuerySelectorAll("a.cabecera-listado-icono").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
             .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nueva subcontrata");
 
-        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
-        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim()).Should().SatisfyRespectively(
-                vista => vista.Should().StartWith("Exportar esta vista (filas: "),
-                todo => todo.Should().Be("Exportar todo"));
-        cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href"))
-            .Should().Equal("/subcontratas/exportar.xlsx", "/subcontratas/exportar.xlsx");
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().Be("/subcontratas/exportar.xlsx");
     }
 
     [Fact]
@@ -1125,7 +1121,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
         cut.Markup.Should().NotContain("Andamios Bidasoa S.L.");
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty("no hay empresa activa que nombrar en el estado 4a");
-        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("su «Exportar a Excel» exportaría los datos del origen");
+        cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("el icono exportaría datos del origen sin Empresa elegida");
         cut.FindAll("header.cabecera-pagina .cabecera-listado-contador").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "no se piden las subcontratas de la organización de origen");
     }
@@ -1148,13 +1144,13 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         mediador.RetenerAutorizados = puerta.Task;
 
         var cut = Renderizar(mediador);
-        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("el «⋯» lleva «Exportar a Excel»");
+        cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("sin Empresa resuelta no se ofrece el enlace Exportar");
         ConsultasDeLista(mediador).Should().Be(0);
 
         puerta.SetResult();
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Selecciona una empresa de tu cartera"));
-        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty();
+        cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "ni antes ni después de resolverse se pide la lista del origen");
     }
 

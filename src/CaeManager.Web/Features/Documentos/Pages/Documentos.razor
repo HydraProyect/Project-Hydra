@@ -37,7 +37,8 @@
                      Contador="@(_pestanaActiva == "listado" && !_sinEmpresaSeleccionada && !_resolviendoEmpresa && !_cargando && !_errorCarga ? _totalElementos : (int?)null)"
                      SeleccionMultiple="_seleccionMultiple"
                      SeleccionMultipleChanged="@(_puedeEscribir && _pestanaActiva == "listado" && !_sinEmpresaSeleccionada && !_resolviendoEmpresa && !_alcanceCero ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)"
-                     Menu="@(!_sinEmpresaSeleccionada && !_resolviendoEmpresa ? MenuCabecera : null)">
+                     Menu="@(!_sinEmpresaSeleccionada && !_resolviendoEmpresa ? MenuCabecera : null)"
+                     RutaExportar="@(!_sinEmpresaSeleccionada && !_resolviendoEmpresa ? "/documentos/exportar.xlsx" : null)" CriteriosExportar="CriteriosExportar">
         <Primaria>
             @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa && !_alcanceCero)
             {
@@ -403,7 +404,7 @@
 @code {
     private RenderFragment MenuCabecera => __builder =>
     {
-        <CaeManager.Web.Exportacion.EntradasExportar Ruta="/documentos/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
+        <CaeManager.Web.Exportacion.EntradasExportar SoloTodo="true" Ruta="/documentos/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />
         <SoloConEscritura>
             <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.Administrador">
                 <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/documentos/importar")'>Importar documentos</ItemMenuAccion>
