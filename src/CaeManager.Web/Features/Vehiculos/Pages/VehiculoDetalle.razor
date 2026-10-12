@@ -137,27 +137,42 @@
                             }
                             else
                             {
+                                <FranjaEstado Opciones="OpcionesDocumentos" Valor="@SeleccionEstados.Unir(_estados)" ValorChanged="CambiarEstado"
+                                              Recuentos="RecuentosDocumentos" TotalTodos="_documentos.Count" />
                                 <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["FichaListaDocumentos"]">
                                     <Encabezado>
-                                        @Textos["FichaMostrando", _documentos.Count, _totalDocumentos]
+                                        @Textos["FichaMostrando", DocumentosVisibles.Count, _documentos.Count] · @Textos["OrdenDocumentos"]
+                                        @if (_totalDocumentos > _documentos.Count)
+                                        {
+                                            <span data-documentos-truncados>@Textos["DocumentosCargados", _documentos.Count, _totalDocumentos]</span>
+                                        }
                                         @if (VencidosFueraDeLaLista)
                                         {
                                             <b class="vehiculo360-vencidos-fuera" data-vencidos-fuera>@Textos["FichaVencidosFueraDeLaLista"]</b>
                                         }
                                     </Encabezado>
                                     <ChildContent>
-                                        @foreach (var documento in _documentos)
+                                        @foreach (var documento in DocumentosVisibles)
                                         {
                                             <FilaRelacion @key="documento.Id"
                                                           Nombre="@documento.TipoDocumentoNombre"
                                                           NombreIcono="documentos"
                                                           OnNombre="() => AbrirDocumentoAsync(documento)"
-                                                          Tono="@(documento.Estado == EstadoDocumento.Vencido ? TonoFila.Peligro : null)">
+                                                          Tono="@EstadoDocumentoFicha360.TonoFila(documento.Estado)">
                                                 <Detalle>@Textos["FichaVence", documento.FechaVencimiento is { } vence ? vence.ToString("dd/MM/yyyy") : "—"]</Detalle>
                                                 <Estado>
-                                                    <Badge Tono="EstadoDocumentoUi.Tono(documento.Estado)">@EstadoDocumentoUi.Texto(documento.Estado)</Badge>
+                                                    <Badge Tono="EstadoDocumentoFicha360.Tono(documento.Estado)">@EstadoDocumentoFicha360.Texto(documento.Estado)</Badge>
                                                     <BadgesAcreditacion Acreditaciones="documento.Acreditaciones" />
                                                 </Estado>
+                                                <Acciones>
+                                                    @if (EstadoDocumentoFicha360.Accion(documento.Estado) is { } accion)
+                                                    {
+                                                        <SoloConEscritura>
+                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                                                                   OnClick="() => EditarDocumentoAsync(documento)">@Textos[$"Accion{accion}"]</Boton>
+                                                        </SoloConEscritura>
+                                                    }
+                                                </Acciones>
                                             </FilaRelacion>
                                         }
                                     </ChildContent>
@@ -183,10 +198,14 @@
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaNombre"]" Valor="@_detalle.Nombre" />
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaMatricula"]" Valor="@_detalle.NumeroPlaca" />
                                 <DatoRejilla Etiqueta="@Textos["EtiquetaModelo"]" Valor="@_detalle.Modelo" />
-                                <DatoRejilla Etiqueta="@Textos["EtiquetaEmpleador"]" Valor="@_detalle.EmpleadorNombre" Ancho="true" />
                             </RejillaDatos>
-                            <p class="vehiculo360-nota">@Textos["FichaNotaEmpleador"]</p>
                         </ChildContent>
+                    </Tarjeta>
+                    <Tarjeta Compacta="true" Titulo="@Textos["EtiquetaEmpleador"]">
+                        <ListaRelaciones Etiqueta="@Textos["EtiquetaEmpleador"]">
+                            <FilaRelacion Nombre="@_detalle.EmpleadorNombre" Href="@RutaEmpleador" NombreIcono="empresas" OnAbrir360="AbrirEmpleador" />
+                        </ListaRelaciones>
+                        <p class="vehiculo360-nota">@Textos["FichaNotaEmpleador"]</p>
                     </Tarjeta>
 
                     @* Quién ve la nota lo decide el servidor (ObtenerVehiculoPorIdQuery), no esta página: con

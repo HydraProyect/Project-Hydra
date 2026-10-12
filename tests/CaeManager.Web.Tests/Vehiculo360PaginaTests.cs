@@ -3,6 +3,7 @@ using Bunit;
 using Bunit.TestDoubles;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Vehiculos.Commands.GuardarNotaInternaVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculoPorId;
 using CaeManager.Domain.Common;
@@ -85,6 +86,7 @@ public class Vehiculo360PaginaTests : BunitContext
             ObtenerDocumentosQuery when FallaDocumentos => throw new InvalidOperationException("fallo simulado"),
             ObtenerDocumentosQuery => new ResultadoPaginado<DocumentoListaDto>(
                 Documentos.ToList(), TotalDocumentos ?? Documentos.Count, 1, 50),
+            ObtenerDocumentoPorIdQuery => null,
             _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
         };
 
@@ -115,7 +117,7 @@ public class Vehiculo360PaginaTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
-    /// <summary>La página monta DrawerGestionDocumento, que los inyecta; ningún test lo abre.</summary>
+    /// <summary>La página monta el editor documental real; estos servicios también permiten observar su lectura por id.</summary>
     private sealed class AlmacenArchivosQueNadieDebeTocar : IFileStorageService
     {
         private static Exception NoDeberia() =>
@@ -225,7 +227,7 @@ public class Vehiculo360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void El_empleador_que_no_es_Empresa_se_nombra_sin_enlace()
+    public void La_Empresa_empleadora_con_alias_Subcontrata_tiene_el_enlace_a_su_consulta_contextual()
     {
         var (id, mediador) = CamionGrua(empleadorEsEmpresa: false);
         Registrar(mediador);
@@ -234,8 +236,8 @@ public class Vehiculo360PaginaTests : BunitContext
 
         var cabecera = cut.Find(".cabecera-identidad");
         cabecera.TextContent.Should().Contain("Montajes Skynet S.L.");
-        cabecera.QuerySelectorAll("a.vehiculo360-enlace").Should().BeEmpty(
-            "solo la Empresa tiene hoy ficha 360 con ruta propia: un enlace a /empresas/{id} con otro id daría «no encontrado»");
+        cabecera.QuerySelector("a.vehiculo360-enlace")!.GetAttribute("href").Should()
+            .Be($"/subcontratas/{mediador.Detalles[id]!.SubcontrataId}");
     }
 
     [Fact]
@@ -283,20 +285,20 @@ public class Vehiculo360PaginaTests : BunitContext
     // ── Documentación ─────────────────────────────────────────────────────
 
     [Fact]
-    public void La_lista_pinta_cada_documento_con_su_vencimiento_y_su_estado_y_tine_solo_el_vencido()
+    public void La_lista_pinta_cada_documento_con_su_vencimiento_y_su_estado_y_el_tinte_canonico()
     {
         var (id, mediador) = CamionGrua();
         Registrar(mediador);
 
         var cut = Renderizar(id);
-        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(4));
+        cut.WaitForAssertion(() => cut.FindAll(".lista-relaciones-tarjeta [data-pieza='fila']").Count.Should().Be(4));
 
-        var filas = cut.FindAll("[data-pieza='fila']");
+        var filas = cut.FindAll(".lista-relaciones-tarjeta [data-pieza='fila']");
         Textos(filas.Select(f => f.QuerySelector(".fila-relacion-nombre")!)).Should().Equal(
             ["ITV", "Seguro", "Ficha técnica", "Permiso de circulación"]);
         filas[0].TextContent.Should().Contain($"Vence: {Hoy.AddDays(-36):dd/MM/yyyy}");
         filas[2].TextContent.Should().Contain("Vence: —");
-        filas.Select(f => f.GetAttribute("data-tono")).Should().Equal(["peligro", null, null, null]);
+        filas.Select(f => f.GetAttribute("data-tono")).Should().Equal(["peligro", "advertencia", null, null]);
         filas.Should().OnlyContain(f => f.QuerySelector(".fila-relacion-estado .badge") != null);
 
         var tarjeta = cut.Find(".lista-relaciones-tarjeta");
@@ -314,7 +316,8 @@ public class Vehiculo360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.WaitForAssertion(() => cut.Find(".lista-relaciones-tarjeta").TextContent.Should().Contain("Mostrando 4 de 73"));
+        cut.WaitForAssertion(() => cut.Find(".lista-relaciones-tarjeta").TextContent.Should().Contain("Mostrando 4 de 4")
+            .And.Contain("Se han cargado 4 de 73 documentos registrados."));
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new { Ambito = AmbitoAplicacion.Vehiculo, PropietarioId = (Guid?)id, TamanoPagina = 50 });
     }
@@ -326,9 +329,9 @@ public class Vehiculo360PaginaTests : BunitContext
         Registrar(mediador);
         var seguro = mediador.Documentos[1];
         var cut = Renderizar(id);
-        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(4));
+        cut.WaitForAssertion(() => cut.FindAll(".lista-relaciones-tarjeta [data-pieza='fila']").Count.Should().Be(4));
 
-        await cut.FindAll("[data-pieza='fila']")[1].QuerySelector("button.fila-relacion-nombre, .fila-relacion-nombre button, a.fila-relacion-nombre")!
+        await cut.FindAll(".lista-relaciones-tarjeta [data-pieza='fila']")[1].QuerySelector("button.fila-relacion-nombre, .fila-relacion-nombre button, a.fila-relacion-nombre")!
             .ClickAsync(new());
 
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(
@@ -424,7 +427,7 @@ public class Vehiculo360PaginaTests : BunitContext
         var (id, mediador) = CamionGrua();
         Registrar(mediador);
         var cut = Renderizar(id);
-        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(4));
+        cut.WaitForAssertion(() => cut.FindAll(".lista-relaciones-tarjeta [data-pieza='fila']").Count.Should().Be(4));
         var panel = Services.GetRequiredService<ContextWorkspaceService>();
 
         await cut.Find("[data-pieza='lateral'] button.boton").ClickAsync(new());
@@ -446,7 +449,7 @@ public class Vehiculo360PaginaTests : BunitContext
         var (id, mediador) = CamionGrua();
         Registrar(mediador);
         var cut = Renderizar(id);
-        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(4));
+        cut.WaitForAssertion(() => cut.FindAll(".lista-relaciones-tarjeta [data-pieza='fila']").Count.Should().Be(4));
         var panel = Services.GetRequiredService<ContextWorkspaceService>();
         await cut.Find("[data-pieza='lateral'] button.boton").ClickAsync(new());
 
@@ -456,6 +459,73 @@ public class Vehiculo360PaginaTests : BunitContext
         cut.WaitForAssertion(() => cut.Find(".estado-vacio").TextContent.Should().Contain("No pudimos cargar el vehículo"));
         cut.FindAll(".cabecera-identidad, [data-pieza='lateral'] button.boton").Should().BeEmpty(
             "una ficha vieja con «Editar» abriría el panel de un Vehículo que ya no se puede ver");
+    }
+
+    [Fact]
+    public async Task La_franja_cuenta_la_lista_cargada_y_el_estado_viaja_con_la_pestana_sin_reconsultar()
+    {
+        var (id, mediador) = CamionGrua();
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        var consultas = mediador.Enviadas.Count;
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().ContainSingle().Which.OrdenarPor
+            .Should().Be(ObtenerDocumentosQuery.OrdenPorSeveridad);
+        cut.Find(".franja-estado [data-estado=Ficha360Vencido] .franja-estado-recuento").TextContent.Should().Be("1");
+
+        await cut.Find(".franja-estado [data-estado=Ficha360Vencido]").ClickAsync(new());
+        cut.FindAll(".lista-relaciones-tarjeta .fila-relacion-nombre").Select(x => x.TextContent.Trim()).Should().Equal("ITV");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("estado=Vencido");
+        cut.Find(".franja-estado [data-estado=Ficha360PorVencer] .franja-estado-recuento").TextContent.Should().Be("1");
+        await cut.FindAll("[role=tab]").Single(t => t.TextContent.StartsWith("Historial")).ClickAsync(new());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("estado=Vencido").And.Contain("pestana=historial");
+        mediador.Enviadas.Should().HaveCount(consultas);
+    }
+
+    [Fact]
+    public void El_estado_del_enlace_se_adopta_al_entrar_y_al_volver_sin_releer_documentos()
+    {
+        var (id, mediador) = CamionGrua();
+        Registrar(mediador);
+        var cut = Renderizar(id, "?estado=PorVencer");
+        cut.FindAll(".lista-relaciones-tarjeta .fila-relacion-nombre").Select(x => x.TextContent.Trim()).Should().Equal("Seguro");
+        var consultas = mediador.Enviadas.Count;
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"vehiculos/{id}?estado=Vencido");
+        cut.Render();
+        cut.FindAll(".lista-relaciones-tarjeta .fila-relacion-nombre").Select(x => x.TextContent.Trim()).Should().Equal("ITV");
+        mediador.Enviadas.Should().HaveCount(consultas);
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, "Renovar")]
+    [InlineData(EstadoDocumento.SinConfirmar, "Confirmar")]
+    public async Task La_accion_del_estado_inicia_el_editor_del_documento_correcto(EstadoDocumento estado, string accion)
+    {
+        var (id, mediador) = CamionGrua();
+        var documento = mediador.Documentos[0] with { Estado = estado };
+        mediador.Documentos.Clear();
+        mediador.Documentos.Add(documento);
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        await cut.Find(".lista-relaciones-tarjeta .fila-relacion-acciones button").ClickAsync(new());
+        mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(documento.Id);
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().BeNull("la acción no abre solo el panel de lectura");
+        cut.Find(".lista-relaciones-tarjeta .fila-relacion-acciones").TextContent.Trim().Should().Be(accion);
+    }
+
+    [Fact]
+    public async Task La_fila_del_empleador_abre_su_Empresa_sin_un_porcentaje_inventado()
+    {
+        var empresaId = Guid.NewGuid();
+        var (id, mediador) = CamionGrua(empresaId);
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        var lateral = cut.Find("[data-pieza=lateral]");
+        var fila = lateral.QuerySelector(".fila-relacion")!;
+        fila.TextContent.Should().Contain("Montajes Skynet S.L.").And.NotContain("%");
+        fila.QuerySelector(".fila-relacion-nombre")!.GetAttribute("href").Should().Be($"/empresas/{empresaId}");
+        await fila.QuerySelector(".boton-360")!.ClickAsync(new());
+        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should()
+            .Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresaId, "Montajes Skynet S.L.", "informacion"));
     }
 
     // ── Carreras y ciclo de vida ──────────────────────────────────────────
@@ -488,7 +558,7 @@ public class Vehiculo360PaginaTests : BunitContext
         var (id, mediador) = CamionGrua();
         Registrar(mediador);
         var cut = Renderizar(id);
-        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(4));
+        cut.WaitForAssertion(() => cut.FindAll(".lista-relaciones-tarjeta [data-pieza='fila']").Count.Should().Be(4));
         var panel = Services.GetRequiredService<ContextWorkspaceService>();
         await cut.Find("[data-pieza='lateral'] button.boton").ClickAsync(new());
         var enviadasAntes = mediador.Enviadas.Count;
@@ -505,13 +575,13 @@ public class Vehiculo360PaginaTests : BunitContext
         var (id, mediador) = CamionGrua();
         Registrar(mediador);
         var cut = Renderizar(id);
-        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(4));
+        cut.WaitForAssertion(() => cut.FindAll(".lista-relaciones-tarjeta [data-pieza='fila']").Count.Should().Be(4));
 
         mediador.Detalles[id] = mediador.Detalles[id] with { DocumentosAlDia = new FraccionCumplimiento(3, 5) };
         mediador.Documentos.Add(Documento("Tarjeta de transporte", EstadoDocumento.Vigente, Hoy.AddDays(300)));
         await cut.InvokeAsync(() => cut.FindComponent<DrawerGestionDocumento>().Instance.OnGuardado.InvokeAsync());
 
-        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(5));
+        cut.WaitForAssertion(() => cut.FindAll(".lista-relaciones-tarjeta [data-pieza='fila']").Count.Should().Be(5));
         SinEspaciosDeMas(cut.Find("[data-pieza='anillo'] .anillo-cumplimiento-texto").TextContent).Should().Be("60% 3 de 5");
     }
 
@@ -554,12 +624,14 @@ public class Vehiculo360PaginaTests : BunitContext
         Registrar(mediador, Roles.Consulta);
 
         var cut = Renderizar(id);
-        cut.WaitForAssertion(() => cut.FindAll("[data-pieza='fila']").Count.Should().Be(4));
+        cut.WaitForAssertion(() => cut.FindAll(".lista-relaciones-tarjeta [data-pieza='fila']").Count.Should().Be(4));
 
         var cabecera = cut.Find(".cabecera-identidad");
         cabecera.QuerySelectorAll("button.boton, .menu-acciones").Should().BeEmpty("subir y editar son escritura");
         cabecera.QuerySelector(".vehiculo360-placa button").Should().NotBeNull("copiar la matrícula no es escritura");
         cut.FindAll("[data-pieza='lateral'] button.boton").Should().BeEmpty();
+        cut.FindAll(".lista-relaciones-tarjeta .fila-relacion-acciones button").Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().BeEmpty();
         cut.FindComponents<DrawerGestionDocumento>().Should().BeEmpty();
     }
 
