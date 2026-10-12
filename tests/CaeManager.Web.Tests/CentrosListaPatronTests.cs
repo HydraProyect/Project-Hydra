@@ -396,7 +396,7 @@ public partial class CentrosListaPatronTests : BunitContext
         cabecera.QuerySelector("h1")!.TextContent.Trim().Should().Be("Centros");
         cabecera.QuerySelector(".cabecera-listado-contador")!.TextContent.Trim().Should().Be("2");
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelectorAll("a").Should().BeEmpty("las descargas viven dentro del «⋯»");
+        acciones.QuerySelectorAll("a.cabecera-listado-icono").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
             .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo centro");
 
@@ -436,12 +436,12 @@ public partial class CentrosListaPatronTests : BunitContext
     /// Urgente y Próximo son un solo botón, «Por vencer».
     /// </summary>
     [Fact]
-    public void La_pastilla_primaria_es_Cliente_empresarial_el_Estado_va_en_la_franja_y_Empresa_en_Mas_filtros()
+    public void Las_pastillas_son_Cliente_empresarial_Empresa_y_Filtros_guardados_y_el_Estado_va_en_la_franja()
     {
         var cut = Renderizar(ConDosClientes());
 
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
-            .Should().Equal(["Cliente", "Más filtros", "Agrupar: Cliente"],
+            .Should().Equal(["Cliente", "Empresa", "Filtros guardados", "Agrupar: Cliente"],
                 "las pastillas de filtro, y detrás el desplegable «Agrupar», que es vista y no filtro");
         cut.RotulosDeFranja().Should().Equal(
             "Todos", "Bloqueo de la plataforma CAE", "Vencido", "Pendiente", "Por vencer", "Vigente", "No requiere gestión CAE");
@@ -550,22 +550,22 @@ public partial class CentrosListaPatronTests : BunitContext
         cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Cliente: Pegaso Cliente S.L.");
     }
 
-    /// <summary>«Empresa» vive en «Más filtros»; con ella aplicada, «Más filtros» se marca activo.</summary>
+    /// <summary>«Empresa» tiene pastilla propia; al aplicarla se marca activa y dice el valor.</summary>
     [Fact]
-    public void El_filtro_Empresa_de_Mas_filtros_filtra_la_consulta_y_la_url()
+    public void La_pastilla_Empresa_filtra_la_consulta_y_la_url()
     {
         var mediador = ConDosClientes();
         var cut = Renderizar(mediador);
-        Disparador(cut, "Más filtros").ClassList.Should().NotContain("menu-acciones-disparador-activa");
+        Disparador(cut, "Empresa").ClassList.Should().NotContain("menu-acciones-disparador-activa");
 
-        Disparador(cut, "Más filtros").Click();
+        Disparador(cut, "Empresa").Click();
         cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Single(i => i.TextContent.Trim() == "Montajes Norte S.L.").Click();
 
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().EmpresaId.Should().Be(EmpresaMontajes);
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain($"empresa={EmpresaMontajes}");
         cut.AbrirGruposDeCentros();
         cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim()).Should().Equal("Almacén Vigo", "Planta Murcia");
-        Disparador(cut, "Más filtros").ClassList.Should().Contain("menu-acciones-disparador-activa");
+        Disparador(cut, "Empresa: Montajes Norte S.L.").ClassList.Should().Contain("menu-acciones-disparador-activa");
         cut.FindAll(".chip-filtro").Select(c => c.TextContent.Trim()).Should().Equal("Empresa: Montajes Norte S.L.");
     }
 
@@ -660,7 +660,7 @@ public partial class CentrosListaPatronTests : BunitContext
         mediador.EmpresasSelector.Should().BeEmpty("control: el selector de gestión no ofrece nada");
         var cut = Renderizar(mediador);
 
-        Disparador(cut, "Más filtros").Click();
+        Disparador(cut, "Empresa").Click();
 
         cut.FindAll(".barra-filtros-pastillas [role=menuitemradio]").Select(i => i.TextContent.Trim())
             .Should().Equal("Todas", "Montajes Norte S.L.", "Limpiezas Sur S.L.");
@@ -1101,14 +1101,14 @@ public partial class CentrosListaPatronTests : BunitContext
         var estados = cut.FindAll(".grupo-lista-resumen-estado");
 
         estados.Select(e => e.TextContent.Trim()).Should().Equal(
-            "1 bloqueo de la plataforma CAE", "3 vencidos", "2 pendientes", "2 por vencer");
+            "1 bloqueo cae", "3 vencidos", "2 pendientes", "2 por vencer");
         estados.Select(e => e.QuerySelector(".grupo-lista-punto")!.ClassList.Last()).Should().Equal(
             "grupo-lista-punto-peligro", "grupo-lista-punto-peligro", "grupo-lista-punto-peligro", "grupo-lista-punto-advertencia");
         cut.Find(".grupo-lista-contador").TextContent.Trim().Should().Be("10");
     }
 
     /// <summary>
-    /// El rótulo en singular del resumen es el de la pastilla de estado de la fila (EstadoCentroUi.Texto), en
+    /// El rótulo en singular sigue la pastilla de estado salvo «bloqueo cae», abreviado en la maqueta. En
     /// minúscula inicial: si el rótulo de un estado cambia, el resumen no puede quedarse con el antiguo.
     /// </summary>
     [Theory]
@@ -1117,28 +1117,28 @@ public partial class CentrosListaPatronTests : BunitContext
     [InlineData(EstadoCentro.Faltante)]
     [InlineData(EstadoCentro.Urgente)]
     [InlineData(EstadoCentro.Proximo)]
-    public void El_resumen_en_singular_dice_el_mismo_rotulo_que_la_pastilla_de_estado(EstadoCentro estado)
+    public void El_resumen_en_singular_conserva_el_rotulo_salvo_la_abreviatura_de_bloqueo_de_la_maqueta(EstadoCentro estado)
     {
         var cut = RenderizarConGruposContraidos(ConCentros(CentroDe("A", ClienteOrion, EmpresaMontajes, estado)));
 
-        var rotulo = CaeManager.Web.Features.Centros.EstadoCentroUi.Texto(estado);
+        var rotulo = estado == EstadoCentro.Bloqueado ? "bloqueo cae" : CaeManager.Web.Features.Centros.EstadoCentroUi.Texto(estado);
         cut.Find(".grupo-lista-resumen-estado").TextContent.Trim()
             .Should().Be($"1 {char.ToLowerInvariant(rotulo[0])}{rotulo[1..]}");
     }
 
     /// <summary>
-    /// La cabecera es blanca salvo que el grupo contenga algún Centro cuya FILA se tiñe, y entonces lleva el
-    /// tinte del peor: mismo criterio que <see cref="Las_filas_con_problema_van_tintadas_por_su_estado"/>.
-    /// «Próximo» se rotula «por vencer» y sale en el resumen, pero no tiñe ni su fila ni su grupo.
+    /// La cabecera es blanca salvo que el grupo contenga algún Centro con problema o por vencer, y lleva el
+    /// tinte del peor. Las filas conservan su criterio propio.
+    /// «Próximo» sale en el resumen y tiñe la cabecera, pero no su fila.
     /// </summary>
     [Theory]
     [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.SinGestionCae }, null)]
-    [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Proximo }, null)]
+    [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Proximo }, "fila-tintada-aviso")]
     [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Urgente }, "fila-tintada-aviso")]
     [InlineData(new[] { EstadoCentro.Urgente, EstadoCentro.Vencido }, "fila-tintada-peligro")]
     [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Faltante }, "fila-tintada-peligro")]
     [InlineData(new[] { EstadoCentro.Vigente, EstadoCentro.Bloqueado }, "fila-tintada-peligro")]
-    public void El_grupo_solo_se_tine_si_contiene_un_Centro_cuya_fila_se_tine(EstadoCentro[] estados, string? tinte)
+    public void El_grupo_se_tine_por_su_peor_estado_incluyendo_Proximo(EstadoCentro[] estados, string? tinte)
     {
         var cut = RenderizarConGruposContraidos(ConCentros(
             estados.Select((estado, i) => CentroDe($"Centro {i}", ClienteOrion, EmpresaMontajes, estado)).ToArray()));

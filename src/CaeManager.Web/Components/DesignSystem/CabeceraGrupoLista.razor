@@ -5,7 +5,7 @@
 
     - Blanca de serie. Solo se tiñe si la pantalla lo pide (Tinte), con las mismas clases que tiñen una fila
       con problema (.fila-tintada-peligro / .fila-tintada-aviso, list-page.css): la pantalla decide el nivel
-      con el mismo criterio con el que tiñe sus filas.
+      según los estados del grupo. Centros incluye Próximo en la cabecera sin teñir su fila.
     - Total es el del grupo ENTERO (todas las páginas). Si la página solo enseña parte (EnPagina < Total) el
       contador lo dice: «3 de 12», con «3 de 12 en esta página» de título.
     - Con Termino (lo escrito en el buscador de la pantalla), la parte del nombre que casa sale marcada con
@@ -25,7 +25,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<div class="@("grupo-lista" + ClaseTinte)">
+<div class="@("grupo-lista" + ClaseTinte + (Destacado ? " grupo-lista-destacado" : ""))">
     @if (Fijo)
     {
         <div class="grupo-lista-cabecera grupo-lista-cabecera-abierta grupo-lista-cabecera-fija">@Contenido</div>
@@ -63,6 +63,9 @@
 
     [Parameter] public TinteGrupoLista Tinte { get; set; }
 
+    /// <summary>Rejilla de tres columnas con recuento azul junto al nombre, como en la maqueta de Centros.</summary>
+    [Parameter] public bool Destacado { get; set; }
+
     [Parameter] public bool Abierto { get; set; }
 
     /// <summary>El grupo está abierto por algo ajeno a él y la cabecera no puede contraerlo.</summary>
@@ -81,6 +84,7 @@
 
     private RenderFragment Contenido => @<text>
         <span class="grupo-lista-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
+        <span class="grupo-lista-identidad">
         <span class="grupo-lista-nombre"><TextoResaltado Texto="@Nombre" Termino="@Termino" /></span>
         @if (EsParcial)
         {
@@ -90,6 +94,7 @@
         {
             <span class="grupo-lista-contador" title="@TituloContador">@Total</span>
         }
+        </span>
         @if (Resumen.Count > 0)
         {
             <span class="grupo-lista-resumen">

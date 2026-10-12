@@ -1,6 +1,7 @@
 @*
     Cabecera de un listado en una sola línea (rediseño de listados, fase 1): título con su
-    contador y, a la derecha, el conmutador de selección múltiple (☑), el menú «⋯» con las
+    contador y, a la derecha, el conmutador de selección múltiple (☑), exportación opcional (⤓),
+    teclado (⌨), el menú «⋯» con las
     acciones secundarias de la pantalla (Exportar a Excel, importaciones, alta guiada…) y la
     acción primaria. Sin antetítulo: el grupo del menú ya está en las migas.
 
@@ -47,6 +48,12 @@
                 <Icono Nombre="seleccion" />
             </button>
         }
+        @if (RutaExportar is not null)
+        {
+            <a class="cabecera-listado-icono" href="@RutaExportar" aria-label="@EtiquetaExportar" title="@EtiquetaExportar">
+                <Icono Nombre="descargar" />
+            </a>
+        }
         <button type="button" class="cabecera-listado-icono" aria-label="@TextosAtajos["TituloAyuda"]" title="@TextosAtajos["TituloAyuda"]"
                 aria-keyshortcuts="?" data-abrir-atajos="" data-keytip="K">
             <Icono Nombre="teclado" />
@@ -73,6 +80,12 @@
 
     /// <summary>Sin delegado no se pinta el conmutador ☑.</summary>
     [Parameter] public EventCallback<bool> SeleccionMultipleChanged { get; set; }
+
+    /// <summary>Descarga por GET del listado. Sin ruta no se muestra el icono de exportación.</summary>
+    [Parameter] public string? RutaExportar { get; set; }
+
+    /// <summary>Nombre accesible del enlace de exportación.</summary>
+    [Parameter] public string? EtiquetaExportar { get; set; }
 
     /// <summary>Ítems (<see cref="ItemMenuAccion"/>) del menú «⋯». Sin valor no se pinta el menú.</summary>
     [Parameter] public RenderFragment? Menu { get; set; }
