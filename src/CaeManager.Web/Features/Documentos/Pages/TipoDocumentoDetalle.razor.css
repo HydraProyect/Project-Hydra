@@ -93,3 +93,25 @@
     background: none;
     color: var(--color-primary-500);
 }
+
+.tipo360-filtros-pagina {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    border: 0;
+    padding: 0;
+    margin: var(--space-3) 0;
+}
+
+.tipo360-filtros-pagina legend {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.tipo360-grupo-empresa {
+    list-style: none;
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-surface-hover);
+    font-weight: 600;
+}
