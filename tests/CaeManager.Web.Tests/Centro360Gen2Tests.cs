@@ -1,3 +1,4 @@
+using CaeManager.Application.Auditoria.Queries;
 using System.Reflection;
 using AngleSharp.Dom;
 using Bunit;
@@ -70,6 +71,7 @@ public partial class Centro360Gen2Tests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public Dictionary<Guid, CentroDetalleDto> Detalles { get; } = [];
+        public Dictionary<Guid, List<RegistroAuditoriaListaDto>> Auditoria { get; } = [];
         public Dictionary<Guid, CentroListaDto> Resumenes { get; } = [];
         public Dictionary<Guid, List<VisitaResumenDto>> Visitas { get; } = [];
         public Dictionary<Guid, List<CanalGestionResumenDto>> Canales { get; } = [];
@@ -110,6 +112,9 @@ public partial class Centro360Gen2Tests : BunitContext
         private object? Responder(object request) => request switch
         {
             ObtenerCentroPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
+            ObtenerAuditoriaQuery q => new ResultadoPaginado<RegistroAuditoriaListaDto>(
+                q.EntidadTipo == "Centro" && q.EntidadId is { } id ? Auditoria.GetValueOrDefault(id) ?? [] : [],
+                q.EntidadId is { } centro ? Auditoria.GetValueOrDefault(centro)?.Count ?? 0 : 0, q.Pagina, q.TamanoPagina),
             ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
                 q.CentroId is { } id && Resumenes.TryGetValue(id, out var r) ? [r] : [], 1, 1, 1),
             ObtenerProximaVisitaPorCentroQuery q => q.CentroIds.ToDictionary(
@@ -258,7 +263,7 @@ public partial class Centro360Gen2Tests : BunitContext
     /// mide) y con la explicación en lugar de los canales de gestión.
     /// </summary>
     [Fact]
-    public void Las_pestanas_son_Trabajadores_y_Visitas_en_ese_orden_y_cuentan_trabajadores_distintos()
+    public void Las_pestanas_disponibles_respetan_el_orden_de_la_maqueta_y_cuentan_Trabajadores_distintos()
     {
         var id = Guid.NewGuid();
         var trabajador = Guid.NewGuid();
@@ -281,7 +286,7 @@ public partial class Centro360Gen2Tests : BunitContext
 
         cut.FindAll("[role=tab]")
             .Select(t => t.ChildNodes.OfType<IText>().First(n => !string.IsNullOrWhiteSpace(n.Data)).Data.Trim())
-            .Should().Equal("Trabajadores", "Visitas");
+            .Should().Equal("Trabajadores", "Visitas", "Ficha", "Historial");
         var primera = cut.FindAll("[role=tab]")[0];
         primera.GetAttribute("aria-selected").Should().Be("true");
         primera.QuerySelector(".pestanas-contador")!.TextContent.Trim().Should().Be("2 trabajadores con incidencias");
@@ -322,7 +327,7 @@ public partial class Centro360Gen2Tests : BunitContext
     }
 
     [Fact]
-    public void La_url_visitas_abre_Visitas_y_muestra_todas_las_visitas_en_el_orden_recibido()
+    public void La_url_visitas_abre_Visitas_y_muestra_todas_las_visitas_por_fecha_de_inicio()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -337,9 +342,9 @@ public partial class Centro360Gen2Tests : BunitContext
 
         cut.FindAll("[role=tab]")[1].GetAttribute("aria-selected").Should().Be("true");
         cut.FindAll("[role=tabpanel] .elemento-lista-lateral-etiqueta").Select(v => v.TextContent.Trim())
-            .Should().Equal("12/10/2026 – 14/10/2026", "10/10/2026 – 22/10/2026");
+            .Should().Equal("10/10/2026 – 22/10/2026", "12/10/2026 – 14/10/2026");
         cut.FindAll("[role=tabpanel] .elemento-lista-lateral-detalles").Select(v => v.TextContent.Trim())
-            .Should().Equal("1 trabajador", "3 trabajadores");
+            .Should().Equal("3 trabajadores", "1 trabajador");
         cut.Find("[role=tabpanel] [hidden]").Should().NotBeNull();
     }
 

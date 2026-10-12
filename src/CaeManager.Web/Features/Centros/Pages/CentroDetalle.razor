@@ -228,13 +228,20 @@
                     {
                         @if (_visitas.Count == 0)
                         {
-                            <EstadoVacio Titulo="@Textos["VacioVisitasTitulo"]" Descripcion="@Textos["VacioVisitasDescripcion"]" />
+                            <EstadoVacio Titulo="@Textos["VacioVisitasTitulo"]" Descripcion="@Textos["VacioVisitasDescripcion"]">
+                                <Accion>
+                                    <SoloConEscritura>
+                                        <Boton Variante="VarianteBoton.Secundario" OnClick="ProgramarVisita"
+                                               aria-label="@Textos["ProgramarVisitaCentroAccesible"]">@Textos["ProgramarVisitaCentro"]</Boton>
+                                    </SoloConEscritura>
+                                </Accion>
+                            </EstadoVacio>
                         }
                         else
                         {
-                            <Tarjeta Titulo="@Textos["PestanaVisitas"]">
+                            <Tarjeta Titulo="@Textos["VisitasActivasTitulo"]">
                                 <ListaLateral>
-                                    @foreach (var visita in _visitas)
+                                    @foreach (var visita in VisitasParaMostrar)
                                     {
                                         <ElementoListaLateral @key="visita.VisitaId">
                                             <Etiqueta>@visita.FechaInicio.ToString("dd/MM/yyyy") – @visita.FechaFin.ToString("dd/MM/yyyy")</Etiqueta>
@@ -244,6 +251,14 @@
                                 </ListaLateral>
                             </Tarjeta>
                         }
+                    }
+                    @if (_pestana == PestanaFicha && HayDatosFicha)
+                    {
+                        <CajasFicha Cajas="CajasDeFicha" />
+                    }
+                    @if (_pestana == PestanaHistorial)
+                    {
+                        <PestanaHistorial @key="CentroId" EntidadTipo="Centro" EntidadId="CentroId" />
                     }
                 </Pestanas>
             </ChildContent>
@@ -365,6 +380,31 @@
 </LimiteDeErrores>
 
 @code {
+    private IReadOnlyList<CajaFicha> CajasDeFicha => HayDatosFicha ? [new("datos-centro", DatosDeFicha)] : [];
+
+    private RenderFragment DatosDeFicha => __builder =>
+    {
+        if (_detalle is { } detalle)
+        {
+            <Tarjeta Titulo="@Textos["FichaDatosCentro"]" Compacta="true">
+                <RejillaDatos>
+                    @if (!string.IsNullOrWhiteSpace(detalle.CodigoCentro))
+                    {
+                        <DatoRejilla Etiqueta="@Textos["FichaCodigoCentro"]" Valor="@detalle.CodigoCentro" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(detalle.Direccion))
+                    {
+                        <DatoRejilla Etiqueta="@Textos["FichaDireccionCentro"]" Valor="@detalle.Direccion" />
+                    }
+                    @if (!string.IsNullOrWhiteSpace(detalle.Contacto))
+                    {
+                        <DatoRejilla Etiqueta="@Textos["FichaContactoCentro"]" Valor="@detalle.Contacto" />
+                    }
+                </RejillaDatos>
+            </Tarjeta>
+        }
+    };
+
     private RenderFragment AnilloDeCabecera => @<AnilloCumplimiento Porcentaje="_resumen?.CumplimientoPorcentaje" Tamano="TamanoAnillo.Cabecera"
                                                                     Etiqueta="@($"{_resumen?.CumplimientoPorcentaje}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro")" />;
 }

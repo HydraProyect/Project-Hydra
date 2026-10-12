@@ -431,4 +431,31 @@
   <data name="GestionarDocumento360" xml:space="preserve">
     <value>Gestionar</value>
   </data>
+  <data name="PestanaFicha" xml:space="preserve">
+    <value>Fitxa</value>
+  </data>
+  <data name="PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
+  <data name="FichaDatosCentro" xml:space="preserve">
+    <value>Dades del Centre</value>
+  </data>
+  <data name="FichaCodigoCentro" xml:space="preserve">
+    <value>Codi del Centre</value>
+  </data>
+  <data name="FichaDireccionCentro" xml:space="preserve">
+    <value>Adreça</value>
+  </data>
+  <data name="FichaContactoCentro" xml:space="preserve">
+    <value>Contacte</value>
+  </data>
+  <data name="VisitasActivasTitulo" xml:space="preserve">
+    <value>Properes i en curs</value>
+  </data>
+  <data name="ProgramarVisitaCentro" xml:space="preserve">
+    <value>Programar una visita</value>
+  </data>
+  <data name="ProgramarVisitaCentroAccesible" xml:space="preserve">
+    <value>Programar visita en aquest Centre</value>
+  </data>
 </root>
