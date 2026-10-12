@@ -216,296 +216,300 @@
            navegación por celdas que no existe. «Cumplimiento» es el único rótulo que ordena (la consulta
            solo ordena por él en esta pantalla): pulsarlo de nuevo invierte el sentido. Los anchos son los
            de la fila (Centros.razor.css). *@
-        <div class="cabecera-columnas-centros">
-            @if (_seleccionMultiple)
-            {
-                <span class="cabecera-columnas-centros-seleccion"></span>
+        @TarjetaListado.Renderizar(@<text>
+            <div class="cabecera-columnas-centros">
+                @if (_seleccionMultiple)
+                {
+                    <span class="cabecera-columnas-centros-seleccion"></span>
+                }
+                <span class="cabecera-columnas-centros-inicio"></span>
+                <span class="cabecera-columnas-centros-centro">@Textos["ColCentro"]</span>
+                <span class="columna-empresa-centro">@Textos["ColEmpresa"]</span>
+                <span class="columna-cumplimiento-centro">
+                    <button type="button" class="cabecera-columna-orden"
+                            aria-pressed="@(OrdenPorCumplimiento ? "true" : "false")"
+                            @onclick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))">
+                        @Textos["OrdenCumplimiento"] <span aria-hidden="true">@(OrdenPorCumplimiento ? (_ordenDescendente ? "↓" : "↑") : "")</span>
+                    </button>
+                </span>
+                <span class="cabecera-columnas-centros-indicadores">
+                    <span>@Textos["ColEstado"]</span>
+                    <span>@Textos["ColVisita"]</span>
+                </span>
+                <span class="cabecera-columnas-centros-acciones"></span>
+            </div>
+
+            @* Agrupación por Cliente empresarial (de serie): una cabecera por grupo (CabeceraGrupoLista)
+               con el total y el resumen por estado del grupo ENTERO —todas las páginas, los da la consulta
+               (ResumenPorGrupo)—, blanca salvo que el grupo contenga algún Centro que tiña su fila. Los
+               grupos arrancan contraídos y se abren de uno en uno o con «Expandir todo»; con búsqueda, con
+               un Centro concreto en la URL o con selección múltiple se ven abiertos (también mientras haya
+               filas marcadas), y entonces la cabecera no es un botón (no podría contraerlos). Las filas son
+               las de la página: si un grupo sigue en otra, su contador lo dice («3 de 12»). Con el orden de
+               serie los grupos salen del peor estado al mejor; con un orden pedido, en el de su primera
+               fila, y dentro de cada grupo se respeta ese orden (Grupos). *@
+            @{
+            var grupos = Grupos;
+            var cabecerasDeGrupo = grupos.ToDictionary(g => g.Centros[0].Id);
+            var clavesDeGrupo = new ClavesDeHermanos();
             }
-            <span class="cabecera-columnas-centros-inicio"></span>
-            <span class="cabecera-columnas-centros-centro">@Textos["ColCentro"]</span>
-            <span class="columna-empresa-centro">@Textos["ColEmpresa"]</span>
-            <span class="columna-cumplimiento-centro">
-                <button type="button" class="cabecera-columna-orden"
-                        aria-pressed="@(OrdenPorCumplimiento ? "true" : "false")"
-                        @onclick="() => CambiarOrdenAsync(nameof(CentroListaDto.CumplimientoPorcentaje))">
-                    @Textos["OrdenCumplimiento"] <span aria-hidden="true">@(OrdenPorCumplimiento ? (_ordenDescendente ? "↓" : "↑") : "")</span>
-                </button>
-            </span>
-            <span class="cabecera-columnas-centros-indicadores">
-                <span>@Textos["ColEstado"]</span>
-                <span>@Textos["ColVisita"]</span>
-            </span>
-            <span class="cabecera-columnas-centros-acciones"></span>
-        </div>
-
-        @* Agrupación por Cliente empresarial (de serie): una cabecera por grupo (CabeceraGrupoLista)
-           con el total y el resumen por estado del grupo ENTERO —todas las páginas, los da la consulta
-           (ResumenPorGrupo)—, blanca salvo que el grupo contenga algún Centro que tiña su fila. Los
-           grupos arrancan contraídos y se abren de uno en uno o con «Expandir todo»; con búsqueda, con
-           un Centro concreto en la URL o con selección múltiple se ven abiertos (también mientras haya
-           filas marcadas), y entonces la cabecera no es un botón (no podría contraerlos). Las filas son
-           las de la página: si un grupo sigue en otra, su contador lo dice («3 de 12»). Con el orden de
-           serie los grupos salen del peor estado al mejor; con un orden pedido, en el de su primera
-           fila, y dentro de cada grupo se respeta ese orden (Grupos). *@
-        var grupos = Grupos;
-        var cabecerasDeGrupo = grupos.ToDictionary(g => g.Centros[0].Id);
-        var clavesDeGrupo = new ClavesDeHermanos();
-        <div class="lista-filas-acordeon">
-            @foreach (var centro in FilasEnOrden(grupos))
-            {
-                @if (_agruparPorCliente && cabecerasDeGrupo.TryGetValue(centro.Id, out var grupo))
+            <div class="lista-filas-acordeon">
+                @foreach (var centro in FilasEnOrden(grupos))
                 {
-                    <CabeceraGrupoLista @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)" Nombre="@grupo.Nombre" Termino="@_busqueda"
-                                        Total="grupo.Total" EnPagina="grupo.Centros.Count" TituloContador="@Textos["GrupoContadorTitulo", grupo.Total]"
-                                        Resumen="ResumenDe(grupo)" Tinte="grupo.Tinte"
-                                        Abierto="GrupoAbierto(grupo.ClienteEmpresarialId)" Fijo="GruposForzadosAbiertos"
-                                        OnAlternar="() => AlternarGrupo(grupo.ClienteEmpresarialId)" />
-                }
-                @if (!GrupoAbierto(ClienteEmpresarialDe(centro)))
-                {
-                    continue;
-                }
-                <div class="@ClaseTarjeta(centro)" @key="centro.Id">
-                    @{ var visitas = _visitasPorCentro.GetValueOrDefault(centro.Id) ?? []; }
-                    @{ var visita = visitas.FirstOrDefault(); }
-                    @{ var expandido = _expandidos.Contains(centro.Id); }
-                    @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
-                       fila abre la vista rápida (el panel del Context Workspace), igual que Enter
-                       sobre la fila enfocada; los controles de dentro —casilla, desplegable, ventanas
-                       de contexto con incidencias corregibles, visitas, icono 360— hacen lo suyo y no
-                       dejan subir el clic. *@
-                    <div class="tarjeta-fila-acordeon-cabecera fila-pulsable" @onclick="() => AbrirPanelAsync(centro.Id)">
-                        @if (_seleccionMultiple)
-                        {
-                            <input type="checkbox" aria-label="@($"Seleccionar el centro {centro.Nombre}")" checked="@_seleccionados.Contains(centro.Id)" @onchange="e => AlternarSeleccion(centro.Id, (bool)e.Value!)" @onclick:stopPropagation="true" />
-                        }
-                        <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
-                                aria-expanded="@(expandido ? "true" : "false")"
-                                aria-label="@($"Asignaciones de {centro.Nombre}")"
-                                @onclick="() => AlternarExpansion(centro.Id)" @onclick:stopPropagation="true">
-                            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-                        </button>
-                        @*
-                            Identidad del centro en dos líneas: nombre encima y código debajo
-                            (maqueta aprobada). Agrupado, el Cliente empresarial ya está en la
-                            cabecera del grupo; sin agrupar no hay otro sitio que lo diga, así
-                            que encabeza la segunda línea. La Empresa tiene su columna; en
-                            pantallas estrechas esa columna se oculta y la Empresa vuelve a la
-                            segunda línea (.meta-empresa-movil, Centros.razor.css).
-                        *@
-                        <span class="tarjeta-fila-acordeon-identidad">
-                            @* El nombre es un botón que abre la vista rápida: es el destino de teclado del
-                               clic en la fila (la fila entera no es focable con Tab). A la página Centro 360
-                               se va con el icono 360 del final de la fila y con el del panel. *@
-                            <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida"
-                                    @onclick="() => AbrirPanelAsync(centro.Id)" @onclick:stopPropagation="true">
-                                <TextoResaltado Texto="@centro.Nombre" Termino="@_busqueda" />
-                            </button>
-                            @{ var partesMeta = PartesMetaCentro(centro); var meta = string.Join(" · ", partesMeta); }
-                            <span class="tarjeta-fila-acordeon-meta"><TextoResaltado Texto="@partesMeta.ElementAtOrDefault(0)" Termino="@_busqueda" />@(partesMeta.Count == 2 ? " · " : "")<TextoResaltado Texto="@partesMeta.ElementAtOrDefault(1)" Termino="@_busqueda" /><span class="meta-empresa-movil">@(meta.Length > 0 ? " · " : "")<TextoResaltado Texto="@centro.EmpresaRazonSocial" Termino="@_busqueda" /></span></span>
-                        </span>
-                        <span class="columna-empresa-centro" title="@centro.EmpresaRazonSocial"><TextoResaltado Texto="@centro.EmpresaRazonSocial" Termino="@_busqueda" /></span>
-                        <span class="columna-cumplimiento-centro">
-                            <BarraCumplimiento Porcentaje="centro.CumplimientoPorcentaje"
-                                               Etiqueta="@(centro.CumplimientoPorcentaje is { } cumplimiento ? $"{cumplimiento}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro" : null)" />
-                        </span>
-                        @*
-                            Zona de indicadores de ancho FIJO, con dos ranuras: estado y visita. Es lo
-                            que hace que caigan en la misma vertical en todas las filas, sea cual sea
-                            el largo del nombre del centro (lámina L3, blueprint § 3.2).
-
-                            Estado: la pastilla se pinta SIEMPRE (lo correcto, con punto verde y texto
-                            gris) y debajo va el motivo, «N vencidos · M por vencer», que es lo que antes
-                            decían las columnas «Venc.» y «Próx.». Cada parte del motivo abre su ventana
-                            de contexto con las incidencias, por ámbito y corregibles sin salir del
-                            listado. Sin vencidos ni próximos no hay motivo.
-
-                            Visita: tiene su propia ranura y se ve A LA VEZ que el estado (decisión
-                            del 2026-10-09). Antes se excluían porque las dos ranuras de recuento no
-                            dejaban sitio para ambos (contrato de fidelidad 2026-08-09 § 1.6, bug C-2).
-                        *@
-                        <span class="tarjeta-fila-acordeon-indicadores">
-                            <span class="ranura-recuento ranura-estado-centro">
-                                @if (centro.Recuentos.TotalVencidas > 0 || centro.Recuentos.TotalProximas > 0)
-                                {
-                                    <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
-                                                Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
-                                                Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)">
-                                        <MotivoContenido>
-                                            @* Vencidas, pendientes y bloqueos: causas separadas dentro del total «vencidas» de Desglosar (decisión 2026-10-10). *@
-                                            @if (centro.Recuentos.VencidasPorFecha.Count > 0)
-                                            {
-                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoVencidos(centro.Recuentos.VencidasPorFecha.Count), centro.Recuentos.VencidasPorFecha, "vencido")"
-                                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                                 Interactiva="HayCorregibles(centro, centro.Recuentos.VencidasPorFecha)"
-                                                                 Pie="@PieDeIncidencias(centro, centro.Recuentos.VencidasPorFecha)"
-                                                                 Titulo="@($"{centro.Recuentos.VencidasPorFecha.Count} {(centro.Recuentos.VencidasPorFecha.Count == 1 ? "documento vencido" : "documentos vencidos")}")">
-                                                    <Disparador>
-                                                        <span class="motivo-recuento motivo-recuento-vencidos">@MotivoVencidos(centro.Recuentos.VencidasPorFecha.Count)</span>
-                                                    </Disparador>
-                                                    <Detalle>
-                                                        @DesgloseIncidencias(centro, centro.Recuentos.VencidasPorFecha)
-                                                    </Detalle>
-                                                </VentanaContexto>
-                                            }
-                                            @if (centro.Recuentos.VencidasPorFecha.Count > 0 && centro.Recuentos.Pendientes.Count > 0)
-                                            {
-                                                <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
-                                            }
-                                            @if (centro.Recuentos.Pendientes.Count > 0)
-                                            {
-                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoPendientes(centro.Recuentos.Pendientes.Count), centro.Recuentos.Pendientes, Textos["CalificativoPendiente"])"
-                                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                                 Interactiva="HayCorregibles(centro, centro.Recuentos.Pendientes)"
-                                                                 Pie="@PieDeIncidencias(centro, centro.Recuentos.Pendientes)"
-                                                                 Titulo="@TituloPendientes(centro.Recuentos.Pendientes.Count)">
-                                                    <Disparador>
-                                                        <span class="motivo-recuento motivo-recuento-pendientes">@MotivoPendientes(centro.Recuentos.Pendientes.Count)</span>
-                                                    </Disparador>
-                                                    <Detalle>
-                                                        @DesgloseIncidencias(centro, centro.Recuentos.Pendientes)
-                                                    </Detalle>
-                                                </VentanaContexto>
-                                            }
-                                            @if (centro.Recuentos.Bloqueos.Count > 0 && (centro.Recuentos.VencidasPorFecha.Count > 0 || centro.Recuentos.Pendientes.Count > 0))
-                                            {
-                                                <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
-                                            }
-                                            @if (centro.Recuentos.Bloqueos.Count > 0)
-                                            {
-                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoBloqueos(centro.Recuentos.Bloqueos.Count), centro.Recuentos.Bloqueos, Textos["CalificativoBloqueo"])"
-                                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                                 Interactiva="HayCorregibles(centro, centro.Recuentos.Bloqueos)"
-                                                                 Pie="@PieDeIncidencias(centro, centro.Recuentos.Bloqueos)"
-                                                                 Titulo="@TituloBloqueos(centro.Recuentos.Bloqueos.Count)">
-                                                    <Disparador>
-                                                        <span class="motivo-recuento motivo-recuento-bloqueos">@MotivoBloqueos(centro.Recuentos.Bloqueos.Count)</span>
-                                                    </Disparador>
-                                                    <Detalle>
-                                                        @DesgloseIncidencias(centro, centro.Recuentos.Bloqueos)
-                                                    </Detalle>
-                                                </VentanaContexto>
-                                            }
-                                            @if (centro.Recuentos.TotalVencidas > 0 && centro.Recuentos.TotalProximas > 0)
-                                            {
-                                                <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
-                                            }
-                                            @if (centro.Recuentos.TotalProximas > 0)
-                                            {
-                                                <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoProximos(centro.Recuentos.TotalProximas), centro.Recuentos.Proximas, "próximo a vencer")"
-                                                                 Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                                 Interactiva="HayCorregibles(centro, centro.Recuentos.Proximas)"
-                                                                 Pie="@PieDeIncidencias(centro, centro.Recuentos.Proximas)"
-                                                                 Titulo="@($"{centro.Recuentos.TotalProximas} {(centro.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
-                                                    <Disparador>
-                                                        <span class="motivo-recuento motivo-recuento-proximos">@MotivoProximos(centro.Recuentos.TotalProximas)</span>
-                                                    </Disparador>
-                                                    <Detalle>
-                                                        @DesgloseIncidencias(centro, centro.Recuentos.Proximas)
-                                                    </Detalle>
-                                                </VentanaContexto>
-                                            }
-                                        </MotivoContenido>
-                                    </EstadoFila>
-                                }
-                                else
-                                {
-                                    <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
-                                                Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
-                                                Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)" />
-                                }
-                            </span>
-                            <span class="ranura-recuento ranura-recuento-final">
-                                @* Visitas SIN fusionar (DDL-035, OD-18). Ventana de contexto en los
-                                   dos casos (antes solo la de varias visitas la tenía) — el badge
-                                   de una sola visita es un recuento igual que cualquier otro (08 § 6,
-                                   DDL-033), y sin ventana no dice cuántos trabajadores implica. *@
-                                @if (visitas.Count == 1)
-                                {
-                                    <VentanaContexto Etiqueta="@($"1 visita programada: del {visita!.FechaInicio:dd/MM} al {visita.FechaFin:dd/MM}, {visita.TrabajadoresCount} trabajador(es)")"
-                                                     Titulo="1 visita programada">
-                                        <Disparador>
-                                            <button type="button" class="badge-visita"
-                                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'
-                                                    @onclick:stopPropagation="true">
-                                                Visita @visita!.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
-                                            </button>
-                                        </Disparador>
-                                        <Detalle>
-                                            <span class="ventana-linea">@visita.FechaInicio.ToString("dd/MM") – @visita.FechaFin.ToString("dd/MM") · @visita.TrabajadoresCount trabajador(es)</span>
-                                        </Detalle>
-                                    </VentanaContexto>
-                                }
-                                else if (visitas.Count > 1)
-                                {
-                                    <VentanaContexto Etiqueta="@($"{visitas.Count} visitas programadas: {string.Join("; ", visitas.Select(v => $"del {v.FechaInicio:dd/MM} al {v.FechaFin:dd/MM}, {v.TrabajadoresCount} trabajador(es)"))}")"
-                                                     Titulo="@($"{visitas.Count} visitas programadas")">
-                                        <Disparador>
-                                            <button type="button" class="badge-visita"
-                                                    @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'
-                                                    @onclick:stopPropagation="true">
-                                                @visitas.Count visitas
-                                            </button>
-                                        </Disparador>
-                                        <Detalle>
-                                            @foreach (var v in visitas)
-                                            {
-                                                <span class="ventana-linea">@v.FechaInicio.ToString("dd/MM") – @v.FechaFin.ToString("dd/MM") · @v.TrabajadoresCount trabajador(es)</span>
-                                            }
-                                        </Detalle>
-                                    </VentanaContexto>
-                                }
-                            </span>
-                        </span>
-                        @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Vista rápida» es el
-                           clic en la fila; «Abrir ficha 360», este icono; «Eliminar centro», la selección
-                           múltiple (☑ de la cabecera o tecla «x») con «Eliminar seleccionados» y su «Deshacer». *@
-                        <div class="tarjeta-fila-acordeon-acciones">
-                            <Boton360 Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" />
-                        </div>
-                    </div>
-                    @if (expandido)
+                    @if (_agruparPorCliente && cabecerasDeGrupo.TryGetValue(centro.Id, out var grupo))
                     {
-                        @* Igual que antes con SeccionColapsable: el contenido solo se
-                           monta al expandir, no se paga el render de 34 acordeones. *@
-                        <div class="tarjeta-fila-acordeon-contenido">
-                            @* El título es verdadero por construcción: el
-                               acordeón se monta aquí con SoloIncidencias. *@
-                            <p class="acordeon-centro-titulo">Asignaciones con incidencias</p>
-                            <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="@centro.Nombre"
-                                                          VisitaId="visita?.VisitaId" VisitaFechaFin="visita?.FechaFin"
-                                                          EmpresaId="centro.EmpresaId" EmpresaNombre="@centro.EmpresaRazonSocial"
-                                                          IncidenciasEmpresa="IncidenciasDeEmpresa(centro)"
-                                                          SeleccionMultiple="_seleccionMultiple"
-                                                          SoloIncidencias="true"
-                                                          MostrarEnlacesCentro360="false"
-                                                          AsignarEsPrimaria="false"
-                                                          OnCambio="() => RefrescarCentroAsync(centro.Id)" />
-                            @* Camino a Centro 360 SIEMPRE presente en la fila desplegada, y uno solo dentro
-                               de ella (Lista Centros TALVEG.dc.html). Los enlaces que el acordeón pinta por
-                               su cuenta son condicionales —solo con trabajadores al día ocultos o con el
-                               estado «Todos al día»—, así que un centro con pendientes y sin ocultos no
-                               ofrecía camino alguno a /centros/{id}; y cuando sí aparecían, se sumaban a
-                               este. Por eso aquí se apagan (MostrarEnlacesCentro360="false"): el acordeón
-                               también lo monta CentroDetalle, donde apuntaría a sí mismo. La fila lleva
-                               además su icono 360 (patrón de listados), que está con o sin desplegar. *@
-                            <div class="acordeon-centro-pie">
-                                <a class="acordeon-centro-enlace-360" href="@($"/centros/{centro.Id}")">Ver el centro completo →</a>
+                        <CabeceraGrupoLista @key="clavesDeGrupo.De(grupo.ClienteEmpresarialId)" Nombre="@grupo.Nombre" Termino="@_busqueda"
+                                            Total="grupo.Total" EnPagina="grupo.Centros.Count" TituloContador="@Textos["GrupoContadorTitulo", grupo.Total]"
+                                            Resumen="ResumenDe(grupo)" Tinte="grupo.Tinte"
+                                            Abierto="GrupoAbierto(grupo.ClienteEmpresarialId)" Fijo="GruposForzadosAbiertos"
+                                            OnAlternar="() => AlternarGrupo(grupo.ClienteEmpresarialId)" />
+                    }
+                    @if (!GrupoAbierto(ClienteEmpresarialDe(centro)))
+                    {
+                        continue;
+                    }
+                    <div class="@ClaseTarjeta(centro)" @key="centro.Id">
+                        @{ var visitas = _visitasPorCentro.GetValueOrDefault(centro.Id) ?? []; }
+                        @{ var visita = visitas.FirstOrDefault(); }
+                        @{ var expandido = _expandidos.Contains(centro.Id); }
+                        @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
+                           fila abre la vista rápida (el panel del Context Workspace), igual que Enter
+                           sobre la fila enfocada; los controles de dentro —casilla, desplegable, ventanas
+                           de contexto con incidencias corregibles, visitas, icono 360— hacen lo suyo y no
+                           dejan subir el clic. *@
+                        <div class="tarjeta-fila-acordeon-cabecera fila-pulsable" @onclick="() => AbrirPanelAsync(centro.Id)">
+                            @if (_seleccionMultiple)
+                            {
+                                <input type="checkbox" aria-label="@($"Seleccionar el centro {centro.Nombre}")" checked="@_seleccionados.Contains(centro.Id)" @onchange="e => AlternarSeleccion(centro.Id, (bool)e.Value!)" @onclick:stopPropagation="true" />
+                            }
+                            <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                    aria-expanded="@(expandido ? "true" : "false")"
+                                    aria-label="@($"Asignaciones de {centro.Nombre}")"
+                                    @onclick="() => AlternarExpansion(centro.Id)" @onclick:stopPropagation="true">
+                                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                            </button>
+                            @*
+                                Identidad del centro en dos líneas: nombre encima y código debajo
+                                (maqueta aprobada). Agrupado, el Cliente empresarial ya está en la
+                                cabecera del grupo; sin agrupar no hay otro sitio que lo diga, así
+                                que encabeza la segunda línea. La Empresa tiene su columna; en
+                                pantallas estrechas esa columna se oculta y la Empresa vuelve a la
+                                segunda línea (.meta-empresa-movil, Centros.razor.css).
+                            *@
+                            <span class="tarjeta-fila-acordeon-identidad">
+                                @* El nombre es un botón que abre la vista rápida: es el destino de teclado del
+                                   clic en la fila (la fila entera no es focable con Tab). A la página Centro 360
+                                   se va con el icono 360 del final de la fila y con el del panel. *@
+                                <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida"
+                                        @onclick="() => AbrirPanelAsync(centro.Id)" @onclick:stopPropagation="true">
+                                    <TextoResaltado Texto="@centro.Nombre" Termino="@_busqueda" />
+                                </button>
+                                @{ var partesMeta = PartesMetaCentro(centro); var meta = string.Join(" · ", partesMeta); }
+                                <span class="tarjeta-fila-acordeon-meta"><TextoResaltado Texto="@partesMeta.ElementAtOrDefault(0)" Termino="@_busqueda" />@(partesMeta.Count == 2 ? " · " : "")<TextoResaltado Texto="@partesMeta.ElementAtOrDefault(1)" Termino="@_busqueda" /><span class="meta-empresa-movil">@(meta.Length > 0 ? " · " : "")<TextoResaltado Texto="@centro.EmpresaRazonSocial" Termino="@_busqueda" /></span></span>
+                            </span>
+                            <span class="columna-empresa-centro" title="@centro.EmpresaRazonSocial"><TextoResaltado Texto="@centro.EmpresaRazonSocial" Termino="@_busqueda" /></span>
+                            <span class="columna-cumplimiento-centro">
+                                <BarraCumplimiento Porcentaje="centro.CumplimientoPorcentaje"
+                                                   Etiqueta="@(centro.CumplimientoPorcentaje is { } cumplimiento ? $"{cumplimiento}% de cumplimiento — documentos al día / requeridos entre los trabajadores de este centro" : null)" />
+                            </span>
+                            @*
+                                Zona de indicadores de ancho FIJO, con dos ranuras: estado y visita. Es lo
+                                que hace que caigan en la misma vertical en todas las filas, sea cual sea
+                                el largo del nombre del centro (lámina L3, blueprint § 3.2).
+
+                                Estado: la pastilla se pinta SIEMPRE (lo correcto, con punto verde y texto
+                                gris) y debajo va el motivo, «N vencidos · M por vencer», que es lo que antes
+                                decían las columnas «Venc.» y «Próx.». Cada parte del motivo abre su ventana
+                                de contexto con las incidencias, por ámbito y corregibles sin salir del
+                                listado. Sin vencidos ni próximos no hay motivo.
+
+                                Visita: tiene su propia ranura y se ve A LA VEZ que el estado (decisión
+                                del 2026-10-09). Antes se excluían porque las dos ranuras de recuento no
+                                dejaban sitio para ambos (contrato de fidelidad 2026-08-09 § 1.6, bug C-2).
+                            *@
+                            <span class="tarjeta-fila-acordeon-indicadores">
+                                <span class="ranura-recuento ranura-estado-centro">
+                                    @if (centro.Recuentos.TotalVencidas > 0 || centro.Recuentos.TotalProximas > 0)
+                                    {
+                                        <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                    Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                    Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)">
+                                            <MotivoContenido>
+                                                @* Vencidas, pendientes y bloqueos: causas separadas dentro del total «vencidas» de Desglosar (decisión 2026-10-10). *@
+                                                @if (centro.Recuentos.VencidasPorFecha.Count > 0)
+                                                {
+                                                    <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoVencidos(centro.Recuentos.VencidasPorFecha.Count), centro.Recuentos.VencidasPorFecha, "vencido")"
+                                                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                                     Interactiva="HayCorregibles(centro, centro.Recuentos.VencidasPorFecha)"
+                                                                     Pie="@PieDeIncidencias(centro, centro.Recuentos.VencidasPorFecha)"
+                                                                     Titulo="@($"{centro.Recuentos.VencidasPorFecha.Count} {(centro.Recuentos.VencidasPorFecha.Count == 1 ? "documento vencido" : "documentos vencidos")}")">
+                                                        <Disparador>
+                                                            <span class="motivo-recuento motivo-recuento-vencidos">@MotivoVencidos(centro.Recuentos.VencidasPorFecha.Count)</span>
+                                                        </Disparador>
+                                                        <Detalle>
+                                                            @DesgloseIncidencias(centro, centro.Recuentos.VencidasPorFecha)
+                                                        </Detalle>
+                                                    </VentanaContexto>
+                                                }
+                                                @if (centro.Recuentos.VencidasPorFecha.Count > 0 && centro.Recuentos.Pendientes.Count > 0)
+                                                {
+                                                    <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
+                                                }
+                                                @if (centro.Recuentos.Pendientes.Count > 0)
+                                                {
+                                                    <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoPendientes(centro.Recuentos.Pendientes.Count), centro.Recuentos.Pendientes, Textos["CalificativoPendiente"])"
+                                                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                                     Interactiva="HayCorregibles(centro, centro.Recuentos.Pendientes)"
+                                                                     Pie="@PieDeIncidencias(centro, centro.Recuentos.Pendientes)"
+                                                                     Titulo="@TituloPendientes(centro.Recuentos.Pendientes.Count)">
+                                                        <Disparador>
+                                                            <span class="motivo-recuento motivo-recuento-pendientes">@MotivoPendientes(centro.Recuentos.Pendientes.Count)</span>
+                                                        </Disparador>
+                                                        <Detalle>
+                                                            @DesgloseIncidencias(centro, centro.Recuentos.Pendientes)
+                                                        </Detalle>
+                                                    </VentanaContexto>
+                                                }
+                                                @if (centro.Recuentos.Bloqueos.Count > 0 && (centro.Recuentos.VencidasPorFecha.Count > 0 || centro.Recuentos.Pendientes.Count > 0))
+                                                {
+                                                    <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
+                                                }
+                                                @if (centro.Recuentos.Bloqueos.Count > 0)
+                                                {
+                                                    <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoBloqueos(centro.Recuentos.Bloqueos.Count), centro.Recuentos.Bloqueos, Textos["CalificativoBloqueo"])"
+                                                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                                     Interactiva="HayCorregibles(centro, centro.Recuentos.Bloqueos)"
+                                                                     Pie="@PieDeIncidencias(centro, centro.Recuentos.Bloqueos)"
+                                                                     Titulo="@TituloBloqueos(centro.Recuentos.Bloqueos.Count)">
+                                                        <Disparador>
+                                                            <span class="motivo-recuento motivo-recuento-bloqueos">@MotivoBloqueos(centro.Recuentos.Bloqueos.Count)</span>
+                                                        </Disparador>
+                                                        <Detalle>
+                                                            @DesgloseIncidencias(centro, centro.Recuentos.Bloqueos)
+                                                        </Detalle>
+                                                    </VentanaContexto>
+                                                }
+                                                @if (centro.Recuentos.TotalVencidas > 0 && centro.Recuentos.TotalProximas > 0)
+                                                {
+                                                    <span class="motivo-recuento-separador" aria-hidden="true">@Textos["SeparadorMotivo"]</span>
+                                                }
+                                                @if (centro.Recuentos.TotalProximas > 0)
+                                                {
+                                                    <VentanaContexto Etiqueta="@EtiquetaDeMotivo(MotivoProximos(centro.Recuentos.TotalProximas), centro.Recuentos.Proximas, "próximo a vencer")"
+                                                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                                     Interactiva="HayCorregibles(centro, centro.Recuentos.Proximas)"
+                                                                     Pie="@PieDeIncidencias(centro, centro.Recuentos.Proximas)"
+                                                                     Titulo="@($"{centro.Recuentos.TotalProximas} {(centro.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
+                                                        <Disparador>
+                                                            <span class="motivo-recuento motivo-recuento-proximos">@MotivoProximos(centro.Recuentos.TotalProximas)</span>
+                                                        </Disparador>
+                                                        <Detalle>
+                                                            @DesgloseIncidencias(centro, centro.Recuentos.Proximas)
+                                                        </Detalle>
+                                                    </VentanaContexto>
+                                                }
+                                            </MotivoContenido>
+                                        </EstadoFila>
+                                    }
+                                    else
+                                    {
+                                        <EstadoFila Tono="EstadoCentroUi.Tono(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                    Texto="@EstadoCentroUi.Texto(centro.Estado, centro.CumplimientoPorcentaje)"
+                                                    Correcto="EstadoCentroUi.EsCorrecto(centro.Estado, centro.CumplimientoPorcentaje)" />
+                                    }
+                                </span>
+                                <span class="ranura-recuento ranura-recuento-final">
+                                    @* Visitas SIN fusionar (DDL-035, OD-18). Ventana de contexto en los
+                                       dos casos (antes solo la de varias visitas la tenía) — el badge
+                                       de una sola visita es un recuento igual que cualquier otro (08 § 6,
+                                       DDL-033), y sin ventana no dice cuántos trabajadores implica. *@
+                                    @if (visitas.Count == 1)
+                                    {
+                                        <VentanaContexto Etiqueta="@($"1 visita programada: del {visita!.FechaInicio:dd/MM} al {visita.FechaFin:dd/MM}, {visita.TrabajadoresCount} trabajador(es)")"
+                                                         Titulo="1 visita programada">
+                                            <Disparador>
+                                                <button type="button" class="badge-visita"
+                                                        @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'
+                                                        @onclick:stopPropagation="true">
+                                                    Visita @visita!.FechaInicio.ToString("dd/MM")–@visita.FechaFin.ToString("dd/MM")
+                                                </button>
+                                            </Disparador>
+                                            <Detalle>
+                                                <span class="ventana-linea">@visita.FechaInicio.ToString("dd/MM") – @visita.FechaFin.ToString("dd/MM") · @visita.TrabajadoresCount trabajador(es)</span>
+                                            </Detalle>
+                                        </VentanaContexto>
+                                    }
+                                    else if (visitas.Count > 1)
+                                    {
+                                        <VentanaContexto Etiqueta="@($"{visitas.Count} visitas programadas: {string.Join("; ", visitas.Select(v => $"del {v.FechaInicio:dd/MM} al {v.FechaFin:dd/MM}, {v.TrabajadoresCount} trabajador(es)"))}")"
+                                                         Titulo="@($"{visitas.Count} visitas programadas")">
+                                            <Disparador>
+                                                <button type="button" class="badge-visita"
+                                                        @onclick='() => NavigationManager.NavigateTo($"/visitas?q={Uri.EscapeDataString(centro.Nombre)}")'
+                                                        @onclick:stopPropagation="true">
+                                                    @visitas.Count visitas
+                                                </button>
+                                            </Disparador>
+                                            <Detalle>
+                                                @foreach (var v in visitas)
+                                                {
+                                                    <span class="ventana-linea">@v.FechaInicio.ToString("dd/MM") – @v.FechaFin.ToString("dd/MM") · @v.TrabajadoresCount trabajador(es)</span>
+                                                }
+                                            </Detalle>
+                                        </VentanaContexto>
+                                    }
+                                </span>
+                            </span>
+                            @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú: «Vista rápida» es el
+                               clic en la fila; «Abrir ficha 360», este icono; «Eliminar centro», la selección
+                               múltiple (☑ de la cabecera o tecla «x») con «Eliminar seleccionados» y su «Deshacer». *@
+                            <div class="tarjeta-fila-acordeon-acciones">
+                                <Boton360 Nombre="@centro.Nombre" Href="@($"/centros/{centro.Id}")" />
                             </div>
                         </div>
-                    }
-                </div>
+                        @if (expandido)
+                        {
+                            @* Igual que antes con SeccionColapsable: el contenido solo se
+                               monta al expandir, no se paga el render de 34 acordeones. *@
+                            <div class="tarjeta-fila-acordeon-contenido">
+                                @* El título es verdadero por construcción: el
+                                   acordeón se monta aquí con SoloIncidencias. *@
+                                <p class="acordeon-centro-titulo">Asignaciones con incidencias</p>
+                                <AcordeonAsignacionesCentro CentroId="centro.Id" CentroNombre="@centro.Nombre"
+                                                              VisitaId="visita?.VisitaId" VisitaFechaFin="visita?.FechaFin"
+                                                              EmpresaId="centro.EmpresaId" EmpresaNombre="@centro.EmpresaRazonSocial"
+                                                              IncidenciasEmpresa="IncidenciasDeEmpresa(centro)"
+                                                              SeleccionMultiple="_seleccionMultiple"
+                                                              SoloIncidencias="true"
+                                                              MostrarEnlacesCentro360="false"
+                                                              AsignarEsPrimaria="false"
+                                                              OnCambio="() => RefrescarCentroAsync(centro.Id)" />
+                                @* Camino a Centro 360 SIEMPRE presente en la fila desplegada, y uno solo dentro
+                                   de ella (Lista Centros TALVEG.dc.html). Los enlaces que el acordeón pinta por
+                                   su cuenta son condicionales —solo con trabajadores al día ocultos o con el
+                                   estado «Todos al día»—, así que un centro con pendientes y sin ocultos no
+                                   ofrecía camino alguno a /centros/{id}; y cuando sí aparecían, se sumaban a
+                                   este. Por eso aquí se apagan (MostrarEnlacesCentro360="false"): el acordeón
+                                   también lo monta CentroDetalle, donde apuntaría a sí mismo. La fila lleva
+                                   además su icono 360 (patrón de listados), que está con o sin desplegar. *@
+                                <div class="acordeon-centro-pie">
+                                    <a class="acordeon-centro-enlace-360" href="@($"/centros/{centro.Id}")">Ver el centro completo →</a>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </text>, @<text>
+            @* Con 20 o menos y el tamaño mínimo, una sola página: el paginador no aporta nada. *@
+            @if (MostrarPaginador)
+            {
+                <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                  Etiqueta="centro(s)" PaginaActualChanged="CambiarPaginaAsync"
+                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
             }
-        </div>
-
-        @* Con 20 o menos y el tamaño mínimo, una sola página: el paginador no aporta nada. *@
-        @if (MostrarPaginador)
-        {
-            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="centro(s)" PaginaActualChanged="CambiarPaginaAsync"
-                              TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-        }
-        <LeyendaAtajosLista />
+            <LeyendaAtajosLista />
+        </text>)
     }
     }
 </div>

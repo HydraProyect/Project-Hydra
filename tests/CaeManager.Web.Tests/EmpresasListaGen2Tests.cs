@@ -625,6 +625,9 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         cut.FindAll(".paginador").Any().Should().Be(conPaginador);
+        var tarjeta = cut.Find(".tarjeta-listado");
+        tarjeta.QuerySelector(".tarjeta-listado-contenido .marco-lista-empresas").Should().NotBeNull();
+        tarjeta.QuerySelector(".tarjeta-listado-pie .leyenda-atajos-lista").Should().NotBeNull();
     }
 
     // ------------------------------------------------------------------- Filas

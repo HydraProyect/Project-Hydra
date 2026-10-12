@@ -135,182 +135,184 @@
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
         <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                @if (_seleccionMultiple)
-                {
-                    <TemplateColumn Title="" Align="Align.Center">
-                        <HeaderTemplate Context="columna">
-                            <input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
-                        </HeaderTemplate>
-                        <ChildContent>
-                            <input type="checkbox" aria-label="@Textos["AriaSeleccionarVisita", context.EmpresaRazonSocial, context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
-                        </ChildContent>
-                    </TemplateColumn>
-                }
-                @* Columna «Visita»: el Centro es la identidad de la fila y, debajo, el titular del Centro y la
-                   Empresa que entra. Los tres nombres siguen abriendo cada uno su panel. *@
-                <TemplateColumn Title="@Textos["ColumnaVisita"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
-                    <span class="visitas-celda-apilada">
-                        <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
-                            <TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" />
-                        </button>
-                        <span class="visitas-celda-secundaria visitas-celda-titular-empresa">
-                            <button type="button" class="enlace-nombre-fila" title="@Textos["DetalleTitularCentro"]" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
-                                <TextoResaltado Texto="@context.ClienteRazonSocial" Termino="@_busqueda" />
+            @TarjetaListado.Renderizar(@<text>
+                <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
+                    @if (_seleccionMultiple)
+                    {
+                        <TemplateColumn Title="" Align="Align.Center">
+                            <HeaderTemplate Context="columna">
+                                <input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" />
+                            </HeaderTemplate>
+                            <ChildContent>
+                                <input type="checkbox" aria-label="@Textos["AriaSeleccionarVisita", context.EmpresaRazonSocial, context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" />
+                            </ChildContent>
+                        </TemplateColumn>
+                    }
+                    @* Columna «Visita»: el Centro es la identidad de la fila y, debajo, el titular del Centro y la
+                       Empresa que entra. Los tres nombres siguen abriendo cada uno su panel. *@
+                    <TemplateColumn Title="@Textos["ColumnaVisita"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.CentroNombre))">
+                        <span class="visitas-celda-apilada">
+                            <button type="button" class="enlace-nombre-fila" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Centro, context.CentroId, context.CentroNombre, "informacion")'>
+                                <TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" />
                             </button>
-                            <button type="button" class="enlace-nombre-fila" title="@Textos["DetalleEmpresa"]" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
-                                <TextoResaltado Texto="@context.EmpresaRazonSocial" Termino="@_busqueda" />
-                            </button>
+                            <span class="visitas-celda-secundaria visitas-celda-titular-empresa">
+                                <button type="button" class="enlace-nombre-fila" title="@Textos["DetalleTitularCentro"]" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Cliente, context.ClienteId, context.ClienteRazonSocial, "informacion")'>
+                                    <TextoResaltado Texto="@context.ClienteRazonSocial" Termino="@_busqueda" />
+                                </button>
+                                <button type="button" class="enlace-nombre-fila" title="@Textos["DetalleEmpresa"]" @onclick='() => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, context.EmpresaId, context.EmpresaRazonSocial, "informacion")'>
+                                    <TextoResaltado Texto="@context.EmpresaRazonSocial" Termino="@_busqueda" />
+                                </button>
+                            </span>
                         </span>
-                    </span>
-                </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaFechas"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
-                    @* Patrón de listados (2026-10-08): la fila no lleva menú «⋯» y se pulsa entera. QuickGrid no
-                       ofrece clic de fila: «fila-pulsable» (RowClass) y «nombre-abre-vista-rapida» son el contrato
-                       con el oyente de atajos-lista.js, que pulsa este botón cuando el clic cae en un punto de la
-                       fila sin control. Una Visita no tiene nombre: la identifican el Centro y sus fechas, y los
-                       nombres del Centro, del titular y de la Empresa ya abren cada uno su panel, así que el botón
-                       de la vista rápida (destino de teclado) son las fechas. *@
-                    <span class="visitas-celda-apilada">
-                        <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida"
-                                aria-label="@Textos["AriaAbrirVistaRapidaVisita", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
-                                @onclick="() => AbrirDetalleAsync(context.Id)">@TextoFechas(context.FechaInicio, context.FechaFin)</button>
-                        @if (!context.EstaCancelada)
-                        {
-                            <span class="visitas-celda-secundaria" data-pieza="plazo">@TextoPlazo(context)</span>
-                        }
-                    </span>
-                </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaTrabajadores"]" Align="Align.Center">
-                    @{
-                        var nombres = context.Trabajadores ?? [];
-                    }
-                    @* El recuento abre el desglose de quién entra; pulsar a uno lleva a la pestaña
-                       Trabajadores del panel, que es donde se añade o se quita. *@
-                    <VentanaContexto Interactiva="true"
-                                     Deshabilitada="@(nombres.Count == 0)"
-                                     Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                     Etiqueta="@Textos["AriaTrabajadoresVisita", context.TotalTrabajadores]"
-                                     Titulo="@Textos["VentanaTrabajadoresTitulo"]"
-                                     Pie="@Textos["VentanaTrabajadoresPie"]"
-                                     class="visitas-recuento-trabajadores">
-                        <Disparador>@context.TotalTrabajadores</Disparador>
-                        <Detalle>
-                            @foreach (var nombre in nombres)
+                    </TemplateColumn>
+                    <TemplateColumn Title="@Textos["ColumnaFechas"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.FechaInicio))">
+                        @* Patrón de listados (2026-10-08): la fila no lleva menú «⋯» y se pulsa entera. QuickGrid no
+                           ofrece clic de fila: «fila-pulsable» (RowClass) y «nombre-abre-vista-rapida» son el contrato
+                           con el oyente de atajos-lista.js, que pulsa este botón cuando el clic cae en un punto de la
+                           fila sin control. Una Visita no tiene nombre: la identifican el Centro y sus fechas, y los
+                           nombres del Centro, del titular y de la Empresa ya abren cada uno su panel, así que el botón
+                           de la vista rápida (destino de teclado) son las fechas. *@
+                        <span class="visitas-celda-apilada">
+                            <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida"
+                                    aria-label="@Textos["AriaAbrirVistaRapidaVisita", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
+                                    @onclick="() => AbrirDetalleAsync(context.Id)">@TextoFechas(context.FechaInicio, context.FechaFin)</button>
+                            @if (!context.EstaCancelada)
                             {
-                                <VentanaContextoElemento Ayuda="@Textos["VentanaTrabajadoresAyuda"]"
-                                                         AlPulsar="() => AbrirDetalleAsync(context.Id, PestanaTrabajadores)">@nombre</VentanaContextoElemento>
+                                <span class="visitas-celda-secundaria" data-pieza="plazo">@TextoPlazo(context)</span>
                             }
-                        </Detalle>
-                    </VentanaContexto>
-                </TemplateColumn>
-                @* El origen es un dato, no un estado: texto, sin pastilla. *@
-                <TemplateColumn Title="@Textos["EtiquetaOrigen"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
-                    <span class="visitas-celda-secundaria" data-pieza="origen">@TextoOrigen(context.Origen)</span>
-                </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaDocumentacion"]">
-                    @if (context.EstaCancelada)
-                    {
-                        @* FS-11: una Visita cancelada no tiene documentación que gestionar. Que está cancelada, y por
-                           qué, lo dice la columna «Estado». *@
-                        <span class="visitas-celda-secundaria" data-pieza="sin-documentacion" aria-hidden="true">—</span>
-                    }
-                    else if (!context.CentroRequiereGestionCae)
-                    {
-                        @* P1-X2: ni «Gestionada» (verde falso) ni «Por gestionar» (pendiente que no existe). *@
-                        <Badge Tono="TonoBadge.Neutro">@Textos["BadgeSinGestionCae"]</Badge>
-                    }
-                    else if (context.DocumentacionGestionadaEnUtc is { } gestionadaEn)
-                    {
-                        @* Estado guardado en la Visita: se envió el paquete o se marcó a mano. *@
-                        <EstadoFila Correcto="true" Texto="@Textos["BadgeDocumentacionGestionada"]"
-                                    Titulo="@Textos["TituloDocumentacionGestionadaEl", CaeManager.Domain.Common.DiaDeNegocio.De(gestionadaEn)]" />
-                    }
-                    else
-                    {
-                        @* «Por gestionar» aunque los documentos estén vigentes: el title dice si ya se puede enviar o falta papel. *@
-                        <EstadoFila Tono="TonoBadge.Peligro" Texto="@Textos["BadgeDocumentacionPorGestionar"]"
-                                    Titulo="@(context.DocumentacionCompleta ? Textos["TituloPorGestionarDocumentosVigentes"] : Textos["TituloPorGestionarFaltanDocumentos"])" />
-                    }
-                </TemplateColumn>
-                <TemplateColumn Title="@Textos["ColumnaAvisada"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
-                    @* El interruptor es a la vez el dato y el disparador de MarcarNotificadoClienteCommand
-                       (ICommand que AutorizacionEscrituraBehavior deniega a Consulta). Ocultarlo, como hace
-                       SoloConEscritura, dejaría la columna sin dato: a Consulta se le pinta deshabilitado. *@
-                    <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNotificada">
-                        <Authorized>
-                            <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
-                                   title="@Textos["AyudaNotificadaSoloMarca"]"
-                                   aria-label="@Textos["AriaNotificadaTitular", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
-                                   disabled="@(context.EstaCancelada || _marcandoNotificado.Contains(context.Id))"
-                                   @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
-                        </Authorized>
-                        <NotAuthorized>
-                            <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
-                                   title="@Textos["AyudaNotificadaSoloMarca"]"
-                                   aria-label="@Textos["AriaNotificadaTitular", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
-                                   disabled />
-                        </NotAuthorized>
-                    </AuthorizeView>
-                </TemplateColumn>
-                @* «Estado» de la fila, en el mismo sitio que en las demás pantallas: la urgencia (se recalcula en
-                   cada carga) es la pastilla y el tramo de antelación sellado es el motivo. «Normal» es lo
-                   correcto: punto y texto, sin pastilla de color. Una cancelada dice «Cancelada» y su motivo. *@
-                <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado col-estado-visitas">
-                    <span class="visitas-estado-acotado">
+                        </span>
+                    </TemplateColumn>
+                    <TemplateColumn Title="@Textos["ColumnaTrabajadores"]" Align="Align.Center">
+                        @{
+                            var nombres = context.Trabajadores ?? [];
+                        }
+                        @* El recuento abre el desglose de quién entra; pulsar a uno lleva a la pestaña
+                           Trabajadores del panel, que es donde se añade o se quita. *@
+                        <VentanaContexto Interactiva="true"
+                                         Deshabilitada="@(nombres.Count == 0)"
+                                         Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                         Etiqueta="@Textos["AriaTrabajadoresVisita", context.TotalTrabajadores]"
+                                         Titulo="@Textos["VentanaTrabajadoresTitulo"]"
+                                         Pie="@Textos["VentanaTrabajadoresPie"]"
+                                         class="visitas-recuento-trabajadores">
+                            <Disparador>@context.TotalTrabajadores</Disparador>
+                            <Detalle>
+                                @foreach (var nombre in nombres)
+                                {
+                                    <VentanaContextoElemento Ayuda="@Textos["VentanaTrabajadoresAyuda"]"
+                                                             AlPulsar="() => AbrirDetalleAsync(context.Id, PestanaTrabajadores)">@nombre</VentanaContextoElemento>
+                                }
+                            </Detalle>
+                        </VentanaContexto>
+                    </TemplateColumn>
+                    @* El origen es un dato, no un estado: texto, sin pastilla. *@
+                    <TemplateColumn Title="@Textos["EtiquetaOrigen"]" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.Origen))">
+                        <span class="visitas-celda-secundaria" data-pieza="origen">@TextoOrigen(context.Origen)</span>
+                    </TemplateColumn>
+                    <TemplateColumn Title="@Textos["ColumnaDocumentacion"]">
                         @if (context.EstaCancelada)
                         {
-                            @* El motivo se recorta a una línea: su title lo da entero. *@
-                            <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCancelada"]" Titulo="@Textos["BadgeCancelada"]">
-                                <MotivoContenido>
-                                    <span title="@context.MotivoCancelacion" data-pieza="motivo-cancelacion">@context.MotivoCancelacion</span>
-                                </MotivoContenido>
-                            </EstadoFila>
+                            @* FS-11: una Visita cancelada no tiene documentación que gestionar. Que está cancelada, y por
+                               qué, lo dice la columna «Estado». *@
+                            <span class="visitas-celda-secundaria" data-pieza="sin-documentacion" aria-hidden="true">—</span>
                         }
-                        else if (context.Tramo is { } tramo)
+                        else if (!context.CentroRequiereGestionCae)
                         {
-                            @* Misma matriz y mismo vocabulario que el detalle (AntelacionVisitaUi). *@
-                            <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)" Titulo="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
-                                        Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)">
-                                <MotivoContenido>
-                                    <span title="@($"{Textos["MotivoTramo", AntelacionVisitaUi.Texto(tramo)]}. {TituloTramo(context)}")" data-antelacion-tramo="@tramo">@Textos["MotivoTramo", AntelacionVisitaUi.Texto(tramo)]</span>
-                                </MotivoContenido>
-                            </EstadoFila>
+                            @* P1-X2: ni «Gestionada» (verde falso) ni «Por gestionar» (pendiente que no existe). *@
+                            <Badge Tono="TonoBadge.Neutro">@Textos["BadgeSinGestionCae"]</Badge>
+                        }
+                        else if (context.DocumentacionGestionadaEnUtc is { } gestionadaEn)
+                        {
+                            @* Estado guardado en la Visita: se envió el paquete o se marcó a mano. *@
+                            <EstadoFila Correcto="true" Texto="@Textos["BadgeDocumentacionGestionada"]"
+                                        Titulo="@Textos["TituloDocumentacionGestionadaEl", CaeManager.Domain.Common.DiaDeNegocio.De(gestionadaEn)]" />
                         }
                         else
                         {
-                            @* Sin tramo: no hay solicitud de origen medida o el expediente aún no está completo. *@
-                            <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)" Titulo="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
-                                        Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)" />
+                            @* «Por gestionar» aunque los documentos estén vigentes: el title dice si ya se puede enviar o falta papel. *@
+                            <EstadoFila Tono="TonoBadge.Peligro" Texto="@Textos["BadgeDocumentacionPorGestionar"]"
+                                        Titulo="@(context.DocumentacionCompleta ? Textos["TituloPorGestionarDocumentosVigentes"] : Textos["TituloPorGestionarFaltanDocumentos"])" />
                         }
-                    </span>
-                </TemplateColumn>
-                @* Sin menú «⋯». Lo que hacía ese menú: «Ver» es el clic en la fila, sus fechas o Enter;
-                   «Editar», el lápiz de la cabecera del panel y la tecla «e»; «Cancelar visita», el pie del panel
-                   o la selección múltiple (☑ de la barra o tecla «x»), con su pregunta, su motivo y su «Deshacer»; «Reactivar»
-                   es la acción rápida de la fila cancelada y sigue en el pie del panel. El icono lleva a la
-                   página Visita 360 (/visitas/{id}). *@
-                <TemplateColumn Title="" Align="Align.End">
-                    <span class="visitas-celda-acciones">
-                        @if (context.EstaCancelada)
-                        {
-                            @* FS-11: reactivar se ofrece a los mismos roles que cancelar; la autorización
-                               real, con el alcance de cartera, está en AutorizacionCancelacionVisita. *@
-                            <SoloConEscritura>
-                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                       aria-label="@Textos["AriaReactivarVisita", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
-                                       OnClick="() => AbrirReactivar(context.Id, context.Version, context.CentroNombre)">@Textos["AccionReactivar"]</Boton>
-                            </SoloConEscritura>
-                        }
-                        <Boton360 Nombre="@Textos["NombreVisitaPara360", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" Href="@($"/visitas/{context.Id}")" />
-                    </span>
-                </TemplateColumn>
-            </QuickGrid>
-
-            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                              TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-            <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
+                    </TemplateColumn>
+                    <TemplateColumn Title="@Textos["ColumnaAvisada"]" Align="Align.Center" Sortable="true" SortBy="@(GridSort<VisitaListaDto>.ByAscending(v => v.NotificadoCliente))">
+                        @* El interruptor es a la vez el dato y el disparador de MarcarNotificadoClienteCommand
+                           (ICommand que AutorizacionEscrituraBehavior deniega a Consulta). Ocultarlo, como hace
+                           SoloConEscritura, dejaría la columna sin dato: a Consulta se le pinta deshabilitado. *@
+                        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionNotificada">
+                            <Authorized>
+                                <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
+                                       title="@Textos["AyudaNotificadaSoloMarca"]"
+                                       aria-label="@Textos["AriaNotificadaTitular", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
+                                       disabled="@(context.EstaCancelada || _marcandoNotificado.Contains(context.Id))"
+                                       @onchange="e => AlternarNotificadoAsync(context.Id, e.Value is bool marcado && marcado)" />
+                            </Authorized>
+                            <NotAuthorized>
+                                <input type="checkbox" role="switch" class="visitas-interruptor" checked="@context.NotificadoCliente"
+                                       title="@Textos["AyudaNotificadaSoloMarca"]"
+                                       aria-label="@Textos["AriaNotificadaTitular", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
+                                       disabled />
+                            </NotAuthorized>
+                        </AuthorizeView>
+                    </TemplateColumn>
+                    @* «Estado» de la fila, en el mismo sitio que en las demás pantallas: la urgencia (se recalcula en
+                       cada carga) es la pastilla y el tramo de antelación sellado es el motivo. «Normal» es lo
+                       correcto: punto y texto, sin pastilla de color. Una cancelada dice «Cancelada» y su motivo. *@
+                    <TemplateColumn Title="@Textos["ColumnaEstado"]" Class="col-estado col-estado-visitas">
+                        <span class="visitas-estado-acotado">
+                            @if (context.EstaCancelada)
+                            {
+                                @* El motivo se recorta a una línea: su title lo da entero. *@
+                                <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCancelada"]" Titulo="@Textos["BadgeCancelada"]">
+                                    <MotivoContenido>
+                                        <span title="@context.MotivoCancelacion" data-pieza="motivo-cancelacion">@context.MotivoCancelacion</span>
+                                    </MotivoContenido>
+                                </EstadoFila>
+                            }
+                            else if (context.Tramo is { } tramo)
+                            {
+                                @* Misma matriz y mismo vocabulario que el detalle (AntelacionVisitaUi). *@
+                                <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)" Titulo="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
+                                            Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)">
+                                    <MotivoContenido>
+                                        <span title="@($"{Textos["MotivoTramo", AntelacionVisitaUi.Texto(tramo)]}. {TituloTramo(context)}")" data-antelacion-tramo="@tramo">@Textos["MotivoTramo", AntelacionVisitaUi.Texto(tramo)]</span>
+                                    </MotivoContenido>
+                                </EstadoFila>
+                            }
+                            else
+                            {
+                                @* Sin tramo: no hay solicitud de origen medida o el expediente aún no está completo. *@
+                                <EstadoFila Tono="NivelUrgenciaVisitaUi.Tono(context.NivelUrgencia)" Texto="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)" Titulo="@NivelUrgenciaVisitaUi.Texto(context.NivelUrgencia)"
+                                            Correcto="@(context.NivelUrgencia == NivelUrgenciaVisita.Normal)" />
+                            }
+                        </span>
+                    </TemplateColumn>
+                    @* Sin menú «⋯». Lo que hacía ese menú: «Ver» es el clic en la fila, sus fechas o Enter;
+                       «Editar», el lápiz de la cabecera del panel y la tecla «e»; «Cancelar visita», el pie del panel
+                       o la selección múltiple (☑ de la barra o tecla «x»), con su pregunta, su motivo y su «Deshacer»; «Reactivar»
+                       es la acción rápida de la fila cancelada y sigue en el pie del panel. El icono lleva a la
+                       página Visita 360 (/visitas/{id}). *@
+                    <TemplateColumn Title="" Align="Align.End">
+                        <span class="visitas-celda-acciones">
+                            @if (context.EstaCancelada)
+                            {
+                                @* FS-11: reactivar se ofrece a los mismos roles que cancelar; la autorización
+                                   real, con el alcance de cartera, está en AutorizacionCancelacionVisita. *@
+                                <SoloConEscritura>
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                           aria-label="@Textos["AriaReactivarVisita", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]"
+                                           OnClick="() => AbrirReactivar(context.Id, context.Version, context.CentroNombre)">@Textos["AccionReactivar"]</Boton>
+                                </SoloConEscritura>
+                            }
+                            <Boton360 Nombre="@Textos["NombreVisitaPara360", context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" Href="@($"/visitas/{context.Id}")" />
+                        </span>
+                    </TemplateColumn>
+                </QuickGrid>
+            </text>, @<text>
+                <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                  Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
+                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+                <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
+            </text>)
         </div>
 
         @* TRES estados vacíos, no dos, y la razón es que "Solo activas" viene

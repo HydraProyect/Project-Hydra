@@ -113,136 +113,138 @@
         {
             <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
-            <div class="contenedor-tabla-proyectos" aria-busy="@(_cargandoProyectos ? "true" : "false")">
-                <table class="tabla-datos tabla-proyectos">
-                    <thead>
-                        <tr>
-                            <th>@Textos["ListaProyecto"]</th>
-                            <th>@Textos["ListaFechas"]</th>
-                            <th>@Textos["ColumnaTecnicos"]</th>
-                            <th class="col-plazo-transcurrido">@Textos["ListaPlazoTranscurrido"]</th>
-                            <th class="col-estado">@Textos["EtiquetaEstado"]</th>
-                            <th class="col-acciones"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var proyecto in _proyectos)
-                        {
-                            var finPrevistoSuperado = TextoFinPrevistoSuperado(proyecto);
-                            @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
-                               fila abre la vista rápida (el panel lateral), igual que Enter sobre la fila
-                               enfocada; los controles de dentro —nombre, recuento de técnicos, «Reabrir»,
-                               icono 360— hacen lo suyo y no dejan subir el clic. *@
-                            <tr @key="proyecto.Id" class="@ClaseFila(proyecto)" @onclick="() => AbrirDetalleDesdeLaFilaAsync(proyecto.Id)">
-                                <td>
-                                    <span class="proyecto-nombre-centro">
-                                        @* El nombre es el destino de teclado del clic en la fila (la fila no es focable con Tab). *@
-                                        <button type="button" class="enlace-nombre-fila nombre-proyecto nombre-abre-vista-rapida"
-                                                @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)" @onclick:stopPropagation="true"><TextoResaltado Texto="@proyecto.Nombre" Termino="@_busqueda.Trim()" /></button>
-                                        @* Con «Todos», dos filas pueden compartir nombre de Proyecto o de Centro: el
-                                           Cliente las distingue. Con un Cliente en el filtro sobraría en todas. La
-                                           búsqueda no mira el Cliente, así que no se resalta. *@
-                                        <span class="proyecto-centro"><TextoResaltado Texto="@proyecto.CentroNombre" Termino="@_busqueda.Trim()" />@(_clienteSeleccionadoId == Guid.Empty ? $" · {proyecto.ClienteRazonSocial}" : string.Empty)</span>
-                                    </span>
-                                </td>
-                                <td class="celda-fecha-proyecto">
-                                    <span class="proyecto-plazo">
-                                        <span><span class="texto-solo-lectores">@Textos["EtiquetaInicio"]: </span>@proyecto.FechaInicio.ToString("dd/MM/yyyy")</span>
-                                        @if (proyecto.FechaFinPrevista is { } fin)
+            @TarjetaListado.Renderizar(@<text>
+                <div class="contenedor-tabla-proyectos" aria-busy="@(_cargandoProyectos ? "true" : "false")">
+                    <table class="tabla-datos tabla-proyectos">
+                        <thead>
+                            <tr>
+                                <th>@Textos["ListaProyecto"]</th>
+                                <th>@Textos["ListaFechas"]</th>
+                                <th>@Textos["ColumnaTecnicos"]</th>
+                                <th class="col-plazo-transcurrido">@Textos["ListaPlazoTranscurrido"]</th>
+                                <th class="col-estado">@Textos["EtiquetaEstado"]</th>
+                                <th class="col-acciones"><span class="texto-solo-lectores">@Textos["ColumnaAcciones"]</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var proyecto in _proyectos)
+                            {
+                                var finPrevistoSuperado = TextoFinPrevistoSuperado(proyecto);
+                                @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
+                                   fila abre la vista rápida (el panel lateral), igual que Enter sobre la fila
+                                   enfocada; los controles de dentro —nombre, recuento de técnicos, «Reabrir»,
+                                   icono 360— hacen lo suyo y no dejan subir el clic. *@
+                                <tr @key="proyecto.Id" class="@ClaseFila(proyecto)" @onclick="() => AbrirDetalleDesdeLaFilaAsync(proyecto.Id)">
+                                    <td>
+                                        <span class="proyecto-nombre-centro">
+                                            @* El nombre es el destino de teclado del clic en la fila (la fila no es focable con Tab). *@
+                                            <button type="button" class="enlace-nombre-fila nombre-proyecto nombre-abre-vista-rapida"
+                                                    @onclick="() => AbrirDetalleConAvisoAsync(proyecto.Id)" @onclick:stopPropagation="true"><TextoResaltado Texto="@proyecto.Nombre" Termino="@_busqueda.Trim()" /></button>
+                                            @* Con «Todos», dos filas pueden compartir nombre de Proyecto o de Centro: el
+                                               Cliente las distingue. Con un Cliente en el filtro sobraría en todas. La
+                                               búsqueda no mira el Cliente, así que no se resalta. *@
+                                            <span class="proyecto-centro"><TextoResaltado Texto="@proyecto.CentroNombre" Termino="@_busqueda.Trim()" />@(_clienteSeleccionadoId == Guid.Empty ? $" · {proyecto.ClienteRazonSocial}" : string.Empty)</span>
+                                        </span>
+                                    </td>
+                                    <td class="celda-fecha-proyecto">
+                                        <span class="proyecto-plazo">
+                                            <span><span class="texto-solo-lectores">@Textos["EtiquetaInicio"]: </span>@proyecto.FechaInicio.ToString("dd/MM/yyyy")</span>
+                                            @if (proyecto.FechaFinPrevista is { } fin)
+                                            {
+                                                <span aria-hidden="true">→</span>
+                                                <span><span class="texto-solo-lectores">@Textos["EtiquetaFinPrevisto"]: </span>@fin.ToString("dd/MM/yyyy")</span>
+                                            }
+                                            else
+                                            {
+                                                <span aria-hidden="true">→</span>
+                                                <span class="fin-indefinido">@Textos["ListaSinFechaFin"]</span>
+                                            }
+                                        </span>
+                                        @if (finPrevistoSuperado is not null)
                                         {
-                                            <span aria-hidden="true">→</span>
-                                            <span><span class="texto-solo-lectores">@Textos["EtiquetaFinPrevisto"]: </span>@fin.ToString("dd/MM/yyyy")</span>
+                                            @* La barra de plazo se queda en el 100 %: el retraso se dice con el texto de la ficha 360. *@
+                                            <span class="proyecto-fin-superado">@finPrevistoSuperado</span>
+                                        }
+                                    </td>
+                                    <td class="celda-tecnicos-proyecto">
+                                        @if (proyecto.TecnicosActivos.Count > 0)
+                                        {
+                                            @* El recuento esconde una lista: la ventana de contexto la enseña al pasar el
+                                               cursor o al enfocarlo, y cada técnico abre el panel en la pestaña «Técnicos».
+                                               Interactiva, la ventana corta su clic para el @onclick de la fila; del oyente «pulsarFila» la excluye atajos-lista.js. *@
+                                            <VentanaContexto Etiqueta="@TextoTecnicosActivos(proyecto.TecnicosActivos.Count)"
+                                                             Titulo="@Textos["VentanaTecnicosTitulo"]"
+                                                             Colocacion="VentanaContextoColocacion.AbajoCentro"
+                                                             Interactiva="true"
+                                                             Pie="@Textos["VentanaTecnicosPie"]">
+                                                <Disparador>@proyecto.TecnicosActivos.Count</Disparador>
+                                                <Detalle>
+                                                    @foreach (var tecnico in proyecto.TecnicosActivos)
+                                                    {
+                                                        <VentanaContextoElemento Ayuda="@Textos["VentanaTecnicoAyuda"]" AlPulsar="() => AbrirDetalleEnTecnicosAsync(proyecto.Id)">
+                                                            @tecnico.NombreCompleto
+                                                        </VentanaContextoElemento>
+                                                    }
+                                                </Detalle>
+                                            </VentanaContexto>
                                         }
                                         else
                                         {
-                                            <span aria-hidden="true">→</span>
-                                            <span class="fin-indefinido">@Textos["ListaSinFechaFin"]</span>
+                                            <span class="celda-sin-recuento">0</span>
                                         }
-                                    </span>
-                                    @if (finPrevistoSuperado is not null)
-                                    {
-                                        @* La barra de plazo se queda en el 100 %: el retraso se dice con el texto de la ficha 360. *@
-                                        <span class="proyecto-fin-superado">@finPrevistoSuperado</span>
-                                    }
-                                </td>
-                                <td class="celda-tecnicos-proyecto">
-                                    @if (proyecto.TecnicosActivos.Count > 0)
-                                    {
-                                        @* El recuento esconde una lista: la ventana de contexto la enseña al pasar el
-                                           cursor o al enfocarlo, y cada técnico abre el panel en la pestaña «Técnicos».
-                                           Interactiva, la ventana corta su clic para el @onclick de la fila; del oyente «pulsarFila» la excluye atajos-lista.js. *@
-                                        <VentanaContexto Etiqueta="@TextoTecnicosActivos(proyecto.TecnicosActivos.Count)"
-                                                         Titulo="@Textos["VentanaTecnicosTitulo"]"
-                                                         Colocacion="VentanaContextoColocacion.AbajoCentro"
-                                                         Interactiva="true"
-                                                         Pie="@Textos["VentanaTecnicosPie"]">
-                                            <Disparador>@proyecto.TecnicosActivos.Count</Disparador>
-                                            <Detalle>
-                                                @foreach (var tecnico in proyecto.TecnicosActivos)
-                                                {
-                                                    <VentanaContextoElemento Ayuda="@Textos["VentanaTecnicoAyuda"]" AlPulsar="() => AbrirDetalleEnTecnicosAsync(proyecto.Id)">
-                                                        @tecnico.NombreCompleto
-                                                    </VentanaContextoElemento>
-                                                }
-                                            </Detalle>
-                                        </VentanaContexto>
-                                    }
-                                    else
-                                    {
-                                        <span class="celda-sin-recuento">0</span>
-                                    }
-                                </td>
-                                @* La barra ocupa el hueco del cumplimiento de los demás listados, en azul de
-                                   marca: mide tiempo, no conformidad. Sin fin previsto no hay plazo que medir. *@
-                                <td class="col-plazo-transcurrido">
-                                    <BarraCumplimiento Porcentaje="PorcentajeDelPlazo(proyecto)" Marca="true"
-                                                       Etiqueta="@EtiquetaPlazoTranscurrido(proyecto)" />
-                                </td>
-                                <td class="col-estado">
-                                    @if (proyecto.EstaAbierto)
-                                    {
-                                        <EstadoFila Correcto="true" Texto="@Textos["BadgeAbierto"]" Motivo="@MotivoEstado(proyecto)" />
-                                    }
-                                    else
-                                    {
-                                        <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCerrado"]" Motivo="@MotivoEstado(proyecto)" />
-                                    }
-                                </td>
-                                @* Dónde quedó cada acción del menú «⋯» que tenía la fila: «Detalles» es el clic en
-                                   la fila; «Abrir página», este icono 360; «Cerrar proyecto» y «Eliminar», el pie del
-                                   panel (Proyectos no tiene selección múltiple: D1, 2026-10-08). «Reabrir» está
-                                   en el pie del panel y, en la fila del Proyecto cerrado, como acción rápida: el
-                                   mismo comando con la misma confirmación, y solo para quien puede escribir. *@
-                                <td class="col-acciones">
-                                    <span class="proyectos-acciones-fila" @onclick:stopPropagation="true">
-                                        @if (!proyecto.EstaAbierto)
+                                    </td>
+                                    @* La barra ocupa el hueco del cumplimiento de los demás listados, en azul de
+                                       marca: mide tiempo, no conformidad. Sin fin previsto no hay plazo que medir. *@
+                                    <td class="col-plazo-transcurrido">
+                                        <BarraCumplimiento Porcentaje="PorcentajeDelPlazo(proyecto)" Marca="true"
+                                                           Etiqueta="@EtiquetaPlazoTranscurrido(proyecto)" />
+                                    </td>
+                                    <td class="col-estado">
+                                        @if (proyecto.EstaAbierto)
                                         {
-                                            <SoloConEscritura>
-                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="proyectos-accion-rapida"
-                                                       aria-label="@Textos["AccionRapidaReabrirAria", proyecto.Nombre]"
-                                                       OnClick="() => AbrirReabrirConfirmAsync(proyecto.Id)">
-                                                    @Textos["AccionReabrir"]
-                                                </Boton>
-                                            </SoloConEscritura>
+                                            <EstadoFila Correcto="true" Texto="@Textos["BadgeAbierto"]" Motivo="@MotivoEstado(proyecto)" />
                                         }
-                                        <Boton360 Nombre="@proyecto.Nombre" Href="@($"/proyectos/{proyecto.Id}")" />
-                                    </span>
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            </div>
-
-            @* Sin paginador mientras todo cabe en la página más pequeña. Si el usuario subió el tamaño,
-               se queda para que pueda volver a bajarlo. *@
-            @if (_totalElementos > TamanoPaginaMinimo || _tamanoPagina > TamanoPaginaMinimo)
-            {
-                <PaginadorSimple PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                                 Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                                 TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-            }
-            <LeyendaAtajosLista Omitir="@(["x"])" />
+                                        else
+                                        {
+                                            <EstadoFila Tono="TonoBadge.Neutro" Texto="@Textos["BadgeCerrado"]" Motivo="@MotivoEstado(proyecto)" />
+                                        }
+                                    </td>
+                                    @* Dónde quedó cada acción del menú «⋯» que tenía la fila: «Detalles» es el clic en
+                                       la fila; «Abrir página», este icono 360; «Cerrar proyecto» y «Eliminar», el pie del
+                                       panel (Proyectos no tiene selección múltiple: D1, 2026-10-08). «Reabrir» está
+                                       en el pie del panel y, en la fila del Proyecto cerrado, como acción rápida: el
+                                       mismo comando con la misma confirmación, y solo para quien puede escribir. *@
+                                    <td class="col-acciones">
+                                        <span class="proyectos-acciones-fila" @onclick:stopPropagation="true">
+                                            @if (!proyecto.EstaAbierto)
+                                            {
+                                                <SoloConEscritura>
+                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="proyectos-accion-rapida"
+                                                           aria-label="@Textos["AccionRapidaReabrirAria", proyecto.Nombre]"
+                                                           OnClick="() => AbrirReabrirConfirmAsync(proyecto.Id)">
+                                                        @Textos["AccionReabrir"]
+                                                    </Boton>
+                                                </SoloConEscritura>
+                                            }
+                                            <Boton360 Nombre="@proyecto.Nombre" Href="@($"/proyectos/{proyecto.Id}")" />
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </text>, @<text>
+                @* Sin paginador mientras todo cabe en la página más pequeña. Si el usuario subió el tamaño,
+                   se queda para que pueda volver a bajarlo. *@
+                @if (_totalElementos > TamanoPaginaMinimo || _tamanoPagina > TamanoPaginaMinimo)
+                {
+                    <PaginadorSimple PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                     Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
+                                     TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+                }
+                <LeyendaAtajosLista Omitir="@(["x"])" />
+            </text>)
         }
     }
 </div>

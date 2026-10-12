@@ -200,212 +200,214 @@
         @* Marco de la lista del mockup: una sola tarjeta con la cabecera de
            columnas arriba y las filas separadas por una línea, en vez de una
            tarjeta suelta por Empresa. *@
-        <div class="marco-lista-empresas">
-        @* Cabecera de columnas (#498). Sin roles de tabla a propósito: esto no
-           es una tabla —la fila se despliega— y anunciarlo como tal prometería
-           a un lector de pantalla una navegación por celdas que no existe. Sin
-           QuickGrid por lo mismo: no soporta filas expandibles. Los rótulos no
-           ordenan: el mockup no lo pide. *@
-        <div class="@ClaseRejilla("cabecera-columnas-empresas")">
-            @if (_seleccionMultiple)
-            {
+        @TarjetaListado.Renderizar(@<text>
+            <div class="marco-lista-empresas">
+            @* Cabecera de columnas (#498). Sin roles de tabla a propósito: esto no
+               es una tabla —la fila se despliega— y anunciarlo como tal prometería
+               a un lector de pantalla una navegación por celdas que no existe. Sin
+               QuickGrid por lo mismo: no soporta filas expandibles. Los rótulos no
+               ordenan: el mockup no lo pide. *@
+            <div class="@ClaseRejilla("cabecera-columnas-empresas")">
+                @if (_seleccionMultiple)
+                {
+                    <span></span>
+                }
                 <span></span>
-            }
-            <span></span>
-            <span>@Textos["ColEmpresa"]</span>
-            <span>@Textos["ColDetecciones"]</span>
-            <span>@Textos["ColCumplimiento"]</span>
-            <span>@Textos["ColEstadoDocumental"]</span>
-            <span></span>
-        </div>
+                <span>@Textos["ColEmpresa"]</span>
+                <span>@Textos["ColDetecciones"]</span>
+                <span>@Textos["ColCumplimiento"]</span>
+                <span>@Textos["ColEstadoDocumental"]</span>
+                <span></span>
+            </div>
 
-        <div class="lista-filas-acordeon">
-            @foreach (var empresa in _elementosPagina)
-            {
-                <div class="@ClaseTarjeta(empresa)" @key="empresa.Id">
-                    @{ var expandido = _expandidos.Contains(empresa.Id); }
-                    @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
-                       fila abre la vista rápida (el panel del Context Workspace), igual que Enter
-                       sobre la fila enfocada; los controles de dentro —casilla, desplegable, CIF
-                       copiable, detecciones, icono 360— hacen lo suyo y no dejan subir el clic. *@
-                    <div class="@(ClaseRejilla("tarjeta-fila-acordeon-cabecera") + " fila-pulsable")"
-                         @onclick="() => AbrirVistaRapidaAsync(empresa.Id)">
-                        @if (_seleccionMultiple)
-                        {
-                            <input type="checkbox" aria-label="@($"Seleccionar {empresa.RazonSocial}")" checked="@_seleccionados.Contains(empresa.Id)" @onchange="e => AlternarSeleccion(empresa.Id, (bool)e.Value!)" @onclick:stopPropagation="true" />
-                        }
-                        <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
-                                aria-expanded="@(expandido ? "true" : "false")"
-                                aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los Clientes de {empresa.RazonSocial}")"
-                                @onclick="() => AlternarExpansionAsync(empresa.Id)" @onclick:stopPropagation="true">
-                            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
-                        </button>
-                        @* El mockup pinta bajo la razón social «CNAE 4322 · Anexo I».
-                           EmpresaListaDto no trae ni el CNAE ni el Anexo I (viven en
-                           el detalle, y el panel de vista previa ya los enseña), así
-                           que no se copia: sería una consulta más por fila. *@
-                        @* El nombre es un botón que abre la vista rápida: es el destino de teclado
-                           del clic en la fila (la fila entera no es focable con Tab). A la página
-                           Empresa 360 (decisión del propietario 2026-09-22: cada 360 tiene página
-                           propia) se va con el icono 360 del final de la fila y con el del panel. *@
-                        @* Razón social y CIF en una sola celda de dos líneas, como la columna «Empresa» de la
-                           maqueta aprobada (fase 1). El CIF se copia con un clic, sin abrir la fila. *@
-                        <span class="celda-identidad-empresa">
-                            <button type="button" class="enlace-nombre-fila celda-empresa nombre-abre-vista-rapida"
-                                    aria-label="@Textos["AbrirVistaRapidaDe", empresa.RazonSocial]"
-                                    @onclick="() => AbrirVistaRapidaAsync(empresa.Id)" @onclick:stopPropagation="true">
-                                <TextoResaltado Texto="@empresa.RazonSocial" Termino="@_busqueda" />
+            <div class="lista-filas-acordeon">
+                @foreach (var empresa in _elementosPagina)
+                {
+                    <div class="@ClaseTarjeta(empresa)" @key="empresa.Id">
+                        @{ var expandido = _expandidos.Contains(empresa.Id); }
+                        @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
+                           fila abre la vista rápida (el panel del Context Workspace), igual que Enter
+                           sobre la fila enfocada; los controles de dentro —casilla, desplegable, CIF
+                           copiable, detecciones, icono 360— hacen lo suyo y no dejan subir el clic. *@
+                        <div class="@(ClaseRejilla("tarjeta-fila-acordeon-cabecera") + " fila-pulsable")"
+                             @onclick="() => AbrirVistaRapidaAsync(empresa.Id)">
+                            @if (_seleccionMultiple)
+                            {
+                                <input type="checkbox" aria-label="@($"Seleccionar {empresa.RazonSocial}")" checked="@_seleccionados.Contains(empresa.Id)" @onchange="e => AlternarSeleccion(empresa.Id, (bool)e.Value!)" @onclick:stopPropagation="true" />
+                            }
+                            <button type="button" class="@("boton-expandir-fila" + (expandido ? " boton-expandir-fila-abierta" : ""))"
+                                    aria-expanded="@(expandido ? "true" : "false")"
+                                    aria-label="@($"{(expandido ? "Ocultar" : "Ver")} los Clientes de {empresa.RazonSocial}")"
+                                    @onclick="() => AlternarExpansionAsync(empresa.Id)" @onclick:stopPropagation="true">
+                                <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
                             </button>
-                            <span class="tarjeta-fila-acordeon-meta celda-empresa">
-                                @if (string.IsNullOrWhiteSpace(empresa.Cif))
+                            @* El mockup pinta bajo la razón social «CNAE 4322 · Anexo I».
+                               EmpresaListaDto no trae ni el CNAE ni el Anexo I (viven en
+                               el detalle, y el panel de vista previa ya los enseña), así
+                               que no se copia: sería una consulta más por fila. *@
+                            @* El nombre es un botón que abre la vista rápida: es el destino de teclado
+                               del clic en la fila (la fila entera no es focable con Tab). A la página
+                               Empresa 360 (decisión del propietario 2026-09-22: cada 360 tiene página
+                               propia) se va con el icono 360 del final de la fila y con el del panel. *@
+                            @* Razón social y CIF en una sola celda de dos líneas, como la columna «Empresa» de la
+                               maqueta aprobada (fase 1). El CIF se copia con un clic, sin abrir la fila. *@
+                            <span class="celda-identidad-empresa">
+                                <button type="button" class="enlace-nombre-fila celda-empresa nombre-abre-vista-rapida"
+                                        aria-label="@Textos["AbrirVistaRapidaDe", empresa.RazonSocial]"
+                                        @onclick="() => AbrirVistaRapidaAsync(empresa.Id)" @onclick:stopPropagation="true">
+                                    <TextoResaltado Texto="@empresa.RazonSocial" Termino="@_busqueda" />
+                                </button>
+                                <span class="tarjeta-fila-acordeon-meta celda-empresa">
+                                    @if (string.IsNullOrWhiteSpace(empresa.Cif))
+                                    {
+                                        @("—")
+                                    }
+                                    else
+                                    {
+                                        <BotonCopiar EnLinea="true" Valor="@empresa.Cif" Texto="@empresa.Cif" TerminoResaltado="@_busqueda" Etiqueta="@Textos["EtiquetaCif"]"
+                                                     NombreAccesible="@Textos["CopiarCif", empresa.Cif]" />
+                                    }
+                                </span>
+                            </span>
+                            @* La fila no nombra ni cuenta Clientes empresariales (decisión del propietario, 2026-10-08:
+                               sin columna «Presta servicio a»): solo los enseña el desplegable del chevron, que los pide
+                               con alcance de gestión. *@
+                            @* Orden de la maqueta aprobada: Detecciones · Cumplimiento · Estado documental.
+                               Cada celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
+                               de columnas: un componente que no se pinta desalinearía la fila
+                               respecto a la cabecera. *@
+                            <span>
+                                @if (empresa.DeteccionesPendientes > 0)
                                 {
-                                    @("—")
+                                    <button type="button" class="badge-deteccion"
+                                            @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'
+                                            @onclick:stopPropagation="true">
+                                        <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
+                                        @(empresa.DeteccionesPendientes == 1 ? "1 detección" : $"{empresa.DeteccionesPendientes} detecciones")
+                                    </button>
                                 }
                                 else
                                 {
-                                    <BotonCopiar EnLinea="true" Valor="@empresa.Cif" Texto="@empresa.Cif" TerminoResaltado="@_busqueda" Etiqueta="@Textos["EtiquetaCif"]"
-                                                 NombreAccesible="@Textos["CopiarCif", empresa.Cif]" />
+                                    <span class="celda-sin-deteccion">—</span>
                                 }
                             </span>
-                        </span>
-                        @* La fila no nombra ni cuenta Clientes empresariales (decisión del propietario, 2026-10-08:
-                           sin columna «Presta servicio a»): solo los enseña el desplegable del chevron, que los pide
-                           con alcance de gestión. *@
-                        @* Orden de la maqueta aprobada: Detecciones · Cumplimiento · Estado documental.
-                           Cada celda va envuelta para que la rejilla tenga SIEMPRE el mismo número
-                           de columnas: un componente que no se pinta desalinearía la fila
-                           respecto a la cabecera. *@
-                        <span>
-                            @if (empresa.DeteccionesPendientes > 0)
-                            {
-                                <button type="button" class="badge-deteccion"
-                                        @onclick='() => NavigationManager.NavigateTo($"/empresas/{empresa.Id}/deteccion-trabajadores")'
-                                        @onclick:stopPropagation="true">
-                                    <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" />
-                                    @(empresa.DeteccionesPendientes == 1 ? "1 detección" : $"{empresa.DeteccionesPendientes} detecciones")
-                                </button>
-                            }
-                            else
-                            {
-                                <span class="celda-sin-deteccion">—</span>
-                            }
-                        </span>
-                        <span>
-                            <BarraCumplimiento Porcentaje="empresa.CumplimientoPorcentaje"
-                                               Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
-                        </span>
-                        @* Columna de estado: la pastilla se pinta siempre.
+                            <span>
+                                <BarraCumplimiento Porcentaje="empresa.CumplimientoPorcentaje"
+                                                   Etiqueta="@EtiquetaCumplimiento(empresa.CumplimientoPorcentaje)" />
+                            </span>
+                            @* Columna de estado: la pastilla se pinta siempre.
 
-                           Bajo la pastilla, el motivo (MotivoIncidenciasDocumentales): el documento que causa
-                           el estado o, si son varios, cuántos hay de cada clase. Abre una ventana de contexto
-                           con una línea por incidencia; quien puede escribir la pulsa y la corrige aquí
-                           (CorreccionIncidenciaDocumental), sin abrir la vista rápida ni desplegar la fila.
-                           Las incidencias viajan en EmpresaListaDto porque esta página pide el desglose
-                           (ConDesgloseDocumental) y son las de los documentos de ámbito Empresa, los mismos
-                           que deciden el estado de la fila: no las de sus Trabajadores ni sus Vehículos. *@
-                        <span class="celda-estado-empresa">
-                            @if (empresa.Incidencias.Count > 0)
-                            {
-                                <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
-                                            Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
-                                            Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
-                                            Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)">
-                                    <MotivoContenido>
-                                        <MotivoIncidenciasDocumentales Incidencias="empresa.Incidencias" Interactiva="_puedeEscribir"
+                               Bajo la pastilla, el motivo (MotivoIncidenciasDocumentales): el documento que causa
+                               el estado o, si son varios, cuántos hay de cada clase. Abre una ventana de contexto
+                               con una línea por incidencia; quien puede escribir la pulsa y la corrige aquí
+                               (CorreccionIncidenciaDocumental), sin abrir la vista rápida ni desplegar la fila.
+                               Las incidencias viajan en EmpresaListaDto porque esta página pide el desglose
+                               (ConDesgloseDocumental) y son las de los documentos de ámbito Empresa, los mismos
+                               que deciden el estado de la fila: no las de sus Trabajadores ni sus Vehículos. *@
+                            <span class="celda-estado-empresa">
+                                @if (empresa.Incidencias.Count > 0)
+                                {
+                                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
+                                                Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
+                                                Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
+                                                Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)">
+                                        <MotivoContenido>
+                                            <MotivoIncidenciasDocumentales Incidencias="empresa.Incidencias" Interactiva="_puedeEscribir"
+                                                                           AlPulsar="incidencia => CorregirIncidenciaAsync(empresa.Id, incidencia)" />
+                                        </MotivoContenido>
+                                    </EstadoFila>
+                                }
+                                else
+                                {
+                                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
+                                                Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
+                                                Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
+                                                Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)" />
+                                }
+                            </span>
+                            @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú:
+                               «Vista rápida» es el clic en la fila; «Abrir Empresa 360», este icono;
+                               «Detección de trabajadores», la pastilla de la columna Detecciones (misma
+                               condición: solo con detecciones pendientes); «Eliminar», la selección
+                               múltiple (☑ de la cabecera o tecla «x»). *@
+                            <div class="tarjeta-fila-acordeon-acciones">
+                                <Boton360 Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" />
+                            </div>
+                        </div>
+                        @if (expandido)
+                        {
+                            @* La fila desplegada son los Clientes empresariales de las
+                               Relaciones Empresariales vigentes en las que esta Empresa es
+                               la proveedora: un rol de la relación, no un tipo de la
+                               Empresa. Su rótulo, su vacío y su error son los de la pestaña
+                               «Clientes» de Empresa 360 (TextosEmpresas):
+                               neutros, sin recuento y sin «presta servicio a» (decisión del
+                               propietario, 2026-10-08).
+
+                               Antes de los Clientes, las incidencias documentales de la fila cuando las
+                               hay: las mismas líneas que la ventana del motivo (LineasIncidenciasDocumentales)
+                               y la misma corrección en sitio. Ya vienen en la fila: no cuestan otra consulta. *@
+                            <div class="tarjeta-fila-acordeon-contenido">
+                                @if (empresa.Incidencias.Count > 0)
+                                {
+                                    <div class="incidencias-fila-empresa" data-pieza="incidencias-fila">
+                                        <span class="titulo-incidencias-empresa">@MotivoIncidenciasUi.Titulo(empresa.Incidencias.Count)</span>
+                                        <LineasIncidenciasDocumentales Incidencias="empresa.Incidencias" Interactiva="_puedeEscribir"
                                                                        AlPulsar="incidencia => CorregirIncidenciaAsync(empresa.Id, incidencia)" />
-                                    </MotivoContenido>
-                                </EstadoFila>
-                            }
-                            else
-                            {
-                                <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
-                                            Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
-                                            Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
-                                            Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)" />
-                            }
-                        </span>
-                        @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú:
-                           «Vista rápida» es el clic en la fila; «Abrir Empresa 360», este icono;
-                           «Detección de trabajadores», la pastilla de la columna Detecciones (misma
-                           condición: solo con detecciones pendientes); «Eliminar», la selección
-                           múltiple (☑ de la cabecera o tecla «x»). *@
-                        <div class="tarjeta-fila-acordeon-acciones">
-                            <Boton360 Nombre="@empresa.RazonSocial" Href="@($"/empresas/{empresa.Id}")" />
-                        </div>
+                                    </div>
+                                }
+                                @{ var clientes = _clientesPorEmpresa.GetValueOrDefault(empresa.Id); }
+                                @if (clientes is null)
+                                {
+                                    <EstadoCargando Filas="2" />
+                                }
+                                else if (_clientesConError.Contains(empresa.Id))
+                                {
+                                    @* Antes un fallo se pintaba como «no tiene ningún
+                                       Cliente asociado»: calma donde lo cierto es que no
+                                       sabemos nada. *@
+                                    <p class="texto-vacio-seccion" role="alert">@Textos["ErrorClientes"]</p>
+                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => ReintentarClientesAsync(empresa.Id)">
+                                        Reintentar
+                                    </Boton>
+                                }
+                                else if (clientes.Count == 0)
+                                {
+                                    @* ObtenerClientesDeEmpresaQuery devuelve vacío también sin alcance de gestión:
+                                       el texto es cierto en los dos casos y no revela cuál (#810). *@
+                                    <p class="texto-vacio-seccion">@Textos["VacioClientesDescripcion"]</p>
+                                }
+                                else
+                                {
+                                    <span class="titulo-clientes-empresa">@Textos["PestanaClientes"]</span>
+                                    <ul class="workspace-lista-entidades">
+                                        @foreach (var cliente in clientes)
+                                        {
+                                            <FilaEntidadRelacionada
+                                                @key="cliente.Id"
+                                                Titulo="@cliente.RazonSocial"
+                                                Subtitulo="@cliente.Cif"
+                                                OnClic="() => IrAlCliente(cliente.Id, cliente.RazonSocial)" />
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        }
                     </div>
-                    @if (expandido)
-                    {
-                        @* La fila desplegada son los Clientes empresariales de las
-                           Relaciones Empresariales vigentes en las que esta Empresa es
-                           la proveedora: un rol de la relación, no un tipo de la
-                           Empresa. Su rótulo, su vacío y su error son los de la pestaña
-                           «Clientes» de Empresa 360 (TextosEmpresas):
-                           neutros, sin recuento y sin «presta servicio a» (decisión del
-                           propietario, 2026-10-08).
-
-                           Antes de los Clientes, las incidencias documentales de la fila cuando las
-                           hay: las mismas líneas que la ventana del motivo (LineasIncidenciasDocumentales)
-                           y la misma corrección en sitio. Ya vienen en la fila: no cuestan otra consulta. *@
-                        <div class="tarjeta-fila-acordeon-contenido">
-                            @if (empresa.Incidencias.Count > 0)
-                            {
-                                <div class="incidencias-fila-empresa" data-pieza="incidencias-fila">
-                                    <span class="titulo-incidencias-empresa">@MotivoIncidenciasUi.Titulo(empresa.Incidencias.Count)</span>
-                                    <LineasIncidenciasDocumentales Incidencias="empresa.Incidencias" Interactiva="_puedeEscribir"
-                                                                   AlPulsar="incidencia => CorregirIncidenciaAsync(empresa.Id, incidencia)" />
-                                </div>
-                            }
-                            @{ var clientes = _clientesPorEmpresa.GetValueOrDefault(empresa.Id); }
-                            @if (clientes is null)
-                            {
-                                <EstadoCargando Filas="2" />
-                            }
-                            else if (_clientesConError.Contains(empresa.Id))
-                            {
-                                @* Antes un fallo se pintaba como «no tiene ningún
-                                   Cliente asociado»: calma donde lo cierto es que no
-                                   sabemos nada. *@
-                                <p class="texto-vacio-seccion" role="alert">@Textos["ErrorClientes"]</p>
-                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => ReintentarClientesAsync(empresa.Id)">
-                                    Reintentar
-                                </Boton>
-                            }
-                            else if (clientes.Count == 0)
-                            {
-                                @* ObtenerClientesDeEmpresaQuery devuelve vacío también sin alcance de gestión:
-                                   el texto es cierto en los dos casos y no revela cuál (#810). *@
-                                <p class="texto-vacio-seccion">@Textos["VacioClientesDescripcion"]</p>
-                            }
-                            else
-                            {
-                                <span class="titulo-clientes-empresa">@Textos["PestanaClientes"]</span>
-                                <ul class="workspace-lista-entidades">
-                                    @foreach (var cliente in clientes)
-                                    {
-                                        <FilaEntidadRelacionada
-                                            @key="cliente.Id"
-                                            Titulo="@cliente.RazonSocial"
-                                            Subtitulo="@cliente.Cif"
-                                            OnClic="() => IrAlCliente(cliente.Id, cliente.RazonSocial)" />
-                                    }
-                                </ul>
-                            }
-                        </div>
-                    }
-                </div>
+                }
+            </div>
+            </div>
+        </text>, @<text>
+            @* Solo con más de una página al tamaño mínimo (20), o si ya se eligió un tamaño mayor:
+               sin él no habría forma de volver al tamaño de antes. Mismo criterio que Clientes. *@
+            @if (MostrarPaginador)
+            {
+                <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                  Etiqueta="empresa(s)" PaginaActualChanged="CambiarPaginaAsync"
+                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
             }
-        </div>
-        </div>
-
-        @* Solo con más de una página al tamaño mínimo (20), o si ya se eligió un tamaño mayor:
-           sin él no habría forma de volver al tamaño de antes. Mismo criterio que Clientes. *@
-        @if (MostrarPaginador)
-        {
-            <PaginadorSimple PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                              Etiqueta="empresa(s)" PaginaActualChanged="CambiarPaginaAsync"
-                              TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-        }
-        <LeyendaAtajosLista />
+            <LeyendaAtajosLista />
+        </text>)
     }
     }
 </div>

@@ -331,6 +331,9 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         });
 
         cut.FindAll(".paginador").Any().Should().Be(conPaginador);
+        var tarjeta = cut.Find(".tarjeta-listado");
+        tarjeta.QuerySelector(".tarjeta-listado-contenido .marco-lista-acordeon").Should().NotBeNull();
+        tarjeta.QuerySelector(".tarjeta-listado-pie .leyenda-atajos-lista").Should().NotBeNull();
     }
 
     /// <summary>

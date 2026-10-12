@@ -1946,3 +1946,84 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
+.tarjeta-listado {
+    --radio-tarjeta-listado: 10px;
+    position: relative;
+    border: var(--border-default);
+    border-radius: var(--radio-tarjeta-listado);
+    background: var(--color-surface);
+}
+
+/* Recorte de pintura en las cuatro esquinas, sin overflow ni clip-path sobre
+   los descendientes: el sticky conserva su contenedor y las ventanas y menús
+   pueden salir de la tarjeta. El borde se repinta sobre el contenido. */
+.tarjeta-listado::before,
+.tarjeta-listado::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.tarjeta-listado::before {
+    --recorte-esquina-listado: calc(var(--radio-tarjeta-listado) - 1px);
+    background:
+        radial-gradient(circle at bottom right, transparent var(--recorte-esquina-listado), var(--color-bg) var(--radio-tarjeta-listado)) top left,
+        radial-gradient(circle at bottom left, transparent var(--recorte-esquina-listado), var(--color-bg) var(--radio-tarjeta-listado)) top right,
+        radial-gradient(circle at top right, transparent var(--recorte-esquina-listado), var(--color-bg) var(--radio-tarjeta-listado)) bottom left,
+        radial-gradient(circle at top left, transparent var(--recorte-esquina-listado), var(--color-bg) var(--radio-tarjeta-listado)) bottom right;
+    background-size: var(--radio-tarjeta-listado) var(--radio-tarjeta-listado);
+    background-repeat: no-repeat;
+}
+
+.tarjeta-listado::after {
+    border: var(--border-default);
+    border-radius: var(--radio-tarjeta-listado);
+}
+
+.tarjeta-listado-contenido > .tabla-datos,
+.tarjeta-listado-contenido .documentos-tabla-desplazable > .tabla-datos,
+.tarjeta-listado-contenido .contenedor-tabla-proyectos > .tabla-datos,
+.tarjeta-listado-contenido > .marco-lista-empresas.marco-lista-empresas,
+.tarjeta-listado-contenido > .marco-lista-acordeon.marco-lista-acordeon {
+    border: 0;
+    border-radius: 0;
+}
+
+.tarjeta-listado-contenido .tabla-datos th:first-child,
+.tarjeta-listado-contenido .tabla-datos th:last-child,
+.tarjeta-listado-contenido .tabla-datos tr:last-child td:first-child,
+.tarjeta-listado-contenido .tabla-datos tr:last-child td:last-child,
+.tarjeta-listado .tarjeta-listado-contenido [class*="cabecera-columnas-"],
+.tarjeta-listado.tarjeta-listado .tarjeta-listado-contenido .tarjeta-fila-acordeon:last-child,
+.tarjeta-listado.tarjeta-listado .tarjeta-listado-contenido .tarjeta-fila-acordeon:last-child > .tarjeta-fila-acordeon-cabecera:last-child,
+.tarjeta-listado.tarjeta-listado .tarjeta-listado-contenido .tarjeta-fila-acordeon:last-child > .tarjeta-fila-acordeon-contenido {
+    border-radius: 0;
+}
+
+.tarjeta-listado-contenido > .cabecera-columnas-centros.cabecera-columnas-centros {
+    border: 0;
+    border-bottom: 1px solid var(--color-fila-divisor);
+    margin-bottom: 0;
+}
+
+.tarjeta-listado-contenido > .lista-filas-acordeon {
+    gap: 0;
+}
+
+.tarjeta-listado-contenido > .lista-filas-acordeon > .tarjeta-fila-acordeon {
+    border: 0;
+    border-bottom: 1px solid var(--color-fila-divisor);
+    border-radius: 0;
+}
+
+.tarjeta-listado-pie {
+    padding: 9px 16px;
+    border-top: 1px solid var(--color-fila-divisor);
+}
+
+.tarjeta-listado .tarjeta-listado-pie > .leyenda-atajos-lista,
+.tarjeta-listado .tarjeta-listado-pie > .paginador {
+    margin: 0;
+}
