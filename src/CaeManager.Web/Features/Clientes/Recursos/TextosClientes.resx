@@ -141,12 +141,6 @@
   <data name="GlosaSubcontrataVarios" xml:space="preserve">
     <value>subcontratas</value>
   </data>
-  <data name="ResumenCentrosUno" xml:space="preserve">
-    <value>1 centro de este Cliente.</value>
-  </data>
-  <data name="ResumenCentrosVarios" xml:space="preserve">
-    <value>{0} centros de este Cliente, del peor estado al mejor.</value>
-  </data>
   <data name="ResumenCentrosTruncado" xml:space="preserve">
     <value>Se muestran los {0} centros con peor estado de {1}.</value>
     <comment>La lista se corta en MaximoCentros; los indicadores se cuentan sobre lo mostrado.</comment>
@@ -546,4 +540,12 @@
   <data name="PestanaHistorial" xml:space="preserve">
     <value>Historial</value>
   </data>
+  <data name="OrdenCentros" xml:space="preserve"><value>del peor estado al mejor</value></data>
+  <data name="SinGestionCaeAnillo" xml:space="preserve"><value>SIN GESTIÓN CAE · no cuentan en el anillo</value></data>
+  <data name="FraccionCentros" xml:space="preserve"><value>{0} de {1} centros</value></data>
+  <data name="AnilloCentros" xml:space="preserve"><value>{0} de {1} centros con gestión CAE sin incidencias</value></data>
+  <data name="DetallePendientes" xml:space="preserve"><value>{0} pendientes</value></data>
+  <data name="DetallePendienteUno" xml:space="preserve"><value>1 pendiente</value></data>
+  <data name="DetalleTrabajadoresBloqueados" xml:space="preserve"><value>{0} trabajadores bloqueados</value></data>
+  <data name="DetalleTrabajadorBloqueadoUno" xml:space="preserve"><value>1 trabajador bloqueado</value></data>
 </root>
