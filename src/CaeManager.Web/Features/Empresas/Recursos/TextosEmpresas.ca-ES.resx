@@ -121,7 +121,7 @@
     <value>DNI {0}</value>
   </data>
   <data name="PieOrden" xml:space="preserve">
-    <value>Ordenats del pitjor estat al millor</value>
+    <value>del pitjor estat al millor</value>
   </data>
   <data name="PaginadorEtiqueta" xml:space="preserve">
     <value>treballador(s)</value>
@@ -201,20 +201,8 @@
   <data name="ActivarDosFactores" xml:space="preserve">
     <value>Activar ara</value>
   </data>
-  <data name="BadgeCredencialesTerceros" xml:space="preserve">
-    <value>Credencials de tercers</value>
-  </data>
   <data name="PieMostrando" xml:space="preserve">
     <value>Mostrant {0} de {1}</value>
-  </data>
-  <data name="Usuario" xml:space="preserve">
-    <value>Usuari</value>
-  </data>
-  <data name="ElDni" xml:space="preserve">
-    <value>el DNI</value>
-  </data>
-  <data name="AbrirPortal" xml:space="preserve">
-    <value>Obre el portal ↗</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} empresa(s) restaurada(s).</value>

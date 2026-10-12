@@ -263,7 +263,6 @@
                                     else
                                     {
                                         @Textos["DetalleDni", trabajador.Dni]
-                                        <BotonCopiar Valor="@trabajador.Dni" Etiqueta="@Textos["ElDni"]" />
                                     }
                                 </Detalle>
                                 <Derecha>
@@ -275,10 +274,7 @@
                         }
                     </ListaRelaciones>
                     <p class="empresa360-pie">
-                        @if (_filas.Count < TotalDelFiltro)
-                        {
-                            @Textos["PieMostrando", _filas.Count, TotalDelFiltro]<text> · </text>
-                        }
+                        @Textos["PieMostrando", _filas.Count, TotalDelFiltro]<text> · </text>
                         @Textos["PieOrden"]
                     </p>
                     @if (TotalPaginas > 1)
