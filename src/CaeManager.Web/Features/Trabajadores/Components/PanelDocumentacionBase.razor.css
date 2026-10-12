@@ -73,3 +73,11 @@
 .panel-doc-base-punto-ok { background: var(--color-success-500); }
 .panel-doc-base-punto-aviso { background: var(--color-warning-500); }
 .panel-doc-base-punto-mal { background: var(--color-danger-500); }
+.panel-doc-base-fila.panel-doc-base-con-acciones {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+}
+
+.panel-doc-base-con-acciones ::deep .accion-fila-enlace {
+    grid-column: 4;
+}
