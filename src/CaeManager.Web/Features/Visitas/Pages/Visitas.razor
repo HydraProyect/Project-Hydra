@@ -134,8 +134,8 @@
         @* El grid se mantiene siempre montado (solo se oculta con CSS) para que la
            referencia @@ref siga siendo válida y RefreshDataAsync funcione incluso al
            pasar de 0 a 1 elementos — ver Clientes.razor.cs. *@
-        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.Renderizar(@<text>
+                <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                 <QuickGrid @ref="_grid" TGridItem="VisitaListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                     @if (_seleccionMultiple)
                     {
@@ -307,13 +307,9 @@
                         </span>
                     </TemplateColumn>
                 </QuickGrid>
-            </text>, @<text>
-                <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                                  Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-                <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
-            </text>)
-        </div>
+            
+                </div>
+</text>, PieDelListado)
 
         @* TRES estados vacíos, no dos, y la razón es que "Solo activas" viene
            MARCADO de fábrica (_soloActivas = true). El patrón de dos estados que
@@ -859,3 +855,16 @@
                        EnviarCon="EnviarPaqueteDeLaVisitaAsync" OnEnviado="AlEnviarPaqueteAsync" />
 
 </LimiteDeErrores>
+
+@code {
+    private RenderFragment PieDelListado => @<text>
+        @if (!_errorCarga && (!_cargando || _totalElementos > 0))
+        {
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                  PaginaActualChanged="CambiarPaginaAsync"
+                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                    <Centro><LeyendaAtajosLista /></Centro>
+                </PaginadorSimple>
+        }
+    </text>;
+}

@@ -268,7 +268,7 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         var (cut, mediador) = RenderizarConMediador(vehiculos: Enumerable.Range(1, 21)
             .Select(i => new VehiculoListaDto(Guid.NewGuid(), "Vehículo " + i, "Transit", "Placa " + i, "Montajes Ebro S.L.")).ToArray());
         var consultasAntes = ConsultasDeLista(mediador);
-        cut.Find(".paginador-tamano-select").Change("50");
+        cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").Click();
         mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last().TamanoPagina.Should().Be(50);
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
             "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
@@ -378,4 +378,7 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         enlaces[0].Should().StartWith("/vehiculos/exportar.xlsx?q=Transit");
         enlaces[1].Should().Be("/vehiculos/exportar.xlsx");
     }
+    [Fact]
+    public void El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta() =>
+        ComprobacionPieListado.Vacio(Renderizar());
 }

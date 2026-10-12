@@ -1546,7 +1546,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         Columna(cut, 0).Should().HaveCount(20, "control positivo: la página está llena");
-        cut.FindAll(".paginador-simple").Should().BeEmpty();
+        cut.FindAll(".paginador-simple").Should().ContainSingle();
+        cut.FindAll(".paginador-inicio button").Should().BeEmpty();
         cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("20");
     }
 
@@ -1682,17 +1683,19 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
             mediador.Almacen.Add(Trabajador("Nombre", $"Apellido {i:00}"));
         var cut = Renderizar(mediador);
         Columna(cut, 0).Should().HaveCount(20).And.StartWith("Apellido 01");
-        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 1 de 2");
+        ComprobacionPieListado.Pagina(cut, 1, 2);
+        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 20 de 25");
 
-        await cut.FindAll(".paginador-simple button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
 
         UltimaConsulta(mediador).Pagina.Should().Be(2);
         UltimaConsulta(mediador).TamanoPagina.Should().Be(20);
         cut.WaitForAssertion(() => Columna(cut, 0).Should().Equal(
             ["Apellido 21", "Apellido 22", "Apellido 23", "Apellido 24", "Apellido 25"]));
-        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 2 de 2").And.Contain("25 trabajador(es)");
+        ComprobacionPieListado.Pagina(cut, 2, 2);
+        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
 
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         UltimaConsulta(mediador).Pagina.Should().Be(1);
         UltimaConsulta(mediador).TamanoPagina.Should().Be(50);
@@ -1716,7 +1719,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         cut.WaitForAssertion(() => Columna(cut, 0).Should().HaveCount(25));
         UltimaConsulta(mediador).TamanoPagina.Should().Be(50);

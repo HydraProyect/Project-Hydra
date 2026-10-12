@@ -234,17 +234,11 @@
                         </tbody>
                     </table>
                 </div>
-            </text>, @<text>
-                @* Sin paginador mientras todo cabe en la página más pequeña. Si el usuario subió el tamaño,
-                   se queda para que pueda volver a bajarlo. *@
-                @if (_totalElementos > TamanoPaginaMinimo || _tamanoPagina > TamanoPaginaMinimo)
-                {
-                    <PaginadorSimple PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                                     Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                                     TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-                }
-                <LeyendaAtajosLista Omitir="@(["x"])" />
-            </text>)
+            </text>, PieDelListado)
+        }
+        @if (_listaCargada && !_errorProyectos && _totalElementos == 0)
+        {
+            @TarjetaListado.Renderizar(null, PieDelListado)
         }
     }
 </div>
@@ -537,4 +531,17 @@
         new("tecnicos", Textos["PestanaTecnicos"]),
         new("documentos", Textos["PestanaDocumentos"])
     ];
+}
+
+@code {
+    private RenderFragment PieDelListado => @<text>
+        @if (_listaCargada && !_errorProyectos)
+        {
+            <PaginadorSimple PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                     PaginaActualChanged="CambiarPaginaAsync"
+                                     TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_proyectos.Count">
+                    <Centro><LeyendaAtajosLista Omitir="@(["x"])" /></Centro>
+                </PaginadorSimple>
+        }
+    </text>;
 }

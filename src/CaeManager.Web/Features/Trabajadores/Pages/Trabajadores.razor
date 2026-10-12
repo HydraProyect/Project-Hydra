@@ -155,8 +155,8 @@
            ProveerElementosAsync): se esconde mientras no haya filas que
            enseñar, y en su lugar se ve el esqueleto o el estado vacío que
            toque. *@
-        <div class="contenido-entra" style="display:@(_totalElementos == 0 ? "none" : "block")">
-            @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.Renderizar(@<text>
+                <div class="contenido-entra" style="display:@(_totalElementos == 0 ? "none" : "block")">
                 <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="TrabajadorListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                     @if (_seleccionMultiple)
                     {
@@ -252,19 +252,9 @@
                         <Boton360 Nombre="@NombreCompleto(context)" Href="@($"/trabajadores/{context.Id}")" />
                     </TemplateColumn>
                 </QuickGrid>
-            </text>, @<text>
-                @* Como en Clientes empresariales: solo con más de una página al tamaño mínimo (20), o
-                   si ya se eligió un tamaño mayor y hay resultados (para poder volver a 20 aunque un
-                   filtro deje el total por debajo). Con cero resultados manda el estado vacío. *@
-                @if (_totalElementos > TamanoPaginaMinimo || (_totalElementos > 0 && _paginacion.ItemsPerPage > TamanoPaginaMinimo))
-                {
-                <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                                  Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-                }
-                <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
-            </text>)
-        </div>
+            
+                </div>
+</text>, PieDelListado)
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
@@ -459,4 +449,17 @@
     /// (D-15: daría un fichero vacío) y la cabecera no pinta el menú.
     /// </summary>
     private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/trabajadores/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />;
+}
+
+@code {
+    private RenderFragment PieDelListado => @<text>
+        @if (!_errorCarga && (!_cargando || _totalElementos > 0))
+        {
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                  PaginaActualChanged="CambiarPaginaAsync"
+                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                    <Centro><LeyendaAtajosLista /></Centro>
+                </PaginadorSimple>
+        }
+    </text>;
 }

@@ -324,12 +324,12 @@ public class VehiculosConcurrenciaTests : BunitContext
         m.Enviadas.OfType<ObtenerVehiculosQuery>().Should().Contain(q => q.Busqueda == "furgo", "la primera búsqueda quedó retenida");
 
         await cut.InvokeAsync(() => caja.Instance.ValorChanged.InvokeAsync("camion"));
-        cut.Find(".paginador-texto").TextContent.Should().Contain("1 vehículo(s)");
+        cut.Find(".paginador-texto").TextContent.Should().Contain("Mostrando 1 de 1");
 
         await cut.InvokeAsync(espera.SetResult);
         await primeraBusqueda;
 
-        cut.Find(".paginador-texto").TextContent.Should().Contain("1 vehículo(s)", "el total vigente es el de 'camion'")
+        cut.Find(".paginador-texto").TextContent.Should().Contain("Mostrando 1 de 1", "el total vigente es el de 'camion'")
             .And.NotContain("99 vehículo(s)", "la respuesta tardía de 'furgo' ya no es la carga vigente");
     }
 

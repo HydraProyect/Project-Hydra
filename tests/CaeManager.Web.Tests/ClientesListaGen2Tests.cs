@@ -1057,14 +1057,15 @@ public partial class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         NombresDeLasFilas(cut).Should().HaveCount(20).And.StartWith("Cliente 01");
 
-        await cut.FindAll(".paginador-simple button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
 
         var consulta = UltimaConsulta(mediador);
         consulta.Pagina.Should().Be(2);
         consulta.TamanoPagina.Should().Be(20);
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().Equal(
             ["Cliente 21", "Cliente 22", "Cliente 23", "Cliente 24", "Cliente 25"]));
-        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 2 de 2").And.Contain("25 Cliente(s)");
+        ComprobacionPieListado.Pagina(cut, 2, 2);
+        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
     }
 
     [Fact]
@@ -1075,7 +1076,7 @@ public partial class ClientesListaGen2Tests : BunitContext
             mediador.Almacen.Add(Cliente($"Cliente {i:00}"));
         var cut = Renderizar(mediador);
 
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         var consulta = UltimaConsulta(mediador);
         consulta.TamanoPagina.Should().Be(50);
@@ -1102,7 +1103,7 @@ public partial class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(50));
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
@@ -1461,7 +1462,7 @@ public partial class ClientesListaGen2Tests : BunitContext
     /// <summary>
     /// Con un tamaño de página mayor que el mínimo ya elegido, el paginador (y su selector de
     /// tamaño) se queda aunque un filtro deje el total por debajo de 20: si desapareciera, no
-    /// habría forma de volver a 20 por página. Sin tamaño elegido, con 20 o menos no se pinta.
+    /// habría forma de volver a 20 por página. El pie y sus tamaños se pintan también con una sola página.
     /// </summary>
     [Fact]
     public async Task El_selector_de_tamano_sigue_ahi_si_se_eligio_uno_mayor_aunque_el_total_baje()
@@ -1470,20 +1471,20 @@ public partial class ClientesListaGen2Tests : BunitContext
         for (var i = 1; i <= 25; i++)
             mediador.Almacen.Add(Cliente($"Cliente {i:00}", critico: i <= 3));
         var cut = Renderizar(mediador);
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         await ElegirEnLaPastilla(cut, "Criticidad", "Solo críticos");
 
         cut.WaitForAssertion(() => NombresDeLasFilas(cut).Should().HaveCount(3));
-        cut.FindAll(".paginador-tamano-select").Should().ContainSingle("el tamaño elegido (50) tiene que poder deshacerse");
+        cut.FindAll(".paginador-opciones-tamano").Should().ContainSingle("el tamaño elegido (50) tiene que poder deshacerse");
 
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "20" });
-        cut.WaitForAssertion(() => cut.FindAll(".paginador-tamano-select").Should().BeEmpty(
-            "de vuelta al mínimo, con 3 resultados no hay nada que paginar"));
+        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "20").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.WaitForAssertion(() => cut.Find(".paginador-opciones-tamano button[aria-pressed=\"true\"]").TextContent.Should().Be("20"));
+        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 3 de 3");
     }
 
     [Fact]
-    public void Con_veinte_o_menos_y_el_tamano_minimo_no_hay_paginador()
+    public void Con_veinte_o_menos_el_pie_sigue_visible_sin_navegacion()
     {
         var mediador = new MediatorFalso();
         for (var i = 1; i <= 20; i++)
@@ -1492,7 +1493,8 @@ public partial class ClientesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         NombresDeLasFilas(cut).Should().HaveCount(20);
-        cut.FindAll(".paginador-simple").Should().BeEmpty();
+        cut.FindAll(".paginador-simple").Should().ContainSingle();
+        cut.FindAll(".paginador-inicio button").Should().BeEmpty();
     }
 
     /// <summary>La columna «Gestor CAE» pinta las iniciales de la persona delante de su nombre.</summary>

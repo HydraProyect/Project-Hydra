@@ -137,4 +137,7 @@ public class GestionesVacioPorFiltroTests : BunitContext
         cut.Markup.Should().NotContain("Sin gestiones");
         cut.Markup.Should().Contain("Reconocimiento médico");
     }
+    [Fact]
+    public void El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta() =>
+        ComprobacionPieListado.Vacio(Renderizar());
 }

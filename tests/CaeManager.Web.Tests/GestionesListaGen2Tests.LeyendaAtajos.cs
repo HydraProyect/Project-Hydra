@@ -18,11 +18,11 @@ public partial class GestionesListaGen2Tests
     }
 
     [Fact]
-    public void Sin_gestiones_no_hay_leyenda_de_atajos()
+    public void Sin_gestiones_el_pie_conserva_la_leyenda_de_atajos()
     {
         var cut = Renderizar(new MediatorFalso());
 
         cut.FindAll(".estado-vacio").Should().ContainSingle("es el estado vacío: no hay filas que recorrer");
-        cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().BeEmpty();
+        cut.FindAll(LeyendaAtajosEnPagina.Selector).Should().ContainSingle("el pie conserva la leyenda también sin resultados");
     }
 }

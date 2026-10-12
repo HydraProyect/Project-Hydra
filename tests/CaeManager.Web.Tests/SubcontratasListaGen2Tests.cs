@@ -323,14 +323,15 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     [Theory]
     [InlineData(20, false)]
     [InlineData(21, true)]
-    public void El_paginador_solo_aparece_con_mas_de_una_pagina(int subcontratas, bool conPaginador)
+    public void El_pie_siempre_aparece_y_la_navegacion_solo_con_mas_de_una_pagina(int subcontratas, bool conPaginador)
     {
         var cut = Renderizar(new MediatorFalso
         {
             Subcontratas = Enumerable.Range(1, subcontratas).Select(i => Subcontrata($"Subcontrata {i:00}")).ToList()
         });
 
-        cut.FindAll(".paginador").Any().Should().Be(conPaginador);
+        cut.FindAll(".paginador-inicio button").Any().Should().Be(conPaginador);
+        cut.Find(".tarjeta-listado-pie .paginador-opciones-tamano").Should().NotBeNull();
         var tarjeta = cut.Find(".tarjeta-listado");
         tarjeta.QuerySelector(".tarjeta-listado-contenido .marco-lista-acordeon").Should().NotBeNull();
         tarjeta.QuerySelector(".tarjeta-listado-pie .leyenda-atajos-lista").Should().NotBeNull();
@@ -1277,7 +1278,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         var mediador = new MediatorFalso { Subcontratas = almacen };
         var cut = Renderizar(mediador);
         cut.Find(".franja-estado [data-estado='Vencido']").Click();
-        await cut.FindAll(".paginador-simple button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(e => e.TextContent.Trim())
             .Should().Equal(["Subcontrata 21"], "punto de partida: la página 2 tiene una sola fila"));
 
@@ -1286,7 +1287,8 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         await cut.InvokeAsync(() => correccion.Instance.OnCorregida.InvokeAsync());
 
         cut.WaitForAssertion(() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Should().HaveCount(20));
-        cut.FindAll(".paginador-texto").Should().BeEmpty("con una sola página no hay paginador");
+        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 20 de 20");
+        cut.FindAll(".paginador-inicio button").Should().BeEmpty("con una sola página no hace falta navegación");
         mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().Pagina.Should().Be(1);
     }
 }

@@ -111,8 +111,8 @@
     }
     else
     {
-        <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-            @TarjetaListado.Renderizar(@<text>
+        @TarjetaListado.Renderizar(@<text>
+                <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                 <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="VehiculoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                     @if (_seleccionMultiple)
                     {
@@ -195,13 +195,9 @@
                         <Boton360 Nombre="@context.Nombre" Href="@($"/vehiculos/{context.Id}")" />
                     </TemplateColumn>
                 </QuickGrid>
-            </text>, @<text>
-                <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                                  Etiqueta="@Textos["EtiquetaPaginador"]" PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-                <LeyendaAtajosLista HayFilas="@(_totalElementos > 0)" />
-            </text>)
-        </div>
+            
+                </div>
+</text>, PieDelListado)
 
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
@@ -311,4 +307,17 @@
     /// de la página. Con alcance cero no se pasa (D-15: daría un fichero vacío).
     /// </summary>
     private RenderFragment MenuCabecera => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/vehiculos/exportar.xlsx" Total="@(_cargando || _errorCarga ? null : _totalElementos)" Criterios="CriteriosExportar" />;
+}
+
+@code {
+    private RenderFragment PieDelListado => @<text>
+        @if (!_errorCarga && (!_cargando || _totalElementos > 0))
+        {
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                  PaginaActualChanged="CambiarPaginaAsync"
+                                  TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                    <Centro><LeyendaAtajosLista /></Centro>
+                </PaginadorSimple>
+        }
+    </text>;
 }

@@ -1510,11 +1510,12 @@ public partial class CentrosListaPatronTests : BunitContext
     [Theory]
     [InlineData(20, false)]
     [InlineData(21, true)]
-    public void El_paginador_solo_aparece_con_mas_de_una_pagina(int centros, bool conPaginador)
+    public void El_pie_siempre_aparece_y_la_navegacion_solo_con_mas_de_una_pagina(int centros, bool conPaginador)
     {
         var cut = Renderizar(ConCentros(Enumerable.Range(1, centros).Select(i => Centro($"Centro {i:00}")).ToArray()));
 
-        cut.FindAll(".paginador").Any().Should().Be(conPaginador);
+        cut.FindAll(".paginador-inicio button").Any().Should().Be(conPaginador);
+        cut.Find(".tarjeta-listado-pie .paginador-opciones-tamano").Should().NotBeNull();
         var tarjeta = cut.Find(".tarjeta-listado");
         tarjeta.QuerySelector(".tarjeta-listado-contenido .cabecera-columnas-centros").Should().NotBeNull();
         tarjeta.QuerySelector(".tarjeta-listado-contenido .lista-filas-acordeon").Should().NotBeNull();
@@ -1522,12 +1523,12 @@ public partial class CentrosListaPatronTests : BunitContext
     }
 
     [Fact]
-    public void El_paginador_ofrece_Mostrar_N_y_cambiarlo_vuelve_a_pedir_con_ese_tamano()
+    public void El_pie_ofrece_tamanos_y_cambiarlos_vuelve_a_pedir_con_ese_tamano()
     {
         var mediador = ConCentros(Enumerable.Range(1, 21).Select(i => Centro($"Centro {i:00}")).ToArray());
         var cut = Renderizar(mediador);
 
-        cut.Find(".paginador-tamano-select").Change("50");
+        cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").Click();
 
         mediador.Enviadas.OfType<ObtenerCentrosQuery>().Last().TamanoPagina.Should().Be(50);
     }

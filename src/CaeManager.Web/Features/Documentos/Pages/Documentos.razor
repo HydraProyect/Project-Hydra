@@ -184,8 +184,8 @@
             }
             else
             {
+                @TarjetaListado.Renderizar(@<text>
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
-                    @TarjetaListado.Renderizar(@<text>
                         <div class="documentos-tabla-desplazable" tabindex="0" role="region" aria-label="@Textos["TablaDesplazableEtiqueta"]">
                         <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="DocumentoListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
                             @if (_seleccionMultiple)
@@ -317,16 +317,9 @@
                             </TemplateColumn>
                         </QuickGrid>
                         </div>
-                    </text>, @<text>
-                        @if (_totalElementos > 20 || (_totalElementos > 0 && _paginacion.ItemsPerPage > 20))
-                        {
-                        <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
-                                          Etiqueta="documento(s)" PaginaActualChanged="CambiarPaginaAsync"
-                                          TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-                        }
-                        <LeyendaAtajosLista Omitir="@(["e"])" HayFilas="@(_totalElementos > 0)" />
-                    </text>)
+                    
                 </div>
+</text>, PieDelListado)
 
                 @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
                 {
@@ -412,4 +405,17 @@
             <ItemMenuAccion OnClick='() => NavigationManager.NavigateTo("/documentos/subida-masiva")'>Subida múltiple</ItemMenuAccion>
         </SoloConEscritura>
     };
+}
+
+@code {
+    private RenderFragment PieDelListado => @<text>
+        @if (!_errorCarga && (!_cargando || _totalElementos > 0))
+        {
+            <PaginadorSimple PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+                                          PaginaActualChanged="CambiarPaginaAsync"
+                                          TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                    <Centro><LeyendaAtajosLista Omitir="@(["e"])" /></Centro>
+                </PaginadorSimple>
+        }
+    </text>;
 }

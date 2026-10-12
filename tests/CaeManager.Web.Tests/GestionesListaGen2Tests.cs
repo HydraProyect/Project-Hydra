@@ -829,16 +829,18 @@ public partial class GestionesListaGen2Tests : BunitContext
         }
         var cut = Renderizar(mediador);
         ColumnaDeLasFilas(cut, 0).Should().HaveCount(20).And.StartWith("Trabajador 25");
-        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 1 de 2");
+        ComprobacionPieListado.Pagina(cut, 1, 2);
+        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 20 de 25");
 
-        await cut.FindAll(".paginador-simple button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-simple button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
 
         var consulta = mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last();
         consulta.Pagina.Should().Be(2);
         consulta.TamanoPagina.Should().Be(20);
         cut.WaitForAssertion(() => ColumnaDeLasFilas(cut, 0).Should().Equal(
             ["Trabajador 05", "Trabajador 04", "Trabajador 03", "Trabajador 02", "Trabajador 01"]));
-        cut.Find(".paginador-texto").TextContent.Should().Contain("Página 2 de 2").And.Contain("25 gestión(es)");
+        ComprobacionPieListado.Pagina(cut, 2, 2);
+        cut.Find(".paginador-texto").TextContent.Should().Be("Mostrando 5 de 25");
     }
 
     [Fact]
@@ -962,7 +964,7 @@ public partial class GestionesListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await cut.Find(".paginador-tamano-select").ChangeAsync(new ChangeEventArgs { Value = "50" });
+        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent == "50").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().TamanoPagina.Should().Be(50));
         mediador.Enviadas.OfType<ObtenerGestionesQuery>().Last().Pagina.Should().Be(1);
