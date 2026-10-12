@@ -161,6 +161,9 @@
   <data name="ExportarTodo" xml:space="preserve">
     <value>Exporta-ho tot</value>
   </data>
+  <data name="ExportarExcel" xml:space="preserve">
+    <value>Exportar a Excel</value>
+  </data>
   <data name="SelectorTenantSinResultados" xml:space="preserve">
     <value>Cap empresa coincideix amb la cerca.</value>
   </data>

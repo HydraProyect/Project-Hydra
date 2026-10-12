@@ -1193,21 +1193,17 @@ public partial class GestionesListaGen2Tests : BunitContext
         cut.BotonDeFranja(rotulo).ClickAsync(new MouseEventArgs());
 
 
-    // ---- Exportar (decisión D2 del 2026-10-08): dos entradas en el «⋯» de la cabecera ----
+    // ---- Icono de exportación de la vista filtrada; la cabecera no lleva menú ----
 
     [Fact]
-    public void El_menu_de_cabecera_ofrece_exportar_esta_vista_con_sus_criterios_y_exportar_todo()
+    public void El_icono_de_cabecera_exporta_la_vista_con_sus_criterios_sin_Mas_acciones()
     {
         var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") } };
         var cut = Renderizar(m, url: "gestiones?q=Juan&estado=Pendiente");
 
-        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
-
-        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar esta vista (filas: 1)", "Exportar todo");
-        var enlaces = cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href")).ToList();
-        enlaces[0].Should().StartWith("/gestiones/exportar.xlsx?q=Juan&estado=Pendiente");
-        enlaces[1].Should().Be("/gestiones/exportar.xlsx");
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
+            .Should().StartWith("/gestiones/exportar.xlsx?q=Juan&estado=Pendiente");
     }
 
     // ---- Orden de columnas y motivo bajo la pastilla (cierre J de la auditoría de listados, 2026-10-09) ----

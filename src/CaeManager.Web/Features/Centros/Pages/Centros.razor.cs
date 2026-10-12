@@ -1602,12 +1602,6 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         }
     };
 
-    /// <summary>
-    /// El icono exporta esta vista por el mismo endpoint y con los mismos criterios que el menú.
-    /// </summary>
-    private string RutaExportarVista => Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(
-        "/centros/exportar.xlsx", CriteriosExportar.Where(c => !string.IsNullOrWhiteSpace(c.Value)));
-
     /// <summary>Criterios del listado con los nombres que lee el endpoint de exportación.</summary>
     private Dictionary<string, string?> CriteriosExportar => new()
     {

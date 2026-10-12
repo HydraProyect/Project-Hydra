@@ -2,7 +2,7 @@
     Cabecera de un listado en una sola línea (rediseño de listados, fase 1): título con su
     contador y, a la derecha, el conmutador de selección múltiple (☑), exportación opcional (⤓),
     teclado (⌨), el menú «⋯» con las
-    acciones secundarias de la pantalla (Exportar a Excel, importaciones, alta guiada…) y la
+    acciones secundarias de la pantalla (importaciones, alta guiada, Exportar asignaciones…) y la
     acción primaria. Sin antetítulo: el grupo del menú ya está en las migas.
 
     Es una CabeceraPagina: el contador va en JuntoAlTitulo y lo demás en Acciones.
@@ -12,10 +12,11 @@
 
     Uso:
 
-        <CabeceraListado Titulo="Clientes empresariales" Contador="@_total"
-                         SeleccionMultiple="_seleccion" SeleccionMultipleChanged="Alternar">
+        <CabeceraListado Titulo="Clientes" Contador="@_total"
+                         SeleccionMultiple="_seleccion" SeleccionMultipleChanged="Alternar"
+                         RutaExportar="/clientes/exportar.xlsx" CriteriosExportar="_criterios">
             <Menu>
-                <ItemMenuAccion Href="/clientes/exportar.xlsx">Exportar a Excel</ItemMenuAccion>
+                <ItemMenuAccion OnClick="Importar">Importar Clientes</ItemMenuAccion>
             </Menu>
             <Primaria>
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="Crear">+ Nuevo…</Boton></SoloConEscritura>
@@ -28,12 +29,16 @@
     El botón ⌨ abre la chuleta de atajos (la misma de «?»): atajos-globales.js escucha
     data-abrir-atajos, porque la chuleta vive en el islote AtajosGlobales del layout.
 
-    KeyTips (keytips.js, letras de CatalogoAtajos.KeyTips): S el conmutador, K la chuleta,
+    La exportación es una descarga por GET de la vista filtrada, sin paginación. RutaExportar y
+    CriteriosExportar reutilizan el endpoint y los criterios de la pantalla. Sin ruta no se pinta.
+
+    KeyTips (keytips.js, letras de CatalogoAtajos.KeyTips): S el conmutador, X exportar, K la chuleta,
     M el menú «⋯» y N la acción primaria — la letra se declara en el envoltorio
     (data-keytip-contenedor) y la recibe el botón que la página ponga dentro.
 *@
 @using CaeManager.Web.Recursos
 @using Microsoft.Extensions.Localization
+@using CaeManager.Web.Exportacion
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject IStringLocalizer<CaeManager.Web.Features.AtajosGlobales.Recursos.TextosAtajosGlobales> TextosAtajos
 
@@ -48,9 +53,9 @@
                 <Icono Nombre="seleccion" />
             </button>
         }
-        @if (RutaExportar is not null)
+        @if (EnlaceExportar is { } enlace)
         {
-            <a class="cabecera-listado-icono" href="@RutaExportar" aria-label="@EtiquetaExportar" title="@EtiquetaExportar">
+            <a class="cabecera-listado-icono" href="@enlace" download aria-label="@TextoExportar" title="@TextoExportar" data-keytip="X">
                 <Icono Nombre="descargar" />
             </a>
         }
@@ -81,11 +86,18 @@
     /// <summary>Sin delegado no se pinta el conmutador ☑.</summary>
     [Parameter] public EventCallback<bool> SeleccionMultipleChanged { get; set; }
 
-    /// <summary>Descarga por GET del listado. Sin ruta no se muestra el icono de exportación.</summary>
+    /// <summary>Endpoint existente de descarga. Sin ruta no se muestra el icono de exportación.</summary>
     [Parameter] public string? RutaExportar { get; set; }
 
-    /// <summary>Nombre accesible del enlace de exportación.</summary>
+    /// <summary>Nombre accesible del enlace. Por defecto usa el recurso común de exportación.</summary>
     [Parameter] public string? EtiquetaExportar { get; set; }
+
+    /// <summary>Criterios que ya usa la consulta del listado; no incluye página ni tamaño de página.</summary>
+    [Parameter] public IReadOnlyDictionary<string, string?> CriteriosExportar { get; set; } = new Dictionary<string, string?>();
+
+    private string TextoExportar => EtiquetaExportar ?? Comunes["ExportarExcel"].Value;
+
+    private string? EnlaceExportar => RutaExportar is null ? null : EnlaceDeExportacion.ConCriterios(RutaExportar, CriteriosExportar);
 
     /// <summary>Ítems (<see cref="ItemMenuAccion"/>) del menú «⋯». Sin valor no se pinta el menú.</summary>
     [Parameter] public RenderFragment? Menu { get; set; }

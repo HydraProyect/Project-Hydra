@@ -30,7 +30,7 @@ namespace CaeManager.Web.Tests;
 /// vehículo que probablemente ya existe, con la matrícula duplicada que eso
 /// arrastra.
 /// </summary>
-public class VehiculosVacioPorFiltroTests : BunitContext
+public partial class VehiculosVacioPorFiltroTests : BunitContext
 {
     /// <summary>La página importa ./js/atajos-lista.js; ese módulo queda fuera de lo que se observa aquí.</summary>
     public VehiculosVacioPorFiltroTests()
@@ -361,22 +361,18 @@ public class VehiculosVacioPorFiltroTests : BunitContext
         navegacion.Uri.Should().EndWith(AvisoCambiosSinGuardarPrueba.DestinoFuera);
     }
 
-    // ---- Exportar (decisión D2 del 2026-10-08): dos entradas en el «⋯» de la cabecera ----
+    // ---- Icono de exportación de la vista filtrada; la cabecera no lleva menú ----
 
     [Fact]
-    public void El_menu_de_cabecera_ofrece_exportar_esta_vista_con_sus_criterios_y_exportar_todo()
+    public void El_icono_de_cabecera_exporta_la_vista_con_sus_criterios_sin_Mas_acciones()
     {
         var cut = Renderizar(busqueda: "Transit", estado: null,
             new VehiculoListaDto(Guid.NewGuid(), "Furgón Uno", "Transit", "1111AAA", "Montajes Ebro S.L."));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("1111AAA"));
 
-        cut.Find("header.cabecera-pagina .menu-acciones-disparador").Click();
-
-        cut.FindAll("header.cabecera-pagina .menu-acciones-item").Select(i => i.TextContent.Trim())
-            .Should().Equal("Exportar esta vista (filas: 1)", "Exportar todo");
-        var enlaces = cut.FindAll("header.cabecera-pagina a.menu-acciones-item").Select(i => i.GetAttribute("href")).ToList();
-        enlaces[0].Should().StartWith("/vehiculos/exportar.xlsx?q=Transit");
-        enlaces[1].Should().Be("/vehiculos/exportar.xlsx");
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href")
+            .Should().StartWith("/vehiculos/exportar.xlsx?q=Transit");
     }
     [Fact]
     public void El_pie_del_listado_vacio_sigue_dentro_de_la_tarjeta() =>

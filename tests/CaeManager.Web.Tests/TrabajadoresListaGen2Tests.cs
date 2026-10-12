@@ -384,7 +384,7 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
         cut.Markup.Should().Contain("Selecciona una empresa de tu cartera");
         cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
-        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("su «Exportar a Excel» exportaría los datos del origen");
+        cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("el icono exportaría datos del origen sin Empresa elegida");
         ConsultasDeLista(mediador).Should().Be(0, "no se piden los trabajadores de la organización de origen");
         mediador.Enviadas.OfType<ObtenerEmpresasParaSelectorQuery>().Should().BeEmpty("tampoco los catálogos del origen");
     }
@@ -411,13 +411,13 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         var cut = Render<Trabajadores>();
 
         cut.FindAll(".barra-filtros-pastillas").Should().BeEmpty();
-        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty("su «Exportar a Excel» exportaría los datos del origen");
+        cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty("el icono exportaría datos del origen sin Empresa elegida");
         ConsultasDeLista(mediador).Should().Be(0);
 
         puerta.SetResult();
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Selecciona una empresa de tu cartera"));
-        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().BeEmpty();
+        cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().BeEmpty();
         ConsultasDeLista(mediador).Should().Be(0, "ni antes ni después de resolverse se pide la lista del origen");
     }
 
@@ -897,23 +897,20 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         cut.FindAll(".cabecera-empresa-activa").Should().BeEmpty();
 
         var acciones = cabecera.QuerySelector(".acciones-cabecera")!;
-        acciones.QuerySelectorAll("a").Should().BeEmpty("«Exportar a Excel» vive ahora dentro del «⋯»");
+        acciones.QuerySelectorAll("a.cabecera-listado-icono").Should().ContainSingle().Which.GetAttribute("aria-label").Should().Be("Exportar a Excel");
         acciones.QuerySelectorAll("button").Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
             .Should().Equal("Selección múltiple", "Atajos de teclado", "Más acciones", "+ Nuevo trabajador");
     }
 
     [Fact]
-    public async Task El_menu_de_la_cabecera_exporta_a_Excel_con_un_enlace_de_descarga()
+    public void El_icono_de_la_cabecera_exporta_a_Excel_con_un_enlace_de_descarga()
     {
         var cut = Renderizar(new MediatorFalso { Almacen = { Trabajador("Javier", "Salas Moreno") } });
-
-        await cut.Find("header.cabecera-pagina .menu-acciones-disparador").ClickAsync(new MouseEventArgs());
-
-        var items = cut.FindAll("header.cabecera-pagina .menu-acciones-item");
-        items.Select(i => i.TextContent.Trim()).Should().Equal("Exportar esta vista (filas: 1)", "Exportar todo");
-        items.Should().OnlyContain(i => i.TagName == "A", "la exportación es una descarga del servidor: un enlace, no una navegación interna");
-        items[0].GetAttribute("href").Should().StartWith("/trabajadores/exportar.xlsx");
-        items[1].GetAttribute("href").Should().Be("/trabajadores/exportar.xlsx", "«Exportar todo» va sin criterios");
+        cut.FindAll("header.cabecera-pagina .menu-acciones").Should().ContainSingle();
+        var enlace = cut.Find("header.cabecera-pagina a[data-keytip=X]");
+        enlace.GetAttribute("aria-label").Should().Be("Exportar a Excel");
+        enlace.HasAttribute("download").Should().BeTrue();
+        enlace.GetAttribute("href").Should().StartWith("/trabajadores/exportar.xlsx");
     }
 
     [Fact]
@@ -1387,7 +1384,8 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
         cut.Markup.Should().Contain("Alonso", "la lista es lectura: la fila se ve");
         cut.Find("header.cabecera-pagina .acciones-cabecera").QuerySelectorAll("button")
             .Select(b => b.GetAttribute("aria-label") ?? b.TextContent.Trim())
-            .Should().Equal(["Atajos de teclado", "Más acciones"], "sin ☑ ni alta: solo el «⋯» con la exportación, que es lectura");
+            .Should().Equal(["Atajos de teclado", "Más acciones"], "sin selección ni alta: ambas exportaciones siguen siendo enlaces de lectura");
+        cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("aria-label").Should().Be("Exportar a Excel");
         Pastilla(cut, "Más filtros").Should().NotBeNull("la barra sigue ahí: solo falta el modo de selección");
         cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
         cut.FindAll("tbody input[type=checkbox]").Should().BeEmpty();

@@ -535,7 +535,6 @@ src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: Confi
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ConfirmarEliminarTitulo = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: DrawerTituloEditar = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: DrawerTituloNueva = 1
-src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: EnlaceExportarExcel = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ErrorActualizarEstado = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ErrorCargaDetalle = 1
 src/CaeManager.Web/Features/Incidencias/Recursos/TextosIncidencias.resx :: ErrorCargaListaTitulo = 1
@@ -736,7 +735,6 @@ src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: Des
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: DescripcionNivelSupervisadaLista = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: DocumentacionNoModeladaDescripcion = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: DocumentacionNoModeladaTitulo = 1
-src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EnlaceExportarExcel = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: EnlaceVerEvidencia = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ErrorCargaCentrosTitulo = 1
 src/CaeManager.Web/Features/Subcontratas/Recursos/TextosSubcontratas.resx :: ErrorCargaSubcontrataTitulo = 1
@@ -966,7 +964,6 @@ src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: Dia
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DocumentosPendientesUno = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DocumentosPendientesVarios = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: DrawerNuevoTitulo = 1
-src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: EnlaceExportarExcel = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorAsignarLote = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorCargaDetalle = 1
 src/CaeManager.Web/Features/Trabajadores/Recursos/TextosTrabajadores.resx :: ErrorCargaListaTitulo = 1
