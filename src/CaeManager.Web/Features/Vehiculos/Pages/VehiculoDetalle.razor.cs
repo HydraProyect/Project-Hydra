@@ -8,6 +8,7 @@ using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Documentos.Components;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Services;
 using FluentValidation;
 using MediatR;
@@ -57,6 +58,31 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     /// Un valor desconocido cae a Documentación.
     /// </summary>
     [Parameter, SupplyParameterFromQuery(Name = "pestana")] public string? Pestana { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "estado")] public string? Estado { get; set; }
+    private string? _estadoDeLaUrl;
+    private IReadOnlySet<string> _estados = new HashSet<string>();
+
+    private IReadOnlyList<DocumentoListaDto> DocumentosVisibles => _estados.Count == 0 ? _documentos
+        : _documentos.Where(d => _estados.Contains(EstadoDocumentoFicha360.Clave(d.Estado))).ToList();
+
+    private IReadOnlyDictionary<string, int> RecuentosDocumentos => _documentos
+        .GroupBy(d => EstadoDocumentoFicha360.Clave(d.Estado)).ToDictionary(g => g.Key, g => g.Count());
+
+    private static IReadOnlyList<OpcionFranjaEstado> OpcionesDocumentos =>
+        new[] { EstadoDocumento.Vencido, EstadoDocumento.Faltante, EstadoDocumento.EnTolerancia,
+                EstadoDocumento.Urgente, EstadoDocumento.SinConfirmar, EstadoDocumento.Vigente }
+        .Select(e => new OpcionFranjaEstado(EstadoDocumentoFicha360.Texto(e), EstadoDocumentoFicha360.Tono(e), EstadoDocumentoFicha360.Clave(e))).ToList();
+
+    private void CambiarEstado(string? seleccion)
+    {
+        _estados = SeleccionEstados.Separar(seleccion).ToHashSet(StringComparer.Ordinal);
+        _estadoDeLaUrl = EstadoDocumentoFicha360.ClavesEnUrl(_estados);
+        NavigationManager.ActualizarFiltroEnUrl("estado", _estadoDeLaUrl);
+    }
+
+    private Task EditarDocumentoAsync(DocumentoListaDto documento) =>
+        _drawerGestion?.AbrirEditarAsync(documento.Id) ?? Task.CompletedTask;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
@@ -118,6 +144,11 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     protected override async Task OnParametersSetAsync()
     {
         AdoptarPestanaDeLaUrl();
+        if (!string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
+        {
+            _estadoDeLaUrl = Estado;
+            _estados = EstadoDocumentoFicha360.ClavesDesdeUrl(Estado);
+        }
 
         if (_vehiculoCargado == VehiculoId)
             return;
@@ -239,7 +270,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
         {
             var pagina = await Mediator.Send(new ObtenerDocumentosQuery(
                 TrabajadorId: null, Ambito: AmbitoAplicacion.Vehiculo, Busqueda: null,
-                TamanoPagina: MaximoDocumentos, PropietarioId: id), _cancelacion);
+                TamanoPagina: MaximoDocumentos, PropietarioId: id, OrdenarPor: ObtenerDocumentosQuery.OrdenPorSeveridad), _cancelacion);
             if (carga != _cargaDocumentos) return;
             _documentos = pagina.Elementos;
             _totalDocumentos = pagina.TotalElementos;
@@ -320,11 +351,18 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
             : Textos["FichaAnilloSinDocumentos"];
 
     /// <summary>
-    /// El empleador solo enlaza cuando es una Empresa: es la única que hoy tiene
-    /// ficha 360 con ruta propia (<c>/empresas/{id}</c>).
+    /// Las referencias legacy EmpresaId/SubcontrataId representan la Empresa empleadora, no dos tipos de Empresa.
+    /// La primera abre Empresa 360; el alias SubcontrataId conserva la consulta contextual de Subcontrata 360.
     /// </summary>
     private string? RutaEmpleador =>
-        _detalle?.EmpresaId is { } empresaId ? $"/empresas/{empresaId}" : null;
+        _detalle?.EmpresaId is { } empresaId ? $"/empresas/{empresaId}"
+        : _detalle?.SubcontrataId is { } contraparteId ? $"/subcontratas/{contraparteId}" : null;
+
+    private EventCallback AbrirEmpleador => _detalle?.EmpresaId is { } empresaId
+        ? EventCallback.Factory.Create(this, () => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, empresaId, _detalle.EmpleadorNombre, "informacion"))
+        : _detalle?.SubcontrataId is { } contraparteId
+            ? EventCallback.Factory.Create(this, () => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, contraparteId, _detalle.EmpleadorNombre, "informacion"))
+            : default;
 
     /// <summary>
     /// El peor estado dice Vencido pero ningún documento pintado lo está: el
