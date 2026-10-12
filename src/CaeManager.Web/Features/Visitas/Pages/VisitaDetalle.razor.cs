@@ -17,6 +17,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Visitas;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.Documentos.Components;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -62,6 +63,16 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     private DetalleVisitaDto? _detalle;
     private bool _cargando = true;
     private bool _error;
+    private DrawerGestionDocumento? _drawerGestion;
+
+    private Task CorregirDocumentoAsync(DocumentoVisitaItemDto item) =>
+        _puedeEscribir && CompruebaDocumentacion && _documentacion is { } documentacion
+            ? _drawerGestion?.AbrirParaIncidenciaAsync(item.DocumentoId, item.TipoDocumentoId, item.TrabajadorId,
+                item.TrabajadorId is null ? documentacion.EmpresaId : null) ?? Task.CompletedTask
+            : Task.CompletedTask;
+
+    private Task DocumentoGuardadoAsync() =>
+        CompruebaDocumentacion ? CargarDocumentacionAsync() : Task.CompletedTask;
 
     /// <summary>
     /// Visita que esta instancia tiene cargada: Blazor reutiliza la instancia al pasar de una
