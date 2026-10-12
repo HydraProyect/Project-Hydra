@@ -428,7 +428,7 @@ public class Empresa360PaginaTests : BunitContext
         EstadosDeLasFilas(cut).Should().HaveCount(20).And.OnlyContain(e => e == "Sin incidencias");
         EstadosDeCodigoDeLasFilas(cut, mediador).Should().HaveCount(20).And.OnlyContain(e => e == EstadoDocumento.Vigente);
         cut.Find(".paginador-texto").TextContent.Should().Contain("Página 1 de 2").And.Contain("30");
-        cut.Find(".empresa360-pie").TextContent.Should().Contain("Mostrando 20 de 30 · Ordenados del peor estado al mejor");
+        cut.Find(".empresa360-pie").TextContent.Trim().Should().Be("Mostrando 20 de 30 · del peor estado al mejor");
 
         await cut.FindAll(".paginador button").Single(b => b.TextContent.Contains("Siguiente")).ClickAsync(new MouseEventArgs());
 
@@ -609,6 +609,8 @@ public class Empresa360PaginaTests : BunitContext
     [Fact]
     public async Task La_fila_de_trabajador_enlaza_a_su_pagina_y_el_360_abre_su_panel()
     {
+        var modulo = JSInterop.SetupModule("./js/clipboard.js");
+        modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
         var unico = Trabajador(EstadoDocumento.Vigente, "Ruiz");
         Registrar(Empresa([unico]));
         var cut = Renderizar();
@@ -616,12 +618,20 @@ public class Empresa360PaginaTests : BunitContext
         var nombre = cut.Find(".fila-relacion-nombre");
         nombre.GetAttribute("href").Should().Be($"/trabajadores/{unico.Id}");
         nombre.GetAttribute("title").Should().Be("Ir a la página de Ana Ruiz");
-        // Mockup: avatar con iniciales (no el icono genérico) y el DNI copiable.
+        // Maqueta nueva: el propio DNI es el único control de copia en la fila.
         cut.Find(".fila-relacion-avatar").TextContent.Trim().Should().Be("AR");
         cut.FindAll(".fila-relacion-icono").Should().BeEmpty();
         var detalle = cut.Find(".fila-relacion-detalle");
-        detalle.TextContent.Should().StartWith($"DNI {unico.Dni}");
-        detalle.QuerySelector(".boton-copiar").Should().NotBeNull("el DNI se copia desde su propia fila");
+        detalle.TextContent.Trim().Should().Be(unico.Dni);
+        var copiar = detalle.QuerySelectorAll(".boton-copiar").Should().ContainSingle().Subject;
+        copiar.ClassList.Should().Contain("boton-copiar-en-linea");
+        copiar.GetAttribute("title").Should().Be($"Copiar {unico.Dni}");
+        copiar.GetAttribute("aria-label").Should().Be($"Copiar {unico.Dni}");
+        await copiar.ClickAsync(new MouseEventArgs());
+        modulo.VerifyInvoke("copiarAlPortapapeles").Arguments.Should().Equal(unico.Dni);
+        Services.GetRequiredService<ToastService>().Mensajes.Should()
+            .ContainSingle(t => t.Tono == TonoToast.Exito && t.Mensaje.Contains("el DNI"));
+        cut.Find(".empresa360-pie").TextContent.Trim().Should().Be("Mostrando 1 de 1 · del peor estado al mejor");
 
         await cut.Find(".fila-relacion .boton-360").ClickAsync(new MouseEventArgs());
 

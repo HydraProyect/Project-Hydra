@@ -152,14 +152,6 @@
     <value>Trabajadores de esta empresa</value>
     <comment>Nombre accesible de la lista.</comment>
   </data>
-  <data name="DetalleDni" xml:space="preserve">
-    <value>DNI {0}</value>
-    <comment>Línea de detalle de la fila de trabajador. {0} = DNI.</comment>
-  </data>
-  <data name="PieOrden" xml:space="preserve">
-    <value>Ordenados del peor estado al mejor</value>
-    <comment>Pie de la lista de trabajadores.</comment>
-  </data>
   <data name="PaginadorEtiqueta" xml:space="preserve">
     <value>trabajador(es)</value>
     <comment>Unidad del paginador.</comment>
@@ -262,25 +254,9 @@
   <data name="ActivarDosFactores" xml:space="preserve">
     <value>Activar ahora</value>
   </data>
-  <data name="BadgeCredencialesTerceros" xml:space="preserve">
-    <value>Credenciales de terceros</value>
-    <comment>Badge junto a la URL de la plataforma CAE en la tarjeta Acceso: la credencial es de un tercero (mockup Empresa 360 página).</comment>
-  </data>
   <data name="PieMostrando" xml:space="preserve">
-    <value>Mostrando {0} de {1}</value>
-    <comment>Pie de la lista de trabajadores cuando la página no los enseña todos. {0} = filas visibles, {1} = total del filtro.</comment>
-  </data>
-  <data name="Usuario" xml:space="preserve">
-    <value>Usuario</value>
-    <comment>Usuario de la credencial.</comment>
-  </data>
-  <data name="ElDni" xml:space="preserve">
-    <value>el DNI</value>
-    <comment>Complemento del botón copiar en la fila de trabajador («Copiar el DNI»).</comment>
-  </data>
-  <data name="AbrirPortal" xml:space="preserve">
-    <value>Abrir portal ↗</value>
-    <comment>Abre la URL de la plataforma CAE en una pestaña nueva.</comment>
+    <value>Mostrando {0} de {1} · del peor estado al mejor</value>
+    <comment>Pie de la lista de trabajadores, también cuando muestra todas las filas. {0} = filas visibles, {1} = total del filtro.</comment>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} empresa(s) restaurada(s).</value>
@@ -404,5 +380,11 @@
   </data>
   <data name="ErrorGuardarNotaInterna" xml:space="preserve">
     <value>No pudimos guardar la nota interna. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ElDni" xml:space="preserve">
+    <value>el DNI</value>
+  </data>
+  <data name="CopiarDni" xml:space="preserve">
+    <value>Copiar {0}</value>
   </data>
 </root>
