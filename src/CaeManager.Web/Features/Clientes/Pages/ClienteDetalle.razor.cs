@@ -8,6 +8,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Centros;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 
@@ -46,8 +47,8 @@ namespace CaeManager.Web.Features.Clientes.Pages;
 /// empresarial (no existe), Alias, Domicilio, Portal
 /// principal, Gestor CAE e historial de notas. Editar la identidad y la nota
 /// se hace en el panel: los «Editar» de esta página lo abren en su pestaña.
-/// El anillo como fracción de Centros queda aplazado por decisión del propietario:
-/// faltan el criterio de incidencias y el agregado completo, sin el tope de la lista.
+/// El anillo cuenta Centros sin incidencias sobre Centros con gestión CAE; se omite si la lista está truncada
+/// o no se han podido leer los bloqueos, para no presentar una fracción global incompleta.
 /// </para>
 /// </summary>
 public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiva, IDisposable
@@ -59,15 +60,15 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     /// <summary>
     /// Orden de la tira: Centros primera y por defecto porque es la única que
-    /// trae estado; después Empresas, Subcontratas, Documentación, Agenda e Historial.
+    /// trae estado; después Subcontratas, Documentación, Empresas, Agenda e Historial.
     /// La certificación TGSS es el primer bloque de Documentación.
     /// </summary>
     private static readonly (string Id, string Clave)[] _pestanas =
     [
         ("centros", "PestanaCentros"),
-        ("empresas", "PestanaEmpresas"),
         ("subcontratas", "PestanaSubcontratas"),
         ("documentacion", "PestanaDocumentacion"),
+        ("empresas", "PestanaEmpresas"),
         ("agenda", "PestanaAgenda"),
         ("historial", "PestanaHistorial")
     ];
@@ -83,6 +84,12 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     /// <summary>Texto del buscador de la pestaña Centros, en la URL (<c>?q=</c>), como en Centro 360.</summary>
     [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Busqueda { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "estado")] public string? Estado { get; set; }
+
+    private string _estado = string.Empty;
+    private string? _estadoDeLaUrl;
+    private bool _bloqueosLeidos;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
@@ -155,6 +162,11 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     {
         AdoptarPestanaDeLaUrl();
         AdoptarBusquedaDeLaUrl();
+        if (!string.Equals(_estadoDeLaUrl, Estado, StringComparison.Ordinal))
+        {
+            _estadoDeLaUrl = Estado;
+            _estado = EstadoCentroUi.SeleccionValida(Estado);
+        }
 
         if (_clienteCargado == ClienteId)
             return;
@@ -199,7 +211,47 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     }
 
     /// <summary>Quitar el filtro lo quita también de la URL: si no, recargar o compartir el enlace lo repone.</summary>
-    private void QuitarFiltros() => BuscarCentros(string.Empty);
+    private void QuitarFiltros()
+    {
+        _busqueda = _estado = string.Empty;
+        _busquedaDeLaUrl = _estadoDeLaUrl = null;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
+    }
+
+    private void CambiarEstado(string? valor)
+    {
+        _estado = EstadoCentroUi.SeleccionValida(valor);
+        _estadoDeLaUrl = string.IsNullOrEmpty(_estado) ? null : _estado;
+        NavigationManager.ActualizarFiltroEnUrl("estado", _estadoDeLaUrl);
+    }
+
+    // La maqueta solo ofrece estados presentes; conserva el seleccionado para poder reconocer el filtro sin coincidencias.
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesFranjaCentros => EstadoCentroUi.Franja
+        .Where(o => o.Valores.Any(v => RecuentosCentros.GetValueOrDefault(v) > 0 || _estado.Split(',').Contains(v)))
+        .ToList();
+
+    private IReadOnlyDictionary<string, int> RecuentosCentros => CentrosPorBusqueda
+        .GroupBy(c => c.Estado.ToString()).ToDictionary(g => g.Key, g => g.Count());
+
+    private IReadOnlyList<CentroListaDto> CentrosConGestionCae =>
+        (_centros ?? []).Where(c => c.Estado != EstadoCentro.SinGestionCae).ToList();
+
+    private int CentrosSinIncidencias => CentrosConGestionCae.Count(c =>
+        c.Estado == EstadoCentro.Vigente && c.Recuentos.TotalVencidas == 0 && c.Recuentos.TotalProximas == 0
+        && !_bloqueos.Any(b => b.CentroId == c.Id));
+
+    private bool MostrarAnillo => !_cargandoCentros && !_errorCentros && _bloqueosLeidos
+        && _centros is not null && _centros.Count == _totalCentros && CentrosConGestionCae.Count > 0;
+
+    private RenderFragment AnilloDeCentros => builder =>
+    {
+        builder.OpenComponent<AnilloCumplimiento>(0);
+        builder.AddAttribute(1, nameof(AnilloCumplimiento.Porcentaje), (int)Math.Round(100d * CentrosSinIncidencias / CentrosConGestionCae.Count));
+        builder.AddAttribute(2, nameof(AnilloCumplimiento.Detalle), Textos["FraccionCentros", CentrosSinIncidencias, CentrosConGestionCae.Count].Value);
+        builder.AddAttribute(3, nameof(AnilloCumplimiento.Etiqueta), Textos["AnilloCentros", CentrosSinIncidencias, CentrosConGestionCae.Count].Value);
+        builder.AddAttribute(4, nameof(AnilloCumplimiento.Tamano), TamanoAnillo.Cabecera);
+        builder.CloseComponent();
+    };
 
     private bool HayBusqueda => !string.IsNullOrWhiteSpace(_busqueda);
 
@@ -207,10 +259,14 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// Los Centros que casan con el buscador, por nombre y sin distinguir mayúsculas. Filtra lo ya cargado, sin consulta
     /// nueva: los indicadores de la cabecera y el contador de la pestaña siguen contando todos.
     /// </summary>
-    private IReadOnlyList<CentroListaDto> CentrosVisibles =>
+    private IReadOnlyList<CentroListaDto> CentrosPorBusqueda =>
         _centros is null ? []
         : !HayBusqueda ? _centros
         : _centros.Where(c => c.Nombre.Contains(_busqueda.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+
+    private IReadOnlyList<CentroListaDto> CentrosVisibles =>
+        string.IsNullOrEmpty(_estado) ? CentrosPorBusqueda
+        : CentrosPorBusqueda.Where(c => SeleccionEstados.Separar<EstadoCentro>(_estado).Contains(c.Estado)).ToList();
 
     private static string Normalizar(string? pestana) =>
         pestana == "blindaje42" ? "documentacion" :
@@ -256,10 +312,12 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             var bloqueos = await LeerBloqueosDelClienteAsync(detalle.Id);
             if (generacion != _generacion) return;
             _bloqueos = bloqueos;
+            _bloqueosLeidos = true;
         }
         catch (Exception)
         {
             // Sin lectura nueva, la cabecera conserva el último recuento.
+            _bloqueosLeidos = false;
         }
     }
 
@@ -279,6 +337,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _centros = null;
         _totalCentros = 0;
         _bloqueos = [];
+        _bloqueosLeidos = false;
         _drawerToleranciasVisible = false;
         _errorCentros = false;
         _cargandoCentros = false;
@@ -391,11 +450,15 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
                 var bloqueos = await LeerBloqueosDelClienteAsync(id);
                 if (carga != _cargaCentros) return;
                 _bloqueos = bloqueos;
+                _bloqueosLeidos = true;
             }
             catch (Exception)
             {
                 if (carga == _cargaCentros)
+                {
                     _bloqueos = [];
+                    _bloqueosLeidos = false;
+                }
             }
         }
         catch (Exception)
@@ -504,14 +567,14 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             var mostrados = _centros?.Count ?? 0;
             // El buscador filtra lo cargado: con la lista cortada en MaximoCentros hay que seguir diciéndolo, o «0 de 200»
             // se leería como «este Cliente no tiene ese Centro».
-            if (HayBusqueda)
+            if (HayBusqueda || !string.IsNullOrEmpty(_estado))
                 return _totalCentros > mostrados
                     ? Textos["ResumenCentrosBuscadosTruncado", CentrosVisibles.Count, mostrados, _totalCentros]
                     : Textos["ResumenCentrosBuscados", CentrosVisibles.Count, mostrados];
 
             return _totalCentros > mostrados
                 ? Textos["ResumenCentrosTruncado", mostrados, _totalCentros]
-                : Plural(mostrados, "ResumenCentrosUno", "ResumenCentrosVarios");
+                : Textos["ResumenCentrosBuscados", CentrosVisibles.Count, mostrados];
         }
     }
 
@@ -527,14 +590,21 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             ? Textos["DetalleEntraComoContratista", centro.EmpresaRazonSocial].Value
             : null;
 
-    /// <summary>«Entra como contratista: Ibertec GmbH · 3 vencidos · 1 próximo», sin partes en cero; vacío si no queda ninguna.</summary>
+    /// <summary>Empresa contratista, motivos documentales, bloqueos de plataforma y Trabajadores bloqueados, sin partes en cero ni confundir pendientes con vencidos.</summary>
     private string DetalleCentro(CentroListaDto centro)
     {
         var partes = new List<string>();
         if (EntraComoContratista(centro) is { } contratista)
             partes.Add(contratista);
-        if (centro.Recuentos.TotalVencidas > 0)
-            partes.Add(Plural(centro.Recuentos.TotalVencidas, "DetalleVencidosUno", "DetalleVencidosVarios"));
+        if (centro.Recuentos.VencidasPorFecha.Count > 0)
+            partes.Add(Plural(centro.Recuentos.VencidasPorFecha.Count, "DetalleVencidosUno", "DetalleVencidosVarios"));
+        if (centro.Recuentos.Pendientes.Count > 0)
+            partes.Add(Textos[centro.Recuentos.Pendientes.Count == 1 ? "DetallePendienteUno" : "DetallePendientes", centro.Recuentos.Pendientes.Count]);
+        if (centro.Recuentos.Bloqueos.Count > 0)
+            partes.Add(Plural(centro.Recuentos.Bloqueos.Count, "DetalleBloqueoPlataformaUno", "DetalleBloqueosPlataformaVarios"));
+        var bloqueados = _bloqueos.Where(b => b.CentroId == centro.Id).Select(b => b.TrabajadorId).Distinct().Count();
+        if (bloqueados > 0)
+            partes.Add(Textos[bloqueados == 1 ? "DetalleTrabajadorBloqueadoUno" : "DetalleTrabajadoresBloqueados", bloqueados]);
         if (centro.Recuentos.TotalProximas > 0)
             partes.Add(Plural(centro.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios"));
         return string.Join(" · ", partes);

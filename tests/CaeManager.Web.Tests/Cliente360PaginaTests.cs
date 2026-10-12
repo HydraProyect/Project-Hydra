@@ -32,7 +32,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Cliente 360, página (<see cref="ClienteDetalle"/>): tarjeta de identidad compartida sin anillo,
+/// Cliente 360, página (<see cref="ClienteDetalle"/>): tarjeta de identidad compartida con fracción de Centros,
 /// indicadores por centro, pestañas con la activa en <c>?pestana=</c>, filas
 /// que enlazan a la página 360 de cada entidad y abren su panel con el botón
 /// 360, y el error indistinguible de «no existe» / «fuera de alcance».
@@ -78,6 +78,7 @@ public class Cliente360PaginaTests : BunitContext
 
         /// <summary>Los bloqueos de acceso visibles (la consulta sin Centro): la página se queda con los de su Cliente empresarial.</summary>
         public List<DocumentacionBloqueantePendienteDto> Bloqueos { get; } = [];
+        public bool FallaLecturaBloqueos { get; set; }
         public List<object> Enviadas { get; } = [];
 
         /// <summary>Lo que ocurre en el servidor al guardar una tolerancia (p. ej. que los bloqueos cambien).</summary>
@@ -103,7 +104,9 @@ public class Cliente360PaginaTests : BunitContext
             ObtenerBlindajeEmpresasDeClienteQuery => Certificaciones,
             ObtenerHistorialCertificacionesTgssQuery => HistorialCertificaciones,
             SolicitarCertificacionTgssCommand => Result.Exito(Guid.NewGuid()),
-            ObtenerDocumentacionBloqueantePendienteQuery => (IReadOnlyList<DocumentacionBloqueantePendienteDto>)Bloqueos.ToList(),
+            ObtenerDocumentacionBloqueantePendienteQuery => FallaLecturaBloqueos
+                ? throw new InvalidOperationException("Fallo de lectura de bloqueos")
+                : (IReadOnlyList<DocumentacionBloqueantePendienteDto>)Bloqueos.ToList(),
             ObtenerToleranciasClienteEmpresarialQuery => (IReadOnlyList<ToleranciaTipoDocumentoDto>)
                 [new ToleranciaTipoDocumentoDto(Guid.NewGuid(), "Formación PRL", AmbitoAplicacion.Trabajador, 0)],
             EstablecerToleranciaClienteEmpresarialCommand => GuardarTolerancia(),
@@ -182,10 +185,42 @@ public class Cliente360PaginaTests : BunitContext
     private static List<string> Textos(IEnumerable<IElement> elementos) =>
         elementos.Select(e => e.TextContent.Trim()).ToList();
 
+    [Theory]
+    [InlineData(1, "1 bloqueado por la plataforma")]
+    [InlineData(2, "2 bloqueados por la plataforma")]
+    public void El_detalle_cuenta_el_bloqueo_de_plataforma_sin_estado_documental(int cantidad, string esperado)
+    {
+        var (id, mediador) = ClienteBase();
+        var centro = Centro("Centro solo plataforma", EstadoCentro.Bloqueado) with
+        {
+            Recuentos = new RecuentosCentroDto(
+                Enumerable.Range(0, cantidad).Select(_ => new IncidenciaCentroDto("Acceso denegado", AmbitoCausa.Empresa, null, null, null, null)).ToList(), [])
+        };
+        mediador.Centros.Add(centro);
+        Registrar(mediador);
+        var cut = Renderizar(id);
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Be(esperado);
+        cut.Find(".fila-relacion-detalle").TextContent.Should().NotContain("vencido").And.NotContain("pendiente");
+    }
+
+    [Fact]
+    public void La_franja_conserva_el_estado_seleccionado_sin_coincidencias()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.Add(Centro("Centro vigente", EstadoCentro.Vigente));
+        Registrar(mediador);
+        var cut = Renderizar(id, "?estado=Bloqueado&q=Centro&extra=conservar");
+        var filtro = cut.Find(".franja-estado [data-estado=Bloqueado]");
+        filtro.GetAttribute("aria-pressed").Should().Be("true");
+        filtro.QuerySelector(".franja-estado-recuento")!.TextContent.Should().Be("0");
+        cut.FindAll(".fila-relacion").Should().BeEmpty();
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Centro").And.Contain("extra=conservar");
+    }
+
     // ── Cabecera ──────────────────────────────────────────────────────────
 
     [Fact]
-    public void La_cabecera_en_tarjeta_pinta_identidad_CIF_y_recuentos_sin_anillo()
+    public void La_cabecera_en_tarjeta_pinta_identidad_CIF_y_recuentos_sin_anillo_si_no_hay_centros()
     {
         var (id, mediador) = ClienteBase(critico: true);
         Registrar(mediador);
@@ -202,7 +237,7 @@ public class Cliente360PaginaTests : BunitContext
             .Should().NotBeNull("el CIF se copia con BotonCopiar");
         Textos(cabecera.QuerySelectorAll(".cabecera-identidad-titular .badge")).Should().Equal(["Crítico"]);
         cut.FindAll(".anillo-cumplimiento, [class*='anillo']").Should().BeEmpty(
-            "el anillo del Cliente empresarial queda aplazado por decisión del propietario");
+            "sin Centros no hay un universo de gestión CAE que medir");
     }
 
     /// <summary>
@@ -446,6 +481,96 @@ public class Cliente360PaginaTests : BunitContext
         consulta.Estado.Should().BeNull();
     }
 
+    [Fact]
+    public void El_anillo_cuenta_centros_sin_incidencias_y_excluye_Sin_gestion_CAE()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.AddRange([Centro("Vigente", EstadoCentro.Vigente),
+            Centro("Por vencer", EstadoCentro.Urgente, proximas: 1), Centro("Sin CAE", EstadoCentro.SinGestionCae)]);
+        mediador.TotalCentros = 3;
+        Registrar(mediador);
+        var cut = Renderizar(id);
+
+        cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().Be("1 de 2 centros con gestión CAE sin incidencias");
+        cut.Find(".anillo-cumplimiento-detalle").TextContent.Should().Be("1 de 2 centros");
+        cut.Find(".cliente360-sin-gestion-cae").TextContent.Should().Contain("SIN GESTIÓN CAE · no cuentan en el anillo").And.Contain("Sin CAE");
+        cut.FindAll(".cliente360-sin-gestion-cae .fila-relacion").Should().ContainSingle();
+        var sinGestion = cut.Find(".cliente360-sin-gestion-cae");
+        sinGestion.HasAttribute("aria-label").Should().BeFalse();
+        sinGestion.GetAttribute("aria-labelledby").Should().Be(sinGestion.QuerySelector("h3")!.Id);
+        sinGestion.QuerySelector(".lista-relaciones")!.GetAttribute("aria-label").Should().Be("Centros de este Cliente");
+        cut.FindAll(".fila-relacion-nombre").Select(x => x.TextContent.Trim()).Should().Equal("Vigente", "Por vencer", "Sin CAE");
+    }
+
+    [Fact]
+    public async Task La_franja_cuenta_antes_de_filtrar_y_conserva_la_busqueda_en_la_URL()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.AddRange([Centro("Planta vencida", EstadoCentro.Vencido),
+            Centro("Planta vigente", EstadoCentro.Vigente), Centro("Almacén", EstadoCentro.Vencido)]);
+        mediador.TotalCentros = 3;
+        Registrar(mediador);
+        var cut = Renderizar(id, "?q=Planta");
+        var consultas = mediador.Enviadas.Count;
+        cut.Find(".franja-estado [data-estado=Vencido] .franja-estado-recuento").TextContent.Should().Be("1");
+
+        await cut.Find(".franja-estado [data-estado=Vencido]").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".fila-relacion-nombre").Select(x => x.TextContent.Trim()).Should().Equal("Planta vencida");
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=Planta").And.Contain("estado=Vencido");
+        cut.Find(".franja-estado [data-estado=Vigente] .franja-estado-recuento").TextContent.Should().Be("1");
+        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("Mostrando 1 de 3 · del peor estado al mejor");
+        mediador.Enviadas.Should().HaveCount(consultas, "el filtro actúa sobre la lista ya cargada");
+        cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().StartWith("1 de 3");
+    }
+
+    [Fact]
+    public void Sin_lectura_de_bloqueos_no_se_presenta_un_anillo_favorable()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.Add(Centro("Planta", EstadoCentro.Vigente));
+        mediador.TotalCentros = 1;
+        mediador.FallaLecturaBloqueos = true;
+        Registrar(mediador);
+        var cut = Renderizar(id);
+
+        cut.FindAll("[data-pieza=anillo]").Should().BeEmpty("no se ha medido la ausencia de bloqueos");
+        cut.FindAll(".fila-relacion-nombre").Should().ContainSingle();
+    }
+
+    [Fact]
+    public void El_estado_en_el_enlace_filtra_la_lista_y_marca_su_contador()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.AddRange([Centro("Vencida", EstadoCentro.Vencido), Centro("Vigente", EstadoCentro.Vigente)]);
+        mediador.TotalCentros = 2;
+        Registrar(mediador);
+        var cut = Renderizar(id, "?estado=Vencido");
+
+        cut.FindAll(".fila-relacion-nombre").Select(x => x.TextContent.Trim()).Should().Equal("Vencida");
+        cut.Find(".franja-estado [data-estado=Vencido]").GetAttribute("aria-pressed").Should().Be("true");
+    }
+
+    [Fact]
+    public void El_motivo_separa_pendientes_de_vencidos_y_cuenta_trabajadores_bloqueados_sin_duplicarlos()
+    {
+        var (id, mediador) = ClienteBase();
+        var centro = Centro("Planta", EstadoCentro.Faltante) with
+        {
+            Recuentos = new RecuentosCentroDto([Incidencia(EstadoDocumento.Faltante), Incidencia(EstadoDocumento.Vencido)], [])
+        };
+        mediador.Centros.Add(centro);
+        mediador.TotalCentros = 1;
+        var trabajadorId = Guid.NewGuid();
+        var bloqueo = Bloqueo(id, centro.Nombre, trabajadorId, "Ana Alba") with { CentroId = centro.Id };
+        mediador.Bloqueos.AddRange([bloqueo, bloqueo with { TipoDocumentoId = Guid.NewGuid() }]);
+        Registrar(mediador);
+        var cut = Renderizar(id);
+
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Contain("1 vencido").And.Contain("1 pendiente")
+            .And.Contain("1 trabajador bloqueado").And.NotContain("2 vencidos");
+        cut.Find("[data-pieza=anillo]").GetAttribute("aria-label").Should().StartWith("0 de 1");
+    }
+
     // ── Pestañas ──────────────────────────────────────────────────────────
 
     [Fact]
@@ -460,8 +585,8 @@ public class Cliente360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         Textos(cut.FindAll("[role=tab]")).Should().Equal([
-            "Centros2 centros", "Empresas1 empresa", "Subcontratas0 subcontratas",
-            "Documentación", "Agenda", "Historial"]);
+            "Centros2 centros", "Subcontratas0 subcontratas", "Documentación",
+            "Empresas1 empresa", "Agenda", "Historial"]);
         cut.FindAll("[role=tab]").Should().HaveCount(6);
         cut.FindAll("[role=tab]").Select(t => t.TextContent).Should().NotContain(t => t.Contains("Blindaje"));
         cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Centros");
@@ -701,7 +826,7 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("2 centros de este Cliente, del peor estado al mejor.");
+        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("Mostrando 2 de 2 · del peor estado al mejor");
         var filas = cut.FindAll("li.fila-relacion");
         filas.Select(f => f.QuerySelector("a.fila-relacion-nombre")!.GetAttribute("href"))
             .Should().Equal([$"/centros/{bloqueado.Id}", $"/centros/{vigente.Id}"], "el orden es el de la consulta: peor primero");
@@ -727,7 +852,8 @@ public class Cliente360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("Se muestran los 2 centros con peor estado de 250.");
+        cut.Find(".cliente360-resumen-lista").TextContent.Should().Be("Se muestran los 2 centros con peor estado de 250. · del peor estado al mejor");
+        cut.FindAll("[data-pieza=anillo]").Should().BeEmpty("una lista truncada no define una fracción global");
         cut.Find(".cliente360-indicador-boton").TextContent.Trim().Should().Be("Bloqueo de la plataforma CAE en 1 de 250 centros");
     }
 
