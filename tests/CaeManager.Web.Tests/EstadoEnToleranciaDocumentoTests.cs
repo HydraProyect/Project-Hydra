@@ -206,7 +206,7 @@ public class EstadoEnToleranciaDocumentoTests : BunitContext
 
         var totales = cut.Find("[data-totales-documentales]").TextContent;
         System.Text.RegularExpressions.Regex.Replace(totales, @"\s+", " ").Should()
-            .Contain("1 exigidos · 0 al día · 1 vencidos · 0 faltantes");
+            .Contain("1 exigidos · 0 al día · 1 vencidos · 0 pendientes");
     }
 
     [Theory]

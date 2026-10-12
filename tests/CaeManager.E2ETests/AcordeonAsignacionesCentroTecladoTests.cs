@@ -6,7 +6,7 @@ namespace CaeManager.E2ETests;
 public class AcordeonAsignacionesCentroTecladoTests(WebAppFixture fixture)
 {
     [Fact]
-    public async Task Trabajadores_del_acordeon_entran_en_j_k_y_e_abre_sus_Detalles()
+    public async Task Trabajadores_del_acordeon_entran_en_j_k_y_e_pulsa_la_accion_que_la_fila_ofrece()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -55,17 +55,30 @@ public class AcordeonAsignacionesCentroTecladoTests(WebAppFixture fixture)
         await page.Keyboard.PressAsync("k");
         await Assertions.Expect(enfocada).ToContainTextAsync(primero);
         var estado = await primeraFila.Locator(".fila-relacion-estado").BoundingBoxAsync();
-        var incidencias = await primeraFila.Locator(".tarjeta-fila-acordeon-indicadores").BoundingBoxAsync();
+        var pastilla = await primeraFila.Locator(".fila-relacion-estado .badge").BoundingBoxAsync();
         Assert.NotNull(estado);
-        Assert.NotNull(incidencias);
-        Assert.True(incidencias.Width <= estado.Width + 1, "Las tres ranuras de incidencias deben caber en la columna de estado.");
+        Assert.NotNull(pastilla);
+        Assert.True(pastilla.Width <= estado.Width + 1, "La pastilla debe caber en la columna de estado.");
+        Assert.True(await nombre.EvaluateAsync<bool>("e => e.scrollWidth <= e.clientWidth + 1"), "El nombre completo debe caber sin recorte horizontal.");
         var divisores = await filas.EvaluateAllAsync<float[]>(
             "elementos => elementos.filter(e => e.getBoundingClientRect().height > 0).map(e => parseFloat(getComputedStyle(e).borderTopWidth))");
         Assert.Equal(0, divisores[0]);
         Assert.All(divisores.Skip(1), borde => Assert.Equal(1, borde));
         await Assertions.Expect(page.Locator(".lista-trabajadores-acordeon .lista-relaciones-tarjeta")).ToHaveCountAsync(1);
         await Assertions.Expect(page.Locator(".lista-trabajadores-acordeon .lista-relaciones")).ToHaveAttributeAsync("aria-label", new System.Text.RegularExpressions.Regex("^Trabajadores · .+$"));
-        await page.Keyboard.PressAsync("e");
-        await Assertions.Expect(page.Locator(".workspace-panel")).ToHaveAttributeAsync("aria-label", $"Panel de contexto — {primero}");
+        var conPedir = filas.Filter(new() { Has = page.Locator(".fila-relacion-acciones").GetByRole(AriaRole.Button, new() { Name = "Pedir", Exact = true }) });
+        if (await conPedir.CountAsync() > 0)
+        {
+            var nombreConPedir = await conPedir.EvaluateAllAsync<string>("elementos => elementos.find(e => e.getBoundingClientRect().height > 0).querySelector('.fila-relacion-nombre').textContent.trim()");
+            await page.GetByRole(AriaRole.Button, new() { Name = nombreConPedir, Exact = true }).FocusAsync();
+            await page.Keyboard.PressAsync("e");
+            await Assertions.Expect(page.GetByRole(AriaRole.Dialog, new() { Name = "Reclamar en lote", Exact = true })).ToBeVisibleAsync();
+        }
+        else
+        {
+            await page.Keyboard.PressAsync("e");
+            await Assertions.Expect(page.Locator(".workspace-panel")).ToHaveCountAsync(0);
+        }
+
     }
 }

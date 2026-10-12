@@ -205,8 +205,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await Expect(badgeFalta).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await Expect(badgeFalta).ToHaveTextAsync("Pendiente", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
 
-        // --- Paso 5: Gestionar → subir el documento, sin salir de /centros ---
-        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Gestionar" }).ClickAsync();
+        // --- Paso 5: Subir el documento pendiente, sin salir de /centros ---
+        await filaDocumento.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Subir" }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         var hoy = DateOnly.FromDateTime(DateTime.UtcNow);

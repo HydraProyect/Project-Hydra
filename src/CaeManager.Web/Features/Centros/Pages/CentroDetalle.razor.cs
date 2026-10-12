@@ -1,3 +1,4 @@
+using CaeManager.Domain.Documentos;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
@@ -52,6 +53,16 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
 
+    private int? _numeroTrabajadores;
+    private FraccionCumplimiento? _cumplimientoTrabajadores;
+
+    private void ActualizarResumenTrabajadores((Guid CentroId, int? Trabajadores, FraccionCumplimiento? Cumplimiento) resumen)
+    {
+        if (resumen.CentroId != CentroId) return;
+        _numeroTrabajadores = resumen.Trabajadores;
+        _cumplimientoTrabajadores = resumen.Cumplimiento;
+    }
+
     private const string PestanaTrabajadores = "trabajadores";
     private const string PestanaVisitas = "visitas";
     private string _pestana = PestanaTrabajadores;
@@ -73,6 +84,9 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
                 EnAlerta: TrabajadoresConIncidencias > 0)
         },
         new(PestanaVisitas, Textos["PestanaVisitas"])
+        {
+            Contador = new ContadorPestana(_visitas.Count, Textos["VisitasProgramadas360"])
+        }
     ];
 
     private void CambiarPestana(string pestana)
@@ -192,9 +206,9 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
     }
 
-    private void CambiarEstado(string valor)
+    private void CambiarEstado(string? valor)
     {
-        _estadoFiltro = valor;
+        _estadoFiltro = valor ?? string.Empty;
         _estadoDeLaUrl = string.IsNullOrWhiteSpace(valor) ? null : valor;
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
     }
@@ -233,6 +247,8 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         InvalidarCargas();
         _detalle = null;
         _resumen = null;
+        _numeroTrabajadores = null;
+        _cumplimientoTrabajadores = null;
         _visitas = [];
         _canales = [];
         _documentosPorReclamar = 0;

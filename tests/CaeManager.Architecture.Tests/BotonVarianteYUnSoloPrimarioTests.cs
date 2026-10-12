@@ -27,7 +27,7 @@ namespace CaeManager.Architecture.Tests;
 /// contenedores, numerado por orden de aparición en su fichero (<c>#Drawer1</c>). Un primario es un
 /// <c>Variante</c> cuyo valor contiene <c>VarianteBoton.Primario</c>, también dentro de un condicional
 /// (<c>@(x ? Primario : Secundario)</c> cuenta). NO ve: una pantalla compuesta de varios componentes hijos
-/// con un primario cada uno (Centro 360 pinta «Programar visita» en <c>CentroDetalle</c> y «+ Asignar
+/// con un primario cada uno (Centro 360 pinta «Abrir portal» en <c>CentroDetalle</c> y «+ Asignar
 /// trabajador» en <c>AcordeonAsignacionesCentro</c>, dos primarios que el mockup quiere y que este test no
 /// puede sumar); una <c>Variante="Variante"</c> o <c>VarianteConfirmar</c> que llegue por parámetro (su valor
 /// real lo pone el llamador, que sí se cuenta en su fichero); botones con primarios en ramas excluyentes
