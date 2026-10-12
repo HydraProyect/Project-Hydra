@@ -11,6 +11,8 @@
 @using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita
 @using CaeManager.Domain.Visitas
 @using CaeManager.Web.Features.Documentos.Components
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Recursos
 @using CaeManager.Web.Features.Visitas
 @using CaeManager.Web.Features.Visitas.Components
 @using CaeManager.Web.Features.Visitas.Recursos
@@ -18,6 +20,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosVisitas> Textos
 @inject IStringLocalizer<TextosComunes> Comunes
+@inject IStringLocalizer<TextosTipoDocumento360> TextosDocumentos360
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@(_detalle is null ? Textos["Visita360TituloPestanaNavegador"] : Textos["Visita360TituloConCentro", _detalle.CentroNombre]) — @Marca.Nombre</PageTitle>
@@ -241,10 +244,20 @@
                                                 }
                                                 @foreach (var documento in grupo.Visibles)
                                                 {
+                                                    var accion = EstadoDocumentoFicha360.Accion(documento.Estado);
                                                     <FilaRelacion @key="claves.De((grupo.Id, documento.TipoDocumentoId))" Nombre="@documento.TipoDocumentoNombre"
                                                                   OnNombre="() => AbrirDocumento(documento)" Tono="EstadoDocumentoVisitaUi.TonoDeFila(documento.Estado)">
                                                         <Detalle>@DetalleDocumento(documento)</Detalle>
                                                         <Estado><Badge Tono="EstadoDocumentoVisitaUi.Tono(documento.Estado)">@EstadoDocumentoVisitaUi.Texto(documento.Estado, Textos)</Badge></Estado>
+                                                        <Acciones>
+                                                            @if (accion is not null)
+                                                            {
+                                                                <SoloConEscritura>
+                                                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                                                           OnClick="() => CorregirDocumentoAsync(documento)">@TextosDocumentos360[$"Accion{accion}"]</Boton>
+                                                                </SoloConEscritura>
+                                                            }
+                                                        </Acciones>
                                                     </FilaRelacion>
                                                 }
                                             }
@@ -317,6 +330,13 @@
 </div>
 
 <VisorDocumento Visible="_visorVisible" VisibleChanged="v => _visorVisible = v" DocumentoId="_visorDocumentoId" Titulo="@_visorTitulo" />
+
+@if (CompruebaDocumentacion)
+{
+    <SoloConEscritura>
+        <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="DocumentoGuardadoAsync" />
+    </SoloConEscritura>
+}
 
 @if (_puedeEscribir)
 {

@@ -6,6 +6,10 @@ using Microsoft.AspNetCore.Components.Web;
 using Bunit;
 using Bunit.TestDoubles;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
+using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Application.Visitas.Commands.CancelarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarNotificadoCliente;
 using CaeManager.Application.Visitas.Commands.QuitarMarcaDocumentacionGestionada;
@@ -81,6 +85,19 @@ public class Visita360PaginaTests : BunitContext
                     return Detalles.GetValueOrDefault(q.Id);
                 case ObtenerDocumentacionVisitaQuery:
                     return Documentacion;
+                case ObtenerDocumentoPorIdQuery:
+                    return null;
+                case ObtenerTrabajadoresParaSelectorQuery:
+                    return Documentacion.Trabajadores.Select(t => new TrabajadorSelectorDto(t.TrabajadorId, t.NombreCompleto, null, t.EmpleadorNombre)).ToList();
+                case ObtenerEmpresasParaSelectorQuery:
+                    return new List<EmpresaSelectorDto> { new(Documentacion.EmpresaId, "Empresa del Centro") };
+                case ObtenerTiposDocumentoQuery q:
+                    var documentos = q.AmbitoAplicacion == AmbitoAplicacion.Empresa
+                        ? Documentacion.Empresa.Documentos
+                        : Documentacion.Trabajadores.SelectMany(t => t.Documentacion.Documentos).ToList();
+                    return documentos.DistinctBy(d => d.TipoDocumentoId).Select(d => new TipoDocumentoListaDto(
+                        d.TipoDocumentoId, d.TipoDocumentoNombre, 12, true, 0, q.AmbitoAplicacion ?? AmbitoAplicacion.Trabajador,
+                        default, default, null, null, null, null, false, false, false, default, [])).ToList();
                 case ObtenerSolicitudAccesoCorreoQuery:
                     return Result.Exito(new SolicitudAccesoCorreoDto("accesos@centro.example", "Solicitud de acceso — Sede Sevilla", "Buenos días"));
                 case ObtenerAvisoVisitaQuery:
@@ -131,6 +148,18 @@ public class Visita360PaginaTests : BunitContext
 
     // ── Montaje ───────────────────────────────────────────────────────────
 
+    private sealed class AlmacenArchivosNoUsado : IFileStorageService
+    {
+        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class ConversorNoUsado : IConversorWordPdfService
+    {
+        public Task<byte[]> ConvertirAPdfAsync(byte[] contenidoDocx, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private static DetalleVisitaDto Detalle(
         Guid? id = null, string centro = "Sede Sevilla", bool requiereGestion = true, bool porCorreo = true, bool cancelada = false,
         TramoAntelacion? tramo = null) => new(
@@ -178,7 +207,11 @@ public class Visita360PaginaTests : BunitContext
         this.ConRolDeEscritura(rol);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        Services.AddScoped<IFileStorageService, AlmacenArchivosNoUsado>();
+        Services.AddScoped<IConversorWordPdfService, ConversorNoUsado>();
+        Services.AddLogging();
         Services.AddLocalization();
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
 
         // La pestaña es un parámetro de consulta: llega por la URL, no como parámetro del componente.
         if (pestana is not null)
@@ -190,6 +223,98 @@ public class Visita360PaginaTests : BunitContext
 
     private static IEnumerable<string> Botones(IRenderedComponent<VisitaDetalle> cut) =>
         cut.FindAll("button, a").Select(b => b.TextContent.Trim());
+
+    private static AngleSharp.Dom.IElement FilaDeDocumento(IRenderedComponent<VisitaDetalle> cut, string tipo) =>
+        cut.FindAll("[data-pieza=fila]").Single(f => f.QuerySelector(".fila-relacion-nombre")?.TextContent.Trim() == tipo);
+
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, "Renovar")]
+    [InlineData(EstadoDocumento.EnTolerancia, "Renovar")]
+    [InlineData(EstadoDocumento.Urgente, "Renovar")]
+    [InlineData(EstadoDocumento.SinConfirmar, "Confirmar")]
+    public async Task Renovar_y_Confirmar_inician_el_editor_del_documento_correcto_sin_abrir_el_visor(EstadoDocumento estado, string accion)
+    {
+        var documento = Documento("Documento a corregir", estado, Paula);
+        var documentacion = new DocumentacionVisitaDto(Guid.NewGuid(), new(EstadoDocumento.Vigente, []),
+            [new(Paula, "Paula Campos", "Empresa Demo", new(estado, [documento]))]);
+        var (cut, mediador) = Montar(Detalle(porCorreo: false), documentacion: documentacion);
+        var fila = FilaDeDocumento(cut, documento.TipoDocumentoNombre);
+        fila.QuerySelector(".fila-relacion-acciones")!.TextContent.Trim().Should().Be(accion);
+
+        await fila.QuerySelector(".fila-relacion-acciones button")!.ClickAsync(new MouseEventArgs());
+        mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(documento.DocumentoId!.Value);
+        cut.FindComponent<Stub<VisorDocumento>>().Instance.Parameters.Get(x => x.Visible).Should().BeFalse();
+        // El falso devuelve null por ID: aquí se observa la entrada al editor, no un guardado completo.
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Subir_preselecciona_el_Tipo_y_el_Trabajador_o_la_Empresa_del_Centro(bool deEmpresa)
+    {
+        var documento = Documento("Documento pendiente", EstadoDocumento.Faltante, deEmpresa ? null : Paula);
+        var empresa = Guid.NewGuid();
+        var documentacion = new DocumentacionVisitaDto(empresa,
+            new(deEmpresa ? EstadoDocumento.Faltante : EstadoDocumento.Vigente, deEmpresa ? [documento] : []),
+            [new(Paula, "Paula Campos", "Empresa Demo", new(deEmpresa ? EstadoDocumento.Vigente : EstadoDocumento.Faltante, deEmpresa ? [] : [documento]))]);
+        var (cut, mediador) = Montar(Detalle(porCorreo: false), documentacion: documentacion);
+        var fila = FilaDeDocumento(cut, documento.TipoDocumentoNombre);
+        fila.QuerySelector(".fila-relacion-acciones")!.TextContent.Trim().Should().Be("Subir");
+
+        await fila.QuerySelector(".fila-relacion-acciones button")!.ClickAsync(new MouseEventArgs());
+        cut.FindComponent<SelectorTipoDocumento>().Instance.Valor.Should().Be(documento.TipoDocumentoId.ToString());
+        if (deEmpresa)
+            cut.FindComponents<CampoSelect>().Single(c => c.Instance.Etiqueta == "Empresa").Instance.Valor.Should().Be(empresa.ToString());
+        else
+            cut.FindComponents<CampoBuscarSelect>().Single(c => c.Instance.Etiqueta == "Trabajador").Instance.Valor.Should().Be(Paula.ToString());
+        mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerTrabajadoresParaSelectorQuery>().Should().ContainSingle().Which.Alcance.Should().Be(AlcanceSelectorTrabajadores.Cartera);
+        cut.FindComponent<Stub<VisorDocumento>>().Instance.Parameters.Get(x => x.Visible).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(EstadoDocumento.Proximo)]
+    [InlineData(EstadoDocumento.Vigente)]
+    [InlineData(EstadoDocumento.SinCaducidad)]
+    public void Un_documento_que_no_pide_accion_conserva_la_fila_sin_boton(EstadoDocumento estado)
+    {
+        var documento = Documento("Documento al día", estado, Paula);
+        var documentacion = new DocumentacionVisitaDto(Guid.NewGuid(), new(EstadoDocumento.Vigente, []),
+            [new(Paula, "Paula Campos", "Empresa Demo", new(estado, [documento]))]);
+        var (cut, _) = Montar(Detalle(porCorreo: false), documentacion: documentacion);
+        FilaDeDocumento(cut, documento.TipoDocumentoNombre).QuerySelectorAll(".fila-relacion-acciones button").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Guardar_en_el_editor_relee_la_comprobacion_y_retira_la_accion_resuelta()
+    {
+        var documentacion = DocumentacionConIncidencias();
+        var (cut, mediador) = Montar(Detalle(porCorreo: false), documentacion: documentacion);
+        var consultasDetalle = mediador.Enviadas.OfType<ObtenerDetalleVisitaQuery>().Count();
+        var anteriores = mediador.Enviadas.OfType<ObtenerDocumentacionVisitaQuery>().Count();
+        var trabajador = documentacion.Trabajadores[0];
+        mediador.Documentacion = documentacion with
+        {
+            Trabajadores = [trabajador with { Documentacion = new(EstadoDocumento.Vigente, trabajador.Documentacion.Documentos.Select(d => d with { Estado = EstadoDocumento.Vigente }).ToList()) }, documentacion.Trabajadores[1]]
+        };
+
+        await cut.InvokeAsync(() => cut.FindComponent<DrawerGestionDocumento>().Instance.OnGuardado.InvokeAsync());
+        mediador.Enviadas.OfType<ObtenerDocumentacionVisitaQuery>().Should().HaveCount(anteriores + 1);
+        mediador.Enviadas.OfType<ObtenerDetalleVisitaQuery>().Should().HaveCount(consultasDetalle);
+        FilaDeDocumento(cut, "Entrega de EPI").QuerySelectorAll(".fila-relacion-acciones button").Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.GestorCae, true)]
+    public void Consulta_y_Visita_cancelada_no_montan_el_editor_ni_ofrecen_acciones_documentales(string rol, bool cancelada)
+    {
+        var (cut, mediador) = Montar(Detalle(cancelada: cancelada), rol, DocumentacionConIncidencias());
+        cut.FindComponents<DrawerGestionDocumento>().Should().BeEmpty();
+        cut.FindAll(".fila-relacion-acciones button").Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerDocumentoPorIdQuery>().Should().BeEmpty();
+        mediador.Enviadas.OfType<ObtenerTiposDocumentoQuery>().Should().BeEmpty();
+    }
 
     [Theory]
     [InlineData(Roles.GestorCae, false, true)]
